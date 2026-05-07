@@ -625,7 +625,10 @@ export function ApplicationFinancialReviewContent({
 
   return (
     <>
-      <ReviewFieldBlock title="Financial Summary">
+      <ReviewFieldBlock
+        title="Financial Summary"
+        titleTooltip="Past financial years come from the organization CTOS report. The latest financial year is entered by the issuer."
+      >
         <div className={applicationTableWrapperClass}>
           <div className="overflow-x-auto">
             <Table className="table-fixed w-full min-w-[760px] text-[15px]">
@@ -771,7 +774,10 @@ export function ApplicationFinancialReviewContent({
         </div>
       </ReviewFieldBlock>
 
-      <ReviewFieldBlock title="Director and Shareholders">
+      <ReviewFieldBlock
+        title="Director and Shareholders"
+        titleTooltip="The director and shareholder list comes from the organization CTOS report. Fetch again to get the latest list."
+      >
         {hasPendingDirectorShareholder ? (
           <div className="rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
             {ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT}

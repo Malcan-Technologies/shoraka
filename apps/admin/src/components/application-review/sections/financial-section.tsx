@@ -181,7 +181,7 @@ function FinancialCtosHeaderControls({
           <Button
             variant="secondary"
             size="sm"
-            className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
+            className={cn(CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, "h-9")}
             disabled={createOrgCtos.isPending || !issuerOrgId}
             onClick={() => setOrgCtosConfirmOpen(true)}
           >
@@ -190,7 +190,7 @@ function FinancialCtosHeaderControls({
           <Button
             variant="outline"
             size="sm"
-            className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
+            className={cn(CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, "h-9")}
             disabled={!app.issuer_organization?.latest_organization_ctos_has_report_html}
             onClick={() => void openFullReport()}
           >

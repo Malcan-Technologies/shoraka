@@ -200,7 +200,7 @@ export function DirectorShareholderTable({
                         type="button"
                         variant="secondary"
                         size="sm"
-                        className="h-8"
+                        className="h-9"
                         onClick={() => {
                           const idKey = normalizeDirectorShareholderIdKey(p.matchKey);
                           if (!idKey) {
@@ -232,7 +232,7 @@ export function DirectorShareholderTable({
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-8"
+                        className="h-9"
                         disabled={!latestReport}
                         title={
                           latestReport
