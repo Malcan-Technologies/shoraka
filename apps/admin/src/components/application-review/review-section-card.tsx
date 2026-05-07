@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { reviewCardTitleClass } from "./review-section-styles";
 import { SectionActionDropdown } from "./section-action-dropdown";
 import type { ReviewSectionId } from "./section-types";
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 export interface ReviewSectionCardProps {
   title: string;
@@ -15,6 +15,8 @@ export interface ReviewSectionCardProps {
   isActionLocked?: boolean;
   actionLockTooltip?: string;
   sectionStatus?: string;
+  /** Optional node rendered in the header right area, next to the Action dropdown. */
+  headerRight?: ReactNode;
   onResetToPending?: (section: ReviewSectionId) => void;
   onApprove?: (section: ReviewSectionId) => void;
   onReject?: (section: ReviewSectionId) => void;
@@ -44,6 +46,7 @@ export function ReviewSectionCard({
   isActionLocked,
   actionLockTooltip,
   sectionStatus,
+  headerRight,
   onResetToPending,
   onApprove,
   onReject,
@@ -73,26 +76,30 @@ export function ReviewSectionCard({
             <Icon className="h-5 w-5 text-primary" />
             <CardTitle className={reviewCardTitleClass}>{title}</CardTitle>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-start gap-3 shrink-0">
+            {headerRight ? <div className="pt-1">{headerRight}</div> : null}
             {showActions ? (
-              <SectionActionDropdown
-                section={section}
-                isReviewable={isReviewable!}
-                onApprove={onApprove}
-                onReject={onReject}
-                onRequestAmendment={onRequestAmendment}
-                isPending={!!approvePending}
-                isActionLocked={isActionLocked}
-                actionLockTooltip={actionLockTooltip}
-                sectionStatus={sectionStatus}
-                onResetToPending={onResetToPending}
-                showApprove={showApprove}
-                approveDisabled={approveDisabled}
-                approveDisabledReason={approveDisabledReason}
-                viewSignedOfferOnly={viewSignedOfferOnly}
-                onViewSignedOffer={onViewSignedOffer}
-                signedOfferLetterAvailable={signedOfferLetterAvailable}
-              />
+              <>
+                {headerRight ? <div className="h-9 w-px bg-border/60 self-stretch" /> : null}
+                <SectionActionDropdown
+                  section={section}
+                  isReviewable={isReviewable!}
+                  onApprove={onApprove}
+                  onReject={onReject}
+                  onRequestAmendment={onRequestAmendment}
+                  isPending={!!approvePending}
+                  isActionLocked={isActionLocked}
+                  actionLockTooltip={actionLockTooltip}
+                  sectionStatus={sectionStatus}
+                  onResetToPending={onResetToPending}
+                  showApprove={showApprove}
+                  approveDisabled={approveDisabled}
+                  approveDisabledReason={approveDisabledReason}
+                  viewSignedOfferOnly={viewSignedOfferOnly}
+                  onViewSignedOffer={onViewSignedOffer}
+                  signedOfferLetterAvailable={signedOfferLetterAvailable}
+                />
+              </>
             ) : null}
           </div>
         </div>

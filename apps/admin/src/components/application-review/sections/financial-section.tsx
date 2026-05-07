@@ -9,6 +9,33 @@ import { ApplicationFinancialReviewComparison } from "@/components/application-f
 import { computeHasPendingDirectorShareholder, type ApplicationPersonRow } from "@cashsouk/types";
 // Banner is rendered inside the Director and Shareholders section.
 
+import * as React from "react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useAuthToken } from "@cashsouk/config";
+import { toast } from "sonner";
+import { useCreateIssuerOrganizationCtosReport } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
+import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
+import { cn } from "@/lib/utils";
+import { applicationsKeys } from "@/applications/query-keys";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  shouldNotifyIssuerDirectorShareholderAfterOrgCtosFromResolvedPeopleSnapshots,
+} from "@cashsouk/types";
+import { ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT } from "@/lib/admin-director-shareholder-review-message";
+import { format } from "date-fns";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
 export type FinancialSectionAppSlice = {
   people?: ApplicationPersonRow[];
   issuer_organization?: {
@@ -51,6 +78,160 @@ export interface FinancialSectionProps {
     isPathChanged: (path: string) => boolean;
   };
   hideSectionComments?: boolean;
+}
+
+/**
+ * SECTION: Financial CTOS header controls
+ * WHY: Show CTOS “View report” / “Fetch report” and “Last fetch” in the Financial header.
+ * INPUT: applicationId, issuerOrganizationId, and the Financial section app slice.
+ * OUTPUT: A header-right React node (buttons + last fetch line + confirm dialog).
+ * WHERE USED: Rendered inside `ReviewSectionCard` via its `headerRight` prop.
+ */
+function FinancialCtosHeaderControls({
+  applicationId,
+  issuerOrganizationId,
+  app,
+}: {
+  applicationId: string;
+  issuerOrganizationId: string | null;
+  app: FinancialSectionAppSlice;
+}) {
+  const issuerOrgId = issuerOrganizationId?.trim() ?? "";
+  const queryClient = useQueryClient();
+  const { getAccessToken } = useAuthToken();
+  const createOrgCtos = useCreateIssuerOrganizationCtosReport(
+    issuerOrgId || undefined,
+    applicationId
+  );
+  const [orgCtosConfirmOpen, setOrgCtosConfirmOpen] = React.useState(false);
+
+  const lastFetchedAtIso = app.issuer_organization?.latest_organization_ctos_fetched_at ?? null;
+  const lastFetchLabel = lastFetchedAtIso ? format(new Date(lastFetchedAtIso), "d MMM yyyy, p") : null;
+
+  const openFullReport = React.useCallback(async () => {
+    const reportId = app.issuer_organization?.latest_organization_ctos_report_id;
+    if (!reportId || !issuerOrgId) return;
+    const token = await getAccessToken();
+    if (!token) {
+      toast.error("Not signed in");
+      return;
+    }
+
+    const url = `${API_URL}/v1/admin/organizations/issuer/${encodeURIComponent(issuerOrgId)}/ctos-reports/${reportId}/html`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) {
+      toast.error("Could not load full report");
+      return;
+    }
+
+    const html = await res.text();
+    const w = window.open("", "_blank");
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+    }
+  }, [API_URL, app.issuer_organization?.latest_organization_ctos_report_id, getAccessToken, issuerOrgId]);
+
+  const onGetCtos = React.useCallback(() => {
+    if (!issuerOrgId) {
+      toast.error("Issuer organization is missing.");
+      return;
+    }
+    const t = toast.loading("Fetching CTOS report…");
+    createOrgCtos.mutate(undefined, {
+      onSuccess: () => {
+        toast.dismiss(t);
+        toast.success("CTOS report saved.");
+
+        const cached = queryClient.getQueryData<{
+          people?: ApplicationPersonRow[];
+          issuer_organization?: Record<string, unknown>;
+        }>(applicationsKeys.detail(applicationId));
+
+        const org = (cached?.issuer_organization ?? app.issuer_organization) as
+          | Record<string, unknown>
+          | undefined;
+
+        if (
+          shouldNotifyIssuerDirectorShareholderAfterOrgCtosFromResolvedPeopleSnapshots({
+            beforePeople: app.people,
+            afterPeople: cached?.people,
+            issuerDirectorKycStatus: org?.director_kyc_status ?? null,
+            issuerDirectorAmlStatus: org?.director_aml_status ?? null,
+            ctosPartySupplements: (org?.ctos_party_supplements as
+              | Array<{ party_key?: string | null; partyKey?: string | null }>
+              | null
+              | undefined) ?? null,
+          })
+        ) {
+          toast("New update", { description: ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT });
+        }
+      },
+      onError: (e: Error) => {
+        toast.dismiss(t);
+        toast.error(e.message || "CTOS request failed");
+      },
+    });
+  }, [ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT, applicationId, app.issuer_organization, app.people, createOrgCtos, issuerOrgId, queryClient]);
+
+  return (
+    <>
+      <div className="flex flex-col items-end gap-1">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
+            disabled={!app.issuer_organization?.latest_organization_ctos_has_report_html}
+            onClick={() => void openFullReport()}
+          >
+            {CTOS_UI.viewReport}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
+            disabled={createOrgCtos.isPending || !issuerOrgId}
+            onClick={() => setOrgCtosConfirmOpen(true)}
+          >
+            {createOrgCtos.isPending ? CTOS_UI.fetching : CTOS_UI.fetchReport}
+          </Button>
+        </div>
+        <p className="m-0 text-right text-xs text-muted-foreground tabular-nums leading-snug">
+          Last fetch: {lastFetchLabel ?? "\u2014"}
+        </p>
+      </div>
+
+      <AlertDialog
+        open={orgCtosConfirmOpen}
+        onOpenChange={(open) => {
+          setOrgCtosConfirmOpen(open);
+        }}
+      >
+        <AlertDialogContent className="rounded-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{CTOS_CONFIRM.title}</AlertDialogTitle>
+            <AlertDialogDescription>{CTOS_CONFIRM.organizationDescription}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-lg" disabled={createOrgCtos.isPending}>
+              {CTOS_CONFIRM.cancel}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className={cn(buttonVariants({ variant: "secondary" }), "rounded-lg")}
+              disabled={createOrgCtos.isPending}
+              onClick={() => {
+                onGetCtos();
+                setOrgCtosConfirmOpen(false);
+              }}
+            >
+              {createOrgCtos.isPending ? CTOS_UI.fetching : CTOS_CONFIRM.primaryAction}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
 }
 
 export function FinancialSection({
@@ -101,6 +282,13 @@ export function FinancialSection({
       sectionStatus={sectionStatus}
       showApprove={true}
       approveDisabled={hasPendingDirectorShareholder}
+      headerRight={
+        <FinancialCtosHeaderControls
+          applicationId={applicationId}
+          issuerOrganizationId={issuerOrganizationId ?? app.issuer_organization?.id ?? null}
+          app={app}
+        />
+      }
       onResetToPending={onResetSectionToPending}
       onApprove={onApprove}
       onReject={onReject}
