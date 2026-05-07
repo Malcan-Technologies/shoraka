@@ -281,7 +281,7 @@ function InvestorDashboardContent() {
                 </p>
               </div>
               <Button asChild className="gap-2">
-                <Link href="/investments">
+                <Link href="/marketplace">
                   <PlusIcon className="h-4 w-4" />
                   Invest now
                 </Link>

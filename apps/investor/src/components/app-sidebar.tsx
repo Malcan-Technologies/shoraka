@@ -13,6 +13,7 @@ import {
   ClockIcon,
   QuestionMarkCircleIcon,
   ArrowTrendingUpIcon,
+  ChartBarSquareIcon,
 } from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
@@ -197,6 +198,29 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     className="opacity-50 cursor-not-allowed"
                   >
                     <ArrowTrendingUpIcon className="h-4 w-4" />
+                    <span>Marketplace</span>
+                  </SidebarMenuButton>
+                ) : (
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === "/marketplace" || pathname.startsWith("/marketplace/")}
+                    tooltip="Marketplace"
+                  >
+                    <Link href="/marketplace">
+                      <ArrowTrendingUpIcon className="h-4 w-4" />
+                      <span>Marketplace</span>
+                    </Link>
+                  </SidebarMenuButton>
+                )}
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                {isFeaturesDisabled ? (
+                  <SidebarMenuButton
+                    disabled
+                    tooltip={isPendingApproval ? "Pending approval" : "Complete onboarding to access"}
+                    className="opacity-50 cursor-not-allowed"
+                  >
+                    <ChartBarSquareIcon className="h-4 w-4" />
                     <span>Investments</span>
                   </SidebarMenuButton>
                 ) : (
@@ -206,7 +230,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     tooltip="Investments"
                   >
                     <Link href="/investments">
-                      <ArrowTrendingUpIcon className="h-4 w-4" />
+                      <ChartBarSquareIcon className="h-4 w-4" />
                       <span>Investments</span>
                     </Link>
                   </SidebarMenuButton>

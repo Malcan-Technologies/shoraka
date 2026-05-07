@@ -38,7 +38,7 @@ export function NoteCard({ note }: { note: NoteListItem }) {
           </div>
         </div>
         <Button asChild className="w-full">
-          <Link href={`/investments/${note.id}`}>View Note</Link>
+          <Link href={`/marketplace/${note.id}`}>View Note</Link>
         </Button>
       </CardContent>
     </Card>

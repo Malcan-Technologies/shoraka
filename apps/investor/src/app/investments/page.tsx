@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MarketplaceNote, NoteCard as MarketplaceMockNoteCard } from "@/components/marketplace/note-card";
 import { InvestmentsDevBalanceTopup } from "./_components/investments-dev-balance-topup";
+import { InvestorInvestmentsList } from "@/components/dashboard-investments-section";
 import { computeMarketplaceCommitBounds } from "@/investments/marketplace-commit-bounds";
 import {
   useCommitInvestment,
@@ -104,7 +105,7 @@ function toMarketplaceNote(note: NoteListItem): MarketplaceNote {
   };
 }
 
-export default function InvestmentsPage() {
+export function MarketplacePage() {
   const { setTitle } = useHeader();
   const router = useRouter();
   const pathname = usePathname();
@@ -152,7 +153,7 @@ export default function InvestmentsPage() {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
 
   useEffect(() => {
-    setTitle("Investments");
+    setTitle("Marketplace");
   }, [setTitle]);
 
   useEffect(() => {
@@ -593,6 +594,28 @@ export default function InvestmentsPage() {
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+export default function InvestmentsPage() {
+  const { setTitle } = useHeader();
+
+  useEffect(() => {
+    setTitle("Investments");
+  }, [setTitle]);
+
+  return (
+    <div className="flex-1 bg-white p-4 md:p-8">
+      <div className="mx-auto w-full max-w-[1240px] space-y-6">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Your Investments</h1>
+          <p className="text-sm text-slate-500">
+            Track all notes you have invested in, sorted by relevance or performance.
+          </p>
+        </div>
+        <InvestorInvestmentsList showStatusFilter />
+      </div>
     </div>
   );
 }
