@@ -130,6 +130,15 @@ export interface NoteSettlementPoolSummary {
   postedAt: string | null;
 }
 
+export interface NoteInvestorRepaymentSummary {
+  investedPrincipal: number;
+  expectedPayoutAmount: number;
+  receivedPayoutAmount: number;
+  expectedReturnRatePercent: number;
+  actualReturnRatePercent: number | null;
+  progressPercent: number;
+}
+
 export interface NoteListItem extends NoteMoneySummary {
   id: string;
   noteReference: string;
@@ -157,6 +166,7 @@ export interface NoteListItem extends NoteMoneySummary {
   maturityDate: string | null;
   publishedAt: string | null;
   settlementSummary: NoteSettlementPoolSummary | null;
+  investorRepaymentSummary?: NoteInvestorRepaymentSummary | null;
   createdAt: string;
   updatedAt: string;
 }

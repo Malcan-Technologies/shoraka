@@ -105,6 +105,17 @@ type SettlementAllocation = {
   profitNet: number;
 };
 
+type NoteWithRelations = Prisma.NoteGetPayload<{ include: typeof noteInclude }>;
+
+function roundTo(value: number, decimals: number) {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
+function clampPercent(value: number) {
+  return Math.max(0, Math.min(100, value));
+}
+
 function resolveSettlementAllocations(snapshot: unknown): SettlementAllocation[] {
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return [];
   const allocations = (snapshot as Record<string, unknown>).allocations;
@@ -128,6 +139,43 @@ function resolveSettlementAllocations(snapshot: unknown): SettlementAllocation[]
       },
     ];
   });
+}
+
+function buildInvestorRepaymentSummary(note: NoteWithRelations, investorOrganizationIds: Set<string>) {
+  const investorInvestments = note.investments.filter(
+    (investment) =>
+      investorOrganizationIds.has(investment.investor_organization_id) &&
+      investment.status !== NoteInvestmentStatus.CANCELLED
+  );
+
+  const investedPrincipal = investorInvestments.reduce(
+    (sum, investment) => sum + toNumber(investment.amount),
+    0
+  );
+  const expectedReturnRatePercent = toNumber(note.profit_rate_percent);
+  const expectedPayoutAmount = investedPrincipal + investedPrincipal * (expectedReturnRatePercent / 100);
+
+  const receivedPayoutAmount = note.settlements
+    .filter((settlement) => settlement.status === NoteSettlementStatus.POSTED)
+    .flatMap((settlement) => resolveSettlementAllocations(settlement.preview_snapshot))
+    .filter((allocation) => investorOrganizationIds.has(allocation.investorOrganizationId))
+    .reduce((sum, allocation) => sum + allocation.principal + allocation.profitNet, 0);
+
+  const actualReturnRatePercent =
+    investedPrincipal > 0 && receivedPayoutAmount > 0
+      ? ((receivedPayoutAmount - investedPrincipal) / investedPrincipal) * 100
+      : null;
+  const progressPercent =
+    expectedPayoutAmount > 0 ? clampPercent((receivedPayoutAmount / expectedPayoutAmount) * 100) : 0;
+
+  return {
+    investedPrincipal: roundTo(investedPrincipal, 2),
+    expectedPayoutAmount: roundTo(expectedPayoutAmount, 2),
+    receivedPayoutAmount: roundTo(receivedPayoutAmount, 2),
+    expectedReturnRatePercent: roundTo(expectedReturnRatePercent, 2),
+    actualReturnRatePercent: actualReturnRatePercent == null ? null : roundTo(actualReturnRatePercent, 2),
+    progressPercent: roundTo(progressPercent, 2),
+  };
 }
 
 /** Standard marketplace ticket floor (MYR). When remaining capacity is smaller, min commit equals remainder. */
@@ -1181,13 +1229,18 @@ export class NoteService {
       select: { id: true },
     });
     const orgIds = orgs.map((org) => org.id);
+    const orgIdSet = new Set(orgIds);
     const notes = await prisma.note.findMany({
       where: { investments: { some: { investor_organization_id: { in: orgIds } } } },
       include: noteInclude,
       orderBy: { updated_at: "desc" },
     });
+    const enrichedNotes = notes.map((note) => ({
+      ...mapNoteListItem(note),
+      investorRepaymentSummary: buildInvestorRepaymentSummary(note, orgIdSet),
+    }));
     return {
-      notes: notes.map(mapNoteListItem),
+      notes: enrichedNotes,
       pagination: { page: 1, pageSize: notes.length || 1, totalCount: notes.length, totalPages: 1 },
     };
   }

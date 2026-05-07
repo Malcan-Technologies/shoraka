@@ -1,20 +1,27 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRightIcon,
   BanknotesIcon,
   CalendarDaysIcon,
-  FunnelIcon,
   PercentBadgeIcon,
   ScaleIcon,
 } from "@heroicons/react/24/outline";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useInvestorInvestments } from "@/investments/hooks/use-marketplace-notes";
 import type { NoteListItem } from "@cashsouk/types";
 import { cn } from "@/lib/utils";
+import {
+  getInvestmentStatusLabel,
+  investmentSortOptions,
+  sortInvestorInvestments,
+  type InvestmentSortOption,
+} from "@/investments/sort-investments";
 
 function formatCurrency(value: number) {
   const isWholeNumber = Number.isInteger(value);
@@ -32,15 +39,8 @@ function resolveTenureDays(maturityDate: string | null) {
   return Math.max(0, Math.ceil(duration / (1000 * 60 * 60 * 24)));
 }
 
-function getStatusLabel(note: NoteListItem) {
-  if (note.servicingStatus === "SETTLED" || note.status === "REPAID") return "Settled";
-  if (note.servicingStatus === "CURRENT" || note.status === "ACTIVE") return "Active";
-  if (note.fundingStatus === "OPEN") return "Pending confirmation";
-  return "In progress";
-}
-
 function getStatusTone(note: NoteListItem) {
-  const label = getStatusLabel(note);
+  const label = getInvestmentStatusLabel(note);
   if (label === "Active" || label === "Settled") {
     return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
@@ -50,17 +50,33 @@ function getStatusTone(note: NoteListItem) {
   return "border-border bg-muted text-foreground";
 }
 
+function HeaderDivider({ className }: { className?: string }) {
+  return <span className={cn("h-4 w-px shrink-0 bg-border", className)} aria-hidden="true" />;
+}
+
 function InvestmentRow({ note }: { note: NoteListItem }) {
-  const expectedReturn = Number(note.profitRatePercent ?? 0);
+  const repaymentSummary = note.investorRepaymentSummary ?? null;
+  const expectedReturn = Number(repaymentSummary?.expectedReturnRatePercent ?? note.profitRatePercent ?? 0);
   const tenureDays = resolveTenureDays(note.maturityDate);
-  const repaymentReceived = Number(note.settlementSummary?.grossReceiptAmount ?? 0);
-  const investedAmount = Number(note.settlementSummary?.investorPoolAmount ?? note.fundedAmount);
-  const totalExpectedAmount = investedAmount + investedAmount * (expectedReturn / 100);
-  const statusLabel = getStatusLabel(note);
+  const repaymentReceived = Number(repaymentSummary?.receivedPayoutAmount ?? note.settlementSummary?.grossReceiptAmount ?? 0);
+  const investedAmount = Number(repaymentSummary?.investedPrincipal ?? note.settlementSummary?.investorPoolAmount ?? note.fundedAmount);
+  const totalExpectedAmount = Number(
+    repaymentSummary?.expectedPayoutAmount ?? investedAmount + investedAmount * (expectedReturn / 100)
+  );
+  const statusLabel = getInvestmentStatusLabel(note);
   const hasRiskRating = Boolean(note.riskRating && note.riskRating.trim() !== "");
   const isPendingConfirmation = statusLabel === "Pending confirmation";
-  const actualReturn = isPendingConfirmation ? "NA" : `${expectedReturn.toFixed(1)}%`;
-  const progressValue = note.targetAmount > 0 ? Math.min(100, (note.fundedAmount / note.targetAmount) * 100) : 0;
+  const hasActualReturn = typeof repaymentSummary?.actualReturnRatePercent === "number";
+  const actualReturn = isPendingConfirmation
+    ? "NA"
+    : hasActualReturn
+      ? `${Number(repaymentSummary?.actualReturnRatePercent).toFixed(1)}%`
+      : "—";
+  const progressValue = Number(
+    repaymentSummary?.progressPercent ??
+      (note.targetAmount > 0 ? Math.min(100, (note.fundedAmount / note.targetAmount) * 100) : 0)
+  );
+  const returnLabel = isPendingConfirmation ? "Expected return" : hasActualReturn ? "Actual return" : "Pending settlement";
   const displayDate = new Date(note.updatedAt).toLocaleDateString("en-MY", {
     year: "numeric",
     month: "short",
@@ -69,51 +85,56 @@ function InvestmentRow({ note }: { note: NoteListItem }) {
 
   return (
     <div className="rounded-xl border border-border bg-card p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-border pb-2.5">
-        <div className="flex items-center gap-3">
-          <h3 className="text-[clamp(1.2rem,1.4vw,1.65rem)] font-semibold leading-none tracking-tight text-foreground">
+      <div className="flex flex-col gap-2.5 border-b border-border pb-2.5 lg:flex-row lg:items-center lg:gap-4">
+        <div className="flex items-center gap-3 lg:shrink-0">
+          <h3 className="text-l font-semibold leading-none tracking-tight text-foreground">
             {note.noteReference.replace("NOTE-", "Note ")}
           </h3>
           {hasRiskRating ? (
             <>
-              <span className="text-border">|</span>
+              <HeaderDivider />
               <p className="text-sm font-semibold leading-none text-muted-foreground md:text-base">{note.riskRating}</p>
             </>
           ) : null}
         </div>
-        <Badge
-          variant="outline"
-          className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", getStatusTone(note))}
-        >
-          {statusLabel}
-          {statusLabel === "Active" && tenureDays > 0 ? ` (${tenureDays} days)` : ""}
-        </Badge>
-      </div>
-
-      <div className="mt-1.5">
-        <div className="mb-1.5 space-y-0.5">
-          <div className="flex items-center justify-between gap-1.5 text-xs leading-tight">
-            <p className="min-w-0 text-xs text-muted-foreground">
-              <span className="font-semibold text-xs text-foreground">
+        <HeaderDivider className="hidden lg:block" />
+        <div className="min-w-0 flex-1 lg:pr-6">
+          <div className="mb-1.5 flex items-center justify-between gap-1.5 text-xs leading-tight">
+            <p className="min-w-0 text-sm text-muted-foreground">
+              <span className="font-semibold text-sm text-foreground">
                 {formatCurrency(repaymentReceived)}
               </span>{" "}
               (Repayment received)
             </p>
-            <p className="min-w-0 text-right text-xs text-muted-foreground">
-              <span className="font-semibold text-xs text-foreground">
+            <p className="min-w-0 text-right text-sm text-muted-foreground">
+              <span className="font-semibold text-sm text-foreground">
                 {formatCurrency(totalExpectedAmount)}
               </span>{" "}
               (Principal + Expected profit)
             </p>
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+          <div className="h-2.5 overflow-hidden rounded-full bg-muted">
             <div
               className="h-full rounded-full bg-foreground transition-all"
               style={{ width: `${Math.max(0, Math.min(100, progressValue))}%` }}
             />
           </div>
         </div>
+        <div className="lg:flex lg:w-[12rem] lg:justify-end">
+          <Badge
+            variant="outline"
+            className={cn(
+              "w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold lg:shrink-0",
+              getStatusTone(note)
+            )}
+          >
+            {statusLabel}
+            {statusLabel === "Active" && tenureDays > 0 ? ` (${tenureDays} days)` : ""}
+          </Badge>
+        </div>
+      </div>
 
+      <div className="mt-1.5">
         <div className="grid gap-2 xl:grid-cols-[1.7fr_0.8fr]">
           <div className="grid gap-2 sm:grid-cols-2">
             <div className="rounded-xl bg-muted/20 p-2">
@@ -122,7 +143,7 @@ function InvestmentRow({ note }: { note: NoteListItem }) {
                   <BanknotesIcon className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="text-xs leading-tight text-muted-foreground">Your investment</p>
+                  <p className="text-sm leading-tight text-muted-foreground">Your investment</p>
                   <p className="text-lg font-semibold leading-none tracking-tight text-foreground md:text-xl">
                     {formatCurrency(investedAmount)}
                   </p>
@@ -135,7 +156,7 @@ function InvestmentRow({ note }: { note: NoteListItem }) {
                   <PercentBadgeIcon className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="text-xs leading-tight text-muted-foreground">Expected Return</p>
+                  <p className="text-sm leading-tight text-muted-foreground">Expected Return</p>
                   <p className="text-lg font-semibold leading-none tracking-tight text-foreground md:text-xl">
                     {expectedReturn.toFixed(1)}%
                   </p>
@@ -148,7 +169,7 @@ function InvestmentRow({ note }: { note: NoteListItem }) {
                   <ScaleIcon className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="text-xs leading-tight text-muted-foreground">Tenure</p>
+                  <p className="text-sm leading-tight text-muted-foreground">Tenure</p>
                   <p className="text-lg font-semibold leading-none tracking-tight text-foreground md:text-xl">
                     {tenureDays} days
                   </p>
@@ -161,7 +182,7 @@ function InvestmentRow({ note }: { note: NoteListItem }) {
                   <CalendarDaysIcon className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="text-xs leading-tight text-muted-foreground">Investment date</p>
+                  <p className="text-sm leading-tight text-muted-foreground">Investment date</p>
                   <p className="text-lg font-semibold leading-none tracking-tight text-foreground md:text-xl">
                     {displayDate}
                   </p>
@@ -174,8 +195,8 @@ function InvestmentRow({ note }: { note: NoteListItem }) {
             <p className="mt-2 text-[clamp(2.4rem,4.8vw,3.4rem)] font-semibold leading-none tracking-tight text-foreground">
               {actualReturn}
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {isPendingConfirmation ? "Expected return" : "Actual return"}
+            <p className="mt-1 text-sm text-muted-foreground">
+              {returnLabel}
             </p>
             <div className="mt-3 border-t border-border/60 pt-2">
               <Button asChild variant="link" className="h-auto p-0 text-sm text-primary">
@@ -195,17 +216,32 @@ function InvestmentRow({ note }: { note: NoteListItem }) {
 export function DashboardInvestmentsSection() {
   const { data, isLoading, error } = useInvestorInvestments();
   const notes = data?.notes ?? [];
+  const [sortOption, setSortOption] = useState<InvestmentSortOption>("most_relevant");
+  const sortedNotes = useMemo(() => sortInvestorInvestments(notes, sortOption), [notes, sortOption]);
 
   return (
     <Card className="w-full">
-      <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
-        <CardTitle className="text-lg font-semibold">Investments</CardTitle>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/investments" className="inline-flex items-center gap-2">
-            <FunnelIcon className="h-3.5 w-3.5" />
-            Filters
-          </Link>
-        </Button>
+      <CardHeader className="flex flex-col items-start justify-between gap-3 pb-2 sm:flex-row sm:items-center">
+        <CardTitle className="text-xl font-semibold">Investments</CardTitle>
+        <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <Select value={sortOption} onValueChange={(value) => setSortOption(value as InvestmentSortOption)}>
+            <SelectTrigger className="h-9 w-full rounded-lg text-xs sm:w-[190px]">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              {investmentSortOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/investments" className="inline-flex items-center gap-2">
+              View all
+            </Link>
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {isLoading ? (
@@ -230,8 +266,8 @@ export function DashboardInvestmentsSection() {
         ) : null}
 
         {!isLoading && !error ? (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {notes.slice(0, 4).map((note) => (
+          <div className="grid gap-3">
+            {sortedNotes.slice(0, 3).map((note) => (
               <InvestmentRow key={note.id} note={note} />
             ))}
           </div>
