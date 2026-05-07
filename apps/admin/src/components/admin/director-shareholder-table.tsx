@@ -197,14 +197,16 @@ export function DirectorShareholderTable({
                     <div className="space-y-1">
                       <div className="text-xs text-muted-foreground whitespace-nowrap">
                         {latestReport?.fetched_at
-                          ? (() => {
-                              try {
-                                return format(new Date(latestReport.fetched_at), "PPp");
-                              } catch {
-                                return latestReport.fetched_at;
-                              }
-                            })()
-                          : "—"}
+                          ? `Last fetched: ${
+                              (() => {
+                                try {
+                                  return format(new Date(latestReport.fetched_at), "PPp");
+                                } catch {
+                                  return latestReport.fetched_at;
+                                }
+                              })()
+                            }`
+                          : "Last fetched: —"}
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                       <Button
