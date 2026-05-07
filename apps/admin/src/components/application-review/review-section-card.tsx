@@ -77,7 +77,7 @@ export function ReviewSectionCard({
             <CardTitle className={reviewCardTitleClass}>{title}</CardTitle>
           </div>
           <div className="flex items-start gap-3 shrink-0">
-            {headerRight ? <div className="pt-1">{headerRight}</div> : null}
+            {headerRight ? <div>{headerRight}</div> : null}
             {showActions ? (
               <>
                 {headerRight ? <div className="h-9 w-px bg-border/60 self-stretch" /> : null}

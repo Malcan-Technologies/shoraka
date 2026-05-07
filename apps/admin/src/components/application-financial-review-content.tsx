@@ -760,20 +760,6 @@ export function ApplicationFinancialReviewContent({
         </div>
       </ReviewFieldBlock>
 
-      <ReviewFieldBlock title="Company Credit Score">
-        <div className="flex justify-between items-center mb-3">
-          <span className="text-xs text-muted-foreground">Last updated —</span>
-          <Button variant="outline" size="sm" className="rounded-lg h-8 text-xs" disabled>
-            Get Updated Credit Score
-          </Button>
-        </div>
-        <div className="rounded-xl border border-border bg-card overflow-hidden min-h-[80px] flex items-center justify-center">
-          <p className={`${reviewEmptyStateClass} py-6`}>
-            Credit score data will be populated from external API (e.g. CTOS).
-          </p>
-        </div>
-      </ReviewFieldBlock>
-
       <ReviewFieldBlock
         title="Director and Shareholders"
         titleTooltip="The director and shareholder list comes from the organization CTOS report. Fetch again to get the latest list."
