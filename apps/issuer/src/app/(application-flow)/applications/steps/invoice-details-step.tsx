@@ -27,7 +27,8 @@
  *    - Per-invoice: each invoice's financing amount (value × ratio) must be within min/max.
  *
  * 6. Financing ratio (all structures including invoice_only)
- *    - Financing ratio must be between 60% and 80%.
+ *    - Financing ratio must be a whole percent within the product min/max (e.g. 60%–80%).
+ *    - Editing maximum financing amount uses ceil(amount ÷ invoice value × 100), then clamps to that range.
  *
  * 9. Facility limit
  *    - Total financing amount across all invoices
@@ -432,7 +433,8 @@ export default function InvoiceDetailsStep({
           if (invoiceValue <= 0) return row;
           const desired = parseMoney(amountStr);
           const rawRatio = (desired / invoiceValue) * 100;
-          const clamped = Math.min(maxR, Math.max(minR, Math.round(rawRatio)));
+          const wholeRatioUp = Math.ceil(rawRatio);
+          const clamped = Math.min(maxR, Math.max(minR, wholeRatioUp));
           return { ...row, financing_ratio_percent: clamped };
         })
       );
@@ -600,7 +602,8 @@ export default function InvoiceDetailsStep({
     if (productConfig) {
       // debug removed
       const invoiceValue = parseMoney(inv.value);
-      const ratio = (inv.financing_ratio_percent || 60) / 100;
+      const minR = productConfig.min_financing_ratio_percent ?? 60;
+      const ratio = (inv.financing_ratio_percent ?? minR) / 100;
       const financingAmount = invoiceValue * ratio;
 
       const minValue = productConfig.min_invoice_value;
@@ -638,12 +641,6 @@ export default function InvoiceDetailsStep({
     );
   };
 
-  const totalFinancingAmount = invoices.reduce((acc, inv) => {
-    const value = parseMoney(inv.value);
-    const ratio = (inv.financing_ratio_percent || 60) / 100;
-    return acc + value * ratio;
-  }, 0);
-
   const cd = application?.contract?.contract_details;
   const approvedFacility =
     typeof cd?.approved_facility === "number" && cd.approved_facility > 0
@@ -657,15 +654,6 @@ export default function InvoiceDetailsStep({
   /** For existing_contract: use stored available_facility from backend (approved - utilized, utilized = approved invoices only). */
   const storedAvailableFacility =
     typeof cd?.available_facility === "number" ? cd.available_facility : null;
-
-  /** For existing_contract: sum of financing for invoices not yet approved (DRAFT, SUBMITTED). Used for facility validation. */
-  const nonApprovedFinancingAmount = invoices
-    .filter((inv) => inv.status !== "APPROVED")
-    .reduce((sum, inv) => {
-      const value = parseMoney(inv.value);
-      const ratio = (inv.financing_ratio_percent || 60) / 100;
-      return sum + value * ratio;
-    }, 0);
 
   const structureType = application?.financing_structure?.structure_type;
   const hasApprovedFacility = approvedFacility > 0;
@@ -697,6 +685,24 @@ export default function InvoiceDetailsStep({
   } catch (error: unknown) {
     validationError = error instanceof Error ? error.message : "Product configuration error";
   }
+
+  const displayMinRatio = productConfig?.min_financing_ratio_percent ?? 60;
+  const displayMaxRatio = productConfig?.max_financing_ratio_percent ?? 80;
+
+  const totalFinancingAmount = invoices.reduce((acc, inv) => {
+    const value = parseMoney(inv.value);
+    const ratio = (inv.financing_ratio_percent ?? displayMinRatio) / 100;
+    return acc + value * ratio;
+  }, 0);
+
+  /** For existing_contract: sum of financing for invoices not yet approved (DRAFT, SUBMITTED). Used for facility validation. */
+  const nonApprovedFinancingAmount = invoices
+    .filter((inv) => inv.status !== "APPROVED")
+    .reduce((sum, inv) => {
+      const value = parseMoney(inv.value);
+      const ratio = (inv.financing_ratio_percent ?? displayMinRatio) / 100;
+      return sum + value * ratio;
+    }, 0);
 
   if (shouldRunValidation) {
     if (!productConfig && application?.financing_type?.product_id) {
@@ -810,7 +816,7 @@ export default function InvoiceDetailsStep({
               const pd = parseDateString(inv.maturity_date);
               return pd ? format(pd, "yyyy-MM-dd") : inv.maturity_date;
             })(),
-            financing_ratio_percent: inv.financing_ratio_percent || 60,
+            financing_ratio_percent: inv.financing_ratio_percent ?? displayMinRatio,
           },
         };
 
@@ -844,7 +850,7 @@ export default function InvoiceDetailsStep({
             const pd = parseDateString(inv.maturity_date);
             return pd ? format(pd, "yyyy-MM-dd") : inv.maturity_date;
           })(),
-          financing_ratio_percent: inv.financing_ratio_percent || 60,
+          financing_ratio_percent: inv.financing_ratio_percent ?? displayMinRatio,
         };
 
         if (isInvoiceOnly) {
@@ -1273,12 +1279,55 @@ export default function InvoiceDetailsStep({
                           </TableHead>
 
                           <TableHead className="w-[130px] whitespace-nowrap text-xs font-semibold">
-                            Financing Ratio
+                            <div className="flex flex-col items-start gap-0.5 min-w-0">
+                              <div className="inline-flex items-center gap-0.5">
+                                <span>Financing Ratio</span>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span
+                                      className={fieldTooltipTriggerClassName}
+                                      aria-label="About financing ratio"
+                                    >
+                                      <InformationCircleIcon className="h-4 w-4" />
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent
+                                    side="top"
+                                    sideOffset={2}
+                                    className={fieldTooltipContentClassName}
+                                  >
+                                    Allowed for this product: {displayMinRatio}%–{displayMaxRatio}%. When you enter a
+                                    maximum financing amount, the ratio rounds up to the nearest whole percent and is
+                                    limited to this range. The amount is invoice value × ratio.
+                                  </TooltipContent>
+                                </Tooltip>
+                              </div>
+                              <span className="text-[10px] font-normal text-muted-foreground leading-tight tabular-nums">
+                                {displayMinRatio}%–{displayMaxRatio}%
+                              </span>
+                            </div>
                           </TableHead>
 
                           <TableHead className="w-[200px] whitespace-nowrap text-xs font-semibold">
-                            <div className="inline-flex items-center gap-0.5">
-                              Maximum Financing Amount
+                            <div className="inline-flex flex-wrap items-center gap-0.5">
+                              <span className="whitespace-nowrap">Maximum Financing Amount</span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span
+                                    className={fieldTooltipTriggerClassName}
+                                    aria-label="How maximum financing is calculated"
+                                  >
+                                    <InformationCircleIcon className="h-4 w-4" />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent
+                                  side="top"
+                                  sideOffset={2}
+                                  className={fieldTooltipContentClassName}
+                                >
+                                  Rounded up and limited to the allowed range.
+                                </TooltipContent>
+                              </Tooltip>
                               {productConfig &&
                                 (typeof productConfig.min_invoice_value === "number" ||
                                   typeof productConfig.max_invoice_value === "number") && (
@@ -1328,6 +1377,7 @@ export default function InvoiceDetailsStep({
                           })();
                           const value = parseMoney(inv.value);
                           const financingAmount = value * (ratioNum / 100);
+                          const ratioSliderSpan = Math.max(1, maxRatio - minRatio);
                           const isInvFlagged = invoicesWithRemarks.has(invIndex);
                           const isSubmittedEditableInAmendment =
                             isAmendmentMode &&
@@ -1424,7 +1474,7 @@ export default function InvoiceDetailsStep({
                                   <div
                                     className="relative text-[10px] font-medium text-muted-foreground"
                                     style={{
-                                      left: `${((ratioNum - minRatio) / (maxRatio - minRatio)) * 100}%`,
+                                      left: `${((ratioNum - minRatio) / ratioSliderSpan) * 100}%`,
                                       transform: "translateX(-50%)",
                                       width: "fit-content",
                                     }}
