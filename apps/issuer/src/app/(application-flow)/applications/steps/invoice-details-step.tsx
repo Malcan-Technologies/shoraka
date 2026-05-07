@@ -1319,26 +1319,23 @@ export default function InvoiceDetailsStep({
                                   sideOffset={2}
                                   className={fieldTooltipContentClassName}
                                 >
-                                  <div className="space-y-2">
-                                    <p>
-                                      Maximum financing amount is calculated from the invoice value and financing
-                                      ratio.
-                                    </p>
-                                    <p>If you edit this amount, the financing ratio will update automatically.</p>
-                                    {productConfig &&
-                                      (typeof productConfig.min_invoice_value === "number" ||
-                                        typeof productConfig.max_invoice_value === "number") && (
-                                        <div className="space-y-0.5">
-                                          <p className="font-medium">Per invoice financing limit:</p>
-                                          {typeof productConfig.min_invoice_value === "number" && (
-                                            <p>Min RM {formatMoney(productConfig.min_invoice_value)}</p>
-                                          )}
-                                          {typeof productConfig.max_invoice_value === "number" && (
-                                            <p>Max RM {formatMoney(productConfig.max_invoice_value)}</p>
-                                          )}
-                                        </div>
-                                      )}
-                                  </div>
+                                  {(() => {
+                                    const lines: string[] = [
+                                      "Maximum financing amount is calculated from the invoice value and financing ratio.",
+                                      "If you edit this amount, the financing ratio will update automatically.",
+                                    ];
+                                    const limits: string[] = [];
+                                    if (typeof productConfig?.min_invoice_value === "number") {
+                                      limits.push(`Min RM ${formatMoney(productConfig.min_invoice_value)}`);
+                                    }
+                                    if (typeof productConfig?.max_invoice_value === "number") {
+                                      limits.push(`Max RM ${formatMoney(productConfig.max_invoice_value)}`);
+                                    }
+                                    if (limits.length > 0) {
+                                      lines.push(`Per invoice financing limit:\n${limits.join("\n")}`);
+                                    }
+                                    return lines.join("\n\n");
+                                  })()}
                                 </TooltipContent>
                               </Tooltip>
                             </div>
