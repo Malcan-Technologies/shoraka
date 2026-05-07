@@ -179,15 +179,6 @@ function FinancialCtosHeaderControls({
       <div className="flex flex-col items-end gap-1">
         <div className="flex items-center gap-2">
           <Button
-            variant="outline"
-            size="sm"
-            className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
-            disabled={!app.issuer_organization?.latest_organization_ctos_has_report_html}
-            onClick={() => void openFullReport()}
-          >
-            {CTOS_UI.viewReport}
-          </Button>
-          <Button
             variant="secondary"
             size="sm"
             className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
@@ -195,6 +186,15 @@ function FinancialCtosHeaderControls({
             onClick={() => setOrgCtosConfirmOpen(true)}
           >
             {createOrgCtos.isPending ? CTOS_UI.fetching : CTOS_UI.fetchReport}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
+            disabled={!app.issuer_organization?.latest_organization_ctos_has_report_html}
+            onClick={() => void openFullReport()}
+          >
+            {CTOS_UI.viewReport}
           </Button>
         </div>
         <p className="m-0 text-right text-xs text-muted-foreground tabular-nums leading-snug">
