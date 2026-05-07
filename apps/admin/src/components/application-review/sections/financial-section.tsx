@@ -7,7 +7,7 @@ import type { ReviewSectionId } from "../section-types";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 import { ApplicationFinancialReviewComparison } from "@/components/application-financial-review-comparison";
 import { computeHasPendingDirectorShareholder, type ApplicationPersonRow } from "@cashsouk/types";
-import { ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT } from "@/lib/admin-director-shareholder-review-message";
+// Banner is rendered inside the Director and Shareholders section.
 
 export type FinancialSectionAppSlice = {
   people?: ApplicationPersonRow[];
@@ -106,11 +106,6 @@ export function FinancialSection({
       onReject={onReject}
       onRequestAmendment={onRequestAmendment}
     >
-      {hasPendingDirectorShareholder ? (
-        <div className="rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-          {ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT}
-        </div>
-      ) : null}
       <ApplicationFinancialReviewContent
         applicationId={applicationId}
         issuerOrganizationId={issuerOrganizationId ?? app.issuer_organization?.id ?? null}

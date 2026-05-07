@@ -134,11 +134,7 @@ export function DirectorShareholderTable({
               <TableHead>Roles</TableHead>
               <TableHead>Share %</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Risk Level</TableHead>
               <TableHead>RegTank</TableHead>
-              <TableHead>IC Front</TableHead>
-              <TableHead>IC Back</TableHead>
-              <TableHead>Last CTOS Fetch</TableHead>
               <TableHead>CTOS</TableHead>
               <TableHead>Notify</TableHead>
             </TableRow>
@@ -175,19 +171,10 @@ export function DirectorShareholderTable({
                       {finalStatus.label}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {p.screening?.riskLevel != null && String(p.screening.riskLevel).trim()
-                      ? String(p.screening.riskLevel).trim()
-                      : p.screening?.riskScore != null && String(p.screening.riskScore).trim()
-                        ? String(p.screening.riskScore)
-                        : "—"}
-                  </TableCell>
                   <TableCell>
                     {(() => {
                       const rid = String(p.requestId ?? "").trim();
                       const link = getRegtankLink(p);
-                      const fallback = normalizeDirectorShareholderIdKey(p.matchKey) ?? p.matchKey;
-                      const displayId = rid || fallback;
                       if (link) {
                         return (
                           <Button
@@ -203,50 +190,23 @@ export function DirectorShareholderTable({
                           </Button>
                         );
                       }
-                      return <span className="font-mono text-[11px] text-muted-foreground break-all">{displayId}</span>;
+                      return <span className="text-sm text-muted-foreground">—</span>;
                     })()}
                   </TableCell>
                   <TableCell>
-                    {p.icFrontUrl ? (
-                      <a
-                        href={p.icFrontUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm font-medium text-primary underline underline-offset-4 hover:underline"
-                      >
-                        View Front
-                      </a>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {p.icBackUrl ? (
-                      <a
-                        href={p.icBackUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm font-medium text-primary underline underline-offset-4 hover:underline"
-                      >
-                        View Back
-                      </a>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                    {latestReport?.fetched_at
-                      ? (() => {
-                          try {
-                            return format(new Date(latestReport.fetched_at), "PPp");
-                          } catch {
-                            return latestReport.fetched_at;
-                          }
-                        })()
-                      : "—"}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="space-y-1">
+                      <div className="text-xs text-muted-foreground whitespace-nowrap">
+                        {latestReport?.fetched_at
+                          ? (() => {
+                              try {
+                                return format(new Date(latestReport.fetched_at), "PPp");
+                              } catch {
+                                return latestReport.fetched_at;
+                              }
+                            })()
+                          : "—"}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
                       <Button
                         type="button"
                         variant="secondary"
@@ -297,6 +257,7 @@ export function DirectorShareholderTable({
                       >
                         View Report
                       </Button>
+                    </div>
                     </div>
                   </TableCell>
                   <TableCell>

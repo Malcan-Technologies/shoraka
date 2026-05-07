@@ -41,6 +41,7 @@ import {
   formatFinancialFyPeriodDisplay,
   getAdminFinancialSummaryUserColumnYears,
   getLatestThreeCtosYearSlots,
+  computeHasPendingDirectorShareholder,
   normalizeFinancialStatementsQuestionnaire,
   normalizeDirectorShareholderIdKey,
   shouldNotifyIssuerDirectorShareholderAfterOrgCtosFromResolvedPeopleSnapshots,
@@ -300,6 +301,8 @@ export function ApplicationFinancialReviewContent({
     () => extractQuestionnaireAndUnaudited(app.financial_statements),
     [app.financial_statements]
   );
+
+  const hasPendingDirectorShareholder = computeHasPendingDirectorShareholder(app.people);
   const hasIssuerFinancialData = Object.keys(unauditedByYear).length > 0;
 
   const financialRows: CtosFinRow[] = React.useMemo(() => {
@@ -924,6 +927,11 @@ export function ApplicationFinancialReviewContent({
       </ReviewFieldBlock>
 
       <ReviewFieldBlock title="Director and Shareholders">
+        {hasPendingDirectorShareholder ? (
+          <div className="rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+            {ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT}
+          </div>
+        ) : null}
         <DirectorShareholderTable
           people={app.people ?? []}
           portal="issuer"
