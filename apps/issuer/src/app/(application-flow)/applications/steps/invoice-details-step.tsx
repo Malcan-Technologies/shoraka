@@ -272,6 +272,8 @@ export default function InvoiceDetailsStep({
   const devTools = useDevTools();
 
   const [invoices, setInvoices] = React.useState<LocalInvoice[]>([]);
+  /** While typing max financing amount, keep raw string; commit ratio on blur (see MoneyInput onBlurComplete). */
+  const [financingAmountDraftById, setFinancingAmountDraftById] = React.useState<Record<string, string>>({});
   const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
   const [application, setApplication] = React.useState<ApplicationHydrated | null>(null);
   const [lastS3Keys, setLastS3Keys] = React.useState<Record<string, string>>({});
@@ -407,6 +409,37 @@ export default function InvoiceDetailsStep({
     ]);
   };
 
+  const updateInvoiceField = <K extends keyof LocalInvoice>(id: string, field: K, value: LocalInvoice[K]) => {
+    setInvoices((s) => s.map((inv) => (inv.id === id ? { ...inv, [field]: value } : inv)));
+  };
+
+  const clearFinancingAmountDraft = React.useCallback((id: string) => {
+    setFinancingAmountDraftById((p) => {
+      if (!(id in p)) return p;
+      const n = { ...p };
+      delete n[id];
+      return n;
+    });
+  }, []);
+
+  /** Derive financing_ratio_percent from desired amount (clamped to product min/max ratio). */
+  const syncRatioFromFinancingAmountString = React.useCallback(
+    (id: string, amountStr: string, minR: number, maxR: number) => {
+      setInvoices((invs) =>
+        invs.map((row) => {
+          if (row.id !== id) return row;
+          const invoiceValue = parseMoney(row.value);
+          if (invoiceValue <= 0) return row;
+          const desired = parseMoney(amountStr);
+          const rawRatio = (desired / invoiceValue) * 100;
+          const clamped = Math.min(maxR, Math.max(minR, Math.round(rawRatio)));
+          return { ...row, financing_ratio_percent: clamped };
+        })
+      );
+    },
+    []
+  );
+
   const deleteInvoice = (inv: LocalInvoice) => {
     if (inv.isPersisted) {
       setDeletedInvoices((prev) => ({
@@ -427,10 +460,7 @@ export default function InvoiceDetailsStep({
       delete copy[inv.id];
       return copy;
     });
-  };
-
-  const updateInvoiceField = <K extends keyof LocalInvoice>(id: string, field: K, value: LocalInvoice[K]) => {
-    setInvoices((s) => s.map((inv) => (inv.id === id ? { ...inv, [field]: value } : inv)));
+    clearFinancingAmountDraft(inv.id);
   };
 
   const handleFileChange = (id: string, file: File, existingS3Key?: string) => {
@@ -1372,7 +1402,10 @@ export default function InvoiceDetailsStep({
                               <TableCell className="p-2">
                                 <MoneyInput
                                   value={inv.value}
-                                  onValueChange={(v) => updateInvoiceField(inv.id, "value", v)}
+                                  onValueChange={(v) => {
+                                    clearFinancingAmountDraft(inv.id);
+                                    updateInvoiceField(inv.id, "value", v);
+                                  }}
                                   placeholder="0.00"
                                   prefix="RM"
                                   disabled={!isEditable}
@@ -1415,9 +1448,14 @@ export default function InvoiceDetailsStep({
                                       step={1}
                                       value={[ratioNum]}
                                       disabled={!isEditable}
-                                      onValueChange={(value) =>
-                                        updateInvoiceField(inv.id, "financing_ratio_percent", Math.round(value[0]))
-                                      }
+                                      onValueChange={(value) => {
+                                        clearFinancingAmountDraft(inv.id);
+                                        updateInvoiceField(
+                                          inv.id,
+                                          "financing_ratio_percent",
+                                          Math.round(value[0])
+                                        );
+                                      }}
                                       className={cn(
                                         "relative w-full max-w-full",
                                         !isEditable &&
@@ -1433,8 +1471,37 @@ export default function InvoiceDetailsStep({
                                 </div>
                               </TableCell>
 
-                              <TableCell className="p-2 text-xs tabular-nums whitespace-nowrap">
-                                RM {formatMoney(financingAmount)}
+                              <TableCell className="p-2">
+                                <MoneyInput
+                                  value={
+                                    financingAmountDraftById[inv.id] ??
+                                    (financingAmount > 0 ? formatMoney(financingAmount) : "")
+                                  }
+                                  onValueChange={(v) =>
+                                    setFinancingAmountDraftById((p) => ({ ...p, [inv.id]: v }))
+                                  }
+                                  onBlurComplete={(formatted) => {
+                                    clearFinancingAmountDraft(inv.id);
+                                    if (formatted === "") {
+                                      updateInvoiceField(inv.id, "financing_ratio_percent", minRatio);
+                                      return;
+                                    }
+                                    syncRatioFromFinancingAmountString(
+                                      inv.id,
+                                      formatted,
+                                      minRatio,
+                                      maxRatio
+                                    );
+                                  }}
+                                  placeholder="0.00"
+                                  prefix="RM"
+                                  disabled={!isEditable || parseMoney(inv.value) <= 0}
+                                  inputClassName={cn(
+                                    "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                    (!isEditable || parseMoney(inv.value) <= 0) &&
+                                      formInputDisabledClassName
+                                  )}
+                                />
                               </TableCell>
 
                               <TableCell className="p-2 min-w-0 overflow-hidden">

@@ -16,6 +16,8 @@ interface MoneyInputProps {
   maxIntDigits?: number;
   allowEmpty?: boolean;
   allowNegative?: boolean;
+  /** Fires after blur formatting is applied (comma + 2dp). Empty string when field was left empty and allowEmpty. */
+  onBlurComplete?: (formattedValue: string) => void;
 }
 
 export function MoneyInput({
@@ -29,6 +31,7 @@ export function MoneyInput({
   maxIntDigits = 15,
   allowEmpty = true,
   allowNegative = false,
+  onBlurComplete,
 }: MoneyInputProps) {
   const isValidMoneyInput = (raw: string): boolean => {
     if (raw === "") return allowEmpty;
@@ -67,9 +70,14 @@ export function MoneyInput({
   };
 
   const handleBlur = () => {
-    if (value === "" && allowEmpty) return;
+    if (value === "" && allowEmpty) {
+      onBlurComplete?.("");
+      return;
+    }
     if (value !== "") {
-      onValueChange(formatMoney(value));
+      const formatted = formatMoney(value);
+      onValueChange(formatted);
+      onBlurComplete?.(formatted);
     }
   };
 
