@@ -19,11 +19,25 @@ import { useOrganizationApplications } from "@/hooks/use-applications";
 import { useProducts } from "@/hooks/use-products";
 import { getOfferStatus, type OfferStatus } from "@/lib/offer-utils";
 import { ReviewOfferModal } from "@/components/review-offer-modal";
-import type { Application, Contract, Invoice, Product } from "@cashsouk/types";
+import { formatMoneyDisplay } from "@cashsouk/ui";
+import type { Application, Contract, ContractDetails, Invoice, InvoiceDetails, Product } from "@cashsouk/types";
 
-/* ============================================================
-   Real data (applications for active organization)
-============================================================ */
+/* Loose shapes: persisted JSON may include legacy/extra keys beyond shared types. */
+type LooseContractDetails = Partial<ContractDetails> & {
+  customer?: string;
+  status?: string;
+};
+
+type LooseInvoiceDetails = Partial<InvoiceDetails> & {
+  invoiceNo?: string | number;
+  invoiceValue?: number;
+  financing_amount?: number;
+  financingAmount?: number;
+  maturityDate?: string;
+  submission_date?: string;
+  submissionDate?: string;
+  status?: string;
+};
 
 /* ============================================================
    Badge helpers
@@ -299,7 +313,10 @@ export function FinancingSection() {
       <div className="space-y-6">
       {productsWithData.map((product: ProductOrStub) => {
         const group = productGroups[product.id] ?? { contracts: [], invoices: [] };
-        const productName = productNameMap.get(product.id) ?? product.name ?? `Product ${product.id}`;
+        const productName =
+          productNameMap.get(product.id) ??
+          ("name" in product ? product.name : undefined) ??
+          `Product ${product.id}`;
 
         return (
           <Card key={product.id} className="rounded-xl border border-gray-200 shadow-sm">
@@ -439,6 +456,11 @@ function CollapsibleCategory({
 type InvoiceCardModel = Invoice & {
   maturityDate?: string | null;
   submissionDate?: string | null;
+  noteNo?: string | null;
+  customer?: string | null;
+  fundingDeadline?: string | null;
+  progress?: number | string;
+  fundingLabel?: string | null;
 };
 
 /* ============================================================
@@ -457,8 +479,8 @@ function ContractCard({
   onReviewOffer: () => void;
 }) {
   const router = useRouter();
-  const details = item.contract_details ?? {};
-  const customer = item.customer_details?.name ?? details?.customer ?? "-";
+  const details = (item.contract_details ?? {}) as LooseContractDetails;
+  const customer = item.customer_details?.name ?? details.customer ?? "-";
   const start = details?.start_date;
   const end = details?.end_date;
   const approved = details?.approved_facility ?? 0;
@@ -479,7 +501,7 @@ function ContractCard({
               <span className="font-semibold">{details?.title ?? item.id}</span>
             </p>
 
-            <span className="ml-2">{contractBadge(formatStatus(item.status) || formatStatus(details?.status))}</span>
+            <span className="ml-2">{contractBadge(formatStatus(item.status) || formatStatus(details.status))}</span>
             {offerBadge(offerStatus)}
           </div>
 
@@ -527,7 +549,7 @@ function ContractCard({
               <div>
                 <p className="text-xs text-muted-foreground">Active notes</p>
                 <p className="text-[17px] leading-7 font-medium text-foreground">
-                  {item.activeNotes}
+                  {String(item.activeNotes)}
                 </p>
               </div>
             )}
@@ -602,14 +624,28 @@ export function InvoiceCard({
   onReviewOffer: () => void;
 }) {
   const router = useRouter();
-  const details = item.details ?? {};
+  const details = (item.details ?? {}) as LooseInvoiceDetails;
   const invoiceNumber = details.number ?? details.invoiceNo ?? item.id;
   const invoiceValue = details.value ?? details.invoiceValue ?? null;
+  const ratioRaw = details.financing_ratio_percent;
+  const ratioParsed =
+    ratioRaw === undefined || ratioRaw === null
+      ? NaN
+      : typeof ratioRaw === "number"
+        ? Number.isFinite(ratioRaw)
+          ? ratioRaw
+          : NaN
+        : (() => {
+            const normalized = String(ratioRaw).replace(/,/g, "").trim();
+            if (normalized === "") return NaN;
+            const n = Number(normalized);
+            return Number.isFinite(n) ? n : NaN;
+          })();
   const financingAmount =
     details.financing_amount ??
     details.financingAmount ??
-    (typeof invoiceValue === "number" && typeof details.financing_ratio_percent === "number"
-      ? Math.round((invoiceValue * details.financing_ratio_percent) / 100)
+    (typeof invoiceValue === "number" && Number.isFinite(ratioParsed)
+      ? Math.round((invoiceValue * ratioParsed) / 100)
       : undefined);
   const maturityDate = details.maturity_date ?? details.maturityDate ?? item.maturityDate ?? null;
   const submissionDate =
@@ -740,7 +776,9 @@ export function InvoiceCard({
               <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
                 <div
                   className="h-1.5 bg-foreground rounded-full"
-                  style={{ width: `${item.progress}%` }}
+                  style={{
+                    width: `${Math.min(100, Math.max(0, Number(item.progress ?? 0)))}%`,
+                  }}
                 />
               </div>
 

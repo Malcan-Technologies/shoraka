@@ -64,11 +64,10 @@ import {
   getStepKeyFromStepId,
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
-  canEnterEmailForDirectorShareholder,
+  canManageDirectorShareholder,
+  computeHasPendingDirectorShareholder,
   filterVisiblePeopleRows,
-  type ApplicationPersonRow,
   type SoukscoreRiskRating,
-  normalizeRawStatus,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
@@ -76,10 +75,7 @@ import type { PortalType } from "../regtank/types";
 import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-entities";
 import { extractGovernmentIdFromCorporateUserInfo } from "../regtank/helpers/extract-government-id";
 import { buildAdminPeopleList } from "./build-people-list";
-import {
-  notifyIssuerDirectorShareholderActionRequired,
-  notifyIssuerDirectorShareholderRejected,
-} from "../notification/director-shareholder-notifications";
+import { notifyIssuerDirectorShareholderActionRequired } from "../notification/director-shareholder-notifications";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal } from "../applications/logs/types";
 
@@ -117,59 +113,6 @@ type ResubmitComparisonAmendmentRemark = {
 
 function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
-}
-
-/**
- * SECTION: Unified KYC/AML pending flag
- * WHY: Show one action-required state for directors/shareholders
- * INPUT: Application people rows from CTOS + issuer snapshots
- * OUTPUT: boolean hasPending (any person has KYC or AML not done)
- * WHERE USED: Admin applications list badge
- */
-function hasPendingDirectorShareholderKycOrAml(people: ApplicationPersonRow[]): boolean {
-  const visible = filterVisiblePeopleRows(people);
-  // No visible people means we do not have the needed party status yet → keep action required.
-  if (!visible || visible.length === 0) return true;
-
-  return visible.some((p) => {
-    const onboardingStatus = normalizeRawStatus(p.onboarding?.status);
-    const amlStatus = normalizeRawStatus(p.screening?.status);
-
-    const isOnboardingDone =
-      onboardingStatus === "APPROVED" || onboardingStatus === "WAIT_FOR_APPROVAL";
-    const isAmlDone = amlStatus === "APPROVED";
-
-    // Pending if either KYC or AML is not cleared.
-    return !isOnboardingDone || !isAmlDone;
-  });
-}
-
-/**
- * SECTION: AML helpers for director/shareholder financial gating
- * WHY: Keep AML checks consistent and scoped to INDIVIDUAL rows only
- * INPUT: Application people rows and application status
- * OUTPUT: booleans for pending/all-approved/final checks
- * WHERE USED: Admin application list badge + financial tab approval guard
- */
-function isAmlApprovedPersonStatus(statusRaw: string | null | undefined): boolean {
-  const status = normalizeRawStatus(statusRaw);
-  return status === "APPROVED";
-}
-
-function getVisibleIndividualsForAml(people: ApplicationPersonRow[]): ApplicationPersonRow[] {
-  const visible = filterVisiblePeopleRows(people);
-  return visible.filter((person) => person.entityType === "INDIVIDUAL");
-}
-
-function hasPendingAmlForIndividuals(individuals: ApplicationPersonRow[]): boolean {
-  return individuals.some((person) => !isAmlApprovedPersonStatus(person.screening?.status));
-}
-
-function allAmlApprovedForIndividuals(individuals: ApplicationPersonRow[]): boolean {
-  return (
-    individuals.length > 0 &&
-    individuals.every((person) => isAmlApprovedPersonStatus(person.screening?.status))
-  );
 }
 
 function isFinalApplicationStatusForAmlGuard(status: string | null | undefined): boolean {
@@ -2478,70 +2421,6 @@ export class AdminService {
     };
   }
 
-  /**
-   * Admin-only: notify issuer and resend RegTank onboarding for one director/shareholder (stateless).
-   */
-  async rejectIssuerDirectorShareholderParty(
-    issuerOrganizationId: string,
-    input: { partyKey: string; remark: string }
-  ): Promise<{ requestId: string }> {
-    const org = await prisma.issuerOrganization.findUnique({
-      where: { id: issuerOrganizationId },
-      select: { owner_user_id: true, type: true },
-    });
-    if (!org || org.type !== "COMPANY") {
-      throw new AppError(404, "NOT_FOUND", "Issuer company organization not found");
-    }
-    if (!org.owner_user_id) {
-      throw new AppError(400, "VALIDATION_ERROR", "Organization has no owner");
-    }
-
-    const orgSvc = new OrganizationService();
-    const extras = await orgSvc.getIssuerPartyListExtras(issuerOrganizationId);
-    const fullOrg = await prisma.issuerOrganization.findUnique({
-      where: { id: issuerOrganizationId },
-      select: { corporate_entities: true, director_kyc_status: true, director_aml_status: true },
-    });
-    if (!fullOrg) {
-      throw new AppError(404, "NOT_FOUND", "Organization not found");
-    }
-
-    const people = buildAdminPeopleList({
-      ctos: extras.latestOrganizationCtosCompanyJson ?? null,
-      issuerDirectorKycStatus: fullOrg.director_kyc_status ?? null,
-      issuerDirectorAmlStatus: fullOrg.director_aml_status ?? null,
-      ctosPartySupplements: extras.ctosPartySupplements.map((s) => ({
-        party_key: s.partyKey,
-        onboarding_json: s.onboardingJson,
-      })),
-      corporateEntities: fullOrg.corporate_entities ?? null,
-    });
-    const visible = filterVisiblePeopleRows(people);
-    const want = normalizeDirectorShareholderIdKey(input.partyKey);
-    if (!want) {
-      throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
-    }
-    const match = visible.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === want);
-    if (!match) {
-      throw new AppError(404, "NOT_FOUND", "Party not found among visible directors/shareholders");
-    }
-
-    const sendResult = await orgSvc.sendDirectorCtosPartyOnboardingPrivileged(
-      issuerOrganizationId,
-      { partyKey: input.partyKey },
-      input.remark
-    );
-
-    await notifyIssuerDirectorShareholderRejected({
-      issuerOrganizationId,
-      ownerUserId: org.owner_user_id,
-      partyKeyRaw: input.partyKey,
-      personName: match.name,
-    });
-
-    return sendResult;
-  }
-
   async notifyIssuerDirectorShareholderActionRequired(
     issuerOrganizationId: string,
     input: { partyKey: string }
@@ -2592,7 +2471,7 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Party not found among visible directors/shareholders");
     }
 
-    const emailActionable = canEnterEmailForDirectorShareholder(match);
+    const emailActionable = canManageDirectorShareholder(match);
     if (!emailActionable) {
       throw new AppError(400, "VALIDATION_ERROR", "Not eligible for notify");
     }
@@ -3282,7 +3161,7 @@ export class AdminService {
         : [];
     const directorShareholderAmlPending =
       record.organization_type === "COMPANY"
-        ? hasPendingDirectorShareholderKycOrAml(onboardingPeopleForAml)
+        ? computeHasPendingDirectorShareholder(onboardingPeopleForAml)
         : false;
 
     return {
@@ -4883,8 +4762,7 @@ export class AdminService {
           ctosPartySupplements: extras.ctosPartySupplements,
           corporateEntities: org.corporate_entities ?? null,
         });
-        const individuals = getVisibleIndividualsForAml(people);
-        const pending = individuals.length > 0 && hasPendingAmlForIndividuals(individuals);
+        const pending = computeHasPendingDirectorShareholder(people);
         pendingByOrg.set(oid, pending);
       })
     );
@@ -5532,12 +5410,11 @@ export class AdminService {
       })),
       corporateEntities: issuerOrg.corporate_entities ?? null,
     });
-    const individuals = getVisibleIndividualsForAml(people);
-    if (!allAmlApprovedForIndividuals(individuals)) {
+    if (computeHasPendingDirectorShareholder(people)) {
       throw new AppError(
         400,
-        "AML_NOT_READY",
-        "All directors/shareholders must complete AML before approval"
+        "DIRECTOR_SHAREHOLDER_NOT_READY",
+        "Director/shareholder verification must be complete before this action."
       );
     }
   }

@@ -242,17 +242,6 @@ export const initialNotificationTypes = [
     enabled_email: true,
   },
   {
-    id: "director_shareholder_rejected",
-    name: "Director/Shareholder Correction Required",
-    description: "Sent when an administrator requests corrections for a director or shareholder.",
-    category: NotificationCategory.SYSTEM,
-    portal_targets: ISSUER_ONLY,
-    default_priority: NotificationPriority.WARNING,
-    user_configurable: false,
-    enabled_platform: true,
-    enabled_email: true,
-  },
-  {
     id: "director_shareholder_action_required",
     name: "Director/Shareholder Action Required",
     description: "Sent when admin requests onboarding action for a specific director/shareholder.",

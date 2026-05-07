@@ -43,11 +43,13 @@ import {
   getLatestThreeCtosYearSlots,
   normalizeFinancialStatementsQuestionnaire,
   normalizeDirectorShareholderIdKey,
+  shouldNotifyIssuerDirectorShareholderAfterOrgCtosFromResolvedPeopleSnapshots,
   type ApplicationPersonRow,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
   type FinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format, isValid, parse, parseISO } from "date-fns";
 import {
@@ -55,7 +57,9 @@ import {
   useCreateIssuerOrganizationCtosSubjectReport,
   useNotifyIssuerDirectorShareholderActionRequired,
 } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
+import { applicationsKeys } from "@/applications/query-keys";
 import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
+import { ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT } from "@/lib/admin-director-shareholder-review-message";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -275,6 +279,7 @@ export function ApplicationFinancialReviewContent({
   app,
 }: ApplicationFinancialReviewContentProps) {
   const issuerOrgId = issuerOrganizationId?.trim() ?? "";
+  const queryClient = useQueryClient();
   const { getAccessToken } = useAuthToken();
   const createOrgCtos = useCreateIssuerOrganizationCtosReport(
     issuerOrgId || undefined,
@@ -469,6 +474,25 @@ export function ApplicationFinancialReviewContent({
       onSuccess: () => {
         toast.dismiss(t);
         toast.success("CTOS report saved.");
+        const cached = queryClient.getQueryData<{
+          people?: ApplicationPersonRow[];
+          issuer_organization?: Record<string, unknown>;
+        }>(applicationsKeys.detail(applicationId));
+        const org = (cached?.issuer_organization ?? app.issuer_organization) as Record<string, unknown> | undefined;
+        if (
+          shouldNotifyIssuerDirectorShareholderAfterOrgCtosFromResolvedPeopleSnapshots({
+            beforePeople: app.people,
+            afterPeople: cached?.people,
+            issuerDirectorKycStatus: org?.director_kyc_status ?? null,
+            issuerDirectorAmlStatus: org?.director_aml_status ?? null,
+            ctosPartySupplements: (org?.ctos_party_supplements as
+              | Array<{ party_key?: string | null; partyKey?: string | null }>
+              | null
+              | undefined) ?? null,
+          })
+        ) {
+          toast("New update", { description: ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT });
+        }
       },
       onError: (e: Error) => {
         toast.dismiss(t);

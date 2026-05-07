@@ -30,6 +30,7 @@ type IssuerDirectorMaps = {
   kycByEod: Map<string, UnknownRecord>;
   kycByGov: Map<string, UnknownRecord>;
   amlByEod: Map<string, UnknownRecord>;
+  amlByKycId: Map<string, UnknownRecord>;
   amlByGov: Map<string, UnknownRecord>;
   amlByCod: Map<string, UnknownRecord>;
   amlByBrn: Map<string, UnknownRecord>;
@@ -41,9 +42,13 @@ function strField(r: UnknownRecord | undefined, key: string): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
+/** KYB / RegTank screening: prefer `rawStatus` (e.g. "No Match") over bucketed `amlStatus` when both exist. */
 function amlSanitizedStatus(row: UnknownRecord | undefined): string | null {
-  const raw = strField(row, "amlStatus");
-  return raw ? normalizeRawStatus(raw) || null : null;
+  if (!row) return null;
+  const fromRaw = strField(row, "rawStatus");
+  if (fromRaw) return normalizeRawStatus(fromRaw) || null;
+  const fromAml = strField(row, "amlStatus");
+  return fromAml ? normalizeRawStatus(fromAml) || null : null;
 }
 
 function kycSanitizedStatus(row: UnknownRecord | undefined): string | null {
@@ -67,6 +72,7 @@ function buildIssuerDirectorMaps(kycRoot: unknown, amlRoot: unknown): IssuerDire
   const kycByEod = new Map<string, UnknownRecord>();
   const kycByGov = new Map<string, UnknownRecord>();
   const amlByEod = new Map<string, UnknownRecord>();
+  const amlByKycId = new Map<string, UnknownRecord>();
   const amlByGov = new Map<string, UnknownRecord>();
   const amlByCod = new Map<string, UnknownRecord>();
   const amlByBrn = new Map<string, UnknownRecord>();
@@ -98,8 +104,12 @@ function buildIssuerDirectorMaps(kycRoot: unknown, amlRoot: unknown): IssuerDire
     for (const row of indLists) {
       if (!row || typeof row !== "object" || Array.isArray(row)) continue;
       const r = row as UnknownRecord;
-      const eod = strField(r, "eodRequestId");
-      if (eod) amlByEod.set(eod, r);
+      const eodPrimary = strField(r, "eodRequestId");
+      const eodShareholder = strField(r, "shareholderEodRequestId");
+      if (eodPrimary) amlByEod.set(eodPrimary, r);
+      if (eodShareholder) amlByEod.set(eodShareholder, r);
+      const kid = strField(r, "kycId");
+      if (kid) amlByKycId.set(kid, r);
       const gov = normalizeDirectorShareholderIdKey(String(r.governmentIdNumber ?? r.ic_lcno ?? ""));
       if (gov) amlByGov.set(gov, r);
     }
@@ -116,7 +126,7 @@ function buildIssuerDirectorMaps(kycRoot: unknown, amlRoot: unknown): IssuerDire
     }
   }
 
-  return { kycByEod, kycByGov, amlByEod, amlByGov, amlByCod, amlByBrn };
+  return { kycByEod, kycByGov, amlByEod, amlByKycId, amlByGov, amlByCod, amlByBrn };
 }
 
 function buildCePartyRefs(corporateEntities: unknown): Map<string, CePartyRef> {
@@ -262,10 +272,16 @@ function enrichPersonFromIssuerMaps(params: {
     strField(kycGov, "eodRequestId") || strField(kycGov, "shareholderEodRequestId") || null;
   const eod = eodFromCe || eodFromKyc || null;
   const kyc = (eod ? maps.kycByEod.get(eod) : undefined) || kycGov || undefined;
-  const aml = (eod ? maps.amlByEod.get(eod) : undefined) || maps.amlByGov.get(key) || undefined;
+  const kycRow = (kyc ?? kycGov) as UnknownRecord | undefined;
+  const kycIdForAml = strField(kycRow, "kycId");
+  const aml =
+    (eod ? maps.amlByEod.get(eod) : undefined) ||
+    (kycIdForAml ? maps.amlByKycId.get(kycIdForAml) : undefined) ||
+    maps.amlByGov.get(key) ||
+    undefined;
   const kycSt = kycSanitizedStatus(kyc);
   const amlSt = amlSanitizedStatus(aml);
-  const kycId = strField(kyc, "kycId") || null;
+  const kycId = kycIdForAml ? kycIdForAml : null;
   const { riskLevel, riskScore } = screeningRiskFields(aml);
   const screening = {
     status: amlSt,

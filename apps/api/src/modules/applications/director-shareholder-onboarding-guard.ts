@@ -1,6 +1,6 @@
 /**
- * SECTION: Block issuer application submit until director/shareholder onboarding is ready
- * WHY: Single derived gate from visible individuals’ onboarding.status
+ * SECTION: Block issuer application submit while any director/shareholder row is still actionable
+ * WHY: Issuer submit uses {@link isReadyForSubmit} (onboarding only), independent of AML
  * INPUT: Issuer org id
  * OUTPUT: throws AppError DIRECTOR_SHAREHOLDER_PENDING or returns void / readiness object
  * WHERE USED: ApplicationService, issuer org API fields
@@ -8,22 +8,12 @@
 
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
-import {
-  canEnterEmailForDirectorShareholder,
-  filterVisiblePeopleRows,
-  type ApplicationPersonRow,
-} from "@cashsouk/types";
+import { isReadyForSubmit } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
 
 const DIRECTOR_SHAREHOLDER_PENDING_MESSAGE =
-  "Some directors or shareholders have not finished onboarding. Complete onboarding on your company profile before you submit an application.";
-
-function peopleHavePendingOnboarding(visible: ApplicationPersonRow[]): boolean {
-  const individuals = visible.filter((p) => p.entityType === "INDIVIDUAL");
-  if (individuals.length === 0) return false;
-  return individuals.some((p) => canEnterEmailForDirectorShareholder(p));
-}
+  "Director/Shareholder information updated. Please review. Complete onboarding on your company profile before you submit an application.";
 
 export async function getIssuerDirectorShareholderSubmitReadiness(issuerOrganizationId: string): Promise<{
   ready: boolean;
@@ -62,12 +52,7 @@ export async function assertIssuerOrgDirectorShareholderOnboardingReady(
     corporateEntities: org.corporate_entities ?? null,
   });
 
-  const visible = filterVisiblePeopleRows(people);
-  const visibleIndividuals = visible.filter((p) => p.entityType === "INDIVIDUAL");
-  if (visibleIndividuals.length === 0) {
-    return;
-  }
-  if (peopleHavePendingOnboarding(visibleIndividuals)) {
+  if (!isReadyForSubmit(people)) {
     throw new AppError(400, "DIRECTOR_SHAREHOLDER_PENDING", DIRECTOR_SHAREHOLDER_PENDING_MESSAGE);
   }
 }

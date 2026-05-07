@@ -7,9 +7,8 @@ import {
   filterVisiblePeopleRows,
   formatPeopleIdentityLine,
   formatPeopleRolesLineTitleCase,
-  normalizeRawStatus,
-  regtankDisplayStatusBadgeClass,
-  toTitleCase,
+  getFinalStatusBadgeClassName,
+  getFinalStatusLabel,
   type ApplicationPersonRow,
   type DirectorShareholderDisplayRow,
 } from "@cashsouk/types";
@@ -28,24 +27,15 @@ function isIndividualShareholderOnlyRow(r: DirectorShareholderDisplayRow): boole
   return r.type === "INDIVIDUAL" && !Boolean(r.isDirector) && Boolean(r.isShareholder);
 }
 
-function renderStatusBadge(raw: string | null | undefined) {
-  const status = normalizeRawStatus(raw);
-  if (!status) return null;
-  return (
-    <Badge
-      variant="outline"
-      className={cn("border-transparent text-[11px] font-normal", regtankDisplayStatusBadgeClass(status))}
-    >
-      {toTitleCase(status)}
-    </Badge>
-  );
-}
-
 function renderRow(row: DirectorShareholderDisplayRow & { __person: ApplicationPersonRow }) {
   const identityLine = formatPeopleIdentityLine(row.__person);
   const rolesLine = formatPeopleRolesLineTitleCase({
     roles: row.__person.roles ?? [],
     sharePercentage: row.__person.sharePercentage ?? null,
+  });
+  const finalStatus = getFinalStatusLabel({
+    screening: row.__person.screening,
+    onboarding: row.__person.onboarding,
   });
   return (
     <div key={row.id} className="rounded-lg border border-border bg-muted/30 p-4">
@@ -57,14 +47,16 @@ function renderRow(row: DirectorShareholderDisplayRow & { __person: ApplicationP
           <p className="text-xs text-muted-foreground">{rolesLine || "—"}</p>
         </div>
         <div className="flex shrink-0 flex-col gap-1.5 sm:items-end">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-muted-foreground">KYC</span>
-            {renderStatusBadge(row.__person.onboarding?.status)}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-muted-foreground">AML</span>
-            {renderStatusBadge(row.__person.screening?.status)}
-          </div>
+          <span className="text-xs text-muted-foreground">Status</span>
+          <Badge
+            variant="outline"
+            className={cn(
+              "border-transparent text-[11px] font-normal",
+              getFinalStatusBadgeClassName(finalStatus.tone)
+            )}
+          >
+            {finalStatus.label}
+          </Badge>
         </div>
       </div>
     </div>

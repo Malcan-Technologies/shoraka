@@ -1,6 +1,6 @@
 import {
-  canEnterEmailForDirectorShareholder,
-  filterVisiblePeopleRows,
+  canManageDirectorShareholder,
+  isReadyForSubmit,
   getCorporateShareholderEntityRecord,
   getCtosPartySupplementPipelineStatus,
   getCtosPartySupplementRequestId,
@@ -50,18 +50,6 @@ export function hasStartedOnboarding(p: Pick<ApplicationPersonRow, "onboarding">
   return Boolean(normalizeRawStatus(p.onboarding?.status));
 }
 
-/**
- * SECTION: Visible onboarding rows
- * WHY: Onboarding gating only applies to individual people
- * INPUT: Visible people list
- * OUTPUT: Individual-only people list
- * WHERE USED: Banner/proceed checks in issuer UI
- */
-function getVisibleIndividualPeople(people: ApplicationPersonRow[]): ApplicationPersonRow[] {
-  const visible = filterVisiblePeopleRows(people);
-  return visible.filter((p) => p.entityType === "INDIVIDUAL");
-}
-
 export function getSupplementOnboardingJson(
   partyKeyRaw: string,
   ctosPartySupplements: ReadonlyArray<{ partyKey: string; onboardingJson?: unknown }> | null | undefined
@@ -79,7 +67,7 @@ export function getSupplementOnboardingJson(
   return {};
 }
 
-/** True when every visible CTOS party row has onboarding submitted/ready status. */
+/** True when every visible individual is submit-ready (WAIT_FOR_APPROVAL or APPROVED onboarding). AML ignored. */
 export function areDirectorShareholdersReadyForApplicationSubmit(params: {
   people: ApplicationPersonRow[];
   directorKycStatus?: unknown;
@@ -89,8 +77,7 @@ export function areDirectorShareholdersReadyForApplicationSubmit(params: {
   void params.directorKycStatus;
   void params.corporateEntities;
   void params.ctosPartySupplements;
-  const visible = getVisibleIndividualPeople(params.people);
-  return !visible.some((p) => canEnterEmailForDirectorShareholder(p));
+  return isReadyForSubmit(params.people);
 }
 
 export function personNeedsProfileDirectorAction(
@@ -102,5 +89,5 @@ export function personNeedsProfileDirectorAction(
   if (p.entityType !== "INDIVIDUAL") return false;
   if (isPartyTypeA(p, directorKycStatus, corporateEntities)) return false;
   void ctosPartySupplements;
-  return canEnterEmailForDirectorShareholder(p);
+  return canManageDirectorShareholder(p);
 }

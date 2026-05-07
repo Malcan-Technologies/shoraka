@@ -1,14 +1,14 @@
 /**
  * SECTION: Issuer director/shareholder notifications (Option A)
- * WHY: Alert issuer on AML-driven mismatch transitions and admin reject — no workflow state.
- * WHERE USED: After issuer org CTOS report insert; AML/supplement updates; admin reject route.
+ * WHY: Alert issuer on AML-driven mismatch transitions — no workflow state.
+ * WHERE USED: After issuer org CTOS report insert; AML/supplement updates.
  */
 
 import {
+  computeNewIssuerDirectorShareholderIndividualsAfterCtosVisibleDiff,
   filterVisiblePeopleRows,
   isReadyOnboardingStatus,
   normalizeDirectorShareholderIdKey,
-  normalizeRawStatus,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 import { buildAdminPeopleList } from "../admin/build-people-list";
@@ -41,76 +41,6 @@ function buildPeopleListParams(params: {
 }
 
 type PeopleListInput = ReturnType<typeof buildPeopleListParams>;
-
-function buildKnownKeysFromDbAndSupplement(input: PeopleListInput): {
-  dbKeys: Set<string>;
-  supplementKeys: Set<string>;
-} {
-  const dbKeys = new Set<string>();
-  const supplementKeys = new Set<string>();
-
-  const kycRoot =
-    input.issuerDirectorKycStatus &&
-    typeof input.issuerDirectorKycStatus === "object" &&
-    !Array.isArray(input.issuerDirectorKycStatus)
-      ? (input.issuerDirectorKycStatus as { directors?: unknown[]; individualShareholders?: unknown[] })
-      : {};
-  const kycRows = [
-    ...(Array.isArray(kycRoot.directors) ? kycRoot.directors : []),
-    ...(Array.isArray(kycRoot.individualShareholders) ? kycRoot.individualShareholders : []),
-  ];
-  for (const row of kycRows) {
-    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
-    const r = row as Record<string, unknown>;
-    const key = normalizeDirectorShareholderIdKey(String(r.governmentIdNumber ?? r.ic_lcno ?? ""));
-    if (key) dbKeys.add(key);
-  }
-
-  const amlRoot =
-    input.issuerDirectorAmlStatus &&
-    typeof input.issuerDirectorAmlStatus === "object" &&
-    !Array.isArray(input.issuerDirectorAmlStatus)
-      ? (input.issuerDirectorAmlStatus as {
-          directors?: unknown[];
-          individualShareholders?: unknown[];
-          businessShareholders?: unknown[];
-        })
-      : {};
-  const amlRows = [
-    ...(Array.isArray(amlRoot.directors) ? amlRoot.directors : []),
-    ...(Array.isArray(amlRoot.individualShareholders) ? amlRoot.individualShareholders : []),
-  ];
-  for (const row of amlRows) {
-    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
-    const r = row as Record<string, unknown>;
-    const key = normalizeDirectorShareholderIdKey(String(r.governmentIdNumber ?? r.ic_lcno ?? ""));
-    if (key) dbKeys.add(key);
-  }
-  const businessRows = Array.isArray(amlRoot.businessShareholders) ? amlRoot.businessShareholders : [];
-  for (const row of businessRows) {
-    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
-    const r = row as Record<string, unknown>;
-    const key = normalizeDirectorShareholderIdKey(
-      String(r.businessNumber ?? r.registrationNumber ?? r.brn_ssm ?? r.ic_lcno ?? r.additional_registration_no ?? "")
-    );
-    if (key) dbKeys.add(key);
-  }
-
-  for (const s of input.ctosPartySupplements ?? []) {
-    const key = normalizeDirectorShareholderIdKey(String(s.party_key ?? ""));
-    if (key) supplementKeys.add(key);
-  }
-
-  return { dbKeys, supplementKeys };
-}
-
-function hasStartedOnboarding(p: Pick<ApplicationPersonRow, "onboarding">): boolean {
-  return Boolean(normalizeRawStatus(p.onboarding?.status));
-}
-
-function shouldNotifyNewPerson(p: Pick<ApplicationPersonRow, "onboarding">): boolean {
-  return !hasStartedOnboarding(p);
-}
 
 function computeVisiblePeopleState(input: PeopleListInput): {
   people: ApplicationPersonRow[];
@@ -170,15 +100,12 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
   const { visible: beforeVisible } = computeVisiblePeopleState(beforeInput);
   const { visible: afterVisible } = computeVisiblePeopleState(afterInput);
 
-  const beforeKeys = new Set(beforeVisible.map((p) => p.matchKey));
-  const { dbKeys, supplementKeys } = buildKnownKeysFromDbAndSupplement(afterInput);
-  const newPeopleWithoutOnboarding = afterVisible.filter((p) => {
-    const key = normalizeDirectorShareholderIdKey(p.matchKey);
-    if (!key) return false;
-    if (beforeKeys.has(key)) return false;
-    if (dbKeys.has(key)) return false;
-    if (supplementKeys.has(key)) return false;
-    return shouldNotifyNewPerson(p);
+  const newPeopleWithoutOnboarding = computeNewIssuerDirectorShareholderIndividualsAfterCtosVisibleDiff({
+    beforeVisibleIndividuals: beforeVisible,
+    afterVisibleIndividuals: afterVisible,
+    issuerDirectorKycStatus: directorKycStatus,
+    issuerDirectorAmlStatus: directorAmlStatus,
+    ctosPartySupplements: supplements.map((s) => ({ party_key: s.partyKey })),
   });
   const shouldTriggerNotification = afterVisible.length > 0 && newPeopleWithoutOnboarding.length > 0;
 
@@ -241,7 +168,7 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
 }
 
 /**
- * Recompute from DB and resolve mismatch + per-party rejected rows when AML is fully clear for visible people.
+ * Recompute from DB and resolve mismatch notifications when AML and onboarding are fully clear for visible people.
  */
 export async function runIssuerDirectorShareholderNotificationResolutionFromDb(
   issuerOrganizationId: string
@@ -299,43 +226,6 @@ async function resolveIssuerDirectorShareholderNotificationsIfCleared(params: {
     },
     data: { resolved_at: new Date() },
   });
-
-  await prisma.notification.updateMany({
-    where: {
-      user_id: ownerUserId,
-      notification_type_id: NotificationTypeIds.DIRECTOR_SHAREHOLDER_REJECTED,
-      resolved_at: null,
-      metadata: {
-        path: ["issuerOrganizationId"],
-        equals: issuerOrganizationId,
-      },
-    },
-    data: { resolved_at: new Date() },
-  });
-}
-
-export async function notifyIssuerDirectorShareholderRejected(params: {
-  issuerOrganizationId: string;
-  ownerUserId: string;
-  partyKeyRaw: string;
-  personName?: string | null;
-}): Promise<void> {
-  const pk = normalizeDirectorShareholderIdKey(params.partyKeyRaw);
-  if (!pk || !params.ownerUserId?.trim()) {
-    logger.warn({ issuerOrganizationId: params.issuerOrganizationId }, "DS rejected notification skipped: invalid key");
-    return;
-  }
-
-  const notificationService = new NotificationService();
-  await notificationService.sendTyped(
-    params.ownerUserId,
-    NotificationTypeIds.DIRECTOR_SHAREHOLDER_REJECTED,
-    {
-      issuerOrganizationId: params.issuerOrganizationId,
-      partyKey: pk,
-      personName: params.personName ?? undefined,
-    }
-  );
 }
 
 export async function notifyIssuerDirectorShareholderActionRequired(params: {

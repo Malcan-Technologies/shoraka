@@ -28,7 +28,6 @@ COPY packages/types ./packages/types
 COPY packages/config ./packages/config
 COPY packages/icons ./packages/icons
 COPY packages/help-content ./packages/help-content
-COPY docs/help ./docs/help
 
 RUN pnpm --filter @cashsouk/api prisma generate
 RUN pnpm --filter @cashsouk/types build
@@ -72,7 +71,6 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder --chown=nextjs:nodejs /app/apps/investor/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/investor/.next/static ./apps/investor/.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/apps/investor/public ./apps/investor/public
-COPY --from=builder --chown=nextjs:nodejs /app/docs/help ./docs/help
 
 USER nextjs
 

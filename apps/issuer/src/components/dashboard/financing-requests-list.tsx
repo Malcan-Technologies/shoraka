@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card"
 import { useOrganization } from "@cashsouk/config";
 import { useOrganizationApplications } from "@/hooks/use-applications";
 import type { Application, Invoice, InvoiceDetails } from "@cashsouk/types";
+import { InvoiceStatus } from "@cashsouk/types";
 
 type Status =
   | "Draft"
@@ -47,6 +48,24 @@ function useOrgInvoiceList() {
   return invoices;
 }
 
+function invoiceApiStatusToDisplay(status: Invoice["status"] | undefined): Status {
+  switch (status) {
+    case InvoiceStatus.DRAFT:
+      return "Draft";
+    case InvoiceStatus.SUBMITTED:
+    case InvoiceStatus.OFFER_SENT:
+    case InvoiceStatus.AMENDMENT_REQUESTED:
+      return "In progress";
+    case InvoiceStatus.APPROVED:
+      return "Funded";
+    case InvoiceStatus.REJECTED:
+    case InvoiceStatus.WITHDRAWN:
+      return "Unsuccessful";
+    default:
+      return "In progress";
+  }
+}
+
 function getStatusBadge(status: Status) {
   switch (status) {
     case "Draft":
@@ -84,7 +103,7 @@ export function FinancingRequestsList() {
                     Invoice no :{" "}
                     <span className="font-semibold">{item.invoiceNo}</span>
                   </p>
-                  {getStatusBadge(item.status as Status)}
+                  {getStatusBadge(invoiceApiStatusToDisplay(item.status))}
                 </div>
 
                 {item.noteNo && (
@@ -98,13 +117,13 @@ export function FinancingRequestsList() {
                   <p className="text-sm text-muted-foreground">
                     Invoice value :{" "}
                     <span className="font-medium text-foreground">
-                      {item.invoiceValue}
+                      {item.invoiceValue != null ? String(item.invoiceValue) : "—"}
                     </span>
                   </p>
                   <p className="text-sm text-muted-foreground">
                     Financing amount :{" "}
                     <span className="font-medium text-foreground">
-                      {item.financingAmount}
+                      {item.financingAmount != null ? String(item.financingAmount) : "—"}
                     </span>
                   </p>
                 </div>

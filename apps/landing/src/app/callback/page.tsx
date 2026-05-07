@@ -14,7 +14,7 @@ function CallbackPageContent() {
   const router = useRouter();
   const processedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Get portal, onboarding, and redirect params (set by backend redirect)
   const portalParam = searchParams.get("portal");
   const onboardingParam = searchParams.get("onboarding");
@@ -29,7 +29,7 @@ function CallbackPageContent() {
     const handleCallback = async () => {
       try {
         console.log("[Landing Callback] Starting OAuth callback processing");
-        
+
         // Read the access token directly from cookies set by the backend
         const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
         if (!clientId) {
@@ -40,18 +40,23 @@ function CallbackPageContent() {
         }
 
         // Get all cookies
-        const cookies = document.cookie.split(';').reduce((acc, cookie) => {
-          const [key, value] = cookie.trim().split('=');
-          acc[key] = value;
-          return acc;
-        }, {} as Record<string, string>);
+        const cookies = document.cookie.split(";").reduce(
+          (acc, cookie) => {
+            const [key, value] = cookie.trim().split("=");
+            acc[key] = value;
+            return acc;
+          },
+          {} as Record<string, string>
+        );
 
         // Find the LastAuthUser cookie to get the cognito user ID
         const lastAuthUserKey = `CognitoIdentityServiceProvider.${clientId}.LastAuthUser`;
         const cognitoUserId = cookies[lastAuthUserKey];
 
         if (!cognitoUserId) {
-          console.error("[Landing Callback] LastAuthUser cookie not found", { cookies: Object.keys(cookies) });
+          console.error("[Landing Callback] LastAuthUser cookie not found", {
+            cookies: Object.keys(cookies),
+          });
           setError("Authentication session not found. Please try again.");
           setTimeout(() => router.push("/"), 2000);
           return;
@@ -62,7 +67,10 @@ function CallbackPageContent() {
         const accessTokenValue = cookies[accessTokenKey];
 
         if (!accessTokenValue) {
-          console.error("[Landing Callback] Access token cookie not found", { cognitoUserId, accessTokenKey });
+          console.error("[Landing Callback] Access token cookie not found", {
+            cognitoUserId,
+            accessTokenKey,
+          });
           setError("Access token not found. Please try again.");
           setTimeout(() => router.push("/"), 2000);
           return;
@@ -74,13 +82,13 @@ function CallbackPageContent() {
         // Use portal parameter from backend (based on requestedRole)
         // This tells us which portal the user originally tried to access
         let targetPortal = portalParam?.toLowerCase();
-        
+
         // Fallback to localStorage if portal param not found
         if (!targetPortal && typeof window !== "undefined") {
           targetPortal = localStorage.getItem("requested_portal") || "investor";
           localStorage.removeItem("requested_portal"); // Clean up
         }
-        
+
         const onboarding = onboardingParam === "required";
 
         console.info("[Landing Callback] Processing redirect", {
@@ -121,7 +129,9 @@ function CallbackPageContent() {
         }
 
         // Fallback: No valid portal detected or landing portal selected
-        console.info("[Landing Callback] No specific portal or landing portal selected, staying on landing");
+        console.info(
+          "[Landing Callback] No specific portal or landing portal selected, staying on landing"
+        );
         router.push("/");
       } catch (error) {
         console.error("[Landing Callback] Error processing callback:", error);
@@ -138,9 +148,7 @@ function CallbackPageContent() {
     <div className="flex items-center justify-center min-h-screen">
       <div className="text-center space-y-4">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-        <p className="text-muted-foreground">
-          {error || "Completing authentication..."}
-        </p>
+        <p className="text-muted-foreground">{error || "Completing authentication..."}</p>
       </div>
     </div>
   );
@@ -162,4 +170,3 @@ export default function CallbackPage() {
     </Suspense>
   );
 }
-

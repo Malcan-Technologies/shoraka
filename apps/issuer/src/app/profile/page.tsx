@@ -854,7 +854,6 @@ export default function ProfilePage() {
           {!isPersonal ? (
             <DirectorShareholderAlertCard
               visiblePeople={visiblePeopleForDsAlert}
-              issuerOrganizationId={activeOrganization?.id}
               enabled={activeOrganization?.onboardingStatus === "COMPLETED"}
             />
           ) : null}

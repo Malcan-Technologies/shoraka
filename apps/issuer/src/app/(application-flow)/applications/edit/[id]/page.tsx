@@ -442,17 +442,21 @@ function EditApplicationPageBody() {
     return () => window.removeEventListener("storage", read);
   }, []);
 
+  const savedStructureType = (
+    application?.financing_structure as
+      | { structure_type?: "new_contract" | "existing_contract" | "invoice_only" }
+      | null
+      | undefined
+  )?.structure_type;
+
   const isStructureResolved =
-    sessionStructureType !== null ||
-    application?.financing_structure?.structure_type !== undefined;
+    sessionStructureType !== null || savedStructureType !== undefined;
 
   const effectiveStructureType = React.useMemo(() => {
     if (sessionStructureType !== null) return sessionStructureType;
-    if (application?.financing_structure?.structure_type) {
-      return application.financing_structure.structure_type;
-    }
+    if (savedStructureType) return savedStructureType;
     return null;
-  }, [sessionStructureType, application]);
+  }, [sessionStructureType, savedStructureType]);
 
   /* ================================================================
      PRODUCT & WORKFLOW DERIVATION
@@ -1135,7 +1139,7 @@ function EditApplicationPageBody() {
       } else {
         await updateStatusMutation.mutateAsync({
           id: applicationId,
-          status: "SUBMITTED",
+          status: ApplicationStatus.SUBMITTED,
         });
         successPendingNav = true;
       }
@@ -1607,7 +1611,6 @@ function EditApplicationPageBody() {
           <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 pt-2 sm:pt-3">
             <DirectorShareholderAlertCard
               visiblePeople={issuerVisiblePeopleForAlert}
-              issuerOrganizationId={activeOrganization.id}
               enabled={activeOrganization.onboardingStatus === "COMPLETED"}
               stickyTop
               className="mb-2"

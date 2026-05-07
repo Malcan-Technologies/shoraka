@@ -2,18 +2,19 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { canEnterEmailForDirectorShareholder, type ApplicationPersonRow } from "@cashsouk/types";
-import { useNotifications } from "@cashsouk/config";
+import {
+  canManageDirectorShareholder,
+  filterVisiblePeopleRows,
+  hasActionableDirectorShareholder,
+  normalizeRawStatus,
+  type ApplicationPersonRow,
+} from "@cashsouk/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const REJECTED_TYPE_ID = "director_shareholder_rejected";
-
 type Props = {
   visiblePeople: ApplicationPersonRow[];
-  /** When set, shows a short line if there is an unresolved admin reject notification for this org. */
-  issuerOrganizationId?: string | null;
   /** When false, keep the card hidden (e.g. during onboarding). */
   enabled?: boolean;
   /** Pin to top of scroll container so copy stays visible while scrolling. */
@@ -24,38 +25,31 @@ type Props = {
 
 export function DirectorShareholderAlertCard({
   visiblePeople,
-  issuerOrganizationId,
   enabled = true,
   stickyTop = false,
   className,
   onGoToProfile,
 }: Props) {
   const router = useRouter();
-  const visibleIndividualPeople = React.useMemo(
-    () => visiblePeople.filter((p) => p.entityType === "INDIVIDUAL"),
+  const visibleIndividuals = React.useMemo(
+    () => filterVisiblePeopleRows(visiblePeople).filter((p) => p.entityType === "INDIVIDUAL"),
     [visiblePeople]
   );
-  const notReadyPeople = React.useMemo(
-    () => visibleIndividualPeople.filter((p) => canEnterEmailForDirectorShareholder(p)),
-    [visibleIndividualPeople]
+  const hasPending = React.useMemo(() => hasActionableDirectorShareholder(visiblePeople), [visiblePeople]);
+  const submitReadyCount = React.useMemo(
+    () =>
+      visibleIndividuals.filter((p) => {
+        const onboarding = normalizeRawStatus(p.onboarding?.status);
+        return onboarding === "WAIT_FOR_APPROVAL" || onboarding === "APPROVED";
+      }).length,
+    [visibleIndividuals]
   );
-  const hasPending = notReadyPeople.length > 0;
-  const completedCount = visibleIndividualPeople.length - notReadyPeople.length;
-  const firstNotReady = notReadyPeople[0];
-
-  const { notifications } = useNotifications({ limit: 30 });
-  const showRejectLine = React.useMemo(() => {
-    const orgId = issuerOrganizationId?.trim();
-    if (!orgId) return false;
-    return (notifications as ReadonlyArray<Record<string, unknown>>).some((n) => {
-      const type = n.notification_type as { id?: string } | undefined;
-      const meta = n.metadata as { issuerOrganizationId?: string } | undefined;
-      if (type?.id !== REJECTED_TYPE_ID) return false;
-      if (meta?.issuerOrganizationId !== orgId) return false;
-      if (n.resolved_at) return false;
-      return true;
-    });
-  }, [notifications, issuerOrganizationId]);
+  const firstNeedAction = React.useMemo(() => {
+    for (const p of visibleIndividuals) {
+      if (canManageDirectorShareholder(p)) return p;
+    }
+    return undefined;
+  }, [visibleIndividuals]);
 
   if (!enabled) return null;
   if (!hasPending) return null;
@@ -85,38 +79,19 @@ export function DirectorShareholderAlertCard({
               Some directors or shareholders have not finished onboarding. Complete onboarding on your
               company profile before you submit an application.
             </p>
-            {visibleIndividualPeople.length > 0 ? (
+            {visibleIndividuals.length > 0 ? (
               <p className="text-sm text-muted-foreground">
-                {completedCount} of {visibleIndividualPeople.length} directors/shareholders completed
-              </p>
-            ) : null}
-            {showRejectLine ? (
-              <p className="text-[17px] leading-7 font-medium text-primary">
-                Some individuals require correction.
+                {submitReadyCount} of {visibleIndividuals.length} directors/shareholders completed
               </p>
             ) : null}
           </div>
           <div className="flex items-center gap-2">
             <Button
               type="button"
-              variant="outline"
-              className="h-10 shrink-0 rounded-full px-5 text-sm font-semibold sm:self-center"
-              onClick={() => {
-                if (onGoToProfile) {
-                  onGoToProfile();
-                  return;
-                }
-                router.push("/profile");
-              }}
-            >
-              Go to Profile
-            </Button>
-            <Button
-              type="button"
               variant="action"
               className="h-10 shrink-0 rounded-full px-5 text-sm font-semibold sm:self-center"
               onClick={() => {
-                const matchKey = firstNotReady?.matchKey;
+                const matchKey = firstNeedAction?.matchKey;
                 if (onGoToProfile) {
                   onGoToProfile(matchKey);
                   return;
@@ -125,7 +100,7 @@ export function DirectorShareholderAlertCard({
                 router.push(`/profile?focus=directors${personQuery}`);
               }}
             >
-              Fix now
+              Go to Profile
             </Button>
           </div>
         </div>

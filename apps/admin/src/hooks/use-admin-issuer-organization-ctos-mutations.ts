@@ -102,30 +102,6 @@ export function useCreateIssuerOrganizationCtosSubjectReport(
   });
 }
 
-export function useRejectIssuerDirectorShareholder(
-  issuerOrganizationId: string | undefined,
-  applicationDetailId?: string
-) {
-  const { getAccessToken } = useAuthToken();
-  const apiClient = createApiClient(API_URL, getAccessToken);
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (body: { partyKey: string; remark: string }) => {
-      const response = await apiClient.rejectIssuerDirectorShareholder(issuerOrganizationId!, body);
-      if (!response.success) {
-        throw new Error(formatApiErrorMessage(response.error));
-      }
-      return response.data;
-    },
-    onSuccess: () => {
-      if (applicationDetailId) {
-        void queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(applicationDetailId) });
-      }
-    },
-  });
-}
-
 export function useNotifyIssuerDirectorShareholderActionRequired(
   issuerOrganizationId: string | undefined,
   applicationDetailId?: string

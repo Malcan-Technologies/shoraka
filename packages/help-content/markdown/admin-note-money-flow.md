@@ -204,4 +204,4 @@ Every important money-flow action should be visible in the note timeline or buck
 - arrears/default letter generation,
 - manual overrides and waivers.
 
-When reviewing a note, use the activity timeline together with the ledger and bucket activity logs. The timeline explains who did what; the ledger and bucket logs explain how money moved.
+When reviewing a note, use the activity timeline together with the ledger and bucket activity logs. The timeline explains who did what. The ledger and bucket logs explain how money moved.

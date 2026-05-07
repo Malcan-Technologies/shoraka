@@ -117,7 +117,9 @@ interface InvoiceConfig {
   min_months_application_to_maturity?: number | null;
 }
 
-type ApplicationHydrated = Application & {
+type ApplicationHydrated = Omit<Application, "financing_structure" | "financing_type"> & {
+  financing_structure?: { structure_type?: string } | null;
+  financing_type?: { product_id?: string } | null;
   contract_id?: string | null;
   contract?: Contract;
   product?: Product;

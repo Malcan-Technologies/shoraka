@@ -15,16 +15,12 @@ import * as React from "react";
 import { useOrganization, createApiClient, useAuthToken, type OrganizationMember } from "@cashsouk/config";
 import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
-  canEnterEmailForDirectorShareholder,
   filterVisiblePeopleRows,
   formatPeopleRolesLineTitleCaseWithoutShare,
   formatShareOwnershipCell,
-  getDirectorShareholderSingleStatusPresentation,
-  // getDirectorShareholderStatusTooltip,
+  getFinalStatusBadgeClassName,
+  getFinalStatusLabel,
 } from "@cashsouk/types";
-import {
-  areDirectorShareholdersReadyForApplicationSubmit,
-} from "@/lib/director-shareholder-onboarding-ui";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { useApplication } from "@/hooks/use-applications";
@@ -218,14 +214,6 @@ export function CompanyDetailsStep({
   const isLoadingData = isLoadingInfo || isLoadingEntities;
   const visiblePeopleRows = React.useMemo(
     () => filterVisiblePeopleRows(entitiesData?.people ?? []),
-    [entitiesData?.people]
-  );
-
-  const directorsPartySubmitReady = React.useMemo(
-    () =>
-      areDirectorShareholdersReadyForApplicationSubmit({
-        people: entitiesData?.people ?? [],
-      }),
     [entitiesData?.people]
   );
 
@@ -474,6 +462,7 @@ export function CompanyDetailsStep({
      VALIDITY CHECK - Compute from current state
      ================================================================ */
 
+  /** Form-only: director/shareholder RegTank readiness is enforced on final submit (declarations), not here. */
   const isValid = React.useMemo(() => {
     return !!(
       isValidAddress(formState.businessAddress) &&
@@ -485,10 +474,9 @@ export function CompanyDetailsStep({
       formState.industry?.trim() &&
       formState.numberOfEmployees?.trim() &&
       formState.bankName?.trim() &&
-      formState.bankAccountNumber?.trim() &&
-      directorsPartySubmitReady
+      formState.bankAccountNumber?.trim()
     );
-  }, [formState, directorsPartySubmitReady]);
+  }, [formState]);
 
   /* ================================================================
      CHANGE DETECTION - Real pending changes logic
@@ -680,12 +668,11 @@ export function CompanyDetailsStep({
             ) : (
               visiblePeopleRows.map((p) => {
                 const displayRow = buildDirectorShareholderDisplayRowForEmailEligibility(p, null);
-                const statusView = getDirectorShareholderSingleStatusPresentation({
+                const finalStatus = getFinalStatusLabel({
                   screening: p.screening,
                   onboarding: p.onboarding,
                 });
                 const own = formatShareOwnershipCell(p);
-                const showCompleteOnProfile = canEnterEmailForDirectorShareholder(p);
                 const idLabel =
                   (displayRow.idNumber || displayRow.registrationNumber || p.matchKey || "").trim();
                 return (
@@ -704,40 +691,17 @@ export function CompanyDetailsStep({
                         <div className="h-4 w-px bg-border" />
                         <div className="flex flex-col gap-0.5 min-w-0">
                           <span className="text-xs text-muted-foreground">Status</span>
-                          {statusView ? (
-                            <>
-                              {/*
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge
-                                    variant="outline"
-                                    className={cn("w-fit border-transparent text-[11px] font-normal", statusView.badgeClassName)}
-                                  >
-                                    {statusView.label}
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>{getDirectorShareholderStatusTooltip(statusView.label)}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                              */}
-                              <Badge
-                                variant="outline"
-                                className={cn("w-fit border-transparent text-[11px] font-normal", statusView.badgeClassName)}
-                              >
-                                {statusView.label}
-                              </Badge>
-                            </>
-                          ) : (
-                            <span className="text-[17px] leading-7 text-muted-foreground truncate">—</span>
-                          )}
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "w-fit border-transparent text-[11px] font-normal",
+                              getFinalStatusBadgeClassName(finalStatus.tone)
+                            )}
+                          >
+                            {finalStatus.label}
+                          </Badge>
                         </div>
                       </div>
-                      {showCompleteOnProfile ? (
-                        <p className="text-sm text-muted-foreground">
-                          Submit onboarding on Profile → Directors and shareholders.
-                        </p>
-                      ) : null}
                     </div>
                   </React.Fragment>
                 );

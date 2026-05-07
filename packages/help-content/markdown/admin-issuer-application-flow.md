@@ -5,7 +5,7 @@ category: Application Review
 tags:
   - admin
 order: 10
-updated: 2026-04-28
+updated: 2026-05-05
 ---
 
 ## Purpose
@@ -53,10 +53,10 @@ Use the Financial tab to compare issuer-provided financials with CTOS data and t
 - Pull the organization CTOS report when the latest report is missing or stale.
 - Use subject CTOS reports for individual directors or corporate parties when a party-level report is needed.
 - Review KYC/KYB status for directors and shareholders shown from the latest CTOS company data and RegTank onboarding records.
-- Financial approval is blocked until required latest individual KYC records are approved.
+- **Financial** section **Approve** stays disabled until every **visible** director/shareholder has onboarding at **WAIT_FOR_APPROVAL** / **APPROVED** **and** **AML** screening is **cleared** for each row (same rules as the amber banner on that section). Follow on-screen messaging if approve is blocked.
 - If a director, shareholder, or controller changed, pull the latest CTOS/company data and make sure the relevant party appears with the correct role and ID before approving.
 
-Director and shareholder rows are matched by normalized IC or SSM numbers. Directors are always included. Individual shareholders are included when they hold at least 5%. Corporate shareholders are shown as corporate parties. If a party has not completed onboarding, the issuer must provide or update the email and send the RegTank onboarding link from the issuer profile; approved party onboarding is locked.
+Director and shareholder rows are matched by normalized IC or SSM numbers. Directors are always included. Individual shareholders are included when they hold at least 5%. Corporate shareholders are shown as corporate parties. If a party has not completed onboarding, the issuer must provide or update the email and send the RegTank onboarding link from the issuer profile. Approved party onboarding is locked.
 
 ## Guarantor AML
 
@@ -108,7 +108,7 @@ Use an invoice offer when an individual invoice is ready for approval. Before se
 - Resubmitted: issuer has returned the application for another review cycle.
 - Contract Sent or Invoices Sent: issuer must accept, sign, or reject the offer.
 - Approved or Completed: required offers have been resolved.
-- Withdrawn, Rejected, or Archived: the application is no longer progressing.
+- Withdrawn or Rejected: the application is no longer progressing.
 
 ## Admin Best Practices
 
@@ -119,5 +119,5 @@ Use an invoice offer when an individual invoice is ready for approval. Before se
 - Check guarantor AML status before relying on guarantor support.
 - Use invoice offers for invoice-level approval and contract offers for facility-level approval.
 - Do not send offers until upstream sections are approved and the relevant tab is unlocked.
-- Do not treat application fees as investor funding or note repayment activity. Issuer onboarding fees are RM 150 before onboarding; issuer application fees are RM 50 at financing application submission after payment gateway support is ready.
+- Do not treat application fees as investor funding or note repayment activity. Issuer onboarding fees are RM 150 before onboarding. Issuer application fees are RM 50 at financing application submission after payment gateway support is ready.
 - Review accepted terms carefully before any future note creation or financing instrument is prepared.

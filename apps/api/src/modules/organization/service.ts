@@ -38,7 +38,7 @@ import { sendOnboardingEmail } from "../../lib/email/ses";
 import { organizationInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
 import {
-  canEnterEmailForDirectorShareholder,
+  canManageDirectorShareholder,
   filterVisiblePeopleRows,
   getDirectorShareholderDisplayRows,
   isCtosIndividualKycEligibleRow,
@@ -50,6 +50,7 @@ import {
 } from "@cashsouk/types";
 import { buildAdminPeopleList } from "../admin/build-people-list";
 import { RegTankAPIClient } from "../regtank/api-client";
+import { ensureRegTankFormId } from "../regtank/form-id";
 import type { RegTankIndividualOnboardingRequest } from "../regtank/types";
 import { listLatestCtosSubjectReportsForAdminOrg } from "../ctos/ctos-report-service";
 
@@ -1644,6 +1645,15 @@ export class OrganizationService {
       throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
     }
     const entitiesForParty = await this.getCorporateEntities(userId, organizationId, portalType);
+    const peopleRows = filterVisiblePeopleRows(entitiesForParty.people ?? []);
+    const personRow = peopleRows.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === partyKey);
+    if (!personRow || !canManageDirectorShareholder(personRow)) {
+      throw new AppError(
+        400,
+        "DIRECTOR_SHAREHOLDER_NOT_EDITABLE",
+        "Email cannot be edited at this stage"
+      );
+    }
     const displayRowsForParty = getDirectorShareholderDisplayRows({
       corporateEntities: entitiesForParty,
       directorKycStatus: (entitiesForParty.directorKycStatus as Record<string, unknown> | null) ?? null,
@@ -1728,7 +1738,7 @@ export class OrganizationService {
     const entities = await this.getCorporateEntities(userId, organizationId, portalType);
     const peopleRows = filterVisiblePeopleRows(entities.people ?? []);
     const personRow = peopleRows.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === pk);
-    if (!personRow || !canEnterEmailForDirectorShareholder(personRow)) {
+    if (!personRow || !canManageDirectorShareholder(personRow)) {
       throw new AppError(
         400,
         "NOT_ALLOWED",
@@ -1788,7 +1798,7 @@ export class OrganizationService {
     }
 
     const { forename, surname } = splitForenameSurname(target.name);
-    const formId = parseInt(process.env.REGTANK_ISSUER_PERSONAL_FORM_ID || "1015495", 10);
+    const formId = ensureRegTankFormId(process.env.REGTANK_ISSUER_PERSONAL_FORM_ID, 1015495);
     const referenceId = buildSafeReferenceId(organizationId, pk);
     const onboardingRequest: RegTankIndividualOnboardingRequest = {
       email: supplementEmail,
@@ -1844,11 +1854,33 @@ export class OrganizationService {
     const sendHistory = parseSendTimestampsFromSupplementJson(prevRoot);
     try {
       logger.info({ referenceId }, "RegTank director onboarding referenceId");
+      console.log("[Director CTOS onboarding] request before RegTank (remove after debug)", {
+        organizationId,
+        partyKey: pk,
+        onboardingRequest,
+      });
       const regTankResponse = await regTankApi.createIndividualOnboarding(onboardingRequest);
       requestId = regTankResponse.requestId;
       verifyLink =
         typeof regTankResponse.verifyLink === "string" ? regTankResponse.verifyLink.trim() : "";
+
+      console.log(
+        "\n========== [Director CTOS] STAGE 1: RegTank HTTP OK — verify link (NOT emailed yet, DB not updated yet) =========="
+      );
+      console.log("[Director CTOS] STAGE 1 raw regTankResponse:", JSON.stringify(regTankResponse, null, 2));
+      console.log("[Director CTOS] STAGE 1 requestId:", requestId);
+      console.log("[Director CTOS] STAGE 1 verifyLink:", verifyLink);
+      console.log("[Director CTOS] STAGE 1 will email later to:", supplementEmail);
+      console.log(
+        "========== [Director CTOS] end STAGE 1 ==========\n"
+      );
     } catch (e) {
+      console.log("[Director CTOS onboarding] RegTank error (remove after debug)", {
+        organizationId,
+        partyKey: pk,
+        error: e instanceof Error ? e.message : String(e),
+        onboardingRequest,
+      });
       logger.error(
         { organizationId, partyKey: pk, error: e instanceof Error ? e.message : String(e) },
         "RegTank director onboarding failed"
@@ -1883,12 +1915,25 @@ export class OrganizationService {
 
     if (verifyLink) {
       try {
+        console.log(
+          "\n========== [Director CTOS] STAGE 2: DB updated — about to call SES (same verifyLink as STAGE 1) =========="
+        );
+        console.log("[Director CTOS] STAGE 2 verifyLink:", verifyLink);
+        console.log("[Director CTOS] STAGE 2 SES to:", supplementEmail);
+        console.log("========== [Director CTOS] end STAGE 2 — calling sendOnboardingEmail now ==========\n");
         await sendOnboardingEmail({ to: supplementEmail, verifyLink });
         logger.info(
           { organizationId, partyKey: pk, userId, requestId, portalType },
           "Director CTOS onboarding verify link sent via SES"
         );
+        console.log(
+          "\n========== [Director CTOS] STAGE 3: SES sendOnboardingEmail finished OK ==========\n"
+        );
       } catch (sesErr) {
+        console.log("[Director CTOS onboarding] SES error (remove after debug)", {
+          to: supplementEmail,
+          error: sesErr instanceof Error ? sesErr.message : String(sesErr),
+        });
         logger.error(
           {
             organizationId,
@@ -1899,6 +1944,11 @@ export class OrganizationService {
         );
       }
     } else {
+      console.log("[Director CTOS onboarding] no verifyLink, SES skipped (remove after debug)", {
+        organizationId,
+        partyKey: pk,
+        requestId,
+      });
       logger.warn(
         { organizationId, partyKey: pk, requestId },
         "RegTank returned no verifyLink; skipped SES onboarding email"
@@ -1959,212 +2009,6 @@ export class OrganizationService {
       latestOrganizationCtosSubjectReports: extras.latestOrganizationCtosSubjectReports,
       ctosPartySupplements: extras.ctosPartySupplements,
     };
-  }
-
-  /**
-   * Admin-only: resend director/shareholder RegTank onboarding without issuer membership checks.
-   */
-  async sendDirectorCtosPartyOnboardingPrivileged(
-    organizationId: string,
-    input: SendDirectorOnboardingInput,
-    adminRemark: string
-  ): Promise<{ requestId: string }> {
-    const org = await prisma.issuerOrganization.findUnique({
-      where: { id: organizationId },
-      select: { type: true, onboarding_status: true },
-    });
-    if (!org) {
-      throw new AppError(404, "NOT_FOUND", "Issuer organization not found");
-    }
-    assertOrgOnboardingCompletedForCompanyPartyActions(org);
-
-    const pk = normalizeDirectorShareholderIdKey(input.partyKey);
-    if (!pk) {
-      throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
-    }
-
-    const entities = await this.getCorporateEntitiesPrivileged(organizationId);
-    const peopleRows = filterVisiblePeopleRows(entities.people ?? []);
-    const personRow = peopleRows.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === pk);
-    if (!personRow || !canEnterEmailForDirectorShareholder(personRow)) {
-      throw new AppError(
-        400,
-        "NOT_ALLOWED",
-        "Resend is only allowed for actionable individual rows"
-      );
-    }
-    if (isLegacyCtosPartyKycApproved(pk, entities.directorKycStatus)) {
-      throw new AppError(
-        400,
-        "NOT_REQUIRED",
-        "This person already completed KYC on the company record."
-      );
-    }
-
-    const supplement = await findCtosPartySupplementForOrg("issuer", organizationId, pk);
-    const prevRoot = supplement?.onboarding_json;
-    assertOnboardingEmailMutable(prevRoot);
-    const supOb = parseCtosPartySupplement(prevRoot);
-    const supplementEmail = (supOb.email ?? "").trim();
-    if (!supplementEmail) {
-      throw new AppError(
-        400,
-        "EMAIL_REQUIRED",
-        "Save a party email for this person before sending onboarding"
-      );
-    }
-
-    const rows = getDirectorShareholderDisplayRows({
-      corporateEntities: entities,
-      directorKycStatus: (entities.directorKycStatus as Record<string, unknown> | null) ?? null,
-      directorAmlStatus: (entities as { directorAmlStatus?: unknown }).directorAmlStatus ?? null,
-      organizationCtosCompanyJson: entities.latestOrganizationCtosCompanyJson ?? null,
-      ctosPartySupplements: entities.ctosPartySupplements ?? null,
-      sentRowIds: null,
-    });
-    const target = rows.find(
-      (r) =>
-        r.type === "INDIVIDUAL" &&
-        (r.id === `ctos-${pk}` ||
-          normalizeDirectorShareholderIdKey(r.idNumber) === pk ||
-          normalizeDirectorShareholderIdKey(r.enquiryId) === pk)
-    );
-    if (!target) {
-      throw new AppError(404, "NOT_FOUND", "No CTOS individual party matches this key");
-    }
-    if (!isCtosIndividualKycEligibleRow(target)) {
-      throw new AppError(
-        400,
-        "NOT_ELIGIBLE",
-        "This party is not eligible for individual onboarding under CTOS rules"
-      );
-    }
-
-    const idGov = String(target.idNumber || target.enquiryId || "").trim();
-    if (!idGov) {
-      throw new AppError(400, "VALIDATION_ERROR", "Party has no government ID for onboarding");
-    }
-
-    const { forename, surname } = splitForenameSurname(target.name);
-    const formId = parseInt(process.env.REGTANK_ISSUER_PERSONAL_FORM_ID || "1015495", 10);
-    const referenceId = buildSafeReferenceId(organizationId, pk);
-    const onboardingRequest: RegTankIndividualOnboardingRequest = {
-      email: supplementEmail,
-      surname,
-      forename,
-      referenceId,
-      countryOfResidence: "MY",
-      nationality: "MY",
-      placeOfBirth: "MY",
-      idIssuingCountry: "MY",
-      gender: "UNSPECIFIED",
-      governmentIdNumber: idGov,
-      idType: "IDENTITY",
-      language: "EN",
-      bypassIdUpload: false,
-      skipFormPage: false,
-      formId,
-    };
-
-    const regTankApi = new RegTankAPIClient();
-    let requestId: string;
-    let verifyLink = "";
-    const now = new Date();
-    const nowIso = now.toISOString();
-    /* Send throttling (disabled): uncomment to enforce again.
-    const cooldownMs = 5 * 60 * 1000;
-    const maxPerDay = 5;
-    const prevLastSentAt =
-      typeof supOb.lastSentAt === "string" ? (supOb.lastSentAt as string).trim() : "";
-    if (prevLastSentAt) {
-      const lastMs = new Date(prevLastSentAt).getTime();
-      if (Number.isFinite(lastMs) && now.getTime() - lastMs < cooldownMs) {
-        throw new AppError(
-          429,
-          "RATE_LIMITED",
-          "Please wait 5 minutes before sending onboarding again."
-        );
-      }
-    }
-    const dailyCutoffMs = now.getTime() - 24 * 60 * 60 * 1000;
-    const recentSends = parseSendTimestampsFromSupplementJson(prevRoot).filter((ts) => {
-      const ms = new Date(ts).getTime();
-      return Number.isFinite(ms) && ms >= dailyCutoffMs;
-    });
-    if (recentSends.length >= maxPerDay) {
-      throw new AppError(
-        429,
-        "RATE_LIMITED",
-        "Daily send limit reached for this person. Please try again tomorrow."
-      );
-    }
-    */
-    const sendHistory = parseSendTimestampsFromSupplementJson(prevRoot);
-    try {
-      logger.info({ referenceId }, "RegTank director onboarding referenceId (admin privileged)");
-      const regTankResponse = await regTankApi.createIndividualOnboarding(onboardingRequest);
-      requestId = regTankResponse.requestId;
-      verifyLink =
-        typeof regTankResponse.verifyLink === "string" ? regTankResponse.verifyLink.trim() : "";
-    } catch (e) {
-      logger.error(
-        { organizationId, partyKey: pk, error: e instanceof Error ? e.message : String(e) },
-        "RegTank director onboarding failed (admin privileged)"
-      );
-      if (e instanceof AppError) throw e;
-      throw new AppError(
-        502,
-        "REGTANK_ONBOARDING_FAILED",
-        e instanceof Error ? e.message : "RegTank onboarding request failed"
-      );
-    }
-
-    const mergedSend = mergeCtosPartySupplementDocument(prevRoot, {
-      onboarding: {
-        email: supplementEmail,
-        status: "IN_PROGRESS",
-        directorMismatchAdminRemark: adminRemark.trim(),
-        requestId,
-        referenceId,
-        ...(verifyLink ? { verifyLink } : {}),
-        sentAt: nowIso,
-        lastSentAt: nowIso,
-        sendTimestamps: [...sendHistory, nowIso],
-      },
-    });
-    await upsertCtosPartySupplementOnboardingJson(
-      "issuer",
-      organizationId,
-      pk,
-      mergedSend as Prisma.InputJsonValue,
-      entities.directorKycStatus
-    );
-
-    if (verifyLink) {
-      try {
-        await sendOnboardingEmail({ to: supplementEmail, verifyLink });
-        logger.info(
-          { organizationId, partyKey: pk, requestId },
-          "Director CTOS onboarding verify link sent via SES (admin privileged)"
-        );
-      } catch (sesErr) {
-        logger.error(
-          {
-            organizationId,
-            partyKey: pk,
-            error: sesErr instanceof Error ? sesErr.message : String(sesErr),
-          },
-          "SES failed after RegTank success; verifyLink is stored in onboarding_json"
-        );
-      }
-    } else {
-      logger.warn(
-        { organizationId, partyKey: pk, requestId },
-        "RegTank returned no verifyLink; skipped SES onboarding email"
-      );
-    }
-
-    return { requestId };
   }
 
   async getCorporateEntities(

@@ -75,4 +75,4 @@ Use notification logs for broadcast or one-time custom sends. Automated lifecycl
 - IP address and device fields identify where the action came from. Treat them as investigative signals, not proof of identity by themselves.
 - Metadata contains the business context for the event, such as target user, previous and new values, review section, invoice number, offer amount, or workflow snapshot.
 - Some logging is best-effort. If a non-critical log write fails, the business action may still complete.
-- Contextual timelines may show a cleaner activity label than the raw event type; export or detail views preserve the underlying metadata for deeper review.
+- Contextual timelines may show a cleaner activity label than the raw event type. Export or detail views preserve the underlying metadata for deeper review.

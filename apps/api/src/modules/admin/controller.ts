@@ -42,7 +42,6 @@ import {
   sendInvoiceOfferSchema,
   addPendingAmendmentSchema,
   updatePendingAmendmentSchema,
-  rejectIssuerDirectorShareholderSchema,
   notifyIssuerDirectorShareholderActionRequiredSchema,
   createCtosSubjectReportSchema,
   resubmitComparisonQuerySchema,
@@ -535,31 +534,6 @@ router.post(
       const { id } = req.params;
       const body = notifyIssuerDirectorShareholderActionRequiredSchema.parse(req.body);
       const result = await adminService.notifyIssuerDirectorShareholderActionRequired(id, body);
-      res.json({
-        success: true,
-        data: result,
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(
-        error instanceof AppError
-          ? error
-          : error instanceof Error
-            ? new AppError(400, "VALIDATION_ERROR", error.message)
-            : error
-      );
-    }
-  }
-);
-
-router.post(
-  "/organizations/issuer/:id/director-shareholders/reject",
-  requireRole(UserRole.ADMIN),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { id } = req.params;
-      const body = rejectIssuerDirectorShareholderSchema.parse(req.body);
-      const result = await adminService.rejectIssuerDirectorShareholderParty(id, body);
       res.json({
         success: true,
         data: result,
