@@ -191,7 +191,7 @@ export function computeHasPendingDirectorShareholder(
 ): boolean {
   const list = (people ?? []).filter((p): p is ApplicationPersonRow => p != null);
   const visible = filterVisiblePeopleRows(list);
-  if (visible.length === 0) return true;
+  if (visible.length === 0) return false;
   const onboardingDoneAll = visible.every((p) => isReadyOnboardingStatus(p.onboarding?.status));
   const amlDoneAll = visible.every((p) => isDirectorShareholderAmlScreeningApproved(p.screening));
   return !onboardingDoneAll || !amlDoneAll;
