@@ -1,32 +1,107 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { InvestorPortfolioHistoryGranularity } from "@cashsouk/types";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { useInvestorInvestments, useInvestorPortfolio } from "@/investments/hooks/use-marketplace-notes";
+import {
+  useInvestorInvestments,
+  useInvestorPortfolio,
+  useInvestorPortfolioHistory,
+} from "@/investments/hooks/use-marketplace-notes";
 
-const RANGE_OPTIONS = ["3m", "6m", "1y", "3y", "5y", "all time"] as const;
+const RANGE_OPTIONS = [
+  { value: "1w", label: "1W" },
+  { value: "1m", label: "1M" },
+  { value: "3m", label: "3M" },
+  { value: "6m", label: "6M" },
+  { value: "ytd", label: "YTD" },
+  { value: "all", label: "All" },
+] as const;
 
-type RangeOption = (typeof RANGE_OPTIONS)[number];
+type RangeOption = (typeof RANGE_OPTIONS)[number]["value"];
+
+const API_RANGE_BY_OPTION: Record<RangeOption, "1W" | "1M" | "3M" | "6M" | "YTD" | "ALL"> = {
+  "1w": "1W",
+  "1m": "1M",
+  "3m": "3M",
+  "6m": "6M",
+  "ytd": "YTD",
+  "all": "ALL",
+};
 
 function formatCurrency(value: number) {
   return `RM ${value.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function buildSyntheticPerformance(total: number) {
-  const safeTotal = total > 0 ? total : 100000;
-  const monthLabels = ["Jan 26", "Feb 26", "Mar 26", "Apr 26", "May 26", "Jun 26"];
-  const multipliers = [0.72, 0.79, 0.84, 0.88, 0.93, 1];
-  return monthLabels.map((month, index) => ({
-    month,
-    value: Number((safeTotal * multipliers[index]).toFixed(2)),
-  }));
+function parseDateKey(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return new Date(value);
+
+  const [, year, month, day] = match;
+  return new Date(Number(year), Number(month) - 1, Number(day), 12);
+}
+
+function formatDateKey(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function resolveChartGranularity(range: RangeOption): InvestorPortfolioHistoryGranularity {
+  return range === "ytd" || range === "all" ? "month" : "day";
+}
+
+function formatXAxisDate(
+  value: string,
+  range: RangeOption,
+  granularity: InvestorPortfolioHistoryGranularity
+) {
+  const date = parseDateKey(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  if (granularity === "month") {
+    return date.toLocaleDateString("en-MY", {
+      month: "short",
+      ...(range === "all" ? { year: "2-digit" } : {}),
+    });
+  }
+
+  if (range === "1w") {
+    return date.toLocaleDateString("en-MY", { weekday: "short" });
+  }
+
+  if (range === "1m" || range === "3m") {
+    return date.toLocaleDateString("en-MY", { month: "short", day: "numeric" });
+  }
+
+  return date.toLocaleDateString("en-MY", { month: "short", day: "numeric" });
+}
+
+function formatTooltipDate(value: string, granularity: InvestorPortfolioHistoryGranularity) {
+  const date = parseDateKey(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  if (granularity === "month") {
+    return date.toLocaleDateString("en-MY", { year: "numeric", month: "long" });
+  }
+
+  return date.toLocaleDateString("en-MY", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function formatYAxisTick(value: number) {
+  if (Math.abs(value) >= 1000) {
+    return `${(value / 1000).toFixed(0)}k`;
+  }
+  return value.toFixed(0);
 }
 
 export function PortfolioOverviewCard() {
-  const [activeRange, setActiveRange] = useState<RangeOption>("6m");
+  const [activeRange, setActiveRange] = useState<RangeOption>("3m");
   const { data: portfolio } = useInvestorPortfolio();
+  const { data: history } = useInvestorPortfolioHistory(API_RANGE_BY_OPTION[activeRange]);
   const { data: investedNotesData } = useInvestorInvestments();
 
   const portfolioTotal = Number(portfolio?.portfolioTotal ?? 0);
@@ -45,7 +120,22 @@ export function PortfolioOverviewCard() {
   const underPerformingInvestments =
     investmentCount > successfulInvestments ? investmentCount - successfulInvestments : 0;
 
-  const chartData = useMemo(() => buildSyntheticPerformance(portfolioTotal), [portfolioTotal]);
+  const chartData = useMemo(() => {
+    const points = history?.points ?? [];
+    if (points.length > 0) {
+      return points.map((point) => ({
+        date: point.date,
+        value: point.portfolioTotal,
+      }));
+    }
+    return [
+      {
+        date: formatDateKey(new Date()),
+        value: Number(portfolio?.availableBalance ?? 0),
+      },
+    ];
+  }, [history?.points, portfolio?.availableBalance]);
+  const chartGranularity = history?.granularity ?? resolveChartGranularity(activeRange);
 
   return (
     <Card className="w-full">
@@ -59,23 +149,30 @@ export function PortfolioOverviewCard() {
       <CardContent className="space-y-6">
         <div className="h-[270px] w-full rounded-xl border bg-muted/20 px-2 py-4 md:px-4">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ left: 8, right: 8, top: 12, bottom: 4 }}>
+            <LineChart data={chartData} margin={{ left: 28, right: 24, top: 12, bottom: 8 }}>
               <XAxis
-                dataKey="month"
+                dataKey="date"
                 axisLine={false}
                 tickLine={false}
+                interval={activeRange === "1w" ? 0 : "preserveStartEnd"}
+                minTickGap={40}
+                height={32}
+                tickMargin={8}
+                padding={{ left: 20, right: 20 }}
+                tickFormatter={(value) => formatXAxisDate(String(value), activeRange, chartGranularity)}
                 tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
               />
               <YAxis
                 axisLine={false}
                 tickLine={false}
-                width={64}
-                tickFormatter={(value) => `${Math.round(value / 1000)}k`}
+                width={72}
+                tickMargin={8}
+                tickFormatter={formatYAxisTick}
                 tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
               />
               <Tooltip
                 formatter={(value) => formatCurrency(Number(value))}
-                labelFormatter={(value) => `Month: ${value}`}
+                labelFormatter={(value) => formatTooltipDate(String(value), chartGranularity)}
                 contentStyle={{
                   borderRadius: 12,
                   border: "1px solid hsl(var(--border))",
@@ -97,17 +194,18 @@ export function PortfolioOverviewCard() {
         <div className="flex flex-wrap items-center justify-center gap-2">
           {RANGE_OPTIONS.map((option) => (
             <button
-              key={option}
+              key={option.value}
               type="button"
-              onClick={() => setActiveRange(option)}
+              onClick={() => setActiveRange(option.value)}
+              aria-pressed={activeRange === option.value}
               className={cn(
                 "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                activeRange === option
+                activeRange === option.value
                   ? "border-primary bg-primary/10 text-primary"
                   : "border-border bg-background text-muted-foreground hover:text-foreground"
               )}
             >
-              {option}
+              {option.label}
             </button>
           ))}
         </div>

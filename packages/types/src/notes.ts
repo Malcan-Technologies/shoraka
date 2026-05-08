@@ -425,6 +425,53 @@ export interface InvestorPortfolioResponse {
   investmentCount: number;
 }
 
+export type InvestorPortfolioHistoryRange = "1W" | "1M" | "3M" | "6M" | "YTD" | "ALL";
+export type InvestorPortfolioHistoryGranularity = "day" | "month";
+
+export interface InvestorPortfolioHistoryPoint {
+  date: string;
+  availableBalance: number;
+  portfolioTotal: number;
+}
+
+export interface InvestorPortfolioHistoryResponse {
+  range: InvestorPortfolioHistoryRange;
+  granularity: InvestorPortfolioHistoryGranularity;
+  points: InvestorPortfolioHistoryPoint[];
+  generatedAt: string;
+}
+
+export interface InvestorBalanceActivityEntry {
+  id: string;
+  investorOrganizationId: string;
+  direction: "IN" | "OUT";
+  amount: number;
+  source: string;
+  noteId: string | null;
+  noteInvestmentId: string | null;
+  idempotencyKey: string;
+  metadata: Record<string, unknown> | null;
+  postedAt: string;
+  createdAt: string;
+}
+
+export interface InvestorBalanceActivityResponse {
+  entries: InvestorBalanceActivityEntry[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  };
+  summary: {
+    inTotal: number;
+    outTotal: number;
+    netChange: number;
+    availableBalance: number;
+  };
+  generatedAt: string;
+}
+
 export interface EligibleNoteInvoice {
   invoiceId: string;
   applicationId: string;

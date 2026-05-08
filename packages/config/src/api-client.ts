@@ -94,7 +94,10 @@ import type {
   NoteLedgerBucketBalancesResponse,
   NoteLedgerEntry,
   NotesResponse,
+  InvestorBalanceActivityResponse,
   InvestorPortfolioResponse,
+  InvestorPortfolioHistoryRange,
+  InvestorPortfolioHistoryResponse,
   PlatformFinanceSetting,
   RecordNotePaymentInput,
   SettlementPreviewInput,
@@ -2230,6 +2233,21 @@ export class ApiClient {
 
   async getInvestorPortfolio(): Promise<ApiResponse<InvestorPortfolioResponse> | ApiError> {
     return this.get<InvestorPortfolioResponse>("/v1/investor/portfolio");
+  }
+
+  async getInvestorPortfolioHistory(range: InvestorPortfolioHistoryRange = "6M"): Promise<ApiResponse<InvestorPortfolioHistoryResponse> | ApiError> {
+    const queryParams = new URLSearchParams({ range });
+    return this.get<InvestorPortfolioHistoryResponse>(`/v1/investor/portfolio/history?${queryParams.toString()}`);
+  }
+
+  async getInvestorBalanceActivity(params: {
+    page?: number;
+    pageSize?: number;
+  } = {}): Promise<ApiResponse<InvestorBalanceActivityResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page ?? 1));
+    queryParams.append("pageSize", String(params.pageSize ?? 20));
+    return this.get<InvestorBalanceActivityResponse>(`/v1/investor/balance/activity?${queryParams.toString()}`);
   }
 
   async postInvestorBalanceTestTopup(input: {

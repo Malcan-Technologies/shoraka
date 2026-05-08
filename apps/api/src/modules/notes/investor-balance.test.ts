@@ -13,6 +13,7 @@ describe("debitInvestorBalanceForCommit", () => {
         }),
       },
       investorBalanceTransaction: {
+        findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn(),
       },
     };
@@ -23,6 +24,7 @@ describe("debitInvestorBalanceForCommit", () => {
         amount: 100,
         noteId: "note_1",
         noteInvestmentId: "inv_1",
+        idempotencyKey: "test-debit-1",
       })
     ).rejects.toEqual(
       expect.objectContaining({
@@ -41,6 +43,7 @@ describe("debitInvestorBalanceForCommit", () => {
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       investorBalanceTransaction: {
+        findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue(undefined),
       },
     };
@@ -50,6 +53,7 @@ describe("debitInvestorBalanceForCommit", () => {
       amount: 50,
       noteId: "note_1",
       noteInvestmentId: "inv_1",
+      idempotencyKey: "test-debit-2",
     });
 
     expect(tx.investorBalanceTransaction.create).toHaveBeenCalledTimes(1);

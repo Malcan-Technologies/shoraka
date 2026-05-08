@@ -19,6 +19,15 @@ function prismaDecimal(value: Prisma.Decimal | number | string): number {
   return 0;
 }
 
+function isUniqueConstraintError(error: unknown, target: string): boolean {
+  if (!error || typeof error !== "object" || !("code" in error) || error.code !== "P2002") {
+    return false;
+  }
+  const meta = "meta" in error && error.meta && typeof error.meta === "object" ? error.meta : null;
+  const constraint = meta && "target" in meta ? meta.target : null;
+  return Array.isArray(constraint) ? constraint.includes(target) : constraint === target;
+}
+
 export async function ensureInvestorBalanceRow(
   tx: Prisma.TransactionClient,
   investorOrganizationId: string
@@ -40,8 +49,15 @@ export async function debitInvestorBalanceForCommit(
     amount: number;
     noteId: string;
     noteInvestmentId: string;
+    idempotencyKey: string;
+    postedAt?: Date;
   }
 ) {
+  const existing = await tx.investorBalanceTransaction.findUnique({
+    where: { idempotency_key: input.idempotencyKey },
+  });
+  if (existing) return existing;
+
   const amountDecimal = money(input.amount);
   await ensureInvestorBalanceRow(tx, input.investorOrganizationId);
 
@@ -66,16 +82,28 @@ export async function debitInvestorBalanceForCommit(
     );
   }
 
-  await tx.investorBalanceTransaction.create({
-    data: {
-      investor_organization_id: input.investorOrganizationId,
-      direction: InvestorBalanceTransactionDirection.OUT,
-      amount: amountDecimal,
-      source: InvestorBalanceTransactionSource.NOTE_INVESTMENT_COMMIT,
-      note_id: input.noteId,
-      note_investment_id: input.noteInvestmentId,
-    },
-  });
+  try {
+    return await tx.investorBalanceTransaction.create({
+      data: {
+        investor_organization_id: input.investorOrganizationId,
+        direction: InvestorBalanceTransactionDirection.OUT,
+        amount: amountDecimal,
+        source: InvestorBalanceTransactionSource.NOTE_INVESTMENT_COMMIT,
+        note_id: input.noteId,
+        note_investment_id: input.noteInvestmentId,
+        idempotency_key: input.idempotencyKey,
+        posted_at: input.postedAt ?? new Date(),
+      },
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error, "investor_balance_transactions_idempotency_key_key")) {
+      const duplicate = await tx.investorBalanceTransaction.findUnique({
+        where: { idempotency_key: input.idempotencyKey },
+      });
+      if (duplicate) return duplicate;
+    }
+    throw error;
+  }
 }
 
 export async function creditInvestorBalance(
@@ -87,8 +115,15 @@ export async function creditInvestorBalance(
     noteId?: string | null;
     noteInvestmentId?: string | null;
     metadata?: Prisma.InputJsonValue | null;
+    idempotencyKey: string;
+    postedAt?: Date;
   }
 ) {
+  const existing = await tx.investorBalanceTransaction.findUnique({
+    where: { idempotency_key: input.idempotencyKey },
+  });
+  if (existing) return existing;
+
   const amountDecimal = money(input.amount);
   await ensureInvestorBalanceRow(tx, input.investorOrganizationId);
 
@@ -97,15 +132,27 @@ export async function creditInvestorBalance(
     data: { available_amount: { increment: amountDecimal } },
   });
 
-  return tx.investorBalanceTransaction.create({
-    data: {
-      investor_organization_id: input.investorOrganizationId,
-      direction: InvestorBalanceTransactionDirection.IN,
-      amount: amountDecimal,
-      source: input.source,
-      note_id: input.noteId ?? undefined,
-      note_investment_id: input.noteInvestmentId ?? undefined,
-      metadata: input.metadata ?? undefined,
-    },
-  });
+  try {
+    return await tx.investorBalanceTransaction.create({
+      data: {
+        investor_organization_id: input.investorOrganizationId,
+        direction: InvestorBalanceTransactionDirection.IN,
+        amount: amountDecimal,
+        source: input.source,
+        note_id: input.noteId ?? undefined,
+        note_investment_id: input.noteInvestmentId ?? undefined,
+        idempotency_key: input.idempotencyKey,
+        metadata: input.metadata ?? undefined,
+        posted_at: input.postedAt ?? new Date(),
+      },
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error, "investor_balance_transactions_idempotency_key_key")) {
+      const duplicate = await tx.investorBalanceTransaction.findUnique({
+        where: { idempotency_key: input.idempotencyKey },
+      });
+      if (duplicate) return duplicate;
+    }
+    throw error;
+  }
 }

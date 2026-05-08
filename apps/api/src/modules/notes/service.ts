@@ -37,6 +37,8 @@ import type {
   bucketActivityQuerySchema,
   createWithdrawalSchema,
   getNotesQuerySchema,
+  investorBalanceActivityQuerySchema,
+  investorPortfolioHistoryQuerySchema,
   lateChargeSchema,
   overdueLateChargeSchema,
   paymentReviewSchema,
@@ -114,6 +116,103 @@ function roundTo(value: number, decimals: number) {
 
 function clampPercent(value: number) {
   return Math.max(0, Math.min(100, value));
+}
+
+function startOfDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+function toDateKey(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function resolveHistoryStartDate(
+  range: "1W" | "1M" | "3M" | "6M" | "YTD" | "ALL",
+  latestDate: Date,
+  firstDate: Date
+) {
+  if (range === "ALL") return firstDate;
+  if (range === "YTD") return new Date(latestDate.getFullYear(), 0, 1);
+
+  const dayWindowMap: Record<Exclude<typeof range, "YTD" | "ALL">, number> = {
+    "1W": 7,
+    "1M": 30,
+    "3M": 90,
+    "6M": 180,
+  };
+
+  const dayWindow = dayWindowMap[range];
+  const startDate = startOfDay(new Date(latestDate));
+  startDate.setDate(startDate.getDate() - (dayWindow - 1));
+  return startDate;
+}
+
+function resolveHistoryGranularity(range: "1W" | "1M" | "3M" | "6M" | "YTD" | "ALL") {
+  return range === "YTD" || range === "ALL" ? "month" : "day";
+}
+
+type InvestorPortfolioHistoryPoint = {
+  date: string;
+  availableBalance: number;
+  portfolioTotal: number;
+};
+
+type InvestorPortfolioHistoryTransaction = {
+  posted_at: Date;
+  direction: "IN" | "OUT";
+  amount: number;
+  source: InvestorBalanceTransactionSource;
+  metadata: Prisma.JsonValue | null;
+};
+
+function collapseHistoryPointsByMonth(points: InvestorPortfolioHistoryPoint[]) {
+  if (points.length <= 1) return points;
+
+  const monthlyPoints: InvestorPortfolioHistoryPoint[] = [];
+  let currentMonthPoint = points[0];
+  let currentMonthKey = currentMonthPoint.date.slice(0, 7);
+
+  for (let index = 1; index < points.length; index += 1) {
+    const point = points[index];
+    const pointMonthKey = point.date.slice(0, 7);
+
+    if (pointMonthKey === currentMonthKey) {
+      currentMonthPoint = point;
+      continue;
+    }
+
+    monthlyPoints.push(currentMonthPoint);
+    currentMonthPoint = point;
+    currentMonthKey = pointMonthKey;
+  }
+
+  monthlyPoints.push(currentMonthPoint);
+  return monthlyPoints;
+}
+
+function finalizeHistoryPoints(
+  points: InvestorPortfolioHistoryPoint[],
+  granularity: "day" | "month"
+) {
+  return granularity === "month" ? collapseHistoryPointsByMonth(points) : points;
+}
+
+function resolveSignedBalanceDelta(tx: InvestorPortfolioHistoryTransaction) {
+  return tx.direction === "IN" ? tx.amount : -tx.amount;
+}
+
+function resolvePortfolioDelta(tx: InvestorPortfolioHistoryTransaction) {
+  if (tx.source === InvestorBalanceTransactionSource.NOTE_INVESTMENT_COMMIT) return 0;
+
+  if (tx.source === InvestorBalanceTransactionSource.NOTE_INVESTMENT_RELEASE) {
+    const metadata = asRecord(tx.metadata);
+    return metadata?.releaseReason === "SETTLEMENT_PAYOUT" ? toNumber(metadata?.profitNet) : 0;
+  }
+
+  return resolveSignedBalanceDelta(tx);
 }
 
 function resolveSettlementAllocations(snapshot: unknown): SettlementAllocation[] {
@@ -310,6 +409,14 @@ async function renderPdfBuffer(title: string, rows: Array<[string, string]>): Pr
 }
 
 export class NoteService {
+  private async listInvestorOrganizationIds(userId: string) {
+    const orgs = await prisma.investorOrganization.findMany({
+      where: { OR: [{ owner_user_id: userId }, { members: { some: { user_id: userId } } }] },
+      select: { id: true },
+    });
+    return orgs.map((org) => org.id);
+  }
+
   async listAdminNotes(params: z.infer<typeof getNotesQuerySchema>) {
     const { notes, totalCount } = await noteRepository.list(params);
     const productIds = notes
@@ -1067,6 +1174,7 @@ export class NoteService {
         amount: input.amount,
         noteId,
         noteInvestmentId: investment.id,
+        idempotencyKey: `investor-balance:commit:${investment.id}`,
       });
       await this.logEvent(tx, noteId, "INVESTMENT_COMMITTED", actor, {
         investorOrganizationId: input.investorOrganizationId,
@@ -1162,6 +1270,7 @@ export class NoteService {
           source: InvestorBalanceTransactionSource.NOTE_INVESTMENT_RELEASE,
           noteId: id,
           noteInvestmentId: inv.id,
+          idempotencyKey: `investor-balance:release:fail-funding:${inv.id}`,
         });
       }
       const result = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
@@ -1224,11 +1333,7 @@ export class NoteService {
   }
 
   async listInvestorInvestments(userId: string) {
-    const orgs = await prisma.investorOrganization.findMany({
-      where: { OR: [{ owner_user_id: userId }, { members: { some: { user_id: userId } } }] },
-      select: { id: true },
-    });
-    const orgIds = orgs.map((org) => org.id);
+    const orgIds = await this.listInvestorOrganizationIds(userId);
     const orgIdSet = new Set(orgIds);
     const notes = await prisma.note.findMany({
       where: { investments: { some: { investor_organization_id: { in: orgIds } } } },
@@ -1246,11 +1351,7 @@ export class NoteService {
   }
 
   async getInvestorPortfolio(userId: string) {
-    const orgs = await prisma.investorOrganization.findMany({
-      where: { OR: [{ owner_user_id: userId }, { members: { some: { user_id: userId } } }] },
-      select: { id: true },
-    });
-    const orgIds = orgs.map((org) => org.id);
+    const orgIds = await this.listInvestorOrganizationIds(userId);
     const investments = await prisma.noteInvestment.findMany({
       where: {
         investor_organization_id: { in: orgIds },
@@ -1269,6 +1370,192 @@ export class NoteService {
       portfolioTotal,
       availableBalance,
       investmentCount: investments.length,
+    };
+  }
+
+  async listInvestorBalanceActivity(
+    userId: string,
+    query: z.infer<typeof investorBalanceActivityQuerySchema>
+  ) {
+    const orgIds = await this.listInvestorOrganizationIds(userId);
+    if (orgIds.length === 0) {
+      return {
+        entries: [],
+        pagination: { page: query.page, pageSize: query.pageSize, totalCount: 0, totalPages: 1 },
+        summary: { inTotal: 0, outTotal: 0, netChange: 0, availableBalance: 0 },
+        generatedAt: new Date().toISOString(),
+      };
+    }
+
+    const where = { investor_organization_id: { in: orgIds } };
+    const [entries, totalCount, allTransactions, balanceRows] = await Promise.all([
+      prisma.investorBalanceTransaction.findMany({
+        where,
+        orderBy: [{ posted_at: "desc" }, { created_at: "desc" }],
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+      }),
+      prisma.investorBalanceTransaction.count({ where }),
+      prisma.investorBalanceTransaction.findMany({
+        where,
+        select: { direction: true, amount: true },
+      }),
+      prisma.investorBalance.findMany({
+        where: { investor_organization_id: { in: orgIds } },
+        select: { available_amount: true },
+      }),
+    ]);
+
+    const inTotal = allTransactions
+      .filter((row) => row.direction === "IN")
+      .reduce((sum, row) => sum + toNumber(row.amount), 0);
+    const outTotal = allTransactions
+      .filter((row) => row.direction === "OUT")
+      .reduce((sum, row) => sum + toNumber(row.amount), 0);
+    const availableBalance = balanceRows.reduce((sum, row) => sum + toNumber(row.available_amount), 0);
+
+    return {
+      entries: entries.map((entry) => ({
+        id: entry.id,
+        investorOrganizationId: entry.investor_organization_id,
+        direction: entry.direction,
+        amount: toNumber(entry.amount),
+        source: entry.source,
+        noteId: entry.note_id,
+        noteInvestmentId: entry.note_investment_id,
+        idempotencyKey: entry.idempotency_key,
+        metadata: asRecord(entry.metadata),
+        postedAt: entry.posted_at.toISOString(),
+        createdAt: entry.created_at.toISOString(),
+      })),
+      pagination: {
+        page: query.page,
+        pageSize: query.pageSize,
+        totalCount,
+        totalPages: Math.max(1, Math.ceil(totalCount / query.pageSize)),
+      },
+      summary: {
+        inTotal: roundTo(inTotal, 2),
+        outTotal: roundTo(outTotal, 2),
+        netChange: roundTo(inTotal - outTotal, 2),
+        availableBalance: roundTo(availableBalance, 2),
+      },
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  async getInvestorPortfolioHistory(
+    userId: string,
+    query: z.infer<typeof investorPortfolioHistoryQuerySchema>
+  ) {
+    const granularity = resolveHistoryGranularity(query.range);
+    const orgIds = await this.listInvestorOrganizationIds(userId);
+    if (orgIds.length === 0) {
+      return {
+        range: query.range,
+        granularity,
+        points: [],
+        generatedAt: new Date().toISOString(),
+      };
+    }
+
+    const [transactionRows, balanceRows, investments] = await Promise.all([
+      prisma.investorBalanceTransaction.findMany({
+        where: { investor_organization_id: { in: orgIds } },
+        orderBy: { posted_at: "asc" },
+        select: { posted_at: true, direction: true, amount: true, source: true, metadata: true },
+      }),
+      prisma.investorBalance.findMany({
+        where: { investor_organization_id: { in: orgIds } },
+        select: { available_amount: true },
+      }),
+      prisma.noteInvestment.findMany({
+        where: {
+          investor_organization_id: { in: orgIds },
+          status: { in: [NoteInvestmentStatus.COMMITTED, NoteInvestmentStatus.CONFIRMED] },
+        },
+        select: { amount: true },
+      }),
+    ]);
+
+    const transactions: InvestorPortfolioHistoryTransaction[] = transactionRows.map((tx) => ({
+      posted_at: tx.posted_at,
+      direction: tx.direction,
+      amount: toNumber(tx.amount),
+      source: tx.source,
+      metadata: tx.metadata,
+    }));
+    const availableBalance = balanceRows.reduce((sum, row) => sum + toNumber(row.available_amount), 0);
+    const committed = investments.reduce((sum, investment) => sum + toNumber(investment.amount), 0);
+    const currentPortfolioTotal = availableBalance + committed;
+    if (transactions.length === 0) {
+      const points: InvestorPortfolioHistoryPoint[] = [
+        {
+          date: toDateKey(new Date()),
+          availableBalance: roundTo(availableBalance, 2),
+          portfolioTotal: roundTo(currentPortfolioTotal, 2),
+        },
+      ];
+      return {
+        range: query.range,
+        granularity,
+        points: finalizeHistoryPoints(points, granularity),
+        generatedAt: new Date().toISOString(),
+      };
+    }
+
+    const signedTransactions = transactions.map(resolveSignedBalanceDelta);
+    const netChange = signedTransactions.reduce((sum, amount) => sum + amount, 0);
+    const openingBalance = availableBalance - netChange;
+
+    const portfolioDeltaByTransaction = transactions.map(resolvePortfolioDelta);
+    const portfolioNetDelta = portfolioDeltaByTransaction.reduce((sum, delta) => sum + delta, 0);
+    const openingPortfolioTotal = currentPortfolioTotal - portfolioNetDelta;
+
+    const dailyBalanceNet = new Map<string, number>();
+    const dailyPortfolioDelta = new Map<string, number>();
+    for (let index = 0; index < transactions.length; index += 1) {
+      const key = toDateKey(startOfDay(transactions[index].posted_at));
+      dailyBalanceNet.set(key, (dailyBalanceNet.get(key) ?? 0) + signedTransactions[index]);
+      dailyPortfolioDelta.set(
+        key,
+        (dailyPortfolioDelta.get(key) ?? 0) + portfolioDeltaByTransaction[index]
+      );
+    }
+
+    const firstDate = startOfDay(transactions[0].posted_at);
+    const latestDate = startOfDay(transactions[transactions.length - 1].posted_at);
+    const rangeStartDate = resolveHistoryStartDate(query.range, latestDate, firstDate);
+
+    let carryForwardBalance = openingBalance;
+    let carryForwardPortfolioTotal = openingPortfolioTotal;
+    for (const tx of transactions) {
+      if (startOfDay(tx.posted_at).getTime() >= rangeStartDate.getTime()) break;
+      carryForwardBalance += resolveSignedBalanceDelta(tx);
+      carryForwardPortfolioTotal += resolvePortfolioDelta(tx);
+    }
+
+    const points: InvestorPortfolioHistoryPoint[] = [];
+    for (
+      let cursor = startOfDay(rangeStartDate);
+      cursor.getTime() <= latestDate.getTime();
+      cursor.setDate(cursor.getDate() + 1)
+    ) {
+      const key = toDateKey(cursor);
+      carryForwardBalance += dailyBalanceNet.get(key) ?? 0;
+      carryForwardPortfolioTotal += dailyPortfolioDelta.get(key) ?? 0;
+      points.push({
+        date: key,
+        availableBalance: roundTo(carryForwardBalance, 2),
+        portfolioTotal: roundTo(carryForwardPortfolioTotal, 2),
+      });
+    }
+
+    return {
+      range: query.range,
+      granularity,
+      points: finalizeHistoryPoints(points, granularity),
+      generatedAt: new Date().toISOString(),
     };
   }
 
@@ -1292,6 +1579,7 @@ export class NoteService {
         investorOrganizationId: input.investorOrganizationId,
         amount: input.amount,
         source: InvestorBalanceTransactionSource.MANUAL_TOPUP,
+        idempotencyKey: `investor-balance:topup:${input.investorOrganizationId}:${Date.now()}`,
         metadata: { reason: "test_topup" },
       });
       const investorPoolId = await this.getLedgerAccountId(tx, "INVESTOR_POOL");
@@ -1606,6 +1894,7 @@ export class NoteService {
           source: InvestorBalanceTransactionSource.NOTE_INVESTMENT_RELEASE,
           noteId: id,
           noteInvestmentId: allocation.investmentId,
+          idempotencyKey: `investor-balance:release:settlement:${settlementId}:${allocation.investmentId}`,
           metadata: {
             releaseReason: "SETTLEMENT_PAYOUT",
             settlementId,

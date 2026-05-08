@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
+import type { InvestorPortfolioHistoryRange } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -9,6 +10,9 @@ export const marketplaceKeys = {
     [...marketplaceKeys.all, "list", params] as const,
   detail: (id?: string) => [...marketplaceKeys.all, "detail", id] as const,
   portfolio: ["investor-portfolio"] as const,
+  portfolioHistoryRoot: ["investor-portfolio-history"] as const,
+  portfolioHistory: (range: InvestorPortfolioHistoryRange) =>
+    [...marketplaceKeys.portfolioHistoryRoot, range] as const,
   investorInvestments: ["investor-investments"] as const,
 };
 
@@ -77,6 +81,7 @@ export function useCommitInvestment() {
       queryClient.invalidateQueries({ queryKey: marketplaceKeys.all });
       queryClient.invalidateQueries({ queryKey: marketplaceKeys.detail(variables.noteId) });
       queryClient.invalidateQueries({ queryKey: marketplaceKeys.portfolio });
+      queryClient.invalidateQueries({ queryKey: marketplaceKeys.portfolioHistoryRoot });
     },
   });
 }
@@ -87,6 +92,18 @@ export function useInvestorPortfolio() {
     queryKey: marketplaceKeys.portfolio,
     queryFn: async () => {
       const response = await apiClient.getInvestorPortfolio();
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+  });
+}
+
+export function useInvestorPortfolioHistory(range: InvestorPortfolioHistoryRange) {
+  const apiClient = useMarketplaceApiClient();
+  return useQuery({
+    queryKey: marketplaceKeys.portfolioHistory(range),
+    queryFn: async () => {
+      const response = await apiClient.getInvestorPortfolioHistory(range);
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },

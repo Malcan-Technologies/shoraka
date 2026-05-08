@@ -29,6 +29,15 @@ export const bucketActivityQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+export const investorBalanceActivityQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export const investorPortfolioHistoryQuerySchema = z.object({
+  range: z.enum(["1W", "1M", "3M", "6M", "YTD", "ALL"]).default("6M"),
+});
+
 export const getNotesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(10),

@@ -694,11 +694,13 @@ model InvestorBalanceTransaction {
   source                   InvestorBalanceTransactionSource
   note_id                  String?
   note_investment_id       String?
+  idempotency_key          String                           @unique
   metadata                 Json?
+  posted_at                DateTime                         @default(now())
   created_at               DateTime                         @default(now())
   investor_organization    InvestorOrganization             @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
 
-  @@index([investor_organization_id, created_at])
+  @@index([investor_organization_id, posted_at])
   @@map("investor_balance_transactions")
 }
 model NotePaymentSchedule {

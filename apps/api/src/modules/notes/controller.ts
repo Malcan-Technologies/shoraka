@@ -20,6 +20,8 @@ import {
   recordPaymentSchema,
   settlementActionSchema,
   settlementPreviewSchema,
+  investorBalanceActivityQuerySchema,
+  investorPortfolioHistoryQuerySchema,
   testInvestorBalanceTopupSchema,
   updateNoteFeaturedSchema,
   updateNoteDraftSchema,
@@ -399,6 +401,24 @@ investorNotesRouter.get("/investments", async (req: Request, res: Response, next
 investorNotesRouter.get("/portfolio", async (req: Request, res: Response, next: NextFunction) => {
   try {
     send(res, await noteService.getInvestorPortfolio(getActor(req, res, "INVESTOR").userId));
+  } catch (error) {
+    next(error);
+  }
+});
+
+investorNotesRouter.get("/portfolio/history", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const query = investorPortfolioHistoryQuerySchema.parse(req.query);
+    send(res, await noteService.getInvestorPortfolioHistory(getActor(req, res, "INVESTOR").userId, query));
+  } catch (error) {
+    next(error);
+  }
+});
+
+investorNotesRouter.get("/balance/activity", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const query = investorBalanceActivityQuerySchema.parse(req.query);
+    send(res, await noteService.listInvestorBalanceActivity(getActor(req, res, "INVESTOR").userId, query));
   } catch (error) {
     next(error);
   }
