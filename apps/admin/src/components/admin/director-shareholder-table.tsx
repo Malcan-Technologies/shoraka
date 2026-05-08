@@ -6,7 +6,6 @@ import { useAuthToken } from "@cashsouk/config";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 // import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { DirectorShareholderNotifyButton } from "@/components/director-shareholder-notify-button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,7 +25,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  canManageDirectorShareholder,
   filterVisiblePeopleRows,
   formatSharePercentageCell,
   formatPeopleRolesLineWithoutShare,
@@ -61,7 +59,7 @@ type PendingCtosSubjectFetch = {
  * SECTION: Shared Director/Shareholder table
  * WHY: Keep all pages identical and read only from people.
  * INPUT: people rows + portal/org context + actions.
- * OUTPUT: merged table rows, notify, CTOS fetch modal.
+ * OUTPUT: merged table rows, CTOS fetch modal.
  * WHERE USED: Admin financial and organization detail pages.
  */
 export function DirectorShareholderTable({
@@ -70,21 +68,17 @@ export function DirectorShareholderTable({
   organizationId,
   ctosFetchPendingKey,
   ctosFetchPending,
-  notifyPending,
   subjectCtosReports,
   onFetchSubjectCtos,
-  onNotify,
 }: {
   people: ApplicationPersonRow[];
   portal: "issuer" | "investor";
   organizationId: string;
   ctosFetchPendingKey?: string | null;
   ctosFetchPending?: boolean;
-  notifyPending?: boolean;
   /** Latest CTOS report per party (matches `subject_ref` from API to IC/SSM). */
   subjectCtosReports?: CtosSubjectReportListItem[] | null;
   onFetchSubjectCtos?: (person: ApplicationPersonRow) => void;
-  onNotify?: (person: ApplicationPersonRow) => void;
 }) {
   const { getAccessToken } = useAuthToken();
   const [pendingCtosSubjectFetch, setPendingCtosSubjectFetch] = React.useState<PendingCtosSubjectFetch | null>(null);
@@ -134,18 +128,12 @@ export function DirectorShareholderTable({
               <TableHead>Roles</TableHead>
               <TableHead>Share %</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Risk Level</TableHead>
               <TableHead>RegTank</TableHead>
-              <TableHead>IC Front</TableHead>
-              <TableHead>IC Back</TableHead>
-              <TableHead>Last CTOS Fetch</TableHead>
-              <TableHead>CTOS</TableHead>
-              <TableHead>Notify</TableHead>
+              <TableHead title="Fetch or view the CTOS report for this person.">CTOS</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((p) => {
-              const canNotify = canManageDirectorShareholder(p);
               const finalStatus = getFinalStatusLabel({
                 screening: p.screening,
                 onboarding: p.onboarding,
@@ -175,19 +163,10 @@ export function DirectorShareholderTable({
                       {finalStatus.label}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {p.screening?.riskLevel != null && String(p.screening.riskLevel).trim()
-                      ? String(p.screening.riskLevel).trim()
-                      : p.screening?.riskScore != null && String(p.screening.riskScore).trim()
-                        ? String(p.screening.riskScore)
-                        : "—"}
-                  </TableCell>
                   <TableCell>
                     {(() => {
                       const rid = String(p.requestId ?? "").trim();
                       const link = getRegtankLink(p);
-                      const fallback = normalizeDirectorShareholderIdKey(p.matchKey) ?? p.matchKey;
-                      const displayId = rid || fallback;
                       if (link) {
                         return (
                           <Button
@@ -203,55 +182,17 @@ export function DirectorShareholderTable({
                           </Button>
                         );
                       }
-                      return <span className="font-mono text-[11px] text-muted-foreground break-all">{displayId}</span>;
+                      return <span className="text-sm text-muted-foreground">—</span>;
                     })()}
                   </TableCell>
                   <TableCell>
-                    {p.icFrontUrl ? (
-                      <a
-                        href={p.icFrontUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm font-medium text-primary underline underline-offset-4 hover:underline"
-                      >
-                        View Front
-                      </a>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {p.icBackUrl ? (
-                      <a
-                        href={p.icBackUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm font-medium text-primary underline underline-offset-4 hover:underline"
-                      >
-                        View Back
-                      </a>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                    {latestReport?.fetched_at
-                      ? (() => {
-                          try {
-                            return format(new Date(latestReport.fetched_at), "PPp");
-                          } catch {
-                            return latestReport.fetched_at;
-                          }
-                        })()
-                      : "—"}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
                       <Button
                         type="button"
                         variant="secondary"
                         size="sm"
-                        className="h-8"
+                        className="h-9"
                         onClick={() => {
                           const idKey = normalizeDirectorShareholderIdKey(p.matchKey);
                           if (!idKey) {
@@ -283,7 +224,7 @@ export function DirectorShareholderTable({
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-8"
+                        className="h-9"
                         disabled={!latestReport}
                         title={
                           latestReport
@@ -295,19 +236,22 @@ export function DirectorShareholderTable({
                           void openSubjectReportHtml(latestReport.id);
                         }}
                       >
-                        View Report
+                        View report
                       </Button>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col items-start gap-1">
-                      {canNotify && onNotify ? (
-                        <DirectorShareholderNotifyButton
-                          rowActionable={true}
-                          disabled={notifyPending === true}
-                          onNotify={() => onNotify(p)}
-                        />
-                      ) : null}
+                      <div className="text-xs text-muted-foreground whitespace-nowrap">
+                        {latestReport?.fetched_at
+                          ? `Last fetched: ${
+                              (() => {
+                                try {
+                                  return format(new Date(latestReport.fetched_at), "PPp");
+                                } catch {
+                                  return latestReport.fetched_at;
+                                }
+                              })()
+                            }`
+                          : "Last fetched: —"}
+                      </div>
                     </div>
                   </TableCell>
                 </TableRow>

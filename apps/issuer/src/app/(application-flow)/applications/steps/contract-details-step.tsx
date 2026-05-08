@@ -104,7 +104,6 @@ export function generateMockData(): Record<string, unknown> {
       ssm_number: "202201234567",
       country: "MY",
       is_related_party: "no",
-      document: null,
     },
   };
 }
@@ -525,7 +524,6 @@ export function ContractDetailsStep({
       ssm_number: "",
       country: "MY",
       is_related_party: "" as YesNo | "",
-      document: null as FileMetadata | null,
     },
   });
 
@@ -533,14 +531,12 @@ export function ContractDetailsStep({
 
   const [pendingFiles, setPendingFiles] = React.useState<{
     contract?: File;
-    consent?: File;
   }>({});
 
   const [isUploading, setIsUploading] = React.useState<Record<string, boolean>>({});
 
   const [lastS3Keys, setLastS3Keys] = React.useState<{
     contract?: string;
-    consent?: string;
   }>({});
 
   const [hasSubmitted, setHasSubmitted] = React.useState(false);
@@ -636,7 +632,6 @@ export function ContractDetailsStep({
         ssm_number: (customerDetails.ssm_number as string) || "",
         country: (customerDetails.country as string) || "MY",
         is_related_party: relatedPartyValue,
-        document: (customerDetails.document as FileMetadata | null) || null,
       },
     };
 
@@ -658,10 +653,6 @@ export function ContractDetailsStep({
     const contractDoc = contractDetails.document as FileMetadata | undefined;
     if (contractDoc?.s3_key) {
       setLastS3Keys((prev) => ({ ...prev, contract: contractDoc.s3_key }));
-    }
-    const customerDoc = customerDetails.document as FileMetadata | undefined;
-    if (customerDoc?.s3_key) {
-      setLastS3Keys((prev) => ({ ...prev, consent: customerDoc.s3_key }));
     }
 
     isInitializedRef.current = true;
@@ -782,59 +773,12 @@ export function ContractDetailsStep({
       }
     }
 
-    // Upload consent file if pending
-    if (pendingFiles.consent) {
-      try {
-        setIsUploading((prev) => ({ ...prev, consent: true }));
-
-        const existingS3Key = formData.customer.document?.s3_key || lastS3Keys.consent;
-        const response = await apiClient.requestContractUploadUrl(effectiveContractId, {
-          fileName: pendingFiles.consent.name,
-          contentType: pendingFiles.consent.type,
-          fileSize: pendingFiles.consent.size,
-          type: "consent",
-          existingS3Key: existingS3Key,
-        });
-
-        if (!response.success) {
-          throw new Error(response.error.message);
-        }
-
-        const { uploadUrl, s3Key } = response.data;
-        const uploadRes = await fetch(uploadUrl, {
-          method: "PUT",
-          body: pendingFiles.consent,
-          headers: { "Content-Type": pendingFiles.consent.type },
-        });
-
-        if (!uploadRes.ok) {
-          throw new Error("Failed to upload consent document");
-        }
-
-        if (existingS3Key && existingS3Key !== s3Key) {
-          try {
-            await apiClient.deleteContractDocument(effectiveContractId, existingS3Key);
-          } catch {
-            // Non-fatal: continue with new contract
-          }
-        }
-
-        updatedFormData.customer.document = {
-          s3_key: s3Key,
-          file_name: pendingFiles.consent.name,
-          file_size: pendingFiles.consent.size,
-          uploaded_at: new Date().toISOString(),
-        };
-        setLastS3Keys((prev) => ({ ...prev, consent: s3Key }));
-      } finally {
-        setIsUploading((prev) => ({ ...prev, consent: false }));
-      }
-    }
-
     const updatedCustomerDetails = {
-      ...updatedFormData.customer,
+      name: updatedFormData.customer.name,
+      entity_type: updatedFormData.customer.entity_type,
+      ssm_number: updatedFormData.customer.ssm_number,
+      country: updatedFormData.customer.country,
       is_related_party: updatedFormData.customer.is_related_party === "yes",
-      document: updatedFormData.customer.document || undefined,
     };
 
     if (isInvoiceOnly) {
@@ -999,19 +943,11 @@ export function ContractDetailsStep({
         if (String(a) !== String(b)) return true;
       }
 
-      const iuDoc = (iu as NestedDoc).document;
-      const cuDoc = (cu as NestedDoc).document;
-      const initialConsentDocKey = iuDoc?.s3_key || iuDoc?.file_name || "";
-      const currentConsentDocKey = cuDoc?.s3_key || cuDoc?.file_name || "";
-      if (initialConsentDocKey !== currentConsentDocKey) return true;
-      if (pendingFiles.consent) return true;
-
       return false;
     };
 
     const hasFormChanges = hasFormChanged();
     const hasContractDocument = !!formData.contract.document || !!pendingFiles.contract;
-    const hasConsentDocument = !!formData.customer.document || !!pendingFiles.consent;
     const hasValidStartDate =
       !!formData.contract.start_date && isApplicationFlowDateValid(formData.contract.start_date);
     const hasValidEndDate =
@@ -1021,8 +957,7 @@ export function ContractDetailsStep({
       ? !!formData.customer.name &&
         !!formData.customer.entity_type &&
         !!formData.customer.ssm_number &&
-        !!formData.customer.country &&
-        hasConsentDocument
+        !!formData.customer.country
       : !!formData.contract.title &&
         !!formData.contract.description &&
         !!formData.contract.number &&
@@ -1034,8 +969,7 @@ export function ContractDetailsStep({
         !!formData.customer.name &&
         !!formData.customer.entity_type &&
         !!formData.customer.ssm_number &&
-        !!formData.customer.country &&
-        hasConsentDocument;
+        !!formData.customer.country;
 
     /** Send a stable payload to parent.
      *
@@ -1076,7 +1010,7 @@ export function ContractDetailsStep({
     }));
   };
 
-  const handleFileUpload = (type: "contract" | "consent", file: File) => {
+  const handleFileUpload = (type: "contract", file: File) => {
     setPendingFiles((prev) => ({ ...prev, [type]: file }));
   };
 
@@ -1434,25 +1368,6 @@ This includes:
               <YesNoRadioGroup
                 value={formData.customer.is_related_party}
                 onValueChange={(v) => handleInputChange("customer", "is_related_party", v)}
-                disabled={!stepIsEditable}
-              />
-            </div>
-
-            <Label className={labelTextareaClassName}>Upload Customer Consent</Label>
-            <div className="self-start">
-              <FileUploadArea
-                onFileSelect={(file) => handleFileUpload("consent", file)}
-                isUploading={isUploading.consent}
-                uploadedFile={formData.customer.document}
-                pendingFile={pendingFiles.consent}
-                onRemove={
-                  stepIsEditable
-                    ? () => {
-                        handleInputChange("customer", "document", null);
-                        setPendingFiles((prev) => ({ ...prev, consent: undefined }));
-                      }
-                    : undefined
-                }
                 disabled={!stepIsEditable}
               />
             </div>
