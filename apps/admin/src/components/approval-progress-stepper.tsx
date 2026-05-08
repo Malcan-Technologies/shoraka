@@ -73,11 +73,8 @@ export function ApprovalProgressStepper({ steps, className }: ApprovalProgressSt
   );
 }
 
-/** CTOS step is complete only when DB says SSM is done and org has left the CTOS gate. */
-function companyCtosStepCompleted(onboardingStatus: string, ssmApproved: boolean): boolean {
-  if (!ssmApproved) {
-    return false;
-  }
+/** CTOS step completion follows onboarding status only (single source of truth). */
+function companyCtosStepCompleted(onboardingStatus: string): boolean {
   if (["PENDING", "IN_PROGRESS", "PENDING_SSM_REVIEW"].includes(onboardingStatus)) {
     return false;
   }
@@ -214,14 +211,14 @@ export function getPersonalOnboardingSteps(onboardingStatus: string): ApprovalSt
 }
 
 // Helper function to generate steps for Company onboarding
-export function getCompanyOnboardingSteps(onboardingStatus: string, ssmApproved: boolean): ApprovalStep[] {
+export function getCompanyOnboardingSteps(onboardingStatus: string, _ssmApproved: boolean): ApprovalStep[] {
   if (isAwaitingApplicantOnboarding(onboardingStatus)) {
     return allPendingSteps(companyStepShells());
   }
 
   const status = onboardingStatus;
 
-  const ctosDone = companyCtosStepCompleted(status, ssmApproved);
+  const ctosDone = companyCtosStepCompleted(status);
 
   const steps: ApprovalStep[] = [
     {
