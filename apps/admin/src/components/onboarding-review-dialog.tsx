@@ -232,13 +232,6 @@ export function OnboardingReviewDialog({
     });
   };
 
-  const handleSSMReject = () => {
-    toast.error("SSM Verification rejected", {
-      description: `Company ${application?.organizationName ?? "Unknown"} has been rejected.`,
-    });
-    onOpenChange(false);
-  };
-
   const handleRequestRedo = () => {
     restartMutation.mutate(onboardingId, {
       onSuccess: (data) => {
@@ -630,7 +623,6 @@ export function OnboardingReviewDialog({
           <SSMVerificationPanel
             application={application}
             onApprove={handleSSMApprove}
-            onReject={handleSSMReject}
             disabled={ssmApprovalMutation.isPending}
           />
         );
