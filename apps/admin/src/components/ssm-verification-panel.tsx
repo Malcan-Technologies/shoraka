@@ -49,6 +49,7 @@ import {
   DocumentTextIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
+  PencilSquareIcon,
   InboxIcon,
   InformationCircleIcon,
   UserGroupIcon,
@@ -347,7 +348,6 @@ function orderedCompareRows(buckets: OnboardingPeopleBuckets): {
 interface SSMVerificationPanelProps {
   application: OnboardingApplicationResponse;
   onApprove: () => void;
-  onReject: () => void;
   disabled?: boolean;
 }
 
@@ -611,7 +611,6 @@ function ShareholderBucketsBlock({
 export function SSMVerificationPanel({
   application,
   onApprove,
-  onReject,
   disabled = false,
 }: SSMVerificationPanelProps) {
   const [confirmed, setConfirmed] = React.useState(false);
@@ -1013,49 +1012,37 @@ export function SSMVerificationPanel({
                 </Label>
               </div>
 
-              <div className="flex w-full flex-wrap items-center justify-between gap-3">
+              <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
                       type="button"
                       variant="secondary"
                       size="lg"
-                      className="shrink-0 rounded-full gap-2"
+                      className="w-full rounded-full gap-2 sm:w-auto"
                       disabled={disabled}
-                      aria-label="Amendment. Opens RegTank to request applicant updates."
+                      aria-label="Amend / Reject. Opens RegTank to choose updates or rejection."
                       onClick={onTriggerAmendment}
                     >
-                      <ArrowTopRightOnSquareIcon className="h-5 w-5 shrink-0" aria-hidden />
-                      Amendment
+                      <PencilSquareIcon className="h-5 w-5 shrink-0" aria-hidden />
+                      Amend / Reject
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top" sideOffset={6} className={fieldTooltipContentClassName}>
-                    Opens RegTank to request applicant updates.
+                    Open RegTank to request an amendment or reject the corporate onboarding.
                   </TooltipContent>
                 </Tooltip>
-                <div className="ml-auto flex shrink-0 items-center gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    onClick={onReject}
-                    disabled={disabled}
-                    className="rounded-full border-input bg-background text-muted-foreground shadow-sm hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    Reject
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="action"
-                    size="lg"
-                    onClick={onApprove}
-                    disabled={!canApprove || disabled}
-                    className="rounded-full gap-2"
-                  >
-                    <CheckCircleIcon className="h-5 w-5 shrink-0" aria-hidden />
-                    Approve
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  variant="action"
+                  size="lg"
+                  onClick={onApprove}
+                  disabled={!canApprove || disabled}
+                  className="w-full rounded-full gap-2 sm:w-auto sm:justify-end"
+                >
+                  <CheckCircleIcon className="h-5 w-5 shrink-0" aria-hidden />
+                  Approve
+                </Button>
               </div>
             </div>
           ) : null}
