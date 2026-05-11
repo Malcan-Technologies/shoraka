@@ -1525,7 +1525,9 @@ export class NoteService {
 
     const firstDate = startOfDay(transactions[0].posted_at);
     const latestDate = startOfDay(transactions[transactions.length - 1].posted_at);
-    const rangeStartDate = resolveHistoryStartDate(query.range, latestDate, firstDate);
+    const today = startOfDay(new Date());
+    const displayEndDate = latestDate.getTime() > today.getTime() ? latestDate : today;
+    const rangeStartDate = resolveHistoryStartDate(query.range, displayEndDate, firstDate);
 
     let carryForwardBalance = openingBalance;
     let carryForwardPortfolioTotal = openingPortfolioTotal;
@@ -1538,7 +1540,7 @@ export class NoteService {
     const points: InvestorPortfolioHistoryPoint[] = [];
     for (
       let cursor = startOfDay(rangeStartDate);
-      cursor.getTime() <= latestDate.getTime();
+      cursor.getTime() <= displayEndDate.getTime();
       cursor.setDate(cursor.getDate() + 1)
     ) {
       const key = toDateKey(cursor);

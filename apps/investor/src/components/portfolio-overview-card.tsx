@@ -1,7 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { InvestorPortfolioHistoryGranularity } from "@cashsouk/types";
+import {
+  NoteServicingStatus,
+  NoteStatus,
+  type InvestorPortfolioHistoryGranularity,
+  type NoteListItem,
+} from "@cashsouk/types";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -98,6 +103,79 @@ function formatYAxisTick(value: number) {
   return value.toFixed(0);
 }
 
+function resolveInvestedAmount(note: NoteListItem) {
+  return Number(
+    note.investorRepaymentSummary?.investedPrincipal ??
+      note.settlementSummary?.investorPoolAmount ??
+      note.fundedAmount
+  );
+}
+
+function resolveExpectedReturnRate(note: NoteListItem) {
+  return Number(note.investorRepaymentSummary?.expectedReturnRatePercent ?? note.profitRatePercent ?? 0);
+}
+
+function isSettledInvestment(note: NoteListItem) {
+  return note.servicingStatus === NoteServicingStatus.SETTLED || note.status === NoteStatus.REPAID;
+}
+
+function isDefaultedInvestment(note: NoteListItem) {
+  return note.servicingStatus === NoteServicingStatus.DEFAULTED || note.status === NoteStatus.DEFAULTED;
+}
+
+function isUnderPerformingInvestment(note: NoteListItem) {
+  return (
+    isDefaultedInvestment(note) ||
+    note.servicingStatus === NoteServicingStatus.LATE ||
+    note.servicingStatus === NoteServicingStatus.ARREARS ||
+    note.status === NoteStatus.ARREARS
+  );
+}
+
+function buildInvestmentSummary(notes: NoteListItem[]) {
+  let activeInvestments = 0;
+  let successfulInvestments = 0;
+  let underPerformingInvestments = 0;
+  let defaultedInvestments = 0;
+  let weightedExpectedReturnAmount = 0;
+  let weightedExpectedReturnBase = 0;
+
+  for (const note of notes) {
+    if (isSettledInvestment(note)) {
+      successfulInvestments += 1;
+    } else if (isUnderPerformingInvestment(note)) {
+      underPerformingInvestments += 1;
+      if (isDefaultedInvestment(note)) {
+        defaultedInvestments += 1;
+      }
+    } else {
+      activeInvestments += 1;
+    }
+
+    if (isSettledInvestment(note)) {
+      continue;
+    }
+
+    const investedAmount = resolveInvestedAmount(note);
+    const expectedReturnRate = resolveExpectedReturnRate(note);
+    if (!Number.isFinite(investedAmount) || investedAmount <= 0) continue;
+    if (!Number.isFinite(expectedReturnRate) || expectedReturnRate <= 0) continue;
+
+    weightedExpectedReturnAmount += investedAmount * expectedReturnRate;
+    weightedExpectedReturnBase += investedAmount;
+  }
+
+  return {
+    totalInvestments: notes.length,
+    activeInvestments,
+    successfulInvestments,
+    underPerformingInvestments,
+    defaultedInvestments,
+    weightedExpectedReturn:
+      weightedExpectedReturnBase > 0 ? weightedExpectedReturnAmount / weightedExpectedReturnBase : 0,
+  };
+}
+
 export function PortfolioOverviewCard() {
   const [activeRange, setActiveRange] = useState<RangeOption>("3m");
   const { data: portfolio } = useInvestorPortfolio();
@@ -105,20 +183,16 @@ export function PortfolioOverviewCard() {
   const { data: investedNotesData } = useInvestorInvestments();
 
   const portfolioTotal = Number(portfolio?.portfolioTotal ?? 0);
-  const investmentCount = Number(portfolio?.investmentCount ?? 0);
-
-  const averageExpectedReturn = useMemo(() => {
-    const notes = investedNotesData?.notes ?? [];
-    const rates = notes
-      .map((note) => Number(note.profitRatePercent ?? 0))
-      .filter((rate) => Number.isFinite(rate) && rate > 0);
-    if (rates.length === 0) return 0;
-    return rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
-  }, [investedNotesData?.notes]);
-
-  const successfulInvestments = investmentCount > 0 ? Math.max(1, Math.round(investmentCount * 0.75)) : 0;
-  const underPerformingInvestments =
-    investmentCount > successfulInvestments ? investmentCount - successfulInvestments : 0;
+  const investmentSummary = useMemo(
+    () => buildInvestmentSummary(investedNotesData?.notes ?? []),
+    [investedNotesData?.notes]
+  );
+  const maxSummaryCount = Math.max(
+    investmentSummary.activeInvestments,
+    investmentSummary.successfulInvestments,
+    investmentSummary.underPerformingInvestments,
+    1
+  );
 
   const chartData = useMemo(() => {
     const points = history?.points ?? [];
@@ -142,8 +216,10 @@ export function PortfolioOverviewCard() {
       <CardHeader className="flex flex-row items-center justify-between gap-4 pb-3">
         <CardTitle className="text-xl font-semibold">Portfolio Overview</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Performance:{" "}
-          <span className="font-semibold text-primary">{averageExpectedReturn.toFixed(1)}% p.a</span>
+          Expected annual return:{" "}
+          <span className="font-semibold text-primary">
+            {investmentSummary.weightedExpectedReturn.toFixed(1)}% p.a
+          </span>
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -210,23 +286,86 @@ export function PortfolioOverviewCard() {
           ))}
         </div>
 
-        <div className="grid gap-4 rounded-xl border bg-card p-4 md:grid-cols-2">
-          <div>
-            <p className="text-sm text-muted-foreground">Total portfolio size</p>
-            <p className="text-2xl font-semibold">{formatCurrency(portfolioTotal)}</p>
+        <div className="grid gap-6 rounded-xl border bg-card p-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+          <div className="flex items-end justify-center gap-4 border-b border-border pb-4 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-6">
+            {[
+              {
+                label: "Active investments",
+                value: investmentSummary.activeInvestments,
+                tone: "bg-slate-800",
+              },
+              {
+                label: "Successful investments",
+                value: investmentSummary.successfulInvestments,
+                tone: "bg-slate-500",
+              },
+              {
+                label: "Under-performing investments",
+                value: investmentSummary.underPerformingInvestments,
+                tone: "bg-slate-200",
+              },
+            ].map((entry) => {
+              const barHeight = entry.value > 0 ? Math.max(32, (entry.value / maxSummaryCount) * 180) : 8;
+              return (
+                <div key={entry.label} className="flex flex-col items-center gap-2 text-center">
+                  <div
+                    className={cn("w-14 rounded-t-xl transition-all", entry.tone)}
+                    style={{ height: `${barHeight}px` }}
+                    aria-hidden="true"
+                  />
+                  <div>
+                    <p className="text-lg font-semibold text-foreground">{entry.value}</p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <div className="grid grid-cols-3 gap-3 text-sm">
-            <div className="space-y-1">
-              <p className="text-muted-foreground">Total investments</p>
-              <p className="text-lg font-semibold">{investmentCount}</p>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div>
+                <p className="text-sm text-muted-foreground">Total portfolio size</p>
+                <p className="text-2xl font-semibold">{formatCurrency(portfolioTotal)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-muted-foreground">Total number of investments</p>
+                <p className="text-2xl font-semibold">{investmentSummary.totalInvestments}</p>
+              </div>
             </div>
-            <div className="space-y-1">
-              <p className="text-muted-foreground">Successful</p>
-              <p className="text-lg font-semibold">{successfulInvestments}</p>
+
+            <div className="space-y-3 text-sm">
+              {[
+                {
+                  label: "Active investments",
+                  value: investmentSummary.activeInvestments,
+                  dotClassName: "bg-slate-800",
+                },
+                {
+                  label: "Successful investments",
+                  value: investmentSummary.successfulInvestments,
+                  dotClassName: "bg-slate-500",
+                },
+                {
+                  label: "Under-performing investments",
+                  value: investmentSummary.underPerformingInvestments,
+                  dotClassName: "bg-slate-200",
+                },
+              ].map((entry) => (
+                <div
+                  key={entry.label}
+                  className="flex items-center justify-between border-b border-border pb-3 last:border-b-0 last:pb-0"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className={cn("h-4 w-4 rounded-full", entry.dotClassName)} aria-hidden="true" />
+                    <span className="text-muted-foreground">{entry.label}</span>
+                  </div>
+                  <span className="text-lg font-semibold text-foreground">{entry.value}</span>
+                </div>
+              ))}
             </div>
-            <div className="space-y-1">
-              <p className="text-muted-foreground">Under-performing</p>
-              <p className="text-lg font-semibold">{underPerformingInvestments}</p>
+
+            <div className="flex justify-end pt-1 text-sm text-muted-foreground">
+              <span>NPL defaulted: {investmentSummary.defaultedInvestments}</span>
             </div>
           </div>
         </div>
