@@ -1,4 +1,4 @@
-import { Prisma, NoteFundingStatus, NoteStatus, ContractStatus, InvoiceStatus } from "@prisma/client";
+import { Prisma, NoteFundingStatus, NoteStatus, ContractStatus, InvoiceStatus, NotePaymentStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
 import { OrganizationRepository } from "../organization/repository";
@@ -105,8 +105,8 @@ export type IssuerDashboardPayload = {
   };
   repaymentPerformance: {
     onTimePercent: number | null;
-    pastDueDays: number | null;
-    averageLateDays: number | null;
+    pastDueCount: number | null;
+    lateRepaymentsLastSixMonthsCount: number | null;
   };
   contracts: IssuerDashboardContractDto[];
   /** All invoices for the org (with or without contract_id), for dashboard financing lists. */
@@ -411,6 +411,72 @@ export class IssuerDashboardService {
       }
     }
 
+    // Repayment Performance: based only on repayment schedules and real received payments
+    // for the issuer organization. We ignore ledger/settlement for this first version.
+    const now = new Date();
+    const sixMonthsAgo = new Date(now);
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const schedulesInWindow = await prisma.notePaymentSchedule.findMany({
+      where: {
+        due_date: {
+          gte: sixMonthsAgo,
+          lte: now,
+        },
+        note: { issuer_organization_id: organizationId },
+      },
+      select: { id: true, due_date: true },
+    });
+
+    const scheduleIds = schedulesInWindow.map((s) => s.id);
+
+    const paymentsForWindow = scheduleIds.length
+      ? await prisma.notePayment.findMany({
+          where: {
+            schedule_id: { in: scheduleIds },
+            status: NotePaymentStatus.RECEIVED,
+          },
+          select: { schedule_id: true, receipt_date: true },
+        })
+      : [];
+
+    // Earliest RECEIVED payment date per schedule.
+    const earliestReceiptByScheduleId = new Map<string, Date>();
+    for (const p of paymentsForWindow) {
+      const sid = p.schedule_id;
+      if (!sid) continue; // first version ignores payments without schedule_id
+      const receipt = p.receipt_date;
+      const prev = earliestReceiptByScheduleId.get(sid);
+      if (!prev || receipt < prev) earliestReceiptByScheduleId.set(sid, receipt);
+    }
+
+    let onTimePercent: number | null = null;
+    let pastDueCount: number | null = null;
+    let lateRepaymentsLastSixMonthsCount: number | null = null;
+
+    if (schedulesInWindow.length > 0) {
+      let onTimeCount = 0;
+      let pastDue = 0;
+      let lateCount = 0;
+
+      for (const s of schedulesInWindow) {
+        const due = s.due_date;
+        const earliestReceipt = earliestReceiptByScheduleId.get(s.id) ?? null;
+
+        if (!earliestReceipt) {
+          if (due < now) pastDue += 1;
+          continue;
+        }
+
+        if (earliestReceipt <= due) onTimeCount += 1;
+        else lateCount += 1;
+      }
+
+      onTimePercent = Math.round((onTimeCount / schedulesInWindow.length) * 100);
+      pastDueCount = pastDue;
+      lateRepaymentsLastSixMonthsCount = lateCount;
+    }
+
     return {
       user: { displayName },
       overview: {
@@ -421,9 +487,9 @@ export class IssuerDashboardService {
         completedNotesCount,
       },
       repaymentPerformance: {
-        onTimePercent: null,
-        pastDueDays: null,
-        averageLateDays: null,
+        onTimePercent,
+        pastDueCount,
+        lateRepaymentsLastSixMonthsCount,
       },
       contracts: contractsOut,
       invoices: invoicesOut,

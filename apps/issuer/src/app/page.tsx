@@ -281,8 +281,10 @@ function IssuerDashboardContent() {
               <RepaymentPerformanceCard
                 isDisabled={!isAccountEnabled}
                 onTimeRate={issuerDashboard?.repaymentPerformance.onTimePercent ?? null}
-                pastDueDays={issuerDashboard?.repaymentPerformance.pastDueDays ?? null}
-                lateDays={issuerDashboard?.repaymentPerformance.averageLateDays ?? null}
+                pastDueCount={issuerDashboard?.repaymentPerformance.pastDueCount ?? null}
+                lateRepaymentsLastSixMonthsCount={
+                  issuerDashboard?.repaymentPerformance.lateRepaymentsLastSixMonthsCount ?? null
+                }
               />
 
               <section className="space-y-3">

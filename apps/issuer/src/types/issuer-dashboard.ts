@@ -71,8 +71,8 @@ export type IssuerDashboardData = {
   };
   repaymentPerformance: {
     onTimePercent: number | null;
-    pastDueDays: number | null;
-    averageLateDays: number | null;
+    pastDueCount: number | null;
+    lateRepaymentsLastSixMonthsCount: number | null;
   };
   contracts: IssuerDashboardContract[];
   invoices: IssuerDashboardInvoice[];

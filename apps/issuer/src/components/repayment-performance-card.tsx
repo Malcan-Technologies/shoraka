@@ -8,8 +8,8 @@ interface RepaymentPerformanceCardProps {
   isDisabled?: boolean;
   onTimeRate?: number | null;
   onTimePeriod?: string;
-  pastDueDays?: number | null;
-  lateDays?: number | null;
+  pastDueCount?: number | null;
+  lateRepaymentsLastSixMonthsCount?: number | null;
   latePeriod?: string;
 }
 
@@ -17,18 +17,18 @@ export function RepaymentPerformanceCard({
   isDisabled = false,
   onTimeRate = null,
   onTimePeriod = "over the past 6 months",
-  pastDueDays = null,
-  lateDays = null,
+  pastDueCount = null,
+  lateRepaymentsLastSixMonthsCount = null,
   latePeriod = "over the past 6 months",
 }: RepaymentPerformanceCardProps) {
   const onTimeDisplay = onTimeRate != null && Number.isFinite(onTimeRate) ? `${onTimeRate}%` : "Not available";
   const pastDueDisplay =
-    pastDueDays != null && Number.isFinite(pastDueDays)
-      ? `${pastDueDays} ${pastDueDays === 1 ? "Day" : "Days"}`
+    pastDueCount != null && Number.isFinite(pastDueCount)
+      ? `${pastDueCount}`
       : "Not available";
   const lateDisplay =
-    lateDays != null && Number.isFinite(lateDays)
-      ? `${lateDays} ${lateDays === 1 ? "Day" : "Days"}`
+    lateRepaymentsLastSixMonthsCount != null && Number.isFinite(lateRepaymentsLastSixMonthsCount)
+      ? `${lateRepaymentsLastSixMonthsCount}`
       : "Not available";
 
   return (
@@ -42,8 +42,6 @@ export function RepaymentPerformanceCard({
             <p className="text-2xl font-bold mb-1">{onTimeDisplay}</p>
             <p className="text-sm text-muted-foreground">
               On time {onTimePeriod}
-              <br />
-              (on average)
             </p>
           </div>
           <div className="rounded-lg border bg-background p-4">
@@ -54,8 +52,6 @@ export function RepaymentPerformanceCard({
             <p className="text-2xl font-bold mb-1">{lateDisplay}</p>
             <p className="text-sm text-muted-foreground">
               Late {latePeriod}
-              <br />
-              (on average)
             </p>
           </div>
         </div>
