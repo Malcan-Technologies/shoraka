@@ -85,7 +85,7 @@ function statusBadgeClass(status: string) {
   if (["COMPLETED", "APPROVED", "ACTIVE"].includes(status)) {
     return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
   }
-  if (["PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_FINAL_APPROVAL"].includes(status)) {
+  if (["PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_AMENDMENT", "PENDING_FINAL_APPROVAL"].includes(status)) {
     return "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300";
   }
   if (["REJECTED", "FAILED", "EXPIRED"].includes(status)) {

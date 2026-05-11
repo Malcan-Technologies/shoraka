@@ -629,6 +629,37 @@ export function OnboardingReviewDialog({
           />
         );
 
+      case "PENDING_AMENDMENT":
+        return (
+          <Card className="border-amber-500/30 bg-amber-50 dark:bg-amber-950/20">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <ExclamationTriangleIcon className="h-5 w-5 text-amber-600" />
+                Amendment in Progress
+              </CardTitle>
+              <CardDescription>
+                RegTank amendment is currently in progress. Please wait until the amended onboarding
+                submission is completed and resubmitted.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg bg-muted/50 p-4">
+                <p className="text-sm text-muted-foreground">
+                  Once resubmitted, this application will return to Pending SSM Review for admin verification.
+                </p>
+              </div>
+              <Button
+                onClick={handleOpenRegTank}
+                className="w-full gap-2"
+                disabled={!application.regtankPortalUrl}
+              >
+                <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                Open RegTank Portal
+              </Button>
+            </CardContent>
+          </Card>
+        );
+
       case "PENDING_FINAL_APPROVAL":
         // Show Final Approval section with checklist
         return (

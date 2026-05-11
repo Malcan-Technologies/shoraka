@@ -55,6 +55,9 @@ export function CorporateOnboardingModal({
     if (onboardingStatus === "PENDING_APPROVAL") {
       return "Waiting for admin approval";
     }
+    if (onboardingStatus === "PENDING_AMENDMENT") {
+      return "Amendment in progress";
+    }
     if (onboardingStatus === "PENDING_AML") {
       return "Waiting for AML approval";
     }

@@ -45,8 +45,8 @@ export function NavUser() {
   // Check if organization has a status that allows Profile access
   const allowsProfileAccess = useMemo(() => {
     const status = activeOrganization?.onboardingStatus;
-    // Disable profile access for REJECTED and PENDING_APPROVAL statuses
-    if (status === "REJECTED" || status === "PENDING_APPROVAL") {
+    // Disable profile access for REJECTED and admin-gated pending statuses
+    if (status === "REJECTED" || status === "PENDING_APPROVAL" || status === "PENDING_AMENDMENT") {
       return false;
     }
     return (

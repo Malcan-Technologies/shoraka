@@ -18,6 +18,7 @@ export type OnboardingStatus =
   | "PENDING"
   | "IN_PROGRESS"
   | "PENDING_APPROVAL"
+  | "PENDING_AMENDMENT"
   | "PENDING_AML"
   | "PENDING_SSM_REVIEW"
   | "PENDING_FINAL_APPROVAL"
@@ -256,6 +257,7 @@ export function OrganizationProvider({ children, portalType, apiUrl }: Organizat
     return (
       status === "PENDING_APPROVAL" ||
       status === "PENDING_AML" ||
+      status === "PENDING_AMENDMENT" ||
       status === "PENDING_SSM_REVIEW" ||
       status === "PENDING_FINAL_APPROVAL"
     );

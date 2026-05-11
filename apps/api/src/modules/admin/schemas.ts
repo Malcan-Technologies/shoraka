@@ -214,6 +214,7 @@ export type UpdateSophisticatedStatusBody = z.infer<typeof updateSophisticatedSt
 export const onboardingApprovalStatusEnum = z.enum([
   "PENDING_ONBOARDING",
   "PENDING_APPROVAL",
+  "PENDING_AMENDMENT",
   "PENDING_AML",
   "PENDING_SSM_REVIEW",
   "PENDING_FINAL_APPROVAL",
@@ -228,6 +229,7 @@ export const onboardingApprovalStatusFilterEnum = z.enum([
   "PENDING_ALL",
   "PENDING_ONBOARDING",
   "PENDING_APPROVAL",
+  "PENDING_AMENDMENT",
   "PENDING_AML",
   "PENDING_SSM_REVIEW",
   "PENDING_FINAL_APPROVAL",
@@ -334,7 +336,7 @@ export const sectionCommentSchema = z.object({
 });
 
 export const reviewItemActionSchema = z.object({
-  itemType: z.enum(["invoice", "document"]),
+  itemType: z.enum(["invoice", "document", "INVOICE", "DOCUMENT"]),
   itemId: z.string().min(1),
 });
 export const reviewItemApproveSchema = reviewItemActionSchema.extend({
@@ -369,7 +371,7 @@ export const addPendingAmendmentSchema = z
     scope: z.enum(["section", "item"]),
     scopeKey: z.string().min(1).optional(),
     remark: z.string().min(1, "Remark is required"),
-    itemType: z.enum(["invoice", "document"]).optional(),
+    itemType: z.enum(["invoice", "document", "INVOICE", "DOCUMENT"]).optional(),
     itemId: z.string().optional(),
   })
   .refine(

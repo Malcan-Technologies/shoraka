@@ -194,10 +194,13 @@ export default function AccountPage() {
   useEffect(() => {
     const isPendingApproval =
       activeOrganization?.onboardingStatus === "PENDING_APPROVAL" ||
+      activeOrganization?.onboardingStatus === "PENDING_AMENDMENT" ||
       activeOrganization?.regtankOnboardingStatus === "PENDING_APPROVAL";
+    const isPendingAmendment =
+      activeOrganization?.regtankOnboardingStatus === "PENDING_AMENDMENT";
     const isRejected = activeOrganization?.regtankOnboardingStatus === "REJECTED";
 
-    if (isPendingApproval || isRejected) {
+    if (isPendingApproval || isPendingAmendment || isRejected) {
       router.replace("/");
     }
   }, [activeOrganization, router]);

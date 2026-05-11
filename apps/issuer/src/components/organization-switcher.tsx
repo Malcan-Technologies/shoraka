@@ -75,6 +75,15 @@ function OnboardingStatusBadge({
       </span>
     );
   }
+
+  if (status === "PENDING_AMENDMENT") {
+    return (
+      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-amber-700`}>
+        <ClockIcon className={iconSize} />
+        Amendment in Progress
+      </span>
+    );
+  }
   
   if (status === "PENDING_FINAL_APPROVAL") {
     return (
@@ -205,7 +214,13 @@ export function OrganizationSwitcher() {
   // Get organizations in admin-handled pending states (for showing in dropdown when on onboarding page)
   const adminPendingOrganizations = sortOrganizations(
     organizations.filter((org) => {
-      const adminHandledStatuses = ["PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_FINAL_APPROVAL"];
+      const adminHandledStatuses = [
+        "PENDING_APPROVAL",
+        "PENDING_AML",
+        "PENDING_SSM_REVIEW",
+        "PENDING_AMENDMENT",
+        "PENDING_FINAL_APPROVAL",
+      ];
       return adminHandledStatuses.includes(org.onboardingStatus) ||
         (org.regtankOnboardingStatus && adminHandledStatuses.includes(org.regtankOnboardingStatus));
     })
@@ -233,7 +248,13 @@ export function OrganizationSwitcher() {
     }
     
     // If status is admin-handled pending statuses, redirect to dashboard (for terms & conditions)
-    const adminHandledStatuses = ["PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_FINAL_APPROVAL"];
+    const adminHandledStatuses = [
+      "PENDING_APPROVAL",
+      "PENDING_AML",
+      "PENDING_SSM_REVIEW",
+      "PENDING_AMENDMENT",
+      "PENDING_FINAL_APPROVAL",
+    ];
     const hasAdminHandledStatus = adminHandledStatuses.includes(org.onboardingStatus) ||
       (org.regtankOnboardingStatus && adminHandledStatuses.includes(org.regtankOnboardingStatus));
     
@@ -413,7 +434,13 @@ export function OrganizationSwitcher() {
                   </DropdownMenuLabel>
                   {pendingOrganizations.map((org) => {
                     // Check for admin-handled statuses (including PENDING_APPROVAL) first
-                    const adminHandledStatuses = ["PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_FINAL_APPROVAL"];
+                    const adminHandledStatuses = [
+                      "PENDING_APPROVAL",
+                      "PENDING_AML",
+                      "PENDING_SSM_REVIEW",
+                      "PENDING_AMENDMENT",
+                      "PENDING_FINAL_APPROVAL",
+                    ];
                     const hasAdminHandledStatus = adminHandledStatuses.includes(org.onboardingStatus) ||
                       (org.regtankOnboardingStatus && adminHandledStatuses.includes(org.regtankOnboardingStatus));
                     

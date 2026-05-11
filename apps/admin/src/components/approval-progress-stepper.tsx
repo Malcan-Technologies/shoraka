@@ -75,7 +75,7 @@ export function ApprovalProgressStepper({ steps, className }: ApprovalProgressSt
 
 /** CTOS step completion follows onboarding status only (single source of truth). */
 function companyCtosStepCompleted(onboardingStatus: string): boolean {
-  if (["PENDING", "IN_PROGRESS", "PENDING_SSM_REVIEW"].includes(onboardingStatus)) {
+  if (["PENDING", "IN_PROGRESS", "PENDING_SSM_REVIEW", "PENDING_AMENDMENT"].includes(onboardingStatus)) {
     return false;
   }
   return true;
@@ -258,6 +258,11 @@ export function getCompanyOnboardingSteps(onboardingStatus: string, _ssmApproved
       steps[0].status = "completed";
       steps[1].status = ctosDone ? "completed" : "current";
       steps[2].status = ctosDone ? "current" : "pending";
+      break;
+    case "PENDING_AMENDMENT":
+      steps[0].status = "completed";
+      steps[1].status = "current";
+      steps[2].status = "pending";
       break;
     case "PENDING_APPROVAL":
       steps[0].status = "completed";

@@ -1833,6 +1833,7 @@ export class AdminService {
     | "PENDING"
     | "IN_PROGRESS"
     | "PENDING_APPROVAL"
+    | "PENDING_AMENDMENT"
     | "PENDING_AML"
     | "PENDING_SSM_REVIEW"
     | "PENDING_FINAL_APPROVAL"
@@ -1849,6 +1850,7 @@ export class AdminService {
       | "PENDING"
       | "IN_PROGRESS"
       | "PENDING_APPROVAL"
+      | "PENDING_AMENDMENT"
       | "PENDING_AML"
       | "PENDING_SSM_REVIEW"
       | "PENDING_FINAL_APPROVAL"
@@ -2614,6 +2616,7 @@ export class AdminService {
     };
   }> {
     const pendingAllStatuses: OnboardingApprovalStatus[] = [
+      "PENDING_AMENDMENT",
       "PENDING_SSM_REVIEW",
       "PENDING_APPROVAL",
       "PENDING_AML",
@@ -2729,7 +2732,7 @@ export class AdminService {
 
   /**
    * Get count of onboarding applications requiring admin action
-   * Includes: PENDING_SSM_REVIEW, PENDING_APPROVAL, PENDING_AML, PENDING_FINAL_APPROVAL
+   * Includes: PENDING_SSM_REVIEW, PENDING_AMENDMENT, PENDING_APPROVAL, PENDING_AML, PENDING_FINAL_APPROVAL
    * Excludes: PENDING_ONBOARDING (user action, not admin)
    */
   async getPendingApprovalCount(): Promise<{ count: number }> {
@@ -2742,6 +2745,7 @@ export class AdminService {
     // Map and filter for admin-actionable statuses
     const pendingStatuses: OnboardingApprovalStatus[] = [
       "PENDING_SSM_REVIEW",
+      "PENDING_AMENDMENT",
       "PENDING_APPROVAL",
       "PENDING_AML",
       "PENDING_FINAL_APPROVAL",
@@ -2776,6 +2780,8 @@ export class AdminService {
         return "PENDING_ONBOARDING";
       case OnboardingStatus.PENDING_SSM_REVIEW:
         return "PENDING_SSM_REVIEW";
+      case OnboardingStatus.PENDING_AMENDMENT:
+        return "PENDING_AMENDMENT";
       case OnboardingStatus.PENDING_APPROVAL:
         return "PENDING_APPROVAL";
       case OnboardingStatus.PENDING_AML:
@@ -3403,6 +3409,14 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Organization not found");
     }
 
+    if (org.onboarding_status === OnboardingStatus.PENDING_AMENDMENT) {
+      throw new AppError(
+        400,
+        "REGTANK_AMENDMENT_IN_PROGRESS",
+        "RegTank amendment is currently in progress. Please wait until the amended onboarding is resubmitted before approving."
+      );
+    }
+
     // Check if already completed
     if (org.onboarding_status === "COMPLETED") {
       throw new AppError(400, "ALREADY_COMPLETED", "Onboarding is already completed");
@@ -3886,11 +3900,19 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Organization not found");
     }
 
+    if (org.onboarding_status === OnboardingStatus.PENDING_AMENDMENT) {
+      throw new AppError(
+        400,
+        "REGTANK_AMENDMENT_IN_PROGRESS",
+        "RegTank amendment is currently in progress. Please wait until the amended onboarding is resubmitted before approving."
+      );
+    }
+
     if (isRegtankAmendmentInProgress(onboarding.webhook_payloads)) {
       throw new AppError(
         400,
         "REGTANK_AMENDMENT_IN_PROGRESS",
-        "RegTank amendment is currently in progress. Please wait until the amended onboarding is resubmitted before approving SSM verification."
+        "RegTank amendment is currently in progress. Please wait until the amended onboarding is resubmitted before approving."
       );
     }
 
@@ -4007,11 +4029,19 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Organization not found");
     }
 
+    if (org.onboarding_status === OnboardingStatus.PENDING_AMENDMENT) {
+      throw new AppError(
+        400,
+        "REGTANK_AMENDMENT_IN_PROGRESS",
+        "RegTank amendment is currently in progress. Please wait until the amended onboarding is resubmitted before approving."
+      );
+    }
+
     if (isRegtankAmendmentInProgress(onboarding.webhook_payloads)) {
       throw new AppError(
         400,
         "REGTANK_AMENDMENT_IN_PROGRESS",
-        "RegTank amendment is currently in progress. Please wait until the amended onboarding is resubmitted before approving the onboarding submission."
+        "RegTank amendment is currently in progress. Please wait until the amended onboarding is resubmitted before approving."
       );
     }
 

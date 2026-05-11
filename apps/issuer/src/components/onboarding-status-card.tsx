@@ -107,7 +107,8 @@ export function OnboardingStatusCard({
   const showCorporatePeopleStatus =
     organization.type === "COMPANY" &&
     (organization.onboardingStatus === "PENDING_APPROVAL" ||
-      organization.onboardingStatus === "PENDING_AML") &&
+      organization.onboardingStatus === "PENDING_AML" ||
+      organization.onboardingStatus === "PENDING_AMENDMENT") &&
     corporateUnifiedRows.length > 0;
 
   const handleRefreshAml = async () => {

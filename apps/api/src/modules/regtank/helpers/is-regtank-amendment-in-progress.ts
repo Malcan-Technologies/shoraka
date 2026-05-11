@@ -103,3 +103,16 @@ export function isRegtankAmendmentInProgress(
   return false;
 }
 
+/**
+ * Alias for the "amendment started" moment.
+ *
+ * For our derived sub-state, "amendment started" means:
+ * - the latest meaningful status is `URL_GENERATED`
+ * - and there has already been a `WAIT_FOR_APPROVAL` earlier.
+ */
+export function isRegtankAmendmentStarted(
+  webhookPayloads: Prisma.JsonValue[] | unknown
+): boolean {
+  return isRegtankAmendmentInProgress(webhookPayloads);
+}
+

@@ -53,7 +53,7 @@ This section lists the onboarding-relevant Prisma models and the specific fields
 
 #### `enum OnboardingStatus`
 
-`PENDING | IN_PROGRESS | PENDING_APPROVAL | PENDING_AML | PENDING_SSM_REVIEW | PENDING_FINAL_APPROVAL | COMPLETED | REJECTED`
+`PENDING | IN_PROGRESS | PENDING_APPROVAL | PENDING_AMENDMENT | PENDING_AML | PENDING_SSM_REVIEW | PENDING_FINAL_APPROVAL | COMPLETED | REJECTED`
 
 #### `model InvestorOrganization`
 
@@ -303,6 +303,16 @@ DB fields/statuses updated (company path):
    - moves org `onboarding_status` to:
      - `PENDING_SSM_REVIEW` when `onboarding.organization_type === OrganizationType.COMPANY`
      - (personal non-company path is `PENDING_APPROVAL`)
+1.1. COD `URL_GENERATED` (amendment start signal)
+   - First `URL_GENERATED` in a normal flow does NOT start amendment.
+   - Amendment starts only when `URL_GENERATED` happens after a previous `WAIT_FOR_APPROVAL`.
+   - When amendment starts and the org is currently in one of:
+     - `PENDING_SSM_REVIEW`
+     - `PENDING_APPROVAL`
+   - then the org is set to `PENDING_AMENDMENT`
+   - and the SSM gate is reset for re-review:
+     - issuer: `ssm_checked = false`
+     - investor company: `ssm_approved = false`
 2. COD `APPROVED` (RegTank admin cleared corporate onboarding):
    - when `onboarding.onboarding_type === "CORPORATE"` and the org is currently `PENDING_APPROVAL`:
      - sets `onboarding_approved = true`
@@ -311,6 +321,7 @@ DB fields/statuses updated (company path):
 Next valid status:
 
 - Normally ends in `PENDING_AML` after Step 5 set SSM gate flags.
+- If the org is in `PENDING_AMENDMENT`, the later COD `WAIT_FOR_APPROVAL` moves it back to `PENDING_SSM_REVIEW` (without auto-advancing to `PENDING_APPROVAL`).
 - If COD is approved before Step 5 is done, advancement is blocked by SSM gating (see Anti-skip rules).
 
 What must NOT be skipped:
@@ -760,72 +771,62 @@ Enforced by:
   - sets `onboarding_status = "COMPLETED"`
   - updates RegTank onboarding status to `"COMPLETED"`.
 
-### 7.8 RegTank amendment in-progress guard
+### 7.8 RegTank amendment flow: `PENDING_AMENDMENT`
 
-This guard blocks admin approvals when RegTank is actively in an amendment loop for the same onboarding request.
+When RegTank sends the organization back for amendment, we now represent this as a real lifecycle status:
 
-#### Why `IssuerOrganization.onboarding_status` alone is not enough
+- `PENDING_SSM_REVIEW -> PENDING_AMENDMENT -> PENDING_SSM_REVIEW`
+- `PENDING_APPROVAL -> PENDING_AMENDMENT -> PENDING_SSM_REVIEW`
 
-During RegTank amendment, the organization can still be shown as:
-- `PENDING_SSM_REVIEW` (SSM step)
-- `PENDING_APPROVAL` (onboarding submission step)
+Business rule:
+- A new `URL_GENERATED` is the *signal* that RegTank has re-created a submission URL.
+- The first `URL_GENERATED` in a fresh flow is not amendment.
+- Amendment starts only when a later `URL_GENERATED` happens **after** a previous `WAIT_FOR_APPROVAL`.
 
-So if the admin only checks `onboarding_status`, the admin may still be allowed to click approve even though RegTank has already re-generated a new URL and is waiting for the amended resubmission.
+#### How amendment start is detected
 
-#### How amendment is detected from `RegTankOnboarding.webhook_payloads`
+We read webhook history from `RegTankOnboarding.webhook_payloads` and detect “amendment started” using a helper like:
 
-We use the webhook history stored in `RegTankOnboarding.webhook_payloads` and derive a transient flag:
+- `isRegtankAmendmentStarted(webhookPayloads)` (implemented via the RegTank webhook helper)
 
-- helper: `isRegtankAmendmentInProgress(webhookPayloads)`
-- meaningful RegTank statuses: `WAIT_FOR_APPROVAL`, `URL_GENERATED`
+Detection rule:
+- meaningful statuses: `WAIT_FOR_APPROVAL`, `URL_GENERATED`
+- first `URL_GENERATED` → not amendment start
+- `URL_GENERATED -> WAIT_FOR_APPROVAL -> URL_GENERATED` → amendment start (set `PENDING_AMENDMENT`)
+- `URL_GENERATED -> WAIT_FOR_APPROVAL -> URL_GENERATED -> WAIT_FOR_APPROVAL` means amendment submission is completed (WAIT moves it out of `PENDING_AMENDMENT`)
 
-Detection rule (based on the sequences you provided):
+#### Which webhook statuses move the org into and out of `PENDING_AMENDMENT`
 
-- The latest meaningful status must be `URL_GENERATED`.
-- There must already be at least one earlier `WAIT_FOR_APPROVAL`.
+1. Enter `PENDING_AMENDMENT`
+   - Trigger: RegTank COD webhook receives `URL_GENERATED`
+   - Condition: the org is currently `PENDING_SSM_REVIEW` or `PENDING_APPROVAL`
+   - Action: set `onboarding_status = PENDING_AMENDMENT`
+   - Reset (because amended RegTank data must be re-reviewed):
+     - for `issuer` org: `ssm_checked = false`
+     - for `investor` company org: `ssm_approved = false`
 
-This prevents false positives like:
-- `URL_GENERATED` only → not amendment in progress
-- `URL_GENERATED -> WAIT_FOR_APPROVAL` → not amendment in progress
+2. Exit `PENDING_AMENDMENT`
+   - Trigger: RegTank COD webhook receives `WAIT_FOR_APPROVAL`
+   - Condition: current org status is `PENDING_AMENDMENT`
+   - Action: set `onboarding_status = PENDING_SSM_REVIEW`
+   - Do not auto-advance to `PENDING_APPROVAL` or `PENDING_AML`
+   - SSM flags stay false, so admin must approve SSM again.
 
-It matches amendment-in-progress like:
-- `URL_GENERATED -> WAIT_FOR_APPROVAL -> URL_GENERATED` → amendment in progress
-- `URL_GENERATED -> WAIT_FOR_APPROVAL -> URL_GENERATED -> WAIT_FOR_APPROVAL` → not amendment in progress (latest meaningful is `WAIT_FOR_APPROVAL`)
+#### Admin approval guards while amendment is in progress
 
-Implementation notes:
+Admin actions are blocked when the org is `PENDING_AMENDMENT`:
 
-- payload items may be objects or JSON strings (invalid items are ignored)
-- timestamps are read from `payload.timestamp` when present
-- when all meaningful entries have timestamps, entries are sorted by timestamp
-- if any timestamp is missing, the original array order is preserved
+- `AdminService.approveSsmVerification` rejects `PENDING_AMENDMENT`
+- `AdminService.approveOnboardingSubmission` rejects `PENDING_AMENDMENT`
+- `AdminService.completeFinalApproval` rejects `PENDING_AMENDMENT`
 
-#### Which approval actions are blocked
+Suggested user experience (Admin UI):
+- `PENDING_AMENDMENT` shows a dedicated “Amendment in Progress” card/state.
+- “Approve SSM” and “Complete onboarding” controls are not shown in this state.
+- “Open RegTank Portal” remains available if `regtankPortalUrl` exists.
 
-When the derived guard flag is `true`, these admin actions are rejected with a clear error message:
-
-- Approve SSM verification:
-  - backend: `AdminService.approveSsmVerification`
-  - blocked when amendment is in progress
-  - error message:
-    `RegTank amendment is currently in progress. Please wait until the amended onboarding is resubmitted before approving SSM verification.`
-- Approve onboarding submission:
-  - backend: `AdminService.approveOnboardingSubmission`
-  - blocked when amendment is in progress
-
-#### Which backend helper/function enforces it
-
-- `apps/api/src/modules/regtank/helpers/is-regtank-amendment-in-progress.ts`
-- used inside `AdminService.approveSsmVerification` and `AdminService.approveOnboardingSubmission`
-
-#### UI behavior
-
-The admin UI reads a derived field from the onboarding queue response:
-
-- `application.regtankAmendmentInProgress`
-
-In the SSM review UI (`SSMVerificationPanel`):
-- a warning banner is shown
-- the “Approve” button is disabled while amendment is in progress
+Issuer experience (Issuer UI):
+- `PENDING_AMENDMENT` shows “Amendment in Progress” and blocks access to account features the same way as other admin-pending statuses.
 
 ### 7.9 Personal onboarding should skip corporate-only SSM steps safely
 
@@ -837,11 +838,12 @@ Enforced by:
 
 ## 7.10 Gaps / risks found
 
-1. **Amendment/reject “in progress” guard is not documented in code we inspected**:
-   - Addressed: we now derive an amendment-in-progress flag from `RegTankOnboarding.webhook_payloads` and block:
-     - `AdminService.approveSsmVerification`
-     - `AdminService.approveOnboardingSubmission`
-   - The admin SSM UI (`SSMVerificationPanel`) also shows a warning banner and disables the “Approve” button.
+1. **Amendment/reject in-progress protection**:
+   - Fixed by introducing a real onboarding lifecycle status: `PENDING_AMENDMENT`.
+   - Webhook transitions:
+     - `PENDING_SSM_REVIEW` / `PENDING_APPROVAL` → `PENDING_AMENDMENT` on the amendment start (`URL_GENERATED` after `WAIT_FOR_APPROVAL`)
+     - `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW` on resubmission (`WAIT_FOR_APPROVAL`)
+   - Admin guards block approving actions while `PENDING_AMENDMENT` is active.
 
 2. **Admin AML approval endpoint may be unused in the UI**:
    - `AdminService.approveAmlScreening` exists and there is an API endpoint `POST /approve-aml`.
