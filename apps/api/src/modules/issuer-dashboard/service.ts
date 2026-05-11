@@ -201,8 +201,14 @@ function isFundingNote(note: { status: NoteStatus; funding_status: NoteFundingSt
 }
 
 export class IssuerDashboardService {
-  async getDashboard(organizationId: string, userId: string): Promise<IssuerDashboardPayload> {
+  async getDashboard(
+    organizationId: string,
+    userId: string,
+    opts?: { includeContractLinkedInvoices?: boolean }
+  ): Promise<IssuerDashboardPayload> {
     await assertIssuerOrganizationAccess(organizationId, userId);
+
+    const includeContractLinkedInvoices = opts?.includeContractLinkedInvoices ?? false;
 
     const user = await prisma.user.findUnique({
       where: { user_id: userId },
@@ -342,6 +348,11 @@ export class IssuerDashboardService {
         : null;
 
       for (const inv of app.invoices) {
+        // Main issuer dashboard should show only standalone invoice financing:
+        // - exclude invoices linked to a Contract (invoice.contract_id != null)
+        // Contract detail keeps its old behavior via an internal option.
+        if (!includeContractLinkedInvoices && inv.contract_id) continue;
+
         const details = asRecord(inv.details);
         const invNote = notesByInvoiceId.get(inv.id) ?? null;
         const ratioRaw = details?.financing_ratio_percent;
@@ -402,7 +413,8 @@ export class IssuerDashboardService {
     if (!contract) {
       throw new AppError(404, "CONTRACT_NOT_FOUND", "Contract not found");
     }
-    const full = await this.getDashboard(organizationId, userId);
+    // Include contract-linked invoices so contract detail can still show the full invoice list.
+    const full = await this.getDashboard(organizationId, userId, { includeContractLinkedInvoices: true });
     const row = full.contracts.find((c) => c.id === contractId) ?? null;
     const invoices = full.invoices.filter((i) => i.contractId === contractId);
     return { contract: row, invoices };
