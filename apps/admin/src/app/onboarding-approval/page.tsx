@@ -242,21 +242,21 @@ export default function OnboardingApprovalPage() {
                   }}
                 >
                   <DropdownMenuRadioItem value="PENDING_ALL">All Pending</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="PENDING_APPROVAL">
-                    Pending Approval
+                  <DropdownMenuRadioItem value="PENDING_ONBOARDING">
+                    In Progress
                   </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="PENDING_AML">Pending AML</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="PENDING_SSM_REVIEW">
                     Pending SSM
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="PENDING_APPROVAL">
+                    Pending Approval
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="PENDING_AMENDMENT">
                     Amendment in Progress
                   </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="PENDING_AML">Pending AML</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="PENDING_FINAL_APPROVAL">
                     Pending Final Approval
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="PENDING_ONBOARDING">
-                    In Progress
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="COMPLETED">Completed</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="REJECTED">Rejected</DropdownMenuRadioItem>
