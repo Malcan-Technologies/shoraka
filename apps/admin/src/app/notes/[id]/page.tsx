@@ -21,7 +21,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Switch } from "@/components/ui/switch";
@@ -321,6 +320,15 @@ export default function NoteDetailPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center justify-end gap-2">
+                  <div className="flex items-center gap-2 rounded-full border px-3 py-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">Featured</span>
+                    <Switch
+                      id="note-featured-toggle"
+                      checked={featuredEnabled}
+                      onCheckedChange={(checked) => void handleToggleFeatured(Boolean(checked))}
+                      disabled={updateNoteFeatured.isPending}
+                    />
+                  </div>
                   <Badge variant="outline">{formatStatus(note.status)}</Badge>
                   <Badge variant="secondary">{formatStatus(note.listingStatus)}</Badge>
                   <Badge variant="secondary">{formatStatus(note.fundingStatus)}</Badge>
@@ -355,28 +363,6 @@ export default function NoteDetailPage() {
                     <div className="mt-1 text-xl font-semibold">{note.paymasterName ?? "-"}</div>
                   </div>
                 </CardContent>
-              </Card>
-
-              <Card className="rounded-2xl">
-                <CardContent className="space-y-4 p-5">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <h3 className="text-base font-semibold">Featured Marketplace Placement</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Toggle this note as featured in the investor marketplace.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="note-featured-toggle" className="text-sm">Featured</Label>
-                      <Switch
-                        id="note-featured-toggle"
-                        checked={featuredEnabled}
-                        onCheckedChange={(checked) => void handleToggleFeatured(Boolean(checked))}
-                        disabled={updateNoteFeatured.isPending}
-                      />
-                    </div>
-                  </div>
-                  image.png                </CardContent>
               </Card>
 
               <div className="flex flex-wrap items-center gap-2">
