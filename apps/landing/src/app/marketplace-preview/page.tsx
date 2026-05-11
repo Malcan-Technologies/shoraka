@@ -12,10 +12,14 @@ const INVESTOR_URL = process.env.NEXT_PUBLIC_INVESTOR_URL || "http://localhost:3
 export const revalidate = 120;
 
 async function getLandingMarketplaceNotes(): Promise<NoteListItem[]> {
-  const apiClient = createApiClient(API_URL);
-  const response = await apiClient.getPublicMarketplaceNotes({ page: 1, pageSize: 3 });
-  if (!response.success) return [];
-  return response.data.notes;
+  try {
+    const apiClient = createApiClient(API_URL);
+    const response = await apiClient.getPublicMarketplaceNotes({ page: 1, pageSize: 3 });
+    if (!response.success) return [];
+    return response.data.notes;
+  } catch {
+    return [];
+  }
 }
 
 export default async function MarketplacePreviewPage() {

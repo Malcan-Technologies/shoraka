@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Button,
   Select,
@@ -69,15 +69,26 @@ function toMarketplaceNote(note: NoteListItem): PublicMarketplaceNote {
   };
 }
 
-export function PublicMarketplaceBrowser({ notes }: { notes: NoteListItem[] }) {
+type PublicMarketplaceBrowserProps = {
+  notes: NoteListItem[];
+  initialFilters?: {
+    industry?: string;
+    risk?: string;
+    profit?: string;
+    tenor?: string;
+  };
+};
+
+export function PublicMarketplaceBrowser({
+  notes,
+  initialFilters,
+}: PublicMarketplaceBrowserProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-
-  const initialIndustryParam = searchParams.get("industry");
-  const initialRiskParam = searchParams.get("risk");
-  const initialProfitParam = searchParams.get("profit");
-  const initialTenorParam = searchParams.get("tenor");
+  const initialIndustryParam = initialFilters?.industry;
+  const initialRiskParam = initialFilters?.risk;
+  const initialProfitParam = initialFilters?.profit;
+  const initialTenorParam = initialFilters?.tenor;
 
   const initialIndustry =
     initialIndustryParam &&
@@ -107,6 +118,13 @@ export function PublicMarketplaceBrowser({ notes }: { notes: NoteListItem[] }) {
   const [profitFilter, setProfitFilter] = useState(initialProfit);
   const [tenorFilter, setTenorFilter] = useState(initialTenor);
   const [displayCount, setDisplayCount] = useState(6);
+
+  useEffect(() => {
+    setIndustryFilter(initialIndustry);
+    setRiskFilter(initialRisk);
+    setProfitFilter(initialProfit);
+    setTenorFilter(initialTenor);
+  }, [initialIndustry, initialProfit, initialRisk, initialTenor]);
 
   useEffect(() => {
     const params = new URLSearchParams();

@@ -11,19 +11,32 @@ export const metadata: Metadata = {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-async function getMarketplaceNotes(): Promise<NoteListItem[]> {
-  const apiClient = createApiClient(API_URL);
-  const response = await apiClient.getPublicMarketplaceNotes({
-    page: 1,
-    pageSize: 100,
-  });
-
-  if (!response.success) return [];
-  return response.data.notes;
+function getSingleSearchParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
 }
 
-export default async function MarketplacePage() {
+async function getMarketplaceNotes(): Promise<NoteListItem[]> {
+  try {
+    const apiClient = createApiClient(API_URL);
+    const response = await apiClient.getPublicMarketplaceNotes({
+      page: 1,
+      pageSize: 100,
+    });
+
+    if (!response.success) return [];
+    return response.data.notes;
+  } catch {
+    return [];
+  }
+}
+
+export default async function MarketplacePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const notes = await getMarketplaceNotes();
+  const filters = await searchParams;
 
   return (
     <main className="flex-1 pt-16">
@@ -37,7 +50,15 @@ export default async function MarketplacePage() {
           aria-hidden
         />
         <div className="relative mx-auto max-w-7xl px-6 py-10 md:py-14 lg:py-16">
-          <PublicMarketplaceBrowser notes={notes} />
+          <PublicMarketplaceBrowser
+            notes={notes}
+            initialFilters={{
+              industry: getSingleSearchParam(filters.industry),
+              risk: getSingleSearchParam(filters.risk),
+              profit: getSingleSearchParam(filters.profit),
+              tenor: getSingleSearchParam(filters.tenor),
+            }}
+          />
         </div>
       </section>
     </main>

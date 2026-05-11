@@ -111,13 +111,17 @@ function mapNoteToInvestmentListing(note: NoteListItem): InvestmentListingData {
 }
 
 async function getLandingCarouselListings(): Promise<InvestmentListingData[]> {
-  const apiClient = createApiClient(API_URL);
-  const response = await apiClient.getPublicMarketplaceNotes({
-    page: 1,
-    pageSize: 12,
-  });
-  if (!response.success) return [];
-  return response.data.notes.map(mapNoteToInvestmentListing);
+  try {
+    const apiClient = createApiClient(API_URL);
+    const response = await apiClient.getPublicMarketplaceNotes({
+      page: 1,
+      pageSize: 12,
+    });
+    if (!response.success) return [];
+    return response.data.notes.map(mapNoteToInvestmentListing);
+  } catch {
+    return [];
+  }
 }
 
 export async function LandingInvestmentListings() {
