@@ -203,7 +203,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 ) : (
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname === "/marketplace" || pathname.startsWith("/marketplace/")}
+                    isActive={pathname === "/marketplace"}
                     tooltip="Marketplace"
                   >
                     <Link href="/marketplace">

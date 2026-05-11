@@ -6,7 +6,6 @@
  * REMOVE_FOR_PRODUCTION:
  * - Delete this file
  * - Delete the `InvestmentsDevBalanceTopup` import and JSX usage from `app/investments/page.tsx`
- * - Keep `INVESTOR_BALANCE_TEST_TOPUP_ENABLED` unset/false in production API env
  */
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";

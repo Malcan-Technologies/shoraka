@@ -83,13 +83,13 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for AWS setup details.
 
 ### Email Service
 
-| Variable        | Description   | Notes                     |
-| --------------- | ------------- | ------------------------- |
-| `SMTP_HOST`     | SMTP server   | Use AWS SES in production |
-| `SMTP_PORT`     | SMTP port     | `587` (TLS)               |
-| `SMTP_USER`     | SMTP username | From SES SMTP credentials |
-| `SMTP_PASSWORD` | SMTP password | From Secrets Manager      |
-| `EMAIL_FROM`    | Sender email  | `noreply@cashsouk.com`    |
+| Variable        | Description                      | Notes                                                        |
+| --------------- | -------------------------------- | ------------------------------------------------------------ |
+| `SMTP_HOST`     | SMTP server                      | Use AWS SES in production                                    |
+| `SMTP_PORT`     | SMTP port                        | `587` (TLS)                                                  |
+| `SMTP_USER`     | SMTP username                    | From SES SMTP credentials                                    |
+| `SMTP_PASSWORD` | SMTP password                    | From Secrets Manager                                         |
+| `EMAIL_FROM`    | Sender email                     | `noreply@cashsouk.com`                                       |
 | `SES_REGION`    | Region for `@aws-sdk/client-ses` | Default `ap-southeast-2`; identity must exist in this region |
 
 Issuer director CTOS RegTank onboarding: after a successful RegTank create call, the API stores `verifyLink` on `ctos_party_supplements.onboarding_json` and sends the link with SES using `EMAIL_FROM` and the default AWS credential chain (ECS task role or env keys for local dev).
@@ -109,16 +109,6 @@ Issuer director CTOS RegTank onboarding: after a successful RegTank create call,
 | `PAYMENT_GATEWAY_SECRET`         | Secret key             | From Secrets Manager      |
 | `PAYMENT_GATEWAY_WEBHOOK_SECRET` | Webhook signing secret | From Secrets Manager      |
 | `PAYMENT_GATEWAY_MODE`           | Mode                   | `sandbox` or `production` |
-
-### Investor balance (testing / dev only)
-
-| Variable                               | Description                                      | Default |
-| -------------------------------------- | ------------------------------------------------ | ------- |
-| `INVESTOR_BALANCE_TEST_TOPUP_ENABLED` | Enables `POST /v1/investor/balance/test-topup` for fake credits. Investor UI can call this route from a dev-only control, but API still enforces this flag. | unset / `false` |
-
-See [marketplace-investor-balance.md](./marketplace-investor-balance.md).
-
----
 
 ## Frontend Environment Variables (Next.js)
 

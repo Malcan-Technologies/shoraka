@@ -1,22 +1,37 @@
 # Marketplace feature and account balances
 
-This guide explains how the investor marketplace works end to end and how investor account balances are debited and credited through note lifecycle events.
+This guide explains the current marketplace surfaces end to end and how investor account balances, portfolio history, and activity are derived from note lifecycle events.
 
 ## Feature scope
 
 - Investor marketplace browsing and commit flow.
+- Public marketplace browsing on landing surfaces.
 - Investor portfolio totals and available balance.
+- Investor portfolio history chart and balance activity feed.
 - Admin note actions that impact investor balances.
 - Transaction and ledger records used for audit and reconciliation.
 
-## Main user flow
+## Main user flows
 
-1. Investor opens marketplace (`apps/investor/src/app/investments/page.tsx`) and loads published open notes from `GET /v1/marketplace/notes`.
-2. Investor selects a note and commits from the UI dialog via `POST /v1/marketplace/notes/:id/investments`.
-3. API creates a `note_investments` row and debits the investor organization's `available_amount` in the same transaction.
-4. Admin closes funding (`/v1/admin/notes/:id/funding/close`) or fails funding (`/v1/admin/notes/:id/funding/fail`).
-5. During servicing, repayment and settlement are handled in note operations.
-6. When settlement is posted (`/v1/admin/notes/:id/settlements/:settlementId/post`), investor balances are credited with principal + net profit allocation.
+### Authenticated investor flow
+
+1. Investor opens the marketplace at `apps/investor/src/app/investments/page.tsx` and loads published open notes from `GET /v1/marketplace/notes`.
+2. Investor opens a note detail at `apps/investor/src/app/investments/[id]/page.tsx`.
+3. Investor commits from the marketplace dialog via `POST /v1/marketplace/notes/:id/investments`.
+4. API creates a `note_investments` row and debits the investor organization's `available_amount` in the same transaction.
+5. Portfolio widgets read:
+   - `GET /v1/investor/portfolio` for balances and counts
+   - `GET /v1/investor/portfolio/history` for the chart series
+   - `GET /v1/investor/balance/activity` for note and balance activity shown in the investment detail view
+6. Admin closes funding (`/v1/admin/notes/:id/funding/close`) or fails funding (`/v1/admin/notes/:id/funding/fail`).
+7. During servicing, repayment and settlement are handled in note operations.
+8. When settlement is posted (`/v1/admin/notes/:id/settlements/:settlementId/post`), investor balances are credited with principal + net profit allocation.
+
+### Public landing flow
+
+1. Anonymous users see featured opportunities in the landing carousel and on the marketing `/marketplace` route.
+2. These landing surfaces load read-only note data from `GET /v1/public/marketplace/notes`.
+3. Landing cards reuse the same marketplace card language as the investor marketplace, but the CTA leads to `/get-started` instead of opening an invest dialog.
 
 ## API endpoints involved
 
@@ -25,7 +40,10 @@ This guide explains how the investor marketplace works end to end and how invest
 - `GET /v1/marketplace/notes`
 - `GET /v1/marketplace/notes/:id`
 - `POST /v1/marketplace/notes/:id/investments`
+- `GET /v1/public/marketplace/notes`
 - `GET /v1/investor/portfolio`
+- `GET /v1/investor/portfolio/history`
+- `GET /v1/investor/balance/activity`
 - `GET /v1/investor/investments`
 
 ### Admin note actions affecting balances
@@ -35,7 +53,7 @@ This guide explains how the investor marketplace works end to end and how invest
 
 ### Dev-only testing endpoint
 
-- `POST /v1/investor/balance/test-topup` (guarded by env flag)
+- `POST /v1/investor/balance/test-topup`
 
 ## Data model
 
@@ -99,22 +117,28 @@ All money columns use `numeric(18,6)` through Prisma `Decimal`.
 
 This is what powers the account overview figures in investor UI.
 
+`GET /v1/investor/portfolio/history` returns the historical portfolio time series used by the investor chart. The chart now plots `portfolioTotal` and carries the latest known value forward to today for the selected range.
+
+`GET /v1/investor/balance/activity` returns the investor-facing activity list used in the investment detail page.
+
 ## Dev top-up (non-production only)
-
-Enable only for local/staging testing:
-
-```bash
-INVESTOR_BALANCE_TEST_TOPUP_ENABLED=true
-```
 
 When this endpoint is used, the API also posts an `INVESTOR_POOL` ledger credit so bucket reporting stays aligned with simulated inflow.
 
-Do not enable this flag in production.
+The dev top-up path also marks `investor_organizations.deposit_received = true` so local testing can proceed through marketplace commit checks without a separate manual deposit step.
+
+This helper exists for local and staging-style testing only. Remove or lock down the route before production hardening.
 
 ## Key implementation files
 
+- `apps/landing/src/app/(marketing)/marketplace/page.tsx`
+- `apps/landing/src/components/landing-convenience-listings.tsx`
+- `apps/landing/src/components/investment-listings-carousel.tsx`
+- `apps/landing/src/components/investment-listing-card.tsx`
 - `apps/investor/src/app/investments/page.tsx`
+- `apps/investor/src/app/investments/[id]/page.tsx`
 - `apps/investor/src/investments/hooks/use-marketplace-notes.ts`
+- `apps/investor/src/components/portfolio-overview-card.tsx`
 - `apps/api/src/modules/notes/controller.ts`
 - `apps/api/src/modules/notes/service.ts`
 - `apps/api/src/modules/notes/investor-balance.ts`
@@ -126,3 +150,4 @@ Do not enable this flag in production.
 - No real bank rail reconciliation in this flow; production top-ups should come from controlled finance operations, not test endpoints.
 - `investor_balance_transactions.source` currently uses `NOTE_INVESTMENT_RELEASE` for both funding-fail release and settlement payout release; reporting can distinguish by metadata but not by enum value yet.
 - If an org has never received any balance movement, it may not have a row until first upsert path creates it.
+- The landing marketplace remains read-only. Note detail and investment actions live in the investor app.

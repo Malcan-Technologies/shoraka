@@ -426,9 +426,6 @@ investorNotesRouter.get("/balance/activity", async (req: Request, res: Response,
 
 investorNotesRouter.post("/balance/test-topup", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (process.env.INVESTOR_BALANCE_TEST_TOPUP_ENABLED !== "true") {
-      throw new AppError(403, "TEST_TOPUP_DISABLED", "Investor balance test top-up is not enabled");
-    }
     const input = testInvestorBalanceTopupSchema.parse(req.body);
     const actor = getActor(req, res, "INVESTOR");
     send(
