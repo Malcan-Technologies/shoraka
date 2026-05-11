@@ -222,9 +222,13 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
         <TableCell>{getTypeBadge(application.type)}</TableCell>
         <TableCell>{getPortalBadge(application.portal)}</TableCell>
         <TableCell>
-          <span className="text-sm text-muted-foreground">
-            {formatDate(application.submittedAt)}
-          </span>
+          {application.submittedAt ? (
+            <span className="text-sm text-muted-foreground">
+              {formatDate(application.submittedAt)}
+            </span>
+          ) : (
+            <span className="text-sm text-muted-foreground/50">—</span>
+          )}
         </TableCell>
         <TableCell>
           {application.completedAt ? (
