@@ -425,7 +425,7 @@ export class IssuerDashboardService {
         },
         note: { issuer_organization_id: organizationId },
       },
-      select: { id: true, due_date: true },
+      select: { id: true, due_date: true, expected_total: true },
     });
 
     const scheduleIds = schedulesInWindow.map((s) => s.id);
@@ -436,19 +436,9 @@ export class IssuerDashboardService {
             schedule_id: { in: scheduleIds },
             status: NotePaymentStatus.RECEIVED,
           },
-          select: { schedule_id: true, receipt_date: true },
+          select: { schedule_id: true, receipt_date: true, receipt_amount: true },
         })
       : [];
-
-    // Earliest RECEIVED payment date per schedule.
-    const earliestReceiptByScheduleId = new Map<string, Date>();
-    for (const p of paymentsForWindow) {
-      const sid = p.schedule_id;
-      if (!sid) continue; // first version ignores payments without schedule_id
-      const receipt = p.receipt_date;
-      const prev = earliestReceiptByScheduleId.get(sid);
-      if (!prev || receipt < prev) earliestReceiptByScheduleId.set(sid, receipt);
-    }
 
     let onTimePercent: number | null = null;
     let pastDueCount: number | null = null;
@@ -459,16 +449,46 @@ export class IssuerDashboardService {
       let pastDue = 0;
       let lateCount = 0;
 
+      // Group received payments by schedule_id, and then sort by receipt_date.
+      const paymentsByScheduleId = new Map<
+        string,
+        Array<{ receipt_date: Date; receipt_amount: Prisma.Decimal }>
+      >();
+      for (const p of paymentsForWindow) {
+        const sid = p.schedule_id;
+        if (!sid) continue; // first version ignores payments without schedule_id
+        const list = paymentsByScheduleId.get(sid) ?? [];
+        list.push({ receipt_date: p.receipt_date, receipt_amount: p.receipt_amount });
+        paymentsByScheduleId.set(sid, list);
+      }
+      for (const list of paymentsByScheduleId.values()) {
+        list.sort((a, b) => a.receipt_date.getTime() - b.receipt_date.getTime());
+      }
+
       for (const s of schedulesInWindow) {
         const due = s.due_date;
-        const earliestReceipt = earliestReceiptByScheduleId.get(s.id) ?? null;
+        const expectedTotal = decimalToNumber(s.expected_total);
+        const payments = paymentsByScheduleId.get(s.id) ?? [];
 
-        if (!earliestReceipt) {
+        // Find the first receipt date where cumulative RECEIVED amount reaches expected_total.
+        let cumulative = 0;
+        let fullyPaidDate: Date | null = null;
+        for (const p of payments) {
+          cumulative += decimalToNumber(p.receipt_amount);
+          // Use >= so that exact matches count as paid.
+          if (cumulative + 1e-9 >= expectedTotal) {
+            fullyPaidDate = p.receipt_date;
+            break;
+          }
+        }
+
+        if (!fullyPaidDate) {
+          // Not fully paid; only counts as past due if due date is already passed.
           if (due < now) pastDue += 1;
           continue;
         }
 
-        if (earliestReceipt <= due) onTimeCount += 1;
+        if (fullyPaidDate <= due) onTimeCount += 1;
         else lateCount += 1;
       }
 
