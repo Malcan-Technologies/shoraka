@@ -97,22 +97,15 @@ export function InvestmentPositionCard({
   );
   const statusLabel = getInvestmentStatusLabel(note);
   const hasRiskRating = Boolean(note.riskRating && note.riskRating.trim() !== "");
-  const isPendingConfirmation = statusLabel === "Pending confirmation";
   const hasActualReturn = typeof repaymentSummary?.actualReturnRatePercent === "number";
-  const actualReturn = isPendingConfirmation
-    ? "NA"
-    : hasActualReturn
-      ? `${Number(repaymentSummary?.actualReturnRatePercent).toFixed(1)}%`
-      : "—";
+  const actualReturn = hasActualReturn
+    ? `${Number(repaymentSummary?.actualReturnRatePercent).toFixed(1)}%`
+    : "N/A";
   const progressValue = Number(
     repaymentSummary?.progressPercent ??
       (note.targetAmount > 0 ? Math.min(100, (note.fundedAmount / note.targetAmount) * 100) : 0)
   );
-  const returnLabel = isPendingConfirmation
-    ? "Expected return"
-    : hasActualReturn
-      ? "Actual return"
-      : "Pending settlement";
+  const returnLabel = "Actual return";
   const displayDate = formatDate(investmentDateValue ?? note.updatedAt);
 
   return (

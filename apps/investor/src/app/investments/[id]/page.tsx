@@ -10,15 +10,7 @@ import type {
   MarketplaceNoteDetail,
   NoteListItem,
 } from "@cashsouk/types";
-import {
-  Badge,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  Skeleton,
-  useHeader,
-} from "@cashsouk/ui";
+import { Badge, Card, CardContent, CardHeader, CardTitle, Skeleton, useHeader } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { InvestmentPositionCard } from "@/investments/components/investment-position-card";
@@ -29,7 +21,10 @@ import {
 } from "@/investments/hooks/use-marketplace-notes";
 
 function formatEnumLabel(value: string) {
-  return value.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (character) => character.toUpperCase());
+  return value
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 function formatDate(value?: string | null) {
@@ -152,10 +147,6 @@ export default function InvestmentDetailPage() {
   const backHref = isInvestedView ? "/investments" : "/marketplace";
   const detailFooterRows = [
     {
-      label: "Investment date",
-      value: formatDate(investmentDate ?? note.updatedAt),
-    },
-    {
       label: "Maturity date",
       value: formatDate(note.maturityDate),
     },
@@ -196,7 +187,9 @@ export default function InvestmentDetailPage() {
               variant="secondary"
               className="w-fit rounded-full border-transparent bg-primary text-primary-foreground px-2.5 py-1 text-xs font-medium"
             >
-              {isInvestedView ? `${noteActivity.length} entries` : formatEnumLabel(note.listingStatus)}
+              {isInvestedView
+                ? `${noteActivity.length} entries`
+                : formatEnumLabel(note.listingStatus)}
             </Badge>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -207,21 +200,24 @@ export default function InvestmentDetailPage() {
                 </div>
               ) : noteActivity.length > 0 ? (
                 <div className="overflow-hidden rounded-2xl border border-slate-200">
-                  <div className="hidden grid-cols-[minmax(0,1.2fr)_140px_120px_180px] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-medium uppercase tracking-wide text-slate-500 md:grid">
+                  <div className="hidden grid-cols-[minmax(0,1.2fr)_140px_180px] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-medium uppercase tracking-wide text-slate-500 md:grid">
                     <div>Transaction type</div>
                     <div>Amount</div>
-                    <div>Direction</div>
                     <div>Time</div>
                   </div>
                   <div className="divide-y divide-slate-200">
                     {noteActivity.map((entry) => (
                       <div
                         key={entry.id}
-                        className="grid gap-2 px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_140px_120px_180px] md:items-center md:gap-4"
+                        className="grid gap-2 px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_140px_180px] md:items-center md:gap-4"
                       >
                         <div>
-                          <div className="font-medium text-slate-900">{getActivityLabel(entry)}</div>
-                          <div className="mt-1 text-xs text-slate-500">{formatEnumLabel(entry.source)}</div>
+                          <div className="font-medium text-slate-900">
+                            {getActivityLabel(entry)}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            {formatEnumLabel(entry.source)}
+                          </div>
                         </div>
                         <div
                           className={cn(
@@ -231,12 +227,9 @@ export default function InvestmentDetailPage() {
                         >
                           {formatSignedCurrency(entry.direction, entry.amount)}
                         </div>
-                        <div>
-                          <Badge variant="outline" className="rounded-full px-2.5 py-1 text-xs font-medium">
-                            {entry.direction === "IN" ? "Credit" : "Debit"}
-                          </Badge>
+                        <div className="text-sm text-slate-500">
+                          {formatDateTime(entry.postedAt)}
                         </div>
-                        <div className="text-sm text-slate-500">{formatDateTime(entry.postedAt)}</div>
                       </div>
                     ))}
                   </div>
@@ -254,15 +247,21 @@ export default function InvestmentDetailPage() {
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
                   <div className="text-sm text-muted-foreground">Paymaster</div>
-                  <div className="mt-1 font-semibold text-foreground">{note.paymasterName ?? "—"}</div>
+                  <div className="mt-1 font-semibold text-foreground">
+                    {note.paymasterName ?? "—"}
+                  </div>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
                   <div className="text-sm text-muted-foreground">Target amount</div>
-                  <div className="mt-1 font-semibold text-foreground">{formatCurrency(note.targetAmount)}</div>
+                  <div className="mt-1 font-semibold text-foreground">
+                    {formatCurrency(note.targetAmount)}
+                  </div>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
                   <div className="text-sm text-muted-foreground">Published date</div>
-                  <div className="mt-1 font-semibold text-foreground">{formatDate(note.publishedAt)}</div>
+                  <div className="mt-1 font-semibold text-foreground">
+                    {formatDate(note.publishedAt)}
+                  </div>
                 </div>
               </div>
             )}
@@ -272,4 +271,3 @@ export default function InvestmentDetailPage() {
     </div>
   );
 }
-
