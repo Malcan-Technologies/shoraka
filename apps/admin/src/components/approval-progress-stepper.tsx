@@ -83,7 +83,8 @@ function companyCtosStepCompleted(onboardingStatus: string): boolean {
 
 /** User-side onboarding not finished yet — no admin approval step should look active or done. */
 function isAwaitingApplicantOnboarding(onboardingStatus: string): boolean {
-  return onboardingStatus === "PENDING" || onboardingStatus === "IN_PROGRESS";
+  // Amendment needs re-submission: we pause the whole admin approval workflow UI.
+  return onboardingStatus === "PENDING" || onboardingStatus === "IN_PROGRESS" || onboardingStatus === "PENDING_AMENDMENT";
 }
 
 function personalStepShells(): Omit<ApprovalStep, "status">[] {
@@ -258,11 +259,6 @@ export function getCompanyOnboardingSteps(onboardingStatus: string, _ssmApproved
       steps[0].status = "completed";
       steps[1].status = ctosDone ? "completed" : "current";
       steps[2].status = ctosDone ? "current" : "pending";
-      break;
-    case "PENDING_AMENDMENT":
-      steps[0].status = "completed";
-      steps[1].status = "current";
-      steps[2].status = "pending";
       break;
     case "PENDING_APPROVAL":
       steps[0].status = "completed";
