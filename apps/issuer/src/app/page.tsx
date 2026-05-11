@@ -274,6 +274,7 @@ function IssuerDashboardContent() {
                 isDisabled={!isAccountEnabled}
                 successRate={issuerDashboard?.overview.successRatePercent ?? null}
                 activeFinancing={issuerDashboard?.overview.activeFinancingAmount ?? null}
+                pastFinancing={issuerDashboard?.overview.pastFinancingAmount ?? null}
                 activeNotes={issuerDashboard?.overview.activeNotesCount ?? null}
                 completedNotes={issuerDashboard?.overview.completedNotesCount ?? null}
               />

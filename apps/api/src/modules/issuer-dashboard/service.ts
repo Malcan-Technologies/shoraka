@@ -99,6 +99,7 @@ export type IssuerDashboardPayload = {
   overview: {
     successRatePercent: number | null;
     activeFinancingAmount: string | null;
+    pastFinancingAmount: string | null;
     activeNotesCount: number;
     completedNotesCount: number;
   };
@@ -251,6 +252,30 @@ export class IssuerDashboardService {
     const activeNotesCount = notes.filter((n) => n.status === NoteStatus.ACTIVE).length;
     const completedNotesCount = notes.filter((n) => n.status === NoteStatus.REPAID).length;
 
+    const successfulDisbursedNotesCount = notes.filter((n) => n.activated_at !== null).length;
+    const fundingOutcomeNotesCount = notes.filter(
+      (n) =>
+        n.activated_at !== null ||
+        n.status === NoteStatus.FAILED_FUNDING ||
+        n.funding_status === NoteFundingStatus.FAILED
+    ).length;
+    const successRatePercent =
+      fundingOutcomeNotesCount > 0
+        ? Math.round((successfulDisbursedNotesCount / fundingOutcomeNotesCount) * 100)
+        : null;
+
+    const activeFinancingNotes = notes.filter((n) => n.status === NoteStatus.ACTIVE);
+    const activeFinancingAmount =
+      activeFinancingNotes.length > 0
+        ? activeFinancingNotes.reduce((sum, n) => sum + decimalToNumber(n.funded_amount), 0).toFixed(2)
+        : null;
+
+    const pastFinancingNotes = notes.filter((n) => n.status === NoteStatus.REPAID);
+    const pastFinancingAmount =
+      pastFinancingNotes.length > 0
+        ? pastFinancingNotes.reduce((sum, n) => sum + decimalToNumber(n.funded_amount), 0).toFixed(2)
+        : null;
+
     const contractsOut: IssuerDashboardContractDto[] = [];
     const invoicesOut: IssuerDashboardInvoiceDto[] = [];
 
@@ -390,8 +415,9 @@ export class IssuerDashboardService {
     return {
       user: { displayName },
       overview: {
-        successRatePercent: null,
-        activeFinancingAmount: null,
+        successRatePercent,
+        activeFinancingAmount,
+        pastFinancingAmount,
         activeNotesCount,
         completedNotesCount,
       },

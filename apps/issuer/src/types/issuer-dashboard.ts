@@ -65,6 +65,7 @@ export type IssuerDashboardData = {
   overview: {
     successRatePercent: number | null;
     activeFinancingAmount: string | null;
+    pastFinancingAmount: string | null;
     activeNotesCount: number;
     completedNotesCount: number;
   };

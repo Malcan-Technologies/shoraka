@@ -16,6 +16,7 @@ interface AccountOverviewCardProps {
   isDisabled?: boolean;
   successRate?: number | null;
   activeFinancing?: number | string | null;
+  pastFinancing?: number | string | null;
   activeNotes?: number | null;
   completedNotes?: number | null;
 }
@@ -42,6 +43,7 @@ export function AccountOverviewCard({
   isDisabled = false,
   successRate = null,
   activeFinancing = null,
+  pastFinancing = null,
   activeNotes = null,
   completedNotes = null,
 }: AccountOverviewCardProps) {
@@ -63,6 +65,13 @@ export function AccountOverviewCard({
       : typeof activeFinancing === "number"
         ? formatCurrency(activeFinancing)
         : `RM ${activeFinancing}`;
+
+  const pastFinancingDisplay =
+    pastFinancing == null
+      ? "Not available"
+      : typeof pastFinancing === "number"
+        ? formatCurrency(pastFinancing)
+        : `RM ${pastFinancing}`;
 
   return (
     <Card className={cn("w-full bg-muted/50", isDisabled && "opacity-50 pointer-events-none")}>
@@ -110,7 +119,7 @@ export function AccountOverviewCard({
                               y={(viewBox.cy || 0) + 16}
                               className="fill-muted-foreground text-xs"
                             >
-                              Success rate
+                              Successful disbursement rate
                             </tspan>
                           </text>
                         );
@@ -122,22 +131,36 @@ export function AccountOverviewCard({
             </ChartContainer>
           </div>
 
-          <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="rounded-lg border bg-background p-4">
-              <p className="text-sm text-muted-foreground mb-1">Active financing</p>
-              <p className="text-2xl font-bold">{activeFinancingDisplay}</p>
+              <p className="text-sm text-muted-foreground mb-3">Financing</p>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Active financing</p>
+                  <p className="text-2xl font-bold">{activeFinancingDisplay}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Past financing</p>
+                  <p className="text-2xl font-bold">{pastFinancingDisplay}</p>
+                </div>
+              </div>
             </div>
             <div className="rounded-lg border bg-background p-4">
-              <p className="text-sm text-muted-foreground mb-1">Active notes</p>
-              <p className="text-2xl font-bold">
-                {activeNotes != null ? activeNotes : "Not available"}
-              </p>
-            </div>
-            <div className="rounded-lg border bg-background p-4">
-              <p className="text-sm text-muted-foreground mb-1">Completed notes</p>
-              <p className="text-2xl font-bold">
-                {completedNotes != null ? completedNotes : "Not available"}
-              </p>
+              <p className="text-sm text-muted-foreground mb-3">Notes</p>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Active notes</p>
+                  <p className="text-2xl font-bold">
+                    {activeNotes != null ? activeNotes : "Not available"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Completed notes</p>
+                  <p className="text-2xl font-bold">
+                    {completedNotes != null ? completedNotes : "Not available"}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
