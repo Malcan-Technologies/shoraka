@@ -1,4 +1,3 @@
-import * as React from "react";
 import { CheckIcon } from "@heroicons/react/24/solid";
 import { cn } from "@/lib/utils";
 
@@ -74,23 +73,85 @@ export function ApprovalProgressStepper({ steps, className }: ApprovalProgressSt
   );
 }
 
-/** CTOS step is complete only when DB says SSM is done and org has left the CTOS gate. */
-function companyCtosStepCompleted(onboardingStatus: string, ssmApproved: boolean): boolean {
-  if (!ssmApproved) {
-    return false;
-  }
+/** CTOS step completion follows onboarding status only (single source of truth). */
+function companyCtosStepCompleted(onboardingStatus: string): boolean {
   if (["PENDING", "IN_PROGRESS", "PENDING_SSM_REVIEW"].includes(onboardingStatus)) {
     return false;
   }
   return true;
 }
 
+/** User-side onboarding not finished yet — no admin approval step should look active or done. */
+function isAwaitingApplicantOnboarding(onboardingStatus: string): boolean {
+  return onboardingStatus === "PENDING" || onboardingStatus === "IN_PROGRESS";
+}
+
+function personalStepShells(): Omit<ApprovalStep, "status">[] {
+  return [
+    {
+      id: "review",
+      label: "Review Application",
+      description: "View user details and submitted information",
+    },
+    {
+      id: "onboarding",
+      label: "Onboarding Approval",
+      description: "Approve identity verification in RegTank",
+    },
+    {
+      id: "aml",
+      label: "AML Approval",
+      description: "Complete AML screening in RegTank",
+    },
+    {
+      id: "final",
+      label: "Final Approval",
+      description: "Complete onboarding and activate account",
+    },
+  ];
+}
+
+function companyStepShells(): Omit<ApprovalStep, "status">[] {
+  return [
+    {
+      id: "review",
+      label: "Review Application",
+      description: "View company details and submitted documents",
+    },
+    {
+      id: "ssm",
+      label: "SSM Verification",
+      description: "Verify company against SSM records",
+    },
+    {
+      id: "onboarding",
+      label: "Onboarding Approval",
+      description: "Approve identity verification in RegTank",
+    },
+    {
+      id: "aml",
+      label: "AML Approval",
+      description: "Complete AML screening in RegTank",
+    },
+    {
+      id: "final",
+      label: "Final Approval",
+      description: "Complete onboarding and activate account",
+    },
+  ];
+}
+
+function allPendingSteps(shells: Omit<ApprovalStep, "status">[]): ApprovalStep[] {
+  return shells.map((s) => ({ ...s, status: "pending" as const }));
+}
+
 // Helper function to generate steps for Personal onboarding
 export function getPersonalOnboardingSteps(onboardingStatus: string): ApprovalStep[] {
-  const status =
-    onboardingStatus === "PENDING" || onboardingStatus === "IN_PROGRESS"
-      ? "PENDING_ONBOARDING"
-      : onboardingStatus;
+  if (isAwaitingApplicantOnboarding(onboardingStatus)) {
+    return allPendingSteps(personalStepShells());
+  }
+
+  const status = onboardingStatus;
 
   const steps: ApprovalStep[] = [
     {
@@ -120,9 +181,6 @@ export function getPersonalOnboardingSteps(onboardingStatus: string): ApprovalSt
   ];
 
   switch (status) {
-    case "PENDING_ONBOARDING":
-      steps[1].status = "current";
-      break;
     case "PENDING_SSM_REVIEW":
       steps[1].status = "current";
       break;
@@ -153,13 +211,14 @@ export function getPersonalOnboardingSteps(onboardingStatus: string): ApprovalSt
 }
 
 // Helper function to generate steps for Company onboarding
-export function getCompanyOnboardingSteps(onboardingStatus: string, ssmApproved: boolean): ApprovalStep[] {
-  const status =
-    onboardingStatus === "PENDING" || onboardingStatus === "IN_PROGRESS"
-      ? "PENDING_ONBOARDING"
-      : onboardingStatus;
+export function getCompanyOnboardingSteps(onboardingStatus: string, _ssmApproved: boolean): ApprovalStep[] {
+  if (isAwaitingApplicantOnboarding(onboardingStatus)) {
+    return allPendingSteps(companyStepShells());
+  }
 
-  const ctosDone = companyCtosStepCompleted(status, ssmApproved);
+  const status = onboardingStatus;
+
+  const ctosDone = companyCtosStepCompleted(status);
 
   const steps: ApprovalStep[] = [
     {
@@ -170,8 +229,8 @@ export function getCompanyOnboardingSteps(onboardingStatus: string, ssmApproved:
     },
     {
       id: "ssm",
-      label: "CTOS Verification",
-      description: "Verify company against CTOS records",
+      label: "SSM Verification",
+      description: "Verify company against SSM records",
       status: "pending",
     },
     {
@@ -195,11 +254,6 @@ export function getCompanyOnboardingSteps(onboardingStatus: string, ssmApproved:
   ];
 
   switch (status) {
-    case "PENDING_ONBOARDING":
-      steps[0].status = "completed";
-      steps[1].status = "pending";
-      steps[2].status = "current";
-      break;
     case "PENDING_SSM_REVIEW":
       steps[0].status = "completed";
       steps[1].status = ctosDone ? "completed" : "current";

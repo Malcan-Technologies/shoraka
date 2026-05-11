@@ -27,7 +27,8 @@
  *    - Per-invoice: each invoice's financing amount (value × ratio) must be within min/max.
  *
  * 6. Financing ratio (all structures including invoice_only)
- *    - Financing ratio must be between 60% and 80%.
+ *    - Financing ratio must be a whole percent within the product min/max (e.g. 60%–80%).
+ *    - Editing maximum financing amount uses ceil(amount ÷ invoice value × 100), then clamps to that range.
  *
  * 9. Facility limit
  *    - Total financing amount across all invoices
@@ -272,6 +273,8 @@ export default function InvoiceDetailsStep({
   const devTools = useDevTools();
 
   const [invoices, setInvoices] = React.useState<LocalInvoice[]>([]);
+  /** While typing max financing amount, keep raw string; commit ratio on blur (see MoneyInput onBlurComplete). */
+  const [financingAmountDraftById, setFinancingAmountDraftById] = React.useState<Record<string, string>>({});
   const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
   const [application, setApplication] = React.useState<ApplicationHydrated | null>(null);
   const [lastS3Keys, setLastS3Keys] = React.useState<Record<string, string>>({});
@@ -407,6 +410,38 @@ export default function InvoiceDetailsStep({
     ]);
   };
 
+  const updateInvoiceField = <K extends keyof LocalInvoice>(id: string, field: K, value: LocalInvoice[K]) => {
+    setInvoices((s) => s.map((inv) => (inv.id === id ? { ...inv, [field]: value } : inv)));
+  };
+
+  const clearFinancingAmountDraft = React.useCallback((id: string) => {
+    setFinancingAmountDraftById((p) => {
+      if (!(id in p)) return p;
+      const n = { ...p };
+      delete n[id];
+      return n;
+    });
+  }, []);
+
+  /** Derive financing_ratio_percent from desired amount (clamped to product min/max ratio). */
+  const syncRatioFromFinancingAmountString = React.useCallback(
+    (id: string, amountStr: string, minR: number, maxR: number) => {
+      setInvoices((invs) =>
+        invs.map((row) => {
+          if (row.id !== id) return row;
+          const invoiceValue = parseMoney(row.value);
+          if (invoiceValue <= 0) return row;
+          const desired = parseMoney(amountStr);
+          const rawRatio = (desired / invoiceValue) * 100;
+          const wholeRatioUp = Math.ceil(rawRatio);
+          const clamped = Math.min(maxR, Math.max(minR, wholeRatioUp));
+          return { ...row, financing_ratio_percent: clamped };
+        })
+      );
+    },
+    []
+  );
+
   const deleteInvoice = (inv: LocalInvoice) => {
     if (inv.isPersisted) {
       setDeletedInvoices((prev) => ({
@@ -427,10 +462,7 @@ export default function InvoiceDetailsStep({
       delete copy[inv.id];
       return copy;
     });
-  };
-
-  const updateInvoiceField = <K extends keyof LocalInvoice>(id: string, field: K, value: LocalInvoice[K]) => {
-    setInvoices((s) => s.map((inv) => (inv.id === id ? { ...inv, [field]: value } : inv)));
+    clearFinancingAmountDraft(inv.id);
   };
 
   const handleFileChange = (id: string, file: File, existingS3Key?: string) => {
@@ -570,7 +602,8 @@ export default function InvoiceDetailsStep({
     if (productConfig) {
       // debug removed
       const invoiceValue = parseMoney(inv.value);
-      const ratio = (inv.financing_ratio_percent || 60) / 100;
+      const minR = productConfig.min_financing_ratio_percent ?? 60;
+      const ratio = (inv.financing_ratio_percent ?? minR) / 100;
       const financingAmount = invoiceValue * ratio;
 
       const minValue = productConfig.min_invoice_value;
@@ -608,12 +641,6 @@ export default function InvoiceDetailsStep({
     );
   };
 
-  const totalFinancingAmount = invoices.reduce((acc, inv) => {
-    const value = parseMoney(inv.value);
-    const ratio = (inv.financing_ratio_percent || 60) / 100;
-    return acc + value * ratio;
-  }, 0);
-
   const cd = application?.contract?.contract_details;
   const approvedFacility =
     typeof cd?.approved_facility === "number" && cd.approved_facility > 0
@@ -627,15 +654,6 @@ export default function InvoiceDetailsStep({
   /** For existing_contract: use stored available_facility from backend (approved - utilized, utilized = approved invoices only). */
   const storedAvailableFacility =
     typeof cd?.available_facility === "number" ? cd.available_facility : null;
-
-  /** For existing_contract: sum of financing for invoices not yet approved (DRAFT, SUBMITTED). Used for facility validation. */
-  const nonApprovedFinancingAmount = invoices
-    .filter((inv) => inv.status !== "APPROVED")
-    .reduce((sum, inv) => {
-      const value = parseMoney(inv.value);
-      const ratio = (inv.financing_ratio_percent || 60) / 100;
-      return sum + value * ratio;
-    }, 0);
 
   const structureType = application?.financing_structure?.structure_type;
   const hasApprovedFacility = approvedFacility > 0;
@@ -667,6 +685,24 @@ export default function InvoiceDetailsStep({
   } catch (error: unknown) {
     validationError = error instanceof Error ? error.message : "Product configuration error";
   }
+
+  const displayMinRatio = productConfig?.min_financing_ratio_percent ?? 60;
+  const displayMaxRatio = productConfig?.max_financing_ratio_percent ?? 80;
+
+  const totalFinancingAmount = invoices.reduce((acc, inv) => {
+    const value = parseMoney(inv.value);
+    const ratio = (inv.financing_ratio_percent ?? displayMinRatio) / 100;
+    return acc + value * ratio;
+  }, 0);
+
+  /** For existing_contract: sum of financing for invoices not yet approved (DRAFT, SUBMITTED). Used for facility validation. */
+  const nonApprovedFinancingAmount = invoices
+    .filter((inv) => inv.status !== "APPROVED")
+    .reduce((sum, inv) => {
+      const value = parseMoney(inv.value);
+      const ratio = (inv.financing_ratio_percent ?? displayMinRatio) / 100;
+      return sum + value * ratio;
+    }, 0);
 
   if (shouldRunValidation) {
     if (!productConfig && application?.financing_type?.product_id) {
@@ -780,7 +816,7 @@ export default function InvoiceDetailsStep({
               const pd = parseDateString(inv.maturity_date);
               return pd ? format(pd, "yyyy-MM-dd") : inv.maturity_date;
             })(),
-            financing_ratio_percent: inv.financing_ratio_percent || 60,
+            financing_ratio_percent: inv.financing_ratio_percent ?? displayMinRatio,
           },
         };
 
@@ -814,7 +850,7 @@ export default function InvoiceDetailsStep({
             const pd = parseDateString(inv.maturity_date);
             return pd ? format(pd, "yyyy-MM-dd") : inv.maturity_date;
           })(),
-          financing_ratio_percent: inv.financing_ratio_percent || 60,
+          financing_ratio_percent: inv.financing_ratio_percent ?? displayMinRatio,
         };
 
         if (isInvoiceOnly) {
@@ -1242,37 +1278,66 @@ export default function InvoiceDetailsStep({
                             Invoice Value
                           </TableHead>
 
-                          <TableHead className="w-[130px] whitespace-nowrap text-xs font-semibold">
-                            Financing Ratio
+                          <TableHead className="w-[170px] whitespace-nowrap text-xs font-semibold">
+                            <div className="inline-flex items-center gap-0.5">
+                              <span>Financing Ratio</span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span
+                                    className={fieldTooltipTriggerClassName}
+                                    aria-label="About financing ratio"
+                                  >
+                                    <InformationCircleIcon className="h-4 w-4" />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent
+                                  side="top"
+                                  sideOffset={2}
+                                  className={fieldTooltipContentClassName}
+                                >
+                                  Allowed ratio: {displayMinRatio}%–{displayMaxRatio}%. If you edit the maximum
+                                  financing amount, the ratio will round up and stay within this range.
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
                           </TableHead>
 
                           <TableHead className="w-[200px] whitespace-nowrap text-xs font-semibold">
                             <div className="inline-flex items-center gap-0.5">
-                              Maximum Financing Amount
-                              {productConfig &&
-                                (typeof productConfig.min_invoice_value === "number" ||
-                                  typeof productConfig.max_invoice_value === "number") && (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className={fieldTooltipTriggerClassName}>
-                                        <InformationCircleIcon className="h-4 w-4" />
-                                      </span>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                                      {"Per invoice.\n"}
-                                      {typeof productConfig.min_invoice_value === "number"
-                                        ? `Min RM ${formatMoney(productConfig.min_invoice_value)}.`
-                                        : ""}
-                                      {typeof productConfig.min_invoice_value === "number" &&
-                                      typeof productConfig.max_invoice_value === "number"
-                                        ? "\n"
-                                        : ""}
-                                      {typeof productConfig.max_invoice_value === "number"
-                                        ? `Max RM ${formatMoney(productConfig.max_invoice_value)}.`
-                                        : ""}
-                                    </TooltipContent>
-                                  </Tooltip>
-                                )}
+                              <span className="whitespace-nowrap">Maximum Financing Amount</span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span
+                                    className={fieldTooltipTriggerClassName}
+                                    aria-label="About maximum financing amount"
+                                  >
+                                    <InformationCircleIcon className="h-4 w-4" />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent
+                                  side="top"
+                                  sideOffset={2}
+                                  className={fieldTooltipContentClassName}
+                                >
+                                  {(() => {
+                                    const lines: string[] = [
+                                      "Maximum financing amount is calculated from the invoice value and financing ratio.",
+                                      "If you edit this amount, the financing ratio will update automatically.",
+                                    ];
+                                    const limits: string[] = [];
+                                    if (typeof productConfig?.min_invoice_value === "number") {
+                                      limits.push(`Min RM ${formatMoney(productConfig.min_invoice_value)}`);
+                                    }
+                                    if (typeof productConfig?.max_invoice_value === "number") {
+                                      limits.push(`Max RM ${formatMoney(productConfig.max_invoice_value)}`);
+                                    }
+                                    if (limits.length > 0) {
+                                      lines.push(`Per invoice financing limit:\n${limits.join("\n")}`);
+                                    }
+                                    return lines.join("\n\n");
+                                  })()}
+                                </TooltipContent>
+                              </Tooltip>
                             </div>
                           </TableHead>
 
@@ -1372,7 +1437,10 @@ export default function InvoiceDetailsStep({
                               <TableCell className="p-2">
                                 <MoneyInput
                                   value={inv.value}
-                                  onValueChange={(v) => updateInvoiceField(inv.id, "value", v)}
+                                  onValueChange={(v) => {
+                                    clearFinancingAmountDraft(inv.id);
+                                    updateInvoiceField(inv.id, "value", v);
+                                  }}
                                   placeholder="0.00"
                                   prefix="RM"
                                   disabled={!isEditable}
@@ -1387,54 +1455,83 @@ export default function InvoiceDetailsStep({
                               </TableCell>
 
                               <TableCell className="p-2">
-                                <div className="space-y-1">
+                                <div className="flex items-center gap-2">
                                   <div
-                                    className="relative text-[10px] font-medium text-muted-foreground"
-                                    style={{
-                                      left: `${((ratioNum - minRatio) / (maxRatio - minRatio)) * 100}%`,
-                                      transform: "translateX(-50%)",
-                                      width: "fit-content",
-                                    }}
+                                    className={cn(
+                                      "shrink-0 rounded-md border border-border px-2 py-0.5 text-[11px] font-semibold tabular-nums shadow-sm",
+                                      !isEditable
+                                        ? "bg-muted text-foreground"
+                                        : "bg-background text-foreground"
+                                    )}
                                   >
-                                    <div
-                                      className={cn(
-                                        "rounded-md border border-border px-2 py-0.5 text-[10px] font-medium shadow-sm",
-                                        !isEditable
-                                          ? "bg-muted text-foreground"
-                                          : "bg-background text-black"
-                                      )}
-                                    >
-                                      {ratioNum}%
-                                    </div>
+                                    {ratioNum}%
                                   </div>
 
-                                  <div className="max-w-[110px] mx-auto">
+                                  <div className="flex-1 min-w-0">
                                     <Slider
                                       min={minRatio}
                                       max={maxRatio}
                                       step={1}
                                       value={[ratioNum]}
                                       disabled={!isEditable}
-                                      onValueChange={(value) =>
-                                        updateInvoiceField(inv.id, "financing_ratio_percent", Math.round(value[0]))
-                                      }
+                                      onValueChange={(value) => {
+                                        clearFinancingAmountDraft(inv.id);
+                                        updateInvoiceField(
+                                          inv.id,
+                                          "financing_ratio_percent",
+                                          Math.round(value[0])
+                                        );
+                                      }}
                                       className={cn(
                                         "relative w-full max-w-full",
                                         !isEditable &&
                                           "opacity-100 [&_[data-disabled]]:opacity-100 [&_.relative.h-2]:bg-muted [&_span.absolute]:bg-muted-foreground/50 [&_button]:border-muted-foreground/50 [&_button]:bg-muted"
                                       )}
                                     />
-                                  </div>
-
-                                  <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
-                                    <span>{minRatio}%</span>
-                                    <span>{maxRatio}%</span>
+                                    <div className="mt-0.5 flex justify-between text-[10px] font-medium text-muted-foreground tabular-nums">
+                                      <span>{minRatio}%</span>
+                                      <span>{maxRatio}%</span>
+                                    </div>
                                   </div>
                                 </div>
                               </TableCell>
 
-                              <TableCell className="p-2 text-xs tabular-nums whitespace-nowrap">
-                                RM {formatMoney(financingAmount)}
+                              <TableCell className="p-2">
+                                <div className="space-y-1">
+                                  <MoneyInput
+                                    value={
+                                      financingAmountDraftById[inv.id] ??
+                                      (financingAmount > 0 ? formatMoney(financingAmount) : "")
+                                    }
+                                    onValueChange={(v) =>
+                                      setFinancingAmountDraftById((p) => ({ ...p, [inv.id]: v }))
+                                    }
+                                    onBlurComplete={(formatted) => {
+                                      clearFinancingAmountDraft(inv.id);
+                                      if (formatted === "") {
+                                        updateInvoiceField(inv.id, "financing_ratio_percent", minRatio);
+                                        return;
+                                      }
+                                      syncRatioFromFinancingAmountString(
+                                        inv.id,
+                                        formatted,
+                                        minRatio,
+                                        maxRatio
+                                      );
+                                    }}
+                                    placeholder="0.00"
+                                    prefix="RM"
+                                    disabled={!isEditable || parseMoney(inv.value) <= 0}
+                                    inputClassName={cn(
+                                      "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                      (!isEditable || parseMoney(inv.value) <= 0) &&
+                                        formInputDisabledClassName
+                                    )}
+                                  />
+                                  <p className="text-[10px] text-muted-foreground tabular-nums">
+                                    Based on {ratioNum}% ratio
+                                  </p>
+                                </div>
                               </TableCell>
 
                               <TableCell className="p-2 min-w-0 overflow-hidden">

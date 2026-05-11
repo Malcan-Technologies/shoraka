@@ -220,23 +220,16 @@ export function OnboardingReviewDialog({
   const handleSSMApprove = () => {
     ssmApprovalMutation.mutate(onboardingId, {
       onSuccess: (data) => {
-        toast.success("CTOS Verification approved", {
+        toast.success("SSM Verification approved", {
           description: data.message,
         });
       },
       onError: (error) => {
-        toast.error("Failed to approve CTOS Verification", {
+        toast.error("Failed to approve SSM Verification", {
           description: error.message,
         });
       },
     });
-  };
-
-  const handleSSMReject = () => {
-    toast.error("CTOS Verification rejected", {
-      description: `Company ${application?.organizationName ?? "Unknown"} has been rejected.`,
-    });
-    onOpenChange(false);
   };
 
   const handleRequestRedo = () => {
@@ -625,12 +618,11 @@ export function OnboardingReviewDialog({
         );
 
       case "PENDING_SSM_REVIEW":
-        // Company registry / CTOS verification (issuer CTOS fetch + comparison)
+        // Company registry / SSM verification (org report fetch + comparison)
         return (
           <SSMVerificationPanel
             application={application}
             onApprove={handleSSMApprove}
-            onReject={handleSSMReject}
             disabled={ssmApprovalMutation.isPending}
           />
         );
@@ -664,7 +656,7 @@ export function OnboardingReviewDialog({
                       <span
                         className={`text-sm ${hasSsmApproval ? "text-foreground" : "text-muted-foreground"}`}
                       >
-                        CTOS Verified
+                        SSM Verified
                       </span>
                     </div>
                   )}

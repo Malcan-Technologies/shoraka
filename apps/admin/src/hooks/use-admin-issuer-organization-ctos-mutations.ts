@@ -101,30 +101,3 @@ export function useCreateIssuerOrganizationCtosSubjectReport(
     },
   });
 }
-
-export function useNotifyIssuerDirectorShareholderActionRequired(
-  issuerOrganizationId: string | undefined,
-  applicationDetailId?: string
-) {
-  const { getAccessToken } = useAuthToken();
-  const apiClient = createApiClient(API_URL, getAccessToken);
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (body: { partyKey: string }) => {
-      const response = await apiClient.notifyIssuerDirectorShareholderActionRequired(
-        issuerOrganizationId!,
-        body
-      );
-      if (!response.success) {
-        throw new Error(formatApiErrorMessage(response.error));
-      }
-      return response.data;
-    },
-    onSuccess: () => {
-      if (applicationDetailId) {
-        void queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(applicationDetailId) });
-      }
-    },
-  });
-}

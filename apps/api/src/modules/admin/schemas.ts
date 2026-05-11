@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { UserRole, AdminRole, ApplicationStatus, ContractStatus, ReviewSection } from "@prisma/client";
+import {
+  UserRole,
+  AdminRole,
+  ApplicationStatus,
+  ContractStatus,
+  ReviewSection,
+  OnboardingStatus,
+} from "@prisma/client";
 import { SOUKSCORE_RISK_RATING_GRADES } from "@cashsouk/types";
 
 // Helper for parsing boolean query params (handles "true"/"false" strings properly)
@@ -190,9 +197,7 @@ export const getOrganizationsQuerySchema = z.object({
   search: z.string().optional(),
   portal: z.enum(["investor", "issuer"]).optional(),
   type: z.enum(["PERSONAL", "COMPANY"]).optional(),
-  onboardingStatus: z
-    .enum(["PENDING", "IN_PROGRESS", "PENDING_APPROVAL", "PENDING_AML", "COMPLETED"])
-    .optional(),
+  onboardingStatus: z.nativeEnum(OnboardingStatus).optional(),
 });
 
 export type GetOrganizationsQuery = z.infer<typeof getOrganizationsQuerySchema>;

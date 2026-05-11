@@ -38,7 +38,6 @@ export function generateCustomerData(): Record<string, unknown> {
     ssm_number: random12Digit(),
     country: "MY",
     is_related_party: "no",
-    document: null,
   };
 }
 
