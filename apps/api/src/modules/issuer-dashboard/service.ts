@@ -252,12 +252,11 @@ export class IssuerDashboardService {
     const activeNotesCount = notes.filter((n) => n.status === NoteStatus.ACTIVE).length;
     const completedNotesCount = notes.filter((n) => n.status === NoteStatus.REPAID).length;
 
+    // Success rate is based on funding outcome rows only (funding_status), and uses activated_at
+    // as the success indicator (whether the note was actually activated/disbursed).
     const successfulDisbursedNotesCount = notes.filter((n) => n.activated_at !== null).length;
     const fundingOutcomeNotesCount = notes.filter(
-      (n) =>
-        n.activated_at !== null ||
-        n.status === NoteStatus.FAILED_FUNDING ||
-        n.funding_status === NoteFundingStatus.FAILED
+      (n) => n.funding_status === NoteFundingStatus.FUNDED || n.funding_status === NoteFundingStatus.FAILED
     ).length;
     const successRatePercent =
       fundingOutcomeNotesCount > 0
