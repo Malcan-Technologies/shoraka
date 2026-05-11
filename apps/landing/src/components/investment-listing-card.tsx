@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   ArrowDownTrayIcon,
+  EllipsisVerticalIcon,
 } from "@heroicons/react/24/outline";
 import {
   BuildingOffice2Icon,
@@ -53,91 +54,92 @@ export function InvestmentListingCard({
     data.goal > 0 ? Math.min(100, Math.round((data.funded / data.goal) * 100)) : 0;
 
   return (
-    <article className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-      <div className="flex flex-1 flex-col p-6">
-        <h3 className="text-lg font-bold text-foreground">{data.title}</h3>
-        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <BuildingOffice2Icon className="size-4 shrink-0 text-primary" aria-hidden />
-            {data.sector}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <DocumentTextIcon className="size-4 shrink-0 text-primary" aria-hidden />
-            Note: {data.noteRef}
-          </span>
-        </div>
-
-        <div className="mt-6 space-y-2">
-          <div className="flex justify-end text-xs font-medium text-muted-foreground">
-            {data.daysLeft} day(s) left
-          </div>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-foreground"
-              style={{ width: `${pct}%` }}
-              role="progressbar"
-              aria-valuenow={pct}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label="Funding progress"
-            />
-          </div>
-          <div className="flex items-baseline justify-between gap-3 text-sm font-bold text-foreground">
-            <span>Funded {formatRm(data.funded)}</span>
-            <span>Goal {formatRm(data.goal)}</span>
-          </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-3 divide-x divide-border py-6">
-          <div className="px-2 text-center first:pl-0 last:pr-0">
-            <p className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
-              {data.ratePercent}%
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">Per annum</p>
-          </div>
-          <div className="px-2 text-center">
-            <p className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
-              {data.tenorDays}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">Days</p>
-          </div>
-          <div className="px-2 text-center">
-            <p className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
-              {data.score}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">Score</p>
-          </div>
-        </div>
-      </div>
-
-      <div
-        className={cn(
-          "bg-card",
-          !showDownloadLink && "rounded-b-2xl"
-        )}
-      >
-        <div className="px-6 pb-6 pt-4 md:px-8 md:pb-6">
-          <Button
-            asChild
-            className={cn(
-              "h-11 w-full rounded-xl text-[15px] font-semibold bg-primary text-primary-foreground shadow-brand hover:opacity-95 md:h-12",
-              ctaClassName
-            )}
-          >
-            <Link href={ctaHref}>{ctaLabel}</Link>
-          </Button>
-        </div>
-        {showDownloadLink ? (
-          <div className="rounded-b-2xl px-6 pb-5 pt-1 md:px-8">
-            <Link
-              href="#"
-              className="flex items-center justify-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+    <article className="rounded-2xl border border-border bg-card shadow-sm">
+      <div className="p-5">
+        <div className="space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold tracking-tight text-foreground">{data.title}</h3>
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  <BuildingOffice2Icon className="h-3.5 w-3.5 text-primary" aria-hidden />
+                  {data.sector}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <DocumentTextIcon className="h-3.5 w-3.5 text-primary" aria-hidden />
+                  Note: {data.noteRef}
+                </span>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full text-muted-foreground hover:bg-muted hover:text-primary"
+              aria-label="More note actions"
             >
-              <ArrowDownTrayIcon className="size-4 shrink-0" aria-hidden />
-              Download info sheet
-            </Link>
+              <EllipsisVerticalIcon className="h-4 w-4" />
+            </Button>
           </div>
-        ) : null}
+
+          <div className="space-y-2">
+            <div className="flex justify-end">
+              <span className="text-xs text-muted-foreground">{data.daysLeft} day(s) left</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-foreground"
+                style={{ width: `${pct}%` }}
+                role="progressbar"
+                aria-valuenow={pct}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Funding progress"
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs font-medium text-foreground">
+              <span>Funded {formatRm(data.funded)}</span>
+              <span>Goal {formatRm(data.goal)}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 divide-x divide-border">
+            <div className="px-3 py-4 text-center">
+              <p className="text-4xl font-semibold leading-none text-foreground">{data.ratePercent}%</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">Per annum</p>
+            </div>
+            <div className="px-3 py-4 text-center">
+              <p className="text-4xl font-semibold leading-none text-foreground">{data.tenorDays}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">Days</p>
+            </div>
+            <div className="px-3 py-4 text-center">
+              <p className="text-4xl font-semibold leading-none text-foreground">{data.score}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">Score</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="px-0 pb-0 pt-0">
+              <Button
+                asChild
+                className={cn(
+                  "h-10 w-full rounded-lg text-sm bg-primary text-primary-foreground shadow-brand hover:opacity-95",
+                  ctaClassName
+                )}
+              >
+                <Link href={ctaHref}>{ctaLabel}</Link>
+              </Button>
+            </div>
+            {showDownloadLink ? (
+              <Link
+                href="#"
+                className="flex items-center justify-center gap-2 text-xs text-muted-foreground transition-colors hover:text-primary"
+              >
+                <ArrowDownTrayIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                Download info sheet
+              </Link>
+            ) : null}
+          </div>
+        </div>
       </div>
     </article>
   );

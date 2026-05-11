@@ -8,7 +8,10 @@ import {
   UserGroupIcon,
 } from "@heroicons/react/24/solid";
 import { Button } from "@cashsouk/ui";
+import { createApiClient } from "@cashsouk/config/src/api-client";
+import type { NoteListItem } from "@cashsouk/types";
 import { InvestmentListingsCarousel } from "./investment-listings-carousel";
+import type { InvestmentListingData } from "./investment-listing-card";
 
 const FEATURE_ITEMS = [
   {
@@ -80,7 +83,46 @@ function ConvenienceSection() {
   );
 }
 
-export function LandingInvestmentListings() {
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const NOTE_FALLBACK_PRODUCT = "Invoice financing (Islamic)";
+const NOTE_FALLBACK_INDUSTRY = "Industry";
+
+function resolveDaysLeft(maturityDate: string | null) {
+  if (!maturityDate) return 0;
+  const now = new Date();
+  const target = new Date(maturityDate);
+  const millisRemaining = target.getTime() - now.getTime();
+  return Math.max(0, Math.ceil(millisRemaining / (1000 * 60 * 60 * 24)));
+}
+
+function mapNoteToInvestmentListing(note: NoteListItem): InvestmentListingData {
+  const daysLeft = resolveDaysLeft(note.maturityDate);
+  return {
+    title: note.productName ?? NOTE_FALLBACK_PRODUCT,
+    sector: note.issuerIndustry ?? NOTE_FALLBACK_INDUSTRY,
+    noteRef: note.noteReference.replace(/^NOTE-/, ""),
+    daysLeft,
+    funded: note.fundedAmount,
+    goal: note.targetAmount,
+    ratePercent: note.profitRatePercent ?? 0,
+    tenorDays: daysLeft,
+    score: note.riskRating ?? "—",
+  };
+}
+
+async function getLandingCarouselListings(): Promise<InvestmentListingData[]> {
+  const apiClient = createApiClient(API_URL);
+  const response = await apiClient.getPublicMarketplaceNotes({
+    page: 1,
+    pageSize: 12,
+  });
+  if (!response.success) return [];
+  return response.data.notes.map(mapNoteToInvestmentListing);
+}
+
+export async function LandingInvestmentListings() {
+  const listings = await getLandingCarouselListings();
+
   return (
     <section className="w-full min-w-0 border-t border-border/60 bg-muted/35 py-10 md:py-14 lg:py-16">
       <div className="mx-auto max-w-7xl px-6">
@@ -117,7 +159,17 @@ export function LandingInvestmentListings() {
       </div>
 
       <div className="mt-12 w-full min-w-0">
-        <InvestmentListingsCarousel />
+        {listings.length > 0 ? (
+          <InvestmentListingsCarousel listings={listings} />
+        ) : (
+          <div className="mx-auto max-w-7xl px-6">
+            <div className="rounded-2xl border border-border bg-card p-8 text-center">
+              <p className="text-[17px] leading-7 text-muted-foreground">
+                No active notes are available right now. Check back soon for open listings.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );

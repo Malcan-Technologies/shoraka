@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
-import { InvestmentListingCard } from "../../../components/investment-listing-card";
-import {
-  MarketplaceFilterBar,
-  MarketplaceShowMore,
-} from "../../../components/marketplace-filter-bar";
+import { createApiClient } from "@cashsouk/config/src/api-client";
+import type { NoteListItem } from "@cashsouk/types";
+import { PublicMarketplaceBrowser } from "../../../components/public-marketplace-browser";
 
 export const metadata: Metadata = {
   title: "Marketplace | CashSouk",
@@ -11,7 +9,22 @@ export const metadata: Metadata = {
     "Browse verified invoice financing and secured lending opportunities on CashSouk.",
 };
 
-export default function MarketplacePage() {
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+async function getMarketplaceNotes(): Promise<NoteListItem[]> {
+  const apiClient = createApiClient(API_URL);
+  const response = await apiClient.getPublicMarketplaceNotes({
+    page: 1,
+    pageSize: 100,
+  });
+
+  if (!response.success) return [];
+  return response.data.notes;
+}
+
+export default async function MarketplacePage() {
+  const notes = await getMarketplaceNotes();
+
   return (
     <main className="flex-1 pt-16">
       <section className="relative overflow-hidden border-b border-border/60 bg-muted/35">
@@ -24,33 +37,8 @@ export default function MarketplacePage() {
           aria-hidden
         />
         <div className="relative mx-auto max-w-7xl px-6 py-10 md:py-14 lg:py-16">
-          <header className="max-w-3xl">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl">
-              Featured investment opportunities
-            </h1>
-            <p className="mt-3 text-[17px] leading-7 text-muted-foreground">
-              Top picks curated for you.
-            </p>
-          </header>
-          <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {[0, 1, 2].map((i) => (
-              <InvestmentListingCard key={`featured-${i}`} showDownloadLink />
-            ))}
-          </div>
+          <PublicMarketplaceBrowser notes={notes} />
         </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-6 py-8 md:py-10">
-        <MarketplaceFilterBar />
-      </section>
-
-      <section className="mx-auto max-w-7xl px-6 pb-16">
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <InvestmentListingCard key={`grid-${i}`} showDownloadLink />
-          ))}
-        </div>
-        <MarketplaceShowMore />
       </section>
     </main>
   );

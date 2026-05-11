@@ -92,7 +92,7 @@ export function NoteCard({ note, onInvest }: NoteCardProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 divide-x divide-slate-200 rounded-xl border border-slate-200">
+          <div className="grid grid-cols-3 divide-x divide-slate-200">
             <div className="px-3 py-4 text-center">
               <div className="text-4xl font-semibold leading-none text-slate-900">{note.annualReturn}%</div>
               <div className="mt-1 text-[11px] text-slate-500">Per annum</div>
