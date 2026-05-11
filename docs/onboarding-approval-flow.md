@@ -828,6 +828,21 @@ Suggested user experience (Admin UI):
 Issuer experience (Issuer UI):
 - `PENDING_AMENDMENT` shows “Amendment in Progress” and blocks access to account features the same way as other admin-pending statuses.
 
+#### Submitted timestamp (`submittedAt`) behavior
+
+The Admin onboarding queue table shows a `Submitted` value based on the RegTank webhook history stored in `RegTankOnboarding.webhook_payloads`.
+
+- For all orgs where `onboarding_status !== PENDING_AMENDMENT`:
+  - `submittedAt` is taken from the **latest** webhook payload with `status = WAIT_FOR_APPROVAL`.
+  - If no valid `WAIT_FOR_APPROVAL` timestamp exists, it falls back to `RegTankOnboarding.completed_at`.
+- For orgs where `onboarding_status === PENDING_AMENDMENT`:
+  - `submittedAt` is `null`, so the UI displays `—` (and never shows `Invalid Date`).
+
+#### Source of truth (frontend)
+
+`PENDING_AMENDMENT` is a real organization lifecycle status (`IssuerOrganization/InvestorOrganization.onboarding_status`).
+The frontend follows this status as the single source of truth; the UI does not compute or consume the old derived `regtankAmendmentInProgress` flag directly.
+
 ### 7.9 Personal onboarding should skip corporate-only SSM steps safely
 
 Enforced by:
