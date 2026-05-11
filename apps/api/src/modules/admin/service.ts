@@ -3908,14 +3908,6 @@ export class AdminService {
       );
     }
 
-    if (isRegtankAmendmentInProgress(onboarding.webhook_payloads)) {
-      throw new AppError(
-        400,
-        "REGTANK_AMENDMENT_IN_PROGRESS",
-        "RegTank amendment is currently in progress. Please wait until the amended onboarding is resubmitted before approving."
-      );
-    }
-
     if (org.onboarding_status !== OnboardingStatus.PENDING_SSM_REVIEW) {
       throw new AppError(
         400,
@@ -4030,14 +4022,6 @@ export class AdminService {
     }
 
     if (org.onboarding_status === OnboardingStatus.PENDING_AMENDMENT) {
-      throw new AppError(
-        400,
-        "REGTANK_AMENDMENT_IN_PROGRESS",
-        "RegTank amendment is currently in progress. Please wait until the amended onboarding is resubmitted before approving."
-      );
-    }
-
-    if (isRegtankAmendmentInProgress(onboarding.webhook_payloads)) {
       throw new AppError(
         400,
         "REGTANK_AMENDMENT_IN_PROGRESS",

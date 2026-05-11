@@ -194,7 +194,6 @@ export function OnboardingReviewDialog({
   const hasAmlApproval = application?.amlApproved ?? false;
   const hasTncAccepted = application?.tncAccepted ?? false;
   const hasSsmApproval = application?.ssmApproved ?? false;
-  const regtankAmendmentInProgress = application?.regtankAmendmentInProgress ?? false;
 
   const allRequirementsMet = isCompany
     ? hasOnboardingApproval && hasAmlApproval && hasTncAccepted && hasSsmApproval
@@ -625,7 +624,6 @@ export function OnboardingReviewDialog({
             application={application}
             onApprove={handleSSMApprove}
             disabled={ssmApprovalMutation.isPending}
-            amendmentInProgress={regtankAmendmentInProgress}
           />
         );
 
