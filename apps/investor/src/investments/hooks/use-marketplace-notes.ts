@@ -13,6 +13,9 @@ export const marketplaceKeys = {
   portfolioHistoryRoot: ["investor-portfolio-history"] as const,
   portfolioHistory: (range: InvestorPortfolioHistoryRange) =>
     [...marketplaceKeys.portfolioHistoryRoot, range] as const,
+  investorBalanceActivityRoot: ["investor-balance-activity"] as const,
+  investorBalanceActivity: (params: { page: number; pageSize: number }) =>
+    [...marketplaceKeys.investorBalanceActivityRoot, params] as const,
   investorInvestments: ["investor-investments"] as const,
 };
 
@@ -82,6 +85,7 @@ export function useCommitInvestment() {
       queryClient.invalidateQueries({ queryKey: marketplaceKeys.detail(variables.noteId) });
       queryClient.invalidateQueries({ queryKey: marketplaceKeys.portfolio });
       queryClient.invalidateQueries({ queryKey: marketplaceKeys.portfolioHistoryRoot });
+      queryClient.invalidateQueries({ queryKey: marketplaceKeys.investorBalanceActivityRoot });
     },
   });
 }
@@ -116,6 +120,24 @@ export function useInvestorInvestments() {
     queryKey: marketplaceKeys.investorInvestments,
     queryFn: async () => {
       const response = await apiClient.getInvestorInvestments();
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+  });
+}
+
+export function useInvestorBalanceActivity({
+  page = 1,
+  pageSize = 20,
+}: {
+  page?: number;
+  pageSize?: number;
+} = {}) {
+  const apiClient = useMarketplaceApiClient();
+  return useQuery({
+    queryKey: marketplaceKeys.investorBalanceActivity({ page, pageSize }),
+    queryFn: async () => {
+      const response = await apiClient.getInvestorBalanceActivity({ page, pageSize });
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },

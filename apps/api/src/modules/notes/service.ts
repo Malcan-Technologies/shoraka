@@ -1577,6 +1577,10 @@ export class NoteService {
     if (!investorOrg) throw new AppError(403, "INVESTOR_ORG_FORBIDDEN", "Investor organization not accessible");
 
     await prisma.$transaction(async (tx) => {
+      await tx.investorOrganization.update({
+        where: { id: input.investorOrganizationId },
+        data: { deposit_received: true },
+      });
       const balanceTransaction = await creditInvestorBalance(tx, {
         investorOrganizationId: input.investorOrganizationId,
         amount: input.amount,

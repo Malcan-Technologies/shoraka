@@ -12,7 +12,6 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  Badge,
 } from "@cashsouk/ui";
 import type { ChartConfig } from "@cashsouk/ui";
 import { Separator } from "@/components/ui/separator";
@@ -136,11 +135,6 @@ export function AccountOverviewCard({ isDisabled = false }: AccountOverviewCardP
     <Card className={cn("w-full bg-muted/50", isDisabled && "opacity-50 pointer-events-none")}>
       <CardHeader className="flex flex-row items-center justify-between pb-4">
         <CardTitle className="text-xl font-semibold">Account Overview</CardTitle>
-        {!isDisabled && (
-          <Badge variant="outline" className="text-green-600 border-green-600">
-            Active
-          </Badge>
-        )}
       </CardHeader>
       <Separator />
       <CardContent className="pt-6">
