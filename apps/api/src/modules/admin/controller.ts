@@ -2761,10 +2761,11 @@ router.post(
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id } = req.params;
       const validated = reviewItemApproveSchema.parse(req.body);
+      const itemType = validated.itemType.toLowerCase() as "invoice" | "document";
       const logCtx = extractRequestMetadata(req);
       const result = await adminService.approveReviewItem(
         id,
-        validated.itemType,
+        itemType,
         validated.itemId,
         req.user.user_id,
         validated.remark,
@@ -2790,10 +2791,11 @@ router.post(
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id } = req.params;
       const validated = reviewItemRejectSchema.parse(req.body);
+      const itemType = validated.itemType.toLowerCase() as "invoice" | "document";
       const logCtx = extractRequestMetadata(req);
       const result = await adminService.rejectReviewItem(
         id,
-        validated.itemType,
+        itemType,
         validated.itemId,
         validated.remark,
         req.user.user_id,
@@ -2819,10 +2821,11 @@ router.post(
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id } = req.params;
       const validated = reviewItemRequestAmendmentSchema.parse(req.body);
+      const itemType = validated.itemType.toLowerCase() as "invoice" | "document";
       const logCtx = extractRequestMetadata(req);
       const result = await adminService.requestAmendmentReviewItem(
         id,
-        validated.itemType,
+        itemType,
         validated.itemId,
         validated.remark,
         req.user.user_id,
@@ -2848,10 +2851,11 @@ router.post(
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id } = req.params;
       const validated = reviewItemActionSchema.parse(req.body);
+      const itemType = validated.itemType.toLowerCase() as "invoice" | "document";
       const logCtx = extractRequestMetadata(req);
       const result = await adminService.resetItemReviewToPending(
         id,
-        validated.itemType,
+        itemType,
         validated.itemId,
         req.user.user_id,
         { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
@@ -2999,6 +3003,10 @@ router.post(
         validated.scope === "section"
           ? String(validated.scopeKey ?? "")
           : String(validated.itemId ?? "");
+      const itemType =
+        validated.itemType != null
+          ? (validated.itemType.toLowerCase() as "invoice" | "document")
+          : undefined;
       const logCtx = extractRequestMetadata(req);
       const result = await adminService.addPendingAmendment(
         id,
@@ -3006,7 +3014,7 @@ router.post(
         scopeKey,
         validated.remark,
         req.user.user_id,
-        validated.itemType ?? undefined,
+        itemType,
         validated.itemId ?? undefined,
         { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );

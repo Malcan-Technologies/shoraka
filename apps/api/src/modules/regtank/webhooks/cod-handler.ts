@@ -18,6 +18,8 @@ import { NotificationService } from "../../notification/service";
 import { NotificationTypeIds } from "../../notification/registry";
 import { advanceOnboardingStatusFromFlags } from "../../onboarding/utils/advance-onboarding-status";
 import { normalizeRawStatus } from "@cashsouk/types";
+import { isRegtankAmendmentStarted } from "../helpers/is-regtank-amendment-in-progress";
+import { getUrlGeneratedAmendmentUpdate } from "../helpers/cod-amendment-transition";
 
 /**
  * COD (Company Onboarding Data) Webhook Handler
@@ -614,15 +616,16 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           );
         }
 
-        const waitForApprovalOrgStatus =
-          onboarding.organization_type === OrganizationType.COMPANY
-            ? OnboardingStatus.PENDING_SSM_REVIEW
-            : OnboardingStatus.PENDING_APPROVAL;
-
         if (portalType === "investor") {
           const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
           if (org) {
             const previousStatus = org.onboarding_status;
+            const waitForApprovalOrgStatus =
+              previousStatus === OnboardingStatus.PENDING_AMENDMENT
+                ? OnboardingStatus.PENDING_SSM_REVIEW
+                : onboarding.organization_type === OrganizationType.COMPANY
+                  ? OnboardingStatus.PENDING_SSM_REVIEW
+                  : OnboardingStatus.PENDING_APPROVAL;
             const ssmRegistrationNumber =
               corporateOnboardingData?.basicInfo?.ssmRegistrationNumber ||
               org.registration_number ||
@@ -688,6 +691,12 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
           if (org) {
             const previousStatus = org.onboarding_status;
+            const waitForApprovalOrgStatus =
+              previousStatus === OnboardingStatus.PENDING_AMENDMENT
+                ? OnboardingStatus.PENDING_SSM_REVIEW
+                : onboarding.organization_type === OrganizationType.COMPANY
+                  ? OnboardingStatus.PENDING_SSM_REVIEW
+                  : OnboardingStatus.PENDING_APPROVAL;
             const ssmRegistrationNumber =
               corporateOnboardingData?.basicInfo?.ssmRegistrationNumber ||
               org.registration_number ||
@@ -761,6 +770,79 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           "Failed to extract director info or update organization (non-blocking)"
         );
         // Don't throw - allow webhook to complete even if organization update fails
+      }
+    } else if (statusUpper === "URL_GENERATED" && organizationId) {
+      try {
+        const org =
+          portalType === "investor"
+            ? await prisma.investorOrganization.findUnique({
+                where: { id: organizationId },
+                select: { id: true, onboarding_status: true, type: true, ssm_approved: true },
+              })
+            : await prisma.issuerOrganization.findUnique({
+                where: { id: organizationId },
+                select: { id: true, onboarding_status: true, type: true, ssm_checked: true },
+              });
+
+        if (!org) return;
+
+        const regtankOnboarding = await prisma.regTankOnboarding.findUnique({
+          where: { request_id: requestId },
+          select: { webhook_payloads: true },
+        });
+
+        const amendmentStarted = isRegtankAmendmentStarted(regtankOnboarding?.webhook_payloads ?? []);
+
+        const update = getUrlGeneratedAmendmentUpdate({
+          portalType,
+          orgType: org.type as OrganizationType,
+          currentOnboardingStatus: org.onboarding_status as OnboardingStatus,
+          amendmentStarted,
+        });
+
+        if (!update) return;
+
+        const resetData = {
+          onboarding_status: update.nextStatus,
+          onboarding_approved: update.reset.onboarding_approved,
+          aml_approved: update.reset.aml_approved,
+          ...(portalType === "investor"
+            ? { ssm_approved: update.reset.ssm_approved ?? false }
+            : { ssm_checked: update.reset.ssm_checked ?? false }),
+        } as Record<string, unknown>;
+
+        if (portalType === "investor") {
+          await prisma.investorOrganization.update({
+            where: { id: organizationId },
+            data: resetData as Prisma.InvestorOrganizationUpdateInput,
+          });
+        } else {
+          await prisma.issuerOrganization.update({
+            where: { id: organizationId },
+            data: resetData as Prisma.IssuerOrganizationUpdateInput,
+          });
+        }
+
+        logger.info(
+          {
+            requestId,
+            organizationId,
+            portalType,
+            previousOnboardingStatus: org.onboarding_status,
+            newOnboardingStatus: OnboardingStatus.PENDING_AMENDMENT,
+          },
+          "[COD Webhook] URL_GENERATED triggered PENDING_AMENDMENT"
+        );
+      } catch (error) {
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            requestId,
+            organizationId,
+            portalType,
+          },
+          "[COD Webhook] Failed to apply amendment start on URL_GENERATED (non-blocking)"
+        );
       }
     } else if (statusUpper === "APPROVED" && organizationId) {
       try {

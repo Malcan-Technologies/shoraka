@@ -58,6 +58,7 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   InformationCircleIcon,
+  ExclamationTriangleIcon,
   ClockIcon,
   ArrowPathIcon,
   StarIcon,
@@ -627,6 +628,37 @@ export function OnboardingReviewDialog({
           />
         );
 
+      case "PENDING_AMENDMENT":
+        return (
+          <Card className="border-amber-500/30 bg-amber-50 dark:bg-amber-950/20">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <ExclamationTriangleIcon className="h-5 w-5 text-amber-600" />
+                Amendment in Progress
+              </CardTitle>
+              <CardDescription>
+                RegTank amendment is currently in progress. Please wait until the amended onboarding
+                submission is completed and resubmitted.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg bg-muted/50 p-4">
+                <p className="text-sm text-muted-foreground">
+                  Once resubmitted, this application will return to Pending SSM Review for admin verification.
+                </p>
+              </div>
+              <Button
+                onClick={handleOpenRegTank}
+                className="w-full gap-2"
+                disabled={!application.regtankPortalUrl}
+              >
+                <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                Open RegTank Portal
+              </Button>
+            </CardContent>
+          </Card>
+        );
+
       case "PENDING_FINAL_APPROVAL":
         // Show Final Approval section with checklist
         return (
@@ -855,6 +887,43 @@ export function OnboardingReviewDialog({
     <TooltipProvider>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" hideCloseButton>
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-xl flex items-center gap-3">
+                Review Onboarding Application
+                {application && (
+                  <>
+                    <Badge variant="outline" className="font-normal">
+                      {application.type === "PERSONAL" ? "Personal" : "Company"}
+                    </Badge>
+                    <Badge variant="secondary" className="font-normal capitalize">
+                      {application.portal}
+                    </Badge>
+                  </>
+                )}
+              </DialogTitle>
+              {application && (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCombinedRefresh}
+                    disabled={isCombinedRefreshing}
+                    className="gap-1.5"
+                  >
+                    <ArrowPathIcon
+                      className={`h-4 w-4 ${isCombinedRefreshing ? "animate-spin" : ""}`}
+                    />
+                    Refresh
+                  </Button>
+                </div>
+              )}
+            </div>
+            <DialogDescription>
+              Review the application details and complete the required approval steps.
+            </DialogDescription>
+          </DialogHeader>
+
           {!application && isPending && (
             <div className="space-y-4 py-6" aria-busy="true">
               <Skeleton className="h-9 w-2/3" />
@@ -883,37 +952,6 @@ export function OnboardingReviewDialog({
 
           {application && (
             <>
-              <DialogHeader>
-                <div className="flex items-center justify-between">
-                  <DialogTitle className="text-xl flex items-center gap-3">
-                    Review Onboarding Application
-                    <Badge variant="outline" className="font-normal">
-                      {application.type === "PERSONAL" ? "Personal" : "Company"}
-                    </Badge>
-                    <Badge variant="secondary" className="font-normal capitalize">
-                      {application.portal}
-                    </Badge>
-                  </DialogTitle>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCombinedRefresh}
-                      disabled={isCombinedRefreshing}
-                      className="gap-1.5"
-                    >
-                      <ArrowPathIcon
-                        className={`h-4 w-4 ${isCombinedRefreshing ? "animate-spin" : ""}`}
-                      />
-                      Refresh
-                    </Button>
-                  </div>
-                </div>
-                <DialogDescription>
-                  Review the application details and complete the required approval steps.
-                </DialogDescription>
-              </DialogHeader>
-
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-4">
                 <div className="lg:col-span-1">
                   <Card>

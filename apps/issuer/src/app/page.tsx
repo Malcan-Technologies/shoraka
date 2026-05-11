@@ -51,6 +51,7 @@ function IssuerDashboardContent() {
         (org) =>
           org.onboardingStatus === "COMPLETED" ||
           org.onboardingStatus === "PENDING_APPROVAL" ||
+          org.onboardingStatus === "PENDING_AMENDMENT" ||
           org.onboardingStatus === "PENDING_AML" ||
           org.onboardingStatus === "REJECTED"
       );
@@ -204,6 +205,16 @@ function IssuerDashboardContent() {
                   <p className="text-muted-foreground">
                     Your account is currently under review. You will be notified once the approval
                     process is complete.
+                  </p>
+                </div>
+              )}
+
+              {activeOrganization?.onboardingStatus === "PENDING_AMENDMENT" && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-50 p-6">
+                  <h3 className="text-lg font-semibold mb-2">Amendment in Progress</h3>
+                  <p className="text-muted-foreground">
+                    Your onboarding was sent back for amendment. Please complete the updated
+                    RegTank submission. Once submitted, our team will review it again.
                   </p>
                 </div>
               )}

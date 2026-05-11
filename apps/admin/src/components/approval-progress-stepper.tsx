@@ -75,7 +75,7 @@ export function ApprovalProgressStepper({ steps, className }: ApprovalProgressSt
 
 /** CTOS step completion follows onboarding status only (single source of truth). */
 function companyCtosStepCompleted(onboardingStatus: string): boolean {
-  if (["PENDING", "IN_PROGRESS", "PENDING_SSM_REVIEW"].includes(onboardingStatus)) {
+  if (["PENDING", "IN_PROGRESS", "PENDING_SSM_REVIEW", "PENDING_AMENDMENT"].includes(onboardingStatus)) {
     return false;
   }
   return true;
@@ -83,7 +83,8 @@ function companyCtosStepCompleted(onboardingStatus: string): boolean {
 
 /** User-side onboarding not finished yet — no admin approval step should look active or done. */
 function isAwaitingApplicantOnboarding(onboardingStatus: string): boolean {
-  return onboardingStatus === "PENDING" || onboardingStatus === "IN_PROGRESS";
+  // Amendment needs re-submission: we pause the whole admin approval workflow UI.
+  return onboardingStatus === "PENDING" || onboardingStatus === "IN_PROGRESS" || onboardingStatus === "PENDING_AMENDMENT";
 }
 
 function personalStepShells(): Omit<ApprovalStep, "status">[] {

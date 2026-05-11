@@ -418,6 +418,7 @@ export type OnboardingStatusEnum =
   | "PENDING"
   | "IN_PROGRESS"
   | "PENDING_APPROVAL"
+  | "PENDING_AMENDMENT"
   | "PENDING_AML"
   | "PENDING_SSM_REVIEW"
   | "PENDING_FINAL_APPROVAL"
@@ -731,6 +732,7 @@ export interface OrganizationDetailResponse {
 export type OnboardingApprovalStatus =
   | "PENDING_ONBOARDING"
   | "PENDING_APPROVAL"
+  | "PENDING_AMENDMENT"
   | "PENDING_AML"
   | "PENDING_SSM_REVIEW"
   | "PENDING_FINAL_APPROVAL"

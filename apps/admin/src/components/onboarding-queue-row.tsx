@@ -51,6 +51,13 @@ function getStatusBadge(status: OnboardingApprovalStatus) {
           Pending SSM
         </Badge>
       );
+    case "PENDING_AMENDMENT":
+      return (
+        <Badge variant="outline" className="border-amber-500/30 text-foreground bg-amber-500/10">
+          <ExclamationTriangleIcon className="h-3 w-3 mr-1 text-amber-600" />
+          Amendment in Progress
+        </Badge>
+      );
     case "PENDING_FINAL_APPROVAL":
       return (
         <Badge variant="outline" className="border-purple-500/30 text-foreground bg-purple-500/10">
@@ -166,6 +173,7 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
     application.onboardingStatus === "PENDING_APPROVAL" ||
     application.onboardingStatus === "PENDING_AML" ||
     application.onboardingStatus === "PENDING_SSM_REVIEW" ||
+    application.onboardingStatus === "PENDING_AMENDMENT" ||
     application.onboardingStatus === "PENDING_FINAL_APPROVAL";
 
   return (
@@ -214,9 +222,13 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
         <TableCell>{getTypeBadge(application.type)}</TableCell>
         <TableCell>{getPortalBadge(application.portal)}</TableCell>
         <TableCell>
-          <span className="text-sm text-muted-foreground">
-            {formatDate(application.submittedAt)}
-          </span>
+          {application.submittedAt ? (
+            <span className="text-sm text-muted-foreground">
+              {formatDate(application.submittedAt)}
+            </span>
+          ) : (
+            <span className="text-sm text-muted-foreground/50">—</span>
+          )}
         </TableCell>
         <TableCell>
           {application.completedAt ? (

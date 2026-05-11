@@ -93,6 +93,7 @@ import { getS3ObjectBuffer } from "../../lib/s3/client";
 import { computeSupportingDocumentsSectionStatus } from "../applications/supporting-documents-section-status";
 import { computeInvoiceDetailsSectionStatus } from "../applications/invoice-details-section-status";
 import { assertMaturityForSendInvoiceOffer } from "../products/validate-financial-config";
+import { extractSubmittedAtFromWebhookPayloads } from "./extract-submitted-at";
 
 const APPLICATION_ACTION_REQUIRED_STATUSES = [
   ApplicationStatus.SUBMITTED,
@@ -1832,6 +1833,7 @@ export class AdminService {
     | "PENDING"
     | "IN_PROGRESS"
     | "PENDING_APPROVAL"
+    | "PENDING_AMENDMENT"
     | "PENDING_AML"
     | "PENDING_SSM_REVIEW"
     | "PENDING_FINAL_APPROVAL"
@@ -1848,6 +1850,7 @@ export class AdminService {
       | "PENDING"
       | "IN_PROGRESS"
       | "PENDING_APPROVAL"
+      | "PENDING_AMENDMENT"
       | "PENDING_AML"
       | "PENDING_SSM_REVIEW"
       | "PENDING_FINAL_APPROVAL"
@@ -2613,6 +2616,7 @@ export class AdminService {
     };
   }> {
     const pendingAllStatuses: OnboardingApprovalStatus[] = [
+      "PENDING_AMENDMENT",
       "PENDING_SSM_REVIEW",
       "PENDING_APPROVAL",
       "PENDING_AML",
@@ -2728,7 +2732,7 @@ export class AdminService {
 
   /**
    * Get count of onboarding applications requiring admin action
-   * Includes: PENDING_SSM_REVIEW, PENDING_APPROVAL, PENDING_AML, PENDING_FINAL_APPROVAL
+   * Includes: PENDING_SSM_REVIEW, PENDING_AMENDMENT, PENDING_APPROVAL, PENDING_AML, PENDING_FINAL_APPROVAL
    * Excludes: PENDING_ONBOARDING (user action, not admin)
    */
   async getPendingApprovalCount(): Promise<{ count: number }> {
@@ -2741,6 +2745,7 @@ export class AdminService {
     // Map and filter for admin-actionable statuses
     const pendingStatuses: OnboardingApprovalStatus[] = [
       "PENDING_SSM_REVIEW",
+      "PENDING_AMENDMENT",
       "PENDING_APPROVAL",
       "PENDING_AML",
       "PENDING_FINAL_APPROVAL",
@@ -2775,6 +2780,8 @@ export class AdminService {
         return "PENDING_ONBOARDING";
       case OnboardingStatus.PENDING_SSM_REVIEW:
         return "PENDING_SSM_REVIEW";
+      case OnboardingStatus.PENDING_AMENDMENT:
+        return "PENDING_AMENDMENT";
       case OnboardingStatus.PENDING_APPROVAL:
         return "PENDING_APPROVAL";
       case OnboardingStatus.PENDING_AML:
@@ -2889,25 +2896,11 @@ export class AdminService {
     // Use onboarded_at from organization table for completedAt (more accurate than regtank completed_at)
     const onboardedAt = org?.onboarded_at;
 
-    // Extract submittedAt from webhook payloads - look for WAIT_FOR_APPROVAL status timestamp
-    // This represents when the user actually submitted their onboarding for approval
-    let submittedAt: string | null = null;
-    if (record.webhook_payloads && Array.isArray(record.webhook_payloads)) {
-      for (const payload of record.webhook_payloads) {
-        if (payload && typeof payload === "object" && !Array.isArray(payload)) {
-          const payloadObj = payload as Record<string, unknown>;
-          const payloadStatus = (payloadObj.status as string)?.toUpperCase();
-          if (payloadStatus === "WAIT_FOR_APPROVAL" && payloadObj.timestamp) {
-            submittedAt = payloadObj.timestamp as string;
-            break; // Use the first WAIT_FOR_APPROVAL timestamp found
-          }
-        }
-      }
-    }
-    // Fallback to completed_at if no WAIT_FOR_APPROVAL webhook found
-    if (!submittedAt && record.completed_at) {
-      submittedAt = record.completed_at.toISOString();
-    }
+    const submittedAt = extractSubmittedAtFromWebhookPayloads({
+      webhookPayloads: record.webhook_payloads,
+      onboardingStatus: orgOnboardingStatus,
+      completedAt: record.completed_at ?? null,
+    });
 
     // Sophisticated investor status (only for investor portal)
     const isSophisticatedInvestor = isInvestorOrg
@@ -3400,6 +3393,14 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Organization not found");
     }
 
+    if (org.onboarding_status === OnboardingStatus.PENDING_AMENDMENT) {
+      throw new AppError(
+        400,
+        "REGTANK_AMENDMENT_IN_PROGRESS",
+        "RegTank amendment is currently in progress. Please wait until the amended onboarding is resubmitted before approving."
+      );
+    }
+
     // Check if already completed
     if (org.onboarding_status === "COMPLETED") {
       throw new AppError(400, "ALREADY_COMPLETED", "Onboarding is already completed");
@@ -3883,6 +3884,14 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Organization not found");
     }
 
+    if (org.onboarding_status === OnboardingStatus.PENDING_AMENDMENT) {
+      throw new AppError(
+        400,
+        "REGTANK_AMENDMENT_IN_PROGRESS",
+        "RegTank amendment is currently in progress. Please wait until the amended onboarding is resubmitted before approving."
+      );
+    }
+
     if (org.onboarding_status !== OnboardingStatus.PENDING_SSM_REVIEW) {
       throw new AppError(
         400,
@@ -3994,6 +4003,14 @@ export class AdminService {
 
     if (!org) {
       throw new AppError(404, "NOT_FOUND", "Organization not found");
+    }
+
+    if (org.onboarding_status === OnboardingStatus.PENDING_AMENDMENT) {
+      throw new AppError(
+        400,
+        "REGTANK_AMENDMENT_IN_PROGRESS",
+        "RegTank amendment is currently in progress. Please wait until the amended onboarding is resubmitted before approving."
+      );
     }
 
     if (org.onboarding_status !== OnboardingStatus.PENDING_APPROVAL) {
