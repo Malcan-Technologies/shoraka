@@ -103,18 +103,6 @@ function formatYAxisTick(value: number) {
   return value.toFixed(0);
 }
 
-function resolveInvestedAmount(note: NoteListItem) {
-  return Number(
-    note.investorRepaymentSummary?.investedPrincipal ??
-      note.settlementSummary?.investorPoolAmount ??
-      note.fundedAmount
-  );
-}
-
-function resolveExpectedReturnRate(note: NoteListItem) {
-  return Number(note.investorRepaymentSummary?.expectedReturnRatePercent ?? note.profitRatePercent ?? 0);
-}
-
 function isSettledInvestment(note: NoteListItem) {
   return note.servicingStatus === NoteServicingStatus.SETTLED || note.status === NoteStatus.REPAID;
 }
@@ -137,12 +125,19 @@ function buildInvestmentSummary(notes: NoteListItem[]) {
   let successfulInvestments = 0;
   let underPerformingInvestments = 0;
   let defaultedInvestments = 0;
-  let weightedExpectedReturnAmount = 0;
-  let weightedExpectedReturnBase = 0;
+  let realizedProfitAmount = 0;
+  let realizedReturnBase = 0;
 
   for (const note of notes) {
     if (isSettledInvestment(note)) {
       successfulInvestments += 1;
+
+      const investedAmount = Number(note.investorRepaymentSummary?.investedPrincipal ?? 0);
+      const receivedAmount = Number(note.investorRepaymentSummary?.receivedPayoutAmount ?? 0);
+      if (Number.isFinite(investedAmount) && investedAmount > 0 && Number.isFinite(receivedAmount)) {
+        realizedProfitAmount += receivedAmount - investedAmount;
+        realizedReturnBase += investedAmount;
+      }
     } else if (isUnderPerformingInvestment(note)) {
       underPerformingInvestments += 1;
       if (isDefaultedInvestment(note)) {
@@ -151,18 +146,6 @@ function buildInvestmentSummary(notes: NoteListItem[]) {
     } else {
       activeInvestments += 1;
     }
-
-    if (isSettledInvestment(note)) {
-      continue;
-    }
-
-    const investedAmount = resolveInvestedAmount(note);
-    const expectedReturnRate = resolveExpectedReturnRate(note);
-    if (!Number.isFinite(investedAmount) || investedAmount <= 0) continue;
-    if (!Number.isFinite(expectedReturnRate) || expectedReturnRate <= 0) continue;
-
-    weightedExpectedReturnAmount += investedAmount * expectedReturnRate;
-    weightedExpectedReturnBase += investedAmount;
   }
 
   return {
@@ -171,8 +154,8 @@ function buildInvestmentSummary(notes: NoteListItem[]) {
     successfulInvestments,
     underPerformingInvestments,
     defaultedInvestments,
-    weightedExpectedReturn:
-      weightedExpectedReturnBase > 0 ? weightedExpectedReturnAmount / weightedExpectedReturnBase : 0,
+    realizedPerformance:
+      realizedReturnBase > 0 ? (realizedProfitAmount / realizedReturnBase) * 100 : 0,
   };
 }
 
@@ -216,9 +199,9 @@ export function PortfolioOverviewCard() {
       <CardHeader className="flex flex-row items-center justify-between gap-4 pb-3">
         <CardTitle className="text-xl font-semibold">Portfolio Overview</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Expected annual return:{" "}
+          Performance:{" "}
           <span className="font-semibold text-primary">
-            {investmentSummary.weightedExpectedReturn.toFixed(1)}% p.a
+            {investmentSummary.realizedPerformance.toFixed(1)}%
           </span>
         </p>
       </CardHeader>
