@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { SidebarTrigger } from "./sidebar";
 import { Separator } from "./separator";
 import { NotificationBell } from "./notification-bell";
@@ -7,9 +8,10 @@ import { useHeader } from "./header-provider";
 
 interface HeaderProps {
   title?: string;
+  rightContent?: ReactNode;
 }
 
-export function Header({ title: propsTitle }: HeaderProps) {
+export function Header({ title: propsTitle, rightContent }: HeaderProps) {
   const { title: contextTitle } = useHeader();
   const title = propsTitle || contextTitle;
 
@@ -21,7 +23,7 @@ export function Header({ title: propsTitle }: HeaderProps) {
         <h1 className="text-lg font-semibold">{title}</h1>
       </div>
       <div className="flex items-center gap-4">
-        <NotificationBell />
+        {rightContent ?? <NotificationBell />}
       </div>
     </header>
   );

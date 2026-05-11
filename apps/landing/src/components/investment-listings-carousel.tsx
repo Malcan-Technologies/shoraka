@@ -10,93 +10,17 @@ import {
   type InvestmentListingData,
 } from "./investment-listing-card";
 
-const LISTING_SAMPLES: InvestmentListingData[] = [
-  {
-    title: "Invoice financing (Islamic)",
-    sector: "Food & Beverages",
-    noteRef: "00011",
-    daysLeft: 14,
-    funded: 3000,
-    goal: 24000,
-    ratePercent: 15,
-    tenorDays: 45,
-    score: "A",
-  },
-  {
-    title: "Purchase order financing",
-    sector: "Wholesale & retail",
-    noteRef: "00024",
-    daysLeft: 9,
-    funded: 12000,
-    goal: 50000,
-    ratePercent: 12,
-    tenorDays: 60,
-    score: "A+",
-  },
-  {
-    title: "Asset-light receivables",
-    sector: "Logistics",
-    noteRef: "00008",
-    daysLeft: 21,
-    funded: 48000,
-    goal: 72000,
-    ratePercent: 13.5,
-    tenorDays: 90,
-    score: "A",
-  },
-  {
-    title: "SME invoice facility",
-    sector: "Manufacturing",
-    noteRef: "00033",
-    daysLeft: 6,
-    funded: 18500,
-    goal: 40000,
-    ratePercent: 14,
-    tenorDays: 30,
-    score: "B+",
-  },
-  {
-    title: "Shariah-compliant trade line",
-    sector: "Healthcare supplies",
-    noteRef: "00041",
-    daysLeft: 18,
-    funded: 62000,
-    goal: 95000,
-    ratePercent: 11.75,
-    tenorDays: 75,
-    score: "A",
-  },
-  {
-    title: "Working capital (Islamic)",
-    sector: "Technology services",
-    noteRef: "00019",
-    daysLeft: 11,
-    funded: 9200,
-    goal: 28000,
-    ratePercent: 16,
-    tenorDays: 45,
-    score: "A-",
-  },
-  {
-    title: "Anchor buyer programme",
-    sector: "Consumer goods",
-    noteRef: "00052",
-    daysLeft: 4,
-    funded: 71000,
-    goal: 88000,
-    ratePercent: 12.25,
-    tenorDays: 120,
-    score: "A+",
-  },
-];
-
 const AUTO_SCROLL_PX_PER_SEC = 62;
 
 function loopSegmentWidth(el: HTMLElement) {
   return el.scrollWidth > 2 ? el.scrollWidth / 2 : 0;
 }
 
-export function InvestmentListingsCarousel() {
+export function InvestmentListingsCarousel({
+  listings,
+}: {
+  listings: InvestmentListingData[];
+}) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const pausedRef = React.useRef(false);
 
@@ -161,7 +85,7 @@ export function InvestmentListingsCarousel() {
   }, [normalizeLoop]);
 
   React.useEffect(() => {
-    if (respectMotion || LISTING_SAMPLES.length < 2) return;
+    if (respectMotion || listings.length < 2) return;
 
     let raf = 0;
     let last = performance.now();
@@ -188,6 +112,8 @@ export function InvestmentListingsCarousel() {
     return () => cancelAnimationFrame(raf);
   }, [respectMotion]);
 
+  if (listings.length === 0) return null;
+
   return (
     <div
       className="relative w-full"
@@ -209,7 +135,7 @@ export function InvestmentListingsCarousel() {
             "max(1.5rem, calc((100vw - min(100vw, 80rem)) / 2 + 1.5rem))",
         }}
       >
-        {LISTING_SAMPLES.map((data, i) => (
+        {listings.map((data, i) => (
           <div
             key={`${data.noteRef}-set-a-${i}`}
             data-carousel-slide
@@ -218,7 +144,8 @@ export function InvestmentListingsCarousel() {
             <InvestmentListingCard data={data} showDownloadLink />
           </div>
         ))}
-        {LISTING_SAMPLES.map((data, i) => (
+        {listings.length > 1
+          ? listings.map((data, i) => (
           <div
             key={`${data.noteRef}-set-b-${i}`}
             data-carousel-slide
@@ -227,7 +154,8 @@ export function InvestmentListingsCarousel() {
           >
             <InvestmentListingCard data={data} showDownloadLink />
           </div>
-        ))}
+            ))
+          : null}
       </div>
 
       <div className="mt-8 flex justify-center gap-2">

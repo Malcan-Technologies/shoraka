@@ -29,6 +29,15 @@ export const bucketActivityQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+export const investorBalanceActivityQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export const investorPortfolioHistoryQuerySchema = z.object({
+  range: z.enum(["1W", "1M", "3M", "6M", "YTD", "ALL"]).default("6M"),
+});
+
 export const getNotesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(10),
@@ -39,6 +48,10 @@ export const getNotesQuerySchema = z.object({
   servicingStatus: z.nativeEnum(NoteServicingStatus).optional(),
   issuerOrganizationId: z.string().optional(),
   paymaster: z.string().optional(),
+  featuredOnly: z
+    .enum(["true", "false", "1", "0"])
+    .transform((value) => value === "true" || value === "1")
+    .optional(),
 });
 
 export const createNoteFromApplicationSchema = z.object({
@@ -57,9 +70,21 @@ export const updateNoteDraftSchema = z.object({
   summary: z.string().max(1000).nullable().optional(),
 });
 
+export const updateNoteFeaturedSchema = z.object({
+  isFeatured: z.boolean(),
+  featuredRank: z.number().int().min(1).max(9999).nullable().optional(),
+  featuredFrom: z.string().datetime().nullable().optional(),
+  featuredUntil: z.string().datetime().nullable().optional(),
+});
+
 export const createInvestmentSchema = z.object({
   amount: z.number().positive(),
   investorOrganizationId: z.string().min(1),
+});
+
+export const testInvestorBalanceTopupSchema = z.object({
+  investorOrganizationId: z.string().min(1),
+  amount: z.number().positive(),
 });
 
 export const recordPaymentSchema = z.object({

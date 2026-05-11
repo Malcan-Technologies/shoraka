@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Label, Pie, PieChart } from "recharts";
-import { ArrowUpRightIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
+import { ArrowDownRightIcon, ArrowRightIcon, ArrowUpRightIcon } from "@heroicons/react/24/outline";
 import {
   Card,
   CardContent,
@@ -12,12 +12,11 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  Badge,
 } from "@cashsouk/ui";
 import type { ChartConfig } from "@cashsouk/ui";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { useInvestorPortfolio } from "@/investments/hooks/use-marketplace-notes";
+import { useInvestorPortfolio, useInvestorPortfolioHistory } from "@/investments/hooks/use-marketplace-notes";
 
 interface AccountOverviewCardProps {
   isDisabled?: boolean;
@@ -41,12 +40,88 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
+function formatCurrency(value: number) {
+  return `RM ${value.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatSignedCurrency(value: number) {
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}${formatCurrency(Math.abs(value))}`;
+}
+
+function formatSignedPercent(value: number) {
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}${Math.abs(value).toFixed(1)}%`;
+}
+
+function buildTrendMetric(currentValue: number, previousValue: number) {
+  const deltaAmount = currentValue - previousValue;
+  const deltaPercent = previousValue > 0 ? (deltaAmount / previousValue) * 100 : null;
+
+  return {
+    deltaAmount,
+    deltaPercent,
+    direction: deltaAmount > 0 ? "up" : deltaAmount < 0 ? "down" : "flat",
+  } as const;
+}
+
+function TrendIndicator({
+  deltaAmount,
+  deltaPercent,
+  direction,
+}: {
+  deltaAmount: number;
+  deltaPercent: number | null;
+  direction: "up" | "down" | "flat";
+}) {
+  const toneClassName =
+    direction === "up"
+      ? "text-green-600"
+      : direction === "down"
+        ? "text-destructive"
+        : "text-muted-foreground";
+
+  const Icon =
+    direction === "up" ? ArrowUpRightIcon : direction === "down" ? ArrowDownRightIcon : ArrowRightIcon;
+
+  return (
+    <div className={cn("flex items-center gap-2 mt-8 text-sm", toneClassName)}>
+      <Icon className="h-4 w-4" />
+      <span>{formatSignedCurrency(deltaAmount)}</span>
+      <span className="text-muted-foreground">
+        {deltaPercent == null ? "vs 7 days ago" : `${formatSignedPercent(deltaPercent)} vs 7 days ago`}
+      </span>
+    </div>
+  );
+}
+
 export function AccountOverviewCard({ isDisabled = false }: AccountOverviewCardProps) {
   const { data: portfolio } = useInvestorPortfolio();
+  const { data: weeklyHistory } = useInvestorPortfolioHistory("1W");
   const portfolioTotal = Number(portfolio?.portfolioTotal ?? 0);
   const totalInvestment = Number(portfolio?.totalInvestment ?? 0);
   const availableBalance = Number(portfolio?.availableBalance ?? 0);
   const hasData = portfolioTotal > 0;
+  const investmentTrend = React.useMemo(() => {
+    const points = weeklyHistory?.points ?? [];
+    if (points.length === 0) return buildTrendMetric(totalInvestment, totalInvestment);
+
+    const firstPoint = points[0];
+    const lastPoint = points[points.length - 1];
+    const previousInvestment = firstPoint ? firstPoint.portfolioTotal - firstPoint.availableBalance : totalInvestment;
+    const currentInvestment = lastPoint ? lastPoint.portfolioTotal - lastPoint.availableBalance : totalInvestment;
+    return buildTrendMetric(currentInvestment, previousInvestment);
+  }, [totalInvestment, weeklyHistory?.points]);
+  const availableBalanceTrend = React.useMemo(() => {
+    const points = weeklyHistory?.points ?? [];
+    if (points.length === 0) return buildTrendMetric(availableBalance, availableBalance);
+
+    const firstPoint = points[0];
+    const lastPoint = points[points.length - 1];
+    const previousBalance = firstPoint ? firstPoint.availableBalance : availableBalance;
+    const currentBalance = lastPoint ? lastPoint.availableBalance : availableBalance;
+    return buildTrendMetric(currentBalance, previousBalance);
+  }, [availableBalance, weeklyHistory?.points]);
 
   // Use placeholder data when there's no real data
   const chartData = hasData
@@ -56,19 +131,10 @@ export function AccountOverviewCard({ isDisabled = false }: AccountOverviewCardP
       ]
     : [{ name: "placeholder", value: 1, fill: "var(--color-placeholder)" }];
 
-  const formatCurrency = (value: number) => {
-    return `RM ${value.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
-
   return (
     <Card className={cn("w-full bg-muted/50", isDisabled && "opacity-50 pointer-events-none")}>
       <CardHeader className="flex flex-row items-center justify-between pb-4">
         <CardTitle className="text-xl font-semibold">Account Overview</CardTitle>
-        {!isDisabled && (
-          <Badge variant="outline" className="text-green-600 border-green-600">
-            Active
-          </Badge>
-        )}
       </CardHeader>
       <Separator />
       <CardContent className="pt-6">
@@ -135,11 +201,7 @@ export function AccountOverviewCard({ isDisabled = false }: AccountOverviewCardP
                 <span className="text-sm text-muted-foreground">Current total investment</span>
               </div>
               <p className="text-2xl font-bold">{formatCurrency(totalInvestment)}</p>
-              <div className="flex items-center gap-2 mt-8 text-sm text-green-600">
-                <ArrowUpRightIcon className="h-4 w-4" />
-                <span>0</span>
-                <span className="text-muted-foreground">+0% this week</span>
-              </div>
+              <TrendIndicator {...investmentTrend} />
             </div>
 
             {/* Available Balance Card */}
@@ -149,11 +211,7 @@ export function AccountOverviewCard({ isDisabled = false }: AccountOverviewCardP
                 <span className="text-sm text-muted-foreground">Available balance</span>
               </div>
               <p className="text-2xl font-bold">{formatCurrency(availableBalance)}</p>
-              <div className="flex items-center gap-2 mt-8 text-sm text-green-600">
-                <ArrowUpRightIcon className="h-4 w-4" />
-                <span>0</span>
-                <span className="text-muted-foreground">+0% this week</span>
-              </div>
+              <TrendIndicator {...availableBalanceTrend} />
             </div>
           </div>
         </div>

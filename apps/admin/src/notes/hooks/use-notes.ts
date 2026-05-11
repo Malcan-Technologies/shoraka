@@ -4,6 +4,7 @@ import type {
   GetAdminNotesParams,
   RecordNotePaymentInput,
   SettlementPreviewInput,
+  UpdateNoteFeaturedInput,
   UpdateNoteDraftInput,
 } from "@cashsouk/types";
 import { notesKeys } from "../query-keys";
@@ -107,6 +108,22 @@ export function useUpdateNoteDraft() {
   return useMutation({
     mutationFn: async ({ id, input }: { id: string; input: UpdateNoteDraftInput }) => {
       const response = await apiClient.updateAdminNoteDraft(id, input);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: (note) => {
+      queryClient.invalidateQueries({ queryKey: notesKeys.all });
+      queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
+    },
+  });
+}
+
+export function useUpdateNoteFeatured() {
+  const apiClient = useNotesApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, input }: { id: string; input: UpdateNoteFeaturedInput }) => {
+      const response = await apiClient.updateAdminNoteFeatured(id, input);
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },

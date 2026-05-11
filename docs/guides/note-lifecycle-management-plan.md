@@ -849,11 +849,10 @@ Admin actions:
 
 ## Investor Marketplace
 
-Investor routes to add:
+Current investor routes:
 
 - `apps/investor/src/app/investments/page.tsx`
 - `apps/investor/src/app/investments/[id]/page.tsx`
-- Optional portfolio route if not folded into dashboard.
 
 Marketplace capabilities:
 
@@ -912,9 +911,12 @@ Investor APIs:
 - `GET /v1/marketplace/notes`
 - `GET /v1/marketplace/notes/:id`
 - `POST /v1/marketplace/notes/:id/investments`
+- `GET /v1/public/marketplace/notes`
 - `GET /v1/investor/investments`
 - `GET /v1/investor/investments/:id`
 - `GET /v1/investor/portfolio`
+- `GET /v1/investor/portfolio/history`
+- `GET /v1/investor/balance/activity`
 
 Marketplace note detail responses must use a marketplace-safe projection. They should include public listing and funding fields only, and must not expose admin-only snapshots, other investors' identifiers, payment records, settlement records, internal event metadata, or ledger details.
 Investor portfolio totals must aggregate by accessible investor organizations, not only by the user who originally created each investment.
@@ -926,9 +928,7 @@ All routes should use zod validation, response envelopes, correlation IDs, struc
 Recommended backend modules:
 
 - `apps/api/src/modules/notes`
-  - note controller, service, repository, schemas.
-- `apps/api/src/modules/marketplace`
-  - investor-facing listing and commitment APIs.
+  - note controller, service, repository, schemas, investor-facing marketplace APIs, and public marketplace listing APIs.
 - `apps/api/src/modules/note-ledger`
   - immutable ledger posting and balance checks.
 - `apps/api/src/modules/note-servicing`
@@ -948,6 +948,8 @@ Recommended frontend modules:
   - global setting forms for grace period, late fee allocation, arrears threshold, and manual default marking controls.
 - `apps/investor/src/investments`
   - marketplace hooks, cards, detail page, invest flow, portfolio widgets.
+- `apps/landing/src/components`
+  - public marketplace carousel, public marketplace cards, and the marketing marketplace browser powered by public note APIs.
 - `apps/issuer/src/notes`
   - issuer-facing note status, repayment instructions, and issuer-on-behalf-of-paymaster payment submission.
 - `packages/types`

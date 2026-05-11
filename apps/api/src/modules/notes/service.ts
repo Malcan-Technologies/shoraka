@@ -12,6 +12,7 @@ import {
   NoteSettlementStatus,
   NoteSettlementType,
   NoteStatus,
+  InvestorBalanceTransactionSource,
   Prisma,
   UserRole,
   WithdrawalStatus,
@@ -25,7 +26,9 @@ import {
   resolveOfferedProfitRate,
   resolveRequestedInvoiceAmount,
 } from "../../lib/invoice-offer";
-import { mapLedgerEntry, mapMarketplaceNoteDetail, mapNoteDetail, mapNoteListItem } from "./mapper";
+import { isSoukscoreRiskRating } from "@cashsouk/types";
+import { creditInvestorBalance, debitInvestorBalanceForCommit } from "./investor-balance";
+import { mapLedgerEntry, mapMarketplaceNoteDetail, mapNoteDetail, mapNoteListItem, resolveProductNameFromWorkflow } from "./mapper";
 import { noteInclude, noteRepository } from "./repository";
 import { calculateLateCharge as calculateLateChargeValues, calculateSettlementWaterfall } from "./calculators";
 import type {
@@ -34,11 +37,14 @@ import type {
   bucketActivityQuerySchema,
   createWithdrawalSchema,
   getNotesQuerySchema,
+  investorBalanceActivityQuerySchema,
+  investorPortfolioHistoryQuerySchema,
   lateChargeSchema,
   overdueLateChargeSchema,
   paymentReviewSchema,
   recordPaymentSchema,
   settlementPreviewSchema,
+  updateNoteFeaturedSchema,
   updateNoteDraftSchema,
   updatePlatformFinanceSettingsSchema,
 } from "./schemas";
@@ -59,6 +65,31 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function resolveProductCategoryFromWorkflow(workflow: Prisma.JsonValue | null | undefined): string | null {
+  if (!Array.isArray(workflow)) return null;
+  const financingTypeStep = workflow.find((step) => {
+    if (!step || typeof step !== "object" || Array.isArray(step)) return false;
+    const stepRecord = step as Record<string, unknown>;
+    const id = typeof stepRecord.id === "string" ? stepRecord.id : "";
+    return id.startsWith("financing_type");
+  });
+  if (!financingTypeStep || typeof financingTypeStep !== "object" || Array.isArray(financingTypeStep)) {
+    return null;
+  }
+  const financingConfig = asRecord((financingTypeStep as Record<string, unknown>).config);
+  const category = financingConfig?.category;
+  if (typeof category === "string" && category.trim().length > 0) return category.trim();
+  return null;
+}
+
+function resolveIssuerIndustryFromCorporateData(data: Prisma.JsonValue | null | undefined): string | null {
+  const corporateData = asRecord(data);
+  const basicInfo = asRecord(corporateData?.basicInfo);
+  const industry = basicInfo?.industry;
+  if (typeof industry === "string" && industry.trim().length > 0) return industry.trim();
+  return null;
+}
+
 function toNumber(value: unknown): number {
   if (value instanceof Prisma.Decimal) return value.toNumber();
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -68,6 +99,186 @@ function toNumber(value: unknown): number {
   }
   return 0;
 }
+
+type SettlementAllocation = {
+  investmentId: string;
+  investorOrganizationId: string;
+  principal: number;
+  profitNet: number;
+};
+
+type NoteWithRelations = Prisma.NoteGetPayload<{ include: typeof noteInclude }>;
+
+function roundTo(value: number, decimals: number) {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
+function clampPercent(value: number) {
+  return Math.max(0, Math.min(100, value));
+}
+
+function startOfDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+function toDateKey(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function resolveHistoryStartDate(
+  range: "1W" | "1M" | "3M" | "6M" | "YTD" | "ALL",
+  latestDate: Date,
+  firstDate: Date
+) {
+  if (range === "ALL") return firstDate;
+  if (range === "YTD") return new Date(latestDate.getFullYear(), 0, 1);
+
+  const dayWindowMap: Record<Exclude<typeof range, "YTD" | "ALL">, number> = {
+    "1W": 7,
+    "1M": 30,
+    "3M": 90,
+    "6M": 180,
+  };
+
+  const dayWindow = dayWindowMap[range];
+  const startDate = startOfDay(new Date(latestDate));
+  startDate.setDate(startDate.getDate() - (dayWindow - 1));
+  return startDate;
+}
+
+function resolveHistoryGranularity(range: "1W" | "1M" | "3M" | "6M" | "YTD" | "ALL") {
+  return range === "YTD" || range === "ALL" ? "month" : "day";
+}
+
+type InvestorPortfolioHistoryPoint = {
+  date: string;
+  availableBalance: number;
+  portfolioTotal: number;
+};
+
+type InvestorPortfolioHistoryTransaction = {
+  posted_at: Date;
+  direction: "IN" | "OUT";
+  amount: number;
+  source: InvestorBalanceTransactionSource;
+  metadata: Prisma.JsonValue | null;
+};
+
+function collapseHistoryPointsByMonth(points: InvestorPortfolioHistoryPoint[]) {
+  if (points.length <= 1) return points;
+
+  const monthlyPoints: InvestorPortfolioHistoryPoint[] = [];
+  let currentMonthPoint = points[0];
+  let currentMonthKey = currentMonthPoint.date.slice(0, 7);
+
+  for (let index = 1; index < points.length; index += 1) {
+    const point = points[index];
+    const pointMonthKey = point.date.slice(0, 7);
+
+    if (pointMonthKey === currentMonthKey) {
+      currentMonthPoint = point;
+      continue;
+    }
+
+    monthlyPoints.push(currentMonthPoint);
+    currentMonthPoint = point;
+    currentMonthKey = pointMonthKey;
+  }
+
+  monthlyPoints.push(currentMonthPoint);
+  return monthlyPoints;
+}
+
+function finalizeHistoryPoints(
+  points: InvestorPortfolioHistoryPoint[],
+  granularity: "day" | "month"
+) {
+  return granularity === "month" ? collapseHistoryPointsByMonth(points) : points;
+}
+
+function resolveSignedBalanceDelta(tx: InvestorPortfolioHistoryTransaction) {
+  return tx.direction === "IN" ? tx.amount : -tx.amount;
+}
+
+function resolvePortfolioDelta(tx: InvestorPortfolioHistoryTransaction) {
+  if (tx.source === InvestorBalanceTransactionSource.NOTE_INVESTMENT_COMMIT) return 0;
+
+  if (tx.source === InvestorBalanceTransactionSource.NOTE_INVESTMENT_RELEASE) {
+    const metadata = asRecord(tx.metadata);
+    return metadata?.releaseReason === "SETTLEMENT_PAYOUT" ? toNumber(metadata?.profitNet) : 0;
+  }
+
+  return resolveSignedBalanceDelta(tx);
+}
+
+function resolveSettlementAllocations(snapshot: unknown): SettlementAllocation[] {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return [];
+  const allocations = (snapshot as Record<string, unknown>).allocations;
+  if (!Array.isArray(allocations)) return [];
+
+  return allocations.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+    const allocation = entry as Record<string, unknown>;
+    if (
+      typeof allocation.investmentId !== "string" ||
+      typeof allocation.investorOrganizationId !== "string"
+    ) {
+      return [];
+    }
+    return [
+      {
+        investmentId: allocation.investmentId,
+        investorOrganizationId: allocation.investorOrganizationId,
+        principal: toNumber(allocation.principal),
+        profitNet: toNumber(allocation.profitNet),
+      },
+    ];
+  });
+}
+
+function buildInvestorRepaymentSummary(note: NoteWithRelations, investorOrganizationIds: Set<string>) {
+  const investorInvestments = note.investments.filter(
+    (investment) =>
+      investorOrganizationIds.has(investment.investor_organization_id) &&
+      investment.status !== NoteInvestmentStatus.CANCELLED
+  );
+
+  const investedPrincipal = investorInvestments.reduce(
+    (sum, investment) => sum + toNumber(investment.amount),
+    0
+  );
+  const expectedReturnRatePercent = toNumber(note.profit_rate_percent);
+  const expectedPayoutAmount = investedPrincipal + investedPrincipal * (expectedReturnRatePercent / 100);
+
+  const receivedPayoutAmount = note.settlements
+    .filter((settlement) => settlement.status === NoteSettlementStatus.POSTED)
+    .flatMap((settlement) => resolveSettlementAllocations(settlement.preview_snapshot))
+    .filter((allocation) => investorOrganizationIds.has(allocation.investorOrganizationId))
+    .reduce((sum, allocation) => sum + allocation.principal + allocation.profitNet, 0);
+
+  const actualReturnRatePercent =
+    investedPrincipal > 0 && receivedPayoutAmount > 0
+      ? ((receivedPayoutAmount - investedPrincipal) / investedPrincipal) * 100
+      : null;
+  const progressPercent =
+    expectedPayoutAmount > 0 ? clampPercent((receivedPayoutAmount / expectedPayoutAmount) * 100) : 0;
+
+  return {
+    investedPrincipal: roundTo(investedPrincipal, 2),
+    expectedPayoutAmount: roundTo(expectedPayoutAmount, 2),
+    receivedPayoutAmount: roundTo(receivedPayoutAmount, 2),
+    expectedReturnRatePercent: roundTo(expectedReturnRatePercent, 2),
+    actualReturnRatePercent: actualReturnRatePercent == null ? null : roundTo(actualReturnRatePercent, 2),
+    progressPercent: roundTo(progressPercent, 2),
+  };
+}
+
+/** Standard marketplace ticket floor (MYR). When remaining capacity is smaller, min commit equals remainder. */
+const MARKETPLACE_MIN_COMMIT_MYR = 100;
 
 function resolveNoteSettlementAmount(note: {
   invoice_snapshot?: Prisma.JsonValue | null;
@@ -91,7 +302,7 @@ function resolveIssuerPaymentPurpose(input: { metadata?: Record<string, unknown>
 }
 
 function resolveRiskRating(value: unknown) {
-  return value === "A" || value === "B" || value === "C" ? value : null;
+  return isSoukscoreRiskRating(value) ? value : null;
 }
 
 function isUniqueConstraintError(error: unknown, target: string): boolean {
@@ -198,10 +409,64 @@ async function renderPdfBuffer(title: string, rows: Array<[string, string]>): Pr
 }
 
 export class NoteService {
+  private async listInvestorOrganizationIds(userId: string) {
+    const orgs = await prisma.investorOrganization.findMany({
+      where: { OR: [{ owner_user_id: userId }, { members: { some: { user_id: userId } } }] },
+      select: { id: true },
+    });
+    return orgs.map((org) => org.id);
+  }
+
   async listAdminNotes(params: z.infer<typeof getNotesQuerySchema>) {
     const { notes, totalCount } = await noteRepository.list(params);
+    const productIds = notes
+      .map((note) => {
+        const productSnapshot = asRecord(note.product_snapshot);
+        const productId = productSnapshot?.product_id;
+        return typeof productId === "string" && productId.trim().length > 0 ? productId : null;
+      })
+      .filter((value): value is string => Boolean(value));
+    const uniqueProductIds = [...new Set(productIds)];
+    const products = uniqueProductIds.length
+      ? await prisma.product.findMany({
+          where: { id: { in: uniqueProductIds } },
+          select: { id: true, workflow: true },
+        })
+      : [];
+    const productCategoryById = new Map(
+      products.map((product) => [product.id, resolveProductCategoryFromWorkflow(product.workflow)])
+    );
+    const productNameById = new Map(
+      products.map((product) => [product.id, resolveProductNameFromWorkflow(product.workflow)])
+    );
+    const issuerOrgIds = [...new Set(notes.map((note) => note.issuer_organization_id))];
+    const issuerOrgs = issuerOrgIds.length
+      ? await prisma.issuerOrganization.findMany({
+          where: { id: { in: issuerOrgIds } },
+          select: { id: true, corporate_onboarding_data: true },
+        })
+      : [];
+    const issuerIndustryByOrgId = new Map(
+      issuerOrgs.map((org) => [org.id, resolveIssuerIndustryFromCorporateData(org.corporate_onboarding_data)])
+    );
+    const mappedNotes = notes.map((note) => {
+      const mapped = mapNoteListItem(note);
+      const productSnapshot = asRecord(note.product_snapshot);
+      const productId =
+        typeof productSnapshot?.product_id === "string" && productSnapshot.product_id.trim().length > 0
+          ? productSnapshot.product_id
+          : null;
+      return {
+        ...mapped,
+        productCategory:
+          mapped.productCategory ??
+          (productId ? productCategoryById.get(productId) ?? null : null),
+        productName: mapped.productName ?? (productId ? productNameById.get(productId) ?? null : null),
+        issuerIndustry: mapped.issuerIndustry ?? issuerIndustryByOrgId.get(note.issuer_organization_id) ?? null,
+      };
+    });
     return {
-      notes: notes.map(mapNoteListItem),
+      notes: mappedNotes,
       pagination: {
         page: params.page,
         pageSize: params.pageSize,
@@ -437,6 +702,7 @@ export class NoteService {
         id: string;
         name: string | null;
         type: string;
+        corporate_onboarding_data: Prisma.JsonValue | null;
       };
     };
     invoice: {
@@ -468,6 +734,21 @@ export class NoteService {
     const invoiceDetails = asRecord(invoice.details) ?? {};
     const invoiceOffer = asRecord(invoice.offer_details) ?? {};
     const contractDetails = asRecord(sourceContract?.contract_details) ?? {};
+    const financingType = asRecord(application.financing_type);
+    const productId = typeof financingType?.product_id === "string" ? financingType.product_id : null;
+    const product = productId
+      ? await prisma.product.findUnique({
+          where: { id: productId },
+          select: { id: true, workflow: true },
+        })
+      : null;
+    const productCategory = resolveProductCategoryFromWorkflow(product?.workflow);
+    const productDisplayName =
+      resolveProductNameFromWorkflow(product?.workflow) ??
+      (typeof financingType?.product_name === "string" && financingType.product_name.trim().length > 0
+        ? financingType.product_name.trim()
+        : null);
+    const issuerIndustry = resolveIssuerIndustryFromCorporateData(application.issuer_organization.corporate_onboarding_data);
     const invoiceFaceValue = resolveRequestedInvoiceAmount(invoiceDetails);
     const targetAmount =
       resolveOfferedAmount(invoiceOffer) ||
@@ -496,13 +777,19 @@ export class NoteService {
             params.title ??
             `Note for invoice ${invoiceNumber} - ${application.issuer_organization.name ?? application.issuer_organization.id}`,
           note_reference: reference,
-          product_snapshot: json(application.financing_type),
           issuer_snapshot: {
             id: application.issuer_organization.id,
             name: application.issuer_organization.name,
             type: application.issuer_organization.type,
+            industry: issuerIndustry,
           },
           paymaster_snapshot: json(sourceContract?.customer_details),
+          product_snapshot: json({
+            ...(financingType ?? {}),
+            product_id: productId,
+            category: productCategory,
+            ...(productDisplayName ? { product_name: productDisplayName } : {}),
+          }),
           contract_snapshot: json(
             sourceContract
               ? {
@@ -631,6 +918,78 @@ export class NoteService {
     return mapNoteDetail(updated);
   }
 
+  async updateFeaturedSettings(
+    id: string,
+    input: z.infer<typeof updateNoteFeaturedSchema>,
+    actor: ActorContext
+  ) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+
+    const featuredFrom = input.featuredFrom ? dateFrom(input.featuredFrom) : null;
+    const featuredUntil = input.featuredUntil ? dateFrom(input.featuredUntil) : null;
+    if (input.featuredFrom && !featuredFrom) {
+      throw new AppError(422, "INVALID_FEATURED_FROM", "Invalid featured start datetime");
+    }
+    if (input.featuredUntil && !featuredUntil) {
+      throw new AppError(422, "INVALID_FEATURED_UNTIL", "Invalid featured end datetime");
+    }
+    if (featuredFrom && featuredUntil && featuredUntil < featuredFrom) {
+      throw new AppError(422, "INVALID_FEATURED_WINDOW", "Featured end datetime must be after start datetime");
+    }
+
+    if (input.isFeatured) {
+      if (
+        note.status !== NoteStatus.PUBLISHED ||
+        note.listing_status !== NoteListingStatus.PUBLISHED ||
+        note.funding_status !== NoteFundingStatus.OPEN
+      ) {
+        throw new AppError(
+          409,
+          "NOTE_NOT_FEATURE_ELIGIBLE",
+          "Only notes that are published and open for funding can be featured"
+        );
+      }
+      const activeFeaturedCount = await prisma.note.count({
+        where: {
+          is_featured: true,
+          id: { not: id },
+          status: NoteStatus.PUBLISHED,
+          listing_status: NoteListingStatus.PUBLISHED,
+          funding_status: NoteFundingStatus.OPEN,
+          AND: [
+            { OR: [{ featured_from: null }, { featured_from: { lte: new Date() } }] },
+            { OR: [{ featured_until: null }, { featured_until: { gte: new Date() } }] },
+          ],
+        },
+      });
+      if (activeFeaturedCount >= 6) {
+        throw new AppError(409, "FEATURED_CAP_REACHED", "Active featured note cap (6) has been reached");
+      }
+    }
+
+    const featuredRank = input.isFeatured
+      ? input.featuredRank ?? note.featured_rank ?? 9999
+      : null;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.note.update({
+        where: { id },
+        data: {
+          is_featured: input.isFeatured,
+          featured_rank: featuredRank,
+          featured_from: input.isFeatured ? featuredFrom : null,
+          featured_until: input.isFeatured ? featuredUntil : null,
+        },
+        include: noteInclude,
+      });
+      await this.logAdminAction(tx, id, "UPDATE_FEATURED_SETTINGS", actor, mapNoteListItem(note), mapNoteListItem(result));
+      return result;
+    });
+
+    return mapNoteDetail(updated);
+  }
+
   async publish(id: string, actor: ActorContext) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
@@ -735,6 +1094,7 @@ export class NoteService {
         status: true,
         funding_status: true,
         target_amount: true,
+        funded_amount: true,
       },
     });
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
@@ -743,6 +1103,27 @@ export class NoteService {
     }
 
     const target = toNumber(note.target_amount);
+    const funded = toNumber(note.funded_amount);
+    const remainingCapacity = Math.max(target - funded, 0);
+    if (remainingCapacity <= 0) {
+      throw new AppError(409, "NOTE_FULLY_ALLOCATED", "This note has no remaining funding capacity");
+    }
+    if (input.amount > remainingCapacity) {
+      throw new AppError(
+        422,
+        "NOTE_OVERSUBSCRIBED",
+        `Investment exceeds remaining note capacity of ${remainingCapacity.toFixed(2)}`
+      );
+    }
+    const minCommit = Math.min(MARKETPLACE_MIN_COMMIT_MYR, remainingCapacity);
+    if (input.amount + 1e-9 < minCommit) {
+      throw new AppError(
+        422,
+        "INVESTMENT_BELOW_MINIMUM",
+        `Minimum commitment for this note is ${minCommit.toFixed(2)}`
+      );
+    }
+
     const investmentAmount = money(input.amount);
     const remainingCapacityFloor = money(target - input.amount);
 
@@ -779,7 +1160,7 @@ export class NoteService {
         );
       }
 
-      await tx.noteInvestment.create({
+      const investment = await tx.noteInvestment.create({
         data: {
           note_id: noteId,
           investor_organization_id: input.investorOrganizationId,
@@ -787,6 +1168,13 @@ export class NoteService {
           amount: investmentAmount,
           allocation_percent: money(target > 0 ? (input.amount / target) * 100 : 0),
         },
+      });
+      await debitInvestorBalanceForCommit(tx, {
+        investorOrganizationId: input.investorOrganizationId,
+        amount: input.amount,
+        noteId,
+        noteInvestmentId: investment.id,
+        idempotencyKey: `investor-balance:commit:${investment.id}`,
       });
       await this.logEvent(tx, noteId, "INVESTMENT_COMMITTED", actor, {
         investorOrganizationId: input.investorOrganizationId,
@@ -851,6 +1239,10 @@ export class NoteService {
       throw new AppError(409, "NOTE_MINIMUM_FUNDING_MET", "Notes that meet the minimum funding threshold should be closed, not failed");
     }
     const updated = await prisma.$transaction(async (tx) => {
+      const releasedCommitments = await tx.noteInvestment.findMany({
+        where: { note_id: id, status: NoteInvestmentStatus.COMMITTED },
+        select: { id: true, investor_organization_id: true, amount: true },
+      });
       const stateUpdate = await tx.note.updateMany({
         where: {
           id,
@@ -871,6 +1263,16 @@ export class NoteService {
         where: { note_id: id, status: NoteInvestmentStatus.COMMITTED },
         data: { status: NoteInvestmentStatus.RELEASED, released_at: now },
       });
+      for (const inv of releasedCommitments) {
+        await creditInvestorBalance(tx, {
+          investorOrganizationId: inv.investor_organization_id,
+          amount: toNumber(inv.amount),
+          source: InvestorBalanceTransactionSource.NOTE_INVESTMENT_RELEASE,
+          noteId: id,
+          noteInvestmentId: inv.id,
+          idempotencyKey: `investor-balance:release:fail-funding:${inv.id}`,
+        });
+      }
       const result = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
       await this.logAdminAction(tx, id, "FAIL_FUNDING", actor, mapNoteListItem(note), mapNoteListItem(result));
       return result;
@@ -931,28 +1333,25 @@ export class NoteService {
   }
 
   async listInvestorInvestments(userId: string) {
-    const orgs = await prisma.investorOrganization.findMany({
-      where: { OR: [{ owner_user_id: userId }, { members: { some: { user_id: userId } } }] },
-      select: { id: true },
-    });
-    const orgIds = orgs.map((org) => org.id);
+    const orgIds = await this.listInvestorOrganizationIds(userId);
+    const orgIdSet = new Set(orgIds);
     const notes = await prisma.note.findMany({
       where: { investments: { some: { investor_organization_id: { in: orgIds } } } },
       include: noteInclude,
       orderBy: { updated_at: "desc" },
     });
+    const enrichedNotes = notes.map((note) => ({
+      ...mapNoteListItem(note),
+      investorRepaymentSummary: buildInvestorRepaymentSummary(note, orgIdSet),
+    }));
     return {
-      notes: notes.map(mapNoteListItem),
+      notes: enrichedNotes,
       pagination: { page: 1, pageSize: notes.length || 1, totalCount: notes.length, totalPages: 1 },
     };
   }
 
   async getInvestorPortfolio(userId: string) {
-    const orgs = await prisma.investorOrganization.findMany({
-      where: { OR: [{ owner_user_id: userId }, { members: { some: { user_id: userId } } }] },
-      select: { id: true },
-    });
-    const orgIds = orgs.map((org) => org.id);
+    const orgIds = await this.listInvestorOrganizationIds(userId);
     const investments = await prisma.noteInvestment.findMany({
       where: {
         investor_organization_id: { in: orgIds },
@@ -960,12 +1359,254 @@ export class NoteService {
       },
     });
     const committed = investments.reduce((sum, investment) => sum + toNumber(investment.amount), 0);
+    const balanceRows = await prisma.investorBalance.findMany({
+      where: { investor_organization_id: { in: orgIds } },
+      select: { available_amount: true },
+    });
+    const availableBalance = balanceRows.reduce((sum, row) => sum + toNumber(row.available_amount), 0);
+    const portfolioTotal = availableBalance + committed;
     return {
       totalInvestment: committed,
-      portfolioTotal: committed,
-      availableBalance: 0,
+      portfolioTotal,
+      availableBalance,
       investmentCount: investments.length,
     };
+  }
+
+  async listInvestorBalanceActivity(
+    userId: string,
+    query: z.infer<typeof investorBalanceActivityQuerySchema>
+  ) {
+    const orgIds = await this.listInvestorOrganizationIds(userId);
+    if (orgIds.length === 0) {
+      return {
+        entries: [],
+        pagination: { page: query.page, pageSize: query.pageSize, totalCount: 0, totalPages: 1 },
+        summary: { inTotal: 0, outTotal: 0, netChange: 0, availableBalance: 0 },
+        generatedAt: new Date().toISOString(),
+      };
+    }
+
+    const where = { investor_organization_id: { in: orgIds } };
+    const [entries, totalCount, allTransactions, balanceRows] = await Promise.all([
+      prisma.investorBalanceTransaction.findMany({
+        where,
+        orderBy: [{ posted_at: "desc" }, { created_at: "desc" }],
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+      }),
+      prisma.investorBalanceTransaction.count({ where }),
+      prisma.investorBalanceTransaction.findMany({
+        where,
+        select: { direction: true, amount: true },
+      }),
+      prisma.investorBalance.findMany({
+        where: { investor_organization_id: { in: orgIds } },
+        select: { available_amount: true },
+      }),
+    ]);
+
+    const inTotal = allTransactions
+      .filter((row) => row.direction === "IN")
+      .reduce((sum, row) => sum + toNumber(row.amount), 0);
+    const outTotal = allTransactions
+      .filter((row) => row.direction === "OUT")
+      .reduce((sum, row) => sum + toNumber(row.amount), 0);
+    const availableBalance = balanceRows.reduce((sum, row) => sum + toNumber(row.available_amount), 0);
+
+    return {
+      entries: entries.map((entry) => ({
+        id: entry.id,
+        investorOrganizationId: entry.investor_organization_id,
+        direction: entry.direction,
+        amount: toNumber(entry.amount),
+        source: entry.source,
+        noteId: entry.note_id,
+        noteInvestmentId: entry.note_investment_id,
+        idempotencyKey: entry.idempotency_key,
+        metadata: asRecord(entry.metadata),
+        postedAt: entry.posted_at.toISOString(),
+        createdAt: entry.created_at.toISOString(),
+      })),
+      pagination: {
+        page: query.page,
+        pageSize: query.pageSize,
+        totalCount,
+        totalPages: Math.max(1, Math.ceil(totalCount / query.pageSize)),
+      },
+      summary: {
+        inTotal: roundTo(inTotal, 2),
+        outTotal: roundTo(outTotal, 2),
+        netChange: roundTo(inTotal - outTotal, 2),
+        availableBalance: roundTo(availableBalance, 2),
+      },
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  async getInvestorPortfolioHistory(
+    userId: string,
+    query: z.infer<typeof investorPortfolioHistoryQuerySchema>
+  ) {
+    const granularity = resolveHistoryGranularity(query.range);
+    const orgIds = await this.listInvestorOrganizationIds(userId);
+    if (orgIds.length === 0) {
+      return {
+        range: query.range,
+        granularity,
+        points: [],
+        generatedAt: new Date().toISOString(),
+      };
+    }
+
+    const [transactionRows, balanceRows, investments] = await Promise.all([
+      prisma.investorBalanceTransaction.findMany({
+        where: { investor_organization_id: { in: orgIds } },
+        orderBy: { posted_at: "asc" },
+        select: { posted_at: true, direction: true, amount: true, source: true, metadata: true },
+      }),
+      prisma.investorBalance.findMany({
+        where: { investor_organization_id: { in: orgIds } },
+        select: { available_amount: true },
+      }),
+      prisma.noteInvestment.findMany({
+        where: {
+          investor_organization_id: { in: orgIds },
+          status: { in: [NoteInvestmentStatus.COMMITTED, NoteInvestmentStatus.CONFIRMED] },
+        },
+        select: { amount: true },
+      }),
+    ]);
+
+    const transactions: InvestorPortfolioHistoryTransaction[] = transactionRows.map((tx) => ({
+      posted_at: tx.posted_at,
+      direction: tx.direction,
+      amount: toNumber(tx.amount),
+      source: tx.source,
+      metadata: tx.metadata,
+    }));
+    const availableBalance = balanceRows.reduce((sum, row) => sum + toNumber(row.available_amount), 0);
+    const committed = investments.reduce((sum, investment) => sum + toNumber(investment.amount), 0);
+    const currentPortfolioTotal = availableBalance + committed;
+    if (transactions.length === 0) {
+      const points: InvestorPortfolioHistoryPoint[] = [
+        {
+          date: toDateKey(new Date()),
+          availableBalance: roundTo(availableBalance, 2),
+          portfolioTotal: roundTo(currentPortfolioTotal, 2),
+        },
+      ];
+      return {
+        range: query.range,
+        granularity,
+        points: finalizeHistoryPoints(points, granularity),
+        generatedAt: new Date().toISOString(),
+      };
+    }
+
+    const signedTransactions = transactions.map(resolveSignedBalanceDelta);
+    const netChange = signedTransactions.reduce((sum, amount) => sum + amount, 0);
+    const openingBalance = availableBalance - netChange;
+
+    const portfolioDeltaByTransaction = transactions.map(resolvePortfolioDelta);
+    const portfolioNetDelta = portfolioDeltaByTransaction.reduce((sum, delta) => sum + delta, 0);
+    const openingPortfolioTotal = currentPortfolioTotal - portfolioNetDelta;
+
+    const dailyBalanceNet = new Map<string, number>();
+    const dailyPortfolioDelta = new Map<string, number>();
+    for (let index = 0; index < transactions.length; index += 1) {
+      const key = toDateKey(startOfDay(transactions[index].posted_at));
+      dailyBalanceNet.set(key, (dailyBalanceNet.get(key) ?? 0) + signedTransactions[index]);
+      dailyPortfolioDelta.set(
+        key,
+        (dailyPortfolioDelta.get(key) ?? 0) + portfolioDeltaByTransaction[index]
+      );
+    }
+
+    const firstDate = startOfDay(transactions[0].posted_at);
+    const latestDate = startOfDay(transactions[transactions.length - 1].posted_at);
+    const today = startOfDay(new Date());
+    const displayEndDate = latestDate.getTime() > today.getTime() ? latestDate : today;
+    const rangeStartDate = resolveHistoryStartDate(query.range, displayEndDate, firstDate);
+
+    let carryForwardBalance = openingBalance;
+    let carryForwardPortfolioTotal = openingPortfolioTotal;
+    for (const tx of transactions) {
+      if (startOfDay(tx.posted_at).getTime() >= rangeStartDate.getTime()) break;
+      carryForwardBalance += resolveSignedBalanceDelta(tx);
+      carryForwardPortfolioTotal += resolvePortfolioDelta(tx);
+    }
+
+    const points: InvestorPortfolioHistoryPoint[] = [];
+    for (
+      let cursor = startOfDay(rangeStartDate);
+      cursor.getTime() <= displayEndDate.getTime();
+      cursor.setDate(cursor.getDate() + 1)
+    ) {
+      const key = toDateKey(cursor);
+      carryForwardBalance += dailyBalanceNet.get(key) ?? 0;
+      carryForwardPortfolioTotal += dailyPortfolioDelta.get(key) ?? 0;
+      points.push({
+        date: key,
+        availableBalance: roundTo(carryForwardBalance, 2),
+        portfolioTotal: roundTo(carryForwardPortfolioTotal, 2),
+      });
+    }
+
+    return {
+      range: query.range,
+      granularity,
+      points: finalizeHistoryPoints(points, granularity),
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  async testTopUpInvestorBalance(
+    actor: ActorContext,
+    input: { investorOrganizationId: string; amount: number }
+  ) {
+    const investorOrg = await prisma.investorOrganization.findFirst({
+      where: {
+        id: input.investorOrganizationId,
+        OR: [
+          { owner_user_id: actor.userId },
+          { members: { some: { user_id: actor.userId } } },
+        ],
+      },
+    });
+    if (!investorOrg) throw new AppError(403, "INVESTOR_ORG_FORBIDDEN", "Investor organization not accessible");
+
+    await prisma.$transaction(async (tx) => {
+      await tx.investorOrganization.update({
+        where: { id: input.investorOrganizationId },
+        data: { deposit_received: true },
+      });
+      const balanceTransaction = await creditInvestorBalance(tx, {
+        investorOrganizationId: input.investorOrganizationId,
+        amount: input.amount,
+        source: InvestorBalanceTransactionSource.MANUAL_TOPUP,
+        idempotencyKey: `investor-balance:topup:${input.investorOrganizationId}:${Date.now()}`,
+        metadata: { reason: "test_topup" },
+      });
+      const investorPoolId = await this.getLedgerAccountId(tx, "INVESTOR_POOL");
+      await tx.noteLedgerEntry.create({
+        data: {
+          account_id: investorPoolId,
+          direction: NoteLedgerDirection.CREDIT,
+          amount: money(input.amount),
+          description: "Investor test top-up received into investor pool",
+          idempotency_key: `investor-balance-topup:${balanceTransaction.id}`,
+          metadata: {
+            actorUserId: actor.userId,
+            actorPortal: actor.portal ?? "INVESTOR",
+            investorOrganizationId: input.investorOrganizationId,
+            investorBalanceTransactionId: balanceTransaction.id,
+            source: "MANUAL_TOPUP",
+          },
+        },
+      });
+    });
+    return this.getInvestorPortfolio(actor.userId);
   }
 
   async listIssuerNotes(userId: string) {
@@ -1240,6 +1881,7 @@ export class NoteService {
     await assertRepaymentReceiptLedgerComplete(settlement.note_id, resolveNoteSettlementAmount(settlement.note));
 
     await prisma.$transaction(async (tx) => {
+      const settlementAllocations = resolveSettlementAllocations(settlement.preview_snapshot);
       await this.postSettlementLedger(tx, settlement, actor);
       await tx.noteSettlement.update({
         where: { id: settlementId },
@@ -1249,6 +1891,24 @@ export class NoteService {
           idempotency_key: `settlement:${settlementId}`,
         },
       });
+      for (const allocation of settlementAllocations) {
+        const releasedAmount = allocation.principal + allocation.profitNet;
+        if (releasedAmount <= 0) continue;
+        await creditInvestorBalance(tx, {
+          investorOrganizationId: allocation.investorOrganizationId,
+          amount: releasedAmount,
+          source: InvestorBalanceTransactionSource.NOTE_INVESTMENT_RELEASE,
+          noteId: id,
+          noteInvestmentId: allocation.investmentId,
+          idempotencyKey: `investor-balance:release:settlement:${settlementId}:${allocation.investmentId}`,
+          metadata: {
+            releaseReason: "SETTLEMENT_PAYOUT",
+            settlementId,
+            principal: allocation.principal,
+            profitNet: allocation.profitNet,
+          },
+        });
+      }
       await tx.note.update({
         where: { id },
         data: {
@@ -1264,7 +1924,10 @@ export class NoteService {
         },
         data: { status: NoteInvestmentStatus.SETTLED },
       });
-      await this.logEvent(tx, id, "SETTLEMENT_POSTED", actor, { settlementId });
+      await this.logEvent(tx, id, "SETTLEMENT_POSTED", actor, {
+        settlementId,
+        investorPayoutCount: settlementAllocations.length,
+      });
     });
     return this.getAdminNoteDetail(id);
   }

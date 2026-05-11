@@ -19,6 +19,7 @@ export default function NotesPage() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = React.useState("");
   const [status, setStatus] = React.useState("ALL");
+  const [featuredOnly, setFeaturedOnly] = React.useState(false);
   const [currentPage, setCurrentPage] = React.useState(1);
   const pageSize = 20;
 
@@ -26,8 +27,9 @@ export default function NotesPage() {
     const next: GetAdminNotesParams = { page: currentPage, pageSize };
     if (searchQuery) next.search = searchQuery;
     if (status !== "ALL") next.status = status as NoteStatus;
+    if (featuredOnly) next.featuredOnly = true;
     return next;
-  }, [currentPage, pageSize, searchQuery, status]);
+  }, [currentPage, featuredOnly, pageSize, searchQuery, status]);
 
   const { data, isLoading, error } = useNotes(params);
   const { data: sourceInvoicesData, isLoading: sourceInvoicesLoading } = useNoteSourceInvoices();
@@ -35,12 +37,23 @@ export default function NotesPage() {
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, status]);
+  }, [featuredOnly, searchQuery, status]);
 
   const handleClearFilters = () => {
     setSearchQuery("");
     setStatus("ALL");
+    setFeaturedOnly(false);
     setCurrentPage(1);
+  };
+
+  const handleStatusChange = (value: string) => {
+    setStatus(value);
+    if (value !== "ALL") setFeaturedOnly(false);
+  };
+
+  const handleFeaturedOnlyChange = (value: boolean) => {
+    setFeaturedOnly(value);
+    if (value) setStatus("ALL");
   };
 
   const handleReload = () => {
@@ -65,6 +78,21 @@ export default function NotesPage() {
   const totalNotes = data?.pagination.totalCount ?? 0;
   const sourceInvoices = sourceInvoicesData?.invoices ?? [];
   const readyInvoices = sourceInvoices.filter((invoice) => !invoice.noteId);
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const readyInvoicesBySearch = readyInvoices.filter((invoice) => {
+    if (!normalizedSearch) return true;
+    return [
+      invoice.invoiceId,
+      invoice.invoiceNumber ?? "",
+      invoice.issuerName ?? "",
+      invoice.paymasterName ?? "",
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedSearch);
+  });
+  const showReadyInvoices = status === "ALL" && !featuredOnly;
+  const readyInvoicesForDisplay = showReadyInvoices ? readyInvoicesBySearch : [];
 
   return (
     <>
@@ -101,16 +129,18 @@ export default function NotesPage() {
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
               status={status}
-              onStatusChange={setStatus}
+              onStatusChange={handleStatusChange}
               onClearFilters={handleClearFilters}
               onReload={handleReload}
               totalCount={totalNotes}
               isLoading={isLoading}
+              featuredOnly={featuredOnly}
+              onFeaturedOnlyChange={handleFeaturedOnlyChange}
             />
 
             <NotesTable
               notes={notes}
-              readyInvoices={readyInvoices}
+              readyInvoices={readyInvoicesForDisplay}
               loading={isLoading || sourceInvoicesLoading}
               currentPage={currentPage}
               pageSize={pageSize}

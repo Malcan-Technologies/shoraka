@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Switch } from "@/components/ui/switch";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { Skeleton } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
@@ -32,6 +33,7 @@ import {
   useCloseNoteFunding,
   useFailNoteFunding,
   usePublishNote,
+  useUpdateNoteFeatured,
   useUnpublishNote,
 } from "@/notes/hooks/use-notes";
 import { LedgerPanel } from "@/notes/components/ledger-panel";
@@ -154,7 +156,9 @@ export default function NoteDetailPage() {
   const closeFunding = useCloseNoteFunding();
   const failFunding = useFailNoteFunding();
   const activateNote = useActivateNote();
+  const updateNoteFeatured = useUpdateNoteFeatured();
   const [pendingAction, setPendingAction] = React.useState<ConfirmableNoteAction | null>(null);
+  const [featuredEnabled, setFeaturedEnabled] = React.useState(false);
 
   const handleAction = async (label: string, action: () => Promise<unknown>) => {
     try {
@@ -211,6 +215,29 @@ export default function NoteDetailPage() {
     note?.status === "FUNDING" &&
     note.fundingStatus === "FUNDED" &&
     note.servicingStatus === "NOT_STARTED";
+
+  React.useEffect(() => {
+    if (!note) return;
+    setFeaturedEnabled(note.isFeatured);
+  }, [note]);
+
+  const handleToggleFeatured = async (nextValue: boolean) => {
+    if (!note) return;
+    const previousValue = featuredEnabled;
+    setFeaturedEnabled(nextValue);
+    try {
+      await updateNoteFeatured.mutateAsync({
+        id: note.id,
+        input: {
+          isFeatured: nextValue,
+        },
+      });
+      toast.success(nextValue ? "Note marked as featured" : "Note removed from featured");
+    } catch (err) {
+      setFeaturedEnabled(previousValue);
+      toast.error(err instanceof Error ? err.message : "Failed to update featured status");
+    }
+  };
 
   return (
     <>
@@ -293,6 +320,15 @@ export default function NoteDetailPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center justify-end gap-2">
+                  <div className="flex items-center gap-2 rounded-full border px-3 py-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">Featured</span>
+                    <Switch
+                      id="note-featured-toggle"
+                      checked={featuredEnabled}
+                      onCheckedChange={(checked) => void handleToggleFeatured(Boolean(checked))}
+                      disabled={updateNoteFeatured.isPending}
+                    />
+                  </div>
                   <Badge variant="outline">{formatStatus(note.status)}</Badge>
                   <Badge variant="secondary">{formatStatus(note.listingStatus)}</Badge>
                   <Badge variant="secondary">{formatStatus(note.fundingStatus)}</Badge>

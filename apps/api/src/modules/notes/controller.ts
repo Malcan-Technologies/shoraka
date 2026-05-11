@@ -20,6 +20,10 @@ import {
   recordPaymentSchema,
   settlementActionSchema,
   settlementPreviewSchema,
+  investorBalanceActivityQuerySchema,
+  investorPortfolioHistoryQuerySchema,
+  testInvestorBalanceTopupSchema,
+  updateNoteFeaturedSchema,
   updateNoteDraftSchema,
   updatePlatformFinanceSettingsSchema,
 } from "./schemas";
@@ -51,6 +55,7 @@ function send(res: Response, data: unknown, status = 200) {
 
 export const adminNotesRouter = Router();
 export const marketplaceRouter = Router();
+export const publicMarketplaceRouter = Router();
 export const issuerNotesRouter = Router();
 export const investorNotesRouter = Router();
 
@@ -139,6 +144,16 @@ adminNotesRouter.patch("/:id/draft", async (req: Request, res: Response, next: N
     const { id } = idParamSchema.parse(req.params);
     const input = updateNoteDraftSchema.parse(req.body);
     send(res, await noteService.updateDraft(id, input, getActor(req, res, "ADMIN")));
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminNotesRouter.patch("/:id/featured", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    const input = updateNoteFeaturedSchema.parse(req.body);
+    send(res, await noteService.updateFeaturedSettings(id, input, getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
   }
@@ -355,6 +370,24 @@ marketplaceRouter.post("/notes/:id/investments", async (req: Request, res: Respo
   }
 });
 
+publicMarketplaceRouter.get("/notes", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const params = getNotesQuerySchema.parse(req.query);
+    send(res, await noteService.listMarketplace(params));
+  } catch (error) {
+    next(error);
+  }
+});
+
+publicMarketplaceRouter.get("/notes/:id", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    send(res, await noteService.getMarketplaceNoteDetail(id));
+  } catch (error) {
+    next(error);
+  }
+});
+
 investorNotesRouter.use(requireRole(UserRole.INVESTOR));
 
 investorNotesRouter.get("/investments", async (req: Request, res: Response, next: NextFunction) => {
@@ -368,6 +401,37 @@ investorNotesRouter.get("/investments", async (req: Request, res: Response, next
 investorNotesRouter.get("/portfolio", async (req: Request, res: Response, next: NextFunction) => {
   try {
     send(res, await noteService.getInvestorPortfolio(getActor(req, res, "INVESTOR").userId));
+  } catch (error) {
+    next(error);
+  }
+});
+
+investorNotesRouter.get("/portfolio/history", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const query = investorPortfolioHistoryQuerySchema.parse(req.query);
+    send(res, await noteService.getInvestorPortfolioHistory(getActor(req, res, "INVESTOR").userId, query));
+  } catch (error) {
+    next(error);
+  }
+});
+
+investorNotesRouter.get("/balance/activity", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const query = investorBalanceActivityQuerySchema.parse(req.query);
+    send(res, await noteService.listInvestorBalanceActivity(getActor(req, res, "INVESTOR").userId, query));
+  } catch (error) {
+    next(error);
+  }
+});
+
+investorNotesRouter.post("/balance/test-topup", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const input = testInvestorBalanceTopupSchema.parse(req.body);
+    const actor = getActor(req, res, "INVESTOR");
+    send(
+      res,
+      await noteService.testTopUpInvestorBalance(actor, input)
+    );
   } catch (error) {
     next(error);
   }

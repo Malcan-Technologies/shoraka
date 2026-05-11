@@ -11,6 +11,8 @@ interface NotesTableToolbarProps {
   onReload: () => void;
   totalCount: number;
   isLoading: boolean;
+  featuredOnly: boolean;
+  onFeaturedOnlyChange: (value: boolean) => void;
 }
 
 export function NotesTableToolbar({
@@ -22,6 +24,8 @@ export function NotesTableToolbar({
   onReload,
   totalCount,
   isLoading,
+  featuredOnly,
+  onFeaturedOnlyChange,
 }: NotesTableToolbarProps) {
   const statusFilters = status === "ALL" ? [] : [status];
 
@@ -33,7 +37,7 @@ export function NotesTableToolbar({
     <ListToolbar
       searchQuery={searchQuery}
       onSearchChange={onSearchChange}
-      searchPlaceholder="Search notes, reference, or application"
+      searchPlaceholder="Search notes, reference, application, issuer, or paymaster"
       statusFilters={statusFilters}
       onStatusFiltersChange={handleStatusFiltersChange}
       statusOptions={Object.values(NoteStatus).map((value) => ({
@@ -48,6 +52,9 @@ export function NotesTableToolbar({
       onClearFilters={onClearFilters}
       onReload={onReload}
       isLoading={isLoading}
+      extraToggleLabel="Featured only"
+      extraToggleChecked={featuredOnly}
+      onExtraToggleChange={onFeaturedOnlyChange}
     />
   );
 }

@@ -68,48 +68,51 @@ const COL_MIN = {
 /** Fixed widths (px). Status `right` sticky offset must equal `action` width. */
 const COL_STICKY = {
   status: 168,
-  action: 220,
+  actionExpanded: 220,
+  actionCompact: 72,
 } as const;
 
-const COL_STICKY_TOTAL_PX = COL_STICKY.status + COL_STICKY.action;
-
-/** Equal share of width for the seven scrollable columns (remainder after sticky columns). */
-const FLEX_COL_WIDTH = `calc((100% - ${COL_STICKY_TOTAL_PX}px) / 7)`;
-
-/** When the container is narrower than this, the scroll region shows a horizontal scrollbar. */
-export const INV_TABLE_MIN_WIDTH_PX =
+const SCROLLABLE_COL_MIN_TOTAL_PX =
   COL_MIN.invoiceNumber +
   COL_MIN.maturity +
   COL_MIN.invoiceValue +
   COL_MIN.appliedFinancing +
   COL_MIN.documents +
   COL_MIN.financingOffered +
-  COL_MIN.profitRate +
-  COL_STICKY.status +
-  COL_STICKY.action;
+  COL_MIN.profitRate;
+
+/** When the container is narrower than this, the scroll region shows a horizontal scrollbar. */
+function getInvoiceTableMinWidthPx(actionColWidthPx: number): number {
+  return SCROLLABLE_COL_MIN_TOTAL_PX + COL_STICKY.status + actionColWidthPx;
+}
+
+/** Equal share of width for the seven scrollable columns (remainder after sticky columns). */
+function getFlexColWidth(stickyTotalPx: number): string {
+  return `calc((100% - ${stickyTotalPx}px) / 7)`;
+}
 
 /** Solid fills only (no opacity); sticky columns use same fill as body cells. */
-const INV_TABLE_CHROME_BG = "bg-muted";
+const INV_TABLE_CHROME_BG = "bg-card";
 const INV_TABLE_HEADER_BG = "bg-muted";
 const INV_TABLE_ROW_BG = "bg-card";
 const INV_TABLE_ROW_HOVER = "group-hover:bg-muted";
 
 const CELL = "px-4 py-3 text-[15px]";
 
-function invoiceStatusStickyStyle(): React.CSSProperties {
+function invoiceStatusStickyStyle(actionColWidthPx: number): React.CSSProperties {
   return {
-    right: COL_STICKY.action,
+    right: actionColWidthPx,
     width: COL_STICKY.status,
     minWidth: COL_STICKY.status,
     maxWidth: COL_STICKY.status,
   };
 }
 
-function invoiceActionStickyStyle(): React.CSSProperties {
+function invoiceActionStickyStyle(actionColWidthPx: number): React.CSSProperties {
   return {
-    width: COL_STICKY.action,
-    minWidth: COL_STICKY.action,
-    maxWidth: COL_STICKY.action,
+    width: actionColWidthPx,
+    minWidth: actionColWidthPx,
+    maxWidth: actionColWidthPx,
   };
 }
 
@@ -241,6 +244,21 @@ export function ScrollableInvoiceTable({
 }: ScrollableInvoiceTableProps) {
   const [reasonRemarksOpen, setReasonRemarksOpen] = React.useState(false);
   const [reasonRemarksBody, setReasonRemarksBody] = React.useState("");
+  const hasExpandedActionColumn = React.useMemo(() => {
+    return application.invoices.some((inv: NormalizedInvoice) => {
+      const invStatus = String(inv.status ?? "").toUpperCase();
+      const showReviewOffer = invStatus === "OFFER_SENT" && inv.offerStatus === "Offer received";
+      const showMakeAmendments =
+        application.cardStatus.showMakeAmendments && invStatus === "AMENDMENT_REQUESTED";
+      return showReviewOffer || showMakeAmendments;
+    });
+  }, [application.invoices, application.cardStatus.showMakeAmendments]);
+  const actionColWidthPx = hasExpandedActionColumn
+    ? COL_STICKY.actionExpanded
+    : COL_STICKY.actionCompact;
+  const stickyTotalPx = COL_STICKY.status + actionColWidthPx;
+  const flexColWidth = getFlexColWidth(stickyTotalPx);
+  const invoiceTableMinWidthPx = getInvoiceTableMinWidthPx(actionColWidthPx);
 
   return (
     <>
@@ -249,19 +267,19 @@ export function ScrollableInvoiceTable({
         className="w-full min-w-0 table-fixed border-collapse text-[15px]"
         style={{
           width: "100%",
-          minWidth: INV_TABLE_MIN_WIDTH_PX,
+          minWidth: invoiceTableMinWidthPx,
         }}
       >
         <colgroup>
-          <col style={{ width: FLEX_COL_WIDTH, minWidth: COL_MIN.invoiceNumber }} />
-          <col style={{ width: FLEX_COL_WIDTH, minWidth: COL_MIN.maturity }} />
-          <col style={{ width: FLEX_COL_WIDTH, minWidth: COL_MIN.invoiceValue }} />
-          <col style={{ width: FLEX_COL_WIDTH, minWidth: COL_MIN.appliedFinancing }} />
-          <col style={{ width: FLEX_COL_WIDTH, minWidth: COL_MIN.documents }} />
-          <col style={{ width: FLEX_COL_WIDTH, minWidth: COL_MIN.financingOffered }} />
-          <col style={{ width: FLEX_COL_WIDTH, minWidth: COL_MIN.profitRate }} />
+          <col style={{ width: flexColWidth, minWidth: COL_MIN.invoiceNumber }} />
+          <col style={{ width: flexColWidth, minWidth: COL_MIN.maturity }} />
+          <col style={{ width: flexColWidth, minWidth: COL_MIN.invoiceValue }} />
+          <col style={{ width: flexColWidth, minWidth: COL_MIN.appliedFinancing }} />
+          <col style={{ width: flexColWidth, minWidth: COL_MIN.documents }} />
+          <col style={{ width: flexColWidth, minWidth: COL_MIN.financingOffered }} />
+          <col style={{ width: flexColWidth, minWidth: COL_MIN.profitRate }} />
           <col style={{ width: COL_STICKY.status, minWidth: COL_STICKY.status }} />
-          <col style={{ width: COL_STICKY.action, minWidth: COL_STICKY.action }} />
+          <col style={{ width: actionColWidthPx, minWidth: actionColWidthPx }} />
         </colgroup>
         <TableHeader className="[&_tr]:border-b-0">
           <TableRow className="border-b-0 hover:bg-transparent">
@@ -334,7 +352,7 @@ export function ScrollableInvoiceTable({
                 INV_TABLE_HEADER_BG,
                 "sticky z-30 text-sm font-semibold text-foreground whitespace-nowrap"
               )}
-              style={invoiceStatusStickyStyle()}
+              style={invoiceStatusStickyStyle(actionColWidthPx)}
             >
               Status
             </TableHead>
@@ -344,7 +362,7 @@ export function ScrollableInvoiceTable({
                 INV_TABLE_HEADER_BG,
                 "sticky right-0 z-40 text-sm font-semibold text-foreground whitespace-nowrap"
               )}
-              style={invoiceActionStickyStyle()}
+              style={invoiceActionStickyStyle(actionColWidthPx)}
             >
               Action
             </TableHead>
@@ -368,6 +386,7 @@ export function ScrollableInvoiceTable({
               const canReview = inv.canReviewOffer;
               const showMakeAmendments =
                 application.cardStatus.showMakeAmendments && invStatus === "AMENDMENT_REQUESTED";
+              const hasInlineAction = showReviewOffer || showMakeAmendments;
               const canWithdrawInvoice = !["APPROVED", "REJECTED", "WITHDRAWN"].includes(invStatus);
               return (
                 <TableRow
@@ -460,7 +479,7 @@ export function ScrollableInvoiceTable({
                       "group-hover:z-[21]",
                       "align-middle text-left whitespace-nowrap"
                     )}
-                    style={invoiceStatusStickyStyle()}
+                    style={invoiceStatusStickyStyle(actionColWidthPx)}
                   >
                     <span className="inline-block">
                       <InvoiceStatusBadge
@@ -476,12 +495,19 @@ export function ScrollableInvoiceTable({
                       INV_TABLE_ROW_HOVER,
                       "sticky right-0 z-20",
                       "group-hover:z-[21]",
-                      "align-top text-center"
+                      "align-middle text-center"
                     )}
-                    style={invoiceActionStickyStyle()}
+                    style={invoiceActionStickyStyle(actionColWidthPx)}
                   >
-                    <div className="flex items-start justify-center gap-2">
-                      {(showReviewOffer || showMakeAmendments) && (
+                    <div
+                      className={cn(
+                        "flex w-full gap-2",
+                        hasInlineAction
+                          ? "items-start justify-between"
+                          : "items-center justify-end"
+                      )}
+                    >
+                      {hasInlineAction && (
                         <div className="flex min-w-0 flex-1 flex-col items-center gap-1">
                           {showReviewOffer &&
                             (canReview && onReviewInvoiceOffer ? (

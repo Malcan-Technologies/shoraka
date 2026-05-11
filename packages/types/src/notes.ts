@@ -130,10 +130,23 @@ export interface NoteSettlementPoolSummary {
   postedAt: string | null;
 }
 
+export interface NoteInvestorRepaymentSummary {
+  investedPrincipal: number;
+  expectedPayoutAmount: number;
+  receivedPayoutAmount: number;
+  expectedReturnRatePercent: number;
+  actualReturnRatePercent: number | null;
+  progressPercent: number;
+}
+
 export interface NoteListItem extends NoteMoneySummary {
   id: string;
   noteReference: string;
   title: string;
+  productCategory: string | null;
+  /** Display name from product workflow / snapshot; preferred for marketplace card title. */
+  productName: string | null;
+  issuerIndustry: string | null;
   sourceApplicationId: string;
   sourceContractId: string | null;
   sourceInvoiceId: string | null;
@@ -145,9 +158,15 @@ export interface NoteListItem extends NoteMoneySummary {
   listingStatus: NoteListingStatus;
   fundingStatus: NoteFundingStatus;
   servicingStatus: NoteServicingStatus;
+  isFeatured: boolean;
+  featuredRank: number | null;
+  featuredFrom: string | null;
+  featuredUntil: string | null;
+  featuredActive: boolean;
   maturityDate: string | null;
   publishedAt: string | null;
   settlementSummary: NoteSettlementPoolSummary | null;
+  investorRepaymentSummary?: NoteInvestorRepaymentSummary | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -386,6 +405,7 @@ export interface GetAdminNotesParams {
   servicingStatus?: NoteServicingStatus;
   issuerOrganizationId?: string;
   paymaster?: string;
+  featuredOnly?: boolean;
 }
 
 export interface NotesResponse {
@@ -396,6 +416,60 @@ export interface NotesResponse {
     totalCount: number;
     totalPages: number;
   };
+}
+
+export interface InvestorPortfolioResponse {
+  portfolioTotal: number;
+  totalInvestment: number;
+  availableBalance: number;
+  investmentCount: number;
+}
+
+export type InvestorPortfolioHistoryRange = "1W" | "1M" | "3M" | "6M" | "YTD" | "ALL";
+export type InvestorPortfolioHistoryGranularity = "day" | "month";
+
+export interface InvestorPortfolioHistoryPoint {
+  date: string;
+  availableBalance: number;
+  portfolioTotal: number;
+}
+
+export interface InvestorPortfolioHistoryResponse {
+  range: InvestorPortfolioHistoryRange;
+  granularity: InvestorPortfolioHistoryGranularity;
+  points: InvestorPortfolioHistoryPoint[];
+  generatedAt: string;
+}
+
+export interface InvestorBalanceActivityEntry {
+  id: string;
+  investorOrganizationId: string;
+  direction: "IN" | "OUT";
+  amount: number;
+  source: string;
+  noteId: string | null;
+  noteInvestmentId: string | null;
+  idempotencyKey: string;
+  metadata: Record<string, unknown> | null;
+  postedAt: string;
+  createdAt: string;
+}
+
+export interface InvestorBalanceActivityResponse {
+  entries: InvestorBalanceActivityEntry[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  };
+  summary: {
+    inTotal: number;
+    outTotal: number;
+    netChange: number;
+    availableBalance: number;
+  };
+  generatedAt: string;
 }
 
 export interface EligibleNoteInvoice {
@@ -436,6 +510,13 @@ export interface UpdateNoteDraftInput {
   serviceFeeCustomerScope?: string | null;
   profitRatePercent?: number | null;
   summary?: string | null;
+}
+
+export interface UpdateNoteFeaturedInput {
+  isFeatured: boolean;
+  featuredRank?: number | null;
+  featuredFrom?: string | null;
+  featuredUntil?: string | null;
 }
 
 export interface CreateNoteInvestmentInput {

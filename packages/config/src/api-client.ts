@@ -94,9 +94,14 @@ import type {
   NoteLedgerBucketBalancesResponse,
   NoteLedgerEntry,
   NotesResponse,
+  InvestorBalanceActivityResponse,
+  InvestorPortfolioResponse,
+  InvestorPortfolioHistoryRange,
+  InvestorPortfolioHistoryResponse,
   PlatformFinanceSetting,
   RecordNotePaymentInput,
   SettlementPreviewInput,
+  UpdateNoteFeaturedInput,
   UpdateNoteDraftInput,
   WithdrawalInstruction,
 } from "@cashsouk/types";
@@ -494,6 +499,7 @@ export class ApiClient {
       queryParams.append("issuerOrganizationId", params.issuerOrganizationId);
     }
     if (params.paymaster) queryParams.append("paymaster", params.paymaster);
+    if (params.featuredOnly) queryParams.append("featuredOnly", "true");
 
     return this.get<NotesResponse>(`/v1/admin/notes?${queryParams.toString()}`);
   }
@@ -525,6 +531,13 @@ export class ApiClient {
     data: UpdateNoteDraftInput
   ): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.patch<NoteDetail>(`/v1/admin/notes/${id}/draft`, data);
+  }
+
+  async updateAdminNoteFeatured(
+    id: string,
+    data: UpdateNoteFeaturedInput
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.patch<NoteDetail>(`/v1/admin/notes/${id}/featured`, data);
   }
 
   async publishAdminNote(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
@@ -2179,12 +2192,28 @@ export class ApiClient {
     page?: number;
     pageSize?: number;
     search?: string;
+    featuredOnly?: boolean;
   } = {}): Promise<ApiResponse<NotesResponse> | ApiError> {
     const queryParams = new URLSearchParams();
     queryParams.append("page", String(params.page ?? 1));
     queryParams.append("pageSize", String(params.pageSize ?? 12));
     if (params.search) queryParams.append("search", params.search);
+    if (params.featuredOnly) queryParams.append("featuredOnly", "true");
     return this.get<NotesResponse>(`/v1/marketplace/notes?${queryParams.toString()}`);
+  }
+
+  async getPublicMarketplaceNotes(params: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    featuredOnly?: boolean;
+  } = {}): Promise<ApiResponse<NotesResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page ?? 1));
+    queryParams.append("pageSize", String(params.pageSize ?? 12));
+    if (params.search) queryParams.append("search", params.search);
+    if (params.featuredOnly) queryParams.append("featuredOnly", "true");
+    return this.get<NotesResponse>(`/v1/public/marketplace/notes?${queryParams.toString()}`);
   }
 
   async getMarketplaceNote(id: string): Promise<ApiResponse<MarketplaceNoteDetail> | ApiError> {
@@ -2202,8 +2231,30 @@ export class ApiClient {
     return this.get<NotesResponse>("/v1/investor/investments");
   }
 
-  async getInvestorPortfolio(): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
-    return this.get<Record<string, unknown>>("/v1/investor/portfolio");
+  async getInvestorPortfolio(): Promise<ApiResponse<InvestorPortfolioResponse> | ApiError> {
+    return this.get<InvestorPortfolioResponse>("/v1/investor/portfolio");
+  }
+
+  async getInvestorPortfolioHistory(range: InvestorPortfolioHistoryRange = "6M"): Promise<ApiResponse<InvestorPortfolioHistoryResponse> | ApiError> {
+    const queryParams = new URLSearchParams({ range });
+    return this.get<InvestorPortfolioHistoryResponse>(`/v1/investor/portfolio/history?${queryParams.toString()}`);
+  }
+
+  async getInvestorBalanceActivity(params: {
+    page?: number;
+    pageSize?: number;
+  } = {}): Promise<ApiResponse<InvestorBalanceActivityResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page ?? 1));
+    queryParams.append("pageSize", String(params.pageSize ?? 20));
+    return this.get<InvestorBalanceActivityResponse>(`/v1/investor/balance/activity?${queryParams.toString()}`);
+  }
+
+  async postInvestorBalanceTestTopup(input: {
+    investorOrganizationId: string;
+    amount: number;
+  }): Promise<ApiResponse<InvestorPortfolioResponse> | ApiError> {
+    return this.post<InvestorPortfolioResponse>("/v1/investor/balance/test-topup", input);
   }
 
   async getIssuerNotes(): Promise<ApiResponse<NotesResponse> | ApiError> {

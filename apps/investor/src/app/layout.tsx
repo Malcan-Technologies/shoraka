@@ -4,6 +4,7 @@ import "@cashsouk/styles/globals.css";
 import "./globals.css";
 import { AppSidebar } from "../components/app-sidebar";
 import { CashSoukPortalFooter, Header, SidebarInset, SidebarProvider } from "@cashsouk/ui";
+import { InvestorHeaderActions } from "../components/investor-header-actions";
 import { Toaster } from "../components/ui/sonner";
 import { Providers } from "../lib/providers";
 import { AuthGuard } from "../components/auth-guard";
@@ -31,7 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <SidebarProvider>
               <AppSidebar />
               <SidebarInset>
-                <Header />
+                <Header rightContent={<InvestorHeaderActions />} />
                 <div className="flex min-h-0 flex-1 flex-col">{children}</div>
                 <CashSoukPortalFooter variant="investor" />
               </SidebarInset>

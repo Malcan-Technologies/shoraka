@@ -19,7 +19,18 @@ export const noteInclude = {
 
 export class NoteRepository {
   list(params: GetNotesQuery) {
-    const { page, pageSize, search, status, listingStatus, fundingStatus, servicingStatus, issuerOrganizationId, paymaster } = params;
+    const {
+      page,
+      pageSize,
+      search,
+      status,
+      listingStatus,
+      fundingStatus,
+      servicingStatus,
+      issuerOrganizationId,
+      paymaster,
+      featuredOnly,
+    } = params;
     const where: Prisma.NoteWhereInput = {};
 
     if (status) where.status = status;
@@ -30,11 +41,36 @@ export class NoteRepository {
 
     const and: Prisma.NoteWhereInput[] = [];
     if (search) {
+      const query = search.trim();
+      const jsonSearchVariants = [...new Set([
+        query,
+        query.toLowerCase(),
+        query.toUpperCase(),
+        query.replace(/\b\w/g, (char) => char.toUpperCase()),
+      ])];
       and.push({
         OR: [
-          { title: { contains: search, mode: "insensitive" } },
-          { note_reference: { contains: search, mode: "insensitive" } },
-          { source_application_id: { contains: search, mode: "insensitive" } },
+          { title: { contains: query, mode: "insensitive" } },
+          { note_reference: { contains: query, mode: "insensitive" } },
+          { source_application_id: { contains: query, mode: "insensitive" } },
+          ...jsonSearchVariants.map((variant) => ({
+            issuer_snapshot: {
+              path: ["name"],
+              string_contains: variant,
+            },
+          })),
+          ...jsonSearchVariants.map((variant) => ({
+            issuer_snapshot: {
+              path: ["industry"],
+              string_contains: variant,
+            },
+          })),
+          ...jsonSearchVariants.map((variant) => ({
+            paymaster_snapshot: {
+              path: ["name"],
+              string_contains: variant,
+            },
+          })),
         ],
       });
     }
@@ -46,14 +82,28 @@ export class NoteRepository {
         },
       });
     }
+    if (featuredOnly) {
+      const now = new Date();
+      and.push({
+        is_featured: true,
+        AND: [
+          { OR: [{ featured_from: null }, { featured_from: { lte: now } }] },
+          { OR: [{ featured_until: null }, { featured_until: { gte: now } }] },
+        ],
+      });
+    }
     if (and.length > 0) where.AND = and;
+
+    const orderBy: Prisma.NoteOrderByWithRelationInput[] = featuredOnly
+      ? [{ featured_rank: "asc" }, { updated_at: "desc" }]
+      : [{ updated_at: "desc" }];
 
     return prisma.$transaction(async (tx) => {
       const [notes, totalCount] = await Promise.all([
         tx.note.findMany({
           where,
           include: noteInclude,
-          orderBy: { updated_at: "desc" },
+          orderBy,
           skip: (page - 1) * pageSize,
           take: pageSize,
         }),

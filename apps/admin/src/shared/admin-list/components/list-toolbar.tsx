@@ -36,6 +36,9 @@ interface ListToolbarProps {
   onClearFilters: () => void;
   onReload?: () => void;
   isLoading?: boolean;
+  extraToggleLabel?: string;
+  extraToggleChecked?: boolean;
+  onExtraToggleChange?: (checked: boolean) => void;
 }
 
 export function ListToolbar({
@@ -53,11 +56,15 @@ export function ListToolbar({
   onClearFilters,
   onReload,
   isLoading = false,
+  extraToggleLabel,
+  extraToggleChecked = false,
+  onExtraToggleChange,
 }: ListToolbarProps) {
   const [isSpinning, setIsSpinning] = React.useState(false);
 
-  const hasFilters = searchQuery !== "" || statusFilters.length > 0;
-  const activeFilterCount = statusFilters.length;
+  const hasExtraToggle = Boolean(extraToggleLabel && onExtraToggleChange);
+  const hasFilters = searchQuery !== "" || statusFilters.length > 0 || (hasExtraToggle && extraToggleChecked);
+  const activeFilterCount = statusFilters.length + (hasExtraToggle && extraToggleChecked ? 1 : 0);
 
   const handleReload = () => {
     setIsSpinning(true);
@@ -122,6 +129,17 @@ export function ListToolbar({
               {option.label}
             </DropdownMenuCheckboxItem>
           ))}
+          {hasExtraToggle ? (
+            <DropdownMenuCheckboxItem
+              checked={extraToggleChecked}
+              onCheckedChange={(checked) => {
+                if (!onExtraToggleChange) return;
+                onExtraToggleChange(Boolean(checked));
+              }}
+            >
+              {extraToggleLabel}
+            </DropdownMenuCheckboxItem>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
 

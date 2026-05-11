@@ -137,7 +137,17 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
         {note.noteReference}
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
-        <div className="truncate font-medium" title={note.title}>{note.title}</div>
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="truncate font-medium" title={note.title}>{note.title}</div>
+          {note.isFeatured ? (
+            <Badge
+              variant="secondary"
+              className="shrink-0 border-transparent bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+            >
+              Featured
+            </Badge>
+          ) : null}
+        </div>
         <div className="truncate text-xs text-muted-foreground" title={note.issuerName ?? "Unknown issuer"}>
           {note.issuerName ?? "Unknown issuer"}
         </div>
