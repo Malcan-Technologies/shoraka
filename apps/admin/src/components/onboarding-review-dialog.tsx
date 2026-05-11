@@ -58,6 +58,7 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   InformationCircleIcon,
+  ExclamationTriangleIcon,
   ClockIcon,
   ArrowPathIcon,
   StarIcon,
@@ -886,6 +887,43 @@ export function OnboardingReviewDialog({
     <TooltipProvider>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" hideCloseButton>
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-xl flex items-center gap-3">
+                Review Onboarding Application
+                {application && (
+                  <>
+                    <Badge variant="outline" className="font-normal">
+                      {application.type === "PERSONAL" ? "Personal" : "Company"}
+                    </Badge>
+                    <Badge variant="secondary" className="font-normal capitalize">
+                      {application.portal}
+                    </Badge>
+                  </>
+                )}
+              </DialogTitle>
+              {application && (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCombinedRefresh}
+                    disabled={isCombinedRefreshing}
+                    className="gap-1.5"
+                  >
+                    <ArrowPathIcon
+                      className={`h-4 w-4 ${isCombinedRefreshing ? "animate-spin" : ""}`}
+                    />
+                    Refresh
+                  </Button>
+                </div>
+              )}
+            </div>
+            <DialogDescription>
+              Review the application details and complete the required approval steps.
+            </DialogDescription>
+          </DialogHeader>
+
           {!application && isPending && (
             <div className="space-y-4 py-6" aria-busy="true">
               <Skeleton className="h-9 w-2/3" />
@@ -914,37 +952,6 @@ export function OnboardingReviewDialog({
 
           {application && (
             <>
-              <DialogHeader>
-                <div className="flex items-center justify-between">
-                  <DialogTitle className="text-xl flex items-center gap-3">
-                    Review Onboarding Application
-                    <Badge variant="outline" className="font-normal">
-                      {application.type === "PERSONAL" ? "Personal" : "Company"}
-                    </Badge>
-                    <Badge variant="secondary" className="font-normal capitalize">
-                      {application.portal}
-                    </Badge>
-                  </DialogTitle>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCombinedRefresh}
-                      disabled={isCombinedRefreshing}
-                      className="gap-1.5"
-                    >
-                      <ArrowPathIcon
-                        className={`h-4 w-4 ${isCombinedRefreshing ? "animate-spin" : ""}`}
-                      />
-                      Refresh
-                    </Button>
-                  </div>
-                </div>
-                <DialogDescription>
-                  Review the application details and complete the required approval steps.
-                </DialogDescription>
-              </DialogHeader>
-
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-4">
                 <div className="lg:col-span-1">
                   <Card>
