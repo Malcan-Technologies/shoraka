@@ -817,6 +817,8 @@ export interface OnboardingApplicationResponse {
   regtankPortalUrl: string | null;
   kycPortalUrl: string | null;
   kybPortalUrl: string | null;
+  /** Derived from RegTank webhook payload history. When true, admin approval actions are disabled. */
+  regtankAmendmentInProgress: boolean;
   /** Organization DB onboarding_status (single source of truth for admin flow step). */
   onboardingStatus: OnboardingStatusEnum;
   status: OnboardingApprovalStatus;

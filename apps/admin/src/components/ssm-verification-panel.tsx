@@ -349,6 +349,7 @@ interface SSMVerificationPanelProps {
   application: OnboardingApplicationResponse;
   onApprove: () => void;
   disabled?: boolean;
+  amendmentInProgress?: boolean;
 }
 
 function sortOrgCtosReports(rows: AdminCtosReportListItem[]): AdminCtosReportListItem[] {
@@ -612,6 +613,7 @@ export function SSMVerificationPanel({
   application,
   onApprove,
   disabled = false,
+  amendmentInProgress = false,
 }: SSMVerificationPanelProps) {
   const [confirmed, setConfirmed] = React.useState(false);
   const [getLatestConfirmOpen, setGetLatestConfirmOpen] = React.useState(false);
@@ -704,6 +706,7 @@ export function SSMVerificationPanel({
   );
 
   const canApprove = confirmed && !fetchCtosMutation.isPending;
+  const approveDisabled = amendmentInProgress || disabled || !canApprove;
 
   const ctosListLoading = !useMockOnboardingCtos && ctosQuery.isLoading;
 
@@ -896,6 +899,19 @@ export function SSMVerificationPanel({
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
+          {amendmentInProgress ? (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive">
+              <div className="flex items-start gap-2">
+                <ExclamationTriangleIcon className="h-5 w-5 shrink-0" aria-hidden />
+                <div className="space-y-0.5">
+                  <p className="text-sm font-medium">RegTank amendment is in progress.</p>
+                  <p className="text-xs leading-relaxed">
+                    Approval is disabled until the amended onboarding is resubmitted.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
           {useOrgCtosFlow && useMockOnboardingCtos ? (
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
               {mockOnboardingCtosEmpty ? (
@@ -1037,7 +1053,7 @@ export function SSMVerificationPanel({
                   variant="action"
                   size="lg"
                   onClick={onApprove}
-                  disabled={!canApprove || disabled}
+                  disabled={approveDisabled}
                   className="w-full rounded-full gap-2 sm:w-auto sm:justify-end"
                 >
                   <CheckCircleIcon className="h-5 w-5 shrink-0" aria-hidden />
