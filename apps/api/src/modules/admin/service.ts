@@ -78,7 +78,6 @@ import { buildAdminPeopleList } from "./build-people-list";
 import { notifyIssuerDirectorShareholderActionRequired } from "../notification/director-shareholder-notifications";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal } from "../applications/logs/types";
-import { isRegtankAmendmentInProgress } from "../regtank/helpers/is-regtank-amendment-in-progress";
 
 export interface AdminLogContext {
   ipAddress?: string | null;
@@ -3187,8 +3186,6 @@ export class AdminService {
       regtankPortalUrl,
       kycPortalUrl,
       kybPortalUrl,
-      // Derived from RegTank webhook payload history to protect against approving while RegTank is editing/amending.
-      regtankAmendmentInProgress: isRegtankAmendmentInProgress(record.webhook_payloads),
       onboardingStatus: orgOnboardingStatus as OnboardingStatusEnum,
       status,
       ssmVerified: ssmApproved,
