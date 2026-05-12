@@ -19,7 +19,7 @@ import { useProducts } from "@/hooks/use-products";
 import { useIssuerDashboard } from "@/hooks/use-issuer-dashboard";
 import { cn } from "@/lib/utils";
 import { getOfferStatus, type OfferStatus } from "@/lib/offer-utils";
-import { ReviewOfferModal } from "@/components/review-offer-modal";
+import { ReviewOfferModal } from "@/app/(application-management)/applications/components/ReviewOfferModal";
 import { formatMoneyDisplay } from "@cashsouk/ui";
 import type { Product } from "@cashsouk/types";
 import type { IssuerDashboardContract, IssuerDashboardData, IssuerDashboardInvoice } from "@/types/issuer-dashboard";
@@ -80,7 +80,13 @@ function offerBadge(offerStatus: OfferStatus) {
 function ReviewOfferButton({ show, onClick }: { show: boolean; onClick?: () => void }) {
   if (!show) return null;
   return (
-    <Button type="button" size="sm" className="h-8 rounded-md px-3 text-xs font-medium" onClick={onClick}>
+    <Button
+      type="button"
+      size="sm"
+      variant="reviewOffer"
+      className="rounded-xl"
+      onClick={onClick}
+    >
       Review offer
     </Button>
   );
@@ -716,7 +722,11 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
   const { data: productsData } = useProducts({ page: 1, pageSize: 100, search: "", activeOnly: true });
   const products = useMemo(() => productsData?.products ?? [], [productsData]);
 
-  const [offerModalContext, setOfferModalContext] = useState<Parameters<typeof ReviewOfferModal>[0]["context"]>(null);
+  type OfferContext =
+    | { type: "contract"; applicationId: string; contractId: string }
+    | { type: "invoice"; applicationId: string; invoice: unknown };
+
+  const [offerModalContext, setOfferModalContext] = useState<OfferContext | null>(null);
   const offerModalOpen = offerModalContext !== null;
 
   const [listFiltersByProduct, setListFiltersByProduct] = useState<ProductListFiltersMap>({});
@@ -814,11 +824,16 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
     <Card className="bg-muted/50 shadow-none">
       {outerCardHeader}
       <div className="px-5 pb-5 space-y-5 md:px-6 md:pb-6">
-        <ReviewOfferModal
-          open={offerModalOpen}
-          onOpenChange={(open) => !open && setOfferModalContext(null)}
-          context={offerModalContext}
-        />
+        {offerModalOpen && offerModalContext ? (
+          <ReviewOfferModal
+            type={offerModalContext.type}
+            applicationId={offerModalContext.applicationId}
+            contractId={offerModalContext.type === "contract" ? offerModalContext.contractId : undefined}
+            invoice={offerModalContext.type === "invoice" ? (offerModalContext.invoice as any) : undefined}
+            requiresInvoiceSigning
+            onClose={() => setOfferModalContext(null)}
+          />
+        ) : null}
         {productsWithData.map((product: ProductOrStub) => {
           const group = productGroups[product.id] ?? { contracts: [], invoices: [] };
           const productName =
@@ -909,7 +924,7 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
                               setOfferModalContext({
                                 type: "contract",
                                 applicationId: c.applicationId,
-                                contract: modalContract,
+                                contractId: c.id,
                               })
                             }
                           />
@@ -975,8 +990,7 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
                               setOfferModalContext({
                                 type: "invoice",
                                 applicationId: inv.applicationId,
-                                invoiceId: inv.id,
-                                invoice: modalInvoice,
+                                invoice: modalInvoice as unknown,
                               })
                             }
                           />
