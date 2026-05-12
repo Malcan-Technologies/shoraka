@@ -12,6 +12,71 @@ type NoteWithRelations = Prisma.NoteGetPayload<{
   };
 }>;
 
+type WithdrawalRecord =
+  Prisma.WithdrawalInstructionGetPayload<Prisma.WithdrawalInstructionDefaultArgs>;
+
+/**
+ * Flattens legacy RegTank-shaped issuer bank details (`{ content: [{ fieldName, fieldValue }] }`)
+ * onto the flat shape (`bank_name`, `account_number`, …) the trustee letter UI expects, while
+ * preserving any already-flat keys. This lets historical DRAFT withdrawals display correctly
+ * even though they were originally stored with the raw RegTank payload.
+ */
+function normaliseBeneficiarySnapshot(raw: Prisma.JsonValue | null): Record<string, unknown> {
+  const record = asRecord(raw);
+  if (!record) return {};
+  const result: Record<string, unknown> = { ...record };
+  const content = Array.isArray(record.content) ? record.content : null;
+  if (!content) return result;
+
+  const findField = (...candidates: string[]): string => {
+    for (const entry of content) {
+      const inner = asRecord(entry);
+      const fieldName = typeof inner?.fieldName === "string" ? inner.fieldName.trim() : "";
+      if (!fieldName) continue;
+      if (!candidates.some((c) => fieldName.toLowerCase() === c.toLowerCase())) continue;
+      const fieldValue = inner?.fieldValue;
+      if (typeof fieldValue === "string" && fieldValue.trim() !== "") return fieldValue.trim();
+    }
+    return "";
+  };
+
+  const fillIfMissing = (key: string, value: string) => {
+    if (!value) return;
+    const existing = result[key];
+    if (typeof existing !== "string" || existing.trim() === "") result[key] = value;
+  };
+
+  fillIfMissing("bank_name", findField("Bank", "Bank name"));
+  fillIfMissing("account_number", findField("Bank account number", "Account number"));
+  fillIfMissing("account_holder", findField("Account holder", "Account name", "Beneficiary name"));
+  fillIfMissing("swift_code", findField("SWIFT", "SWIFT code", "Swift/BIC", "BIC"));
+  fillIfMissing("branch", findField("Branch", "Branch name"));
+  fillIfMissing("account_type", findField("Account type"));
+  return result;
+}
+
+export function mapWithdrawalInstruction(withdrawal: WithdrawalRecord) {
+  return {
+    id: withdrawal.id,
+    noteId: withdrawal.note_id,
+    settlementId: withdrawal.settlement_id,
+    investorOrganizationId: withdrawal.investor_organization_id,
+    issuerOrganizationId: withdrawal.issuer_organization_id,
+    requestedByUserId: withdrawal.requested_by_user_id,
+    submittedByUserId: withdrawal.submitted_by_user_id,
+    status: withdrawal.status,
+    withdrawalType: withdrawal.withdrawal_type,
+    amount: decimalToNumber(withdrawal.amount),
+    currency: withdrawal.currency,
+    beneficiarySnapshot: normaliseBeneficiarySnapshot(withdrawal.beneficiary_snapshot),
+    letterS3Key: withdrawal.letter_s3_key,
+    generatedAt: iso(withdrawal.generated_at),
+    submittedToTrusteeAt: iso(withdrawal.submitted_to_trustee_at),
+    completedAt: iso(withdrawal.completed_at),
+    createdAt: withdrawal.created_at.toISOString(),
+  };
+}
+
 function decimalToNumber(value: Prisma.Decimal | number | null | undefined): number {
   if (value == null) return 0;
   return typeof value === "number" ? value : value.toNumber();
@@ -40,7 +105,9 @@ function numberFromUnknown(value: unknown): number {
 function resolveInvoiceAmount(note: NoteWithRelations): number {
   const invoiceSnapshot = asRecord(note.invoice_snapshot);
   const details = asRecord(invoiceSnapshot?.details as Prisma.JsonValue | null | undefined);
-  const offerDetails = asRecord(invoiceSnapshot?.offer_details as Prisma.JsonValue | null | undefined);
+  const offerDetails = asRecord(
+    invoiceSnapshot?.offer_details as Prisma.JsonValue | null | undefined
+  );
   return (
     numberFromUnknown(details?.value) ||
     numberFromUnknown(details?.invoice_value) ||
@@ -52,7 +119,9 @@ function resolveInvoiceAmount(note: NoteWithRelations): number {
 
 function resolveRiskRating(note: NoteWithRelations) {
   const invoiceSnapshot = asRecord(note.invoice_snapshot);
-  const offerDetails = asRecord(invoiceSnapshot?.offer_details as Prisma.JsonValue | null | undefined);
+  const offerDetails = asRecord(
+    invoiceSnapshot?.offer_details as Prisma.JsonValue | null | undefined
+  );
   const riskRating = offerDetails?.risk_rating;
   return isSoukscoreRiskRating(riskRating) ? riskRating : null;
 }
@@ -86,7 +155,9 @@ function resolveProductCategory(note: NoteWithRelations): string | null {
 }
 
 /** Same rule as admin `productName`: first workflow step `config.name` or `config.type.name`. */
-export function resolveProductNameFromWorkflow(workflow: Prisma.JsonValue | null | undefined): string | null {
+export function resolveProductNameFromWorkflow(
+  workflow: Prisma.JsonValue | null | undefined
+): string | null {
   if (!Array.isArray(workflow) || workflow.length === 0) return null;
   const first = workflow[0];
   if (!first || typeof first !== "object" || Array.isArray(first)) return null;
@@ -103,7 +174,12 @@ export function resolveProductNameFromWorkflow(workflow: Prisma.JsonValue | null
 function resolveProductName(note: NoteWithRelations): string | null {
   const product = asRecord(note.product_snapshot);
   if (product) {
-    const candidates = [product.product_name, product.name, product.productName, product.productLabel];
+    const candidates = [
+      product.product_name,
+      product.name,
+      product.productName,
+      product.productLabel,
+    ];
     for (const value of candidates) {
       if (typeof value === "string" && value.trim().length > 0) return value.trim();
     }
@@ -123,7 +199,8 @@ function resolveSettlementSummary(note: NoteWithRelations) {
     status: settlement.status,
     grossReceiptAmount: decimalToNumber(settlement.gross_receipt_amount),
     investorPoolAmount:
-      decimalToNumber(settlement.investor_principal) + decimalToNumber(settlement.investor_profit_net),
+      decimalToNumber(settlement.investor_principal) +
+      decimalToNumber(settlement.investor_profit_net),
     operatingAccountAmount: decimalToNumber(settlement.service_fee_amount),
     tawidhAccountAmount: decimalToNumber(settlement.tawidh_amount),
     gharamahAccountAmount: decimalToNumber(settlement.gharamah_amount),
@@ -188,7 +265,10 @@ export function mapNoteListItem(note: NoteWithRelations) {
   };
 }
 
-export function mapNoteDetail(note: NoteWithRelations) {
+export function mapNoteDetail(
+  note: NoteWithRelations,
+  options: { withdrawals?: WithdrawalRecord[] } = {}
+) {
   return {
     ...mapNoteListItem(note),
     productSnapshot: asRecord(note.product_snapshot),
@@ -288,6 +368,7 @@ export function mapNoteDetail(note: NoteWithRelations) {
       metadata: asRecord(event.metadata),
       createdAt: event.created_at.toISOString(),
     })),
+    withdrawals: (options.withdrawals ?? []).map(mapWithdrawalInstruction),
   };
 }
 
@@ -310,9 +391,11 @@ export function mapMarketplaceNoteDetail(note: NoteWithRelations) {
   };
 }
 
-export function mapLedgerEntry(entry: Prisma.NoteLedgerEntryGetPayload<{
-  include: { account: true };
-}>) {
+export function mapLedgerEntry(
+  entry: Prisma.NoteLedgerEntryGetPayload<{
+    include: { account: true };
+  }>
+) {
   return {
     id: entry.id,
     noteId: entry.note_id,
@@ -327,4 +410,3 @@ export function mapLedgerEntry(entry: Prisma.NoteLedgerEntryGetPayload<{
     metadata: asRecord(entry.metadata),
   };
 }
-

@@ -15,7 +15,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@cashsouk/ui";
 import { useNoteDetail } from "../hooks/use-note-detail";
 import {
-  useActivateNote,
   useCloseNoteFunding,
   useFailNoteFunding,
   usePublishNote,
@@ -40,7 +39,6 @@ export function NoteDetailModal({ noteId, open, onOpenChange }: NoteDetailModalP
   const unpublishNote = useUnpublishNote();
   const closeFunding = useCloseNoteFunding();
   const failFunding = useFailNoteFunding();
-  const activateNote = useActivateNote();
 
   const handlePublish = async () => {
     if (!note) return;
@@ -77,7 +75,8 @@ export function NoteDetailModal({ noteId, open, onOpenChange }: NoteDetailModalP
         <DialogHeader>
           <DialogTitle>{note?.title ?? "Note detail"}</DialogTitle>
           <DialogDescription>
-            {note?.noteReference ?? "Review source data, terms, marketplace status, and audit trail."}
+            {note?.noteReference ??
+              "Review source data, terms, marketplace status, and audit trail."}
           </DialogDescription>
         </DialogHeader>
         {isLoading ? (
@@ -118,7 +117,9 @@ export function NoteDetailModal({ noteId, open, onOpenChange }: NoteDetailModalP
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => handleAction("Funding closed", () => closeFunding.mutateAsync(note.id))}
+                    onClick={() =>
+                      handleAction("Funding closed", () => closeFunding.mutateAsync(note.id))
+                    }
                     disabled={closeFunding.isPending || note.fundingStatus !== "OPEN"}
                   >
                     Close Funding
@@ -126,18 +127,12 @@ export function NoteDetailModal({ noteId, open, onOpenChange }: NoteDetailModalP
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => handleAction("Funding failed", () => failFunding.mutateAsync(note.id))}
+                    onClick={() =>
+                      handleAction("Funding failed", () => failFunding.mutateAsync(note.id))
+                    }
                     disabled={failFunding.isPending || note.fundingStatus !== "OPEN"}
                   >
                     Fail Funding
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleAction("Note activated", () => activateNote.mutateAsync(note.id))}
-                    disabled={activateNote.isPending || note.fundingStatus !== "FUNDED"}
-                  >
-                    Activate
                   </Button>
                 </div>
               </div>
@@ -154,4 +149,3 @@ export function NoteDetailModal({ noteId, open, onOpenChange }: NoteDetailModalP
     </Dialog>
   );
 }
-

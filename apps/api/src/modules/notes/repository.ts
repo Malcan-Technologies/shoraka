@@ -30,10 +30,15 @@ export class NoteRepository {
       issuerOrganizationId,
       paymaster,
       featuredOnly,
+      excludeRepaid,
     } = params;
     const where: Prisma.NoteWhereInput = {};
 
-    if (status) where.status = status;
+    if (status) {
+      where.status = status;
+    } else if (excludeRepaid) {
+      where.status = { not: NoteStatus.REPAID };
+    }
     if (listingStatus) where.listing_status = listingStatus;
     if (fundingStatus) where.funding_status = fundingStatus;
     if (servicingStatus) where.servicing_status = servicingStatus;

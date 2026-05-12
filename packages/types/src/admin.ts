@@ -444,6 +444,8 @@ export interface OrganizationResponse {
   memberCount: number;
   isSophisticatedInvestor: boolean; // Only applicable for investor portal
   depositReceived: boolean; // Only applicable for investor portal
+  walletBalance: number | null; // Investor portal only — available cash in investor wallet
+  investedAmount: number | null; // Investor portal only — total amount currently invested across active notes
   riskLevel: string | null; // From KYC response: "Low Risk", "Medium Risk", "High Risk"
   riskScore: string | null; // From KYC response: numeric score as string
   createdAt: string;
@@ -600,6 +602,12 @@ export interface OrganizationDetailResponse {
   // Sophisticated investor status (only for investor portal)
   isSophisticatedInvestor: boolean;
   sophisticatedInvestorReason: string | null;
+
+  // Investor wallet balance (only for investor portal; null for issuer)
+  walletBalance: number | null;
+
+  // Total active invested amount across COMMITTED + CONFIRMED investments (investor portal only)
+  investedAmount: number | null;
 
   // RegTank portal link (for viewing in RegTank admin)
   regtankPortalUrl: string | null;

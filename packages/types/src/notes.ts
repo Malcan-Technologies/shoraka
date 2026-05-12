@@ -83,6 +83,7 @@ export enum NoteLedgerAccountType {
   OPERATING_ACCOUNT = "OPERATING_ACCOUNT",
   TAWIDH_ACCOUNT = "TAWIDH_ACCOUNT",
   GHARAMAH_ACCOUNT = "GHARAMAH_ACCOUNT",
+  ISSUER_PAYABLE = "ISSUER_PAYABLE",
 }
 
 export enum NoteLedgerDirection {
@@ -100,6 +101,7 @@ export enum WithdrawalStatus {
 
 export enum WithdrawalType {
   INVESTOR_WITHDRAWAL = "INVESTOR_WITHDRAWAL",
+  ISSUER_DISBURSEMENT = "ISSUER_DISBURSEMENT",
   ISSUER_RESIDUAL_RETURN = "ISSUER_RESIDUAL_RETURN",
   ADMIN_ADJUSTMENT = "ADMIN_ADJUSTMENT",
 }
@@ -189,6 +191,7 @@ export interface NoteDetail extends NoteListItem {
   paymentSchedules: NotePaymentSchedule[];
   payments: NotePayment[];
   settlements: NoteSettlement[];
+  withdrawals: WithdrawalInstruction[];
   events: NoteEvent[];
 }
 
@@ -356,9 +359,97 @@ export interface NoteActionRequiredCountResponse {
     readyInvoices: number;
     draftNotes: number;
     fundingReady: number;
-    activationReady: number;
-    pendingIssuerPayments: number;
   };
+}
+
+export interface AdminInvestmentItem {
+  id: string;
+  noteId: string;
+  noteTitle: string | null;
+  noteReference: string | null;
+  noteStatus: NoteStatus | string | null;
+  noteFundingStatus: NoteFundingStatus | string | null;
+  noteTargetAmount: number | null;
+  issuerOrganizationId: string | null;
+  issuerOrganizationName: string | null;
+  investorOrganizationId: string;
+  investorOrganizationName: string | null;
+  investorUserId: string;
+  investorUserName: string | null;
+  investorUserEmail: string | null;
+  status: NoteInvestmentStatus;
+  amount: number;
+  allocationPercent: number;
+  currency: string;
+  committedAt: string | null;
+  confirmedAt: string | null;
+  releasedAt: string | null;
+}
+
+export interface AdminInvestmentsPagination {
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+}
+
+export interface GetAdminInvestmentsParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  status?: NoteInvestmentStatus;
+  noteId?: string;
+  investorOrganizationId?: string;
+}
+
+export interface GetAdminInvestmentsResponse {
+  items: AdminInvestmentItem[];
+  pagination: AdminInvestmentsPagination;
+}
+
+export type PendingRepaymentAction = "REVIEW" | "AWAIT_REMAINDER" | "POST_SETTLEMENT";
+
+export interface PendingRepaymentItem {
+  paymentId: string;
+  noteId: string;
+  noteTitle: string | null;
+  noteStatus: string | null;
+  amount: number;
+  currency: string;
+  receivedAt: string | null;
+  reference: string | null;
+  source: string;
+  status: string;
+  actionNeeded: PendingRepaymentAction;
+  issuerOrganizationId: string | null;
+  issuerOrganizationName: string | null;
+  createdAt: string;
+}
+
+export interface PendingRepaymentsResponse {
+  count: number;
+  items: PendingRepaymentItem[];
+}
+
+export interface PendingIssuerPayoutItem {
+  withdrawalId: string;
+  noteId: string;
+  noteTitle: string | null;
+  noteStatus: string | null;
+  issuerOrganizationId: string | null;
+  issuerOrganizationName: string | null;
+  withdrawalType: string;
+  amount: number;
+  currency: string;
+  status: string;
+  generatedAt: string | null;
+  submittedToTrusteeAt: string | null;
+  createdAt: string;
+}
+
+export interface PendingIssuerPayoutsResponse {
+  count: number;
+  items: PendingIssuerPayoutItem[];
 }
 
 export interface PlatformFinanceSetting {
@@ -380,6 +471,7 @@ export interface PlatformFinanceSetting {
 export interface WithdrawalInstruction {
   id: string;
   noteId: string | null;
+  settlementId: string | null;
   investorOrganizationId: string | null;
   issuerOrganizationId: string | null;
   requestedByUserId: string;
@@ -392,6 +484,7 @@ export interface WithdrawalInstruction {
   letterS3Key: string | null;
   generatedAt: string | null;
   submittedToTrusteeAt: string | null;
+  completedAt: string | null;
   createdAt: string;
 }
 
@@ -406,6 +499,7 @@ export interface GetAdminNotesParams {
   issuerOrganizationId?: string;
   paymaster?: string;
   featuredOnly?: boolean;
+  excludeRepaid?: boolean;
 }
 
 export interface NotesResponse {
@@ -531,6 +625,8 @@ export interface RecordNotePaymentInput {
   reference?: string | null;
   evidenceS3Key?: string | null;
   scheduleId?: string | null;
+  pendingTawidhAmount?: number;
+  pendingGharamahAmount?: number;
   metadata?: Record<string, unknown> | null;
 }
 
@@ -564,4 +660,3 @@ export interface OverdueLateChargeResult {
   suggestedGharamahAmount: number;
   message: string;
 }
-

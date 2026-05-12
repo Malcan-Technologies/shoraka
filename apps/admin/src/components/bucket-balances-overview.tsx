@@ -13,6 +13,7 @@ const bucketDescriptions: Record<string, string> = {
   OPERATING_ACCOUNT: "Platform income",
   TAWIDH_ACCOUNT: "Compensation charges",
   GHARAMAH_ACCOUNT: "Charity/penalty charges",
+  ISSUER_PAYABLE: "Residuals owed to issuers",
 };
 
 export function BucketBalancesOverview() {
@@ -28,8 +29,8 @@ export function BucketBalancesOverview() {
         </CardHeader>
         <CardContent className="space-y-4">
           <Skeleton className="h-20 w-full rounded-xl" />
-          <div className="grid gap-3 md:grid-cols-5">
-            {Array.from({ length: 5 }).map((_, index) => (
+          <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
+            {Array.from({ length: 6 }).map((_, index) => (
               <Skeleton key={index} className="h-28 rounded-xl" />
             ))}
           </div>
@@ -48,7 +49,7 @@ export function BucketBalancesOverview() {
               Bucket Balances
             </CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">
-              Ledger-derived balances across the five platform money buckets.
+              Ledger-derived balances across all platform money buckets.
             </p>
           </div>
           <Button asChild variant="outline" size="sm" className="gap-2">
@@ -87,7 +88,7 @@ export function BucketBalancesOverview() {
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-5">
+        <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
           {buckets.map((bucket) => {
             const width = `${Math.max(4, (Math.abs(bucket.balance) / largestBalance) * 100)}%`;
             return (

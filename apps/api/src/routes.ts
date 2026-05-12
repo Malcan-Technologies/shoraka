@@ -24,6 +24,7 @@ import { activityRouter } from "./modules/activity/controller";
 import { createS3Router } from "./modules/s3/controller";
 import { notificationRouter } from "./modules/notification/controller";
 import {
+  adminInvestmentsRouter,
   adminNotesRouter,
   investorNotesRouter,
   issuerNotesRouter,
@@ -112,6 +113,7 @@ export function registerRoutes(app: Application): void {
     logger.warn("🔓 DEVELOPMENT MODE: Admin routes using authentication bypass");
     v1Router.use("/admin", devAuthBypass, requireRole(UserRole.ADMIN), adminRouter);
     v1Router.use("/admin/notes", devAuthBypass, adminNotesRouter);
+    v1Router.use("/admin/investments", devAuthBypass, adminInvestmentsRouter);
     v1Router.use("/admin/platform-finance-settings", devAuthBypass, platformFinanceSettingsRouter);
     v1Router.use("/admin/withdrawals", devAuthBypass, withdrawalsRouter);
     v1Router.use("/admin/site-documents", devAuthBypass, requireRole(UserRole.ADMIN), siteDocumentAdminRouter);
@@ -120,6 +122,7 @@ export function registerRoutes(app: Application): void {
   } else {
     v1Router.use("/admin", requireAuth, requireRole(UserRole.ADMIN), adminRouter);
     v1Router.use("/admin/notes", requireAuth, adminNotesRouter);
+    v1Router.use("/admin/investments", requireAuth, adminInvestmentsRouter);
     v1Router.use("/admin/platform-finance-settings", requireAuth, platformFinanceSettingsRouter);
     v1Router.use("/admin/withdrawals", requireAuth, withdrawalsRouter);
     v1Router.use("/admin/site-documents", requireAuth, requireRole(UserRole.ADMIN), siteDocumentAdminRouter);

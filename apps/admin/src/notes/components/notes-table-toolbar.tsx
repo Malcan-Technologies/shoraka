@@ -2,6 +2,8 @@ import { NoteStatus } from "@cashsouk/types";
 import { ListToolbar } from "@/shared/admin-list/components/list-toolbar";
 import { formatNoteStatus } from "@/notes/utils/format-note-status";
 
+export const NOTE_STATUS_FILTER_ACTIVE_LOANS = "ACTIVE_LOANS" as const;
+
 interface NotesTableToolbarProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
@@ -40,10 +42,13 @@ export function NotesTableToolbar({
       searchPlaceholder="Search notes, reference, application, issuer, or paymaster"
       statusFilters={statusFilters}
       onStatusFiltersChange={handleStatusFiltersChange}
-      statusOptions={Object.values(NoteStatus).map((value) => ({
-        value,
-        label: formatNoteStatus(value),
-      }))}
+      statusOptions={[
+        { value: NOTE_STATUS_FILTER_ACTIVE_LOANS, label: "Active loans (exclude repaid)" },
+        ...Object.values(NoteStatus).map((value) => ({
+          value,
+          label: formatNoteStatus(value),
+        })),
+      ]}
       statusFilterMode="single"
       totalCount={totalCount}
       filteredCount={totalCount}

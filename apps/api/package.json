@@ -23,7 +23,9 @@
     "seed-application-invoice-only": "tsx scripts/seed-application-invoice-only.ts",
     "seed-application-existing-contract": "tsx scripts/seed-application-existing-contract.ts",
     "seed-note-scenarios": "tsx scripts/seed-note-scenarios.ts",
+    "seed-prefunding-test-notes": "tsx scripts/seed-prefunding-test-notes.ts",
     "run-offer-expiry": "tsx scripts/run-offer-expiry.ts",
+    "run-note-listing-expiry": "tsx scripts/run-note-listing-expiry.ts",
     "seed-expired-offer-for-test": "tsx scripts/seed-expired-offer-for-test.ts",
     "clean": "rm -rf dist"
   },

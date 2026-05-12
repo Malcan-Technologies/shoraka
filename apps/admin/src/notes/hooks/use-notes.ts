@@ -7,7 +7,19 @@ import type {
   UpdateNoteFeaturedInput,
   UpdateNoteDraftInput,
 } from "@cashsouk/types";
+import { adminInvestmentsKeys } from "@/investments/hooks/use-admin-investments";
 import { notesKeys } from "../query-keys";
+
+/**
+ * Broad invalidation that refreshes everything driven by a note-side mutation:
+ * the sidebar/dashboard counts (action-count, pending-repayments, pending-issuer-payouts),
+ * the bucket balances, the notes list/detail, and the investments registry. Use this from
+ * any mutation that could change a count, bucket balance, or investment status.
+ */
+function invalidateAdminRegistries(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: notesKeys.all });
+  queryClient.invalidateQueries({ queryKey: adminInvestmentsKeys.all });
+}
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -89,6 +101,34 @@ export function useNoteActionRequiredCount() {
   });
 }
 
+export function usePendingRepayments() {
+  const apiClient = useNotesApiClient();
+  return useQuery({
+    queryKey: [...notesKeys.all, "pending-repayments"],
+    queryFn: async () => {
+      const response = await apiClient.getAdminPendingRepayments();
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    staleTime: 30000,
+    refetchInterval: 60000,
+  });
+}
+
+export function usePendingIssuerPayouts() {
+  const apiClient = useNotesApiClient();
+  return useQuery({
+    queryKey: [...notesKeys.all, "pending-issuer-payouts"],
+    queryFn: async () => {
+      const response = await apiClient.getAdminPendingIssuerPayouts();
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    staleTime: 30000,
+    refetchInterval: 60000,
+  });
+}
+
 export function useCreateNoteFromInvoice() {
   const apiClient = useNotesApiClient();
   const queryClient = useQueryClient();
@@ -98,7 +138,7 @@ export function useCreateNoteFromInvoice() {
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: notesKeys.all }),
+    onSuccess: () => invalidateAdminRegistries(queryClient),
   });
 }
 
@@ -112,7 +152,7 @@ export function useUpdateNoteDraft() {
       return response.data;
     },
     onSuccess: (note) => {
-      queryClient.invalidateQueries({ queryKey: notesKeys.all });
+      invalidateAdminRegistries(queryClient);
       queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
     },
   });
@@ -128,7 +168,7 @@ export function useUpdateNoteFeatured() {
       return response.data;
     },
     onSuccess: (note) => {
-      queryClient.invalidateQueries({ queryKey: notesKeys.all });
+      invalidateAdminRegistries(queryClient);
       queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
     },
   });
@@ -144,7 +184,7 @@ export function usePublishNote() {
       return response.data;
     },
     onSuccess: (note) => {
-      queryClient.invalidateQueries({ queryKey: notesKeys.all });
+      invalidateAdminRegistries(queryClient);
       queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
     },
   });
@@ -160,7 +200,7 @@ export function useUnpublishNote() {
       return response.data;
     },
     onSuccess: (note) => {
-      queryClient.invalidateQueries({ queryKey: notesKeys.all });
+      invalidateAdminRegistries(queryClient);
       queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
     },
   });
@@ -181,7 +221,7 @@ function useNoteAction(action: "close" | "fail" | "activate") {
       return response.data;
     },
     onSuccess: (note) => {
-      queryClient.invalidateQueries({ queryKey: notesKeys.all });
+      invalidateAdminRegistries(queryClient);
       queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
     },
   });
@@ -209,7 +249,7 @@ export function useRecordNotePayment() {
       return response.data;
     },
     onSuccess: (note) => {
-      queryClient.invalidateQueries({ queryKey: notesKeys.all });
+      invalidateAdminRegistries(queryClient);
       queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
     },
   });
@@ -225,7 +265,7 @@ export function useApproveNotePayment() {
       return response.data;
     },
     onSuccess: (note) => {
-      queryClient.invalidateQueries({ queryKey: notesKeys.all });
+      invalidateAdminRegistries(queryClient);
       queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
     },
   });
@@ -241,7 +281,7 @@ export function useRejectNotePayment() {
       return response.data;
     },
     onSuccess: (note) => {
-      queryClient.invalidateQueries({ queryKey: notesKeys.all });
+      invalidateAdminRegistries(queryClient);
       queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
     },
   });
@@ -268,7 +308,7 @@ export function useApproveNoteSettlement() {
       return response.data;
     },
     onSuccess: (note) => {
-      queryClient.invalidateQueries({ queryKey: notesKeys.all });
+      invalidateAdminRegistries(queryClient);
       queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
     },
   });
@@ -284,7 +324,7 @@ export function usePostNoteSettlement() {
       return response.data;
     },
     onSuccess: (note) => {
-      queryClient.invalidateQueries({ queryKey: notesKeys.all });
+      invalidateAdminRegistries(queryClient);
       queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
       queryClient.invalidateQueries({ queryKey: [...notesKeys.detail(note.id), "ledger"] });
     },
@@ -301,6 +341,7 @@ export function useGenerateArrearsLetter() {
       return { ...response.data, noteId: id };
     },
     onSuccess: ({ noteId }) => {
+      invalidateAdminRegistries(queryClient);
       queryClient.invalidateQueries({ queryKey: notesKeys.detail(noteId) });
     },
   });
@@ -316,6 +357,7 @@ export function useCheckOverdueLateCharge() {
       return response.data;
     },
     onSuccess: (_result, variables) => {
+      invalidateAdminRegistries(queryClient);
       queryClient.invalidateQueries({ queryKey: notesKeys.detail(variables.id) });
     },
   });
@@ -331,6 +373,7 @@ export function useGenerateDefaultLetter() {
       return { ...response.data, noteId: id };
     },
     onSuccess: ({ noteId }) => {
+      invalidateAdminRegistries(queryClient);
       queryClient.invalidateQueries({ queryKey: notesKeys.detail(noteId) });
     },
   });
@@ -346,9 +389,81 @@ export function useMarkNoteDefault() {
       return response.data;
     },
     onSuccess: (note) => {
-      queryClient.invalidateQueries({ queryKey: notesKeys.all });
+      invalidateAdminRegistries(queryClient);
       queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
     },
   });
 }
 
+function invalidateWithdrawalNote(queryClient: ReturnType<typeof useQueryClient>, noteId: string | null) {
+  invalidateAdminRegistries(queryClient);
+  if (!noteId) return;
+  queryClient.invalidateQueries({ queryKey: notesKeys.detail(noteId) });
+  queryClient.invalidateQueries({ queryKey: [...notesKeys.detail(noteId), "ledger"] });
+}
+
+export function useGenerateWithdrawalLetter() {
+  const apiClient = useNotesApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.generateWithdrawalLetter(id);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: (withdrawal) => {
+      invalidateWithdrawalNote(queryClient, withdrawal.noteId);
+    },
+  });
+}
+
+export function useMarkWithdrawalSubmitted() {
+  const apiClient = useNotesApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.markWithdrawalSubmittedToTrustee(id);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: (withdrawal) => {
+      invalidateWithdrawalNote(queryClient, withdrawal.noteId);
+    },
+  });
+}
+
+export function useMarkWithdrawalCompleted() {
+  const apiClient = useNotesApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.markWithdrawalCompleted(id);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: (withdrawal) => {
+      invalidateWithdrawalNote(queryClient, withdrawal.noteId);
+    },
+  });
+}
+
+export function useUpdateWithdrawalBeneficiary() {
+  const apiClient = useNotesApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      beneficiarySnapshot,
+    }: {
+      id: string;
+      beneficiarySnapshot: Record<string, unknown>;
+    }) => {
+      const response = await apiClient.updateWithdrawalBeneficiary(id, beneficiarySnapshot);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: (withdrawal) => {
+      invalidateWithdrawalNote(queryClient, withdrawal.noteId);
+    },
+  });
+}

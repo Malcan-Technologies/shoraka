@@ -21,6 +21,8 @@ import {
   CubeIcon,
   QuestionMarkCircleIcon,
   BanknotesIcon,
+  ArrowDownTrayIcon,
+  ArrowUpTrayIcon,
 } from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
@@ -48,7 +50,11 @@ import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
 import { useApplicationActionRequiredCount } from "@/hooks/use-application-action-required-count";
 import { useProducts } from "@/hooks/use-products";
 import { useAdminApplicationsForSidebar } from "@/hooks/use-admin-applications-for-sidebar";
-import { useNoteActionRequiredCount } from "@/notes/hooks/use-notes";
+import {
+  useNoteActionRequiredCount,
+  usePendingRepayments,
+  usePendingIssuerPayouts,
+} from "@/notes/hooks/use-notes";
 import { productName } from "@/app/settings/products/product-utils";
 import { APPLICATION_ACTION_REQUIRED_STATUS_SET } from "@/applications/action-required-statuses";
 import { cn } from "@/lib/utils";
@@ -160,6 +166,26 @@ const navLifecycleConfig = [
   },
 ] as const;
 
+const navFinance = [
+  {
+    title: "Bucket Balances",
+    url: "/finance/buckets",
+    icon: BanknotesIcon,
+  },
+  {
+    title: "Repayments",
+    url: "/finance/repayments",
+    icon: ArrowDownTrayIcon,
+    badgeKey: "pendingRepayments" as const,
+  },
+  {
+    title: "Issuer Payouts",
+    url: "/finance/issuer-payouts",
+    icon: ArrowUpTrayIcon,
+    badgeKey: "pendingIssuerPayouts" as const,
+  },
+] as const;
+
 const navPlatform = [
   {
     title: "Users",
@@ -170,11 +196,6 @@ const navPlatform = [
     title: "Organizations",
     url: "/organizations",
     icon: BuildingOffice2Icon,
-  },
-  {
-    title: "Bucket Balances",
-    url: "/finance/buckets",
-    icon: BanknotesIcon,
   },
   {
     title: "Documents",
@@ -213,14 +234,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: pendingCountData } = usePendingApprovalCount();
   const { data: applicationActionCountData } = useApplicationActionRequiredCount();
   const { data: noteActionCountData } = useNoteActionRequiredCount();
+  const { data: pendingRepaymentsData } = usePendingRepayments();
+  const { data: pendingIssuerPayoutsData } = usePendingIssuerPayouts();
   const { data: productsData } = useProducts({ page: 1, pageSize: 100, includeDeleted: true });
   const { data: applicationsForSidebar = [] } = useAdminApplicationsForSidebar();
 
-  // Build badges dynamically
   const badges: Record<string, number> = {
     onboardingApproval: pendingCountData?.count || 0,
     applicationActions: applicationActionCountData?.count || 0,
     noteActions: noteActionCountData?.count || 0,
+    pendingRepayments: pendingRepaymentsData?.count || 0,
+    pendingIssuerPayouts: pendingIssuerPayoutsData?.count || 0,
   };
 
   const dynamicNavLifecycle = React.useMemo(() => {
@@ -360,6 +384,37 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <SidebarMenuButton
                       asChild
                       isActive={pathname === item.url}
+                      tooltip={item.title}
+                    >
+                      <Link href={item.url}>
+                        <Icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                    {badgeCount > 0 && (
+                      <SidebarMenuBadge className="bg-primary text-primary-foreground peer-hover/menu-button:text-primary-foreground peer-data-[active=true]/menu-button:text-primary-foreground">
+                        {badgeCount}
+                      </SidebarMenuBadge>
+                    )}
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Finance</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {navFinance.map((item) => {
+                const Icon = item.icon;
+                const badgeCount = "badgeKey" in item && item.badgeKey ? badges[item.badgeKey] : 0;
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname === item.url || pathname.startsWith(item.url + "/")}
                       tooltip={item.title}
                     >
                       <Link href={item.url}>

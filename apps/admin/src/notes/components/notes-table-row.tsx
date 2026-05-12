@@ -7,16 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { formatNoteStatus } from "@/notes/utils/format-note-status";
-import {
-  ArchiveBoxIcon,
-  BanknotesIcon,
-  CheckCircleIcon,
-  ClockIcon,
-  EyeIcon,
-  ExclamationTriangleIcon,
-  PaperAirplaneIcon,
-  XCircleIcon,
-} from "@heroicons/react/24/outline";
+import { NoteStatusBadge } from "@/notes/components/note-status-badge";
+import { CheckCircleIcon, EyeIcon } from "@heroicons/react/24/outline";
 
 type NotesTableRowProps =
   | {
@@ -43,71 +35,14 @@ function formatDate(value: string | null) {
   return value ? format(new Date(value), "dd MMM yyyy") : "—";
 }
 
-function getFundingProgressClass(fundingStatus: NoteListItem["fundingStatus"]) {
-  if (fundingStatus === "FUNDED" || fundingStatus === "FAILED") {
+function getFundingProgressClass(note: NoteListItem) {
+  if (note.status === "REPAID") {
+    return "bg-muted [&>div]:bg-emerald-500";
+  }
+  if (note.fundingStatus === "FUNDED" || note.fundingStatus === "FAILED") {
     return "bg-muted [&>div]:bg-black";
   }
   return "[&>div]:bg-primary";
-}
-
-const noteStatusConfig: Record<
-  string,
-  {
-    className: string;
-    icon: React.ComponentType<{ className?: string }>;
-  }
-> = {
-  DRAFT: {
-    className: "border-transparent bg-status-action-bg text-status-action-text dark:bg-amber-950/40 dark:text-amber-300",
-    icon: ClockIcon,
-  },
-  PUBLISHED: {
-    className: "border-transparent bg-status-submitted-bg text-status-submitted-text dark:bg-blue-950/40 dark:text-blue-300",
-    icon: PaperAirplaneIcon,
-  },
-  FUNDING: {
-    className: "border-transparent bg-status-in-progress-bg text-status-in-progress-text dark:bg-indigo-950/40 dark:text-indigo-300",
-    icon: BanknotesIcon,
-  },
-  ACTIVE: {
-    className: "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300",
-    icon: CheckCircleIcon,
-  },
-  REPAID: {
-    className: "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300",
-    icon: CheckCircleIcon,
-  },
-  ARREARS: {
-    className: "border-transparent bg-status-action-bg text-status-action-text dark:bg-amber-950/40 dark:text-amber-300",
-    icon: ExclamationTriangleIcon,
-  },
-  DEFAULTED: {
-    className: "border-transparent bg-status-rejected-bg text-status-rejected-text dark:bg-red-950/40 dark:text-red-300",
-    icon: XCircleIcon,
-  },
-  FAILED_FUNDING: {
-    className: "border-transparent bg-status-rejected-bg text-status-rejected-text dark:bg-red-950/40 dark:text-red-300",
-    icon: XCircleIcon,
-  },
-  CANCELLED: {
-    className: "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300",
-    icon: ArchiveBoxIcon,
-  },
-};
-
-function NoteStatusBadge({ status }: { status: string }) {
-  const config = noteStatusConfig[status] ?? {
-    className: "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300",
-    icon: ClockIcon,
-  };
-  const Icon = config.icon;
-
-  return (
-    <Badge variant="outline" className={`max-w-full truncate ${config.className}`}>
-      <Icon className="mr-1 h-3.5 w-3.5 shrink-0" />
-      {formatNoteStatus(status)}
-    </Badge>
-  );
 }
 
 function RiskBadge({ riskRating }: { riskRating: string | null | undefined }) {
@@ -164,16 +99,21 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
           <span className="shrink-0 font-medium">{note.fundingPercent.toFixed(1)}%</span>
           <span className="truncate text-xs text-muted-foreground">{formatNoteStatus(note.fundingStatus)}</span>
         </div>
-        <Progress value={fundingProgress} className={`mt-2 h-2 ${getFundingProgressClass(note.fundingStatus)}`} />
+        <Progress value={fundingProgress} className={`mt-2 h-2 ${getFundingProgressClass(note)}`} />
         <div className="truncate text-xs text-muted-foreground">{formatCurrency(note.fundedAmount)} funded</div>
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
-        <NoteStatusBadge status={note.status} />
+        <NoteStatusBadge note={note} />
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         {note.settlementSummary ? (
           <div className="min-w-0">
-            <Badge variant="secondary">Settled</Badge>
+            <Badge
+              variant="outline"
+              className="border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300"
+            >
+              Settled
+            </Badge>
             <div className="mt-1 truncate text-xs text-muted-foreground">
               Repayment {formatCurrency(note.settlementSummary.grossReceiptAmount)}
             </div>
