@@ -1,5 +1,4 @@
 import { Prisma } from "@prisma/client";
-import { AppError } from "../../lib/http/error-handler";
 import { debitInvestorBalanceForCommit } from "./investor-balance";
 
 describe("debitInvestorBalanceForCommit", () => {

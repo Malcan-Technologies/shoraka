@@ -4,7 +4,9 @@ import * as React from "react";
 import { QuickActionCard } from "./quick-action-card";
 import { Button } from "./ui/button";
 import {
+  ArrowDownTrayIcon,
   ArrowPathIcon,
+  ArrowUpTrayIcon,
   ClipboardDocumentCheckIcon,
   DocumentCheckIcon,
   DocumentTextIcon,
@@ -14,7 +16,11 @@ import { useAdminApplicationsForSidebar } from "@/hooks/use-admin-applications-f
 import { useApplicationActionRequiredCount } from "@/hooks/use-application-action-required-count";
 import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
 import { useProducts } from "@/hooks/use-products";
-import { useNoteActionRequiredCount } from "@/notes/hooks/use-notes";
+import {
+  useNoteActionRequiredCount,
+  usePendingRepayments,
+  usePendingIssuerPayouts,
+} from "@/notes/hooks/use-notes";
 
 interface QuickActionsSectionProps {
   loading?: boolean;
@@ -32,6 +38,8 @@ export function QuickActionsSection({
   const { data: applicationActionCountData, isLoading: isApplicationActionCountLoading } =
     useApplicationActionRequiredCount();
   const { data: noteActionCountData, isLoading: isNoteActionCountLoading } = useNoteActionRequiredCount();
+  const { data: pendingRepaymentsData, isLoading: isPendingRepaymentsLoading } = usePendingRepayments();
+  const { data: pendingIssuerPayoutsData, isLoading: isPendingIssuerPayoutsLoading } = usePendingIssuerPayouts();
   const { data: applicationsForSidebar = [], isLoading: isApplicationsForSidebarLoading } =
     useAdminApplicationsForSidebar();
   const { data: productsData, isLoading: isProductsLoading } = useProducts({
@@ -42,6 +50,8 @@ export function QuickActionsSection({
   const pendingOnboardingCount = pendingCountData?.count ?? 0;
   const applicationActionCount = applicationActionCountData?.count ?? 0;
   const noteActionCount = noteActionCountData?.count ?? 0;
+  const pendingRepaymentsCount = pendingRepaymentsData?.count ?? 0;
+  const pendingIssuerPayoutsCount = pendingIssuerPayoutsData?.count ?? 0;
   const firstActionApplication = applicationsForSidebar.find(
     (application) =>
       APPLICATION_ACTION_REQUIRED_STATUS_SET.has(application.status) &&
@@ -88,7 +98,7 @@ export function QuickActionsSection({
           </Button>
         )}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <QuickActionCard
           title="Onboarding Approval"
           description="Review pending KYC/KYB applications"
@@ -123,7 +133,7 @@ export function QuickActionsSection({
         />
         <QuickActionCard
           title="Note Actions"
-          description="Create, publish, close funding, activate, or review note payments"
+          description="Create notes from approved invoices, publish drafts, and close funded notes"
           count={noteActionCount}
           countLabel="actions"
           href="/notes"
@@ -136,6 +146,38 @@ export function QuickActionsSection({
                 : "default"
           }
           loading={loading || isNoteActionCountLoading}
+        />
+        <QuickActionCard
+          title="Pending Repayments"
+          description="Review repayment receipts awaiting reconciliation before settlement"
+          count={pendingRepaymentsCount}
+          countLabel="open"
+          href="/finance/repayments"
+          icon={ArrowDownTrayIcon}
+          variant={
+            pendingRepaymentsCount > 5
+              ? "urgent"
+              : pendingRepaymentsCount > 0
+                ? "warning"
+                : "default"
+          }
+          loading={loading || isPendingRepaymentsLoading}
+        />
+        <QuickActionCard
+          title="Issuer Payouts"
+          description="Issuer residual refunds in flight — generate letters and mark disbursed"
+          count={pendingIssuerPayoutsCount}
+          countLabel="open"
+          href="/finance/issuer-payouts"
+          icon={ArrowUpTrayIcon}
+          variant={
+            pendingIssuerPayoutsCount > 5
+              ? "urgent"
+              : pendingIssuerPayoutsCount > 0
+                ? "warning"
+                : "default"
+          }
+          loading={loading || isPendingIssuerPayoutsLoading}
         />
       </div>
     </section>

@@ -29,6 +29,7 @@ export function calculateSettlementWaterfall(input: SettlementWaterfallInput) {
   );
 
   return {
+    grossReceiptAmount: input.grossReceiptAmount,
     investorPrincipal,
     investorProfitGross,
     serviceFeeAmount,

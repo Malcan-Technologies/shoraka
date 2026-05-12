@@ -1416,6 +1416,8 @@ export class AdminRepository {
       memberCount: number;
       isSophisticatedInvestor: boolean;
       depositReceived: boolean;
+      walletBalance: number | null;
+      investedAmount: number | null;
       riskLevel: string | null;
       riskScore: string | null;
       createdAt: Date;
@@ -1499,6 +1501,7 @@ export class AdminRepository {
       updated_at: Date;
       owner: { user_id: string | null; email: string; first_name: string; last_name: string };
       _count: { members: number };
+      investor_balance: { available_amount: Prisma.Decimal } | null;
     }> = [];
     let issuerOrgs: Array<{
       id: string;
@@ -1520,11 +1523,30 @@ export class AdminRepository {
       [investorOrgs, investorCount] = await Promise.all([
         prisma.investorOrganization.findMany({
           where,
-          include,
+          include: {
+            ...include,
+            investor_balance: { select: { available_amount: true } },
+          },
           orderBy: { created_at: "desc" },
         }),
         prisma.investorOrganization.count({ where }),
       ]);
+    }
+
+    // Aggregate active invested amount (COMMITTED + CONFIRMED) per investor org.
+    let investedAmountByOrgId = new Map<string, number>();
+    if (investorOrgs.length > 0) {
+      const investedRows = await prisma.noteInvestment.groupBy({
+        by: ["investor_organization_id"],
+        where: {
+          investor_organization_id: { in: investorOrgs.map((o) => o.id) },
+          status: { in: ["COMMITTED", "CONFIRMED"] },
+        },
+        _sum: { amount: true },
+      });
+      investedAmountByOrgId = new Map(
+        investedRows.map((row) => [row.investor_organization_id, row._sum.amount?.toNumber() ?? 0])
+      );
     }
 
     if (!portal || portal === "issuer") {
@@ -1596,6 +1618,8 @@ export class AdminRepository {
           memberCount: org._count.members,
           isSophisticatedInvestor: org.is_sophisticated_investor,
           depositReceived: org.deposit_received,
+          walletBalance: org.investor_balance?.available_amount?.toNumber() ?? 0,
+          investedAmount: investedAmountByOrgId.get(org.id) ?? 0,
           riskLevel,
           riskScore,
           createdAt: org.created_at,
@@ -1630,6 +1654,8 @@ export class AdminRepository {
           memberCount: org._count.members,
           isSophisticatedInvestor: false, // Issuers don't have sophisticated investor status
           depositReceived: false, // Issuers don't have deposit received status
+          walletBalance: null, // Issuers don't have an investor wallet
+          investedAmount: null, // Issuers don't deploy investments
           riskLevel,
           riskScore,
           createdAt: org.created_at,
@@ -1695,6 +1721,8 @@ export class AdminRepository {
     // Sophisticated investor status (only for investor portal)
     is_sophisticated_investor?: boolean;
     sophisticated_investor_reason?: string | null;
+    // Investor wallet balance row (only for investor portal)
+    investor_balance?: { available_amount: Prisma.Decimal } | null;
     owner: {
       user_id: string;
       email: string;
@@ -1762,7 +1790,10 @@ export class AdminRepository {
     if (portal === "investor") {
       return prisma.investorOrganization.findUnique({
         where: { id },
-        include,
+        include: {
+          ...include,
+          investor_balance: { select: { available_amount: true } },
+        },
       });
     } else {
       return prisma.issuerOrganization.findUnique({

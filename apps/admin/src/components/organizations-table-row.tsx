@@ -4,6 +4,7 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format, formatDistanceToNow } from "date-fns";
+import { formatCurrency } from "@cashsouk/config";
 import type { OrganizationResponse } from "@cashsouk/types";
 import {
   UserIcon,
@@ -170,6 +171,26 @@ export function OrganizationsTableRow({
               </Badge>
             ) : (
               <span className="text-muted-foreground text-sm">Pending</span>
+            )}
+          </TableCell>
+          {/* Wallet Balance (only for investor portal) */}
+          <TableCell className="text-right">
+            {organization.walletBalance == null ? (
+              <span className="text-muted-foreground text-sm">—</span>
+            ) : (
+              <span className="text-sm font-medium tabular-nums">
+                {formatCurrency(organization.walletBalance)}
+              </span>
+            )}
+          </TableCell>
+          {/* Active Invested Amount (only for investor portal) */}
+          <TableCell className="text-right">
+            {organization.investedAmount == null ? (
+              <span className="text-muted-foreground text-sm">—</span>
+            ) : (
+              <span className="text-sm font-medium tabular-nums">
+                {formatCurrency(organization.investedAmount)}
+              </span>
             )}
           </TableCell>
         </>

@@ -49,6 +49,12 @@ function TableSkeleton({ portal }: { portal: PortalType }) {
               <TableCell>
                 <Skeleton className="h-5 w-16" />
               </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-20" />
+              </TableCell>
+              <TableCell>
+                <Skeleton className="h-5 w-20" />
+              </TableCell>
             </>
           )}
           <TableCell>
@@ -84,8 +90,8 @@ export function OrganizationsTable({
 
   const router = useRouter();
 
-  // Investor: 10 columns (includes risk + sophisticated + deposit), Issuer: 8 columns
-  const columnCount = portal === "investor" ? 10 : 8;
+  // Investor: 12 columns (risk + sophisticated + deposit + wallet + invested), Issuer: 8 columns
+  const columnCount = portal === "investor" ? 12 : 8;
 
   const handleViewDetails = (org: OrganizationResponse) => {
     router.push(`/organizations/${org.portal}/${org.id}`);
@@ -106,6 +112,8 @@ export function OrganizationsTable({
                   <>
                     <TableHead className="text-sm font-semibold">Sophisticated</TableHead>
                     <TableHead className="text-sm font-semibold">Deposit</TableHead>
+                    <TableHead className="text-sm font-semibold text-right">Wallet</TableHead>
+                    <TableHead className="text-sm font-semibold text-right">Invested</TableHead>
                   </>
                 )}
                 <TableHead className="text-sm font-semibold">Members</TableHead>

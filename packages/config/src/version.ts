@@ -2,7 +2,7 @@
  * Application version
  * Update this constant when releasing new versions
  */
-export const APP_VERSION = "UAT 2.1";
+export const APP_VERSION = "UAT 2.2";
 
 /**
  * Get formatted version string

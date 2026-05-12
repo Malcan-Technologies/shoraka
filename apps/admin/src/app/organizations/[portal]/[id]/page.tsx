@@ -1065,6 +1065,28 @@ export default function OrganizationDetailPage() {
                       />
                       <DetailRow label="Created" value={format(new Date(org.createdAt), "PPpp")} icon={ClockIcon} />
                       <DetailRow label="Updated" value={format(new Date(org.updatedAt), "PPpp")} icon={ClockIcon} />
+                      {portal === "investor" ? (
+                        <>
+                          <DetailRow
+                            label="Wallet Balance"
+                            value={
+                              <span className="font-semibold tabular-nums">
+                                {formatCurrency(org.walletBalance ?? 0)}
+                              </span>
+                            }
+                            icon={BanknotesIcon}
+                          />
+                          <DetailRow
+                            label="Invested"
+                            value={
+                              <span className="font-semibold tabular-nums">
+                                {formatCurrency(org.investedAmount ?? 0)}
+                              </span>
+                            }
+                            icon={BanknotesIcon}
+                          />
+                        </>
+                      ) : null}
                     </div>
 
                     {portal === "investor" && org.sophisticatedInvestorReason && (

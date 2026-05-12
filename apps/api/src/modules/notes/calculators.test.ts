@@ -20,6 +20,7 @@ describe("note lifecycle calculators", () => {
       gharamahAmount: 300,
     });
 
+    expect(result.grossReceiptAmount).toBe(100_000);
     expect(result.investorPrincipal).toBe(60_000);
     expect(result.investorProfitGross).toBe(6_000);
     expect(result.serviceFeeAmount).toBe(900);
