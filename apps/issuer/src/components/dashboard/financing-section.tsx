@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronUp, MoreVertical, FileText } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, MoreVertical, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -17,6 +17,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useProducts } from "@/hooks/use-products";
 import { useIssuerDashboard } from "@/hooks/use-issuer-dashboard";
+import { cn } from "@/lib/utils";
 import { getOfferStatus, type OfferStatus } from "@/lib/offer-utils";
 import { ReviewOfferModal } from "@/components/review-offer-modal";
 import { formatMoneyDisplay } from "@cashsouk/ui";
@@ -166,6 +167,273 @@ function groupDashboardByProduct(dashboard: IssuerDashboardData) {
   return productGroups;
 }
 
+const FINANCING_STATUS_ORDER: IssuerFinancingStatusKind[] = [
+  "draft",
+  "pending_approval",
+  "in_progress",
+  "funded",
+  "active",
+  "completed",
+  "unsuccessful",
+];
+
+const FINANCING_DATE_PRESETS = ["any", "30d", "90d", "ytd"] as const;
+type FinancingDatePreset = (typeof FINANCING_DATE_PRESETS)[number];
+
+type FinancingListFiltersState = {
+  statusKind: IssuerFinancingStatusKind | "all";
+  /** Empty = all customers; otherwise exact match on trimmed customer name. */
+  customer: string;
+  datePreset: FinancingDatePreset;
+};
+
+const DEFAULT_FINANCING_LIST_FILTERS: FinancingListFiltersState = {
+  statusKind: "all",
+  customer: "",
+  datePreset: "any",
+};
+
+type ProductListFiltersMap = Record<
+  string,
+  { contract: FinancingListFiltersState; invoice: FinancingListFiltersState }
+>;
+
+function getProductListFilters(map: ProductListFiltersMap, productId: string) {
+  return (
+    map[productId] ?? {
+      contract: { ...DEFAULT_FINANCING_LIST_FILTERS },
+      invoice: { ...DEFAULT_FINANCING_LIST_FILTERS },
+    }
+  );
+}
+
+function startOfYearMs(): number {
+  const y = new Date();
+  y.setMonth(0, 1);
+  y.setHours(0, 0, 0, 0);
+  return y.getTime();
+}
+
+function withinDatePreset(ms: number | null, preset: FinancingDatePreset): boolean {
+  if (preset === "any") return true;
+  if (ms == null) return false;
+  const now = Date.now();
+  if (preset === "30d") return ms >= now - 30 * 86400000;
+  if (preset === "90d") return ms >= now - 90 * 86400000;
+  if (preset === "ytd") return ms >= startOfYearMs();
+  return true;
+}
+
+function contractRefDateMs(row: IssuerDashboardContract): number | null {
+  for (const raw of [row.contractStartDate, row.contractEndDate]) {
+    if (!raw) continue;
+    const t = Date.parse(String(raw));
+    if (!Number.isNaN(t)) return t;
+  }
+  return null;
+}
+
+function invoiceRefDateMs(row: IssuerDashboardInvoice): number | null {
+  if (!row.submissionDate) return null;
+  const t = Date.parse(row.submissionDate);
+  return Number.isNaN(t) ? null : t;
+}
+
+function filterContracts(rows: IssuerDashboardContract[], f: FinancingListFiltersState): IssuerDashboardContract[] {
+  return rows.filter((row) => {
+    if (f.statusKind !== "all") {
+      if (resolveIssuerContractDashboardBadge(row.contractStatus) !== f.statusKind) return false;
+    }
+    if (f.customer) {
+      const name = (row.customerName ?? "").trim();
+      if (name !== f.customer) return false;
+    }
+    if (!withinDatePreset(contractRefDateMs(row), f.datePreset)) return false;
+    return true;
+  });
+}
+
+function filterInvoices(rows: IssuerDashboardInvoice[], f: FinancingListFiltersState): IssuerDashboardInvoice[] {
+  return rows.filter((row) => {
+    if (f.statusKind !== "all") {
+      if (resolveIssuerInvoiceDashboardBadge(row.note, row.invoiceStatus) !== f.statusKind) return false;
+    }
+    if (f.customer) {
+      const name = (row.customerName ?? "").trim();
+      if (name !== f.customer) return false;
+    }
+    if (!withinDatePreset(invoiceRefDateMs(row), f.datePreset)) return false;
+    return true;
+  });
+}
+
+function datePresetLabel(p: FinancingDatePreset): string {
+  if (p === "any") return "Any time";
+  if (p === "30d") return "Last 30 days";
+  if (p === "90d") return "Last 90 days";
+  return "Year to date";
+}
+
+function financingFiltersActive(f: FinancingListFiltersState): boolean {
+  return f.statusKind !== "all" || f.customer !== "" || f.datePreset !== "any";
+}
+
+function FinancingListFilterToolbar({
+  variant,
+  rows,
+  value,
+  onChange,
+  onClear,
+}: {
+  variant: "contract" | "invoice";
+  rows: IssuerDashboardContract[] | IssuerDashboardInvoice[];
+  value: FinancingListFiltersState;
+  onChange: (next: FinancingListFiltersState) => void;
+  onClear: () => void;
+}) {
+  const kindsPresent = new Set<IssuerFinancingStatusKind>();
+  if (variant === "contract") {
+    for (const r of rows as IssuerDashboardContract[]) {
+      kindsPresent.add(resolveIssuerContractDashboardBadge(r.contractStatus));
+    }
+  } else {
+    for (const r of rows as IssuerDashboardInvoice[]) {
+      kindsPresent.add(resolveIssuerInvoiceDashboardBadge(r.note, r.invoiceStatus));
+    }
+  }
+  const statusOptions = FINANCING_STATUS_ORDER.filter((k) => kindsPresent.has(k));
+
+  const customers = new Set<string>();
+  for (const r of rows) {
+    const name = (variant === "contract" ? (r as IssuerDashboardContract).customerName : (r as IssuerDashboardInvoice).customerName) ?? "";
+    const t = name.trim();
+    if (t) customers.add(t);
+  }
+  const customerList = [...customers].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+
+  const statusTrigger =
+    value.statusKind === "all" ? "Status" : `Status: ${getIssuerFinancingStatusPresentation(value.statusKind).label}`;
+  const customerTrigger = value.customer === "" ? "Customer" : `Customer: ${value.customer}`;
+  const dateTrigger =
+    value.datePreset === "any" ? "Date" : `Date: ${datePresetLabel(value.datePreset)}`;
+
+  const active = financingFiltersActive(value);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-9 max-w-[11rem] gap-1.5 truncate px-3 text-sm font-medium",
+              value.statusKind !== "all" && "border-primary/40 bg-muted/50"
+            )}
+          >
+            <FunnelIcon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{statusTrigger}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-52">
+          <DropdownMenuItem
+            onClick={() => onChange({ ...value, statusKind: "all" })}
+            className="flex items-center justify-between gap-2"
+          >
+            All statuses
+            {value.statusKind === "all" ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+          </DropdownMenuItem>
+          {statusOptions.map((kind) => {
+            const p = getIssuerFinancingStatusPresentation(kind);
+            return (
+              <DropdownMenuItem
+                key={kind}
+                onClick={() => onChange({ ...value, statusKind: kind })}
+                className="flex items-center justify-between gap-2"
+              >
+                <span>{p.label}</span>
+                {value.statusKind === kind ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-9 max-w-[12rem] gap-1.5 truncate px-3 text-sm font-medium",
+              value.datePreset !== "any" && "border-primary/40 bg-muted/50"
+            )}
+          >
+            <FunnelIcon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{dateTrigger}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-52">
+          {FINANCING_DATE_PRESETS.map((preset) => (
+            <DropdownMenuItem
+              key={preset}
+              onClick={() => onChange({ ...value, datePreset: preset })}
+              className="flex items-center justify-between gap-2"
+            >
+              <span>{datePresetLabel(preset)}</span>
+              {value.datePreset === preset ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-9 max-w-[12rem] gap-1.5 truncate px-3 text-sm font-medium",
+              value.customer !== "" && "border-primary/40 bg-muted/50"
+            )}
+          >
+            <FunnelIcon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{customerTrigger}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56 max-h-[min(24rem,70vh)] overflow-y-auto">
+          <DropdownMenuItem
+            onClick={() => onChange({ ...value, customer: "" })}
+            className="flex items-center justify-between gap-2"
+          >
+            All customers
+            {value.customer === "" ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+          </DropdownMenuItem>
+          {customerList.map((name) => (
+            <DropdownMenuItem
+              key={name}
+              onClick={() => onChange({ ...value, customer: name })}
+              className="flex items-center justify-between gap-2"
+            >
+              <span className="min-w-0 truncate">{name}</span>
+              {value.customer === name ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {active ? (
+        <Button type="button" variant="ghost" size="sm" className="h-9 px-2 text-sm text-muted-foreground" onClick={onClear}>
+          Clear
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 function CollapsibleCategory({
   title,
   children,
@@ -182,8 +450,8 @@ function CollapsibleCategory({
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
         <h4 className="text-lg font-semibold leading-7 tracking-tight text-foreground md:text-xl">{title}</h4>
-        <div className="flex shrink-0 items-center gap-2">
-          <div className="hidden sm:flex items-center gap-2">{filters}</div>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {filters}
           <Separator orientation="vertical" className="mx-1 h-6" />
           <button
             type="button"
@@ -220,6 +488,8 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
 
   const [offerModalContext, setOfferModalContext] = useState<Parameters<typeof ReviewOfferModal>[0]["context"]>(null);
   const offerModalOpen = offerModalContext !== null;
+
+  const [listFiltersByProduct, setListFiltersByProduct] = useState<ProductListFiltersMap>({});
 
   const productNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -326,6 +596,23 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
             ("name" in product ? product.name : undefined) ??
             `Product ${product.id}`;
 
+          const listFilters = getProductListFilters(listFiltersByProduct, product.id);
+          const filteredContracts = filterContracts(group.contracts, listFilters.contract);
+          const filteredInvoices = filterInvoices(group.invoices, listFilters.invoice);
+
+          const patchContractFilters = (next: FinancingListFiltersState) => {
+            setListFiltersByProduct((prev) => ({
+              ...prev,
+              [product.id]: { ...getProductListFilters(prev, product.id), contract: next },
+            }));
+          };
+          const patchInvoiceFilters = (next: FinancingListFiltersState) => {
+            setListFiltersByProduct((prev) => ({
+              ...prev,
+              [product.id]: { ...getProductListFilters(prev, product.id), invoice: next },
+            }));
+          };
+
           return (
             <Card key={product.id} className="rounded-xl border border-border bg-background shadow-none">
               <div className="border-b border-border px-6 py-4 md:px-8 md:pt-5">
@@ -340,16 +627,47 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
                   title="Contract financing"
                   defaultOpen
                   filters={
-                    <>
-                      <FilterButton label="Status" />
-                      <FilterButton label="Date" />
-                      <FilterButton label="Customer" />
-                    </>
+                    <FinancingListFilterToolbar
+                      variant="contract"
+                      rows={group.contracts}
+                      value={listFilters.contract}
+                      onChange={patchContractFilters}
+                      onClear={() =>
+                        setListFiltersByProduct((prev) => ({
+                          ...prev,
+                          [product.id]: {
+                            ...getProductListFilters(prev, product.id),
+                            contract: { ...DEFAULT_FINANCING_LIST_FILTERS },
+                          },
+                        }))
+                      }
+                    />
                   }
                 >
                   <div className="space-y-4">
-                    {group.contracts.length > 0 ? (
-                      group.contracts.map((c) => {
+                    {group.contracts.length === 0 ? (
+                      <p className="py-4 text-[17px] leading-7 text-muted-foreground">No contract financing</p>
+                    ) : filteredContracts.length === 0 ? (
+                      <p className="py-4 text-[17px] leading-7 text-muted-foreground">
+                        No contracts match these filters.{" "}
+                        <button
+                          type="button"
+                          className="font-medium text-primary underline-offset-4 hover:underline"
+                          onClick={() =>
+                            setListFiltersByProduct((prev) => ({
+                              ...prev,
+                              [product.id]: {
+                                ...getProductListFilters(prev, product.id),
+                                contract: { ...DEFAULT_FINANCING_LIST_FILTERS },
+                              },
+                            }))
+                          }
+                        >
+                          Clear filters
+                        </button>
+                      </p>
+                    ) : (
+                      filteredContracts.map((c) => {
                         const modalContract = asContractForModal(c.contractForModal);
                         const offerStatus = getOfferStatus(modalContract);
                         return (
@@ -367,8 +685,6 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
                           />
                         );
                       })
-                    ) : (
-                      <p className="py-4 text-[17px] leading-7 text-muted-foreground">No contract financing</p>
                     )}
                   </div>
                 </CollapsibleCategory>
@@ -377,16 +693,47 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
                   title="Invoice financing"
                   defaultOpen
                   filters={
-                    <>
-                      <FilterButton label="Status" />
-                      <FilterButton label="Date" />
-                      <FilterButton label="Customer" />
-                    </>
+                    <FinancingListFilterToolbar
+                      variant="invoice"
+                      rows={group.invoices}
+                      value={listFilters.invoice}
+                      onChange={patchInvoiceFilters}
+                      onClear={() =>
+                        setListFiltersByProduct((prev) => ({
+                          ...prev,
+                          [product.id]: {
+                            ...getProductListFilters(prev, product.id),
+                            invoice: { ...DEFAULT_FINANCING_LIST_FILTERS },
+                          },
+                        }))
+                      }
+                    />
                   }
                 >
                   <div className="space-y-4">
-                    {group.invoices.length > 0 ? (
-                      group.invoices.map((inv) => {
+                    {group.invoices.length === 0 ? (
+                      <p className="py-4 text-[17px] leading-7 text-muted-foreground">No invoice financing</p>
+                    ) : filteredInvoices.length === 0 ? (
+                      <p className="py-4 text-[17px] leading-7 text-muted-foreground">
+                        No invoices match these filters.{" "}
+                        <button
+                          type="button"
+                          className="font-medium text-primary underline-offset-4 hover:underline"
+                          onClick={() =>
+                            setListFiltersByProduct((prev) => ({
+                              ...prev,
+                              [product.id]: {
+                                ...getProductListFilters(prev, product.id),
+                                invoice: { ...DEFAULT_FINANCING_LIST_FILTERS },
+                              },
+                            }))
+                          }
+                        >
+                          Clear filters
+                        </button>
+                      </p>
+                    ) : (
+                      filteredInvoices.map((inv) => {
                         const modalInvoice = asInvoiceForModal(inv.invoiceForModal);
                         const offerStatus = getOfferStatus(modalInvoice);
                         return (
@@ -405,8 +752,6 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
                           />
                         );
                       })
-                    ) : (
-                      <p className="py-4 text-[17px] leading-7 text-muted-foreground">No invoice financing</p>
                     )}
                   </div>
                 </CollapsibleCategory>
