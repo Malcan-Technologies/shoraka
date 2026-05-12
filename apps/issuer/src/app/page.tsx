@@ -15,7 +15,11 @@ import { OnboardingStatusCard, getOnboardingSteps } from "../components/onboardi
 import { TermsAcceptanceCard } from "../components/terms-acceptance-card";
 import { AccountOverviewCard } from "../components/account-overview-card";
 import { RepaymentPerformanceCard } from "../components/repayment-performance-card";
+import { FinancingSection } from "../components/dashboard/financing-section";
 import { useHeader } from "@cashsouk/ui";
+import { useIssuerDashboard } from "../hooks/use-issuer-dashboard";
+import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
+import { cn } from "@/lib/utils";
 
 function IssuerDashboardContent() {
   const { setTitle } = useHeader();
@@ -39,6 +43,24 @@ function IssuerDashboardContent() {
   const visiblePeopleForDsAlert = useMemo(
     () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
     [activeOrganization?.people]
+  );
+
+  const { data: issuerDashboard } = useIssuerDashboard(activeOrganization?.id);
+
+  const orgDisplayName = useMemo(() => {
+    if (!activeOrganization) return "";
+    if (activeOrganization.firstName && activeOrganization.lastName) {
+      return `${activeOrganization.firstName} ${activeOrganization.lastName}`;
+    }
+    if (activeOrganization.type === "COMPANY" && activeOrganization.name) {
+      return activeOrganization.name;
+    }
+    return activeOrganization.type === "PERSONAL" ? "Personal Account" : "Company Account";
+  }, [activeOrganization]);
+
+  const displayName = useMemo(
+    () => issuerDashboard?.user.displayName?.trim() || orgDisplayName,
+    [issuerDashboard?.user.displayName, orgDisplayName]
   );
 
   // Determine whether the dashboard can be shown (derived, no setState needed)
@@ -141,26 +163,6 @@ function IssuerDashboardContent() {
     return null;
   }
 
-  // Get display name from organization - use firstName + lastName from RegTank data
-  const getDisplayName = () => {
-    if (!activeOrganization) return "";
-
-    // Use firstName + lastName if available (from RegTank onboarding)
-    if (activeOrganization.firstName && activeOrganization.lastName) {
-      return `${activeOrganization.firstName} ${activeOrganization.lastName}`;
-    }
-
-    // Fallback to organization name for company accounts
-    if (activeOrganization.type === "COMPANY" && activeOrganization.name) {
-      return activeOrganization.name;
-    }
-
-    // Default fallback
-    return activeOrganization.type === "PERSONAL" ? "Personal Account" : "Company Account";
-  };
-
-  const displayName = getDisplayName();
-
   // Determine current onboarding step
   const steps = activeOrganization ? getOnboardingSteps(activeOrganization) : [];
   const allStepsComplete = activeOrganization ? steps.every((step) => step.isCompleted) : false;
@@ -174,8 +176,8 @@ function IssuerDashboardContent() {
 
   return (
     <>
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="space-y-8 p-2 md:p-4">
+      <div className={cn(issuerMainContentClassName, issuerPageGutterClassName, "gap-6 md:gap-8")}>
+        <div className="space-y-8">
           {activeOrganization?.type === "COMPANY" ? (
             <DirectorShareholderAlertCard
               visiblePeople={visiblePeopleForDsAlert}
@@ -255,23 +257,44 @@ function IssuerDashboardContent() {
           {/* Welcome Section - only shown when all steps are complete */}
           {allStepsComplete && (
             <>
-              <section className="flex items-start justify-between">
+              <section className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
                 <div>
-                  <h2 className="text-2xl font-bold mb-2">Welcome back, {displayName}!</h2>
-                  <p className="text-[17px] leading-7 text-muted-foreground">
-                    Manage your financing requests and track your applications from your dashboard.
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Welcome back, {displayName}!</h2>
+                  </div>
+                  <p className="mt-1 text-[17px] leading-7 text-muted-foreground">
+                    Manage your financing applications from this dashboard.
                   </p>
                 </div>
-                <Button asChild className="gap-2">
+                <Button
+                  asChild
+                  className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95"
+                >
                   <Link href="/applications/new">
                     <PlusIcon className="h-4 w-4" />
-                    Get Financed
+                    Apply for financing
                   </Link>
                 </Button>
               </section>
 
-              <AccountOverviewCard isDisabled={!isAccountEnabled} />
-              <RepaymentPerformanceCard isDisabled={!isAccountEnabled} />
+              <AccountOverviewCard
+                isDisabled={!isAccountEnabled}
+                successRate={issuerDashboard?.overview.successRatePercent ?? null}
+                activeFinancing={issuerDashboard?.overview.activeFinancingAmount ?? null}
+                pastFinancing={issuerDashboard?.overview.pastFinancingAmount ?? null}
+                activeNotes={issuerDashboard?.overview.activeNotesCount ?? null}
+                completedNotes={issuerDashboard?.overview.completedNotesCount ?? null}
+              />
+              <RepaymentPerformanceCard
+                isDisabled={!isAccountEnabled}
+                onTimeRate={issuerDashboard?.repaymentPerformance.onTimePercent ?? null}
+                pastDueCount={issuerDashboard?.repaymentPerformance.pastDueCount ?? null}
+                lateRepaymentsLastSixMonthsCount={
+                  issuerDashboard?.repaymentPerformance.lateRepaymentsLastSixMonthsCount ?? null
+                }
+              />
+
+              <FinancingSection organizationId={activeOrganization?.id} />
             </>
           )}
         </div>

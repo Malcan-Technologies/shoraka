@@ -6,6 +6,8 @@ import { formatCurrency } from "@cashsouk/config";
 import { useHeader, Card, CardContent, CardHeader, CardTitle, Badge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { useIssuerNotes } from "@/notes/hooks/use-issuer-notes";
+import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
+import { cn } from "@/lib/utils";
 
 export default function IssuerNotesPage() {
   const { setTitle } = useHeader();
@@ -16,8 +18,8 @@ export default function IssuerNotesPage() {
   }, [setTitle]);
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-x-hidden p-4 pt-4">
-      <div className="min-w-0 max-w-full space-y-6 p-2 md:p-4">
+    <div className={issuerMainContentClassName}>
+      <div className={cn("min-w-0 max-w-full space-y-6", issuerPageGutterClassName)}>
         <div>
           <h1 className="text-2xl font-semibold">My Notes</h1>
           <p className="mt-1 text-muted-foreground">

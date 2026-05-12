@@ -24,6 +24,8 @@ import {
 } from "@/notes/hooks/use-issuer-notes";
 import { LedgerPanel } from "@/notes/components/ledger-panel";
 import { isSoukscoreRiskRating, type NoteDetail, type NoteSettlementPoolSummary } from "@cashsouk/types";
+import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
+import { cn } from "@/lib/utils";
 
 function getSettlementAmount(note: NoteDetail) {
   const extended = note as NoteDetail & { settlementAmount?: number; invoiceAmount?: number };
@@ -195,8 +197,8 @@ export default function IssuerNoteDetailPage() {
         : null;
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-x-hidden p-4 pt-4">
-      <div className="mx-auto w-full max-w-6xl space-y-6 p-2 md:p-4">
+    <div className={issuerMainContentClassName}>
+      <div className={cn("mx-auto w-full max-w-6xl space-y-6", issuerPageGutterClassName)}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10">

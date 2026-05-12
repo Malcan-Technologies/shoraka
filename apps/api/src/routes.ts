@@ -33,6 +33,7 @@ import {
   publicMarketplaceRouter,
   withdrawalsRouter,
 } from "./modules/notes/controller";
+import { issuerDashboardRouter } from "./modules/issuer-dashboard/controller";
 export function registerRoutes(app: Application): void {
   // Swagger API documentation (only in development)
   if (process.env.NODE_ENV !== "production") {
@@ -133,10 +134,12 @@ export function registerRoutes(app: Application): void {
   if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {
     v1Router.use("/marketplace", devAuthBypass, marketplaceRouter);
     v1Router.use("/investor", devAuthBypass, investorNotesRouter);
+    v1Router.use("/issuer/dashboard", devAuthBypass, issuerDashboardRouter);
     v1Router.use("/issuer", devAuthBypass, issuerNotesRouter);
   } else {
     v1Router.use("/marketplace", requireAuth, marketplaceRouter);
     v1Router.use("/investor", requireAuth, investorNotesRouter);
+    v1Router.use("/issuer/dashboard", requireAuth, issuerDashboardRouter);
     v1Router.use("/issuer", requireAuth, issuerNotesRouter);
   }
 

@@ -1,0 +1,2 @@
+-- RenameIndex
+ALTER INDEX "investor_balance_transactions_investor_organization_id_posted_a" RENAME TO "investor_balance_transactions_investor_organization_id_post_idx";

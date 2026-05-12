@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import type { GetActivitiesParams } from "@cashsouk/types";
 import { useActivities } from "../../hooks/use-activities";
+import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
+import { cn } from "@/lib/utils";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { ActivityItem, Badge, Skeleton, ActivityToolbar, useHeader } from "@cashsouk/ui";
@@ -67,7 +69,7 @@ export default function ActivityPage() {
 
   return (
     <>
-      <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
+      <div className={cn(issuerMainContentClassName, issuerPageGutterClassName)}>
         <Card className="border-none shadow-none bg-transparent">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7 px-0">
             <div className="flex items-center gap-2">

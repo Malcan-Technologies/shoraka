@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { ChevronDown, ChevronUp, MoreVertical, FileText } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import Link from "next/link";
+import { Check, ChevronDown, ChevronUp, MoreVertical, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { FunnelIcon } from "@heroicons/react/24/outline";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { FunnelIcon, LinkIcon } from "@heroicons/react/24/outline";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -14,103 +16,76 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { useRouter } from "next/navigation";
-import { useOrganization } from "@cashsouk/config";
-import { useOrganizationApplications } from "@/hooks/use-applications";
 import { useProducts } from "@/hooks/use-products";
+import { useIssuerDashboard } from "@/hooks/use-issuer-dashboard";
+import { cn } from "@/lib/utils";
 import { getOfferStatus, type OfferStatus } from "@/lib/offer-utils";
-import { ReviewOfferModal } from "@/components/review-offer-modal";
+import { ReviewOfferModal } from "@/app/(application-management)/applications/components/ReviewOfferModal";
 import { formatMoneyDisplay } from "@cashsouk/ui";
-import type { Application, Contract, ContractDetails, Invoice, InvoiceDetails, Product } from "@cashsouk/types";
+import type { Product } from "@cashsouk/types";
+import type { IssuerDashboardContract, IssuerDashboardData, IssuerDashboardInvoice } from "@/types/issuer-dashboard";
+import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
+import {
+  getIssuerFinancingStatusPresentation,
+  resolveFundingProgressPercent,
+  resolveFundingStatusText,
+  resolveIssuerContractDashboardBadge,
+  resolveIssuerInvoiceDashboardBadge,
+  type IssuerFinancingStatusKind,
+} from "@/lib/issuer-dashboard-labels";
 
-/* Loose shapes: persisted JSON may include legacy/extra keys beyond shared types. */
-type LooseContractDetails = Partial<ContractDetails> & {
-  customer?: string;
-  status?: string;
-};
+export const EM_DASH = "\u2014";
 
-type LooseInvoiceDetails = Partial<InvoiceDetails> & {
-  invoiceNo?: string | number;
-  invoiceValue?: number;
-  financing_amount?: number;
-  financingAmount?: number;
-  maturityDate?: string;
-  submission_date?: string;
-  submissionDate?: string;
-  status?: string;
-};
-
-/* ============================================================
-   Badge helpers
-============================================================ */
-
-function contractBadge(status: string) {
-  if (status === "Amendment required") {
-    return (
-      <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Amendment required</Badge>
-    );
-  }
-  return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Active</Badge>;
+export function displayCell(value: unknown): string {
+  if (value === null || value === undefined) return EM_DASH;
+  const s = String(value).trim();
+  if (s === "" || s === "-" || s === "NA" || s.toUpperCase() === "N/A") return EM_DASH;
+  return s;
 }
 
-function invoiceBadge(status: string) {
-  switch (status) {
-    case "Draft":
-      return <Badge variant="secondary">Draft</Badge>;
-    case "In progress":
-      return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">In progress</Badge>;
-    case "Funded":
-      return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">Funded</Badge>;
-    case "Completed":
-      return (
-        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Completed</Badge>
-      );
-    case "Unsuccessful":
-      return <Badge className="bg-red-100 text-red-600 hover:bg-red-100">Unsuccessful</Badge>;
-  }
+export function LabelValue({
+  label,
+  children,
+  tabular,
+}: {
+  label: string;
+  children: React.ReactNode;
+  tabular?: boolean;
+}) {
+  return (
+    <p className="text-[17px] leading-7 text-foreground">
+      <span className="font-normal text-muted-foreground">{label}: </span>
+      <span
+        className={
+          tabular
+            ? "font-medium tabular-nums text-foreground"
+            : "font-medium text-foreground"
+        }
+      >
+        {children}
+      </span>
+    </p>
+  );
 }
 
 function offerBadge(offerStatus: OfferStatus) {
   if (!offerStatus) return null;
-
   if (offerStatus === "Offer expired") {
-    return (
-      <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-100">
-        Offer expired
-      </Badge>
-    );
+    return <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-100">Offer expired</Badge>;
   }
-
   return (
-    <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
-      Offer received
-    </Badge>
+    <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Offer received</Badge>
   );
 }
 
-function formatStatus(raw?: string | null) {
-  if (!raw) return "";
-  // Normalize variants like "DRAFT", "IN_PROGRESS", "In progress" -> "In progress"
-  const s = String(raw).replace(/_/g, " ").toLowerCase();
-  return s
-    .split(" ")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
-function ReviewOfferButton({
-  show,
-  onClick,
-}: {
-  show: boolean;
-  onClick?: () => void;
-}) {
+function ReviewOfferButton({ show, onClick }: { show: boolean; onClick?: () => void }) {
   if (!show) return null;
-
   return (
     <Button
       type="button"
       size="sm"
-      className="h-8 rounded-md px-3 text-xs font-medium"
+      variant="reviewOffer"
+      className="rounded-xl"
       onClick={onClick}
     >
       Review offer
@@ -119,27 +94,21 @@ function ReviewOfferButton({
 }
 
 function formatMoney(value: unknown) {
-  return formatMoneyDisplay(value, "NA");
+  return formatMoneyDisplay(value, EM_DASH);
 }
 
-function formatDate(value: unknown) {
-  if (value === null || value === undefined) return "NA";
-
-  // If already a Date
+export function formatDate(value: unknown) {
+  if (value === null || value === undefined) return EM_DASH;
   let d: Date | null = null;
   if (value instanceof Date) d = value;
   else if (typeof value === "number") d = new Date(value);
   else if (typeof value === "string") {
-    // Try ISO first, then common formats
     const trimmed = value.trim();
-    // If string contains only digits (timestamp)
-    if (/^\d+$/.test(trimmed)) {
-      d = new Date(Number(trimmed));
-    } else {
+    if (/^\d+$/.test(trimmed)) d = new Date(Number(trimmed));
+    else {
       const parsed = Date.parse(trimmed);
       if (!Number.isNaN(parsed)) d = new Date(parsed);
       else {
-        // Fallback: try replace - with / to handle some formats
         const alt = trimmed.replace(/-/g, "/");
         const parsed2 = Date.parse(alt);
         if (!Number.isNaN(parsed2)) d = new Date(parsed2);
@@ -148,119 +117,620 @@ function formatDate(value: unknown) {
   } else {
     d = new Date(String(value));
   }
-
-  if (!d || Number.isNaN(d.getTime())) return "NA";
-
+  if (!d || Number.isNaN(d.getTime())) return EM_DASH;
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const yyyy = d.getFullYear();
   return `${dd}/${mm}/${yyyy}`;
 }
 
-/* ============================================================
-   Flatten & group by product
-============================================================ */
+export function IssuerFinancingStatusBadge({ kind }: { kind: IssuerFinancingStatusKind }) {
+  const p = getIssuerFinancingStatusPresentation(kind);
+  return (
+    <Badge variant={p.variant} className={p.className}>
+      {p.label}
+    </Badge>
+  );
+}
 
-type ApplicationWithRelations = Application & {
-  invoices?: Invoice[];
-  contract?: Contract | null;
-  financing_type?: { product_id?: string };
-  submission_date?: string | null;
-};
+const FUNDING_STATUS_PREFIX = "Funding status ";
 
-type FlatContract = {
-  id: string;
-  applicationId: string;
-  productId: string;
-  contract: Contract;
-  applicationStatus: string;
-  submissionDate?: string | null;
-};
-
-type FlatInvoice = {
-  id: string;
-  applicationId: string;
-  productId: string;
-  invoice: Invoice;
-  applicationStatus: string;
-  applicationSubmittedAt?: string | null;
-};
-
-function flattenAndGroupByProduct(applications: ApplicationWithRelations[]) {
-  const contracts: FlatContract[] = [];
-  const invoices: FlatInvoice[] = [];
-
-  for (const app of applications || []) {
-    const productId = app.financing_type?.product_id ?? "";
-    if (!productId) continue;
-    const appStatus = app.status ?? "";
-    const submittedAt = app.submitted_at ?? app.submission_date ?? app.created_at ?? null;
-
-    if (app.contract) {
-      contracts.push({
-        id: app.contract.id,
-        applicationId: app.id,
-        productId,
-        contract: app.contract,
-        applicationStatus: String(appStatus),
-        submissionDate: submittedAt,
-      });
-    }
-
-    for (const inv of app.invoices || []) {
-      invoices.push({
-        id: inv.id,
-        applicationId: app.id,
-        productId,
-        invoice: inv,
-        applicationStatus: String(appStatus),
-        applicationSubmittedAt: submittedAt,
-      });
-    }
+/** "Funding status" stays medium; parenthetical or remainder (e.g. % funded + RM) is smaller and not bold. */
+function FundingStatusLine({ text }: { text: string }) {
+  const m = text.match(/^Funding status \((.+)\)$/);
+  if (m) {
+    return (
+      <p className="text-[17px] leading-7 text-foreground">
+        <span className="font-medium">{FUNDING_STATUS_PREFIX}</span>
+        <span className="text-sm font-normal leading-6 text-muted-foreground">({m[1]})</span>
+      </p>
+    );
   }
-
-  const sortBySubmissionDesc = (a: { submissionDate?: string | null }, b: { submissionDate?: string | null }) => {
-    const da = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;
-    const db = b.submissionDate ? new Date(b.submissionDate).getTime() : 0;
-    return db - da;
-  };
-
-  contracts.sort(sortBySubmissionDesc);
-  invoices.sort((a, b) => {
-    const da = a.applicationSubmittedAt ? new Date(a.applicationSubmittedAt).getTime() : 0;
-    const db = b.applicationSubmittedAt ? new Date(b.applicationSubmittedAt).getTime() : 0;
-    return db - da;
-  });
-
-  const productGroups: Record<string, { contracts: FlatContract[]; invoices: FlatInvoice[] }> = {};
-  for (const c of contracts) {
-    if (!productGroups[c.productId]) {
-      productGroups[c.productId] = { contracts: [], invoices: [] };
-    }
-    productGroups[c.productId].contracts.push(c);
+  if (text.startsWith(FUNDING_STATUS_PREFIX)) {
+    const suffix = text.slice(FUNDING_STATUS_PREFIX.length);
+    return (
+      <p className="text-[17px] leading-7 text-foreground">
+        <span className="font-medium">{FUNDING_STATUS_PREFIX}</span>
+        <span className="text-sm font-normal leading-6 text-muted-foreground">{suffix}</span>
+      </p>
+    );
   }
-  for (const inv of invoices) {
-    if (!productGroups[inv.productId]) {
-      productGroups[inv.productId] = { contracts: [], invoices: [] };
-    }
-    productGroups[inv.productId].invoices.push(inv);
-  }
+  return <p className="text-[17px] font-medium leading-7 text-foreground">{text}</p>;
+}
 
+function groupDashboardByProduct(dashboard: IssuerDashboardData) {
+  const productGroups: Record<string, { contracts: IssuerDashboardContract[]; invoices: IssuerDashboardInvoice[] }> =
+    {};
+  for (const c of dashboard.contracts) {
+    const pid = c.productId?.trim() ? c.productId : "_none";
+    if (!productGroups[pid]) productGroups[pid] = { contracts: [], invoices: [] };
+    productGroups[pid].contracts.push(c);
+  }
+  for (const inv of dashboard.invoices) {
+    const pid = inv.productId?.trim() ? inv.productId : "_none";
+    if (!productGroups[pid]) productGroups[pid] = { contracts: [], invoices: [] };
+    productGroups[pid].invoices.push(inv);
+  }
   return productGroups;
 }
 
-/* ============================================================
-   Main
-============================================================ */
+const FINANCING_STATUS_ORDER: IssuerFinancingStatusKind[] = [
+  "draft",
+  "pending_approval",
+  "in_progress",
+  "funded",
+  "active",
+  "completed",
+  "unsuccessful",
+];
 
-export function FinancingSection() {
-  const { activeOrganization } = useOrganization();
-  const { data: applications = [] } = useOrganizationApplications(activeOrganization?.id);
+const CONTRACT_PERIOD_PRESETS = ["all", "active", "starting_soon", "expired"] as const;
+type ContractPeriodPreset = (typeof CONTRACT_PERIOD_PRESETS)[number];
+
+const INVOICE_SUBMISSION_PRESETS = ["all", "7d", "30d", "6m"] as const;
+type InvoiceSubmissionPreset = (typeof INVOICE_SUBMISSION_PRESETS)[number];
+
+type ContractFinancingListFiltersState = {
+  statusKind: IssuerFinancingStatusKind | "all";
+  /** Empty = all customers; otherwise exact match on trimmed customer name. */
+  customer: string;
+  periodPreset: ContractPeriodPreset;
+};
+
+export type InvoiceFinancingListFiltersState = {
+  statusKind: IssuerFinancingStatusKind | "all";
+  customer: string;
+  submissionPreset: InvoiceSubmissionPreset;
+};
+
+const DEFAULT_CONTRACT_FINANCING_LIST_FILTERS: ContractFinancingListFiltersState = {
+  statusKind: "all",
+  customer: "",
+  periodPreset: "all",
+};
+
+export const DEFAULT_INVOICE_FINANCING_LIST_FILTERS: InvoiceFinancingListFiltersState = {
+  statusKind: "all",
+  customer: "",
+  submissionPreset: "all",
+};
+
+type ProductListFiltersMap = Record<
+  string,
+  { contract: ContractFinancingListFiltersState; invoice: InvoiceFinancingListFiltersState }
+>;
+
+function getProductListFilters(map: ProductListFiltersMap, productId: string) {
+  return (
+    map[productId] ?? {
+      contract: { ...DEFAULT_CONTRACT_FINANCING_LIST_FILTERS },
+      invoice: { ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS },
+    }
+  );
+}
+
+/** Local calendar YYYY-MM-DD for comparisons (contract period vs today). */
+function localCalendarDayKeyFromString(raw: string | null | undefined): string | null {
+  if (raw == null || !String(raw).trim()) return null;
+  const s = String(raw).trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) {
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+    const dt = new Date(y, mo, d);
+    if (Number.isNaN(dt.getTime())) return null;
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  }
+  const t = Date.parse(s);
+  if (Number.isNaN(t)) return null;
+  const dt = new Date(t);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+
+function todayLocalDayKey(): string {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+}
+
+function matchesContractPeriodPreset(row: IssuerDashboardContract, preset: ContractPeriodPreset): boolean {
+  if (preset === "all") return true;
+  const today = todayLocalDayKey();
+  const startKey = localCalendarDayKeyFromString(row.contractStartDate);
+  const endKey = localCalendarDayKeyFromString(row.contractEndDate);
+  if (preset === "active") {
+    if (startKey == null || endKey == null) return false;
+    return startKey <= today && endKey >= today;
+  }
+  if (preset === "starting_soon") {
+    if (startKey == null) return false;
+    return startKey > today;
+  }
+  if (preset === "expired") {
+    if (endKey == null) return false;
+    return endKey < today;
+  }
+  return true;
+}
+
+function submissionDateMs(row: IssuerDashboardInvoice): number | null {
+  if (!row.submissionDate) return null;
+  const t = Date.parse(row.submissionDate);
+  return Number.isNaN(t) ? null : t;
+}
+
+function matchesInvoiceSubmissionPreset(row: IssuerDashboardInvoice, preset: InvoiceSubmissionPreset): boolean {
+  if (preset === "all") return true;
+  const ms = submissionDateMs(row);
+  if (ms == null) return false;
+  const now = Date.now();
+  if (preset === "7d") return ms >= now - 7 * 86400000;
+  if (preset === "30d") return ms >= now - 30 * 86400000;
+  if (preset === "6m") {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 6);
+    return ms >= cutoff.getTime();
+  }
+  return true;
+}
+
+function filterContracts(rows: IssuerDashboardContract[], f: ContractFinancingListFiltersState): IssuerDashboardContract[] {
+  return rows.filter((row) => {
+    if (f.statusKind !== "all") {
+      if (resolveIssuerContractDashboardBadge(row.contractStatus) !== f.statusKind) return false;
+    }
+    if (f.customer) {
+      const name = (row.customerName ?? "").trim();
+      if (name !== f.customer) return false;
+    }
+    if (!matchesContractPeriodPreset(row, f.periodPreset)) return false;
+    return true;
+  });
+}
+
+export function filterInvoices(rows: IssuerDashboardInvoice[], f: InvoiceFinancingListFiltersState): IssuerDashboardInvoice[] {
+  return rows.filter((row) => {
+    if (f.statusKind !== "all") {
+      if (resolveIssuerInvoiceDashboardBadge(row.note, row.invoiceStatus) !== f.statusKind) return false;
+    }
+    if (f.customer) {
+      const name = (row.customerName ?? "").trim();
+      if (name !== f.customer) return false;
+    }
+    if (!matchesInvoiceSubmissionPreset(row, f.submissionPreset)) return false;
+    return true;
+  });
+}
+
+function contractPeriodPresetLabel(p: ContractPeriodPreset): string {
+  if (p === "all") return "All periods";
+  if (p === "active") return "Active contracts";
+  if (p === "starting_soon") return "Starting soon";
+  return "Expired contracts";
+}
+
+function invoiceSubmissionPresetLabel(p: InvoiceSubmissionPreset): string {
+  if (p === "all") return "All dates";
+  if (p === "7d") return "Last 7 days";
+  if (p === "30d") return "Last 30 days";
+  return "Last 6 months";
+}
+
+function contractFinancingFiltersActive(f: ContractFinancingListFiltersState): boolean {
+  return f.statusKind !== "all" || f.customer !== "" || f.periodPreset !== "all";
+}
+
+function invoiceFinancingFiltersActive(f: InvoiceFinancingListFiltersState): boolean {
+  return f.statusKind !== "all" || f.customer !== "" || f.submissionPreset !== "all";
+}
+
+type FinancingListFilterToolbarProps =
+  | {
+      variant: "contract";
+      rows: IssuerDashboardContract[];
+      value: ContractFinancingListFiltersState;
+      onChange: (next: ContractFinancingListFiltersState) => void;
+      onClear: () => void;
+    }
+  | {
+      variant: "invoice";
+      rows: IssuerDashboardInvoice[];
+      value: InvoiceFinancingListFiltersState;
+      onChange: (next: InvoiceFinancingListFiltersState) => void;
+      onClear: () => void;
+      /** When true, omit Customer control (e.g. contract detail where customer is fixed). */
+      hideCustomer?: boolean;
+    };
+
+function FinancingContractFilterToolbar({
+  rows,
+  value,
+  onChange,
+  onClear,
+}: {
+  rows: IssuerDashboardContract[];
+  value: ContractFinancingListFiltersState;
+  onChange: (next: ContractFinancingListFiltersState) => void;
+  onClear: () => void;
+}) {
+  const kindsPresent = new Set<IssuerFinancingStatusKind>();
+  for (const r of rows) {
+    kindsPresent.add(resolveIssuerContractDashboardBadge(r.contractStatus));
+  }
+  const statusOptions = FINANCING_STATUS_ORDER.filter((k) => kindsPresent.has(k));
+
+  const customers = new Set<string>();
+  for (const r of rows) {
+    const t = (r.customerName ?? "").trim();
+    if (t) customers.add(t);
+  }
+  const customerList = [...customers].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+
+  const statusTrigger =
+    value.statusKind === "all" ? "Status" : `Status: ${getIssuerFinancingStatusPresentation(value.statusKind).label}`;
+  const customerTrigger = value.customer === "" ? "Customer" : `Customer: ${value.customer}`;
+  const periodTrigger =
+    value.periodPreset === "all" ? "Period" : `Period: ${contractPeriodPresetLabel(value.periodPreset)}`;
+  const active = contractFinancingFiltersActive(value);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-9 max-w-[11rem] gap-1.5 truncate px-3 text-sm font-medium",
+              value.statusKind !== "all" && "border-primary/40 bg-muted/50"
+            )}
+          >
+            <FunnelIcon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{statusTrigger}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-52">
+          <DropdownMenuItem
+            onClick={() => onChange({ ...value, statusKind: "all" })}
+            className="flex items-center justify-between gap-2"
+          >
+            All statuses
+            {value.statusKind === "all" ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+          </DropdownMenuItem>
+          {statusOptions.map((kind) => {
+            const p = getIssuerFinancingStatusPresentation(kind);
+            return (
+              <DropdownMenuItem
+                key={kind}
+                onClick={() => onChange({ ...value, statusKind: kind })}
+                className="flex items-center justify-between gap-2"
+              >
+                <span>{p.label}</span>
+                {value.statusKind === kind ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-9 max-w-[14rem] gap-1.5 truncate px-3 text-sm font-medium",
+              value.periodPreset !== "all" && "border-primary/40 bg-muted/50"
+            )}
+          >
+            <FunnelIcon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{periodTrigger}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          {CONTRACT_PERIOD_PRESETS.map((preset) => (
+            <DropdownMenuItem
+              key={preset}
+              onClick={() => onChange({ ...value, periodPreset: preset })}
+              className="flex items-center justify-between gap-2"
+            >
+              <span>{contractPeriodPresetLabel(preset)}</span>
+              {value.periodPreset === preset ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-9 max-w-[12rem] gap-1.5 truncate px-3 text-sm font-medium",
+              value.customer !== "" && "border-primary/40 bg-muted/50"
+            )}
+          >
+            <FunnelIcon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{customerTrigger}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56 max-h-[min(24rem,70vh)] overflow-y-auto">
+          <DropdownMenuItem
+            onClick={() => onChange({ ...value, customer: "" })}
+            className="flex items-center justify-between gap-2"
+          >
+            All customers
+            {value.customer === "" ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+          </DropdownMenuItem>
+          {customerList.map((name) => (
+            <DropdownMenuItem
+              key={name}
+              onClick={() => onChange({ ...value, customer: name })}
+              className="flex items-center justify-between gap-2"
+            >
+              <span className="min-w-0 truncate">{name}</span>
+              {value.customer === name ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {active ? (
+        <Button type="button" variant="ghost" size="sm" className="h-9 px-2 text-sm text-muted-foreground" onClick={onClear}>
+          Clear
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+export function FinancingInvoiceFilterToolbar({
+  rows,
+  value,
+  onChange,
+  onClear,
+  hideCustomer = false,
+}: {
+  rows: IssuerDashboardInvoice[];
+  value: InvoiceFinancingListFiltersState;
+  onChange: (next: InvoiceFinancingListFiltersState) => void;
+  onClear: () => void;
+  hideCustomer?: boolean;
+}) {
+  const kindsPresent = new Set<IssuerFinancingStatusKind>();
+  for (const r of rows) {
+    kindsPresent.add(resolveIssuerInvoiceDashboardBadge(r.note, r.invoiceStatus));
+  }
+  const statusOptions = FINANCING_STATUS_ORDER.filter((k) => kindsPresent.has(k));
+
+  const customers = new Set<string>();
+  if (!hideCustomer) {
+    for (const r of rows) {
+      const t = (r.customerName ?? "").trim();
+      if (t) customers.add(t);
+    }
+  }
+  const customerList = [...customers].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+
+  const statusTrigger =
+    value.statusKind === "all" ? "Status" : `Status: ${getIssuerFinancingStatusPresentation(value.statusKind).label}`;
+  const customerTrigger = value.customer === "" ? "Customer" : `Customer: ${value.customer}`;
+  const submissionTrigger =
+    value.submissionPreset === "all"
+      ? "Submission date"
+      : `Submission date: ${invoiceSubmissionPresetLabel(value.submissionPreset)}`;
+  const active = hideCustomer
+    ? value.statusKind !== "all" || value.submissionPreset !== "all"
+    : invoiceFinancingFiltersActive(value);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-9 max-w-[11rem] gap-1.5 truncate px-3 text-sm font-medium",
+              value.statusKind !== "all" && "border-primary/40 bg-muted/50"
+            )}
+          >
+            <FunnelIcon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{statusTrigger}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-52">
+          <DropdownMenuItem
+            onClick={() => onChange({ ...value, statusKind: "all" })}
+            className="flex items-center justify-between gap-2"
+          >
+            All statuses
+            {value.statusKind === "all" ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+          </DropdownMenuItem>
+          {statusOptions.map((kind) => {
+            const p = getIssuerFinancingStatusPresentation(kind);
+            return (
+              <DropdownMenuItem
+                key={kind}
+                onClick={() => onChange({ ...value, statusKind: kind })}
+                className="flex items-center justify-between gap-2"
+              >
+                <span>{p.label}</span>
+                {value.statusKind === kind ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-9 max-w-[14rem] gap-1.5 truncate px-3 text-sm font-medium",
+              value.submissionPreset !== "all" && "border-primary/40 bg-muted/50"
+            )}
+          >
+            <FunnelIcon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{submissionTrigger}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          {INVOICE_SUBMISSION_PRESETS.map((preset) => (
+            <DropdownMenuItem
+              key={preset}
+              onClick={() => onChange({ ...value, submissionPreset: preset })}
+              className="flex items-center justify-between gap-2"
+            >
+              <span>{invoiceSubmissionPresetLabel(preset)}</span>
+              {value.submissionPreset === preset ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {!hideCustomer ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-9 max-w-[12rem] gap-1.5 truncate px-3 text-sm font-medium",
+                value.customer !== "" && "border-primary/40 bg-muted/50"
+              )}
+            >
+              <FunnelIcon className="h-4 w-4 shrink-0" />
+              <span className="truncate">{customerTrigger}</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56 max-h-[min(24rem,70vh)] overflow-y-auto">
+            <DropdownMenuItem
+              onClick={() => onChange({ ...value, customer: "" })}
+              className="flex items-center justify-between gap-2"
+            >
+              All customers
+              {value.customer === "" ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+            </DropdownMenuItem>
+            {customerList.map((name) => (
+              <DropdownMenuItem
+                key={name}
+                onClick={() => onChange({ ...value, customer: name })}
+                className="flex items-center justify-between gap-2"
+              >
+                <span className="min-w-0 truncate">{name}</span>
+                {value.customer === name ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+
+      {active ? (
+        <Button type="button" variant="ghost" size="sm" className="h-9 px-2 text-sm text-muted-foreground" onClick={onClear}>
+          Clear
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function FinancingListFilterToolbar(props: FinancingListFilterToolbarProps) {
+  if (props.variant === "contract") {
+    return <FinancingContractFilterToolbar rows={props.rows} value={props.value} onChange={props.onChange} onClear={props.onClear} />;
+  }
+  return <FinancingInvoiceFilterToolbar rows={props.rows} value={props.value} onChange={props.onChange} onClear={props.onClear} hideCustomer={props.hideCustomer} />;
+}
+
+function CollapsibleCategory({
+  title,
+  children,
+  defaultOpen = true,
+  filters,
+}: {
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  filters?: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <h4 className="text-lg font-semibold leading-7 tracking-tight text-foreground md:text-xl">{title}</h4>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {filters}
+          <Separator orientation="vertical" className="mx-1 h-6" />
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            className="h-9 w-9 inline-flex items-center justify-center rounded-md hover:bg-muted"
+            aria-label={open ? "Collapse" : "Expand"}
+          >
+            {open ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+        </div>
+      </div>
+      {open && <div className="space-y-4">{children}</div>}
+    </div>
+  );
+}
+
+export function FilterButton({ label }: { label: string }) {
+  return (
+    <Button variant="outline" size="sm" className="h-9 gap-1.5 px-3 text-sm font-medium">
+      <FunnelIcon className="h-4 w-4 shrink-0" />
+      {label}
+    </Button>
+  );
+}
+
+export function FinancingSection({ organizationId }: { organizationId?: string }) {
+  const { data: dashboard, isLoading, isError, error, refetch } = useIssuerDashboard(organizationId);
   const { data: productsData } = useProducts({ page: 1, pageSize: 100, search: "", activeOnly: true });
   const products = useMemo(() => productsData?.products ?? [], [productsData]);
 
-  const [offerModalContext, setOfferModalContext] = useState<Parameters<typeof ReviewOfferModal>[0]["context"]>(null);
+  type OfferContext =
+    | { type: "contract"; applicationId: string; contractId: string }
+    | { type: "invoice"; applicationId: string; invoice: unknown };
+
+  const [offerModalContext, setOfferModalContext] = useState<OfferContext | null>(null);
   const offerModalOpen = offerModalContext !== null;
+
+  const [listFiltersByProduct, setListFiltersByProduct] = useState<ProductListFiltersMap>({});
 
   const productNameMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -279,10 +749,7 @@ export function FinancingSection() {
     return map;
   }, [products]);
 
-  const productGroups = useMemo(
-    () => flattenAndGroupByProduct(applications as ApplicationWithRelations[]),
-    [applications]
-  );
+  const productGroups = useMemo(() => (dashboard ? groupDashboardByProduct(dashboard) : {}), [dashboard]);
 
   type ProductOrStub = Product | { id: string; name: string };
 
@@ -294,6 +761,7 @@ export function FinancingSection() {
     const productIdsFromProducts = new Set(fromProducts.map((p: Product) => p.id));
     const orphanIds = Object.keys(productGroups).filter(
       (pid) =>
+        pid !== "_none" &&
         !productIdsFromProducts.has(pid) &&
         (productGroups[pid]?.contracts?.length ?? 0) + (productGroups[pid]?.invoices?.length ?? 0) > 0
     );
@@ -303,1132 +771,490 @@ export function FinancingSection() {
     ] as ProductOrStub[];
   }, [products, productGroups, productNameMap]);
 
-  return (
-    <>
-      <ReviewOfferModal
-        open={offerModalOpen}
-        onOpenChange={(open) => !open && setOfferModalContext(null)}
-        context={offerModalContext}
-      />
-      <div className="space-y-6">
-      {productsWithData.map((product: ProductOrStub) => {
-        const group = productGroups[product.id] ?? { contracts: [], invoices: [] };
-        const productName =
-          productNameMap.get(product.id) ??
-          ("name" in product ? product.name : undefined) ??
-          `Product ${product.id}`;
+  if (!organizationId) {
+    return null;
+  }
 
-        return (
-          <Card key={product.id} className="rounded-xl border border-gray-200 shadow-sm">
-            <div className="px-6 py-5">
-              <div className="flex items-center gap-3">
-                <FileText className="h-5 w-5 text-muted-foreground" />
-                <h3 className="font-semibold text-[15px] leading-6">{productName}</h3>
-              </div>
-            </div>
-
-            <div className="px-6 pb-6 space-y-8">
-              <CollapsibleCategory
-                title="Contract financing"
-                defaultOpen
-                filters={
-                  <>
-                    <FilterButton label="Status" />
-                    <FilterButton label="Date" />
-                    <FilterButton label="Customer" />
-                  </>
-                }
-              >
-                <div className="space-y-4">
-                  {group.contracts.length > 0 ? (
-                    group.contracts.map((c) => (
-                      <ContractCard
-                        key={c.id}
-                        item={c.contract}
-                        applicationId={c.applicationId}
-                        offerStatus={getOfferStatus(c.contract)}
-                        onReviewOffer={() =>
-                          setOfferModalContext({
-                            type: "contract",
-                            applicationId: c.applicationId,
-                            contract: c.contract,
-                          })
-                        }
-                      />
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground py-4">No contract financing</p>
-                  )}
-                </div>
-              </CollapsibleCategory>
-
-              <CollapsibleCategory
-                title="Invoice financing"
-                defaultOpen
-                filters={
-                  <>
-                    <FilterButton label="Status" />
-                    <FilterButton label="Date" />
-                    <FilterButton label="Customer" />
-                  </>
-                }
-              >
-                <div className="space-y-4">
-                  {group.invoices.length > 0 ? (
-                    group.invoices.map((inv) => (
-                      <InvoiceCard
-                        key={inv.id}
-                        item={inv.invoice}
-                        applicationSubmittedAt={inv.applicationSubmittedAt}
-                        applicationId={inv.applicationId}
-                        offerStatus={getOfferStatus(inv.invoice)}
-                        onReviewOffer={() =>
-                          setOfferModalContext({
-                            type: "invoice",
-                            applicationId: inv.applicationId,
-                            invoiceId: inv.id,
-                            invoice: inv.invoice,
-                          })
-                        }
-                      />
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground py-4">No invoice financing</p>
-                  )}
-                </div>
-              </CollapsibleCategory>
-            </div>
-          </Card>
-        );
-      })}
-    </div>
-    </>
-  );
-}
-
-/* ============================================================
-   Category header: filters + separator + chevron far right
-============================================================ */
-
-function CollapsibleCategory({
-  title,
-  children,
-  defaultOpen = true,
-  filters,
-}: {
-  title: string;
-  children: React.ReactNode;
-  defaultOpen?: boolean;
-  filters?: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-
-  return (
-    <div className="px-6 space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <h4 className="text-[15px] font-semibold">{title}</h4>
-
-        <div className="flex items-center gap-2">
-          <div className="hidden sm:flex items-center gap-2">{filters}</div>
-
-          <Separator orientation="vertical" className="mx-1 h-6" />
-
-          <button
-            type="button"
-            onClick={() => setOpen(!open)}
-            className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-muted"
-            aria-label={open ? "Collapse" : "Expand"}
-          >
-            {open ? (
-              <ChevronUp className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            )}
-          </button>
-        </div>
-      </div>
-
-      {open && <div className="space-y-4">{children}</div>}
+  const outerCardHeader = (
+    <div className="border-b border-border px-6 py-4">
+      <h3 className="text-xl font-semibold tracking-tight text-foreground">Financing</h3>
     </div>
   );
-}
 
-type InvoiceCardModel = Invoice & {
-  maturityDate?: string | null;
-  submissionDate?: string | null;
-  noteNo?: string | null;
-  customer?: string | null;
-  fundingDeadline?: string | null;
-  progress?: number | string;
-  fundingLabel?: string | null;
-};
+  if (isLoading) {
+    return (
+      <Card className="bg-muted/50 shadow-none">
+        {outerCardHeader}
+        <div className="px-6 py-8 text-center text-[17px] leading-7 text-muted-foreground">
+          Loading financing data…
+        </div>
+      </Card>
+    );
+  }
 
-/* ============================================================
-   Cards: grid layout -> content | right column | action column
-============================================================ */
+  if (isError) {
+    return (
+      <Card className="bg-muted/50 shadow-none">
+        {outerCardHeader}
+        <div className="px-6 py-6 space-y-3">
+          <p className="font-medium text-destructive">Could not load financing</p>
+          <p className="text-[17px] leading-7 text-muted-foreground">
+            {error instanceof Error ? error.message : "Unknown error"}
+          </p>
+          <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
+            Retry
+          </Button>
+        </div>
+      </Card>
+    );
+  }
 
-function ContractCard({
-  item,
-  applicationId,
-  offerStatus,
-  onReviewOffer,
-}: {
-  item: Contract & { activeNotes?: unknown };
-  applicationId: string;
-  offerStatus: OfferStatus;
-  onReviewOffer: () => void;
-}) {
-  const router = useRouter();
-  const details = (item.contract_details ?? {}) as LooseContractDetails;
-  const customer = item.customer_details?.name ?? details.customer ?? "-";
-  const start = details?.start_date;
-  const end = details?.end_date;
-  const approved = details?.approved_facility ?? 0;
-  const utilised = details?.utilized_facility ?? 0;
-  const utilisationPct = approved > 0 ? Math.round((utilised / approved) * 100) : 0;
+  if (!dashboard || productsWithData.length === 0) {
+    return (
+      <Card className="bg-muted/50 shadow-none">
+        {outerCardHeader}
+        <div className="px-6 py-8 text-center text-muted-foreground text-[17px] leading-7">
+          No financing activity yet. Use{" "}
+          <span className="font-medium text-foreground">Get Financed</span> to start an application.
+        </div>
+      </Card>
+    );
+  }
 
   return (
-    <Card className="rounded-lg border border-border bg-muted/40 shadow-none">
-      <div className="px-5 py-4 space-y-4">
-
-        {/* HEADER */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            <FileText className="h-4 w-4 text-muted-foreground" />
-
-            <p className="text-sm font-medium truncate">
-              Contract :{" "}
-              <span className="font-semibold">{details?.title ?? item.id}</span>
-            </p>
-
-            <span className="ml-2">{contractBadge(formatStatus(item.status) || formatStatus(details.status))}</span>
-            {offerBadge(offerStatus)}
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <ReviewOfferButton show={offerStatus === "Offer received"} onClick={onReviewOffer} />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full h-8 w-8">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuItem onClick={() => applicationId && router.push(`/applications/edit/${applicationId}`)}>
-                  Make amendment
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-
-        {/* BODY */}
-        <div className="grid grid-cols-[1fr_320px] gap-8 items-start">
-
-          {/* LEFT */}
-          <div className="space-y-2">
-            <div>
-              <p className="text-xs text-muted-foreground">Customer</p>
-              <p className="text-[17px] leading-7 font-medium text-foreground">
-                {customer ?? "NA"}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-xs text-muted-foreground">Contract period</p>
-              <p className="text-[17px] leading-7 font-medium text-foreground">
-                {start || end
-                  ? start && end
-                    ? `${formatDate(start)} to ${formatDate(end)}`
-                    : `${formatDate(start ?? end)}`
-                  : "NA"}
-              </p>
-            </div>
-
-            {item.activeNotes !== undefined && (
-              <div>
-                <p className="text-xs text-muted-foreground">Active notes</p>
-                <p className="text-[17px] leading-7 font-medium text-foreground">
-                  {String(item.activeNotes)}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* RIGHT */}
-    <div className="flex flex-col justify-between h-full">
-
-      {/* TOP CONTENT */}
-      <div className="space-y-3 pt-4">
-
-        {/* Progress */}
-        <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-          <div
-            className="h-1.5 bg-foreground rounded-full"
-            style={{ width: `${utilisationPct}%` }}
+    <Card className="bg-muted/50 shadow-none">
+      {outerCardHeader}
+      <div className="px-5 pb-5 space-y-5 md:px-6 md:pb-6">
+        {offerModalOpen && offerModalContext ? (
+          <ReviewOfferModal
+            type={offerModalContext.type}
+            applicationId={offerModalContext.applicationId}
+            contractId={offerModalContext.type === "contract" ? offerModalContext.contractId : undefined}
+            invoice={offerModalContext.type === "invoice" ? (offerModalContext.invoice as any) : undefined}
+            requiresInvoiceSigning
+            onClose={() => setOfferModalContext(null)}
           />
-        </div>
+        ) : null}
+        {productsWithData.map((product: ProductOrStub) => {
+          const group = productGroups[product.id] ?? { contracts: [], invoices: [] };
+          const productName =
+            productNameMap.get(product.id) ??
+            ("name" in product ? product.name : undefined) ??
+            `Product ${product.id}`;
 
-        {/* Numbers left & right */}
-        <div className="flex justify-between">
-          <div>
-            <p className="text-[17px] leading-7 font-medium text-foreground">
-              {formatMoney(utilised)}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              (Utilised facility)
-            </p>
-          </div>
+          const listFilters = getProductListFilters(listFiltersByProduct, product.id);
+          const filteredContracts = filterContracts(group.contracts, listFilters.contract);
+          const filteredInvoices = filterInvoices(group.invoices, listFilters.invoice);
 
-          <div className="text-right">
-            <p className="text-[17px] leading-7 font-medium text-foreground">
-              {formatMoney(approved)}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              (Approved facility)
-            </p>
-          </div>
-        </div>
+          const patchContractFilters = (next: ContractFinancingListFiltersState) => {
+            setListFiltersByProduct((prev) => ({
+              ...prev,
+              [product.id]: { ...getProductListFilters(prev, product.id), contract: next },
+            }));
+          };
+          const patchInvoiceFilters = (next: InvoiceFinancingListFiltersState) => {
+            setListFiltersByProduct((prev) => ({
+              ...prev,
+              [product.id]: { ...getProductListFilters(prev, product.id), invoice: next },
+            }));
+          };
 
-      </div>
+          return (
+            <Card key={product.id} className="rounded-xl border border-border bg-background shadow-none">
+              <div className="border-b border-border px-6 py-4 md:px-8 md:pt-5">
+                <div className="flex items-center gap-3">
+                  <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                  <h3 className="text-lg font-semibold leading-7 text-foreground">{productName}</h3>
+                </div>
+              </div>
 
-      {/* BOTTOM ACTION */}
-      <div className="flex justify-end pt-4">
-        <button
-          type="button"
-          onClick={() => applicationId && router.push(`/applications/edit/${applicationId}`)}
-          className="text-xs font-medium text-primary hover:underline"
-        >
-          Make amendment →
-        </button>
-      </div>
+              <div className="space-y-6 px-6 pb-5 pt-4 md:px-8 md:pb-6">
+                <CollapsibleCategory
+                  title="Contract financing"
+                  defaultOpen
+                  filters={
+                    <FinancingListFilterToolbar
+                      variant="contract"
+                      rows={group.contracts}
+                      value={listFilters.contract}
+                      onChange={patchContractFilters}
+                      onClear={() =>
+                        setListFiltersByProduct((prev) => ({
+                          ...prev,
+                          [product.id]: {
+                            ...getProductListFilters(prev, product.id),
+                            contract: { ...DEFAULT_CONTRACT_FINANCING_LIST_FILTERS },
+                          },
+                        }))
+                      }
+                    />
+                  }
+                >
+                  <div className="space-y-4">
+                    {group.contracts.length === 0 ? (
+                      <p className="py-4 text-[17px] leading-7 text-muted-foreground">No contract financing</p>
+                    ) : filteredContracts.length === 0 ? (
+                      <p className="py-4 text-[17px] leading-7 text-muted-foreground">
+                        No contracts match these filters.{" "}
+                        <button
+                          type="button"
+                          className="font-medium text-primary underline-offset-4 hover:underline"
+                          onClick={() =>
+                            setListFiltersByProduct((prev) => ({
+                              ...prev,
+                              [product.id]: {
+                                ...getProductListFilters(prev, product.id),
+                                contract: { ...DEFAULT_CONTRACT_FINANCING_LIST_FILTERS },
+                              },
+                            }))
+                          }
+                        >
+                          Clear filters
+                        </button>
+                      </p>
+                    ) : (
+                      filteredContracts.map((c) => {
+                        const modalContract = asContractForModal(c.contractForModal);
+                        const offerStatus = getOfferStatus(modalContract);
+                        return (
+                          <DashboardContractCard
+                            key={c.id}
+                            row={c}
+                            offerStatus={offerStatus}
+                            onReviewOffer={() =>
+                              setOfferModalContext({
+                                type: "contract",
+                                applicationId: c.applicationId,
+                                contractId: c.id,
+                              })
+                            }
+                          />
+                        );
+                      })
+                    )}
+                  </div>
+                </CollapsibleCategory>
 
-    </div>
-        </div>
+                <CollapsibleCategory
+                  title="Invoice financing"
+                  defaultOpen
+                  filters={
+                    <FinancingListFilterToolbar
+                      variant="invoice"
+                      rows={group.invoices}
+                      value={listFilters.invoice}
+                      onChange={patchInvoiceFilters}
+                      onClear={() =>
+                        setListFiltersByProduct((prev) => ({
+                          ...prev,
+                          [product.id]: {
+                            ...getProductListFilters(prev, product.id),
+                            invoice: { ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS },
+                          },
+                        }))
+                      }
+                    />
+                  }
+                >
+                  <div className="space-y-4">
+                    {group.invoices.length === 0 ? (
+                      <p className="py-4 text-[17px] leading-7 text-muted-foreground">No invoice financing</p>
+                    ) : filteredInvoices.length === 0 ? (
+                      <p className="py-4 text-[17px] leading-7 text-muted-foreground">
+                        No invoices match these filters.{" "}
+                        <button
+                          type="button"
+                          className="font-medium text-primary underline-offset-4 hover:underline"
+                          onClick={() =>
+                            setListFiltersByProduct((prev) => ({
+                              ...prev,
+                              [product.id]: {
+                                ...getProductListFilters(prev, product.id),
+                                invoice: { ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS },
+                              },
+                            }))
+                          }
+                        >
+                          Clear filters
+                        </button>
+                      </p>
+                    ) : (
+                      filteredInvoices.map((inv) => {
+                        const modalInvoice = asInvoiceForModal(inv.invoiceForModal);
+                        const offerStatus = getOfferStatus(modalInvoice);
+                        return (
+                          <DashboardInvoiceCard
+                            key={inv.id}
+                            row={inv}
+                            offerStatus={offerStatus}
+                            onReviewOffer={() =>
+                              setOfferModalContext({
+                                type: "invoice",
+                                applicationId: inv.applicationId,
+                                invoice: modalInvoice as unknown,
+                              })
+                            }
+                          />
+                        );
+                      })
+                    )}
+                  </div>
+                </CollapsibleCategory>
+              </div>
+            </Card>
+          );
+        })}
       </div>
     </Card>
   );
 }
 
-export function InvoiceCard({
-  item,
-  applicationSubmittedAt,
-  applicationId,
+function DashboardContractCard({
+  row,
   offerStatus,
   onReviewOffer,
 }: {
-  item: InvoiceCardModel;
-  applicationSubmittedAt?: string | null;
-  applicationId?: string;
+  row: IssuerDashboardContract;
   offerStatus: OfferStatus;
   onReviewOffer: () => void;
 }) {
   const router = useRouter();
-  const details = (item.details ?? {}) as LooseInvoiceDetails;
-  const invoiceNumber = details.number ?? details.invoiceNo ?? item.id;
-  const invoiceValue = details.value ?? details.invoiceValue ?? null;
-  const ratioRaw = details.financing_ratio_percent;
-  const ratioParsed =
-    ratioRaw === undefined || ratioRaw === null
-      ? NaN
-      : typeof ratioRaw === "number"
-        ? Number.isFinite(ratioRaw)
-          ? ratioRaw
-          : NaN
-        : (() => {
-            const normalized = String(ratioRaw).replace(/,/g, "").trim();
-            if (normalized === "") return NaN;
-            const n = Number(normalized);
-            return Number.isFinite(n) ? n : NaN;
-          })();
-  const financingAmount =
-    details.financing_amount ??
-    details.financingAmount ??
-    (typeof invoiceValue === "number" && Number.isFinite(ratioParsed)
-      ? Math.round((invoiceValue * ratioParsed) / 100)
-      : undefined);
-  const maturityDate = details.maturity_date ?? details.maturityDate ?? item.maturityDate ?? null;
-  const submissionDate =
-    details.submission_date ??
-    details.submissionDate ??
-    item.submissionDate ??
-    item.created_at ??
-    applicationSubmittedAt ??
-    null;
-  const status = formatStatus(item.status ?? details.status);
+  const actionRequiredApplicationIds = row.actionRequiredApplicationIds ?? [];
+  const actionRequiredCount = actionRequiredApplicationIds.length;
+  const showActionRequired = actionRequiredCount > 0;
+  const actionRequiredLabel =
+    actionRequiredCount === 1 ? "Action required" : `Action required (${actionRequiredCount})`;
+  const approvedNum = row.approvedFacilityAmount != null ? Number(row.approvedFacilityAmount) : null;
+  const utilisedNum = row.utilizedFacilityAmount != null ? Number(row.utilizedFacilityAmount) : null;
+  const utilisationPct =
+    approvedNum != null && utilisedNum != null && approvedNum > 0
+      ? Math.round((utilisedNum / approvedNum) * 100)
+      : 0;
+
+  const contractPeriod =
+    row.contractStartDate && row.contractEndDate
+      ? `${formatDate(row.contractStartDate)} to ${formatDate(row.contractEndDate)}`
+      : row.contractStartDate || row.contractEndDate
+        ? formatDate(row.contractStartDate ?? row.contractEndDate)
+        : EM_DASH;
 
   return (
-    <Card className="rounded-lg border border-border bg-muted/40 shadow-none">
-      <div className="px-5 py-4 space-y-4">
-
-        {/* HEADER */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            <FileText className="h-4 w-4 text-muted-foreground" />
-
-            <p className="text-sm font-medium truncate">
-              Invoice no :{" "}
-              <span className="font-semibold">{invoiceNumber}</span>
-            </p>
-
-            <span className="ml-2">{invoiceBadge(status)}</span>
-            {offerBadge(offerStatus)}
+    <Card className="min-w-0 max-w-full rounded-xl border border-border bg-muted/50 shadow-none">
+      <div className="space-y-3 px-4 py-4 md:px-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1">
+              <p className="min-w-0 max-w-full truncate leading-5">
+                <span className="text-sm font-normal leading-5 text-foreground">Contract: </span>
+                <span className="text-sm font-semibold leading-5 text-foreground">{displayCell(row.title)}</span>
+              </p>
+              <IssuerFinancingStatusBadge kind={resolveIssuerContractDashboardBadge(row.contractStatus)} />
+              {offerBadge(offerStatus)}
+            </div>
           </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <ReviewOfferButton
-              show={offerStatus === "Offer received"}
-              onClick={onReviewOffer}
-            />
-
+          <div className="flex shrink-0 items-center gap-2">
+            <ReviewOfferButton show={offerStatus === "Offer received"} onClick={onReviewOffer} />
+            {showActionRequired ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 rounded-lg border-amber-500/30 bg-amber-50 px-3 text-xs font-medium text-amber-800 hover:bg-amber-50"
+                      onClick={() =>
+                        router.push(
+                          `/applications?applicationIds=${encodeURIComponent(
+                            actionRequiredApplicationIds.join(",")
+                          )}`
+                        )
+                      }
+                    >
+                      {actionRequiredLabel}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[240px] whitespace-normal break-words bg-popover px-2 py-1.5 text-popover-foreground shadow-md">
+                    {actionRequiredCount === 1
+                      ? "A related application needs amendment. Go to Applications to review and update it."
+                      : `${actionRequiredCount} related applications need amendment. Go to Applications to review and update them.`}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : null}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-full h-8 w-8"
-                >
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-
-              <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuItem
-                  onClick={() => applicationId && router.push(`/applications/edit/${applicationId}`)}
-                >
-                  Make amendment
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem asChild>
+                  <Link href={`/financing/contracts/${row.id}`}>View details</Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </div>
 
-        {/* BODY */}
-        <div className="grid grid-cols-[1fr_320px] gap-8 items-start">
-
-          {/* LEFT */}
-          <div className="space-y-2">
-            <div>
-              <p className="text-xs text-muted-foreground">Note no</p>
-              <p className="text-[17px] leading-7 font-medium text-foreground">
-                {item.noteNo ?? "NA"}
-              </p>
+        <div className="flex flex-col gap-2 pl-3 sm:pl-4">
+          <div className="grid grid-cols-1 items-start gap-x-6 gap-y-3 md:grid-cols-2">
+            <div className="min-w-0 space-y-2">
+              <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
+              <LabelValue label="Contract period">{contractPeriod}</LabelValue>
+              <LabelValue label="Active notes">{String(row.activeNotesCount)}</LabelValue>
             </div>
-
-            <div>
-              <p className="text-xs text-muted-foreground">Customer</p>
-              <p className="text-[17px] leading-7 font-medium text-foreground">
-                {item.customer ?? "NA"}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-xs text-muted-foreground">Invoice value</p>
-              <p className="text-[17px] leading-7 font-medium text-foreground">
-                {formatMoney(invoiceValue)}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-xs text-muted-foreground">
-                Financing amount
-              </p>
-              <p className="text-[17px] leading-7 font-medium text-foreground">
-                {formatMoney(financingAmount)}
-              </p>
-            </div>
-          </div>
-
-          {/* RIGHT */}
-          <div className="space-y-3">
-
-            <div className="space-y-1">
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  Submission date
-                </p>
-                <p className="text-[17px] leading-7 font-medium text-foreground">
-                  {formatDate(submissionDate)}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  Funding deadline
-                </p>
-                <p className="text-[17px] leading-7 font-medium text-foreground">
-                  {formatDate(item.fundingDeadline)}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  Maturity date
-                </p>
-                <p className="text-[17px] leading-7 font-medium text-foreground">
-                  {formatDate(maturityDate)}
-                </p>
-              </div>
-            </div>
-
-            {/* Progress */}
-            <div className="space-y-2 pt-4">
-              <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+            <div className="min-w-0 w-full space-y-2">
+              <div className="h-3 w-full overflow-hidden rounded-full border border-border bg-foreground/35 dark:bg-muted shadow-sm">
                 <div
-                  className="h-1.5 bg-foreground rounded-full"
-                  style={{
-                    width: `${Math.min(100, Math.max(0, Number(item.progress ?? 0)))}%`,
-                  }}
+                  className="h-3 rounded-full bg-foreground"
+                  style={{ width: `${Math.min(100, Math.max(0, utilisationPct))}%` }}
                 />
               </div>
-
-              <p className="text-xs text-muted-foreground">
-                {(() => {
-                  // normalize funding label display per requested examples
-                  const prog = typeof item.progress === "number" ? item.progress : Number(item.progress);
-                  if (prog === 0) return "funding status (Not yet started)";
-                  if (prog === 75) return "funding status: (75%)";
-                  if (item.fundingLabel) return item.fundingLabel;
-                  if (!Number.isNaN(prog)) return `funding status: (${prog}%)`;
-                  return "funding status (Not yet started)";
-                })()}
-              </p>
+              <div className="flex justify-between gap-6 sm:gap-8">
+                <div className="min-w-0">
+                  <p className="text-[17px] font-semibold tabular-nums leading-7 text-foreground">
+                    {formatMoney(row.utilizedFacilityAmount)}
+                  </p>
+                  <p className="text-sm font-normal leading-6 text-muted-foreground">(Utilised facility)</p>
+                </div>
+                <div className="min-w-0 text-right">
+                  <p className="text-[17px] font-semibold tabular-nums leading-7 text-foreground">
+                    {formatMoney(row.approvedFacilityAmount)}
+                  </p>
+                  <p className="text-sm font-normal leading-6 text-muted-foreground">(Approved facility)</p>
+                </div>
+              </div>
             </div>
-
           </div>
         </div>
       </div>
     </Card>
-  )
-}
-
-/* ============================================================
-   Bits
-============================================================ */
-
-export function FilterButton({ label }: { label: string }) {
-  return (
-    <Button variant="outline" size="sm" className="h-8 text-xs font-medium gap-1 px-3">
-      <FunnelIcon className="h-3.5 w-3.5" />
-      {label}
-    </Button>
   );
 }
 
-
-// "use client"
-
-// import { useState } from "react"
-// import {
-//   ChevronDown,
-//   ChevronUp,
-//   MoreVertical,
-//   FileText,
-// } from "lucide-react"
-// import { Button } from "@/components/ui/button"
-// import { Badge } from "@/components/ui/badge"
-// import { Card } from "@/components/ui/card"
-// import { FunnelIcon } from "@heroicons/react/24/outline"
-
-// /* ============================================================
-//    Mock Application Data (Application Level)
-// ============================================================ */
-
-// const mockApplications = [
-//   {
-//     id: "app1",
-//     title: "Mining Rig Repair 12654",
-//     status: "Active",
-//     contracts: [
-//       {
-//         id: "c1",
-//         title: "Mining Rig Repair 12654",
-//         customer: "Petronas Chemical Bhd",
-//         period: "01/01/2026 to 31/12/2026",
-//         utilised: "RM 10,000",
-//         approved: "RM 50,000",
-//       },
-//     ],
-//     invoices: [
-//       {
-//         id: "i1",
-//         invoiceNo: "INV-11110",
-//         status: "Draft",
-//         submissionDate: "03/02/2026",
-//         maturityDate: "31/07/2026",
-//         invoiceValue: "RM 40,000",
-//         financingAmount: "RM 30,000",
-//         progress: 0,
-//       },
-//       {
-//         id: "i2",
-//         invoiceNo: "INV-11109",
-//         status: "In progress",
-//         submissionDate: "03/01/2026",
-//         maturityDate: "31/06/2026",
-//         invoiceValue: "RM 20,000",
-//         financingAmount: "RM 15,000",
-//         progress: 75,
-//       },
-//     ],
-//   },
-// ]
-
-// /* ============================================================
-//    Status Badge Helpers
-// ============================================================ */
-
-// function contractBadge(status: string) {
-//   return (
-//     <Badge className="bg-green-100 text-green-700">
-//       {status}
-//     </Badge>
-//   )
-// }
-
-// function invoiceBadge(status: string) {
-//   switch (status) {
-//     case "Draft":
-//       return <Badge variant="secondary">Draft</Badge>
-//     case "In progress":
-//       return <Badge className="bg-green-100 text-green-700">In progress</Badge>
-//     case "Funded":
-//       return <Badge className="bg-blue-100 text-blue-700">Funded</Badge>
-//     case "Completed":
-//       return <Badge className="bg-emerald-100 text-emerald-700">Completed</Badge>
-//     case "Unsuccessful":
-//       return <Badge className="bg-red-100 text-red-600">Unsuccessful</Badge>
-//     default:
-//       return null
-//   }
-// }
-
-// /* ============================================================
-//    Main Component
-// ============================================================ */
-
-// export function FinancingSection() {
-//   const [openApplicationId, setOpenApplicationId] = useState<string | null>(
-//     mockApplications[0].id
-//   )
-
-//   return (
-//     <div className="space-y-6">
-
-//       {mockApplications.map((app) => {
-//         const isOpen = openApplicationId === app.id
-
-//         return (
-//           <Card
-//             key={app.id}
-//             className="rounded-xl border border-gray-200 shadow-sm"
-//           >
-//             {/* APPLICATION HEADER */}
-//             <div
-//               onClick={() => setOpenApplicationId(isOpen ? null : app.id)}
-//               className="flex items-center justify-between p-6 cursor-pointer select-none border-b border-muted"
-//             >
-//               <div className="flex items-center gap-3">
-//                 <FileText className="h-5 w-5 text-muted-foreground" />
-//                 <h3 className="font-semibold text-base">
-//                   {app.title}
-//                 </h3>
-//                 {contractBadge(app.status)}
-//               </div>
-
-//               {isOpen ? (
-//                 <ChevronUp className="h-5 w-5 text-muted-foreground" />
-//               ) : (
-//                 <ChevronDown className="h-5 w-5 text-muted-foreground" />
-//               )}
-//             </div>
-
-//             {/* APPLICATION BODY */}
-//             {isOpen && (
-//               <div className="px-6 pb-6 space-y-10">
-
-//                 {/* CONTRACT SECTION */}
-//                 <CollapsibleCategory title="Contract financing" filters={["Status", "Date", "Customer"]} >
-//                   {app.contracts.map((c) => (
-//                     <Card
-//                       key={c.id}
-//                       className="p-6 rounded-xl border border-gray-200"
-//                     >
-//                       <div className="flex justify-between">
-//                         <div className="space-y-3">
-//                           <p className="text-sm font-semibold">
-//                             Contract : {c.title}
-//                           </p>
-//                           <p className="text-sm text-muted-foreground">
-//                             Customer : {c.customer}
-//                           </p>
-//                           <p className="text-sm text-muted-foreground">
-//                             Contract period : {c.period}
-//                           </p>
-//                         </div>
-
-//                         <div className="w-[320px] space-y-3">
-//                           <div className="h-2 bg-gray-200 rounded-full">
-//                             <div className="h-2 bg-black rounded-full w-[40%]" />
-//                           </div>
-//                           <div className="flex justify-between text-sm text-muted-foreground">
-//                             <span>{c.utilised}</span>
-//                             <span>{c.approved}</span>
-//                           </div>
-//                         </div>
-
-//                         <Button
-//                           variant="ghost"
-//                           size="icon"
-//                           className="rounded-full h-9 w-9 ml-4"
-//                         >
-//                           <MoreVertical className="h-4 w-4" />
-//                         </Button>
-//                       </div>
-//                     </Card>
-//                   ))}
-//                 </CollapsibleCategory>
-
-//                 {/* INVOICE SECTION */}
-//                 <CollapsibleCategory title="Invoice financing" filters={["Status", "Submission date"]}>
-//                   {app.invoices.map((inv) => (
-//                     <Card
-//                       key={inv.id}
-//                       className="p-6 rounded-xl border border-gray-200"
-//                     >
-//                       <div className="flex justify-between">
-//                         <div className="space-y-4 flex-1">
-//                           <div className="flex items-center gap-3">
-//                             <p className="text-sm font-medium">
-//                               Invoice no :{" "}
-//                               <span className="font-semibold">
-//                                 {inv.invoiceNo}
-//                               </span>
-//                             </p>
-//                             {invoiceBadge(inv.status)}
-//                           </div>
-
-//                           <div className="space-y-1">
-//                             <p className="text-sm text-muted-foreground">
-//                               Invoice value : {inv.invoiceValue}
-//                             </p>
-//                             <p className="text-sm text-muted-foreground">
-//                               Financing amount : {inv.financingAmount}
-//                             </p>
-//                           </div>
-//                         </div>
-
-//                         <div className="w-[320px] space-y-3">
-//                           <p className="text-sm text-muted-foreground">
-//                             Submission date: {inv.submissionDate}
-//                           </p>
-//                           <p className="text-sm text-muted-foreground">
-//                             Maturity date: {inv.maturityDate}
-//                           </p>
-
-//                           <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-//                             <div
-//                               className="h-2 bg-black rounded-full"
-//                               style={{ width: `${inv.progress}%` }}
-//                             />
-//                           </div>
-//                         </div>
-
-//                         <Button
-//                           variant="ghost"
-//                           size="icon"
-//                           className="rounded-full h-9 w-9 ml-4"
-//                         >
-//                           <MoreVertical className="h-4 w-4" />
-//                         </Button>
-//                       </div>
-//                     </Card>
-//                   ))}
-//                 </CollapsibleCategory>
-
-//               </div>
-//             )}
-//           </Card>
-//         )
-//       })}
-//     </div>
-//   )
-// }
-
-// /* ============================================================
-//    Collapsible Category Component
-// ============================================================ */
-
-// function CollapsibleCategory({
-//   title,
-//   children,
-//   filters,
-// }: {
-//   title: string
-//   children: React.ReactNode
-//   filters?: string[]
-// }) {
-//   const [open, setOpen] = useState(true)
-
-//   return (
-//     <div className="space-y-4">
-//       {/* HEADER (no underline) */}
-//       <div className="flex items-center justify-between">
-//         {/* LEFT: Title */}
-//         <h4 className="text-sm font-semibold text-foreground">{title}</h4>
-
-//         {/* RIGHT: Filters + Separator + Chevron */}
-//         <div className="flex items-center">
-//           {/* Filters (do not toggle collapse) */}
-//           {filters && (
-//             <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-//               {filters.map((filter) => (
-//                 <FilterButton key={filter} label={filter} />
-//               ))}
-//             </div>
-//           )}
-
-//           {/* Vertical Separator */}
-//           <div className="mx-3 h-6 w-px bg-border" />
-
-//           {/* Chevron (toggles collapse) */}
-//           <button
-//             type="button"
-//             onClick={() => setOpen(!open)}
-//             className="flex items-center justify-center h-8 w-8 rounded-md hover:bg-muted transition"
-//           >
-//             {open ? (
-//               <ChevronUp className="h-4 w-4 text-muted-foreground" />
-//             ) : (
-//               <ChevronDown className="h-4 w-4 text-muted-foreground" />
-//             )}
-//           </button>
-//         </div>
-//       </div>
-
-//       {/* BODY */}
-//       {open && <div className="space-y-4">{children}</div>}
-//     </div>
-//   )
-// }
-
-
-// function FilterButton({ label }: { label: string }) {
-//   return (
-//     <Button
-//       variant="outline"
-//       size="sm"
-//       className="h-8 text-xs font-medium gap-1 px-3"
-//     >
-//       <FunnelIcon className="h-3.5 w-3.5" />
-//       {label}
-//     </Button>
-//   )
-// }
-
-
-
-// "use client"
-
-// import { useState } from "react"
-// import { ChevronDown, ChevronUp, MoreVertical, FileText } from "lucide-react"
-// import { Button } from "@/components/ui/button"
-// import { Badge } from "@/components/ui/badge"
-// import { Card } from "@/components/ui/card"
-
-// /* ============================================================
-//    Types
-// ============================================================ */
-
-// type ContractStatus = "Active" | "Amendment required"
-// type InvoiceStatus =
-//   | "Draft"
-//   | "In progress"
-//   | "Funded"
-//   | "Completed"
-//   | "Unsuccessful"
-
-// /* ============================================================
-//    Mock Data
-// ============================================================ */
-
-// const mockContracts = [
-//   {
-//     id: "c1",
-//     title: "Mining Rig Repair 12654",
-//     customer: "Petronas Chemical Bhd",
-//     period: "01/01/2026 to 31/12/2026",
-//     utilised: "RM 10,000",
-//     approved: "RM 50,000",
-//     status: "Active" as ContractStatus,
-//   },
-//   {
-//     id: "c2",
-//     title: "Development of Gate Valve",
-//     customer: "Petronas Chemical Bhd",
-//     period: "01/01/2026 to 31/12/2026",
-//     utilised: "RM 10,000",
-//     approved: "RM 50,000",
-//     status: "Active" as ContractStatus,
-//   },
-// ]
-
-// const mockInvoices = [
-//   {
-//     id: "i1",
-//     invoiceNo: "INV-11110",
-//     status: "Draft" as InvoiceStatus,
-//     submissionDate: "03/02/2026",
-//     maturityDate: "31/07/2026",
-//     invoiceValue: "RM 40,000",
-//     financingAmount: "RM 30,000",
-//     progress: 0,
-//     label: "Funding status (Not yet started)",
-//   },
-//   {
-//     id: "i2",
-//     invoiceNo: "INV-11109",
-//     status: "In progress" as InvoiceStatus,
-//     submissionDate: "03/01/2026",
-//     maturityDate: "31/06/2026",
-//     invoiceValue: "RM 20,000",
-//     financingAmount: "RM 15,000",
-//     progress: 75,
-//     label: "Funding status (75%)",
-//   },
-// ]
-
-// /* ============================================================
-//    Badge Helpers
-// ============================================================ */
-
-// function contractBadge(status: ContractStatus) {
-//   if (status === "Active")
-//     return <Badge className="bg-green-100 text-green-700">Active</Badge>
-
-//   return (
-//     <Badge className="bg-red-100 text-red-600">
-//       Amendment required
-//     </Badge>
-//   )
-// }
-
-// function invoiceBadge(status: InvoiceStatus) {
-//   switch (status) {
-//     case "Draft":
-//       return <Badge variant="secondary">Draft</Badge>
-//     case "In progress":
-//       return <Badge className="bg-green-100 text-green-700">In progress</Badge>
-//     case "Funded":
-//       return <Badge className="bg-blue-100 text-blue-700">Funded</Badge>
-//     case "Completed":
-//       return <Badge className="bg-emerald-100 text-emerald-700">Completed</Badge>
-//     case "Unsuccessful":
-//       return <Badge className="bg-red-100 text-red-600">Unsuccessful</Badge>
-//   }
-// }
-
-// /* ============================================================
-//    Component
-// ============================================================ */
-
-// export function FinancingSection() {
-//   const [contractOpen, setContractOpen] = useState(true)
-//   const [invoiceOpen, setInvoiceOpen] = useState(true)
-
-//   return (
-//     <div className="space-y-10">
-
-//       {/* ======================================================
-//          CONTRACT SECTION
-//       ====================================================== */}
-
-//       <div>
-//         <SectionHeader
-//           title="Contract financing"
-//           open={contractOpen}
-//           onToggle={() => setContractOpen(!contractOpen)}
-//         />
-
-//         {contractOpen && (
-//           <div className="space-y-4 mt-4">
-//             {mockContracts.map((c) => (
-//               <Card
-//                 key={c.id}
-//                 className="p-6 rounded-xl border border-gray-200 shadow-sm"
-//               >
-//                 <div className="flex justify-between">
-//                   <div className="space-y-3">
-//                     <div className="flex items-center gap-3">
-//                       <FileText className="h-4 w-4 text-muted-foreground" />
-//                       <p className="font-semibold text-sm">
-//                         Contract : {c.title}
-//                       </p>
-//                       {contractBadge(c.status)}
-//                     </div>
-
-//                     <p className="text-sm text-muted-foreground">
-//                       Customer : {c.customer}
-//                     </p>
-
-//                     <p className="text-sm text-muted-foreground">
-//                       Contract period : {c.period}
-//                     </p>
-//                   </div>
-
-//                   <div className="w-[320px] space-y-3">
-//                     <div className="h-2 bg-gray-200 rounded-full">
-//                       <div className="h-2 bg-black rounded-full w-[40%]" />
-//                     </div>
-
-//                     <div className="flex justify-between text-sm">
-//                       <span className="text-muted-foreground">
-//                         {c.utilised}
-//                       </span>
-//                       <span className="text-muted-foreground">
-//                         {c.approved}
-//                       </span>
-//                     </div>
-
-//                     <div className="text-right">
-//                       <Button variant="link" className="text-primary p-0">
-//                         View details →
-//                       </Button>
-//                     </div>
-//                   </div>
-
-//                   <Button
-//                     variant="ghost"
-//                     size="icon"
-//                     className="rounded-full h-9 w-9 ml-4"
-//                   >
-//                     <MoreVertical className="h-4 w-4" />
-//                   </Button>
-//                 </div>
-//               </Card>
-//             ))}
-//           </div>
-//         )}
-//       </div>
-
-//       {/* ======================================================
-//          INVOICE SECTION
-//       ====================================================== */}
-
-//       <div>
-//         <SectionHeader
-//           title="Invoice financing"
-//           open={invoiceOpen}
-//           onToggle={() => setInvoiceOpen(!invoiceOpen)}
-//         />
-
-//         {invoiceOpen && (
-//           <div className="space-y-4 mt-4">
-//             {mockInvoices.map((inv) => (
-//               <Card
-//                 key={inv.id}
-//                 className="p-6 rounded-xl border border-gray-200 shadow-sm"
-//               >
-//                 <div className="flex justify-between">
-//                   <div className="space-y-4 flex-1">
-//                     <div className="flex items-center gap-3">
-//                       <FileText className="h-4 w-4 text-muted-foreground" />
-//                       <p className="text-sm font-medium">
-//                         Invoice no :{" "}
-//                         <span className="font-semibold">
-//                           {inv.invoiceNo}
-//                         </span>
-//                       </p>
-//                       {invoiceBadge(inv.status)}
-//                     </div>
-
-//                     <div className="space-y-1">
-//                       <p className="text-sm text-muted-foreground">
-//                         Invoice value :{" "}
-//                         <span className="font-medium text-foreground">
-//                           {inv.invoiceValue}
-//                         </span>
-//                       </p>
-//                       <p className="text-sm text-muted-foreground">
-//                         Financing amount :{" "}
-//                         <span className="font-medium text-foreground">
-//                           {inv.financingAmount}
-//                         </span>
-//                       </p>
-//                     </div>
-//                   </div>
-
-//                   <div className="w-[320px] space-y-3">
-//                     <div className="text-sm text-muted-foreground space-y-1">
-//                       <p>
-//                         Submission date:{" "}
-//                         <span className="text-foreground font-medium">
-//                           {inv.submissionDate}
-//                         </span>
-//                       </p>
-//                       <p>
-//                         Maturity date:{" "}
-//                         <span className="text-foreground font-medium">
-//                           {inv.maturityDate}
-//                         </span>
-//                       </p>
-//                     </div>
-
-//                     <div className="space-y-2">
-//                       <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-//                         <div
-//                           className="h-2 bg-black rounded-full"
-//                           style={{ width: `${inv.progress}%` }}
-//                         />
-//                       </div>
-//                       <p className="text-xs text-muted-foreground">
-//                         {inv.label}
-//                       </p>
-//                     </div>
-//                   </div>
-
-//                   <Button
-//                     variant="ghost"
-//                     size="icon"
-//                     className="rounded-full h-9 w-9 ml-4"
-//                   >
-//                     <MoreVertical className="h-4 w-4" />
-//                   </Button>
-//                 </div>
-//               </Card>
-//             ))}
-//           </div>
-//         )}
-//       </div>
-//     </div>
-//   )
-// }
-
-// /* ============================================================
-//    Reusable Section Header
-// ============================================================ */
-
-// function SectionHeader({
-//   title,
-//   open,
-//   onToggle,
-// }: {
-//   title: string
-//   open: boolean
-//   onToggle: () => void
-// }) {
-//   return (
-//     <div
-//       onClick={onToggle}
-//       className="flex items-center justify-between cursor-pointer select-none"
-//     >
-//       <h3 className="text-lg font-semibold">{title}</h3>
-
-//       {open ? (
-//         <ChevronUp className="h-5 w-5 text-muted-foreground" />
-//       ) : (
-//         <ChevronDown className="h-5 w-5 text-muted-foreground" />
-//       )}
-//     </div>
-//   )
-// }
+export function DashboardInvoiceCard({
+  row,
+  offerStatus,
+  onReviewOffer,
+}: {
+  row: IssuerDashboardInvoice;
+  offerStatus: OfferStatus;
+  onReviewOffer: () => void;
+}) {
+  const router = useRouter();
+  const actionRequiredApplicationIds = row.actionRequiredApplicationIds ?? [];
+  const actionRequiredCount = actionRequiredApplicationIds.length;
+  const showActionRequired = actionRequiredCount > 0;
+  const actionRequiredLabel =
+    actionRequiredCount === 1 ? "Action required" : `Action required (${actionRequiredCount})`;
+  const badgeKind = resolveIssuerInvoiceDashboardBadge(row.note, row.invoiceStatus);
+  const progress = resolveFundingProgressPercent(row.note);
+  const fundingLabel = resolveFundingStatusText(row.note);
+  const noteRef = displayCell(row.note?.noteReference);
+  const invDetails = asInvoiceForModal(row.invoiceForModal)?.details;
+  const maturityRaw = invDetails?.maturity_date ?? row.note?.maturityDate ?? null;
+
+  return (
+    <Card className="min-w-0 max-w-full rounded-xl border border-border bg-muted/50 shadow-none">
+      <div className="space-y-3 px-4 py-4 md:px-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1">
+              <p className="min-w-0 max-w-full truncate leading-5">
+                <span className="text-sm font-normal leading-5 text-foreground">Invoice no: </span>
+                <span className="text-sm font-semibold leading-5 text-foreground">
+                  {displayCell(row.invoiceNumber)}
+                </span>
+              </p>
+              <IssuerFinancingStatusBadge kind={badgeKind} />
+              {offerBadge(offerStatus)}
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <ReviewOfferButton show={offerStatus === "Offer received"} onClick={onReviewOffer} />
+            {showActionRequired ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 rounded-lg border-amber-500/30 bg-amber-50 px-3 text-xs font-medium text-amber-800 hover:bg-amber-50"
+                      onClick={() =>
+                        router.push(
+                          `/applications?applicationIds=${encodeURIComponent(
+                            actionRequiredApplicationIds.join(",")
+                          )}`
+                        )
+                      }
+                    >
+                      {actionRequiredLabel}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[240px] whitespace-normal break-words bg-popover px-2 py-1.5 text-popover-foreground shadow-md">
+                    {actionRequiredCount === 1
+                      ? "A related application needs amendment. Go to Applications to review and update it."
+                      : `${actionRequiredCount} related applications need amendment. Go to Applications to review and update them.`}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 pl-3 sm:pl-4">
+          <div className="grid grid-cols-1 items-start gap-x-6 gap-y-3 md:grid-cols-2">
+            <div className="min-w-0 space-y-2">
+              <p className="text-[17px] leading-7 text-foreground">
+                <span className="font-normal text-muted-foreground">Note no: </span>
+                {row.note?.id && noteRef !== EM_DASH ? (
+                  <Link
+                    href={`/notes/${row.note.id}`}
+                    className="inline-flex min-w-0 max-w-full items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    <span className="min-w-0 truncate">{noteRef}</span>
+                    <LinkIcon className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                  </Link>
+                ) : (
+                  <span className="font-medium text-foreground">{noteRef}</span>
+                )}
+              </p>
+              <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
+            </div>
+            <div className="min-w-0 space-y-2">
+              <LabelValue label="Submission date">{formatDate(row.submissionDate)}</LabelValue>
+              <LabelValue label="Funding deadline">
+                {row.note?.fundingDeadline ? formatDate(row.note.fundingDeadline) : EM_DASH}
+              </LabelValue>
+              <LabelValue label="Maturity date">{formatDate(maturityRaw)}</LabelValue>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 items-end gap-x-6 gap-y-3 md:grid-cols-2">
+            <div className="min-w-0 space-y-2">
+              <LabelValue label="Invoice value" tabular>
+                {formatMoney(row.invoiceValue)}
+              </LabelValue>
+              <LabelValue label="Financing amount" tabular>
+                {formatMoney(row.financingAmount)}
+              </LabelValue>
+            </div>
+            <div className="min-w-0 w-full space-y-2">
+              <div className="h-3 w-full overflow-hidden rounded-full border border-border bg-foreground/35 dark:bg-muted shadow-sm">
+                <div
+                  className="h-3 rounded-full bg-foreground"
+                  style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+                />
+              </div>
+              <FundingStatusLine text={fundingLabel} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}

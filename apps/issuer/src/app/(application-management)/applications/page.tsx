@@ -16,6 +16,7 @@ import {
   ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 import { useHeader } from "@cashsouk/ui";
+import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
 import {
   formatCurrency,
   createApiClient,
@@ -538,12 +539,26 @@ export default function ApplicationsPage() {
   const [financingFilter, setFinancingFilter] = React.useState("all");
   const [submittedFilter, setSubmittedFilter] = React.useState("all");
   const [offerExpiryFilter, setOfferExpiryFilter] = React.useState("all");
+  const [applicationIdsFilter, setApplicationIdsFilter] = React.useState<string[]>([]);
   const [page, setPage] = React.useState(1);
   const [perPage, setPerPage] = React.useState(4);
 
   React.useEffect(() => {
     setTitle("Applications");
   }, [setTitle]);
+
+  // Action-required navigation: /applications?applicationIds=app_123,app_456
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const raw = params.get("applicationIds");
+    if (!raw) return;
+    const ids = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    setApplicationIdsFilter(ids);
+  }, []);
 
   const filteredApplications = React.useMemo(() => {
     let list = [...applications];
@@ -555,6 +570,10 @@ export default function ApplicationsPage() {
           a.id.toLowerCase().includes(q) ||
           a.invoices.some((inv) => inv.number.toLowerCase().includes(q))
       );
+    }
+    if (applicationIdsFilter.length > 0) {
+      const idSet = new Set(applicationIdsFilter);
+      list = list.filter((a) => idSet.has(a.id));
     }
     if (statusFilters.length > 0) {
       list = list.filter((a) => statusFilters.includes(a.status));
@@ -592,7 +611,7 @@ export default function ApplicationsPage() {
       });
     }
     return list;
-  }, [applications, search, statusFilters, financingFilter, submittedFilter, offerExpiryFilter]);
+  }, [applications, search, statusFilters, financingFilter, submittedFilter, offerExpiryFilter, applicationIdsFilter]);
 
   const paginatedApplications = filteredApplications.slice(
     (page - 1) * perPage,
@@ -607,6 +626,7 @@ export default function ApplicationsPage() {
     (offerExpiryFilter !== "all" ? 1 : 0);
   const hasFilters =
     search !== "" ||
+    applicationIdsFilter.length > 0 ||
     activeFilterCount > 0;
   const totalPages = Math.ceil(filteredApplications.length / perPage) || 1;
   const startIndex = (page - 1) * perPage + 1;
@@ -717,8 +737,8 @@ export default function ApplicationsPage() {
   }, [activeOrganization]);
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-x-hidden p-4 pt-4">
-      <div className="min-w-0 max-w-full p-2 md:p-4">
+    <div className={issuerMainContentClassName}>
+      <div className={cn("min-w-0 max-w-full", issuerPageGutterClassName)}>
       {activeOrganization?.type === "COMPANY" && dsOnboardingPending ? (
         <DirectorShareholderAlertCard
           visiblePeople={visiblePeopleForDsGating}
@@ -978,7 +998,7 @@ export default function ApplicationsPage() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {hasFilters && (
+              {search !== "" || activeFilterCount > 0 ? (
                 <Button
                   variant="ghost"
                   onClick={() => {
@@ -987,6 +1007,14 @@ export default function ApplicationsPage() {
                     setFinancingFilter("all");
                     setSubmittedFilter("all");
                     setOfferExpiryFilter("all");
+                    setApplicationIdsFilter([]);
+                    if (typeof window !== "undefined") {
+                      const params = new URLSearchParams(window.location.search);
+                      params.delete("applicationIds");
+                      const qs = params.toString();
+                      const nextUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+                      window.history.replaceState({}, "", nextUrl);
+                    }
                     setPage(1);
                   }}
                   className="gap-2 h-11 rounded-xl hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
@@ -994,7 +1022,35 @@ export default function ApplicationsPage() {
                   <XMarkIcon className="h-4 w-4" />
                   <span className="hidden sm:inline">Clear</span>
                 </Button>
-              )}
+              ) : null}
+
+              {applicationIdsFilter.length > 0 ? (
+                <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                  <div className="text-sm text-muted-foreground">
+                    {applicationIdsFilter.length === 1
+                      ? "Showing 1 application that requires action"
+                      : `Showing ${applicationIdsFilter.length} applications that require action`}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-9 px-3 rounded-xl hover:bg-muted"
+                    onClick={() => {
+                      setApplicationIdsFilter([]);
+                      if (typeof window !== "undefined") {
+                        const params = new URLSearchParams(window.location.search);
+                        params.delete("applicationIds");
+                        const qs = params.toString();
+                        const nextUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+                        window.history.replaceState({}, "", nextUrl);
+                      }
+                      setPage(1);
+                    }}
+                  >
+                    Clear filter
+                  </Button>
+                </div>
+              ) : null}
 
               <Badge
                 variant="secondary"

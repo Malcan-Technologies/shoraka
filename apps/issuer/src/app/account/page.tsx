@@ -33,6 +33,8 @@ import { formatDistanceToNow } from "date-fns";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { CopyableField } from "@cashsouk/ui/copyable-field";
 import { BellIcon } from "@heroicons/react/24/outline";
+import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
+import { cn } from "@/lib/utils";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -71,8 +73,8 @@ function AccountPageSkeleton() {
 
   return (
     <>
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="max-w-2xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
+      <div className={issuerMainContentClassName}>
+        <div className={cn("max-w-2xl mx-auto w-full space-y-6", issuerPageGutterClassName)}>
           {/* Personal Information Skeleton */}
           <Card>
             <CardHeader>
@@ -237,8 +239,8 @@ export default function AccountPage() {
 
   return (
     <>
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="max-w-2xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
+      <div className={issuerMainContentClassName}>
+        <div className={cn("max-w-2xl mx-auto w-full space-y-6", issuerPageGutterClassName)}>
           {/* Account Information Card */}
           <Card>
             <CardHeader>
