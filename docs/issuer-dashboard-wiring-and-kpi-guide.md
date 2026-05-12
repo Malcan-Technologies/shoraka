@@ -120,9 +120,9 @@ Major payload sections:
 | `contracts[].customerName` | `Contract.customer_details` | `customer?.name` | Customer name |
 | `contracts[].contractStartDate` | `Contract.contract_details` | `start_date` | Period start |
 | `contracts[].contractEndDate` | `Contract.contract_details` | `end_date` | Period end |
-| `contracts[].approvedFacilityAmount` | `Contract.contract_details` | `approved_facility` or `approved_facility_amount` serialized to string with 2 decimals | Approved facility |
-| `contracts[].utilizedFacilityAmount` | `Note` (prefer) else `Contract.contract_details` | If contract-linked notes exist: sum `Note.funded_amount` excluding `DRAFT`, `CANCELLED`, `FAILED_FUNDING`; else use `details.utilized_facility` | Utilized facility |
-| `contracts[].availableFacilityAmount` | derived | If approved + utilized known: `max(0, approved - utilized)`; else use `details.available_facility` | Available facility (computed in service, but may not be shown in UI) |
+| `contracts[].approvedFacilityAmount` | `Contract.contract_details` | `approved_facility` serialized to string with 2 decimals | Approved facility |
+| `contracts[].utilizedFacilityAmount` | `Contract.contract_details` | `utilized_facility` serialized to string with 2 decimals | Utilized facility |
+| `contracts[].availableFacilityAmount` | `Contract.contract_details` | `available_facility` serialized to string with 2 decimals | Available facility |
 | `contracts[].activeNotesCount` | `Note` | `COUNT(contract notes where Note.status = ACTIVE)` | Active notes count |
 | `contracts[].contractStatus` | `Contract` | `c.status` | Main status badge driver |
 | `contracts[].actionRequiredApplicationIds` | `Application` | Dedupe all application ids referencing the contract where `Application.status = AMENDMENT_REQUESTED` | Drives “Action required (N)” |
@@ -271,7 +271,7 @@ Contract card UI is implemented in `DashboardContractCard` inside:
 | Contract period | DTO: `IssuerDashboardContract.contractStartDate/contractEndDate` | UI builds `start to end` string (or single-sided date) | Period shown on card |
 | Active notes | DTO: `IssuerDashboardContract.activeNotesCount` | `String(row.activeNotesCount)` | Count of active notes (contract-level) |
 | Approved facility | DTO: `IssuerDashboardContract.approvedFacilityAmount` | `Number(...)` then displayed as formatted money | Approved facility amount |
-| Utilized facility | DTO: `IssuerDashboardContract.utilizedFacilityAmount` | `Number(...)` then displayed | Utilized facility amount |
+| Utilized facility | DTO: `IssuerDashboardContract.utilizedFacilityAmount` | displayed as formatted money | Utilized facility amount |
 | Available facility | DTO: `IssuerDashboardContract.availableFacilityAmount` | **Not shown in current card UI** | Needs code/business confirmation (DTO exists but UI doesn’t render it) |
 | Facility progress | Approved/utilised | `utilisationPct = round(utilised/approved * 100)` | Progress bar width |
 | View details | Router link | `/financing/contracts/${row.id}` | Opens Contract Detail page |
@@ -338,7 +338,7 @@ Backend implementation:
 |---|---|---|
 | Header | Contract title + status badge | `row.title`, `resolveIssuerContractDashboardBadge(row.contractStatus)` |
 | Header subtitle | Customer + contract period | `row.customerName` and `contractPeriod` computed from `row.contractStartDate/row.contractEndDate` |
-| Facility usage | Available facility + usage progress | `row.availableFacilityAmount`; progress bar uses `utilised/approved` computed in UI |
+| Facility usage | Available facility + usage progress | `row.availableFacilityAmount`; progress bar uses `utilised/approved` computed in UI (only when both are present and approved > 0) |
 | KPI summary | Total approved/rejected/unfinanced | `stats.total`, `stats.approved`, `stats.rejected`, `stats.unfinanced` from `row.invoiceStats` |
 | KPI breakdown | Funding in progress | `stats.fundingInProgress` |
 | KPI breakdown | Active notes / Completed notes / Unsuccessful raise | `stats.activeNotes`, `stats.completedNotes`, `stats.unsuccessfulRaise` |

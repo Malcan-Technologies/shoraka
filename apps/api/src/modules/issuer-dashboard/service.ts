@@ -309,21 +309,17 @@ export class IssuerDashboardService {
 
       const details = asRecord(c.contract_details);
       const customer = asRecord(c.customer_details);
-      const approved = details?.approved_facility ?? details?.approved_facility_amount;
-      const approvedNum = approved !== undefined && approved !== null ? decimalToNumber(approved) : null;
+      // Facility amounts should come directly from contract_details.
+      // Treat null/undefined/empty-string as missing (null in DTO) so UI can show "—".
+      const approvedRaw = details?.approved_facility;
+      const approvedNum =
+        approvedRaw !== undefined &&
+        approvedRaw !== null &&
+        String(approvedRaw).trim() !== ""
+          ? decimalToNumber(approvedRaw)
+          : null;
 
       const contractNotes = notesByContractId.get(c.id) ?? [];
-      let utilizedFromNotes = 0;
-      for (const cn of contractNotes) {
-        // Utilized facility counts funded notes, excluding draft/cancelled/failed funding.
-        if (
-          cn.status === NoteStatus.CANCELLED ||
-          cn.status === NoteStatus.DRAFT ||
-          cn.status === NoteStatus.FAILED_FUNDING
-        )
-          continue;
-        utilizedFromNotes += decimalToNumber(cn.funded_amount);
-      }
 
       const mergedInvoicesById = new Map<string, ApplicationWithRelations["invoices"][number]>();
       for (const app of appsForContract) {
@@ -364,17 +360,24 @@ export class IssuerDashboardService {
         return !notesByInvoiceId.has(i.id);
       }).length;
 
-      const utilizedFacilityAmount =
-        contractNotes.length > 0 ? utilizedFromNotes : details?.utilized_facility != null
-          ? decimalToNumber(details.utilized_facility)
+      const utilizedRaw = details?.utilized_facility;
+      const utilizedNum =
+        utilizedRaw !== undefined &&
+        utilizedRaw !== null &&
+        String(utilizedRaw).trim() !== ""
+          ? decimalToNumber(utilizedRaw)
           : null;
+      const utilizedFacilityAmount = utilizedNum;
 
-      let availableFacilityAmount: string | null = null;
-      if (approvedNum !== null && utilizedFacilityAmount !== null) {
-        availableFacilityAmount = Math.max(0, approvedNum - utilizedFacilityAmount).toFixed(2);
-      } else if (details?.available_facility != null) {
-        availableFacilityAmount = String(details.available_facility);
-      }
+      const availableRaw = details?.available_facility;
+      const availableNum =
+        availableRaw !== undefined &&
+        availableRaw !== null &&
+        String(availableRaw).trim() !== ""
+          ? decimalToNumber(availableRaw)
+          : null;
+      const availableFacilityAmount: string | null =
+        availableNum !== null ? availableNum.toFixed(2) : null;
 
       const activeNotesOnContract = contractNotes.filter((n) => n.status === NoteStatus.ACTIVE).length;
 

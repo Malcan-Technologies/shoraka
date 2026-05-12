@@ -1024,9 +1024,12 @@ function DashboardContractCard({
   const showActionRequired = actionRequiredCount > 0;
   const actionRequiredLabel =
     actionRequiredCount === 1 ? "Action required" : `Action required (${actionRequiredCount})`;
-  const approved = row.approvedFacilityAmount != null ? Number(row.approvedFacilityAmount) : 0;
-  const utilised = row.utilizedFacilityAmount != null ? Number(row.utilizedFacilityAmount) : 0;
-  const utilisationPct = approved > 0 ? Math.round((utilised / approved) * 100) : 0;
+  const approvedNum = row.approvedFacilityAmount != null ? Number(row.approvedFacilityAmount) : null;
+  const utilisedNum = row.utilizedFacilityAmount != null ? Number(row.utilizedFacilityAmount) : null;
+  const utilisationPct =
+    approvedNum != null && utilisedNum != null && approvedNum > 0
+      ? Math.round((utilisedNum / approvedNum) * 100)
+      : 0;
 
   const contractPeriod =
     row.contractStartDate && row.contractEndDate
@@ -1112,13 +1115,13 @@ function DashboardContractCard({
               <div className="flex justify-between gap-6 sm:gap-8">
                 <div className="min-w-0">
                   <p className="text-[17px] font-semibold tabular-nums leading-7 text-foreground">
-                    {formatMoney(utilised)}
+                    {formatMoney(row.utilizedFacilityAmount)}
                   </p>
                   <p className="text-sm font-normal leading-6 text-muted-foreground">(Utilised facility)</p>
                 </div>
                 <div className="min-w-0 text-right">
                   <p className="text-[17px] font-semibold tabular-nums leading-7 text-foreground">
-                    {formatMoney(approved)}
+                    {formatMoney(row.approvedFacilityAmount)}
                   </p>
                   <p className="text-sm font-normal leading-6 text-muted-foreground">(Approved facility)</p>
                 </div>
