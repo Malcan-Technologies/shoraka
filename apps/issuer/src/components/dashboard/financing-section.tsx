@@ -32,16 +32,16 @@ import {
   type IssuerFinancingStatusKind,
 } from "@/lib/issuer-dashboard-labels";
 
-const EM_DASH = "\u2014";
+export const EM_DASH = "\u2014";
 
-function displayCell(value: unknown): string {
+export function displayCell(value: unknown): string {
   if (value === null || value === undefined) return EM_DASH;
   const s = String(value).trim();
   if (s === "" || s === "-" || s === "NA" || s.toUpperCase() === "N/A") return EM_DASH;
   return s;
 }
 
-function LabelValue({
+export function LabelValue({
   label,
   children,
   tabular,
@@ -89,7 +89,7 @@ function formatMoney(value: unknown) {
   return formatMoneyDisplay(value, EM_DASH);
 }
 
-function formatDate(value: unknown) {
+export function formatDate(value: unknown) {
   if (value === null || value === undefined) return EM_DASH;
   let d: Date | null = null;
   if (value instanceof Date) d = value;
@@ -116,7 +116,7 @@ function formatDate(value: unknown) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
-function IssuerFinancingStatusBadge({ kind }: { kind: IssuerFinancingStatusKind }) {
+export function IssuerFinancingStatusBadge({ kind }: { kind: IssuerFinancingStatusKind }) {
   const p = getIssuerFinancingStatusPresentation(kind);
   return (
     <Badge variant={p.variant} className={p.className}>
