@@ -159,10 +159,6 @@ export default function ContractDetailsPage() {
                 <BreakdownItem label="Active notes" value={`${stats.activeNotes}`} />
                 <BreakdownItem label="Completed notes" value={`${stats.completedNotes}`} />
                 <BreakdownItem label="Unsuccessful raise" value={`${stats.unsuccessfulRaise}`} />
-                <BreakdownItem
-                  label="Disputed notes"
-                  value={stats.disputedNotes == null ? "Not available" : `${stats.disputedNotes}`}
-                />
               </div>
             </div>
           </div>

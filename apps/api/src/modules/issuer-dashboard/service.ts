@@ -193,14 +193,6 @@ function isActiveNote(note: { status: NoteStatus }): boolean {
   return note.status === NoteStatus.ACTIVE;
 }
 
-function isFundingNote(note: { status: NoteStatus; funding_status: NoteFundingStatus }): boolean {
-  return (
-    note.status === NoteStatus.FUNDING ||
-    note.status === NoteStatus.PUBLISHED ||
-    note.funding_status === NoteFundingStatus.OPEN
-  );
-}
-
 export class IssuerDashboardService {
   async getDashboard(
     organizationId: string,
@@ -292,19 +284,27 @@ export class IssuerDashboardService {
       const contractNotes = notesByContractId.get(c.id) ?? [];
       let utilizedFromNotes = 0;
       for (const cn of contractNotes) {
-        if (cn.status === NoteStatus.CANCELLED || cn.status === NoteStatus.DRAFT) continue;
+        // Utilized facility counts funded notes, excluding draft/cancelled/failed funding.
+        if (
+          cn.status === NoteStatus.CANCELLED ||
+          cn.status === NoteStatus.DRAFT ||
+          cn.status === NoteStatus.FAILED_FUNDING
+        )
+          continue;
         utilizedFromNotes += decimalToNumber(cn.funded_amount);
       }
 
       const contractInvoices = app.invoices.filter((inv) => inv.contract_id === c.id);
-      let fundingInProgress = 0;
+      // Funding in progress counts notes strictly open for investor funding.
+      const fundingInProgress = contractNotes.filter(
+        (n) => n.status === NoteStatus.PUBLISHED && n.funding_status === NoteFundingStatus.OPEN
+      ).length;
       let activeNotesInv = 0;
       let completedNotesInv = 0;
       let unsuccessfulRaise = 0;
       for (const inv of contractInvoices) {
         const linked = notesByInvoiceId.get(inv.id);
         if (!linked) continue;
-        if (isFundingNote(linked)) fundingInProgress += 1;
         if (isActiveNote(linked)) activeNotesInv += 1;
         if (isCompletedNote(linked)) completedNotesInv += 1;
         if (isUnsuccessfulNote(linked)) unsuccessfulRaise += 1;
@@ -312,9 +312,11 @@ export class IssuerDashboardService {
 
       const approvedCount = contractInvoices.filter((i) => i.status === InvoiceStatus.APPROVED).length;
       const rejectedCount = contractInvoices.filter((i) => i.status === InvoiceStatus.REJECTED).length;
-      const unfinancedCount = contractInvoices.filter(
-        (i) => i.status !== InvoiceStatus.APPROVED && i.status !== InvoiceStatus.REJECTED
-      ).length;
+      const unfinancedCount = contractInvoices.filter((i) => {
+        if (i.status !== InvoiceStatus.APPROVED) return false;
+        // "Unfinanced" means the approved invoice has no linked Note yet.
+        return !notesByInvoiceId.has(i.id);
+      }).length;
 
       const utilizedFacilityAmount =
         contractNotes.length > 0 ? utilizedFromNotes : details?.utilized_facility != null
