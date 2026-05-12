@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { FunnelIcon } from "@heroicons/react/24/outline";
+import { FunnelIcon, LinkIcon } from "@heroicons/react/24/outline";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -1144,7 +1144,20 @@ export function DashboardInvoiceCard({
         <div className="flex flex-col gap-2 pl-3 sm:pl-4">
           <div className="grid grid-cols-1 items-start gap-x-6 gap-y-3 md:grid-cols-2">
             <div className="min-w-0 space-y-2">
-              <LabelValue label="Note no">{noteRef}</LabelValue>
+              <p className="text-[17px] leading-7 text-foreground">
+                <span className="font-normal text-muted-foreground">Note no: </span>
+                {row.note?.id && noteRef !== EM_DASH ? (
+                  <Link
+                    href={`/notes/${row.note.id}`}
+                    className="inline-flex min-w-0 max-w-full items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    <span className="min-w-0 truncate">{noteRef}</span>
+                    <LinkIcon className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                  </Link>
+                ) : (
+                  <span className="font-medium text-foreground">{noteRef}</span>
+                )}
+              </p>
               <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
             </div>
             <div className="min-w-0 space-y-2">
