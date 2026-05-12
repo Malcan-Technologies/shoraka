@@ -151,7 +151,6 @@ export default function ContractDetailsPage() {
                 <LabelValue label="Product">{productLabel}</LabelValue>
                 <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
                 <LabelValue label="Contract period">{contractPeriod}</LabelValue>
-                <LabelValue label="Active notes">{String(row.activeNotesCount)}</LabelValue>
               </div>
 
               <div className="min-w-0 w-full space-y-2">
