@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { BanknotesIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import { Label, Pie, PieChart } from "recharts";
 import {
   Card,
@@ -52,6 +52,15 @@ function formatDashboardAmount(value: number | string | null | undefined): strin
   return formatMoneyDisplay(n);
 }
 
+function OverviewStatBlock({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-sm font-medium leading-6 text-muted-foreground">{label}</p>
+      <p className="text-[17px] font-semibold tabular-nums leading-7 text-foreground">{value}</p>
+    </div>
+  );
+}
+
 export function AccountOverviewCard({
   isDisabled = false,
   successRate = null,
@@ -79,7 +88,7 @@ export function AccountOverviewCard({
     completedNotes != null && Number.isFinite(completedNotes) ? String(completedNotes) : EM;
 
   return (
-    <Card className={cn("w-full bg-muted/50 shadow-none", isDisabled && "opacity-50 pointer-events-none")}>
+    <Card className={cn("w-full bg-muted/50 shadow-none", isDisabled && "pointer-events-none opacity-50")}>
       <CardHeader className="pb-3">
         <CardTitle className="text-xl font-semibold tracking-tight text-foreground">Account Overview</CardTitle>
       </CardHeader>
@@ -137,30 +146,25 @@ export function AccountOverviewCard({
           </div>
 
           <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="flex flex-col rounded-xl border border-border bg-background p-4">
-              <p className="mb-3 text-sm font-medium leading-6 text-muted-foreground">Financing</p>
-              <div className="flex flex-1 flex-col justify-center space-y-3">
-                <p className="text-[17px] leading-7">
-                  <span className="text-muted-foreground">Active financing: </span>
-                  <span className="font-semibold tabular-nums text-foreground">{activeFinancingDisplay}</span>
-                </p>
-                <p className="text-[17px] leading-7">
-                  <span className="text-muted-foreground">Past financing: </span>
-                  <span className="font-semibold tabular-nums text-foreground">{pastFinancingDisplay}</span>
-                </p>
+            <div className="flex flex-col rounded-xl border border-border bg-background px-4 py-4 shadow-none md:px-5 md:py-5">
+              <div className="mb-4 flex items-center gap-2 border-b border-border pb-3">
+                <BanknotesIcon className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                <h3 className="text-lg font-semibold leading-7 text-foreground">Financing</h3>
+              </div>
+              <div className="flex flex-col gap-5">
+                <OverviewStatBlock label="Active financing" value={activeFinancingDisplay} />
+                <OverviewStatBlock label="Past financing" value={pastFinancingDisplay} />
               </div>
             </div>
-            <div className="flex flex-col rounded-xl border border-border bg-background p-4">
-              <p className="mb-3 text-sm font-medium leading-6 text-muted-foreground">Notes</p>
-              <div className="flex flex-1 flex-col justify-center space-y-3">
-                <p className="text-[17px] leading-7">
-                  <span className="text-muted-foreground">Active notes: </span>
-                  <span className="font-semibold tabular-nums text-foreground">{activeNotesDisplay}</span>
-                </p>
-                <p className="text-[17px] leading-7">
-                  <span className="text-muted-foreground">Completed notes: </span>
-                  <span className="font-semibold tabular-nums text-foreground">{completedNotesDisplay}</span>
-                </p>
+
+            <div className="flex flex-col rounded-xl border border-border bg-background px-4 py-4 shadow-none md:px-5 md:py-5">
+              <div className="mb-4 flex items-center gap-2 border-b border-border pb-3">
+                <DocumentTextIcon className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+                <h3 className="text-lg font-semibold leading-7 text-foreground">Notes</h3>
+              </div>
+              <div className="flex flex-col gap-5">
+                <OverviewStatBlock label="Active notes" value={activeNotesDisplay} />
+                <OverviewStatBlock label="Completed notes" value={completedNotesDisplay} />
               </div>
             </div>
           </div>
