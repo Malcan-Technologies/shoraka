@@ -270,12 +270,31 @@ export class IssuerDashboardService {
     const contractsOut: IssuerDashboardContractDto[] = [];
     const invoicesOut: IssuerDashboardInvoiceDto[] = [];
 
+    /**
+     * Multiple applications may reference the same Contract.id (existing contract flow).
+     * We emit one issuer dashboard contract row per Contract.id. applicationId and productId
+     * come from the most recently created application among those sharing the contract (stable
+     * tie-break: sort by created_at desc, take first). Invoice stats aggregate every invoice under
+     * that contract across all those applications. Note-based metrics still use Note.source_contract_id.
+     */
+    type ApplicationWithRelations = (typeof applications)[number];
+    const applicationsByContractId = new Map<string, ApplicationWithRelations[]>();
     for (const app of applications) {
-      const financing = asRecord(app.financing_type);
-      const productId = (financing?.product_id as string | undefined) ?? "";
       if (!app.contract) continue;
+      const cid = app.contract.id;
+      const bucket = applicationsByContractId.get(cid) ?? [];
+      bucket.push(app);
+      applicationsByContractId.set(cid, bucket);
+    }
 
-      const c = app.contract;
+    for (const [, appsForContract] of applicationsByContractId) {
+      appsForContract.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
+      const primaryApp = appsForContract[0];
+      const c = primaryApp.contract!;
+
+      const financing = asRecord(primaryApp.financing_type);
+      const productId = (financing?.product_id as string | undefined) ?? "";
+
       const details = asRecord(c.contract_details);
       const customer = asRecord(c.customer_details);
       const approved = details?.approved_facility ?? details?.approved_facility_amount;
@@ -294,7 +313,14 @@ export class IssuerDashboardService {
         utilizedFromNotes += decimalToNumber(cn.funded_amount);
       }
 
-      const contractInvoices = app.invoices.filter((inv) => inv.contract_id === c.id);
+      const mergedInvoicesById = new Map<string, ApplicationWithRelations["invoices"][number]>();
+      for (const app of appsForContract) {
+        for (const inv of app.invoices) {
+          if (inv.contract_id === c.id) mergedInvoicesById.set(inv.id, inv);
+        }
+      }
+      const contractInvoices = Array.from(mergedInvoicesById.values());
+
       // Funding in progress counts notes strictly open for investor funding.
       const fundingInProgress = contractNotes.filter(
         (n) => n.status === NoteStatus.PUBLISHED && n.funding_status === NoteFundingStatus.OPEN
@@ -338,7 +364,7 @@ export class IssuerDashboardService {
 
       contractsOut.push({
         id: c.id,
-        applicationId: app.id,
+        applicationId: primaryApp.id,
         productId,
         contractForModal: jsonForModal(c),
         title: contractTitle,
