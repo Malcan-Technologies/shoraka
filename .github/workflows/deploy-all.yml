@@ -37,6 +37,8 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   AWS_REGION: ap-southeast-5
+  # Shared with deploy.yml db-migrations (Fargate migration run-task).
+  ECS_MIGRATE_RUN_TASK_NETWORK: "subnets=[subnet-0b0afc5315186d366,subnet-01ca25e9377340988,subnet-042e311cc1ee5ebdd],securityGroups=[sg-0f699f7ae290e3979],assignPublicIp=ENABLED"
 
 permissions:
   id-token: write
@@ -114,7 +116,7 @@ jobs:
             --cluster default \
             --launch-type FARGATE \
             --task-definition cashsouk-migrate \
-            --network-configuration "awsvpcConfiguration={subnets=[subnet-0b0afc5315186d366,subnet-01ca25e9377340988,subnet-042e311cc1ee5ebdd],securityGroups=[sg-0f699f7ae290e3979],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={$ECS_MIGRATE_RUN_TASK_NETWORK}" \
             --region ${{ env.AWS_REGION }} \
             --query 'tasks[0].taskArn' \
             --output text)
@@ -268,7 +270,7 @@ jobs:
             --cluster default \
             --launch-type FARGATE \
             --task-definition cashsouk-migrate \
-            --network-configuration "awsvpcConfiguration={subnets=[subnet-0b0afc5315186d366,subnet-01ca25e9377340988,subnet-042e311cc1ee5ebdd],securityGroups=[sg-0f699f7ae290e3979],assignPublicIp=ENABLED}" \
+            --network-configuration "awsvpcConfiguration={$ECS_MIGRATE_RUN_TASK_NETWORK}" \
             --region ${{ env.AWS_REGION }} \
             --query 'tasks[0].taskArn' \
             --output text)

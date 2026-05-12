@@ -46,6 +46,8 @@ env:
   AWS_REGION: ap-southeast-5
   ECS_CLUSTER: default
   API_SERVICE: api-cashsouk-09ff
+  # Must match deploy-all.yml migration run-task network (Fargate awsvpc).
+  ECS_MIGRATE_RUN_TASK_NETWORK: "subnets=[subnet-0b0afc5315186d366,subnet-01ca25e9377340988,subnet-042e311cc1ee5ebdd],securityGroups=[sg-0f699f7ae290e3979],assignPublicIp=ENABLED"
 
 permissions:
   id-token: write
@@ -692,36 +694,11 @@ jobs:
             --query 'taskDefinition.taskDefinitionArn' \
             --output text)"
 
-          SUBNETS="$(aws ecs describe-services \
-            --cluster "$ECS_CLUSTER" \
-            --services "$API_SERVICE" \
-            --region "$AWS_REGION" \
-            --query 'services[0].networkConfiguration.awsvpcConfiguration.subnets' \
-            --output text | tr '\t' ',')"
-
-          SECURITY_GROUPS="$(aws ecs describe-services \
-            --cluster "$ECS_CLUSTER" \
-            --services "$API_SERVICE" \
-            --region "$AWS_REGION" \
-            --query 'services[0].networkConfiguration.awsvpcConfiguration.securityGroups' \
-            --output text | tr '\t' ',')"
-
-          ASSIGN_PUBLIC_IP="$(aws ecs describe-services \
-            --cluster "$ECS_CLUSTER" \
-            --services "$API_SERVICE" \
-            --region "$AWS_REGION" \
-            --query 'services[0].networkConfiguration.awsvpcConfiguration.assignPublicIp' \
-            --output text)"
-
-          if [ -z "$ASSIGN_PUBLIC_IP" ] || [ "$ASSIGN_PUBLIC_IP" = "None" ]; then
-            ASSIGN_PUBLIC_IP="DISABLED"
-          fi
-
           RUN_TASK_JSON="$(aws ecs run-task \
             --cluster "$ECS_CLUSTER" \
             --launch-type FARGATE \
             --task-definition "$TASK_DEF_ARN" \
-            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=$ASSIGN_PUBLIC_IP}" \
+            --network-configuration "awsvpcConfiguration={$ECS_MIGRATE_RUN_TASK_NETWORK}" \
             --region "$AWS_REGION" \
             --output json)"
 
