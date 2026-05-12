@@ -1072,7 +1072,7 @@ function DashboardContractCard({
                       {actionRequiredLabel}
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent className="max-w-[240px] whitespace-normal break-words">
+                  <TooltipContent className="max-w-[240px] whitespace-normal break-words bg-popover px-2 py-1.5 text-popover-foreground shadow-md">
                     {actionRequiredCount === 1
                       ? "A related application needs amendment. Go to Applications to review and update it."
                       : `${actionRequiredCount} related applications need amendment. Go to Applications to review and update them.`}
@@ -1192,7 +1192,7 @@ export function DashboardInvoiceCard({
                       {actionRequiredLabel}
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent className="max-w-[240px] whitespace-normal break-words">
+                  <TooltipContent className="max-w-[240px] whitespace-normal break-words bg-popover px-2 py-1.5 text-popover-foreground shadow-md">
                     {actionRequiredCount === 1
                       ? "A related application needs amendment. Go to Applications to review and update it."
                       : `${actionRequiredCount} related applications need amendment. Go to Applications to review and update them.`}

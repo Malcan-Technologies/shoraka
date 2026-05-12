@@ -10,6 +10,7 @@ import {
   ChartContainer,
   formatMoneyDisplay,
 } from "@cashsouk/ui";
+import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import type { ChartConfig } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
 
@@ -94,7 +95,13 @@ export function AccountOverviewCard({
       </CardHeader>
       <CardContent className="pt-0">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-5">
-          <div className="flex w-full shrink-0 justify-center md:w-[200px] md:max-w-[220px]">
+          <div className="relative flex w-full shrink-0 justify-center md:w-[200px] md:max-w-[220px]">
+            <div className="pointer-events-auto absolute right-2 top-2 z-10">
+              <InfoTooltip
+                content="Disbursement success rate (how many financing disbursements succeeded)."
+                iconClassName="h-5 w-5"
+              />
+            </div>
             <ChartContainer
               config={chartConfig}
               className="mx-auto aspect-square w-full max-w-[200px] [&_.recharts-pie]:!overflow-visible [&_.recharts-wrapper]:!m-0 [&_.recharts-wrapper]:!p-0"
