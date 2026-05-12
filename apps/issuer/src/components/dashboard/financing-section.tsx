@@ -190,7 +190,7 @@ type ContractFinancingListFiltersState = {
   periodPreset: ContractPeriodPreset;
 };
 
-type InvoiceFinancingListFiltersState = {
+export type InvoiceFinancingListFiltersState = {
   statusKind: IssuerFinancingStatusKind | "all";
   customer: string;
   submissionPreset: InvoiceSubmissionPreset;
@@ -202,7 +202,7 @@ const DEFAULT_CONTRACT_FINANCING_LIST_FILTERS: ContractFinancingListFiltersState
   periodPreset: "all",
 };
 
-const DEFAULT_INVOICE_FINANCING_LIST_FILTERS: InvoiceFinancingListFiltersState = {
+export const DEFAULT_INVOICE_FINANCING_LIST_FILTERS: InvoiceFinancingListFiltersState = {
   statusKind: "all",
   customer: "",
   submissionPreset: "all",
@@ -301,7 +301,7 @@ function filterContracts(rows: IssuerDashboardContract[], f: ContractFinancingLi
   });
 }
 
-function filterInvoices(rows: IssuerDashboardInvoice[], f: InvoiceFinancingListFiltersState): IssuerDashboardInvoice[] {
+export function filterInvoices(rows: IssuerDashboardInvoice[], f: InvoiceFinancingListFiltersState): IssuerDashboardInvoice[] {
   return rows.filter((row) => {
     if (f.statusKind !== "all") {
       if (resolveIssuerInvoiceDashboardBadge(row.note, row.invoiceStatus) !== f.statusKind) return false;
@@ -351,6 +351,8 @@ type FinancingListFilterToolbarProps =
       value: InvoiceFinancingListFiltersState;
       onChange: (next: InvoiceFinancingListFiltersState) => void;
       onClear: () => void;
+      /** When true, omit Customer control (e.g. contract detail where customer is fixed). */
+      hideCustomer?: boolean;
     };
 
 function FinancingContractFilterToolbar({
@@ -499,16 +501,18 @@ function FinancingContractFilterToolbar({
   );
 }
 
-function FinancingInvoiceFilterToolbar({
+export function FinancingInvoiceFilterToolbar({
   rows,
   value,
   onChange,
   onClear,
+  hideCustomer = false,
 }: {
   rows: IssuerDashboardInvoice[];
   value: InvoiceFinancingListFiltersState;
   onChange: (next: InvoiceFinancingListFiltersState) => void;
   onClear: () => void;
+  hideCustomer?: boolean;
 }) {
   const kindsPresent = new Set<IssuerFinancingStatusKind>();
   for (const r of rows) {
@@ -517,9 +521,11 @@ function FinancingInvoiceFilterToolbar({
   const statusOptions = FINANCING_STATUS_ORDER.filter((k) => kindsPresent.has(k));
 
   const customers = new Set<string>();
-  for (const r of rows) {
-    const t = (r.customerName ?? "").trim();
-    if (t) customers.add(t);
+  if (!hideCustomer) {
+    for (const r of rows) {
+      const t = (r.customerName ?? "").trim();
+      if (t) customers.add(t);
+    }
   }
   const customerList = [...customers].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 
@@ -530,7 +536,9 @@ function FinancingInvoiceFilterToolbar({
     value.submissionPreset === "all"
       ? "Submission date"
       : `Submission date: ${invoiceSubmissionPresetLabel(value.submissionPreset)}`;
-  const active = invoiceFinancingFiltersActive(value);
+  const active = hideCustomer
+    ? value.statusKind !== "all" || value.submissionPreset !== "all"
+    : invoiceFinancingFiltersActive(value);
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -602,41 +610,43 @@ function FinancingInvoiceFilterToolbar({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className={cn(
-              "h-9 max-w-[12rem] gap-1.5 truncate px-3 text-sm font-medium",
-              value.customer !== "" && "border-primary/40 bg-muted/50"
-            )}
-          >
-            <FunnelIcon className="h-4 w-4 shrink-0" />
-            <span className="truncate">{customerTrigger}</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56 max-h-[min(24rem,70vh)] overflow-y-auto">
-          <DropdownMenuItem
-            onClick={() => onChange({ ...value, customer: "" })}
-            className="flex items-center justify-between gap-2"
-          >
-            All customers
-            {value.customer === "" ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
-          </DropdownMenuItem>
-          {customerList.map((name) => (
+      {!hideCustomer ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-9 max-w-[12rem] gap-1.5 truncate px-3 text-sm font-medium",
+                value.customer !== "" && "border-primary/40 bg-muted/50"
+              )}
+            >
+              <FunnelIcon className="h-4 w-4 shrink-0" />
+              <span className="truncate">{customerTrigger}</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56 max-h-[min(24rem,70vh)] overflow-y-auto">
             <DropdownMenuItem
-              key={name}
-              onClick={() => onChange({ ...value, customer: name })}
+              onClick={() => onChange({ ...value, customer: "" })}
               className="flex items-center justify-between gap-2"
             >
-              <span className="min-w-0 truncate">{name}</span>
-              {value.customer === name ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+              All customers
+              {value.customer === "" ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
             </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+            {customerList.map((name) => (
+              <DropdownMenuItem
+                key={name}
+                onClick={() => onChange({ ...value, customer: name })}
+                className="flex items-center justify-between gap-2"
+              >
+                <span className="min-w-0 truncate">{name}</span>
+                {value.customer === name ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
 
       {active ? (
         <Button type="button" variant="ghost" size="sm" className="h-9 px-2 text-sm text-muted-foreground" onClick={onClear}>
@@ -651,7 +661,7 @@ function FinancingListFilterToolbar(props: FinancingListFilterToolbarProps) {
   if (props.variant === "contract") {
     return <FinancingContractFilterToolbar rows={props.rows} value={props.value} onChange={props.onChange} onClear={props.onClear} />;
   }
-  return <FinancingInvoiceFilterToolbar rows={props.rows} value={props.value} onChange={props.onChange} onClear={props.onClear} />;
+  return <FinancingInvoiceFilterToolbar rows={props.rows} value={props.value} onChange={props.onChange} onClear={props.onClear} hideCustomer={props.hideCustomer} />;
 }
 
 function CollapsibleCategory({

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useParams } from "next/navigation";
@@ -12,13 +12,16 @@ import { useIssuerDashboardContract } from "@/hooks/use-issuer-dashboard";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
 import {
-  FilterButton,
   DashboardInvoiceCard,
+  DEFAULT_INVOICE_FINANCING_LIST_FILTERS,
+  FinancingInvoiceFilterToolbar,
   LabelValue,
+  filterInvoices,
   formatDate,
   displayCell,
   IssuerFinancingStatusBadge,
   EM_DASH,
+  type InvoiceFinancingListFiltersState,
 } from "@/components/dashboard/financing-section";
 import { ReviewOfferModal } from "@/components/review-offer-modal";
 import { getOfferStatus } from "@/lib/offer-utils";
@@ -37,15 +40,26 @@ export default function ContractDetailsPage() {
   const orgId = activeOrganization?.id;
   const { setTitle } = useHeader();
   const [offerModalContext, setOfferModalContext] = useState<Parameters<typeof ReviewOfferModal>[0]["context"]>(null);
+  const [invoiceListFilters, setInvoiceListFilters] = useState<InvoiceFinancingListFiltersState>(
+    DEFAULT_INVOICE_FINANCING_LIST_FILTERS
+  );
 
   useEffect(() => {
     setTitle("Contract");
   }, [setTitle]);
 
+  useEffect(() => {
+    setInvoiceListFilters({ ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS });
+  }, [contractId]);
+
   const { data, isLoading, isError, error } = useIssuerDashboardContract(orgId, contractId);
 
   const row = data?.contract ?? null;
   const invoices = data?.invoices ?? [];
+  const filteredInvoices = useMemo(
+    () => filterInvoices(invoices, { ...invoiceListFilters, customer: "" }),
+    [invoices, invoiceListFilters]
+  );
 
   const approved = row?.approvedFacilityAmount != null ? Number(row.approvedFacilityAmount) : 0;
   const utilised = row?.utilizedFacilityAmount != null ? Number(row.utilizedFacilityAmount) : 0;
@@ -205,16 +219,30 @@ export default function ContractDetailsPage() {
           <h3 className="text-lg font-semibold leading-7 tracking-tight text-foreground md:text-xl">
             Invoices
           </h3>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <FilterButton label="Status" />
-            <FilterButton label="Submission date" />
-          </div>
+          <FinancingInvoiceFilterToolbar
+            rows={invoices}
+            value={invoiceListFilters}
+            onChange={setInvoiceListFilters}
+            onClear={() => setInvoiceListFilters({ ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS })}
+            hideCustomer
+          />
         </div>
 
         {invoices.length === 0 ? (
           <p className="text-[17px] leading-7 text-muted-foreground">No invoices for this contract.</p>
+        ) : filteredInvoices.length === 0 ? (
+          <p className="text-[17px] leading-7 text-muted-foreground">
+            No invoices match these filters.{" "}
+            <button
+              type="button"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+              onClick={() => setInvoiceListFilters({ ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS })}
+            >
+              Clear filters
+            </button>
+          </p>
         ) : (
-          invoices.map((inv) => {
+          filteredInvoices.map((inv) => {
             const modalInvoice = asInvoiceForModal(inv.invoiceForModal) as Invoice;
             return (
               <DashboardInvoiceCard
