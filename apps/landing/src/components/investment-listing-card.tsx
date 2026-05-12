@@ -10,41 +10,33 @@ import {
 import { Button, cn } from "@cashsouk/ui";
 
 export type InvestmentListingData = {
-  title: string;
-  sector: string;
-  noteRef: string;
-  daysLeft: number;
+  title: string | null;
+  sector: string | null;
+  noteRef: string | null;
+  daysLeft: number | null;
   funded: number;
   goal: number;
-  ratePercent: number;
-  tenorDays: number;
-  score: string;
-};
-
-export const DEFAULT_INVESTMENT_LISTING: InvestmentListingData = {
-  title: "Invoice financing (Islamic)",
-  sector: "Food & Beverages",
-  noteRef: "00011",
-  daysLeft: 14,
-  funded: 3000,
-  goal: 24000,
-  ratePercent: 15,
-  tenorDays: 45,
-  score: "A",
+  ratePercent: number | null;
+  tenorDays: number | null;
+  score: string | null;
 };
 
 export function formatRm(amount: number) {
   return `RM ${amount.toLocaleString("en-MY")}`;
 }
 
+function textOrDash(value?: string | null) {
+  return value && value.trim().length > 0 ? value : "-";
+}
+
 export function InvestmentListingCard({
-  data = DEFAULT_INVESTMENT_LISTING,
+  data,
   ctaLabel = "Invest now",
   ctaHref = "/get-started",
   showDownloadLink = false,
   ctaClassName,
 }: {
-  data?: InvestmentListingData;
+  data: InvestmentListingData;
   ctaLabel?: string;
   ctaHref?: string;
   showDownloadLink?: boolean;
@@ -59,15 +51,17 @@ export function InvestmentListingCard({
         <div className="space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-2">
-              <h3 className="text-lg font-semibold tracking-tight text-foreground">{data.title}</h3>
+              <h3 className="text-lg font-semibold tracking-tight text-foreground">
+                {textOrDash(data.title)}
+              </h3>
               <div className="flex items-center gap-4 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
                   <BuildingOffice2Icon className="h-3.5 w-3.5 text-primary" aria-hidden />
-                  {data.sector}
+                  {textOrDash(data.sector)}
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <DocumentTextIcon className="h-3.5 w-3.5 text-primary" aria-hidden />
-                  Note: {data.noteRef}
+                  Note: {textOrDash(data.noteRef)}
                 </span>
               </div>
             </div>
@@ -83,7 +77,9 @@ export function InvestmentListingCard({
 
           <div className="space-y-2">
             <div className="flex justify-end">
-              <span className="text-xs text-muted-foreground">{data.daysLeft} day(s) left</span>
+              <span className="text-xs text-muted-foreground">
+                {data.daysLeft !== null ? `${data.daysLeft} day(s) left` : "-"}
+              </span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-muted">
               <div
@@ -104,15 +100,21 @@ export function InvestmentListingCard({
 
           <div className="grid grid-cols-3 divide-x divide-border">
             <div className="px-3 py-4 text-center">
-              <p className="text-4xl font-semibold leading-none text-foreground">{data.ratePercent}%</p>
+              <p className="text-4xl font-semibold leading-none text-foreground">
+                {data.ratePercent !== null ? `${data.ratePercent}%` : "-"}
+              </p>
               <p className="mt-1 text-[11px] text-muted-foreground">Per annum</p>
             </div>
             <div className="px-3 py-4 text-center">
-              <p className="text-4xl font-semibold leading-none text-foreground">{data.tenorDays}</p>
+              <p className="text-4xl font-semibold leading-none text-foreground">
+                {data.tenorDays ?? "-"}
+              </p>
               <p className="mt-1 text-[11px] text-muted-foreground">Days</p>
             </div>
             <div className="px-3 py-4 text-center">
-              <p className="text-4xl font-semibold leading-none text-foreground">{data.score}</p>
+              <p className="text-4xl font-semibold leading-none text-foreground">
+                {textOrDash(data.score)}
+              </p>
               <p className="mt-1 text-[11px] text-muted-foreground">Score</p>
             </div>
           </div>

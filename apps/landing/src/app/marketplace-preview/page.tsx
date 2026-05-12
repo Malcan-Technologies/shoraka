@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { Navbar } from "../../components/navbar";
 import { Footer } from "../../components/footer";
 import { Button } from "@cashsouk/ui";
@@ -8,8 +9,6 @@ import { LandingMarketplacePreview } from "../../components/landing-marketplace-
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const INVESTOR_URL = process.env.NEXT_PUBLIC_INVESTOR_URL || "http://localhost:3001";
-
-export const revalidate = 120;
 
 async function getLandingMarketplaceNotes(): Promise<NoteListItem[]> {
   try {
@@ -23,6 +22,7 @@ async function getLandingMarketplaceNotes(): Promise<NoteListItem[]> {
 }
 
 export default async function MarketplacePreviewPage() {
+  await connection();
   const notes = await getLandingMarketplaceNotes();
   return (
     <>

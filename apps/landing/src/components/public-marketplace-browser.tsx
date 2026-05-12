@@ -17,9 +17,17 @@ import {
   type PublicMarketplaceNote,
 } from "./public-marketplace-note-card";
 
-const DEFAULT_TENOR_DAYS = 30;
-const MARKETPLACE_INDUSTRY_PLACEHOLDER = "Industry";
-const MARKETPLACE_PRODUCT_PLACEHOLDER = "Product name (TBD)";
+function resolveMarketplaceDaysLeft(maturityDate?: string | null): number | null {
+  if (!maturityDate) return null;
+
+  const target = new Date(maturityDate);
+  if (Number.isNaN(target.getTime())) {
+    return null;
+  }
+
+  const millisRemaining = target.getTime() - Date.now();
+  return Math.max(1, Math.ceil(millisRemaining / (1000 * 60 * 60 * 24)));
+}
 const ONBOARDING_INDUSTRY_OPTIONS = [
   "Agriculture, Forestry, Fishing",
   "Manufacturing",
@@ -40,28 +48,20 @@ const ONBOARDING_INDUSTRY_OPTIONS = [
   "Others",
 ] as const;
 
-function daysUntil(dateValue?: string | null) {
-  if (!dateValue) return DEFAULT_TENOR_DAYS;
-  const now = new Date();
-  const target = new Date(dateValue);
-  const millis = target.getTime() - now.getTime();
-  return Math.max(1, Math.ceil(millis / (1000 * 60 * 60 * 24)));
-}
-
 function toMarketplaceNote(note: NoteListItem): PublicMarketplaceNote {
   const { investable } = computeMarketplaceCommitBounds(note.targetAmount, note.fundedAmount);
-  const tenorDays = daysUntil(note.maturityDate);
+  const tenorDays = resolveMarketplaceDaysLeft(note.maturityDate);
 
   return {
     id: note.id,
-    noteCode: note.noteReference,
-    title: note.productName ?? MARKETPLACE_PRODUCT_PLACEHOLDER,
-    industry: note.issuerIndustry ?? MARKETPLACE_INDUSTRY_PLACEHOLDER,
+    noteCode: note.noteReference.trim() || null,
+    title: note.productName?.trim() || note.title.trim() || null,
+    industry: note.issuerIndustry?.trim() || null,
     fundedAmount: note.fundedAmount,
     goalAmount: note.targetAmount,
-    annualReturn: note.profitRatePercent ?? 0,
+    annualReturn: note.profitRatePercent,
     tenorDays,
-    riskScore: note.riskRating ?? "—",
+    riskScore: note.riskRating,
     daysLeft: tenorDays,
     investable,
     isFeatured: note.featuredActive,
@@ -151,7 +151,7 @@ export function PublicMarketplaceBrowser({
           const leftRank = left.featuredRank ?? Number.MAX_SAFE_INTEGER;
           const rightRank = right.featuredRank ?? Number.MAX_SAFE_INTEGER;
           if (leftRank !== rightRank) return leftRank - rightRank;
-          return left.title.localeCompare(right.title);
+          return (left.title ?? "").localeCompare(right.title ?? "");
         }),
     [marketplaceNotes]
   );
@@ -162,14 +162,16 @@ export function PublicMarketplaceBrowser({
       const matchesRisk = riskFilter === "all" || note.riskScore === riskFilter;
       const matchesProfit =
         profitFilter === "all" ||
-        (profitFilter === "low" && note.annualReturn < 14) ||
-        (profitFilter === "mid" && note.annualReturn >= 14 && note.annualReturn <= 15) ||
-        (profitFilter === "high" && note.annualReturn > 15);
+        (note.annualReturn !== null &&
+          ((profitFilter === "low" && note.annualReturn < 14) ||
+            (profitFilter === "mid" && note.annualReturn >= 14 && note.annualReturn <= 15) ||
+            (profitFilter === "high" && note.annualReturn > 15)));
       const matchesTenor =
         tenorFilter === "all" ||
-        (tenorFilter === "short" && note.tenorDays <= 30) ||
-        (tenorFilter === "medium" && note.tenorDays > 30 && note.tenorDays <= 45) ||
-        (tenorFilter === "long" && note.tenorDays > 45);
+        (note.tenorDays !== null &&
+          ((tenorFilter === "short" && note.tenorDays <= 30) ||
+            (tenorFilter === "medium" && note.tenorDays > 30 && note.tenorDays <= 45) ||
+            (tenorFilter === "long" && note.tenorDays > 45)));
 
       return (
         matchesIndustry &&

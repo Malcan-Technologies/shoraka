@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import {
   ArrowRightIcon,
   BanknotesIcon,
@@ -84,29 +85,31 @@ function ConvenienceSection() {
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-const NOTE_FALLBACK_PRODUCT = "Invoice financing (Islamic)";
-const NOTE_FALLBACK_INDUSTRY = "Industry";
 
-function resolveDaysLeft(maturityDate: string | null) {
-  if (!maturityDate) return 0;
-  const now = new Date();
+function resolveMarketplaceDaysLeft(maturityDate?: string | null): number | null {
+  if (!maturityDate) return null;
+
   const target = new Date(maturityDate);
-  const millisRemaining = target.getTime() - now.getTime();
-  return Math.max(0, Math.ceil(millisRemaining / (1000 * 60 * 60 * 24)));
+  if (Number.isNaN(target.getTime())) {
+    return null;
+  }
+
+  const millisRemaining = target.getTime() - Date.now();
+  return Math.max(1, Math.ceil(millisRemaining / (1000 * 60 * 60 * 24)));
 }
 
 function mapNoteToInvestmentListing(note: NoteListItem): InvestmentListingData {
-  const daysLeft = resolveDaysLeft(note.maturityDate);
+  const daysLeft = resolveMarketplaceDaysLeft(note.maturityDate);
   return {
-    title: note.productName ?? NOTE_FALLBACK_PRODUCT,
-    sector: note.issuerIndustry ?? NOTE_FALLBACK_INDUSTRY,
-    noteRef: note.noteReference.replace(/^NOTE-/, ""),
+    title: note.productName?.trim() || note.title.trim() || null,
+    sector: note.issuerIndustry?.trim() || null,
+    noteRef: note.noteReference.replace(/^NOTE-/, "").trim() || null,
     daysLeft,
     funded: note.fundedAmount,
     goal: note.targetAmount,
-    ratePercent: note.profitRatePercent ?? 0,
+    ratePercent: note.profitRatePercent,
     tenorDays: daysLeft,
-    score: note.riskRating ?? "—",
+    score: note.riskRating,
   };
 }
 
@@ -125,6 +128,7 @@ async function getLandingCarouselListings(): Promise<InvestmentListingData[]> {
 }
 
 export async function LandingInvestmentListings() {
+  await connection();
   const listings = await getLandingCarouselListings();
 
   return (
