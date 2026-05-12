@@ -1866,6 +1866,8 @@ export class AdminService {
       memberCount: number;
       isSophisticatedInvestor: boolean;
       depositReceived: boolean;
+      walletBalance: number | null;
+      investedAmount: number | null;
       createdAt: string;
       updatedAt: string;
     }[];
@@ -1946,6 +1948,8 @@ export class AdminService {
     }[];
     isSophisticatedInvestor: boolean;
     sophisticatedInvestorReason: string | null;
+    walletBalance: number | null;
+    investedAmount: number | null;
     regtankPortalUrl: string | null;
     regtankRequestId: string | null;
     codRequestId: string | null;
@@ -2331,6 +2335,21 @@ export class AdminService {
         portal === "investor" ? (org.is_sophisticated_investor ?? false) : false,
       sophisticatedInvestorReason:
         portal === "investor" ? (org.sophisticated_investor_reason ?? null) : null,
+      walletBalance:
+        portal === "investor"
+          ? (org.investor_balance?.available_amount?.toNumber() ?? 0)
+          : null,
+      investedAmount:
+        portal === "investor"
+          ? linkedInvestments
+              .filter((inv) => inv.status === "COMMITTED" || inv.status === "CONFIRMED")
+              .reduce(
+                (sum, inv) =>
+                  sum +
+                  (typeof inv.amount === "number" ? inv.amount : inv.amount.toNumber?.() ?? 0),
+                0
+              )
+          : null,
       // Build RegTank portal URL from latest onboarding record
       regtankRequestId: org.regtank_onboarding?.[0]?.request_id ?? null,
       codRequestId,

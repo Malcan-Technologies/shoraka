@@ -11,6 +11,7 @@ import {
   createNoteFromApplicationSchema,
   createWithdrawalSchema,
   defaultMarkSchema,
+  getAdminInvestmentsQuerySchema,
   getNotesQuerySchema,
   idParamSchema,
   invoiceIdParamSchema,
@@ -26,6 +27,7 @@ import {
   updateNoteFeaturedSchema,
   updateNoteDraftSchema,
   updatePlatformFinanceSettingsSchema,
+  updateWithdrawalBeneficiarySchema,
 } from "./schemas";
 
 function getActor(req: Request, res: Response, portal: string) {
@@ -99,6 +101,14 @@ adminNotesRouter.get("/bucket-balances/:accountCode/activity", async (req: Reque
 adminNotesRouter.get("/action-count", async (_req: Request, res: Response, next: NextFunction) => {
   try {
     send(res, await noteService.getActionRequiredCount());
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminNotesRouter.get("/pending-repayments", async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    send(res, await noteService.listPendingRepayments());
   } catch (error) {
     next(error);
   }
@@ -505,8 +515,29 @@ platformFinanceSettingsRouter.patch("/", async (req: Request, res: Response, nex
   }
 });
 
+export const adminInvestmentsRouter = Router();
+adminInvestmentsRouter.use(requireRole(UserRole.ADMIN));
+
+adminInvestmentsRouter.get("/", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const params = getAdminInvestmentsQuerySchema.parse(req.query);
+    send(res, await noteService.listAdminInvestments(params));
+  } catch (error) {
+    next(error);
+  }
+});
+
 export const withdrawalsRouter = Router();
 withdrawalsRouter.use(requireRole(UserRole.ADMIN));
+
+withdrawalsRouter.get("/pending-issuer-payouts", async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    send(res, await noteService.listPendingIssuerPayouts());
+  } catch (error) {
+    next(error);
+  }
+});
+
 withdrawalsRouter.post("/", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const input = createWithdrawalSchema.parse(req.body);
@@ -527,6 +558,26 @@ withdrawalsRouter.post("/:id/mark-submitted-to-trustee", async (req: Request, re
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await noteService.markWithdrawalSubmitted(id, getActor(req, res, "ADMIN")));
+  } catch (error) {
+    next(error);
+  }
+});
+withdrawalsRouter.post("/:id/mark-completed", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    send(res, await noteService.markWithdrawalCompleted(id, getActor(req, res, "ADMIN")));
+  } catch (error) {
+    next(error);
+  }
+});
+withdrawalsRouter.patch("/:id/beneficiary", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    const body = updateWithdrawalBeneficiarySchema.parse(req.body);
+    send(
+      res,
+      await noteService.updateWithdrawalBeneficiary(id, body.beneficiarySnapshot, getActor(req, res, "ADMIN"))
+    );
   } catch (error) {
     next(error);
   }

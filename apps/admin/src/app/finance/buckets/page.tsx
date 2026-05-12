@@ -29,6 +29,7 @@ const bucketDescriptions: Record<string, string> = {
   OPERATING_ACCOUNT: "Platform fees, service fees, and operating account allocations.",
   TAWIDH_ACCOUNT: "Syariah compensation account for approved Ta'widh late charges.",
   GHARAMAH_ACCOUNT: "Syariah charity/penalty account for approved Gharamah late charges.",
+  ISSUER_PAYABLE: "Residual amounts owed to issuers from posted settlements, pending trustee disbursement.",
 };
 
 const ACTIVITY_PAGE_SIZE = 20;
@@ -208,7 +209,7 @@ export default function BucketBalancesPage() {
                 <h2 className="text-lg font-semibold">Platform Money Buckets</h2>
                 <p className="text-sm text-muted-foreground">
                   View ledger-derived balances across Investor Pool, Repayment Pool, Operating Account, Ta&apos;widh,
-                  and Gharamah.
+                  Gharamah, and Issuer Payable.
                 </p>
               </div>
             </div>
@@ -246,9 +247,9 @@ export default function BucketBalancesPage() {
               </Card>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
               {isLoading
-                ? Array.from({ length: 5 }).map((_, index) => (
+                ? Array.from({ length: 6 }).map((_, index) => (
                     <Card key={index} className="h-44 animate-pulse rounded-2xl bg-muted/40" />
                   ))
                 : buckets.map((bucket) => (

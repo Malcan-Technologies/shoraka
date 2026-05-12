@@ -89,6 +89,10 @@ import type {
   MarketplaceNoteDetail,
   NoteDetail,
   NoteActionRequiredCountResponse,
+  GetAdminInvestmentsParams,
+  GetAdminInvestmentsResponse,
+  PendingIssuerPayoutsResponse,
+  PendingRepaymentsResponse,
   NoteEvent,
   NoteLedgerBucketActivityResponse,
   NoteLedgerBucketBalancesResponse,
@@ -500,6 +504,7 @@ export class ApiClient {
     }
     if (params.paymaster) queryParams.append("paymaster", params.paymaster);
     if (params.featuredOnly) queryParams.append("featuredOnly", "true");
+    if (params.excludeRepaid) queryParams.append("excludeRepaid", "true");
 
     return this.get<NotesResponse>(`/v1/admin/notes?${queryParams.toString()}`);
   }
@@ -587,6 +592,28 @@ export class ApiClient {
 
   async getAdminNoteActionRequiredCount(): Promise<ApiResponse<NoteActionRequiredCountResponse> | ApiError> {
     return this.get<NoteActionRequiredCountResponse>("/v1/admin/notes/action-count");
+  }
+
+  async getAdminPendingRepayments(): Promise<ApiResponse<PendingRepaymentsResponse> | ApiError> {
+    return this.get<PendingRepaymentsResponse>("/v1/admin/notes/pending-repayments");
+  }
+
+  async getAdminPendingIssuerPayouts(): Promise<ApiResponse<PendingIssuerPayoutsResponse> | ApiError> {
+    return this.get<PendingIssuerPayoutsResponse>("/v1/admin/withdrawals/pending-issuer-payouts");
+  }
+
+  async getAdminInvestments(
+    params: GetAdminInvestmentsParams = {}
+  ): Promise<ApiResponse<GetAdminInvestmentsResponse> | ApiError> {
+    const search = new URLSearchParams();
+    if (params.page !== undefined) search.set("page", String(params.page));
+    if (params.pageSize !== undefined) search.set("pageSize", String(params.pageSize));
+    if (params.search) search.set("search", params.search);
+    if (params.status) search.set("status", params.status);
+    if (params.noteId) search.set("noteId", params.noteId);
+    if (params.investorOrganizationId) search.set("investorOrganizationId", params.investorOrganizationId);
+    const qs = search.toString();
+    return this.get<GetAdminInvestmentsResponse>(`/v1/admin/investments${qs ? `?${qs}` : ""}`);
   }
 
   async recordAdminNotePayment(
@@ -2298,6 +2325,25 @@ export class ApiClient {
     return this.post<WithdrawalInstruction>(
       `/v1/admin/withdrawals/${id}/mark-submitted-to-trustee`,
       {}
+    );
+  }
+
+  async markWithdrawalCompleted(
+    id: string
+  ): Promise<ApiResponse<WithdrawalInstruction> | ApiError> {
+    return this.post<WithdrawalInstruction>(
+      `/v1/admin/withdrawals/${id}/mark-completed`,
+      {}
+    );
+  }
+
+  async updateWithdrawalBeneficiary(
+    id: string,
+    beneficiarySnapshot: Record<string, unknown>
+  ): Promise<ApiResponse<WithdrawalInstruction> | ApiError> {
+    return this.patch<WithdrawalInstruction>(
+      `/v1/admin/withdrawals/${id}/beneficiary`,
+      { beneficiarySnapshot }
     );
   }
 

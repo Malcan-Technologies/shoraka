@@ -777,6 +777,7 @@ model NoteSettlement {
   created_at              DateTime              @default(now())
   updated_at              DateTime              @updatedAt
   note                    Note                  @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  withdrawals             WithdrawalInstruction[]
 
   @@index([note_id])
   @@index([payment_id])
@@ -892,6 +893,7 @@ model PlatformFinanceSetting {
 model WithdrawalInstruction {
   id                     String              @id @default(cuid())
   note_id                String?
+  settlement_id          String?
   investor_organization_id String?
   issuer_organization_id String?
   requested_by_user_id   String
@@ -904,11 +906,14 @@ model WithdrawalInstruction {
   letter_s3_key          String?
   generated_at           DateTime?
   submitted_to_trustee_at DateTime?
+  completed_at           DateTime?
   metadata               Json?
   created_at             DateTime            @default(now())
   updated_at             DateTime            @updatedAt
+  settlement             NoteSettlement?     @relation(fields: [settlement_id], references: [id], onDelete: SetNull)
 
   @@index([note_id])
+  @@index([settlement_id])
   @@index([investor_organization_id])
   @@index([issuer_organization_id])
   @@index([requested_by_user_id])
@@ -1427,6 +1432,7 @@ enum NoteLedgerAccountType {
   OPERATING_ACCOUNT
   TAWIDH_ACCOUNT
   GHARAMAH_ACCOUNT
+  ISSUER_PAYABLE
 }
 
 enum NoteLedgerDirection {
@@ -1444,6 +1450,7 @@ enum WithdrawalStatus {
 
 enum WithdrawalType {
   INVESTOR_WITHDRAWAL
+  ISSUER_DISBURSEMENT
   ISSUER_RESIDUAL_RETURN
   ADMIN_ADJUSTMENT
 }

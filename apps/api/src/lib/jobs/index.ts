@@ -3,6 +3,7 @@ import { NotificationService } from "../../modules/notification/service";
 import { logger } from "../logger";
 import { runOfferExpiryJob } from "./offer-expiry";
 import { runCtosKybRetryJob } from "./ctos-kyb-retry";
+import { runNoteListingExpiryJob } from "./note-listing-expiry";
 
 const notificationService = new NotificationService();
 
@@ -51,6 +52,31 @@ export function initJobs() {
       await runCtosKybRetryJob();
     } catch (error) {
       logger.error({ error }, "Failed to run CTOS KYB retry job");
+    }
+  });
+
+  // Note listing expiry: auto-close marketplace listings past their scheduled close time.
+  // Listings meeting minimum funding are funded; the rest fail and release commitments.
+  cron.schedule("0 * * * *", async () => {
+    logger.info("Starting note listing expiry job...");
+    try {
+      const result = await runNoteListingExpiryJob();
+      if (
+        result.notesAutoFunded.length > 0 ||
+        result.notesAutoFailed.length > 0 ||
+        result.errors.length > 0
+      ) {
+        logger.info(
+          {
+            notesAutoFunded: result.notesAutoFunded.length,
+            notesAutoFailed: result.notesAutoFailed.length,
+            errors: result.errors.length,
+          },
+          "Note listing expiry job completed"
+        );
+      }
+    } catch (error) {
+      logger.error({ error }, "Failed to run note listing expiry job");
     }
   });
 

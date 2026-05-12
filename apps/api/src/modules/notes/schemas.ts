@@ -52,11 +52,26 @@ export const getNotesQuerySchema = z.object({
     .enum(["true", "false", "1", "0"])
     .transform((value) => value === "true" || value === "1")
     .optional(),
+  excludeRepaid: z
+    .enum(["true", "false", "1", "0"])
+    .transform((value) => value === "true" || value === "1")
+    .optional(),
 });
 
 export const createNoteFromApplicationSchema = z.object({
   sourceInvoiceId: z.string().nullable().optional(),
   title: z.string().min(1).max(180).optional(),
+});
+
+export const getAdminInvestmentsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().optional(),
+  status: z
+    .enum(["COMMITTED", "CONFIRMED", "RELEASED", "CANCELLED", "SETTLED"])
+    .optional(),
+  noteId: z.string().optional(),
+  investorOrganizationId: z.string().optional(),
 });
 
 export const updateNoteDraftSchema = z.object({
@@ -94,6 +109,8 @@ export const recordPaymentSchema = z.object({
   reference: z.string().max(120).nullable().optional(),
   evidenceS3Key: z.string().max(500).nullable().optional(),
   scheduleId: z.string().nullable().optional(),
+  pendingTawidhAmount: z.number().min(0).optional(),
+  pendingGharamahAmount: z.number().min(0).optional(),
   metadata: z.record(z.unknown()).nullable().optional(),
 });
 
@@ -148,6 +165,10 @@ export const createWithdrawalSchema = z.object({
   issuerOrganizationId: z.string().nullable().optional(),
   withdrawalType: z.enum(["INVESTOR_WITHDRAWAL", "ISSUER_RESIDUAL_RETURN", "ADMIN_ADJUSTMENT"]),
   amount: z.number().positive(),
+  beneficiarySnapshot: z.record(z.unknown()),
+});
+
+export const updateWithdrawalBeneficiarySchema = z.object({
   beneficiarySnapshot: z.record(z.unknown()),
 });
 

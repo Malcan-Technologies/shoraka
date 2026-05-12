@@ -29,7 +29,6 @@ import { Skeleton } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
 import { useNoteDetail } from "@/notes/hooks/use-note-detail";
 import {
-  useActivateNote,
   useCloseNoteFunding,
   useFailNoteFunding,
   usePublishNote,
@@ -37,11 +36,16 @@ import {
   useUnpublishNote,
 } from "@/notes/hooks/use-notes";
 import { LedgerPanel } from "@/notes/components/ledger-panel";
+import {
+  NoteLifecycleCard,
+  type NoteLifecycleAction,
+} from "@/notes/components/note-lifecycle-card";
+import { NoteInvestorsPanel } from "@/notes/components/note-investors-panel";
+import { NoteStatusBadge } from "@/notes/components/note-status-badge";
 import { NoteTermsPanel } from "@/notes/components/note-terms-panel";
 import { NoteTimelinePanel } from "@/notes/components/note-timeline-panel";
 import { SettlementPanel } from "@/notes/components/settlement-panel";
 import { SourceApplicationPanel } from "@/notes/components/source-application-panel";
-import { formatNoteStatus } from "@/notes/utils/format-note-status";
 import { isSoukscoreRiskRating, type NoteDetail, type NoteSettlementPoolSummary } from "@cashsouk/types";
 
 function PageSkeleton() {
@@ -59,10 +63,6 @@ function PageSkeleton() {
       <Skeleton className="h-56 w-full rounded-2xl" />
     </div>
   );
-}
-
-function formatStatus(value: string) {
-  return formatNoteStatus(value);
 }
 
 function getInvoiceAmount(note: NonNullable<ReturnType<typeof useNoteDetail>["data"]>) {
@@ -109,10 +109,8 @@ function BucketPayoutCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-type ConfirmableNoteAction = "publish" | "unpublish" | "closeFunding" | "failFunding";
-
 const noteActionCopy: Record<
-  ConfirmableNoteAction,
+  NoteLifecycleAction,
   { title: string; description: string; confirmLabel: string; successLabel: string; destructive?: boolean }
 > = {
   publish: {
@@ -132,9 +130,9 @@ const noteActionCopy: Record<
   closeFunding: {
     title: "Close funding?",
     description:
-      "This will stop new marketplace commitments and prepare investor allocations for activation. Confirm that the funding result is ready to be locked.",
+      "Confirm that the minimum funding threshold has been reached. Closing locks investor commitments, confirms investments, posts the disbursement ledger entries, and creates a draft Issuer Disbursement withdrawal. The note moves to FUNDING until the trustee pays out the net amount to the issuer, then transitions to ACTIVE.",
     confirmLabel: "Close Funding",
-    successLabel: "Funding closed",
+    successLabel: "Funding closed — awaiting issuer disbursement",
   },
   failFunding: {
     title: "Fail funding?",
@@ -155,66 +153,50 @@ export default function NoteDetailPage() {
   const unpublishNote = useUnpublishNote();
   const closeFunding = useCloseNoteFunding();
   const failFunding = useFailNoteFunding();
-  const activateNote = useActivateNote();
   const updateNoteFeatured = useUpdateNoteFeatured();
-  const [pendingAction, setPendingAction] = React.useState<ConfirmableNoteAction | null>(null);
+  const [pendingAction, setPendingAction] = React.useState<NoteLifecycleAction | null>(null);
   const [featuredEnabled, setFeaturedEnabled] = React.useState(false);
 
-  const handleAction = async (label: string, action: () => Promise<unknown>) => {
-    try {
-      await action();
-      toast.success(label);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Action failed");
-    }
-  };
+  const lifecyclePending = React.useMemo(
+    () => ({
+      publish: publishNote.isPending,
+      unpublish: unpublishNote.isPending,
+      closeFunding: closeFunding.isPending,
+      failFunding: failFunding.isPending,
+    }),
+    [
+      publishNote.isPending,
+      unpublishNote.isPending,
+      closeFunding.isPending,
+      failFunding.isPending,
+    ]
+  );
 
   const runConfirmedAction = async () => {
     if (!note || !pendingAction) return;
     const copy = noteActionCopy[pendingAction];
-    const actions: Record<ConfirmableNoteAction, () => Promise<unknown>> = {
+    const actions: Record<NoteLifecycleAction, () => Promise<unknown>> = {
       publish: () => publishNote.mutateAsync(note.id),
       unpublish: () => unpublishNote.mutateAsync(note.id),
       closeFunding: () => closeFunding.mutateAsync(note.id),
       failFunding: () => failFunding.mutateAsync(note.id),
     };
 
-    await handleAction(copy.successLabel, actions[pendingAction]);
+    try {
+      await actions[pendingAction]();
+      toast.success(copy.successLabel);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Action failed");
+    }
     setPendingAction(null);
-  };
-
-  const handlePublish = async () => {
-    if (!note) return;
-    setPendingAction("publish");
-  };
-
-  const handleUnpublish = async () => {
-    if (!note) return;
-    setPendingAction("unpublish");
   };
 
   const confirmCopy = pendingAction ? noteActionCopy[pendingAction] : null;
   const confirmPending =
-    publishNote.isPending || unpublishNote.isPending || closeFunding.isPending || failFunding.isPending;
-  const publishableListingStatuses = ["NOT_LISTED", "DRAFT", "UNPUBLISHED"];
-  const canPublish =
-    note?.status === "DRAFT" &&
-    note.fundingStatus === "NOT_OPEN" &&
-    publishableListingStatuses.includes(note.listingStatus);
-  const canUnpublish =
-    note?.status === "PUBLISHED" &&
-    note.listingStatus === "PUBLISHED" &&
-    note.fundingStatus === "OPEN" &&
-    note.investments.length === 0;
-  const isFundingOpen = note?.status === "PUBLISHED" && note.fundingStatus === "OPEN";
-  const meetsMinimumFunding =
-    note != null && note.fundingPercent + 0.005 >= note.minimumFundingPercent;
-  const canCloseFunding = Boolean(isFundingOpen && meetsMinimumFunding);
-  const canFailFunding = Boolean(isFundingOpen && !meetsMinimumFunding);
-  const canActivate =
-    note?.status === "FUNDING" &&
-    note.fundingStatus === "FUNDED" &&
-    note.servicingStatus === "NOT_STARTED";
+    publishNote.isPending ||
+    unpublishNote.isPending ||
+    closeFunding.isPending ||
+    failFunding.isPending;
 
   React.useEffect(() => {
     if (!note) return;
@@ -286,7 +268,12 @@ export default function NoteDetailPage() {
                             This note has been settled and the posted payout has been allocated across the platform buckets.
                           </p>
                         </div>
-                        <Badge variant="secondary">Settled</Badge>
+                        <Badge
+                          variant="outline"
+                          className="border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300"
+                        >
+                          Settled
+                        </Badge>
                       </div>
                       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                         <BucketPayoutCard label="Repayment Pool" value={settlementSummary.grossReceiptAmount} />
@@ -319,7 +306,7 @@ export default function NoteDetailPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-end gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-3">
                   <div className="flex items-center gap-2 rounded-full border px-3 py-1.5">
                     <span className="text-xs font-medium text-muted-foreground">Featured</span>
                     <Switch
@@ -329,10 +316,7 @@ export default function NoteDetailPage() {
                       disabled={updateNoteFeatured.isPending}
                     />
                   </div>
-                  <Badge variant="outline">{formatStatus(note.status)}</Badge>
-                  <Badge variant="secondary">{formatStatus(note.listingStatus)}</Badge>
-                  <Badge variant="secondary">{formatStatus(note.fundingStatus)}</Badge>
-                  <Badge variant="secondary">{formatStatus(note.servicingStatus)}</Badge>
+                  <NoteStatusBadge note={note} showDetail />
                 </div>
               </div>
 
@@ -365,49 +349,11 @@ export default function NoteDetailPage() {
                 </CardContent>
               </Card>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  size="sm"
-                  onClick={handlePublish}
-                  disabled={publishNote.isPending || !canPublish}
-                >
-                  Publish
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleUnpublish}
-                  disabled={unpublishNote.isPending || !canUnpublish}
-                >
-                  Unpublish
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setPendingAction("closeFunding")}
-                  disabled={closeFunding.isPending || !canCloseFunding}
-                >
-                  Close Funding
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setPendingAction("failFunding")}
-                  disabled={failFunding.isPending || !canFailFunding}
-                >
-                  Fail Funding
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    handleAction("Note activated", () => activateNote.mutateAsync(note.id))
-                  }
-                  disabled={activateNote.isPending || !canActivate}
-                >
-                  Activate
-                </Button>
-              </div>
+              <NoteLifecycleCard
+                note={note}
+                pending={lifecyclePending}
+                onRequestAction={(action) => setPendingAction(action)}
+              />
 
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)]">
                 <div className="min-w-0 space-y-6">
@@ -420,6 +366,8 @@ export default function NoteDetailPage() {
                   <NoteTimelinePanel note={note} />
                 </div>
               </div>
+
+              <NoteInvestorsPanel note={note} />
             </div>
           ) : null}
         </div>

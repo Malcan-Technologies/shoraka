@@ -10,7 +10,10 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { NotesTable } from "@/notes/components/notes-table";
-import { NotesTableToolbar } from "@/notes/components/notes-table-toolbar";
+import {
+  NOTE_STATUS_FILTER_ACTIVE_LOANS,
+  NotesTableToolbar,
+} from "@/notes/components/notes-table-toolbar";
 import { useCreateNoteFromInvoice, useNotes, useNoteSourceInvoices } from "@/notes/hooks/use-notes";
 import { notesKeys } from "@/notes/query-keys";
 
@@ -18,7 +21,7 @@ export default function NotesPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [status, setStatus] = React.useState("ALL");
+  const [status, setStatus] = React.useState<string>(NOTE_STATUS_FILTER_ACTIVE_LOANS);
   const [featuredOnly, setFeaturedOnly] = React.useState(false);
   const [currentPage, setCurrentPage] = React.useState(1);
   const pageSize = 20;
@@ -26,7 +29,11 @@ export default function NotesPage() {
   const params = React.useMemo(() => {
     const next: GetAdminNotesParams = { page: currentPage, pageSize };
     if (searchQuery) next.search = searchQuery;
-    if (status !== "ALL") next.status = status as NoteStatus;
+    if (status === NOTE_STATUS_FILTER_ACTIVE_LOANS) {
+      next.excludeRepaid = true;
+    } else if (status !== "ALL") {
+      next.status = status as NoteStatus;
+    }
     if (featuredOnly) next.featuredOnly = true;
     return next;
   }, [currentPage, featuredOnly, pageSize, searchQuery, status]);
@@ -48,7 +55,9 @@ export default function NotesPage() {
 
   const handleStatusChange = (value: string) => {
     setStatus(value);
-    if (value !== "ALL") setFeaturedOnly(false);
+    if (value !== "ALL" && value !== NOTE_STATUS_FILTER_ACTIVE_LOANS) {
+      setFeaturedOnly(false);
+    }
   };
 
   const handleFeaturedOnlyChange = (value: boolean) => {
@@ -91,7 +100,8 @@ export default function NotesPage() {
       .toLowerCase()
       .includes(normalizedSearch);
   });
-  const showReadyInvoices = status === "ALL" && !featuredOnly;
+  const showReadyInvoices =
+    (status === "ALL" || status === NOTE_STATUS_FILTER_ACTIVE_LOANS) && !featuredOnly;
   const readyInvoicesForDisplay = showReadyInvoices ? readyInvoicesBySearch : [];
 
   return (

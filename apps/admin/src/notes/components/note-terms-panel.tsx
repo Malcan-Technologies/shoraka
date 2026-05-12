@@ -30,8 +30,11 @@ function getRiskRating(note: NoteDetail) {
   return isSoukscoreRiskRating(riskRating) ? riskRating : "—";
 }
 
-function getFundingProgressClass(fundingStatus: NoteDetail["fundingStatus"]) {
-  if (fundingStatus === "FUNDED" || fundingStatus === "FAILED") {
+function getFundingProgressClass(note: NoteDetail) {
+  if (note.status === "REPAID") {
+    return "bg-muted [&>div]:bg-emerald-500";
+  }
+  if (note.fundingStatus === "FUNDED" || note.fundingStatus === "FAILED") {
     return "bg-muted [&>div]:bg-black";
   }
   return "[&>div]:bg-primary";
@@ -41,7 +44,7 @@ export function NoteTermsPanel({ note }: { note: NoteDetail }) {
   const invoiceAmount = getInvoiceAmount(note);
   const riskRating = getRiskRating(note);
   const progressValue = Math.min(Math.max(note.fundingPercent, 0), 100);
-  const progressClassName = getFundingProgressClass(note.fundingStatus);
+  const progressClassName = getFundingProgressClass(note);
   const isFundingOpen = note.fundingStatus === "OPEN";
   const isFundingClosed = note.fundingStatus === "CLOSED" || note.fundingStatus === "FUNDED";
   const fundingStatusLabel = isFundingOpen
