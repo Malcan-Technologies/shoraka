@@ -1004,6 +1004,11 @@ function DashboardContractCard({
   onReviewOffer: () => void;
 }) {
   const router = useRouter();
+  const actionRequiredApplicationIds = row.actionRequiredApplicationIds ?? [];
+  const actionRequiredCount = actionRequiredApplicationIds.length;
+  const showActionRequired = actionRequiredCount > 0;
+  const actionRequiredLabel =
+    actionRequiredCount === 1 ? "Action required" : `Action required (${actionRequiredCount})`;
   const approved = row.approvedFacilityAmount != null ? Number(row.approvedFacilityAmount) : 0;
   const utilised = row.utilizedFacilityAmount != null ? Number(row.utilizedFacilityAmount) : 0;
   const utilisationPct = approved > 0 ? Math.round((utilised / approved) * 100) : 0;
@@ -1032,6 +1037,21 @@ function DashboardContractCard({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <ReviewOfferButton show={offerStatus === "Offer received"} onClick={onReviewOffer} />
+            {showActionRequired ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-lg border-amber-500/30 bg-amber-50 px-3 text-xs font-medium text-amber-800 hover:bg-amber-50"
+                onClick={() =>
+                  router.push(
+                    `/applications?applicationIds=${encodeURIComponent(actionRequiredApplicationIds.join(","))}`
+                  )
+                }
+              >
+                {actionRequiredLabel}
+              </Button>
+            ) : null}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
@@ -1041,11 +1061,6 @@ function DashboardContractCard({
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem asChild>
                   <Link href={`/financing/contracts/${row.id}`}>View details</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => row.applicationId && router.push(`/applications/edit/${row.applicationId}`)}
-                >
-                  Make amendment
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1098,6 +1113,11 @@ export function DashboardInvoiceCard({
   onReviewOffer: () => void;
 }) {
   const router = useRouter();
+  const actionRequiredApplicationIds = row.actionRequiredApplicationIds ?? [];
+  const actionRequiredCount = actionRequiredApplicationIds.length;
+  const showActionRequired = actionRequiredCount > 0;
+  const actionRequiredLabel =
+    actionRequiredCount === 1 ? "Action required" : `Action required (${actionRequiredCount})`;
   const badgeKind = resolveIssuerInvoiceDashboardBadge(row.note, row.invoiceStatus);
   const progress = resolveFundingProgressPercent(row.note);
   const fundingLabel = resolveFundingStatusText(row.note);
@@ -1124,20 +1144,21 @@ export function DashboardInvoiceCard({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <ReviewOfferButton show={offerStatus === "Offer received"} onClick={onReviewOffer} />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem
-                  onClick={() => row.applicationId && router.push(`/applications/edit/${row.applicationId}`)}
-                >
-                  Make amendment
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {showActionRequired ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 rounded-lg border-amber-500/30 bg-amber-50 px-3 text-xs font-medium text-amber-800 hover:bg-amber-50"
+                onClick={() =>
+                  router.push(
+                    `/applications?applicationIds=${encodeURIComponent(actionRequiredApplicationIds.join(","))}`
+                  )
+                }
+              >
+                {actionRequiredLabel}
+              </Button>
+            ) : null}
           </div>
         </div>
 

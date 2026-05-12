@@ -539,12 +539,26 @@ export default function ApplicationsPage() {
   const [financingFilter, setFinancingFilter] = React.useState("all");
   const [submittedFilter, setSubmittedFilter] = React.useState("all");
   const [offerExpiryFilter, setOfferExpiryFilter] = React.useState("all");
+  const [applicationIdsFilter, setApplicationIdsFilter] = React.useState<string[]>([]);
   const [page, setPage] = React.useState(1);
   const [perPage, setPerPage] = React.useState(4);
 
   React.useEffect(() => {
     setTitle("Applications");
   }, [setTitle]);
+
+  // Action-required navigation: /applications?applicationIds=app_123,app_456
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const raw = params.get("applicationIds");
+    if (!raw) return;
+    const ids = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    setApplicationIdsFilter(ids);
+  }, []);
 
   const filteredApplications = React.useMemo(() => {
     let list = [...applications];
@@ -556,6 +570,10 @@ export default function ApplicationsPage() {
           a.id.toLowerCase().includes(q) ||
           a.invoices.some((inv) => inv.number.toLowerCase().includes(q))
       );
+    }
+    if (applicationIdsFilter.length > 0) {
+      const idSet = new Set(applicationIdsFilter);
+      list = list.filter((a) => idSet.has(a.id));
     }
     if (statusFilters.length > 0) {
       list = list.filter((a) => statusFilters.includes(a.status));
@@ -593,7 +611,7 @@ export default function ApplicationsPage() {
       });
     }
     return list;
-  }, [applications, search, statusFilters, financingFilter, submittedFilter, offerExpiryFilter]);
+  }, [applications, search, statusFilters, financingFilter, submittedFilter, offerExpiryFilter, applicationIdsFilter]);
 
   const paginatedApplications = filteredApplications.slice(
     (page - 1) * perPage,
@@ -608,6 +626,7 @@ export default function ApplicationsPage() {
     (offerExpiryFilter !== "all" ? 1 : 0);
   const hasFilters =
     search !== "" ||
+    applicationIdsFilter.length > 0 ||
     activeFilterCount > 0;
   const totalPages = Math.ceil(filteredApplications.length / perPage) || 1;
   const startIndex = (page - 1) * perPage + 1;
@@ -988,6 +1007,14 @@ export default function ApplicationsPage() {
                     setFinancingFilter("all");
                     setSubmittedFilter("all");
                     setOfferExpiryFilter("all");
+                    setApplicationIdsFilter([]);
+                    if (typeof window !== "undefined") {
+                      const params = new URLSearchParams(window.location.search);
+                      params.delete("applicationIds");
+                      const qs = params.toString();
+                      const nextUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+                      window.history.replaceState({}, "", nextUrl);
+                    }
                     setPage(1);
                   }}
                   className="gap-2 h-11 rounded-xl hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
@@ -996,6 +1023,13 @@ export default function ApplicationsPage() {
                   <span className="hidden sm:inline">Clear</span>
                 </Button>
               )}
+
+              {applicationIdsFilter.length > 0 ? (
+                <div className="text-sm text-muted-foreground">
+                  Showing applications that require action
+                  {applicationIdsFilter.length > 1 ? ` (${applicationIdsFilter.length})` : ""}
+                </div>
+              ) : null}
 
               <Badge
                 variant="secondary"

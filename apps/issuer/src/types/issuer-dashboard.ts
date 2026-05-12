@@ -30,6 +30,8 @@ export type IssuerDashboardInvoice = {
   financingAmount: string | null;
   submissionDate: string | null;
   note: IssuerDashboardNote | null;
+  /** Application IDs that require action (AMENDMENT_REQUESTED). Usually 0 or 1 for invoice rows. */
+  actionRequiredApplicationIds: string[];
 };
 
 export type IssuerDashboardContract = {
@@ -47,6 +49,8 @@ export type IssuerDashboardContract = {
   availableFacilityAmount: string | null;
   activeNotesCount: number;
   contractStatus: string;
+  /** Application IDs that require action (AMENDMENT_REQUESTED) across all applications sharing this contract. */
+  actionRequiredApplicationIds: string[];
   invoiceStats: {
     total: number;
     approved: number;

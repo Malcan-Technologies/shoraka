@@ -1,4 +1,12 @@
-import { Prisma, NoteFundingStatus, NoteStatus, ContractStatus, InvoiceStatus, NotePaymentStatus } from "@prisma/client";
+import {
+  Prisma,
+  NoteFundingStatus,
+  NoteStatus,
+  ContractStatus,
+  InvoiceStatus,
+  NotePaymentStatus,
+  ApplicationStatus,
+} from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
 import { OrganizationRepository } from "../organization/repository";
@@ -62,6 +70,8 @@ export type IssuerDashboardInvoiceDto = {
   financingAmount: string | null;
   submissionDate: string | null;
   note: IssuerDashboardNoteDto | null;
+  /** Application IDs that require action (AMENDMENT_REQUESTED). Usually 0 or 1. */
+  actionRequiredApplicationIds: string[];
 };
 
 export type IssuerDashboardContractDto = {
@@ -81,6 +91,8 @@ export type IssuerDashboardContractDto = {
   availableFacilityAmount: string | null;
   activeNotesCount: number;
   contractStatus: ContractStatus;
+  /** Application IDs that require action (AMENDMENT_REQUESTED) across all applications sharing this contract. */
+  actionRequiredApplicationIds: string[];
   invoiceStats: {
     total: number;
     approved: number;
@@ -321,6 +333,14 @@ export class IssuerDashboardService {
       }
       const contractInvoices = Array.from(mergedInvoicesById.values());
 
+      const actionRequiredApplicationIds = [
+        ...new Set(
+          appsForContract
+            .filter((a) => a.status === ApplicationStatus.AMENDMENT_REQUESTED)
+            .map((a) => a.id)
+        ),
+      ];
+
       // Funding in progress counts notes strictly open for investor funding.
       const fundingInProgress = contractNotes.filter(
         (n) => n.status === NoteStatus.PUBLISHED && n.funding_status === NoteFundingStatus.OPEN
@@ -378,6 +398,7 @@ export class IssuerDashboardService {
         availableFacilityAmount,
         activeNotesCount: activeNotesOnContract,
         contractStatus: c.status,
+        actionRequiredApplicationIds,
         invoiceStats: {
           total: contractInvoices.length,
           approved: approvedCount,
@@ -435,6 +456,8 @@ export class IssuerDashboardService {
           financingAmount,
           submissionDate: inv.created_at.toISOString(),
           note: invNote ? mapNoteToDto(invNote) : null,
+          actionRequiredApplicationIds:
+            app.status === ApplicationStatus.AMENDMENT_REQUESTED ? [app.id] : [],
         });
       }
     }
