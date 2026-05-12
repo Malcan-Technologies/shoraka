@@ -16,6 +16,7 @@ import {
   ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 import { useHeader } from "@cashsouk/ui";
+import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
 import {
   formatCurrency,
   createApiClient,
@@ -717,8 +718,8 @@ export default function ApplicationsPage() {
   }, [activeOrganization]);
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-x-hidden p-4 pt-4">
-      <div className="min-w-0 max-w-full p-2 md:p-4">
+    <div className={issuerMainContentClassName}>
+      <div className={cn("min-w-0 max-w-full", issuerPageGutterClassName)}>
       {activeOrganization?.type === "COMPANY" && dsOnboardingPending ? (
         <DirectorShareholderAlertCard
           visiblePeople={visiblePeopleForDsGating}

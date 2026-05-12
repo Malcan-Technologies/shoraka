@@ -8,6 +8,8 @@ import { useParams } from "next/navigation";
 import { useOrganization } from "@cashsouk/config";
 import { useHeader, formatMoneyDisplay } from "@cashsouk/ui";
 import { useIssuerDashboardContract } from "@/hooks/use-issuer-dashboard";
+import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
+import { cn } from "@/lib/utils";
 import {
   FilterButton,
   DashboardInvoiceCard,
@@ -58,7 +60,7 @@ export default function ContractDetailsPage() {
   const productLabel =
     row?.productName?.trim() ? displayCell(row.productName) : "Contract Financing";
 
-  const shellClass = "flex flex-1 flex-col p-4 pt-6 pb-10 md:p-6 md:pb-12";
+  const shellClass = cn(issuerMainContentClassName, issuerPageGutterClassName);
 
   if (!orgId) {
     return (
@@ -98,7 +100,7 @@ export default function ContractDetailsPage() {
   const stats = row.invoiceStats;
 
   return (
-    <div className={`${shellClass} space-y-6 md:space-y-8`}>
+    <div className={cn(shellClass, "space-y-6 md:space-y-8")}>
       <ReviewOfferModal
         open={offerModalContext !== null}
         onOpenChange={(open) => !open && setOfferModalContext(null)}

@@ -18,6 +18,8 @@ import { RepaymentPerformanceCard } from "../components/repayment-performance-ca
 import { FinancingSection } from "../components/dashboard/financing-section";
 import { useHeader } from "@cashsouk/ui";
 import { useIssuerDashboard } from "../hooks/use-issuer-dashboard";
+import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
+import { cn } from "@/lib/utils";
 
 function IssuerDashboardContent() {
   const { setTitle } = useHeader();
@@ -174,7 +176,7 @@ function IssuerDashboardContent() {
 
   return (
     <>
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+      <div className={cn(issuerMainContentClassName, issuerPageGutterClassName, "gap-6 md:gap-8")}>
         <div className="space-y-8">
           {activeOrganization?.type === "COMPANY" ? (
             <DirectorShareholderAlertCard
