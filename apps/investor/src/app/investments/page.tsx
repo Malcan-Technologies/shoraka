@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useOrganization } from "@cashsouk/config";
 import { useHeader } from "@cashsouk/ui";
-import { MagnifyingGlassIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  MagnifyingGlassIcon,
+  XMarkIcon,
+} from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -66,6 +71,15 @@ const ONBOARDING_INDUSTRY_OPTIONS = [
   "Arts, Media & Entertainment",
   "Others",
 ] as const;
+
+const MARKETPLACE_LISTINGS_PAGE_SIZE = 9;
+
+function parseMarketplaceListPageParam(value: string | null): number {
+  if (!value) return 1;
+  const parsed = Number.parseInt(value.trim(), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return 1;
+  return parsed;
+}
 
 function currency(amount: number) {
   return `RM ${amount.toLocaleString("en-MY")}`;
@@ -142,13 +156,15 @@ export function MarketplacePage() {
       ? initialTenorParam
       : "all";
 
+  const pageFromUrl = parseMarketplaceListPageParam(searchParams.get("page"));
+
   const [search, setSearch] = useState(initialSearch);
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [industryFilter, setIndustryFilter] = useState(initialIndustry);
   const [riskFilter, setRiskFilter] = useState(initialRisk);
   const [profitFilter, setProfitFilter] = useState(initialProfit);
   const [tenorFilter, setTenorFilter] = useState(initialTenor);
-  const [displayCount, setDisplayCount] = useState(6);
+  const [currentPage, setCurrentPage] = useState(pageFromUrl);
 
   const [activeNote, setActiveNote] = useState<MarketplaceNote | null>(null);
   const [investmentAmount, setInvestmentAmount] = useState("10,000");
@@ -166,6 +182,19 @@ export function MarketplacePage() {
   }, [search]);
 
   useEffect(() => {
+    setCurrentPage(pageFromUrl);
+  }, [pageFromUrl]);
+
+  const isFirstDebouncedSearchPageReset = useRef(true);
+  useEffect(() => {
+    if (isFirstDebouncedSearchPageReset.current) {
+      isFirstDebouncedSearchPageReset.current = false;
+      return;
+    }
+    setCurrentPage(1);
+  }, [debouncedSearch]);
+
+  useEffect(() => {
     const params = new URLSearchParams();
     const trimmedSearch = search.trim();
     if (trimmedSearch) params.set("q", trimmedSearch);
@@ -173,9 +202,10 @@ export function MarketplacePage() {
     if (riskFilter !== "all") params.set("risk", riskFilter);
     if (profitFilter !== "all") params.set("profit", profitFilter);
     if (tenorFilter !== "all") params.set("tenor", tenorFilter);
+    if (currentPage > 1) params.set("page", String(currentPage));
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }, [industryFilter, pathname, profitFilter, riskFilter, router, search, tenorFilter]);
+  }, [currentPage, industryFilter, pathname, profitFilter, riskFilter, router, search, tenorFilter]);
 
   const {
     data: featuredData,
@@ -249,14 +279,60 @@ export function MarketplacePage() {
     });
   }, [industryFilter, marketplaceNotes, normalizedSearchQuery, profitFilter, riskFilter, tenorFilter]);
 
-  const visibleNotes = filteredNotes.slice(0, displayCount);
-  const hasMoreNotes = displayCount < filteredNotes.length;
+  const totalPages =
+    filteredNotes.length === 0
+      ? 0
+      : Math.ceil(filteredNotes.length / MARKETPLACE_LISTINGS_PAGE_SIZE);
+
+  const goToPreviousPage = () => {
+    setCurrentPage((page) => Math.max(1, page - 1));
+  };
+
+  const goToNextPage = () => {
+    setCurrentPage((page) => {
+      if (totalPages <= 0) return 1;
+      return Math.min(totalPages, page + 1);
+    });
+  };
+
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const effectivePage = totalPages === 0 ? 1 : Math.min(currentPage, totalPages);
+  const sliceStart = (effectivePage - 1) * MARKETPLACE_LISTINGS_PAGE_SIZE;
+  const visibleNotes = filteredNotes.slice(
+    sliceStart,
+    sliceStart + MARKETPLACE_LISTINGS_PAGE_SIZE
+  );
   const hasActiveFilters =
     search.trim().length > 0 ||
     industryFilter !== "all" ||
     riskFilter !== "all" ||
     profitFilter !== "all" ||
     tenorFilter !== "all";
+
+  function handleIndustryChange(value: string) {
+    setIndustryFilter(value);
+    setCurrentPage(1);
+  }
+
+  function handleRiskChange(value: string) {
+    setRiskFilter(value);
+    setCurrentPage(1);
+  }
+
+  function handleProfitChange(value: string) {
+    setProfitFilter(value);
+    setCurrentPage(1);
+  }
+
+  function handleTenorChange(value: string) {
+    setTenorFilter(value);
+    setCurrentPage(1);
+  }
 
   function openInvestDialog(note: MarketplaceNote) {
     if (!note.investable) return;
@@ -403,7 +479,7 @@ export function MarketplacePage() {
         <section className="space-y-4">
           <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 md:flex-row md:items-center md:justify-between">
             <div className="grid grid-cols-2 gap-2 md:ml-auto md:flex md:items-center">
-              <Select value={industryFilter} onValueChange={setIndustryFilter}>
+              <Select value={industryFilter} onValueChange={handleIndustryChange}>
                 <SelectTrigger className="h-9 w-[170px] md:w-[220px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
                   <SelectValue placeholder="Industry" className="truncate" />
                 </SelectTrigger>
@@ -417,7 +493,7 @@ export function MarketplacePage() {
                 </SelectContent>
               </Select>
 
-              <Select value={riskFilter} onValueChange={setRiskFilter}>
+              <Select value={riskFilter} onValueChange={handleRiskChange}>
                 <SelectTrigger className="h-9 w-[120px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
                   <SelectValue placeholder="Risk Score" className="truncate" />
                 </SelectTrigger>
@@ -431,7 +507,7 @@ export function MarketplacePage() {
                 </SelectContent>
               </Select>
 
-              <Select value={profitFilter} onValueChange={setProfitFilter}>
+              <Select value={profitFilter} onValueChange={handleProfitChange}>
                 <SelectTrigger className="h-9 w-[120px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
                   <SelectValue placeholder="Profit" className="truncate" />
                 </SelectTrigger>
@@ -443,7 +519,7 @@ export function MarketplacePage() {
                 </SelectContent>
               </Select>
 
-              <Select value={tenorFilter} onValueChange={setTenorFilter}>
+              <Select value={tenorFilter} onValueChange={handleTenorChange}>
                 <SelectTrigger className="h-9 w-[120px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
                   <SelectValue placeholder="Tenor" className="truncate" />
                 </SelectTrigger>
@@ -463,16 +539,41 @@ export function MarketplacePage() {
             ))}
           </div>
 
-          {hasMoreNotes ? (
-            <div className="flex justify-center pt-2">
-              <Button
-                variant="ghost"
-                className="text-slate-700 hover:bg-transparent hover:text-slate-900"
-                onClick={() => setDisplayCount((count) => count + 3)}
-              >
-                Show more
-              </Button>
-            </div>
+          {totalPages > 1 ? (
+            <nav
+              className="flex flex-col items-center gap-3 pt-2 sm:flex-row sm:justify-center"
+              aria-label="Listings pagination"
+            >
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 gap-1 border-slate-200 px-3 text-slate-700"
+                  onClick={goToPreviousPage}
+                  disabled={effectivePage <= 1}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeftIcon className="size-4" aria-hidden />
+                  Previous
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 gap-1 border-slate-200 px-3 text-slate-700"
+                  onClick={goToNextPage}
+                  disabled={effectivePage >= totalPages}
+                  aria-label="Next page"
+                >
+                  Next
+                  <ChevronRightIcon className="size-4" aria-hidden />
+                </Button>
+              </div>
+              <p className="text-sm text-slate-600">
+                Page {effectivePage} of {totalPages}
+              </p>
+            </nav>
           ) : null}
         </section>
         ) : null}

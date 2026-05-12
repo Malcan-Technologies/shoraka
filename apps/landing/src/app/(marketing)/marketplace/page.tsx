@@ -15,6 +15,14 @@ function getSingleSearchParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function parseMarketplacePageParam(value: string | undefined): number {
+  const trimmed = value?.trim();
+  if (!trimmed) return 1;
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return 1;
+  return parsed;
+}
+
 async function getMarketplaceNotes(): Promise<NoteListItem[]> {
   try {
     const apiClient = createApiClient(API_URL);
@@ -57,6 +65,7 @@ export default async function MarketplacePage({
               risk: getSingleSearchParam(filters.risk),
               profit: getSingleSearchParam(filters.profit),
               tenor: getSingleSearchParam(filters.tenor),
+              page: parseMarketplacePageParam(getSingleSearchParam(filters.page)),
             }}
           />
         </div>
