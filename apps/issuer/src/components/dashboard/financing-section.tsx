@@ -177,69 +177,117 @@ const FINANCING_STATUS_ORDER: IssuerFinancingStatusKind[] = [
   "unsuccessful",
 ];
 
-const FINANCING_DATE_PRESETS = ["any", "30d", "90d", "ytd"] as const;
-type FinancingDatePreset = (typeof FINANCING_DATE_PRESETS)[number];
+const CONTRACT_PERIOD_PRESETS = ["all", "active", "starting_soon", "expired"] as const;
+type ContractPeriodPreset = (typeof CONTRACT_PERIOD_PRESETS)[number];
 
-type FinancingListFiltersState = {
+const INVOICE_SUBMISSION_PRESETS = ["all", "7d", "30d", "6m"] as const;
+type InvoiceSubmissionPreset = (typeof INVOICE_SUBMISSION_PRESETS)[number];
+
+type ContractFinancingListFiltersState = {
   statusKind: IssuerFinancingStatusKind | "all";
   /** Empty = all customers; otherwise exact match on trimmed customer name. */
   customer: string;
-  datePreset: FinancingDatePreset;
+  periodPreset: ContractPeriodPreset;
 };
 
-const DEFAULT_FINANCING_LIST_FILTERS: FinancingListFiltersState = {
+type InvoiceFinancingListFiltersState = {
+  statusKind: IssuerFinancingStatusKind | "all";
+  customer: string;
+  submissionPreset: InvoiceSubmissionPreset;
+};
+
+const DEFAULT_CONTRACT_FINANCING_LIST_FILTERS: ContractFinancingListFiltersState = {
   statusKind: "all",
   customer: "",
-  datePreset: "any",
+  periodPreset: "all",
+};
+
+const DEFAULT_INVOICE_FINANCING_LIST_FILTERS: InvoiceFinancingListFiltersState = {
+  statusKind: "all",
+  customer: "",
+  submissionPreset: "all",
 };
 
 type ProductListFiltersMap = Record<
   string,
-  { contract: FinancingListFiltersState; invoice: FinancingListFiltersState }
+  { contract: ContractFinancingListFiltersState; invoice: InvoiceFinancingListFiltersState }
 >;
 
 function getProductListFilters(map: ProductListFiltersMap, productId: string) {
   return (
     map[productId] ?? {
-      contract: { ...DEFAULT_FINANCING_LIST_FILTERS },
-      invoice: { ...DEFAULT_FINANCING_LIST_FILTERS },
+      contract: { ...DEFAULT_CONTRACT_FINANCING_LIST_FILTERS },
+      invoice: { ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS },
     }
   );
 }
 
-function startOfYearMs(): number {
-  const y = new Date();
-  y.setMonth(0, 1);
-  y.setHours(0, 0, 0, 0);
-  return y.getTime();
+/** Local calendar YYYY-MM-DD for comparisons (contract period vs today). */
+function localCalendarDayKeyFromString(raw: string | null | undefined): string | null {
+  if (raw == null || !String(raw).trim()) return null;
+  const s = String(raw).trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) {
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+    const dt = new Date(y, mo, d);
+    if (Number.isNaN(dt.getTime())) return null;
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  }
+  const t = Date.parse(s);
+  if (Number.isNaN(t)) return null;
+  const dt = new Date(t);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
 }
 
-function withinDatePreset(ms: number | null, preset: FinancingDatePreset): boolean {
-  if (preset === "any") return true;
-  if (ms == null) return false;
-  const now = Date.now();
-  if (preset === "30d") return ms >= now - 30 * 86400000;
-  if (preset === "90d") return ms >= now - 90 * 86400000;
-  if (preset === "ytd") return ms >= startOfYearMs();
+function todayLocalDayKey(): string {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+}
+
+function matchesContractPeriodPreset(row: IssuerDashboardContract, preset: ContractPeriodPreset): boolean {
+  if (preset === "all") return true;
+  const today = todayLocalDayKey();
+  const startKey = localCalendarDayKeyFromString(row.contractStartDate);
+  const endKey = localCalendarDayKeyFromString(row.contractEndDate);
+  if (preset === "active") {
+    if (startKey == null || endKey == null) return false;
+    return startKey <= today && endKey >= today;
+  }
+  if (preset === "starting_soon") {
+    if (startKey == null) return false;
+    return startKey > today;
+  }
+  if (preset === "expired") {
+    if (endKey == null) return false;
+    return endKey < today;
+  }
   return true;
 }
 
-function contractRefDateMs(row: IssuerDashboardContract): number | null {
-  for (const raw of [row.contractStartDate, row.contractEndDate]) {
-    if (!raw) continue;
-    const t = Date.parse(String(raw));
-    if (!Number.isNaN(t)) return t;
-  }
-  return null;
-}
-
-function invoiceRefDateMs(row: IssuerDashboardInvoice): number | null {
+function submissionDateMs(row: IssuerDashboardInvoice): number | null {
   if (!row.submissionDate) return null;
   const t = Date.parse(row.submissionDate);
   return Number.isNaN(t) ? null : t;
 }
 
-function filterContracts(rows: IssuerDashboardContract[], f: FinancingListFiltersState): IssuerDashboardContract[] {
+function matchesInvoiceSubmissionPreset(row: IssuerDashboardInvoice, preset: InvoiceSubmissionPreset): boolean {
+  if (preset === "all") return true;
+  const ms = submissionDateMs(row);
+  if (ms == null) return false;
+  const now = Date.now();
+  if (preset === "7d") return ms >= now - 7 * 86400000;
+  if (preset === "30d") return ms >= now - 30 * 86400000;
+  if (preset === "6m") {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 6);
+    return ms >= cutoff.getTime();
+  }
+  return true;
+}
+
+function filterContracts(rows: IssuerDashboardContract[], f: ContractFinancingListFiltersState): IssuerDashboardContract[] {
   return rows.filter((row) => {
     if (f.statusKind !== "all") {
       if (resolveIssuerContractDashboardBadge(row.contractStatus) !== f.statusKind) return false;
@@ -248,12 +296,12 @@ function filterContracts(rows: IssuerDashboardContract[], f: FinancingListFilter
       const name = (row.customerName ?? "").trim();
       if (name !== f.customer) return false;
     }
-    if (!withinDatePreset(contractRefDateMs(row), f.datePreset)) return false;
+    if (!matchesContractPeriodPreset(row, f.periodPreset)) return false;
     return true;
   });
 }
 
-function filterInvoices(rows: IssuerDashboardInvoice[], f: FinancingListFiltersState): IssuerDashboardInvoice[] {
+function filterInvoices(rows: IssuerDashboardInvoice[], f: InvoiceFinancingListFiltersState): IssuerDashboardInvoice[] {
   return rows.filter((row) => {
     if (f.statusKind !== "all") {
       if (resolveIssuerInvoiceDashboardBadge(row.note, row.invoiceStatus) !== f.statusKind) return false;
@@ -262,51 +310,69 @@ function filterInvoices(rows: IssuerDashboardInvoice[], f: FinancingListFiltersS
       const name = (row.customerName ?? "").trim();
       if (name !== f.customer) return false;
     }
-    if (!withinDatePreset(invoiceRefDateMs(row), f.datePreset)) return false;
+    if (!matchesInvoiceSubmissionPreset(row, f.submissionPreset)) return false;
     return true;
   });
 }
 
-function datePresetLabel(p: FinancingDatePreset): string {
-  if (p === "any") return "Any time";
+function contractPeriodPresetLabel(p: ContractPeriodPreset): string {
+  if (p === "all") return "All periods";
+  if (p === "active") return "Active contracts";
+  if (p === "starting_soon") return "Starting soon";
+  return "Expired contracts";
+}
+
+function invoiceSubmissionPresetLabel(p: InvoiceSubmissionPreset): string {
+  if (p === "all") return "All dates";
+  if (p === "7d") return "Last 7 days";
   if (p === "30d") return "Last 30 days";
-  if (p === "90d") return "Last 90 days";
-  return "Year to date";
+  return "Last 6 months";
 }
 
-function financingFiltersActive(f: FinancingListFiltersState): boolean {
-  return f.statusKind !== "all" || f.customer !== "" || f.datePreset !== "any";
+function contractFinancingFiltersActive(f: ContractFinancingListFiltersState): boolean {
+  return f.statusKind !== "all" || f.customer !== "" || f.periodPreset !== "all";
 }
 
-function FinancingListFilterToolbar({
-  variant,
+function invoiceFinancingFiltersActive(f: InvoiceFinancingListFiltersState): boolean {
+  return f.statusKind !== "all" || f.customer !== "" || f.submissionPreset !== "all";
+}
+
+type FinancingListFilterToolbarProps =
+  | {
+      variant: "contract";
+      rows: IssuerDashboardContract[];
+      value: ContractFinancingListFiltersState;
+      onChange: (next: ContractFinancingListFiltersState) => void;
+      onClear: () => void;
+    }
+  | {
+      variant: "invoice";
+      rows: IssuerDashboardInvoice[];
+      value: InvoiceFinancingListFiltersState;
+      onChange: (next: InvoiceFinancingListFiltersState) => void;
+      onClear: () => void;
+    };
+
+function FinancingContractFilterToolbar({
   rows,
   value,
   onChange,
   onClear,
 }: {
-  variant: "contract" | "invoice";
-  rows: IssuerDashboardContract[] | IssuerDashboardInvoice[];
-  value: FinancingListFiltersState;
-  onChange: (next: FinancingListFiltersState) => void;
+  rows: IssuerDashboardContract[];
+  value: ContractFinancingListFiltersState;
+  onChange: (next: ContractFinancingListFiltersState) => void;
   onClear: () => void;
 }) {
   const kindsPresent = new Set<IssuerFinancingStatusKind>();
-  if (variant === "contract") {
-    for (const r of rows as IssuerDashboardContract[]) {
-      kindsPresent.add(resolveIssuerContractDashboardBadge(r.contractStatus));
-    }
-  } else {
-    for (const r of rows as IssuerDashboardInvoice[]) {
-      kindsPresent.add(resolveIssuerInvoiceDashboardBadge(r.note, r.invoiceStatus));
-    }
+  for (const r of rows) {
+    kindsPresent.add(resolveIssuerContractDashboardBadge(r.contractStatus));
   }
   const statusOptions = FINANCING_STATUS_ORDER.filter((k) => kindsPresent.has(k));
 
   const customers = new Set<string>();
   for (const r of rows) {
-    const name = (variant === "contract" ? (r as IssuerDashboardContract).customerName : (r as IssuerDashboardInvoice).customerName) ?? "";
-    const t = name.trim();
+    const t = (r.customerName ?? "").trim();
     if (t) customers.add(t);
   }
   const customerList = [...customers].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
@@ -314,10 +380,9 @@ function FinancingListFilterToolbar({
   const statusTrigger =
     value.statusKind === "all" ? "Status" : `Status: ${getIssuerFinancingStatusPresentation(value.statusKind).label}`;
   const customerTrigger = value.customer === "" ? "Customer" : `Customer: ${value.customer}`;
-  const dateTrigger =
-    value.datePreset === "any" ? "Date" : `Date: ${datePresetLabel(value.datePreset)}`;
-
-  const active = financingFiltersActive(value);
+  const periodTrigger =
+    value.periodPreset === "all" ? "Period" : `Period: ${contractPeriodPresetLabel(value.periodPreset)}`;
+  const active = contractFinancingFiltersActive(value);
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -367,23 +432,23 @@ function FinancingListFilterToolbar({
             variant="outline"
             size="sm"
             className={cn(
-              "h-9 max-w-[12rem] gap-1.5 truncate px-3 text-sm font-medium",
-              value.datePreset !== "any" && "border-primary/40 bg-muted/50"
+              "h-9 max-w-[14rem] gap-1.5 truncate px-3 text-sm font-medium",
+              value.periodPreset !== "all" && "border-primary/40 bg-muted/50"
             )}
           >
             <FunnelIcon className="h-4 w-4 shrink-0" />
-            <span className="truncate">{dateTrigger}</span>
+            <span className="truncate">{periodTrigger}</span>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-52">
-          {FINANCING_DATE_PRESETS.map((preset) => (
+        <DropdownMenuContent align="start" className="w-56">
+          {CONTRACT_PERIOD_PRESETS.map((preset) => (
             <DropdownMenuItem
               key={preset}
-              onClick={() => onChange({ ...value, datePreset: preset })}
+              onClick={() => onChange({ ...value, periodPreset: preset })}
               className="flex items-center justify-between gap-2"
             >
-              <span>{datePresetLabel(preset)}</span>
-              {value.datePreset === preset ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+              <span>{contractPeriodPresetLabel(preset)}</span>
+              {value.periodPreset === preset ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
@@ -432,6 +497,161 @@ function FinancingListFilterToolbar({
       ) : null}
     </div>
   );
+}
+
+function FinancingInvoiceFilterToolbar({
+  rows,
+  value,
+  onChange,
+  onClear,
+}: {
+  rows: IssuerDashboardInvoice[];
+  value: InvoiceFinancingListFiltersState;
+  onChange: (next: InvoiceFinancingListFiltersState) => void;
+  onClear: () => void;
+}) {
+  const kindsPresent = new Set<IssuerFinancingStatusKind>();
+  for (const r of rows) {
+    kindsPresent.add(resolveIssuerInvoiceDashboardBadge(r.note, r.invoiceStatus));
+  }
+  const statusOptions = FINANCING_STATUS_ORDER.filter((k) => kindsPresent.has(k));
+
+  const customers = new Set<string>();
+  for (const r of rows) {
+    const t = (r.customerName ?? "").trim();
+    if (t) customers.add(t);
+  }
+  const customerList = [...customers].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+
+  const statusTrigger =
+    value.statusKind === "all" ? "Status" : `Status: ${getIssuerFinancingStatusPresentation(value.statusKind).label}`;
+  const customerTrigger = value.customer === "" ? "Customer" : `Customer: ${value.customer}`;
+  const submissionTrigger =
+    value.submissionPreset === "all"
+      ? "Submission date"
+      : `Submission date: ${invoiceSubmissionPresetLabel(value.submissionPreset)}`;
+  const active = invoiceFinancingFiltersActive(value);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-9 max-w-[11rem] gap-1.5 truncate px-3 text-sm font-medium",
+              value.statusKind !== "all" && "border-primary/40 bg-muted/50"
+            )}
+          >
+            <FunnelIcon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{statusTrigger}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-52">
+          <DropdownMenuItem
+            onClick={() => onChange({ ...value, statusKind: "all" })}
+            className="flex items-center justify-between gap-2"
+          >
+            All statuses
+            {value.statusKind === "all" ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+          </DropdownMenuItem>
+          {statusOptions.map((kind) => {
+            const p = getIssuerFinancingStatusPresentation(kind);
+            return (
+              <DropdownMenuItem
+                key={kind}
+                onClick={() => onChange({ ...value, statusKind: kind })}
+                className="flex items-center justify-between gap-2"
+              >
+                <span>{p.label}</span>
+                {value.statusKind === kind ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-9 max-w-[14rem] gap-1.5 truncate px-3 text-sm font-medium",
+              value.submissionPreset !== "all" && "border-primary/40 bg-muted/50"
+            )}
+          >
+            <FunnelIcon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{submissionTrigger}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          {INVOICE_SUBMISSION_PRESETS.map((preset) => (
+            <DropdownMenuItem
+              key={preset}
+              onClick={() => onChange({ ...value, submissionPreset: preset })}
+              className="flex items-center justify-between gap-2"
+            >
+              <span>{invoiceSubmissionPresetLabel(preset)}</span>
+              {value.submissionPreset === preset ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-9 max-w-[12rem] gap-1.5 truncate px-3 text-sm font-medium",
+              value.customer !== "" && "border-primary/40 bg-muted/50"
+            )}
+          >
+            <FunnelIcon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{customerTrigger}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56 max-h-[min(24rem,70vh)] overflow-y-auto">
+          <DropdownMenuItem
+            onClick={() => onChange({ ...value, customer: "" })}
+            className="flex items-center justify-between gap-2"
+          >
+            All customers
+            {value.customer === "" ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+          </DropdownMenuItem>
+          {customerList.map((name) => (
+            <DropdownMenuItem
+              key={name}
+              onClick={() => onChange({ ...value, customer: name })}
+              className="flex items-center justify-between gap-2"
+            >
+              <span className="min-w-0 truncate">{name}</span>
+              {value.customer === name ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {active ? (
+        <Button type="button" variant="ghost" size="sm" className="h-9 px-2 text-sm text-muted-foreground" onClick={onClear}>
+          Clear
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function FinancingListFilterToolbar(props: FinancingListFilterToolbarProps) {
+  if (props.variant === "contract") {
+    return <FinancingContractFilterToolbar rows={props.rows} value={props.value} onChange={props.onChange} onClear={props.onClear} />;
+  }
+  return <FinancingInvoiceFilterToolbar rows={props.rows} value={props.value} onChange={props.onChange} onClear={props.onClear} />;
 }
 
 function CollapsibleCategory({
@@ -600,13 +820,13 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
           const filteredContracts = filterContracts(group.contracts, listFilters.contract);
           const filteredInvoices = filterInvoices(group.invoices, listFilters.invoice);
 
-          const patchContractFilters = (next: FinancingListFiltersState) => {
+          const patchContractFilters = (next: ContractFinancingListFiltersState) => {
             setListFiltersByProduct((prev) => ({
               ...prev,
               [product.id]: { ...getProductListFilters(prev, product.id), contract: next },
             }));
           };
-          const patchInvoiceFilters = (next: FinancingListFiltersState) => {
+          const patchInvoiceFilters = (next: InvoiceFinancingListFiltersState) => {
             setListFiltersByProduct((prev) => ({
               ...prev,
               [product.id]: { ...getProductListFilters(prev, product.id), invoice: next },
@@ -637,7 +857,7 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
                           ...prev,
                           [product.id]: {
                             ...getProductListFilters(prev, product.id),
-                            contract: { ...DEFAULT_FINANCING_LIST_FILTERS },
+                            contract: { ...DEFAULT_CONTRACT_FINANCING_LIST_FILTERS },
                           },
                         }))
                       }
@@ -658,7 +878,7 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
                               ...prev,
                               [product.id]: {
                                 ...getProductListFilters(prev, product.id),
-                                contract: { ...DEFAULT_FINANCING_LIST_FILTERS },
+                                contract: { ...DEFAULT_CONTRACT_FINANCING_LIST_FILTERS },
                               },
                             }))
                           }
@@ -703,7 +923,7 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
                           ...prev,
                           [product.id]: {
                             ...getProductListFilters(prev, product.id),
-                            invoice: { ...DEFAULT_FINANCING_LIST_FILTERS },
+                            invoice: { ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS },
                           },
                         }))
                       }
@@ -724,7 +944,7 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
                               ...prev,
                               [product.id]: {
                                 ...getProductListFilters(prev, product.id),
-                                invoice: { ...DEFAULT_FINANCING_LIST_FILTERS },
+                                invoice: { ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS },
                               },
                             }))
                           }
