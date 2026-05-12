@@ -197,7 +197,7 @@ export function resolveFundingProgressPercent(note: IssuerDashboardNote | null):
 }
 
 export function resolveFundingStatusText(note: IssuerDashboardNote | null): string {
-  if (!note) return "Not yet started";
+  if (!note) return "Funding status (Not yet started)";
 
   const fs = norm(note.fundingStatus);
   const pct = note.fundingProgressPercent;
@@ -215,20 +215,24 @@ export function resolveFundingStatusText(note: IssuerDashboardNote | null): stri
     ns === "WITHDRAWN" ||
     fs === "FAILED"
   ) {
-    return pct != null && pct > 0 ? `${Math.round(pct)}% funded (RM ${fundedRm})` : "Funding did not complete";
+    return pct != null && pct > 0
+      ? `Funding status ${Math.round(pct)}% funded (RM ${fundedRm})`
+      : "Funding did not complete";
   }
 
   if (ns === "REPAID" || ns === "SETTLED" || ns === "COMPLETED" || ss === "SETTLED") {
-    return pct != null && pct > 0 ? `${Math.round(pct)}% funded (RM ${fundedRm})` : "Fully completed";
+    return pct != null && pct > 0
+      ? `Funding status ${Math.round(pct)}% funded (RM ${fundedRm})`
+      : "Fully completed";
   }
 
   if (fs === "NOT_OPEN" && (pct == null || pct <= 0) && !fundedBackend && !minReached) {
-    return "Not yet started";
+    return "Funding status (Not yet started)";
   }
 
   if (pct != null && pct > 0) {
-    return `${Math.round(pct)}% funded (RM ${fundedRm})`;
+    return `Funding status ${Math.round(pct)}% funded (RM ${fundedRm})`;
   }
 
-  return "Not yet started";
+  return "Funding status (Not yet started)";
 }

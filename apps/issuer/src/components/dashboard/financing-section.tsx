@@ -32,6 +32,40 @@ import {
   type IssuerFinancingStatusKind,
 } from "@/lib/issuer-dashboard-labels";
 
+const EM_DASH = "\u2014";
+
+function displayCell(value: unknown): string {
+  if (value === null || value === undefined) return EM_DASH;
+  const s = String(value).trim();
+  if (s === "" || s === "-" || s === "NA" || s.toUpperCase() === "N/A") return EM_DASH;
+  return s;
+}
+
+function LabelValue({
+  label,
+  children,
+  tabular,
+}: {
+  label: string;
+  children: React.ReactNode;
+  tabular?: boolean;
+}) {
+  return (
+    <p className="text-[17px] leading-7 text-foreground">
+      <span className="font-normal text-muted-foreground">{label}: </span>
+      <span
+        className={
+          tabular
+            ? "font-medium tabular-nums text-foreground"
+            : "font-medium text-foreground"
+        }
+      >
+        {children}
+      </span>
+    </p>
+  );
+}
+
 function offerBadge(offerStatus: OfferStatus) {
   if (!offerStatus) return null;
   if (offerStatus === "Offer expired") {
@@ -52,11 +86,11 @@ function ReviewOfferButton({ show, onClick }: { show: boolean; onClick?: () => v
 }
 
 function formatMoney(value: unknown) {
-  return formatMoneyDisplay(value, "NA");
+  return formatMoneyDisplay(value, EM_DASH);
 }
 
 function formatDate(value: unknown) {
-  if (value === null || value === undefined) return "NA";
+  if (value === null || value === undefined) return EM_DASH;
   let d: Date | null = null;
   if (value instanceof Date) d = value;
   else if (typeof value === "number") d = new Date(value);
@@ -75,7 +109,7 @@ function formatDate(value: unknown) {
   } else {
     d = new Date(String(value));
   }
-  if (!d || Number.isNaN(d.getTime())) return "NA";
+  if (!d || Number.isNaN(d.getTime())) return EM_DASH;
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const yyyy = d.getFullYear();
@@ -89,6 +123,31 @@ function IssuerFinancingStatusBadge({ kind }: { kind: IssuerFinancingStatusKind 
       {p.label}
     </Badge>
   );
+}
+
+const FUNDING_STATUS_PREFIX = "Funding status ";
+
+/** "Funding status" stays medium; parenthetical or remainder (e.g. % funded + RM) is smaller and not bold. */
+function FundingStatusLine({ text }: { text: string }) {
+  const m = text.match(/^Funding status \((.+)\)$/);
+  if (m) {
+    return (
+      <p className="text-[17px] leading-7 text-foreground">
+        <span className="font-medium">{FUNDING_STATUS_PREFIX}</span>
+        <span className="text-sm font-normal leading-6 text-muted-foreground">({m[1]})</span>
+      </p>
+    );
+  }
+  if (text.startsWith(FUNDING_STATUS_PREFIX)) {
+    const suffix = text.slice(FUNDING_STATUS_PREFIX.length);
+    return (
+      <p className="text-[17px] leading-7 text-foreground">
+        <span className="font-medium">{FUNDING_STATUS_PREFIX}</span>
+        <span className="text-sm font-normal leading-6 text-muted-foreground">{suffix}</span>
+      </p>
+    );
+  }
+  return <p className="text-[17px] font-medium leading-7 text-foreground">{text}</p>;
 }
 
 function groupDashboardByProduct(dashboard: IssuerDashboardData) {
@@ -120,16 +179,16 @@ function CollapsibleCategory({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="px-6 space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <h4 className="text-[15px] font-semibold">{title}</h4>
-        <div className="flex items-center gap-2">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <h4 className="text-lg font-semibold leading-7 tracking-tight text-foreground md:text-xl">{title}</h4>
+        <div className="flex shrink-0 items-center gap-2">
           <div className="hidden sm:flex items-center gap-2">{filters}</div>
           <Separator orientation="vertical" className="mx-1 h-6" />
           <button
             type="button"
             onClick={() => setOpen(!open)}
-            className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-muted"
+            className="h-9 w-9 inline-flex items-center justify-center rounded-md hover:bg-muted"
             aria-label={open ? "Collapse" : "Expand"}
           >
             {open ? (
@@ -147,8 +206,8 @@ function CollapsibleCategory({
 
 export function FilterButton({ label }: { label: string }) {
   return (
-    <Button variant="outline" size="sm" className="h-8 text-xs font-medium gap-1 px-3">
-      <FunnelIcon className="h-3.5 w-3.5" />
+    <Button variant="outline" size="sm" className="h-9 gap-1.5 px-3 text-sm font-medium">
+      <FunnelIcon className="h-4 w-4 shrink-0" />
       {label}
     </Button>
   );
@@ -205,43 +264,61 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
     return null;
   }
 
+  const outerCardHeader = (
+    <div className="border-b border-border px-6 py-4">
+      <h3 className="text-xl font-semibold tracking-tight text-foreground">Financing</h3>
+    </div>
+  );
+
   if (isLoading) {
     return (
-      <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
-        Loading financing data…
-      </div>
+      <Card className="bg-muted/50 shadow-none">
+        {outerCardHeader}
+        <div className="px-6 py-8 text-center text-[17px] leading-7 text-muted-foreground">
+          Loading financing data…
+        </div>
+      </Card>
     );
   }
 
   if (isError) {
     return (
-      <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-6 space-y-3">
-        <p className="font-medium text-destructive">Could not load financing</p>
-        <p className="text-sm text-muted-foreground">{error instanceof Error ? error.message : "Unknown error"}</p>
-        <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
-          Retry
-        </Button>
-      </div>
+      <Card className="bg-muted/50 shadow-none">
+        {outerCardHeader}
+        <div className="px-6 py-6 space-y-3">
+          <p className="font-medium text-destructive">Could not load financing</p>
+          <p className="text-[17px] leading-7 text-muted-foreground">
+            {error instanceof Error ? error.message : "Unknown error"}
+          </p>
+          <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
+            Retry
+          </Button>
+        </div>
+      </Card>
     );
   }
 
   if (!dashboard || productsWithData.length === 0) {
     return (
-      <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
-        No financing activity yet. Use <span className="font-medium text-foreground">Get Financed</span> to start an
-        application.
-      </div>
+      <Card className="bg-muted/50 shadow-none">
+        {outerCardHeader}
+        <div className="px-6 py-8 text-center text-muted-foreground text-[17px] leading-7">
+          No financing activity yet. Use{" "}
+          <span className="font-medium text-foreground">Get Financed</span> to start an application.
+        </div>
+      </Card>
     );
   }
 
   return (
-    <>
-      <ReviewOfferModal
-        open={offerModalOpen}
-        onOpenChange={(open) => !open && setOfferModalContext(null)}
-        context={offerModalContext}
-      />
-      <div className="space-y-6">
+    <Card className="bg-muted/50 shadow-none">
+      {outerCardHeader}
+      <div className="px-5 pb-5 space-y-5 md:px-6 md:pb-6">
+        <ReviewOfferModal
+          open={offerModalOpen}
+          onOpenChange={(open) => !open && setOfferModalContext(null)}
+          context={offerModalContext}
+        />
         {productsWithData.map((product: ProductOrStub) => {
           const group = productGroups[product.id] ?? { contracts: [], invoices: [] };
           const productName =
@@ -250,15 +327,15 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
             `Product ${product.id}`;
 
           return (
-            <Card key={product.id} className="rounded-xl border border-gray-200 shadow-sm">
-              <div className="px-6 py-5">
+            <Card key={product.id} className="rounded-xl border border-border bg-background shadow-none">
+              <div className="border-b border-border px-6 py-4 md:px-8 md:pt-5">
                 <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-muted-foreground" />
-                  <h3 className="font-semibold text-[15px] leading-6">{productName}</h3>
+                  <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                  <h3 className="text-lg font-semibold leading-7 text-foreground">{productName}</h3>
                 </div>
               </div>
 
-              <div className="px-6 pb-6 space-y-8">
+              <div className="space-y-6 px-6 pb-5 pt-4 md:px-8 md:pb-6">
                 <CollapsibleCategory
                   title="Contract financing"
                   defaultOpen
@@ -291,7 +368,7 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
                         );
                       })
                     ) : (
-                      <p className="text-sm text-muted-foreground py-4">No contract financing</p>
+                      <p className="py-4 text-[17px] leading-7 text-muted-foreground">No contract financing</p>
                     )}
                   </div>
                 </CollapsibleCategory>
@@ -329,7 +406,7 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
                         );
                       })
                     ) : (
-                      <p className="text-sm text-muted-foreground py-4">No invoice financing</p>
+                      <p className="py-4 text-[17px] leading-7 text-muted-foreground">No invoice financing</p>
                     )}
                   </div>
                 </CollapsibleCategory>
@@ -338,7 +415,7 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
           );
         })}
       </div>
-    </>
+    </Card>
   );
 }
 
@@ -356,25 +433,33 @@ function DashboardContractCard({
   const utilised = row.utilizedFacilityAmount != null ? Number(row.utilizedFacilityAmount) : 0;
   const utilisationPct = approved > 0 ? Math.round((utilised / approved) * 100) : 0;
 
+  const contractPeriod =
+    row.contractStartDate && row.contractEndDate
+      ? `${formatDate(row.contractStartDate)} to ${formatDate(row.contractEndDate)}`
+      : row.contractStartDate || row.contractEndDate
+        ? formatDate(row.contractStartDate ?? row.contractEndDate)
+        : EM_DASH;
+
   return (
-    <Card className="rounded-lg border border-border bg-muted/40 shadow-none">
-      <div className="px-5 py-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0 flex-wrap">
-            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-            <p className="text-sm font-medium truncate">
-              Contract : <span className="font-semibold">{row.title ?? "-"}</span>
-            </p>
-            <span className="ml-2">
+    <Card className="min-w-0 max-w-full rounded-xl border border-border bg-muted/50 shadow-none">
+      <div className="space-y-3 px-4 py-4 md:px-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1">
+              <p className="min-w-0 max-w-full truncate leading-5">
+                <span className="text-sm font-normal leading-5 text-foreground">Contract: </span>
+                <span className="text-sm font-semibold leading-5 text-foreground">{displayCell(row.title)}</span>
+              </p>
               <IssuerFinancingStatusBadge kind={resolveIssuerContractDashboardBadge(row.contractStatus)} />
-            </span>
-            {offerBadge(offerStatus)}
+              {offerBadge(offerStatus)}
+            </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex shrink-0 items-center gap-2">
             <ReviewOfferButton show={offerStatus === "Offer received"} onClick={onReviewOffer} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full h-8 w-8">
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -392,52 +477,34 @@ function DashboardContractCard({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-8 items-start">
-          <div className="space-y-2 text-sm">
-            <div>
-              <p className="text-xs text-muted-foreground">Customer</p>
-              <p className="text-[17px] leading-7 font-medium text-foreground">{row.customerName ?? "-"}</p>
+        <div className="flex flex-col gap-2 pl-3 sm:pl-4">
+          <div className="grid grid-cols-1 items-start gap-x-6 gap-y-3 md:grid-cols-2">
+            <div className="min-w-0 space-y-2">
+              <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
+              <LabelValue label="Contract period">{contractPeriod}</LabelValue>
+              <LabelValue label="Active notes">{String(row.activeNotesCount)}</LabelValue>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Contract period</p>
-              <p className="text-[17px] leading-7 font-medium text-foreground">
-                {row.contractStartDate && row.contractEndDate
-                  ? `${formatDate(row.contractStartDate)} to ${formatDate(row.contractEndDate)}`
-                  : row.contractStartDate || row.contractEndDate
-                    ? `${formatDate(row.contractStartDate ?? row.contractEndDate)}`
-                    : "NA"}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Active notes</p>
-              <p className="text-[17px] leading-7 font-medium text-foreground">{row.activeNotesCount}</p>
-            </div>
-          </div>
-
-          <div className="flex flex-col justify-between h-full">
-            <div className="space-y-3 pt-2 md:pt-4">
-              <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                <div className="h-1.5 bg-foreground rounded-full" style={{ width: `${utilisationPct}%` }} />
+            <div className="min-w-0 w-full space-y-2">
+              <div className="h-3 w-full overflow-hidden rounded-full border border-border bg-foreground/35 dark:bg-muted shadow-sm">
+                <div
+                  className="h-3 rounded-full bg-foreground"
+                  style={{ width: `${Math.min(100, Math.max(0, utilisationPct))}%` }}
+                />
               </div>
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Utilized {formatMoney(utilised)}</span>
-                <span>Available {row.availableFacilityAmount != null ? formatMoney(row.availableFacilityAmount) : "NA"}</span>
-              </div>
-              <div className="flex justify-between">
-                <div>
-                  <p className="text-[17px] leading-7 font-medium text-foreground">{formatMoney(utilised)}</p>
-                  <p className="text-xs text-muted-foreground">(Utilised facility)</p>
+              <div className="flex justify-between gap-6 sm:gap-8">
+                <div className="min-w-0">
+                  <p className="text-[17px] font-semibold tabular-nums leading-7 text-foreground">
+                    {formatMoney(utilised)}
+                  </p>
+                  <p className="text-sm font-normal leading-6 text-muted-foreground">(Utilised facility)</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-[17px] leading-7 font-medium text-foreground">{formatMoney(approved)}</p>
-                  <p className="text-xs text-muted-foreground">(Approved facility)</p>
+                <div className="min-w-0 text-right">
+                  <p className="text-[17px] font-semibold tabular-nums leading-7 text-foreground">
+                    {formatMoney(approved)}
+                  </p>
+                  <p className="text-sm font-normal leading-6 text-muted-foreground">(Approved facility)</p>
                 </div>
               </div>
-            </div>
-            <div className="flex justify-end gap-3 pt-4">
-              <Link href={`/financing/contracts/${row.id}`} className="text-xs font-medium text-primary hover:underline">
-                View details →
-              </Link>
             </div>
           </div>
         </div>
@@ -459,29 +526,32 @@ export function DashboardInvoiceCard({
   const badgeKind = resolveIssuerInvoiceDashboardBadge(row.note, row.invoiceStatus);
   const progress = resolveFundingProgressPercent(row.note);
   const fundingLabel = resolveFundingStatusText(row.note);
-  const noteRef = row.note?.noteReference ?? "-";
+  const noteRef = displayCell(row.note?.noteReference);
   const invDetails = asInvoiceForModal(row.invoiceForModal)?.details;
   const maturityRaw = invDetails?.maturity_date ?? row.note?.maturityDate ?? null;
 
   return (
-    <Card className="rounded-lg border border-border bg-muted/40 shadow-none">
-      <div className="px-5 py-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0 flex-wrap">
-            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-            <p className="text-sm font-medium truncate">
-              Invoice no : <span className="font-semibold">{row.invoiceNumber}</span>
-            </p>
-            <span className="ml-2">
+    <Card className="min-w-0 max-w-full rounded-xl border border-border bg-muted/50 shadow-none">
+      <div className="space-y-3 px-4 py-4 md:px-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1">
+              <p className="min-w-0 max-w-full truncate leading-5">
+                <span className="text-sm font-normal leading-5 text-foreground">Invoice no: </span>
+                <span className="text-sm font-semibold leading-5 text-foreground">
+                  {displayCell(row.invoiceNumber)}
+                </span>
+              </p>
               <IssuerFinancingStatusBadge kind={badgeKind} />
-            </span>
-            {offerBadge(offerStatus)}
+              {offerBadge(offerStatus)}
+            </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex shrink-0 items-center gap-2">
             <ReviewOfferButton show={offerStatus === "Offer received"} onClick={onReviewOffer} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full h-8 w-8">
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -491,68 +561,43 @@ export function DashboardInvoiceCard({
                 >
                   Make amendment
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => row.applicationId && router.push(`/applications/edit/${row.applicationId}`)}
-                >
-                  View details
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-8 items-start">
-          <div className="space-y-2">
-            <div>
-              <p className="text-xs text-muted-foreground">Note no</p>
-              <p className="text-[17px] leading-7 font-medium text-foreground">{noteRef}</p>
+        <div className="flex flex-col gap-2 pl-3 sm:pl-4">
+          <div className="grid grid-cols-1 items-start gap-x-6 gap-y-3 md:grid-cols-2">
+            <div className="min-w-0 space-y-2">
+              <LabelValue label="Note no">{noteRef}</LabelValue>
+              <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Customer</p>
-              <p className="text-[17px] leading-7 font-medium text-foreground">{row.customerName ?? "-"}</p>
+            <div className="min-w-0 space-y-2">
+              <LabelValue label="Submission date">{formatDate(row.submissionDate)}</LabelValue>
+              <LabelValue label="Funding deadline">
+                {row.note?.fundingDeadline ? formatDate(row.note.fundingDeadline) : EM_DASH}
+              </LabelValue>
+              <LabelValue label="Maturity date">{formatDate(maturityRaw)}</LabelValue>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Invoice value</p>
-              <p className="text-[17px] leading-7 font-medium text-foreground">{formatMoney(row.invoiceValue)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Financing amount</p>
-              <p className="text-[17px] leading-7 font-medium text-foreground">{formatMoney(row.financingAmount)}</p>
-            </div>
-            {row.note?.marketplaceStatusLabel ? (
-              <p className="text-xs text-muted-foreground">
-                Marketplace:{" "}
-                <span className="font-medium text-foreground">{row.note.marketplaceStatusLabel}</span>
-              </p>
-            ) : null}
           </div>
 
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <div>
-                <p className="text-xs text-muted-foreground">Submission date</p>
-                <p className="text-[17px] leading-7 font-medium text-foreground">{formatDate(row.submissionDate)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Funding deadline</p>
-                <p className="text-[17px] leading-7 font-medium text-foreground">
-                  {row.note?.fundingDeadline ? formatDate(row.note.fundingDeadline) : "NA"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Maturity date</p>
-                <p className="text-[17px] leading-7 font-medium text-foreground">{formatDate(maturityRaw)}</p>
-              </div>
+          <div className="grid grid-cols-1 items-end gap-x-6 gap-y-3 md:grid-cols-2">
+            <div className="min-w-0 space-y-2">
+              <LabelValue label="Invoice value" tabular>
+                {formatMoney(row.invoiceValue)}
+              </LabelValue>
+              <LabelValue label="Financing amount" tabular>
+                {formatMoney(row.financingAmount)}
+              </LabelValue>
             </div>
-
-            <div className="space-y-2 pt-4">
-              <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+            <div className="min-w-0 w-full space-y-2">
+              <div className="h-3 w-full overflow-hidden rounded-full border border-border bg-foreground/35 dark:bg-muted shadow-sm">
                 <div
-                  className="h-1.5 bg-foreground rounded-full"
+                  className="h-3 rounded-full bg-foreground"
                   style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">{fundingLabel}</p>
+              <FundingStatusLine text={fundingLabel} />
             </div>
           </div>
         </div>

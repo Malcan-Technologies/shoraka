@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { FileText, MoreVertical } from "lucide-react";
+import { FileText } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useOrganization } from "@cashsouk/config";
 import { useHeader } from "@cashsouk/ui";
@@ -19,6 +18,11 @@ import {
 } from "@/lib/issuer-dashboard-labels";
 import { asInvoiceForModal } from "@/types/issuer-dashboard";
 import type { Invoice } from "@cashsouk/types";
+import { formatMoneyDisplay } from "@cashsouk/ui";
+
+function formatMoney(value: unknown) {
+  return formatMoneyDisplay(value, "NA");
+}
 
 export default function ContractDetailsPage() {
   const params = useParams();
@@ -84,7 +88,7 @@ export default function ContractDetailsPage() {
         onOpenChange={(open) => !open && setOfferModalContext(null)}
         context={offerModalContext}
       />
-      <Card className="rounded-xl border border-gray-200 shadow-sm">
+      <Card className="shadow-none border-border">
         <div className="px-8 py-7 space-y-6">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2 flex-wrap">
@@ -96,9 +100,6 @@ export default function ContractDetailsPage() {
                 {contractPresentation.label}
               </Badge>
             </div>
-            <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-10">
@@ -121,19 +122,21 @@ export default function ContractDetailsPage() {
 
             <div className="space-y-4">
               <p className="text-xs text-right text-muted-foreground">
-                Available facility :{" "}
-                {row.availableFacilityAmount != null ? `RM ${row.availableFacilityAmount}` : "-"}
+                Available facility : {row.availableFacilityAmount != null ? formatMoney(row.availableFacilityAmount) : "-"}
               </p>
-              <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                <div className="h-2 bg-foreground rounded-full" style={{ width: `${utilisationPct}%` }} />
+              <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-1.5 bg-foreground rounded-full"
+                  style={{ width: `${Math.min(100, Math.max(0, utilisationPct))}%` }}
+                />
               </div>
               <div className="flex justify-between text-sm">
                 <div>
-                  <p className="font-medium text-foreground">{utilised}</p>
+                  <p className="font-medium text-foreground">{formatMoney(utilised)}</p>
                   <p className="text-xs text-muted-foreground">(Utilized facility)</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-medium text-foreground">{approved}</p>
+                  <p className="font-medium text-foreground">{formatMoney(approved)}</p>
                   <p className="text-xs text-muted-foreground">(Approved facility)</p>
                 </div>
               </div>
@@ -154,7 +157,7 @@ export default function ContractDetailsPage() {
 
             <div className="space-y-3">
               <p className="text-sm font-medium text-foreground">Breakdown of approved invoices</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-xs text-muted-foreground">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-xs text-muted-foreground">
                 <BreakdownItem label="Funding in progress" value={`${stats.fundingInProgress}`} />
                 <BreakdownItem label="Active notes" value={`${stats.activeNotes}`} />
                 <BreakdownItem label="Completed notes" value={`${stats.completedNotes}`} />
@@ -203,7 +206,7 @@ export default function ContractDetailsPage() {
 
 function MetricBox({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border bg-muted/30 px-4 py-3">
+    <div className="rounded-lg border border-border bg-card px-4 py-3">
       <p className="text-lg font-semibold text-foreground">{value}</p>
       <p className="text-xs text-muted-foreground">{label}</p>
     </div>
@@ -213,7 +216,7 @@ function MetricBox({ label, value }: { label: string; value: string }) {
 function BreakdownItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-4">
-      <span>{label}</span>
+      <span className="min-w-0">{label}</span>
       <span className="font-medium text-foreground shrink-0">{value}</span>
     </div>
   );

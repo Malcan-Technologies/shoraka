@@ -175,7 +175,7 @@ function IssuerDashboardContent() {
   return (
     <>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="space-y-8 p-2 md:p-4">
+        <div className="space-y-8">
           {activeOrganization?.type === "COMPANY" ? (
             <DirectorShareholderAlertCard
               visiblePeople={visiblePeopleForDsAlert}
@@ -287,10 +287,7 @@ function IssuerDashboardContent() {
                 }
               />
 
-              <section className="space-y-3">
-                <h3 className="text-xl font-semibold">Financing</h3>
-                <FinancingSection organizationId={activeOrganization?.id} />
-              </section>
+              <FinancingSection organizationId={activeOrganization?.id} />
             </>
           )}
         </div>

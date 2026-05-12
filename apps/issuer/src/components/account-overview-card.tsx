@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
   ChartContainer,
+  formatMoneyDisplay,
 } from "@cashsouk/ui";
 import type { ChartConfig } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
@@ -35,8 +36,20 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-function formatCurrency(value: number) {
-  return `RM ${value.toLocaleString("en-MY")}`;
+const EM = "\u2014";
+
+function formatDashboardAmount(value: number | string | null | undefined): string {
+  if (value == null) return EM;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return EM;
+    return formatMoneyDisplay(value);
+  }
+  const trimmed = value.trim();
+  if (!trimmed) return EM;
+  const cleaned = trimmed.replace(/^RM\s*/i, "").replace(/,/g, "");
+  const n = Number(cleaned);
+  if (Number.isNaN(n)) return trimmed;
+  return formatMoneyDisplay(n);
 }
 
 export function AccountOverviewCard({
@@ -59,28 +72,20 @@ export function AccountOverviewCard({
           { name: "remaining", value: 100, fill: "var(--color-remaining)" },
         ];
 
-  const activeFinancingDisplay =
-    activeFinancing == null
-      ? "Not available"
-      : typeof activeFinancing === "number"
-        ? formatCurrency(activeFinancing)
-        : `RM ${activeFinancing}`;
-
-  const pastFinancingDisplay =
-    pastFinancing == null
-      ? "Not available"
-      : typeof pastFinancing === "number"
-        ? formatCurrency(pastFinancing)
-        : `RM ${pastFinancing}`;
+  const activeFinancingDisplay = formatDashboardAmount(activeFinancing);
+  const pastFinancingDisplay = formatDashboardAmount(pastFinancing);
+  const activeNotesDisplay = activeNotes != null && Number.isFinite(activeNotes) ? String(activeNotes) : EM;
+  const completedNotesDisplay =
+    completedNotes != null && Number.isFinite(completedNotes) ? String(completedNotes) : EM;
 
   return (
-    <Card className={cn("w-full bg-muted/50", isDisabled && "opacity-50 pointer-events-none")}>
-      <CardHeader className="pb-4">
-        <CardTitle className="text-xl font-semibold">Account Overview</CardTitle>
+    <Card className={cn("w-full bg-muted/50 shadow-none", isDisabled && "opacity-50 pointer-events-none")}>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-xl font-semibold tracking-tight text-foreground">Account Overview</CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="flex flex-col md:flex-row gap-6 md:items-center">
-          <div className="flex-shrink-0 md:w-[200px]">
+      <CardContent className="pt-0">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-5">
+          <div className="flex w-full shrink-0 justify-center md:w-[200px] md:max-w-[220px]">
             <ChartContainer
               config={chartConfig}
               className="mx-auto aspect-square w-full max-w-[200px] [&_.recharts-pie]:!overflow-visible [&_.recharts-wrapper]:!m-0 [&_.recharts-wrapper]:!p-0"
@@ -92,8 +97,8 @@ export function AccountOverviewCard({
                   nameKey="name"
                   cx="50%"
                   cy="50%"
-                  innerRadius="60%"
-                  outerRadius="90%"
+                  innerRadius="62%"
+                  outerRadius="88%"
                   strokeWidth={3}
                   stroke="hsl(var(--background))"
                 >
@@ -109,17 +114,17 @@ export function AccountOverviewCard({
                           >
                             <tspan
                               x={viewBox.cx}
-                              y={(viewBox.cy || 0) - 6}
-                              className="fill-foreground text-2xl font-bold"
+                              y={(viewBox.cy || 0) - 8}
+                              className="fill-foreground text-lg font-semibold tabular-nums"
                             >
-                              {rate != null ? `${rate}%` : "—"}
+                              {rate != null ? `${rate}%` : EM}
                             </tspan>
                             <tspan
                               x={viewBox.cx}
-                              y={(viewBox.cy || 0) + 16}
-                              className="fill-muted-foreground text-xs"
+                              y={(viewBox.cy || 0) + 14}
+                              className="fill-muted-foreground text-sm font-normal leading-6"
                             >
-                              Successful disbursement rate
+                              Success rate
                             </tspan>
                           </text>
                         );
@@ -131,35 +136,31 @@ export function AccountOverviewCard({
             </ChartContainer>
           </div>
 
-          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="rounded-lg border bg-background p-4">
-              <p className="text-sm text-muted-foreground mb-3">Financing</p>
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Active financing</p>
-                  <p className="text-2xl font-bold">{activeFinancingDisplay}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Past financing</p>
-                  <p className="text-2xl font-bold">{pastFinancingDisplay}</p>
-                </div>
+          <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="flex flex-col rounded-xl border border-border bg-background p-4">
+              <p className="mb-3 text-sm font-medium leading-6 text-muted-foreground">Financing</p>
+              <div className="flex flex-1 flex-col justify-center space-y-3">
+                <p className="text-[17px] leading-7">
+                  <span className="text-muted-foreground">Active financing: </span>
+                  <span className="font-semibold tabular-nums text-foreground">{activeFinancingDisplay}</span>
+                </p>
+                <p className="text-[17px] leading-7">
+                  <span className="text-muted-foreground">Past financing: </span>
+                  <span className="font-semibold tabular-nums text-foreground">{pastFinancingDisplay}</span>
+                </p>
               </div>
             </div>
-            <div className="rounded-lg border bg-background p-4">
-              <p className="text-sm text-muted-foreground mb-3">Notes</p>
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Active notes</p>
-                  <p className="text-2xl font-bold">
-                    {activeNotes != null ? activeNotes : "Not available"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Completed notes</p>
-                  <p className="text-2xl font-bold">
-                    {completedNotes != null ? completedNotes : "Not available"}
-                  </p>
-                </div>
+            <div className="flex flex-col rounded-xl border border-border bg-background p-4">
+              <p className="mb-3 text-sm font-medium leading-6 text-muted-foreground">Notes</p>
+              <div className="flex flex-1 flex-col justify-center space-y-3">
+                <p className="text-[17px] leading-7">
+                  <span className="text-muted-foreground">Active notes: </span>
+                  <span className="font-semibold tabular-nums text-foreground">{activeNotesDisplay}</span>
+                </p>
+                <p className="text-[17px] leading-7">
+                  <span className="text-muted-foreground">Completed notes: </span>
+                  <span className="font-semibold tabular-nums text-foreground">{completedNotesDisplay}</span>
+                </p>
               </div>
             </div>
           </div>
