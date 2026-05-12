@@ -257,14 +257,19 @@ function IssuerDashboardContent() {
           {/* Welcome Section - only shown when all steps are complete */}
           {allStepsComplete && (
             <>
-              <section className="flex items-start justify-between gap-4 flex-col sm:flex-row sm:items-start">
+              <section className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
                 <div>
-                  <h2 className="text-2xl font-bold mb-2">Welcome back, {displayName}!</h2>
-                  <p className="text-[17px] leading-7 text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Welcome back, {displayName}!</h2>
+                  </div>
+                  <p className="mt-1 text-[17px] leading-7 text-muted-foreground">
                     Manage your financing applications from this dashboard.
                   </p>
                 </div>
-                <Button asChild className="gap-2 shrink-0">
+                <Button
+                  asChild
+                  className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95"
+                >
                   <Link href="/applications/new">
                     <PlusIcon className="h-4 w-4" />
                     Apply for financing

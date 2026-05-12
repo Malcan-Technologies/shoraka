@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { FileText } from "lucide-react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { useOrganization } from "@cashsouk/config";
 import { useHeader, formatMoneyDisplay } from "@cashsouk/ui";
+import { Button } from "@/components/ui/button";
 import { useIssuerDashboardContract } from "@/hooks/use-issuer-dashboard";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
@@ -107,20 +108,26 @@ export default function ContractDetailsPage() {
         context={offerModalContext}
       />
 
-      <Card className="rounded-xl border border-border bg-background shadow-none">
-        <div className="border-b border-border px-5 py-4 md:px-6 md:py-5">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <FileText className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
-            <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1">
-              <p className="min-w-0 max-w-full truncate leading-5">
-                <span className="text-sm font-normal leading-5 text-foreground">Contract: </span>
-                <span className="text-sm font-semibold leading-5 text-foreground">{displayCell(row.title)}</span>
-              </p>
-              <IssuerFinancingStatusBadge kind={resolveIssuerContractDashboardBadge(row.contractStatus)} />
-            </div>
+      <section className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-2xl font-bold tracking-tight md:text-3xl">{displayCell(row.title)}</h2>
+            <IssuerFinancingStatusBadge kind={resolveIssuerContractDashboardBadge(row.contractStatus)} />
           </div>
+          <p className="mt-1 text-[17px] leading-7 text-muted-foreground">
+            {displayCell(row.customerName)} · {contractPeriod}
+          </p>
         </div>
+        <Button
+          asChild
+          variant="outline"
+          className="h-11 shrink-0 gap-2 rounded-xl border-input font-semibold focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+        >
+          <Link href="/">Back to dashboard</Link>
+        </Button>
+      </section>
 
+      <Card className="rounded-xl border border-border bg-background shadow-none">
         <div className="space-y-6 px-5 py-5 md:px-6 md:py-6">
           <div className="flex flex-col gap-2 pl-0 sm:pl-1">
             <div className="grid grid-cols-1 items-start gap-x-6 gap-y-6 md:grid-cols-2">
@@ -163,7 +170,7 @@ export default function ContractDetailsPage() {
 
           <div className="grid grid-cols-1 items-start gap-x-8 gap-y-8 xl:grid-cols-2">
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold leading-7 tracking-tight text-foreground md:text-xl">
+              <h3 className="text-xl font-bold tracking-tight text-foreground md:text-2xl">
                 Total no. of invoices: {stats.total}
               </h3>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -174,7 +181,7 @@ export default function ContractDetailsPage() {
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold leading-7 tracking-tight text-foreground md:text-xl">
+              <h3 className="text-xl font-bold tracking-tight text-foreground md:text-2xl">
                 Breakdown of approved invoices
               </h3>
               <div className="grid grid-cols-1 gap-x-6 gap-y-3 text-[17px] leading-7 sm:grid-cols-2">
@@ -191,9 +198,9 @@ export default function ContractDetailsPage() {
         </div>
       </Card>
 
-      <div className="space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-lg font-semibold leading-7 tracking-tight text-foreground md:text-xl">Invoices</h3>
+      <div className="space-y-6">
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <h3 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">Invoices</h3>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <FilterButton label="Status" />
             <FilterButton label="Submission date" />
