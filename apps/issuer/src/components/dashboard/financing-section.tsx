@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { FunnelIcon, LinkIcon } from "@heroicons/react/24/outline";
 import {
   DropdownMenu,
@@ -1052,19 +1053,32 @@ function DashboardContractCard({
           <div className="flex shrink-0 items-center gap-2">
             <ReviewOfferButton show={offerStatus === "Offer received"} onClick={onReviewOffer} />
             {showActionRequired ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 rounded-lg border-amber-500/30 bg-amber-50 px-3 text-xs font-medium text-amber-800 hover:bg-amber-50"
-                onClick={() =>
-                  router.push(
-                    `/applications?applicationIds=${encodeURIComponent(actionRequiredApplicationIds.join(","))}`
-                  )
-                }
-              >
-                {actionRequiredLabel}
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 rounded-lg border-amber-500/30 bg-amber-50 px-3 text-xs font-medium text-amber-800 hover:bg-amber-50"
+                      onClick={() =>
+                        router.push(
+                          `/applications?applicationIds=${encodeURIComponent(
+                            actionRequiredApplicationIds.join(",")
+                          )}`
+                        )
+                      }
+                    >
+                      {actionRequiredLabel}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[240px] whitespace-normal break-words">
+                    {actionRequiredCount === 1
+                      ? "A related application needs amendment. Go to Applications to review and update it."
+                      : `${actionRequiredCount} related applications need amendment. Go to Applications to review and update them.`}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             ) : null}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1159,19 +1173,32 @@ export function DashboardInvoiceCard({
           <div className="flex shrink-0 items-center gap-2">
             <ReviewOfferButton show={offerStatus === "Offer received"} onClick={onReviewOffer} />
             {showActionRequired ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 rounded-lg border-amber-500/30 bg-amber-50 px-3 text-xs font-medium text-amber-800 hover:bg-amber-50"
-                onClick={() =>
-                  router.push(
-                    `/applications?applicationIds=${encodeURIComponent(actionRequiredApplicationIds.join(","))}`
-                  )
-                }
-              >
-                {actionRequiredLabel}
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 rounded-lg border-amber-500/30 bg-amber-50 px-3 text-xs font-medium text-amber-800 hover:bg-amber-50"
+                      onClick={() =>
+                        router.push(
+                          `/applications?applicationIds=${encodeURIComponent(
+                            actionRequiredApplicationIds.join(",")
+                          )}`
+                        )
+                      }
+                    >
+                      {actionRequiredLabel}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[240px] whitespace-normal break-words">
+                    {actionRequiredCount === 1
+                      ? "A related application needs amendment. Go to Applications to review and update it."
+                      : `${actionRequiredCount} related applications need amendment. Go to Applications to review and update them.`}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             ) : null}
           </div>
         </div>
