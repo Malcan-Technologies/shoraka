@@ -101,36 +101,38 @@ export default function ContractDetailsPage() {
   const stats = row.invoiceStats;
 
   return (
-    <div className={cn(shellClass, "space-y-6 md:space-y-8")}>
+    <div className={cn(shellClass, "space-y-5 md:space-y-6")}>
       <ReviewOfferModal
         open={offerModalContext !== null}
         onOpenChange={(open) => !open && setOfferModalContext(null)}
         context={offerModalContext}
       />
 
-      <section className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+      <section className="mb-5 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-2xl font-bold tracking-tight md:text-3xl">{displayCell(row.title)}</h2>
+            <h2 className="text-xl font-bold tracking-tight text-foreground md:text-2xl">
+              {displayCell(row.title)}
+            </h2>
             <IssuerFinancingStatusBadge kind={resolveIssuerContractDashboardBadge(row.contractStatus)} />
           </div>
-          <p className="mt-1 text-[17px] leading-7 text-muted-foreground">
+          <p className="mt-0.5 text-sm leading-6 text-muted-foreground md:text-[15px] md:leading-7">
             {displayCell(row.customerName)} · {contractPeriod}
           </p>
         </div>
         <Button
           asChild
           variant="outline"
-          className="h-11 shrink-0 gap-2 rounded-xl border-input font-semibold focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          className="h-10 shrink-0 gap-2 rounded-lg border-input px-3 text-sm font-medium focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:rounded-xl sm:px-4"
         >
           <Link href="/">Back to dashboard</Link>
         </Button>
       </section>
 
       <Card className="rounded-xl border border-border bg-background shadow-none">
-        <div className="space-y-6 px-5 py-5 md:px-6 md:py-6">
-          <div className="flex flex-col gap-2 pl-0 sm:pl-1">
-            <div className="grid grid-cols-1 items-start gap-x-6 gap-y-6 md:grid-cols-2">
+        <div className="space-y-5 px-4 py-4 md:px-5 md:py-5">
+          <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-1 items-start gap-x-6 gap-y-5 md:grid-cols-2">
               <div className="min-w-0 space-y-2">
                 <LabelValue label="Product">{productLabel}</LabelValue>
                 <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
@@ -142,24 +144,24 @@ export default function ContractDetailsPage() {
                 <LabelValue label="Available facility" tabular>
                   {row.availableFacilityAmount != null ? formatMoney(row.availableFacilityAmount) : EM_DASH}
                 </LabelValue>
-                <div className="h-3 w-full overflow-hidden rounded-full border border-border bg-foreground/35 shadow-sm dark:bg-muted">
+                <div className="h-2 w-full overflow-hidden rounded-full border border-border bg-foreground/35 shadow-sm dark:bg-muted">
                   <div
-                    className="h-3 rounded-full bg-foreground"
+                    className="h-2 rounded-full bg-foreground"
                     style={{ width: `${Math.min(100, Math.max(0, utilisationPct))}%` }}
                   />
                 </div>
-                <div className="flex justify-between gap-6 sm:gap-8">
+                <div className="flex justify-between gap-4 sm:gap-6">
                   <div className="min-w-0">
-                    <p className="text-[17px] font-semibold tabular-nums leading-7 text-foreground">
+                    <p className="text-base font-semibold tabular-nums leading-7 text-foreground">
                       {formatMoney(utilised)}
                     </p>
-                    <p className="text-sm font-normal leading-6 text-muted-foreground">(Utilised facility)</p>
+                    <p className="text-xs font-normal leading-5 text-muted-foreground">(Utilised facility)</p>
                   </div>
                   <div className="min-w-0 text-right">
-                    <p className="text-[17px] font-semibold tabular-nums leading-7 text-foreground">
+                    <p className="text-base font-semibold tabular-nums leading-7 text-foreground">
                       {formatMoney(approved)}
                     </p>
-                    <p className="text-sm font-normal leading-6 text-muted-foreground">(Approved facility)</p>
+                    <p className="text-xs font-normal leading-5 text-muted-foreground">(Approved facility)</p>
                   </div>
                 </div>
               </div>
@@ -168,23 +170,23 @@ export default function ContractDetailsPage() {
 
           <Separator />
 
-          <div className="grid grid-cols-1 items-start gap-x-8 gap-y-8 xl:grid-cols-2">
-            <div className="space-y-4">
-              <h3 className="text-xl font-bold tracking-tight text-foreground md:text-2xl">
+          <div className="grid grid-cols-1 items-start gap-x-6 gap-y-6 xl:grid-cols-2">
+            <div className="space-y-3">
+              <h3 className="text-base font-semibold leading-7 tracking-tight text-foreground md:text-lg">
                 Total no. of invoices: {stats.total}
               </h3>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <MetricBox label="Approved" value={`${stats.approved}`} />
                 <MetricBox label="Rejected" value={`${stats.rejected}`} />
                 <MetricBox label="Unfinanced" value={`${stats.unfinanced}`} />
               </div>
             </div>
 
-            <div className="space-y-4">
-              <h3 className="text-xl font-bold tracking-tight text-foreground md:text-2xl">
+            <div className="space-y-3">
+              <h3 className="text-base font-semibold leading-7 tracking-tight text-foreground md:text-lg">
                 Breakdown of approved invoices
               </h3>
-              <div className="grid grid-cols-1 gap-x-6 gap-y-3 text-[17px] leading-7 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-x-5 gap-y-2 text-sm leading-6 sm:grid-cols-2 md:text-[15px] md:leading-7">
                 <BreakdownItem label="Funding in progress" value={`${stats.fundingInProgress}`} />
                 <BreakdownItem label="Active notes" value={`${stats.activeNotes}`} />
                 <BreakdownItem label="Completed notes" value={`${stats.completedNotes}`} />
@@ -198,9 +200,11 @@ export default function ContractDetailsPage() {
         </div>
       </Card>
 
-      <div className="space-y-6">
-        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-          <h3 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">Invoices</h3>
+      <div className="space-y-4">
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+          <h3 className="text-lg font-semibold leading-7 tracking-tight text-foreground md:text-xl">
+            Invoices
+          </h3>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <FilterButton label="Status" />
             <FilterButton label="Submission date" />
@@ -236,16 +240,16 @@ export default function ContractDetailsPage() {
 
 function MetricBox({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-border bg-background px-4 py-4 shadow-none">
-      <p className="text-sm font-medium leading-6 text-muted-foreground">{label}</p>
-      <p className="text-[17px] font-semibold tabular-nums leading-7 text-foreground">{value}</p>
+    <div className="rounded-lg border border-border bg-background px-3 py-2.5 shadow-none">
+      <p className="text-xs font-medium leading-5 text-muted-foreground">{label}</p>
+      <p className="text-base font-semibold tabular-nums leading-7 text-foreground">{value}</p>
     </div>
   );
 }
 
 function BreakdownItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-4">
+    <div className="flex justify-between gap-3">
       <span className="min-w-0 font-normal text-muted-foreground">{label}</span>
       <span className="shrink-0 font-medium tabular-nums text-foreground">{value}</span>
     </div>
