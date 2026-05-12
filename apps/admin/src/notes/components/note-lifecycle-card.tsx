@@ -303,8 +303,7 @@ export function NoteLifecycleCard({ note, pending, onRequestAction }: NoteLifecy
         w.status !== "CANCELLED"
     ) ?? null;
   const hasPostedSettlement = note.settlements.some((s) => s.status === "POSTED");
-  const awaitingResidual =
-    !isComplete && hasPostedSettlement && pendingResidualWithdrawal !== null;
+  const awaitingResidual = !isComplete && hasPostedSettlement && pendingResidualWithdrawal !== null;
   const terminalFailure = awaitingResidual ? null : getTerminalFailure(note, activeIndex);
   const awaitingDisbursement =
     !isComplete && !terminalFailure && activeIndex === 2 && pendingDisbursementWithdrawal !== null;

@@ -3430,6 +3430,16 @@ export class NoteService {
             },
           });
         } else {
+          const postedResidualSettlement = existing.settlement_id
+            ? await tx.noteSettlement.findFirst({
+                where: {
+                  id: existing.settlement_id,
+                  note_id: existing.note_id,
+                  status: NoteSettlementStatus.POSTED,
+                },
+                select: { id: true },
+              })
+            : null;
           const pendingResidual = await tx.withdrawalInstruction.count({
             where: {
               note_id: existing.note_id,
@@ -3438,7 +3448,7 @@ export class NoteService {
             },
           });
 
-          if (pendingResidual === 0) {
+          if (postedResidualSettlement && pendingResidual === 0) {
             await tx.note.updateMany({
               where: {
                 id: existing.note_id,
