@@ -998,7 +998,7 @@ export default function ApplicationsPage() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {hasFilters && (
+              {search !== "" || activeFilterCount > 0 ? (
                 <Button
                   variant="ghost"
                   onClick={() => {
@@ -1022,12 +1022,33 @@ export default function ApplicationsPage() {
                   <XMarkIcon className="h-4 w-4" />
                   <span className="hidden sm:inline">Clear</span>
                 </Button>
-              )}
+              ) : null}
 
               {applicationIdsFilter.length > 0 ? (
-                <div className="text-sm text-muted-foreground">
-                  Showing applications that require action
-                  {applicationIdsFilter.length > 1 ? ` (${applicationIdsFilter.length})` : ""}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                  <div className="text-sm text-muted-foreground">
+                    {applicationIdsFilter.length === 1
+                      ? "Showing 1 application that requires action"
+                      : `Showing ${applicationIdsFilter.length} applications that require action`}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-9 px-3 rounded-xl hover:bg-muted"
+                    onClick={() => {
+                      setApplicationIdsFilter([]);
+                      if (typeof window !== "undefined") {
+                        const params = new URLSearchParams(window.location.search);
+                        params.delete("applicationIds");
+                        const qs = params.toString();
+                        const nextUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+                        window.history.replaceState({}, "", nextUrl);
+                      }
+                      setPage(1);
+                    }}
+                  >
+                    Clear filter
+                  </Button>
                 </div>
               ) : null}
 
