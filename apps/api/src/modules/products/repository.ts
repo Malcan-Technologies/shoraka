@@ -280,29 +280,6 @@ export class ProductRepository {
         throw new Error("Another ACTIVE product version already exists.");
       }
 
-      if (logContext?.userId) {
-        const metadata = {
-          previous_status: currentAny.status ?? null,
-          new_status: "INACTIVE",
-          version: currentAny.version ?? null,
-          base_id: currentAny.base_id ?? null,
-          product_created_at: currentAny.created_at?.toISOString?.() ?? null,
-          product_updated_at: currentAny.updated_at?.toISOString?.() ?? null,
-          next_version: newVersion,
-        };
-        await tx.productLog.create({
-          data: {
-            user_id: logContext.userId,
-            product_id: id,
-            event_type: "PRODUCT_INACTIVATED",
-            ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
-            user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
-            device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
-            metadata: metadata as Prisma.InputJsonValue,
-          },
-        } as any);
-      }
-
       await tx.product.update({
         where: { id },
         data: { status: "INACTIVE" as any },
@@ -439,7 +416,7 @@ export class ProductRepository {
     } as any);
   }
 
-  // Helper: mark product inactive
+  // Helper: mark product inactive (manual/future hide action)
   async setInactive(id: string, logContext?: LogContext): Promise<Product> {
     const current = await prisma.product.findUnique({ where: { id } });
     const updated = await prisma.product.update({
