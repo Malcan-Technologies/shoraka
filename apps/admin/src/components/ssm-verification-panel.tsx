@@ -937,43 +937,11 @@ export function SSMVerificationPanel({
             </div>
           ) : null}
 
-          <ComparePairSection
-            onboarding={
-              <div className={compareTableWrap}>
-                <Table className={tableBase}>
-                  <TableHeader>
-                    <TableRow className={compareTableHeaderRow}>
-                      <TableHead className={cn(compareTh, "w-[40%]")}>Field</TableHead>
-                      <TableHead className={compareTh}>Value</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow className={compareTableBodyRow}>
-                      <TableCell className={compareTdLabel}>Company name</TableCell>
-                      <TableCell className={compareTdValue}>{company.applicationName}</TableCell>
-                    </TableRow>
-                    <TableRow className={compareTableBodyRow}>
-                      <TableCell className={compareTdLabel}>SSM registration no.</TableCell>
-                      <TableCell className={compareTdValueNums}>{company.applicationReg}</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </div>
-            }
-            ctos={
-              useOrgCtosFlow && orgFetchState === "not_pulled" ? (
-                <CompareEmptyState
-                  icon={DocumentTextIcon}
-                  title="No company data fetched"
-                  description="Click Fetch report to get the latest SSM data."
-                />
-              ) : useOrgCtosFlow && orgFetchState === "no_record" ? (
-                <CompareEmptyState
-                  icon={ExclamationTriangleIcon}
-                  title="No company data found"
-                  description="Try fetching again or open the report to check the details."
-                />
-              ) : (
+          <div className="space-y-3">
+            <h4 className={compareSectionHeadingClass}>Company Details</h4>
+
+            <ComparePairSection
+              onboarding={
                 <div className={compareTableWrap}>
                   <Table className={tableBase}>
                     <TableHeader>
@@ -985,22 +953,58 @@ export function SSMVerificationPanel({
                     <TableBody>
                       <TableRow className={compareTableBodyRow}>
                         <TableCell className={compareTdLabel}>Company name</TableCell>
-                        <TableCell className={compareTdValue}>
-                          {ctosCompanyCell(company.ctosName, orgFetchState, useOrgCtosFlow)}
-                        </TableCell>
+                        <TableCell className={compareTdValue}>{company.applicationName}</TableCell>
                       </TableRow>
                       <TableRow className={compareTableBodyRow}>
                         <TableCell className={compareTdLabel}>SSM registration no.</TableCell>
-                        <TableCell className={compareTdValueNums}>
-                          {ctosCompanyCell(company.ctosReg, orgFetchState, useOrgCtosFlow)}
-                        </TableCell>
+                        <TableCell className={compareTdValueNums}>{company.applicationReg}</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
                 </div>
-              )
-            }
-          />
+              }
+              ctos={
+                useOrgCtosFlow && orgFetchState === "not_pulled" ? (
+                  <CompareEmptyState
+                    icon={DocumentTextIcon}
+                    title="No company data fetched"
+                    description="Click Fetch report to get the latest SSM data."
+                  />
+                ) : useOrgCtosFlow && orgFetchState === "no_record" ? (
+                  <CompareEmptyState
+                    icon={ExclamationTriangleIcon}
+                    title="No company data found"
+                    description="Try fetching again or open the report to check the details."
+                  />
+                ) : (
+                  <div className={compareTableWrap}>
+                    <Table className={tableBase}>
+                      <TableHeader>
+                        <TableRow className={compareTableHeaderRow}>
+                          <TableHead className={cn(compareTh, "w-[40%]")}>Field</TableHead>
+                          <TableHead className={compareTh}>Value</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow className={compareTableBodyRow}>
+                          <TableCell className={compareTdLabel}>Company name</TableCell>
+                          <TableCell className={compareTdValue}>
+                            {ctosCompanyCell(company.ctosName, orgFetchState, useOrgCtosFlow)}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow className={compareTableBodyRow}>
+                          <TableCell className={compareTdLabel}>SSM registration no.</TableCell>
+                          <TableCell className={compareTdValueNums}>
+                            {ctosCompanyCell(company.ctosReg, orgFetchState, useOrgCtosFlow)}
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                )
+              }
+            />
+          </div>
 
           <DirectorBucketsBlock title="Directors" buckets={comparison.directors} ctosOrgState={orgFetchState} />
 

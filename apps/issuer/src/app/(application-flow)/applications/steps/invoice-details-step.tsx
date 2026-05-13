@@ -1295,8 +1295,8 @@ export default function InvoiceDetailsStep({
                                   sideOffset={2}
                                   className={fieldTooltipContentClassName}
                                 >
-                                  Allowed ratio: {displayMinRatio}%–{displayMaxRatio}%. If you edit the maximum
-                                  financing amount, the ratio will round up and stay within this range.
+                                  Allowed ratio: {displayMinRatio}%–{displayMaxRatio}%. If you edit the financing
+                                  amount, the ratio will round up and stay within this range.
                                 </TooltipContent>
                               </Tooltip>
                             </div>
@@ -1304,12 +1304,12 @@ export default function InvoiceDetailsStep({
 
                           <TableHead className="w-[200px] whitespace-nowrap text-xs font-semibold">
                             <div className="inline-flex items-center gap-0.5">
-                              <span className="whitespace-nowrap">Maximum Financing Amount</span>
+                              <span className="whitespace-nowrap">Financing Amount</span>
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <span
                                     className={fieldTooltipTriggerClassName}
-                                    aria-label="About maximum financing amount"
+                                    aria-label="About financing amount"
                                   >
                                     <InformationCircleIcon className="h-4 w-4" />
                                   </span>
@@ -1321,7 +1321,7 @@ export default function InvoiceDetailsStep({
                                 >
                                   {(() => {
                                     const lines: string[] = [
-                                      "Maximum financing amount is calculated from the invoice value and financing ratio.",
+                                      "Financing amount is calculated from the invoice value and financing ratio.",
                                       "If you edit this amount, the financing ratio will update automatically.",
                                     ];
                                     const limits: string[] = [];
