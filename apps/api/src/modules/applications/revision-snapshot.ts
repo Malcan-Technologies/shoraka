@@ -7,6 +7,8 @@ import type { Prisma } from "@prisma/client";
 export type BuildApplicationRevisionSnapshotInput = {
   financing_type: Prisma.JsonValue | null;
   product_version: number | null | undefined;
+  /** Frozen product workflow/config snapshot for the selected product version. */
+  product_workflow?: Prisma.JsonValue | null;
   /** Frozen at submit/resubmit; live row clears on resubmit — kept here for audit/timeline. */
   amendment_acknowledged_workflow_ids?: string[] | null;
   financing_structure: Prisma.JsonValue | null;
@@ -54,6 +56,18 @@ export function buildApplicationRevisionSnapshot(
       position: link.position ?? null,
       /** Preserves `guarantor_agreement` etc. for admin review / comparison UIs. */
       source_data: link.source_data ?? link.sourceData ?? null,
+      relationship:
+        typeof (link.source_data as any)?.relationship === "string"
+          ? (link.source_data as any).relationship
+          : typeof (link as any).relationship === "string"
+            ? (link as any).relationship
+            : undefined,
+      relationship_other:
+        typeof (link.source_data as any)?.relationship_other === "string"
+          ? (link.source_data as any).relationship_other
+          : typeof (link as any).relationship_other === "string"
+            ? (link as any).relationship_other
+            : undefined,
       aml_status: link.aml_status ?? null,
       aml_message_status: link.aml_message_status ?? null,
       last_triggered_at: link.last_triggered_at ?? null,
@@ -66,6 +80,7 @@ export function buildApplicationRevisionSnapshot(
     product: {
       id: ft?.product_id ?? null,
       version: appFull.product_version ?? null,
+      workflow: appFull.product_workflow ?? null,
     },
     amendment_acknowledged_workflow_ids,
     application: {

@@ -132,6 +132,47 @@ describe("summarizeResubmitSnapshotDiff", () => {
     expect(s.activitySummary).not.toContain("none detected");
   });
 
+  it("surfaces relationship_other changes under business_details.guarantors.* (not only rollup)", () => {
+    const gPrev = {
+      id: "ag-old",
+      client_guarantor_id: "g-1",
+      position: 0,
+      guarantor_type: "individual",
+      email: "a@example.com",
+      name: "Jane",
+      ic_number: "900101101234",
+      updated_at: new Date("2024-01-01"),
+      source_data: {
+        nationality: "MY",
+        guarantor_agreement: { s3_key: "same/key.pdf", file_name: "a.pdf", file_size: 1 },
+      },
+      relationship: "others",
+      relationship_other: "Old relationship text",
+    };
+    const gNext = {
+      ...gPrev,
+      id: "ag-new",
+      updated_at: new Date("2026-01-01"),
+      relationship_other: "New relationship text",
+    };
+    const prev = {
+      application: { ...baseApp, business_details: { declaration_confirmed: true }, guarantors: [gPrev] },
+      contract: null,
+      invoices: [],
+    };
+    const next = {
+      application: { ...baseApp, business_details: { declaration_confirmed: true }, guarantors: [gNext] },
+      contract: null,
+      invoices: [],
+    };
+    const s = summarizeResubmitSnapshotDiff(prev, next);
+    expect(s.field_changes.some((f) => f.path.endsWith(".relationship_other"))).toBe(true);
+    // When only relationship fields changed, we should not hide them behind the generic rollup line.
+    expect(s.field_changes.some((f) => f.path === "business_details.guarantors")).toBe(false);
+    expect(s.activitySummary).toContain("Business details");
+    expect(s.activitySummary).toContain("Relationship");
+  });
+
   it("ignores guarantor row id / updated_at-only drift after strip", () => {
     const row = {
       id: "ag-1",

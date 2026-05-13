@@ -8,6 +8,8 @@ export type DateRangeValue = (typeof dateRangeValues)[number];
 export const productEventTypes = [
   "PRODUCT_CREATED",
   "PRODUCT_UPDATED",
+  "PRODUCT_INACTIVATED",
+  "PRODUCT_REACTIVATED",
   "PRODUCT_DELETED",
 ] as const;
 
