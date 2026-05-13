@@ -260,6 +260,9 @@ export class ApplicationService {
           client_guarantor_id: row.guarantorId,
           guarantor_type: row.guarantorType,
           email: row.email,
+          relationship: row.guarantorType === "individual" ? row.relationship ?? null : row.relationship ?? null,
+          relationship_other:
+            row.guarantorType === "individual" ? row.relationshipOther ?? null : row.relationshipOther ?? null,
           name: row.guarantorType === "individual" ? row.name ?? null : null,
           ic_number: row.guarantorType === "individual" ? row.icNumber ?? null : null,
           business_name: row.guarantorType === "company" ? row.businessName ?? null : null,
