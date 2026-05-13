@@ -38,6 +38,19 @@ import {
   mapWithdrawalInstruction,
   resolveProductNameFromWorkflow,
 } from "./mapper";
+import { NotificationService } from "../notification/service";
+import {
+  notifyNoteActivated,
+  notifyNoteArrears,
+  notifyNoteDefaulted,
+  notifyNoteFundingFailed,
+  notifyNoteFundingSucceeded,
+  notifyNoteIssuerRepaid,
+  notifyNotePaymentReceived,
+  notifyNotePublished,
+  notifyNoteSettlementPosted,
+  resolveNoteNotificationTitle,
+} from "../notification/note-lifecycle-notifications";
 import { noteInclude, noteRepository } from "./repository";
 import {
   calculateLateCharge as calculateLateChargeValues,
@@ -748,6 +761,8 @@ async function renderPdfBuffer(title: string, rows: Array<[string, string]>): Pr
 }
 
 export class NoteService {
+  private readonly notificationService = new NotificationService();
+
   private async listInvestorOrganizationIds(userId: string) {
     const orgs = await prisma.investorOrganization.findMany({
       where: { OR: [{ owner_user_id: userId }, { members: { some: { user_id: userId } } }] },
@@ -1763,6 +1778,12 @@ export class NoteService {
       );
       return result;
     });
+    await notifyNotePublished({
+      notificationService: this.notificationService,
+      noteId: id,
+      issuerOrganizationId: updated.issuer_organization_id,
+      noteTitle: resolveNoteNotificationTitle(updated),
+    });
     return mapNoteDetail(updated);
   }
 
@@ -2058,6 +2079,12 @@ export class NoteService {
       );
       return result;
     });
+    await notifyNoteFundingSucceeded({
+      notificationService: this.notificationService,
+      noteId: id,
+      issuerOrganizationId: updated.issuer_organization_id,
+      noteTitle: resolveNoteNotificationTitle(updated),
+    });
     return mapNoteDetail(updated);
   }
 
@@ -2083,11 +2110,15 @@ export class NoteService {
         "Notes that meet the minimum funding threshold should be closed, not failed"
       );
     }
+    let failedInvestorOrganizationIds: string[] = [];
     const updated = await prisma.$transaction(async (tx) => {
       const releasedCommitments = await tx.noteInvestment.findMany({
         where: { note_id: id, status: NoteInvestmentStatus.COMMITTED },
         select: { id: true, investor_organization_id: true, amount: true },
       });
+      failedInvestorOrganizationIds = [
+        ...new Set(releasedCommitments.map((row) => row.investor_organization_id)),
+      ];
       const stateUpdate = await tx.note.updateMany({
         where: {
           id,
@@ -2132,6 +2163,13 @@ export class NoteService {
         mapNoteListItem(result)
       );
       return result;
+    });
+    await notifyNoteFundingFailed({
+      notificationService: this.notificationService,
+      noteId: id,
+      issuerOrganizationId: updated.issuer_organization_id,
+      noteTitle: resolveNoteNotificationTitle(updated),
+      failedInvestorOrganizationIds,
     });
     return mapNoteDetail(updated);
   }
@@ -2191,6 +2229,12 @@ export class NoteService {
         mapNoteListItem(result)
       );
       return result;
+    });
+    await notifyNoteActivated({
+      notificationService: this.notificationService,
+      noteId: id,
+      issuerOrganizationId: updated.issuer_organization_id,
+      noteTitle: resolveNoteNotificationTitle(updated),
     });
     return mapNoteDetail(updated);
   }
@@ -2586,7 +2630,7 @@ export class NoteService {
     const eventType = requiresAdminReview ? "ISSUER_PAYMENT_SUBMITTED" : "PAYMENT_RECEIVED";
     const paymentMetadata =
       input.metadata ?? (requiresAdminReview ? { paymentPurpose } : undefined);
-    const updated = await prisma.$transaction(async (tx) => {
+    const { updatedNote, paymentId } = await prisma.$transaction(async (tx) => {
       const payment = await tx.notePayment.create({
         data: {
           note_id: id,
@@ -2605,9 +2649,18 @@ export class NoteService {
         await this.postPaymentReceiptLedger(tx, payment, actor);
       }
       await this.logEvent(tx, id, eventType, actor, json({ ...input, metadata: paymentMetadata }));
-      return tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
+      const refreshed = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
+      return { updatedNote: refreshed, paymentId: payment.id };
     });
-    return mapNoteDetail(updated);
+    if (status === NotePaymentStatus.RECEIVED) {
+      await notifyNotePaymentReceived({
+        notificationService: this.notificationService,
+        noteId: id,
+        noteTitle: resolveNoteNotificationTitle(updatedNote),
+        paymentId,
+      });
+    }
+    return mapNoteDetail(updatedNote);
   }
 
   async approvePayment(id: string, paymentId: string, actor: ActorContext) {
@@ -2649,6 +2702,12 @@ export class NoteService {
       await this.postPaymentReceiptLedger(tx, updatedPayment, actor);
       await this.logEvent(tx, id, "PAYMENT_APPROVED", actor, { paymentId });
       return tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
+    });
+    await notifyNotePaymentReceived({
+      notificationService: this.notificationService,
+      noteId: id,
+      noteTitle: resolveNoteNotificationTitle(updated),
+      paymentId,
     });
     return mapNoteDetail(updated);
   }
@@ -2891,6 +2950,13 @@ export class NoteService {
         })
       : null;
 
+    const repaidInvestorSnapshot = await prisma.noteInvestment.findMany({
+      where: { note_id: id, status: NoteInvestmentStatus.CONFIRMED },
+      select: { investor_organization_id: true },
+      distinct: ["investor_organization_id"],
+    });
+    const repaidInvestorOrgIds = repaidInvestorSnapshot.map((row) => row.investor_organization_id);
+
     await prisma.$transaction(async (tx) => {
       const settlementAllocations = resolveSettlementAllocations(settlement.preview_snapshot);
       await this.postSettlementLedger(tx, settlement, actor);
@@ -2995,6 +3061,21 @@ export class NoteService {
         residualWithdrawalCreated: hasResidual,
       });
     });
+    await notifyNoteSettlementPosted({
+      notificationService: this.notificationService,
+      noteId: id,
+      noteTitle: resolveNoteNotificationTitle(settlement.note),
+      settlementId,
+      investorOrganizationIds: repaidInvestorOrgIds,
+    });
+    if (!hasResidual) {
+      await notifyNoteIssuerRepaid({
+        notificationService: this.notificationService,
+        noteId: id,
+        issuerOrganizationId: settlement.note.issuer_organization_id,
+        noteTitle: resolveNoteNotificationTitle(settlement.note),
+      });
+    }
     return this.getAdminNoteDetail(id);
   }
 
@@ -3098,6 +3179,7 @@ export class NoteService {
     actor: ActorContext
   ) {
     const result = await this.checkOverdueLateCharge(id, input);
+    let enteredArrears = false;
     if (result.overdue && result.dueDate) {
       const note = await noteRepository.findById(id);
       if (note) {
@@ -3115,10 +3197,22 @@ export class NoteService {
             servicing_status: nextServicingStatus,
             arrears_started_at: isArrears && !note.arrears_started_at ? new Date() : undefined,
           });
+          enteredArrears = isArrears;
         }
       }
     }
     await this.logEvent(prisma, id, "OVERDUE_LATE_CHARGE_CHECKED", actor, result);
+    if (enteredArrears) {
+      const refreshed = await noteRepository.findById(id);
+      if (refreshed) {
+        await notifyNoteArrears({
+          notificationService: this.notificationService,
+          noteId: id,
+          issuerOrganizationId: refreshed.issuer_organization_id,
+          noteTitle: resolveNoteNotificationTitle(refreshed),
+        });
+      }
+    }
     return result;
   }
 
@@ -3173,6 +3267,12 @@ export class NoteService {
       default_reason: reason,
     });
     await this.logEvent(prisma, id, "NOTE_DEFAULT_MARKED", actor, { reason });
+    await notifyNoteDefaulted({
+      notificationService: this.notificationService,
+      noteId: id,
+      issuerOrganizationId: updated.issuer_organization_id,
+      noteTitle: resolveNoteNotificationTitle(updated),
+    });
     return mapNoteDetail(updated);
   }
 
