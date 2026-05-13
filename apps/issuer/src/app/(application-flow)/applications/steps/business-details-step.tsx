@@ -1042,7 +1042,7 @@ function GuarantorCardFields({
             ) : null}
             {row.relationship === "others" ? (
               <div className="space-y-2 pt-1">
-                <TextareaWithCharCount
+                <Input
                   id={`g-${index}-relationship-other`}
                   value={row.relationshipOther}
                   onChange={(e) =>
@@ -1051,10 +1051,8 @@ function GuarantorCardFields({
                       relationshipOther: e.target.value.slice(0, MAX_GUARANTOR_RELATIONSHIP_OTHER),
                     })
                   }
-                  placeholder="Describe how this person is related to the business"
-                  maxLength={MAX_GUARANTOR_RELATIONSHIP_OTHER}
-                  className={textareaClassName}
-                  countLabel={`${row.relationshipOther.length}/${MAX_GUARANTOR_RELATIONSHIP_OTHER} characters`}
+                  placeholder="Specify relationship"
+                  className={cn(inputClassName, readOnly && formInputDisabledClassName)}
                   disabled={readOnly}
                 />
                 {hasAttemptedSave && !row.relationshipOther.trim() ? (
