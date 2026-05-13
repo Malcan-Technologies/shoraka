@@ -121,7 +121,15 @@ export default function ActivityPage() {
                   ))
                 ) : activities.length > 0 ? (
                   activities.map((activity) => (
-                    <ActivityItem key={activity.id} activity={activity} className="px-6 hover:bg-muted/20" />
+                    <ActivityItem
+                      key={activity.id}
+                      activity={
+                        activity.event_type === "APPLICATION_RESUBMITTED"
+                          ? { ...activity, activity: "Application resubmitted" }
+                          : activity
+                      }
+                      className="px-6 hover:bg-muted/20"
+                    />
                   ))
                 ) : (
                   <div className="py-12 text-center text-muted-foreground">

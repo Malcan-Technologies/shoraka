@@ -198,6 +198,7 @@ export function generateBusinessDetailsData(): Record<string, unknown> {
         name: "John Doe",
         ic_number: "901212101234",
         nationality: "MY",
+        relationship: "unrelated_party",
       },
       {
         reference_id: "g-company-abc1234567x",
@@ -205,6 +206,7 @@ export function generateBusinessDetailsData(): Record<string, unknown> {
         email: "compliance@abcholdings.my",
         business_name: "ABC Holdings Sdn Bhd",
         ssm_number: "1234567-X",
+        relationship: "related_party",
       },
     ],
   };

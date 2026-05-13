@@ -58,7 +58,15 @@ import {
 } from "@heroicons/react/24/outline";
 import { CloudUpload, X, CheckCircle2 } from "lucide-react";
 import { useAuthToken } from "@cashsouk/config";
-import { isRegtankIso3166Code } from "@cashsouk/types";
+import {
+  GUARANTOR_COMPANY_RELATIONSHIP_LABELS,
+  GUARANTOR_COMPANY_RELATIONSHIPS,
+  GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS,
+  GUARANTOR_INDIVIDUAL_RELATIONSHIPS,
+  type GuarantorCompanyRelationship,
+  type GuarantorIndividualRelationship,
+  isRegtankIso3166Code,
+} from "@cashsouk/types";
 import { toast } from "sonner";
 
 /**
@@ -81,6 +89,7 @@ const SAME_INVOICE_OTHER_P2P_ERROR =
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 const GUARANTOR_EMAIL_STRICT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_GUARANTOR_RELATIONSHIP_OTHER = 500;
 
 /** “What does your company do?” and “Business plan” share the longer limit; other business textareas use the shorter limit. */
 const MAX_CHARS_WHAT_COMPANY_DO = 1000;
@@ -134,6 +143,8 @@ interface GuarantorIndividualRow {
   /** RegTank appendix A ISO 3166 alpha-2 (e.g. MY). */
   nationality: string;
   email: string;
+  relationship: GuarantorIndividualRelationship | "";
+  relationshipOther: string;
   guarantorAgreement?: GuarantorAgreementFile;
 }
 
@@ -143,6 +154,7 @@ interface GuarantorCompanyRow {
   businessName: string;
   ssmNumber: string;
   email: string;
+  relationship: GuarantorCompanyRelationship | "";
   guarantorAgreement?: GuarantorAgreementFile;
 }
 
@@ -150,8 +162,14 @@ type GuarantorFormRow = GuarantorIndividualRow | GuarantorCompanyRow;
 
 function guarantorCardSummarySubtitle(row: GuarantorFormRow): string {
   if (row.guarantorType === "individual") {
+    const rel =
+      row.relationship && GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS[row.relationship as GuarantorIndividualRelationship];
+    if (rel) return `${row.name.trim()} (${rel})`;
     return row.name.trim();
   }
+  const rel =
+    row.relationship && GUARANTOR_COMPANY_RELATIONSHIP_LABELS[row.relationship as GuarantorCompanyRelationship];
+  if (rel) return `${row.businessName.trim()} (${rel})`;
   return row.businessName.trim();
 }
 
@@ -163,6 +181,8 @@ function emptyIndividualGuarantor(): GuarantorIndividualRow {
     icNumber: "",
     nationality: "",
     email: "",
+    relationship: "",
+    relationshipOther: "",
   };
 }
 
@@ -173,6 +193,7 @@ function emptyCompanyGuarantor(): GuarantorCompanyRow {
     businessName: "",
     ssmNumber: "",
     email: "",
+    relationship: "",
   };
 }
 
@@ -354,12 +375,19 @@ function applicationGuarantorRowToFormRow(row: Record<string, unknown>): Guarant
     const businessName = String(
       row.business_name ?? src.business_name ?? src.businessName ?? src.company_name ?? src.companyName ?? ""
     ).trim();
+    const rawRel = String(row.relationship ?? src.relationship ?? "").trim();
+    const relationship = GUARANTOR_COMPANY_RELATIONSHIPS.includes(
+      rawRel as GuarantorCompanyRelationship
+    )
+      ? (rawRel as GuarantorCompanyRelationship)
+      : "";
     return {
       referenceId: ref || stableFallbackGuarantorId(pos, "company", normalizeIdentifier(ssm)),
       guarantorType: "company",
       businessName,
       ssmNumber: ssm,
       email,
+      relationship,
       ...(agreement ? { guarantorAgreement: agreement } : {}),
     };
   }
@@ -369,6 +397,16 @@ function applicationGuarantorRowToFormRow(row: Record<string, unknown>): Guarant
   const nationality = normalizeGuarantorNationalityCode(
     row.nationality ?? src.nationality ?? src.nationality_code ?? row.nationality_code
   );
+  const rawRel = String(row.relationship ?? src.relationship ?? "").trim();
+  const relationship = GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(
+    rawRel as GuarantorIndividualRelationship
+  )
+    ? (rawRel as GuarantorIndividualRelationship)
+    : "";
+  const rawOther = String(
+    row.relationship_other ?? src.relationship_other ?? src.relationshipOther ?? ""
+  ).trim();
+  const relationshipOther = relationship === "others" ? rawOther : "";
   return {
     referenceId: ref || stableFallbackGuarantorId(pos, "individual", normalizeIdentifier(icRaw)),
     guarantorType: "individual",
@@ -376,6 +414,8 @@ function applicationGuarantorRowToFormRow(row: Record<string, unknown>): Guarant
     icNumber: clampGuarantorIcInput(icRaw),
     nationality,
     email,
+    relationship,
+    relationshipOther,
     ...(agreement ? { guarantorAgreement: agreement } : {}),
   };
 }
@@ -438,6 +478,11 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
           name: g.name.trim(),
           ic_number: malaysianNricDigits(g.icNumber),
           nationality: g.nationality.trim().toUpperCase(),
+          relationship: g.relationship,
+          relationship_other:
+            g.relationship === "others"
+              ? (g.relationshipOther.trim().slice(0, MAX_GUARANTOR_RELATIONSHIP_OTHER) || null)
+              : null,
           ...(agreementSnake ? { guarantor_agreement: agreementSnake } : {}),
         };
       }
@@ -447,6 +492,7 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
         email: g.email.trim().toLowerCase(),
         business_name: g.businessName.trim(),
         ssm_number: g.ssmNumber.trim(),
+        relationship: g.relationship,
         ...(agreementSnake ? { guarantor_agreement: agreementSnake } : {}),
       };
     }),
@@ -545,6 +591,12 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
       );
       const agreement = parseGuarantorAgreementFromUnknown(o.guarantor_agreement ?? o.guarantorAgreement);
       const nationality = normalizeGuarantorNationalityCode(o.nationality ?? o.nationality_code);
+      const rawRel = String(o.relationship ?? o.relationship_rel ?? o.relationshipRel ?? "").trim();
+      const relationship = GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(rawRel as GuarantorIndividualRelationship)
+        ? (rawRel as GuarantorIndividualRelationship)
+        : "";
+      const relationshipOtherRaw = String(o.relationship_other ?? o.relationshipOther ?? "").trim();
+      const relationshipOther = relationship === "others" ? relationshipOtherRaw : "";
       out.push({
         referenceId:
           ref ||
@@ -554,6 +606,8 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
         name,
         icNumber: clampGuarantorIcInput(govRaw),
         nationality,
+        relationship,
+        relationshipOther,
         ...(agreement ? { guarantorAgreement: agreement } : {}),
       });
     } else if (gt === "company") {
@@ -567,6 +621,14 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
         email: String(o.email ?? "").trim().toLowerCase(),
         businessName: String(o.business_name ?? o.businessName ?? o.company_name ?? o.companyName ?? ""),
         ssmNumber: bizId,
+        relationship: (() => {
+          const rawRel = String(o.relationship ?? o.relationshipRel ?? "").trim();
+          return GUARANTOR_COMPANY_RELATIONSHIPS.includes(
+            rawRel as GuarantorCompanyRelationship
+          )
+            ? (rawRel as GuarantorCompanyRelationship)
+            : "";
+        })(),
         ...(agreement ? { guarantorAgreement: agreement } : {}),
       });
     }
@@ -936,6 +998,69 @@ function GuarantorCardFields({
               <p className="text-xs text-destructive">Enter a valid email address</p>
             ) : null}
           </div>
+
+          <div className="space-y-2 w-full min-w-0">
+            <Label htmlFor={`g-${index}-relationship`} className={labelInputClassName}>
+              Relationship
+            </Label>
+            <Select
+              value={row.relationship || undefined}
+              disabled={readOnly}
+              onValueChange={(v) => {
+                const rel = v as GuarantorIndividualRelationship;
+                replaceGuarantorRow(index, {
+                  ...row,
+                  relationship: rel,
+                  relationshipOther: rel === "others" ? row.relationshipOther : "",
+                });
+              }}
+            >
+              <SelectTrigger
+                className={cn(
+                  formSelectTriggerClassName,
+                  "w-full",
+                  readOnly && formInputDisabledClassName
+                )}
+              >
+                <SelectValue placeholder="Select relationship" />
+              </SelectTrigger>
+              <SelectContent>
+                {GUARANTOR_INDIVIDUAL_RELATIONSHIPS.map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS[key]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {hasAttemptedSave &&
+            row.relationship !== "others" &&
+            (!row.relationship ||
+              !GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(
+                row.relationship as GuarantorIndividualRelationship
+              )) ? (
+              <p className="text-xs text-destructive">Select a relationship</p>
+            ) : null}
+            {row.relationship === "others" ? (
+              <div className="space-y-2 pt-1">
+                <Input
+                  id={`g-${index}-relationship-other`}
+                  value={row.relationshipOther}
+                  onChange={(e) =>
+                    replaceGuarantorRow(index, {
+                      ...row,
+                      relationshipOther: e.target.value.slice(0, MAX_GUARANTOR_RELATIONSHIP_OTHER),
+                    })
+                  }
+                  placeholder="Specify relationship"
+                  className={cn(inputClassName, readOnly && formInputDisabledClassName)}
+                  disabled={readOnly}
+                />
+                {hasAttemptedSave && !row.relationshipOther.trim() ? (
+                  <p className="text-xs text-destructive">Enter how this guarantor is related</p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         </>
       ) : (
         <>
@@ -1006,6 +1131,46 @@ function GuarantorCardFields({
             row.email.trim().length > 0 &&
             !GUARANTOR_EMAIL_STRICT.test(row.email.trim()) ? (
               <p className="text-xs text-destructive">Enter a valid email address</p>
+            ) : null}
+          </div>
+
+          <div className="space-y-2 w-full min-w-0">
+            <Label htmlFor={`g-${index}-relationship-co`} className={labelInputClassName}>
+              Relationship
+            </Label>
+            <Select
+              value={row.relationship || undefined}
+              disabled={readOnly}
+              onValueChange={(v) => {
+                replaceGuarantorRow(index, {
+                  ...row,
+                  relationship: v as GuarantorCompanyRelationship,
+                });
+              }}
+            >
+              <SelectTrigger
+                className={cn(
+                  formSelectTriggerClassName,
+                  "w-full",
+                  readOnly && formInputDisabledClassName
+                )}
+              >
+                <SelectValue placeholder="Select relationship" />
+              </SelectTrigger>
+              <SelectContent>
+                {GUARANTOR_COMPANY_RELATIONSHIPS.map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {GUARANTOR_COMPANY_RELATIONSHIP_LABELS[key]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {hasAttemptedSave &&
+            (!row.relationship ||
+              !GUARANTOR_COMPANY_RELATIONSHIPS.includes(
+                row.relationship as GuarantorCompanyRelationship
+              )) ? (
+              <p className="text-xs text-destructive">Select a relationship</p>
             ) : null}
           </div>
         </>
@@ -1256,8 +1421,28 @@ export function BusinessDetailsStep({
           if (!g.name.trim() || !icOk || !natOk) {
             return false;
           }
+          if (
+            !g.relationship ||
+            !GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(
+              g.relationship as GuarantorIndividualRelationship
+            )
+          ) {
+            return false;
+          }
+          if (g.relationship === "others") {
+            if (!g.relationshipOther.trim()) return false;
+            if (mode === "strict" && g.relationshipOther.length > MAX_GUARANTOR_RELATIONSHIP_OTHER) {
+              return false;
+            }
+          }
         } else {
           if (!g.businessName.trim() || !g.ssmNumber.trim()) {
+            return false;
+          }
+          if (
+            !g.relationship ||
+            !GUARANTOR_COMPANY_RELATIONSHIPS.includes(g.relationship as GuarantorCompanyRelationship)
+          ) {
             return false;
           }
         }

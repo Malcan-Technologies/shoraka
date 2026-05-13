@@ -62,6 +62,8 @@ import type {
   ResubmitFieldChangeItem,
 } from "@/components/application-revision-diff-panel";
 import { ResubmitComparisonModal } from "@/components/resubmit-comparison-modal";
+import { reviewSectionHasResubmitChanges } from "@/lib/review-section-has-resubmit-changes";
+import type { ReviewSectionId } from "@/components/application-review/review-registry";
 
 type ActivityMetadata = {
   scope_key?: string;
@@ -138,6 +140,38 @@ interface AdminActivityTimelineProps {
   sectionLabelOverrides?: Record<string, string>;
   /** Pass through to resubmit comparison modal so tabs match main application detail. */
   visibleReviewSections?: unknown;
+}
+
+function formatResubmitTabsOnlyActivity({
+  resubmitChanges,
+  sectionLabelOverrides,
+}: {
+  resubmitChanges: ResubmitChangesMetadata | undefined;
+  sectionLabelOverrides?: Record<string, string>;
+}): string | null {
+  const fieldChanges = resubmitChanges?.field_changes;
+  if (!Array.isArray(fieldChanges) || fieldChanges.length === 0) return null;
+
+  const orderedSections: ReviewSectionId[] = [
+    "financial",
+    "company_details",
+    "business_details",
+    "supporting_documents",
+    "contract_details",
+    "invoice_details",
+  ];
+
+  const changedSections = orderedSections.filter((section) =>
+    reviewSectionHasResubmitChanges(section, fieldChanges as { path: string }[])
+  );
+
+  if (changedSections.length === 0) return null;
+
+  const labels = changedSections.map(
+    (section) => sectionLabelOverrides?.[String(section)] ?? getReviewTabLabel(String(section))
+  );
+
+  return `Changes submitted: ${labels.join(", ")}`;
 }
 
 function getEventIcon(eventType: string): React.ReactElement {
@@ -478,7 +512,28 @@ export function AdminActivityTimeline({
                             </div>
 
                             {/* Activity text */}
-                            {log.activity != null && (
+                            {(() => {
+                              if (
+                                eventType === "APPLICATION_RESUBMITTED" &&
+                                resubmitChanges?.field_changes
+                              ) {
+                                const tabsOnly = formatResubmitTabsOnlyActivity({
+                                  resubmitChanges: resubmitChanges as ResubmitChangesMetadata | undefined,
+                                  sectionLabelOverrides,
+                                });
+                                if (tabsOnly) {
+                                  return (
+                                    <p
+                                      className={`text-xs text-muted-foreground mt-0.5`}
+                                    >
+                                      {tabsOnly}
+                                    </p>
+                                  );
+                                }
+                              }
+
+                              if (log.activity == null) return null;
+                              return (
                                 <p
                                   className={`text-xs text-muted-foreground mt-0.5 ${
                                     eventType === "APPLICATION_RESUBMITTED"
@@ -492,7 +547,8 @@ export function AdminActivityTimeline({
                                       ? String(log.activity)
                                       : JSON.stringify(log.activity)}
                                 </p>
-                            )}
+                              );
+                            })()}
 
                             {/* Actor + context row */}
                             <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground/70">
