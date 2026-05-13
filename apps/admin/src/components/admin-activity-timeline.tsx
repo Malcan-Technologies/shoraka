@@ -171,7 +171,7 @@ function formatResubmitTabsOnlyActivity({
     (section) => sectionLabelOverrides?.[String(section)] ?? getReviewTabLabel(String(section))
   );
 
-  return `Changes submitted:\n- ${labels.join("\n- ")}`;
+  return `Changes submitted: ${labels.join(", ")}`;
 }
 
 function getEventIcon(eventType: string): React.ReactElement {
@@ -524,7 +524,7 @@ export function AdminActivityTimeline({
                                 if (tabsOnly) {
                                   return (
                                     <p
-                                      className={`text-xs text-muted-foreground mt-0.5 whitespace-pre-line`}
+                                      className={`text-xs text-muted-foreground mt-0.5`}
                                     >
                                       {tabsOnly}
                                     </p>
