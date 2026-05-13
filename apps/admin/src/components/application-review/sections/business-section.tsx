@@ -595,8 +595,14 @@ function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
       const gov = reviewStr(o.ic_number ?? o.icNumber ?? o.government_id_number);
       const nationalityRaw = reviewStr(o.nationality ?? o.nationality_code).toUpperCase();
       const nationalityCode = nationalityRaw.length === 2 ? nationalityRaw : "";
-      const relationship = reviewStr(o.relationship);
-      const relationshipOther = relationship === "others" ? reviewStr(o.relationship_other ?? o.relationshipOther) : undefined;
+      const src = (o.source_data ?? o.sourceData) as Record<string, unknown> | null | undefined;
+      const srcRel = reviewStr(src?.relationship);
+      const srcRelOther = reviewStr(src?.relationship_other ?? src?.relationshipOther);
+      const relationship = srcRel || reviewStr(o.relationship);
+      const relationshipOther =
+        relationship === "others"
+          ? srcRelOther || reviewStr(o.relationship_other ?? o.relationshipOther)
+          : undefined;
       rows.push({
         kind: "individual",
         referenceId: ref,
@@ -609,7 +615,9 @@ function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
         ...(agreement ? { guarantorAgreement: agreement } : {}),
       });
     } else if (gt === "company") {
-      const relationship = reviewStr(o.relationship);
+      const src = (o.source_data ?? o.sourceData) as Record<string, unknown> | null | undefined;
+      const srcRel = reviewStr(src?.relationship);
+      const relationship = srcRel || reviewStr(o.relationship);
       rows.push({
         kind: "company",
         referenceId: ref,

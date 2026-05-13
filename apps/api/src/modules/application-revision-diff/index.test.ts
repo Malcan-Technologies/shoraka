@@ -145,15 +145,18 @@ describe("summarizeResubmitSnapshotDiff", () => {
       source_data: {
         nationality: "MY",
         guarantor_agreement: { s3_key: "same/key.pdf", file_name: "a.pdf", file_size: 1 },
+        relationship: "others",
+        relationship_other: "Old relationship text",
       },
-      relationship: "others",
-      relationship_other: "Old relationship text",
     };
     const gNext = {
       ...gPrev,
       id: "ag-new",
       updated_at: new Date("2026-01-01"),
-      relationship_other: "New relationship text",
+      source_data: {
+        ...(gPrev.source_data as any),
+        relationship_other: "New relationship text",
+      },
     };
     const prev = {
       application: { ...baseApp, business_details: { declaration_confirmed: true }, guarantors: [gPrev] },
@@ -166,7 +169,7 @@ describe("summarizeResubmitSnapshotDiff", () => {
       invoices: [],
     };
     const s = summarizeResubmitSnapshotDiff(prev, next);
-    expect(s.field_changes.some((f) => f.path.endsWith(".relationship_other"))).toBe(true);
+    expect(s.field_changes.some((f) => f.path.endsWith(".source_data.relationship_other"))).toBe(true);
     // When only relationship fields changed, we should not hide them behind the generic rollup line.
     expect(s.field_changes.some((f) => f.path === "business_details.guarantors")).toBe(false);
     expect(s.activitySummary).toContain("Business details");

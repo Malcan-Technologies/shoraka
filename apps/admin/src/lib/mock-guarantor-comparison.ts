@@ -51,8 +51,10 @@ const mockBusinessDetailsBefore: ReviewApplicationView["business_details"] = {
       name: "Maria Garcia",
       ic_number: "850505105555",
       nationality: "MY",
-      relationship: "unrelated_party",
-      relationship_other: "",
+      source_data: {
+        relationship: "unrelated_party",
+        relationship_other: "",
+      },
       email: "maria@example.com",
     },
   ],
@@ -68,8 +70,10 @@ const mockBusinessDetailsAfterFull: ReviewApplicationView["business_details"] = 
       reference_id: "mock-ref-1",
       name: "Siti Norhaliza",
       ic_number: "920315081234",
-      relationship: "others",
-      relationship_other: "She is a family member related to the director through marriage.",
+      source_data: {
+        relationship: "others",
+        relationship_other: "She is a family member related to the director through marriage.",
+      },
       email: "siti@example.com",
     },
     {
@@ -77,7 +81,9 @@ const mockBusinessDetailsAfterFull: ReviewApplicationView["business_details"] = 
       reference_id: "mock-ref-2",
       business_name: "Apex Logistics Sdn Bhd",
       ssm_number: "202001012345",
-      relationship: "related_party",
+      source_data: {
+        relationship: "related_party",
+      },
       email: "ops@apex.example.com",
     },
   ],
@@ -95,8 +101,10 @@ const mockBusinessDetailsAfterPartial: ReviewApplicationView["business_details"]
       name: "Maria Norhaliza",
       ic_number: "850505105555",
       nationality: "MY",
-      relationship: "unrelated_party",
-      relationship_other: "",
+      source_data: {
+        relationship: "unrelated_party",
+        relationship_other: "",
+      },
       email: "maria@example.com",
     },
     {
@@ -104,7 +112,9 @@ const mockBusinessDetailsAfterPartial: ReviewApplicationView["business_details"]
       reference_id: "mock-ref-2",
       business_name: "Apex Logistics Sdn Bhd",
       ssm_number: "202001012345",
-      relationship: "related_party",
+      source_data: {
+        relationship: "related_party",
+      },
       email: "ops@apex.example.com",
     },
   ],
@@ -120,7 +130,7 @@ const mockGuarantorFieldChangesFull: ResubmitFieldChangeItem[] = [
     next_value: "Siti Norhaliza",
   },
   {
-    path: "business_details.guarantors[0].relationship",
+    path: "business_details.guarantors[0].source_data.relationship",
     section_key: "business_details",
     section_label: "Business details",
     field_label: "Guarantor 1 — relationship",
@@ -128,7 +138,7 @@ const mockGuarantorFieldChangesFull: ResubmitFieldChangeItem[] = [
     next_value: "others",
   },
   {
-    path: "business_details.guarantors[0].relationship_other",
+    path: "business_details.guarantors[0].source_data.relationship_other",
     section_key: "business_details",
     section_label: "Business details",
     field_label: "Guarantor 1 — relationship (other)",

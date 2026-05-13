@@ -56,18 +56,6 @@ export function buildApplicationRevisionSnapshot(
       position: link.position ?? null,
       /** Preserves `guarantor_agreement` etc. for admin review / comparison UIs. */
       source_data: link.source_data ?? link.sourceData ?? null,
-      relationship:
-        typeof (link.source_data as any)?.relationship === "string"
-          ? (link.source_data as any).relationship
-          : typeof (link as any).relationship === "string"
-            ? (link as any).relationship
-            : undefined,
-      relationship_other:
-        typeof (link.source_data as any)?.relationship_other === "string"
-          ? (link.source_data as any).relationship_other
-          : typeof (link as any).relationship_other === "string"
-            ? (link as any).relationship_other
-            : undefined,
       aml_status: link.aml_status ?? null,
       aml_message_status: link.aml_message_status ?? null,
       last_triggered_at: link.last_triggered_at ?? null,

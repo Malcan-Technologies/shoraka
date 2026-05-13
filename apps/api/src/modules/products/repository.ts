@@ -87,7 +87,7 @@ export class ProductRepository {
     return { kind: "COMPARE", version: active.version, resolvedProductId: active.id };
   }
 
-  async create(data: CreateProductData, _logContext?: LogContext): Promise<Product> {
+  async create(data: CreateProductData, logContext?: LogContext): Promise<Product> {
     // Determine category and ordering from workflow config (financing type step)
     const workflow = data.workflow as unknown[];
     const financingStep = (workflow || []).find((step: any) =>
@@ -142,7 +142,33 @@ export class ProductRepository {
         data: { base_id: created.id },
       } as any);
 
-      /** Skip PRODUCT_CREATED log here. Image is merged in completeCreate update; log is written there with full workflow. */
+      // Write PRODUCT_CREATED log with the initial config snapshot.
+      // Later `completeCreate` calls write PRODUCT_UPDATED (not PRODUCT_CREATED) to avoid duplicates.
+      if (logContext?.userId) {
+        const createdAny = created as any;
+        await tx.productLog.create({
+          data: {
+            user_id: logContext.userId,
+            product_id: created.id,
+            event_type: "PRODUCT_CREATED",
+            ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
+            user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
+            device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
+            metadata: {
+              workflow: JSON.parse(JSON.stringify(createdAny.workflow)),
+              category_display_order: createdAny.category_display_order ?? null,
+              product_display_order: createdAny.product_display_order ?? null,
+              offer_expiry_days: createdAny.offer_expiry_days ?? null,
+              version: createdAny.version ?? null,
+              base_id: createdAny.base_id ?? created.id ?? null,
+              status: createdAny.status ?? null,
+              product_created_at: createdAny.created_at?.toISOString?.() ?? null,
+              product_updated_at: createdAny.updated_at?.toISOString?.() ?? null,
+            } as Prisma.InputJsonValue,
+          },
+        } as any);
+      }
+
       return created;
     });
   }
