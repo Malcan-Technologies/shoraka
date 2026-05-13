@@ -23,6 +23,8 @@ export function reviewSectionHasResubmitChanges(
       return fieldChanges.some(
         (f) =>
           pathUnderRoot(f.path, "financial_statements") ||
+          pathUnderRoot(f.path, "financing_type") ||
+          pathUnderRoot(f.path, "financing_structure") ||
           pathUnderRoot(f.path, "issuer_organization")
       );
     case "company_details":
@@ -39,6 +41,7 @@ export function reviewSectionHasResubmitChanges(
       return fieldChanges.some((f) => {
         const p = f.path;
         if (pathUnderRoot(p, "contract_details")) return true;
+        if (p === "contract_id") return true;
         return p.startsWith("contract.") && isMeaningfulResubmitSnapshotFieldPath(p);
       });
     case "invoice_details":
