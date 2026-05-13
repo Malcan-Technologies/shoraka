@@ -1,8 +1,6 @@
--- Re-introduce guarantor relationship fields for Business & Guarantor Details step.
+-- Previously this migration added guarantor relationship columns.
+-- Per requirement, we store these values only inside `application_guarantors.source_data` JSON.
 BEGIN;
-
-ALTER TABLE "application_guarantors" ADD COLUMN IF NOT EXISTS "relationship" TEXT;
-ALTER TABLE "application_guarantors" ADD COLUMN IF NOT EXISTS "relationship_other" TEXT;
 
 COMMIT;
 

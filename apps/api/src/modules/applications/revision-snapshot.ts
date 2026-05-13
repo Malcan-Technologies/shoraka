@@ -47,8 +47,6 @@ export function buildApplicationRevisionSnapshot(
       client_guarantor_id: link.client_guarantor_id ?? null,
       guarantor_type: link.guarantor_type ?? null,
       email: link.email ?? null,
-      relationship: link.relationship ?? null,
-      relationship_other: link.relationship_other ?? null,
       name: link.name ?? null,
       ic_number: link.ic_number ?? null,
       business_name: link.business_name ?? null,

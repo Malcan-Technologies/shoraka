@@ -458,8 +458,6 @@ interface RelationalGuarantorEntry {
   guarantor_type?: string;
   email?: string;
   name?: string | null;
-  relationship?: string | null;
-  relationship_other?: string | null;
   ic_number?: string | null;
   business_name?: string | null;
   ssm_number?: string | null;
@@ -790,17 +788,22 @@ function parseRelationalGuarantors(raw: unknown): GuarantorReviewRow[] {
     const ref = reviewStr(entry.client_guarantor_id) || linkId;
     const guarantorType = g.guarantor_type === "company" ? "company" : "individual";
     const agreement = guarantorAgreementFromRelationalEntry(entry, g);
+    const src =
+      entry.source_data && isPlainObjectRecord(entry.source_data)
+        ? (entry.source_data as Record<string, unknown>)
+        : {};
+    const relValue = src.relationship;
+    const relOtherValue = src.relationship_other;
+    const relationship =
+      typeof relValue === "string" ? relValue : undefined;
+    const relationshipOther =
+      typeof relOtherValue === "string" ? relOtherValue : undefined;
     if (guarantorType === "individual") {
       const legacyFirst = reviewStr(g.first_name);
       const legacyLast = reviewStr(g.last_name);
       const name =
         reviewStr(g.name) || [legacyFirst, legacyLast].filter(Boolean).join(" ").trim();
       const nationalityCode = guarantorNationalityCodeFromRelational(entry, g);
-      const relationship = reviewStr(entry.relationship ?? (g as Record<string, unknown>).relationship);
-      const relationshipOther =
-        relationship === "others"
-          ? reviewStr(entry.relationship_other ?? (g as Record<string, unknown>).relationship_other)
-          : undefined;
       rows.push({
         kind: "individual",
         referenceId: ref,
@@ -809,7 +812,7 @@ function parseRelationalGuarantors(raw: unknown): GuarantorReviewRow[] {
         nationalityCode,
         email: normalizeEmail(g.email),
         relationship: relationship || undefined,
-        relationshipOther: relationshipOther || undefined,
+        relationshipOther: relationship === "others" ? relationshipOther : undefined,
         ...(agreement ? { guarantorAgreement: agreement } : {}),
       });
       continue;
@@ -820,7 +823,7 @@ function parseRelationalGuarantors(raw: unknown): GuarantorReviewRow[] {
       businessName: reviewStr(g.business_name ?? g.company_name),
       ssmNumber: reviewStr(g.ssm_number ?? g.business_id_number),
       email: normalizeEmail(g.email),
-      relationship: reviewStr(entry.relationship ?? (g as Record<string, unknown>).relationship) || undefined,
+      relationship: relationship || undefined,
       ...(agreement ? { guarantorAgreement: agreement } : {}),
     });
   }

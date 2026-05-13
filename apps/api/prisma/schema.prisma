@@ -408,8 +408,6 @@ model ApplicationGuarantor {
   source_data                Json?
   guarantor_type             GuarantorType
   email                      String
-  relationship               String?
-  relationship_other         String?
   name                       String?
   ic_number                  String?
   business_name              String?
