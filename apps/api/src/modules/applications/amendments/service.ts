@@ -12,6 +12,7 @@ import { ApplicationRepository } from "../repository";
 import { assertRequiredSupportingDocumentsPresent } from "../supporting-docs-workflow";
 import { buildApplicationRevisionSnapshot } from "../revision-snapshot";
 import { summarizeResubmitSnapshotDiff } from "../../application-revision-diff";
+import { Prisma } from "@prisma/client";
 
 export interface AmendmentAllowedSections {
   allowedSections: Set<string>;
@@ -148,6 +149,7 @@ export async function resubmitApplication(
 
   const financingTypeResubmit = application.financing_type as { product_id?: string } | null | undefined;
   const resubmitProductId = financingTypeResubmit?.product_id;
+  let resubmitProductWorkflow: Prisma.JsonValue | undefined;
   if (resubmitProductId) {
     const resubmitProduct = await prisma.product.findUnique({ where: { id: resubmitProductId } });
     if (resubmitProduct?.workflow) {
@@ -155,6 +157,7 @@ export async function resubmitApplication(
         resubmitProduct.workflow as unknown[],
         application.supporting_documents
       );
+      resubmitProductWorkflow = resubmitProduct.workflow as Prisma.JsonValue;
     }
   }
 
@@ -179,6 +182,7 @@ export async function resubmitApplication(
     ? buildApplicationRevisionSnapshot({
         financing_type: appFullCurrent.financing_type,
         product_version: appFullCurrent.product_version,
+        product_workflow: resubmitProductWorkflow ?? null,
         amendment_acknowledged_workflow_ids: appFullCurrent.amendment_acknowledged_workflow_ids,
         financing_structure: appFullCurrent.financing_structure,
         company_details: appFullCurrent.company_details,

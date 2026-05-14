@@ -86,6 +86,39 @@ interface FormState {
   contactPersonContact: string;
 }
 
+/**
+ * Mock data for dev Auto Fill Step (company_details).
+ * IMPORTANT: Must fill required fields (not empty) so validation passes.
+ */
+export function generateMockData(): Record<string, unknown> {
+  return {
+    industry: "Technology",
+    numberOfEmployees: "10",
+    businessAddress: {
+      line1: "23, Jalan Kiara",
+      line2: "",
+      city: "Kuala Lumpur",
+      postalCode: "10250",
+      state: "Kuala Lumpur",
+      country: "MY",
+    },
+    registeredAddress: {
+      line1: "24, Jalan Kiara",
+      line2: "",
+      city: "Kuala Lumpur",
+      postalCode: "10150",
+      state: "Kuala Lumpur",
+      country: "MY",
+    },
+    bankName: "Maybank / Malayan Banking Berhad",
+    bankAccountNumber: "1234567890",
+    contactPersonName: "John Doe",
+    contactPersonEmail: "john.doe@example.com",
+    contactPersonPosition: "CEO",
+    contactPersonContact: "+60123456789",
+  };
+}
+
 function getBankField(bankDetails: Record<string, unknown> | null, fieldName: string): string {
   const content = bankDetails?.content;
   if (!Array.isArray(content)) return "";
@@ -279,6 +312,57 @@ export function CompanyDetailsStep({
 
     hasHydratedRef.current = true;
   }, [application, organizationId, isLoadingData, corporateInfo, bankAccountDetails]);
+
+  /* ================================================================
+     DEV TOOLS AUTO FILL (company_details)
+     ================================================================ */
+  React.useEffect(() => {
+    if (!devTools) return;
+    if (!hasHydratedRef.current) return;
+
+    const usingSingleAutoFill = devTools?.autoFillData?.stepKey === "company_details";
+    const data = usingSingleAutoFill
+      ? (devTools.autoFillData?.data as Record<string, unknown> | null | undefined)
+      : (devTools?.autoFillDataMap?.["company_details"] as Record<string, unknown> | undefined);
+
+    if (!data) return;
+
+    setFormState((prev) => {
+      const applied = data as Partial<{
+        industry: string;
+        numberOfEmployees: string;
+        businessAddress: Record<string, unknown>;
+        registeredAddress: Record<string, unknown>;
+        bankName: string;
+        bankAccountNumber: string;
+        contactPersonName: string;
+        contactPersonEmail: string;
+        contactPersonPosition: string;
+        contactPersonContact: string;
+      }>;
+
+      return {
+        ...prev,
+        industry: String(applied.industry ?? prev.industry ?? ""),
+        numberOfEmployees: String(applied.numberOfEmployees ?? prev.numberOfEmployees ?? ""),
+        businessAddress: (applied.businessAddress as Record<string, unknown> | null) ?? prev.businessAddress,
+        registeredAddress:
+          (applied.registeredAddress as Record<string, unknown> | null) ?? prev.registeredAddress,
+        bankName: String(applied.bankName ?? prev.bankName ?? ""),
+        bankAccountNumber: String(applied.bankAccountNumber ?? prev.bankAccountNumber ?? ""),
+        contactPersonName: String(applied.contactPersonName ?? prev.contactPersonName ?? ""),
+        contactPersonEmail: String(applied.contactPersonEmail ?? prev.contactPersonEmail ?? ""),
+        contactPersonPosition: String(applied.contactPersonPosition ?? prev.contactPersonPosition ?? ""),
+        contactPersonContact: String(applied.contactPersonContact ?? prev.contactPersonContact ?? ""),
+      };
+    });
+
+    // Important: clear the correct source.
+    // - "Auto Fill Step" uses `autoFillData` (single)
+    // - "Fill Entire Application" uses `autoFillDataMap`
+    if (usingSingleAutoFill) devTools.clearAutoFill();
+    else devTools.clearAutoFillForStep("company_details");
+  }, [devTools?.autoFillData, devTools?.autoFillDataMap, devTools]);
 
   /* ================================================================
      VALIDATION - Pure function, no side effects

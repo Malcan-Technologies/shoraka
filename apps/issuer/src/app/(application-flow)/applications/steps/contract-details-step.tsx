@@ -162,6 +162,14 @@ function isEndDateTooSoon(startDate?: string, endDate?: string, minMonths?: numb
   return parsedEnd < minAllowedEndDate;
 }
 
+function formatApplicationFlowDateDisplay(d: Date): string {
+  // DateInput expects `d/M/yyyy` format. Keep it simple and stable for dev auto-fill.
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
 /** Read product-level min_contract_months from product workflow (if present). */
 function getProductMinContractMonths(workflow: unknown[] | null | undefined): number | null {
   if (!workflow?.length) return null;
@@ -566,15 +574,41 @@ export function ContractDetailsStep({
             | { contract?: Record<string, unknown>; customer?: Record<string, unknown> }
             | undefined);
     if (!data || (!data.contract && !data.customer)) return;
+
+    // If dev auto-fill provided contract dates, enforce product min months rule.
+    // This prevents “end date too soon” validation errors after filling.
+    let adjustedContract: Record<string, unknown> | undefined = data.contract;
+    if (
+      adjustedContract &&
+      productMinMonths != null &&
+      typeof adjustedContract.start_date === "string" &&
+      typeof adjustedContract.end_date === "string"
+    ) {
+      const parsedStart = parseApplicationFlowDate(adjustedContract.start_date);
+      const parsedEnd = parseApplicationFlowDate(adjustedContract.end_date);
+      if (parsedStart && parsedEnd) {
+        const today = new Date();
+        const baseDate = parsedStart > today ? parsedStart : today;
+        const minAllowed = new Date(baseDate);
+        minAllowed.setMonth(minAllowed.getMonth() + productMinMonths);
+        if (parsedEnd < minAllowed) {
+          adjustedContract = {
+            ...adjustedContract,
+            end_date: formatApplicationFlowDateDisplay(minAllowed),
+          };
+        }
+      }
+    }
+
     setFormData((prev) => ({
-      contract: data.contract ? { ...prev.contract, ...data.contract } : prev.contract,
+      contract: adjustedContract ? { ...prev.contract, ...adjustedContract } : prev.contract,
       customer: data.customer ? { ...prev.customer, ...data.customer } : prev.customer,
     }));
     if (devTools) {
       if (devTools.autoFillData?.stepKey === "contract_details") devTools.clearAutoFill();
       else devTools.clearAutoFillForStep("contract_details");
     }
-  }, [devTools]);
+  }, [devTools, productMinMonths]);
 
   /* ================================================================
      INITIALIZATION (run only once per applicationId)

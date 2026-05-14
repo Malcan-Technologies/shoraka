@@ -254,6 +254,24 @@ function collapseGuarantorFieldChangesForDisplay(changes: ResubmitFieldChange[])
   const guarantorRows = changes.filter((c) => isGuarantorSnapshotDiffPath(c.path));
   const rest = changes.filter((c) => !isGuarantorSnapshotDiffPath(c.path));
   if (guarantorRows.length === 0) return changes;
+  // Keep relationship fields visible so admin history shows them explicitly.
+  // Requirement: these must live only under `source_data` (single source of truth).
+  const relationshipRows = guarantorRows.filter(
+    (c) =>
+      c.path.endsWith(".source_data.relationship") ||
+      c.path.endsWith(".source_data.relationship_other") ||
+      // Back-compat: older snapshots may have duplicated top-level fields.
+      c.path.endsWith(".relationship") ||
+      c.path.endsWith(".relationship_other")
+  );
+  const otherGuarantorRows = guarantorRows.filter(
+    (c) =>
+      !c.path.endsWith(".source_data.relationship") &&
+      !c.path.endsWith(".source_data.relationship_other") &&
+      !c.path.endsWith(".relationship") &&
+      !c.path.endsWith(".relationship_other")
+  );
+
   const rollup: ResubmitFieldChange = {
     path: GUARANTOR_SNAPSHOT_DIFF_PREFIX,
     section_key: "business_details",
@@ -262,7 +280,13 @@ function collapseGuarantorFieldChangesForDisplay(changes: ResubmitFieldChange[])
     previous_value: "Earlier revision",
     next_value: "This revision",
   };
-  return [...rest, rollup];
+
+  // If only relationship fields changed, don't roll-up everything into a generic line.
+  return [
+    ...rest,
+    ...relationshipRows,
+    ...(otherGuarantorRows.length > 0 ? [rollup] : []),
+  ];
 }
 
 export function summarizeResubmitSnapshotDiff(

@@ -66,6 +66,12 @@ import { cn } from "@/lib/utils";
 import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
 import { regtankNationalityDisplayLabel } from "@cashsouk/types";
 import {
+  GUARANTOR_COMPANY_RELATIONSHIP_LABELS,
+  GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS,
+  type GuarantorCompanyRelationship,
+  type GuarantorIndividualRelationship,
+} from "@cashsouk/types";
+import {
   ComparisonFieldRow,
   ComparisonYesNoRadioRow,
 } from "../comparison-field-row";
@@ -350,6 +356,8 @@ type GuarantorReviewRow =
       /** RegTank ISO 3166 alpha-2; empty if legacy row. */
       nationalityCode: string;
       email: string;
+      relationship?: string;
+      relationshipOther?: string;
     } & { guarantorAgreement?: GuarantorAgreementFile })
   | ({
       kind: "company";
@@ -357,6 +365,7 @@ type GuarantorReviewRow =
       businessName: string;
       ssmNumber: string;
       email: string;
+      relationship?: string;
     } & { guarantorAgreement?: GuarantorAgreementFile });
 
 /**
@@ -586,6 +595,14 @@ function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
       const gov = reviewStr(o.ic_number ?? o.icNumber ?? o.government_id_number);
       const nationalityRaw = reviewStr(o.nationality ?? o.nationality_code).toUpperCase();
       const nationalityCode = nationalityRaw.length === 2 ? nationalityRaw : "";
+      const src = (o.source_data ?? o.sourceData) as Record<string, unknown> | null | undefined;
+      const srcRel = reviewStr(src?.relationship);
+      const srcRelOther = reviewStr(src?.relationship_other ?? src?.relationshipOther);
+      const relationship = srcRel || reviewStr(o.relationship);
+      const relationshipOther =
+        relationship === "others"
+          ? srcRelOther || reviewStr(o.relationship_other ?? o.relationshipOther)
+          : undefined;
       rows.push({
         kind: "individual",
         referenceId: ref,
@@ -593,15 +610,21 @@ function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
         icNumber: gov,
         nationalityCode,
         email: normalizeEmail(o.email),
+        relationship: relationship || undefined,
+        relationshipOther: relationshipOther || undefined,
         ...(agreement ? { guarantorAgreement: agreement } : {}),
       });
     } else if (gt === "company") {
+      const src = (o.source_data ?? o.sourceData) as Record<string, unknown> | null | undefined;
+      const srcRel = reviewStr(src?.relationship);
+      const relationship = srcRel || reviewStr(o.relationship);
       rows.push({
         kind: "company",
         referenceId: ref,
         businessName: reviewStr(o.business_name ?? o.businessName ?? o.company_name ?? o.companyName),
         ssmNumber: reviewStr(o.ssm_number ?? o.ssmNumber ?? o.business_id_number),
         email: normalizeEmail(o.email),
+        relationship: relationship || undefined,
         ...(agreement ? { guarantorAgreement: agreement } : {}),
       });
     }
@@ -773,6 +796,16 @@ function parseRelationalGuarantors(raw: unknown): GuarantorReviewRow[] {
     const ref = reviewStr(entry.client_guarantor_id) || linkId;
     const guarantorType = g.guarantor_type === "company" ? "company" : "individual";
     const agreement = guarantorAgreementFromRelationalEntry(entry, g);
+    const src =
+      entry.source_data && isPlainObjectRecord(entry.source_data)
+        ? (entry.source_data as Record<string, unknown>)
+        : {};
+    const relValue = src.relationship;
+    const relOtherValue = src.relationship_other;
+    const relationship =
+      typeof relValue === "string" ? relValue : undefined;
+    const relationshipOther =
+      typeof relOtherValue === "string" ? relOtherValue : undefined;
     if (guarantorType === "individual") {
       const legacyFirst = reviewStr(g.first_name);
       const legacyLast = reviewStr(g.last_name);
@@ -786,6 +819,8 @@ function parseRelationalGuarantors(raw: unknown): GuarantorReviewRow[] {
         icNumber: reviewStr(g.ic_number ?? g.government_id_number),
         nationalityCode,
         email: normalizeEmail(g.email),
+        relationship: relationship || undefined,
+        relationshipOther: relationship === "others" ? relationshipOther : undefined,
         ...(agreement ? { guarantorAgreement: agreement } : {}),
       });
       continue;
@@ -796,10 +831,29 @@ function parseRelationalGuarantors(raw: unknown): GuarantorReviewRow[] {
       businessName: reviewStr(g.business_name ?? g.company_name),
       ssmNumber: reviewStr(g.ssm_number ?? g.business_id_number),
       email: normalizeEmail(g.email),
+      relationship: relationship || undefined,
       ...(agreement ? { guarantorAgreement: agreement } : {}),
     });
   }
   return rows;
+}
+
+function guarantorRelationshipDisplay(g: GuarantorReviewRow): string {
+  if (g.kind === "individual") {
+    if (!g.relationship) return REVIEW_EMPTY_LABEL;
+    const rel = g.relationship as GuarantorIndividualRelationship;
+    const base = GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS[rel];
+    if (g.relationship === "others") {
+      const other = (g.relationshipOther ?? "").trim();
+      if (other) return `${base}: ${other}`;
+      return base;
+    }
+    return base || REVIEW_EMPTY_LABEL;
+  }
+
+  if (!g.relationship) return REVIEW_EMPTY_LABEL;
+  const rel = g.relationship as GuarantorCompanyRelationship;
+  return GUARANTOR_COMPANY_RELATIONSHIP_LABELS[rel] || REVIEW_EMPTY_LABEL;
 }
 
 function GuarantorAmlScreeningCard({ screening }: { screening: GuarantorAmlScreeningSnapshot }) {
@@ -1284,6 +1338,8 @@ function AdminGuarantorSingleList({
                           : REVIEW_EMPTY_LABEL
                       }
                     />
+                    <Label className={reviewLabelClass}>Relationship</Label>
+                    <ReviewValue value={guarantorRelationshipDisplay(g)} />
                     <Label className={reviewLabelClass}>Email</Label>
                     <ReviewValue value={g.email || REVIEW_EMPTY_LABEL} />
                   </>
@@ -1293,6 +1349,8 @@ function AdminGuarantorSingleList({
                     <ReviewValue value={g.businessName || REVIEW_EMPTY_LABEL} />
                     <Label className={reviewLabelClass}>SSM number</Label>
                     <ReviewValue value={g.ssmNumber || REVIEW_EMPTY_LABEL} />
+                    <Label className={reviewLabelClass}>Relationship</Label>
+                    <ReviewValue value={guarantorRelationshipDisplay(g)} />
                     <Label className={reviewLabelClass}>Email</Label>
                     <ReviewValue value={g.email || REVIEW_EMPTY_LABEL} />
                   </>

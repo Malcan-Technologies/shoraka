@@ -4,6 +4,12 @@
 
 import { isRegtankIso3166Code } from "@cashsouk/types";
 import { z } from "zod";
+import {
+  GUARANTOR_COMPANY_RELATIONSHIPS,
+  GUARANTOR_INDIVIDUAL_RELATIONSHIPS,
+  type GuarantorCompanyRelationship,
+  type GuarantorIndividualRelationship,
+} from "@cashsouk/types";
 
 /**
  * Schema for creating a new application
@@ -81,6 +87,8 @@ const guarantorIndividualSchema = z.object({
   reference_id: z.string().min(1),
   email: z.string().email(),
   name: z.string().min(1).max(200),
+  relationship: z.enum([...GUARANTOR_INDIVIDUAL_RELATIONSHIPS] as [GuarantorIndividualRelationship, ...GuarantorIndividualRelationship[]]),
+  relationship_other: z.string().max(500).optional().nullable(),
   ic_number: z
     .string()
     .min(1)
@@ -105,6 +113,7 @@ const guarantorCompanySchema = z.object({
   email: z.string().email(),
   business_name: z.string().min(1).max(200),
   ssm_number: z.string().min(1).max(50),
+  relationship: z.enum([...GUARANTOR_COMPANY_RELATIONSHIPS] as [GuarantorCompanyRelationship, ...GuarantorCompanyRelationship[]]),
   guarantor_agreement: guarantorAgreementSchema.optional(),
 });
 
@@ -129,6 +138,24 @@ export const businessDetailsDataSchema = z
           "This invoice has already been applied on another P2P platform and cannot be submitted.",
         path: ["why_raising_funds", "same_invoice_used"],
       });
+    }
+
+    // Guarantor relationship validation.
+    for (let i = 0; i < data.guarantors.length; i++) {
+      const g = data.guarantors[i];
+      if (g.guarantor_type === "individual") {
+        const relationship = g.relationship;
+        if (relationship === "others") {
+          const other = typeof g.relationship_other === "string" ? g.relationship_other : "";
+          if (!other.trim()) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Please specify how this guarantor is related",
+              path: ["guarantors", i, "relationship_other"],
+            });
+          }
+        }
+      }
     }
   });
 

@@ -8,6 +8,8 @@ export interface ParsedGuarantorInput {
   icNumber?: string;
   businessName?: string;
   ssmNumber?: string;
+  relationship?: string;
+  relationshipOther?: string;
   position: number;
   sourceData: Record<string, unknown>;
 }
@@ -83,12 +85,18 @@ export function parseGuarantorsFromBusinessDetails(businessDetails: unknown): Pa
       const ic = legacyIcNumber(row);
       const explicitId = referenceIdFromRow(row);
       const name = legacyIndividualName(row);
+      const relationship = typeof row.relationship === "string" ? row.relationship : undefined;
+      const relationshipOther = typeof row.relationship_other === "string" ? row.relationship_other : undefined;
+      const legacyOther =
+        typeof row.relationshipOther === "string" ? row.relationshipOther : undefined;
       result.push({
         guarantorId: explicitId || deterministicGuarantorId(index, guarantorType, ic),
         guarantorType,
         email,
         name: name || undefined,
         icNumber: ic || undefined,
+        relationship,
+        relationshipOther: (relationship === "others" ? relationshipOther : undefined) ?? legacyOther,
         position: index,
         sourceData: row,
       });
@@ -104,6 +112,7 @@ export function parseGuarantorsFromBusinessDetails(businessDetails: unknown): Pa
       email,
       businessName: businessName || undefined,
       ssmNumber: ssm || undefined,
+      relationship: typeof row.relationship === "string" ? row.relationship : undefined,
       position: index,
       sourceData: row,
     });

@@ -198,6 +198,7 @@ export function generateBusinessDetailsData(): Record<string, unknown> {
         name: "John Doe",
         ic_number: "901212101234",
         nationality: "MY",
+        relationship: "unrelated_party",
       },
       {
         reference_id: "g-company-abc1234567x",
@@ -205,6 +206,7 @@ export function generateBusinessDetailsData(): Record<string, unknown> {
         email: "compliance@abcholdings.my",
         business_name: "ABC Holdings Sdn Bhd",
         ssm_number: "1234567-X",
+        relationship: "related_party",
       },
     ],
   };
@@ -218,6 +220,32 @@ export function generateAllDataForSteps(options?: {
   return {
     financing_structure: generateFinancingStructureData(approvedIds),
     contract_details: generateContractDetailsData(),
+    company_details: {
+      industry: "Technology",
+      numberOfEmployees: "10",
+      businessAddress: {
+        line1: "23, Jalan Kiara",
+        line2: "",
+        city: "Kuala Lumpur",
+        postalCode: "10250",
+        state: "Kuala Lumpur",
+        country: "MY",
+      },
+      registeredAddress: {
+        line1: "24, Jalan Kiara",
+        line2: "",
+        city: "Kuala Lumpur",
+        postalCode: "10150",
+        state: "Kuala Lumpur",
+        country: "MY",
+      },
+      bankName: "Maybank / Malayan Banking Berhad",
+      bankAccountNumber: "1234567890",
+      contactPersonName: "John Doe",
+      contactPersonEmail: "john.doe@example.com",
+      contactPersonPosition: "CEO",
+      contactPersonContact: "+60123456789",
+    },
     business_details: generateBusinessDetailsData(),
     financial_statements: generateFinancialData(),
     invoice_details: generateInvoiceData(),

@@ -7,6 +7,8 @@ import type { Prisma } from "@prisma/client";
 export type BuildApplicationRevisionSnapshotInput = {
   financing_type: Prisma.JsonValue | null;
   product_version: number | null | undefined;
+  /** Frozen product workflow/config snapshot for the selected product version. */
+  product_workflow?: Prisma.JsonValue | null;
   /** Frozen at submit/resubmit; live row clears on resubmit — kept here for audit/timeline. */
   amendment_acknowledged_workflow_ids?: string[] | null;
   financing_structure: Prisma.JsonValue | null;
@@ -66,6 +68,7 @@ export function buildApplicationRevisionSnapshot(
     product: {
       id: ft?.product_id ?? null,
       version: appFull.product_version ?? null,
+      workflow: appFull.product_workflow ?? null,
     },
     amendment_acknowledged_workflow_ids,
     application: {

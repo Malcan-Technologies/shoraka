@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 import { NotificationList, useHeader } from "@cashsouk/ui";
+import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
+import { cn } from "@/lib/utils";
 
 export default function NotificationsPage() {
   const { setTitle } = useHeader();
@@ -12,7 +14,7 @@ export default function NotificationsPage() {
 
   return (
     <>
-      <div className="flex flex-1 flex-col gap-4 p-4 md:p-8">
+      <div className={cn(issuerMainContentClassName, issuerPageGutterClassName)}>
         <div className="mx-auto w-full max-w-4xl">
           <NotificationList />
         </div>

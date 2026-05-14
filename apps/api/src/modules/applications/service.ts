@@ -1263,6 +1263,7 @@ export class ApplicationService {
     if (status === "SUBMITTED" && currentStatus === "DRAFT") {
       const financingTypeSubmit = application.financing_type as { product_id?: string } | null | undefined;
       const submitProductId = financingTypeSubmit?.product_id;
+      let submitProductWorkflow: Prisma.JsonValue | undefined;
       if (submitProductId) {
         const submitProduct = await this.productRepository.findById(submitProductId);
         if (submitProduct?.workflow) {
@@ -1270,6 +1271,7 @@ export class ApplicationService {
             submitProduct.workflow,
             application.supporting_documents
           );
+          submitProductWorkflow = submitProduct.workflow as Prisma.JsonValue;
         }
       }
       const appFull = await prisma.application.findUnique({
@@ -1285,6 +1287,7 @@ export class ApplicationService {
         const snapshot = buildApplicationRevisionSnapshot({
           financing_type: appFull.financing_type,
           product_version: appFull.product_version,
+          product_workflow: submitProductWorkflow ?? null,
           amendment_acknowledged_workflow_ids: appFull.amendment_acknowledged_workflow_ids,
           financing_structure: appFull.financing_structure,
           company_details: appFull.company_details,

@@ -1,271 +1,287 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { FileText, MoreVertical } from "lucide-react";
 import { useParams } from "next/navigation";
-import type { ContractDetails, CustomerDetails, Invoice } from "@cashsouk/types";
-import { useContract } from "@/hooks/use-contracts";
-import { useInvoicesByContract } from "@/hooks/use-invoices";
-import { FilterButton } from "@/components/dashboard/financing-section";
+import Link from "next/link";
+import { useOrganization } from "@cashsouk/config";
+import { useHeader, formatMoneyDisplay } from "@cashsouk/ui";
+import { Button } from "@/components/ui/button";
+import { useIssuerDashboardContract } from "@/hooks/use-issuer-dashboard";
+import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
+import { cn } from "@/lib/utils";
+import {
+  DashboardInvoiceCard,
+  DEFAULT_INVOICE_FINANCING_LIST_FILTERS,
+  FinancingInvoiceFilterToolbar,
+  LabelValue,
+  filterInvoices,
+  formatDate,
+  displayCell,
+  IssuerFinancingStatusBadge,
+  EM_DASH,
+  type InvoiceFinancingListFiltersState,
+} from "@/components/dashboard/financing-section";
+import { ReviewOfferModal } from "@/components/review-offer-modal";
+import { getOfferStatus } from "@/lib/offer-utils";
+import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labels";
+import { asInvoiceForModal } from "@/types/issuer-dashboard";
+import type { Invoice } from "@cashsouk/types";
 
-/* ============================================================
-   PAGE
-============================================================ */
+function formatMoney(value: unknown) {
+  return formatMoneyDisplay(value, EM_DASH);
+}
 
 export default function ContractDetailsPage() {
   const params = useParams();
   const contractId = params.id as string;
+  const { activeOrganization } = useOrganization();
+  const orgId = activeOrganization?.id;
+  const { setTitle } = useHeader();
+  const [offerModalContext, setOfferModalContext] = useState<Parameters<typeof ReviewOfferModal>[0]["context"]>(null);
+  const [invoiceListFilters, setInvoiceListFilters] = useState<InvoiceFinancingListFiltersState>(
+    DEFAULT_INVOICE_FINANCING_LIST_FILTERS
+  );
 
-  const { data: contract } = useContract(contractId);
-  const { data: invoices = [] } = useInvoicesByContract(contractId);
+  useEffect(() => {
+    setTitle("Contract");
+  }, [setTitle]);
 
-  const contractDetails = (contract?.contract_details ?? {}) as ContractDetails;
-  const customerDetails = (contract?.customer_details ?? {}) as CustomerDetails;
-  const approved = contractDetails.approved_facility ?? 0;
-  const utilised = contractDetails.utilized_facility ?? 0;
-  const utilisationPct = approved > 0 ? Math.round((utilised / approved) * 100) : 0;
+  useEffect(() => {
+    setInvoiceListFilters({ ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS });
+  }, [contractId]);
+
+  const { data, isLoading, isError, error } = useIssuerDashboardContract(orgId, contractId);
+
+  const row = data?.contract ?? null;
+  const invoices = data?.invoices ?? [];
+  const filteredInvoices = useMemo(
+    () => filterInvoices(invoices, { ...invoiceListFilters, customer: "" }),
+    [invoices, invoiceListFilters]
+  );
+
+  const approvedNum = row?.approvedFacilityAmount != null ? Number(row.approvedFacilityAmount) : null;
+  const utilizedNum = row?.utilizedFacilityAmount != null ? Number(row.utilizedFacilityAmount) : null;
+  const utilisationPct =
+    approvedNum != null && utilizedNum != null && approvedNum > 0
+      ? Math.round((utilizedNum / approvedNum) * 100)
+      : 0;
+
+  const contractPeriod =
+    row?.contractStartDate && row?.contractEndDate
+      ? `${formatDate(row.contractStartDate)} to ${formatDate(row.contractEndDate)}`
+      : row?.contractStartDate || row?.contractEndDate
+        ? formatDate(row.contractStartDate ?? row.contractEndDate)
+        : EM_DASH;
+
+  const productLabel =
+    row?.productName?.trim() ? displayCell(row.productName) : "Contract Financing";
+
+  const shellClass = cn(issuerMainContentClassName, issuerPageGutterClassName);
+
+  if (!orgId) {
+    return (
+      <div className={shellClass}>
+        <p className="text-[17px] leading-7 text-muted-foreground">Select an organization to view this contract.</p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className={`${shellClass} flex min-h-[240px] items-center justify-center text-[17px] leading-7 text-muted-foreground`}>
+        Loading contract…
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className={shellClass}>
+        <p className="font-medium text-destructive">Could not load contract</p>
+        <p className="mt-2 text-[17px] leading-7 text-muted-foreground">
+          {error instanceof Error ? error.message : "Unknown error"}
+        </p>
+      </div>
+    );
+  }
+
+  if (!row) {
+    return (
+      <div className={shellClass}>
+        <p className="text-[17px] leading-7 text-muted-foreground">Contract not found or you do not have access.</p>
+      </div>
+    );
+  }
+
+  const stats = row.invoiceStats;
 
   return (
-    <div className="flex-1 px-8 pt-6 pb-12 space-y-8">
+    <div className={cn(shellClass, "space-y-5 md:space-y-6")}>
+      <ReviewOfferModal
+        open={offerModalContext !== null}
+        onOpenChange={(open) => !open && setOfferModalContext(null)}
+        context={offerModalContext}
+      />
 
-      {/* CONTRACT SUMMARY CARD */}
-      <Card className="rounded-xl border border-gray-200 shadow-sm">
-        <div className="px-8 py-7 space-y-6">
-
-          {/* HEADER */}
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-muted-foreground" />
-              <p className="text-[15px] font-medium">
-                Contract :{" "}
-                <span className="font-semibold">{contractDetails.title ?? `Contract ${contractId}`}</span>
-              </p>
-              <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
-                {contract?.status ?? "DRAFT"}
-              </Badge>
-            </div>
-
-            <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
+      <section className="mb-5 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-xl font-bold tracking-tight text-foreground md:text-2xl">
+              {displayCell(row.title)}
+            </h2>
+            <IssuerFinancingStatusBadge kind={resolveIssuerContractDashboardBadge(row.contractStatus)} />
           </div>
+          <p className="mt-0.5 text-sm leading-6 text-muted-foreground md:text-[15px] md:leading-7">
+            {displayCell(row.customerName)} · {contractPeriod}
+          </p>
+        </div>
+        <Button
+          asChild
+          variant="outline"
+          className="h-10 shrink-0 gap-2 rounded-lg border-input px-3 text-sm font-medium focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:rounded-xl sm:px-4"
+        >
+          <Link href="/">Back to dashboard</Link>
+        </Button>
+      </section>
 
-          {/* CONTRACT INFO + FACILITY */}
-          <div className="grid grid-cols-[1fr_420px] gap-10">
-
-            {/* LEFT */}
-            <div className="space-y-3 text-sm text-muted-foreground">
-              <p>
-                Product : <span className="text-foreground font-medium">Contract Financing</span>
-              </p>
-              <p>
-                Customer : <span className="text-foreground font-medium">{customerDetails.name ?? "-"}</span>
-              </p>
-              <p>
-                Contract period :{" "}
-                <span className="text-foreground font-medium">
-                  {contractDetails.start_date && contractDetails.end_date ? `${contractDetails.start_date} to ${contractDetails.end_date}` : "-"}
-                </span>
-              </p>
-            </div>
-
-            {/* RIGHT */}
-            <div className="space-y-4">
-
-              <p className="text-xs text-right text-muted-foreground">
-                Available facility : {contractDetails.available_facility ?? "-"}
-              </p>
-
-              <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-2 bg-black rounded-full" style={{ width: `${utilisationPct}%` }} />
+      <Card className="rounded-xl border border-border bg-background shadow-none">
+        <div className="space-y-5 px-4 py-4 md:px-5 md:py-5">
+          <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-1 items-start gap-x-6 gap-y-5 md:grid-cols-2">
+              <div className="min-w-0 space-y-2">
+                <LabelValue label="Product">{productLabel}</LabelValue>
+                <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
+                <LabelValue label="Contract period">{contractPeriod}</LabelValue>
               </div>
 
-              <div className="flex justify-between text-sm">
-                <div>
-                  <p className="font-medium text-foreground">{utilised}</p>
-                  <p className="text-xs text-muted-foreground">
-                    (Utilized facility)
-                  </p>
+              <div className="min-w-0 w-full space-y-2">
+                <LabelValue label="Available facility" tabular>
+                  {row.availableFacilityAmount != null ? formatMoney(row.availableFacilityAmount) : EM_DASH}
+                </LabelValue>
+                <div className="h-2 w-full overflow-hidden rounded-full border border-border bg-foreground/35 shadow-sm dark:bg-muted">
+                  <div
+                    className="h-2 rounded-full bg-foreground"
+                    style={{ width: `${Math.min(100, Math.max(0, utilisationPct))}%` }}
+                  />
                 </div>
-
-                <div className="text-right">
-                  <p className="font-medium text-foreground">{approved}</p>
-                  <p className="text-xs text-muted-foreground">
-                    (Approved facility)
-                  </p>
+                <div className="flex justify-between gap-4 sm:gap-6">
+                  <div className="min-w-0">
+                    <p className="text-base font-semibold tabular-nums leading-7 text-foreground">
+                      {formatMoney(row.utilizedFacilityAmount)}
+                    </p>
+                    <p className="text-xs font-normal leading-5 text-muted-foreground">(Utilised facility)</p>
+                  </div>
+                  <div className="min-w-0 text-right">
+                    <p className="text-base font-semibold tabular-nums leading-7 text-foreground">
+                      {formatMoney(row.approvedFacilityAmount)}
+                    </p>
+                    <p className="text-xs font-normal leading-5 text-muted-foreground">(Approved facility)</p>
+                  </div>
                 </div>
               </div>
-
             </div>
           </div>
 
           <Separator />
 
-          {/* METRICS SECTION */}
-          <div className="grid grid-cols-2 gap-10 items-start">
-
-            {/* TOTAL + METRIC CARDS */}
+          <div className="grid grid-cols-1 items-start gap-x-6 gap-y-6 xl:grid-cols-2">
             <div className="space-y-3">
-              <p className="text-sm font-medium text-foreground">Total no. of invoices : {invoices.length}</p>
-
-              <div className="grid grid-cols-3 gap-4">
-                <MetricBox label="Approved" value={`${invoices.filter((i: Invoice) => i.status === "APPROVED").length}`} />
-                <MetricBox label="Rejected" value={`${invoices.filter((i: Invoice) => i.status === "REJECTED").length}`} />
-                <MetricBox label="Unfinanced" value={`${invoices.filter((i: Invoice) => i.status !== "APPROVED" && i.status !== "REJECTED").length}`} />
+              <h3 className="text-base font-semibold leading-7 tracking-tight text-foreground md:text-lg">
+                Total no. of invoices: {stats.total}
+              </h3>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <MetricBox label="Approved" value={`${stats.approved}`} />
+                <MetricBox label="Rejected" value={`${stats.rejected}`} />
+                <MetricBox label="Unfinanced" value={`${stats.unfinanced}`} />
               </div>
             </div>
 
-            {/* BREAKDOWN — 3x2 GRID */}
             <div className="space-y-3">
-              <p className="text-sm font-medium text-foreground">
+              <h3 className="text-base font-semibold leading-7 tracking-tight text-foreground md:text-lg">
                 Breakdown of approved invoices
-              </p>
-
-              <div className="grid grid-cols-3 gap-x-6 gap-y-3 text-xs text-muted-foreground">
-                <BreakdownItem label="Funding in progress" value={`${invoices.filter((i: Invoice) => i.status === "SUBMITTED").length}`} />
-                <BreakdownItem label="Active notes" value="0" />
-                <BreakdownItem label="Completed notes" value={`${invoices.filter((i: Invoice) => i.status === "APPROVED").length}`} />
-                <BreakdownItem label="Unsuccessful raise" value={`${invoices.filter((i: Invoice) => i.status === "REJECTED").length}`} />
-                <BreakdownItem label="Disputed notes" value="0" />
+              </h3>
+              <div className="grid grid-cols-1 gap-x-5 gap-y-2 text-sm leading-6 sm:grid-cols-2 md:text-[15px] md:leading-7">
+                <BreakdownItem label="Funding in progress" value={`${stats.fundingInProgress}`} />
+                <BreakdownItem label="Active notes" value={`${stats.activeNotes}`} />
+                <BreakdownItem label="Completed notes" value={`${stats.completedNotes}`} />
+                <BreakdownItem label="Unsuccessful raise" value={`${stats.unsuccessfulRaise}`} />
+                {stats.disputedNotes != null ? (
+                  <BreakdownItem label="Disputed notes" value={`${stats.disputedNotes}`} />
+                ) : null}
               </div>
             </div>
-
           </div>
-
         </div>
       </Card>
 
-      {/* INVOICE SECTION */}
       <div className="space-y-4">
-
-        {/* HEADER WITH FILTERS */}
-        <div className="flex items-center justify-between">
-          <h3 className="text-[15px] font-semibold">Invoices</h3>
-
-          <div className="flex items-center gap-3">
-            <FilterButton label="Status" />
-            <FilterButton label="Submission date" />
-          </div>
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+          <h3 className="text-lg font-semibold leading-7 tracking-tight text-foreground md:text-xl">
+            Invoices
+          </h3>
+          <FinancingInvoiceFilterToolbar
+            rows={invoices}
+            value={invoiceListFilters}
+            onChange={setInvoiceListFilters}
+            onClear={() => setInvoiceListFilters({ ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS })}
+            hideCustomer
+          />
         </div>
 
-        {/* INVOICE CARDS */}
-        <InvoiceCard />
-        <InvoiceCard />
-        <InvoiceCard />
-        <InvoiceCard />
-        <InvoiceCard />
-
+        {invoices.length === 0 ? (
+          <p className="text-[17px] leading-7 text-muted-foreground">No invoices for this contract.</p>
+        ) : filteredInvoices.length === 0 ? (
+          <p className="text-[17px] leading-7 text-muted-foreground">
+            No invoices match these filters.{" "}
+            <button
+              type="button"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+              onClick={() => setInvoiceListFilters({ ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS })}
+            >
+              Clear filters
+            </button>
+          </p>
+        ) : (
+          filteredInvoices.map((inv) => {
+            const modalInvoice = asInvoiceForModal(inv.invoiceForModal) as Invoice;
+            return (
+              <DashboardInvoiceCard
+                key={inv.id}
+                row={inv}
+                offerStatus={getOfferStatus(modalInvoice)}
+                onReviewOffer={() =>
+                  setOfferModalContext({
+                    type: "invoice",
+                    applicationId: inv.applicationId,
+                    invoiceId: inv.id,
+                    invoice: modalInvoice,
+                  })
+                }
+              />
+            );
+          })
+        )}
       </div>
-
     </div>
   );
 }
 
-/* ============================================================
-   COMPONENTS
-============================================================ */
-
 function MetricBox({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border bg-muted/30 px-4 py-3">
-      <p className="text-lg font-semibold text-foreground">{value}</p>
-      <p className="text-xs text-muted-foreground">{label}</p>
+    <div className="rounded-lg border border-border bg-background px-3 py-2.5 shadow-none">
+      <p className="text-xs font-medium leading-5 text-muted-foreground">{label}</p>
+      <p className="text-base font-semibold tabular-nums leading-7 text-foreground">{value}</p>
     </div>
   );
 }
 
 function BreakdownItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between">
-      <span>{label}</span>
-      <span className="font-medium text-foreground">{value}</span>
+    <div className="flex justify-between gap-3">
+      <span className="min-w-0 font-normal text-muted-foreground">{label}</span>
+      <span className="shrink-0 font-medium tabular-nums text-foreground">{value}</span>
     </div>
-  );
-}
-
-// function FilterButton({ label }: { label: string }) {
-//   return (
-//     <Button
-//       variant="outline"
-//       size="sm"
-//       className="h-8 text-xs font-medium gap-1 px-3"
-//     >
-//       <FunnelIcon className="h-3.5 w-3.5" />
-//       {label}
-//     </Button>
-//   );
-// }
-
-// please import from other pages
-function InvoiceCard() {
-  return (
-    <Card className="rounded-xl border border-gray-200 shadow-sm">
-      <div className="px-8 py-6 space-y-5">
-
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <FileText className="h-4 w-4 text-muted-foreground" />
-            <p className="text-sm font-medium">
-              Invoice no : <span className="font-semibold">INV-11110</span>
-            </p>
-            <Badge variant="secondary">Draft</Badge>
-          </div>
-
-          <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
-            <MoreVertical className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-[1fr_420px] gap-10">
-
-          <div className="space-y-3 text-sm text-muted-foreground">
-            <p>
-              Note no : <span className="text-foreground font-medium">-</span>
-            </p>
-            <p>
-              Invoice value :{" "}
-              <span className="text-foreground font-medium">RM 40,000</span>
-            </p>
-            <p>
-              Financing amount :{" "}
-              <span className="text-foreground font-medium">RM 30,000</span>
-            </p>
-          </div>
-
-          <div className="space-y-3 text-sm text-muted-foreground">
-            <p>
-              Submission date :{" "}
-              <span className="text-foreground font-medium">
-                03/02/2026
-              </span>
-            </p>
-            <p>
-              Funding deadline :{" "}
-              <span className="text-foreground font-medium">NA</span>
-            </p>
-            <p>
-              Maturity date :{" "}
-              <span className="text-foreground font-medium">
-                31/07/2026
-              </span>
-            </p>
-
-            <div className="space-y-2 pt-2">
-              <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-2 bg-black rounded-full w-0" />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Funding status (Not yet started)
-              </p>
-            </div>
-
-          </div>
-
-        </div>
-      </div>
-    </Card>
   );
 }

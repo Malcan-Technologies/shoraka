@@ -7,8 +7,10 @@ import { generateMockData as businessDetailsMock } from "../steps/business-detai
 import { generateMockData as contractDetailsMock } from "../steps/contract-details-step";
 import { generateMockData as financialStatementsMock } from "../steps/financial-statements-step";
 import { generateMockData as invoiceDetailsMock } from "../steps/invoice-details-step";
+import { generateMockData as companyDetailsMock } from "../steps/company-details-step";
 
 registerMockGenerator("business_details", businessDetailsMock);
 registerMockGenerator("contract_details", contractDetailsMock);
+registerMockGenerator("company_details", companyDetailsMock);
 registerMockGenerator("financial_statements", financialStatementsMock);
 registerMockGenerator("invoice_details", invoiceDetailsMock);

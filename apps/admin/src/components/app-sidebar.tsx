@@ -26,6 +26,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
+import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -60,16 +61,6 @@ import { APPLICATION_ACTION_REQUIRED_STATUS_SET } from "@/applications/action-re
 import { cn } from "@/lib/utils";
 import type { ApplicationListItem, Product } from "@cashsouk/types";
 
-/** Matching pills under Applications → product: active (emerald) vs inactive (muted). */
-function applicationProductStatusBadgeClass(isInactive: boolean): string {
-  return cn(
-    "inline-flex w-fit shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none",
-    isInactive
-      ? "border-border/70 bg-muted/60 text-muted-foreground dark:border-border dark:bg-muted/40"
-      : "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-100"
-  );
-}
-
 type ApplicationNavGroup = {
   baseKey: string;
   productTitle: string;
@@ -77,6 +68,47 @@ type ApplicationNavGroup = {
   isInactive: boolean;
   pendingActionCount: number;
 };
+
+/** Avoid empty or punctuation-only titles (e.g. "—") in the sidebar. */
+function applicationsSidebarProductLabel(title: string): string {
+  const t = title.trim();
+  if (!t) return "Unnamed product";
+  if (/^[\u002d\u2013\u2014\u2015\u2212_.\u00b7\s]+$/u.test(t)) return "Unnamed product";
+  return t;
+}
+
+function ApplicationNavSectionHeader({
+  kind,
+  count,
+}: {
+  kind: "active" | "inactive";
+  count: number;
+}) {
+  const isActiveSection = kind === "active";
+  const label = isActiveSection ? "Active" : "Inactive";
+  return (
+    <div
+      className="flex h-7 w-full min-w-0 items-center px-2"
+      aria-label={`${label} products, ${count} listed`}
+    >
+      <Badge
+        variant="outline"
+        className={cn(
+          "inline-flex h-5 max-w-full items-center gap-1 border px-1.5 py-0 text-[10px] font-semibold leading-none shadow-none",
+          isActiveSection
+            ? "border-emerald-600/35 bg-emerald-500/10 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-950/45 dark:text-emerald-100"
+            : "border-border/80 bg-muted/60 text-muted-foreground"
+        )}
+      >
+        <span className="truncate">{label}</span>
+        <span className="text-sidebar-foreground/35 dark:text-sidebar-foreground/40" aria-hidden>
+          ·
+        </span>
+        <span className="tabular-nums">{count}</span>
+      </Badge>
+    </div>
+  );
+}
 
 function buildApplicationSidebarGroups(
   products: Product[],
@@ -335,44 +367,107 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                           </SidebarMenuButton>
                         </CollapsibleTrigger>
                         <CollapsibleContent>
-                          <SidebarMenuSub>
-                            {groups.map((g) => (
-                              <SidebarMenuSubItem key={g.baseKey}>
-                                <SidebarMenuSubButton
-                                  asChild
-                                  isActive={
-                                    pathname === g.queuePath || pathname.startsWith(`${g.queuePath}/`)
-                                  }
-                                  className="font-medium h-auto min-h-7 flex-col items-stretch gap-0.5 py-1.5 whitespace-normal"
-                                >
-                                  <Link
-                                    href={g.queuePath}
-                                    title={
-                                      g.isInactive
-                                        ? `${g.productTitle} (Inactive)`
-                                        : `${g.productTitle} (Active)`
-                                    }
-                                    className="flex min-w-0 flex-col gap-0.5"
-                                  >
-                                    <span className="flex min-w-0 items-center gap-2">
-                                      <span className="truncate text-sm leading-tight">{g.productTitle}</span>
-                                      {g.pendingActionCount > 0 && (
-                                        <span className="ml-auto flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-primary px-1 text-xs font-medium tabular-nums text-primary-foreground">
-                                          {g.pendingActionCount}
-                                        </span>
-                                      )}
-                                    </span>
-                                    <span
-                                      className={applicationProductStatusBadgeClass(g.isInactive)}
-                                      aria-label={g.isInactive ? "Inactive product" : "Active product"}
-                                    >
-                                      {g.isInactive ? "Inactive" : "Active"}
-                                    </span>
-                                  </Link>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuSubItem>
-                            ))}
-                          </SidebarMenuSub>
+                          {(() => {
+                            const activeGroups = groups.filter((g) => !g.isInactive);
+                            const inactiveGroups = groups.filter((g) => g.isInactive);
+
+                            const applicationSubLinkClass =
+                              "h-auto min-h-7 flex-row items-center gap-2 py-1 font-normal whitespace-normal";
+
+                            return (
+                              <SidebarMenuSub className="gap-0 py-0">
+                                <li className="list-none px-0">
+                                  <ApplicationNavSectionHeader kind="active" count={activeGroups.length} />
+                                </li>
+
+                                {activeGroups.map((g) => {
+                                  const label = applicationsSidebarProductLabel(g.productTitle);
+                                  return (
+                                    <SidebarMenuSubItem key={g.baseKey} className="pl-2">
+                                      <SidebarMenuSubButton
+                                        asChild
+                                        size="sm"
+                                        isActive={
+                                          pathname === g.queuePath || pathname.startsWith(`${g.queuePath}/`)
+                                        }
+                                        className={applicationSubLinkClass}
+                                      >
+                                        <Link
+                                          href={g.queuePath}
+                                          title={`${label} (active)`}
+                                          className="flex min-w-0 flex-row items-center gap-2"
+                                        >
+                                          <span
+                                            className="mt-px size-1.5 shrink-0 self-center rounded-full bg-emerald-500/80 dark:bg-emerald-400/80"
+                                            aria-hidden
+                                          />
+                                          <span className="min-w-0 flex-1 truncate leading-tight text-sidebar-foreground">
+                                            {label}
+                                          </span>
+                                          {g.pendingActionCount > 0 && (
+                                            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-primary px-1 text-xs font-medium tabular-nums text-primary-foreground">
+                                              {g.pendingActionCount}
+                                            </span>
+                                          )}
+                                        </Link>
+                                      </SidebarMenuSubButton>
+                                    </SidebarMenuSubItem>
+                                  );
+                                })}
+
+                                {activeGroups.length === 0 && (
+                                  <li className="list-none px-2 py-0.5 pl-4 text-xs text-muted-foreground">
+                                    No active products
+                                  </li>
+                                )}
+
+                                {inactiveGroups.length > 0 && (
+                                  <>
+                                    <li className="list-none px-0 pt-1.5">
+                                      <ApplicationNavSectionHeader
+                                        kind="inactive"
+                                        count={inactiveGroups.length}
+                                      />
+                                    </li>
+                                    {inactiveGroups.map((g) => {
+                                      const label = applicationsSidebarProductLabel(g.productTitle);
+                                      return (
+                                        <SidebarMenuSubItem key={g.baseKey} className="pl-2">
+                                          <SidebarMenuSubButton
+                                            asChild
+                                            size="sm"
+                                            isActive={
+                                              pathname === g.queuePath || pathname.startsWith(`${g.queuePath}/`)
+                                            }
+                                            className={applicationSubLinkClass}
+                                          >
+                                            <Link
+                                              href={g.queuePath}
+                                              title={`${label} (inactive)`}
+                                              className="flex min-w-0 flex-row items-center gap-2"
+                                            >
+                                              <span
+                                                className="mt-px size-1.5 shrink-0 self-center rounded-full bg-muted-foreground/35"
+                                                aria-hidden
+                                              />
+                                              <span className="min-w-0 flex-1 truncate leading-tight text-muted-foreground">
+                                                {label}
+                                              </span>
+                                              {g.pendingActionCount > 0 && (
+                                                <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-primary px-1 text-xs font-medium tabular-nums text-primary-foreground">
+                                                  {g.pendingActionCount}
+                                                </span>
+                                              )}
+                                            </Link>
+                                          </SidebarMenuSubButton>
+                                        </SidebarMenuSubItem>
+                                      );
+                                    })}
+                                  </>
+                                )}
+                              </SidebarMenuSub>
+                            );
+                          })()}
                         </CollapsibleContent>
                       </SidebarMenuItem>
                     </Collapsible>
