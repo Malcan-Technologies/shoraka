@@ -24,6 +24,21 @@ export { Logo } from "./components/logo";
 export { Skeleton } from "./components/skeleton";
 export { Avatar, AvatarImage, AvatarFallback } from "./components/avatar";
 export { Badge } from "./components/badge";
+export {
+  NoteStatusBadge,
+  SoukscoreRiskRatingBadge,
+  deriveNoteStatus,
+  getNoteDerivedStatusLabel,
+  isNoteFullySettled,
+  NOTE_STATUS_BADGE_TONE_CLASS,
+  presentNoteStatusForViewer,
+} from "./components/note-status-badge";
+export type {
+  DerivedNoteStatus,
+  NoteStatusBadgeProps,
+  NoteStatusInput,
+  NoteStatusViewer,
+} from "./components/note-status-badge";
 export { Separator } from "./components/separator";
 export { ScrollArea, ScrollBar } from "./components/scroll-area";
 export {

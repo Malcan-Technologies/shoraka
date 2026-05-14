@@ -1,5 +1,12 @@
 import type { SoukscoreRiskRating } from "./invoice-offer-risk-rating";
 
+/** Display label for a stored note reference (e.g. NOTE-20260512-ABC → Note 20260512-ABC). */
+export function formatNoteReferenceDisplay(reference: string | null | undefined): string {
+  const trimmed = (reference ?? "").trim();
+  if (!trimmed) return "";
+  return trimmed.startsWith("NOTE-") ? `Note ${trimmed.slice("NOTE-".length)}` : trimmed;
+}
+
 export enum NoteStatus {
   DRAFT = "DRAFT",
   PUBLISHED = "PUBLISHED",
@@ -132,6 +139,13 @@ export interface NoteSettlementPoolSummary {
   postedAt: string | null;
 }
 
+/** Issuer portal: derived residual payout state for a note with `settlementSummary`. */
+export type IssuerResidualPayoutListStatus =
+  | { kind: "none" }
+  | { kind: "paid" }
+  | { kind: "pending"; withTrustee: boolean }
+  | { kind: "awaiting" };
+
 export interface NoteInvestorRepaymentSummary {
   investedPrincipal: number;
   expectedPayoutAmount: number;
@@ -168,6 +182,8 @@ export interface NoteListItem extends NoteMoneySummary {
   maturityDate: string | null;
   publishedAt: string | null;
   settlementSummary: NoteSettlementPoolSummary | null;
+  /** Issuer portal list: residual trustee payout vs `settlementSummary` (omitted elsewhere). */
+  issuerResidualPayout?: IssuerResidualPayoutListStatus;
   investorRepaymentSummary?: NoteInvestorRepaymentSummary | null;
   createdAt: string;
   updatedAt: string;

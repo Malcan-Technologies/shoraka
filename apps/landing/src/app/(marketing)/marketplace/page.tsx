@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
+import { ChevronRightIcon } from "@heroicons/react/24/outline";
 import { createApiClient } from "@cashsouk/config/src/api-client";
 import type { NoteListItem } from "@cashsouk/types";
 import { PublicMarketplaceBrowser } from "../../../components/public-marketplace-browser";
 
 export const metadata: Metadata = {
-  title: "Marketplace | CashSouk",
+  title: "Invest in qualified notes | CashSouk",
   description:
-    "Browse verified invoice financing and secured lending opportunities on CashSouk.",
+    "Browse qualified invoice financing notes with transparent profit rates, SoukScore risk grades, and live funding progress on CashSouk.",
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -58,9 +59,32 @@ export default async function MarketplacePage({
           aria-hidden
         />
         <div className="relative mx-auto max-w-7xl px-6 py-10 md:py-14 lg:py-16">
+          <div className="relative z-[1] mb-10 space-y-6 md:mb-12">
+            <div className="inline-flex max-w-full flex-wrap items-center overflow-hidden rounded-full border border-border bg-card text-[15px] shadow-sm">
+              <span className="inline-flex items-center gap-2 bg-muted px-4 py-2 font-medium text-secondary-foreground">
+                <span className="size-2 shrink-0 rounded-full bg-primary" aria-hidden />
+                Marketplace
+              </span>
+              <span className="inline-flex items-center gap-1 px-4 py-2 font-medium text-foreground">
+                Live listings
+                <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+              </span>
+            </div>
+
+            <h1 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl lg:text-[2.75rem] lg:leading-[1.15]">
+              Invest in verified secured loans
+            </h1>
+
+            <p className="max-w-[40rem] text-[17px] leading-7 text-muted-foreground">
+              Explore opportunities reviewed for clarity and structure—see profit rates, risk
+              grades, and funding progress before you commit.
+            </p>
+          </div>
+
           <PublicMarketplaceBrowser
             notes={notes}
             initialFilters={{
+              q: getSingleSearchParam(filters.q),
               industry: getSingleSearchParam(filters.industry),
               risk: getSingleSearchParam(filters.risk),
               profit: getSingleSearchParam(filters.profit),

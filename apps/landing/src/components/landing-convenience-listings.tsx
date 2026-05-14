@@ -101,9 +101,10 @@ function resolveMarketplaceDaysLeft(maturityDate?: string | null): number | null
 function mapNoteToInvestmentListing(note: NoteListItem): InvestmentListingData {
   const daysLeft = resolveMarketplaceDaysLeft(note.maturityDate);
   return {
-    title: note.productName?.trim() || note.title.trim() || null,
+    id: note.id,
+    noteReference: note.noteReference.trim() || null,
+    productName: note.productName?.trim() || null,
     sector: note.issuerIndustry?.trim() || null,
-    noteRef: note.noteReference.replace(/^NOTE-/, "").trim() || null,
     daysLeft,
     funded: note.fundedAmount,
     goal: note.targetAmount,

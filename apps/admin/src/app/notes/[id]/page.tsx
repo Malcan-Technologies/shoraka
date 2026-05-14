@@ -41,7 +41,7 @@ import {
   type NoteLifecycleAction,
 } from "@/notes/components/note-lifecycle-card";
 import { NoteInvestorsPanel } from "@/notes/components/note-investors-panel";
-import { NoteStatusBadge } from "@/notes/components/note-status-badge";
+import { NoteStatusBadge } from "@cashsouk/ui";
 import { NoteTermsPanel } from "@/notes/components/note-terms-panel";
 import { NoteTimelinePanel } from "@/notes/components/note-timeline-panel";
 import { SettlementPanel } from "@/notes/components/settlement-panel";

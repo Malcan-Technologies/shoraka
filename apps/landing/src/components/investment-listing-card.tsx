@@ -1,18 +1,20 @@
 import Link from "next/link";
 import {
   ArrowDownTrayIcon,
-  EllipsisVerticalIcon,
-} from "@heroicons/react/24/outline";
-import {
   BuildingOffice2Icon,
   DocumentTextIcon,
-} from "@heroicons/react/24/solid";
-import { Button, cn } from "@cashsouk/ui";
+  EllipsisVerticalIcon,
+} from "@heroicons/react/24/outline";
+import { formatNoteReferenceDisplay } from "@cashsouk/types";
+import { Button, SoukscoreRiskRatingBadge, cn } from "@cashsouk/ui";
 
 export type InvestmentListingData = {
-  title: string | null;
+  id: string;
+  /** Stored note reference; card headline uses formatted display. */
+  noteReference: string | null;
+  /** Product name (document icon row). */
+  productName: string | null;
   sector: string | null;
-  noteRef: string | null;
   daysLeft: number | null;
   funded: number;
   goal: number;
@@ -44,24 +46,25 @@ export function InvestmentListingCard({
 }) {
   const pct =
     data.goal > 0 ? Math.min(100, Math.round((data.funded / data.goal) * 100)) : 0;
+  const riskRatingForBadge = data.score?.trim() ? data.score : null;
 
   return (
     <article className="rounded-2xl border border-border bg-card shadow-sm">
       <div className="p-5">
         <div className="space-y-4">
           <div className="flex items-start justify-between gap-3">
-            <div className="space-y-2">
+            <div className="space-y-1">
               <h3 className="text-lg font-semibold tracking-tight text-foreground">
-                {textOrDash(data.title)}
+                {textOrDash(formatNoteReferenceDisplay(data.noteReference))}
               </h3>
-              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
-                  <BuildingOffice2Icon className="h-3.5 w-3.5 text-primary" aria-hidden />
+                  <BuildingOffice2Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
                   {textOrDash(data.sector)}
                 </span>
-                <span className="inline-flex items-center gap-1">
-                  <DocumentTextIcon className="h-3.5 w-3.5 text-primary" aria-hidden />
-                  Note: {textOrDash(data.noteRef)}
+                <span className="inline-flex min-w-0 items-center gap-1">
+                  <DocumentTextIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  <span className="truncate">Product: {textOrDash(data.productName)}</span>
                 </span>
               </div>
             </div>
@@ -98,23 +101,33 @@ export function InvestmentListingCard({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 divide-x divide-border">
-            <div className="px-3 py-4 text-center">
-              <p className="text-4xl font-semibold leading-none text-foreground">
-                {data.ratePercent !== null ? `${data.ratePercent}%` : "-"}
-              </p>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="text-center">
+              <div className="rounded-2xl border bg-muted/20 p-3">
+                <p className="flex min-h-[4.25rem] items-center justify-center text-4xl font-semibold leading-none tabular-nums text-foreground">
+                  {data.ratePercent !== null ? `${data.ratePercent}%` : "-"}
+                </p>
+              </div>
               <p className="mt-1 text-[11px] text-muted-foreground">Per annum</p>
             </div>
-            <div className="px-3 py-4 text-center">
-              <p className="text-4xl font-semibold leading-none text-foreground">
-                {data.tenorDays ?? "-"}
-              </p>
+            <div className="text-center">
+              <div className="rounded-2xl border bg-muted/20 p-3">
+                <p className="flex min-h-[4.25rem] items-center justify-center text-4xl font-semibold leading-none tabular-nums text-foreground">
+                  {data.tenorDays ?? "-"}
+                </p>
+              </div>
               <p className="mt-1 text-[11px] text-muted-foreground">Days</p>
             </div>
-            <div className="px-3 py-4 text-center">
-              <p className="text-4xl font-semibold leading-none text-foreground">
-                {textOrDash(data.score)}
-              </p>
+            <div className="text-center">
+              <div className="rounded-2xl border bg-muted/20 p-3">
+                <SoukscoreRiskRatingBadge
+                  riskRating={riskRatingForBadge}
+                  className={cn(
+                    "flex min-h-[4.25rem] w-full items-center justify-center rounded-xl px-2 py-2",
+                    "text-4xl font-semibold leading-none tracking-tight"
+                  )}
+                />
+              </div>
               <p className="mt-1 text-[11px] text-muted-foreground">Score</p>
             </div>
           </div>

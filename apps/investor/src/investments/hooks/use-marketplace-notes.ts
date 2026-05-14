@@ -46,11 +46,12 @@ export function useMarketplaceNotes({
   });
 }
 
-export function useMarketplaceNote(noteId?: string) {
+export function useMarketplaceNote(noteId?: string, options?: { enabled?: boolean }) {
   const apiClient = useMarketplaceApiClient();
+  const allowFetch = options?.enabled ?? true;
   return useQuery({
     queryKey: marketplaceKeys.detail(noteId),
-    enabled: Boolean(noteId),
+    enabled: Boolean(noteId) && allowFetch,
     queryFn: async () => {
       if (!noteId) throw new Error("Note ID is required");
       const response = await apiClient.getMarketplaceNote(noteId);
@@ -126,16 +127,21 @@ export function useInvestorInvestments() {
   });
 }
 
-export function useInvestorBalanceActivity({
-  page = 1,
-  pageSize = 20,
-}: {
-  page?: number;
-  pageSize?: number;
-} = {}) {
+export function useInvestorBalanceActivity(
+  {
+    page = 1,
+    pageSize = 20,
+  }: {
+    page?: number;
+    pageSize?: number;
+  } = {},
+  options?: { enabled?: boolean }
+) {
   const apiClient = useMarketplaceApiClient();
+  const allowFetch = options?.enabled ?? true;
   return useQuery({
     queryKey: marketplaceKeys.investorBalanceActivity({ page, pageSize }),
+    enabled: allowFetch,
     queryFn: async () => {
       const response = await apiClient.getInvestorBalanceActivity({ page, pageSize });
       if (!response.success) throw new Error(response.error.message);

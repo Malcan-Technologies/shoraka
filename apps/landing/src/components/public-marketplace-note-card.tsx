@@ -3,18 +3,21 @@
 import Link from "next/link";
 import {
   ArrowDownTrayIcon,
-  EllipsisVerticalIcon,
-} from "@heroicons/react/24/outline";
-import {
   BuildingOffice2Icon,
   DocumentTextIcon,
-} from "@heroicons/react/24/solid";
-import { Button, cn } from "@cashsouk/ui";
+  EllipsisVerticalIcon,
+} from "@heroicons/react/24/outline";
+import { formatNoteReferenceDisplay } from "@cashsouk/types";
+import { Button, SoukscoreRiskRatingBadge, cn } from "@cashsouk/ui";
 
 export type PublicMarketplaceNote = {
   id: string;
   noteCode: string | null;
-  title: string | null;
+  issuerName: string | null;
+  /** Human-readable listing title (search). Card headline uses note reference. */
+  noteTitle: string | null;
+  /** Product name (document icon row). */
+  productName: string | null;
   industry: string | null;
   fundedAmount: number;
   goalAmount: number;
@@ -44,44 +47,45 @@ export function PublicMarketplaceNoteCard({ note }: { note: PublicMarketplaceNot
     progressDenominator > 0
       ? Math.min(100, Math.round((note.fundedAmount / progressDenominator) * 100))
       : 0;
+  const riskRatingForBadge = note.riskScore?.trim() ? note.riskScore : null;
 
   return (
     <article
       className={cn(
-        "rounded-2xl border border-border bg-card shadow-sm",
+        "flex h-full flex-col rounded-2xl border border-border bg-card shadow-sm",
         note.isFeatured && "border-border bg-card"
       )}
     >
-      <div className="p-5">
-        <div className="space-y-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-2">
-              <h3 className="text-lg font-semibold tracking-tight text-foreground">
-                {textOrDash(note.title)}
+      <div className="flex flex-1 flex-col p-5">
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
+          <div className="flex shrink-0 items-start gap-3">
+            <div className="min-w-0 flex-1 space-y-1">
+              <h3 className="line-clamp-2 text-lg font-semibold leading-snug tracking-tight text-foreground">
+                {textOrDash(formatNoteReferenceDisplay(note.noteCode))}
               </h3>
-              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <div className="flex min-h-[2.75rem] flex-col gap-1.5 text-xs text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1">
                 <span className="inline-flex items-center gap-1">
-                  <BuildingOffice2Icon className="h-3.5 w-3.5 text-primary" />
+                  <BuildingOffice2Icon className="h-3.5 w-3.5 shrink-0" />
                   {textOrDash(note.industry)}
                 </span>
-                <span className="inline-flex items-center gap-1">
-                  <DocumentTextIcon className="h-3.5 w-3.5 text-primary" />
-                  Note: {textOrDash(note.noteCode)}
+                <span className="inline-flex min-w-0 items-center gap-1">
+                  <DocumentTextIcon className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">Product: {textOrDash(note.productName)}</span>
                 </span>
               </div>
             </div>
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 rounded-full text-muted-foreground hover:bg-muted hover:text-primary"
+              className="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:bg-muted hover:text-primary"
               aria-label="More note actions"
             >
               <EllipsisVerticalIcon className="h-4 w-4" />
             </Button>
           </div>
 
-          <div className="space-y-2">
-            <div className="flex justify-end">
+          <div className="shrink-0 space-y-2">
+            <div className="flex h-5 items-center justify-end">
               <span className="text-xs text-muted-foreground">
                 {note.daysLeft !== null ? `${note.daysLeft} day(s) left` : "-"}
               </span>
@@ -92,34 +96,44 @@ export function PublicMarketplaceNoteCard({ note }: { note: PublicMarketplaceNot
                 style={{ width: `${fundingProgress}%` }}
               />
             </div>
-            <div className="flex items-center justify-between text-xs font-medium text-foreground">
-              <span>Funded {currency(note.fundedAmount)}</span>
-              <span>Goal {currency(note.goalAmount)}</span>
+            <div className="flex min-h-10 items-center justify-between gap-2 text-xs font-medium tabular-nums text-foreground">
+              <span className="min-w-0 truncate">Funded {currency(note.fundedAmount)}</span>
+              <span className="min-w-0 shrink-0 text-right">Goal {currency(note.goalAmount)}</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 divide-x divide-border">
-            <div className="px-3 py-4 text-center">
-              <div className="text-4xl font-semibold leading-none text-foreground">
-                {note.annualReturn !== null ? `${note.annualReturn}%` : "-"}
+          <div className="grid shrink-0 grid-cols-3 gap-3 items-stretch">
+            <div className="flex flex-col text-center">
+              <div className="flex flex-1 flex-col rounded-2xl border bg-muted/20 p-3">
+                <div className="flex min-h-[4.25rem] flex-1 items-center justify-center text-4xl font-semibold leading-none tabular-nums text-foreground">
+                  {note.annualReturn !== null ? `${note.annualReturn}%` : "-"}
+                </div>
               </div>
               <div className="mt-1 text-[11px] text-muted-foreground">Per annum</div>
             </div>
-            <div className="px-3 py-4 text-center">
-              <div className="text-4xl font-semibold leading-none text-foreground">
-                {note.tenorDays ?? "-"}
+            <div className="flex flex-col text-center">
+              <div className="flex flex-1 flex-col rounded-2xl border bg-muted/20 p-3">
+                <div className="flex min-h-[4.25rem] flex-1 items-center justify-center text-4xl font-semibold leading-none tabular-nums text-foreground">
+                  {note.tenorDays ?? "-"}
+                </div>
               </div>
               <div className="mt-1 text-[11px] text-muted-foreground">Days</div>
             </div>
-            <div className="px-3 py-4 text-center">
-              <div className="text-4xl font-semibold leading-none text-foreground">
-                {textOrDash(note.riskScore)}
+            <div className="flex flex-col text-center">
+              <div className="flex flex-1 flex-col rounded-2xl border bg-muted/20 p-3">
+                <SoukscoreRiskRatingBadge
+                  riskRating={riskRatingForBadge}
+                  className={cn(
+                    "flex min-h-[4.25rem] w-full flex-1 items-center justify-center rounded-xl px-2 py-2",
+                    "text-4xl font-semibold leading-none tracking-tight"
+                  )}
+                />
               </div>
               <div className="mt-1 text-[11px] text-muted-foreground">Score</div>
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="mt-auto shrink-0 space-y-2 border-t border-border pt-4">
             <Button
               asChild={note.investable}
               variant="default"

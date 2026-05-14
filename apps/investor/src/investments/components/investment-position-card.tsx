@@ -9,11 +9,10 @@ import {
   PercentBadgeIcon,
   ScaleIcon,
 } from "@heroicons/react/24/outline";
-import type { NoteListItem } from "@cashsouk/types";
-import { Badge } from "@/components/ui/badge";
+import { formatNoteReferenceDisplay, type NoteListItem } from "@cashsouk/types";
+import { getNoteDerivedStatusLabel, NoteStatusBadge, SoukscoreRiskRatingBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { getInvestmentStatusLabel } from "@/investments/sort-investments";
 
 function formatCurrency(value: number) {
   const isWholeNumber = Number.isInteger(value);
@@ -31,17 +30,6 @@ function resolveTenureDays(maturityDate: string | null) {
   return Math.max(0, Math.ceil(duration / (1000 * 60 * 60 * 24)));
 }
 
-function getStatusTone(note: NoteListItem) {
-  const label = getInvestmentStatusLabel(note);
-  if (label === "Active" || label === "Settled") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }
-  if (label === "Pending confirmation") {
-    return "border-border bg-muted text-muted-foreground";
-  }
-  return "border-border bg-muted text-foreground";
-}
-
 function HeaderDivider({ className }: { className?: string }) {
   return <span className={cn("h-4 w-px shrink-0 bg-border", className)} aria-hidden="true" />;
 }
@@ -51,9 +39,9 @@ function formatDate(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleDateString("en-MY", {
-    year: "numeric",
-    month: "short",
     day: "numeric",
+    month: "short",
+    year: "numeric",
   });
 }
 
@@ -69,6 +57,7 @@ type InvestmentPositionCardProps = {
   showDetailLink?: boolean;
   footerRows?: InvestmentPositionCardFooterRow[];
   investmentDateValue?: string | null;
+  className?: string;
 };
 
 export function InvestmentPositionCard({
@@ -77,6 +66,7 @@ export function InvestmentPositionCard({
   showDetailLink = true,
   footerRows = [],
   investmentDateValue,
+  className,
 }: InvestmentPositionCardProps) {
   const repaymentSummary = note.investorRepaymentSummary ?? null;
   const expectedReturn = Number(
@@ -91,79 +81,72 @@ export function InvestmentPositionCard({
       note.settlementSummary?.investorPoolAmount ??
       note.fundedAmount
   );
-  const totalExpectedAmount = Number(
-    repaymentSummary?.expectedPayoutAmount ??
-      investedAmount + investedAmount * (expectedReturn / 100)
-  );
-  const statusLabel = getInvestmentStatusLabel(note);
+  const yourProfit = repaymentReceived - investedAmount;
+  const investorStatusLabel = getNoteDerivedStatusLabel(note, { viewer: "investor" });
+  const yourProfitDisplayed =
+    investorStatusLabel === "Settled" ? yourProfit : Math.max(0, yourProfit);
+  const isInvestorSettled = investorStatusLabel === "Settled";
+  const repaymentAmountDisplay =
+    !isInvestorSettled && repaymentReceived <= 0 ? "—" : formatCurrency(repaymentReceived);
+  const profitAmountDisplay =
+    !isInvestorSettled && yourProfitDisplayed <= 0 ? "—" : formatCurrency(yourProfitDisplayed);
   const hasRiskRating = Boolean(note.riskRating && note.riskRating.trim() !== "");
   const hasActualReturn = typeof repaymentSummary?.actualReturnRatePercent === "number";
   const actualReturn = hasActualReturn
     ? `${Number(repaymentSummary?.actualReturnRatePercent).toFixed(1)}%`
-    : "N/A";
-  const progressValue = Number(
-    repaymentSummary?.progressPercent ??
-      (note.targetAmount > 0 ? Math.min(100, (note.fundedAmount / note.targetAmount) * 100) : 0)
-  );
+    : "-";
   const returnLabel = "Actual return";
   const displayDate = formatDate(investmentDateValue ?? note.updatedAt);
+  const resolvedFooterRows: InvestmentPositionCardFooterRow[] = [
+    { label: "Maturity date", value: formatDate(note.maturityDate) },
+    ...footerRows.filter((row) => row.label !== "Maturity date"),
+  ];
 
   return (
-    <div className="rounded-xl border border-border bg-card p-3">
-      <div className="flex flex-col gap-2.5 border-b border-border pb-2.5 lg:flex-row lg:items-center lg:gap-4">
-        <div className="flex items-center gap-3 lg:shrink-0">
-          <h3 className="text-l font-semibold leading-none tracking-tight text-foreground">
-            {note.noteReference.replace("NOTE-", "Note ")}
-          </h3>
-          {hasRiskRating ? (
-            <>
-              <HeaderDivider />
-              <p className="text-sm font-semibold leading-none text-muted-foreground md:text-base">
-                {note.riskRating}
-              </p>
-            </>
-          ) : null}
-        </div>
-        <HeaderDivider className="hidden lg:block" />
-        <div className="min-w-0 flex-1 lg:pr-6">
-          <div className="mb-1.5 flex items-center justify-between gap-1.5 text-xs leading-tight">
-            <p className="min-w-0 text-sm text-muted-foreground">
-              <span className="font-semibold text-sm text-foreground">
-                {formatCurrency(repaymentReceived)}
-              </span>{" "}
-              (Repayment received)
-            </p>
-            <p className="min-w-0 text-right text-sm text-muted-foreground">
-              <span className="font-semibold text-sm text-foreground">
-                {formatCurrency(totalExpectedAmount)}
-              </span>{" "}
-              (Principal + Expected profit)
-            </p>
+    <div className={cn("rounded-xl border border-border bg-card p-3 sm:p-4", className)}>
+      <div className="space-y-3 border-b border-border pb-3">
+        <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-[minmax(0,1fr)_auto] min-[520px]:items-start">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
+            <h3 className="break-words text-base font-semibold leading-snug tracking-tight text-foreground">
+              {formatNoteReferenceDisplay(note.noteReference)}
+            </h3>
+            {hasRiskRating ? (
+              <>
+                <HeaderDivider className="hidden min-[380px]:block" />
+                <SoukscoreRiskRatingBadge
+                  riskRating={note.riskRating}
+                  className="shrink-0 border px-2 py-0.5 text-sm font-semibold leading-none tracking-tight"
+                />
+              </>
+            ) : null}
           </div>
-          <div className="h-2.5 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-foreground transition-all"
-              style={{ width: `${Math.max(0, Math.min(100, progressValue))}%` }}
+          <div className="flex min-w-0 justify-start min-[520px]:justify-end">
+            <NoteStatusBadge
+              note={note}
+              viewer="investor"
+              className="max-w-full text-xs font-semibold"
             />
           </div>
         </div>
-        <div className="lg:flex lg:w-[12rem] lg:justify-end">
-          <Badge
-            variant="outline"
-            className={cn(
-              "w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold lg:shrink-0",
-              getStatusTone(note)
-            )}
-          >
-            {statusLabel}
-            {statusLabel === "Active" && tenureDays > 0 ? ` (${tenureDays} days)` : ""}
-          </Badge>
+        <div className="flex min-w-0 flex-col gap-2">
+          <p className="break-words text-sm leading-snug text-muted-foreground">
+            Repayment received:{" "}
+            <span className="font-semibold text-foreground tabular-nums">
+              {repaymentAmountDisplay}
+            </span>
+          </p>
+          <p className="break-words text-sm leading-snug text-muted-foreground">
+            Your profit:{" "}
+            <span className="font-semibold text-foreground tabular-nums">
+              {profitAmountDisplay}
+            </span>
+          </p>
         </div>
       </div>
 
-      <div className="mt-1.5">
-        <div className="grid gap-2 xl:grid-cols-[1.7fr_0.8fr]">
-          <div className="grid gap-2 sm:grid-cols-2">
+      <div className="mt-3">
+        <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] xl:items-start">
+          <div className="grid min-w-0 grid-cols-1 gap-2 lg:grid-cols-2">
             <div className="rounded-xl bg-muted/20 p-2">
               <div className="flex items-start gap-2">
                 <div className="rounded-xl bg-muted p-2 text-muted-foreground">
@@ -218,39 +201,38 @@ export function InvestmentPositionCard({
             </div>
           </div>
 
-          <div className="rounded-xl bg-muted/20 p-2.5 text-center">
-            <p className="mt-2 text-[clamp(2.4rem,4.8vw,3.4rem)] font-semibold leading-none tracking-tight text-foreground">
+          <div className="flex min-w-0 flex-col rounded-xl bg-muted/20 p-2.5 text-center">
+            <p className="mt-1 text-[clamp(2rem,5vw,3.25rem)] font-semibold leading-none tracking-tight text-foreground">
               {actualReturn}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">{returnLabel}</p>
-            {footerRows.length > 0 ? (
-              <div className="mt-3 space-y-2 border-t border-border/60 pt-2">
-                {footerRows.map((row) => {
-                  const RowIcon = row.icon ?? CalendarDaysIcon;
-                  return (
-                    <div
-                      key={row.label}
-                      className="flex items-center justify-between gap-3 text-sm"
-                    >
-                      <div className="inline-flex items-center gap-2 text-muted-foreground">
-                        <RowIcon className="h-4 w-4" />
-                        {row.label}
-                      </div>
-                      <span className="font-medium text-foreground">{row.value}</span>
+            <div className="mt-3 space-y-2 border-t border-border/60 pt-2">
+              {resolvedFooterRows.map((row) => {
+                const RowIcon = row.icon ?? CalendarDaysIcon;
+                return (
+                  <div
+                    key={row.label}
+                    className="flex items-center justify-between gap-3 text-sm"
+                  >
+                    <div className="inline-flex items-center gap-2 text-muted-foreground">
+                      <RowIcon className="h-4 w-4" />
+                      {row.label}
                     </div>
-                  );
-                })}
-              </div>
-            ) : showDetailLink ? (
-              <div className="mt-3 border-t border-border/60 pt-2">
-                <Button asChild variant="link" className="h-auto p-0 text-sm text-primary">
-                  <Link href={detailHref} className="inline-flex items-center gap-1.5">
-                    View details
-                    <ArrowRightIcon className="h-3.5 w-3.5" />
-                  </Link>
-                </Button>
-              </div>
-            ) : null}
+                    <span className="font-medium text-foreground">{row.value}</span>
+                  </div>
+                );
+              })}
+              {showDetailLink ? (
+                <div className="flex justify-end pt-1">
+                  <Button asChild variant="link" className="h-auto p-0 text-sm text-primary">
+                    <Link href={detailHref} className="inline-flex items-center gap-1.5">
+                      View details
+                      <ArrowRightIcon className="h-3.5 w-3.5" />
+                    </Link>
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>

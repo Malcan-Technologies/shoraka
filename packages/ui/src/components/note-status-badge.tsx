@@ -12,7 +12,8 @@ import {
   TruckIcon,
   XCircleIcon,
 } from "@heroicons/react/24/outline";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "./badge";
+import { cn } from "../lib/utils";
 
 type Tone =
   | "draft"
@@ -23,7 +24,8 @@ type Tone =
   | "destructive"
   | "neutral";
 
-const TONE_CLASS: Record<Tone, string> = {
+/** Tailwind classes aligned with admin notes registry status badges. */
+export const NOTE_STATUS_BADGE_TONE_CLASS: Record<Tone, string> = {
   draft:
     "border-transparent bg-status-action-bg text-status-action-text dark:bg-amber-950/40 dark:text-amber-300",
   info: "border-transparent bg-status-submitted-bg text-status-submitted-text dark:bg-blue-950/40 dark:text-blue-300",
@@ -45,6 +47,9 @@ export interface DerivedNoteStatus {
   tone: Tone;
   icon: React.ComponentType<{ className?: string }>;
 }
+
+/** Issuer sees residual-refund workflow; investor treats that state as settled. */
+export type NoteStatusViewer = "issuer" | "investor";
 
 export interface NoteStatusInput {
   status: string;
@@ -85,7 +90,7 @@ export function deriveNoteStatus(input: NoteStatusInput): DerivedNoteStatus {
         icon: TruckIcon,
       };
     }
-    return { label: "Fully repaid", tone: "success", icon: CheckBadgeIcon };
+    return { label: "Settled", tone: "success", icon: CheckBadgeIcon };
   }
   if (input.status === "ARREARS" || input.servicingStatus === "ARREARS") {
     return { label: "Arrears", tone: "warning", icon: ExclamationTriangleIcon };
@@ -138,6 +143,18 @@ export function deriveNoteStatus(input: NoteStatusInput): DerivedNoteStatus {
   return { label: input.status, tone: "neutral", icon: ArchiveBoxIcon };
 }
 
+const AWAITING_RESIDUAL_REFUND_LABEL = "Awaiting residual refund";
+
+export function presentNoteStatusForViewer(
+  derived: DerivedNoteStatus,
+  viewer: NoteStatusViewer
+): DerivedNoteStatus {
+  if (viewer === "investor" && derived.label === AWAITING_RESIDUAL_REFUND_LABEL) {
+    return { label: "Settled", tone: "success", icon: CheckBadgeIcon };
+  }
+  return derived;
+}
+
 function isNoteDetail(note: NoteDetail | NoteListItem): note is NoteDetail {
   return "withdrawals" in note || "settlements" in note;
 }
@@ -167,32 +184,61 @@ function buildInput(note: NoteDetail | NoteListItem): NoteStatusInput {
     );
     return { ...base, hasPostedSettlement, pendingResidual, pendingDisbursement };
   }
-  // NoteListItem path: infer from the rolled-up signals we do have.
-  // - settlementSummary present means settlement is posted.
-  // - If status is still open while settlement is posted, the issuer residual is still in flight
-  //   (postSettlement only moves the note to REPAID once the residual withdrawal completes).
-  // - FUNDING status means the funding closed but the issuer disbursement isn't completed yet.
+
   const hasPostedSettlement = note.settlementSummary != null;
+  const residualInFlight =
+    "issuerResidualPayout" in note &&
+    note.issuerResidualPayout != null &&
+    (note.issuerResidualPayout.kind === "pending" || note.issuerResidualPayout.kind === "awaiting");
   const pendingResidual =
-    hasPostedSettlement &&
-    (note.status === "ACTIVE" || note.status === "ARREARS" || note.status === "DEFAULTED");
+    residualInFlight ||
+    (hasPostedSettlement &&
+      (note.status === "ACTIVE" || note.status === "ARREARS" || note.status === "DEFAULTED"));
   const pendingDisbursement = note.status === "FUNDING";
+
   return { ...base, hasPostedSettlement, pendingResidual, pendingDisbursement };
 }
 
-interface NoteStatusBadgeProps {
+/** True when the note matches the fully settled NoteStatusBadge label ("Settled"). */
+export function isNoteFullySettled(note: NoteDetail | NoteListItem): boolean {
+  return deriveNoteStatus(buildInput(note)).label === "Settled";
+}
+
+/** Primary label shown on `NoteStatusBadge`; use when filtering so chips and list stay aligned. */
+export function getNoteDerivedStatusLabel(
+  note: NoteDetail | NoteListItem,
+  options?: { viewer?: NoteStatusViewer }
+): string {
+  const raw = deriveNoteStatus(buildInput(note));
+  return presentNoteStatusForViewer(raw, options?.viewer ?? "issuer").label;
+}
+
+export interface NoteStatusBadgeProps {
   note: NoteDetail | NoteListItem;
   showDetail?: boolean;
   className?: string;
+  viewer?: NoteStatusViewer;
 }
 
-export function NoteStatusBadge({ note, showDetail = false, className }: NoteStatusBadgeProps) {
-  const status = React.useMemo(() => deriveNoteStatus(buildInput(note)), [note]);
+export function NoteStatusBadge({
+  note,
+  showDetail = false,
+  className,
+  viewer = "issuer",
+}: NoteStatusBadgeProps) {
+  const status = React.useMemo(() => {
+    const raw = deriveNoteStatus(buildInput(note));
+    return presentNoteStatusForViewer(raw, viewer);
+  }, [note, viewer]);
   const Icon = status.icon;
   const badge = (
     <Badge
       variant="outline"
-      className={`max-w-full gap-1 truncate ${TONE_CLASS[status.tone]} ${className ?? ""}`}
+      className={cn(
+        "max-w-full gap-1 truncate",
+        NOTE_STATUS_BADGE_TONE_CLASS[status.tone],
+        className
+      )}
     >
       <Icon className="h-3.5 w-3.5 shrink-0" />
       <span className="truncate">{status.label}</span>
@@ -206,5 +252,40 @@ export function NoteStatusBadge({ note, showDetail = false, className }: NoteSta
         <span className="text-[11px] text-muted-foreground">{status.detail}</span>
       ) : null}
     </div>
+  );
+}
+
+function soukscoreRiskRatingClass(riskRating: string | null | undefined): string {
+  const grade = riskRating?.trim().toUpperCase();
+  if (grade === "AAA" || grade === "AA") {
+    return NOTE_STATUS_BADGE_TONE_CLASS.success;
+  }
+  if (grade === "A" || grade === "BBB") {
+    return NOTE_STATUS_BADGE_TONE_CLASS.info;
+  }
+  if (grade === "BB") {
+    return NOTE_STATUS_BADGE_TONE_CLASS.warning;
+  }
+  if (grade === "B") {
+    return NOTE_STATUS_BADGE_TONE_CLASS.destructive;
+  }
+  return NOTE_STATUS_BADGE_TONE_CLASS.neutral;
+}
+
+export function SoukscoreRiskRatingBadge({
+  riskRating,
+  className,
+}: {
+  riskRating: string | null | undefined;
+  className?: string;
+}) {
+  const display = riskRating?.trim() ? riskRating.trim().toUpperCase() : null;
+  return (
+    <Badge
+      variant="outline"
+      className={cn("max-w-full truncate", soukscoreRiskRatingClass(display), className)}
+    >
+      {display ?? "-"}
+    </Badge>
   );
 }

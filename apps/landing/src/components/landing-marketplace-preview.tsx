@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Button, Card, CardContent } from "@cashsouk/ui";
-import type { NoteListItem } from "@cashsouk/types";
+import { BuildingOffice2Icon, DocumentTextIcon } from "@heroicons/react/24/outline";
+import { Button, Card, CardContent, SoukscoreRiskRatingBadge, cn } from "@cashsouk/ui";
+import { formatNoteReferenceDisplay, type NoteListItem } from "@cashsouk/types";
 
 function formatCurrency(amount: number) {
   return `RM ${amount.toLocaleString("en-MY", {
@@ -66,63 +67,90 @@ export function LandingMarketplacePreview({
             </p>
           </div>
         ) : (
-          <div className="mt-10 grid gap-6 lg:grid-cols-3">
+          <div className="mt-10 grid gap-6 lg:grid-cols-3 lg:items-stretch">
             {notes.map((note) => {
               const daysLeft = resolveMarketplaceDaysLeft(note.maturityDate);
               const fundingPercent = resolveFundingPercent(note);
+              const riskRatingForBadge = note.riskRating?.trim() ? note.riskRating : null;
               return (
-                <Card key={note.id} className="rounded-2xl border-border shadow-sm">
-                  <CardContent className="space-y-5 p-6">
-                    <div className="space-y-1.5">
-                      <h3 className="text-2xl font-semibold tracking-tight text-foreground">
-                        {textOrDash(note.productName ?? note.title)}
-                      </h3>
-                      <div className="flex items-center justify-between text-sm text-muted-foreground">
-                        <span>{textOrDash(note.issuerIndustry)}</span>
-                        <span>Note: {textOrDash(note.noteReference)}</span>
+                <Card key={note.id} className="flex h-full flex-col rounded-2xl border-border shadow-sm">
+                  <CardContent className="flex flex-1 flex-col p-6">
+                    <div className="flex min-h-0 flex-1 flex-col gap-5">
+                      <div className="shrink-0 space-y-1">
+                        <h3 className="line-clamp-2 text-2xl font-semibold leading-snug tracking-tight text-foreground">
+                          {textOrDash(formatNoteReferenceDisplay(note.noteReference))}
+                        </h3>
+                        <div className="flex min-h-[2.75rem] flex-col gap-1.5 text-xs text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1">
+                          <span className="inline-flex min-w-0 items-center gap-1">
+                            <BuildingOffice2Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            <span className="truncate">{textOrDash(note.issuerIndustry)}</span>
+                          </span>
+                          <span className="inline-flex min-w-0 items-center gap-1 sm:text-right">
+                            <DocumentTextIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            <span className="truncate">
+                              Product: {textOrDash(note.productName)}
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="shrink-0 space-y-2">
+                        <div className="flex h-5 items-center justify-end text-sm text-muted-foreground">
+                          <span>{daysLeft !== null ? `${daysLeft} day(s) left` : "-"}</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full bg-foreground transition-all"
+                            style={{ width: `${fundingPercent}%` }}
+                          />
+                        </div>
+                        <div className="flex min-h-10 items-center justify-between gap-2 text-sm font-medium tabular-nums text-foreground">
+                          <span className="min-w-0 truncate">
+                            Funded {formatCurrency(note.fundedAmount)}
+                          </span>
+                          <span className="min-w-0 shrink-0 text-right">
+                            Goal {formatCurrency(note.targetAmount)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid shrink-0 grid-cols-3 gap-3 items-stretch">
+                        <div className="flex flex-col text-center">
+                          <div className="flex flex-1 flex-col rounded-2xl border bg-muted/20 p-3">
+                            <div className="flex min-h-[4.25rem] flex-1 items-center justify-center text-4xl font-semibold leading-none tabular-nums text-foreground">
+                              {note.profitRatePercent !== null ? `${note.profitRatePercent}%` : "-"}
+                            </div>
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground">Per annum</div>
+                        </div>
+                        <div className="flex flex-col text-center">
+                          <div className="flex flex-1 flex-col rounded-2xl border bg-muted/20 p-3">
+                            <div className="flex min-h-[4.25rem] flex-1 items-center justify-center text-4xl font-semibold leading-none tabular-nums text-foreground">
+                              {daysLeft ?? "-"}
+                            </div>
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground">Days</div>
+                        </div>
+                        <div className="flex flex-col text-center">
+                          <div className="flex flex-1 flex-col rounded-2xl border bg-muted/20 p-3">
+                            <SoukscoreRiskRatingBadge
+                              riskRating={riskRatingForBadge}
+                              className={cn(
+                                "flex min-h-[4.25rem] w-full flex-1 items-center justify-center rounded-xl px-2 py-2",
+                                "text-4xl font-semibold leading-none tracking-tight"
+                              )}
+                            />
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground">Score</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-auto shrink-0 border-t border-border pt-4">
+                        <Button asChild className="h-11 w-full text-base">
+                          <Link href="/get-started">Invest now</Link>
+                        </Button>
                       </div>
                     </div>
-
-                    <div className="space-y-2">
-                      <div className="flex justify-end text-sm text-muted-foreground">
-                        <span>{daysLeft !== null ? `${daysLeft} day(s) left` : "-"}</span>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full rounded-full bg-foreground transition-all"
-                          style={{ width: `${fundingPercent}%` }}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between text-sm font-medium text-foreground">
-                        <span>Funded {formatCurrency(note.fundedAmount)}</span>
-                        <span>Goal {formatCurrency(note.targetAmount)}</span>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 divide-x divide-border rounded-xl border border-border">
-                      <div className="px-2 py-4 text-center">
-                        <div className="text-4xl font-semibold leading-none text-foreground">
-                          {note.profitRatePercent !== null ? `${note.profitRatePercent}%` : "-"}
-                        </div>
-                        <div className="mt-1 text-xs text-muted-foreground">Per annum</div>
-                      </div>
-                      <div className="px-2 py-4 text-center">
-                        <div className="text-4xl font-semibold leading-none text-foreground">
-                          {daysLeft ?? "-"}
-                        </div>
-                        <div className="mt-1 text-xs text-muted-foreground">Days</div>
-                      </div>
-                      <div className="px-2 py-4 text-center">
-                        <div className="text-4xl font-semibold leading-none text-foreground">
-                          {textOrDash(note.riskRating)}
-                        </div>
-                        <div className="mt-1 text-xs text-muted-foreground">Score</div>
-                      </div>
-                    </div>
-
-                    <Button asChild className="h-11 w-full text-base">
-                      <Link href="/get-started">Invest now</Link>
-                    </Button>
                   </CardContent>
                 </Card>
               );
