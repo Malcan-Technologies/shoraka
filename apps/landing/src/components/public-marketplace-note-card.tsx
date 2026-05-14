@@ -13,15 +13,15 @@ import { Button, cn } from "@cashsouk/ui";
 
 export type PublicMarketplaceNote = {
   id: string;
-  noteCode: string;
-  title: string;
-  industry: string;
+  noteCode: string | null;
+  title: string | null;
+  industry: string | null;
   fundedAmount: number;
   goalAmount: number;
-  annualReturn: number;
-  tenorDays: number;
-  riskScore: string;
-  daysLeft: number;
+  annualReturn: number | null;
+  tenorDays: number | null;
+  riskScore: string | null;
+  daysLeft: number | null;
   investable: boolean;
   isFeatured?: boolean;
   featuredRank?: number;
@@ -32,6 +32,10 @@ const MARKETPLACE_ACTION_BUTTON_CLASS =
 
 function currency(amount: number) {
   return `RM ${amount.toLocaleString("en-MY")}`;
+}
+
+function textOrDash(value?: string | null) {
+  return value && value.trim().length > 0 ? value : "-";
 }
 
 export function PublicMarketplaceNoteCard({ note }: { note: PublicMarketplaceNote }) {
@@ -52,15 +56,17 @@ export function PublicMarketplaceNoteCard({ note }: { note: PublicMarketplaceNot
         <div className="space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-2">
-              <h3 className="text-lg font-semibold tracking-tight text-foreground">{note.title}</h3>
+              <h3 className="text-lg font-semibold tracking-tight text-foreground">
+                {textOrDash(note.title)}
+              </h3>
               <div className="flex items-center gap-4 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
                   <BuildingOffice2Icon className="h-3.5 w-3.5 text-primary" />
-                  {note.industry}
+                  {textOrDash(note.industry)}
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <DocumentTextIcon className="h-3.5 w-3.5 text-primary" />
-                  Note: {note.noteCode}
+                  Note: {textOrDash(note.noteCode)}
                 </span>
               </div>
             </div>
@@ -76,7 +82,9 @@ export function PublicMarketplaceNoteCard({ note }: { note: PublicMarketplaceNot
 
           <div className="space-y-2">
             <div className="flex justify-end">
-              <span className="text-xs text-muted-foreground">{note.daysLeft} day(s) left</span>
+              <span className="text-xs text-muted-foreground">
+                {note.daysLeft !== null ? `${note.daysLeft} day(s) left` : "-"}
+              </span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-muted">
               <div
@@ -93,19 +101,19 @@ export function PublicMarketplaceNoteCard({ note }: { note: PublicMarketplaceNot
           <div className="grid grid-cols-3 divide-x divide-border">
             <div className="px-3 py-4 text-center">
               <div className="text-4xl font-semibold leading-none text-foreground">
-                {note.annualReturn}%
+                {note.annualReturn !== null ? `${note.annualReturn}%` : "-"}
               </div>
               <div className="mt-1 text-[11px] text-muted-foreground">Per annum</div>
             </div>
             <div className="px-3 py-4 text-center">
               <div className="text-4xl font-semibold leading-none text-foreground">
-                {note.tenorDays}
+                {note.tenorDays ?? "-"}
               </div>
               <div className="mt-1 text-[11px] text-muted-foreground">Days</div>
             </div>
             <div className="px-3 py-4 text-center">
               <div className="text-4xl font-semibold leading-none text-foreground">
-                {note.riskScore}
+                {textOrDash(note.riskScore)}
               </div>
               <div className="mt-1 text-[11px] text-muted-foreground">Score</div>
             </div>

@@ -39,14 +39,20 @@ export const NotificationTypeIds = {
   DIRECTOR_SHAREHOLDER_ACTION_REQUIRED: 'director_shareholder_action_required',
 
   // Note lifecycle
-  NOTE_PUBLISHED: 'note_published',
-  NOTE_FUNDING_SUCCEEDED: 'note_funding_succeeded',
-  NOTE_FUNDING_FAILED: 'note_funding_failed',
-  NOTE_PAYMENT_RECEIVED: 'note_payment_received',
-  NOTE_SETTLEMENT_POSTED: 'note_settlement_posted',
-  NOTE_ARREARS: 'note_arrears',
-  NOTE_DEFAULTED: 'note_defaulted',
-  WITHDRAWAL_SUBMITTED_TO_TRUSTEE: 'withdrawal_submitted_to_trustee',
+  NOTE_PUBLISHED: "note_published",
+  NOTE_FUNDING_SUCCEEDED: "note_funding_succeeded",
+  NOTE_FUNDING_FAILED_ISSUER: "note_funding_failed_issuer",
+  NOTE_FUNDING_FAILED_INVESTOR: "note_funding_failed_investor",
+  NOTE_ACTIVE_ISSUER: "note_active_issuer",
+  NOTE_ACTIVE_INVESTOR: "note_active_investor",
+  NOTE_REPAID_ISSUER: "note_repaid_issuer",
+  NOTE_PAYMENT_RECEIVED: "note_payment_received",
+  NOTE_SETTLEMENT_POSTED: "note_settlement_posted",
+  NOTE_ARREARS: "note_arrears",
+  NOTE_ARREARS_INVESTOR: "note_arrears_investor",
+  NOTE_DEFAULTED: "note_defaulted",
+  NOTE_DEFAULTED_INVESTOR: "note_defaulted_investor",
+  WITHDRAWAL_SUBMITTED_TO_TRUSTEE: "withdrawal_submitted_to_trustee",
 } as const;
 
 export type NotificationTypeId = typeof NotificationTypeIds[keyof typeof NotificationTypeIds];
@@ -153,7 +159,23 @@ export interface NotificationPayloads {
     noteId: string;
     noteTitle: string;
   };
-  [NotificationTypeIds.NOTE_FUNDING_FAILED]: {
+  [NotificationTypeIds.NOTE_FUNDING_FAILED_ISSUER]: {
+    noteId: string;
+    noteTitle: string;
+  };
+  [NotificationTypeIds.NOTE_FUNDING_FAILED_INVESTOR]: {
+    noteId: string;
+    noteTitle: string;
+  };
+  [NotificationTypeIds.NOTE_ACTIVE_ISSUER]: {
+    noteId: string;
+    noteTitle: string;
+  };
+  [NotificationTypeIds.NOTE_ACTIVE_INVESTOR]: {
+    noteId: string;
+    noteTitle: string;
+  };
+  [NotificationTypeIds.NOTE_REPAID_ISSUER]: {
     noteId: string;
     noteTitle: string;
   };
@@ -169,7 +191,15 @@ export interface NotificationPayloads {
     noteId: string;
     noteTitle: string;
   };
+  [NotificationTypeIds.NOTE_ARREARS_INVESTOR]: {
+    noteId: string;
+    noteTitle: string;
+  };
   [NotificationTypeIds.NOTE_DEFAULTED]: {
+    noteId: string;
+    noteTitle: string;
+  };
+  [NotificationTypeIds.NOTE_DEFAULTED_INVESTOR]: {
     noteId: string;
     noteTitle: string;
   };
@@ -340,22 +370,53 @@ export const NOTIFICATION_TEMPLATES: {
     portal: 'issuer',
   },
   [NotificationTypeIds.NOTE_PUBLISHED]: {
-    title: 'New Investment Note Available',
-    message: (data) => `A new note "${data.noteTitle}" is available in the marketplace.`,
-    linkPath: (data) => `/investments/${data.noteId}`,
-    portal: 'investor',
+    title: "Note published",
+    message: (data) =>
+      `Your note "${data.noteTitle}" has been published to the marketplace for investor funding.`,
+    linkPath: (data) => `/notes/${data.noteId}`,
+    portal: "issuer",
   },
   [NotificationTypeIds.NOTE_FUNDING_SUCCEEDED]: {
-    title: 'Note Funding Completed',
-    message: (data) => `Funding for "${data.noteTitle}" has reached the required threshold.`,
-    linkPath: (data) => `/investments/${data.noteId}`,
-    portal: 'investor',
+    title: "Funding closed successfully",
+    message: (data) =>
+      `Funding for "${data.noteTitle}" has closed — the minimum threshold was reached and commitments are locked in.`,
+    linkPath: (data) => `/notes/${data.noteId}`,
+    portal: "issuer",
   },
-  [NotificationTypeIds.NOTE_FUNDING_FAILED]: {
-    title: 'Note Funding Did Not Complete',
-    message: (data) => `Funding for "${data.noteTitle}" did not reach the required threshold.`,
+  [NotificationTypeIds.NOTE_FUNDING_FAILED_ISSUER]: {
+    title: "Note funding did not complete",
+    message: (data) =>
+      `Funding for "${data.noteTitle}" did not reach the minimum threshold before the listing closed.`,
+    linkPath: (data) => `/notes/${data.noteId}`,
+    portal: "issuer",
+  },
+  [NotificationTypeIds.NOTE_FUNDING_FAILED_INVESTOR]: {
+    title: "Commitment released",
+    message: (data) =>
+      `The listing for "${data.noteTitle}" did not complete funding. Your reserved commitment has been released back to your available balance.`,
     linkPath: (data) => `/investments/${data.noteId}`,
-    portal: 'investor',
+    portal: "investor",
+  },
+  [NotificationTypeIds.NOTE_ACTIVE_ISSUER]: {
+    title: "Note is active",
+    message: (data) =>
+      `Your note "${data.noteTitle}" is now active. Disbursement and servicing proceeds under the agreed terms.`,
+    linkPath: (data) => `/notes/${data.noteId}`,
+    portal: "issuer",
+  },
+  [NotificationTypeIds.NOTE_ACTIVE_INVESTOR]: {
+    title: "Investment is active",
+    message: (data) =>
+      `Funding for "${data.noteTitle}" is complete and the note is now active. Monitor repayments from your investments view.`,
+    linkPath: (data) => `/investments/${data.noteId}`,
+    portal: "investor",
+  },
+  [NotificationTypeIds.NOTE_REPAID_ISSUER]: {
+    title: "Note repaid",
+    message: (data) =>
+      `"${data.noteTitle}" has been fully repaid and settled. Any residual handling will follow operational workflow if applicable.`,
+    linkPath: (data) => `/notes/${data.noteId}`,
+    portal: "issuer",
   },
   [NotificationTypeIds.NOTE_PAYMENT_RECEIVED]: {
     title: 'Repayment Received',
@@ -370,16 +431,30 @@ export const NOTIFICATION_TEMPLATES: {
     portal: 'investor',
   },
   [NotificationTypeIds.NOTE_ARREARS]: {
-    title: 'Note in Arrears',
-    message: (data) => `"${data.noteTitle}" has moved into arrears.`,
+    title: "Note in arrears",
+    message: (data) => `"${data.noteTitle}" has moved into arrears. Review repayment status and obligations.`,
     linkPath: (data) => `/notes/${data.noteId}`,
-    portal: 'issuer',
+    portal: "issuer",
+  },
+  [NotificationTypeIds.NOTE_ARREARS_INVESTOR]: {
+    title: "Note in arrears",
+    message: (data) =>
+      `"${data.noteTitle}" is in arrears. We will keep you informed as servicing actions progress.`,
+    linkPath: (data) => `/investments/${data.noteId}`,
+    portal: "investor",
   },
   [NotificationTypeIds.NOTE_DEFAULTED]: {
-    title: 'Note Marked as Default',
+    title: "Note marked as default",
     message: (data) => `"${data.noteTitle}" has been marked as default.`,
     linkPath: (data) => `/notes/${data.noteId}`,
-    portal: 'issuer',
+    portal: "issuer",
+  },
+  [NotificationTypeIds.NOTE_DEFAULTED_INVESTOR]: {
+    title: "Note marked as default",
+    message: (data) =>
+      `"${data.noteTitle}" has been marked as default. This may affect recovery timelines; check your investments view for updates.`,
+    linkPath: (data) => `/investments/${data.noteId}`,
+    portal: "investor",
   },
   [NotificationTypeIds.WITHDRAWAL_SUBMITTED_TO_TRUSTEE]: {
     title: 'Withdrawal Submitted to Trustee',

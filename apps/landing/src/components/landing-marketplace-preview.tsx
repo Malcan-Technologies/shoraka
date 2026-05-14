@@ -2,21 +2,26 @@ import Link from "next/link";
 import { Button, Card, CardContent } from "@cashsouk/ui";
 import type { NoteListItem } from "@cashsouk/types";
 
-const NOTE_FALLBACK_PRODUCT = "Invoice financing (Islamic)";
-const NOTE_FALLBACK_INDUSTRY = "Industry";
-
 function formatCurrency(amount: number) {
   return `RM ${amount.toLocaleString("en-MY", {
     maximumFractionDigits: 0,
   })}`;
 }
 
-function resolveDaysLeft(maturityDate: string | null) {
-  if (!maturityDate) return 0;
-  const now = new Date();
+function resolveMarketplaceDaysLeft(maturityDate?: string | null): number | null {
+  if (!maturityDate) return null;
+
   const target = new Date(maturityDate);
-  const millisRemaining = target.getTime() - now.getTime();
-  return Math.max(0, Math.ceil(millisRemaining / (1000 * 60 * 60 * 24)));
+  if (Number.isNaN(target.getTime())) {
+    return null;
+  }
+
+  const millisRemaining = target.getTime() - Date.now();
+  return Math.max(1, Math.ceil(millisRemaining / (1000 * 60 * 60 * 24)));
+}
+
+function textOrDash(value?: string | null) {
+  return value && value.trim().length > 0 ? value : "-";
 }
 
 function resolveFundingPercent(note: NoteListItem) {
@@ -63,24 +68,24 @@ export function LandingMarketplacePreview({
         ) : (
           <div className="mt-10 grid gap-6 lg:grid-cols-3">
             {notes.map((note) => {
-              const daysLeft = resolveDaysLeft(note.maturityDate);
+              const daysLeft = resolveMarketplaceDaysLeft(note.maturityDate);
               const fundingPercent = resolveFundingPercent(note);
               return (
                 <Card key={note.id} className="rounded-2xl border-border shadow-sm">
                   <CardContent className="space-y-5 p-6">
                     <div className="space-y-1.5">
                       <h3 className="text-2xl font-semibold tracking-tight text-foreground">
-                        {note.productName ?? NOTE_FALLBACK_PRODUCT}
+                        {textOrDash(note.productName ?? note.title)}
                       </h3>
                       <div className="flex items-center justify-between text-sm text-muted-foreground">
-                        <span>{note.issuerIndustry ?? NOTE_FALLBACK_INDUSTRY}</span>
-                        <span>Note: {note.noteReference}</span>
+                        <span>{textOrDash(note.issuerIndustry)}</span>
+                        <span>Note: {textOrDash(note.noteReference)}</span>
                       </div>
                     </div>
 
                     <div className="space-y-2">
                       <div className="flex justify-end text-sm text-muted-foreground">
-                        <span>{daysLeft} day(s) left</span>
+                        <span>{daysLeft !== null ? `${daysLeft} day(s) left` : "-"}</span>
                       </div>
                       <div className="h-2 overflow-hidden rounded-full bg-muted">
                         <div
@@ -97,19 +102,19 @@ export function LandingMarketplacePreview({
                     <div className="grid grid-cols-3 divide-x divide-border rounded-xl border border-border">
                       <div className="px-2 py-4 text-center">
                         <div className="text-4xl font-semibold leading-none text-foreground">
-                          {note.profitRatePercent ?? 0}%
+                          {note.profitRatePercent !== null ? `${note.profitRatePercent}%` : "-"}
                         </div>
                         <div className="mt-1 text-xs text-muted-foreground">Per annum</div>
                       </div>
                       <div className="px-2 py-4 text-center">
                         <div className="text-4xl font-semibold leading-none text-foreground">
-                          {daysLeft}
+                          {daysLeft ?? "-"}
                         </div>
                         <div className="mt-1 text-xs text-muted-foreground">Days</div>
                       </div>
                       <div className="px-2 py-4 text-center">
                         <div className="text-4xl font-semibold leading-none text-foreground">
-                          {note.riskRating ?? "—"}
+                          {textOrDash(note.riskRating)}
                         </div>
                         <div className="mt-1 text-xs text-muted-foreground">Score</div>
                       </div>

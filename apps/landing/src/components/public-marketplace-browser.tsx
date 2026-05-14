@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import {
   Button,
   Select,
@@ -17,9 +18,17 @@ import {
   type PublicMarketplaceNote,
 } from "./public-marketplace-note-card";
 
-const DEFAULT_TENOR_DAYS = 30;
-const MARKETPLACE_INDUSTRY_PLACEHOLDER = "Industry";
-const MARKETPLACE_PRODUCT_PLACEHOLDER = "Product name (TBD)";
+function resolveMarketplaceDaysLeft(maturityDate?: string | null): number | null {
+  if (!maturityDate) return null;
+
+  const target = new Date(maturityDate);
+  if (Number.isNaN(target.getTime())) {
+    return null;
+  }
+
+  const millisRemaining = target.getTime() - Date.now();
+  return Math.max(1, Math.ceil(millisRemaining / (1000 * 60 * 60 * 24)));
+}
 const ONBOARDING_INDUSTRY_OPTIONS = [
   "Agriculture, Forestry, Fishing",
   "Manufacturing",
@@ -40,28 +49,23 @@ const ONBOARDING_INDUSTRY_OPTIONS = [
   "Others",
 ] as const;
 
-function daysUntil(dateValue?: string | null) {
-  if (!dateValue) return DEFAULT_TENOR_DAYS;
-  const now = new Date();
-  const target = new Date(dateValue);
-  const millis = target.getTime() - now.getTime();
-  return Math.max(1, Math.ceil(millis / (1000 * 60 * 60 * 24)));
-}
+const FEATURED_MARKETPLACE_NOTES_LIMIT = 3;
+const MARKETPLACE_LISTINGS_PAGE_SIZE = 9;
 
 function toMarketplaceNote(note: NoteListItem): PublicMarketplaceNote {
   const { investable } = computeMarketplaceCommitBounds(note.targetAmount, note.fundedAmount);
-  const tenorDays = daysUntil(note.maturityDate);
+  const tenorDays = resolveMarketplaceDaysLeft(note.maturityDate);
 
   return {
     id: note.id,
-    noteCode: note.noteReference,
-    title: note.productName ?? MARKETPLACE_PRODUCT_PLACEHOLDER,
-    industry: note.issuerIndustry ?? MARKETPLACE_INDUSTRY_PLACEHOLDER,
+    noteCode: note.noteReference.trim() || null,
+    title: note.productName?.trim() || note.title.trim() || null,
+    industry: note.issuerIndustry?.trim() || null,
     fundedAmount: note.fundedAmount,
     goalAmount: note.targetAmount,
-    annualReturn: note.profitRatePercent ?? 0,
+    annualReturn: note.profitRatePercent,
     tenorDays,
-    riskScore: note.riskRating ?? "—",
+    riskScore: note.riskRating,
     daysLeft: tenorDays,
     investable,
     isFeatured: note.featuredActive,
@@ -76,6 +80,7 @@ type PublicMarketplaceBrowserProps = {
     risk?: string;
     profit?: string;
     tenor?: string;
+    page?: number;
   };
 };
 
@@ -112,12 +117,13 @@ export function PublicMarketplaceBrowser({
     initialTenorParam && ["short", "medium", "long"].includes(initialTenorParam)
       ? initialTenorParam
       : "all";
+  const initialPage = Math.max(1, initialFilters?.page ?? 1);
 
   const [industryFilter, setIndustryFilter] = useState(initialIndustry);
   const [riskFilter, setRiskFilter] = useState(initialRisk);
   const [profitFilter, setProfitFilter] = useState(initialProfit);
   const [tenorFilter, setTenorFilter] = useState(initialTenor);
-  const [displayCount, setDisplayCount] = useState(6);
+  const [currentPage, setCurrentPage] = useState(initialPage);
 
   useEffect(() => {
     setIndustryFilter(initialIndustry);
@@ -127,19 +133,40 @@ export function PublicMarketplaceBrowser({
   }, [initialIndustry, initialProfit, initialRisk, initialTenor]);
 
   useEffect(() => {
+    setCurrentPage(initialPage);
+  }, [initialPage]);
+
+  useEffect(() => {
     const params = new URLSearchParams();
     if (industryFilter !== "all") params.set("industry", industryFilter);
     if (riskFilter !== "all") params.set("risk", riskFilter);
     if (profitFilter !== "all") params.set("profit", profitFilter);
     if (tenorFilter !== "all") params.set("tenor", tenorFilter);
+    if (currentPage > 1) params.set("page", String(currentPage));
 
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }, [industryFilter, pathname, profitFilter, riskFilter, router, tenorFilter]);
+  }, [currentPage, industryFilter, pathname, profitFilter, riskFilter, router, tenorFilter]);
 
-  useEffect(() => {
-    setDisplayCount(6);
-  }, [industryFilter, profitFilter, riskFilter, tenorFilter]);
+  const handleIndustryChange = (value: string) => {
+    setIndustryFilter(value);
+    setCurrentPage(1);
+  };
+
+  const handleRiskChange = (value: string) => {
+    setRiskFilter(value);
+    setCurrentPage(1);
+  };
+
+  const handleProfitChange = (value: string) => {
+    setProfitFilter(value);
+    setCurrentPage(1);
+  };
+
+  const handleTenorChange = (value: string) => {
+    setTenorFilter(value);
+    setCurrentPage(1);
+  };
 
   const marketplaceNotes = useMemo(() => notes.map((note) => toMarketplaceNote(note)), [notes]);
 
@@ -151,7 +178,7 @@ export function PublicMarketplaceBrowser({
           const leftRank = left.featuredRank ?? Number.MAX_SAFE_INTEGER;
           const rightRank = right.featuredRank ?? Number.MAX_SAFE_INTEGER;
           if (leftRank !== rightRank) return leftRank - rightRank;
-          return left.title.localeCompare(right.title);
+          return (left.title ?? "").localeCompare(right.title ?? "");
         }),
     [marketplaceNotes]
   );
@@ -162,14 +189,16 @@ export function PublicMarketplaceBrowser({
       const matchesRisk = riskFilter === "all" || note.riskScore === riskFilter;
       const matchesProfit =
         profitFilter === "all" ||
-        (profitFilter === "low" && note.annualReturn < 14) ||
-        (profitFilter === "mid" && note.annualReturn >= 14 && note.annualReturn <= 15) ||
-        (profitFilter === "high" && note.annualReturn > 15);
+        (note.annualReturn !== null &&
+          ((profitFilter === "low" && note.annualReturn < 14) ||
+            (profitFilter === "mid" && note.annualReturn >= 14 && note.annualReturn <= 15) ||
+            (profitFilter === "high" && note.annualReturn > 15)));
       const matchesTenor =
         tenorFilter === "all" ||
-        (tenorFilter === "short" && note.tenorDays <= 30) ||
-        (tenorFilter === "medium" && note.tenorDays > 30 && note.tenorDays <= 45) ||
-        (tenorFilter === "long" && note.tenorDays > 45);
+        (note.tenorDays !== null &&
+          ((tenorFilter === "short" && note.tenorDays <= 30) ||
+            (tenorFilter === "medium" && note.tenorDays > 30 && note.tenorDays <= 45) ||
+            (tenorFilter === "long" && note.tenorDays > 45)));
 
       return (
         matchesIndustry &&
@@ -180,8 +209,40 @@ export function PublicMarketplaceBrowser({
     });
   }, [industryFilter, marketplaceNotes, profitFilter, riskFilter, tenorFilter]);
 
-  const visibleNotes = filteredNotes.slice(0, displayCount);
-  const hasMoreNotes = displayCount < filteredNotes.length;
+  const totalPages =
+    filteredNotes.length === 0
+      ? 0
+      : Math.ceil(filteredNotes.length / MARKETPLACE_LISTINGS_PAGE_SIZE);
+
+  const goToPreviousPage = () => {
+    setCurrentPage((page) => Math.max(1, page - 1));
+  };
+
+  const goToNextPage = () => {
+    setCurrentPage((page) => {
+      if (totalPages <= 0) return 1;
+      return Math.min(totalPages, page + 1);
+    });
+  };
+
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const effectivePage = totalPages === 0 ? 1 : Math.min(currentPage, totalPages);
+  const sliceStart = (effectivePage - 1) * MARKETPLACE_LISTINGS_PAGE_SIZE;
+  const visibleNotes = filteredNotes.slice(
+    sliceStart,
+    sliceStart + MARKETPLACE_LISTINGS_PAGE_SIZE
+  );
+  const filteredListingsCount = filteredNotes.length;
+  const listingRangeStart = filteredListingsCount === 0 ? 0 : sliceStart + 1;
+  const listingRangeEnd = Math.min(
+    sliceStart + MARKETPLACE_LISTINGS_PAGE_SIZE,
+    filteredListingsCount
+  );
   const hasActiveFilters =
     industryFilter !== "all" || riskFilter !== "all" || profitFilter !== "all" || tenorFilter !== "all";
 
@@ -196,7 +257,7 @@ export function PublicMarketplaceBrowser({
             <p className="mt-1 text-sm text-slate-500">Top picks curated for you</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {featuredNotes.slice(0, 6).map((note) => (
+            {featuredNotes.slice(0, FEATURED_MARKETPLACE_NOTES_LIMIT).map((note) => (
               <PublicMarketplaceNoteCard key={note.id} note={note} />
             ))}
           </div>
@@ -207,7 +268,7 @@ export function PublicMarketplaceBrowser({
         <section className="space-y-4">
           <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 md:flex-row md:items-center md:justify-between">
             <div className="grid grid-cols-2 gap-2 md:ml-auto md:flex md:items-center">
-              <Select value={industryFilter} onValueChange={setIndustryFilter}>
+              <Select value={industryFilter} onValueChange={handleIndustryChange}>
                 <SelectTrigger className="h-9 w-[170px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300 md:w-[220px]">
                   <SelectValue placeholder="Industry" className="truncate" />
                 </SelectTrigger>
@@ -221,7 +282,7 @@ export function PublicMarketplaceBrowser({
                 </SelectContent>
               </Select>
 
-              <Select value={riskFilter} onValueChange={setRiskFilter}>
+              <Select value={riskFilter} onValueChange={handleRiskChange}>
                 <SelectTrigger className="h-9 w-[120px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
                   <SelectValue placeholder="Risk Score" className="truncate" />
                 </SelectTrigger>
@@ -235,7 +296,7 @@ export function PublicMarketplaceBrowser({
                 </SelectContent>
               </Select>
 
-              <Select value={profitFilter} onValueChange={setProfitFilter}>
+              <Select value={profitFilter} onValueChange={handleProfitChange}>
                 <SelectTrigger className="h-9 w-[120px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
                   <SelectValue placeholder="Profit" className="truncate" />
                 </SelectTrigger>
@@ -247,7 +308,7 @@ export function PublicMarketplaceBrowser({
                 </SelectContent>
               </Select>
 
-              <Select value={tenorFilter} onValueChange={setTenorFilter}>
+              <Select value={tenorFilter} onValueChange={handleTenorChange}>
                 <SelectTrigger className="h-9 w-[120px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
                   <SelectValue placeholder="Tenor" className="truncate" />
                 </SelectTrigger>
@@ -273,16 +334,40 @@ export function PublicMarketplaceBrowser({
             </div>
           )}
 
-          {hasMoreNotes ? (
-            <div className="flex justify-center pt-2">
-              <Button
-                variant="ghost"
-                className="text-slate-700 hover:bg-transparent hover:text-slate-900"
-                onClick={() => setDisplayCount((count) => count + 3)}
-              >
-                Show more
-              </Button>
-            </div>
+          {totalPages > 1 ? (
+            <nav
+              className="flex flex-col gap-3 border-t px-4 py-4 sm:flex-row sm:items-center sm:justify-between md:px-6"
+              aria-label="Listings pagination"
+            >
+              <div className="text-sm text-muted-foreground">
+                Showing {listingRangeStart}-{listingRangeEnd} of {filteredListingsCount}
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={goToPreviousPage}
+                  disabled={effectivePage <= 1}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeftIcon className="h-4 w-4" />
+                </Button>
+                <div className="text-sm font-medium">
+                  Page {effectivePage} of {totalPages}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={goToNextPage}
+                  disabled={effectivePage >= totalPages}
+                  aria-label="Next page"
+                >
+                  <ChevronRightIcon className="h-4 w-4" />
+                </Button>
+              </div>
+            </nav>
           ) : null}
         </section>
       ) : null}

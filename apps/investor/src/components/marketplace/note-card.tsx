@@ -10,15 +10,15 @@ const MARKETPLACE_ACTION_BUTTON_CLASS =
 
 export type MarketplaceNote = {
   id: string;
-  noteCode: string;
-  title: string;
-  industry: string;
+  noteCode: string | null;
+  title: string | null;
+  industry: string | null;
   fundedAmount: number;
   goalAmount: number;
-  annualReturn: number;
-  tenorDays: number;
-  riskScore: string;
-  daysLeft: number;
+  annualReturn: number | null;
+  tenorDays: number | null;
+  riskScore: string | null;
+  daysLeft: number | null;
   minInvestment: number;
   maxInvestment: number;
   /** When false, capacity rules mean no valid commit (e.g. fully allocated). */
@@ -34,6 +34,10 @@ type NoteCardProps = {
 
 function currency(amount: number) {
   return `RM ${amount.toLocaleString("en-MY")}`;
+}
+
+function textOrDash(value?: string | null) {
+  return value && value.trim().length > 0 ? value : "-";
 }
 
 export function NoteCard({ note, onInvest }: NoteCardProps) {
@@ -54,15 +58,17 @@ export function NoteCard({ note, onInvest }: NoteCardProps) {
         <div className="space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-2">
-              <h3 className="text-lg font-semibold tracking-tight text-slate-900">{note.title}</h3>
+              <h3 className="text-lg font-semibold tracking-tight text-slate-900">
+                {textOrDash(note.title)}
+              </h3>
               <div className="flex items-center gap-4 text-xs text-slate-500">
                 <span className="inline-flex items-center gap-1">
                   <BuildingOffice2Icon className="h-3.5 w-3.5" />
-                  {note.industry}
+                  {textOrDash(note.industry)}
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <DocumentTextIcon className="h-3.5 w-3.5" />
-                  Note: {note.noteCode}
+                  Note: {textOrDash(note.noteCode)}
                 </span>
               </div>
             </div>
@@ -78,7 +84,9 @@ export function NoteCard({ note, onInvest }: NoteCardProps) {
 
           <div className="space-y-2">
             <div className="flex justify-end">
-              <span className="text-xs text-slate-500">{note.daysLeft} day(s) left</span>
+              <span className="text-xs text-slate-500">
+                {note.daysLeft !== null ? `${note.daysLeft} day(s) left` : "-"}
+              </span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
               <div
@@ -94,15 +102,21 @@ export function NoteCard({ note, onInvest }: NoteCardProps) {
 
           <div className="grid grid-cols-3 divide-x divide-slate-200">
             <div className="px-3 py-4 text-center">
-              <div className="text-4xl font-semibold leading-none text-slate-900">{note.annualReturn}%</div>
+              <div className="text-4xl font-semibold leading-none text-slate-900">
+                {note.annualReturn !== null ? `${note.annualReturn}%` : "-"}
+              </div>
               <div className="mt-1 text-[11px] text-slate-500">Per annum</div>
             </div>
             <div className="px-3 py-4 text-center">
-              <div className="text-4xl font-semibold leading-none text-slate-900">{note.tenorDays}</div>
+              <div className="text-4xl font-semibold leading-none text-slate-900">
+                {note.tenorDays ?? "-"}
+              </div>
               <div className="mt-1 text-[11px] text-slate-500">Days</div>
             </div>
             <div className="px-3 py-4 text-center">
-              <div className="text-4xl font-semibold leading-none text-slate-900">{note.riskScore}</div>
+              <div className="text-4xl font-semibold leading-none text-slate-900">
+                {textOrDash(note.riskScore)}
+              </div>
               <div className="mt-1 text-[11px] text-slate-500">Score</div>
             </div>
           </div>

@@ -230,6 +230,33 @@ export class NotificationService {
   }
 
   /**
+   * Platform inbox only — email channel suppressed (for phased rollout).
+   */
+  async sendTypedPlatformOnly<T extends NotificationTypeId>(
+    userId: string,
+    typeId: T,
+    payload: NotificationPayloads[T],
+    idempotencyKey?: string
+  ): Promise<Notification | null> {
+    const { title, message, linkPath, portal } = getNotificationContent(typeId, payload);
+
+    return this.create({
+      userId,
+      typeId,
+      title,
+      message,
+      linkPath,
+      idempotencyKey,
+      sendToPlatform: true,
+      sendToEmail: false,
+      metadata: {
+        ...(payload as Record<string, any>),
+        portal,
+      },
+    });
+  }
+
+  /**
    * Mark as read
    */
   async markAsRead(id: string, userId: string): Promise<Notification> {

@@ -27,7 +27,7 @@ async function main() {
   const [issuerOrgIdArg, productIdArg] = process.argv.slice(2);
 
   const issuerOrgId = issuerOrgIdArg ?? "cmknlimvf0003grp0hsbmc1dp";
-  const productId = productIdArg ?? "cmnee7dzx00018hrvz33d48wb";
+  const productId = productIdArg ?? "cmocnbimh00096w7kb0bunsvf";
 
   const issuerOrg = await prisma.issuerOrganization.findUnique({ where: { id: issuerOrgId } });
   if (!issuerOrg) {
@@ -60,7 +60,7 @@ async function main() {
     },
   });
 
-  const invoiceInputs = generateInvoiceDetailsList(3);
+  const invoiceInputs = generateInvoiceDetailsList(10);
   const application = await prisma.application.create({
     data: {
       issuer_organization_id: issuerOrg.id,
