@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { FunnelIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { ChevronLeftIcon, ChevronRightIcon, FunnelIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,14 +40,17 @@ const STATUS_FILTER_OPTIONS: Array<{ value: StatusFilterValue; label: string }> 
   { value: "Settled", label: "Settled" },
 ];
 
+const INVESTMENTS_PAGE_SIZE = 10;
+
 export function InvestorInvestmentsList({
   limit,
   showViewAllButton = false,
   showStatusFilter = false,
 }: InvestorInvestmentsListProps) {
   const { data, isLoading, error } = useInvestorInvestments();
-  const notes = data?.notes ?? [];
+  const notes = useMemo(() => data?.notes ?? [], [data?.notes]);
   const [statusFilter, setStatusFilter] = useState<StatusFilterValue>("all");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const sortedNotes = useMemo(() => sortInvestorInvestments(notes, "most_relevant"), [notes]);
   const filteredNotes = useMemo(
@@ -57,7 +60,30 @@ export function InvestorInvestmentsList({
       ),
     [sortedNotes, statusFilter]
   );
-  const visibleNotes = typeof limit === "number" ? filteredNotes.slice(0, limit) : filteredNotes;
+
+  const isDashboardPreview = typeof limit === "number";
+  const totalFiltered = filteredNotes.length;
+  const totalPages =
+    isDashboardPreview || totalFiltered === 0
+      ? 0
+      : Math.ceil(totalFiltered / INVESTMENTS_PAGE_SIZE);
+  const effectivePage =
+    totalPages === 0 ? 1 : Math.min(currentPage, totalPages);
+  const sliceStart = (effectivePage - 1) * INVESTMENTS_PAGE_SIZE;
+
+  const visibleNotes = useMemo(() => {
+    if (isDashboardPreview) {
+      return filteredNotes.slice(0, limit);
+    }
+    return filteredNotes.slice(sliceStart, sliceStart + INVESTMENTS_PAGE_SIZE);
+  }, [filteredNotes, isDashboardPreview, limit, sliceStart]);
+
+  const startIndex = totalFiltered === 0 ? 0 : sliceStart + 1;
+  const endIndex = Math.min(sliceStart + INVESTMENTS_PAGE_SIZE, totalFiltered);
+
+  const showPaginationFooter =
+    !isDashboardPreview && !isLoading && !error && totalPages > 1 && totalFiltered > 0;
+
   const activeStatusFilterCount = statusFilter === "all" ? 0 : 1;
   const hasFilters = activeStatusFilterCount > 0;
 
@@ -91,7 +117,10 @@ export function InvestorInvestmentsList({
                   <DropdownMenuItem
                     key={option.value}
                     className="pl-8 relative cursor-pointer focus:bg-accent focus:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
-                    onClick={() => setStatusFilter(option.value)}
+                    onClick={() => {
+                      setStatusFilter(option.value);
+                      setCurrentPage(1);
+                    }}
                   >
                     {statusFilter === option.value ? (
                       <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
@@ -107,7 +136,10 @@ export function InvestorInvestmentsList({
           {showStatusFilter && hasFilters ? (
             <Button
               variant="ghost"
-              onClick={() => setStatusFilter("all")}
+              onClick={() => {
+                setStatusFilter("all");
+                setCurrentPage(1);
+              }}
               className="gap-2 h-11 rounded-xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             >
               <XMarkIcon className="h-4 w-4" />
@@ -159,6 +191,43 @@ export function InvestorInvestmentsList({
           </div>
         ) : null}
       </CardContent>
+
+      {showPaginationFooter ? (
+        <div className="flex flex-col gap-3 border-t px-4 py-4 sm:flex-row sm:items-center sm:justify-between md:px-6">
+          <div className="text-sm text-muted-foreground">
+            Showing {startIndex}-{endIndex} of {totalFiltered}
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setCurrentPage(Math.max(1, effectivePage - 1))
+              }
+              disabled={effectivePage <= 1}
+              aria-label="Previous page"
+            >
+              <ChevronLeftIcon className="h-4 w-4" />
+            </Button>
+            <div className="text-sm font-medium">
+              Page {effectivePage} of {totalPages}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setCurrentPage(Math.min(totalPages, effectivePage + 1))
+              }
+              disabled={effectivePage >= totalPages}
+              aria-label="Next page"
+            >
+              <ChevronRightIcon className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </Card>
   );
 }

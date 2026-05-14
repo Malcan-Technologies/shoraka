@@ -227,15 +227,6 @@ export function MarketplacePage() {
   );
   const normalizedSearchQuery = debouncedSearch.trim().toLowerCase();
 
-  function matchesMarketplaceSearch(note: MarketplaceNote) {
-    if (normalizedSearchQuery.length === 0) return true;
-    return (
-      (note.title ?? "").toLowerCase().includes(normalizedSearchQuery) ||
-      (note.industry ?? "").toLowerCase().includes(normalizedSearchQuery) ||
-      (note.noteCode ?? "").toLowerCase().includes(normalizedSearchQuery)
-    );
-  }
-
   const featuredNotes = useMemo(
     () =>
       (featuredData?.notes ?? [])
@@ -253,7 +244,11 @@ export function MarketplacePage() {
 
   const filteredNotes = useMemo(() => {
     return marketplaceNotes.filter((note) => !note.isFeatured).filter((note) => {
-      const matchesSearch = matchesMarketplaceSearch(note);
+      const matchesSearch =
+        normalizedSearchQuery.length === 0 ||
+        (note.title ?? "").toLowerCase().includes(normalizedSearchQuery) ||
+        (note.industry ?? "").toLowerCase().includes(normalizedSearchQuery) ||
+        (note.noteCode ?? "").toLowerCase().includes(normalizedSearchQuery);
       const matchesIndustry = industryFilter === "all" || note.industry === industryFilter;
       const matchesRisk = riskFilter === "all" || note.riskScore === riskFilter;
       const matchesProfit =
@@ -306,6 +301,12 @@ export function MarketplacePage() {
   const visibleNotes = filteredNotes.slice(
     sliceStart,
     sliceStart + MARKETPLACE_LISTINGS_PAGE_SIZE
+  );
+  const filteredListingsCount = filteredNotes.length;
+  const listingRangeStart = filteredListingsCount === 0 ? 0 : sliceStart + 1;
+  const listingRangeEnd = Math.min(
+    sliceStart + MARKETPLACE_LISTINGS_PAGE_SIZE,
+    filteredListingsCount
   );
   const hasActiveFilters =
     search.trim().length > 0 ||
@@ -541,38 +542,37 @@ export function MarketplacePage() {
 
           {totalPages > 1 ? (
             <nav
-              className="flex flex-col items-center gap-3 pt-2 sm:flex-row sm:justify-center"
+              className="flex flex-col gap-3 border-t px-4 py-4 sm:flex-row sm:items-center sm:justify-between md:px-6"
               aria-label="Listings pagination"
             >
-              <div className="flex items-center gap-2">
+              <div className="text-sm text-muted-foreground">
+                Showing {listingRangeStart}-{listingRangeEnd} of {filteredListingsCount}
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-9 gap-1 border-slate-200 px-3 text-slate-700"
                   onClick={goToPreviousPage}
                   disabled={effectivePage <= 1}
                   aria-label="Previous page"
                 >
-                  <ChevronLeftIcon className="size-4" aria-hidden />
-                  Previous
+                  <ChevronLeftIcon className="h-4 w-4" />
                 </Button>
+                <div className="text-sm font-medium">
+                  Page {effectivePage} of {totalPages}
+                </div>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-9 gap-1 border-slate-200 px-3 text-slate-700"
                   onClick={goToNextPage}
                   disabled={effectivePage >= totalPages}
                   aria-label="Next page"
                 >
-                  Next
-                  <ChevronRightIcon className="size-4" aria-hidden />
+                  <ChevronRightIcon className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-sm text-slate-600">
-                Page {effectivePage} of {totalPages}
-              </p>
             </nav>
           ) : null}
         </section>

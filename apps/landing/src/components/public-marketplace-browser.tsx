@@ -237,6 +237,12 @@ export function PublicMarketplaceBrowser({
     sliceStart,
     sliceStart + MARKETPLACE_LISTINGS_PAGE_SIZE
   );
+  const filteredListingsCount = filteredNotes.length;
+  const listingRangeStart = filteredListingsCount === 0 ? 0 : sliceStart + 1;
+  const listingRangeEnd = Math.min(
+    sliceStart + MARKETPLACE_LISTINGS_PAGE_SIZE,
+    filteredListingsCount
+  );
   const hasActiveFilters =
     industryFilter !== "all" || riskFilter !== "all" || profitFilter !== "all" || tenorFilter !== "all";
 
@@ -330,38 +336,37 @@ export function PublicMarketplaceBrowser({
 
           {totalPages > 1 ? (
             <nav
-              className="flex flex-col items-center gap-3 pt-2 sm:flex-row sm:justify-center"
+              className="flex flex-col gap-3 border-t px-4 py-4 sm:flex-row sm:items-center sm:justify-between md:px-6"
               aria-label="Listings pagination"
             >
-              <div className="flex items-center gap-2">
+              <div className="text-sm text-muted-foreground">
+                Showing {listingRangeStart}-{listingRangeEnd} of {filteredListingsCount}
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-9 gap-1 border-slate-200 px-3 text-slate-700"
                   onClick={goToPreviousPage}
                   disabled={effectivePage <= 1}
                   aria-label="Previous page"
                 >
-                  <ChevronLeftIcon className="size-4" aria-hidden />
-                  Previous
+                  <ChevronLeftIcon className="h-4 w-4" />
                 </Button>
+                <div className="text-sm font-medium">
+                  Page {effectivePage} of {totalPages}
+                </div>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-9 gap-1 border-slate-200 px-3 text-slate-700"
                   onClick={goToNextPage}
                   disabled={effectivePage >= totalPages}
                   aria-label="Next page"
                 >
-                  Next
-                  <ChevronRightIcon className="size-4" aria-hidden />
+                  <ChevronRightIcon className="h-4 w-4" />
                 </Button>
               </div>
-              <p className="text-sm text-slate-600">
-                Page {effectivePage} of {totalPages}
-              </p>
             </nav>
           ) : null}
         </section>
