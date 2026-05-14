@@ -36,6 +36,7 @@ import {
   mapNoteDetail,
   mapNoteListItem,
   mapWithdrawalInstruction,
+  resolveIssuerResidualPayoutListStatus,
   resolveProductNameFromWorkflow,
 } from "./mapper";
 import { NotificationService } from "../notification/service";
@@ -2556,8 +2557,30 @@ export class NoteService {
       include: noteInclude,
       orderBy: { updated_at: "desc" },
     });
+    const noteIds = notes.map((n) => n.id);
+    const allWithdrawals =
+      noteIds.length === 0
+        ? []
+        : await prisma.withdrawalInstruction.findMany({
+            where: { note_id: { in: noteIds } },
+            orderBy: { created_at: "desc" },
+          });
+    const withdrawalsByNoteId = new Map<string, typeof allWithdrawals>();
+    for (const w of allWithdrawals) {
+      if (!w.note_id) continue;
+      const list = withdrawalsByNoteId.get(w.note_id) ?? [];
+      list.push(w);
+      withdrawalsByNoteId.set(w.note_id, list);
+    }
+
     return {
-      notes: notes.map(mapNoteListItem),
+      notes: notes.map((note) => ({
+        ...mapNoteListItem(note),
+        issuerResidualPayout: resolveIssuerResidualPayoutListStatus(
+          note,
+          withdrawalsByNoteId.get(note.id) ?? []
+        ),
+      })),
       pagination: { page: 1, pageSize: notes.length || 1, totalCount: notes.length, totalPages: 1 },
     };
   }
@@ -2572,7 +2595,11 @@ export class NoteService {
       },
     });
     if (!allowed) throw new AppError(403, "ISSUER_NOTE_FORBIDDEN", "Issuer note is not accessible");
-    return mapNoteDetail(note);
+    const withdrawals = await prisma.withdrawalInstruction.findMany({
+      where: { note_id: id },
+      orderBy: { created_at: "desc" },
+    });
+    return mapNoteDetail(note, { withdrawals });
   }
 
   getPaymentInstructions(id: string) {
@@ -2593,6 +2620,17 @@ export class NoteService {
     const openReceiptAmount = note.payments
       .filter((payment) => OPEN_PAYMENT_STATUSES.includes(payment.status))
       .reduce((sum, payment) => sum + toNumber(payment.receipt_amount), 0);
+    if (actor.portal === "ISSUER") {
+      const issuerPendingFees =
+        (input.pendingTawidhAmount ?? 0) + (input.pendingGharamahAmount ?? 0);
+      if (issuerPendingFees > 0.005) {
+        throw new AppError(
+          422,
+          "ISSUER_PENDING_FEES_NOT_ALLOWED",
+          "Late fee allowances on a receipt can only be set by an administrator"
+        );
+      }
+    }
     const pendingLateFeeAmount = resolvePendingReceiptLateFeeAmount(note, input);
     assertReceiptAmountWithinSettlementLimit(
       note,
@@ -2615,13 +2653,6 @@ export class NoteService {
             409,
             "NOTE_AMOUNT_UNRESOLVED",
             "Payment cannot be submitted before the invoice amount is resolved"
-          );
-        }
-        if (Math.abs(input.receiptAmount - settlementAmount) > 0.005) {
-          throw new AppError(
-            422,
-            "INVALID_SETTLEMENT_AMOUNT",
-            "Issuer payment must match the invoice settlement amount"
           );
         }
       }

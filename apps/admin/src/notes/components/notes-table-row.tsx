@@ -1,13 +1,18 @@
 import * as React from "react";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
-import { Progress } from "@cashsouk/ui";
+import {
+  Progress,
+  SoukscoreRiskRatingBadge,
+  NOTE_STATUS_BADGE_TONE_CLASS,
+  NoteStatusBadge,
+} from "@cashsouk/ui";
 import type { EligibleNoteInvoice, NoteListItem } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { formatNoteStatus } from "@/notes/utils/format-note-status";
-import { NoteStatusBadge } from "@/notes/components/note-status-badge";
+import { cn } from "@/lib/utils";
 import { CheckCircleIcon, EyeIcon } from "@heroicons/react/24/outline";
 
 type NotesTableRowProps =
@@ -45,25 +50,6 @@ function getFundingProgressClass(note: NoteListItem) {
   return "[&>div]:bg-primary";
 }
 
-function RiskBadge({ riskRating }: { riskRating: string | null | undefined }) {
-  const riskClass =
-    riskRating === "AAA" || riskRating === "AA"
-      ? "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300"
-      : riskRating === "A" || riskRating === "BBB"
-        ? "border-transparent bg-status-submitted-bg text-status-submitted-text dark:bg-blue-950/40 dark:text-blue-300"
-        : riskRating === "BB"
-          ? "border-transparent bg-status-action-bg text-status-action-text dark:bg-amber-950/40 dark:text-amber-300"
-          : riskRating === "B"
-            ? "border-transparent bg-status-rejected-bg text-status-rejected-text dark:bg-red-950/40 dark:text-red-300"
-            : "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300";
-
-  return (
-    <Badge variant="outline" className={`max-w-full truncate ${riskClass}`}>
-      {riskRating ?? "-"}
-    </Badge>
-  );
-}
-
 function NoteRow({ note, onViewDetails }: NoteRowProps) {
   const fundingProgress = Math.min(Math.max(note.fundingPercent, 0), 100);
   return (
@@ -88,7 +74,7 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
         </div>
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
-        <RiskBadge riskRating={note.riskRating} />
+        <SoukscoreRiskRatingBadge riskRating={note.riskRating} />
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden truncate" title={note.paymasterName ?? "—"}>
         {note.paymasterName ?? "—"}
@@ -108,10 +94,7 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
       <TableCell className="min-w-0 overflow-hidden">
         {note.settlementSummary ? (
           <div className="min-w-0">
-            <Badge
-              variant="outline"
-              className="border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300"
-            >
+            <Badge variant="outline" className={NOTE_STATUS_BADGE_TONE_CLASS.success}>
               Settled
             </Badge>
             <div className="mt-1 truncate text-xs text-muted-foreground">
@@ -163,7 +146,7 @@ function ReadyInvoiceRow({
         </div>
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
-        <RiskBadge riskRating={invoice.riskRating} />
+        <SoukscoreRiskRatingBadge riskRating={invoice.riskRating} />
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden truncate" title={invoice.paymasterName ?? "-"}>
         {invoice.paymasterName ?? "-"}
@@ -179,10 +162,7 @@ function ReadyInvoiceRow({
         </div>
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
-        <Badge
-          variant="outline"
-          className="max-w-full truncate border-transparent bg-status-submitted-bg text-status-submitted-text dark:bg-blue-950/40 dark:text-blue-300"
-        >
+        <Badge variant="outline" className={cn("max-w-full truncate", NOTE_STATUS_BADGE_TONE_CLASS.info)}>
           <CheckCircleIcon className="mr-1 h-3.5 w-3.5 shrink-0" />
           Ready
         </Badge>

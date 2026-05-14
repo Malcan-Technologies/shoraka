@@ -1,5 +1,5 @@
-import { isSoukscoreRiskRating } from "@cashsouk/types";
-import { Prisma } from "@prisma/client";
+import { isSoukscoreRiskRating, type IssuerResidualPayoutListStatus } from "@cashsouk/types";
+import { Prisma, WithdrawalStatus, WithdrawalType } from "@prisma/client";
 
 type NoteWithRelations = Prisma.NoteGetPayload<{
   include: {
@@ -210,6 +210,56 @@ function resolveSettlementSummary(note: NoteWithRelations) {
   };
 }
 
+const ISSUER_RESIDUAL_AMOUNT_TOLERANCE = 0.005;
+
+export function resolveIssuerResidualPayoutListStatus(
+  note: NoteWithRelations,
+  withdrawals: WithdrawalRecord[]
+): IssuerResidualPayoutListStatus | undefined {
+  const settlementSummary = resolveSettlementSummary(note);
+  if (!settlementSummary) return undefined;
+
+  const { settlementId, issuerResidualAmount: residualAmount } = settlementSummary;
+  if (residualAmount <= ISSUER_RESIDUAL_AMOUNT_TOLERANCE) {
+    return { kind: "none" };
+  }
+
+  const strictRows = withdrawals.filter(
+    (w) =>
+      w.withdrawal_type === WithdrawalType.ISSUER_RESIDUAL_RETURN &&
+      w.settlement_id === settlementId &&
+      w.status !== WithdrawalStatus.CANCELLED
+  );
+  const rows =
+    strictRows.length > 0
+      ? strictRows
+      : withdrawals.filter(
+          (w) =>
+            w.withdrawal_type === WithdrawalType.ISSUER_RESIDUAL_RETURN &&
+            w.note_id === note.id &&
+            w.status !== WithdrawalStatus.CANCELLED
+        );
+
+  const completed = rows.filter((w) => w.status === WithdrawalStatus.COMPLETED);
+  const completedTotal = completed.reduce((sum, w) => sum + decimalToNumber(w.amount), 0);
+  if (
+    completed.length > 0 &&
+    Math.abs(completedTotal - residualAmount) <= ISSUER_RESIDUAL_AMOUNT_TOLERANCE
+  ) {
+    return { kind: "paid" };
+  }
+
+  const inFlight = rows.find((w) => w.status !== WithdrawalStatus.COMPLETED);
+  if (inFlight) {
+    return {
+      kind: "pending",
+      withTrustee: inFlight.status === WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
+    };
+  }
+
+  return { kind: "awaiting" };
+}
+
 function resolveFeaturedActive(note: NoteWithRelations) {
   if (!note.is_featured) return false;
   const now = new Date();
@@ -269,8 +319,10 @@ export function mapNoteDetail(
   note: NoteWithRelations,
   options: { withdrawals?: WithdrawalRecord[] } = {}
 ) {
+  const withdrawals = options.withdrawals ?? [];
   return {
     ...mapNoteListItem(note),
+    issuerResidualPayout: resolveIssuerResidualPayoutListStatus(note, withdrawals),
     productSnapshot: asRecord(note.product_snapshot),
     issuerSnapshot: asRecord(note.issuer_snapshot) ?? {},
     paymasterSnapshot: asRecord(note.paymaster_snapshot),
@@ -368,7 +420,7 @@ export function mapNoteDetail(
       metadata: asRecord(event.metadata),
       createdAt: event.created_at.toISOString(),
     })),
-    withdrawals: (options.withdrawals ?? []).map(mapWithdrawalInstruction),
+    withdrawals: withdrawals.map(mapWithdrawalInstruction),
   };
 }
 

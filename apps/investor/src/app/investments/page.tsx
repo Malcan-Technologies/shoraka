@@ -6,12 +6,15 @@ import { toast } from "sonner";
 import { useOrganization } from "@cashsouk/config";
 import { useHeader } from "@cashsouk/ui";
 import {
+  ArrowPathIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  FunnelIcon,
   MagnifyingGlassIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -21,9 +24,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MarketplaceNote, NoteCard as MarketplaceMockNoteCard } from "@/components/marketplace/note-card";
 import { InvestmentsDevBalanceTopup } from "./_components/investments-dev-balance-topup";
 import { InvestorInvestmentsList } from "@/components/dashboard-investments-section";
@@ -33,11 +43,9 @@ import {
   useInvestorPortfolio,
   useMarketplaceNotes,
 } from "@/investments/hooks/use-marketplace-notes";
-import type { NoteListItem } from "@cashsouk/types";
-import { SOUKSCORE_RISK_RATING_GRADES } from "@cashsouk/types";
+import { ONBOARDING_INDUSTRY_OPTIONS } from "@/investments/industry-filter-options";
+import { formatNoteReferenceDisplay, SOUKSCORE_RISK_RATING_GRADES, type NoteListItem } from "@cashsouk/types";
 
-const MARKETPLACE_ACTION_BUTTON_CLASS =
-  "bg-slate-950 text-white hover:bg-slate-900";
 const MARKETPLACE_SECONDARY_BUTTON_CLASS =
   "bg-slate-100 text-slate-700 hover:bg-slate-200";
 
@@ -52,26 +60,6 @@ function resolveMarketplaceDaysLeft(maturityDate?: string | null): number | null
   const millisRemaining = target.getTime() - Date.now();
   return Math.max(1, Math.ceil(millisRemaining / (1000 * 60 * 60 * 24)));
 }
-const ONBOARDING_INDUSTRY_OPTIONS = [
-  "Agriculture, Forestry, Fishing",
-  "Manufacturing",
-  "Construction",
-  "Wholesale / Retail Trade",
-  "Transportation",
-  "Hospitality",
-  "Food & Beverage",
-  "Information & Communication",
-  "Technology (ICT)",
-  "Insurance",
-  "Legal Accounting",
-  "Education",
-  "Healthcare",
-  "Real Estate",
-  "Public Sector & Government",
-  "Arts, Media & Entertainment",
-  "Others",
-] as const;
-
 const MARKETPLACE_LISTINGS_PAGE_SIZE = 9;
 
 function parseMarketplaceListPageParam(value: string | null): number {
@@ -107,7 +95,9 @@ function toMarketplaceNote(note: NoteListItem): MarketplaceNote {
   return {
     id: note.id,
     noteCode: note.noteReference.trim() || null,
-    title: note.productName?.trim() || note.title.trim() || null,
+    issuerName: note.issuerName?.trim() || null,
+    noteTitle: note.title?.trim() || null,
+    productName: note.productName?.trim() || null,
     industry: note.issuerIndustry?.trim() || null,
     fundedAmount: note.fundedAmount,
     goalAmount: note.targetAmount,
@@ -171,6 +161,7 @@ export function MarketplacePage() {
   const [agreedToTerms, setAgreedToTerms] = useState(true);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [reloadSpin, setReloadSpin] = useState(false);
 
   useEffect(() => {
     setTitle("Marketplace");
@@ -211,11 +202,13 @@ export function MarketplacePage() {
     data: featuredData,
     isLoading: isFeaturedLoading,
     error: featuredError,
+    refetch: refetchFeaturedNotes,
   } = useMarketplaceNotes({ page: 1, pageSize: 100, featuredOnly: true });
   const {
     data: listData,
     isLoading: isListLoading,
     error: listError,
+    refetch: refetchMarketplaceList,
   } = useMarketplaceNotes({ page: 1, pageSize: 100 });
 
   const isLoading = isFeaturedLoading || isListLoading;
@@ -224,6 +217,10 @@ export function MarketplacePage() {
   const marketplaceNotes = useMemo(
     () => (listData?.notes ?? []).map((note) => toMarketplaceNote(note)),
     [listData?.notes]
+  );
+  const nonFeaturedMarketplaceCount = useMemo(
+    () => marketplaceNotes.filter((note) => !note.isFeatured).length,
+    [marketplaceNotes]
   );
   const normalizedSearchQuery = debouncedSearch.trim().toLowerCase();
 
@@ -236,7 +233,7 @@ export function MarketplacePage() {
           const leftRank = left.featuredRank ?? Number.MAX_SAFE_INTEGER;
           const rightRank = right.featuredRank ?? Number.MAX_SAFE_INTEGER;
           if (leftRank !== rightRank) return leftRank - rightRank;
-          return (left.title ?? "").localeCompare(right.title ?? "");
+          return (left.noteCode ?? "").localeCompare(right.noteCode ?? "");
         }),
     [featuredData?.notes]
   );
@@ -246,9 +243,12 @@ export function MarketplacePage() {
     return marketplaceNotes.filter((note) => !note.isFeatured).filter((note) => {
       const matchesSearch =
         normalizedSearchQuery.length === 0 ||
-        (note.title ?? "").toLowerCase().includes(normalizedSearchQuery) ||
+        (note.noteTitle ?? "").toLowerCase().includes(normalizedSearchQuery) ||
+        (note.productName ?? "").toLowerCase().includes(normalizedSearchQuery) ||
+        (note.issuerName ?? "").toLowerCase().includes(normalizedSearchQuery) ||
         (note.industry ?? "").toLowerCase().includes(normalizedSearchQuery) ||
-        (note.noteCode ?? "").toLowerCase().includes(normalizedSearchQuery);
+        (note.noteCode ?? "").toLowerCase().includes(normalizedSearchQuery) ||
+        formatNoteReferenceDisplay(note.noteCode).toLowerCase().includes(normalizedSearchQuery);
       const matchesIndustry = industryFilter === "all" || note.industry === industryFilter;
       const matchesRisk = riskFilter === "all" || note.riskScore === riskFilter;
       const matchesProfit =
@@ -314,6 +314,23 @@ export function MarketplacePage() {
     riskFilter !== "all" ||
     profitFilter !== "all" ||
     tenorFilter !== "all";
+
+  function handleClearFilters() {
+    setSearch("");
+    setDebouncedSearch("");
+    setIndustryFilter("all");
+    setRiskFilter("all");
+    setProfitFilter("all");
+    setTenorFilter("all");
+    setCurrentPage(1);
+  }
+
+  function handleReload() {
+    setReloadSpin(true);
+    void Promise.all([refetchFeaturedNotes(), refetchMarketplaceList()]).finally(() => {
+      setTimeout(() => setReloadSpin(false), 500);
+    });
+  }
 
   function handleIndustryChange(value: string) {
     setIndustryFilter(value);
@@ -414,40 +431,12 @@ export function MarketplacePage() {
 
   return (
     <div className="flex-1 bg-white p-4 md:p-8">
-      <div className="mx-auto w-full max-w-[1240px] space-y-6">
+      <div className="w-full space-y-6">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Investment Marketplace</h1>
-          <p className="text-sm text-slate-500">
+          <h1 className="text-2xl font-semibold">Investment Marketplace</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Browse published notes and commit funds from your investor pool.
           </p>
-        </div>
-        <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 md:flex-row md:items-center md:justify-between md:p-6">
-          <div className="relative w-full md:max-w-2xl">
-            <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by investment notes, industry, or company"
-              className="h-11 rounded-xl border-slate-200 bg-white pl-9 pr-10 text-sm text-slate-700 placeholder:text-slate-500 focus-visible:ring-slate-300"
-            />
-            {search.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded text-slate-400 hover:text-slate-700"
-                aria-label="Clear search"
-              >
-                <XMarkIcon className="h-4 w-4" />
-              </button>
-            ) : null}
-          </div>
-          <div className="flex w-full flex-col items-stretch gap-3 md:w-auto md:items-end">
-            <div className="text-sm font-medium text-slate-700 md:text-base md:text-right">
-              Available balance:{" "}
-              <span className="font-semibold text-slate-900">{currency(availableBalance)}</span>
-            </div>
-            <InvestmentsDevBalanceTopup investorOrganizationId={activeOrganization?.id} />
-          </div>
         </div>
 
         {error ? (
@@ -462,13 +451,190 @@ export function MarketplacePage() {
           </div>
         ) : null}
 
+        {!isLoading && !error ? (
+          <div className="space-y-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div className="min-w-0 space-y-1.5">
+                <p className="text-sm font-medium text-muted-foreground">Available balance</p>
+                <p className="text-3xl font-semibold leading-none tracking-tight text-foreground tabular-nums sm:text-4xl">
+                  {currency(availableBalance)}
+                </p>
+              </div>
+              <div className="flex shrink-0 justify-end sm:justify-end">
+                <InvestmentsDevBalanceTopup investorOrganizationId={activeOrganization?.id} />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative min-w-[200px] flex-1">
+                <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by investment notes, industry, or company"
+                  className="h-11 rounded-xl pl-9"
+                />
+              </div>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="h-11 gap-2 rounded-xl">
+                    <FunnelIcon className="h-4 w-4" />
+                    Industry
+                    {industryFilter !== "all" ? (
+                      <Badge
+                        variant="secondary"
+                        className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary p-0 text-xs text-primary-foreground"
+                      >
+                        1
+                      </Badge>
+                    ) : null}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))] w-80 overflow-y-auto"
+                >
+                  <DropdownMenuLabel>Industry</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={industryFilter}
+                    onValueChange={(value) => handleIndustryChange(value)}
+                  >
+                    <DropdownMenuRadioItem value="all">All industries</DropdownMenuRadioItem>
+                    {ONBOARDING_INDUSTRY_OPTIONS.map((industry) => (
+                      <DropdownMenuRadioItem key={industry} value={industry}>
+                        {industry}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="h-11 gap-2 rounded-xl">
+                    <FunnelIcon className="h-4 w-4" />
+                    Risk score
+                    {riskFilter !== "all" ? (
+                      <Badge
+                        variant="secondary"
+                        className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary p-0 text-xs text-primary-foreground"
+                      >
+                        1
+                      </Badge>
+                    ) : null}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuLabel>Risk score</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={riskFilter}
+                    onValueChange={(value) => handleRiskChange(value)}
+                  >
+                    <DropdownMenuRadioItem value="all">All risk scores</DropdownMenuRadioItem>
+                    {SOUKSCORE_RISK_RATING_GRADES.map((grade) => (
+                      <DropdownMenuRadioItem key={grade} value={grade}>
+                        {grade}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="h-11 gap-2 rounded-xl">
+                    <FunnelIcon className="h-4 w-4" />
+                    Profit
+                    {profitFilter !== "all" ? (
+                      <Badge
+                        variant="secondary"
+                        className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary p-0 text-xs text-primary-foreground"
+                      >
+                        1
+                      </Badge>
+                    ) : null}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuLabel>Profit band</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={profitFilter}
+                    onValueChange={(value) => handleProfitChange(value)}
+                  >
+                    <DropdownMenuRadioItem value="all">All profit bands</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="low">Below 14%</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="mid">14% - 15%</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="high">Above 15%</DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="h-11 gap-2 rounded-xl">
+                    <FunnelIcon className="h-4 w-4" />
+                    Tenor
+                    {tenorFilter !== "all" ? (
+                      <Badge
+                        variant="secondary"
+                        className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary p-0 text-xs text-primary-foreground"
+                      >
+                        1
+                      </Badge>
+                    ) : null}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>Tenor</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup
+                    value={tenorFilter}
+                    onValueChange={(value) => handleTenorChange(value)}
+                  >
+                    <DropdownMenuRadioItem value="all">All tenors</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="short">Up to 30 days</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="medium">31 - 45 days</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="long">46+ days</DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {hasActiveFilters ? (
+                <Button variant="ghost" onClick={handleClearFilters} className="h-11 gap-2 rounded-xl">
+                  <XMarkIcon className="h-4 w-4" />
+                  Clear
+                </Button>
+              ) : null}
+              <Button
+                variant="outline"
+                onClick={handleReload}
+                disabled={isLoading || reloadSpin}
+                className="h-11 gap-2 rounded-xl"
+              >
+                <ArrowPathIcon
+                  className={`h-4 w-4 ${isLoading || reloadSpin ? "animate-spin" : ""}`}
+                />
+                Reload
+              </Button>
+              <Badge
+                variant="secondary"
+                className="h-11 rounded-xl border-transparent bg-muted px-4 text-sm font-medium text-muted-foreground"
+              >
+                {filteredListingsCount}{" "}
+                {filteredListingsCount === 1 ? "listing" : "listings"}
+                {hasActiveFilters ? ` of ${nonFeaturedMarketplaceCount}` : null}
+              </Badge>
+            </div>
+          </div>
+        ) : null}
+
         {!isLoading && featuredNotes.length > 0 ? (
           <section className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:p-6">
             <div>
-              <h2 className="text-3xl font-bold tracking-tight text-slate-900">Featured investment opportunities</h2>
-              <p className="mt-1 text-sm text-slate-500">Top picks curated for you</p>
+              <h2 className="text-3xl font-bold tracking-tight text-foreground">Featured investment opportunities</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Top picks curated for you</p>
             </div>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 md:items-stretch">
               {featuredPreviewNotes.map((note) => (
                 <MarketplaceMockNoteCard key={note.id} note={note} onInvest={openInvestDialog} />
               ))}
@@ -478,63 +644,7 @@ export function MarketplacePage() {
 
         {!isLoading && (marketplaceNotes.length > 0 || hasActiveFilters) ? (
         <section className="space-y-4">
-          <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 md:flex-row md:items-center md:justify-between">
-            <div className="grid grid-cols-2 gap-2 md:ml-auto md:flex md:items-center">
-              <Select value={industryFilter} onValueChange={handleIndustryChange}>
-                <SelectTrigger className="h-9 w-[170px] md:w-[220px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
-                  <SelectValue placeholder="Industry" className="truncate" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All industries</SelectItem>
-                  {ONBOARDING_INDUSTRY_OPTIONS.map((industry) => (
-                    <SelectItem key={industry} value={industry}>
-                      {industry}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={riskFilter} onValueChange={handleRiskChange}>
-                <SelectTrigger className="h-9 w-[120px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
-                  <SelectValue placeholder="Risk Score" className="truncate" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All risk scores</SelectItem>
-                  {SOUKSCORE_RISK_RATING_GRADES.map((grade) => (
-                    <SelectItem key={grade} value={grade}>
-                      {grade}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={profitFilter} onValueChange={handleProfitChange}>
-                <SelectTrigger className="h-9 w-[120px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
-                  <SelectValue placeholder="Profit" className="truncate" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All profit bands</SelectItem>
-                  <SelectItem value="low">Below 14%</SelectItem>
-                  <SelectItem value="mid">14% - 15%</SelectItem>
-                  <SelectItem value="high">Above 15%</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={tenorFilter} onValueChange={handleTenorChange}>
-                <SelectTrigger className="h-9 w-[120px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
-                  <SelectValue placeholder="Tenor" className="truncate" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All tenors</SelectItem>
-                  <SelectItem value="short">Up to 30 days</SelectItem>
-                  <SelectItem value="medium">31 - 45 days</SelectItem>
-                  <SelectItem value="long">46+ days</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 md:items-stretch">
             {visibleNotes.map((note) => (
               <MarketplaceMockNoteCard key={note.id} note={note} onInvest={openInvestDialog} />
             ))}
@@ -586,7 +696,10 @@ export function MarketplacePage() {
 
         {!isLoading && !error && visibleNotes.length === 0 && hasActiveFilters ? (
           <div className="rounded-2xl border border-dashed p-10 text-center text-muted-foreground">
-            No notes match your current search and filters.
+            <p>No notes match your current search and filters.</p>
+            <Button variant="link" className="mt-2" onClick={handleClearFilters}>
+              Clear filters
+            </Button>
           </div>
         ) : null}
       </div>
@@ -595,11 +708,12 @@ export function MarketplacePage() {
         <DialogContent className="max-w-md rounded-xl border-slate-200 bg-white p-0">
           <DialogHeader className="space-y-3 border-b border-slate-200 px-4 pb-4 pt-5">
             <DialogTitle className="text-2xl font-semibold tracking-tight text-slate-900">
-              {textOrDash(activeNote?.title)}
+              {textOrDash(formatNoteReferenceDisplay(activeNote?.noteCode))}
             </DialogTitle>
             <DialogDescription asChild>
               <div className="text-xs text-slate-500">
-                {textOrDash(activeNote?.industry)} | Note: {textOrDash(activeNote?.noteCode)}
+                {textOrDash(activeNote?.industry)} | Product: {textOrDash(activeNote?.productName)}
+                {activeNote?.noteTitle?.trim() ? ` | ${activeNote.noteTitle.trim()}` : ""}
               </div>
             </DialogDescription>
           </DialogHeader>
@@ -651,8 +765,8 @@ export function MarketplacePage() {
               </Button>
               <Button
                 type="button"
-                variant="default"
-                className={`h-9 flex-1 rounded-lg ${MARKETPLACE_ACTION_BUTTON_CLASS}`}
+                variant="action"
+                className="h-9 flex-1 rounded-lg"
                 onClick={handleInvestAction}
                 disabled={!agreedToTerms || !activeNote?.investable}
               >
@@ -689,8 +803,8 @@ export function MarketplacePage() {
             </Button>
             <Button
               type="button"
-              variant="default"
-              className={`h-9 rounded-lg ${MARKETPLACE_ACTION_BUTTON_CLASS}`}
+              variant="action"
+              className="h-9 rounded-lg"
               onClick={() => void handleConfirmInvestment()}
               disabled={
                 commitInvestment.isPending || !activeOrganization?.id || !activeNote?.investable
@@ -714,7 +828,7 @@ export default function InvestmentsPage() {
 
   return (
     <div className="flex-1 bg-white p-4 md:p-8">
-      <div className="mx-auto w-full max-w-[1240px] space-y-6">
+      <div className="w-full space-y-6">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Your Investments</h1>
           <p className="text-sm text-slate-500">

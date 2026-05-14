@@ -22,6 +22,16 @@ const config: Config = {
         brand: '0 10px 20px -10px rgba(138, 3, 4, 0.35)'
       },
       colors: {
+        /** Matches @cashsouk/styles status tokens — required for SoukscoreRiskRatingBadge etc. */
+        status: {
+          action: { bg: "#FEFCE8", text: "#CA8A04" },
+          submitted: { bg: "#EFF6FF", text: "#2563EB" },
+          "in-progress": { bg: "#EEF2FF", text: "#4F46E5" },
+          success: { bg: "#D1FAE5", text: "#047857" },
+          completed: { bg: "#E0F2FE", text: "#0369A1" },
+          rejected: { bg: "#FEF2F2", text: "#DC2626" },
+          neutral: { bg: "#F1F5F9", text: "#475569" },
+        },
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
         card: {

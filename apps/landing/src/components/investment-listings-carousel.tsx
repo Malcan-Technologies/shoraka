@@ -137,7 +137,7 @@ export function InvestmentListingsCarousel({
       >
         {listings.map((data, i) => (
           <div
-            key={`${data.noteRef}-set-a-${i}`}
+            key={`${data.id}-set-a-${i}`}
             data-carousel-slide
             className="w-[min(22rem,calc(100vw-3rem))] shrink-0 sm:w-[min(24rem,calc(100vw-3.5rem))] lg:w-[min(26rem,calc(100vw-4rem))]"
           >
@@ -147,7 +147,7 @@ export function InvestmentListingsCarousel({
         {listings.length > 1
           ? listings.map((data, i) => (
           <div
-            key={`${data.noteRef}-set-b-${i}`}
+            key={`${data.id}-set-b-${i}`}
             data-carousel-slide
             aria-hidden
             className="w-[min(22rem,calc(100vw-3rem))] shrink-0 sm:w-[min(24rem,calc(100vw-3.5rem))] lg:w-[min(26rem,calc(100vw-4rem))]"

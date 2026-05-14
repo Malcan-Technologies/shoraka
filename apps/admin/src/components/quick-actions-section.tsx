@@ -98,7 +98,7 @@ export function QuickActionsSection({
           </Button>
         )}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 [&>*]:min-h-0">
         <QuickActionCard
           title="Onboarding Approval"
           description="Review pending KYC/KYB applications"

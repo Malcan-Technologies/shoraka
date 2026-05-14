@@ -21,14 +21,14 @@ function formatDateTime(value: string) {
   });
 }
 
-export function LedgerPanel({ note }: { note: NoteDetail }) {
+export function LedgerPanel({
+  note,
+  description = "Accounting-style postings across the platform buckets.",
+}: {
+  note: NoteDetail;
+  description?: string;
+}) {
   const { data: entries = [], isLoading } = useIssuerNoteLedger(note.id);
-  const debitTotal = entries
-    .filter((entry) => entry.direction === "DEBIT")
-    .reduce((sum, entry) => sum + entry.amount, 0);
-  const creditTotal = entries
-    .filter((entry) => entry.direction === "CREDIT")
-    .reduce((sum, entry) => sum + entry.amount, 0);
 
   const handleExport = () => {
     const header = ["postedAt", "accountCode", "direction", "amount", "description", "idempotencyKey"];
@@ -57,9 +57,7 @@ export function LedgerPanel({ note }: { note: NoteDetail }) {
       <CardHeader className="flex flex-row items-start justify-between gap-3">
         <div>
           <CardTitle className="text-base">Ledger</CardTitle>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Accounting-style postings across the platform buckets.
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{description}</p>
         </div>
         <Button size="sm" variant="outline" onClick={handleExport} disabled={entries.length === 0}>
           Export CSV
@@ -81,7 +79,6 @@ export function LedgerPanel({ note }: { note: NoteDetail }) {
                     <TableHead className="min-w-64">Description</TableHead>
                     <TableHead className="text-right">Debit</TableHead>
                     <TableHead className="text-right">Credit</TableHead>
-                    <TableHead className="min-w-52">Reference</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -101,19 +98,8 @@ export function LedgerPanel({ note }: { note: NoteDetail }) {
                       <TableCell className="text-right font-mono text-sm">
                         {entry.direction === "CREDIT" ? formatCurrency(entry.amount) : "-"}
                       </TableCell>
-                      <TableCell className="break-all font-mono text-[11px] text-muted-foreground">
-                        {entry.idempotencyKey}
-                      </TableCell>
                     </TableRow>
                   ))}
-                  <TableRow className="bg-muted/40 font-semibold hover:bg-muted/40">
-                    <TableCell colSpan={3}>Totals</TableCell>
-                    <TableCell className="text-right font-mono">{formatCurrency(debitTotal)}</TableCell>
-                    <TableCell className="text-right font-mono">{formatCurrency(creditTotal)}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      Difference {formatCurrency(Math.abs(debitTotal - creditTotal))}
-                    </TableCell>
-                  </TableRow>
                 </TableBody>
               </Table>
             </div>

@@ -57,12 +57,6 @@ function LedgerTableSkeleton() {
 
 export function LedgerPanel({ note }: { note: NoteDetail }) {
   const { data: entries = [], isLoading } = useNoteLedger(note.id);
-  const debitTotal = entries
-    .filter((entry) => entry.direction === "DEBIT")
-    .reduce((sum, entry) => sum + entry.amount, 0);
-  const creditTotal = entries
-    .filter((entry) => entry.direction === "CREDIT")
-    .reduce((sum, entry) => sum + entry.amount, 0);
 
   const handleExport = () => {
     const header = ["postedAt", "accountCode", "direction", "amount", "description", "idempotencyKey"];
@@ -140,14 +134,6 @@ export function LedgerPanel({ note }: { note: NoteDetail }) {
                       </TableCell>
                     </TableRow>
                   ))}
-                  <TableRow className="bg-muted/40 font-semibold hover:bg-muted/40">
-                    <TableCell colSpan={3}>Totals</TableCell>
-                    <TableCell className="text-right font-mono">{formatCurrency(debitTotal)}</TableCell>
-                    <TableCell className="text-right font-mono">{formatCurrency(creditTotal)}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      Difference {formatCurrency(Math.abs(debitTotal - creditTotal))}
-                    </TableCell>
-                  </TableRow>
                 </TableBody>
               </Table>
             </div>
