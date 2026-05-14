@@ -1,5 +1,5 @@
 import { isSoukscoreRiskRating, type IssuerResidualPayoutListStatus } from "@cashsouk/types";
-import { Prisma, WithdrawalStatus, WithdrawalType } from "@prisma/client";
+import { NoteSettlementStatus, Prisma, WithdrawalStatus, WithdrawalType } from "@prisma/client";
 
 type NoteWithRelations = Prisma.NoteGetPayload<{
   include: {
@@ -218,6 +218,7 @@ export function resolveIssuerResidualPayoutListStatus(
 ): IssuerResidualPayoutListStatus | undefined {
   const settlementSummary = resolveSettlementSummary(note);
   if (!settlementSummary) return undefined;
+  if (settlementSummary.status !== NoteSettlementStatus.POSTED) return undefined;
 
   const { settlementId, issuerResidualAmount: residualAmount } = settlementSummary;
   if (residualAmount <= ISSUER_RESIDUAL_AMOUNT_TOLERANCE) {
