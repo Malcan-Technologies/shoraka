@@ -26,17 +26,25 @@ export const formInputAutofillMutedChromeFix =
   "[&:-webkit-autofill]:shadow-[inset_0_0_0_1000px_hsl(var(--muted))] [&:-webkit-autofill]:[-webkit-text-fill-color:hsl(var(--muted-foreground))]";
 
 export const formInputClassName = cn(
-  "h-11 w-full rounded-xl border border-input bg-background px-4 text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+  "h-11 w-full rounded-xl border border-border/80 bg-background px-4 text-foreground",
+  "hover:border-primary/35 transition-colors",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:border-primary",
   formInputAutofillChromeFix
 );
 
 export const formTextareaClassName = cn(
-  "w-full rounded-xl border border-input bg-background px-4 py-3 text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+  "w-full rounded-xl border border-border/80 bg-background px-4 py-3 text-foreground",
+  "hover:border-primary/35 transition-colors",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:border-primary",
   formInputAutofillChromeFix
 );
 
-export const formSelectTriggerClassName =
-  "h-11 w-full rounded-xl border border-input bg-background text-foreground focus:outline-none focus:ring-0 focus:border-primary focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary";
+export const formSelectTriggerClassName = cn(
+  "h-11 w-full rounded-xl border border-border/80 bg-background text-foreground",
+  "hover:border-primary/35 transition-colors",
+  "focus:outline-none focus:border-primary",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:border-primary"
+);
 
 /** Read-only / disabled field styling
  *
@@ -111,7 +119,9 @@ export const applicationFlowRadioRowControlClassName = "h-11 flex items-center m
 export function withFieldError(className: string, hasError: boolean) {
   return cn(
     className,
-    hasError ? "border-destructive focus-visible:border-2 focus-visible:border-destructive" : null
+    hasError
+      ? "border-destructive focus-visible:border-2 focus-visible:border-destructive focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      : null
   );
 }
 

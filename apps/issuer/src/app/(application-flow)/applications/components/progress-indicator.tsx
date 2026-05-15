@@ -164,7 +164,11 @@ export function ProgressIndicator({
                 <div
                   className={cn(
                     "absolute left-[-50%] w-full z-0 rounded-full transition-colors duration-300 ease-out",
-                    connectorIsRed ? "bg-destructive" : displayFilled ? "bg-foreground" : "bg-muted"
+                    connectorIsRed
+                      ? "bg-destructive"
+                      : displayFilled
+                        ? "bg-foreground"
+                        : "bg-foreground/20"
                   )}
                   style={{
                     top: "16px",
@@ -199,12 +203,12 @@ export function ProgressIndicator({
                         : "border-2 border-foreground bg-foreground scale-100"
                       : showFlaggedStyle
                       ? "border-2 border-destructive bg-background scale-95"
-                      : "border-2 border-muted bg-background scale-95"
+                        : "border-2 border-foreground/20 bg-background scale-95"
                   )}
                 >
                   {/* Unfilled highlight disk (SOLID, no opacity) */}
                   {!displayFilled && (
-                    <div className="absolute inset-[0px] rounded-full bg-muted/5" />
+                    <div className="absolute inset-[0px] rounded-full bg-muted/10" />
                   )}
 
                   {displayCompleted ? (
@@ -225,7 +229,7 @@ export function ProgressIndicator({
                     <div
                       className={cn(
                         "relative h-[8px] w-[8px] rounded-full",
-                        displayFilled ? "bg-background" : "bg-muted-foreground/15"
+                        displayFilled ? "bg-background" : "bg-muted-foreground/25"
                       )}
                     />
                   )}
@@ -242,7 +246,7 @@ export function ProgressIndicator({
                     ? "font-medium text-foreground"
                     : showFlaggedStyle || showAcknowledgedFlaggedStyle
                     ? "text-destructive"
-                    : "text-muted-foreground"
+                        : "text-foreground/60"
                 )}
               >
                 {typeof renderStepLabel(label) === "string" ? (
