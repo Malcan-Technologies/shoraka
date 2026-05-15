@@ -28,14 +28,14 @@ export const formInputAutofillMutedChromeFix =
 export const formInputClassName = cn(
   "h-11 w-full rounded-xl border border-border/80 bg-background px-4 text-foreground",
   "hover:border-primary/35 transition-colors",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:border-primary",
+  "focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
   formInputAutofillChromeFix
 );
 
 export const formTextareaClassName = cn(
   "w-full rounded-xl border border-border/80 bg-background px-4 py-3 text-foreground",
   "hover:border-primary/35 transition-colors",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:border-primary",
+  "focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
   formInputAutofillChromeFix
 );
 
@@ -43,9 +43,9 @@ export const formSelectTriggerClassName = cn(
   "h-11 w-full rounded-xl border border-border/80 bg-background text-foreground",
   "hover:border-primary/35 transition-colors",
   "focus:outline-none focus:border-primary",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:border-primary",
+  "focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
   // Radix: show the same ring/border when opened via mouse click.
-  "data-[state=open]:border data-[state=open]:border-primary data-[state=open]:ring-2 data-[state=open]:ring-primary data-[state=open]:ring-offset-2 data-[state=open]:ring-offset-background data-[state=open]:outline-none"
+  "data-[state=open]:border-primary data-[state=open]:ring-0 data-[state=open]:outline-none"
 );
 
 /** Read-only / disabled field styling
@@ -122,7 +122,7 @@ export function withFieldError(className: string, hasError: boolean) {
   return cn(
     className,
     hasError
-      ? "border-destructive focus-visible:border-2 focus-visible:border-destructive focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      ? "border-destructive focus-visible:border-destructive focus-visible:ring-0"
       : null
   );
 }

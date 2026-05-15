@@ -19,10 +19,10 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-11 w-full items-center justify-between whitespace-nowrap rounded-xl border border-border/80 bg-transparent px-4 py-2 text-sm shadow-sm ring-offset-background hover:border-primary/30 data-[placeholder]:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-100 disabled:bg-muted disabled:text-muted-foreground disabled:border-border [&>span]:line-clamp-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+      "flex h-11 w-full items-center justify-between whitespace-nowrap rounded-xl border border-border/80 bg-transparent px-4 py-2 text-sm shadow-sm hover:border-primary/30 data-[placeholder]:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-100 disabled:bg-muted disabled:text-muted-foreground disabled:border-border [&>span]:line-clamp-1 focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
       className,
-      // Radix: show the same ring/border when opened via mouse click.
-      "data-[state=open]:border data-[state=open]:border-primary data-[state=open]:ring-2 data-[state=open]:ring-primary data-[state=open]:ring-offset-2 data-[state=open]:ring-offset-background data-[state=open]:outline-none"
+      // Radix: show border-primary on open, without rings.
+      "data-[state=open]:border-primary data-[state=open]:ring-0 data-[state=open]:outline-none"
     )}
     {...props}
   >

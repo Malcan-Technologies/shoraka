@@ -1410,7 +1410,7 @@ export default function InvoiceDetailsStep({
                                   placeholder="Enter invoice"
                                   className={cn(
                                     withFieldError(
-                                      "h-9 text-xs rounded-xl border border-border/80 bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:border-primary",
+                                      "h-9 text-xs rounded-xl border border-border/80 bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
                                       isRowPartial(inv)
                                     ),
                                     !isEditable && formInputDisabledClassName
@@ -1446,7 +1446,7 @@ export default function InvoiceDetailsStep({
                                   disabled={!isEditable}
                                   inputClassName={cn(
                                     withFieldError(
-                                      "h-9 text-xs rounded-xl border border-border/80 bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:border-primary",
+                                      "h-9 text-xs rounded-xl border border-border/80 bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
                                       isRowPartial(inv)
                                     ),
                                     !isEditable && formInputDisabledClassName
@@ -1523,9 +1523,8 @@ export default function InvoiceDetailsStep({
                                     prefix="RM"
                                     disabled={!isEditable || parseMoney(inv.value) <= 0}
                                     inputClassName={cn(
-                                      "h-9 text-xs rounded-xl border border-border/80 bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:border-primary",
-                                      (!isEditable || parseMoney(inv.value) <= 0) &&
-                                        formInputDisabledClassName
+                                      "h-9 text-xs rounded-xl border border-border/80 bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                      (!isEditable || parseMoney(inv.value) <= 0) && formInputDisabledClassName
                                     )}
                                   />
                                   <p className="text-[10px] text-muted-foreground tabular-nums">

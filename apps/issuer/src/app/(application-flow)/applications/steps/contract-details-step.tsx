@@ -1365,7 +1365,7 @@ export function ContractDetailsStep({
                 onChange={(e) => handleInputChange("customer", "country", e.target.value)}
                 disabled={!stepIsEditable}
                 className={cn(
-                  "min-h-0 min-w-0 flex-1 border-0 bg-transparent py-2 text-sm text-foreground outline-none focus:outline-none focus-visible:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background",
+                  "min-h-0 min-w-0 flex-1 border-0 bg-transparent py-2 text-sm text-foreground outline-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0",
                   stepIsEditable ? "cursor-pointer" : "cursor-not-allowed"
                 )}
               >

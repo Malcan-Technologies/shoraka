@@ -116,9 +116,9 @@ export function DateInput({
               ? "cursor-not-allowed bg-muted text-muted-foreground"
               : "cursor-text",
             preset.container,
-            isInvalid && "border-destructive focus-within:border-2 focus-within:border-destructive",
+            isInvalid && "border-destructive focus-within:border-destructive",
             !isInvalid &&
-              "border-border/80 focus-within:border-primary data-[state=open]:border-primary data-[state=open]:ring-2 data-[state=open]:ring-primary data-[state=open]:ring-offset-2 data-[state=open]:ring-offset-background data-[state=open]:outline-none",
+              "border-border/80 focus-within:border-primary data-[state=open]:border-primary data-[state=open]:ring-0 data-[state=open]:outline-none",
             className && !className.includes("border") && className
           )}
         >
@@ -132,7 +132,7 @@ export function DateInput({
             readOnly={disabled}
             disabled={disabled}
             className={cn(
-              "bg-transparent outline-none flex-1 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              "bg-transparent border-0 outline-none flex-1 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0",
               preset.input,
               disabled ? formInputAutofillMutedChromeFix : formInputAutofillChromeFix,
               // reserve space for right icon
@@ -150,7 +150,7 @@ export function DateInput({
             }}
             disabled={disabled}
             className={cn(
-              "absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors",
+              "absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors outline-none focus-visible:outline-none focus-visible:ring-0",
               size === "compact" ? "p-1" : "p-2"
             )}
             aria-label="Open calendar"

@@ -16,8 +16,8 @@ const DropdownMenuTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       className,
-      // Radix: show the same ring/border when opened via mouse click.
-      "data-[state=open]:outline-none data-[state=open]:ring-2 data-[state=open]:ring-primary data-[state=open]:ring-offset-2 data-[state=open]:ring-offset-background data-[state=open]:border-primary"
+      // Radix: open state should match the focused input (border-only, no ring).
+      "data-[state=open]:outline-none data-[state=open]:ring-0 data-[state=open]:border-primary focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary"
     )}
     {...props}
   />
