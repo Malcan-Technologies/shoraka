@@ -148,10 +148,16 @@ export function ProgressIndicator({
           /** Flagged + acknowledged = red circle with white check (saved amendment step). */
           const showAcknowledgedFlaggedStyle = isFlagged && isAcknowledged && displayCompleted;
 
-          /** Past approved steps are revisitable; future within allowed max is “up next”; beyond max is never opened. */
+          /** Beyond allowed max in normal draft: not filled, not active — gray “locked” look. */
           const isLockedUnvisited =
             !displayFilled && !isActive && isLockedFuture;
+
+          /** Steps ahead of current that the wizard allows jumping to (edit flow). When `maxClickableStep`
+           * is unset (e.g. /applications/new), future steps must stay unfilled — do not treat all future
+           * steps as "clickable future" or the stepper looks fully completed. */
           const isClickableFuture =
+            maxClickableStep != null &&
+            stepNumber <= maxClickableStep &&
             !displayFilled &&
             !isActive &&
             !isLockedFuture &&
