@@ -111,7 +111,7 @@ export function DateInput({
       <PopoverPrimitive.Trigger asChild>
         <div
           className={cn(
-            "relative flex items-center rounded-xl border bg-background transition-colors",
+            "relative flex items-center rounded-xl border bg-background",
             disabled
               ? "cursor-not-allowed bg-muted text-muted-foreground"
               : "cursor-text",
@@ -150,7 +150,7 @@ export function DateInput({
             }}
             disabled={disabled}
             className={cn(
-              "absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors outline-none focus-visible:outline-none focus-visible:ring-0",
+              "absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground outline-none focus-visible:outline-none focus-visible:ring-0",
               size === "compact" ? "p-1" : "p-2"
             )}
             aria-label="Open calendar"
