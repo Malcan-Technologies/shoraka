@@ -43,7 +43,7 @@ export function TextareaWithCharCount({
         className={cn(className, disabled && formInputDisabledClassName)}
         disabled={disabled}
       />
-      <p className="shrink-0 text-right text-sm tabular-nums text-muted-foreground" aria-live="polite">
+      <p className="shrink-0 text-right text-sm tabular-nums text-foreground/60" aria-live="polite">
         {countLabel}
       </p>
     </div>

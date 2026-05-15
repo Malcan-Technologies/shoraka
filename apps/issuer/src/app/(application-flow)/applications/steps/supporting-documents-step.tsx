@@ -853,7 +853,7 @@ export function SupportingDocumentsStep({
             return (
               <section
                 key={categoryIndex}
-                className="w-full rounded-xl border border-border bg-background overflow-hidden"
+                className="w-full rounded-xl border border-input bg-background overflow-hidden"
               >
                 <button
                   type="button"
@@ -947,11 +947,7 @@ export function SupportingDocumentsStep({
                             locked={!isEditable}
                             className={cn(
                               "min-h-9 w-full",
-                              isItemFlagged && isEditable
-                                ? applicationFlowAmendmentTargetSurfaceClassName
-                                : !isEditable
-                                  ? "border-border"
-                                  : "bg-background border-border"
+                              isItemFlagged && isEditable && applicationFlowAmendmentTargetSurfaceClassName
                             )}
                             trailing={
                               <button

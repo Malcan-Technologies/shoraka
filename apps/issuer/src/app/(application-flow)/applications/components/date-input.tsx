@@ -118,7 +118,7 @@ export function DateInput({
             preset.container,
             isInvalid && "border-destructive focus-within:border-destructive",
             !isInvalid &&
-              "border-border/80 focus-within:border-primary data-[state=open]:border-primary data-[state=open]:ring-0 data-[state=open]:outline-none",
+              "border-input hover:border-muted-foreground/50 focus-within:border-primary data-[state=open]:border-primary data-[state=open]:ring-0 data-[state=open]:outline-none",
             className && !className.includes("border") && className
           )}
         >

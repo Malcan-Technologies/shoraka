@@ -385,8 +385,8 @@ function FileUploadArea({
     return (
       <div
         className={cn(
-          "rounded-xl border px-4 py-3 flex items-center justify-between gap-3 min-h-11",
-          disabled ? formLockedFileSurfaceClassName : "border-border bg-card/50 text-foreground"
+          "rounded-xl border border-input px-4 py-3 flex items-center justify-between gap-3 min-h-11",
+          disabled ? formLockedFileSurfaceClassName : "bg-card/50 text-foreground"
         )}
       >
         <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -394,7 +394,7 @@ function FileUploadArea({
             className={cn(
               "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border",
               disabled
-                ? "border-border bg-background/50"
+                ? "border-input bg-background/50"
                 : isPending
                   ? "border-transparent bg-yellow-500/10"
                   : "border-transparent bg-primary/10"
@@ -433,10 +433,10 @@ function FileUploadArea({
       onDragOver={handleDragOver}
       onDrop={handleDrop}
       className={cn(
-        "border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-colors",
+        "flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-input p-6 transition-colors",
         disabled
-          ? "border-muted-foreground/20 bg-muted cursor-not-allowed"
-          : "border-border bg-card/50 cursor-pointer hover:bg-muted/50"
+          ? "cursor-not-allowed bg-muted"
+          : "cursor-pointer bg-card/50 hover:border-muted-foreground/50 hover:bg-muted/50"
       )}
     >
       <input
@@ -447,7 +447,7 @@ function FileUploadArea({
         className="hidden"
         disabled={disabled}
       />
-      <div className="p-2 rounded-full bg-background border shadow-sm">
+      <div className="p-2 rounded-full bg-background border border-input shadow-sm">
         <CloudUpload className="h-5 w-5 text-muted-foreground" />
       </div>
       <div className="text-center">
@@ -1348,7 +1348,7 @@ export function ContractDetailsStep({
             </Label>
             <div
               className={cn(
-                "flex h-11 w-full items-center gap-2 rounded-xl border border-border/80 bg-background px-3",
+                "flex h-11 w-full items-center gap-2 rounded-xl border border-input bg-background px-3",
                 "focus-within:border-primary focus-within:outline-none",
                 !stepIsEditable && formInputDisabledClassName
               )}

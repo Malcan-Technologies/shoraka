@@ -26,22 +26,22 @@ export const formInputAutofillMutedChromeFix =
   "[&:-webkit-autofill]:shadow-[inset_0_0_0_1000px_hsl(var(--muted))] [&:-webkit-autofill]:[-webkit-text-fill-color:hsl(var(--muted-foreground))]";
 
 export const formInputClassName = cn(
-  "h-11 w-full rounded-xl border border-border/80 bg-background px-4 text-foreground",
-  "hover:border-border/80",
+  "h-11 w-full rounded-xl border border-input bg-background px-4 text-foreground",
+  "hover:border-muted-foreground/50",
   "focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
   formInputAutofillChromeFix
 );
 
 export const formTextareaClassName = cn(
-  "w-full rounded-xl border border-border/80 bg-background px-4 py-3 text-foreground",
-  "hover:border-border/80",
+  "w-full rounded-xl border border-input bg-background px-4 py-3 text-foreground",
+  "hover:border-muted-foreground/50",
   "focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
   formInputAutofillChromeFix
 );
 
 export const formSelectTriggerClassName = cn(
-  "h-11 w-full rounded-xl border border-border/80 bg-background text-foreground",
-  "hover:border-border/80",
+  "h-11 w-full rounded-xl border border-input bg-background text-foreground",
+  "hover:border-muted-foreground/50",
   "focus:outline-none focus:border-primary",
   "focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
   // Radix: show the same ring/border when opened via mouse click.
@@ -55,13 +55,14 @@ export const formSelectTriggerClassName = cn(
  * Use: Add to Input/Textarea/Select className when disabled={true}.
  */
 export const formInputDisabledClassName = cn(
-  "bg-muted text-muted-foreground opacity-100 cursor-not-allowed disabled:opacity-100 disabled:bg-muted border-border shadow-none",
+  "bg-muted text-muted-foreground opacity-100 cursor-not-allowed disabled:opacity-100 disabled:bg-muted border-input shadow-none",
   formInputAutofillMutedChromeFix
 );
 
 /** Read-only uploaded file row / chip shell — same surface tokens as `formInputDisabledClassName` (no input-only autofill rules). */
-export const formLockedFileSurfaceClassName =
-  "bg-muted text-muted-foreground border-border shadow-none opacity-100";
+export const formLockedFileSurfaceClassName = cn(
+  "bg-muted text-muted-foreground border border-input shadow-none opacity-100"
+);
 
 /** Whole table row locked: tr + every td same muted fill (inputs also use formInputDisabledClassName). */
 export const applicationFlowLockedTableRowClassName = cn(
@@ -80,7 +81,7 @@ export const applicationFlowAmendmentTargetTableRowClassName = cn(
 /** Flagged row / field outside tables (chips, panels) — same primary tint + ring as table rows. */
 export const applicationFlowAmendmentTargetSurfaceClassName = cn(
   "text-foreground",
-  "bg-primary/[0.07] ring-1 ring-inset ring-primary/20 border-primary/30"
+  "border border-primary/35 bg-primary/[0.07] ring-1 ring-inset ring-primary/20"
 );
 
 /** Section title (h2/h3) — contract-details pattern. */

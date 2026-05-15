@@ -181,7 +181,7 @@ export const GuarantorNationalityAutocomplete = React.memo(
                 id={listId}
                 role="listbox"
                 aria-label="Countries"
-                className="max-h-[min(20rem,55vh)] overflow-y-auto overscroll-contain rounded-lg border border-border/60"
+                className="max-h-[min(20rem,55vh)] overflow-y-auto overscroll-contain rounded-lg border border-input"
               >
                 {rows.length === 0 ? (
                   <p className="px-3 py-6 text-center text-sm text-muted-foreground">

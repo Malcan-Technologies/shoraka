@@ -1296,7 +1296,7 @@ export default function ProfilePage() {
                           defaultCountry="MY"
                           value={phoneNumber}
                           onChange={setPhoneNumber}
-                          className="h-11 rounded-xl border border-border/80 focus-within:border-primary px-4 transition-none [&_*]:transition-none [&>input]:border-0 [&>input]:bg-transparent [&>input]:text-sm [&>input]:focus-visible:outline-none [&>input]:focus-visible:ring-0 [&_*]:focus-visible:outline-none [&_*]:focus-visible:ring-0"
+                          className="h-11 rounded-xl border border-input hover:border-muted-foreground/50 focus-within:border-primary px-4 transition-none [&_*]:transition-none [&>input]:border-0 [&>input]:bg-transparent [&>input]:text-sm [&>input]:focus-visible:outline-none [&>input]:focus-visible:ring-0 [&_*]:focus-visible:outline-none [&_*]:focus-visible:ring-0"
                         />
                       ) : (
                         <Input

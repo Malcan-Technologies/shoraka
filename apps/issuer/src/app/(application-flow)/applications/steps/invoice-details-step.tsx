@@ -432,8 +432,13 @@ export default function InvoiceDetailsStep({
           const invoiceValue = parseMoney(row.value);
           if (invoiceValue <= 0) return row;
           const desired = parseMoney(amountStr);
+          const currentRatio = row.financing_ratio_percent ?? minR;
+          const canonicalFinancing = invoiceValue * (currentRatio / 100);
+          if (Math.round(desired * 100) === Math.round(canonicalFinancing * 100)) {
+            return row;
+          }
           const rawRatio = (desired / invoiceValue) * 100;
-          const wholeRatioUp = Math.ceil(rawRatio);
+          const wholeRatioUp = Math.ceil(rawRatio - 1e-9);
           const clamped = Math.min(maxR, Math.max(minR, wholeRatioUp));
           return { ...row, financing_ratio_percent: clamped };
         })
@@ -1278,8 +1283,9 @@ export default function InvoiceDetailsStep({
                             Invoice Value
                           </TableHead>
 
-                          <TableHead className="w-[170px] whitespace-nowrap text-xs font-semibold">
-                            <div className="inline-flex items-center gap-0.5">
+                          <TableHead className="w-[170px] text-xs font-semibold">
+                            <div className="flex justify-center">
+                              <div className="inline-flex items-center gap-0.5 whitespace-nowrap">
                               <span>Financing Ratio</span>
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -1299,6 +1305,7 @@ export default function InvoiceDetailsStep({
                                   amount, the ratio will round up and stay within this range.
                                 </TooltipContent>
                               </Tooltip>
+                              </div>
                             </div>
                           </TableHead>
 
@@ -1410,7 +1417,7 @@ export default function InvoiceDetailsStep({
                                   placeholder="Enter invoice"
                                   className={cn(
                                     withFieldError(
-                                      "h-9 text-xs rounded-xl border border-border/80 bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                      "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
                                       isRowPartial(inv)
                                     ),
                                     !isEditable && formInputDisabledClassName
@@ -1446,7 +1453,7 @@ export default function InvoiceDetailsStep({
                                   disabled={!isEditable}
                                   inputClassName={cn(
                                     withFieldError(
-                                      "h-9 text-xs rounded-xl border border-border/80 bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                      "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
                                       isRowPartial(inv)
                                     ),
                                     !isEditable && formInputDisabledClassName
@@ -1454,20 +1461,20 @@ export default function InvoiceDetailsStep({
                                 />
                               </TableCell>
 
-                              <TableCell className="p-2">
-                                <div className="flex items-center gap-2">
+                              <TableCell className="p-2 align-middle text-center">
+                                <div className="inline-flex max-w-full items-center gap-2 text-left">
                                   <div
                                     className={cn(
-                                      "shrink-0 rounded-md border border-border px-2 py-0.5 text-[11px] font-semibold tabular-nums shadow-sm",
+                                      "flex h-9 shrink-0 items-center justify-center rounded-xl border border-input px-2 text-[11px] font-semibold tabular-nums text-foreground shadow-sm",
                                       !isEditable
-                                        ? "bg-muted text-foreground"
-                                        : "bg-background text-foreground"
+                                        ? "bg-muted"
+                                        : "bg-background hover:border-muted-foreground/50"
                                     )}
                                   >
                                     {ratioNum}%
                                   </div>
 
-                                  <div className="flex-1 min-w-0">
+                                  <div className="w-28 shrink-0">
                                     <Slider
                                       min={minRatio}
                                       max={maxRatio}
@@ -1497,37 +1504,40 @@ export default function InvoiceDetailsStep({
                               </TableCell>
 
                               <TableCell className="p-2">
-                                <div className="space-y-1">
-                                  <MoneyInput
-                                    value={
-                                      financingAmountDraftById[inv.id] ??
-                                      (financingAmount > 0 ? formatMoney(financingAmount) : "")
-                                    }
-                                    onValueChange={(v) =>
-                                      setFinancingAmountDraftById((p) => ({ ...p, [inv.id]: v }))
-                                    }
-                                    onBlurComplete={(formatted) => {
-                                      clearFinancingAmountDraft(inv.id);
-                                      if (formatted === "") {
-                                        updateInvoiceField(inv.id, "financing_ratio_percent", minRatio);
-                                        return;
+                                <div className="flex min-w-0 flex-col gap-0.5">
+                                  <div className="flex h-9 w-full items-center">
+                                    <MoneyInput
+                                      value={
+                                        financingAmountDraftById[inv.id] ??
+                                        (financingAmount > 0 ? formatMoney(financingAmount) : "")
                                       }
-                                      syncRatioFromFinancingAmountString(
-                                        inv.id,
-                                        formatted,
-                                        minRatio,
-                                        maxRatio
-                                      );
-                                    }}
-                                    placeholder="0.00"
-                                    prefix="RM"
-                                    disabled={!isEditable || parseMoney(inv.value) <= 0}
-                                    inputClassName={cn(
-                                      "h-9 text-xs rounded-xl border border-border/80 bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
-                                      (!isEditable || parseMoney(inv.value) <= 0) && formInputDisabledClassName
-                                    )}
-                                  />
-                                  <p className="text-[10px] text-muted-foreground tabular-nums">
+                                      onValueChange={(v) =>
+                                        setFinancingAmountDraftById((p) => ({ ...p, [inv.id]: v }))
+                                      }
+                                      onBlurComplete={(formatted) => {
+                                        clearFinancingAmountDraft(inv.id);
+                                        if (formatted === "") {
+                                          updateInvoiceField(inv.id, "financing_ratio_percent", minRatio);
+                                          return;
+                                        }
+                                        syncRatioFromFinancingAmountString(
+                                          inv.id,
+                                          formatted,
+                                          minRatio,
+                                          maxRatio
+                                        );
+                                      }}
+                                      placeholder="0.00"
+                                      prefix="RM"
+                                      disabled={!isEditable || parseMoney(inv.value) <= 0}
+                                      className="min-w-0"
+                                      inputClassName={cn(
+                                        "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                        (!isEditable || parseMoney(inv.value) <= 0) && formInputDisabledClassName
+                                      )}
+                                    />
+                                  </div>
+                                  <p className="text-[10px] leading-tight text-muted-foreground tabular-nums">
                                     Based on {ratioNum}% ratio
                                   </p>
                                 </div>
@@ -1540,7 +1550,7 @@ export default function InvoiceDetailsStep({
                                     size="sm"
                                     locked={!isEditable}
                                     className={cn(
-                                      "min-w-0 max-w-full border-border",
+                                      "min-w-0 max-w-full",
                                       isEditable && "bg-background"
                                     )}
                                     trailing={
@@ -1584,7 +1594,7 @@ export default function InvoiceDetailsStep({
                                     />
                                   </label>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground h-8 bg-muted px-2 rounded border border-muted-foreground/20">
+                                  <span className="inline-flex h-8 items-center gap-1 rounded border border-input bg-muted px-2 text-xs text-muted-foreground">
                                     Locked
                                   </span>
                                 )}

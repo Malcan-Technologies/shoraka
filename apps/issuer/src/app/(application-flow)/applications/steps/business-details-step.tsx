@@ -1177,7 +1177,7 @@ function GuarantorCardFields({
       )}
 
       <div className="mt-4 border-t border-border pt-5">
-        <div className="rounded-xl border border-border bg-background px-4 py-3.5 sm:px-5 sm:py-4">
+        <div className="rounded-xl border border-input bg-background px-4 py-3.5 sm:px-5 sm:py-4">
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,17rem)_1fr] lg:gap-x-4 lg:items-start">
           <div className="min-w-0 space-y-1.5">
             <div>
@@ -1208,10 +1208,7 @@ function GuarantorCardFields({
                   inlineChip
                   size="sm"
                   locked={readOnly}
-                  className={cn(
-                    "min-h-9 w-full",
-                    readOnly ? "border-border" : "bg-background border-border"
-                  )}
+                  className="min-h-9 w-full"
                   trailing={
                     <button
                       type="button"
@@ -2281,10 +2278,10 @@ export function BusinessDetailsStep({
                   <div
                     key={`${doc.s3_key ?? doc.client_id ?? doc.file_name}-${index}`}
                     className={cn(
-                      "rounded-xl border px-4 py-3 flex items-center justify-between gap-3 min-h-11",
+                      "rounded-xl border border-input px-4 py-3 flex items-center justify-between gap-3 min-h-11",
                       fieldsLocked
                         ? formLockedFileSurfaceClassName
-                        : "border-border bg-card/50 text-foreground"
+                        : "border-input bg-card/50 text-foreground"
                     )}
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -2292,7 +2289,7 @@ export function BusinessDetailsStep({
                         className={cn(
                           "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border",
                           fieldsLocked
-                            ? "border-border bg-background/50"
+                            ? "border-input bg-background/50"
                             : doc.client_id
                               ? "border-transparent bg-yellow-500/10"
                               : "border-transparent bg-primary/10"
@@ -2331,10 +2328,10 @@ export function BusinessDetailsStep({
                 {!fieldsLocked && (
                   <label htmlFor="why-section-supporting-documents" className="cursor-pointer">
                     <div
-                      className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-colors border-border bg-card/50 hover:bg-muted/50"
+                      className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-input bg-card/50 p-6 transition-colors hover:border-muted-foreground/50 hover:bg-muted/50"
                       {...whySupportingDocumentsDropZoneProps}
                     >
-                      <div className="p-2 rounded-full bg-background border shadow-sm">
+                      <div className="rounded-full border border-input bg-background p-2 shadow-sm">
                         <CloudUpload className="h-5 w-5 text-muted-foreground" />
                       </div>
                       <div className="text-center">
@@ -2362,10 +2359,10 @@ export function BusinessDetailsStep({
                 className="cursor-pointer"
               >
                 <div
-                  className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-colors border-border bg-card/50 hover:bg-muted/50"
+                  className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-input bg-card/50 p-6 transition-colors hover:border-muted-foreground/50 hover:bg-muted/50"
                   {...whySupportingDocumentsDropZoneProps}
                 >
-                  <div className="p-2 rounded-full bg-background border shadow-sm">
+                  <div className="rounded-full border border-input bg-background p-2 shadow-sm">
                     <CloudUpload className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <div className="text-center">
@@ -2573,7 +2570,7 @@ export function BusinessDetailsStep({
         <button
           type="button"
           className={cn(
-            "hidden w-full rounded-xl border border-dashed border-border bg-muted/20 py-3 text-sm font-semibold text-foreground",
+            "hidden w-full rounded-xl border border-dashed border-input bg-muted/20 py-3 text-sm font-semibold text-foreground",
             fieldsLocked ? "opacity-50 pointer-events-none" : "hover:bg-muted/40 cursor-pointer"
           )}
           disabled={fieldsLocked}
@@ -2590,7 +2587,7 @@ export function BusinessDetailsStep({
           <div className={applicationFlowSectionDividerClassName} />
         </div>
 
-        <div className="rounded-xl border border-border bg-background p-4 sm:p-5">
+        <div className="rounded-xl border border-input bg-background p-4 sm:p-5">
           <label
             className={cn(
               "flex items-start gap-3",

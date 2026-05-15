@@ -68,7 +68,7 @@ export function FileDisplayBadge({
     <div
       title={fileName}
       className={cn(
-        "items-center border border-input bg-background rounded-xl",
+        "items-center rounded-xl border border-input bg-background shadow-sm",
         inlineChip ? "flex" : "inline-flex",
         s.row,
         "min-w-0 max-w-full overflow-hidden",
