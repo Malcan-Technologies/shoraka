@@ -61,7 +61,7 @@ export function ProgressIndicator({
               {/* Connector skeleton — behind circles */}
               {index !== 0 && (
                 <div
-                  className="absolute left-[-50%] w-full z-0 rounded-full bg-sidebar-accent"
+                  className="absolute left-[-50%] w-full z-0 rounded-full bg-input"
                   style={{
                     top: "16px",
                     height: "4px",
@@ -179,7 +179,7 @@ export function ProgressIndicator({
                       ? "bg-destructive"
                       : displayFilled || isClickableFuture
                         ? "bg-foreground"
-                        : "bg-sidebar-accent"
+                        : "bg-input"
                   )}
                   style={{
                     top: "16px",
@@ -215,10 +215,10 @@ export function ProgressIndicator({
                       : showFlaggedStyle
                       ? "border-2 border-destructive bg-background scale-95"
                         : isLockedUnvisited
-                          ? "border-2 border-sidebar-border bg-background scale-95"
+                          ? "border-2 border-input bg-background scale-95"
                           : isClickableFuture
                             ? "border-2 border-foreground bg-foreground scale-100"
-                            : "border-2 border-sidebar-border bg-background scale-95"
+                            : "border-2 border-input bg-background scale-95"
                   )}
                 >
 
@@ -242,7 +242,7 @@ export function ProgressIndicator({
                         "relative h-[8px] w-[8px] rounded-full",
                         displayFilled || isClickableFuture
                           ? "bg-background"
-                          : "bg-sidebar-border"
+                          : "bg-input"
                       )}
                     />
                   )}
