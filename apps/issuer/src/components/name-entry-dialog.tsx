@@ -87,7 +87,6 @@ export function NameEntryDialog({ open, onOpenChange, onComplete }: NameEntryDia
                 placeholder="Enter your first name"
                 required
                 disabled={isSaving}
-                className="h-11 rounded-xl"
                 autoFocus
               />
             </div>
@@ -100,7 +99,6 @@ export function NameEntryDialog({ open, onOpenChange, onComplete }: NameEntryDia
                 placeholder="Enter your last name"
                 required
                 disabled={isSaving}
-                className="h-11 rounded-xl"
               />
             </div>
           </div>

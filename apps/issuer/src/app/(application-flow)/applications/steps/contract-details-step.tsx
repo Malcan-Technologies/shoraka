@@ -37,6 +37,12 @@ import { ContractDetailsSkeleton } from "@/app/(application-flow)/applications/c
 import { toast } from "sonner";
 import { useAuthToken, createApiClient } from "@cashsouk/config";
 import { cn } from "@/lib/utils";
+import {
+  issuerFieldChromeClassName,
+  issuerFieldFocusWithinOpenClassName,
+  issuerUploadDropzoneClassName,
+  issuerUploadFileRowClassName,
+} from "@/lib/issuer-input-chrome";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
   applicationFlowLabelCellAlignInputClassName,
@@ -385,8 +391,9 @@ function FileUploadArea({
     return (
       <div
         className={cn(
-          "rounded-xl border px-4 py-3 flex items-center justify-between gap-3 min-h-11",
-          disabled ? formLockedFileSurfaceClassName : "border-border bg-card/50 text-foreground"
+          issuerUploadFileRowClassName,
+          "px-4 py-3 flex items-center justify-between gap-3 min-h-11",
+          disabled ? formLockedFileSurfaceClassName : "bg-card/50 text-foreground"
         )}
       >
         <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -394,7 +401,7 @@ function FileUploadArea({
             className={cn(
               "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border",
               disabled
-                ? "border-border bg-background/50"
+                ? "border-input bg-background/50"
                 : isPending
                   ? "border-transparent bg-yellow-500/10"
                   : "border-transparent bg-primary/10"
@@ -418,7 +425,7 @@ function FileUploadArea({
               e.stopPropagation();
               onRemove();
             }}
-            className="p-1 hover:bg-muted rounded-full transition-colors"
+            className="p-1 rounded-full transition-none focus-visible:outline-none focus-visible:ring-0"
           >
             <X className="h-3 w-3 text-muted-foreground" />
           </button>
@@ -433,10 +440,11 @@ function FileUploadArea({
       onDragOver={handleDragOver}
       onDrop={handleDrop}
       className={cn(
-        "border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-colors",
+        issuerUploadDropzoneClassName,
+        "flex flex-col items-center justify-center gap-3 p-6",
         disabled
-          ? "border-muted-foreground/20 bg-muted cursor-not-allowed"
-          : "border-border bg-card/50 cursor-pointer hover:bg-muted/50"
+          ? "cursor-not-allowed bg-muted"
+          : "cursor-pointer bg-card/50"
       )}
     >
       <input
@@ -447,7 +455,7 @@ function FileUploadArea({
         className="hidden"
         disabled={disabled}
       />
-      <div className="p-2 rounded-full bg-background border shadow-sm">
+      <div className="p-2 rounded-full bg-background border border-input shadow-sm">
         <CloudUpload className="h-5 w-5 text-muted-foreground" />
       </div>
       <div className="text-center">
@@ -1168,7 +1176,7 @@ export function ContractDetailsStep({
                     disabled={!stepIsEditable}
                     placeholder={`eg. ${formatMoney(1000000)}`}
                     prefix="RM"
-                    inputClassName={`${inputClassName} ${financingError ? "border-destructive focus-visible:border-2 focus-visible:border-destructive" : ""}`}
+                    inputClassName={`${inputClassName} ${financingError ? "border-destructive focus-visible:border-destructive" : ""}`}
                   />
                 </div>
                 {financingError && <p className="text-xs text-destructive">{financingError}</p>}
@@ -1348,8 +1356,9 @@ export function ContractDetailsStep({
             </Label>
             <div
               className={cn(
-                "flex h-11 w-full items-center gap-2 rounded-xl border border-input bg-background px-3",
-                "focus-within:border-primary focus-within:outline-none focus-within:ring-0",
+                "flex h-11 w-full items-center gap-2 px-3",
+                issuerFieldChromeClassName,
+                issuerFieldFocusWithinOpenClassName,
                 !stepIsEditable && formInputDisabledClassName
               )}
             >
@@ -1365,7 +1374,7 @@ export function ContractDetailsStep({
                 onChange={(e) => handleInputChange("customer", "country", e.target.value)}
                 disabled={!stepIsEditable}
                 className={cn(
-                  "min-h-0 min-w-0 flex-1 border-0 bg-transparent py-2 text-sm text-foreground outline-none focus:ring-0",
+                  "min-h-0 min-w-0 flex-1 border-0 bg-transparent py-2 text-sm text-foreground outline-none focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0",
                   stepIsEditable ? "cursor-pointer" : "cursor-not-allowed"
                 )}
               >

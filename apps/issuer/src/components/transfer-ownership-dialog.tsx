@@ -90,7 +90,7 @@ export function TransferOwnershipDialog({
           <div className="space-y-2">
             <Label htmlFor="new-owner">Select New Owner</Label>
             <Select value={selectedMemberId} onValueChange={setSelectedMemberId}>
-              <SelectTrigger id="new-owner" className="h-11 rounded-xl">
+              <SelectTrigger id="new-owner">
                 <SelectValue placeholder="Choose a member" />
               </SelectTrigger>
               <SelectContent>

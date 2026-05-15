@@ -860,10 +860,7 @@ function EditApplicationPageBody() {
     if (versionMismatchBlocksStepGating) return;
     if (wizardState === null) return;
     if (!searchParams.get("step")) return;
-    // Keep final declarations stable: do not auto-advance when workflow metadata changes.
-    if (isDeclarationsFinalStep) {
-      return;
-    }
+
     const maxStepInWorkflow = effectiveWorkflow.length;
     const maxAllowed = wizardState.allowedMaxStep;
     const isAmendmentMode = (application as { status?: string })?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment;
@@ -880,19 +877,23 @@ function EditApplicationPageBody() {
       return;
     }
 
-    // Upper bound: requestedStep > totalSteps → redirect to last step
-    if (maxStepInWorkflow > 0 && stepFromUrl > maxStepInWorkflow) {
+    // Normal draft: cannot open a step past what has been unlocked — clamp to allowed progress (not the last product step).
+    // Run before the "beyond workflow length" check so ?step=99 goes to allowedMax in one hop, not to the final step.
+    if (!isAmendmentMode && stepFromUrl > maxAllowed) {
+      toast.error("Please complete steps in order");
+      const targetStep = maxStepInWorkflow > 0 ? Math.min(maxAllowed, maxStepInWorkflow) : maxAllowed;
       void navigateWithVersionCheck(
-        `/applications/edit/${applicationId}?step=${maxStepInWorkflow}`,
+        `/applications/edit/${applicationId}?step=${targetStep}`,
         "replace"
       );
       return;
     }
 
-    // Sequential guard: requestedStep > maxAllowed — SKIP in amendment mode
-    if (!isAmendmentMode && stepFromUrl > maxAllowed) {
-      toast.error("Please complete steps in order");
-      const targetStep = maxStepInWorkflow > 0 ? Math.min(maxAllowed, maxStepInWorkflow) : maxAllowed;
+    // Beyond last step index for this product (typo / huge number). Clamp: draft → min(allowed, last); amendment → last.
+    if (maxStepInWorkflow > 0 && stepFromUrl > maxStepInWorkflow) {
+      const targetStep = isAmendmentMode
+        ? maxStepInWorkflow
+        : Math.min(maxAllowed, maxStepInWorkflow);
       void navigateWithVersionCheck(
         `/applications/edit/${applicationId}?step=${targetStep}`,
         "replace"
@@ -912,8 +913,6 @@ function EditApplicationPageBody() {
     wizardState,
     devPreviewAmendment,
     navigateWithVersionCheck,
-    currentStepKey,
-    isDeclarationsFinalStep,
   ]);
 
   /* ================================================================
@@ -1484,10 +1483,18 @@ function EditApplicationPageBody() {
 
       /** In amendment flow, wizard state is not updated here. Progress is driven by acknowledgement only. */
       if (wizardState && application?.status !== "AMENDMENT_REQUESTED" && !devPreviewAmendment) {
-        setWizardState({
-          lastCompletedStep: stepFromUrl,
-          allowedMaxStep: Math.max(wizardState.allowedMaxStep, linearNext),
-        });
+        if (structureChanged) {
+          /** Backend rewinds last_completed_step to this step; do not Math.max with stale allowedMaxStep. */
+          setWizardState({
+            lastCompletedStep: stepFromUrl,
+            allowedMaxStep: stepFromUrl + 1,
+          });
+        } else {
+          setWizardState({
+            lastCompletedStep: stepFromUrl,
+            allowedMaxStep: Math.max(wizardState.allowedMaxStep, linearNext),
+          });
+        }
       }
 
       setHasUnsavedChanges(false);

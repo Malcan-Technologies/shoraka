@@ -45,6 +45,11 @@ import { useHeader } from "@cashsouk/ui";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
 import {
+  issuerFieldChromeClassName,
+  issuerFieldFocusWithinOpenClassName,
+} from "@/lib/issuer-input-chrome";
+import { formInputDisabledClassName } from "@/app/(application-flow)/applications/components/form-control";
+import {
   UserIcon,
   BuildingOffice2Icon,
   ShieldCheckIcon,
@@ -133,7 +138,7 @@ function MemberCard({ member, ownerId }: { member: OrganizationMember; ownerId?:
   const isOwner = ownerId && member.id === ownerId;
 
   return (
-    <div className="flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors">
+    <div className="flex items-center gap-4 p-4 rounded-xl border bg-card transition-none">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-lg">
         {initials}
       </div>
@@ -901,14 +906,14 @@ export default function ProfilePage() {
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label className="text-muted-foreground">Name</Label>
-                        <Input value={displayName} disabled className="bg-muted h-11 rounded-xl" />
+                        <Input value={displayName} disabled className={formInputDisabledClassName} />
                       </div>
                       <div className="space-y-2">
                         <Label className="text-muted-foreground">Document Type</Label>
                         <Input
                           value={formatDocumentType(orgData?.documentType)}
                           disabled
-                          className="bg-muted h-11 rounded-xl"
+                          className={formInputDisabledClassName}
                         />
                       </div>
                       <div className="space-y-2">
@@ -919,7 +924,7 @@ export default function ProfilePage() {
                         <Input
                           value={orgData?.documentNumber || "—"}
                           disabled
-                          className="bg-muted h-11 rounded-xl"
+                          className={formInputDisabledClassName}
                         />
                       </div>
                       <div className="space-y-2">
@@ -930,7 +935,7 @@ export default function ProfilePage() {
                         <Input
                           value={orgData?.idIssuingCountry || "—"}
                           disabled
-                          className="bg-muted h-11 rounded-xl"
+                          className={formInputDisabledClassName}
                         />
                       </div>
                       {orgData?.onboardedAt && (
@@ -946,7 +951,7 @@ export default function ProfilePage() {
                               day: "numeric",
                             })}
                             disabled
-                            className="bg-muted h-11 rounded-xl"
+                            className={formInputDisabledClassName}
                           />
                         </div>
                       )}
@@ -1098,7 +1103,6 @@ export default function ProfilePage() {
                               value={businessLine1}
                               onChange={(e) => setBusinessLine1(e.target.value)}
                               placeholder="Street address"
-                              className="h-11 rounded-xl"
                             />
                           </div>
                           <div className="space-y-2 sm:col-span-2">
@@ -1107,7 +1111,6 @@ export default function ProfilePage() {
                               value={businessLine2}
                               onChange={(e) => setBusinessLine2(e.target.value)}
                               placeholder="Apartment, suite, etc. (optional)"
-                              className="h-11 rounded-xl"
                             />
                           </div>
                           <div className="space-y-2">
@@ -1116,7 +1119,6 @@ export default function ProfilePage() {
                               value={businessCity}
                               onChange={(e) => setBusinessCity(e.target.value)}
                               placeholder="City"
-                              className="h-11 rounded-xl"
                             />
                           </div>
                           <div className="space-y-2">
@@ -1125,7 +1127,6 @@ export default function ProfilePage() {
                               value={businessPostalCode}
                               onChange={(e) => setBusinessPostalCode(e.target.value)}
                               placeholder="Postal code"
-                              className="h-11 rounded-xl"
                             />
                           </div>
                           <div className="space-y-2">
@@ -1134,7 +1135,6 @@ export default function ProfilePage() {
                               value={businessState}
                               onChange={(e) => setBusinessState(e.target.value)}
                               placeholder="State"
-                              className="h-11 rounded-xl"
                             />
                           </div>
                           <div className="space-y-2">
@@ -1143,7 +1143,6 @@ export default function ProfilePage() {
                               value={businessCountry}
                               onChange={(e) => setBusinessCountry(e.target.value)}
                               placeholder="Country"
-                              className="h-11 rounded-xl"
                             />
                           </div>
                         </div>
@@ -1185,7 +1184,6 @@ export default function ProfilePage() {
                                 value={registeredLine1}
                                 onChange={(e) => setRegisteredLine1(e.target.value)}
                                 placeholder="Street address"
-                                className="h-11 rounded-xl"
                               />
                             </div>
                             <div className="space-y-2 sm:col-span-2">
@@ -1194,7 +1192,6 @@ export default function ProfilePage() {
                                 value={registeredLine2}
                                 onChange={(e) => setRegisteredLine2(e.target.value)}
                                 placeholder="Apartment, suite, etc. (optional)"
-                                className="h-11 rounded-xl"
                               />
                             </div>
                             <div className="space-y-2">
@@ -1203,7 +1200,6 @@ export default function ProfilePage() {
                                 value={registeredCity}
                                 onChange={(e) => setRegisteredCity(e.target.value)}
                                 placeholder="City"
-                                className="h-11 rounded-xl"
                               />
                             </div>
                             <div className="space-y-2">
@@ -1212,7 +1208,6 @@ export default function ProfilePage() {
                                 value={registeredPostalCode}
                                 onChange={(e) => setRegisteredPostalCode(e.target.value)}
                                 placeholder="Postal code"
-                                className="h-11 rounded-xl"
                               />
                             </div>
                             <div className="space-y-2">
@@ -1221,7 +1216,6 @@ export default function ProfilePage() {
                                 value={registeredState}
                                 onChange={(e) => setRegisteredState(e.target.value)}
                                 placeholder="State"
-                                className="h-11 rounded-xl"
                               />
                             </div>
                             <div className="space-y-2">
@@ -1230,7 +1224,6 @@ export default function ProfilePage() {
                                 value={registeredCountry}
                                 onChange={(e) => setRegisteredCountry(e.target.value)}
                                 placeholder="Country"
-                                className="h-11 rounded-xl"
                               />
                             </div>
                           </div>
@@ -1296,13 +1289,17 @@ export default function ProfilePage() {
                           defaultCountry="MY"
                           value={phoneNumber}
                           onChange={setPhoneNumber}
-                          className="h-11 rounded-xl border border-input px-4 [&>input]:border-0 [&>input]:bg-transparent [&>input]:outline-none [&>input]:text-sm"
+                          className={cn(
+                            issuerFieldChromeClassName,
+                            issuerFieldFocusWithinOpenClassName,
+                            "h-11 px-4 transition-none [&_*]:transition-none [&>input]:border-0 [&>input]:bg-transparent [&>input]:text-sm [&>input]:focus-visible:outline-none [&>input]:focus-visible:ring-0 [&_*]:focus-visible:outline-none [&_*]:focus-visible:ring-0"
+                          )}
                         />
                       ) : (
                         <Input
                           value={phoneNumber || "—"}
                           disabled
-                          className="bg-muted h-11 rounded-xl"
+                          className={formInputDisabledClassName}
                         />
                       )}
                     </div>
@@ -1316,7 +1313,7 @@ export default function ProfilePage() {
                           activeOrganization.members?.find((m) => m.id === activeOrganization.ownerId)?.email || "—"
                         }
                         disabled
-                        className="bg-muted h-11 rounded-xl"
+                        className={formInputDisabledClassName}
                       />
                     </div>
                   </div>
@@ -1401,7 +1398,7 @@ export default function ProfilePage() {
                       const memberName = [member.firstName, member.lastName].filter(Boolean).join(" ") || member.email;
 
                       return (
-                        <div key={member.id} className="flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors">
+                        <div key={member.id} className="flex items-center gap-4 p-4 rounded-xl border bg-card transition-none">
                           <div className="flex-1">
                             <MemberCard member={member} ownerId={activeOrganization.ownerId} />
                           </div>
@@ -1607,7 +1604,7 @@ export default function ProfilePage() {
                       </Label>
                       {isEditingBanking ? (
                         <Select value={bankName} onValueChange={setBankName}>
-                          <SelectTrigger className="h-11 rounded-xl">
+                          <SelectTrigger>
                             <SelectValue placeholder="Select bank" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1622,7 +1619,7 @@ export default function ProfilePage() {
                         <Input
                           value={bankName || "—"}
                           disabled
-                          className="bg-muted h-11 rounded-xl"
+                          className={formInputDisabledClassName}
                         />
                       )}
                     </div>
@@ -1633,7 +1630,7 @@ export default function ProfilePage() {
                       </Label>
                       {isEditingBanking ? (
                         <Select value={accountType} onValueChange={setAccountType}>
-                          <SelectTrigger className="h-11 rounded-xl">
+                          <SelectTrigger>
                             <SelectValue placeholder="Select account type" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1645,7 +1642,7 @@ export default function ProfilePage() {
                         <Input
                           value={accountType || "—"}
                           disabled
-                          className="bg-muted h-11 rounded-xl"
+                          className={formInputDisabledClassName}
                         />
                       )}
                     </div>
@@ -1660,7 +1657,10 @@ export default function ProfilePage() {
                         onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
                         disabled={!isEditingBanking}
                         maxLength={18}
-                        className={`h-11 rounded-xl font-mono ${!isEditingBanking ? "bg-muted" : ""}`}
+                        className={cn(
+                          "font-mono",
+                          !isEditingBanking && formInputDisabledClassName
+                        )}
                       />
                       {isEditingBanking && (
                         <p className="text-xs text-muted-foreground">

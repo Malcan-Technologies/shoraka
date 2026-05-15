@@ -7,6 +7,11 @@
  * Data: Exports Tailwind class strings and small helpers to compose error state classes.
  */
 import { cn } from "@/lib/utils";
+import {
+  issuerFieldChromeClassName,
+  issuerFieldFocusClassName,
+  issuerFieldHeightClassName,
+} from "@/lib/issuer-input-chrome";
 
 /** Helpers
  *
@@ -26,17 +31,29 @@ export const formInputAutofillMutedChromeFix =
   "[&:-webkit-autofill]:shadow-[inset_0_0_0_1000px_hsl(var(--muted))] [&:-webkit-autofill]:[-webkit-text-fill-color:hsl(var(--muted-foreground))]";
 
 export const formInputClassName = cn(
-  "h-11 w-full rounded-xl border border-input bg-background px-4 text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+  issuerFieldHeightClassName,
+  "w-full px-3 text-foreground",
+  issuerFieldChromeClassName,
+  issuerFieldFocusClassName,
   formInputAutofillChromeFix
 );
 
 export const formTextareaClassName = cn(
-  "w-full rounded-xl border border-input bg-background px-4 py-3 text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+  "w-full min-h-[60px] px-3 py-2 text-foreground",
+  issuerFieldChromeClassName,
+  issuerFieldFocusClassName,
   formInputAutofillChromeFix
 );
 
-export const formSelectTriggerClassName =
-  "h-11 w-full rounded-xl border border-input bg-background text-foreground focus:outline-none focus:ring-0 focus:border-primary focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary";
+export const formSelectTriggerClassName = cn(
+  issuerFieldHeightClassName,
+  "w-full px-3 text-foreground",
+  issuerFieldChromeClassName,
+  issuerFieldFocusClassName,
+  "focus:outline-none focus:border-primary",
+  // Radix: show border-primary when opened via mouse click.
+  "data-[state=open]:border-primary data-[state=open]:ring-0 data-[state=open]:outline-none"
+);
 
 /** Read-only / disabled field styling
  *
@@ -45,13 +62,14 @@ export const formSelectTriggerClassName =
  * Use: Add to Input/Textarea/Select className when disabled={true}.
  */
 export const formInputDisabledClassName = cn(
-  "bg-muted text-muted-foreground opacity-100 cursor-not-allowed disabled:opacity-100 disabled:bg-muted border-border shadow-none",
+  "bg-muted text-muted-foreground opacity-100 cursor-not-allowed disabled:opacity-100 disabled:bg-muted border-input shadow-none",
   formInputAutofillMutedChromeFix
 );
 
 /** Read-only uploaded file row / chip shell — same surface tokens as `formInputDisabledClassName` (no input-only autofill rules). */
-export const formLockedFileSurfaceClassName =
-  "bg-muted text-muted-foreground border-border shadow-none opacity-100";
+export const formLockedFileSurfaceClassName = cn(
+  "bg-muted text-muted-foreground border border-input shadow-none opacity-100"
+);
 
 /** Whole table row locked: tr + every td same muted fill (inputs also use formInputDisabledClassName). */
 export const applicationFlowLockedTableRowClassName = cn(
@@ -70,7 +88,7 @@ export const applicationFlowAmendmentTargetTableRowClassName = cn(
 /** Flagged row / field outside tables (chips, panels) — same primary tint + ring as table rows. */
 export const applicationFlowAmendmentTargetSurfaceClassName = cn(
   "text-foreground",
-  "bg-primary/[0.07] ring-1 ring-inset ring-primary/20 border-primary/30"
+  "border border-primary/35 bg-primary/[0.07] ring-1 ring-inset ring-primary/20"
 );
 
 /** Section title (h2/h3) — contract-details pattern. */
@@ -111,7 +129,9 @@ export const applicationFlowRadioRowControlClassName = "h-11 flex items-center m
 export function withFieldError(className: string, hasError: boolean) {
   return cn(
     className,
-    hasError ? "border-destructive focus-visible:border-2 focus-visible:border-destructive" : null
+    hasError
+      ? "border-destructive focus-visible:border-destructive focus-visible:ring-0"
+      : null
   );
 }
 

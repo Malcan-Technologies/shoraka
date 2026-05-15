@@ -34,7 +34,7 @@ export function FinancialStatementsSkeleton() {
           {[1, 2, 3, 4].map((i) => (
             <React.Fragment key={i}>
               <Skeleton className="h-5 w-[180px]" />
-              <Skeleton className="h-11 w-full rounded-xl" />
+              <Skeleton className="h-11 w-full rounded-md border border-input shadow-sm" />
             </React.Fragment>
           ))}
         </div>
@@ -50,7 +50,7 @@ export function FinancialStatementsSkeleton() {
           {[1, 2, 3].map((i) => (
             <React.Fragment key={i}>
               <Skeleton className="h-5 w-[180px]" />
-              <Skeleton className="h-11 w-full rounded-xl" />
+              <Skeleton className="h-11 w-full rounded-md border border-input shadow-sm" />
             </React.Fragment>
           ))}
         </div>
@@ -64,7 +64,7 @@ export function FinancialStatementsSkeleton() {
         </div>
         <div className={rowGridClassName}>
           <Skeleton className="h-5 w-[80px]" />
-          <Skeleton className="h-11 w-full rounded-xl" />
+          <Skeleton className="h-11 w-full rounded-md border border-input shadow-sm" />
         </div>
       </section>
 
@@ -78,7 +78,7 @@ export function FinancialStatementsSkeleton() {
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <React.Fragment key={i}>
               <Skeleton className="h-5 w-[180px]" />
-              <Skeleton className="h-11 w-full rounded-xl" />
+              <Skeleton className="h-11 w-full rounded-md border border-input shadow-sm" />
             </React.Fragment>
           ))}
         </div>

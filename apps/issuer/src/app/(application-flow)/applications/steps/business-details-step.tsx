@@ -14,6 +14,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { TextareaWithCharCount } from "@/components/textarea-with-char-count";
 import { cn } from "@/lib/utils";
 import {
+  issuerFieldChromeClassName,
+  issuerUploadDropzoneClassName,
+  issuerUploadFileRowClassName,
+} from "@/lib/issuer-input-chrome";
+import {
   applicationFlowLabelCellAlignInputClassName,
   applicationFlowLabelCellAlignTopClassName,
   applicationFlowRadioRowControlClassName,
@@ -1177,7 +1182,7 @@ function GuarantorCardFields({
       )}
 
       <div className="mt-4 border-t border-border pt-5">
-        <div className="rounded-xl border border-border bg-background px-4 py-3.5 sm:px-5 sm:py-4">
+        <div className={cn(issuerFieldChromeClassName, "px-4 py-3.5 sm:px-5 sm:py-4")}>
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,17rem)_1fr] lg:gap-x-4 lg:items-start">
           <div className="min-w-0 space-y-1.5">
             <div>
@@ -1208,10 +1213,7 @@ function GuarantorCardFields({
                   inlineChip
                   size="sm"
                   locked={readOnly}
-                  className={cn(
-                    "min-h-9 w-full",
-                    readOnly ? "border-border" : "bg-background border-border"
-                  )}
+                  className="min-h-9 w-full"
                   trailing={
                     <button
                       type="button"
@@ -2281,10 +2283,11 @@ export function BusinessDetailsStep({
                   <div
                     key={`${doc.s3_key ?? doc.client_id ?? doc.file_name}-${index}`}
                     className={cn(
-                      "rounded-xl border px-4 py-3 flex items-center justify-between gap-3 min-h-11",
+                      issuerUploadFileRowClassName,
+                      "px-4 py-3 flex items-center justify-between gap-3 min-h-11",
                       fieldsLocked
                         ? formLockedFileSurfaceClassName
-                        : "border-border bg-card/50 text-foreground"
+                        : "border-input bg-card/50 text-foreground"
                     )}
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -2292,7 +2295,7 @@ export function BusinessDetailsStep({
                         className={cn(
                           "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border",
                           fieldsLocked
-                            ? "border-border bg-background/50"
+                            ? "border-input bg-background/50"
                             : doc.client_id
                               ? "border-transparent bg-yellow-500/10"
                               : "border-transparent bg-primary/10"
@@ -2320,7 +2323,7 @@ export function BusinessDetailsStep({
                       <button
                         type="button"
                         onClick={() => removeWhySectionSupportingDocumentAt(index)}
-                        className="p-1 hover:bg-muted rounded-full transition-colors"
+                        className="p-1 rounded-full transition-none focus-visible:outline-none focus-visible:ring-0"
                         aria-label={`Remove ${doc.file_name}`}
                       >
                         <X className="h-3 w-3 text-muted-foreground" />
@@ -2331,10 +2334,13 @@ export function BusinessDetailsStep({
                 {!fieldsLocked && (
                   <label htmlFor="why-section-supporting-documents" className="cursor-pointer">
                     <div
-                      className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-colors border-border bg-card/50 hover:bg-muted/50"
+                      className={cn(
+                        issuerUploadDropzoneClassName,
+                        "flex flex-col items-center justify-center gap-3 p-6"
+                      )}
                       {...whySupportingDocumentsDropZoneProps}
                     >
-                      <div className="p-2 rounded-full bg-background border shadow-sm">
+                      <div className="rounded-full border border-input bg-background p-2 shadow-sm">
                         <CloudUpload className="h-5 w-5 text-muted-foreground" />
                       </div>
                       <div className="text-center">
@@ -2362,10 +2368,13 @@ export function BusinessDetailsStep({
                 className="cursor-pointer"
               >
                 <div
-                  className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-colors border-border bg-card/50 hover:bg-muted/50"
+                  className={cn(
+                    issuerUploadDropzoneClassName,
+                    "flex flex-col items-center justify-center gap-3 p-6"
+                  )}
                   {...whySupportingDocumentsDropZoneProps}
                 >
-                  <div className="p-2 rounded-full bg-background border shadow-sm">
+                  <div className="rounded-full border border-input bg-background p-2 shadow-sm">
                     <CloudUpload className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <div className="text-center">
@@ -2537,21 +2546,21 @@ export function BusinessDetailsStep({
             return (
               <details
                 key={row.referenceId || index}
-                className="group rounded-xl border border-border bg-background"
+                className="group rounded-md border border-border bg-background shadow-sm"
                 open={panelOpen}
                 onToggle={(e) => {
                   const d = e.currentTarget;
                   setGuarantorPanelOpen((p) => ({ ...p, [index]: d.open }));
                 }}
               >
-                <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer rounded-md focus-visible:outline-none focus-visible:ring-0">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-4 sm:px-5 py-4 border-b border-border">
                     <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
                       <span className="shrink-0 text-base font-semibold text-foreground">
                         Guarantor {index + 1}
                       </span>
                       <ChevronRightIcon
-                        className="h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-90"
+                        className="h-5 w-5 shrink-0 text-muted-foreground group-open:rotate-90"
                         aria-hidden
                       />
                       {subtitle ? (
@@ -2573,7 +2582,7 @@ export function BusinessDetailsStep({
         <button
           type="button"
           className={cn(
-            "hidden w-full rounded-xl border border-dashed border-border bg-muted/20 py-3 text-sm font-semibold text-foreground",
+            "hidden w-full rounded-md border border-dashed border-input bg-muted/20 py-3 text-sm font-semibold text-foreground shadow-sm",
             fieldsLocked ? "opacity-50 pointer-events-none" : "hover:bg-muted/40 cursor-pointer"
           )}
           disabled={fieldsLocked}
@@ -2590,7 +2599,7 @@ export function BusinessDetailsStep({
           <div className={applicationFlowSectionDividerClassName} />
         </div>
 
-        <div className="rounded-xl border border-border bg-background p-4 sm:p-5">
+        <div className={cn(issuerFieldChromeClassName, "p-4 sm:p-5")}>
           <label
             className={cn(
               "flex items-start gap-3",

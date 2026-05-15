@@ -178,7 +178,7 @@ function InvoiceDocumentCell({
       fileName={documentName}
       size="sm"
       truncate
-      className="min-w-0 max-w-full bg-transparent"
+      className="min-w-0 max-w-full bg-background"
       trailing={
         documentS3Key ? (
           <button

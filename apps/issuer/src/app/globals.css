@@ -4,6 +4,9 @@
 
 @layer base {
   :root {
+    /* Issuer: form controls — slightly darker than shared `--border` for legible edges (BRANDING: strong contrast). */
+    --input: 215 16% 82%;
+
     /* Sidebar variables */
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -16,6 +19,8 @@
   }
 
   .dark {
+    --input: 217.2 24% 32%;
+
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;

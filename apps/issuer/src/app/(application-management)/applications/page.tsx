@@ -833,7 +833,7 @@ export default function ApplicationsPage() {
                   setSearch(e.target.value);
                   setPage(1);
                 }}
-                className="pl-9 h-11 rounded-xl border-input focus-visible:ring-2 focus-visible:ring-primary"
+                className="pl-9"
               />
             </div>
 
@@ -843,7 +843,7 @@ export default function ApplicationsPage() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
-                    className="gap-2 h-11 rounded-xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    className="gap-2 h-11 rounded-xl transition-none focus-visible:ring-0 focus-visible:ring-offset-0"
                   >
                     Status
                     {statusFilters.length > 0 && (
@@ -901,7 +901,7 @@ export default function ApplicationsPage() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
-                    className="gap-2 h-11 rounded-xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    className="gap-2 h-11 rounded-xl transition-none focus-visible:ring-0 focus-visible:ring-offset-0"
                   >
                     <FunnelIcon className="h-4 w-4" />
                     Filters
@@ -1017,7 +1017,7 @@ export default function ApplicationsPage() {
                     }
                     setPage(1);
                   }}
-                  className="gap-2 h-11 rounded-xl hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                  className="gap-2 h-11 rounded-xl transition-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 >
                   <XMarkIcon className="h-4 w-4" />
                   <span className="hidden sm:inline">Clear</span>
@@ -1034,7 +1034,7 @@ export default function ApplicationsPage() {
                   <Button
                     type="button"
                     variant="ghost"
-                    className="h-9 px-3 rounded-xl hover:bg-muted"
+                    className="h-9 px-3 rounded-xl transition-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
                     onClick={() => {
                       setApplicationIdsFilter([]);
                       if (typeof window !== "undefined") {
@@ -1117,7 +1117,7 @@ export default function ApplicationsPage() {
                         setPage(1);
                       }}
                     >
-                      <SelectTrigger className="h-11 w-20 rounded-xl border-input focus:ring-2 focus:ring-primary">
+                      <SelectTrigger className="w-20 transition-none">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1139,7 +1139,7 @@ export default function ApplicationsPage() {
                     size="sm"
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={page === 1}
-                    className="h-11 rounded-xl focus-visible:ring-2 focus-visible:ring-primary"
+                    className="h-11 rounded-xl"
                   >
                     <ChevronLeftIcon className="h-4 w-4" />
                   </Button>
@@ -1153,7 +1153,7 @@ export default function ApplicationsPage() {
                       setPage((p) => Math.min(totalPages, p + 1))
                     }
                     disabled={page === totalPages}
-                    className="h-11 rounded-xl focus-visible:ring-2 focus-visible:ring-primary"
+                    className="h-11 rounded-xl"
                   >
                     <ChevronRightIcon className="h-4 w-4" />
                   </Button>

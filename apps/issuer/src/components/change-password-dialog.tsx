@@ -153,7 +153,7 @@ export function ChangePasswordDialog({
                         type={showCurrentPassword ? "text" : "password"}
                         placeholder="Enter current password"
                         {...field}
-                        className="h-11 rounded-xl pr-10"
+                        className="pr-10"
                       />
                       <button
                         type="button"
@@ -185,7 +185,7 @@ export function ChangePasswordDialog({
                         type={showNewPassword ? "text" : "password"}
                         placeholder="Enter new password"
                         {...field}
-                        className="h-11 rounded-xl pr-10"
+                        className="pr-10"
                       />
                       <button
                         type="button"
@@ -217,7 +217,7 @@ export function ChangePasswordDialog({
                         type={showConfirmPassword ? "text" : "password"}
                         placeholder="Confirm new password"
                         {...field}
-                        className="h-11 rounded-xl pr-10"
+                        className="pr-10"
                       />
                       <button
                         type="button"

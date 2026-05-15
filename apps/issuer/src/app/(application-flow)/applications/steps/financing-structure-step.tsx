@@ -295,7 +295,7 @@ export function FinancingStructureStep({
               </Select>
             ) : (
               <div
-                className="w-[280px] rounded-md border border-dashed border-border px-3 py-2 text-sm text-muted-foreground bg-muted"
+                className="w-[280px] rounded-md border border-dashed border-input bg-muted px-3 py-2 text-sm text-muted-foreground"
                 onClick={(e) => e.stopPropagation()}
               >
                 No existing contracts

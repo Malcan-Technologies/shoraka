@@ -8,6 +8,10 @@ import * as React from "react";
 import { CheckIcon } from "@heroicons/react/24/solid";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { cn } from "@cashsouk/ui";
+import {
+  issuerStepperUnvisitedCircleClassName,
+  issuerStepperUnvisitedConnectorClassName,
+} from "@/lib/issuer-input-chrome";
 
 /**
  * SECTION: Loading skeleton without product workflow
@@ -56,11 +60,15 @@ export function ProgressIndicator({
             <div
               key={index}
               className="relative flex flex-1 flex-col items-center min-w-0"
+              style={{ zIndex: skeletonCount - index }}
             >
-              {/* Connector skeleton */}
+              {/* Connector skeleton — behind circles */}
               {index !== 0 && (
                 <div
-                  className="absolute left-[-50%] w-full z-0 rounded-full bg-muted"
+                  className={cn(
+                    "absolute left-[-50%] w-full z-0 rounded-full",
+                    issuerStepperUnvisitedConnectorClassName
+                  )}
                   style={{
                     top: "16px",
                     height: "4px",
@@ -68,8 +76,8 @@ export function ProgressIndicator({
                 />
               )}
 
-              {/* Circle anchor */}
-              <div className="relative flex items-center justify-center h-[36px] w-[36px]">
+              {/* Circle anchor — above connector line */}
+              <div className="relative z-10 flex items-center justify-center h-[36px] w-[36px]">
                 <div className="absolute inset-0 rounded-full bg-background opacity-0 z-10" />
                 <div className="absolute inset-0 rounded-full border-2 border-transparent z-20" />
 
@@ -147,6 +155,21 @@ export function ProgressIndicator({
           /** Flagged + acknowledged = red circle with white check (saved amendment step). */
           const showAcknowledgedFlaggedStyle = isFlagged && isAcknowledged && displayCompleted;
 
+          /** Beyond allowed max in normal draft: not filled, not active — gray “locked” look. */
+          const isLockedUnvisited =
+            !displayFilled && !isActive && isLockedFuture;
+
+          /** Steps ahead of current that the wizard allows jumping to (edit flow). When `maxClickableStep`
+           * is unset (e.g. /applications/new), future steps must stay unfilled — do not treat all future
+           * steps as "clickable future" or the stepper looks fully completed. */
+          const isClickableFuture =
+            maxClickableStep != null &&
+            stepNumber <= maxClickableStep &&
+            !displayFilled &&
+            !isActive &&
+            !isLockedFuture &&
+            stepNumber > currentStep;
+
           const handleClick = () => {
             if (!isNotClickable && onStepClick) {
               onStepClick(stepNumber);
@@ -156,15 +179,20 @@ export function ProgressIndicator({
           return (
             <div
               key={label}
-              className={`relative flex flex-1 flex-col items-center min-w-0 ${isNotClickable ? "cursor-not-allowed opacity-50" : onStepClick ? "cursor-pointer" : ""}`}
+              className={`relative flex flex-1 flex-col items-center min-w-0 ${isNotClickable ? "cursor-not-allowed" : onStepClick ? "cursor-pointer" : ""}`}
+              style={{ zIndex: steps.length - index }}
               onClick={handleClick}
             >
-              {/* Connector — red when leading into current flagged step */}
+              {/* Connector — behind circles; red when leading into current flagged step */}
               {index !== 0 && (
                 <div
                   className={cn(
-                    "absolute left-[-50%] w-full z-0 rounded-full transition-colors duration-300 ease-out",
-                    connectorIsRed ? "bg-destructive" : displayFilled ? "bg-foreground" : "bg-muted"
+                    "absolute left-[-50%] w-full z-0 rounded-full",
+                    connectorIsRed
+                      ? "bg-destructive"
+                      : displayFilled || isClickableFuture
+                        ? "bg-foreground"
+                        : issuerStepperUnvisitedConnectorClassName
                   )}
                   style={{
                     top: "16px",
@@ -173,14 +201,14 @@ export function ProgressIndicator({
                 />
               )}
 
-              {/* Circle anchor */}
-              <div className="relative flex items-center justify-center h-[36px] w-[36px]">
+              {/* Circle anchor — above connector line */}
+              <div className="relative z-10 flex items-center justify-center h-[36px] w-[36px]">
                 {isActive && !isNotClickable && (
                   <>
-                    <div className="absolute inset-0 rounded-full bg-background z-10 transition-opacity duration-200 ease-out" />
+                    <div className="absolute inset-0 rounded-full bg-background z-10" />
                     <div
                       className={cn(
-                        "absolute inset-0 rounded-full border-2 z-20 transition-all duration-200 ease-out",
+                        "absolute inset-0 rounded-full border-2 z-20",
                         isFlagged ? "border-destructive" : "border-foreground"
                       )}
                     />
@@ -190,7 +218,7 @@ export function ProgressIndicator({
                 {/* Step circle */}
                 <div
                   className={cn(
-                    "relative z-30 flex items-center justify-center rounded-full h-[28px] w-[28px] transition-all duration-200 ease-out",
+                    "relative z-30 flex items-center justify-center rounded-full h-[28px] w-[28px]",
                     displayFilled
                       ? showAcknowledgedFlaggedStyle
                         ? "border-2 border-destructive bg-destructive scale-100"
@@ -199,13 +227,13 @@ export function ProgressIndicator({
                         : "border-2 border-foreground bg-foreground scale-100"
                       : showFlaggedStyle
                       ? "border-2 border-destructive bg-background scale-95"
-                      : "border-2 border-muted bg-background scale-95"
+                        : isLockedUnvisited
+                          ? cn(issuerStepperUnvisitedCircleClassName, "scale-95")
+                          : isClickableFuture
+                            ? "border-2 border-foreground bg-foreground scale-100"
+                            : cn(issuerStepperUnvisitedCircleClassName, "scale-95")
                   )}
                 >
-                  {/* Unfilled highlight disk (SOLID, no opacity) */}
-                  {!displayFilled && (
-                    <div className="absolute inset-[0px] rounded-full bg-muted/5" />
-                  )}
 
                   {displayCompleted ? (
                     <CheckIcon
@@ -225,7 +253,9 @@ export function ProgressIndicator({
                     <div
                       className={cn(
                         "relative h-[8px] w-[8px] rounded-full",
-                        displayFilled ? "bg-background" : "bg-muted-foreground/15"
+                        displayFilled || isClickableFuture
+                          ? "bg-background"
+                          : "bg-input"
                       )}
                     />
                   )}
@@ -235,14 +265,36 @@ export function ProgressIndicator({
               {/* Label — red when flagged (before or after save); thicker when current */}
               <span
                 className={cn(
-                  "mt-2.5 text-center text-[12px] leading-snug max-w-[90px] transition-colors duration-200 ease-out",
-                  isActive && isFlagged && !isNotClickable
-                    ? "font-semibold text-destructive"
-                    : isActive && !isNotClickable
-                    ? "font-medium text-foreground"
-                    : showFlaggedStyle || showAcknowledgedFlaggedStyle
-                    ? "text-destructive"
-                    : "text-muted-foreground"
+                  "mt-2.5 text-center text-[12px] leading-snug max-w-[90px]",
+                  isActive && isFlagged && !isNotClickable && "font-semibold text-destructive",
+                  isActive && isFlagged && isNotClickable && "font-medium text-muted-foreground",
+                  isActive && !isFlagged && !isNotClickable && "font-medium text-foreground",
+                  isActive && !isFlagged && isNotClickable && "font-medium text-muted-foreground",
+                  !isActive && (showFlaggedStyle || showAcknowledgedFlaggedStyle) && "text-destructive",
+                  !isActive &&
+                    displayCompleted &&
+                    !showFlaggedStyle &&
+                    !showAcknowledgedFlaggedStyle &&
+                    "text-foreground",
+                  !isActive &&
+                    isNotClickable &&
+                    !showFlaggedStyle &&
+                    !showAcknowledgedFlaggedStyle &&
+                    "text-muted-foreground",
+                  !isActive &&
+                    !displayCompleted &&
+                    !isNotClickable &&
+                    !showFlaggedStyle &&
+                    !showAcknowledgedFlaggedStyle &&
+                    isClickableFuture &&
+                    "text-foreground",
+                  !isActive &&
+                    !displayCompleted &&
+                    !isNotClickable &&
+                    !showFlaggedStyle &&
+                    !showAcknowledgedFlaggedStyle &&
+                    !isClickableFuture &&
+                    "text-muted-foreground"
                 )}
               >
                 {typeof renderStepLabel(label) === "string" ? (
