@@ -117,7 +117,7 @@ export function DateInput({
               : "cursor-text",
             preset.container,
             isInvalid && "border-destructive focus-within:border-2 focus-within:border-destructive",
-            !isInvalid && "border-input focus-within:border-primary",
+            !isInvalid && "border-border/80 focus-within:border-primary",
             className && !className.includes("border") && className
           )}
         >
@@ -131,7 +131,7 @@ export function DateInput({
             readOnly={disabled}
             disabled={disabled}
             className={cn(
-              "bg-transparent outline-none flex-1 placeholder:text-muted-foreground",
+              "bg-transparent outline-none flex-1 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
               preset.input,
               disabled ? formInputAutofillMutedChromeFix : formInputAutofillChromeFix,
               // reserve space for right icon

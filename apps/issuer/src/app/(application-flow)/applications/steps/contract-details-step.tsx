@@ -1348,8 +1348,8 @@ export function ContractDetailsStep({
             </Label>
             <div
               className={cn(
-                "flex h-11 w-full items-center gap-2 rounded-xl border border-input bg-background px-3",
-                "focus-within:border-primary focus-within:outline-none focus-within:ring-0",
+                "flex h-11 w-full items-center gap-2 rounded-xl border border-border/80 bg-background px-3",
+                "focus-within:border-primary focus-within:outline-none",
                 !stepIsEditable && formInputDisabledClassName
               )}
             >
@@ -1365,7 +1365,7 @@ export function ContractDetailsStep({
                 onChange={(e) => handleInputChange("customer", "country", e.target.value)}
                 disabled={!stepIsEditable}
                 className={cn(
-                  "min-h-0 min-w-0 flex-1 border-0 bg-transparent py-2 text-sm text-foreground outline-none focus:ring-0",
+                  "min-h-0 min-w-0 flex-1 border-0 bg-transparent py-2 text-sm text-foreground outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                   stepIsEditable ? "cursor-pointer" : "cursor-not-allowed"
                 )}
               >

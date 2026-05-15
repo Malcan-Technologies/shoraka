@@ -833,7 +833,7 @@ export default function ApplicationsPage() {
                   setSearch(e.target.value);
                   setPage(1);
                 }}
-                className="pl-9 h-11 rounded-xl border-input focus-visible:ring-2 focus-visible:ring-primary"
+                className="pl-9 h-11 rounded-xl"
               />
             </div>
 
@@ -1117,7 +1117,7 @@ export default function ApplicationsPage() {
                         setPage(1);
                       }}
                     >
-                      <SelectTrigger className="h-11 w-20 rounded-xl border-input focus:ring-2 focus:ring-primary">
+                      <SelectTrigger className="h-11 w-20 rounded-xl">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1139,7 +1139,7 @@ export default function ApplicationsPage() {
                     size="sm"
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={page === 1}
-                    className="h-11 rounded-xl focus-visible:ring-2 focus-visible:ring-primary"
+                    className="h-11 rounded-xl"
                   >
                     <ChevronLeftIcon className="h-4 w-4" />
                   </Button>
@@ -1153,7 +1153,7 @@ export default function ApplicationsPage() {
                       setPage((p) => Math.min(totalPages, p + 1))
                     }
                     disabled={page === totalPages}
-                    className="h-11 rounded-xl focus-visible:ring-2 focus-visible:ring-primary"
+                    className="h-11 rounded-xl"
                   >
                     <ChevronRightIcon className="h-4 w-4" />
                   </Button>

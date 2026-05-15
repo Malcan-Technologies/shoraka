@@ -693,7 +693,7 @@ function CollapsibleCategory({
           <button
             type="button"
             onClick={() => setOpen(!open)}
-            className="h-9 w-9 inline-flex items-center justify-center rounded-md hover:bg-muted"
+            className="h-9 w-9 inline-flex items-center justify-center rounded-md hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             aria-label={open ? "Collapse" : "Expand"}
           >
             {open ? (
