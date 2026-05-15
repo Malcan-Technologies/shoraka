@@ -267,7 +267,7 @@ export function ProgressIndicator({
                     isNotClickable &&
                     !showFlaggedStyle &&
                     !showAcknowledgedFlaggedStyle &&
-                    "text-sidebar-foreground/55",
+                    "text-muted-foreground",
                   !isActive &&
                     !displayCompleted &&
                     !isNotClickable &&
@@ -281,7 +281,7 @@ export function ProgressIndicator({
                     !showFlaggedStyle &&
                     !showAcknowledgedFlaggedStyle &&
                     !isClickableFuture &&
-                    "text-sidebar-foreground/80"
+                    "text-muted-foreground"
                 )}
               >
                 {typeof renderStepLabel(label) === "string" ? (
