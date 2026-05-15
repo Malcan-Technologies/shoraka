@@ -1484,10 +1484,18 @@ function EditApplicationPageBody() {
 
       /** In amendment flow, wizard state is not updated here. Progress is driven by acknowledgement only. */
       if (wizardState && application?.status !== "AMENDMENT_REQUESTED" && !devPreviewAmendment) {
-        setWizardState({
-          lastCompletedStep: stepFromUrl,
-          allowedMaxStep: Math.max(wizardState.allowedMaxStep, linearNext),
-        });
+        if (structureChanged) {
+          /** Backend rewinds last_completed_step to this step; do not Math.max with stale allowedMaxStep. */
+          setWizardState({
+            lastCompletedStep: stepFromUrl,
+            allowedMaxStep: stepFromUrl + 1,
+          });
+        } else {
+          setWizardState({
+            lastCompletedStep: stepFromUrl,
+            allowedMaxStep: Math.max(wizardState.allowedMaxStep, linearNext),
+          });
+        }
       }
 
       setHasUnsavedChanges(false);

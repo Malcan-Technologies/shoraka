@@ -148,6 +148,15 @@ export function ProgressIndicator({
           /** Flagged + acknowledged = red circle with white check (saved amendment step). */
           const showAcknowledgedFlaggedStyle = isFlagged && isAcknowledged && displayCompleted;
 
+          /** Past approved steps are revisitable; future within allowed max is “up next”; beyond max is never opened. */
+          const isLockedUnvisited =
+            !displayFilled && !isActive && isLockedFuture;
+          const isClickableFuture =
+            !displayFilled &&
+            !isActive &&
+            !isLockedFuture &&
+            stepNumber > currentStep;
+
           const handleClick = () => {
             if (!isNotClickable && onStepClick) {
               onStepClick(stepNumber);
@@ -168,7 +177,7 @@ export function ProgressIndicator({
                     "absolute left-[-50%] w-full z-0 rounded-full transition-colors duration-300 ease-out",
                     connectorIsRed
                       ? "bg-destructive"
-                      : displayFilled
+                      : displayFilled || isClickableFuture
                         ? "bg-foreground"
                         : "bg-sidebar-accent"
                   )}
@@ -205,7 +214,11 @@ export function ProgressIndicator({
                         : "border-2 border-foreground bg-foreground scale-100"
                       : showFlaggedStyle
                       ? "border-2 border-destructive bg-background scale-95"
-                        : "border-2 border-sidebar-border bg-background scale-95"
+                        : isLockedUnvisited
+                          ? "border-2 border-sidebar-border bg-background scale-95"
+                          : isClickableFuture
+                            ? "border-2 border-foreground bg-foreground scale-100"
+                            : "border-2 border-sidebar-border bg-background scale-95"
                   )}
                 >
 
@@ -227,7 +240,9 @@ export function ProgressIndicator({
                     <div
                       className={cn(
                         "relative h-[8px] w-[8px] rounded-full",
-                        displayFilled ? "bg-background" : "bg-sidebar-border"
+                        displayFilled || isClickableFuture
+                          ? "bg-background"
+                          : "bg-sidebar-border"
                       )}
                     />
                   )}
@@ -252,12 +267,20 @@ export function ProgressIndicator({
                     isNotClickable &&
                     !showFlaggedStyle &&
                     !showAcknowledgedFlaggedStyle &&
-                    "text-sidebar-foreground/80",
+                    "text-sidebar-foreground/55",
                   !isActive &&
                     !displayCompleted &&
                     !isNotClickable &&
                     !showFlaggedStyle &&
                     !showAcknowledgedFlaggedStyle &&
+                    isClickableFuture &&
+                    "text-foreground",
+                  !isActive &&
+                    !displayCompleted &&
+                    !isNotClickable &&
+                    !showFlaggedStyle &&
+                    !showAcknowledgedFlaggedStyle &&
+                    !isClickableFuture &&
                     "text-sidebar-foreground/80"
                 )}
               >
