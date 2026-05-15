@@ -232,6 +232,21 @@ function parseDateString(dateStr: string): Date | null {
 }
 
 /**
+ * Integer ratio % shown in the row (slider + money field). Blur sync must use the same basis as
+ * `invoice value × ratio` or fractional API values falsely look like an edited amount and the ratio creeps up.
+ */
+function clampedRoundedFinancingRatio(
+  raw: number | string | null | undefined,
+  minR: number,
+  maxR: number
+): number {
+  if (raw == null) return minR;
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(n)) return minR;
+  return Math.min(maxR, Math.max(minR, Math.round(n)));
+}
+
+/**
  * LOCAL INVOICE STATE SHAPE
  */
 type LocalInvoice = {
@@ -432,8 +447,12 @@ export default function InvoiceDetailsStep({
           const invoiceValue = parseMoney(row.value);
           if (invoiceValue <= 0) return row;
           const desired = parseMoney(amountStr);
-          const currentRatio = row.financing_ratio_percent ?? minR;
-          const canonicalFinancing = invoiceValue * (currentRatio / 100);
+          const effectiveRatio = clampedRoundedFinancingRatio(
+            row.financing_ratio_percent,
+            minR,
+            maxR
+          );
+          const canonicalFinancing = invoiceValue * (effectiveRatio / 100);
           if (Math.round(desired * 100) === Math.round(canonicalFinancing * 100)) {
             return row;
           }
@@ -1361,13 +1380,11 @@ export default function InvoiceDetailsStep({
                         {invoices.map((inv, invIndex) => {
                           const minRatio = productConfig?.min_financing_ratio_percent ?? 60;
                           const maxRatio = productConfig?.max_financing_ratio_percent ?? 80;
-                          const rawRatio = inv.financing_ratio_percent;
-                          const ratioNum = (() => {
-                            if (rawRatio == null) return minRatio;
-                            const n = typeof rawRatio === "number" ? rawRatio : Number(rawRatio);
-                            if (!Number.isFinite(n)) return minRatio;
-                            return Math.min(maxRatio, Math.max(minRatio, Math.round(n)));
-                          })();
+                          const ratioNum = clampedRoundedFinancingRatio(
+                            inv.financing_ratio_percent,
+                            minRatio,
+                            maxRatio
+                          );
                           const value = parseMoney(inv.value);
                           const financingAmount = value * (ratioNum / 100);
                           const isInvFlagged = invoicesWithRemarks.has(invIndex);
