@@ -402,7 +402,7 @@ function FinancingContractFilterToolbar({
             variant="outline"
             size="sm"
             className={cn(
-              "h-9 max-w-[11rem] gap-1.5 truncate px-3 text-sm font-medium",
+              "h-9 max-w-[11rem] gap-1.5 truncate px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
               value.statusKind !== "all" && "border-primary/40 bg-muted/50"
             )}
           >
@@ -441,7 +441,7 @@ function FinancingContractFilterToolbar({
             variant="outline"
             size="sm"
             className={cn(
-              "h-9 max-w-[14rem] gap-1.5 truncate px-3 text-sm font-medium",
+              "h-9 max-w-[14rem] gap-1.5 truncate px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
               value.periodPreset !== "all" && "border-primary/40 bg-muted/50"
             )}
           >
@@ -470,7 +470,7 @@ function FinancingContractFilterToolbar({
             variant="outline"
             size="sm"
             className={cn(
-              "h-9 max-w-[12rem] gap-1.5 truncate px-3 text-sm font-medium",
+              "h-9 max-w-[12rem] gap-1.5 truncate px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
               value.customer !== "" && "border-primary/40 bg-muted/50"
             )}
           >
@@ -500,7 +500,7 @@ function FinancingContractFilterToolbar({
       </DropdownMenu>
 
       {active ? (
-        <Button type="button" variant="ghost" size="sm" className="h-9 px-2 text-sm text-muted-foreground" onClick={onClear}>
+        <Button type="button" variant="ghost" size="sm" className="h-9 px-2 text-sm text-muted-foreground transition-none focus-visible:ring-0 focus-visible:ring-offset-0" onClick={onClear}>
           Clear
         </Button>
       ) : null}
@@ -556,7 +556,7 @@ export function FinancingInvoiceFilterToolbar({
             variant="outline"
             size="sm"
             className={cn(
-              "h-9 max-w-[11rem] gap-1.5 truncate px-3 text-sm font-medium",
+              "h-9 max-w-[11rem] gap-1.5 truncate px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
               value.statusKind !== "all" && "border-primary/40 bg-muted/50"
             )}
           >
@@ -595,7 +595,7 @@ export function FinancingInvoiceFilterToolbar({
             variant="outline"
             size="sm"
             className={cn(
-              "h-9 max-w-[14rem] gap-1.5 truncate px-3 text-sm font-medium",
+              "h-9 max-w-[14rem] gap-1.5 truncate px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
               value.submissionPreset !== "all" && "border-primary/40 bg-muted/50"
             )}
           >
@@ -625,7 +625,7 @@ export function FinancingInvoiceFilterToolbar({
               variant="outline"
               size="sm"
               className={cn(
-                "h-9 max-w-[12rem] gap-1.5 truncate px-3 text-sm font-medium",
+                "h-9 max-w-[12rem] gap-1.5 truncate px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
                 value.customer !== "" && "border-primary/40 bg-muted/50"
               )}
             >
@@ -656,7 +656,7 @@ export function FinancingInvoiceFilterToolbar({
       ) : null}
 
       {active ? (
-        <Button type="button" variant="ghost" size="sm" className="h-9 px-2 text-sm text-muted-foreground" onClick={onClear}>
+        <Button type="button" variant="ghost" size="sm" className="h-9 px-2 text-sm text-muted-foreground transition-none focus-visible:ring-0 focus-visible:ring-offset-0" onClick={onClear}>
           Clear
         </Button>
       ) : null}
@@ -693,7 +693,7 @@ function CollapsibleCategory({
           <button
             type="button"
             onClick={() => setOpen(!open)}
-            className="h-9 w-9 inline-flex items-center justify-center rounded-md hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="h-9 w-9 inline-flex items-center justify-center rounded-md transition-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
             aria-label={open ? "Collapse" : "Expand"}
           >
             {open ? (
@@ -711,7 +711,7 @@ function CollapsibleCategory({
 
 export function FilterButton({ label }: { label: string }) {
   return (
-    <Button variant="outline" size="sm" className="h-9 gap-1.5 px-3 text-sm font-medium">
+    <Button variant="outline" size="sm" className="h-9 gap-1.5 px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0">
       <FunnelIcon className="h-4 w-4 shrink-0" />
       {label}
     </Button>

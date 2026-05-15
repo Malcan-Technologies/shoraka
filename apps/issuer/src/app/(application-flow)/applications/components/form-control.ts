@@ -26,22 +26,19 @@ export const formInputAutofillMutedChromeFix =
   "[&:-webkit-autofill]:shadow-[inset_0_0_0_1000px_hsl(var(--muted))] [&:-webkit-autofill]:[-webkit-text-fill-color:hsl(var(--muted-foreground))]";
 
 export const formInputClassName = cn(
-  "h-11 w-full rounded-xl border border-input bg-background px-4 text-foreground",
-  "hover:border-muted-foreground/50",
+  "h-11 w-full rounded-xl border border-input bg-background px-4 text-foreground transition-none",
   "focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
   formInputAutofillChromeFix
 );
 
 export const formTextareaClassName = cn(
-  "w-full rounded-xl border border-input bg-background px-4 py-3 text-foreground",
-  "hover:border-muted-foreground/50",
+  "w-full rounded-xl border border-input bg-background px-4 py-3 text-foreground transition-none",
   "focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
   formInputAutofillChromeFix
 );
 
 export const formSelectTriggerClassName = cn(
-  "h-11 w-full rounded-xl border border-input bg-background text-foreground",
-  "hover:border-muted-foreground/50",
+  "h-11 w-full rounded-xl border border-input bg-background text-foreground transition-none",
   "focus:outline-none focus:border-primary",
   "focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
   // Radix: show the same ring/border when opened via mouse click.

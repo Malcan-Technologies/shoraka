@@ -410,7 +410,7 @@ export function ProductList({
                   className="flex items-center gap-3 text-left cursor-pointer min-w-0"
                 >
                   <ChevronDownIcon
-                    className={`h-5 w-5 shrink-0 text-foreground transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                    className={`h-5 w-5 shrink-0 text-foreground ${isExpanded ? "rotate-180" : ""}`}
                     aria-hidden
                   />
                   <h2 className="text-base font-semibold text-foreground truncate">{cat.name}</h2>

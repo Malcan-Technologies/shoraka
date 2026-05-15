@@ -863,12 +863,12 @@ export function SupportingDocumentsStep({
                       [categoryIndex]: !isExpanded,
                     }))
                   }
-                  className="w-full flex flex-wrap items-center justify-between gap-2 sm:gap-4 text-left px-4 py-3 sm:px-5 sm:py-3.5 bg-muted/15 hover:bg-muted/25 transition-colors border-b border-border"
+                  className="w-full flex flex-wrap items-center justify-between gap-2 sm:gap-4 text-left px-4 py-3 sm:px-5 sm:py-3.5 bg-muted/15 transition-none border-b border-border"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <ChevronDownIcon
                       className={cn(
-                        "h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200",
+                        "h-5 w-5 shrink-0 text-muted-foreground",
                         isExpanded && "rotate-180"
                       )}
                       aria-hidden
@@ -1230,7 +1230,7 @@ export function SupportingDocumentsStep({
           <DialogClose asChild>
             <button
               type="button"
-              className="absolute right-3 top-3 z-10 rounded-sm p-1 text-primary opacity-80 ring-offset-[color-mix(in_srgb,hsl(var(--primary))_10%,hsl(var(--card)))] transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              className="absolute right-3 top-3 z-10 rounded-sm p-1 text-primary transition-none focus:outline-none focus-visible:outline-none focus-visible:ring-0"
               aria-label="Close"
             >
               <XMarkIcon className="h-5 w-5 shrink-0" />

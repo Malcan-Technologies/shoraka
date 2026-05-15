@@ -174,7 +174,7 @@ export function ProgressIndicator({
               {index !== 0 && (
                 <div
                   className={cn(
-                    "absolute left-[-50%] w-full z-0 rounded-full transition-colors duration-300 ease-out",
+                    "absolute left-[-50%] w-full z-0 rounded-full",
                     connectorIsRed
                       ? "bg-destructive"
                       : displayFilled || isClickableFuture
@@ -192,10 +192,10 @@ export function ProgressIndicator({
               <div className="relative z-10 flex items-center justify-center h-[36px] w-[36px]">
                 {isActive && !isNotClickable && (
                   <>
-                    <div className="absolute inset-0 rounded-full bg-background z-10 transition-opacity duration-200 ease-out" />
+                    <div className="absolute inset-0 rounded-full bg-background z-10" />
                     <div
                       className={cn(
-                        "absolute inset-0 rounded-full border-2 z-20 transition-all duration-200 ease-out",
+                        "absolute inset-0 rounded-full border-2 z-20",
                         isFlagged ? "border-destructive" : "border-foreground"
                       )}
                     />
@@ -205,7 +205,7 @@ export function ProgressIndicator({
                 {/* Step circle */}
                 <div
                   className={cn(
-                    "relative z-30 flex items-center justify-center rounded-full h-[28px] w-[28px] transition-all duration-200 ease-out",
+                    "relative z-30 flex items-center justify-center rounded-full h-[28px] w-[28px]",
                     displayFilled
                       ? showAcknowledgedFlaggedStyle
                         ? "border-2 border-destructive bg-destructive scale-100"
@@ -252,7 +252,7 @@ export function ProgressIndicator({
               {/* Label — red when flagged (before or after save); thicker when current */}
               <span
                 className={cn(
-                  "mt-2.5 text-center text-[12px] leading-snug max-w-[90px] transition-colors duration-200 ease-out",
+                  "mt-2.5 text-center text-[12px] leading-snug max-w-[90px]",
                   isActive && isFlagged && !isNotClickable && "font-semibold text-destructive",
                   isActive && isFlagged && isNotClickable && "font-medium text-muted-foreground",
                   isActive && !isFlagged && !isNotClickable && "font-medium text-foreground",

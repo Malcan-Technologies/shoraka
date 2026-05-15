@@ -133,7 +133,7 @@ function MemberCard({ member, ownerId }: { member: OrganizationMember; ownerId?:
   const isOwner = ownerId && member.id === ownerId;
 
   return (
-    <div className="flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors">
+    <div className="flex items-center gap-4 p-4 rounded-xl border bg-card transition-none">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold text-lg">
         {initials}
       </div>
@@ -1296,7 +1296,7 @@ export default function ProfilePage() {
                           defaultCountry="MY"
                           value={phoneNumber}
                           onChange={setPhoneNumber}
-                          className="h-11 rounded-xl border border-input hover:border-muted-foreground/50 focus-within:border-primary px-4 transition-none [&_*]:transition-none [&>input]:border-0 [&>input]:bg-transparent [&>input]:text-sm [&>input]:focus-visible:outline-none [&>input]:focus-visible:ring-0 [&_*]:focus-visible:outline-none [&_*]:focus-visible:ring-0"
+                          className="h-11 rounded-xl border border-input focus-within:border-primary px-4 transition-none [&_*]:transition-none [&>input]:border-0 [&>input]:bg-transparent [&>input]:text-sm [&>input]:focus-visible:outline-none [&>input]:focus-visible:ring-0 [&_*]:focus-visible:outline-none [&_*]:focus-visible:ring-0"
                         />
                       ) : (
                         <Input
@@ -1401,7 +1401,7 @@ export default function ProfilePage() {
                       const memberName = [member.firstName, member.lastName].filter(Boolean).join(" ") || member.email;
 
                       return (
-                        <div key={member.id} className="flex items-center gap-4 p-4 rounded-xl border bg-card hover:bg-muted/30 transition-colors">
+                        <div key={member.id} className="flex items-center gap-4 p-4 rounded-xl border bg-card transition-none">
                           <div className="flex-1">
                             <MemberCard member={member} ownerId={activeOrganization.ownerId} />
                           </div>

@@ -1418,9 +1418,7 @@ export default function InvoiceDetailsStep({
                             <TableRow
                               key={inv.id}
                               className={cn(
-                                "transition-colors",
                                 rowLocked && applicationFlowLockedTableRowClassName,
-                                !rowLocked && "hover:bg-muted/40",
                                 isEditable &&
                                   isInvFlagged &&
                                   applicationFlowAmendmentTargetTableRowClassName
@@ -1434,7 +1432,7 @@ export default function InvoiceDetailsStep({
                                   placeholder="Enter invoice"
                                   className={cn(
                                     withFieldError(
-                                      "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                      "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground transition-none focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
                                       isRowPartial(inv)
                                     ),
                                     !isEditable && formInputDisabledClassName
@@ -1470,7 +1468,7 @@ export default function InvoiceDetailsStep({
                                   disabled={!isEditable}
                                   inputClassName={cn(
                                     withFieldError(
-                                      "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                      "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground transition-none focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
                                       isRowPartial(inv)
                                     ),
                                     !isEditable && formInputDisabledClassName
@@ -1485,7 +1483,7 @@ export default function InvoiceDetailsStep({
                                       "flex h-9 shrink-0 items-center justify-center rounded-xl border border-input px-2 text-[11px] font-semibold tabular-nums text-foreground shadow-sm",
                                       !isEditable
                                         ? "bg-muted"
-                                        : "bg-background hover:border-muted-foreground/50"
+                                        : "bg-background"
                                     )}
                                   >
                                     {ratioNum}%
@@ -1549,7 +1547,7 @@ export default function InvoiceDetailsStep({
                                       disabled={!isEditable || parseMoney(inv.value) <= 0}
                                       className="min-w-0"
                                       inputClassName={cn(
-                                        "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                        "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground transition-none focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
                                         (!isEditable || parseMoney(inv.value) <= 0) && formInputDisabledClassName
                                       )}
                                     />

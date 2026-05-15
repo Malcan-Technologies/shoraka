@@ -19,7 +19,7 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-11 w-full items-center justify-between whitespace-nowrap rounded-xl border border-input bg-transparent px-4 py-2 text-sm shadow-sm hover:border-muted-foreground/50 data-[placeholder]:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-100 disabled:bg-muted disabled:text-muted-foreground disabled:border-input [&>span]:line-clamp-1 focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+      "flex h-11 w-full items-center justify-between whitespace-nowrap rounded-xl border border-input bg-transparent px-4 py-2 text-sm shadow-sm transition-none data-[placeholder]:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-100 disabled:bg-muted disabled:text-muted-foreground disabled:border-input [&>span]:line-clamp-1 focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
       className,
       // Radix: show border-primary on open, without rings.
       "data-[state=open]:border-primary data-[state=open]:ring-0 data-[state=open]:outline-none"

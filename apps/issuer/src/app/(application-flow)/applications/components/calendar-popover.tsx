@@ -81,7 +81,7 @@ export function CalendarPopover({
       <div className="flex items-center gap-0.5 px-0.5 py-1 border-b">
         <button
           type="button"
-          className="p-1 rounded shrink-0 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-0"
+          className="p-1 rounded shrink-0 transition-none focus-visible:outline-none focus-visible:ring-0"
           onClick={() => setCurrentMonth((m) => subMonths(m, 1))}
         >
           ‹
@@ -95,7 +95,7 @@ export function CalendarPopover({
             }}
           >
             <SelectTrigger
-              className="h-8 flex-1 min-w-0 px-1.5 text-xs border-0 shadow-none bg-transparent [&>span]:truncate focus-visible:outline-none focus-visible:ring-0 focus-visible:border focus-visible:border-primary data-[state=open]:border data-[state=open]:border-primary data-[state=open]:ring-0 data-[state=open]:outline-none"
+              className="h-8 flex-1 min-w-0 px-1.5 text-xs border-0 shadow-none bg-transparent transition-none [&>span]:truncate focus-visible:outline-none focus-visible:ring-0 focus-visible:border focus-visible:border-primary data-[state=open]:border data-[state=open]:border-primary data-[state=open]:ring-0 data-[state=open]:outline-none"
               aria-label="Month"
             >
               <SelectValue />
@@ -116,7 +116,7 @@ export function CalendarPopover({
             }}
           >
             <SelectTrigger
-              className="h-8 w-[4.25rem] shrink-0 px-1 text-xs border-0 shadow-none bg-transparent focus-visible:outline-none focus-visible:ring-0 focus-visible:border focus-visible:border-primary data-[state=open]:border data-[state=open]:border-primary data-[state=open]:ring-0 data-[state=open]:outline-none"
+              className="h-8 w-[4.25rem] shrink-0 px-1 text-xs border-0 shadow-none bg-transparent transition-none focus-visible:outline-none focus-visible:ring-0 focus-visible:border focus-visible:border-primary data-[state=open]:border data-[state=open]:border-primary data-[state=open]:ring-0 data-[state=open]:outline-none"
               aria-label="Year"
             >
               <SelectValue />
@@ -132,7 +132,7 @@ export function CalendarPopover({
         </div>
         <button
           type="button"
-          className="p-1 rounded shrink-0 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-0"
+          className="p-1 rounded shrink-0 transition-none focus-visible:outline-none focus-visible:ring-0"
           onClick={() => setCurrentMonth((m) => addMonths(m, 1))}
         >
           ›
@@ -162,7 +162,7 @@ export function CalendarPopover({
                       isSelected
                         ? "bg-primary text-primary-foreground"
                         : isCurrentMonth
-                          ? "text-foreground hover:bg-muted/50"
+                          ? "text-foreground"
                           : "text-muted-foreground/40"
                     }`}
                   >

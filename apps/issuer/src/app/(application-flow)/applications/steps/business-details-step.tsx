@@ -2317,7 +2317,7 @@ export function BusinessDetailsStep({
                       <button
                         type="button"
                         onClick={() => removeWhySectionSupportingDocumentAt(index)}
-                        className="p-1 hover:bg-muted rounded-full transition-colors"
+                        className="p-1 rounded-full transition-none focus-visible:outline-none focus-visible:ring-0"
                         aria-label={`Remove ${doc.file_name}`}
                       >
                         <X className="h-3 w-3 text-muted-foreground" />
@@ -2328,7 +2328,7 @@ export function BusinessDetailsStep({
                 {!fieldsLocked && (
                   <label htmlFor="why-section-supporting-documents" className="cursor-pointer">
                     <div
-                      className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-input bg-card/50 p-6 transition-colors hover:border-muted-foreground/50 hover:bg-muted/50"
+                      className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-input bg-card/50 p-6 transition-none"
                       {...whySupportingDocumentsDropZoneProps}
                     >
                       <div className="rounded-full border border-input bg-background p-2 shadow-sm">
@@ -2359,7 +2359,7 @@ export function BusinessDetailsStep({
                 className="cursor-pointer"
               >
                 <div
-                  className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-input bg-card/50 p-6 transition-colors hover:border-muted-foreground/50 hover:bg-muted/50"
+                  className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-input bg-card/50 p-6 transition-none"
                   {...whySupportingDocumentsDropZoneProps}
                 >
                   <div className="rounded-full border border-input bg-background p-2 shadow-sm">
@@ -2541,14 +2541,14 @@ export function BusinessDetailsStep({
                   setGuarantorPanelOpen((p) => ({ ...p, [index]: d.open }));
                 }}
               >
-                <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-0">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-4 sm:px-5 py-4 border-b border-border">
                     <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
                       <span className="shrink-0 text-base font-semibold text-foreground">
                         Guarantor {index + 1}
                       </span>
                       <ChevronRightIcon
-                        className="h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-90"
+                        className="h-5 w-5 shrink-0 text-muted-foreground group-open:rotate-90"
                         aria-hidden
                       />
                       {subtitle ? (

@@ -24,12 +24,12 @@ const cardDisabledClassName = "border-border bg-muted";
  * Why: Keep border thickness, radius, padding, typography consistent everywhere.
  * Data: Pure strings used by the `SelectionCard` render.
  */
-const cardBaseClassName = "w-full rounded-xl border border-input bg-card text-foreground transition-colors";
-const cardUnselectedClassName = "border-input hover:border-primary/50";
+const cardBaseClassName = "w-full rounded-xl border border-input bg-card text-foreground transition-none";
+const cardUnselectedClassName = "border-input";
 const cardSelectedClassName = "border-primary bg-card";
 const cardPaddingClassName = "px-4 py-3";
 const cardFocusClassName =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+  "focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary";
 const titleClassName = "text-base font-semibold text-foreground leading-tight";
 const descriptionClassName = "text-sm text-muted-foreground mt-0.5 leading-snug";
 

@@ -418,7 +418,7 @@ function FileUploadArea({
               e.stopPropagation();
               onRemove();
             }}
-            className="p-1 hover:bg-muted rounded-full transition-colors"
+            className="p-1 rounded-full transition-none focus-visible:outline-none focus-visible:ring-0"
           >
             <X className="h-3 w-3 text-muted-foreground" />
           </button>
@@ -433,10 +433,10 @@ function FileUploadArea({
       onDragOver={handleDragOver}
       onDrop={handleDrop}
       className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-input p-6 transition-colors",
+        "flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-input p-6 transition-none",
         disabled
           ? "cursor-not-allowed bg-muted"
-          : "cursor-pointer bg-card/50 hover:border-muted-foreground/50 hover:bg-muted/50"
+          : "cursor-pointer bg-card/50"
       )}
     >
       <input
