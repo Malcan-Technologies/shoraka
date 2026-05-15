@@ -7,6 +7,11 @@
  * Data: Exports Tailwind class strings and small helpers to compose error state classes.
  */
 import { cn } from "@/lib/utils";
+import {
+  issuerFieldChromeClassName,
+  issuerFieldFocusClassName,
+  issuerFieldHeightClassName,
+} from "@/lib/issuer-input-chrome";
 
 /** Helpers
  *
@@ -26,22 +31,27 @@ export const formInputAutofillMutedChromeFix =
   "[&:-webkit-autofill]:shadow-[inset_0_0_0_1000px_hsl(var(--muted))] [&:-webkit-autofill]:[-webkit-text-fill-color:hsl(var(--muted-foreground))]";
 
 export const formInputClassName = cn(
-  "h-11 w-full rounded-xl border border-input bg-background px-4 text-foreground transition-none",
-  "focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+  issuerFieldHeightClassName,
+  "w-full px-3 text-foreground",
+  issuerFieldChromeClassName,
+  issuerFieldFocusClassName,
   formInputAutofillChromeFix
 );
 
 export const formTextareaClassName = cn(
-  "w-full rounded-xl border border-input bg-background px-4 py-3 text-foreground transition-none",
-  "focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+  "w-full min-h-[60px] px-3 py-2 text-foreground",
+  issuerFieldChromeClassName,
+  issuerFieldFocusClassName,
   formInputAutofillChromeFix
 );
 
 export const formSelectTriggerClassName = cn(
-  "h-11 w-full rounded-xl border border-input bg-background text-foreground transition-none",
+  issuerFieldHeightClassName,
+  "w-full px-3 text-foreground",
+  issuerFieldChromeClassName,
+  issuerFieldFocusClassName,
   "focus:outline-none focus:border-primary",
-  "focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
-  // Radix: show the same ring/border when opened via mouse click.
+  // Radix: show border-primary when opened via mouse click.
   "data-[state=open]:border-primary data-[state=open]:ring-0 data-[state=open]:outline-none"
 );
 

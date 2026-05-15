@@ -136,7 +136,7 @@ export const GuarantorNationalityAutocomplete = React.memo(
               aria-expanded={open}
               aria-controls={listId}
               className={cn(
-                "flex h-11 w-full items-center justify-between gap-2 whitespace-nowrap px-4 py-2 text-sm shadow-sm transition-none [&>span]:line-clamp-1",
+                "flex h-11 w-full items-center justify-between gap-2 whitespace-nowrap px-3 py-2 text-sm transition-none [&>span]:line-clamp-1",
                 formSelectTriggerClassName,
                 readOnly && formInputDisabledClassName
               )}
@@ -153,7 +153,7 @@ export const GuarantorNationalityAutocomplete = React.memo(
               sideOffset={4}
               collisionPadding={12}
               className={cn(
-                "z-50 w-[var(--radix-popover-trigger-width)] min-w-[min(100vw-2rem,20rem)] max-w-[min(100vw-2rem,28rem)] rounded-xl border bg-popover p-2 text-popover-foreground shadow-md outline-none [transition:none!important] [animation:none!important] [transform:none!important]"
+                "z-50 w-[var(--radix-popover-trigger-width)] min-w-[min(100vw-2rem,20rem)] max-w-[min(100vw-2rem,28rem)] rounded-md border bg-popover p-2 text-popover-foreground shadow-md outline-none [transition:none!important] [animation:none!important] [transform:none!important]"
               )}
               onOpenAutoFocus={(e) => e.preventDefault()}
             >
@@ -164,7 +164,7 @@ export const GuarantorNationalityAutocomplete = React.memo(
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={onSearchKeyDown}
                 placeholder="Type country name or code…"
-                className="mb-2 h-9 rounded-lg"
+                className="mb-2"
                 autoComplete="off"
                 aria-autocomplete="list"
                 aria-controls={listId}
@@ -181,7 +181,7 @@ export const GuarantorNationalityAutocomplete = React.memo(
                 id={listId}
                 role="listbox"
                 aria-label="Countries"
-                className="max-h-[min(20rem,55vh)] overflow-y-auto overscroll-contain rounded-lg border border-input"
+                className="max-h-[min(20rem,55vh)] overflow-y-auto overscroll-contain rounded-md border border-input"
               >
                 {rows.length === 0 ? (
                   <p className="px-3 py-6 text-center text-sm text-muted-foreground">

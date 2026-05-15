@@ -57,6 +57,10 @@ import { toast } from "sonner";
 import { XMarkIcon, CloudArrowUpIcon, InformationCircleIcon } from "@heroicons/react/24/outline";
 import { Slider } from "@cashsouk/ui";
 import { cn } from "@cashsouk/ui";
+import {
+  issuerFieldChromeClassName,
+  issuerFieldFocusClassName,
+} from "@/lib/issuer-input-chrome";
 import { useQueryClient } from "@tanstack/react-query";
 import { useProducts } from "@/hooks/use-products";
 import {
@@ -93,6 +97,17 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { FileDisplayBadge } from "../components/file-display-badge";
 
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
+
+const invoiceTableFieldChrome = cn(
+  "h-9 text-xs px-3 placeholder:text-muted-foreground",
+  issuerFieldChromeClassName,
+  issuerFieldFocusClassName
+);
+
+const invoiceTableReadonlyCellChrome = cn(
+  "flex h-9 shrink-0 items-center justify-center px-2 text-[11px] font-semibold tabular-nums text-foreground",
+  issuerFieldChromeClassName
+);
 
 /** Mock data for dev Auto Fill Step. Random 1–5 invoices. */
 export function generateMockData(): Record<string, unknown> {
@@ -1432,7 +1447,7 @@ export default function InvoiceDetailsStep({
                                   placeholder="Enter invoice"
                                   className={cn(
                                     withFieldError(
-                                      "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground transition-none focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                      invoiceTableFieldChrome,
                                       isRowPartial(inv)
                                     ),
                                     !isEditable && formInputDisabledClassName
@@ -1468,7 +1483,7 @@ export default function InvoiceDetailsStep({
                                   disabled={!isEditable}
                                   inputClassName={cn(
                                     withFieldError(
-                                      "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground transition-none focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                      invoiceTableFieldChrome,
                                       isRowPartial(inv)
                                     ),
                                     !isEditable && formInputDisabledClassName
@@ -1480,7 +1495,7 @@ export default function InvoiceDetailsStep({
                                 <div className="inline-flex max-w-full items-center gap-2 text-left">
                                   <div
                                     className={cn(
-                                      "flex h-9 shrink-0 items-center justify-center rounded-xl border border-input px-2 text-[11px] font-semibold tabular-nums text-foreground shadow-sm",
+                                      invoiceTableReadonlyCellChrome,
                                       !isEditable
                                         ? "bg-muted"
                                         : "bg-background"
@@ -1547,7 +1562,7 @@ export default function InvoiceDetailsStep({
                                       disabled={!isEditable || parseMoney(inv.value) <= 0}
                                       className="min-w-0"
                                       inputClassName={cn(
-                                        "h-9 text-xs rounded-xl border border-input bg-background px-3 placeholder:text-muted-foreground transition-none focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+                                        invoiceTableFieldChrome,
                                         (!isEditable || parseMoney(inv.value) <= 0) && formInputDisabledClassName
                                       )}
                                     />
@@ -1609,7 +1624,7 @@ export default function InvoiceDetailsStep({
                                     />
                                   </label>
                                 ) : (
-                                  <span className="inline-flex h-8 items-center gap-1 rounded border border-input bg-muted px-2 text-xs text-muted-foreground">
+                                  <span className="inline-flex h-8 items-center gap-1 rounded-md border border-input bg-muted px-2 text-xs text-muted-foreground shadow-sm">
                                     Locked
                                   </span>
                                 )}

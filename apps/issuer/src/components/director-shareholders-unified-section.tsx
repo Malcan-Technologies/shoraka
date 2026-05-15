@@ -210,7 +210,7 @@ export function DirectorShareholdersUnifiedSection({
             <Input
               type="email"
               data-profile-director-email
-              className="h-11 w-full rounded-xl border border-input bg-background"
+              className="w-full"
               placeholder="Email"
               value={email}
               disabled={savePending}

@@ -14,6 +14,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { TextareaWithCharCount } from "@/components/textarea-with-char-count";
 import { cn } from "@/lib/utils";
 import {
+  issuerFieldChromeClassName,
+  issuerUploadDropzoneClassName,
+  issuerUploadFileRowClassName,
+} from "@/lib/issuer-input-chrome";
+import {
   applicationFlowLabelCellAlignInputClassName,
   applicationFlowLabelCellAlignTopClassName,
   applicationFlowRadioRowControlClassName,
@@ -1177,7 +1182,7 @@ function GuarantorCardFields({
       )}
 
       <div className="mt-4 border-t border-border pt-5">
-        <div className="rounded-xl border border-input bg-background px-4 py-3.5 sm:px-5 sm:py-4">
+        <div className={cn(issuerFieldChromeClassName, "px-4 py-3.5 sm:px-5 sm:py-4")}>
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,17rem)_1fr] lg:gap-x-4 lg:items-start">
           <div className="min-w-0 space-y-1.5">
             <div>
@@ -2278,7 +2283,8 @@ export function BusinessDetailsStep({
                   <div
                     key={`${doc.s3_key ?? doc.client_id ?? doc.file_name}-${index}`}
                     className={cn(
-                      "rounded-xl border border-input px-4 py-3 flex items-center justify-between gap-3 min-h-11",
+                      issuerUploadFileRowClassName,
+                      "px-4 py-3 flex items-center justify-between gap-3 min-h-11",
                       fieldsLocked
                         ? formLockedFileSurfaceClassName
                         : "border-input bg-card/50 text-foreground"
@@ -2328,7 +2334,10 @@ export function BusinessDetailsStep({
                 {!fieldsLocked && (
                   <label htmlFor="why-section-supporting-documents" className="cursor-pointer">
                     <div
-                      className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-input bg-card/50 p-6 transition-none"
+                      className={cn(
+                        issuerUploadDropzoneClassName,
+                        "flex flex-col items-center justify-center gap-3 p-6"
+                      )}
                       {...whySupportingDocumentsDropZoneProps}
                     >
                       <div className="rounded-full border border-input bg-background p-2 shadow-sm">
@@ -2359,7 +2368,10 @@ export function BusinessDetailsStep({
                 className="cursor-pointer"
               >
                 <div
-                  className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-input bg-card/50 p-6 transition-none"
+                  className={cn(
+                    issuerUploadDropzoneClassName,
+                    "flex flex-col items-center justify-center gap-3 p-6"
+                  )}
                   {...whySupportingDocumentsDropZoneProps}
                 >
                   <div className="rounded-full border border-input bg-background p-2 shadow-sm">
@@ -2534,14 +2546,14 @@ export function BusinessDetailsStep({
             return (
               <details
                 key={row.referenceId || index}
-                className="group rounded-xl border border-border bg-background"
+                className="group rounded-md border border-border bg-background shadow-sm"
                 open={panelOpen}
                 onToggle={(e) => {
                   const d = e.currentTarget;
                   setGuarantorPanelOpen((p) => ({ ...p, [index]: d.open }));
                 }}
               >
-                <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-0">
+                <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer rounded-md focus-visible:outline-none focus-visible:ring-0">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-4 sm:px-5 py-4 border-b border-border">
                     <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
                       <span className="shrink-0 text-base font-semibold text-foreground">
@@ -2570,7 +2582,7 @@ export function BusinessDetailsStep({
         <button
           type="button"
           className={cn(
-            "hidden w-full rounded-xl border border-dashed border-input bg-muted/20 py-3 text-sm font-semibold text-foreground",
+            "hidden w-full rounded-md border border-dashed border-input bg-muted/20 py-3 text-sm font-semibold text-foreground shadow-sm",
             fieldsLocked ? "opacity-50 pointer-events-none" : "hover:bg-muted/40 cursor-pointer"
           )}
           disabled={fieldsLocked}
@@ -2587,7 +2599,7 @@ export function BusinessDetailsStep({
           <div className={applicationFlowSectionDividerClassName} />
         </div>
 
-        <div className="rounded-xl border border-input bg-background p-4 sm:p-5">
+        <div className={cn(issuerFieldChromeClassName, "p-4 sm:p-5")}>
           <label
             className={cn(
               "flex items-start gap-3",

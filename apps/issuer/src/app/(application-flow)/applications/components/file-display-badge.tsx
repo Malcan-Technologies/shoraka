@@ -7,6 +7,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { formLockedFileSurfaceClassName } from "@/app/(application-flow)/applications/components/form-control";
+import { issuerFieldChromeClassName } from "@/lib/issuer-input-chrome";
 import { SonnerSuccessIcon } from "@/components/ui/sonner-success-icon";
 
 /**
@@ -68,7 +69,8 @@ export function FileDisplayBadge({
     <div
       title={fileName}
       className={cn(
-        "items-center rounded-xl border border-input bg-background shadow-sm",
+        "items-center",
+        issuerFieldChromeClassName,
         inlineChip ? "flex" : "inline-flex",
         s.row,
         "min-w-0 max-w-full overflow-hidden",

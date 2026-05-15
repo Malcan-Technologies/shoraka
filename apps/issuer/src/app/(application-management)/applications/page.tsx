@@ -833,7 +833,7 @@ export default function ApplicationsPage() {
                   setSearch(e.target.value);
                   setPage(1);
                 }}
-                className="pl-9 h-11 rounded-xl"
+                className="pl-9"
               />
             </div>
 
@@ -1117,7 +1117,7 @@ export default function ApplicationsPage() {
                         setPage(1);
                       }}
                     >
-                      <SelectTrigger className="h-11 w-20 rounded-xl transition-none">
+                      <SelectTrigger className="w-20 transition-none">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>

@@ -5,6 +5,11 @@ import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
+  issuerFieldChromeClassName,
+  issuerFieldFocusWithinOpenClassName,
+  issuerFieldHeightClassName,
+} from "@/lib/issuer-input-chrome";
+import {
   formInputAutofillChromeFix,
   formInputAutofillMutedChromeFix,
 } from "@/app/(application-flow)/applications/components/form-control";
@@ -36,12 +41,12 @@ const sizePresets: Record<DateInputSize, {
   icon: string;
 }> = {
   default: {
-    container: "px-3 h-11 text-sm",
+    container: cn("px-3 text-sm", issuerFieldHeightClassName),
     input: "text-base",
     icon: "h-4 w-4",
   },
   compact: {
-    container: "px-3 h-9 text-sm",
+    container: cn("px-3 text-sm", issuerFieldHeightClassName),
     input: "text-sm",
     icon: "h-3 w-3",
   },
@@ -111,14 +116,15 @@ export function DateInput({
       <PopoverPrimitive.Trigger asChild>
         <div
           className={cn(
-            "relative flex items-center rounded-xl border bg-background transition-none",
-            disabled
-              ? "cursor-not-allowed bg-muted text-muted-foreground"
-              : "cursor-text",
+            "relative flex items-center transition-none",
             preset.container,
-            isInvalid && "border-destructive focus-within:border-destructive",
-            !isInvalid &&
-              "border-input transition-none focus-within:border-primary data-[state=open]:border-primary data-[state=open]:ring-0 data-[state=open]:outline-none",
+            disabled &&
+              "cursor-not-allowed rounded-md border border-input bg-muted text-muted-foreground shadow-none",
+            !disabled && isInvalid &&
+              "rounded-md border border-destructive bg-background shadow-sm focus-within:border-destructive",
+            !disabled && !isInvalid && issuerFieldChromeClassName,
+            !disabled && !isInvalid && issuerFieldFocusWithinOpenClassName,
+            !disabled && "cursor-text",
             className && !className.includes("border") && className
           )}
         >

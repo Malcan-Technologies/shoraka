@@ -37,6 +37,12 @@ import { ContractDetailsSkeleton } from "@/app/(application-flow)/applications/c
 import { toast } from "sonner";
 import { useAuthToken, createApiClient } from "@cashsouk/config";
 import { cn } from "@/lib/utils";
+import {
+  issuerFieldChromeClassName,
+  issuerFieldFocusWithinOpenClassName,
+  issuerUploadDropzoneClassName,
+  issuerUploadFileRowClassName,
+} from "@/lib/issuer-input-chrome";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
   applicationFlowLabelCellAlignInputClassName,
@@ -385,7 +391,8 @@ function FileUploadArea({
     return (
       <div
         className={cn(
-          "rounded-xl border border-input px-4 py-3 flex items-center justify-between gap-3 min-h-11",
+          issuerUploadFileRowClassName,
+          "px-4 py-3 flex items-center justify-between gap-3 min-h-11",
           disabled ? formLockedFileSurfaceClassName : "bg-card/50 text-foreground"
         )}
       >
@@ -433,7 +440,8 @@ function FileUploadArea({
       onDragOver={handleDragOver}
       onDrop={handleDrop}
       className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-input p-6 transition-none",
+        issuerUploadDropzoneClassName,
+        "flex flex-col items-center justify-center gap-3 p-6",
         disabled
           ? "cursor-not-allowed bg-muted"
           : "cursor-pointer bg-card/50"
@@ -1168,7 +1176,7 @@ export function ContractDetailsStep({
                     disabled={!stepIsEditable}
                     placeholder={`eg. ${formatMoney(1000000)}`}
                     prefix="RM"
-                    inputClassName={`${inputClassName} ${financingError ? "border-destructive focus-visible:border-2 focus-visible:border-destructive" : ""}`}
+                    inputClassName={`${inputClassName} ${financingError ? "border-destructive focus-visible:border-destructive" : ""}`}
                   />
                 </div>
                 {financingError && <p className="text-xs text-destructive">{financingError}</p>}
@@ -1348,8 +1356,9 @@ export function ContractDetailsStep({
             </Label>
             <div
               className={cn(
-                "flex h-11 w-full items-center gap-2 rounded-xl border border-input bg-background px-3",
-                "focus-within:border-primary focus-within:outline-none",
+                "flex h-11 w-full items-center gap-2 px-3",
+                issuerFieldChromeClassName,
+                issuerFieldFocusWithinOpenClassName,
                 !stepIsEditable && formInputDisabledClassName
               )}
             >

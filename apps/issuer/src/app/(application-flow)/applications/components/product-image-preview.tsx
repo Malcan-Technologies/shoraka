@@ -28,7 +28,7 @@ export function ProductImagePreview({
   if (isLoading) {
     return (
       <div
-        className={`w-14 h-14 rounded-xl border border-input ${containerBg} overflow-hidden flex items-center justify-center shrink-0`}
+        className={`w-14 h-14 rounded-md border border-input shadow-sm ${containerBg} overflow-hidden flex items-center justify-center shrink-0`}
       >
         <Skeleton className="w-full h-full" />
       </div>
@@ -38,7 +38,7 @@ export function ProductImagePreview({
   if (!imageUrl) {
     return (
       <div
-        className={`w-14 h-14 rounded-xl border border-input ${containerBg} overflow-hidden flex items-center justify-center shrink-0`}
+        className={`w-14 h-14 rounded-md border border-input shadow-sm ${containerBg} overflow-hidden flex items-center justify-center shrink-0`}
         aria-hidden
       >
         <div className={`w-10 h-10 rounded-md ${forceBgWhite ? "bg-white" : "bg-muted"}`} />
@@ -47,7 +47,7 @@ export function ProductImagePreview({
   }
 
   return (
-    <div className={`relative w-14 h-14 rounded-xl border border-input ${containerBg} overflow-hidden flex items-center justify-center shrink-0`}>
+    <div className={`relative w-14 h-14 rounded-md border border-input shadow-sm ${containerBg} overflow-hidden flex items-center justify-center shrink-0`}>
       <Image
         src={imageUrl}
         alt={alt || ""}

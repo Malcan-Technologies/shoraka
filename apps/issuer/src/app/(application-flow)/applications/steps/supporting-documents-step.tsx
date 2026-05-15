@@ -17,6 +17,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { issuerFieldChromeClassName } from "@/lib/issuer-input-chrome";
 import { useApplication } from "@/hooks/use-applications";
 import { useAuthToken } from "@cashsouk/config";
 import { SupportingDocumentsSkeleton } from "@/app/(application-flow)/applications/components/supporting-documents-skeleton";
@@ -853,7 +854,7 @@ export function SupportingDocumentsStep({
             return (
               <section
                 key={categoryIndex}
-                className="w-full rounded-xl border border-input bg-background overflow-hidden"
+                className={cn(issuerFieldChromeClassName, "w-full overflow-hidden")}
               >
                 <button
                   type="button"

@@ -8,6 +8,10 @@ import * as React from "react";
 import { CheckIcon } from "@heroicons/react/24/solid";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { cn } from "@cashsouk/ui";
+import {
+  issuerStepperUnvisitedCircleClassName,
+  issuerStepperUnvisitedConnectorClassName,
+} from "@/lib/issuer-input-chrome";
 
 /**
  * SECTION: Loading skeleton without product workflow
@@ -61,7 +65,10 @@ export function ProgressIndicator({
               {/* Connector skeleton — behind circles */}
               {index !== 0 && (
                 <div
-                  className="absolute left-[-50%] w-full z-0 rounded-full bg-input"
+                  className={cn(
+                    "absolute left-[-50%] w-full z-0 rounded-full",
+                    issuerStepperUnvisitedConnectorClassName
+                  )}
                   style={{
                     top: "16px",
                     height: "4px",
@@ -185,7 +192,7 @@ export function ProgressIndicator({
                       ? "bg-destructive"
                       : displayFilled || isClickableFuture
                         ? "bg-foreground"
-                        : "bg-input"
+                        : issuerStepperUnvisitedConnectorClassName
                   )}
                   style={{
                     top: "16px",
@@ -221,10 +228,10 @@ export function ProgressIndicator({
                       : showFlaggedStyle
                       ? "border-2 border-destructive bg-background scale-95"
                         : isLockedUnvisited
-                          ? "border-2 border-input bg-background scale-95"
+                          ? cn(issuerStepperUnvisitedCircleClassName, "scale-95")
                           : isClickableFuture
                             ? "border-2 border-foreground bg-foreground scale-100"
-                            : "border-2 border-input bg-background scale-95"
+                            : cn(issuerStepperUnvisitedCircleClassName, "scale-95")
                   )}
                 >
 

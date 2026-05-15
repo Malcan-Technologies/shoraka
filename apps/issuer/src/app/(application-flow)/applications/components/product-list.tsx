@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { SelectionCard } from "@/app/(application-flow)/applications/components/selection-card";
 import { ChevronDownIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import { ProductImagePreview } from "./product-image-preview";
+import { cn } from "@/lib/utils";
+import { issuerFieldChromeClassName } from "@/lib/issuer-input-chrome";
 
 /** Max product cards shown per category before "Show more" (scroll stays primary; this limits height). */
 const VISIBLE_PRODUCTS_PER_CATEGORY = 8;
@@ -78,11 +80,21 @@ function productSearchText(product: CatalogProduct): string {
 function ProductCardSkeleton() {
   return (
     <div className="block w-full">
-      <div className="w-full rounded-xl border border-input bg-card px-4 py-3 min-h-[80px] flex items-center">
+      <div
+        className={cn(
+          issuerFieldChromeClassName,
+          "w-full bg-card px-4 py-3 min-h-[80px] flex items-center"
+        )}
+      >
         <div className="flex w-full justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             {/* Image */}
-            <div className="w-14 h-14 rounded-xl border border-input bg-muted overflow-hidden flex items-center justify-center shrink-0">
+            <div
+              className={cn(
+                issuerFieldChromeClassName,
+                "w-14 h-14 bg-muted overflow-hidden flex items-center justify-center shrink-0"
+              )}
+            >
               <Skeleton className="h-full w-full" />
             </div>
 
@@ -345,7 +357,7 @@ export function ProductList({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by name, description, or category"
-              className="h-11 rounded-xl pl-9 pr-3 text-[15px] leading-6"
+              className="pl-9 pr-3 text-[15px] leading-6"
               aria-label="Search financing products"
               disabled={disabled}
             />
@@ -444,7 +456,7 @@ export function ProductList({
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full rounded-xl border-dashed"
+                    className="w-full rounded-md border-dashed shadow-sm"
                     onClick={() =>
                       setShowAllInCategory((prev) => ({
                         ...prev,

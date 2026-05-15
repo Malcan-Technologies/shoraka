@@ -122,7 +122,7 @@ export default function IssuerNotesPage() {
                   placeholder={ISSUER_NOTES_SEARCH_PLACEHOLDER}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-11 rounded-xl pl-9"
+                  className="pl-9"
                 />
               </div>
               <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-3 sm:justify-end">

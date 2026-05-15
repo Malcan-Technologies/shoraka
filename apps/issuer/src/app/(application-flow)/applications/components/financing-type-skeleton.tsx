@@ -12,11 +12,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 function SkeletonProductCard() {
   return (
     <div className="block w-full">
-      <div className="w-full rounded-xl border border-input bg-card px-4 py-3 min-h-[80px] flex items-center">
+      <div className="w-full rounded-md border border-input bg-card shadow-sm px-4 py-3 min-h-[80px] flex items-center">
         <div className="flex w-full justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             {/* Product image placeholder */}
-            <div className="w-14 h-14 rounded-xl border border-input bg-muted overflow-hidden flex items-center justify-center shrink-0">
+            <div className="w-14 h-14 rounded-md border border-input bg-muted shadow-sm overflow-hidden flex items-center justify-center shrink-0">
               <Skeleton className="h-full w-full" />
             </div>
 
