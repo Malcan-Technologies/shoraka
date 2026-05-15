@@ -95,7 +95,7 @@ export function CalendarPopover({
             }}
           >
             <SelectTrigger
-              className="h-8 flex-1 min-w-0 px-1.5 text-xs border-0 shadow-none bg-transparent [&>span]:truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="h-8 flex-1 min-w-0 px-1.5 text-xs border-0 shadow-none bg-transparent [&>span]:truncate focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=open]:border data-[state=open]:border-primary"
               aria-label="Month"
             >
               <SelectValue />
@@ -116,7 +116,7 @@ export function CalendarPopover({
             }}
           >
             <SelectTrigger
-              className="h-8 w-[4.25rem] shrink-0 px-1 text-xs border-0 shadow-none bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="h-8 w-[4.25rem] shrink-0 px-1 text-xs border-0 shadow-none bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background data-[state=open]:border data-[state=open]:border-primary"
               aria-label="Year"
             >
               <SelectValue />

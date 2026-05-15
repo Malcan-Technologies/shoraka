@@ -43,7 +43,9 @@ export const formSelectTriggerClassName = cn(
   "h-11 w-full rounded-xl border border-border/80 bg-background text-foreground",
   "hover:border-primary/35 transition-colors",
   "focus:outline-none focus:border-primary",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:border-primary"
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:border-primary",
+  // Radix: show the same ring/border when opened via mouse click.
+  "data-[state=open]:border data-[state=open]:border-primary data-[state=open]:ring-2 data-[state=open]:ring-primary data-[state=open]:ring-offset-2 data-[state=open]:ring-offset-background data-[state=open]:outline-none"
 );
 
 /** Read-only / disabled field styling

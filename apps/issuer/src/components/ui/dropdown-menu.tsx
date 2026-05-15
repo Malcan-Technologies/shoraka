@@ -8,7 +8,21 @@ import { cn } from "@/lib/utils";
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
 
-const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
+const DropdownMenuTrigger = React.forwardRef<
+  React.ElementRef<typeof DropdownMenuPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Trigger>
+>(({ className, ...props }, ref) => (
+  <DropdownMenuPrimitive.Trigger
+    ref={ref}
+    className={cn(
+      className,
+      // Radix: show the same ring/border when opened via mouse click.
+      "data-[state=open]:outline-none data-[state=open]:ring-2 data-[state=open]:ring-primary data-[state=open]:ring-offset-2 data-[state=open]:ring-offset-background data-[state=open]:border-primary"
+    )}
+    {...props}
+  />
+));
+DropdownMenuTrigger.displayName = "DropdownMenuTrigger";
 
 const DropdownMenuGroup = DropdownMenuPrimitive.Group;
 
