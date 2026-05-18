@@ -32,6 +32,13 @@ import { ArrowDownTrayIcon, CheckIcon, CheckCircleIcon } from "@heroicons/react/
 import { toast } from "sonner";
 import type { NormalizedInvoice } from "../status";
 import type { ApiError } from "@cashsouk/types";
+import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
+
+const PLATFORM_FEE_TOOLTIP =
+  "Deducted from disbursement when funding closes (applied as a percentage of the funded amount).";
+
+const PROFIT_RATE_TOOLTIP =
+  "Profit per annum (%). Deducted during settlement when calculating the residual refund to the issuer.";
 
 type ReviewOfferModalProps = {
   type: "contract" | "invoice";
@@ -338,10 +345,35 @@ export function ReviewOfferModal({
               <dd className="font-medium text-foreground text-right tabular-nums">
                 {summarySecondValue}
               </dd>
-              <dt className="text-muted-foreground font-medium">{summaryThirdLabel}</dt>
-              <dd className="font-medium text-foreground text-right tabular-nums">
-                {summaryThirdValue}
-              </dd>
+              {type === "contract" ? (
+                <>
+                  <dt className="text-muted-foreground font-medium">{summaryThirdLabel}</dt>
+                  <dd className="font-medium text-foreground text-right tabular-nums">
+                    {summaryThirdValue}
+                  </dd>
+                </>
+              ) : (
+                <>
+                  <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
+                    {summaryThirdLabel}
+                    <InfoTooltip content={PROFIT_RATE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+                  </dt>
+                  <dd className="font-medium text-foreground text-right tabular-nums">
+                    {summaryThirdValue}
+                  </dd>
+                </>
+              )}
+              {type === "invoice" ? (
+                <>
+                  <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
+                    Platform fee (at disbursement):
+                    <InfoTooltip content={PLATFORM_FEE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+                  </dt>
+                  <dd className="font-medium text-foreground text-right tabular-nums">
+                    {invoice?.platformFee ?? "—"}
+                  </dd>
+                </>
+              ) : null}
             </dl>
 
             <button

@@ -1078,6 +1078,7 @@ export default function DynamicApplicationDetailPage() {
                               offeredAmount,
                               offeredRatioPercent,
                               offeredProfitRatePercent,
+                              platformFeeRatePercent,
                               risk_rating,
                             }) => {
                               try {
@@ -1091,6 +1092,7 @@ export default function DynamicApplicationDetailPage() {
                                   offeredAmount,
                                   offeredRatioPercent,
                                   offeredProfitRatePercent,
+                                  platformFeeRatePercent,
                                   expiresAt,
                                   risk_rating,
                                 });

@@ -51,6 +51,7 @@ export interface InvoiceSectionProps {
     offeredAmount: number;
     offeredRatioPercent: number;
     offeredProfitRatePercent: number;
+    platformFeeRatePercent: number;
     risk_rating: SoukscoreRiskRating;
   }) => Promise<void>;
   isSendInvoiceOfferPending?: boolean;

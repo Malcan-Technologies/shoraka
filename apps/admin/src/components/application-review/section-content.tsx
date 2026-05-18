@@ -142,6 +142,7 @@ export interface SectionContentProps {
     offeredAmount: number;
     offeredRatioPercent: number;
     offeredProfitRatePercent: number;
+    platformFeeRatePercent: number;
     risk_rating: SoukscoreRiskRating;
   }) => Promise<void>;
   sendContractOfferPending?: boolean;

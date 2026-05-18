@@ -18,6 +18,7 @@ import {
   formatCurrency,
   resolveOfferedAmount,
   resolveOfferedProfitRate,
+  resolveOfferedPlatformFeeRatePercent,
   resolveRequestedInvoiceAmount,
   resolveApprovedFacility,
   resolveRequestedFacility,
@@ -198,6 +199,8 @@ function prepareInvoice(
     hasOffer && offeredAmount > 0 ? formatCurrency(offeredAmount) : "—";
   const profitRate =
     hasOffer && profitRateVal != null && profitRateVal > 0 ? `${profitRateVal}%` : "—";
+  const platformFeePct = resolveOfferedPlatformFeeRatePercent(api.offer_details);
+  const platformFee = hasOffer ? `${platformFeePct}%` : "—";
 
   const invoiceValue =
     typeof details.value === "number" ? details.value : typeof details.invoice_value === "number" ? details.invoice_value : null;
@@ -212,6 +215,7 @@ function prepareInvoice(
     document: documentName,
     documentS3Key,
     financingOffered,
+    platformFee,
     profitRate,
     status: api.status ?? "DRAFT",
     offerStatus,
@@ -224,7 +228,7 @@ function prepareInvoice(
   };
 }
 
-function prepareApplication(api: ApiApplication): NormalizedApplication {
+export function prepareApplication(api: ApiApplication): NormalizedApplication {
   const contract = api.contract;
   const contractStatus = contract?.status ?? null;
   const invoices = api.invoices ?? [];

@@ -7,6 +7,7 @@ import {
   formatCurrency,
   resolveOfferedAmount,
   resolveOfferedProfitRate,
+  resolveOfferedPlatformFeeRatePercent,
   maturityMeetsMinimumMonthsFrom,
   parseInvoiceMaturityDate,
 } from "@cashsouk/config";
@@ -100,6 +101,7 @@ interface InvoiceReviewListProps {
     offeredAmount: number;
     offeredRatioPercent: number;
     offeredProfitRatePercent: number;
+    platformFeeRatePercent: number;
     risk_rating: SoukscoreRiskRating;
   }) => Promise<void>;
   isSendInvoiceOfferPending?: boolean;
@@ -182,7 +184,12 @@ function formatDateValue(value: string | undefined): string {
   return Number.isNaN(parsed.getTime()) ? value : format(parsed, "dd MMM yyyy");
 }
 
-type OfferedState = { ratio: number; profitRate: number };
+type OfferedState = { ratio: number; profitRate: number; platformFeeRatePercent: number };
+
+function clampPlatformFeePercent(parsed: number, fallback: number): number {
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(3, Math.max(0, Math.round(parsed * 100) / 100));
+}
 
 export function InvoiceList({
   invoices,
@@ -212,6 +219,7 @@ export function InvoiceList({
     offeredAmount: number;
     offeredRatioPercent: number;
     offeredProfitRatePercent: number;
+    platformFeeRatePercent: number;
     invoiceValue: number | null;
     risk_rating: SoukscoreRiskRating;
   } | null>(null);
@@ -251,7 +259,10 @@ export function InvoiceList({
           (PROFIT_RATE_OPTIONS as readonly number[]).includes(offer.offered_profit_rate_percent)
             ? offer.offered_profit_rate_percent
             : 12;
-        result[inv.id] = { ratio, profitRate };
+        const platformFeeRatePercent = resolveOfferedPlatformFeeRatePercent(
+          inv.offer_details as Record<string, unknown>
+        );
+        result[inv.id] = { ratio, profitRate, platformFeeRatePercent };
       }
     });
     return result;
@@ -264,7 +275,11 @@ export function InvoiceList({
         const next = { ...prev };
         let changed = false;
         for (const [invoiceId, state] of Object.entries(initialOfferedFromInvoices)) {
-          if (next[invoiceId]?.ratio !== state.ratio || next[invoiceId]?.profitRate !== state.profitRate) {
+          if (
+            next[invoiceId]?.ratio !== state.ratio ||
+            next[invoiceId]?.profitRate !== state.profitRate ||
+            next[invoiceId]?.platformFeeRatePercent !== state.platformFeeRatePercent
+          ) {
             next[invoiceId] = state;
             changed = true;
           }
@@ -295,6 +310,10 @@ export function InvoiceList({
   /** When true, financing ratio slider is shown under the input for that invoice. */
   const [financingRatioSliderOpenByInvoiceId, setFinancingRatioSliderOpenByInvoiceId] = React.useState<
     Record<string, boolean>
+  >({});
+
+  const [platformFeeDraftByInvoiceId, setPlatformFeeDraftByInvoiceId] = React.useState<
+    Record<string, string>
   >({});
 
   const financingRatioPanelRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
@@ -340,7 +359,11 @@ export function InvoiceList({
   const setOffered = React.useCallback(
     (invoiceId: string, updates: Partial<OfferedState>) => {
       setOfferedByInvoice((prev) => {
-        const current = prev[invoiceId] ?? { ratio: invoiceRatioLimits.min, profitRate: 12 };
+        const current = prev[invoiceId] ?? {
+          ratio: invoiceRatioLimits.min,
+          profitRate: 12,
+          platformFeeRatePercent: 0,
+        };
         return { ...prev, [invoiceId]: { ...current, ...updates } };
       });
     },
@@ -355,7 +378,7 @@ export function InvoiceList({
         issuerRatio != null
           ? Math.max(invoiceRatioLimits.min, Math.min(invoiceRatioLimits.max, issuerRatio))
           : invoiceRatioLimits.min;
-      return { ratio, profitRate: 12 };
+      return { ratio, profitRate: 12, platformFeeRatePercent: 0 };
     },
     [offeredByInvoice, invoiceRatioLimits]
   );
@@ -371,6 +394,7 @@ export function InvoiceList({
       offeredAmount: invoiceOfferConfirm.offeredAmount,
       offeredRatioPercent: invoiceOfferConfirm.offeredRatioPercent,
       offeredProfitRatePercent: invoiceOfferConfirm.offeredProfitRatePercent,
+      platformFeeRatePercent: invoiceOfferConfirm.platformFeeRatePercent,
       risk_rating: invoiceOfferConfirm.risk_rating,
     });
     setInvoiceOfferConfirm(null);
@@ -552,6 +576,11 @@ export function InvoiceList({
                               const offeredProfitRate = isOfferSent
                                 ? resolveOfferedProfitRate(offerDetails) ?? offered.profitRate
                                 : offered.profitRate;
+                              const offeredPlatformFeePercent = isOfferSent
+                                ? resolveOfferedPlatformFeeRatePercent(
+                                    inv.offer_details as Record<string, unknown>
+                                  )
+                                : offered.platformFeeRatePercent;
                               const expiryDays = offerExpiryDays ?? 7;
                               const estimates =
                                 offeredAmount !== null && offeredAmount > 0 && expiryDays > 0
@@ -775,6 +804,72 @@ export function InvoiceList({
                                   <div className={applicationTableExpandableFieldBlockClass}>
                                     <div className="flex items-baseline justify-between gap-2">
                                       <p className={applicationTableExpandableLabelClass}>
+                                        Platform fee
+                                      </p>
+                                      {!isOfferSent ? (
+                                        <span className="shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
+                                          0–3%
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    {isOfferSent ? (
+                                      <p className={applicationTableExpandableValueClass}>
+                                        {offeredPlatformFeePercent}% at disbursement
+                                      </p>
+                                    ) : (
+                                      <div className="flex w-full max-w-[7rem] items-center gap-1.5">
+                                        <Input
+                                          type="text"
+                                          inputMode="decimal"
+                                          autoComplete="off"
+                                          aria-label="Platform fee percent, allowed 0% to 3%"
+                                          className={`${OFFER_CONTROL_WIDTH_CLASS} px-3 text-right tabular-nums shadow-sm`}
+                                          disabled={isRowGreyedOut || isAdminRejected}
+                                          value={
+                                            platformFeeDraftByInvoiceId[inv.id] !== undefined
+                                              ? platformFeeDraftByInvoiceId[inv.id]
+                                              : String(offered.platformFeeRatePercent)
+                                          }
+                                          onChange={(e) => {
+                                            const next = e.target.value;
+                                            if (next === "" || /^\d*\.?\d{0,2}$/.test(next)) {
+                                              setPlatformFeeDraftByInvoiceId((prev) => ({
+                                                ...prev,
+                                                [inv.id]: next,
+                                              }));
+                                            }
+                                          }}
+                                          onBlur={() => {
+                                            const draft = platformFeeDraftByInvoiceId[inv.id];
+                                            setPlatformFeeDraftByInvoiceId((prev) => {
+                                              const rest = { ...prev };
+                                              delete rest[inv.id];
+                                              return rest;
+                                            });
+                                            const fallback = offered.platformFeeRatePercent;
+                                            const clamped = clampPlatformFeePercent(
+                                              draft === undefined || draft === ""
+                                                ? fallback
+                                                : Number(draft.replace(/,/g, "")),
+                                              fallback
+                                            );
+                                            setOffered(inv.id, { platformFeeRatePercent: clamped });
+                                          }}
+                                          onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                              (e.target as HTMLInputElement).blur();
+                                            }
+                                          }}
+                                        />
+                                        <span className="shrink-0 text-[15px] text-muted-foreground">
+                                          %
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className={applicationTableExpandableFieldBlockClass}>
+                                    <div className="flex items-baseline justify-between gap-2">
+                                      <p className={applicationTableExpandableLabelClass}>
                                         Financing Ratio
                                       </p>
                                       {!isOfferSent ? (
@@ -983,12 +1078,31 @@ export function InvoiceList({
                                           alert("Please select a risk rating before sending the offer.");
                                           return;
                                         }
+                                        let platformFeeRatePercent = offered.platformFeeRatePercent;
+                                        const draftPf = platformFeeDraftByInvoiceId[inv.id];
+                                        if (draftPf !== undefined) {
+                                          if (draftPf === "") {
+                                            platformFeeRatePercent = 0;
+                                          } else {
+                                            platformFeeRatePercent = clampPlatformFeePercent(
+                                              Number(draftPf.replace(/,/g, "")),
+                                              offered.platformFeeRatePercent
+                                            );
+                                          }
+                                          setPlatformFeeDraftByInvoiceId((prev) => {
+                                            const rest = { ...prev };
+                                            delete rest[inv.id];
+                                            return rest;
+                                          });
+                                          setOffered(inv.id, { platformFeeRatePercent });
+                                        }
                                         setInvoiceOfferConfirm({
                                           invoiceId: inv.id,
                                           invoiceNo,
                                           offeredAmount: offeredAmount ?? 0,
                                           offeredRatioPercent: offered.ratio,
                                           offeredProfitRatePercent: offered.profitRate,
+                                          platformFeeRatePercent,
                                           invoiceValue,
                                           risk_rating: rr,
                                         });
@@ -1069,6 +1183,12 @@ export function InvoiceList({
                   <span className="text-sm font-medium text-muted-foreground">Profit Rate</span>
                   <span className="text-[15px] font-medium tabular-nums">
                     {invoiceOfferConfirm.offeredProfitRatePercent}%
+                  </span>
+                </div>
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm font-medium text-muted-foreground">Platform fee</span>
+                  <span className="text-[15px] font-medium tabular-nums">
+                    {invoiceOfferConfirm.platformFeeRatePercent}% at disbursement
                   </span>
                 </div>
                 <div className="flex justify-between items-baseline">

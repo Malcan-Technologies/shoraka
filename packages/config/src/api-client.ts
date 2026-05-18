@@ -949,6 +949,7 @@ export class ApiClient {
       offeredAmount: number;
       offeredRatioPercent?: number | null;
       offeredProfitRatePercent?: number | null;
+      platformFeeRatePercent?: number | null;
       expiresAt?: string | null;
       risk_rating: SoukscoreRiskRating;
     }
@@ -959,6 +960,7 @@ export class ApiClient {
         offeredAmount: payload.offeredAmount,
         offeredRatioPercent: payload.offeredRatioPercent ?? null,
         offeredProfitRatePercent: payload.offeredProfitRatePercent ?? null,
+        platformFeeRatePercent: payload.platformFeeRatePercent ?? null,
         expiresAt: payload.expiresAt ?? null,
         risk_rating: payload.risk_rating,
       }

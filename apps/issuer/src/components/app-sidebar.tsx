@@ -27,10 +27,12 @@ import {
   SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
 } from "@cashsouk/ui";
+import { useIssuerPendingOfferReviewCount } from "@/hooks/use-issuer-pending-offer-review-count";
 
 function subscribeMounted() {
   return () => undefined;
@@ -47,6 +49,7 @@ function getServerSnapshot() {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { isOnboarded, isPendingApproval, activeOrganization } = useOrganization();
+  const pendingOfferReviewCount = useIssuerPendingOfferReviewCount(activeOrganization?.id);
   const isOnboardingPage = pathname === "/onboarding-start";
 
   // Check if organization has a status that allows Account/Profile access
@@ -204,12 +207,30 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <span>Application</span>
                   </SidebarMenuButton>
                 ) : (
-                  <SidebarMenuButton asChild isActive={pathname === "/applications" || pathname.startsWith("/applications/")} tooltip="Application">
-                    <Link href="/applications">
-                      <DocumentTextIcon className="h-4 w-4" />
-                      <span>Application</span>
-                    </Link>
-                  </SidebarMenuButton>
+                  <>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname === "/applications" || pathname.startsWith("/applications/")}
+                      tooltip="Application"
+                    >
+                      <Link
+                        href="/applications"
+                        aria-label={
+                          pendingOfferReviewCount > 0
+                            ? `Application, ${pendingOfferReviewCount} offer${pendingOfferReviewCount === 1 ? "" : "s"} to review`
+                            : "Application"
+                        }
+                      >
+                        <DocumentTextIcon className="h-4 w-4" />
+                        <span>Application</span>
+                      </Link>
+                    </SidebarMenuButton>
+                    {pendingOfferReviewCount > 0 ? (
+                      <SidebarMenuBadge className="bg-primary text-primary-foreground peer-hover/menu-button:text-primary-foreground peer-data-[active=true]/menu-button:text-primary-foreground">
+                        {pendingOfferReviewCount}
+                      </SidebarMenuBadge>
+                    ) : null}
+                  </>
                 )}
               </SidebarMenuItem>
               <SidebarMenuItem>

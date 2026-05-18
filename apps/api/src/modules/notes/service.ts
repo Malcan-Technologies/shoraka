@@ -25,6 +25,7 @@ import { putS3ObjectBuffer } from "../../lib/s3/client";
 import { resolveApprovedFacilityForRefresh } from "../../lib/contract-facility";
 import {
   resolveOfferedAmount,
+  resolveOfferedPlatformFeeRatePercent,
   resolveOfferedProfitRate,
   resolveRequestedInvoiceAmount,
 } from "../../lib/invoice-offer";
@@ -1488,6 +1489,7 @@ export class NoteService {
               resolveOfferedProfitRate(invoiceOffer) != null
                 ? money(resolveOfferedProfitRate(invoiceOffer) ?? 0)
                 : undefined,
+            platform_fee_rate_percent: money(resolveOfferedPlatformFeeRatePercent(invoiceOffer)),
             service_fee_rate_percent: money(15),
             maturity_date:
               typeof invoiceDetails.maturity_date === "string"

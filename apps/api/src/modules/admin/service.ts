@@ -6161,6 +6161,7 @@ export class AdminService {
     offeredAmount: number,
     offeredRatioPercent: number | null,
     offeredProfitRatePercent: number | null,
+    platformFeeRatePercent: number | null,
     expiresAt: string | null,
     riskRating: SoukscoreRiskRating,
     reviewerUserId: string,
@@ -6274,6 +6275,10 @@ export class AdminService {
           ? previousOffer.version
           : 0;
       const now = new Date().toISOString();
+      const platformFeeStored =
+        platformFeeRatePercent != null && Number.isFinite(platformFeeRatePercent)
+          ? Math.min(3, Math.max(0, Math.round(platformFeeRatePercent * 100) / 100))
+          : 0;
       logger.info({ applicationId, invoiceId, riskRating }, "Saving invoice offer risk rating");
       const offerDetails = {
         requested_amount: requestedAmount,
@@ -6281,6 +6286,7 @@ export class AdminService {
         requested_ratio_percent: requestedRatioPercent,
         offered_ratio_percent: offeredRatioPercent,
         offered_profit_rate_percent: offeredProfitRatePercent,
+        platform_fee_rate_percent: platformFeeStored,
         risk_rating: riskRating,
         expires_at: expiresAt,
         sent_at: now,
@@ -6395,6 +6401,7 @@ export class AdminService {
         invoiceNumber,
         requestedAmount,
         previousVersion,
+        platformFeeStored,
       };
     });
 
@@ -6410,6 +6417,7 @@ export class AdminService {
         offered_amount: offeredAmount,
         offered_ratio_percent: offeredRatioPercent,
         offered_profit_rate_percent: offeredProfitRatePercent,
+        platform_fee_rate_percent: invoiceOfferMeta.platformFeeStored,
         expires_at: expiresAt,
         version: invoiceOfferMeta.previousVersion + 1,
       },

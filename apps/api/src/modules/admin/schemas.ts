@@ -362,6 +362,7 @@ export const sendInvoiceOfferSchema = z.object({
   offeredAmount: z.coerce.number().positive("Offered amount must be greater than 0"),
   offeredRatioPercent: z.coerce.number().min(0).max(100).optional().nullable(),
   offeredProfitRatePercent: z.coerce.number().min(0).max(100).optional().nullable(),
+  platformFeeRatePercent: z.coerce.number().min(0).max(3).optional().nullable(),
   expiresAt: z.string().datetime().optional().nullable(),
   risk_rating: z.enum(SOUKSCORE_RISK_RATING_GRADES),
 });
