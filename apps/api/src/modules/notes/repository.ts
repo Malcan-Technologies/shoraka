@@ -2,8 +2,10 @@ import {
   NoteFundingStatus,
   NoteListingStatus,
   NoteServicingStatus,
+  NoteSettlementStatus,
   NoteStatus,
   Prisma,
+  ServiceFeeTrusteeInstructionStatus,
 } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import type { GetNotesQuery } from "./schemas";
@@ -31,6 +33,7 @@ export class NoteRepository {
       paymaster,
       featuredOnly,
       excludeRepaid,
+      excludeFullySettledRegistryNotes,
     } = params;
     const where: Prisma.NoteWhereInput = {};
 
@@ -95,6 +98,44 @@ export class NoteRepository {
           { OR: [{ featured_from: null }, { featured_from: { lte: now } }] },
           { OR: [{ featured_until: null }, { featured_until: { gte: now } }] },
         ],
+      });
+    }
+    if (excludeFullySettledRegistryNotes) {
+      const serviceFeeTrusteeIncomplete: Prisma.NoteSettlementWhereInput = {
+        status: NoteSettlementStatus.POSTED,
+        service_fee_amount: { gt: new Prisma.Decimal("0.005") },
+        OR: [
+          { service_fee_trustee_status: null },
+          {
+            service_fee_trustee_status: {
+              not: ServiceFeeTrusteeInstructionStatus.COMPLETED,
+            },
+          },
+        ],
+      };
+      and.push({
+        NOT: {
+          AND: [
+            {
+              OR: [
+                { status: NoteStatus.REPAID },
+                { servicing_status: NoteServicingStatus.SETTLED },
+              ],
+            },
+            {
+              settlements: {
+                some: { status: NoteSettlementStatus.POSTED },
+              },
+            },
+            {
+              NOT: {
+                settlements: {
+                  some: serviceFeeTrusteeIncomplete,
+                },
+              },
+            },
+          ],
+        },
       });
     }
     if (and.length > 0) where.AND = and;

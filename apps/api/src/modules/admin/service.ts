@@ -6268,6 +6268,24 @@ export class AdminService {
           "Offered amount cannot be greater than requested amount"
         );
       }
+      const platformFinanceSettings = await tx.platformFinanceSetting.upsert({
+        where: { key: "DEFAULT" },
+        update: {},
+        create: { key: "DEFAULT" },
+        select: { platform_fee_rate_cap_percent: true },
+      });
+      const platformFeeRateCapPercent = Number(platformFinanceSettings.platform_fee_rate_cap_percent);
+      const platformFeeStored =
+        platformFeeRatePercent != null && Number.isFinite(platformFeeRatePercent)
+          ? Math.max(0, Math.round(platformFeeRatePercent * 100) / 100)
+          : 0;
+      if (platformFeeStored > platformFeeRateCapPercent) {
+        throw new AppError(
+          422,
+          "PLATFORM_FEE_CAP_EXCEEDED",
+          `Platform fee rate cannot exceed ${platformFeeRateCapPercent}%`
+        );
+      }
 
       const previousOffer = (lockedInvoice.offer_details as Record<string, unknown> | null) ?? null;
       const previousVersion =
@@ -6275,10 +6293,6 @@ export class AdminService {
           ? previousOffer.version
           : 0;
       const now = new Date().toISOString();
-      const platformFeeStored =
-        platformFeeRatePercent != null && Number.isFinite(platformFeeRatePercent)
-          ? Math.min(3, Math.max(0, Math.round(platformFeeRatePercent * 100) / 100))
-          : 0;
       logger.info({ applicationId, invoiceId, riskRating }, "Saving invoice offer risk rating");
       const offerDetails = {
         requested_amount: requestedAmount,

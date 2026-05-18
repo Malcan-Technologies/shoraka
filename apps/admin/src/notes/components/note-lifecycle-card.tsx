@@ -13,7 +13,7 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
-import type { NoteDetail } from "@cashsouk/types";
+import type { NoteDetail, ServiceFeeTrusteeInstructionStatus } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -114,6 +114,55 @@ function buildPayoutSubSteps(withdrawalStatus: string, initiatedLabel: string): 
     label,
     status: idx <= completedThrough ? "done" : idx === completedThrough + 1 ? "current" : "pending",
   }));
+}
+
+type ServiceFeeSubStep = {
+  id: "POSTED" | "LETTER" | "SUBMITTED" | "COMPLETED";
+  label: string;
+  status: "done" | "current" | "pending";
+};
+
+function buildServiceFeeSubSteps(
+  trusteeStatus: ServiceFeeTrusteeInstructionStatus | null
+): ServiceFeeSubStep[] {
+  const completedThrough =
+    trusteeStatus === "COMPLETED"
+      ? 3
+      : trusteeStatus === "SUBMITTED_TO_TRUSTEE"
+        ? 2
+        : trusteeStatus === "LETTER_GENERATED"
+          ? 1
+          : 0;
+  const labels = [
+    "Settlement posted",
+    "Trustee letter generated",
+    "Submitted to trustee",
+    "Instruction completed",
+  ];
+  const ids: ServiceFeeSubStep["id"][] = ["POSTED", "LETTER", "SUBMITTED", "COMPLETED"];
+  return labels.map((label, idx) => ({
+    id: ids[idx],
+    label,
+    status:
+      idx <= completedThrough
+        ? "done"
+        : idx === completedThrough + 1
+          ? "current"
+          : "pending",
+  }));
+}
+
+function serviceFeeTrusteeHelperText(trusteeStatus: ServiceFeeTrusteeInstructionStatus | null): string {
+  if (trusteeStatus === "COMPLETED") {
+    return "Service fee trustee instruction workflow is complete for this settlement.";
+  }
+  if (trusteeStatus === "SUBMITTED_TO_TRUSTEE") {
+    return "Mark the instruction complete in section 3 of the settlement panel once the trustee has processed the internal pool allocation.";
+  }
+  if (trusteeStatus === "LETTER_GENERATED") {
+    return "Submit the PDF to the trustee, then mark submitted and complete from the settlement panel below.";
+  }
+  return `Generate the PDF from Trustee instruction — service fee (internal pools) in section 3 of the settlement panel below. This documents the Repayment pool to Operating account allocation; it is not an external bank payout.`;
 }
 
 interface ActionConfig {
@@ -308,6 +357,18 @@ export function NoteLifecycleCard({ note, pending, onRequestAction }: NoteLifecy
   const awaitingDisbursement =
     !isComplete && !terminalFailure && activeIndex === 2 && pendingDisbursementWithdrawal !== null;
 
+  const postedSettlementWithServiceFee =
+    note.settlements.find(
+      (s) => s.status === "POSTED" && s.serviceFeeAmount > 0.005
+    ) ?? null;
+  const serviceFeeTrusteeStatus = postedSettlementWithServiceFee?.serviceFeeTrusteeStatus ?? null;
+  const serviceFeeWorkflowComplete = serviceFeeTrusteeStatus === "COMPLETED";
+  const showServiceFeeSubStepper =
+    postedSettlementWithServiceFee !== null && !terminalFailure;
+  const serviceFeeSubSteps = showServiceFeeSubStepper
+    ? buildServiceFeeSubSteps(serviceFeeTrusteeStatus)
+    : null;
+
   const payoutSubSteps =
     awaitingResidual && pendingResidualWithdrawal
       ? buildPayoutSubSteps(pendingResidualWithdrawal.status, "Waterfall posted")
@@ -444,6 +505,84 @@ export function NoteLifecycleCard({ note, pending, onRequestAction }: NoteLifecy
             );
           })}
         </div>
+
+        {serviceFeeSubSteps ? (
+          <div
+            className={cn(
+              "rounded-xl border p-3",
+              serviceFeeWorkflowComplete
+                ? "border-emerald-200 bg-emerald-50/60"
+                : "border-amber-200 bg-amber-50/60"
+            )}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div
+                className={cn(
+                  "text-xs font-medium uppercase tracking-wider",
+                  serviceFeeWorkflowComplete ? "text-emerald-900" : "text-amber-900"
+                )}
+              >
+                Service fee · internal pool instruction
+              </div>
+              <div
+                className={cn(
+                  "text-xs",
+                  serviceFeeWorkflowComplete ? "text-emerald-900/80" : "text-amber-900/80"
+                )}
+              >
+                {serviceFeeSubSteps.filter((step) => step.status === "done").length} of{" "}
+                {serviceFeeSubSteps.length} steps complete
+              </div>
+            </div>
+            <ol className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+              {serviceFeeSubSteps.map((step, idx) => (
+                <React.Fragment key={step.id}>
+                  <li className="flex items-center gap-1.5">
+                    <span
+                      className={cn(
+                        "flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold ring-1",
+                        step.status === "done"
+                          ? "bg-emerald-500 text-white ring-emerald-500"
+                          : step.status === "current"
+                            ? "bg-amber-500 text-white ring-amber-500"
+                            : "bg-white text-amber-700 ring-amber-200"
+                      )}
+                    >
+                      {step.status === "done" ? <CheckIcon className="h-3 w-3" /> : idx + 1}
+                    </span>
+                    <span
+                      className={cn(
+                        step.status === "pending"
+                          ? "text-amber-700/70"
+                          : serviceFeeWorkflowComplete
+                            ? "font-medium text-emerald-950"
+                            : "font-medium text-amber-950"
+                      )}
+                    >
+                      {step.label}
+                    </span>
+                  </li>
+                  {idx < serviceFeeSubSteps.length - 1 ? (
+                    <span
+                      className={cn(
+                        "h-px w-4",
+                        step.status === "done" ? "bg-emerald-500" : "bg-amber-200"
+                      )}
+                    />
+                  ) : null}
+                </React.Fragment>
+              ))}
+            </ol>
+            <p
+              className={cn(
+                "mt-2 text-xs",
+                serviceFeeWorkflowComplete ? "text-emerald-900/80" : "text-amber-900/80"
+              )}
+            >
+              {serviceFeeTrusteeHelperText(serviceFeeTrusteeStatus)}
+            </p>
+          </div>
+        ) : null}
 
         {payoutSubSteps ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">

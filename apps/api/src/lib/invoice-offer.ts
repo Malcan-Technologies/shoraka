@@ -62,11 +62,9 @@ export function resolveOfferedProfitRate(offer: InvoiceOfferDetailsLike): number
   return null;
 }
 
-const PLATFORM_FEE_CAP = 3;
-
 /**
  * Platform fee rate (percent of funded amount at disbursement) from invoice offer_details.
- * Clamped to [0, 3]. Missing or invalid values become 0.
+ * Missing or invalid values become 0.
  */
 export function resolveOfferedPlatformFeeRatePercent(offer: InvoiceOfferDetailsLike): number {
   if (!offer || typeof offer !== "object") return 0;
@@ -78,5 +76,5 @@ export function resolveOfferedPlatformFeeRatePercent(offer: InvoiceOfferDetailsL
     n = Number.isFinite(parsed) ? parsed : null;
   }
   if (n == null || n < 0) return 0;
-  return Math.min(PLATFORM_FEE_CAP, Math.round(n * 100) / 100);
+  return Math.round(n * 100) / 100;
 }

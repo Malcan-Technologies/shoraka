@@ -40,6 +40,7 @@ export interface InvoiceSectionProps {
   onDownloadDocument: (s3Key: string, fileName?: string) => void;
   viewDocumentPending: boolean;
   invoiceRatioLimits?: { min: number; max: number };
+  platformFeeRateCapPercent?: number | null;
   offerExpiryDays?: number | null;
   minMonthsReviewToMaturityForOffer?: number | null;
   onApproveItem: (itemId: string) => Promise<void>;
@@ -120,6 +121,7 @@ export function InvoiceSection({
   onDownloadDocument,
   viewDocumentPending,
   invoiceRatioLimits,
+  platformFeeRateCapPercent,
   offerExpiryDays,
   minMonthsReviewToMaturityForOffer,
   onApproveItem,
@@ -240,6 +242,7 @@ export function InvoiceSection({
           onViewDocument={onViewDocument}
           isViewDocumentPending={viewDocumentPending}
           invoiceRatioLimits={invoiceRatioLimits ?? { min: 60, max: 80 }}
+          platformFeeRateCapPercent={platformFeeRateCapPercent}
           offerExpiryDays={offerExpiryDays}
           minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
           isActionLocked={isActionLocked}

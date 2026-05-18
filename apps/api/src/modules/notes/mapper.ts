@@ -194,6 +194,10 @@ function resolveSettlementSummary(note: NoteWithRelations) {
     null;
   if (!settlement) return null;
 
+  const operatingAccountAmount = decimalToNumber(settlement.service_fee_amount);
+  const isPostedWithServiceFee =
+    settlement.status === NoteSettlementStatus.POSTED && operatingAccountAmount > 0.005;
+
   return {
     settlementId: settlement.id,
     status: settlement.status,
@@ -201,12 +205,21 @@ function resolveSettlementSummary(note: NoteWithRelations) {
     investorPoolAmount:
       decimalToNumber(settlement.investor_principal) +
       decimalToNumber(settlement.investor_profit_net),
-    operatingAccountAmount: decimalToNumber(settlement.service_fee_amount),
+    operatingAccountAmount,
     tawidhAccountAmount: decimalToNumber(settlement.tawidh_amount),
     gharamahAccountAmount: decimalToNumber(settlement.gharamah_amount),
     issuerResidualAmount: decimalToNumber(settlement.issuer_residual_amount),
     unappliedAmount: decimalToNumber(settlement.unapplied_amount),
     postedAt: iso(settlement.posted_at),
+    serviceFeeTrusteeStatus: isPostedWithServiceFee
+      ? settlement.service_fee_trustee_status ?? null
+      : null,
+    serviceFeeTrusteeSubmittedAt: isPostedWithServiceFee
+      ? iso(settlement.service_fee_trustee_submitted_at)
+      : null,
+    serviceFeeTrusteeCompletedAt: isPostedWithServiceFee
+      ? iso(settlement.service_fee_trustee_completed_at)
+      : null,
   };
 }
 
@@ -409,6 +422,9 @@ export function mapNoteDetail(
       previewSnapshot: asRecord(settlement.preview_snapshot) ?? {},
       approvedAt: iso(settlement.approved_at),
       postedAt: iso(settlement.posted_at),
+      serviceFeeTrusteeStatus: settlement.service_fee_trustee_status ?? null,
+      serviceFeeTrusteeSubmittedAt: iso(settlement.service_fee_trustee_submitted_at),
+      serviceFeeTrusteeCompletedAt: iso(settlement.service_fee_trustee_completed_at),
     })),
     events: note.events.map((event) => ({
       id: event.id,

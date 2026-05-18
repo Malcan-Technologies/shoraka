@@ -43,8 +43,7 @@ describe("note lifecycle calculators", () => {
     });
 
     expect(result.daysLate).toBe(10);
-    expect(result.tawidhAmount).toBeCloseTo(27.3972, 4);
-    expect(result.gharamahAmount).toBeCloseTo(246.5753, 4);
+    expect(result.tawidhAmount).toBeCloseTo(27.39726027, 6);
+    expect(result.gharamahAmount).toBeCloseTo(246.57534247, 6);
   });
 });
-

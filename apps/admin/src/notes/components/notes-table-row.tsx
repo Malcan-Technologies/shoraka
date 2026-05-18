@@ -50,6 +50,43 @@ function getFundingProgressClass(note: NoteListItem) {
   return "[&>div]:bg-primary";
 }
 
+function ServiceFeeTrusteeRegistryCell({ note }: { note: NoteListItem }) {
+  const summary = note.settlementSummary;
+  if (!summary || summary.status !== "POSTED" || summary.operatingAccountAmount <= 0.005) {
+    return <span className="text-muted-foreground">—</span>;
+  }
+  const st = summary.serviceFeeTrusteeStatus;
+  if (st === "COMPLETED") {
+    return (
+      <Badge variant="outline" className={cn("max-w-full truncate", NOTE_STATUS_BADGE_TONE_CLASS.success)}>
+        Complete
+      </Badge>
+    );
+  }
+  if (st === "SUBMITTED_TO_TRUSTEE") {
+    return (
+      <Badge variant="outline" className={cn("max-w-full truncate", NOTE_STATUS_BADGE_TONE_CLASS.info)}>
+        Submitted
+      </Badge>
+    );
+  }
+  if (st === "LETTER_GENERATED") {
+    return (
+      <Badge variant="outline" className="max-w-full truncate border-amber-200 text-amber-900">
+        Letter
+      </Badge>
+    );
+  }
+  return (
+    <Badge
+      variant="outline"
+      className={cn("max-w-full truncate", NOTE_STATUS_BADGE_TONE_CLASS.destructive)}
+    >
+      PDF pending
+    </Badge>
+  );
+}
+
 function NoteRow({ note, onViewDetails }: NoteRowProps) {
   const fundingProgress = Math.min(Math.max(note.fundingPercent, 0), 100);
   return (
@@ -113,6 +150,9 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
           <span className="text-muted-foreground">-</span>
         )}
       </TableCell>
+      <TableCell className="min-w-0 overflow-hidden">
+        <ServiceFeeTrusteeRegistryCell note={note} />
+      </TableCell>
       <TableCell className="min-w-0 overflow-hidden truncate">{formatDate(note.maturityDate)}</TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => onViewDetails(note)}>
@@ -169,6 +209,9 @@ function ReadyInvoiceRow({
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <span className="text-muted-foreground">-</span>
+      </TableCell>
+      <TableCell className="min-w-0 overflow-hidden">
+        <span className="text-muted-foreground">—</span>
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden truncate">{formatDate(invoice.maturityDate)}</TableCell>
       <TableCell className="min-w-0 overflow-hidden">

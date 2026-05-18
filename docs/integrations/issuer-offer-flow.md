@@ -83,6 +83,7 @@ function getOfferStatus(item: {
 
 - `requested_amount`, `offered_amount`
 - `requested_ratio_percent`, `offered_ratio_percent`, `offered_profit_rate_percent`
+- `platform_fee_rate_percent` (optional; percent of funded amount at disbursement, capped 0–3; included on invoice offer letter PDFs)
 - `expires_at`, `sent_at`, `responded_at`, `responded_by_user_id`, `version`
 
 ## Issuer Accept/Reject API

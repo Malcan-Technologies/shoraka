@@ -7,7 +7,7 @@ tags:
   - notes
   - finance
 order: 20
-updated: 2026-05-13
+updated: 2026-05-18
 ---
 
 ## Overview
@@ -22,6 +22,7 @@ A note is created from one approved invoice. If a contract has multiple approved
 - Use **Investments** to browse the investments registry — every investor commitment across all notes with its status, amount, and allocation %.
 - Use **Finance → Repayments** to see every paymaster/issuer payment that is awaiting admin review and reconciliation.
 - Use **Finance → Issuer Payouts** to see every payment owed to issuers in flight (both initial disbursements and residual refunds), filtered by status.
+- Use **Finance → Service Fee** to see notes whose **service fee trustee instruction** still needs a PDF, trustee submission, or “instruction completed” after settlement is posted.
 - Use **Finance → Buckets** to view the six platform money buckets and inspect activity logs for each bucket.
 - Use the **Dashboard** Quick Actions and Bucket Balances overview cards for an at-a-glance snapshot of what needs attention.
 - Use **Platform Finance Settings** to manage the default grace period, arrears threshold, Ta'widh cap, Gharamah cap, default listing duration, and letter templates.
@@ -55,10 +56,11 @@ The note detail page shows a five-stage stepper:
 
 Terminal failure states (Failed Funding, Defaulted, Cancelled) are shown in the stepper with a destructive marker on the relevant stage.
 
-Two amber sub-steppers surface in-flight admin work:
+Up to three amber sub-steppers surface in-flight admin work:
 
 - When the note is in the **Funded** stage, a sub-stepper shows the issuer disbursement progress: Funding Closed → Letter Generated → Submitted to Trustee → Disbursed. Progress this from the **Issuer Disbursement** card at the top of the settlement panel.
 - When the note is in the **Repaid** stage but the issuer residual refund is still in flight, a sub-stepper shows: Waterfall Posted → Letter Generated → Submitted to Trustee → Disbursed. Progress this from the **Issuer Residual Refund** card inside the settlement panel.
+- When the note is in the **Repaid** stage, settlement is posted, and the posted service fee is above the portal threshold, a sub-stepper shows: **Settlement posted → Trustee letter generated → Submitted to trustee → Instruction completed**. Progress this from **Trustee instruction — service fee (internal pools)** in section 3 of the settlement panel, or pick the note from **Finance → Service Fee**.
 
 ## Note Money Flow
 
@@ -66,7 +68,7 @@ Two amber sub-steppers surface in-flight admin work:
 flowchart TD
   investor["Investor"] -->|"Investor deposit"| investorPool["Investor Pool"]
   investorPool -->|"Funded amount at funding close"| issuerPayable["Issuer Payable"]
-  investorPool -->|"Platform fee at funding close, max 3%"| operating["Operating Account"]
+  investorPool -->|"Platform fee at funding close, capped by settings"| operating["Operating Account"]
   issuerPayable -->|"Initial disbursement via trustee letter"| issuer["SME / Issuer"]
   issuer -->|"Application fee on submission"| operating
   paymaster["Buyer / Paymaster"] -->|"Financing repayment"| repaymentPool["Repayment Pool"]
@@ -123,7 +125,7 @@ Closing funding (manual or automatic) never auto-activates the note. The note st
 
 ## Issuer Disbursement
 
-The platform fee is deducted at disbursement. It is set per note and capped at 3%.
+The platform fee is deducted at disbursement. It is set per note and capped by Platform Finance Settings.
 
 When funding closes (manually or automatically), the operation:
 
@@ -193,7 +195,7 @@ While any residual withdrawal is open, the note lifecycle card displays a `Pendi
 ```mermaid
 flowchart TD
   funded["Note funded 60% (funding close)"] --> investorPool["Investor Pool debit"]
-  investorPool --> platformFee["Deduct platform fee at funding close, max 3%"]
+  investorPool --> platformFee["Deduct platform fee at funding close, capped by settings"]
   platformFee --> operating["Operating Account"]
   investorPool --> issuerPayableInit["Net disbursement to Issuer Payable"]
   issuerPayableInit --> disburseLetter["Issuer Disbursement letter (4-step workflow)"]
@@ -255,6 +257,8 @@ Use generated PDF letters to support arrears and default handling.
 
 All trustee-submitted withdrawals — investor withdrawals, issuer residual returns, and admin adjustments — follow the same four-step workflow: **Draft → Letter Generated → Submitted to Trustee → Disbursed**. A letter PDF must be generated before a withdrawal can be marked submitted, and the disbursement timestamp must reflect the actual trustee confirmation.
 
+**Service fee (internal pools)** does not create a bank-beneficiary withdrawal, but after settlement is posted it still follows **generate PDF → submitted to trustee → instruction completed** on the settlement panel (and in **Finance → Service Fee**) so the trustee can record the Repayment pool to Operating account allocation.
+
 The withdrawal letter should include:
 
 - withdrawal reference,
@@ -277,6 +281,7 @@ Every important money-flow action should be visible in the note timeline or buck
 - paymaster repayment receipts,
 - issuer payments made on behalf of paymaster,
 - settlement preview, approval, and posting,
+- service fee trustee instruction: PDF generation, submission to trustee, and instruction completed (material service fees after settlement post),
 - issuer residual withdrawal creation, letter generation, submission, and disbursement (which flips the note to REPAID),
 - late-fee calculation and allocation,
 - arrears and default letter generation,

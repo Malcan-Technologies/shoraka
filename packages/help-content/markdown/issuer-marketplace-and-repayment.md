@@ -33,7 +33,7 @@ You can see how much of your note has been funded, and the time remaining on the
 
 When funding closes successfully, the platform disburses the **funded portion** of the invoice to your designated bank account on file.
 
-A **platform fee** (capped at 3%, set per note) is deducted from the funded amount at this point. The net amount you receive is:
+A **platform fee** (set per note and capped by Platform Finance Settings) is deducted from the funded amount at this point. The net amount you receive is:
 
 ```
 Net disbursement = Funded amount − Platform fee

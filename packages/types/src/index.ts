@@ -344,6 +344,8 @@ export interface InvoiceOfferDetails {
   requested_ratio_percent: number | null;
   offered_ratio_percent: number | null;
   offered_profit_rate_percent: number | null;
+  /** Percent of funded amount withheld as platform fee at disbursement. */
+  platform_fee_rate_percent?: number | null;
   /** Manual SoukScore placeholder (v1: A | B | C). Present on offers sent after this feature. */
   risk_rating?: import("./invoice-offer-risk-rating").SoukscoreRiskRating | null;
   expires_at: string | null;

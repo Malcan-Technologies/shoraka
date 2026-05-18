@@ -97,6 +97,9 @@ function getSettlementSummary(note: NoteDetail): NoteSettlementPoolSummary | nul
     issuerResidualAmount: settlement.issuerResidualAmount,
     unappliedAmount: settlement.unappliedAmount,
     postedAt: settlement.postedAt,
+    serviceFeeTrusteeStatus: settlement.serviceFeeTrusteeStatus,
+    serviceFeeTrusteeSubmittedAt: settlement.serviceFeeTrusteeSubmittedAt,
+    serviceFeeTrusteeCompletedAt: settlement.serviceFeeTrusteeCompletedAt,
   };
 }
 

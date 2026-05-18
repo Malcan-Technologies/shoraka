@@ -43,6 +43,7 @@ import {
   type InvoiceOfferDetails,
 } from "./offer-letter-pdf";
 import { computeContractFacilitySnapshot } from "../../lib/contract-facility";
+import { resolveOfferedPlatformFeeRatePercent } from "../../lib/invoice-offer";
 import {
   ApplicationStatus,
   ContractStatus,
@@ -2040,6 +2041,7 @@ export class ApplicationService {
       offered_amount: Number(offer.offered_amount) || undefined,
       offered_ratio_percent: Number(offer.offered_ratio_percent) || undefined,
       offered_profit_rate_percent: Number(offer.offered_profit_rate_percent) || undefined,
+      platform_fee_rate_percent: resolveOfferedPlatformFeeRatePercent(offer),
       expires_at: typeof offer.expires_at === "string" ? offer.expires_at : undefined,
     };
 
@@ -2271,6 +2273,7 @@ export class ApplicationService {
       offered_amount: Number(offer.offered_amount) || undefined,
       offered_ratio_percent: Number(offer.offered_ratio_percent) || undefined,
       offered_profit_rate_percent: Number(offer.offered_profit_rate_percent) || undefined,
+      platform_fee_rate_percent: resolveOfferedPlatformFeeRatePercent(offer),
       expires_at: typeof offer.expires_at === "string" ? offer.expires_at : undefined,
     };
 

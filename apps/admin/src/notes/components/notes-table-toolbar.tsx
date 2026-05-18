@@ -43,7 +43,10 @@ export function NotesTableToolbar({
       statusFilters={statusFilters}
       onStatusFiltersChange={handleStatusFiltersChange}
       statusOptions={[
-        { value: NOTE_STATUS_FILTER_ACTIVE_LOANS, label: "Active loans (exclude repaid)" },
+        {
+          value: NOTE_STATUS_FILTER_ACTIVE_LOANS,
+          label: "Active loans (hide fully settled notes)",
+        },
         ...Object.values(NoteStatus).map((value) => ({
           value,
           label: formatNoteStatus(value),

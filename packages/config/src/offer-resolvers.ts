@@ -89,9 +89,7 @@ export function resolveOfferedProfitRate(offer: DetailsLike): number | null {
   return null;
 }
 
-const PLATFORM_FEE_CAP_PERCENT = 3;
-
-/** Platform fee (% of funded amount at disbursement) from offer_details; clamped [0, 3]. */
+/** Platform fee (% of funded amount at disbursement) from offer_details. */
 export function resolveOfferedPlatformFeeRatePercent(offer: DetailsLike): number {
   if (!offer || typeof offer !== "object") return 0;
   const v = offer.platform_fee_rate_percent;
@@ -102,7 +100,7 @@ export function resolveOfferedPlatformFeeRatePercent(offer: DetailsLike): number
     n = Number.isFinite(parsed) ? parsed : null;
   }
   if (n == null || n < 0) return 0;
-  return Math.min(PLATFORM_FEE_CAP_PERCENT, Math.round(n * 100) / 100);
+  return Math.round(n * 100) / 100;
 }
 
 // --- Invoice maturity (product workflow + review UI) ---

@@ -14,6 +14,7 @@ import {
   getAdminInvestmentsQuerySchema,
   getNotesQuerySchema,
   idParamSchema,
+  noteSettlementParamsSchema,
   invoiceIdParamSchema,
   lateChargeSchema,
   overdueLateChargeSchema,
@@ -113,6 +114,17 @@ adminNotesRouter.get("/pending-repayments", async (_req: Request, res: Response,
     next(error);
   }
 });
+
+adminNotesRouter.get(
+  "/pending-service-fee-trustee-letters",
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      send(res, await noteService.listPendingServiceFeeTrusteeLetters());
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 adminNotesRouter.post(
   "/from-application/:applicationId",
@@ -292,6 +304,59 @@ adminNotesRouter.post("/:id/settlements/post", async (req: Request, res: Respons
     next(error);
   }
 });
+
+adminNotesRouter.post(
+  "/:id/settlements/:settlementId/service-fee/generate-trustee-letter",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
+      send(
+        res,
+        await noteService.generateServiceFeeTrusteeLetter(id, settlementId, getActor(req, res, "ADMIN"))
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/settlements/:settlementId/service-fee/mark-submitted-to-trustee",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
+      send(
+        res,
+        await noteService.markServiceFeeTrusteeLetterSubmitted(
+          id,
+          settlementId,
+          getActor(req, res, "ADMIN")
+        )
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/settlements/:settlementId/service-fee/mark-completed",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
+      send(
+        res,
+        await noteService.markServiceFeeTrusteeInstructionCompleted(
+          id,
+          settlementId,
+          getActor(req, res, "ADMIN")
+        )
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 adminNotesRouter.post("/:id/late-charge/calculate", async (req: Request, res: Response, next: NextFunction) => {
   try {

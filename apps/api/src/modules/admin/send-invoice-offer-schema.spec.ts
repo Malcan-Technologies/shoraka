@@ -34,13 +34,13 @@ describe("sendInvoiceOfferSchema", () => {
     }
   });
 
-  it("fails when platformFeeRatePercent exceeds 3", () => {
+  it("allows platformFeeRatePercent above the default cap for service-level validation", () => {
     const parsed = sendInvoiceOfferSchema.safeParse({
       ...base,
       risk_rating: "AAA",
       platformFeeRatePercent: 3.01,
     });
-    expect(parsed.success).toBe(false);
+    expect(parsed.success).toBe(true);
   });
 
   it("passes with platformFeeRatePercent at cap", () => {

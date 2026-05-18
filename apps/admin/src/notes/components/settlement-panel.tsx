@@ -6,7 +6,7 @@ import { format } from "date-fns";
 import { ArrowDownTrayIcon, CheckCircleIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { parseMoney } from "@cashsouk/ui";
-import type { NoteDetail, NotePayment, NotePaymentSource } from "@cashsouk/types";
+import type { NoteDetail, NotePayment, NotePaymentSource, ServiceFeeTrusteeInstructionStatus } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,6 +49,9 @@ import {
   usePreviewNoteSettlement,
   useRecordNotePayment,
   useRejectNotePayment,
+  useGenerateServiceFeeTrusteeLetter,
+  useMarkServiceFeeTrusteeLetterSubmitted,
+  useMarkServiceFeeTrusteeInstructionCompleted,
 } from "../hooks/use-notes";
 import { cn } from "@/lib/utils";
 
@@ -76,6 +79,14 @@ type OverdueFeeInputMode = "AMOUNT" | "PERCENTAGE";
 const ACTION_CARD_CLASS =
   "border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]";
 const OPEN_PAYMENT_STATUSES = ["PENDING", "PARTIAL", "RECEIVED", "RECONCILED"];
+
+function serviceFeeTrusteeStatusLabel(status: ServiceFeeTrusteeInstructionStatus | null) {
+  if (status === "PENDING_LETTER") return "Awaiting PDF";
+  if (status === "LETTER_GENERATED") return "Letter generated — submit to trustee";
+  if (status === "SUBMITTED_TO_TRUSTEE") return "Submitted — confirm complete";
+  if (status === "COMPLETED") return "Complete";
+  return "Awaiting PDF";
+}
 
 function formatStatus(value: string) {
   return value.replace(/_/g, " ");
@@ -258,6 +269,9 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
   const [overdueTawidhPercentInput, setOverdueTawidhPercentInput] = React.useState("0.00");
   const [overdueGharamahPercentInput, setOverdueGharamahPercentInput] = React.useState("0.00");
   const [rejectionReasons, setRejectionReasons] = React.useState<Record<string, string>>({});
+  const [serviceFeeTrusteeConfirm, setServiceFeeTrusteeConfirm] = React.useState<
+    "submit" | "complete" | null
+  >(null);
   const [defaultReason, setDefaultReason] = React.useState("");
   const [recordPaymentDialogOpen, setRecordPaymentDialogOpen] = React.useState(false);
   const [overdueFeeDialogOpen, setOverdueFeeDialogOpen] = React.useState(false);
@@ -275,6 +289,9 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
   const postSettlement = usePostNoteSettlement();
   const arrearsLetter = useGenerateArrearsLetter();
   const defaultLetter = useGenerateDefaultLetter();
+  const generateServiceFeeTrusteeLetter = useGenerateServiceFeeTrusteeLetter();
+  const markServiceFeeTrusteeSubmitted = useMarkServiceFeeTrusteeLetterSubmitted();
+  const markServiceFeeTrusteeCompleted = useMarkServiceFeeTrusteeInstructionCompleted();
   const markDefault = useMarkNoteDefault();
   const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
     useAdminS3DocumentViewDownload();
@@ -296,6 +313,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
     note.settlements.find((settlement) => settlement.status === "APPROVED") ?? null;
   const persistedPostedSettlement =
     note.settlements.find((settlement) => settlement.status === "POSTED") ?? null;
+  const persistedPostedSettlementId = persistedPostedSettlement?.id ?? null;
   const settlementLocked = persistedPostedSettlement ?? persistedApprovedSettlement;
   const baseServicingOpen =
     note.fundingStatus === "FUNDED" && note.servicingStatus !== "NOT_STARTED";
@@ -378,6 +396,16 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
         };
       });
   }, [note.events]);
+  const serviceFeeTrusteeLetters = persistedPostedSettlementId
+    ? note.events
+        .filter((event) => event.eventType === "SERVICE_FEE_TRUSTEE_LETTER_GENERATED")
+        .filter((event) => event.metadata?.settlementId === persistedPostedSettlementId)
+        .map((event) => ({
+          id: event.id,
+          s3Key: typeof event.metadata?.s3Key === "string" ? event.metadata.s3Key : null,
+          createdAt: event.createdAt,
+        }))
+    : [];
   const maturityDateLabel = formatMaturityDate(note.maturityDate);
   const maturityTimingLabel = formatMaturityTiming(note.maturityDate);
   const overdueSnapshot = getOverdueSnapshot(note);
@@ -840,6 +868,19 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
     }
   };
 
+  const handleServiceFeeTrusteeLetter = async () => {
+    if (!persistedPostedSettlement) return;
+    try {
+      const result = await generateServiceFeeTrusteeLetter.mutateAsync({
+        noteId: note.id,
+        settlementId: persistedPostedSettlement.id,
+      });
+      toast.success(`Service fee trustee letter generated: ${result.s3Key}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate letter");
+    }
+  };
+
   const handleMarkDefault = async () => {
     if (!defaultReason.trim()) {
       toast.error("Default reason is required");
@@ -851,6 +892,57 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
       toast.success("Note marked as default");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to mark default");
+    }
+  };
+
+  const serviceFeeTrusteeStatus = persistedPostedSettlement?.serviceFeeTrusteeStatus ?? null;
+  const serviceFeeTrusteeWorkflowComplete = serviceFeeTrusteeStatus === "COMPLETED";
+  const serviceFeeTrusteeNeedsPdf =
+    !serviceFeeTrusteeWorkflowComplete &&
+    (serviceFeeTrusteeStatus === null || serviceFeeTrusteeStatus === "PENDING_LETTER");
+  const serviceFeeTrusteeLetterLocked =
+    serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE" || serviceFeeTrusteeStatus === "COMPLETED";
+  const serviceFeeTrusteePendingAny =
+    generateServiceFeeTrusteeLetter.isPending ||
+    markServiceFeeTrusteeSubmitted.isPending ||
+    markServiceFeeTrusteeCompleted.isPending;
+
+  const confirmServiceFeeTrusteeCopy =
+    serviceFeeTrusteeConfirm === "submit"
+      ? {
+          title: "Submit to trustee?",
+          description:
+            "Confirm the service fee pool instruction has been sent to the trustee. Mark it complete once they have processed the internal pool allocation.",
+          confirmLabel: "Mark submitted",
+        }
+      : serviceFeeTrusteeConfirm === "complete"
+        ? {
+            title: "Mark instruction complete?",
+            description:
+              "Confirm the trustee has processed this internal Repayment pool → Operating account allocation. This closes the admin checklist for this settlement.",
+            confirmLabel: "Mark complete",
+          }
+        : null;
+
+  const runServiceFeeTrusteeConfirm = async () => {
+    if (!serviceFeeTrusteeConfirm || !persistedPostedSettlement) return;
+    try {
+      if (serviceFeeTrusteeConfirm === "submit") {
+        await markServiceFeeTrusteeSubmitted.mutateAsync({
+          noteId: note.id,
+          settlementId: persistedPostedSettlement.id,
+        });
+        toast.success("Marked as submitted to trustee");
+      } else {
+        await markServiceFeeTrusteeCompleted.mutateAsync({
+          noteId: note.id,
+          settlementId: persistedPostedSettlement.id,
+        });
+        toast.success("Service fee trustee instruction marked complete");
+      }
+      setServiceFeeTrusteeConfirm(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Action failed");
     }
   };
 
@@ -1324,6 +1416,173 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                     description="Charity/penalty portion of late charges."
                   />
                 </div>
+                {persistedPostedSettlement &&
+                persistedPostedSettlement.serviceFeeAmount > 0.005 ? (
+                  <div
+                    className={cn(
+                      "mt-4 rounded-xl border p-4",
+                      serviceFeeTrusteeNeedsPdf
+                        ? "border-destructive/40 bg-destructive/5 shadow-[0_0_0_1px_hsl(var(--destructive)/0.12),0_0_24px_hsl(var(--destructive)/0.14)]"
+                        : !serviceFeeTrusteeWorkflowComplete
+                          ? cn("border-amber-200 bg-amber-50/50", ACTION_CARD_CLASS)
+                          : "border-emerald-200 bg-emerald-50/40"
+                    )}
+                  >
+                    {serviceFeeTrusteeNeedsPdf ? (
+                      <div className="mb-2 text-xs font-medium uppercase tracking-wider text-destructive">
+                        Action required — trustee instruction PDF not generated
+                      </div>
+                    ) : !serviceFeeTrusteeWorkflowComplete ? (
+                      <div className="mb-2 text-xs font-medium uppercase tracking-wider text-amber-900">
+                        Trustee workflow in progress
+                      </div>
+                    ) : (
+                      <div className="mb-2 text-xs font-medium uppercase tracking-wider text-emerald-900">
+                        Service fee trustee instruction complete
+                      </div>
+                    )}
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-medium">
+                          Trustee instruction — service fee (internal pools)
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Documents allocation of the service fee from the Repayment pool to the
+                          Operating account for the posted settlement. This is not a bank payout;
+                          ledger entries were created when settlement was posted.
+                        </p>
+                        <div className="mt-2 text-xs text-muted-foreground">
+                          Status:{" "}
+                          <span className="font-medium text-foreground">
+                            {serviceFeeTrusteeStatusLabel(serviceFeeTrusteeStatus)}
+                          </span>
+                          {persistedPostedSettlement.serviceFeeTrusteeSubmittedAt ? (
+                            <>
+                              {" "}
+                              · Submitted{" "}
+                              {format(
+                                new Date(persistedPostedSettlement.serviceFeeTrusteeSubmittedAt),
+                                "dd MMM yyyy, h:mm a"
+                              )}
+                            </>
+                          ) : null}
+                          {persistedPostedSettlement.serviceFeeTrusteeCompletedAt ? (
+                            <>
+                              {" "}
+                              · Completed{" "}
+                              {format(
+                                new Date(persistedPostedSettlement.serviceFeeTrusteeCompletedAt),
+                                "dd MMM yyyy, h:mm a"
+                              )}
+                            </>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                        <Button
+                          type="button"
+                          variant={serviceFeeTrusteeNeedsPdf ? "destructive" : "outline"}
+                          onClick={() => void handleServiceFeeTrusteeLetter()}
+                          disabled={
+                            serviceFeeTrusteeLetterLocked || serviceFeeTrusteePendingAny
+                          }
+                        >
+                          Generate PDF
+                        </Button>
+                        {serviceFeeTrusteeStatus === "LETTER_GENERATED" ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => setServiceFeeTrusteeConfirm("submit")}
+                            disabled={serviceFeeTrusteePendingAny}
+                          >
+                            Mark submitted to trustee
+                          </Button>
+                        ) : null}
+                        {serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE" ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => setServiceFeeTrusteeConfirm("complete")}
+                            disabled={serviceFeeTrusteePendingAny}
+                          >
+                            Mark complete
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                    {serviceFeeTrusteeNeedsPdf ? (
+                      <div className="mt-3 text-sm text-destructive">
+                        No PDF generated for this settlement yet. Generate the instruction for the
+                        trustee before marking the workflow submitted or complete.
+                      </div>
+                    ) : null}
+                    {serviceFeeTrusteeLetters.length > 0 ? (
+                      <div className="mt-3 space-y-2">
+                        {serviceFeeTrusteeLetters.map((letter) => (
+                          <div key={letter.id} className="rounded-lg border bg-card p-3">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <DocumentTextIcon className="h-4 w-4 text-muted-foreground" />
+                                  <span className="text-sm font-medium">
+                                    Service fee pool transfer
+                                  </span>
+                                </div>
+                                <div className="mt-1 text-xs text-muted-foreground">
+                                  {format(new Date(letter.createdAt), "dd MMM yyyy, h:mm a")}
+                                </div>
+                                {letter.s3Key ? (
+                                  <div className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
+                                    {letter.s3Key}
+                                  </div>
+                                ) : null}
+                              </div>
+                              {letter.s3Key ? (
+                                <div className="flex shrink-0 flex-wrap gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 gap-1.5"
+                                    disabled={viewDocumentPending}
+                                    onClick={() => handleViewDocument(letter.s3Key!)}
+                                  >
+                                    <DocumentTextIcon className="h-3.5 w-3.5" />
+                                    View
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 gap-1.5"
+                                    disabled={viewDocumentPending}
+                                    onClick={() =>
+                                      handleDownloadDocument(
+                                        letter.s3Key!,
+                                        `service-fee-trustee-${note.noteReference}-${persistedPostedSettlement.id}.pdf`
+                                      )
+                                    }
+                                  >
+                                    <ArrowDownTrayIcon className="h-3.5 w-3.5" />
+                                    Download
+                                  </Button>
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : !serviceFeeTrusteeNeedsPdf ? (
+                      <div className="mt-3 text-sm text-muted-foreground">
+                        Letter events will appear here after you generate the PDF.
+                      </div>
+                    ) : null}
+                    {serviceFeeTrusteePendingAny ? (
+                      <div className="mt-2 text-xs text-muted-foreground">Working…</div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {residualWithdrawal ? (
                   <IssuerPayoutCard
                     note={note}
@@ -1464,6 +1723,34 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
           </div>
         </CardContent>
       </Card>
+      <AlertDialog
+        open={serviceFeeTrusteeConfirm !== null}
+        onOpenChange={(open) => {
+          if (!open) setServiceFeeTrusteeConfirm(null);
+        }}
+      >
+        <AlertDialogContent>
+          {confirmServiceFeeTrusteeCopy ? (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{confirmServiceFeeTrusteeCopy.title}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {confirmServiceFeeTrusteeCopy.description}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={serviceFeeTrusteePendingAny}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => void runServiceFeeTrusteeConfirm()}
+                  disabled={serviceFeeTrusteePendingAny}
+                >
+                  {confirmServiceFeeTrusteeCopy.confirmLabel}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          ) : null}
+        </AlertDialogContent>
+      </AlertDialog>
       <Dialog open={recordPaymentDialogOpen} onOpenChange={setRecordPaymentDialogOpen}>
         <DialogContent className="rounded-2xl sm:max-w-lg">
           <DialogHeader>

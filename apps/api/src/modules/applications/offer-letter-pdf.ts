@@ -95,7 +95,14 @@ export type InvoiceOfferDetails = {
   offered_amount?: number;
   offered_ratio_percent?: number;
   offered_profit_rate_percent?: number;
+  /** Percent of funded amount withheld as platform fee at disbursement. */
+  platform_fee_rate_percent?: number;
   expires_at?: string;
+};
+
+export type OfferLetterTerm = {
+  label: string;
+  value: string;
 };
 
 function formatAmount(value: number | undefined): string {
@@ -114,6 +121,32 @@ function formatDate(value: string | undefined): string {
   } catch {
     return value;
   }
+}
+
+export function buildInvoiceOfferLetterTerms(
+  invoiceId: string,
+  offer: InvoiceOfferDetails
+): OfferLetterTerm[] {
+  const platformFeePct =
+    offer.platform_fee_rate_percent != null && Number.isFinite(offer.platform_fee_rate_percent)
+      ? offer.platform_fee_rate_percent
+      : 0;
+
+  return [
+    { label: "Our reference (invoice ID)", value: invoiceId },
+    { label: "Requested amount", value: formatAmount(offer.requested_amount) },
+    { label: "Proposed financing amount", value: formatAmount(offer.offered_amount) },
+    { label: "Proposed financing ratio", value: `${offer.offered_ratio_percent ?? "—"}%` },
+    {
+      label: "Proposed profit rate (per annum)",
+      value: `${offer.offered_profit_rate_percent ?? "—"}%`,
+    },
+    {
+      label: "Platform fee (at disbursement)",
+      value: `${platformFeePct}% of the funded amount, deducted from disbursement proceeds`,
+    },
+    { label: "This offer expires on", value: formatDate(offer.expires_at) },
+  ];
 }
 
 /**
@@ -153,12 +186,9 @@ export function buildInvoiceOfferLetterPdf(
     "Indicative offer of financing against the invoice identified below"
   );
   sectionHeading(doc, "Particulars of the proposed facility");
-  termLine(doc, "Our reference (invoice ID)", invoiceId);
-  termLine(doc, "Requested amount", formatAmount(offer.requested_amount));
-  termLine(doc, "Proposed financing amount", formatAmount(offer.offered_amount));
-  termLine(doc, "Proposed financing ratio", `${offer.offered_ratio_percent ?? "—"}%`);
-  termLine(doc, "Proposed profit rate (per annum)", `${offer.offered_profit_rate_percent ?? "—"}%`);
-  termLine(doc, "This offer expires on", formatDate(offer.expires_at));
+  for (const term of buildInvoiceOfferLetterTerms(invoiceId, offer)) {
+    termLine(doc, term.label, term.value);
+  }
   sectionHeading(doc, "General");
   bodyParagraphs(doc);
   signatureBlock(doc);
