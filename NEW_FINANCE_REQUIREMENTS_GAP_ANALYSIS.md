@@ -24,6 +24,7 @@ High-impact gaps already visible from code:
 | Frontend changes needed | Admin UI: show a warning/badge next to `Company Name` in the relevant review panel. Issuer UI: likely show a warning only (not block) when starting/continuing after onboarding fetch. Existing company-name display is in `apps/admin/src/components/application-review/sections/company-section.tsx` (renders `Company Name`). |
 | Ledger/accounting impact | None. |
 | Status impact | None (pure validation). |
+| Status / your stance | Not implemented yet. Implement: show green tick / red X for company-name mismatch (approval allowed for small diffs like “.” after “Sdn Bhd”). Director check stays manual. |
 | Open questions | 1) Should this be blocking or warning-only? 2) What exact “official company name” source is legal/compliance-approved: CTOS `ctosName`, SSM name from RegTank onboarding response, or something else? 3) Matching rules: allow minor punctuation/spacing changes? handle “Sdn Bhd” vs “SDN BHD”? handle capitalization and Malay/English variants? |
 | Recommended implementation priority | P1 (validation quality; low accounting risk). |
 
@@ -46,6 +47,7 @@ High-impact gaps already visible from code:
 | Frontend changes needed | Issuer financial step: add an “Use previous year data” or “Prefill from last application” button. Admin comparison UI: show current vs referenced prior-year financial numbers. |
 | Ledger/accounting impact | None. |
 | Status impact | None. |
+| Status / your stance | Rejected / out of scope for now if too complicated. (Prefill 2026 values when re-applying in the next month is desired, but you want to skip it if implementation is hard.) |
 | Open questions | 1) Which “source of truth” should be reused: latest application values, most recent per FY end, or the most recent approved/accepted values only? 2) Should prefill be editable? 3) Should stale data be flagged (risk-of-stale requirement)? |
 | Recommended implementation priority | P2 (efficiency; ensure legal/compliance approval semantics). |
 
@@ -67,6 +69,7 @@ High-impact gaps already visible from code:
 | Frontend changes needed | Admin financial tab: add per-director consent status indicators and actions (view consent proof, trigger consent flow if missing). If issuer portal asks for consent, add per-director checkboxes or director selection. |
 | Ledger/accounting impact | None. |
 | Status impact | Onboarding/admin review statuses may be gated, but this is not currently confirmed. |
+| Status / your stance | To be checked with CTOS. Need to confirm if issuer consent for credit score check covers all directors/shareholders. |
 | Open questions | 1) What does CTOS consent legally cover in your jurisdiction? 2) Do you need individual consent proof per director/shareholder, or is company consent enough? 3) Which CTOS product “retrieval” is gated by consent: company report, director EOD/COD subject reports, or both? |
 | Recommended implementation priority | P3 (compliance-critical, but implementation depends on legal decision). |
 
@@ -84,6 +87,7 @@ High-impact gaps already visible from code:
 | Frontend changes needed | Admin UI: add an action on contract/invoice offer signing section to “Request re-sign”. Issuer UI: show current signature validity and allow signer restart. |
 | Ledger/accounting impact | None (signing is documentation workflow). |
 | Status impact | `ContractStatus` / `InvoiceStatus` may need expanded behavior: currently response drives `ContractStatus` to `APPROVED` and `InvoiceStatus` to `APPROVED`. A re-sign feature likely needs a new intermediate state or allow reversion from `APPROVED` to pending signing without breaking the rest of the application lifecycle. |
+| Status / your stance | Gap. Implement “re-sign / redo signature” if the wrong director signs (and CashSouk needs to reject + ask for re-sign). Backend already has pending-session reuse for still-`pending` sessions, but there is no “re-sign requested” lifecycle that can re-open an already-approved offer. |
 | Open questions | 1) Do you want to allow re-sign only while contract/invoice are still in a pre-funding “APPROVED but not fully completed” state? 2) Do we need to invalidate downstream note/investment flows if signature changes? 3) What is the audit requirement: keep old signed PDFs and mark them “superseded” vs delete? |
 | Recommended implementation priority | P3 (workflow/audit complexity). |
 
@@ -107,6 +111,7 @@ High-impact gaps already visible from code:
 | Frontend changes needed | Issuer UI: show which director emails are authorized to sign (or which signer is currently selected). Provide a “Signer is authorized” confirmation if permitted. Admin UI: allow admin to select an authorized signer and re-initiate signing without full KYC redo. |
 | Ledger/accounting impact | None. |
 | Status impact | No finance status changes; this gates signing actions. |
+| Status / your stance | Gap. Consider tying the signing agreement to RBAC of an authorized director (or similar restriction) so CashSouk can detect “wrong person signed” and require re-sign. |
 | Open questions | 1) Are director/shareholder emails stored in `IssuerOrganization.director_kyc_status` JSON (and reliably)? 2) If emails are missing, what is the acceptable alternative matching method: government ID match (IC/BRN), name match, or manual admin verification? 3) Should admin override be allowed and audited? |
 | Recommended implementation priority | P2 (reduces operational errors; depends on available signer identity data). |
 
@@ -124,6 +129,7 @@ High-impact gaps already visible from code:
 | Frontend changes needed | Confirm/implement the UI that calls `PATCH /v1/admin/notes/:id/draft` with `platformFeeRatePercent` / `serviceFeeRatePercent`. If the current admin UI never presents those fields, add them in the note draft editor. Also ensure platform fee transparency is shown in the admin note details and investor info sheet. |
 | Ledger/accounting impact | Platform fee is posted at disbursement: `noteService.postDisbursementLedger()` debits `INVESTOR_POOL` and credits `OPERATING_ACCOUNT` with `platformFee` and credits `ISSUER_PAYABLE` with `netDisbursement` (funded amount minus platform fee). |
 | Status impact | None. |
+| Status / your stance | Done (per your note). Max platform fee is set to 3% via platform finance settings (and capped in backend during draft update + publish). UI shows the fee in issuer → applications, including a tooltip explanation. |
 | Open questions | 1) Should platform fee be edited at invoice/offer time as well, or is note-draft time sufficient? 2) Fee model: is it always percentage rate only, or do you later need a fixed amount + cap? Current implementation is percentage rate only. |
 | Recommended implementation priority | P1 (backend mostly exists; UI wiring needed). |
 
@@ -146,6 +152,7 @@ High-impact gaps already visible from code:
 | Frontend changes needed | Admin product settings UI: add the field (or surface in workflow builder) and validate. Also ensure investor marketplace uses the updated `closes_at`. |
 | Ledger/accounting impact | None. |
 | Status impact | Changes the `NoteListing.closes_at` timestamp, which affects the note auto-close logic and likely `NoteFundingStatus` transitions when the cron runs. |
+| Status / your stance | Gap. Need product-level campaign duration override (example: 14 days vs 18 days) rather than only a global default. |
 | Open questions | 1) Where should the config live: DB field vs workflow JSON? 2) Should listing duration apply to `publishing` only, or also when notes are re-published/unpublished? |
 | Recommended implementation priority | P2 (timing correctness). |
 
@@ -167,6 +174,7 @@ High-impact gaps already visible from code:
 | Frontend changes needed | Fix `apps/investor/src/app/investments/page.tsx` to compute `daysLeft` from `note.listing.closesAt` (expected formula: `NoteListing.closes_at - today`), not from `note.maturityDate`. Also ensure tenor/maturity days remain displayed separately via `tenorDays`. |
 | Ledger/accounting impact | None. |
 | Status impact | None. |
+| Status / your stance | Gap. Investor “days left” + the progress bar days are currently wrong (daysLeft is derived from `maturityDate` rather than the marketplace close date). |
 | Open questions | 1) Should the card show “0 days left” or hide once it closes? 2) How to handle missing `closesAt` (`null`) in listing (allowed in schema as `DateTime?`)? |
 | Recommended implementation priority | P1 (visible bug; low risk). |
 
@@ -189,6 +197,7 @@ High-impact gaps already visible from code:
 | Frontend changes needed | Add an upload step in `issuer-payout-card.tsx` when status is `LETTER_GENERATED` and trustee-signature is required. Allow view/download of unsigned and signed letters. Add upload gating in UI before “Mark Submitted”. |
 | Ledger/accounting impact | None (documents only). |
 | Status impact | Requires expanding `WithdrawalStatus` and the UI logic in `issuer-payout-card.tsx`. Potentially affects note `servicing_status` gating (but payout marking itself remains ledger posting). |
+| Status / your stance | Open / waiting for Shoraka clarification: “Does trustee instruction need to be signed?” (Your note says Shoraka will inform.) Code has a withdrawal letter workflow with generated/submitted/completed states, but there is no explicit “upload signed trustee letter” step evidenced in earlier checks. |
 | Open questions | 1) Is trustee signature required always or only for certain withdrawal types/products? 2) Who signs (issuer or trustee), and should we capture signatory identity? |
 | Recommended implementation priority | P3 (document workflow + validation changes). |
 
@@ -206,6 +215,7 @@ High-impact gaps already visible from code:
 | Frontend changes needed | Issuer admin/issuer portal UI to upload receipts (if required by workflow), admin UI to verify and show evidence. |
 | Ledger/accounting impact | If fees are accounted via ledger buckets, ledger buckets may need new buckets/accounts; otherwise it can remain separate from note ledger. Current note ledger is for note repayments/settlement/disbursement. |
 | Status impact | Likely add or gate onboarding/app submission based on `feePaymentStatus`. Not confirmed in evidence. |
+| Status / your stance | Gap. Need payment receipt evidence for onboarding fee (RM 150) and application fee (RM 50). Current repo evidence shows repayment receipts, but not onboarding/application-fee receipts. |
 | Open questions | 1) Is receipt evidence already recorded somewhere external (not in repo), or should it be added now? 2) Which fee payments are in scope: issuer onboarding fee only, application fee only, or both plus deposits? |
 | Recommended implementation priority | P3 (audit/compliance requirement; depends on existing payment rail). |
 
@@ -223,6 +233,7 @@ High-impact gaps already visible from code:
 | Frontend changes needed | Update investor note detail and portfolio UI components to display: principal, gross profit, service fee deducted, net profit, total received. Identify the exact screens to update (the evidence only confirms marketplace/investment cards). |
 | Ledger/accounting impact | None (ledger already posts service fee into `OPERATING_ACCOUNT` at disbursement and/or uses settlement allocations at posting). This is a presentation/API exposure requirement. |
 | Status impact | None. |
+| Status / your stance | Gap. Need investor UI to show fees deducted from profit (service fee transparency). |
 | Open questions | 1) Should platform fee also be shown as “deducted from profit” or only service fee? Current waterfall fields include service fee; platform fee is deducted at disbursement and impacts issuer payable. 2) Should investors see only service fee, or both platform and service fees? |
 | Recommended implementation priority | P2 (product transparency; moderate API/UI changes). |
 
@@ -240,6 +251,7 @@ High-impact gaps already visible from code:
 | Frontend changes needed | Add a “Generate repayment waterfall letter” button on settlement panels and show/download the generated document. |
 | Ledger/accounting impact | None. |
 | Status impact | None (document generation), but likely requires gating based on `NoteSettlementStatus` (`APPROVED` vs `POSTED`). |
+| Status / your stance | Done for **service fee trustee instruction letters** (per your note + verified in code/help docs). Letter workflow exists for internal pools with events like `SERVICE_FEE_TRUSTEE_LETTER_GENERATED`, and help docs explain service fee trustee steps. Remaining: confirm whether any separate “repayment waterfall/service-fee allocation letter” (distinct from trustee instruction letters) is still missing. |
 | Open questions | 1) Which party needs the document: issuer, trustee, investor? 2) Is the document required before settlement is posted or after posting? |
 | Recommended implementation priority | P3 (document workflow). |
 
@@ -257,6 +269,7 @@ High-impact gaps already visible from code:
 | Frontend changes needed | Add admin warning/error UX when validations detect mismatches (for example in settlement approval/post flows). Optionally display “ledger expected vs posted totals” diffs. |
 | Ledger/accounting impact | Validation-only (unless you add new ledger postings/corrections). |
 | Status impact | None (unless validations block actions). |
+| Status / your stance | Gap (good-to-have). Need ledger amount matching mechanism to ensure RHB facility fee + prorations match expected ledger totals. |
 | Open questions | 1) Should validation be “warning only” or “hard block settlement/disbursement posting”? 2) How to handle the existing “shortfall” behavior in `postSettlementLedger()` (it currently tolerates some gap by adding a ledger entry rather than failing). |
 | Recommended implementation priority | P3 (good-to-have; depends on operational pain). |
 
@@ -279,6 +292,7 @@ High-impact gaps already visible from code:
 | Frontend changes needed | Admin offer UI: input fee rate if admin-configurable (or from product workflow). Admin note disbursement UI: show facility fee line and net issuer disbursement. Issuer and investor UI: show fee transparency. |
 | Ledger/accounting impact | Must define ledger bucket behavior for facility fee. Current disbursement ledger credits `OPERATING_ACCOUNT` with `platformFee` only and credits `ISSUER_PAYABLE` with `netDisbursement = fundedAmount - platformFee`. Facility fee likely needs to be deducted similarly, meaning `netDisbursement` should be fundedAmount − platformFee − facilityFee, and `OPERATING_ACCOUNT` should be credited with platformFee + facilityFee (or a separate bucket if required). |
 | Status impact | None (fee is accounting/doc-only), but disbursement ledger posting happens when note moves to `ACTIVE` through withdrawal completion (`noteService.activate` + `postDisbursementLedger`). |
+| Status / your stance | Gap. Facility Fee is required for **contract financing only**, up to >1% of approved facility, prorated per invoice disbursement, and charging stops once the total facility fee is fully paid across invoices (your RM examples in the requirement body). |
 | Open questions | 1) Verify whether facility fee is charged at disbursement time only and whether it should be part of existing cap logic (platform fee cap at 3% currently). 2) How to prorate if invoice financing amount < facility utilization increments? 3) Whether investors see facility fee deduction as part of profit waterfall or as an “expense” deducted from disbursement. |
 | Recommended implementation priority | P4 (new fee model + ledger impact; higher complexity). |
 
