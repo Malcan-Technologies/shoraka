@@ -4,7 +4,7 @@
  * Invoice table for application cards: horizontal scroll lives only inside the wrapper
  * (card/page do not grow horizontally). Status + Action columns are sticky on the right.
  *
- * Fluid width: table is `width: 100%` so it fills the card when space allows; first seven columns share
+ * Fluid width: table is `width: 100%` so it fills the card when space allows; first eight columns share
  * extra space (table-layout: fixed + col minWidths). Status/Action stay fixed (px) for sticky `right`.
  * `minWidth` prevents overlap when the viewport is narrow (horizontal scroll).
  *
@@ -44,11 +44,18 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { FileDisplayBadge } from "@/app/(application-flow)/applications/components/file-display-badge";
+import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import {
   issuerInvoiceCanViewReasonRemarks,
   type NormalizedApplication,
   type NormalizedInvoice,
 } from "../status";
+
+const PLATFORM_FEE_HEADER_TOOLTIP =
+  "Deducted from disbursement when funding closes (applied as a percentage of the funded amount).";
+
+const PROFIT_RATE_HEADER_TOOLTIP =
+  "Profit per annum (%). Deducted during settlement when calculating the residual refund to the issuer.";
 
 const BADGE_BASE =
   "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border whitespace-nowrap";
@@ -62,6 +69,7 @@ const COL_MIN = {
   appliedFinancing: 132,
   documents: 200,
   financingOffered: 136,
+  platformFee: 108,
   profitRate: 96,
 } as const;
 
@@ -79,6 +87,7 @@ const SCROLLABLE_COL_MIN_TOTAL_PX =
   COL_MIN.appliedFinancing +
   COL_MIN.documents +
   COL_MIN.financingOffered +
+  COL_MIN.platformFee +
   COL_MIN.profitRate;
 
 /** When the container is narrower than this, the scroll region shows a horizontal scrollbar. */
@@ -86,9 +95,9 @@ function getInvoiceTableMinWidthPx(actionColWidthPx: number): number {
   return SCROLLABLE_COL_MIN_TOTAL_PX + COL_STICKY.status + actionColWidthPx;
 }
 
-/** Equal share of width for the seven scrollable columns (remainder after sticky columns). */
+/** Equal share of width for the eight scrollable columns (remainder after sticky columns). */
 function getFlexColWidth(stickyTotalPx: number): string {
-  return `calc((100% - ${stickyTotalPx}px) / 7)`;
+  return `calc((100% - ${stickyTotalPx}px) / 8)`;
 }
 
 /** Solid fills only (no opacity); sticky columns use same fill as body cells. */
@@ -277,6 +286,7 @@ export function ScrollableInvoiceTable({
           <col style={{ width: flexColWidth, minWidth: COL_MIN.appliedFinancing }} />
           <col style={{ width: flexColWidth, minWidth: COL_MIN.documents }} />
           <col style={{ width: flexColWidth, minWidth: COL_MIN.financingOffered }} />
+          <col style={{ width: flexColWidth, minWidth: COL_MIN.platformFee }} />
           <col style={{ width: flexColWidth, minWidth: COL_MIN.profitRate }} />
           <col style={{ width: COL_STICKY.status, minWidth: COL_STICKY.status }} />
           <col style={{ width: actionColWidthPx, minWidth: actionColWidthPx }} />
@@ -344,7 +354,28 @@ export function ScrollableInvoiceTable({
                 "whitespace-nowrap text-sm font-semibold text-foreground tabular-nums"
               )}
             >
-              Profit Rate
+              <span className="inline-flex items-center gap-1.5">
+                Platform fee
+                <InfoTooltip
+                  content={PLATFORM_FEE_HEADER_TOOLTIP}
+                  iconClassName="h-3.5 w-3.5 shrink-0"
+                />
+              </span>
+            </TableHead>
+            <TableHead
+              className={cn(
+                CELL,
+                INV_TABLE_HEADER_BG,
+                "whitespace-nowrap text-sm font-semibold text-foreground tabular-nums"
+              )}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                Profit rate
+                <InfoTooltip
+                  content={PROFIT_RATE_HEADER_TOOLTIP}
+                  iconClassName="h-3.5 w-3.5 shrink-0"
+                />
+              </span>
             </TableHead>
             <TableHead
               className={cn(
@@ -372,7 +403,7 @@ export function ScrollableInvoiceTable({
           {application.invoices.length === 0 ? (
             <TableRow className="border-b-0 hover:bg-transparent">
               <TableCell
-                colSpan={9}
+                colSpan={10}
                 className={cn(CELL, INV_TABLE_ROW_BG, "text-center text-muted-foreground")}
               >
                 No invoices available
@@ -459,6 +490,16 @@ export function ScrollableInvoiceTable({
                     )}
                   >
                     <IssuerInvoiceCurrencyCellFromFormatted formatted={inv.financingOffered} />
+                  </TableCell>
+                  <TableCell
+                    className={cn(
+                      CELL,
+                      INV_TABLE_ROW_BG,
+                      INV_TABLE_ROW_HOVER,
+                      "align-middle text-left tabular-nums whitespace-nowrap text-foreground"
+                    )}
+                  >
+                    {inv.platformFee}
                   </TableCell>
                   <TableCell
                     className={cn(

@@ -369,6 +369,7 @@ export function useSendInvoiceOffer() {
       offeredAmount,
       offeredRatioPercent,
       offeredProfitRatePercent,
+      platformFeeRatePercent,
       expiresAt,
       risk_rating,
     }: {
@@ -377,6 +378,7 @@ export function useSendInvoiceOffer() {
       offeredAmount: number;
       offeredRatioPercent?: number | null;
       offeredProfitRatePercent?: number | null;
+      platformFeeRatePercent?: number | null;
       expiresAt?: string | null;
       risk_rating: SoukscoreRiskRating;
     }) => {
@@ -384,6 +386,7 @@ export function useSendInvoiceOffer() {
         offeredAmount,
         offeredRatioPercent,
         offeredProfitRatePercent,
+        platformFeeRatePercent,
         expiresAt,
         risk_rating,
       });

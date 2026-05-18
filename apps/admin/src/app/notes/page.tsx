@@ -30,7 +30,7 @@ export default function NotesPage() {
     const next: GetAdminNotesParams = { page: currentPage, pageSize };
     if (searchQuery) next.search = searchQuery;
     if (status === NOTE_STATUS_FILTER_ACTIVE_LOANS) {
-      next.excludeRepaid = true;
+      next.excludeFullySettledRegistryNotes = true;
     } else if (status !== "ALL") {
       next.status = status as NoteStatus;
     }

@@ -7,19 +7,25 @@ import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
   ArrowUpTrayIcon,
+  ArrowsRightLeftIcon,
   ClipboardDocumentCheckIcon,
   DocumentCheckIcon,
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
 import { APPLICATION_ACTION_REQUIRED_STATUS_SET } from "@/applications/action-required-statuses";
+import {
+  activeProductBaseKeySet,
+  activeProductPendingActionTotal,
+  buildApplicationSidebarGroups,
+} from "@/applications/application-nav-groups";
 import { useAdminApplicationsForSidebar } from "@/hooks/use-admin-applications-for-sidebar";
-import { useApplicationActionRequiredCount } from "@/hooks/use-application-action-required-count";
 import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
 import { useProducts } from "@/hooks/use-products";
 import {
   useNoteActionRequiredCount,
   usePendingRepayments,
   usePendingIssuerPayouts,
+  usePendingServiceFeeTrusteeLetters,
 } from "@/notes/hooks/use-notes";
 
 interface QuickActionsSectionProps {
@@ -35,11 +41,12 @@ export function QuickActionsSection({
 }: QuickActionsSectionProps) {
   // Fetch real pending approval count from API
   const { data: pendingCountData, isLoading: isPendingCountLoading } = usePendingApprovalCount();
-  const { data: applicationActionCountData, isLoading: isApplicationActionCountLoading } =
-    useApplicationActionRequiredCount();
   const { data: noteActionCountData, isLoading: isNoteActionCountLoading } = useNoteActionRequiredCount();
   const { data: pendingRepaymentsData, isLoading: isPendingRepaymentsLoading } = usePendingRepayments();
-  const { data: pendingIssuerPayoutsData, isLoading: isPendingIssuerPayoutsLoading } = usePendingIssuerPayouts();
+  const { data: pendingIssuerPayoutsData, isLoading: isPendingIssuerPayoutsLoading } =
+    usePendingIssuerPayouts();
+  const { data: pendingServiceFeeLettersData, isLoading: isPendingServiceFeeLettersLoading } =
+    usePendingServiceFeeTrusteeLetters();
   const { data: applicationsForSidebar = [], isLoading: isApplicationsForSidebarLoading } =
     useAdminApplicationsForSidebar();
   const { data: productsData, isLoading: isProductsLoading } = useProducts({
@@ -48,18 +55,28 @@ export function QuickActionsSection({
     includeDeleted: true,
   });
   const pendingOnboardingCount = pendingCountData?.count ?? 0;
-  const applicationActionCount = applicationActionCountData?.count ?? 0;
+  const applicationNavGroups = React.useMemo(
+    () => buildApplicationSidebarGroups(productsData?.products ?? [], applicationsForSidebar),
+    [productsData?.products, applicationsForSidebar]
+  );
+  const applicationActionCount = activeProductPendingActionTotal(applicationNavGroups);
   const noteActionCount = noteActionCountData?.count ?? 0;
   const pendingRepaymentsCount = pendingRepaymentsData?.count ?? 0;
   const pendingIssuerPayoutsCount = pendingIssuerPayoutsData?.count ?? 0;
-  const firstActionApplication = applicationsForSidebar.find(
-    (application) =>
-      APPLICATION_ACTION_REQUIRED_STATUS_SET.has(application.status) &&
-      (application.baseProductId || application.productId)
+  const pendingServiceFeeLettersCount = pendingServiceFeeLettersData?.count ?? 0;
+  const activeApplicationProductKeys = React.useMemo(
+    () => activeProductBaseKeySet(applicationNavGroups),
+    [applicationNavGroups]
   );
-  const firstApplicationQueue = applicationsForSidebar.find(
-    (application) => application.baseProductId || application.productId
-  );
+  const firstActionApplication = applicationsForSidebar.find((application) => {
+    if (!APPLICATION_ACTION_REQUIRED_STATUS_SET.has(application.status)) return false;
+    const key = application.baseProductId ?? application.productId;
+    return Boolean(key && activeApplicationProductKeys.has(key));
+  });
+  const firstApplicationQueue = applicationsForSidebar.find((application) => {
+    const key = application.baseProductId ?? application.productId;
+    return Boolean(key && activeApplicationProductKeys.has(key));
+  });
   const firstProductQueueKey = React.useMemo(() => {
     const products = productsData?.products ?? [];
     const active = products.find((product) => (product.status ?? "ACTIVE") === "ACTIVE");
@@ -98,7 +115,7 @@ export function QuickActionsSection({
           </Button>
         )}
       </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 [&>*]:min-h-0">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 [&>*]:min-h-0">
         <QuickActionCard
           title="Onboarding Approval"
           description="Review pending KYC/KYB applications"
@@ -129,7 +146,7 @@ export function QuickActionsSection({
                 ? "warning"
                 : "default"
           }
-          loading={loading || isApplicationActionCountLoading || isApplicationsForSidebarLoading || isProductsLoading}
+          loading={loading || isApplicationsForSidebarLoading || isProductsLoading}
         />
         <QuickActionCard
           title="Note Actions"
@@ -162,6 +179,22 @@ export function QuickActionsSection({
                 : "default"
           }
           loading={loading || isPendingRepaymentsLoading}
+        />
+        <QuickActionCard
+          title="Service Fee Instructions"
+          description="Posted settlements with a service fee still in the trustee instruction workflow"
+          count={pendingServiceFeeLettersCount}
+          countLabel="pending"
+          href="/finance/service-fee-trustee-letters"
+          icon={ArrowsRightLeftIcon}
+          variant={
+            pendingServiceFeeLettersCount > 5
+              ? "urgent"
+              : pendingServiceFeeLettersCount > 0
+                ? "warning"
+                : "default"
+          }
+          loading={loading || isPendingServiceFeeLettersLoading}
         />
         <QuickActionCard
           title="Issuer Payouts"

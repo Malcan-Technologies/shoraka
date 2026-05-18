@@ -23,10 +23,10 @@ import {
   BanknotesIcon,
   ArrowDownTrayIcon,
   ArrowUpTrayIcon,
+  ArrowsRightLeftIcon,
 } from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
-import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -48,34 +48,20 @@ import {
 } from "@/components/ui/sidebar";
 import { ChevronRight } from "lucide-react";
 import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
-import { useApplicationActionRequiredCount } from "@/hooks/use-application-action-required-count";
 import { useProducts } from "@/hooks/use-products";
 import { useAdminApplicationsForSidebar } from "@/hooks/use-admin-applications-for-sidebar";
 import {
   useNoteActionRequiredCount,
   usePendingRepayments,
   usePendingIssuerPayouts,
+  usePendingServiceFeeTrusteeLetters,
 } from "@/notes/hooks/use-notes";
-import { productName } from "@/app/settings/products/product-utils";
-import { APPLICATION_ACTION_REQUIRED_STATUS_SET } from "@/applications/action-required-statuses";
+import {
+  activeProductPendingActionTotal,
+  applicationsSidebarProductLabel,
+  buildApplicationSidebarGroups,
+} from "@/applications/application-nav-groups";
 import { cn } from "@/lib/utils";
-import type { ApplicationListItem, Product } from "@cashsouk/types";
-
-type ApplicationNavGroup = {
-  baseKey: string;
-  productTitle: string;
-  queuePath: string;
-  isInactive: boolean;
-  pendingActionCount: number;
-};
-
-/** Avoid empty or punctuation-only titles (e.g. "—") in the sidebar. */
-function applicationsSidebarProductLabel(title: string): string {
-  const t = title.trim();
-  if (!t) return "Unnamed product";
-  if (/^[\u002d\u2013\u2014\u2015\u2212_.\u00b7\s]+$/u.test(t)) return "Unnamed product";
-  return t;
-}
 
 function ApplicationNavSectionHeader({
   kind,
@@ -88,84 +74,18 @@ function ApplicationNavSectionHeader({
   const label = isActiveSection ? "Active" : "Inactive";
   return (
     <div
-      className="flex h-7 w-full min-w-0 items-center px-2"
+      className={cn(
+        "flex w-full min-w-0 items-baseline gap-1.5 px-2 pb-1 text-[11px] font-semibold leading-none tracking-wide",
+        isActiveSection ? "text-emerald-800 dark:text-emerald-200" : "text-muted-foreground"
+      )}
       aria-label={`${label} products, ${count} listed`}
     >
-      <Badge
-        variant="outline"
-        className={cn(
-          "inline-flex h-5 max-w-full items-center gap-1 border px-1.5 py-0 text-[10px] font-semibold leading-none shadow-none",
-          isActiveSection
-            ? "border-emerald-600/35 bg-emerald-500/10 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-950/45 dark:text-emerald-100"
-            : "border-border/80 bg-muted/60 text-muted-foreground"
-        )}
-      >
-        <span className="truncate">{label}</span>
-        <span className="text-sidebar-foreground/35 dark:text-sidebar-foreground/40" aria-hidden>
-          ·
-        </span>
-        <span className="tabular-nums">{count}</span>
-      </Badge>
+      <span className="truncate uppercase">{label}</span>
+      <span className="font-medium tabular-nums text-sidebar-foreground/50 dark:text-sidebar-foreground/45">
+        {count}
+      </span>
     </div>
   );
-}
-
-function buildApplicationSidebarGroups(
-  products: Product[],
-  applications: ApplicationListItem[]
-): ApplicationNavGroup[] {
-  const byBase = new Map<string, Product[]>();
-  for (const p of products) {
-    const key = (p.base_id ?? p.id) as string;
-    const list = byBase.get(key) ?? [];
-    list.push(p);
-    byBase.set(key, list);
-  }
-
-  const groups: ApplicationNavGroup[] = [];
-
-  for (const [, versions] of byBase) {
-    const sorted = [...versions].sort((a, b) => a.version - b.version);
-    const display =
-      [...sorted].reverse().find((p) => (p.status ?? "ACTIVE") === "ACTIVE") ?? sorted[sorted.length - 1];
-    if (!display) continue;
-    const baseKey = (display.base_id ?? display.id) as string;
-    const appsFor = applications.filter((a) => (a.baseProductId ?? "") === baseKey);
-    const pendingActionCount = appsFor.filter((a) => APPLICATION_ACTION_REQUIRED_STATUS_SET.has(a.status)).length;
-    const isLive = (display.status ?? "ACTIVE") === "ACTIVE";
-    if (!isLive && appsFor.length === 0) continue;
-
-    groups.push({
-      baseKey,
-      productTitle: productName(display),
-      queuePath: `/applications/${baseKey}`,
-      isInactive: !isLive,
-      pendingActionCount,
-    });
-  }
-
-  const basesBuilt = new Set(groups.map((g) => g.baseKey));
-  for (const baseKey of new Set(
-    applications.map((a) => a.baseProductId).filter((x): x is string => Boolean(x))
-  )) {
-    if (basesBuilt.has(baseKey)) continue;
-    const appsFor = applications.filter((a) => a.baseProductId === baseKey);
-    if (appsFor.length === 0) continue;
-    groups.push({
-      baseKey,
-      productTitle: appsFor[0]?.financingTypeLabel ?? "Product",
-      queuePath: `/applications/${baseKey}`,
-      isInactive: true,
-      pendingActionCount: appsFor.filter((a) => APPLICATION_ACTION_REQUIRED_STATUS_SET.has(a.status)).length,
-    });
-  }
-
-  return groups.sort((a, b) => {
-    if (a.isInactive !== b.isInactive) {
-      return a.isInactive ? 1 : -1;
-    }
-    return a.productTitle.localeCompare(b.productTitle, undefined, { sensitivity: "base" });
-  });
 }
 
 const navLifecycleConfig = [
@@ -209,6 +129,12 @@ const navFinance = [
     url: "/finance/repayments",
     icon: ArrowDownTrayIcon,
     badgeKey: "pendingRepayments" as const,
+  },
+  {
+    title: "Service Fee",
+    url: "/finance/service-fee-trustee-letters",
+    icon: ArrowsRightLeftIcon,
+    badgeKey: "pendingServiceFeeTrusteeLetters" as const,
   },
   {
     title: "Issuer Payouts",
@@ -264,18 +190,18 @@ const navAudit = [
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { data: pendingCountData } = usePendingApprovalCount();
-  const { data: applicationActionCountData } = useApplicationActionRequiredCount();
   const { data: noteActionCountData } = useNoteActionRequiredCount();
   const { data: pendingRepaymentsData } = usePendingRepayments();
   const { data: pendingIssuerPayoutsData } = usePendingIssuerPayouts();
+  const { data: pendingServiceFeeLettersData } = usePendingServiceFeeTrusteeLetters();
   const { data: productsData } = useProducts({ page: 1, pageSize: 100, includeDeleted: true });
   const { data: applicationsForSidebar = [] } = useAdminApplicationsForSidebar();
 
   const badges: Record<string, number> = {
     onboardingApproval: pendingCountData?.count || 0,
-    applicationActions: applicationActionCountData?.count || 0,
     noteActions: noteActionCountData?.count || 0,
     pendingRepayments: pendingRepaymentsData?.count || 0,
+    pendingServiceFeeTrusteeLetters: pendingServiceFeeLettersData?.count || 0,
     pendingIssuerPayouts: pendingIssuerPayoutsData?.count || 0,
   };
 
@@ -335,12 +261,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenu>
               {dynamicNavLifecycle.map((item) => {
                 const Icon = item.icon;
-                const badgeCount =
-                  "badgeKey" in item && item.badgeKey ? badges[item.badgeKey] : 0;
+                const badgeCount = "badgeKey" in item && item.badgeKey ? badges[item.badgeKey] : 0;
 
                 if (item.title === "Applications" && "applicationNavGroups" in item) {
                   const groups = item.applicationNavGroups ?? [];
-                  const applicationBadgeCount = badges.applicationActions;
+                  const applicationBadgeCount = activeProductPendingActionTotal(groups);
                   return (
                     <Collapsible
                       key={item.title}
@@ -376,8 +301,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
                             return (
                               <SidebarMenuSub className="gap-0 py-0">
-                                <li className="list-none px-0">
-                                  <ApplicationNavSectionHeader kind="active" count={activeGroups.length} />
+                                <li className="list-none px-0 pt-3">
+                                  <ApplicationNavSectionHeader
+                                    kind="active"
+                                    count={activeGroups.length}
+                                  />
                                 </li>
 
                                 {activeGroups.map((g) => {
@@ -388,7 +316,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                         asChild
                                         size="sm"
                                         isActive={
-                                          pathname === g.queuePath || pathname.startsWith(`${g.queuePath}/`)
+                                          pathname === g.queuePath ||
+                                          pathname.startsWith(`${g.queuePath}/`)
                                         }
                                         className={applicationSubLinkClass}
                                       >
@@ -423,7 +352,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
                                 {inactiveGroups.length > 0 && (
                                   <>
-                                    <li className="list-none px-0 pt-1.5">
+                                    <li className="list-none px-0 pt-4">
                                       <ApplicationNavSectionHeader
                                         kind="inactive"
                                         count={inactiveGroups.length}
@@ -437,7 +366,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                             asChild
                                             size="sm"
                                             isActive={
-                                              pathname === g.queuePath || pathname.startsWith(`${g.queuePath}/`)
+                                              pathname === g.queuePath ||
+                                              pathname.startsWith(`${g.queuePath}/`)
                                             }
                                             className={applicationSubLinkClass}
                                           >
@@ -454,7 +384,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                                 {label}
                                               </span>
                                               {g.pendingActionCount > 0 && (
-                                                <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-primary px-1 text-xs font-medium tabular-nums text-primary-foreground">
+                                                <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-muted px-1 text-xs font-medium tabular-nums text-muted-foreground">
                                                   {g.pendingActionCount}
                                                 </span>
                                               )}

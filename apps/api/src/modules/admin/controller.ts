@@ -2942,6 +2942,7 @@ router.post(
         validated.offeredAmount,
         validated.offeredRatioPercent ?? null,
         validated.offeredProfitRatePercent ?? null,
+        validated.platformFeeRatePercent ?? null,
         validated.expiresAt ?? null,
         validated.risk_rating,
         req.user.user_id,

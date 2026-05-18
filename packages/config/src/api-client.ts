@@ -93,6 +93,7 @@ import type {
   GetAdminInvestmentsResponse,
   PendingIssuerPayoutsResponse,
   PendingRepaymentsResponse,
+  PendingServiceFeeTrusteeLettersResponse,
   NoteEvent,
   NoteLedgerBucketActivityResponse,
   NoteLedgerBucketBalancesResponse,
@@ -505,6 +506,9 @@ export class ApiClient {
     if (params.paymaster) queryParams.append("paymaster", params.paymaster);
     if (params.featuredOnly) queryParams.append("featuredOnly", "true");
     if (params.excludeRepaid) queryParams.append("excludeRepaid", "true");
+    if (params.excludeFullySettledRegistryNotes) {
+      queryParams.append("excludeFullySettledRegistryNotes", "true");
+    }
 
     return this.get<NotesResponse>(`/v1/admin/notes?${queryParams.toString()}`);
   }
@@ -602,6 +606,14 @@ export class ApiClient {
     return this.get<PendingIssuerPayoutsResponse>("/v1/admin/withdrawals/pending-issuer-payouts");
   }
 
+  async getAdminPendingServiceFeeTrusteeLetters(): Promise<
+    ApiResponse<PendingServiceFeeTrusteeLettersResponse> | ApiError
+  > {
+    return this.get<PendingServiceFeeTrusteeLettersResponse>(
+      "/v1/admin/notes/pending-service-fee-trustee-letters"
+    );
+  }
+
   async getAdminInvestments(
     params: GetAdminInvestmentsParams = {}
   ): Promise<ApiResponse<GetAdminInvestmentsResponse> | ApiError> {
@@ -690,6 +702,36 @@ export class ApiClient {
     id: string
   ): Promise<ApiResponse<{ s3Key: string }> | ApiError> {
     return this.post<{ s3Key: string }>(`/v1/admin/notes/${id}/default/generate-letter`, {});
+  }
+
+  async generateAdminNoteServiceFeeTrusteeLetter(
+    noteId: string,
+    settlementId: string
+  ): Promise<ApiResponse<{ s3Key: string }> | ApiError> {
+    return this.post<{ s3Key: string }>(
+      `/v1/admin/notes/${noteId}/settlements/${settlementId}/service-fee/generate-trustee-letter`,
+      {}
+    );
+  }
+
+  async markAdminNoteServiceFeeTrusteeLetterSubmitted(
+    noteId: string,
+    settlementId: string
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(
+      `/v1/admin/notes/${noteId}/settlements/${settlementId}/service-fee/mark-submitted-to-trustee`,
+      {}
+    );
+  }
+
+  async markAdminNoteServiceFeeTrusteeInstructionCompleted(
+    noteId: string,
+    settlementId: string
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(
+      `/v1/admin/notes/${noteId}/settlements/${settlementId}/service-fee/mark-completed`,
+      {}
+    );
   }
 
   async markAdminNoteDefault(
@@ -949,6 +991,7 @@ export class ApiClient {
       offeredAmount: number;
       offeredRatioPercent?: number | null;
       offeredProfitRatePercent?: number | null;
+      platformFeeRatePercent?: number | null;
       expiresAt?: string | null;
       risk_rating: SoukscoreRiskRating;
     }
@@ -959,6 +1002,7 @@ export class ApiClient {
         offeredAmount: payload.offeredAmount,
         offeredRatioPercent: payload.offeredRatioPercent ?? null,
         offeredProfitRatePercent: payload.offeredProfitRatePercent ?? null,
+        platformFeeRatePercent: payload.platformFeeRatePercent ?? null,
         expiresAt: payload.expiresAt ?? null,
         risk_rating: payload.risk_rating,
       }

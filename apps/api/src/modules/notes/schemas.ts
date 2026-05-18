@@ -12,6 +12,11 @@ export const idParamSchema = z.object({
   id: z.string().min(1),
 });
 
+export const noteSettlementParamsSchema = z.object({
+  id: z.string().min(1),
+  settlementId: z.string().min(1),
+});
+
 export const applicationIdParamSchema = z.object({
   applicationId: z.string().min(1),
 });
@@ -56,6 +61,14 @@ export const getNotesQuerySchema = z.object({
     .enum(["true", "false", "1", "0"])
     .transform((value) => value === "true" || value === "1")
     .optional(),
+  /**
+   * Admin registry: hide notes only when status is settled (repaid or servicing SETTLED),
+   * settlement is posted, and service-fee trustee work is finished (no fee or COMPLETED).
+   */
+  excludeFullySettledRegistryNotes: z
+    .enum(["true", "false", "1", "0"])
+    .transform((value) => value === "true" || value === "1")
+    .optional(),
 });
 
 export const createNoteFromApplicationSchema = z.object({
@@ -78,7 +91,7 @@ export const updateNoteDraftSchema = z.object({
   title: z.string().min(1).max(180).optional(),
   targetAmount: z.number().positive().optional(),
   maturityDate: z.string().datetime().nullable().optional(),
-  platformFeeRatePercent: z.number().min(0).max(3).optional(),
+  platformFeeRatePercent: z.number().min(0).max(100).optional(),
   serviceFeeRatePercent: z.number().min(0).max(15).optional(),
   serviceFeeCustomerScope: z.string().max(120).nullable().optional(),
   profitRatePercent: z.number().min(0).nullable().optional(),
@@ -152,6 +165,7 @@ export const updatePlatformFinanceSettingsSchema = z.object({
   arrearsThresholdDays: z.number().int().min(0).max(120).optional(),
   tawidhRateCapPercent: z.number().min(0).max(1).optional(),
   gharamahRateCapPercent: z.number().min(0).max(9).optional(),
+  platformFeeRateCapPercent: z.number().min(0).max(100).optional(),
   defaultTawidhRatePercent: z.number().min(0).max(1).optional(),
   defaultGharamahRatePercent: z.number().min(0).max(9).optional(),
   withdrawalLetterTemplate: z.string().min(1).optional(),

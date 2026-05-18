@@ -12,7 +12,8 @@ import { notesKeys } from "../query-keys";
 
 /**
  * Broad invalidation that refreshes everything driven by a note-side mutation:
- * the sidebar/dashboard counts (action-count, pending-repayments, pending-issuer-payouts),
+ * the sidebar/dashboard counts (action-count, pending-repayments, pending-issuer-payouts,
+ * pending-service-fee-trustee-letters),
  * the bucket balances, the notes list/detail, and the investments registry. Use this from
  * any mutation that could change a count, bucket balance, or investment status.
  */
@@ -121,6 +122,20 @@ export function usePendingIssuerPayouts() {
     queryKey: [...notesKeys.all, "pending-issuer-payouts"],
     queryFn: async () => {
       const response = await apiClient.getAdminPendingIssuerPayouts();
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    staleTime: 30000,
+    refetchInterval: 60000,
+  });
+}
+
+export function usePendingServiceFeeTrusteeLetters() {
+  const apiClient = useNotesApiClient();
+  return useQuery({
+    queryKey: [...notesKeys.all, "pending-service-fee-trustee-letters"],
+    queryFn: async () => {
+      const response = await apiClient.getAdminPendingServiceFeeTrusteeLetters();
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
@@ -359,6 +374,63 @@ export function useCheckOverdueLateCharge() {
     onSuccess: (_result, variables) => {
       invalidateAdminRegistries(queryClient);
       queryClient.invalidateQueries({ queryKey: notesKeys.detail(variables.id) });
+    },
+  });
+}
+
+export function useGenerateServiceFeeTrusteeLetter() {
+  const apiClient = useNotesApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ noteId, settlementId }: { noteId: string; settlementId: string }) => {
+      const response = await apiClient.generateAdminNoteServiceFeeTrusteeLetter(
+        noteId,
+        settlementId
+      );
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: (_data, { noteId }) => {
+      invalidateAdminRegistries(queryClient);
+      queryClient.invalidateQueries({ queryKey: notesKeys.detail(noteId) });
+    },
+  });
+}
+
+export function useMarkServiceFeeTrusteeLetterSubmitted() {
+  const apiClient = useNotesApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ noteId, settlementId }: { noteId: string; settlementId: string }) => {
+      const response = await apiClient.markAdminNoteServiceFeeTrusteeLetterSubmitted(
+        noteId,
+        settlementId
+      );
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: (note) => {
+      invalidateAdminRegistries(queryClient);
+      queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
+    },
+  });
+}
+
+export function useMarkServiceFeeTrusteeInstructionCompleted() {
+  const apiClient = useNotesApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ noteId, settlementId }: { noteId: string; settlementId: string }) => {
+      const response = await apiClient.markAdminNoteServiceFeeTrusteeInstructionCompleted(
+        noteId,
+        settlementId
+      );
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: (note) => {
+      invalidateAdminRegistries(queryClient);
+      queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
     },
   });
 }

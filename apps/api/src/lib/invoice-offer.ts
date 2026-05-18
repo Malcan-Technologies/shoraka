@@ -1,5 +1,5 @@
   /**
- * Shared helpers for invoice offer values (requested, offered, profit rate).
+ * Shared helpers for invoice offer values (requested, offered, profit rate, platform fee).
  * Mirrors contract-facility pattern for consistency.
  *
  * See docs/guides/application-flow/invoice-offer-facility-flow.md for the full flow.
@@ -60,4 +60,21 @@ export function resolveOfferedProfitRate(offer: InvoiceOfferDetailsLike): number
     return Number.isFinite(n) && n >= 0 ? n : null;
   }
   return null;
+}
+
+/**
+ * Platform fee rate (percent of funded amount at disbursement) from invoice offer_details.
+ * Missing or invalid values become 0.
+ */
+export function resolveOfferedPlatformFeeRatePercent(offer: InvoiceOfferDetailsLike): number {
+  if (!offer || typeof offer !== "object") return 0;
+  const v = offer.platform_fee_rate_percent;
+  let n: number | null = null;
+  if (typeof v === "number" && Number.isFinite(v)) n = v;
+  else if (typeof v === "string" && v.trim() !== "") {
+    const parsed = Number(v);
+    n = Number.isFinite(parsed) ? parsed : null;
+  }
+  if (n == null || n < 0) return 0;
+  return Math.round(n * 100) / 100;
 }

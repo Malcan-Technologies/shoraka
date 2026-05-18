@@ -30,6 +30,7 @@ export default function PlatformFinanceSettingsPage() {
     arrearsThresholdDays: "14",
     tawidhRateCapPercent: "1",
     gharamahRateCapPercent: "9",
+    platformFeeRateCapPercent: "3",
     defaultTawidhRatePercent: "0",
     defaultGharamahRatePercent: "0",
   });
@@ -41,6 +42,7 @@ export default function PlatformFinanceSettingsPage() {
       arrearsThresholdDays: String(data.arrearsThresholdDays),
       tawidhRateCapPercent: String(data.tawidhRateCapPercent),
       gharamahRateCapPercent: String(data.gharamahRateCapPercent),
+      platformFeeRateCapPercent: String(data.platformFeeRateCapPercent),
       defaultTawidhRatePercent: String(data.defaultTawidhRatePercent),
       defaultGharamahRatePercent: String(data.defaultGharamahRatePercent),
     });
@@ -53,6 +55,7 @@ export default function PlatformFinanceSettingsPage() {
         arrearsThresholdDays: Number(form.arrearsThresholdDays),
         tawidhRateCapPercent: Number(form.tawidhRateCapPercent),
         gharamahRateCapPercent: Number(form.gharamahRateCapPercent),
+        platformFeeRateCapPercent: Number(form.platformFeeRateCapPercent),
         defaultTawidhRatePercent: Number(form.defaultTawidhRatePercent),
         defaultGharamahRatePercent: Number(form.defaultGharamahRatePercent),
       });
@@ -67,6 +70,15 @@ export default function PlatformFinanceSettingsPage() {
   });
 
   const setField = (key: keyof typeof form, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
+  const fieldLabels: Record<keyof typeof form, string> = {
+    gracePeriodDays: "Grace period days",
+    arrearsThresholdDays: "Arrears threshold days",
+    tawidhRateCapPercent: "Ta'widh rate cap (%)",
+    gharamahRateCapPercent: "Gharamah rate cap (%)",
+    platformFeeRateCapPercent: "Platform fee rate cap (%)",
+    defaultTawidhRatePercent: "Default ta'widh rate (%)",
+    defaultGharamahRatePercent: "Default gharamah rate (%)",
+  };
 
   return (
     <>
@@ -84,8 +96,11 @@ export default function PlatformFinanceSettingsPage() {
           <CardContent className="grid gap-4 md:grid-cols-2">
             {Object.entries(form).map(([key, value]) => (
               <div key={key} className="space-y-2">
-                <label className="text-sm font-medium">{key.replace(/([A-Z])/g, " $1")}</label>
+                <label className="text-sm font-medium">{fieldLabels[key as keyof typeof form]}</label>
                 <Input
+                  type="number"
+                  min={0}
+                  step={key.endsWith("Days") ? 1 : 0.01}
                   value={value}
                   disabled={isLoading}
                   onChange={(event) => setField(key as keyof typeof form, event.target.value)}
@@ -103,4 +118,3 @@ export default function PlatformFinanceSettingsPage() {
     </>
   );
 }
-

@@ -34,6 +34,9 @@ function formatEventLabel(eventType: string) {
     LATE_CHARGE_APPROVED: "Late charge approved",
     ARREARS_LETTER_GENERATED: "Arrears letter generated",
     DEFAULT_LETTER_GENERATED: "Default letter generated",
+    SERVICE_FEE_TRUSTEE_LETTER_GENERATED: "Service fee trustee letter generated",
+    SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED: "Service fee trustee letter submitted",
+    SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED: "Service fee trustee instruction completed",
     NOTE_DEFAULT_MARKED: "Default marked",
   };
 
@@ -94,8 +97,11 @@ function extractMetadataDetails(event: NoteEvent) {
 }
 
 function buildFileName(event: NoteEvent) {
-  const prefix = event.eventType === "ARREARS_LETTER_GENERATED" ? "arrears-letter" : "note-letter";
-  return `${prefix}-${event.noteId}.pdf`;
+  if (event.eventType === "ARREARS_LETTER_GENERATED") return `arrears-letter-${event.noteId}.pdf`;
+  if (event.eventType === "SERVICE_FEE_TRUSTEE_LETTER_GENERATED") {
+    return `service-fee-trustee-letter-${event.noteId}.pdf`;
+  }
+  return `note-letter-${event.noteId}.pdf`;
 }
 
 export function NoteTimelinePanel({ note }: { note: NoteDetail }) {

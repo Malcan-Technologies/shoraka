@@ -51,6 +51,7 @@ import {
 } from "@/components/application-review/review-registry";
 import { getEffectiveReviewTabDescriptors } from "@/lib/effective-review-tab-descriptors";
 import { format, addDays } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -70,7 +71,12 @@ import {
   PencilSquareIcon,
   XCircleIcon,
 } from "@heroicons/react/24/outline";
-import { formatCurrency, useAuthToken, readInvoiceMaturityMonthsFromWorkflow } from "@cashsouk/config";
+import {
+  createApiClient,
+  formatCurrency,
+  useAuthToken,
+  readInvoiceMaturityMonthsFromWorkflow,
+} from "@cashsouk/config";
 import { computeHasPendingDirectorShareholder, type ApplicationPersonRow } from "@cashsouk/types";
 import {
   ADMIN_DIRECTOR_SHAREHOLDER_PENDING_LABEL,
@@ -78,6 +84,8 @@ import {
 } from "@/lib/admin-director-shareholder-review-message";
 import { ApplicationStatusBadge } from "@/components/application-review";
 import JSZip from "jszip";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 function PageSkeleton() {
   return (
@@ -133,6 +141,20 @@ export default function DynamicApplicationDetailPage() {
   const router = useRouter();
   const productKey = params.productKey as string;
   const applicationId = params.id as string;
+  const { getAccessToken } = useAuthToken();
+  const platformFinanceApiClient = React.useMemo(
+    () => createApiClient(API_URL, getAccessToken),
+    [getAccessToken]
+  );
+  const { data: platformFinanceSettings } = useQuery({
+    queryKey: ["platform-finance-settings"],
+    queryFn: async () => {
+      const response = await platformFinanceApiClient.getPlatformFinanceSettings();
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+  });
+  const platformFeeRateCapPercent = platformFinanceSettings?.platformFeeRateCapPercent ?? 3;
 
   const { data: app, isLoading, error } = useApplicationDetail(applicationId);
   const updateStatus = useUpdateApplicationStatus();
@@ -234,7 +256,6 @@ export default function DynamicApplicationDetailPage() {
     const people = (app as unknown as { people?: unknown } | null)?.people;
     return Array.isArray(people) ? (people as ApplicationPersonRow[]) : [];
   }, [app]);
-  const { getAccessToken } = useAuthToken();
   const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
     useAdminS3DocumentViewDownload();
   const [downloadAllDocumentsPending, setDownloadAllDocumentsPending] = React.useState(false);
@@ -1078,6 +1099,7 @@ export default function DynamicApplicationDetailPage() {
                               offeredAmount,
                               offeredRatioPercent,
                               offeredProfitRatePercent,
+                              platformFeeRatePercent,
                               risk_rating,
                             }) => {
                               try {
@@ -1091,6 +1113,7 @@ export default function DynamicApplicationDetailPage() {
                                   offeredAmount,
                                   offeredRatioPercent,
                                   offeredProfitRatePercent,
+                                  platformFeeRatePercent,
                                   expiresAt,
                                   risk_rating,
                                 });
@@ -1106,6 +1129,7 @@ export default function DynamicApplicationDetailPage() {
                             sendContractOfferPending={sendContractOffer.isPending}
                             sendInvoiceOfferPending={sendInvoiceOffer.isPending}
                             invoiceRatioLimits={invoiceRatioLimits}
+                            platformFeeRateCapPercent={platformFeeRateCapPercent}
                             offerExpiryDays={offerExpiryDays}
                             minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
                             onViewSignedInvoiceOffer={handleViewSignedInvoiceOffer}

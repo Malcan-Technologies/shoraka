@@ -30,7 +30,7 @@ function TableSkeleton() {
     <>
       {Array.from({ length: 5 }).map((_, index) => (
         <TableRow key={index}>
-          {Array.from({ length: 10 }).map((__, cellIndex) => (
+          {Array.from({ length: 11 }).map((__, cellIndex) => (
             <TableCell key={cellIndex}>
               <Skeleton className="h-5 w-24" />
             </TableCell>
@@ -63,15 +63,16 @@ export function NotesTable({
       <div className="w-full overflow-x-auto">
         <Table className="w-full table-fixed">
           <colgroup>
-            <col className="w-[9%]" />
-            <col className="w-[19%]" />
-            <col className="w-[7%]" />
-            <col className="w-[11%]" />
-            <col className="w-[9%]" />
-            <col className="w-[11%]" />
-            <col className="w-[9%]" />
-            <col className="w-[11%]" />
-            <col className="w-[7%]" />
+            <col className="w-[8%]" />
+            <col className="w-[17%]" />
+            <col className="w-[6%]" />
+            <col className="w-[10%]" />
+            <col className="w-[8%]" />
+            <col className="w-[10%]" />
+            <col className="w-[8%]" />
+            <col className="w-[10%]" />
+            <col className="w-[10%]" />
+            <col className="w-[6%]" />
             <col className="w-[7%]" />
           </colgroup>
           <TableHeader>
@@ -84,6 +85,9 @@ export function NotesTable({
               <TableHead className="truncate">Funding</TableHead>
               <TableHead className="truncate">Status</TableHead>
               <TableHead className="truncate">Settlement</TableHead>
+              <TableHead className="truncate max-w-[9rem]" title="Service fee — trustee instruction (pools)">
+                Svc fee trustee
+              </TableHead>
               <TableHead className="truncate">Maturity</TableHead>
               <TableHead className="truncate">Actions</TableHead>
             </TableRow>
@@ -93,7 +97,7 @@ export function NotesTable({
               <TableSkeleton />
             ) : registryCount === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={11} className="py-10 text-center text-muted-foreground">
                   No approved invoices or notes found
                 </TableCell>
               </TableRow>

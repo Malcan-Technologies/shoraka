@@ -27,6 +27,7 @@
     "run-offer-expiry": "tsx scripts/run-offer-expiry.ts",
     "run-note-listing-expiry": "tsx scripts/run-note-listing-expiry.ts",
     "seed-expired-offer-for-test": "tsx scripts/seed-expired-offer-for-test.ts",
+    "seed-inactive-product-apps": "tsx scripts/seed-inactive-products-with-applications.ts",
     "clean": "rm -rf dist"
   },
   "prisma": {

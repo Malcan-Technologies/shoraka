@@ -84,6 +84,13 @@ export enum NoteSettlementType {
   DEFAULT_RECOVERY = "DEFAULT_RECOVERY",
 }
 
+export enum ServiceFeeTrusteeInstructionStatus {
+  PENDING_LETTER = "PENDING_LETTER",
+  LETTER_GENERATED = "LETTER_GENERATED",
+  SUBMITTED_TO_TRUSTEE = "SUBMITTED_TO_TRUSTEE",
+  COMPLETED = "COMPLETED",
+}
+
 export enum NoteLedgerAccountType {
   INVESTOR_POOL = "INVESTOR_POOL",
   REPAYMENT_POOL = "REPAYMENT_POOL",
@@ -137,6 +144,10 @@ export interface NoteSettlementPoolSummary {
   issuerResidualAmount: number;
   unappliedAmount: number;
   postedAt: string | null;
+  /** Posted settlement with platform service fee: trustee instruction workflow (pools). */
+  serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus | null;
+  serviceFeeTrusteeSubmittedAt: string | null;
+  serviceFeeTrusteeCompletedAt: string | null;
 }
 
 /** Issuer portal: derived residual payout state for a note with `settlementSummary`. */
@@ -302,6 +313,9 @@ export interface NoteSettlement {
   previewSnapshot: Record<string, unknown>;
   approvedAt: string | null;
   postedAt: string | null;
+  serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus | null;
+  serviceFeeTrusteeSubmittedAt: string | null;
+  serviceFeeTrusteeCompletedAt: string | null;
 }
 
 export interface NoteEvent {
@@ -468,6 +482,27 @@ export interface PendingIssuerPayoutsResponse {
   items: PendingIssuerPayoutItem[];
 }
 
+/** Posted settlements with a positive service fee where the trustee instruction is not fully completed. */
+export interface PendingServiceFeeTrusteeLetterItem {
+  settlementId: string;
+  noteId: string;
+  noteTitle: string | null;
+  noteStatus: string | null;
+  issuerOrganizationId: string | null;
+  issuerOrganizationName: string | null;
+  serviceFeeAmount: number;
+  currency: string;
+  settlementPostedAt: string | null;
+  trusteeInstructionStatus: ServiceFeeTrusteeInstructionStatus | null;
+  submittedToTrusteeAt: string | null;
+  instructionCompletedAt: string | null;
+}
+
+export interface PendingServiceFeeTrusteeLettersResponse {
+  count: number;
+  items: PendingServiceFeeTrusteeLetterItem[];
+}
+
 export interface PlatformFinanceSetting {
   id: string;
   key: string;
@@ -475,6 +510,7 @@ export interface PlatformFinanceSetting {
   arrearsThresholdDays: number;
   tawidhRateCapPercent: number;
   gharamahRateCapPercent: number;
+  platformFeeRateCapPercent: number;
   defaultTawidhRatePercent: number;
   defaultGharamahRatePercent: number;
   withdrawalLetterTemplate: string;
@@ -516,6 +552,12 @@ export interface GetAdminNotesParams {
   paymaster?: string;
   featuredOnly?: boolean;
   excludeRepaid?: boolean;
+  /**
+   * When true, omit notes only if they are repaid or servicing SETTLED, have a posted settlement,
+   * and service-fee trustee is complete (no material fee or status COMPLETED). Matches the
+   * default admin registry "active work" view.
+   */
+  excludeFullySettledRegistryNotes?: boolean;
 }
 
 export interface NotesResponse {

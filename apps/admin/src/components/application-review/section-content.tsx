@@ -142,6 +142,7 @@ export interface SectionContentProps {
     offeredAmount: number;
     offeredRatioPercent: number;
     offeredProfitRatePercent: number;
+    platformFeeRatePercent: number;
     risk_rating: SoukscoreRiskRating;
   }) => Promise<void>;
   sendContractOfferPending?: boolean;
@@ -149,6 +150,8 @@ export interface SectionContentProps {
   onAddSectionComment?: (section: ReviewSectionId, comment: string) => Promise<void> | void;
   /** Min/max financing ratio (%) from product config. Used by invoice review Offered by CashSouk. */
   invoiceRatioLimits?: { min: number; max: number };
+  /** Platform finance setting for the maximum platform fee rate (%) allowed on invoice offers. */
+  platformFeeRateCapPercent?: number | null;
   /** Product offer expiry in days. Used for invoice estimates and offer expiry when sending. */
   offerExpiryDays?: number | null;
   /** Minimum months from today to maturity to enable Send Offer on invoice review. */
@@ -199,6 +202,7 @@ export function SectionContent({
   sendInvoiceOfferPending,
   onAddSectionComment,
   invoiceRatioLimits,
+  platformFeeRateCapPercent,
   offerExpiryDays,
   minMonthsReviewToMaturityForOffer,
   sectionStatusMap,
@@ -492,6 +496,7 @@ export function SectionContent({
           onDownloadDocument={onDownloadDocument}
           viewDocumentPending={viewDocumentPending}
           invoiceRatioLimits={invoiceRatioLimits}
+          platformFeeRateCapPercent={platformFeeRateCapPercent}
           onApproveItem={(id) => onApproveItem(id, "invoice")}
           onRejectItem={(id) => onRejectItem(id, "invoice")}
           onRequestAmendmentItem={(id) => onRequestAmendmentItem(id, "invoice")}

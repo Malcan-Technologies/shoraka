@@ -187,6 +187,14 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
                   )}
                 </>
               )}
+              {details.platform_fee_rate_percent != null && (
+                <>
+                  <dt className="text-muted-foreground">Platform fee</dt>
+                  <dd className="font-medium text-foreground">
+                    {(details.platform_fee_rate_percent as number)}% at disbursement
+                  </dd>
+                </>
+              )}
               <dt className="text-muted-foreground">Expires</dt>
               <dd className="font-medium text-foreground">
                 {formatDate(details.expires_at as string)}

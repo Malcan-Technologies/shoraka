@@ -11,6 +11,7 @@ import {
   NoteServicingStatus,
   NoteSettlementStatus,
   NoteSettlementType,
+  ServiceFeeTrusteeInstructionStatus,
   NoteStatus,
   InvestorBalanceTransactionSource,
   Prisma,
@@ -25,6 +26,7 @@ import { putS3ObjectBuffer } from "../../lib/s3/client";
 import { resolveApprovedFacilityForRefresh } from "../../lib/contract-facility";
 import {
   resolveOfferedAmount,
+  resolveOfferedPlatformFeeRatePercent,
   resolveOfferedProfitRate,
   resolveRequestedInvoiceAmount,
 } from "../../lib/invoice-offer";
@@ -1268,6 +1270,74 @@ export class NoteService {
     };
   }
 
+  async listPendingServiceFeeTrusteeLetters() {
+    const settlements = await prisma.noteSettlement.findMany({
+      where: {
+        status: NoteSettlementStatus.POSTED,
+        service_fee_amount: { gt: money(0.005) },
+        OR: [
+          { service_fee_trustee_status: null },
+          {
+            service_fee_trustee_status: {
+              not: ServiceFeeTrusteeInstructionStatus.COMPLETED,
+            },
+          },
+        ],
+      },
+      orderBy: [{ posted_at: "asc" }],
+      select: {
+        id: true,
+        note_id: true,
+        service_fee_amount: true,
+        posted_at: true,
+        service_fee_trustee_status: true,
+        service_fee_trustee_submitted_at: true,
+        service_fee_trustee_completed_at: true,
+      },
+    });
+    if (settlements.length === 0) return { count: 0, items: [] };
+
+    const notes = await prisma.note.findMany({
+      where: { id: { in: Array.from(new Set(settlements.map((s) => s.note_id))) } },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        issuer_organization_id: true,
+      },
+    });
+    const issuerIds = Array.from(new Set(notes.map((n) => n.issuer_organization_id)));
+    const issuers = issuerIds.length
+      ? await prisma.issuerOrganization.findMany({
+          where: { id: { in: issuerIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const noteMap = new Map(notes.map((n) => [n.id, n]));
+    const issuerMap = new Map(issuers.map((i) => [i.id, i]));
+
+    const items = settlements.map((s) => {
+      const note = noteMap.get(s.note_id);
+      const issuer = note ? issuerMap.get(note.issuer_organization_id) : undefined;
+      return {
+        settlementId: s.id,
+        noteId: s.note_id,
+        noteTitle: note?.title ?? null,
+        noteStatus: note?.status ?? null,
+        issuerOrganizationId: issuer?.id ?? null,
+        issuerOrganizationName: issuer?.name ?? null,
+        serviceFeeAmount: toNumber(s.service_fee_amount),
+        currency: "MYR",
+        settlementPostedAt: s.posted_at?.toISOString() ?? null,
+        trusteeInstructionStatus: s.service_fee_trustee_status,
+        submittedToTrusteeAt: s.service_fee_trustee_submitted_at?.toISOString() ?? null,
+        instructionCompletedAt: s.service_fee_trustee_completed_at?.toISOString() ?? null,
+      };
+    });
+
+    return { count: items.length, items };
+  }
+
   async createFromInvoice(
     invoiceId: string,
     input: z.infer<typeof createNoteFromApplicationSchema>,
@@ -1488,6 +1558,7 @@ export class NoteService {
               resolveOfferedProfitRate(invoiceOffer) != null
                 ? money(resolveOfferedProfitRate(invoiceOffer) ?? 0)
                 : undefined,
+            platform_fee_rate_percent: money(resolveOfferedPlatformFeeRatePercent(invoiceOffer)),
             service_fee_rate_percent: money(15),
             maturity_date:
               typeof invoiceDetails.maturity_date === "string"
@@ -1558,6 +1629,16 @@ export class NoteService {
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
     if (note.status !== NoteStatus.DRAFT || note.funding_status !== NoteFundingStatus.NOT_OPEN) {
       throw new AppError(409, "NOTE_NOT_EDITABLE", "Only pre-funding draft notes can be edited");
+    }
+    if (input.platformFeeRatePercent != null) {
+      const platformFeeRateCapPercent = await this.resolvePlatformFeeRateCapPercent();
+      if (input.platformFeeRatePercent > platformFeeRateCapPercent) {
+        throw new AppError(
+          422,
+          "PLATFORM_FEE_CAP_EXCEEDED",
+          `Platform fee rate cannot exceed ${platformFeeRateCapPercent}%`
+        );
+      }
     }
 
     const updated = await prisma.$transaction(async (tx) => {
@@ -1710,8 +1791,9 @@ export class NoteService {
         "Only draft or unpublished notes can be published"
       );
     }
+    const platformFeeRateCapPercent = await this.resolvePlatformFeeRateCapPercent();
     if (
-      toNumber(note.platform_fee_rate_percent) > 3 ||
+      toNumber(note.platform_fee_rate_percent) > platformFeeRateCapPercent ||
       toNumber(note.service_fee_rate_percent) > 15
     ) {
       throw new AppError(422, "NOTE_FEE_CAP_EXCEEDED", "Configured fees exceed allowed caps");
@@ -2241,8 +2323,13 @@ export class NoteService {
   }
 
   async listMarketplace(params: z.infer<typeof getNotesQuerySchema>) {
+    const {
+      excludeRepaid: _excludeRepaid,
+      excludeFullySettledRegistryNotes: _reg,
+      ...marketplaceParams
+    } = params;
     return this.listAdminNotes({
-      ...params,
+      ...marketplaceParams,
       status: NoteStatus.PUBLISHED,
       listingStatus: NoteListingStatus.PUBLISHED,
       fundingStatus: NoteFundingStatus.OPEN,
@@ -2997,6 +3084,9 @@ export class NoteService {
           status: NoteSettlementStatus.POSTED,
           posted_at: new Date(),
           idempotency_key: `settlement:${settlementId}`,
+          ...(toNumber(settlement.service_fee_amount) > 0.005
+            ? { service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.PENDING_LETTER }
+            : {}),
         },
       });
       for (const allocation of settlementAllocations) {
@@ -3280,6 +3370,215 @@ export class NoteService {
     return { s3Key: key };
   }
 
+  async generateServiceFeeTrusteeLetter(
+    noteId: string,
+    settlementId: string,
+    actor: ActorContext
+  ): Promise<{ s3Key: string }> {
+    const settlement = await prisma.noteSettlement.findFirst({
+      where: { id: settlementId, note_id: noteId },
+    });
+    if (!settlement) {
+      throw new AppError(404, "SETTLEMENT_NOT_FOUND", "Settlement not found");
+    }
+    if (settlement.status !== NoteSettlementStatus.POSTED) {
+      throw new AppError(
+        409,
+        "SETTLEMENT_NOT_POSTED",
+        "Service fee trustee letter can only be generated after settlement is posted."
+      );
+    }
+    const feeAmount = toNumber(settlement.service_fee_amount);
+    if (feeAmount <= 0.005) {
+      throw new AppError(
+        409,
+        "NO_SERVICE_FEE",
+        "This settlement has no service fee amount to document."
+      );
+    }
+    const wfStatus = settlement.service_fee_trustee_status;
+    if (
+      wfStatus === ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE ||
+      wfStatus === ServiceFeeTrusteeInstructionStatus.COMPLETED
+    ) {
+      throw new AppError(
+        409,
+        "SERVICE_FEE_TRUSTEE_LETTER_LOCKED",
+        "The instruction has already been submitted to the trustee and cannot be regenerated."
+      );
+    }
+    const note = await noteRepository.findById(noteId);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    const listItem = mapNoteListItem(note);
+    const currency = "MYR";
+    const postedAtLabel = settlement.posted_at
+      ? settlement.posted_at.toISOString()
+      : new Date().toISOString();
+    const title = "Trustee Instruction — Service Fee (Internal Pool Transfer)";
+    const buffer = await renderPdfBuffer(title, [
+      ["Note reference", note.note_reference],
+      ["Settlement ID", settlement.id],
+      ["Issuer", listItem.issuerName ?? "—"],
+      ["Paymaster", listItem.paymasterName ?? "—"],
+      [
+        "Movement",
+        `Debit Repayment Pool → Credit Operating Account (service fee allocation for posted settlement)`,
+      ],
+      ["Amount", `${currency} ${feeAmount.toFixed(2)}`],
+      ["Settlement posted at", postedAtLabel],
+      ["Generated at", new Date().toISOString()],
+    ]);
+    const key = `note-letters/${noteId}/service-fee-trustee/${settlementId}-${Date.now()}.pdf`;
+    await putS3ObjectBuffer({ key, body: buffer, contentType: "application/pdf" });
+    await prisma.$transaction(async (tx) => {
+      const row = await tx.noteSettlement.updateMany({
+        where: {
+          id: settlementId,
+          note_id: noteId,
+          OR: [
+            { service_fee_trustee_status: null },
+            {
+              service_fee_trustee_status: {
+                notIn: [
+                  ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+                  ServiceFeeTrusteeInstructionStatus.COMPLETED,
+                ],
+              },
+            },
+          ],
+        },
+        data: { service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED },
+      });
+      if (row.count !== 1) {
+        throw new AppError(
+          409,
+          "SERVICE_FEE_TRUSTEE_LETTER_LOCKED",
+          "The instruction has already been submitted to the trustee and cannot be regenerated."
+        );
+      }
+      await this.logEvent(tx, noteId, "SERVICE_FEE_TRUSTEE_LETTER_GENERATED", actor, {
+        s3Key: key,
+        settlementId: settlement.id,
+      });
+    });
+    return { s3Key: key };
+  }
+
+  async markServiceFeeTrusteeLetterSubmitted(
+    noteId: string,
+    settlementId: string,
+    actor: ActorContext
+  ) {
+    const settlement = await prisma.noteSettlement.findFirst({
+      where: { id: settlementId, note_id: noteId },
+    });
+    if (!settlement) {
+      throw new AppError(404, "SETTLEMENT_NOT_FOUND", "Settlement not found");
+    }
+    if (settlement.status !== NoteSettlementStatus.POSTED) {
+      throw new AppError(
+        409,
+        "SETTLEMENT_NOT_POSTED",
+        "Only posted settlements can move the service fee trustee workflow forward."
+      );
+    }
+    if (toNumber(settlement.service_fee_amount) <= 0.005) {
+      throw new AppError(409, "NO_SERVICE_FEE", "This settlement has no service fee instruction.");
+    }
+    const st = settlement.service_fee_trustee_status;
+    if (st !== ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED) {
+      throw new AppError(
+        409,
+        "SERVICE_FEE_TRUSTEE_LETTER_REQUIRED",
+        "Generate the trustee instruction PDF before marking it submitted."
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const row = await tx.noteSettlement.updateMany({
+        where: {
+          id: settlementId,
+          note_id: noteId,
+          service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED,
+        },
+        data: {
+          service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+          service_fee_trustee_submitted_at: new Date(),
+        },
+      });
+      if (row.count !== 1) {
+        throw new AppError(
+          409,
+          "SERVICE_FEE_TRUSTEE_LETTER_REQUIRED",
+          "Generate the trustee instruction PDF before marking it submitted."
+        );
+      }
+      await this.logEvent(tx, noteId, "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED", actor, {
+        settlementId,
+      });
+    });
+
+    return this.getAdminNoteDetail(noteId);
+  }
+
+  async markServiceFeeTrusteeInstructionCompleted(
+    noteId: string,
+    settlementId: string,
+    actor: ActorContext
+  ) {
+    const settlement = await prisma.noteSettlement.findFirst({
+      where: { id: settlementId, note_id: noteId },
+    });
+    if (!settlement) {
+      throw new AppError(404, "SETTLEMENT_NOT_FOUND", "Settlement not found");
+    }
+    if (settlement.status !== NoteSettlementStatus.POSTED) {
+      throw new AppError(
+        409,
+        "SETTLEMENT_NOT_POSTED",
+        "Only posted settlements can complete the service fee trustee workflow."
+      );
+    }
+    if (toNumber(settlement.service_fee_amount) <= 0.005) {
+      throw new AppError(409, "NO_SERVICE_FEE", "This settlement has no service fee instruction.");
+    }
+    if (settlement.service_fee_trustee_status !== ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE) {
+      throw new AppError(
+        409,
+        "SERVICE_FEE_TRUSTEE_NOT_SUBMITTED",
+        "Mark the instruction submitted to the trustee before completing it."
+      );
+    }
+
+    const completedAt = new Date();
+    await prisma.$transaction(async (tx) => {
+      const row = await tx.noteSettlement.updateMany({
+        where: {
+          id: settlementId,
+          note_id: noteId,
+          service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+        },
+        data: {
+          service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.COMPLETED,
+          service_fee_trustee_completed_at: completedAt,
+        },
+      });
+      if (row.count !== 1) {
+        throw new AppError(
+          409,
+          "SERVICE_FEE_TRUSTEE_NOT_SUBMITTED",
+          "Mark the instruction submitted to the trustee before completing it."
+        );
+      }
+      await this.logEvent(tx, noteId, "SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED", actor, {
+        settlementId,
+        completedAt: completedAt.toISOString(),
+      });
+    });
+
+    return this.getAdminNoteDetail(noteId);
+  }
+
   async markDefault(id: string, reason: string, actor: ActorContext) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
@@ -3320,6 +3619,7 @@ export class NoteService {
       arrearsThresholdDays: settings.arrears_threshold_days,
       tawidhRateCapPercent: toNumber(settings.tawidh_rate_cap_percent),
       gharamahRateCapPercent: toNumber(settings.gharamah_rate_cap_percent),
+      platformFeeRateCapPercent: toNumber(settings.platform_fee_rate_cap_percent),
       defaultTawidhRatePercent: toNumber(settings.default_tawidh_rate_percent),
       defaultGharamahRatePercent: toNumber(settings.default_gharamah_rate_percent),
       withdrawalLetterTemplate: settings.withdrawal_letter_template,
@@ -3344,6 +3644,8 @@ export class NoteService {
           input.tawidhRateCapPercent != null ? money(input.tawidhRateCapPercent) : undefined,
         gharamah_rate_cap_percent:
           input.gharamahRateCapPercent != null ? money(input.gharamahRateCapPercent) : undefined,
+        platform_fee_rate_cap_percent:
+          input.platformFeeRateCapPercent != null ? money(input.platformFeeRateCapPercent) : undefined,
         default_tawidh_rate_percent:
           input.defaultTawidhRatePercent != null
             ? money(input.defaultTawidhRatePercent)
@@ -3364,6 +3666,8 @@ export class NoteService {
           input.tawidhRateCapPercent != null ? money(input.tawidhRateCapPercent) : undefined,
         gharamah_rate_cap_percent:
           input.gharamahRateCapPercent != null ? money(input.gharamahRateCapPercent) : undefined,
+        platform_fee_rate_cap_percent:
+          input.platformFeeRateCapPercent != null ? money(input.platformFeeRateCapPercent) : undefined,
         default_tawidh_rate_percent:
           input.defaultTawidhRatePercent != null
             ? money(input.defaultTawidhRatePercent)
@@ -3745,6 +4049,16 @@ export class NoteService {
   private resolvePaymasterName(paymaster: Record<string, unknown> | null): string | null {
     const name = paymaster?.name ?? paymaster?.company_name ?? paymaster?.business_name;
     return typeof name === "string" ? name : null;
+  }
+
+  private async resolvePlatformFeeRateCapPercent(): Promise<number> {
+    const settings = await prisma.platformFinanceSetting.upsert({
+      where: { key: "DEFAULT" },
+      update: {},
+      create: { key: "DEFAULT" },
+      select: { platform_fee_rate_cap_percent: true },
+    });
+    return toNumber(settings.platform_fee_rate_cap_percent);
   }
 
   private async logEvent(

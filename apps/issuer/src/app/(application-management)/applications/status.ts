@@ -110,6 +110,8 @@ export interface NormalizedInvoice {
   document: string;
   documentS3Key: string | null;
   financingOffered: string;
+  /** Platform fee (% at disbursement) when an offer exists; "—" otherwise. */
+  platformFee: string;
   profitRate: string;
   status: string;
   offerStatus: "Offer received" | null;
@@ -345,6 +347,32 @@ export function getCardStatus(input: {
   if (app === "APPROVED") return { badgeKey: "accepted", displayLabel: "Approved", showReviewOffer: false, showMakeAmendments: false };
 
   return { badgeKey: "draft", displayLabel: "Draft", showReviewOffer: false, showMakeAmendments: false };
+}
+
+export function countPendingIssuerOfferReviewItems(app: NormalizedApplication): number {
+  let n = 0;
+  const hasContract = app.type === "Contract financing";
+  if (
+    app.cardStatus.showReviewOffer &&
+    hasContract &&
+    app.contractId &&
+    app.contractStatus === "OFFER_SENT"
+  ) {
+    n += 1;
+  }
+  for (const inv of app.invoices) {
+    const invStatus = String(inv.status ?? "").toUpperCase();
+    if (invStatus === "OFFER_SENT" && inv.canReviewOffer) {
+      n += 1;
+    }
+  }
+  return n;
+}
+
+export function countPendingIssuerOfferReviewsAcross(
+  apps: readonly NormalizedApplication[]
+): number {
+  return apps.reduce((sum, app) => sum + countPendingIssuerOfferReviewItems(app), 0);
 }
 
 /**

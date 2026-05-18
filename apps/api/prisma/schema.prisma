@@ -774,6 +774,9 @@ model NoteSettlement {
   approved_at             DateTime?
   posted_at               DateTime?
   idempotency_key         String?               @unique
+  service_fee_trustee_status        ServiceFeeTrusteeInstructionStatus?
+  service_fee_trustee_submitted_at  DateTime?
+  service_fee_trustee_completed_at  DateTime?
   created_at              DateTime              @default(now())
   updated_at              DateTime              @updatedAt
   note                    Note                  @relation(fields: [note_id], references: [id], onDelete: Cascade)
@@ -783,6 +786,7 @@ model NoteSettlement {
   @@index([payment_id])
   @@index([status])
   @@index([posted_at])
+  @@index([service_fee_trustee_status])
   @@map("note_settlements")
 }
 
@@ -877,6 +881,7 @@ model PlatformFinanceSetting {
   arrears_threshold_days          Int      @default(14)
   tawidh_rate_cap_percent         Decimal  @default(1) @db.Decimal(5, 2)
   gharamah_rate_cap_percent       Decimal  @default(9) @db.Decimal(5, 2)
+  platform_fee_rate_cap_percent   Decimal  @default(3) @db.Decimal(5, 2)
   default_tawidh_rate_percent     Decimal  @default(0) @db.Decimal(5, 2)
   default_gharamah_rate_percent   Decimal  @default(0) @db.Decimal(5, 2)
   withdrawal_letter_template      String   @default("DEFAULT_WITHDRAWAL_LETTER")
@@ -1424,6 +1429,13 @@ enum NoteSettlementType {
   ADVANCE
   LATE
   DEFAULT_RECOVERY
+}
+
+enum ServiceFeeTrusteeInstructionStatus {
+  PENDING_LETTER
+  LETTER_GENERATED
+  SUBMITTED_TO_TRUSTEE
+  COMPLETED
 }
 
 enum NoteLedgerAccountType {
