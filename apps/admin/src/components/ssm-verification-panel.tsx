@@ -366,27 +366,63 @@ function normalizeCompanyNameForMatch(name: string): string {
   const upper = name.trim().toUpperCase();
   // Replace punctuation with spaces, then remove extra spaces.
   const noPunct = upper.replace(/[.,/\\-]/g, " ");
-  return noPunct.replace(/\s+/g, " ").trim();
+  const collapsed = noPunct.replace(/\s+/g, " ").trim();
+
+  // Normalize common Malaysian company suffix variants so they compare more fairly.
+  // Examples:
+  // - "SENDIRIAN BERHAD" -> "SDN BHD"
+  // - "SDN. BHD." -> "SDN BHD" (already handled by punctuation stripping, kept for clarity)
+  const normalizedSuffix = collapsed
+    .replace(/\bSENDIRIAN\s+BERHAD\b/g, "SDN BHD")
+    .replace(/\bSDN\.?\s*BHD\b/g, "SDN BHD");
+
+  return normalizedSuffix.replace(/\s+/g, " ").trim();
 }
 
-function isCompanyNameMatchTolerant(applicationName: string, ctosName: string): boolean {
-  const a = normalizeCompanyNameForMatch(applicationName);
-  const b = normalizeCompanyNameForMatch(ctosName);
-  if (!a || !b) return false;
-  if (a === b) return true;
+function getCompanyNameSimilarityPercent(
+  applicationName: string,
+  ctosName: string
+): number | null {
+  const rawA = String(applicationName ?? "").trim();
+  const rawB = String(ctosName ?? "").trim();
+  if (!rawA || rawA === "—") return null;
+  if (!rawB || rawB === "—") return null;
 
-  // Quick containment for cases where only small parts differ.
-  if (a.includes(b) || b.includes(a)) return true;
+  const a = normalizeCompanyNameForMatch(rawA);
+  const b = normalizeCompanyNameForMatch(rawB);
+  if (!a || !b) return null;
+
+  if (a === b) return 100;
+
+  // Containment is common for small punctuation/wording differences.
+  if (a.includes(b) || b.includes(a)) return 95;
 
   // Token overlap fallback: require that most tokens are shared.
   const tokensA = Array.from(new Set(a.split(" ").filter(Boolean)));
   const tokensB = Array.from(new Set(b.split(" ").filter(Boolean)));
-  if (tokensA.length === 0 || tokensB.length === 0) return false;
+  if (tokensA.length === 0 || tokensB.length === 0) return null;
+
   const setB = new Set(tokensB);
   let common = 0;
   for (const t of tokensA) if (setB.has(t)) common++;
+
   const similarity = common / Math.max(tokensA.length, tokensB.length);
-  return similarity >= 0.85;
+  const score = Math.round(similarity * 100);
+  return Math.max(0, Math.min(100, score));
+}
+
+function getCompanyNameSimilarityLabel(similarityPct: number | null): string {
+  if (similarityPct === null) return "Not available";
+  if (similarityPct >= 90) return "High match";
+  if (similarityPct >= 70) return "Possible match";
+  return "Low match";
+}
+
+function getCompanyNameSimilarityBadgeClassName(similarityPct: number | null): string {
+  if (similarityPct === null) return "border-border bg-muted/50 text-muted-foreground";
+  if (similarityPct >= 90) return "border-emerald-200 bg-emerald-50 text-emerald-900";
+  if (similarityPct >= 70) return "border-amber-200 bg-amber-50 text-amber-900";
+  return "border-destructive/40 bg-destructive/5 text-destructive";
 }
 
 function ctosCompanyCell(
@@ -1025,23 +1061,51 @@ export function SSMVerificationPanel({
                               </span>
                               {useOrgCtosFlow &&
                               orgFetchState !== "not_pulled" &&
-                              orgFetchState !== "no_record" &&
-                              String(company.ctosName ?? "").trim() !== "" &&
-                              String(company.applicationName ?? "").trim() !== "" ? (
-                                isCompanyNameMatchTolerant(
-                                  String(company.applicationName),
-                                  String(company.ctosName)
-                                ) ? (
-                                  <CheckCircleIcon
-                                    className="h-4 w-4 text-emerald-600"
-                                    aria-label="Company name matches"
-                                  />
-                                ) : (
-                                  <XCircleIcon
-                                    className="h-4 w-4 text-destructive"
-                                    aria-label="Company name mismatch"
-                                  />
-                                )
+                              orgFetchState !== "no_record" ? (
+                                (() => {
+                                  const similarityPct = getCompanyNameSimilarityPercent(
+                                    String(company.applicationName ?? ""),
+                                    String(company.ctosName ?? "")
+                                  );
+                                  const label = getCompanyNameSimilarityLabel(similarityPct);
+                                  const badgeClassName =
+                                    getCompanyNameSimilarityBadgeClassName(similarityPct);
+
+                                  if (similarityPct === null) {
+                                    return (
+                                      <Badge variant="outline" className={badgeClassName}>
+                                        {label}
+                                      </Badge>
+                                    );
+                                  }
+
+                                  return (
+                                    <>
+                                      {similarityPct >= 90 ? (
+                                        <CheckCircleIcon
+                                          className="h-4 w-4 text-emerald-600"
+                                          aria-label="Company name high match"
+                                        />
+                                      ) : similarityPct >= 70 ? (
+                                        <ExclamationTriangleIcon
+                                          className="h-4 w-4 text-amber-600"
+                                          aria-label="Company name possible match"
+                                        />
+                                      ) : (
+                                        <XCircleIcon
+                                          className="h-4 w-4 text-destructive"
+                                          aria-label="Company name low match"
+                                        />
+                                      )}
+                                      <span className="text-sm font-medium tabular-nums">
+                                        {similarityPct}%
+                                      </span>
+                                      <Badge variant="outline" className={badgeClassName}>
+                                        {label}
+                                      </Badge>
+                                    </>
+                                  );
+                                })()
                               ) : null}
                             </div>
                           </TableCell>
