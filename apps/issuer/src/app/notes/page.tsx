@@ -101,7 +101,7 @@ export default function IssuerNotesPage() {
     <div className={issuerMainContentClassName}>
       <div className={cn("min-w-0 max-w-full space-y-6", issuerPageGutterClassName)}>
         <div>
-          <h1 className="text-2xl font-semibold">My Notes</h1>
+          <h1 className="text-2xl font-semibold">Notes</h1>
           <p className="mt-1 text-muted-foreground">
             Track note funding, disbursement, repayment status, and payment instructions.
           </p>

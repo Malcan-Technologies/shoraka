@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
-import { DocumentTextIcon } from "@heroicons/react/24/outline";
+import { ChevronRightIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import {
   useHeader,
@@ -366,6 +367,25 @@ export default function IssuerNoteDetailPage() {
         : "Posted settlement allocation across the platform buckets.";
   const riskRating = getRiskRating(note);
   const riskRatingForBadge = riskRating === "—" ? null : riskRating;
+
+  const invoiceSnapshotRecord = asRecord(note.invoiceSnapshot);
+  const invoiceDetailsRecord = asRecord(invoiceSnapshotRecord?.details);
+  const invoiceNumberRaw =
+    invoiceDetailsRecord?.invoice_number ?? invoiceDetailsRecord?.number ?? null;
+  const invoiceNumberLabel =
+    typeof invoiceNumberRaw === "string" || typeof invoiceNumberRaw === "number"
+      ? String(invoiceNumberRaw).trim()
+      : "";
+  const contractSnapshotRecord = asRecord(note.contractSnapshot);
+  const contractDetailsRecord = asRecord(contractSnapshotRecord?.contract_details);
+  const contractTitleRaw =
+    contractDetailsRecord?.title ?? contractDetailsRecord?.contract_title ?? null;
+  const contractTitleLabel =
+    typeof contractTitleRaw === "string" ? contractTitleRaw.trim() : "";
+  const hasSourceCrumb = Boolean(note.sourceContractId || note.sourceInvoiceId);
+  const invoiceFinancingHref = invoiceNumberLabel
+    ? `/financing?tab=invoices&search=${encodeURIComponent(invoiceNumberLabel)}`
+    : "/financing?tab=invoices";
   const isSettled = note.servicingStatus === "SETTLED" || settlementSummary?.status === "POSTED";
   const paymentBlockedReason = isSettled
     ? "This note has been settled. Payment is closed and no further issuer payment confirmation is needed."
@@ -387,6 +407,49 @@ export default function IssuerNoteDetailPage() {
   return (
     <div className={issuerMainContentClassName}>
       <div className={cn("mx-auto w-full max-w-6xl space-y-6", issuerPageGutterClassName)}>
+        {hasSourceCrumb ? (
+          <nav
+            aria-label="Source"
+            className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground"
+          >
+            <Link
+              href="/financing"
+              className="font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              Financing
+            </Link>
+            {note.sourceContractId ? (
+              <>
+                <ChevronRightIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                <Link
+                  href={`/financing/contracts/${note.sourceContractId}`}
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  {contractTitleLabel ? `Contract: ${contractTitleLabel}` : "Contract"}
+                </Link>
+              </>
+            ) : null}
+            {note.sourceInvoiceId ? (
+              <>
+                <ChevronRightIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                {note.sourceContractId ? (
+                  <span className="font-medium text-muted-foreground">
+                    {invoiceNumberLabel ? `Invoice: ${invoiceNumberLabel}` : "Invoice"}
+                  </span>
+                    ) : (
+                      <Link
+                        href={invoiceFinancingHref}
+                        className="font-medium text-primary underline-offset-4 hover:underline"
+                      >
+                        {invoiceNumberLabel ? `Invoice: ${invoiceNumberLabel}` : "Invoice"}
+                      </Link>
+                    )}
+              </>
+            ) : null}
+            <ChevronRightIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="font-medium text-foreground">Note</span>
+          </nav>
+        ) : null}
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10">
