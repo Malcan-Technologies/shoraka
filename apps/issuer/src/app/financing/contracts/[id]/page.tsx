@@ -11,18 +11,20 @@ import { Button } from "@/components/ui/button";
 import { useIssuerDashboardContract } from "@/hooks/use-issuer-dashboard";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
+import { DashboardInvoiceCard } from "@/components/financing/invoice-card";
+import { FinancingInvoiceFilterToolbar } from "@/components/financing/filter-toolbars";
 import {
-  DashboardInvoiceCard,
   DEFAULT_INVOICE_FINANCING_LIST_FILTERS,
-  FinancingInvoiceFilterToolbar,
-  LabelValue,
   filterInvoices,
-  formatDate,
-  displayCell,
-  IssuerFinancingStatusBadge,
-  EM_DASH,
   type InvoiceFinancingListFiltersState,
-} from "@/components/dashboard/financing-section";
+} from "@/components/financing/filters";
+import {
+  EM_DASH,
+  IssuerFinancingStatusBadge,
+  LabelValue,
+  displayCell,
+  formatDate,
+} from "@/components/financing/utils";
 import { ReviewOfferModal } from "@/components/review-offer-modal";
 import { getOfferStatus } from "@/lib/offer-utils";
 import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labels";
@@ -142,7 +144,7 @@ export default function ContractDetailsPage() {
           variant="outline"
           className="h-10 shrink-0 gap-2 rounded-lg border-input px-3 text-sm font-medium focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:rounded-xl sm:px-4"
         >
-          <Link href="/">Back to dashboard</Link>
+          <Link href="/financing?tab=contracts">Back to Financing</Link>
         </Button>
       </section>
 

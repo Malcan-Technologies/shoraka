@@ -15,7 +15,9 @@ import { OnboardingStatusCard, getOnboardingSteps } from "../components/onboardi
 import { TermsAcceptanceCard } from "../components/terms-acceptance-card";
 import { AccountOverviewCard } from "../components/account-overview-card";
 import { RepaymentPerformanceCard } from "../components/repayment-performance-card";
-import { FinancingSection } from "../components/dashboard/financing-section";
+import { RecentApplicationsCard } from "../components/dashboard/recent-applications-card";
+import { RecentFinancingCard } from "../components/dashboard/recent-financing-card";
+import { RecentNotesCard } from "../components/dashboard/recent-notes-card";
 import { useHeader } from "@cashsouk/ui";
 import { useIssuerDashboard } from "../hooks/use-issuer-dashboard";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
@@ -294,7 +296,9 @@ function IssuerDashboardContent() {
                 }
               />
 
-              <FinancingSection organizationId={activeOrganization?.id} />
+              <RecentApplicationsCard />
+              <RecentFinancingCard organizationId={activeOrganization?.id} />
+              <RecentNotesCard />
             </>
           )}
         </div>

@@ -27,7 +27,7 @@ import type { WithdrawReason } from "@cashsouk/types";
 import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -725,17 +725,6 @@ export default function ApplicationsPage() {
     visiblePeopleForDsGating.length > 0 &&
     !areDirectorShareholdersReadyForApplicationSubmit({ people: visiblePeopleForDsGating });
 
-  const displayName = React.useMemo(() => {
-    if (!activeOrganization) return "";
-    if (activeOrganization.firstName && activeOrganization.lastName) {
-      return `${activeOrganization.firstName} ${activeOrganization.lastName}`;
-    }
-    if (activeOrganization.type === "COMPANY" && activeOrganization.name) {
-      return activeOrganization.name;
-    }
-    return activeOrganization.type === "PERSONAL" ? "Personal Account" : "Company Account";
-  }, [activeOrganization]);
-
   return (
     <div className={issuerMainContentClassName}>
       <div className={cn("min-w-0 max-w-full", issuerPageGutterClassName)}>
@@ -785,43 +774,25 @@ export default function ApplicationsPage() {
         </Card>
       )}
 
-      <section className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+      <section className="mb-6 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
-              Welcome back, {displayName}!
-            </h2>
-          </div>
-          <p className="text-[17px] leading-7 text-muted-foreground mt-1">
-            Manage your financing applications from this dashboard.
+          <h1 className="text-2xl font-semibold">Applications</h1>
+          <p className="mt-1 text-muted-foreground">
+            Manage your financing applications, drafts, and offers.
           </p>
         </div>
         <Button
           asChild
-          className="gap-2 bg-primary text-primary-foreground shadow-brand hover:opacity-95 h-11 rounded-xl font-semibold shrink-0"
+          className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95"
         >
           <Link href="/applications/new">
             <PlusIcon className="h-4 w-4" />
-            Get Financed
+            Apply for financing
           </Link>
         </Button>
       </section>
 
-      <Card className="min-w-0 max-w-full border-none bg-transparent shadow-none">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6 px-0">
-          <div className="flex items-center gap-2">
-            <CardTitle className="text-2xl md:text-3xl font-bold tracking-tight">
-              Applications
-            </CardTitle>
-            <Badge
-              variant="secondary"
-              className="rounded-full bg-muted text-muted-foreground font-medium px-3 py-1"
-            >
-              {filteredApplications.length}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0 space-y-6">
+      <div className="space-y-6">
           {/* FILTER: Search + Status (multi) + Filters (Submitted, Financing, Offer expiring) + Clear + count. */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 w-full">
             <div className="relative flex-1 w-full">
@@ -1161,8 +1132,7 @@ export default function ApplicationsPage() {
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
+      </div>
 
       <ConfirmDialog
         open={deleteDraftDialogOpen}

@@ -12,6 +12,8 @@ import {
   UserCircleIcon,
   ClockIcon,
   DocumentTextIcon,
+  DocumentDuplicateIcon,
+  BanknotesIcon,
   QuestionMarkCircleIcon,
 } from "@heroicons/react/24/outline";
 
@@ -181,17 +183,54 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     className="opacity-50 cursor-not-allowed"
                   >
                     <DocumentTextIcon className="h-4 w-4" />
-                    <span>Notes</span>
+                    <span>Applications</span>
+                  </SidebarMenuButton>
+                ) : (
+                  <>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname === "/applications" || pathname.startsWith("/applications/")}
+                      tooltip="Applications"
+                    >
+                      <Link
+                        href="/applications"
+                        aria-label={
+                          pendingOfferReviewCount > 0
+                            ? `Applications, ${pendingOfferReviewCount} offer${pendingOfferReviewCount === 1 ? "" : "s"} to review`
+                            : "Applications"
+                        }
+                      >
+                        <DocumentTextIcon className="h-4 w-4" />
+                        <span>Applications</span>
+                      </Link>
+                    </SidebarMenuButton>
+                    {pendingOfferReviewCount > 0 ? (
+                      <SidebarMenuBadge className="bg-primary text-primary-foreground peer-hover/menu-button:text-primary-foreground peer-data-[active=true]/menu-button:text-primary-foreground">
+                        {pendingOfferReviewCount}
+                      </SidebarMenuBadge>
+                    ) : null}
+                  </>
+                )}
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                {isDisabled ? (
+                  <SidebarMenuButton
+                    disabled
+                    tooltip="Complete onboarding to access"
+                    className="opacity-50 cursor-not-allowed"
+                  >
+                    <BanknotesIcon className="h-4 w-4" />
+                    <span>Financing</span>
                   </SidebarMenuButton>
                 ) : (
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname === "/notes" || pathname.startsWith("/notes/")}
-                    tooltip="Notes"
+                    isActive={pathname === "/financing" || pathname.startsWith("/financing/")}
+                    tooltip="Financing"
                   >
-                    <Link href="/notes">
-                      <DocumentTextIcon className="h-4 w-4" />
-                      <span>Notes</span>
+                    <Link href="/financing">
+                      <BanknotesIcon className="h-4 w-4" />
+                      <span>Financing</span>
                     </Link>
                   </SidebarMenuButton>
                 )}
@@ -203,34 +242,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     tooltip="Complete onboarding to access"
                     className="opacity-50 cursor-not-allowed"
                   >
-                    <DocumentTextIcon className="h-4 w-4" />
-                    <span>Application</span>
+                    <DocumentDuplicateIcon className="h-4 w-4" />
+                    <span>Notes</span>
                   </SidebarMenuButton>
                 ) : (
-                  <>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={pathname === "/applications" || pathname.startsWith("/applications/")}
-                      tooltip="Application"
-                    >
-                      <Link
-                        href="/applications"
-                        aria-label={
-                          pendingOfferReviewCount > 0
-                            ? `Application, ${pendingOfferReviewCount} offer${pendingOfferReviewCount === 1 ? "" : "s"} to review`
-                            : "Application"
-                        }
-                      >
-                        <DocumentTextIcon className="h-4 w-4" />
-                        <span>Application</span>
-                      </Link>
-                    </SidebarMenuButton>
-                    {pendingOfferReviewCount > 0 ? (
-                      <SidebarMenuBadge className="bg-primary text-primary-foreground peer-hover/menu-button:text-primary-foreground peer-data-[active=true]/menu-button:text-primary-foreground">
-                        {pendingOfferReviewCount}
-                      </SidebarMenuBadge>
-                    ) : null}
-                  </>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === "/notes" || pathname.startsWith("/notes/")}
+                    tooltip="Notes"
+                  >
+                    <Link href="/notes">
+                      <DocumentDuplicateIcon className="h-4 w-4" />
+                      <span>Notes</span>
+                    </Link>
+                  </SidebarMenuButton>
                 )}
               </SidebarMenuItem>
               <SidebarMenuItem>
