@@ -6,7 +6,12 @@ import { format } from "date-fns";
 import { ArrowDownTrayIcon, CheckCircleIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { parseMoney } from "@cashsouk/ui";
-import type { NoteDetail, NotePayment, NotePaymentSource, ServiceFeeTrusteeInstructionStatus } from "@cashsouk/types";
+import type {
+  NoteDetail,
+  NotePayment,
+  NotePaymentSource,
+  ServiceFeeTrusteeInstructionStatus,
+} from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1416,8 +1421,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                     description="Charity/penalty portion of late charges."
                   />
                 </div>
-                {persistedPostedSettlement &&
-                persistedPostedSettlement.serviceFeeAmount > 0.005 ? (
+                {persistedPostedSettlement && persistedPostedSettlement.serviceFeeAmount > 0.005 ? (
                   <div
                     className={cn(
                       "mt-4 rounded-xl border p-4",
@@ -1483,9 +1487,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                           type="button"
                           variant={serviceFeeTrusteeNeedsPdf ? "destructive" : "outline"}
                           onClick={() => void handleServiceFeeTrusteeLetter()}
-                          disabled={
-                            serviceFeeTrusteeLetterLocked || serviceFeeTrusteePendingAny
-                          }
+                          disabled={serviceFeeTrusteeLetterLocked || serviceFeeTrusteePendingAny}
                         >
                           Generate PDF
                         </Button>

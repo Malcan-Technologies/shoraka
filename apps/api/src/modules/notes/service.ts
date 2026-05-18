@@ -3431,10 +3431,31 @@ export class NoteService {
     const key = `note-letters/${noteId}/service-fee-trustee/${settlementId}-${Date.now()}.pdf`;
     await putS3ObjectBuffer({ key, body: buffer, contentType: "application/pdf" });
     await prisma.$transaction(async (tx) => {
-      await tx.noteSettlement.update({
-        where: { id: settlementId },
+      const row = await tx.noteSettlement.updateMany({
+        where: {
+          id: settlementId,
+          note_id: noteId,
+          OR: [
+            { service_fee_trustee_status: null },
+            {
+              service_fee_trustee_status: {
+                notIn: [
+                  ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+                  ServiceFeeTrusteeInstructionStatus.COMPLETED,
+                ],
+              },
+            },
+          ],
+        },
         data: { service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED },
       });
+      if (row.count !== 1) {
+        throw new AppError(
+          409,
+          "SERVICE_FEE_TRUSTEE_LETTER_LOCKED",
+          "The instruction has already been submitted to the trustee and cannot be regenerated."
+        );
+      }
       await this.logEvent(tx, noteId, "SERVICE_FEE_TRUSTEE_LETTER_GENERATED", actor, {
         s3Key: key,
         settlementId: settlement.id,
