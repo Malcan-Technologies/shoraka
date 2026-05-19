@@ -533,6 +533,22 @@ export interface WithdrawalInstruction {
   status: WithdrawalStatus;
   withdrawalType: WithdrawalType;
   amount: number;
+  /** Present only for some issuer disbursement withdrawals (contract financing). */
+  grossFundedAmount?: number;
+  /** Present only for some issuer disbursement withdrawals (contract financing). */
+  platformFeeAmount?: number;
+  /** Present only for some issuer disbursement withdrawals (contract financing). */
+  facilityFeeRatePercent?: number;
+  /** Present only for some issuer disbursement withdrawals (contract financing). */
+  facilityFeeCap?: number;
+  /** Present only for some issuer disbursement withdrawals (contract financing). */
+  facilityFeePaidBefore?: number;
+  /** Present only for some issuer disbursement withdrawals (contract financing). */
+  facilityFeeCharged?: number;
+  /** Present only for some issuer disbursement withdrawals (contract financing). */
+  facilityFeeRemainingAfter?: number;
+  /** Present only for some issuer disbursement withdrawals (contract financing). */
+  netIssuerDisbursement?: number;
   currency: string;
   beneficiarySnapshot: Record<string, unknown>;
   letterS3Key: string | null;

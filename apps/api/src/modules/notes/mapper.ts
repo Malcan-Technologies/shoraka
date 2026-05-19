@@ -56,6 +56,32 @@ function normaliseBeneficiarySnapshot(raw: Prisma.JsonValue | null): Record<stri
 }
 
 export function mapWithdrawalInstruction(withdrawal: WithdrawalRecord) {
+  const metadata = asRecord(withdrawal.metadata);
+  const grossFundedAmount = metadata
+    ? numberFromUnknownOrUndefined(metadata.grossFundedAmount)
+    : undefined;
+  const platformFeeAmount = metadata
+    ? numberFromUnknownOrUndefined(metadata.platformFeeAmount)
+    : undefined;
+  const facilityFeeRatePercent = metadata
+    ? numberFromUnknownOrUndefined(metadata.facilityFeeRatePercent)
+    : undefined;
+  const facilityFeeCap = metadata
+    ? numberFromUnknownOrUndefined(metadata.facilityFeeCap)
+    : undefined;
+  const facilityFeePaidBefore = metadata
+    ? numberFromUnknownOrUndefined(metadata.facilityFeePaidBefore)
+    : undefined;
+  const facilityFeeCharged = metadata
+    ? numberFromUnknownOrUndefined(metadata.facilityFeeCharged)
+    : undefined;
+  const facilityFeeRemainingAfter = metadata
+    ? numberFromUnknownOrUndefined(metadata.facilityFeeRemainingAfter)
+    : undefined;
+  const netIssuerDisbursement = metadata
+    ? numberFromUnknownOrUndefined(metadata.netIssuerDisbursement)
+    : undefined;
+
   return {
     id: withdrawal.id,
     noteId: withdrawal.note_id,
@@ -67,6 +93,14 @@ export function mapWithdrawalInstruction(withdrawal: WithdrawalRecord) {
     status: withdrawal.status,
     withdrawalType: withdrawal.withdrawal_type,
     amount: decimalToNumber(withdrawal.amount),
+    grossFundedAmount,
+    platformFeeAmount,
+    facilityFeeRatePercent,
+    facilityFeeCap,
+    facilityFeePaidBefore,
+    facilityFeeCharged,
+    facilityFeeRemainingAfter,
+    netIssuerDisbursement,
     currency: withdrawal.currency,
     beneficiarySnapshot: normaliseBeneficiarySnapshot(withdrawal.beneficiary_snapshot),
     letterS3Key: withdrawal.letter_s3_key,
@@ -100,6 +134,17 @@ function numberFromUnknown(value: unknown): number {
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
+}
+
+function numberFromUnknownOrUndefined(value: unknown): number | undefined {
+  if (value == null) return undefined;
+  if (value instanceof Prisma.Decimal) return value.toNumber();
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value.replace(/,/g, ""));
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
 }
 
 function resolveInvoiceAmount(note: NoteWithRelations): number {
