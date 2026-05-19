@@ -320,6 +320,18 @@ model IssuerOrganization {
   @@map("issuer_organizations")
 }
 
+model IssuerOrganizationFinancialStatement {
+  id                           String        @id @default(cuid())
+  issuer_organization_id      String        @unique
+  financial_statements        Json
+  source_application_id       String?
+  source_application_revision_id String?
+  created_at                   DateTime      @default(now())
+  updated_at                   DateTime      @updatedAt
+
+  @@map("issuer_organization_financial_statements")
+}
+
 model CtosPartySupplement {
   id                       String   @id @default(cuid())
   issuer_organization_id   String?

@@ -1127,6 +1127,21 @@ export function createOrganizationRouter(): Router {
   router.get("/issuer/:id", requireAuth, (req, res, next) =>
     getOrganization(req, res, next, "issuer")
   );
+  router.get("/issuer/:id/financial-statements/latest", requireAuth, async (req, res, next) => {
+    try {
+      const userId = getUserId(req);
+      const { id } = organizationIdParamSchema.parse(req.params);
+
+      const latest = await organizationService.getIssuerOrganizationLatestFinancialStatements(userId, id);
+
+      res.json({
+        success: true,
+        data: latest,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
   router.patch("/issuer/:id", requireAuth, (req, res, next) =>
     updateOrganizationProfile(req, res, next, "issuer")
   );

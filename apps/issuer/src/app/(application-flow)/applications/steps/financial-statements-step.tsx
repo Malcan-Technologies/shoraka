@@ -17,7 +17,7 @@
  */
 
 import * as React from "react";
-import { useApplication } from "@/hooks/use-applications";
+import { useApplication, useIssuerOrganizationLatestFinancialStatements } from "@/hooks/use-applications";
 import { Label } from "@/components/ui/label";
 import { DateInput } from "@/app/(application-flow)/applications/components/date-input";
 import { cn } from "@/lib/utils";
@@ -417,6 +417,24 @@ export function FinancialStatementsStep({
   readOnly = false,
 }: FinancialStatementsStepProps) {
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
+  const [autoPrefillApplied, setAutoPrefillApplied] = React.useState(false);
+
+  const appShape = application as
+    | (typeof application & {
+        issuer_organization_id?: string | null;
+        financial_statements?: unknown;
+      })
+    | null;
+  const organizationId = appShape?.issuer_organization_id ?? undefined;
+  const savedFinancialStatements = appShape?.financial_statements as unknown;
+  const hasV2FinancialStatements = isV2FinancialSaved(savedFinancialStatements);
+  const shouldAttemptAutoPrefill =
+    !autoPrefillApplied && !!organizationId && !hasV2FinancialStatements && (savedFinancialStatements == null);
+
+  const orgLatestFinancialStatementsQuery = useIssuerOrganizationLatestFinancialStatements(
+    organizationId,
+    shouldAttemptAutoPrefill
+  );
   const devTools = useDevTools();
 
   const [fyeDateInput, setFyeDateInput] = React.useState("");
@@ -456,17 +474,68 @@ export function FinancialStatementsStep({
         );
         console.log("Financial step v2 payload missing valid questionnaire; forms only");
       }
+      setIsInitialized(true);
+      return;
     } else {
-      setInitialPayloadSnapshot(
-        JSON.stringify({
-          questionnaire: { financial_year_end: "" },
-          unaudited_by_year: {},
-        })
-      );
-      console.log("Financial step empty — start questionnaire");
+      // If the app already has *some* financial_statements (even non-v2), don't overwrite.
+      if (saved != null) {
+        setInitialPayloadSnapshot(
+          JSON.stringify({
+            questionnaire: { financial_year_end: "" },
+            unaudited_by_year: {},
+          })
+        );
+        setIsInitialized(true);
+        return;
+      }
+
+      // No financial_statements on the app yet: try org-level auto-prefill once.
+      if (shouldAttemptAutoPrefill) {
+        if (orgLatestFinancialStatementsQuery.isLoading || orgLatestFinancialStatementsQuery.data === undefined) return;
+
+        const latest = orgLatestFinancialStatementsQuery.data;
+        if (latest?.financial_statements && isV2FinancialSaved(latest.financial_statements)) {
+          const qNorm = normalizeFinancialStatementsQuestionnaire(latest.financial_statements.questionnaire);
+          const map: Record<string, FinancialStatementsPayload> = {};
+          for (const [k, v] of Object.entries(latest.financial_statements.unaudited_by_year)) {
+            map[k] = fromSaved(v);
+          }
+          setFormsByYear(map);
+
+          if (qNorm) {
+            setFyeDateInput(isoToApplicationFlowDateDisplay(qNorm.financial_year_end));
+            const built = buildV2ApiPayload(qNorm, map);
+            setInitialPayloadSnapshot(JSON.stringify(built));
+            setAutoPrefillApplied(true);
+          } else {
+            setInitialPayloadSnapshot(
+              JSON.stringify({
+                questionnaire: { financial_year_end: "" },
+                unaudited_by_year: {},
+              })
+            );
+          }
+        } else {
+          setInitialPayloadSnapshot(
+            JSON.stringify({
+              questionnaire: { financial_year_end: "" },
+              unaudited_by_year: {},
+            })
+          );
+        }
+      } else {
+        setInitialPayloadSnapshot(
+          JSON.stringify({
+            questionnaire: { financial_year_end: "" },
+            unaudited_by_year: {},
+          })
+        );
+      }
+
+      console.log("Financial step initialized (v2 saved / blank / org auto-prefill attempted)");
     }
     setIsInitialized(true);
-  }, [application, isInitialized]);
+  }, [application, isInitialized, shouldAttemptAutoPrefill, orgLatestFinancialStatementsQuery.isLoading, orgLatestFinancialStatementsQuery.data]);
 
   const questionnaireDto = React.useMemo((): FinancialStatementsQuestionnaire | null => {
     const iso = applicationFlowDateToIso(fyeDateInput);
@@ -878,6 +947,11 @@ export function FinancialStatementsStep({
           </div>
 
           <div className="space-y-4 px-3">
+            {autoPrefillApplied ? (
+              <p className="text-xs text-muted-foreground">
+                Auto-filled from previous submitted application. Please review before continuing.
+              </p>
+            ) : null}
           {!questionnaireDto ? (
             <div className={financialDetailsCenteredMessageBoxClassName}>
               <p className={financialDetailsCenteredMessageTextClassName}>

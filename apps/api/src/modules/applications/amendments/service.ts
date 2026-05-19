@@ -13,6 +13,7 @@ import { assertRequiredSupportingDocumentsPresent } from "../supporting-docs-wor
 import { buildApplicationRevisionSnapshot } from "../revision-snapshot";
 import { summarizeResubmitSnapshotDiff } from "../../application-revision-diff";
 import { Prisma } from "@prisma/client";
+import { upsertLatestOrganizationFinancialStatementsFromApplication } from "../issuer-organization-financial-statements";
 
 export interface AmendmentAllowedSections {
   allowedSections: Set<string>;
@@ -205,6 +206,8 @@ export async function resubmitApplication(
       ? summarizeResubmitSnapshotDiff(prevRevision.snapshot, nextSnapshot)
       : null;
 
+  let createdRevisionId: string | null = null;
+
   await prisma.$transaction(async (tx) => {
     await tx.applicationReviewRemark.deleteMany({
       where: {
@@ -228,7 +231,7 @@ export async function resubmitApplication(
     });
 
     if (appFullCurrent && nextSnapshot) {
-      await (tx as any).applicationRevision.create({
+      const created = await (tx as any).applicationRevision.create({
         data: {
           application_id: applicationId,
           review_cycle: newCycle,
@@ -236,6 +239,8 @@ export async function resubmitApplication(
           submitted_at: new Date(),
         },
       });
+
+      createdRevisionId = created?.id ?? null;
     }
 
     await tx.application.update({
@@ -250,6 +255,13 @@ export async function resubmitApplication(
   });
 
   logger.info({ applicationId }, "Application resubmitted: cleared amendment flags, created revision");
+
+  // Update org-level latest reusable financial statements for future app auto-prefill.
+  // Only happens on RESUBMITTED (not draft save).
+  await upsertLatestOrganizationFinancialStatementsFromApplication({
+    applicationId,
+    sourceApplicationRevisionId: createdRevisionId,
+  });
 
   const logMetadata: Record<string, unknown> = {
     portal: "ISSUER",
