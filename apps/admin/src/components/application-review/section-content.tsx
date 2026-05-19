@@ -136,7 +136,10 @@ export interface SectionContentProps {
   onRejectItem: (itemId: string, itemType: "invoice" | "document") => void;
   onRequestAmendmentItem: (itemId: string, itemType: "invoice" | "document") => void;
   onResetItemToPending?: (itemId: string, itemType: "invoice" | "document") => void;
-  onSendContractOffer?: (payload: { offeredFacility: number }) => Promise<void>;
+  onSendContractOffer?: (payload: {
+    offeredFacility: number;
+    facilityFeeRatePercent: number | null;
+  }) => Promise<void>;
   onSendInvoiceOffer?: (payload: {
     invoiceId: string;
     offeredAmount: number;

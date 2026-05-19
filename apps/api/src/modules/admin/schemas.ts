@@ -351,6 +351,7 @@ export const reviewItemRequestAmendmentSchema = reviewItemActionSchema.extend({
 
 export const sendContractOfferSchema = z.object({
   offeredFacility: z.coerce.number().positive("Offered facility must be greater than 0"),
+  facilityFeeRatePercent: z.coerce.number().min(0).max(100).optional().nullable(),
   expiresAt: z.string().datetime().optional().nullable(),
 });
 

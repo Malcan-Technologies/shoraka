@@ -981,12 +981,14 @@ export class ApiClient {
   async sendContractOffer(
     applicationId: string,
     offeredFacility: number,
+    facilityFeeRatePercent?: number | null,
     expiresAt?: string | null
   ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
     return this.post<AdminApplicationActionResult>(
       `/v1/admin/applications/${applicationId}/offers/contracts/send`,
       {
         offeredFacility,
+        facilityFeeRatePercent: facilityFeeRatePercent ?? null,
         expiresAt: expiresAt ?? null,
       }
     );

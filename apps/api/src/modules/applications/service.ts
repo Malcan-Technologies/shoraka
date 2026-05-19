@@ -1520,6 +1520,11 @@ export class ApplicationService {
       const newStatus = action === "accept" ? "APPROVED" : "WITHDRAWN";
       const offeredFacility = Number(offer.offered_facility) || 0;
       const requestedFacility = Number(offer.requested_facility) || 0;
+      const facilityFeeRatePercentRaw =
+        typeof offer.facility_fee_rate_percent === "number" ? offer.facility_fee_rate_percent : 0;
+      const facilityFeeRatePercent = Number.isFinite(facilityFeeRatePercentRaw)
+        ? facilityFeeRatePercentRaw
+        : 0;
 
       const updatedOffer = {
         ...offer,
@@ -1539,6 +1544,11 @@ export class ApplicationService {
             approved_facility: offeredFacility,
             utilized_facility: utilizedFacility,
             available_facility: offeredFacility - utilizedFacility,
+            facility_fee_rate_percent: facilityFeeRatePercent,
+            facility_fee_paid_amount:
+              typeof cd.facility_fee_paid_amount === "number" && Number.isFinite(cd.facility_fee_paid_amount)
+                ? (cd.facility_fee_paid_amount as number)
+                : 0,
           }
           : cd;
 

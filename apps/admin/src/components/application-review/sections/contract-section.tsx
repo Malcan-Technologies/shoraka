@@ -74,7 +74,7 @@ export interface ContractSectionProps {
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
-  onSendOffer?: (payload: { offeredFacility: number }) => Promise<void>;
+  onSendOffer?: (payload: { offeredFacility: number; facilityFeeRatePercent: number | null }) => Promise<void>;
   isSendOfferPending?: boolean;
   onViewDocument?: (s3Key: string) => void;
   onDownloadDocument?: (s3Key: string, fileName?: string) => void;
@@ -186,11 +186,22 @@ export function ContractSection({
     offerSentAtRaw != null;
   const seedOfferedInput = persistedOffered > 0 ? formatMoney(persistedOffered) : "";
   const [offeredFacilityInput, setOfferedFacilityInput] = React.useState<string>(seedOfferedInput);
+  const seedFacilityFeeRatePercent =
+    typeof offer?.facility_fee_rate_percent === "number" ? offer.facility_fee_rate_percent : null;
+  const seedFacilityFeeInput =
+    seedFacilityFeeRatePercent != null ? String(seedFacilityFeeRatePercent) : "";
+  const [facilityFeeRatePercentInput, setFacilityFeeRatePercentInput] = React.useState<string>(
+    seedFacilityFeeInput
+  );
   const [contractOfferConfirmOpen, setContractOfferConfirmOpen] = React.useState(false);
 
   React.useEffect(() => {
     setOfferedFacilityInput(persistedOffered > 0 ? formatMoney(persistedOffered) : "");
   }, [persistedOffered]);
+  React.useEffect(() => {
+    setFacilityFeeRatePercentInput(seedFacilityFeeInput);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offer?.facility_fee_rate_percent]);
 
   const hasData = cd || cust;
   const offeredFacility = parseMoney(offeredFacilityInput);
@@ -209,6 +220,21 @@ export function ContractSection({
     !isContractOfferSendLocked &&
     offeredFacility > 0 &&
     !offeredExceedsContractValue;
+  const facilityFeeRatePercentParsed = React.useMemo(() => {
+    const trimmed = facilityFeeRatePercentInput.trim();
+    if (!trimmed) return null;
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? n : null;
+  }, [facilityFeeRatePercentInput]);
+  const facilityFeeRatePercentError =
+    facilityFeeRatePercentParsed == null
+      ? facilityFeeRatePercentInput.trim().length > 0
+        ? "Facility fee rate must be a valid number"
+        : null
+      : facilityFeeRatePercentParsed < 0 || facilityFeeRatePercentParsed > 100
+        ? "Facility fee rate must be between 0 and 100%"
+        : null;
+  // Facility fee rate is optional; errors are only used to block "Send Offer" when a value is provided.
 
   const assertLargePrivateThenOpenOffer = () => {
     console.log("Customer Large Private:", largePrivateCompany);
@@ -230,7 +256,14 @@ export function ContractSection({
       return;
     }
     if (!onSendOffer || !canSendContractOffer) return;
-    await onSendOffer({ offeredFacility });
+    if (facilityFeeRatePercentError) {
+      toast.error(facilityFeeRatePercentError);
+      return;
+    }
+    await onSendOffer({
+      offeredFacility,
+      facilityFeeRatePercent: facilityFeeRatePercentParsed,
+    });
     setContractOfferConfirmOpen(false);
   };
 
@@ -503,6 +536,34 @@ export function ContractSection({
                       Offered facility cannot exceed contract value.
                     </p>
                   )}
+                </div>
+              </div>
+              <div className={reviewRowGridClass}>
+                <Label className={reviewLabelClass}>Facility fee rate (%)</Label>
+                <div className="flex flex-col gap-2">
+                  <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3">
+                    <input
+                      value={facilityFeeRatePercentInput}
+                      onChange={(e) => setFacilityFeeRatePercentInput(e.target.value)}
+                      placeholder="0"
+                      inputMode="decimal"
+                      disabled={
+                        !isReviewable ||
+                        !!isActionLocked ||
+                        !onSendOffer ||
+                        isContractApproved ||
+                        isContractOfferSendLocked
+                      }
+                      className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:max-w-[180px]"
+                      aria-invalid={!!facilityFeeRatePercentError}
+                    />
+                    <div className="text-xs text-muted-foreground">
+                      Applies only to Contract Financing; charged progressively at disbursement.
+                    </div>
+                  </div>
+                  {facilityFeeRatePercentError ? (
+                    <p className="text-sm text-destructive">{facilityFeeRatePercentError}</p>
+                  ) : null}
                 </div>
               </div>
             </div>

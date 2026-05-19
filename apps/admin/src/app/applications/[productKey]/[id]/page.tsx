@@ -1074,7 +1074,7 @@ export default function DynamicApplicationDetailPage() {
                               });
                               toast.success("Comment posted");
                             }}
-                            onSendContractOffer={async ({ offeredFacility }) => {
+                            onSendContractOffer={async ({ offeredFacility, facilityFeeRatePercent }) => {
                               try {
                                 const expiresAt = addDays(
                                   new Date(),
@@ -1083,6 +1083,7 @@ export default function DynamicApplicationDetailPage() {
                                 await sendContractOffer.mutateAsync({
                                   applicationId,
                                   offeredFacility,
+                                  facilityFeeRatePercent,
                                   expiresAt,
                                 });
                                 toast.success("Contract offer sent");

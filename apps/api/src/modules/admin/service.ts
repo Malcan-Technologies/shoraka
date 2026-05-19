@@ -5996,6 +5996,7 @@ export class AdminService {
   async sendContractOffer(
     applicationId: string,
     offeredFacility: number,
+    facilityFeeRatePercent: number | null,
     expiresAt: string | null,
     reviewerUserId: string,
     logContext?: AdminLogContext
@@ -6088,6 +6089,7 @@ export class AdminService {
       const offerDetails = {
         requested_facility: requestedFacility,
         offered_facility: offeredFacility,
+        facility_fee_rate_percent: facilityFeeRatePercent,
         expires_at: expiresAt,
         sent_at: now,
         responded_at: null,
