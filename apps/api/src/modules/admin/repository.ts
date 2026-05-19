@@ -2327,10 +2327,22 @@ export class AdminRepository {
       sourceApplicationId: string;
       sourceInvoiceId: string | null;
     }[];
+    offerSigning: unknown;
+    offerSigningHistory: unknown;
   } | null> {
     const contract = await prisma.contract.findUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        issuer_organization_id: true,
+        status: true,
+        created_at: true,
+        updated_at: true,
+        contract_details: true,
+        offer_details: true,
+        offer_signing: true,
+        offer_signing_history: true,
+        customer_details: true,
         issuer_organization: {
           select: {
             name: true,
@@ -2473,6 +2485,8 @@ export class AdminRepository {
         sourceApplicationId: note.source_application_id,
         sourceInvoiceId: note.source_invoice_id,
       })),
+      offerSigning: contract.offer_signing,
+      offerSigningHistory: contract.offer_signing_history,
     };
   }
 

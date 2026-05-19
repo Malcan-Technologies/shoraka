@@ -529,6 +529,8 @@ model Contract {
   withdraw_reason        WithdrawReason?
   /// SigningCloud offer-letter workflow (pending/signed metadata; no unsigned PDF stored)
   offer_signing          Json?
+  /// Archived signed offer versions superseded by admin re-sign
+  offer_signing_history  Json?
   /// SigningCloud contract number for webhook lookup (unique when set)
   signing_sc_contractnum String?            @unique
   applications           Application[]
@@ -551,6 +553,8 @@ model Invoice {
   withdraw_reason        WithdrawReason?
   /// SigningCloud offer-letter workflow (pending/signed metadata; no unsigned PDF stored)
   offer_signing          Json?
+  /// Archived signed offer versions superseded by admin re-sign
+  offer_signing_history  Json?
   /// SigningCloud contract number for webhook lookup (unique when set)
   signing_sc_contractnum String?         @unique
   application            Application     @relation(fields: [application_id], references: [id], onDelete: Cascade)

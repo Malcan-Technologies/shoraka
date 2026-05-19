@@ -18,6 +18,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useContractDetail } from "@/contracts/hooks/use-contract-detail";
+import { useResignContractOffer } from "@/contracts/hooks/use-resign-contract-offer";
+import { OfferSigningPanel } from "@/components/offer-signing-panel";
 import { useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
 import {
@@ -193,6 +195,7 @@ function ContractDetailSkeleton() {
 
 export function ContractDetailView({ contractId }: ContractDetailViewProps) {
   const { data, isLoading, error } = useContractDetail(contractId);
+  const resignOffer = useResignContractOffer(contractId);
   const { getAccessToken } = useAuthToken();
   const [isOpeningDocument, setIsOpeningDocument] = React.useState(false);
   const contractDetails = (data?.contractDetails ?? null) as Record<string, unknown> | null;
@@ -478,6 +481,22 @@ export function ContractDetailView({ contractId }: ContractDetailViewProps) {
                     </CardContent>
                   </Card>
                 </div>
+
+                {data.offerSigning ? (
+                  <OfferSigningPanel
+                    title="Signed contract offer"
+                    description="Review the active signed offer letter or prior archived copies. Request re-sign when the wrong person signed."
+                    signing={data.offerSigning}
+                    onResign={
+                      data.offerSigning.canResign
+                        ? async () => {
+                            await resignOffer.mutateAsync();
+                          }
+                        : undefined
+                    }
+                    resignPending={resignOffer.isPending}
+                  />
+                ) : null}
 
                 <Card className="rounded-2xl shadow-sm">
                   <CardHeader className="pb-3">

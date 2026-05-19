@@ -381,4 +381,5 @@ export * from "./onboarding-readiness";
 export * from "./ctos-party-supplement-json";
 export * from "./regtank-iso3166-countries";
 export * from "./notes";
+export * from "./offer-signing";
 export * from "./guarantors";
