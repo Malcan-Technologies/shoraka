@@ -491,6 +491,24 @@ export class ApiClient {
     return this.get<AdminContractDetail>(`/v1/admin/contracts/${id}`);
   }
 
+  async resignAdminContractOffer(
+    contractId: string
+  ): Promise<ApiResponse<{ applicationId: string }> | ApiError> {
+    return this.post<{ applicationId: string }>(
+      `/v1/admin/contracts/${encodeURIComponent(contractId)}/offers/resign`,
+      {}
+    );
+  }
+
+  async resignAdminNoteInvoiceOffer(
+    noteId: string
+  ): Promise<ApiResponse<{ applicationId: string; invoiceId: string }> | ApiError> {
+    return this.post<{ applicationId: string; invoiceId: string }>(
+      `/v1/admin/notes/${encodeURIComponent(noteId)}/offers/invoices/resign`,
+      {}
+    );
+  }
+
   async getAdminNotes(params: GetAdminNotesParams): Promise<ApiResponse<NotesResponse> | ApiError> {
     const queryParams = new URLSearchParams();
     queryParams.append("page", String(params.page));

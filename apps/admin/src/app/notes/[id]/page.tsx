@@ -46,6 +46,8 @@ import { NoteTermsPanel } from "@/notes/components/note-terms-panel";
 import { NoteTimelinePanel } from "@/notes/components/note-timeline-panel";
 import { SettlementPanel } from "@/notes/components/settlement-panel";
 import { SourceApplicationPanel } from "@/notes/components/source-application-panel";
+import { OfferSigningPanel } from "@/components/offer-signing-panel";
+import { useResignNoteInvoiceOffer } from "@/notes/hooks/use-resign-invoice-offer";
 import { isSoukscoreRiskRating, type NoteDetail, type NoteSettlementPoolSummary } from "@cashsouk/types";
 
 function PageSkeleton() {
@@ -152,6 +154,7 @@ export default function NoteDetailPage() {
   const router = useRouter();
   const noteId = typeof params.id === "string" ? params.id : "";
   const { data: note, isLoading, error } = useNoteDetail(noteId);
+  const resignInvoiceOffer = useResignNoteInvoiceOffer(noteId);
   const publishNote = usePublishNote();
   const unpublishNote = useUnpublishNote();
   const closeFunding = useCloseNoteFunding();
@@ -357,6 +360,22 @@ export default function NoteDetailPage() {
                 pending={lifecyclePending}
                 onRequestAction={(action) => setPendingAction(action)}
               />
+
+              {note.sourceInvoiceOfferSigning ? (
+                <OfferSigningPanel
+                  title="Signed invoice offer"
+                  description="Review the active signed invoice offer letter from the source application. Request re-sign when the wrong person signed."
+                  signing={note.sourceInvoiceOfferSigning}
+                  onResign={
+                    note.sourceInvoiceOfferSigning.canResign
+                      ? async () => {
+                          await resignInvoiceOffer.mutateAsync();
+                        }
+                      : undefined
+                  }
+                  resignPending={resignInvoiceOffer.isPending}
+                />
+              ) : null}
 
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)]">
                 <div className="min-w-0 space-y-6">

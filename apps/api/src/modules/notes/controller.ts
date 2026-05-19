@@ -161,6 +161,23 @@ adminNotesRouter.get("/:id", async (req: Request, res: Response, next: NextFunct
   }
 });
 
+adminNotesRouter.post("/:id/offers/invoices/resign", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const actor = getActor(req, res, "ADMIN");
+    const { id } = idParamSchema.parse(req.params);
+    send(
+      res,
+      await noteService.resignSourceInvoiceOffer(id, actor.userId, {
+        ipAddress: req.ip ?? null,
+        userAgent: req.get("user-agent") ?? null,
+        deviceInfo: null,
+      })
+    );
+  } catch (error) {
+    next(error);
+  }
+});
+
 adminNotesRouter.patch("/:id/draft", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);

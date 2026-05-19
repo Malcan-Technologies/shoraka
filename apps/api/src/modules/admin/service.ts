@@ -94,6 +94,14 @@ import { computeSupportingDocumentsSectionStatus } from "../applications/support
 import { computeInvoiceDetailsSectionStatus } from "../applications/invoice-details-section-status";
 import { assertMaturityForSendInvoiceOffer } from "../products/validate-financial-config";
 import { extractSubmittedAtFromWebhookPayloads } from "./extract-submitted-at";
+import {
+  adminResignContractOffer,
+  adminResignInvoiceOfferFromNote,
+} from "./offer-resign-service";
+import {
+  buildOfferSigningAdminView,
+  contractResignBlockedByNotes,
+} from "../signingcloud/offer-signing-admin-view";
 
 const APPLICATION_ACTION_REQUIRED_STATUSES = [
   ApplicationStatus.SUBMITTED,
@@ -4901,7 +4909,35 @@ export class AdminService {
     if (!contract) {
       throw new AppError(404, "NOT_FOUND", "Contract not found");
     }
-    return contract;
+    const primaryApplicationId = contract.applications[0]?.id ?? null;
+    const offerSigning = buildOfferSigningAdminView({
+      offerSigning: contract.offerSigning,
+      offerSigningHistory: contract.offerSigningHistory,
+      offerDetails: contract.offerDetails,
+      primaryApplicationId,
+      canResign: !contractResignBlockedByNotes(contract.notes),
+    });
+    const { offerSigning: _os, offerSigningHistory: _hist, ...rest } = contract;
+    return {
+      ...rest,
+      offerSigning,
+    };
+  }
+
+  async resignContractOffer(
+    contractId: string,
+    adminUserId: string,
+    logContext?: AdminLogContext
+  ) {
+    return adminResignContractOffer({ contractId, adminUserId, logContext });
+  }
+
+  async resignInvoiceOfferFromNote(
+    noteId: string,
+    adminUserId: string,
+    logContext?: AdminLogContext
+  ) {
+    return adminResignInvoiceOfferFromNote({ noteId, adminUserId, logContext });
   }
 
   /**

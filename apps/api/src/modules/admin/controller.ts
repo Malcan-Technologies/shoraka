@@ -2061,6 +2061,31 @@ router.get(
   }
 );
 
+router.post(
+  "/contracts/:id/offers/resign",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user?.user_id) {
+        throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      }
+      const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
+      const result = await adminService.resignContractOffer(req.params.id, req.user.user_id, {
+        ipAddress,
+        userAgent,
+        deviceInfo,
+      });
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 /**
  * @swagger
  * /v1/admin/applications/{id}:
