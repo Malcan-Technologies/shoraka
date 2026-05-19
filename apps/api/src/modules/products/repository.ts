@@ -16,11 +16,13 @@ export interface UpdateProductData {
   /** When true, replace workflow without incrementing version (used only for the first update right after create). */
   completeCreate?: boolean;
   offer_expiry_days?: number | null;
+  marketplace_listing_duration_days?: number | null;
 }
 
 export interface CreateProductData {
   workflow: unknown[];
   offer_expiry_days?: number | null;
+  marketplace_listing_duration_days?: number | null;
 }
 
 export interface LogContext {
@@ -133,6 +135,7 @@ export class ProductRepository {
           category_display_order: categoryDisplayOrder,
           product_display_order: nextProductOrder,
           offer_expiry_days: data.offer_expiry_days ?? undefined,
+          marketplace_listing_duration_days: data.marketplace_listing_duration_days ?? undefined,
         },
       } as any);
 
@@ -159,6 +162,7 @@ export class ProductRepository {
               category_display_order: createdAny.category_display_order ?? null,
               product_display_order: createdAny.product_display_order ?? null,
               offer_expiry_days: createdAny.offer_expiry_days ?? null,
+              marketplace_listing_duration_days: createdAny.marketplace_listing_duration_days ?? null,
               version: createdAny.version ?? null,
               base_id: createdAny.base_id ?? created.id ?? null,
               status: createdAny.status ?? null,
@@ -179,7 +183,11 @@ export class ProductRepository {
    * Otherwise: 1) Set old product INACTIVE, 2) Create new version row, 3) Return new product.
    */
   async update(id: string, data: UpdateProductData, logContext?: LogContext): Promise<Product> {
-    if (data.workflow === undefined && data.offer_expiry_days === undefined) {
+    if (
+      data.workflow === undefined &&
+      data.offer_expiry_days === undefined &&
+      data.marketplace_listing_duration_days === undefined
+    ) {
       return prisma.product.findUniqueOrThrow({ where: { id } });
     }
     const current = await prisma.product.findUnique({ where: { id } });
@@ -192,7 +200,15 @@ export class ProductRepository {
     const offerExpiryUnchanged =
       data.offer_expiry_days === undefined ||
       (data.offer_expiry_days === currentOfferExpiry || (data.offer_expiry_days == null && currentOfferExpiry == null));
-    if (workflowUnchanged && offerExpiryUnchanged) {
+    const currentMarketplaceListingDuration = (current as {
+      marketplace_listing_duration_days?: number | null;
+    }).marketplace_listing_duration_days ?? null;
+    const marketplaceListingDurationUnchanged =
+      data.marketplace_listing_duration_days === undefined ||
+      (data.marketplace_listing_duration_days === currentMarketplaceListingDuration ||
+        (data.marketplace_listing_duration_days == null && currentMarketplaceListingDuration == null));
+
+    if (workflowUnchanged && offerExpiryUnchanged && marketplaceListingDurationUnchanged) {
       return current;
     }
 
@@ -201,11 +217,16 @@ export class ProductRepository {
       const workflowPayload = (data.workflow === undefined ? current.workflow : data.workflow) as Prisma.InputJsonValue;
       const offerExpiryPayload =
         data.offer_expiry_days !== undefined ? data.offer_expiry_days : (current as { offer_expiry_days?: number | null }).offer_expiry_days ?? null;
+      const marketplaceListingDurationPayload =
+        data.marketplace_listing_duration_days !== undefined
+          ? data.marketplace_listing_duration_days
+          : (current as { marketplace_listing_duration_days?: number | null }).marketplace_listing_duration_days ?? null;
       const updated = await prisma.product.update({
         where: { id },
         data: {
           workflow: workflowPayload,
           offer_expiry_days: offerExpiryPayload ?? undefined,
+          marketplace_listing_duration_days: marketplaceListingDurationPayload ?? undefined,
         },
       } as any);
       if (logContext?.userId) {
@@ -215,6 +236,7 @@ export class ProductRepository {
           category_display_order: updatedAny.category_display_order ?? null,
           product_display_order: updatedAny.product_display_order ?? null,
           offer_expiry_days: updatedAny.offer_expiry_days ?? null,
+            marketplace_listing_duration_days: updatedAny.marketplace_listing_duration_days ?? null,
           version: updatedAny.version,
           base_id: updatedAny.base_id ?? null,
           status: updatedAny.status ?? null,
@@ -241,6 +263,10 @@ export class ProductRepository {
     const workflowPayload = (data.workflow === undefined ? current.workflow : data.workflow) as Prisma.InputJsonValue;
     const offerExpiryPayload =
       data.offer_expiry_days !== undefined ? data.offer_expiry_days : (current as { offer_expiry_days?: number | null }).offer_expiry_days ?? null;
+    const marketplaceListingDurationPayload =
+      data.marketplace_listing_duration_days !== undefined
+        ? data.marketplace_listing_duration_days
+        : (current as { marketplace_listing_duration_days?: number | null }).marketplace_listing_duration_days ?? null;
 
     const currentAny = current as any;
     const newWorkflow = (data.workflow ?? current.workflow) as unknown[];
@@ -324,6 +350,7 @@ export class ProductRepository {
           category_display_order: categoryDisplayOrder,
           product_display_order: productDisplayOrder,
           offer_expiry_days: offerExpiryPayload ?? undefined,
+          marketplace_listing_duration_days: marketplaceListingDurationPayload ?? undefined,
           base_id: baseId,
           status: "ACTIVE" as any,
         },
@@ -336,6 +363,7 @@ export class ProductRepository {
           category_display_order: createdAny.category_display_order ?? null,
           product_display_order: createdAny.product_display_order ?? null,
           offer_expiry_days: createdAny.offer_expiry_days ?? null,
+          marketplace_listing_duration_days: createdAny.marketplace_listing_duration_days ?? null,
           version: createdAny.version,
           base_id: createdAny.base_id ?? null,
           status: createdAny.status ?? null,
@@ -374,6 +402,7 @@ export class ProductRepository {
           category_display_order: currentAny.category_display_order ?? null,
           product_display_order: currentAny.product_display_order ?? null,
           offer_expiry_days: currentAny.offer_expiry_days ?? null,
+          marketplace_listing_duration_days: currentAny.marketplace_listing_duration_days ?? null,
           version: currentAny.version,
           base_id: currentAny.base_id ?? null,
           status: currentAny.status ?? null,

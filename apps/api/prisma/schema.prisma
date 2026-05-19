@@ -1169,6 +1169,7 @@ model Product {
   category_display_order Int?
   product_display_order  Int?
   offer_expiry_days      Int?
+  marketplace_listing_duration_days Int?
 
   status     ProductStatus @default(ACTIVE)
   deleted_at DateTime?

@@ -109,7 +109,7 @@ Create notes only from approved invoices. Review the invoice, issuer, paymaster,
 
 When a note is published, it becomes available in the investor marketplace. Investors can commit funds until funding is closed automatically, closed manually, or failed.
 
-- **Publish** makes a reviewed note available to investors. On publish the listing is given a `closes_at` 14 days into the future.
+- **Publish** makes a reviewed note available to investors. On publish the listing is given a `closes_at` timestamp based on the product&apos;s `marketplace_listing_duration_days` (default 14 days).
 - **Unpublish** removes a note from the marketplace before investor commitments exist.
 - **Close Funding** ends funding for a successfully funded note. Investments are confirmed, the disbursement ledger is posted, and a draft Issuer Disbursement withdrawal is created. The note moves to the Funded stage and waits for the trustee to actually pay the issuer.
 - **Fail Funding** closes an open note that did not meet the minimum funding threshold.
@@ -119,9 +119,9 @@ When a note is published, it becomes available in the investor marketplace. Inve
 Two automatic triggers can close funding without admin intervention:
 
 - **Fully funded**: as soon as commitments reach 100% of the target amount, the note is auto-closed inline on the same investor request (the hourly cron is a safety net).
-- **Listing expired (14 days)**: an hourly cron picks up any published note whose `closes_at` has elapsed. If the note has reached the minimum funding threshold, it is auto-closed. Otherwise it is auto-failed and investor commitments are released.
+- **Listing expired (marketplace listing duration)**: an hourly cron picks up any published note whose `closes_at` has elapsed. If the note has reached the minimum funding threshold, it is auto-closed. Otherwise it is auto-failed and investor commitments are released.
 
-Closing funding (manual or automatic) never auto-activates the note. The note stays in the Funded stage until the disbursement to the issuer is paid out and marked complete. The lifecycle card on the note page displays a countdown banner so admins can see how much time is left in the funding window. Admins can still close or fail funding manually before the deadline. The default 14-day window can be adjusted per environment.
+Closing funding (manual or automatic) never auto-activates the note. The note stays in the Funded stage until the disbursement to the issuer is paid out and marked complete. The lifecycle card on the note page displays a countdown banner so admins can see how much time is left in the funding window. Admins can still close or fail funding manually before the deadline. The listing duration is controlled per product via `marketplace_listing_duration_days` (default 14 days).
 
 ## Issuer Disbursement
 

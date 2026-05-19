@@ -223,6 +223,7 @@ export interface Product {
   status?: string;
   workflow: JsonValue[];
   offer_expiry_days?: number | null;
+  marketplace_listing_duration_days?: number | null;
   created_at: string;
   updated_at: string;
 }

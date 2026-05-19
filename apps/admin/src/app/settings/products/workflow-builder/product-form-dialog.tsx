@@ -110,6 +110,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   const [saveInProgress, setSaveInProgress] = useState(false);
   const [saveTriggered, setSaveTriggered] = useState(false);
   const [offerExpiryDays, setOfferExpiryDays] = useState<string>("7");
+  const [marketplaceListingDurationDays, setMarketplaceListingDurationDays] = useState<string>("14");
   /** In edit mode, workflow as loaded from product (normalized). Used to disable Save when nothing changed. */
   const initialWorkflowRef = useRef<unknown[]>([]);
 
@@ -169,6 +170,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       setSaveInProgress(false);
       setSaveTriggered(false);
       setOfferExpiryDays("");
+      setMarketplaceListingDurationDays("");
       initialWorkflowRef.current = [];
       return;
     }
@@ -185,11 +187,15 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       );
       const days = (product as { offer_expiry_days?: number | null }).offer_expiry_days;
       setOfferExpiryDays(days != null ? String(days) : "7");
+      const listingDays = (product as { marketplace_listing_duration_days?: number | null })
+        .marketplace_listing_duration_days;
+      setMarketplaceListingDurationDays(listingDays != null ? String(listingDays) : "14");
     } else {
       const [firstStep, lastStep] = getRequiredFirstAndLastSteps();
       setSteps([firstStep, lastStep]);
       initialWorkflowRef.current = [];
       setOfferExpiryDays("7");
+      setMarketplaceListingDurationDays("14");
     }
   }, [open, isEdit, product, ensureFirstAndLastPresent, enforceFirstAndLast]);
 
@@ -342,9 +348,17 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                 return !Number.isNaN(n) && n > 0 ? n : null;
               })()
             : null;
+        const marketplaceListingDurationNum =
+          marketplaceListingDurationDays.trim() !== ""
+            ? (() => {
+                const n = Number(marketplaceListingDurationDays);
+                return !Number.isNaN(n) && n >= 1 && n <= 90 ? n : null;
+              })()
+            : null;
         const created = await createProduct.mutateAsync({
           workflow: buildPayloadFromSteps(steps),
           offer_expiry_days: offerExpiryNum,
+          marketplace_listing_duration_days: marketplaceListingDurationNum,
         });
         productId = created.id;
         createdProductId = productId;
@@ -367,16 +381,23 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
               return !Number.isNaN(n) && n > 0 ? n : null;
             })()
           : null;
+      const marketplaceListingDurationNum =
+        marketplaceListingDurationDays.trim() !== ""
+          ? (() => {
+              const n = Number(marketplaceListingDurationDays);
+              return !Number.isNaN(n) && n >= 1 && n <= 90 ? n : null;
+            })()
+          : null;
       if (isEdit && product) {
         await updateProduct.mutateAsync({
           id: product.id,
-          data: { workflow: payload, offer_expiry_days: offerExpiryNum },
+          data: { workflow: payload, offer_expiry_days: offerExpiryNum, marketplace_listing_duration_days: marketplaceListingDurationNum },
         });
         toast.success("Product updated");
       } else {
         await updateProduct.mutateAsync({
           id: productId,
-          data: { workflow: payload, completeCreate: true, offer_expiry_days: offerExpiryNum },
+          data: { workflow: payload, completeCreate: true, offer_expiry_days: offerExpiryNum, marketplace_listing_duration_days: marketplaceListingDurationNum },
         });
         toast.success("Product created");
       }
@@ -426,14 +447,26 @@ const offerExpiryError = (() => {
   return null;
 })();
 
+/** Marketplace listing duration validation: blank allowed (optional). */
+const marketplaceListingDurationError = (() => {
+  const v = marketplaceListingDurationDays.trim();
+  if (v === "") return null;
+  const num = Number(v);
+  if (Number.isNaN(num)) return "Marketplace listing duration must be a number";
+  if (num < 1 || num > 90) return "Marketplace listing duration must be between 1 and 90 days";
+  return null;
+})();
+
 const hasChanges = !isEdit
   ? true
   : Boolean(pendingImageFile ?? pendingImageFileRef.current) ||
     Object.keys(pendingSupportingDocTemplates).length > 0 ||
     (isEdit &&
       product &&
-      (product as { offer_expiry_days?: number | null }).offer_expiry_days !==
-        (offerExpiryDays.trim() === "" ? null : Number(offerExpiryDays))) ||
+      ((product as { offer_expiry_days?: number | null }).offer_expiry_days !==
+        (offerExpiryDays.trim() === "" ? null : Number(offerExpiryDays)) ||
+        (product as { marketplace_listing_duration_days?: number | null }).marketplace_listing_duration_days !==
+          (marketplaceListingDurationDays.trim() === "" ? null : Number(marketplaceListingDurationDays)))) ||
     !isEqual;
 
   /** In edit mode, step ids that have unsaved changes (for "Edited" badge on cards). */
@@ -681,11 +714,44 @@ const hasChanges = !isEdit
                 </div>
               </div>
 
+              {/* Marketplace listing duration settings */}
+              <div
+                className={cn(
+                  "rounded-xl border bg-card p-4 shrink-0 min-w-0",
+                  marketplaceListingDurationError
+                    ? "border-amber-500/70 dark:border-amber-500/50"
+                    : "border-border"
+                )}
+              >
+                <div className={cn("grid min-w-0", FIELD_GAP)}>
+                  <Label
+                    htmlFor="marketplace-listing-duration-days"
+                    className="text-sm font-medium"
+                  >
+                    Marketplace listing duration (days)
+                  </Label>
+                  <Input
+                    id="marketplace-listing-duration-days"
+                    type="text"
+                    value={marketplaceListingDurationDays}
+                    onChange={(e) => setMarketplaceListingDurationDays(e.target.value)}
+                    placeholder="14"
+                    className={INPUT_CLASS}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Number of days this product&apos;s notes stay open in the investor marketplace after publishing.
+                  </p>
+                </div>
+              </div>
+
               <div className="flex-1 min-h-0 overflow-y-auto">
                 {steps.length > 0 && !isSaving && !saveTriggered && (() => {
                   const requiredErrors = [
                     ...getRequiredStepErrors(steps),
                     ...(offerExpiryError ? ["Offer settings: " + offerExpiryError] : []),
+                    ...(marketplaceListingDurationError
+                      ? ["Marketplace listing settings: " + marketplaceListingDurationError]
+                      : []),
                   ];
                   if (requiredErrors.length === 0) return null;
 
@@ -738,6 +804,7 @@ const hasChanges = !isEdit
                   steps.length === 0 ||
                   getRequiredStepErrors(steps).length > 0 ||
                   !!offerExpiryError ||
+                  !!marketplaceListingDurationError ||
                   (isEdit && !hasChanges)
                 }
               >

@@ -1772,6 +1772,7 @@ export class ApiClient {
   async createProduct(data: {
     workflow: unknown[];
     offer_expiry_days?: number | null;
+    marketplace_listing_duration_days?: number | null;
   }): Promise<ApiResponse<Product> | ApiError> {
     return this.post<Product>("/v1/products", data);
   }
@@ -1782,6 +1783,7 @@ export class ApiClient {
       workflow?: unknown[];
       completeCreate?: boolean;
       offer_expiry_days?: number | null;
+      marketplace_listing_duration_days?: number | null;
     }
   ): Promise<ApiResponse<Product> | ApiError> {
     return this.patch<Product>(`/v1/products/${id}`, data);

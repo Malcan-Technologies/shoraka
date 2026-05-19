@@ -1838,7 +1838,22 @@ export class NoteService {
       throw new AppError(422, "NOTE_FEE_CAP_EXCEEDED", "Configured fees exceed allowed caps");
     }
     const now = new Date();
-    const closesAt = new Date(now.getTime() + DEFAULT_LISTING_DURATION_DAYS * 24 * 60 * 60 * 1000);
+    const noteProductSnapshot = asRecord(note.product_snapshot);
+    const productId = typeof noteProductSnapshot?.product_id === "string" ? noteProductSnapshot.product_id : null;
+
+    const fallbackDurationDays = DEFAULT_LISTING_DURATION_DAYS;
+    let durationDays = fallbackDurationDays;
+
+    if (productId) {
+      const product = await prisma.product.findUnique({
+        where: { id: productId },
+        select: { marketplace_listing_duration_days: true },
+      });
+      const configured = product?.marketplace_listing_duration_days;
+      if (configured != null) durationDays = configured;
+    }
+
+    const closesAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
     const updated = await prisma.$transaction(async (tx) => {
       const stateUpdate = await tx.note.updateMany({
         where: {
