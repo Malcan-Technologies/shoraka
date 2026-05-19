@@ -301,12 +301,16 @@ export function ApplicationFinancialReviewContent({
 
   const columns = React.useMemo((): ColumnSpec[] => {
     const ctosSlotYears = getLatestThreeCtosYearSlots(financialRows);
+    const ctosYearSet = new Set<number>(
+      ctosSlotYears.filter((y): y is number => typeof y === "number")
+    );
     const ctosPart: ColumnSpec[] = ctosSlotYears.map((year) => ({
       kind: "ctos" as const,
       year,
     }));
 
-    const unPart: ColumnSpec[] = adminUserYears.map((year) => ({
+    const filteredAdminUserYears = adminUserYears.filter((year) => !ctosYearSet.has(year));
+    const unPart: ColumnSpec[] = filteredAdminUserYears.map((year) => ({
       kind: "unaudited" as const,
       year,
     }));
