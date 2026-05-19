@@ -141,6 +141,25 @@ export function ReviewOfferModal({
       ? `${Number(od.offered_profit_rate_percent)}%`
       : "—";
 
+  const facilityFeeRatePercentNumber =
+    type === "contract" &&
+    od?.facility_fee_rate_percent != null &&
+    Number.isFinite(Number(od.facility_fee_rate_percent))
+      ? Number(od.facility_fee_rate_percent)
+      : null;
+
+  const offeredFacilityNumber =
+    type === "contract" &&
+    od?.offered_facility != null &&
+    Number.isFinite(Number(od.offered_facility))
+      ? Number(od.offered_facility)
+      : null;
+
+  const maximumFacilityFeeNumber =
+    facilityFeeRatePercentNumber != null && offeredFacilityNumber != null
+      ? offeredFacilityNumber * (facilityFeeRatePercentNumber / 100)
+      : null;
+
   const summarySecondLabel = type === "contract" ? "Approved facility:" : "Invoice value:";
   const summarySecondValue =
     type === "contract"
@@ -351,6 +370,18 @@ export function ReviewOfferModal({
                   <dd className="font-medium text-foreground text-right tabular-nums">
                     {summaryThirdValue}
                   </dd>
+                  <dt className="text-muted-foreground font-medium">Facility fee rate:</dt>
+                  <dd className="font-medium text-foreground text-right tabular-nums">
+                    {facilityFeeRatePercentNumber != null
+                      ? `${facilityFeeRatePercentNumber}%`
+                      : "—"}
+                  </dd>
+                  <dt className="text-muted-foreground font-medium">Maximum facility fee:</dt>
+                  <dd className="font-medium text-foreground text-right tabular-nums">
+                    {maximumFacilityFeeNumber != null
+                      ? formatCurrency(maximumFacilityFeeNumber)
+                      : "—"}
+                  </dd>
                 </>
               ) : (
                 <>
@@ -375,6 +406,12 @@ export function ReviewOfferModal({
                 </>
               ) : null}
             </dl>
+
+            {type === "contract" ? (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Charged only when invoice financing is disbursed.
+              </p>
+            ) : null}
 
             <button
               type="button"
