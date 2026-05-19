@@ -409,7 +409,7 @@ export function ReviewOfferModal({
 
             {type === "contract" ? (
               <p className="mt-3 text-xs text-muted-foreground">
-                Charged only when invoice financing is disbursed.
+                Facility fee is charged progressively only when invoice financing is disbursed.
               </p>
             ) : null}
 

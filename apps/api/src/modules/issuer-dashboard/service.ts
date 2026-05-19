@@ -89,6 +89,9 @@ export type IssuerDashboardContractDto = {
   approvedFacilityAmount: string | null;
   utilizedFacilityAmount: string | null;
   availableFacilityAmount: string | null;
+  facilityFeeCapAmount: string | null;
+  facilityFeePaidAmount: string | null;
+  facilityFeeRemainingAmount: string | null;
   activeNotesCount: number;
   contractStatus: ContractStatus;
   /** Application IDs that require action (AMENDMENT_REQUESTED) across all applications sharing this contract. */
@@ -379,6 +382,27 @@ export class IssuerDashboardService {
       const availableFacilityAmount: string | null =
         availableNum !== null ? availableNum.toFixed(2) : null;
 
+      const facilityFeeRateRaw = details?.facility_fee_rate_percent;
+      const facilityFeeRateNum =
+        facilityFeeRateRaw !== undefined &&
+        facilityFeeRateRaw !== null &&
+        String(facilityFeeRateRaw).trim() !== ""
+          ? decimalToNumber(facilityFeeRateRaw)
+          : 0;
+
+      const facilityFeePaidRaw = details?.facility_fee_paid_amount;
+      const facilityFeePaidNum =
+        facilityFeePaidRaw !== undefined &&
+        facilityFeePaidRaw !== null &&
+        String(facilityFeePaidRaw).trim() !== ""
+          ? decimalToNumber(facilityFeePaidRaw)
+          : 0;
+
+      const facilityFeeCapNum =
+        approvedNum !== null ? approvedNum * (facilityFeeRateNum / 100) : 0;
+      const facilityFeeRemainingNum = Math.max(0, facilityFeeCapNum - facilityFeePaidNum);
+      const facilityFeeApplies = facilityFeeRateNum > 0 && approvedNum !== null;
+
       const activeNotesOnContract = contractNotes.filter((n) => n.status === NoteStatus.ACTIVE).length;
 
       const titleRaw = details?.title;
@@ -399,6 +423,9 @@ export class IssuerDashboardService {
         utilizedFacilityAmount:
           utilizedFacilityAmount !== null ? utilizedFacilityAmount.toFixed(2) : null,
         availableFacilityAmount,
+        facilityFeeCapAmount: facilityFeeApplies ? facilityFeeCapNum.toFixed(2) : null,
+        facilityFeePaidAmount: facilityFeeApplies ? facilityFeePaidNum.toFixed(2) : null,
+        facilityFeeRemainingAmount: facilityFeeApplies ? facilityFeeRemainingNum.toFixed(2) : null,
         activeNotesCount: activeNotesOnContract,
         contractStatus: c.status,
         actionRequiredApplicationIds,
