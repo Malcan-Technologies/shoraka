@@ -89,6 +89,7 @@ export const createProductBodySchema = z.object({
   offer_expiry_days: offerExpiryDaysSchema,
   marketplace_listing_duration_days: marketplaceListingDurationDaysSchema,
   service_fee_rate_percent: z.number().min(0).max(15).optional().nullable(),
+  default_facility_fee_rate_percent: z.number().min(0).max(100).optional().nullable(),
 });
 
 export type CreateProductBody = z.infer<typeof createProductBodySchema>;
@@ -111,6 +112,7 @@ export const updateProductBodySchema = z.object({
   offer_expiry_days: offerExpiryDaysSchema,
   marketplace_listing_duration_days: marketplaceListingDurationDaysSchema,
   service_fee_rate_percent: z.number().min(0).max(15).optional().nullable(),
+  default_facility_fee_rate_percent: z.number().min(0).max(100).optional().nullable(),
 });
 
 export type UpdateProductBody = z.infer<typeof updateProductBodySchema>;

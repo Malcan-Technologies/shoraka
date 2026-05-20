@@ -75,6 +75,11 @@ export interface ContractSectionProps {
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
   onSendOffer?: (payload: { offeredFacility: number; facilityFeeRatePercent: number | null }) => Promise<void>;
+  /**
+   * Product-level default Facility Fee rate (%).
+   * Used only as a prefill when `offer_details.facility_fee_rate_percent` is missing.
+   */
+  productDefaultFacilityFeeRatePercent?: number | null;
   isSendOfferPending?: boolean;
   onViewDocument?: (s3Key: string) => void;
   onDownloadDocument?: (s3Key: string, fileName?: string) => void;
@@ -117,6 +122,7 @@ export function ContractSection({
   onReject,
   onRequestAmendment,
   onSendOffer,
+  productDefaultFacilityFeeRatePercent,
   isSendOfferPending,
   onViewDocument,
   onDownloadDocument,
@@ -187,7 +193,9 @@ export function ContractSection({
   const seedOfferedInput = persistedOffered > 0 ? formatMoney(persistedOffered) : "";
   const [offeredFacilityInput, setOfferedFacilityInput] = React.useState<string>(seedOfferedInput);
   const seedFacilityFeeRatePercent =
-    typeof offer?.facility_fee_rate_percent === "number" ? offer.facility_fee_rate_percent : null;
+    typeof offer?.facility_fee_rate_percent === "number"
+      ? offer.facility_fee_rate_percent
+      : productDefaultFacilityFeeRatePercent ?? null;
   const seedFacilityFeeInput =
     seedFacilityFeeRatePercent != null ? String(seedFacilityFeeRatePercent) : "";
   const [facilityFeeRatePercentInput, setFacilityFeeRatePercentInput] = React.useState<string>(
@@ -201,7 +209,7 @@ export function ContractSection({
   React.useEffect(() => {
     setFacilityFeeRatePercentInput(seedFacilityFeeInput);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [offer?.facility_fee_rate_percent]);
+  }, [offer?.facility_fee_rate_percent, productDefaultFacilityFeeRatePercent]);
 
   const hasData = cd || cust;
   const offeredFacility = parseMoney(offeredFacilityInput);

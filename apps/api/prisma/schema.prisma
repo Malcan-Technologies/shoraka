@@ -1172,6 +1172,8 @@ model Product {
   marketplace_listing_duration_days Int?
   // Default investor-side service fee rate (percent of investor profit) for notes under this product.
   service_fee_rate_percent Decimal @default(15) @db.Decimal(5, 2)
+  // Default contract financing facility fee rate (percent of approved facility) to prefill new contract offers.
+  default_facility_fee_rate_percent Decimal @default(1) @db.Decimal(5, 2)
 
   status     ProductStatus @default(ACTIVE)
   deleted_at DateTime?

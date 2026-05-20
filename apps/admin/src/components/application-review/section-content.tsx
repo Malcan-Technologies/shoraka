@@ -155,6 +155,8 @@ export interface SectionContentProps {
   invoiceRatioLimits?: { min: number; max: number };
   /** Platform finance setting for the maximum platform fee rate (%) allowed on invoice offers. */
   platformFeeRateCapPercent?: number | null;
+  /** Product-level default Facility Fee rate (%). Used only to prefill Contract Offer UI. */
+  productDefaultFacilityFeeRatePercent?: number | null;
   /** Product offer expiry in days. Used for invoice estimates and offer expiry when sending. */
   offerExpiryDays?: number | null;
   /** Minimum months from today to maturity to enable Send Offer on invoice review. */
@@ -206,6 +208,7 @@ export function SectionContent({
   onAddSectionComment,
   invoiceRatioLimits,
   platformFeeRateCapPercent,
+  productDefaultFacilityFeeRatePercent,
   offerExpiryDays,
   minMonthsReviewToMaturityForOffer,
   sectionStatusMap,
@@ -408,6 +411,7 @@ export function SectionContent({
           offerDetails={(app.contract as { offer_details?: unknown } | null | undefined)?.offer_details}
           contractStatus={app.contract?.status}
           customerDetails={app.contract?.customer_details}
+          productDefaultFacilityFeeRatePercent={productDefaultFacilityFeeRatePercent}
           section={section}
           isReviewable={isReviewable}
           approvePending={approveSectionPending}

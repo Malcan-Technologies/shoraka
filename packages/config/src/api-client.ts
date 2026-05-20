@@ -1776,6 +1776,7 @@ export class ApiClient {
     offer_expiry_days?: number | null;
     marketplace_listing_duration_days?: number | null;
     service_fee_rate_percent?: number | null;
+    default_facility_fee_rate_percent?: number | null;
   }): Promise<ApiResponse<Product> | ApiError> {
     return this.post<Product>("/v1/products", data);
   }
@@ -1788,6 +1789,7 @@ export class ApiClient {
       offer_expiry_days?: number | null;
       marketplace_listing_duration_days?: number | null;
       service_fee_rate_percent?: number | null;
+      default_facility_fee_rate_percent?: number | null;
     }
   ): Promise<ApiResponse<Product> | ApiError> {
     return this.patch<Product>(`/v1/products/${id}`, data);

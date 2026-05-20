@@ -18,6 +18,7 @@ export interface UpdateProductData {
   offer_expiry_days?: number | null;
   marketplace_listing_duration_days?: number | null;
   service_fee_rate_percent?: number | null;
+  default_facility_fee_rate_percent?: number | null;
 }
 
 export interface CreateProductData {
@@ -25,6 +26,7 @@ export interface CreateProductData {
   offer_expiry_days?: number | null;
   marketplace_listing_duration_days?: number | null;
   service_fee_rate_percent?: number | null;
+  default_facility_fee_rate_percent?: number | null;
 }
 
 export interface LogContext {
@@ -140,6 +142,10 @@ export class ProductRepository {
           marketplace_listing_duration_days: data.marketplace_listing_duration_days ?? undefined,
           service_fee_rate_percent:
             data.service_fee_rate_percent != null ? new Prisma.Decimal(data.service_fee_rate_percent) : undefined,
+          default_facility_fee_rate_percent:
+            data.default_facility_fee_rate_percent != null
+              ? new Prisma.Decimal(data.default_facility_fee_rate_percent)
+              : undefined,
         },
       } as any);
 
@@ -168,6 +174,7 @@ export class ProductRepository {
               offer_expiry_days: createdAny.offer_expiry_days ?? null,
               marketplace_listing_duration_days: createdAny.marketplace_listing_duration_days ?? null,
               service_fee_rate_percent: createdAny.service_fee_rate_percent ?? null,
+              default_facility_fee_rate_percent: createdAny.default_facility_fee_rate_percent ?? null,
               version: createdAny.version ?? null,
               base_id: createdAny.base_id ?? created.id ?? null,
               status: createdAny.status ?? null,
@@ -192,7 +199,8 @@ export class ProductRepository {
       data.workflow === undefined &&
       data.offer_expiry_days === undefined &&
       data.marketplace_listing_duration_days === undefined &&
-      data.service_fee_rate_percent === undefined
+      data.service_fee_rate_percent === undefined &&
+      data.default_facility_fee_rate_percent === undefined
     ) {
       return prisma.product.findUniqueOrThrow({ where: { id } });
     }
@@ -222,7 +230,21 @@ export class ProductRepository {
       (data.service_fee_rate_percent === currentServiceFeeRatePercent ||
         (data.service_fee_rate_percent == null && currentServiceFeeRatePercent == null));
 
-    if (workflowUnchanged && offerExpiryUnchanged && marketplaceListingDurationUnchanged && serviceFeeRatePercentUnchanged) {
+    const currentDefaultFacilityFeeRatePercent = (current as any).default_facility_fee_rate_percent
+      ? (current as any).default_facility_fee_rate_percent.toNumber()
+      : null;
+    const defaultFacilityFeeRatePercentUnchanged =
+      data.default_facility_fee_rate_percent === undefined ||
+      (data.default_facility_fee_rate_percent === currentDefaultFacilityFeeRatePercent ||
+        (data.default_facility_fee_rate_percent == null && currentDefaultFacilityFeeRatePercent == null));
+
+    if (
+      workflowUnchanged &&
+      offerExpiryUnchanged &&
+      marketplaceListingDurationUnchanged &&
+      serviceFeeRatePercentUnchanged &&
+      defaultFacilityFeeRatePercentUnchanged
+    ) {
       return current;
     }
 
@@ -249,6 +271,14 @@ export class ProductRepository {
                     : data.service_fee_rate_percent
                 )
               : undefined,
+          default_facility_fee_rate_percent:
+            data.default_facility_fee_rate_percent !== undefined
+              ? new Prisma.Decimal(
+                  data.default_facility_fee_rate_percent == null
+                    ? currentDefaultFacilityFeeRatePercent ?? 1
+                    : data.default_facility_fee_rate_percent
+                )
+              : undefined,
         },
       } as any);
       if (logContext?.userId) {
@@ -260,6 +290,7 @@ export class ProductRepository {
           offer_expiry_days: updatedAny.offer_expiry_days ?? null,
             marketplace_listing_duration_days: updatedAny.marketplace_listing_duration_days ?? null,
           service_fee_rate_percent: updatedAny.service_fee_rate_percent ?? null,
+            default_facility_fee_rate_percent: updatedAny.default_facility_fee_rate_percent ?? null,
           version: updatedAny.version,
           base_id: updatedAny.base_id ?? null,
           status: updatedAny.status ?? null,
@@ -294,6 +325,10 @@ export class ProductRepository {
       data.service_fee_rate_percent !== undefined
         ? data.service_fee_rate_percent
         : currentServiceFeeRatePercent;
+    const defaultFacilityFeeRatePercentPayload =
+      data.default_facility_fee_rate_percent !== undefined
+        ? data.default_facility_fee_rate_percent
+        : currentDefaultFacilityFeeRatePercent;
 
     const currentAny = current as any;
     const newWorkflow = (data.workflow ?? current.workflow) as unknown[];
@@ -379,6 +414,7 @@ export class ProductRepository {
           offer_expiry_days: offerExpiryPayload ?? undefined,
           marketplace_listing_duration_days: marketplaceListingDurationPayload ?? undefined,
           service_fee_rate_percent: serviceFeeRatePercentPayload ?? undefined,
+          default_facility_fee_rate_percent: defaultFacilityFeeRatePercentPayload ?? undefined,
           base_id: baseId,
           status: "ACTIVE" as any,
         },
@@ -393,6 +429,7 @@ export class ProductRepository {
           offer_expiry_days: createdAny.offer_expiry_days ?? null,
           marketplace_listing_duration_days: createdAny.marketplace_listing_duration_days ?? null,
           service_fee_rate_percent: createdAny.service_fee_rate_percent ?? null,
+            default_facility_fee_rate_percent: createdAny.default_facility_fee_rate_percent ?? null,
           version: createdAny.version,
           base_id: createdAny.base_id ?? null,
           status: createdAny.status ?? null,

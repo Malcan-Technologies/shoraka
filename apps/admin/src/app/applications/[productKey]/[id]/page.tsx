@@ -188,6 +188,9 @@ export default function DynamicApplicationDetailPage() {
 
   const offerExpiryDays =
     (currentProduct as { offer_expiry_days?: number | null })?.offer_expiry_days ?? 7;
+  const productDefaultFacilityFeeRatePercent =
+    (currentProduct as { default_facility_fee_rate_percent?: number | null })
+      ?.default_facility_fee_rate_percent ?? null;
 
   const minMonthsReviewToMaturityForOffer = React.useMemo(() => {
     const workflow = (currentProduct as { workflow?: unknown[] })?.workflow ?? [];
@@ -1132,6 +1135,7 @@ export default function DynamicApplicationDetailPage() {
                             invoiceRatioLimits={invoiceRatioLimits}
                             platformFeeRateCapPercent={platformFeeRateCapPercent}
                             offerExpiryDays={offerExpiryDays}
+                            productDefaultFacilityFeeRatePercent={productDefaultFacilityFeeRatePercent}
                             minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
                             onViewSignedInvoiceOffer={handleViewSignedInvoiceOffer}
                             onViewSignedContractOffer={handleViewSignedContractOffer}
