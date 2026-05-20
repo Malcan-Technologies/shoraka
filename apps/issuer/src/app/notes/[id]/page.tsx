@@ -359,6 +359,14 @@ export default function IssuerNoteDetailPage() {
         settlementSummary.issuerResidualAmount
       )
     : null;
+  const issuerDisbursementWithdrawal = note.withdrawals.find(
+    (w) => w.withdrawalType === WithdrawalType.ISSUER_DISBURSEMENT
+  );
+  const shouldShowIssuerDisbursementBreakdown =
+    issuerDisbursementWithdrawal?.grossFundedAmount != null &&
+    issuerDisbursementWithdrawal?.platformFeeAmount != null &&
+    issuerDisbursementWithdrawal?.facilityFeeCharged != null &&
+    issuerDisbursementWithdrawal?.netIssuerDisbursement != null;
   const settlementPayoutSummaryBlurb =
     issuerResidualDisbursement?.kind === "pending"
       ? "Posted allocation below. Your residual is still being paid via the trustee; it is not complete until that payout is marked paid."
@@ -608,6 +616,40 @@ export default function IssuerNoteDetailPage() {
             ) : null}
           </CardContent>
         </Card>
+
+        {shouldShowIssuerDisbursementBreakdown ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Disbursement breakdown</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-sm text-muted-foreground">Gross funded</span>
+                <span className="text-sm font-semibold text-foreground tabular-nums">
+                  {formatCurrency(issuerDisbursementWithdrawal.grossFundedAmount!)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-sm text-muted-foreground">Platform fee</span>
+                <span className="text-sm font-semibold text-foreground tabular-nums">
+                  {formatCurrency(issuerDisbursementWithdrawal.platformFeeAmount!)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-sm text-muted-foreground">Facility fee</span>
+                <span className="text-sm font-semibold text-foreground tabular-nums">
+                  {formatCurrency(issuerDisbursementWithdrawal.facilityFeeCharged!)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-4 pt-1">
+                <span className="text-sm text-muted-foreground">Net amount to issuer</span>
+                <span className="text-sm font-semibold text-primary tabular-nums">
+                  {formatCurrency(issuerDisbursementWithdrawal.netIssuerDisbursement!)}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {settlementSummary ? (
           <Card>
