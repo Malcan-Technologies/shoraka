@@ -70,6 +70,13 @@ export default function ContractDetailsPage() {
       ? Math.round((utilizedNum / approvedNum) * 100)
       : 0;
 
+  const facilityFeeCapNum =
+    row?.facilityFeeCapAmount != null ? Number(row.facilityFeeCapAmount) : null;
+  const facilityFeePaidNum =
+    row?.facilityFeePaidAmount != null ? Number(row.facilityFeePaidAmount) : null;
+  const facilityFeeRemainingNum =
+    row?.facilityFeeRemainingAmount != null ? Number(row.facilityFeeRemainingAmount) : null;
+
   const contractPeriod =
     row?.contractStartDate && row?.contractEndDate
       ? `${formatDate(row.contractStartDate)} to ${formatDate(row.contractEndDate)}`
@@ -182,6 +189,45 @@ export default function ContractDetailsPage() {
                     <p className="text-xs font-normal leading-5 text-muted-foreground">(Approved facility)</p>
                   </div>
                 </div>
+
+                {row.facilityFeeCapAmount != null &&
+                row.facilityFeePaidAmount != null &&
+                row.facilityFeeRemainingAmount != null ? (
+                  <div className="mt-4 space-y-3">
+                    <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Facility fee tracker
+                    </h4>
+                    <div className="flex justify-between gap-4 sm:gap-6">
+                      <div className="min-w-0">
+                        <p className="text-base font-semibold tabular-nums leading-7 text-foreground">
+                          {facilityFeePaidNum != null ? formatMoney(facilityFeePaidNum) : EM_DASH}
+                        </p>
+                        <p className="text-xs font-normal leading-5 text-muted-foreground">
+                          (Paid so far)
+                        </p>
+                      </div>
+                      <div className="min-w-0 text-right">
+                        <p className="text-base font-semibold tabular-nums leading-7 text-foreground">
+                          {facilityFeeCapNum != null ? formatMoney(facilityFeeCapNum) : EM_DASH}
+                        </p>
+                        <p className="text-xs font-normal leading-5 text-muted-foreground">
+                          (Facility fee cap)
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex justify-between gap-4 sm:gap-6">
+                      <div className="min-w-0">
+                        <p className="text-base font-semibold tabular-nums leading-7 text-foreground">
+                          {facilityFeeRemainingNum != null ? formatMoney(facilityFeeRemainingNum) : EM_DASH}
+                        </p>
+                        <p className="text-xs font-normal leading-5 text-muted-foreground">
+                          (Remaining)
+                        </p>
+                      </div>
+                      <div />
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>

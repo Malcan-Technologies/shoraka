@@ -302,13 +302,20 @@ export function useSendContractOffer() {
     mutationFn: async ({
       applicationId,
       offeredFacility,
+      facilityFeeRatePercent,
       expiresAt,
     }: {
       applicationId: string;
       offeredFacility: number;
+      facilityFeeRatePercent?: number | null;
       expiresAt?: string | null;
     }) => {
-      const response = await apiClient.sendContractOffer(applicationId, offeredFacility, expiresAt);
+      const response = await apiClient.sendContractOffer(
+        applicationId,
+        offeredFacility,
+        facilityFeeRatePercent ?? null,
+        expiresAt
+      );
       if (!response.success) {
         throw new Error((response as ApiError).error?.message ?? "Failed to send contract offer");
       }

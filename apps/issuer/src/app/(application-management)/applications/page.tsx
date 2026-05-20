@@ -441,7 +441,7 @@ export default function ApplicationsPage() {
   const openReviewInvoiceOffer = React.useCallback((applicationId: string, invoice: NormalizedInvoice) => {
     setOfferType("invoice");
     setSelectedApplicationId(applicationId);
-    setSelectedContractId(null);
+    setSelectedContractId(invoice.contractId ?? null);
     setSelectedInvoice(invoice);
     setReviewModalOpen(true);
   }, []);
@@ -1186,7 +1186,7 @@ export default function ApplicationsPage() {
         <ReviewOfferModal
           type={offerType}
           applicationId={selectedApplicationId}
-          contractId={offerType === "contract" ? selectedContractId ?? undefined : undefined}
+          contractId={selectedContractId ?? undefined}
           invoice={offerType === "invoice" ? selectedInvoice ?? undefined : undefined}
           requiresInvoiceSigning
           onClose={() => setReviewModalOpen(false)}

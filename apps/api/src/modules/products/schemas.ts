@@ -64,6 +64,15 @@ const offerExpiryDaysSchema = z
   .optional()
   .nullable();
 
+/** Marketplace listing duration at product level. */
+const marketplaceListingDurationDaysSchema = z
+  .number()
+  .int("Marketplace listing duration must be an integer")
+  .refine((v) => v >= 1, { message: "Marketplace listing duration must be at least 1 day" })
+  .refine((v) => v <= 90, { message: "Marketplace listing duration must be 90 days or less" })
+  .optional()
+  .nullable();
+
 // Body for POST /v1/products (create). Version defaults to 1; not accepted from client.
 export const createProductBodySchema = z.object({
   workflow: z
@@ -78,6 +87,9 @@ export const createProductBodySchema = z.object({
       }
     }, { message: "workflow[0].config.category is required and must be a non-empty string" }),
   offer_expiry_days: offerExpiryDaysSchema,
+  marketplace_listing_duration_days: marketplaceListingDurationDaysSchema,
+  service_fee_rate_percent: z.number().min(0).max(15).optional().nullable(),
+  default_facility_fee_rate_percent: z.number().min(0).max(100).optional().nullable(),
 });
 
 export type CreateProductBody = z.infer<typeof createProductBodySchema>;
@@ -98,6 +110,9 @@ export const updateProductBodySchema = z.object({
     }, { message: "workflow[0].config.category is required and must be a non-empty string" }),
   completeCreate: z.boolean().optional(),
   offer_expiry_days: offerExpiryDaysSchema,
+  marketplace_listing_duration_days: marketplaceListingDurationDaysSchema,
+  service_fee_rate_percent: z.number().min(0).max(15).optional().nullable(),
+  default_facility_fee_rate_percent: z.number().min(0).max(100).optional().nullable(),
 });
 
 export type UpdateProductBody = z.infer<typeof updateProductBodySchema>;

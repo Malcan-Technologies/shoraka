@@ -47,6 +47,9 @@ export type IssuerDashboardContract = {
   approvedFacilityAmount: string | null;
   utilizedFacilityAmount: string | null;
   availableFacilityAmount: string | null;
+  facilityFeeCapAmount: string | null;
+  facilityFeePaidAmount: string | null;
+  facilityFeeRemainingAmount: string | null;
   activeNotesCount: number;
   contractStatus: string;
   /** Application IDs that require action (AMENDMENT_REQUESTED) across all applications sharing this contract. */

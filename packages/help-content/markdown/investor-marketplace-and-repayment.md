@@ -34,11 +34,11 @@ The marketplace lists only notes currently in the **Published** stage. For each 
 
 Each note has a **minimum funding threshold** (e.g. 60% of the target). The note will only proceed to disbursement if that threshold is met within the funding window.
 
-## The 14-Day Funding Window
+## The Marketplace Funding Window
 
-Every published note has a **listing window of 14 days by default**, with two ways it can close:
+Every published note has a **listing window of `marketplace_listing_duration_days` days for its product**. If the product does not configure this value, it **defaults to 14 days**. The note can close in two ways:
 
-- **Reaches 100% before 14 days** → the note closes early, moves into Active, and the funded amount is disbursed to the issuer.
+- **Reaches 100% before the window ends** → the note closes early, moves into Active, and the funded amount is disbursed to the issuer.
 - **Listing window expires** →
   - if the **minimum funding threshold is met**, the note is closed successfully and moves to Active;
   - if **not**, the note is marked **Failed Funding**, and **all commitments are released back to investors automatically**. You are not charged anything for a failed listing.
@@ -115,7 +115,7 @@ You can withdraw available funds from your wallet at any time. Withdrawals follo
 
 ## Quick Reference
 
-- Listings run for **14 days**, close early on full funding, or fail if minimum threshold not met.
+- Listings run for **`marketplace_listing_duration_days` days** (default 14), close early on full funding, or fail if minimum threshold not met.
 - Failed listings release commitments back to your wallet automatically.
 - Principal is **always** returned in full on settlement; profit is paid net of the service fee.
 - Late charges are borne by the issuer and do not reduce your returns.

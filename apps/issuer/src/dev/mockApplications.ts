@@ -28,6 +28,7 @@ function makeInvoice(overrides: Partial<NormalizedInvoice> & { id: string }): No
     appliedFinancing: 40000,
     document: "invoice.pdf",
     documentS3Key: null,
+    contractId: null,
   financingOffered: "—",
   platformFee: "—",
   profitRate: "—",

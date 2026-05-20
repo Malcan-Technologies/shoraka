@@ -12,6 +12,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import type { NoteDetail, WithdrawalInstruction } from "@cashsouk/types";
+import { WithdrawalType } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -281,6 +282,41 @@ export function IssuerPayoutCard({
           </div>
         </div>
       </div>
+
+      {withdrawal.withdrawalType === WithdrawalType.ISSUER_DISBURSEMENT &&
+      withdrawal.grossFundedAmount != null &&
+      withdrawal.platformFeeAmount != null &&
+      withdrawal.netIssuerDisbursement != null ? (
+        <div className="mt-4 rounded-lg border bg-muted/20 p-3 text-xs">
+          <div className="flex items-center justify-between">
+            <div className="font-medium uppercase tracking-wider text-muted-foreground">
+              Disbursement breakdown
+            </div>
+          </div>
+          <div className="mt-2 space-y-1 text-foreground">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Gross funded</span>
+              <span className="font-medium">{formatCurrency(withdrawal.grossFundedAmount)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Platform fee</span>
+              <span className="font-medium">{formatCurrency(withdrawal.platformFeeAmount)}</span>
+            </div>
+            {withdrawal.facilityFeeCharged != null && withdrawal.facilityFeeCharged > 0 ? (
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Facility fee</span>
+                <span className="font-medium">{formatCurrency(withdrawal.facilityFeeCharged)}</span>
+              </div>
+            ) : null}
+            <div className="flex items-center justify-between gap-4 pt-1">
+              <span className="text-muted-foreground">Net to issuer</span>
+              <span className="font-semibold text-primary">
+                {formatCurrency(withdrawal.netIssuerDisbursement)}
+              </span>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div className="rounded-lg border bg-muted/20 p-3 text-xs">

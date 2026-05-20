@@ -50,6 +50,14 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
             category_display_order: (p as any).category_display_order ?? null,
             product_display_order: (p as any).product_display_order ?? null,
             offer_expiry_days: (p as any).offer_expiry_days ?? null,
+            marketplace_listing_duration_days: (p as any).marketplace_listing_duration_days ?? null,
+            service_fee_rate_percent: (p as any).service_fee_rate_percent != null
+              ? (p as any).service_fee_rate_percent.toNumber()
+              : null,
+            default_facility_fee_rate_percent:
+              (p as any).default_facility_fee_rate_percent != null
+                ? (p as any).default_facility_fee_rate_percent.toNumber()
+                : null,
             created_at: p.created_at.toISOString(),
             updated_at: p.updated_at.toISOString(),
           })),
@@ -91,6 +99,10 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
       {
         workflow: validated.workflow,
         offer_expiry_days: validated.offer_expiry_days ?? undefined,
+        marketplace_listing_duration_days:
+          validated.marketplace_listing_duration_days ?? undefined,
+        service_fee_rate_percent: validated.service_fee_rate_percent ?? undefined,
+        default_facility_fee_rate_percent: validated.default_facility_fee_rate_percent ?? undefined,
       },
       { userId, ipAddress: ip as string | null, userAgent: req.headers["user-agent"] as string | undefined, deviceInfo: deviceInfo ?? null }
     );
@@ -101,6 +113,15 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
         version: product.version,
         workflow: product.workflow as unknown[],
         offer_expiry_days: (product as { offer_expiry_days?: number | null }).offer_expiry_days ?? null,
+            marketplace_listing_duration_days:
+              (product as { marketplace_listing_duration_days?: number | null })
+                .marketplace_listing_duration_days ?? null,
+        service_fee_rate_percent: (product as any).service_fee_rate_percent
+          ? (product as any).service_fee_rate_percent.toNumber()
+          : null,
+        default_facility_fee_rate_percent: (product as any).default_facility_fee_rate_percent
+          ? (product as any).default_facility_fee_rate_percent.toNumber()
+          : null,
         created_at: product.created_at.toISOString(),
         updated_at: product.updated_at.toISOString(),
       },
@@ -133,6 +154,15 @@ router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
           version: product.version,
           workflow: product.workflow as unknown[],
           offer_expiry_days: (product as { offer_expiry_days?: number | null }).offer_expiry_days ?? null,
+            marketplace_listing_duration_days:
+              (product as { marketplace_listing_duration_days?: number | null })
+                .marketplace_listing_duration_days ?? null,
+          service_fee_rate_percent: (product as any).service_fee_rate_percent
+            ? (product as any).service_fee_rate_percent.toNumber()
+            : null,
+          default_facility_fee_rate_percent: (product as any).default_facility_fee_rate_percent
+            ? (product as any).default_facility_fee_rate_percent.toNumber()
+            : null,
           created_at: product.created_at.toISOString(),
           updated_at: product.updated_at.toISOString(),
         },
@@ -178,6 +208,9 @@ router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => 
         workflow: validated.workflow,
         completeCreate: validated.completeCreate,
         offer_expiry_days: validated.offer_expiry_days,
+        marketplace_listing_duration_days: validated.marketplace_listing_duration_days,
+        service_fee_rate_percent: validated.service_fee_rate_percent ?? undefined,
+        default_facility_fee_rate_percent: validated.default_facility_fee_rate_percent ?? undefined,
       },
       { userId, ipAddress: ip as string | null, userAgent: req.headers["user-agent"] as string | undefined, deviceInfo }
     );
@@ -197,6 +230,15 @@ router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => 
         version: product.version,
         workflow: product.workflow as unknown[],
         offer_expiry_days: (product as { offer_expiry_days?: number | null }).offer_expiry_days ?? null,
+        marketplace_listing_duration_days:
+          (product as { marketplace_listing_duration_days?: number | null })
+            .marketplace_listing_duration_days ?? null,
+        service_fee_rate_percent: (product as any).service_fee_rate_percent
+          ? (product as any).service_fee_rate_percent.toNumber()
+          : null,
+        default_facility_fee_rate_percent: (product as any).default_facility_fee_rate_percent
+          ? (product as any).default_facility_fee_rate_percent.toNumber()
+          : null,
         created_at: product.created_at.toISOString(),
         updated_at: product.updated_at.toISOString(),
       },

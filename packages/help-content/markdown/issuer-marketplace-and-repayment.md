@@ -19,12 +19,12 @@ You do not list or unlist the note yourself — admin handles publishing — but
 
 ## The Marketplace Funding Window
 
-Each published note is listed on the marketplace for **14 days by default**. During this window:
+Each published note is listed on the marketplace for **`marketplace_listing_duration_days` days on its product** (default: **14 days**). During this window:
 
 - Investors can commit any amount, subject to per-investor minimums set by the platform.
 - The note shows a live funding percentage against its target amount.
 - The note will **close early if it reaches 100% funded**.
-- If, at the end of 14 days, the note has met its **minimum funding threshold** (set per note), funding is closed successfully and the note moves to Active.
+- If, at the end of the product&apos;s `marketplace_listing_duration_days` window, the note has met its **minimum funding threshold** (set per note), funding is closed successfully and the note moves to Active.
 - If the minimum is not met, the note is marked **Failed Funding**. Investor commitments are released and no money moves to your account. You can request a new financing application against the same invoice if you wish to try again.
 
 You can see how much of your note has been funded, and the time remaining on the listing, from the note detail page in your portal.
@@ -104,7 +104,7 @@ If the matter escalates further, admin may mark the note as **Defaulted** and tr
 ```mermaid
 flowchart LR
   approved["Approved application"] --> draft["Note in Draft"]
-  draft -->|"Admin publishes"| listed["Listed on marketplace (14 days)"]
+  draft -->|"Admin publishes"| listed["Listed on marketplace (marketplace_listing_duration_days)"]
   listed -->|"Reaches target"| active["Active — net disbursement to issuer"]
   listed -->|"Reaches 100% early"| active
   listed -->|"Below minimum at expiry"| failed["Failed funding — commitments released"]

@@ -25,6 +25,9 @@ import {
   getSupportingDocAllowedTypesFromProductWorkflow,
 } from "./supporting-docs-workflow";
 import { buildApplicationRevisionSnapshot } from "./revision-snapshot";
+import {
+  upsertLatestOrganizationFinancialStatementsFromApplication,
+} from "./issuer-organization-financial-statements";
 import { deleteS3Object } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
 import {
@@ -1304,13 +1307,20 @@ export class ApplicationService {
           invoices: appFull.invoices,
           issuer_organization: appFull.issuer_organization,
         });
-        await (prisma as any).applicationRevision.create({
+        const revision = await (prisma as any).applicationRevision.create({
           data: {
             application_id: id,
             review_cycle: (appFull as any).review_cycle ?? 1,
             snapshot,
             submitted_at: new Date(),
           },
+        });
+
+        // Update org-level latest reusable financial statements for future app auto-prefill.
+        // Only happens on submit (not draft save).
+        await upsertLatestOrganizationFinancialStatementsFromApplication({
+          applicationId: id,
+          sourceApplicationRevisionId: revision?.id,
         });
       }
     }
@@ -1510,6 +1520,11 @@ export class ApplicationService {
       const newStatus = action === "accept" ? "APPROVED" : "WITHDRAWN";
       const offeredFacility = Number(offer.offered_facility) || 0;
       const requestedFacility = Number(offer.requested_facility) || 0;
+      const facilityFeeRatePercentRaw =
+        typeof offer.facility_fee_rate_percent === "number" ? offer.facility_fee_rate_percent : 0;
+      const facilityFeeRatePercent = Number.isFinite(facilityFeeRatePercentRaw)
+        ? facilityFeeRatePercentRaw
+        : 0;
 
       const updatedOffer = {
         ...offer,
@@ -1529,6 +1544,11 @@ export class ApplicationService {
             approved_facility: offeredFacility,
             utilized_facility: utilizedFacility,
             available_facility: offeredFacility - utilizedFacility,
+            facility_fee_rate_percent: facilityFeeRatePercent,
+            facility_fee_paid_amount:
+              typeof cd.facility_fee_paid_amount === "number" && Number.isFinite(cd.facility_fee_paid_amount)
+                ? (cd.facility_fee_paid_amount as number)
+                : 0,
           }
           : cd;
 

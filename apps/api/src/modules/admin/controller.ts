@@ -2936,6 +2936,7 @@ router.post(
       const result = await adminService.sendContractOffer(
         id,
         validated.offeredFacility,
+        validated.facilityFeeRatePercent ?? null,
         validated.expiresAt ?? null,
         req.user.user_id,
         { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }

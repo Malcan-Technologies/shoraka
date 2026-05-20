@@ -2119,6 +2119,55 @@ export class OrganizationService {
   }
 
   /**
+   * Latest reusable issuer organization-level financial statements (for future prefill).
+   *
+   * Access is restricted to the organization owner / members.
+   * Returns null when no reusable data exists.
+   */
+  async getIssuerOrganizationLatestFinancialStatements(
+    userId: string,
+    organizationId: string
+  ): Promise<{
+    financial_statements: unknown;
+    source_application_id: string | null;
+    source_application_revision_id: string | null;
+    updated_at: Date;
+  } | null> {
+    // Verify access (owner or member).
+    const issuerOrg = await prisma.issuerOrganization.findUnique({
+      where: { id: organizationId },
+      select: { owner_user_id: true },
+    });
+    if (!issuerOrg) {
+      throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Issuer organization not found");
+    }
+
+    if (issuerOrg.owner_user_id !== userId) {
+      const member = await this.repository.getOrganizationMember(organizationId, userId, "issuer");
+      if (!member) {
+        throw new AppError(
+          403,
+          "FORBIDDEN",
+          "You do not have access to this issuer organization."
+        );
+      }
+    }
+
+    const latest = await prisma.issuerOrganizationFinancialStatement.findUnique({
+      where: { issuer_organization_id: organizationId },
+      select: {
+        financial_statements: true,
+        source_application_id: true,
+        source_application_revision_id: true,
+        updated_at: true,
+      },
+    });
+
+    if (!latest) return null;
+    return latest as any;
+  }
+
+  /**
    * Update corporate info
    */
   async updateCorporateInfo(

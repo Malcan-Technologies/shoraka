@@ -24,6 +24,7 @@ import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
 import { putS3ObjectBuffer } from "../../lib/s3/client";
 import { resolveApprovedFacilityForRefresh } from "../../lib/contract-facility";
+import { computeProgressiveFacilityFee } from "../../lib/facility-fee";
 import {
   resolveOfferedAmount,
   resolveOfferedPlatformFeeRatePercent,
@@ -1519,7 +1520,7 @@ export class NoteService {
     const product = productId
       ? await prisma.product.findUnique({
           where: { id: productId },
-          select: { id: true, workflow: true },
+          select: { id: true, workflow: true, service_fee_rate_percent: true },
         })
       : null;
     const productCategory = resolveProductCategoryFromWorkflow(product?.workflow);
@@ -1598,7 +1599,11 @@ export class NoteService {
                 ? money(resolveOfferedProfitRate(invoiceOffer) ?? 0)
                 : undefined,
             platform_fee_rate_percent: money(resolveOfferedPlatformFeeRatePercent(invoiceOffer)),
-            service_fee_rate_percent: money(15),
+            service_fee_rate_percent: money(
+              product?.service_fee_rate_percent
+                ? product.service_fee_rate_percent.toNumber()
+                : 15
+            ),
             maturity_date:
               typeof invoiceDetails.maturity_date === "string"
                 ? dateFrom(invoiceDetails.maturity_date)
@@ -1838,7 +1843,22 @@ export class NoteService {
       throw new AppError(422, "NOTE_FEE_CAP_EXCEEDED", "Configured fees exceed allowed caps");
     }
     const now = new Date();
-    const closesAt = new Date(now.getTime() + DEFAULT_LISTING_DURATION_DAYS * 24 * 60 * 60 * 1000);
+    const noteProductSnapshot = asRecord(note.product_snapshot);
+    const productId = typeof noteProductSnapshot?.product_id === "string" ? noteProductSnapshot.product_id : null;
+
+    const fallbackDurationDays = DEFAULT_LISTING_DURATION_DAYS;
+    let durationDays = fallbackDurationDays;
+
+    if (productId) {
+      const product = await prisma.product.findUnique({
+        where: { id: productId },
+        select: { marketplace_listing_duration_days: true },
+      });
+      const configured = product?.marketplace_listing_duration_days;
+      if (configured != null) durationDays = configured;
+    }
+
+    const closesAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
     const updated = await prisma.$transaction(async (tx) => {
       const stateUpdate = await tx.note.updateMany({
         where: {
@@ -2151,13 +2171,80 @@ export class NoteService {
         data: { status: NoteInvestmentStatus.CONFIRMED, confirmed_at: now },
       });
       const result = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
-      await this.postDisbursementLedger(tx, result, actor);
+      // Lock and compute facility-fee progress (contract financing only).
+      const noteSourceContractId = result.source_contract_id;
+      const isContractFinancing = typeof noteSourceContractId === "string" && noteSourceContractId.length > 0;
+
+      let contractDetailsRecord: Record<string, unknown> | null = null;
+      let facilityFeeCharged = 0;
+      let facilityFeeCap = 0;
+      let facilityFeePaidBefore = 0;
+      let facilityFeeRemainingAfter = 0;
+      let facilityFeeRatePercent = 0;
+
+      // Only compute progressive facility fee when a contract is linked to the note.
+      // For legacy/missing facility fee rate on the contract, fee rate is treated as 0.
+      if (isContractFinancing) {
+        const lockedContracts = await tx.$queryRaw<
+          { contract_details: Prisma.JsonValue | null }[]
+        >`SELECT contract_details FROM contracts WHERE id = ${noteSourceContractId} FOR UPDATE`;
+
+        const lockedContractDetails = lockedContracts[0]?.contract_details ?? null;
+        const cd = asRecord(lockedContractDetails) ?? {};
+        contractDetailsRecord = cd;
+
+        const approvedFacilityAmount = Number(cd.approved_facility) || 0;
+        const facilityFeeRatePercentRaw = cd.facility_fee_rate_percent;
+        facilityFeeRatePercent =
+          typeof facilityFeeRatePercentRaw === "number" && Number.isFinite(facilityFeeRatePercentRaw)
+            ? facilityFeeRatePercentRaw
+            : 0;
+        facilityFeePaidBefore = Number(cd.facility_fee_paid_amount) || 0;
+
+        const fundedAmount = toNumber(result.funded_amount);
+        const progressive = computeProgressiveFacilityFee({
+          approvedFacilityAmount,
+          facilityFeeRatePercent,
+          facilityFeePaidBefore,
+          fundedAmountForDisbursement: fundedAmount,
+        });
+        facilityFeeCap = progressive.facilityFeeCap;
+        facilityFeeCharged = progressive.facilityFeeCharged;
+        facilityFeeRemainingAfter = progressive.remainingFacilityFee;
+      }
 
       const fundedAmount = toNumber(result.funded_amount);
       const platformFee = fundedAmount * (toNumber(result.platform_fee_rate_percent) / 100);
-      const netDisbursement = Math.max(0, fundedAmount - platformFee);
+      const netDisbursement = Math.max(0, fundedAmount - platformFee - facilityFeeCharged);
 
-      if (netDisbursement > 0) {
+      // Ledger must use the same computed values as withdrawal metadata.
+      await this.postDisbursementLedger(tx, result, actor, {
+        fundedAmount,
+        platformFee,
+        facilityFeeCharged,
+        netDisbursement,
+      });
+
+      // Create issuer withdrawal (contract financing only affects the computed amount above).
+      // For notes where facility-fee is not applicable, facilityFeeCharged stays 0.
+
+      // Facility fee progress is updated whenever we actually charged a facility fee at disbursement time,
+      // even if the issuer net disbursement becomes 0.
+      if (isContractFinancing && facilityFeeCharged > 0) {
+        await tx.contract.update({
+          where: { id: noteSourceContractId },
+          data: {
+            contract_details: {
+              ...(contractDetailsRecord ?? {}),
+              facility_fee_paid_amount: facilityFeePaidBefore + facilityFeeCharged,
+            } as Prisma.InputJsonValue,
+          },
+        });
+      }
+
+      // Always create a withdrawal instruction when there is something to pay (net disbursement)
+      // or when we charged a facility fee (so we can persist the full calculation snapshot).
+      if (netDisbursement > 0 || facilityFeeCharged > 0) {
         const existingDisbursement = await tx.withdrawalInstruction.findFirst({
           where: {
             note_id: id,
@@ -2178,8 +2265,14 @@ export class NoteService {
                 autoCreatedBy: actor.userId,
                 issuerOrganizationName: issuerOrg?.name ?? null,
                 source: "CLOSE_FUNDING",
-                fundedAmount,
-                platformFee,
+                grossFundedAmount: fundedAmount,
+                platformFeeAmount: platformFee,
+                facilityFeeRatePercent,
+                facilityFeeCap,
+                facilityFeePaidBefore,
+                facilityFeeCharged,
+                facilityFeeRemainingAfter,
+                netIssuerDisbursement: netDisbursement,
               } as Prisma.InputJsonValue,
             },
           });
@@ -2187,7 +2280,9 @@ export class NoteService {
             netDisbursement,
             fundedAmount,
             platformFee,
+            facilityFeeCharged,
           });
+
         }
       }
 
@@ -2341,6 +2436,8 @@ export class NoteService {
         throw new AppError(409, "NOTE_ALREADY_ACTIVATED", "Note has already been activated");
       }
       const result = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
+      // For legacy safety: facility fee is charged at funding close; activation ledger uses facility fee = 0.
+      // closeFunding() already posts the correct disbursement ledger entries.
       await this.postDisbursementLedger(tx, result, actor);
       await this.logAdminAction(
         tx,
@@ -4155,14 +4252,24 @@ export class NoteService {
   private async postDisbursementLedger(
     tx: Prisma.TransactionClient,
     note: Awaited<ReturnType<typeof prisma.note.findUniqueOrThrow>>,
-    actor: ActorContext
+    actor: ActorContext,
+    params?: {
+      fundedAmount?: number;
+      platformFee?: number;
+      facilityFeeCharged?: number;
+      netDisbursement?: number;
+    }
   ) {
     const investorPoolId = await this.getLedgerAccountId(tx, "INVESTOR_POOL");
     const operatingId = await this.getLedgerAccountId(tx, "OPERATING_ACCOUNT");
     const issuerPayableId = await this.getLedgerAccountId(tx, "ISSUER_PAYABLE");
-    const fundedAmount = toNumber(note.funded_amount);
-    const platformFee = fundedAmount * (toNumber(note.platform_fee_rate_percent) / 100);
-    const netDisbursement = Math.max(0, fundedAmount - platformFee);
+    const fundedAmount = params?.fundedAmount ?? toNumber(note.funded_amount);
+    const platformFee =
+      params?.platformFee ??
+      fundedAmount * (toNumber(note.platform_fee_rate_percent) / 100);
+    const facilityFeeCharged = params?.facilityFeeCharged ?? 0;
+    const netDisbursement =
+      params?.netDisbursement ?? Math.max(0, fundedAmount - platformFee);
     const entries = [
       {
         account_id: investorPoolId,
@@ -4176,6 +4283,16 @@ export class NoteService {
         amount: money(platformFee),
         description: "Platform fee deducted at disbursement",
       },
+      ...(facilityFeeCharged > 0
+        ? [
+            {
+              account_id: operatingId,
+              direction: NoteLedgerDirection.CREDIT,
+              amount: money(facilityFeeCharged),
+              description: "Facility fee deducted at disbursement",
+            },
+          ]
+        : []),
       {
         account_id: issuerPayableId,
         direction: NoteLedgerDirection.CREDIT,

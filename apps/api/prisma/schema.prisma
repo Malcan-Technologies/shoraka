@@ -320,6 +320,18 @@ model IssuerOrganization {
   @@map("issuer_organizations")
 }
 
+model IssuerOrganizationFinancialStatement {
+  id                           String        @id @default(cuid())
+  issuer_organization_id      String        @unique
+  financial_statements        Json
+  source_application_id       String?
+  source_application_revision_id String?
+  created_at                   DateTime      @default(now())
+  updated_at                   DateTime      @updatedAt
+
+  @@map("issuer_organization_financial_statements")
+}
+
 model CtosPartySupplement {
   id                       String   @id @default(cuid())
   issuer_organization_id   String?
@@ -1157,6 +1169,11 @@ model Product {
   category_display_order Int?
   product_display_order  Int?
   offer_expiry_days      Int?
+  marketplace_listing_duration_days Int?
+  // Default investor-side service fee rate (percent of investor profit) for notes under this product.
+  service_fee_rate_percent Decimal @default(15) @db.Decimal(5, 2)
+  // Default contract financing facility fee rate (percent of approved facility) to prefill new contract offers.
+  default_facility_fee_rate_percent Decimal @default(1) @db.Decimal(5, 2)
 
   status     ProductStatus @default(ACTIVE)
   deleted_at DateTime?

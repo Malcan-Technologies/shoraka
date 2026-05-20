@@ -325,6 +325,37 @@ export function useOrganizationApplications(organizationId?: string) {
   });
 }
 
+export function useIssuerOrganizationLatestFinancialStatements(organizationId?: string, enabled: boolean = true) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const refreshPolicy = getReviewRefreshPolicy();
+
+  type LatestOrgFinancialStatementsResponse =
+    | {
+        financial_statements: unknown;
+        source_application_id: string | null;
+        source_application_revision_id: string | null;
+        updated_at: string;
+      }
+    | null;
+
+  return useQuery({
+    queryKey: ["issuer-org-latest-financial-statements", organizationId],
+    queryFn: async () => {
+      if (!organizationId) return null;
+      const response = await apiClient.get<LatestOrgFinancialStatementsResponse>(
+        `/v1/organizations/issuer/${organizationId}/financial-statements/latest`
+      );
+      if (!response.success) {
+        throw new Error(response.error.message || "Failed to fetch organization latest financial statements");
+      }
+      return response.data;
+    },
+    enabled: !!organizationId && enabled,
+    ...refreshPolicy,
+  });
+}
+
 function getOfferError(res: { success: true } | { success: false; error: { message?: string } }): string {
   if (res.success) return "";
   return res.error?.message ?? "Offer operation failed";

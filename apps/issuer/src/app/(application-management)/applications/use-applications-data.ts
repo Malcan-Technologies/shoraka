@@ -44,6 +44,7 @@ interface ApiContract {
 
 interface ApiInvoice {
   id: string;
+  contract_id?: string | null;
   status?: string;
   withdraw_reason?: string | null;
   offer_details?: { expires_at?: string | null } | Record<string, unknown> | null;
@@ -205,10 +206,12 @@ function prepareInvoice(
   const invoiceValue =
     typeof details.value === "number" ? details.value : typeof details.invoice_value === "number" ? details.invoice_value : null;
   const appliedFinancing = resolveRequestedInvoiceAmount(details);
+  const contractId = api.contract_id ?? (api as unknown as { contract_id?: string }).contract_id ?? null;
 
   return {
     id: api.id,
     number: String(details.invoice_number ?? details.number ?? "—"),
+    contractId: contractId ? String(contractId) : null,
     maturityDate: details.maturity_date ? String(details.maturity_date) : null,
     value: invoiceValue,
     appliedFinancing,
