@@ -367,6 +367,7 @@ export function mapNoteListItem(note: NoteWithRelations) {
     featuredUntil: iso(note.featured_until),
     featuredActive: resolveFeaturedActive(note),
     maturityDate: iso(note.maturity_date),
+    listingClosesAt: note.listing ? iso(note.listing.closes_at) : null,
     publishedAt: iso(note.published_at),
     settlementSummary: resolveSettlementSummary(note),
     createdAt: note.created_at.toISOString(),

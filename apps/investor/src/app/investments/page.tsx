@@ -49,16 +49,16 @@ import { formatNoteReferenceDisplay, SOUKSCORE_RISK_RATING_GRADES, type NoteList
 const MARKETPLACE_SECONDARY_BUTTON_CLASS =
   "bg-slate-100 text-slate-700 hover:bg-slate-200";
 
-function resolveMarketplaceDaysLeft(maturityDate?: string | null): number | null {
-  if (!maturityDate) return null;
+function resolveMarketplaceListingDaysLeft(listingClosesAt?: string | null): number | null {
+  if (!listingClosesAt) return null;
 
-  const target = new Date(maturityDate);
+  const target = new Date(listingClosesAt);
   if (Number.isNaN(target.getTime())) {
     return null;
   }
 
   const millisRemaining = target.getTime() - Date.now();
-  return Math.max(1, Math.ceil(millisRemaining / (1000 * 60 * 60 * 24)));
+  return Math.max(0, Math.ceil(millisRemaining / (1000 * 60 * 60 * 24)));
 }
 const MARKETPLACE_LISTINGS_PAGE_SIZE = 9;
 
@@ -90,7 +90,7 @@ function toMarketplaceNote(note: NoteListItem): MarketplaceNote {
     note.targetAmount,
     note.fundedAmount
   );
-  const tenorDays = resolveMarketplaceDaysLeft(note.maturityDate);
+  const tenorDays = resolveMarketplaceListingDaysLeft(note.listingClosesAt);
 
   return {
     id: note.id,

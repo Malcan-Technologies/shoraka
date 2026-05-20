@@ -2,23 +2,12 @@ import Link from "next/link";
 import { BuildingOffice2Icon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import { Button, Card, CardContent, SoukscoreRiskRatingBadge, cn } from "@cashsouk/ui";
 import { formatNoteReferenceDisplay, type NoteListItem } from "@cashsouk/types";
+import { resolveMarketplaceListingDaysLeft } from "@/lib/marketplace-listing-days";
 
 function formatCurrency(amount: number) {
   return `RM ${amount.toLocaleString("en-MY", {
     maximumFractionDigits: 0,
   })}`;
-}
-
-function resolveMarketplaceDaysLeft(maturityDate?: string | null): number | null {
-  if (!maturityDate) return null;
-
-  const target = new Date(maturityDate);
-  if (Number.isNaN(target.getTime())) {
-    return null;
-  }
-
-  const millisRemaining = target.getTime() - Date.now();
-  return Math.max(1, Math.ceil(millisRemaining / (1000 * 60 * 60 * 24)));
 }
 
 function textOrDash(value?: string | null) {
@@ -69,7 +58,7 @@ export function LandingMarketplacePreview({
         ) : (
           <div className="mt-10 grid gap-6 lg:grid-cols-3 lg:items-stretch">
             {notes.map((note) => {
-              const daysLeft = resolveMarketplaceDaysLeft(note.maturityDate);
+              const daysLeft = resolveMarketplaceListingDaysLeft(note.listingClosesAt);
               const fundingPercent = resolveFundingPercent(note);
               const riskRatingForBadge = note.riskRating?.trim() ? note.riskRating : null;
               return (

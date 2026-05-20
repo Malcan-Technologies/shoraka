@@ -191,6 +191,8 @@ export interface NoteListItem extends NoteMoneySummary {
   featuredUntil: string | null;
   featuredActive: boolean;
   maturityDate: string | null;
+  /** Marketplace listing close time (`note_listings.closes_at`); used for funding-window countdown. */
+  listingClosesAt: string | null;
   publishedAt: string | null;
   settlementSummary: NoteSettlementPoolSummary | null;
   /** Issuer portal list: residual trustee payout vs `settlementSummary` (omitted elsewhere). */
