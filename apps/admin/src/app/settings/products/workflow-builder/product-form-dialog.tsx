@@ -111,6 +111,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   const [saveTriggered, setSaveTriggered] = useState(false);
   const [offerExpiryDays, setOfferExpiryDays] = useState<string>("7");
   const [marketplaceListingDurationDays, setMarketplaceListingDurationDays] = useState<string>("14");
+  const [serviceFeeRatePercent, setServiceFeeRatePercent] = useState<string>("15");
   /** In edit mode, workflow as loaded from product (normalized). Used to disable Save when nothing changed. */
   const initialWorkflowRef = useRef<unknown[]>([]);
 
@@ -171,6 +172,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       setSaveTriggered(false);
       setOfferExpiryDays("");
       setMarketplaceListingDurationDays("");
+      setServiceFeeRatePercent("");
       initialWorkflowRef.current = [];
       return;
     }
@@ -190,12 +192,15 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       const listingDays = (product as { marketplace_listing_duration_days?: number | null })
         .marketplace_listing_duration_days;
       setMarketplaceListingDurationDays(listingDays != null ? String(listingDays) : "14");
+      const serviceFee = (product as { service_fee_rate_percent?: number | null }).service_fee_rate_percent;
+      setServiceFeeRatePercent(serviceFee != null ? String(serviceFee) : "15");
     } else {
       const [firstStep, lastStep] = getRequiredFirstAndLastSteps();
       setSteps([firstStep, lastStep]);
       initialWorkflowRef.current = [];
       setOfferExpiryDays("7");
       setMarketplaceListingDurationDays("14");
+      setServiceFeeRatePercent("15");
     }
   }, [open, isEdit, product, ensureFirstAndLastPresent, enforceFirstAndLast]);
 
@@ -355,10 +360,18 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
                 return !Number.isNaN(n) && n >= 1 && n <= 90 ? n : null;
               })()
             : null;
+        const serviceFeeRatePercentNum =
+          serviceFeeRatePercent.trim() !== ""
+            ? (() => {
+                const n = Number(serviceFeeRatePercent);
+                return !Number.isNaN(n) && n >= 0 && n <= 15 ? n : null;
+              })()
+            : 15;
         const created = await createProduct.mutateAsync({
           workflow: buildPayloadFromSteps(steps),
           offer_expiry_days: offerExpiryNum,
           marketplace_listing_duration_days: marketplaceListingDurationNum,
+          service_fee_rate_percent: serviceFeeRatePercentNum,
         });
         productId = created.id;
         createdProductId = productId;
@@ -388,16 +401,34 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
               return !Number.isNaN(n) && n >= 1 && n <= 90 ? n : null;
             })()
           : null;
+      const serviceFeeRatePercentNum =
+        serviceFeeRatePercent.trim() !== ""
+          ? (() => {
+              const n = Number(serviceFeeRatePercent);
+              return !Number.isNaN(n) && n >= 0 && n <= 15 ? n : null;
+            })()
+          : 15;
       if (isEdit && product) {
         await updateProduct.mutateAsync({
           id: product.id,
-          data: { workflow: payload, offer_expiry_days: offerExpiryNum, marketplace_listing_duration_days: marketplaceListingDurationNum },
+          data: {
+            workflow: payload,
+            offer_expiry_days: offerExpiryNum,
+            marketplace_listing_duration_days: marketplaceListingDurationNum,
+            service_fee_rate_percent: serviceFeeRatePercentNum,
+          },
         });
         toast.success("Product updated");
       } else {
         await updateProduct.mutateAsync({
           id: productId,
-          data: { workflow: payload, completeCreate: true, offer_expiry_days: offerExpiryNum, marketplace_listing_duration_days: marketplaceListingDurationNum },
+          data: {
+            workflow: payload,
+            completeCreate: true,
+            offer_expiry_days: offerExpiryNum,
+            marketplace_listing_duration_days: marketplaceListingDurationNum,
+            service_fee_rate_percent: serviceFeeRatePercentNum,
+          },
         });
         toast.success("Product created");
       }
@@ -457,6 +488,16 @@ const marketplaceListingDurationError = (() => {
   return null;
 })();
 
+/** Service fee rate validation: blank allowed (optional). 0-15 inclusive. */
+const serviceFeeRatePercentError = (() => {
+  const v = serviceFeeRatePercent.trim();
+  if (v === "") return null;
+  const num = Number(v);
+  if (Number.isNaN(num)) return "Service fee rate must be a number";
+  if (num < 0 || num > 15) return "Service fee rate must be between 0 and 15";
+  return null;
+})();
+
 const hasChanges = !isEdit
   ? true
   : Boolean(pendingImageFile ?? pendingImageFileRef.current) ||
@@ -466,7 +507,9 @@ const hasChanges = !isEdit
       ((product as { offer_expiry_days?: number | null }).offer_expiry_days !==
         (offerExpiryDays.trim() === "" ? null : Number(offerExpiryDays)) ||
         (product as { marketplace_listing_duration_days?: number | null }).marketplace_listing_duration_days !==
-          (marketplaceListingDurationDays.trim() === "" ? null : Number(marketplaceListingDurationDays)))) ||
+          (marketplaceListingDurationDays.trim() === "" ? null : Number(marketplaceListingDurationDays)) ||
+        (product as { service_fee_rate_percent?: number | null }).service_fee_rate_percent !==
+          (serviceFeeRatePercent.trim() === "" ? 15 : Number(serviceFeeRatePercent)))) ||
     !isEqual;
 
   /** In edit mode, step ids that have unsaved changes (for "Edited" badge on cards). */
@@ -693,7 +736,9 @@ const hasChanges = !isEdit
               <div
                 className={cn(
                   "rounded-xl border bg-card p-4 shrink-0 min-w-0",
-                  offerExpiryError ? "border-amber-500/70 dark:border-amber-500/50" : "border-border"
+                  offerExpiryError || serviceFeeRatePercentError
+                    ? "border-amber-500/70 dark:border-amber-500/50"
+                    : "border-border"
                 )}
               >
                 <div className={cn("grid min-w-0", FIELD_GAP)}>
@@ -710,6 +755,22 @@ const hasChanges = !isEdit
                   />
                   <p className="text-xs text-muted-foreground">
                     This defines how long an issuer has to accept the offer after it is generated.
+                  </p>
+
+                  <Label htmlFor="service-fee-rate-percent" className="text-sm font-medium">
+                    Service fee rate (%)
+                  </Label>
+                  <Input
+                    id="service-fee-rate-percent"
+                    type="text"
+                    value={serviceFeeRatePercent}
+                    onChange={(e) => setServiceFeeRatePercent(e.target.value)}
+                    placeholder="15"
+                    className={INPUT_CLASS}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Percentage of investor profit used to calculate the service fee. This value is snapshotted onto notes
+                    created from this product.
                   </p>
                 </div>
               </div>
@@ -752,6 +813,7 @@ const hasChanges = !isEdit
                     ...(marketplaceListingDurationError
                       ? ["Marketplace listing settings: " + marketplaceListingDurationError]
                       : []),
+                    ...(serviceFeeRatePercentError ? ["Offer settings: " + serviceFeeRatePercentError] : []),
                   ];
                   if (requiredErrors.length === 0) return null;
 
@@ -805,6 +867,7 @@ const hasChanges = !isEdit
                   getRequiredStepErrors(steps).length > 0 ||
                   !!offerExpiryError ||
                   !!marketplaceListingDurationError ||
+                  !!serviceFeeRatePercentError ||
                   (isEdit && !hasChanges)
                 }
               >

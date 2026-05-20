@@ -286,7 +286,6 @@ export function IssuerPayoutCard({
       {withdrawal.withdrawalType === WithdrawalType.ISSUER_DISBURSEMENT &&
       withdrawal.grossFundedAmount != null &&
       withdrawal.platformFeeAmount != null &&
-      withdrawal.facilityFeeCharged != null &&
       withdrawal.netIssuerDisbursement != null ? (
         <div className="mt-4 rounded-lg border bg-muted/20 p-3 text-xs">
           <div className="flex items-center justify-between">
@@ -303,10 +302,12 @@ export function IssuerPayoutCard({
               <span className="text-muted-foreground">Platform fee</span>
               <span className="font-medium">{formatCurrency(withdrawal.platformFeeAmount)}</span>
             </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Facility fee</span>
-              <span className="font-medium">{formatCurrency(withdrawal.facilityFeeCharged)}</span>
-            </div>
+            {withdrawal.facilityFeeCharged != null && withdrawal.facilityFeeCharged > 0 ? (
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Facility fee</span>
+                <span className="font-medium">{formatCurrency(withdrawal.facilityFeeCharged)}</span>
+              </div>
+            ) : null}
             <div className="flex items-center justify-between gap-4 pt-1">
               <span className="text-muted-foreground">Net to issuer</span>
               <span className="font-semibold text-primary">

@@ -1520,7 +1520,7 @@ export class NoteService {
     const product = productId
       ? await prisma.product.findUnique({
           where: { id: productId },
-          select: { id: true, workflow: true },
+          select: { id: true, workflow: true, service_fee_rate_percent: true },
         })
       : null;
     const productCategory = resolveProductCategoryFromWorkflow(product?.workflow);
@@ -1599,7 +1599,11 @@ export class NoteService {
                 ? money(resolveOfferedProfitRate(invoiceOffer) ?? 0)
                 : undefined,
             platform_fee_rate_percent: money(resolveOfferedPlatformFeeRatePercent(invoiceOffer)),
-            service_fee_rate_percent: money(15),
+            service_fee_rate_percent: money(
+              product?.service_fee_rate_percent
+                ? product.service_fee_rate_percent.toNumber()
+                : 15
+            ),
             maturity_date:
               typeof invoiceDetails.maturity_date === "string"
                 ? dateFrom(invoiceDetails.maturity_date)

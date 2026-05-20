@@ -77,6 +77,7 @@ export function useCreateProduct() {
       workflow: unknown[];
       offer_expiry_days?: number | null;
       marketplace_listing_duration_days?: number | null;
+      service_fee_rate_percent?: number | null;
     }) => {
       const response = await apiClient.createProduct(data);
       return unwrapResponse(response);
@@ -103,6 +104,7 @@ export function useUpdateProduct() {
         completeCreate?: boolean;
         offer_expiry_days?: number | null;
         marketplace_listing_duration_days?: number | null;
+        service_fee_rate_percent?: number | null;
       };
     }) => {
       const response = await apiClient.updateProduct(id, data);

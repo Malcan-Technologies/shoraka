@@ -365,7 +365,6 @@ export default function IssuerNoteDetailPage() {
   const shouldShowIssuerDisbursementBreakdown =
     issuerDisbursementWithdrawal?.grossFundedAmount != null &&
     issuerDisbursementWithdrawal?.platformFeeAmount != null &&
-    issuerDisbursementWithdrawal?.facilityFeeCharged != null &&
     issuerDisbursementWithdrawal?.netIssuerDisbursement != null;
   const settlementPayoutSummaryBlurb =
     issuerResidualDisbursement?.kind === "pending"
@@ -635,12 +634,15 @@ export default function IssuerNoteDetailPage() {
                   {formatCurrency(issuerDisbursementWithdrawal.platformFeeAmount!)}
                 </span>
               </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-sm text-muted-foreground">Facility fee</span>
-                <span className="text-sm font-semibold text-foreground tabular-nums">
-                  {formatCurrency(issuerDisbursementWithdrawal.facilityFeeCharged!)}
-                </span>
-              </div>
+              {issuerDisbursementWithdrawal.facilityFeeCharged != null &&
+              issuerDisbursementWithdrawal.facilityFeeCharged > 0 ? (
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-muted-foreground">Facility fee</span>
+                  <span className="text-sm font-semibold text-foreground tabular-nums">
+                    {formatCurrency(issuerDisbursementWithdrawal.facilityFeeCharged)}
+                  </span>
+                </div>
+              ) : null}
               <div className="flex items-center justify-between gap-4 pt-1">
                 <span className="text-sm text-muted-foreground">Net amount to issuer</span>
                 <span className="text-sm font-semibold text-primary tabular-nums">

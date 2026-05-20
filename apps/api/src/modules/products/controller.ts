@@ -51,6 +51,9 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
             product_display_order: (p as any).product_display_order ?? null,
             offer_expiry_days: (p as any).offer_expiry_days ?? null,
             marketplace_listing_duration_days: (p as any).marketplace_listing_duration_days ?? null,
+            service_fee_rate_percent: (p as any).service_fee_rate_percent != null
+              ? (p as any).service_fee_rate_percent.toNumber()
+              : null,
             created_at: p.created_at.toISOString(),
             updated_at: p.updated_at.toISOString(),
           })),
@@ -94,6 +97,7 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
         offer_expiry_days: validated.offer_expiry_days ?? undefined,
         marketplace_listing_duration_days:
           validated.marketplace_listing_duration_days ?? undefined,
+        service_fee_rate_percent: validated.service_fee_rate_percent ?? undefined,
       },
       { userId, ipAddress: ip as string | null, userAgent: req.headers["user-agent"] as string | undefined, deviceInfo: deviceInfo ?? null }
     );
@@ -107,6 +111,9 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
             marketplace_listing_duration_days:
               (product as { marketplace_listing_duration_days?: number | null })
                 .marketplace_listing_duration_days ?? null,
+        service_fee_rate_percent: (product as any).service_fee_rate_percent
+          ? (product as any).service_fee_rate_percent.toNumber()
+          : null,
         created_at: product.created_at.toISOString(),
         updated_at: product.updated_at.toISOString(),
       },
@@ -142,6 +149,9 @@ router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
             marketplace_listing_duration_days:
               (product as { marketplace_listing_duration_days?: number | null })
                 .marketplace_listing_duration_days ?? null,
+          service_fee_rate_percent: (product as any).service_fee_rate_percent
+            ? (product as any).service_fee_rate_percent.toNumber()
+            : null,
           created_at: product.created_at.toISOString(),
           updated_at: product.updated_at.toISOString(),
         },
@@ -188,6 +198,7 @@ router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => 
         completeCreate: validated.completeCreate,
         offer_expiry_days: validated.offer_expiry_days,
         marketplace_listing_duration_days: validated.marketplace_listing_duration_days,
+        service_fee_rate_percent: validated.service_fee_rate_percent ?? undefined,
       },
       { userId, ipAddress: ip as string | null, userAgent: req.headers["user-agent"] as string | undefined, deviceInfo }
     );
@@ -210,6 +221,9 @@ router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => 
         marketplace_listing_duration_days:
           (product as { marketplace_listing_duration_days?: number | null })
             .marketplace_listing_duration_days ?? null,
+        service_fee_rate_percent: (product as any).service_fee_rate_percent
+          ? (product as any).service_fee_rate_percent.toNumber()
+          : null,
         created_at: product.created_at.toISOString(),
         updated_at: product.updated_at.toISOString(),
       },

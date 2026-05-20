@@ -88,6 +88,7 @@ export const createProductBodySchema = z.object({
     }, { message: "workflow[0].config.category is required and must be a non-empty string" }),
   offer_expiry_days: offerExpiryDaysSchema,
   marketplace_listing_duration_days: marketplaceListingDurationDaysSchema,
+  service_fee_rate_percent: z.number().min(0).max(15).optional().nullable(),
 });
 
 export type CreateProductBody = z.infer<typeof createProductBodySchema>;
@@ -109,6 +110,7 @@ export const updateProductBodySchema = z.object({
   completeCreate: z.boolean().optional(),
   offer_expiry_days: offerExpiryDaysSchema,
   marketplace_listing_duration_days: marketplaceListingDurationDaysSchema,
+  service_fee_rate_percent: z.number().min(0).max(15).optional().nullable(),
 });
 
 export type UpdateProductBody = z.infer<typeof updateProductBodySchema>;

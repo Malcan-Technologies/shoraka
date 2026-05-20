@@ -224,6 +224,7 @@ export interface Product {
   workflow: JsonValue[];
   offer_expiry_days?: number | null;
   marketplace_listing_duration_days?: number | null;
+  service_fee_rate_percent?: number | null;
   created_at: string;
   updated_at: string;
 }
