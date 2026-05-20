@@ -351,7 +351,16 @@ export const reviewItemRequestAmendmentSchema = reviewItemActionSchema.extend({
 
 export const sendContractOfferSchema = z.object({
   offeredFacility: z.coerce.number().positive("Offered facility must be greater than 0"),
-  facilityFeeRatePercent: z.coerce.number().min(0).max(100).optional().nullable(),
+  facilityFeeRatePercent: z
+    .coerce
+    .number()
+    .min(0)
+    .max(1)
+    .refine((v) => Number.isFinite(v) && Math.abs(v * 100 - Math.round(v * 100)) < 1e-9, {
+      message: "Facility fee rate can have up to 2 decimal places",
+    })
+    .optional()
+    .nullable(),
   expiresAt: z.string().datetime().optional().nullable(),
 });
 

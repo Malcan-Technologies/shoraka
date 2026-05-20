@@ -90,7 +90,17 @@ export const updateNoteDraftSchema = z.object({
   targetAmount: z.number().positive().optional(),
   maturityDate: z.string().datetime().nullable().optional(),
   platformFeeRatePercent: z.number().min(0).max(100).optional(),
-  serviceFeeRatePercent: z.number().min(0).max(15).optional(),
+  serviceFeeRatePercent: z
+    .number()
+    .min(0)
+    .max(15)
+    .refine((v) => {
+      if (!Number.isFinite(v)) return false;
+      const scaled = v * 100;
+      const rounded = Math.round(scaled);
+      return Math.abs(scaled - rounded) < 1e-9;
+    }, { message: "Service fee rate can have up to 2 decimal places" })
+    .optional(),
   serviceFeeCustomerScope: z.string().max(120).nullable().optional(),
   profitRatePercent: z.number().min(0).nullable().optional(),
   summary: z.string().max(1000).nullable().optional(),
