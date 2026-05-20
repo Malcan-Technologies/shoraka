@@ -104,6 +104,8 @@ export type CardStatusResult = {
 export interface NormalizedInvoice {
   id: string;
   number: string;
+  /** Linked Contract ID (when contract financing is used for this invoice). */
+  contractId: string | null;
   maturityDate: string | null;
   value: number | null;
   appliedFinancing: number | null;
