@@ -210,13 +210,23 @@ export function ReviewOfferModal({
       : null;
 
   const expectedPlatformFeeNumber =
-    isContractLinkedInvoice &&
     invoiceFinancingAmountNumber != null &&
     invoicePlatformFeeRatePercentNumber != null &&
     Number.isFinite(invoiceFinancingAmountNumber) &&
     Number.isFinite(invoicePlatformFeeRatePercentNumber)
       ? (invoiceFinancingAmountNumber * invoicePlatformFeeRatePercentNumber) / 100
       : null;
+
+  const expectedNetDisbursementPlatformOnlyNumber =
+    expectedPlatformFeeNumber != null && invoiceFinancingAmountNumber != null
+      ? invoiceFinancingAmountNumber - expectedPlatformFeeNumber
+      : null;
+
+  const showExpectedInvoicePlatformOnlyBreakdown =
+    type === "invoice" &&
+    expectedPlatformFeeNumber != null &&
+    expectedNetDisbursementPlatformOnlyNumber != null &&
+    invoiceFinancingAmountNumber != null;
 
   const expectedNetDisbursementNumber =
     expectedFacilityFeeNumber != null &&
@@ -468,48 +478,59 @@ export function ReviewOfferModal({
                   </dd>
                 </>
               )}
-              {type === "invoice" ? (
-                <>
-                  {showExpectedInvoiceFacilityBreakdown ? (
-                    <>
-                      <dt className="text-muted-foreground font-medium">Invoice financing amount</dt>
-                      <dd className="font-medium text-foreground text-right tabular-nums">
-                        {formatCurrency(invoiceFinancingAmountNumber ?? 0)}
-                      </dd>
+            {type === "invoice" ? (
+                showExpectedInvoiceFacilityBreakdown ? (
+                  <>
+                    <dt className="text-muted-foreground font-medium">Invoice financing amount</dt>
+                    <dd className="font-medium text-foreground text-right tabular-nums">
+                      {formatCurrency(invoiceFinancingAmountNumber ?? 0)}
+                    </dd>
 
-                      <dt className="text-muted-foreground font-medium">Expected platform fee</dt>
-                      <dd className="font-medium text-foreground text-right tabular-nums">
-                        {expectedPlatformFeeNumber != null
-                          ? formatCurrency(expectedPlatformFeeNumber)
-                          : "—"}
-                      </dd>
+                    <dt className="text-muted-foreground font-medium">Expected platform fee</dt>
+                    <dd className="font-medium text-foreground text-right tabular-nums">
+                      {expectedPlatformFeeNumber != null ? formatCurrency(expectedPlatformFeeNumber) : "—"}
+                    </dd>
 
-                      <dt className="text-muted-foreground font-medium">Expected facility fee</dt>
-                      <dd className="font-medium text-foreground text-right tabular-nums">
-                        {expectedFacilityFeeNumber != null
-                          ? formatCurrency(expectedFacilityFeeNumber)
-                          : "—"}
-                      </dd>
+                    <dt className="text-muted-foreground font-medium">Expected facility fee</dt>
+                    <dd className="font-medium text-foreground text-right tabular-nums">
+                      {expectedFacilityFeeNumber != null ? formatCurrency(expectedFacilityFeeNumber) : "—"}
+                    </dd>
 
-                      <dt className="text-muted-foreground font-medium">Expected net disbursement</dt>
-                      <dd className="font-medium text-foreground text-right tabular-nums">
-                        {expectedNetDisbursementNumber != null
-                          ? formatCurrency(expectedNetDisbursementNumber)
-                          : "—"}
-                      </dd>
-                    </>
-                  ) : (
-                    <>
-                      <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
-                        Platform fee (at disbursement):
-                        <InfoTooltip content={PLATFORM_FEE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
-                      </dt>
-                      <dd className="font-medium text-foreground text-right tabular-nums">
-                        {invoice?.platformFee ?? "—"}
-                      </dd>
-                    </>
-                  )}
-                </>
+                    <dt className="text-muted-foreground font-medium">Expected net disbursement</dt>
+                    <dd className="font-medium text-foreground text-right tabular-nums">
+                      {expectedNetDisbursementNumber != null ? formatCurrency(expectedNetDisbursementNumber) : "—"}
+                    </dd>
+                  </>
+                ) : showExpectedInvoicePlatformOnlyBreakdown ? (
+                  <>
+                    <dt className="text-muted-foreground font-medium">Invoice financing amount</dt>
+                    <dd className="font-medium text-foreground text-right tabular-nums">
+                      {formatCurrency(invoiceFinancingAmountNumber ?? 0)}
+                    </dd>
+
+                    <dt className="text-muted-foreground font-medium">Expected platform fee</dt>
+                    <dd className="font-medium text-foreground text-right tabular-nums">
+                      {expectedPlatformFeeNumber != null ? formatCurrency(expectedPlatformFeeNumber) : "—"}
+                    </dd>
+
+                    <dt className="text-muted-foreground font-medium">Expected net disbursement</dt>
+                    <dd className="font-medium text-foreground text-right tabular-nums">
+                      {expectedNetDisbursementPlatformOnlyNumber != null
+                        ? formatCurrency(expectedNetDisbursementPlatformOnlyNumber)
+                        : "—"}
+                    </dd>
+                  </>
+                ) : (
+                  <>
+                    <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
+                      Platform fee (at disbursement):
+                      <InfoTooltip content={PLATFORM_FEE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+                    </dt>
+                    <dd className="font-medium text-foreground text-right tabular-nums">
+                      {invoice?.platformFee ?? "—"}
+                    </dd>
+                  </>
+                )
               ) : null}
             </dl>
 
@@ -519,7 +540,8 @@ export function ReviewOfferModal({
               </p>
             ) : null}
 
-            {type === "invoice" && showExpectedInvoiceFacilityBreakdown ? (
+            {type === "invoice" &&
+            (showExpectedInvoiceFacilityBreakdown || showExpectedInvoicePlatformOnlyBreakdown) ? (
               <p className="mt-3 text-xs text-muted-foreground">
                 Final amount is confirmed at disbursement.
               </p>
