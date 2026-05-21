@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { BuildingOffice2Icon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import { Button, Card, CardContent, SoukscoreRiskRatingBadge, cn } from "@cashsouk/ui";
-import { formatNoteReferenceDisplay, type NoteListItem } from "@cashsouk/types";
+import {
+  formatNoteReferenceDisplay,
+  formatInvestorReturnRatePercent,
+  resolveNetExpectedReturnRatePercent,
+  type NoteListItem,
+} from "@cashsouk/types";
 import { resolveMarketplaceListingDaysLeft } from "@/lib/marketplace-listing-days";
 
 function formatCurrency(amount: number) {
@@ -61,6 +66,7 @@ export function LandingMarketplacePreview({
               const daysLeft = resolveMarketplaceListingDaysLeft(note.listingClosesAt);
               const fundingPercent = resolveFundingPercent(note);
               const riskRatingForBadge = note.riskRating?.trim() ? note.riskRating : null;
+              const netReturn = resolveNetExpectedReturnRatePercent(note);
               return (
                 <Card key={note.id} className="flex h-full flex-col rounded-2xl border-border shadow-sm">
                   <CardContent className="flex flex-1 flex-col p-6">
@@ -106,8 +112,8 @@ export function LandingMarketplacePreview({
                       <div className="grid shrink-0 grid-cols-3 gap-3 items-stretch">
                         <div className="flex flex-col text-center">
                           <div className="flex flex-1 flex-col rounded-2xl border bg-muted/20 p-3">
-                            <div className="flex min-h-[4.25rem] flex-1 items-center justify-center text-4xl font-semibold leading-none tabular-nums text-foreground">
-                              {note.profitRatePercent !== null ? `${note.profitRatePercent}%` : "-"}
+                            <div className="flex min-h-[4.25rem] flex-1 items-center justify-center px-1.5 text-[clamp(1.5rem,4.5vw,2rem)] font-semibold leading-none tabular-nums text-foreground">
+                              {formatInvestorReturnRatePercent(netReturn)}
                             </div>
                           </div>
                           <div className="mt-1 text-xs text-muted-foreground">Per annum</div>

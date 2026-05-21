@@ -21,7 +21,12 @@ import {
   DropdownMenuTrigger,
   Input,
 } from "@cashsouk/ui";
-import { SOUKSCORE_RISK_RATING_GRADES, formatNoteReferenceDisplay, type NoteListItem } from "@cashsouk/types";
+import {
+  SOUKSCORE_RISK_RATING_GRADES,
+  formatNoteReferenceDisplay,
+  resolveNetExpectedReturnRatePercent,
+  type NoteListItem,
+} from "@cashsouk/types";
 import { computeMarketplaceCommitBounds } from "@/lib/marketplace-commit-bounds";
 import { resolveMarketplaceListingDaysLeft } from "@/lib/marketplace-listing-days";
 import {
@@ -64,7 +69,7 @@ function toMarketplaceNote(note: NoteListItem): PublicMarketplaceNote {
     industry: note.issuerIndustry?.trim() || null,
     fundedAmount: note.fundedAmount,
     goalAmount: note.targetAmount,
-    annualReturn: note.profitRatePercent,
+    annualReturn: resolveNetExpectedReturnRatePercent(note),
     tenorDays,
     riskScore: note.riskRating,
     daysLeft: tenorDays,

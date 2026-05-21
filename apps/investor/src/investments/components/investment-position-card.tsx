@@ -9,7 +9,12 @@ import {
   PercentBadgeIcon,
   ScaleIcon,
 } from "@heroicons/react/24/outline";
-import { formatNoteReferenceDisplay, type NoteListItem } from "@cashsouk/types";
+import {
+  formatInvestorReturnRatePercent,
+  formatNoteReferenceDisplay,
+  resolveNetExpectedReturnRatePercent,
+  type NoteListItem,
+} from "@cashsouk/types";
 import { getNoteDerivedStatusLabel, NoteStatusBadge, SoukscoreRiskRatingBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -70,7 +75,9 @@ export function InvestmentPositionCard({
 }: InvestmentPositionCardProps) {
   const repaymentSummary = note.investorRepaymentSummary ?? null;
   const expectedReturn = Number(
-    repaymentSummary?.expectedReturnRatePercent ?? note.profitRatePercent ?? 0
+    repaymentSummary?.expectedReturnRatePercent ??
+      resolveNetExpectedReturnRatePercent(note) ??
+      0
   );
   const tenureDays = resolveTenureDays(note.maturityDate);
   const repaymentReceived = Number(
@@ -168,7 +175,7 @@ export function InvestmentPositionCard({
                 <div>
                   <p className="text-sm leading-tight text-muted-foreground">Expected Return</p>
                   <p className="text-lg font-semibold leading-none tracking-tight text-foreground md:text-xl">
-                    {expectedReturn.toFixed(1)}%
+                    {formatInvestorReturnRatePercent(expectedReturn)}
                   </p>
                 </div>
               </div>

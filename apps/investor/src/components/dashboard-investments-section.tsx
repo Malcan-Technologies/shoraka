@@ -27,8 +27,11 @@ import { ONBOARDING_INDUSTRY_OPTIONS } from "@/investments/industry-filter-optio
 import { sortInvestorInvestments } from "@/investments/sort-investments";
 import { InvestmentPositionCard } from "@/investments/components/investment-position-card";
 import { cn } from "@/lib/utils";
-import type { NoteListItem } from "@cashsouk/types";
-import { SOUKSCORE_RISK_RATING_GRADES } from "@cashsouk/types";
+import {
+  resolveNetExpectedReturnRatePercent,
+  SOUKSCORE_RISK_RATING_GRADES,
+  type NoteListItem,
+} from "@cashsouk/types";
 import { getNoteDerivedStatusLabel } from "@cashsouk/ui";
 
 export function DashboardInvestmentsSection() {
@@ -127,7 +130,7 @@ export function InvestorInvestmentsList({
       const matchesIndustry =
         industryFilter === "all" || (note.issuerIndustry?.trim() ?? "") === industryFilter;
       const matchesRisk = riskFilter === "all" || (note.riskRating ?? "") === riskFilter;
-      const annualReturn = note.profitRatePercent;
+      const annualReturn = resolveNetExpectedReturnRatePercent(note);
       const matchesProfit =
         profitFilter === "all" ||
         (annualReturn !== null &&

@@ -31,7 +31,13 @@ import {
   resolveOfferedProfitRate,
   resolveRequestedInvoiceAmount,
 } from "../../lib/invoice-offer";
-import { isSoukscoreRiskRating } from "@cashsouk/types";
+import {
+  computeExpectedPayoutAmount,
+  computeNetExpectedReturnRatePercent,
+  INVESTOR_RETURN_RATE_DISPLAY_DECIMALS,
+  isSoukscoreRiskRating,
+  roundNoteMoney,
+} from "@cashsouk/types";
 import { adminResignInvoiceOfferFromNote } from "../admin/offer-resign-service";
 import {
   buildOfferSigningAdminView,
@@ -370,9 +376,20 @@ function buildInvestorRepaymentSummary(
     (sum, investment) => sum + toNumber(investment.amount),
     0
   );
-  const expectedReturnRatePercent = toNumber(note.profit_rate_percent);
-  const expectedPayoutAmount =
-    investedPrincipal + investedPrincipal * (expectedReturnRatePercent / 100);
+  const grossProfitRatePercent = toNumber(note.profit_rate_percent);
+  const netExpectedReturnRatePercent =
+    computeNetExpectedReturnRatePercent(
+      grossProfitRatePercent,
+      toNumber(note.service_fee_rate_percent)
+    ) ?? 0;
+  const expectedReturnRatePercent = roundNoteMoney(
+    netExpectedReturnRatePercent,
+    INVESTOR_RETURN_RATE_DISPLAY_DECIMALS
+  );
+  const expectedPayoutAmount = computeExpectedPayoutAmount(
+    investedPrincipal,
+    netExpectedReturnRatePercent
+  );
 
   const receivedPayoutAmount = note.settlements
     .filter((settlement) => settlement.status === NoteSettlementStatus.POSTED)
@@ -390,13 +407,13 @@ function buildInvestorRepaymentSummary(
       : 0;
 
   return {
-    investedPrincipal: roundTo(investedPrincipal, 2),
-    expectedPayoutAmount: roundTo(expectedPayoutAmount, 2),
-    receivedPayoutAmount: roundTo(receivedPayoutAmount, 2),
-    expectedReturnRatePercent: roundTo(expectedReturnRatePercent, 2),
+    investedPrincipal: roundNoteMoney(investedPrincipal, 2),
+    expectedPayoutAmount: roundNoteMoney(expectedPayoutAmount, 2),
+    receivedPayoutAmount: roundNoteMoney(receivedPayoutAmount, 2),
+    expectedReturnRatePercent,
     actualReturnRatePercent:
-      actualReturnRatePercent == null ? null : roundTo(actualReturnRatePercent, 2),
-    progressPercent: roundTo(progressPercent, 2),
+      actualReturnRatePercent == null ? null : roundNoteMoney(actualReturnRatePercent, 2),
+    progressPercent: roundNoteMoney(progressPercent, 2),
   };
 }
 

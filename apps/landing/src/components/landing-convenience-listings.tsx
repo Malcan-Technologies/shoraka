@@ -10,7 +10,7 @@ import {
 } from "@heroicons/react/24/solid";
 import { Button } from "@cashsouk/ui";
 import { createApiClient } from "@cashsouk/config/src/api-client";
-import type { NoteListItem } from "@cashsouk/types";
+import { resolveNetExpectedReturnRatePercent, type NoteListItem } from "@cashsouk/types";
 import { resolveMarketplaceListingDaysLeft } from "@/lib/marketplace-listing-days";
 import { InvestmentListingsCarousel } from "./investment-listings-carousel";
 import type { InvestmentListingData } from "./investment-listing-card";
@@ -97,7 +97,7 @@ function mapNoteToInvestmentListing(note: NoteListItem): InvestmentListingData {
     daysLeft,
     funded: note.fundedAmount,
     goal: note.targetAmount,
-    ratePercent: note.profitRatePercent,
+    ratePercent: resolveNetExpectedReturnRatePercent(note),
     tenorDays: daysLeft,
     score: note.riskRating,
   };

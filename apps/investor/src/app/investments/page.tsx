@@ -44,7 +44,12 @@ import {
   useMarketplaceNotes,
 } from "@/investments/hooks/use-marketplace-notes";
 import { ONBOARDING_INDUSTRY_OPTIONS } from "@/investments/industry-filter-options";
-import { formatNoteReferenceDisplay, SOUKSCORE_RISK_RATING_GRADES, type NoteListItem } from "@cashsouk/types";
+import {
+  formatNoteReferenceDisplay,
+  resolveNetExpectedReturnRatePercent,
+  SOUKSCORE_RISK_RATING_GRADES,
+  type NoteListItem,
+} from "@cashsouk/types";
 
 const MARKETPLACE_SECONDARY_BUTTON_CLASS =
   "bg-slate-100 text-slate-700 hover:bg-slate-200";
@@ -101,7 +106,7 @@ function toMarketplaceNote(note: NoteListItem): MarketplaceNote {
     industry: note.issuerIndustry?.trim() || null,
     fundedAmount: note.fundedAmount,
     goalAmount: note.targetAmount,
-    annualReturn: note.profitRatePercent,
+    annualReturn: resolveNetExpectedReturnRatePercent(note),
     tenorDays,
     riskScore: note.riskRating,
     daysLeft: tenorDays,

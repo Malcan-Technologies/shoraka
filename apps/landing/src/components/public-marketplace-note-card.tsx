@@ -7,7 +7,7 @@ import {
   DocumentTextIcon,
   EllipsisVerticalIcon,
 } from "@heroicons/react/24/outline";
-import { formatNoteReferenceDisplay } from "@cashsouk/types";
+import { formatInvestorReturnRatePercent, formatNoteReferenceDisplay } from "@cashsouk/types";
 import { Button, SoukscoreRiskRatingBadge, cn } from "@cashsouk/ui";
 
 export type PublicMarketplaceNote = {
@@ -105,8 +105,8 @@ export function PublicMarketplaceNoteCard({ note }: { note: PublicMarketplaceNot
           <div className="grid shrink-0 grid-cols-3 gap-3 items-stretch">
             <div className="flex flex-col text-center">
               <div className="flex flex-1 flex-col rounded-2xl border bg-muted/20 p-3">
-                <div className="flex min-h-[4.25rem] flex-1 items-center justify-center text-4xl font-semibold leading-none tabular-nums text-foreground">
-                  {note.annualReturn !== null ? `${note.annualReturn}%` : "-"}
+                <div className="flex min-h-[4.25rem] flex-1 items-center justify-center px-1.5 text-[clamp(1.5rem,4.5vw,2rem)] font-semibold leading-none tabular-nums text-foreground">
+                  {formatInvestorReturnRatePercent(note.annualReturn)}
                 </div>
               </div>
               <div className="mt-1 text-[11px] text-muted-foreground">Per annum</div>
