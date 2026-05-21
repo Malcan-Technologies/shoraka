@@ -150,6 +150,29 @@ export function IssuerPayoutCard({
   const queryShorakaStatus = useQueryShorakaStatus(withdrawal.id);
   const fetchShorakaCertificate = useFetchShorakaCertificate(withdrawal.id);
 
+  const shorakaTradeOrder = shorakaStateQuery.data?.tradeOrder ?? null;
+  const hasShorakaCertificate = Boolean(shorakaTradeOrder?.certificate_s3_key);
+  const shouldGateMarkDisbursed =
+    withdrawal.withdrawalType === WithdrawalType.ISSUER_DISBURSEMENT;
+
+  const markDisbursedDisabledBecauseShoraka =
+    shouldGateMarkDisbursed &&
+    (shorakaStateQuery.isPending ||
+      shorakaStateQuery.isError ||
+      !shorakaTradeOrder ||
+      !hasShorakaCertificate);
+
+  const markDisbursedHelperText =
+    shouldGateMarkDisbursed && (shorakaStateQuery.isPending || shorakaStateQuery.isError || !hasShorakaCertificate) ? (
+      shorakaStateQuery.isPending ? (
+        "Checking Shoraka certificate status…"
+      ) : shorakaStateQuery.isError ? (
+        "Unable to verify Shoraka certificate status. Please refresh or try again."
+      ) : (
+        "Shoraka certificate must be fetched before marking issuer disbursement as completed."
+      )
+    ) : null;
+
   const [confirmAction, setConfirmAction] = React.useState<
     "generate" | "submit" | "complete" | null
   >(null);
@@ -355,10 +378,17 @@ export function IssuerPayoutCard({
           </div>
 
           {shorakaStateQuery.isPending ? (
-            <div className="mt-2 text-muted-foreground">Loading Shoraka state…</div>
+            <div className="mt-2 text-muted-foreground">Checking Shoraka certificate status…</div>
           ) : shorakaStateQuery.data == null ? (
             <div className="mt-2">
-              <div className="text-muted-foreground">No Shoraka order yet</div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Status</span>
+                <span className="font-medium">Not submitted</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Next action</span>
+                <span className="text-foreground">Submit Shoraka order</span>
+              </div>
               <div className="mt-2">
                 <Button
                   size="sm"
@@ -387,17 +417,35 @@ export function IssuerPayoutCard({
               const tradeOrder = state.tradeOrder;
               const parsed = state.parsed;
               const operational = state.operationalStatus;
+              const hasCertificate = Boolean(tradeOrder.certificate_s3_key);
+
+              const step =
+                operational.providerStatus === "Active"
+                  ? { status: "Matching in progress", nextAction: "Query status again later" }
+                  : operational.providerStatus === "Pending Sell"
+                    ? {
+                        status: "Pending sell",
+                        nextAction: "Query status again later; contact operations if stuck",
+                      }
+                    : operational.providerStatus === "Completed" && !hasCertificate
+                      ? { status: "Completed", nextAction: "Fetch certificate" }
+                      : operational.providerStatus === "Completed" && hasCertificate
+                        ? { status: "Certificate ready", nextAction: "You may proceed with disbursement" }
+                        : {
+                            status: "Manual review required",
+                            nextAction: "Check with Shoraka/Tawarruq operations",
+                          };
 
               return (
                 <>
                   <div className="mt-2 space-y-1">
                     <div className="flex items-center justify-between gap-4">
-                      <span className="text-muted-foreground">Provider status</span>
-                      <span className="font-medium">{operational.label}</span>
+                      <span className="text-muted-foreground">Status</span>
+                      <span className="font-medium">{step.status}</span>
                     </div>
                     <div className="flex items-center justify-between gap-4">
                       <span className="text-muted-foreground">Next action</span>
-                      <span className="text-foreground">{operational.nextAction}</span>
+                      <span className="text-foreground">{step.nextAction}</span>
                     </div>
                     {tradeOrder.provider_order_id ? (
                       <div className="flex items-center justify-between gap-4">
@@ -498,10 +546,6 @@ export function IssuerPayoutCard({
                       >
                         View Certificate
                       </Button>
-                    ) : null}
-
-                    {!operational.providerStatus || operational.requiresManualReview ? (
-                      <span className="text-muted-foreground">Manual review required</span>
                     ) : null}
                   </div>
                 </>
@@ -615,12 +659,15 @@ export function IssuerPayoutCard({
           <Button
             size="sm"
             onClick={() => guardedAction(() => setConfirmAction("complete"))}
-            disabled={pendingAny}
+            disabled={pendingAny || markDisbursedDisabledBecauseShoraka}
             className="gap-1.5"
           >
             <CheckCircleIcon className="h-4 w-4" />
             Mark Disbursed
           </Button>
+        ) : null}
+        {status === "SUBMITTED_TO_TRUSTEE" && markDisbursedHelperText ? (
+          <div className="w-full text-right text-xs text-muted-foreground">{markDisbursedHelperText}</div>
         ) : null}
         {pendingAny ? (
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
