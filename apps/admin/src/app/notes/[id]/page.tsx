@@ -3,11 +3,7 @@
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  ArrowLeftIcon,
-  ArrowPathIcon,
-  DocumentTextIcon,
-} from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, ArrowPathIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,7 +44,12 @@ import { SettlementPanel } from "@/notes/components/settlement-panel";
 import { SourceApplicationPanel } from "@/notes/components/source-application-panel";
 import { OfferSigningPanel } from "@/components/offer-signing-panel";
 import { useResignNoteInvoiceOffer } from "@/notes/hooks/use-resign-invoice-offer";
-import { isSoukscoreRiskRating, type NoteDetail, type NoteSettlementPoolSummary } from "@cashsouk/types";
+import {
+  isSoukscoreRiskRating,
+  mapNoteSettlementToPoolSummary,
+  type NoteDetail,
+  type NoteSettlementPoolSummary,
+} from "@cashsouk/types";
 
 function PageSkeleton() {
   return (
@@ -84,25 +85,15 @@ function getRiskRating(note: NoteDetail) {
   return isSoukscoreRiskRating(riskRating) ? riskRating : "—";
 }
 
-function getSettlementSummary(note: NoteDetail): NoteSettlementPoolSummary | null {
-  if (note.settlementSummary) return note.settlementSummary;
+function getPostedSettlementSummary(note: NoteDetail): NoteSettlementPoolSummary | null {
+  if (note.settlementSummary?.status === "POSTED") return note.settlementSummary;
   const settlement = note.settlements.find((item) => item.status === "POSTED") ?? null;
-  if (!settlement) return null;
-  return {
-    settlementId: settlement.id,
-    status: settlement.status,
-    grossReceiptAmount: settlement.grossReceiptAmount,
-    investorPoolAmount: settlement.investorPrincipal + settlement.investorProfitNet,
-    operatingAccountAmount: settlement.serviceFeeAmount,
-    tawidhAccountAmount: settlement.tawidhAmount,
-    gharamahAccountAmount: settlement.gharamahAmount,
-    issuerResidualAmount: settlement.issuerResidualAmount,
-    unappliedAmount: settlement.unappliedAmount,
-    postedAt: settlement.postedAt,
-    serviceFeeTrusteeStatus: settlement.serviceFeeTrusteeStatus,
-    serviceFeeTrusteeSubmittedAt: settlement.serviceFeeTrusteeSubmittedAt,
-    serviceFeeTrusteeCompletedAt: settlement.serviceFeeTrusteeCompletedAt,
-  };
+  return settlement ? mapNoteSettlementToPoolSummary(settlement) : null;
+}
+
+function getApprovedSettlementSummary(note: NoteDetail): NoteSettlementPoolSummary | null {
+  const settlement = note.settlements.find((item) => item.status === "APPROVED") ?? null;
+  return settlement ? mapNoteSettlementToPoolSummary(settlement) : null;
 }
 
 function BucketPayoutCard({ label, value }: { label: string; value: number }) {
@@ -116,7 +107,13 @@ function BucketPayoutCard({ label, value }: { label: string; value: number }) {
 
 const noteActionCopy: Record<
   NoteLifecycleAction,
-  { title: string; description: string; confirmLabel: string; successLabel: string; destructive?: boolean }
+  {
+    title: string;
+    description: string;
+    confirmLabel: string;
+    successLabel: string;
+    destructive?: boolean;
+  }
 > = {
   publish: {
     title: "Publish note to marketplace?",
@@ -170,12 +167,7 @@ export default function NoteDetailPage() {
       closeFunding: closeFunding.isPending,
       failFunding: failFunding.isPending,
     }),
-    [
-      publishNote.isPending,
-      unpublishNote.isPending,
-      closeFunding.isPending,
-      failFunding.isPending,
-    ]
+    [publishNote.isPending, unpublishNote.isPending, closeFunding.isPending, failFunding.isPending]
   );
 
   const runConfirmedAction = async () => {
@@ -263,37 +255,87 @@ export default function NoteDetailPage() {
           {note ? (
             <div className="space-y-6">
               {(() => {
-                const settlementSummary = getSettlementSummary(note);
-                return settlementSummary ? (
-                  <Card className="rounded-2xl border-emerald-200 bg-emerald-50/70">
+                const postedSummary = getPostedSettlementSummary(note);
+                const approvedSummary = postedSummary ? null : getApprovedSettlementSummary(note);
+                const settlementSummary = postedSummary ?? approvedSummary;
+                if (!settlementSummary) return null;
+                const isPosted = settlementSummary.status === "POSTED";
+                return (
+                  <Card
+                    className={
+                      isPosted
+                        ? "rounded-2xl border-emerald-200 bg-emerald-50/70"
+                        : "rounded-2xl border-amber-200 bg-amber-50/70"
+                    }
+                  >
                     <CardContent className="space-y-4 p-5">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <div className="text-sm font-medium text-emerald-950">Settlement Posted</div>
-                          <p className="mt-1 text-sm text-emerald-900">
-                            This note has been settled and the posted payout has been allocated across the platform buckets.
+                          <div
+                            className={
+                              isPosted
+                                ? "text-sm font-medium text-emerald-950"
+                                : "text-sm font-medium text-amber-950"
+                            }
+                          >
+                            {isPosted ? "Settlement Posted" : "Settlement Approved"}
+                          </div>
+                          <p
+                            className={
+                              isPosted
+                                ? "mt-1 text-sm text-emerald-900"
+                                : "mt-1 text-sm text-amber-900"
+                            }
+                          >
+                            {isPosted
+                              ? "This note has been settled and the posted payout has been allocated across the platform buckets."
+                              : "Settlement is approved and awaiting post. Bucket amounts below are not yet final on the ledger."}
                           </p>
                         </div>
                         <Badge
                           variant="outline"
-                          className="border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300"
+                          className={
+                            isPosted
+                              ? "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300"
+                              : "border-transparent bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+                          }
                         >
-                          Settled
+                          {isPosted ? "Posted" : "Approved"}
                         </Badge>
                       </div>
                       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                        <BucketPayoutCard label="Repayment Pool" value={settlementSummary.grossReceiptAmount} />
-                        <BucketPayoutCard label="Investor Pool" value={settlementSummary.investorPoolAmount} />
-                        <BucketPayoutCard label="Operating Account" value={settlementSummary.operatingAccountAmount} />
-                        <BucketPayoutCard label="Ta'widh Account" value={settlementSummary.tawidhAccountAmount} />
-                        <BucketPayoutCard label="Gharamah Account" value={settlementSummary.gharamahAccountAmount} />
+                        <BucketPayoutCard
+                          label="Repayment Pool"
+                          value={settlementSummary.grossReceiptAmount}
+                        />
+                        <BucketPayoutCard
+                          label="Investor Pool"
+                          value={settlementSummary.investorPoolAmount}
+                        />
+                        <BucketPayoutCard
+                          label="Operating Account"
+                          value={settlementSummary.operatingAccountAmount}
+                        />
+                        <BucketPayoutCard
+                          label="Ta'widh Account"
+                          value={settlementSummary.tawidhAccountAmount}
+                        />
+                        <BucketPayoutCard
+                          label="Gharamah Account"
+                          value={settlementSummary.gharamahAccountAmount}
+                        />
                       </div>
-                      <div className="text-sm text-emerald-950">
-                        Issuer residual refund: {formatCurrency(settlementSummary.issuerResidualAmount)}
+                      <div
+                        className={
+                          isPosted ? "text-sm text-emerald-950" : "text-sm text-amber-950"
+                        }
+                      >
+                        Issuer residual refund:{" "}
+                        {formatCurrency(settlementSummary.issuerResidualAmount)}
                       </div>
                     </CardContent>
                   </Card>
-                ) : null;
+                );
               })()}
 
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -330,19 +372,27 @@ export default function NoteDetailPage() {
                 <CardContent className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-6">
                   <div>
                     <div className="text-xs text-muted-foreground">Invoice Amount</div>
-                    <div className="mt-1 text-xl font-semibold">{formatCurrency(getInvoiceAmount(note))}</div>
+                    <div className="mt-1 text-xl font-semibold">
+                      {formatCurrency(getInvoiceAmount(note))}
+                    </div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">Target Amount</div>
-                    <div className="mt-1 text-xl font-semibold">{formatCurrency(note.targetAmount)}</div>
+                    <div className="mt-1 text-xl font-semibold">
+                      {formatCurrency(note.targetAmount)}
+                    </div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">Funded Amount</div>
-                    <div className="mt-1 text-xl font-semibold">{formatCurrency(note.fundedAmount)}</div>
+                    <div className="mt-1 text-xl font-semibold">
+                      {formatCurrency(note.fundedAmount)}
+                    </div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">Funding Progress</div>
-                    <div className="mt-1 text-xl font-semibold">{note.fundingPercent.toFixed(1)}%</div>
+                    <div className="mt-1 text-xl font-semibold">
+                      {note.fundingPercent.toFixed(1)}%
+                    </div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground">Risk Rating</div>

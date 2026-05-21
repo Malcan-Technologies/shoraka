@@ -43,11 +43,13 @@ import {
   getIssuerRemainingReceiptCapacity,
   getOpenReceiptsTotal,
   getRepaymentReceiptsBySource,
+  getSettlementCapReceiptsTotal,
   noteSettlementAmountDue,
   REPAYMENT_RECEIPT_SOURCE_ORDER,
 } from "@/notes/lib/repayment-capacity";
 import {
   isSoukscoreRiskRating,
+  mapNoteSettlementToPoolSummary,
   NotePaymentSource,
   NotePaymentStatus,
   WithdrawalStatus,
@@ -66,7 +68,7 @@ const REPAYMENT_POOL_RECEIVED_TOOLTIP =
   "Paymaster direct payments and your on-behalf confirmations (after admin records them).";
 
 const SETTLEMENT_PAYMENT_INTRO_TOOLTIP =
-  "The invoice amount is owed into the Repayment Pool; it differs from funded or disbursed amounts when the note is not fully funded. The paymaster may pay directly, or you may pay on their behalf—either way admin records receipts here. You may submit in one transfer or several; each of your submissions stays pending until admin reconciles it.";
+  "The invoice settlement amount is the repayment cap; any Ta'widh or Gharamah is allocated from that receipt in admin settlement, not added on top. The paymaster may pay directly, or you may pay on their behalf—either way admin records receipts here. You may submit in one transfer or several; each of your submissions stays pending until admin reconciles it.";
 
 function repaymentPayerLabel(source: NotePaymentSource, paymasterName: string | null): string {
   if (source === NotePaymentSource.PAYMASTER) {
@@ -107,7 +109,9 @@ function RepaymentPoolReceivedBreakdown({
           if (amount <= MONEY_TOLERANCE) return null;
           return (
             <div key={source}>
-              <span className="text-muted-foreground">{repaymentPayerLabel(source, note.paymasterName)}</span>
+              <span className="text-muted-foreground">
+                {repaymentPayerLabel(source, note.paymasterName)}
+              </span>
               <span className="text-muted-foreground"> - </span>
               <span className="text-foreground">{formatCurrency(amount)}</span>
             </div>
@@ -186,25 +190,10 @@ function getLateFeeSummary(note: NoteDetail) {
   };
 }
 
-function getSettlementSummary(note: NoteDetail): NoteSettlementPoolSummary | null {
-  if (note.settlementSummary) return note.settlementSummary;
+function getPostedSettlementSummary(note: NoteDetail): NoteSettlementPoolSummary | null {
+  if (note.settlementSummary?.status === "POSTED") return note.settlementSummary;
   const settlement = note.settlements.find((item) => item.status === "POSTED") ?? null;
-  if (!settlement) return null;
-  return {
-    settlementId: settlement.id,
-    status: settlement.status,
-    grossReceiptAmount: settlement.grossReceiptAmount,
-    investorPoolAmount: settlement.investorPrincipal + settlement.investorProfitNet,
-    operatingAccountAmount: settlement.serviceFeeAmount,
-    tawidhAccountAmount: settlement.tawidhAmount,
-    gharamahAccountAmount: settlement.gharamahAmount,
-    issuerResidualAmount: settlement.issuerResidualAmount,
-    unappliedAmount: settlement.unappliedAmount,
-    postedAt: settlement.postedAt,
-    serviceFeeTrusteeStatus: settlement.serviceFeeTrusteeStatus,
-    serviceFeeTrusteeSubmittedAt: settlement.serviceFeeTrusteeSubmittedAt,
-    serviceFeeTrusteeCompletedAt: settlement.serviceFeeTrusteeCompletedAt,
-  };
+  return settlement ? mapNoteSettlementToPoolSummary(settlement) : null;
 }
 
 /** Residual trustee payout row on the posted settlement (excludes cancelled withdrawals). */
@@ -256,7 +245,15 @@ function getIssuerResidualDisbursementState(
   return { kind: "awaiting" };
 }
 
-function BucketPayoutCard({ label, value, description }: { label: string; value: number; description: string }) {
+function BucketPayoutCard({
+  label,
+  value,
+  description,
+}: {
+  label: string;
+  value: number;
+  description: string;
+}) {
   return (
     <div className="rounded-xl border bg-background p-4">
       <div className="text-xs text-muted-foreground">{label}</div>
@@ -288,13 +285,15 @@ export default function IssuerNoteDetailPage() {
 
   const handleSubmitPayment = async () => {
     if (!note) return;
-    const settlementSummary = getSettlementSummary(note);
+    const settlementSummary = getPostedSettlementSummary(note);
     if (note.servicingStatus === "SETTLED" || settlementSummary?.status === "POSTED") {
       toast.info("This note has already been settled");
       return;
     }
     if (note.fundingStatus !== "FUNDED" || note.servicingStatus === "NOT_STARTED") {
-      toast.info("Settlement payment opens after funding is complete and admin activates servicing");
+      toast.info(
+        "Settlement payment opens after funding is complete and admin activates servicing"
+      );
       return;
     }
     const settlementDue = noteSettlementAmountDue(note);
@@ -307,7 +306,7 @@ export default function IssuerNoteDetailPage() {
       toast.error("Enter a valid payment amount greater than zero");
       return;
     }
-    const openReceipts = getOpenReceiptsTotal(note);
+    const openReceipts = getSettlementCapReceiptsTotal(note);
     const cap = getIssuerReceiptCap(note);
     if (openReceipts + receiptAmount > cap + MONEY_TOLERANCE) {
       toast.error(
@@ -334,10 +333,15 @@ export default function IssuerNoteDetailPage() {
 
   if (isLoading) return <div className="p-4 text-muted-foreground">Loading note...</div>;
   if (error || !note) {
-    return <div className="p-4 text-destructive">{error instanceof Error ? error.message : "Note not found"}</div>;
+    return (
+      <div className="p-4 text-destructive">
+        {error instanceof Error ? error.message : "Note not found"}
+      </div>
+    );
   }
   const settlementAmount = noteSettlementAmountDue(note);
   const openReceiptsTotal = getOpenReceiptsTotal(note);
+  const settlementCapReceiptsTotal = getSettlementCapReceiptsTotal(note);
   const hasPendingReceiptReview = note.payments.some(
     (payment) => payment.status === NotePaymentStatus.PENDING
   );
@@ -351,7 +355,7 @@ export default function IssuerNoteDetailPage() {
   const lateFeeSummary = getLateFeeSummary(note);
   const maturityDateLabel = formatMaturityDate(note.maturityDate);
   const maturityTimingLabel = formatMaturityTiming(note.maturityDate);
-  const settlementSummary = getSettlementSummary(note);
+  const settlementSummary = getPostedSettlementSummary(note);
   const issuerResidualDisbursement = settlementSummary
     ? getIssuerResidualDisbursementState(
         note,
@@ -387,8 +391,7 @@ export default function IssuerNoteDetailPage() {
   const contractDetailsRecord = asRecord(contractSnapshotRecord?.contract_details);
   const contractTitleRaw =
     contractDetailsRecord?.title ?? contractDetailsRecord?.contract_title ?? null;
-  const contractTitleLabel =
-    typeof contractTitleRaw === "string" ? contractTitleRaw.trim() : "";
+  const contractTitleLabel = typeof contractTitleRaw === "string" ? contractTitleRaw.trim() : "";
   const hasSourceCrumb = Boolean(note.sourceContractId || note.sourceInvoiceId);
   const invoiceFinancingHref = invoiceNumberLabel
     ? `/financing?tab=invoices&search=${encodeURIComponent(invoiceNumberLabel)}`
@@ -409,7 +412,7 @@ export default function IssuerNoteDetailPage() {
   const paymentAmountAcceptable =
     Number.isFinite(paymentAmountParsed) &&
     paymentAmountParsed > MONEY_TOLERANCE &&
-    openReceiptsTotal + paymentAmountParsed <= receiptCap + MONEY_TOLERANCE;
+    settlementCapReceiptsTotal + paymentAmountParsed <= receiptCap + MONEY_TOLERANCE;
 
   return (
     <div className={issuerMainContentClassName}>
@@ -443,14 +446,14 @@ export default function IssuerNoteDetailPage() {
                   <span className="font-medium text-muted-foreground">
                     {invoiceNumberLabel ? `Invoice: ${invoiceNumberLabel}` : "Invoice"}
                   </span>
-                    ) : (
-                      <Link
-                        href={invoiceFinancingHref}
-                        className="font-medium text-primary underline-offset-4 hover:underline"
-                      >
-                        {invoiceNumberLabel ? `Invoice: ${invoiceNumberLabel}` : "Invoice"}
-                      </Link>
-                    )}
+                ) : (
+                  <Link
+                    href={invoiceFinancingHref}
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    {invoiceNumberLabel ? `Invoice: ${invoiceNumberLabel}` : "Invoice"}
+                  </Link>
+                )}
               </>
             ) : null}
             <ChevronRightIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -485,11 +488,15 @@ export default function IssuerNoteDetailPage() {
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Target Amount</div>
-                <div className="mt-1 text-xl font-semibold">{formatCurrency(note.targetAmount)}</div>
+                <div className="mt-1 text-xl font-semibold">
+                  {formatCurrency(note.targetAmount)}
+                </div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Funded Amount</div>
-                <div className="mt-1 text-xl font-semibold">{formatCurrency(note.fundedAmount)}</div>
+                <div className="mt-1 text-xl font-semibold">
+                  {formatCurrency(note.fundedAmount)}
+                </div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Funding Ratio</div>
@@ -558,7 +565,9 @@ export default function IssuerNoteDetailPage() {
                 </div>
                 {activeLateFeesInSettlement > MONEY_TOLERANCE ? (
                   <div>
-                    <div className="text-sm text-muted-foreground">Late fees (in admin settlement)</div>
+                    <div className="text-sm text-muted-foreground">
+                      Late fees (in admin settlement)
+                    </div>
                     <div className="mt-1 text-2xl font-semibold text-foreground">
                       {formatCurrency(activeLateFeesInSettlement)}
                     </div>
@@ -588,14 +597,17 @@ export default function IssuerNoteDetailPage() {
                   <div className="flex items-center gap-1 text-sm text-muted-foreground">
                     <span>Maturity</span>
                   </div>
-                  <div className="mt-1 text-2xl font-semibold text-foreground">{maturityDateLabel}</div>
+                  <div className="mt-1 text-2xl font-semibold text-foreground">
+                    {maturityDateLabel}
+                  </div>
                   <div className="mt-1 text-xs text-muted-foreground">{maturityTimingLabel}</div>
                 </div>
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              Open the payment instructions, transfer the amount you are confirming into the repayment pool on behalf
-              of the paymaster, then submit the reference for admin reconciliation.
+              Open the payment instructions, transfer the amount you are confirming into the
+              repayment pool on behalf of the paymaster, then submit the reference for admin
+              reconciliation.
             </p>
             {paymentBlockedReason ? (
               <div
@@ -669,7 +681,7 @@ export default function IssuerNoteDetailPage() {
                 <BucketPayoutCard
                   label="Investor Pool"
                   value={settlementSummary.investorPoolAmount}
-                  description="Principal and net profit paid out to investors."
+                  description="Principal, net profit, and any investor Ta'widh compensation."
                 />
                 <BucketPayoutCard
                   label="Operating Account"
@@ -679,7 +691,7 @@ export default function IssuerNoteDetailPage() {
                 <BucketPayoutCard
                   label="Ta'widh Account"
                   value={settlementSummary.tawidhAccountAmount}
-                  description="Approved compensation late-fee allocation."
+                  description={`${formatCurrency(settlementSummary.totalTawidhAmount)} total Ta'widh; ${formatCurrency(settlementSummary.tawidhInvestorAmount)} allocated to investors.`}
                 />
                 <BucketPayoutCard
                   label="Gharamah Account"
@@ -690,9 +702,12 @@ export default function IssuerNoteDetailPage() {
               <div className="flex flex-col gap-3 rounded-xl border border-dashed p-4 sm:flex-row sm:items-start sm:justify-between">
                 <p className="text-sm text-muted-foreground">
                   <span className="font-medium text-foreground">Issuer residual:</span>{" "}
-                  {formatCurrency(settlementSummary.issuerResidualAmount)} is the residual refund after investor
-                  allocation, service fee, and late-fee accounts.
-                  {issuerResidualDisbursement?.kind === "paid" && issuerResidualDisbursement.completedAt ? (
+                  {formatCurrency(settlementSummary.issuerResidualAmount)} is the residual refund
+                  after investor allocation, service fee, full Ta&apos;widh, and Gharamah.
+                  Contractual profit is locked for {settlementSummary.profitDays} days at{" "}
+                  {settlementSummary.annualProfitRatePercent}% p.a. through note maturity.
+                  {issuerResidualDisbursement?.kind === "paid" &&
+                  issuerResidualDisbursement.completedAt ? (
                     <span className="mt-1 block text-xs text-muted-foreground">
                       Paid out{" "}
                       {new Date(issuerResidualDisbursement.completedAt).toLocaleString("en-MY", {
@@ -755,18 +770,24 @@ export default function IssuerNoteDetailPage() {
                 <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
                   <div>
                     <div className="text-amber-800">{"Ta'widh"}</div>
-                    <div className="font-semibold">{formatCurrency(lateFeeSummary.assessedTawidhAmount)}</div>
+                    <div className="font-semibold">
+                      {formatCurrency(lateFeeSummary.assessedTawidhAmount)}
+                    </div>
                   </div>
                   <div>
                     <div className="text-amber-800">Gharamah</div>
-                    <div className="font-semibold">{formatCurrency(lateFeeSummary.assessedGharamahAmount)}</div>
+                    <div className="font-semibold">
+                      {formatCurrency(lateFeeSummary.assessedGharamahAmount)}
+                    </div>
                   </div>
                 </div>
               </div>
               <p className="text-sm text-muted-foreground">
-                Late fees are borne by the issuer, but the issuer does not make a separate late-fee payment here.
-                Admin deducts approved {"Ta'widh"} and Gharamah from the repayment pool before returning any residual
-                balance to the issuer.
+                Late fees are borne by the issuer, but the issuer does not make a separate late-fee
+                payment here. Admin deducts approved {"Ta'widh"} and Gharamah from the repayment
+                pool before returning any residual balance to the issuer. If admin allocates part of
+                Ta&apos;widh to investors, the total Ta&apos;widh charge remains the same for
+                residual calculation.
               </p>
             </CardContent>
           </Card>
@@ -797,8 +818,9 @@ export default function IssuerNoteDetailPage() {
           <DialogHeader>
             <DialogTitle>Confirm repayment (on behalf of paymaster)</DialogTitle>
             <DialogDescription className="text-[15px] leading-7">
-              Use the instructions below to pay into the Repayment Pool. Submit this confirmation only after the
-              transfer for the amount you enter has been made. Admin will reconcile before settlement is posted.
+              Use the instructions below to pay into the Repayment Pool. Submit this confirmation
+              only after the transfer for the amount you enter has been made. Admin will reconcile
+              before settlement is posted.
             </DialogDescription>
           </DialogHeader>
 
@@ -862,8 +884,8 @@ export default function IssuerNoteDetailPage() {
                   placeholder="0.00"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Must be greater than zero and must not exceed the remaining settlement shown above, including
-                  amounts already pending or received.
+                  Must be greater than zero and must not exceed the remaining settlement shown
+                  above, including amounts already pending or received.
                 </p>
               </div>
             </div>
@@ -881,7 +903,8 @@ export default function IssuerNoteDetailPage() {
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  Repayment instructions are not available yet. Contact support before making payment.
+                  Repayment instructions are not available yet. Contact support before making
+                  payment.
                 </p>
               )}
             </div>
@@ -905,8 +928,8 @@ export default function IssuerNoteDetailPage() {
                 className="mt-1"
               />
               <span>
-                I confirm that I have transferred the amount entered above to the repayment account and understand
-                that admin will reconcile the receipt before settlement is posted.
+                I confirm that I have transferred the amount entered above to the repayment account
+                and understand that admin will reconcile the receipt before settlement is posted.
               </span>
             </label>
           </div>
@@ -945,4 +968,3 @@ export default function IssuerNoteDetailPage() {
     </div>
   );
 }
-

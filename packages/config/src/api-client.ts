@@ -88,6 +88,7 @@ import type {
   GetAdminNotesParams,
   MarketplaceNoteDetail,
   NoteDetail,
+  NoteSettlementPreviewResult,
   NoteActionRequiredCountResponse,
   GetAdminInvestmentsParams,
   GetAdminInvestmentsResponse,
@@ -130,6 +131,7 @@ type OverdueLateChargeResult = {
   appliedGharamahAmount: number;
   remainingTawidhAmount: number;
   remainingGharamahAmount: number;
+  availableLateFeeHeadroomAmount: number | null;
   suggestedTawidhAmount: number;
   suggestedGharamahAmount: number;
   message: string;
@@ -469,7 +471,9 @@ export class ApiClient {
   async getAdminApplicationActionRequiredCount(): Promise<
     ApiResponse<AdminApplicationActionRequiredCountResponse> | ApiError
   > {
-    return this.get<AdminApplicationActionRequiredCountResponse>("/v1/admin/applications/action-count");
+    return this.get<AdminApplicationActionRequiredCountResponse>(
+      "/v1/admin/applications/action-count"
+    );
   }
 
   async getAdminContracts(
@@ -535,7 +539,9 @@ export class ApiClient {
     return this.get<NoteDetail>(`/v1/admin/notes/${id}`);
   }
 
-  async getAdminNoteSourceInvoices(): Promise<ApiResponse<EligibleNoteInvoicesResponse> | ApiError> {
+  async getAdminNoteSourceInvoices(): Promise<
+    ApiResponse<EligibleNoteInvoicesResponse> | ApiError
+  > {
     return this.get<EligibleNoteInvoicesResponse>("/v1/admin/notes/source-invoices");
   }
 
@@ -595,7 +601,9 @@ export class ApiClient {
     return this.get<NoteLedgerEntry[]>(`/v1/admin/notes/${id}/ledger`);
   }
 
-  async getAdminNoteBucketBalances(): Promise<ApiResponse<NoteLedgerBucketBalancesResponse> | ApiError> {
+  async getAdminNoteBucketBalances(): Promise<
+    ApiResponse<NoteLedgerBucketBalancesResponse> | ApiError
+  > {
     return this.get<NoteLedgerBucketBalancesResponse>("/v1/admin/notes/bucket-balances");
   }
 
@@ -612,7 +620,9 @@ export class ApiClient {
     );
   }
 
-  async getAdminNoteActionRequiredCount(): Promise<ApiResponse<NoteActionRequiredCountResponse> | ApiError> {
+  async getAdminNoteActionRequiredCount(): Promise<
+    ApiResponse<NoteActionRequiredCountResponse> | ApiError
+  > {
     return this.get<NoteActionRequiredCountResponse>("/v1/admin/notes/action-count");
   }
 
@@ -620,7 +630,9 @@ export class ApiClient {
     return this.get<PendingRepaymentsResponse>("/v1/admin/notes/pending-repayments");
   }
 
-  async getAdminPendingIssuerPayouts(): Promise<ApiResponse<PendingIssuerPayoutsResponse> | ApiError> {
+  async getAdminPendingIssuerPayouts(): Promise<
+    ApiResponse<PendingIssuerPayoutsResponse> | ApiError
+  > {
     return this.get<PendingIssuerPayoutsResponse>("/v1/admin/withdrawals/pending-issuer-payouts");
   }
 
@@ -641,7 +653,8 @@ export class ApiClient {
     if (params.search) search.set("search", params.search);
     if (params.status) search.set("status", params.status);
     if (params.noteId) search.set("noteId", params.noteId);
-    if (params.investorOrganizationId) search.set("investorOrganizationId", params.investorOrganizationId);
+    if (params.investorOrganizationId)
+      search.set("investorOrganizationId", params.investorOrganizationId);
     const qs = search.toString();
     return this.get<GetAdminInvestmentsResponse>(`/v1/admin/investments${qs ? `?${qs}` : ""}`);
   }
@@ -671,8 +684,11 @@ export class ApiClient {
   async previewAdminNoteSettlement(
     id: string,
     data: SettlementPreviewInput
-  ): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
-    return this.post<Record<string, unknown>>(`/v1/admin/notes/${id}/settlements/preview`, data);
+  ): Promise<ApiResponse<NoteSettlementPreviewResult> | ApiError> {
+    return this.post<NoteSettlementPreviewResult>(
+      `/v1/admin/notes/${id}/settlements/preview`,
+      data
+    );
   }
 
   async approveAdminNoteSettlement(
@@ -700,7 +716,10 @@ export class ApiClient {
     id: string,
     data: OverdueLateChargeInput = {}
   ): Promise<ApiResponse<OverdueLateChargeResult> | ApiError> {
-    return this.post<OverdueLateChargeResult>(`/v1/admin/notes/${id}/late-charge/check-overdue`, data);
+    return this.post<OverdueLateChargeResult>(
+      `/v1/admin/notes/${id}/late-charge/check-overdue`,
+      data
+    );
   }
 
   async approveAdminNoteLateCharge(
@@ -769,16 +788,16 @@ export class ApiClient {
     return this.patch<PlatformFinanceSetting>("/v1/admin/platform-finance-settings", data);
   }
 
-  async getAdminApplicationDetail(id: string): Promise<ApiResponse<AdminApplicationDetail> | ApiError> {
+  async getAdminApplicationDetail(
+    id: string
+  ): Promise<ApiResponse<AdminApplicationDetail> | ApiError> {
     return this.get<AdminApplicationDetail>(`/v1/admin/applications/${id}`);
   }
 
   async startAdminApplicationGuarantorAml(
     applicationId: string,
     clientGuarantorId: string
-  ): Promise<
-    ApiResponse<{ requestId: string; regtank_portal_url: string }> | ApiError
-  > {
+  ): Promise<ApiResponse<{ requestId: string; regtank_portal_url: string }> | ApiError> {
     const enc = encodeURIComponent(clientGuarantorId);
     return this.post<{ requestId: string; regtank_portal_url: string }>(
       `/v1/admin/applications/${encodeURIComponent(applicationId)}/guarantors/${enc}/start-aml`,
@@ -790,21 +809,22 @@ export class ApiClient {
     applicationId: string,
     reviewCycle: number
   ): Promise<
-    ApiResponse<{
-      previous_review_cycle: number;
-      next_review_cycle: number;
-      previous_snapshot: unknown;
-      next_snapshot: unknown;
-      previous_submitted_at: string;
-      next_submitted_at: string;
-      amendment_remarks?: Array<{
-        scope: string;
-        scope_key: string;
-        remark: string;
-        author_user_id: string;
-        submitted_at: string | null;
-      }>;
-    }> | ApiError
+    | ApiResponse<{
+        previous_review_cycle: number;
+        next_review_cycle: number;
+        previous_snapshot: unknown;
+        next_snapshot: unknown;
+        previous_submitted_at: string;
+        next_submitted_at: string;
+        amendment_remarks?: Array<{
+          scope: string;
+          scope_key: string;
+          remark: string;
+          author_user_id: string;
+          submitted_at: string | null;
+        }>;
+      }>
+    | ApiError
   > {
     const q = new URLSearchParams({ reviewCycle: String(reviewCycle) });
     return this.get(
@@ -874,7 +894,9 @@ export class ApiClient {
     id: string,
     status: string
   ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
-    return this.patch<AdminApplicationActionResult>(`/v1/admin/applications/${id}/status`, { status });
+    return this.patch<AdminApplicationActionResult>(`/v1/admin/applications/${id}/status`, {
+      status,
+    });
   }
 
   async approveReviewSection(
@@ -1042,7 +1064,10 @@ export class ApiClient {
     return response.blob();
   }
 
-  async getAdminSignedInvoiceOfferLetterBlob(applicationId: string, invoiceId: string): Promise<Blob> {
+  async getAdminSignedInvoiceOfferLetterBlob(
+    applicationId: string,
+    invoiceId: string
+  ): Promise<Blob> {
     const id = typeof invoiceId === "string" ? invoiceId.trim() : "";
     if (!id) {
       throw new Error("Invoice ID is required for signed invoice offer letter");
@@ -1075,10 +1100,9 @@ export class ApiClient {
     );
   }
 
-  async listPendingAmendments(applicationId: string): Promise<
-    | ApiResponse<PendingAmendmentItem[]>
-    | ApiError
-  > {
+  async listPendingAmendments(
+    applicationId: string
+  ): Promise<ApiResponse<PendingAmendmentItem[]> | ApiError> {
     return this.get<PendingAmendmentItem[]>(
       `/v1/admin/applications/${applicationId}/reviews/pending-amendments`
     );
@@ -1106,9 +1130,9 @@ export class ApiClient {
     );
   }
 
-  async submitAmendmentRequest(applicationId: string): Promise<
-    ApiResponse<AdminApplicationActionResult> | ApiError
-  > {
+  async submitAmendmentRequest(
+    applicationId: string
+  ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
     return this.post<AdminApplicationActionResult>(
       `/v1/admin/applications/${applicationId}/reviews/submit-amendment-request`,
       {}
@@ -1119,11 +1143,11 @@ export class ApiClient {
   // Restart onboarding for an application via RegTank restart API
   async restartOnboarding(onboardingId: string): Promise<
     | ApiResponse<{
-      success: boolean;
-      message: string;
-      verifyLink?: string;
-      newRequestId?: string;
-    }>
+        success: boolean;
+        message: string;
+        verifyLink?: string;
+        newRequestId?: string;
+      }>
     | ApiError
   > {
     return this.post<{
@@ -1137,9 +1161,9 @@ export class ApiClient {
   // Complete final approval for an onboarding application
   async completeFinalApproval(onboardingId: string): Promise<
     | ApiResponse<{
-      success: boolean;
-      message: string;
-    }>
+        success: boolean;
+        message: string;
+      }>
     | ApiError
   > {
     return this.post<{
@@ -1151,9 +1175,9 @@ export class ApiClient {
   // Approve AML screening for an onboarding application
   async approveAmlScreening(onboardingId: string): Promise<
     | ApiResponse<{
-      success: boolean;
-      message: string;
-    }>
+        success: boolean;
+        message: string;
+      }>
     | ApiError
   > {
     return this.post<{
@@ -1165,9 +1189,9 @@ export class ApiClient {
   // Approve SSM verification for a company organization
   async approveSsmVerification(onboardingId: string): Promise<
     | ApiResponse<{
-      success: boolean;
-      message: string;
-    }>
+        success: boolean;
+        message: string;
+      }>
     | ApiError
   > {
     return this.post<{
@@ -1178,9 +1202,9 @@ export class ApiClient {
 
   async approveOnboardingSubmission(onboardingId: string): Promise<
     | ApiResponse<{
-      success: boolean;
-      message: string;
-    }>
+        success: boolean;
+        message: string;
+      }>
     | ApiError
   > {
     return this.post<{
@@ -1192,10 +1216,10 @@ export class ApiClient {
   // Refresh corporate onboarding status by fetching latest director KYC statuses
   async refreshCorporateStatus(onboardingId: string): Promise<
     | ApiResponse<{
-      success: boolean;
-      message: string;
-      directorsUpdated: number;
-    }>
+        success: boolean;
+        message: string;
+        directorsUpdated: number;
+      }>
     | ApiError
   > {
     return this.post<{
@@ -1208,10 +1232,10 @@ export class ApiClient {
   // Refresh corporate AML status by fetching latest director AML statuses
   async refreshCorporateAmlStatus(onboardingId: string): Promise<
     | ApiResponse<{
-      success: boolean;
-      message: string;
-      directorsUpdated: number;
-    }>
+        success: boolean;
+        message: string;
+        directorsUpdated: number;
+      }>
     | ApiError
   > {
     return this.post<{
@@ -1517,9 +1541,7 @@ export class ApiClient {
       queryParams.append("includeInactive", String(params.includeInactive));
     if (params.search) queryParams.append("search", params.search);
 
-    return this.get<SiteDocumentsResponse>(
-      `/v1/admin/site-documents?${queryParams.toString()}`
-    );
+    return this.get<SiteDocumentsResponse>(`/v1/admin/site-documents?${queryParams.toString()}`);
   }
 
   async getSiteDocument(
@@ -1544,20 +1566,14 @@ export class ApiClient {
     id: string,
     data: UpdateSiteDocumentInput
   ): Promise<ApiResponse<{ document: SiteDocumentResponse }> | ApiError> {
-    return this.patch<{ document: SiteDocumentResponse }>(
-      `/v1/admin/site-documents/${id}`,
-      data
-    );
+    return this.patch<{ document: SiteDocumentResponse }>(`/v1/admin/site-documents/${id}`, data);
   }
 
   async requestSiteDocumentReplaceUrl(
     id: string,
     data: RequestReplaceUrlInput
   ): Promise<ApiResponse<RequestReplaceUrlResponse> | ApiError> {
-    return this.post<RequestReplaceUrlResponse>(
-      `/v1/admin/site-documents/${id}/replace-url`,
-      data
-    );
+    return this.post<RequestReplaceUrlResponse>(`/v1/admin/site-documents/${id}/replace-url`, data);
   }
 
   async confirmSiteDocumentReplace(
@@ -1570,9 +1586,7 @@ export class ApiClient {
     );
   }
 
-  async deleteSiteDocument(
-    id: string
-  ): Promise<ApiResponse<{ message: string }> | ApiError> {
+  async deleteSiteDocument(id: string): Promise<ApiResponse<{ message: string }> | ApiError> {
     return this.delete<{ message: string }>(`/v1/admin/site-documents/${id}`);
   }
 
@@ -1588,9 +1602,7 @@ export class ApiClient {
   async getAdminDocumentDownloadUrl(
     id: string
   ): Promise<ApiResponse<DownloadUrlResponse> | ApiError> {
-    return this.get<DownloadUrlResponse>(
-      `/v1/admin/site-documents/${id}/download`
-    );
+    return this.get<DownloadUrlResponse>(`/v1/admin/site-documents/${id}/download`);
   }
 
   // User - Site Documents (authenticated users)
@@ -1606,9 +1618,7 @@ export class ApiClient {
     return this.get<{ documents: SiteDocumentResponse[] }>(`/v1/documents/account`);
   }
 
-  async getDocumentDownloadUrl(
-    id: string
-  ): Promise<ApiResponse<DownloadUrlResponse> | ApiError> {
+  async getDocumentDownloadUrl(id: string): Promise<ApiResponse<DownloadUrlResponse> | ApiError> {
     return this.get<DownloadUrlResponse>(`/v1/documents/${id}/download`);
   }
 
@@ -1623,9 +1633,7 @@ export class ApiClient {
     if (params.eventType) queryParams.append("eventType", params.eventType);
     if (params.dateRange) queryParams.append("dateRange", params.dateRange);
 
-    return this.get<DocumentLogsResponse>(
-      `/v1/admin/document-logs?${queryParams.toString()}`
-    );
+    return this.get<DocumentLogsResponse>(`/v1/admin/document-logs?${queryParams.toString()}`);
   }
 
   async exportDocumentLogs(params: ExportDocumentLogsParams): Promise<Blob> {
@@ -1671,9 +1679,7 @@ export class ApiClient {
     if (params.eventType) queryParams.append("eventType", params.eventType);
     if (params.dateRange) queryParams.append("dateRange", params.dateRange);
 
-    return this.get<ProductLogsResponse>(
-      `/v1/admin/product-logs?${queryParams.toString()}`
-    );
+    return this.get<ProductLogsResponse>(`/v1/admin/product-logs?${queryParams.toString()}`);
   }
 
   async exportProductLogs(params: ExportProductLogsParams): Promise<Blob> {
@@ -1709,7 +1715,9 @@ export class ApiClient {
   }
 
   // Activities
-  async getActivities(params: GetActivitiesParams): Promise<ApiResponse<ActivitiesResponse> | ApiError> {
+  async getActivities(
+    params: GetActivitiesParams
+  ): Promise<ApiResponse<ActivitiesResponse> | ApiError> {
     const queryParams = new URLSearchParams();
     queryParams.append("page", String(params.page));
     queryParams.append("limit", String(params.limit));
@@ -1741,7 +1749,8 @@ export class ApiClient {
     queryParams.append("pageSize", String(params.pageSize));
     if (params.search) queryParams.append("search", params.search);
     if (params.active !== undefined) queryParams.append("active", String(params.active));
-    if (params.includeDeleted !== undefined) queryParams.append("includeDeleted", String(params.includeDeleted));
+    if (params.includeDeleted !== undefined)
+      queryParams.append("includeDeleted", String(params.includeDeleted));
 
     return this.get<GetProductsResponse>(`/v1/products?${queryParams.toString()}`);
   }
@@ -1800,7 +1809,10 @@ export class ApiClient {
   }
 
   /** Rollback failed product creation: soft-delete product and delete orphan S3 files. Only allowed within 5 minutes of creation. */
-  async rollbackProductCreate(id: string, s3Keys: string[]): Promise<ApiResponse<unknown> | ApiError> {
+  async rollbackProductCreate(
+    id: string,
+    s3Keys: string[]
+  ): Promise<ApiResponse<unknown> | ApiError> {
     return this.post<unknown>(`/v1/products/${id}/rollback-create`, { s3Keys });
   }
 
@@ -1832,9 +1844,10 @@ export class ApiClient {
     );
   }
 
-
   // Applications
-  async createApplication(data: CreateApplicationInput): Promise<ApiResponse<Application> | ApiError> {
+  async createApplication(
+    data: CreateApplicationInput
+  ): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(`/v1/applications`, data);
   }
 
@@ -1850,11 +1863,17 @@ export class ApiClient {
     );
   }
 
-  async updateApplicationStep(id: string, data: UpdateApplicationStepInput): Promise<ApiResponse<Application> | ApiError> {
+  async updateApplicationStep(
+    id: string,
+    data: UpdateApplicationStepInput
+  ): Promise<ApiResponse<Application> | ApiError> {
     return this.patch<Application>(`/v1/applications/${id}/step`, data);
   }
 
-  async updateApplicationStatus(id: string, status: ApplicationStatus): Promise<ApiResponse<Application> | ApiError> {
+  async updateApplicationStatus(
+    id: string,
+    status: ApplicationStatus
+  ): Promise<ApiResponse<Application> | ApiError> {
     return this.patch<Application>(`/v1/applications/${id}/status`, { status });
   }
 
@@ -1871,13 +1890,10 @@ export class ApiClient {
   }
 
   /** Request presigned download URL for S3 object. Used for document download from document column. */
-  async getS3DownloadUrl(s3Key: string): Promise<
-    ApiResponse<{ downloadUrl: string; expiresIn: number }> | ApiError
-  > {
-    return this.post<{ downloadUrl: string; expiresIn: number }>(
-      `/v1/s3/download-url`,
-      { s3Key }
-    );
+  async getS3DownloadUrl(
+    s3Key: string
+  ): Promise<ApiResponse<{ downloadUrl: string; expiresIn: number }> | ApiError> {
+    return this.post<{ downloadUrl: string; expiresIn: number }>(`/v1/s3/download-url`, { s3Key });
   }
 
   async startContractOfferSigning(
@@ -1932,7 +1948,10 @@ export class ApiClient {
     applicationId: string,
     body?: { reason?: string }
   ): Promise<ApiResponse<Application> | ApiError> {
-    return this.post<Application>(`/v1/applications/${applicationId}/offers/contracts/reject`, body ?? {});
+    return this.post<Application>(
+      `/v1/applications/${applicationId}/offers/contracts/reject`,
+      body ?? {}
+    );
   }
 
   async acceptInvoiceOffer(
@@ -2025,7 +2044,11 @@ export class ApiClient {
     try {
       const body = JSON.parse(text) as Record<string, unknown>;
       const err = body?.error;
-      if (err && typeof err === "object" && typeof (err as { message?: string }).message === "string") {
+      if (
+        err &&
+        typeof err === "object" &&
+        typeof (err as { message?: string }).message === "string"
+      ) {
         return (err as { message: string }).message;
       }
       if (typeof body?.message === "string") return body.message;
@@ -2045,15 +2068,15 @@ export class ApiClient {
     offset?: number;
   }): Promise<
     | ApiResponse<{
-      items: Record<string, unknown>[];
-      pagination: {
-        total: number;
-        unreadCount: number;
-        limit: number;
-        offset: number;
-        pages: number;
-      };
-    }>
+        items: Record<string, unknown>[];
+        pagination: {
+          total: number;
+          unreadCount: number;
+          limit: number;
+          offset: number;
+          pages: number;
+        };
+      }>
     | ApiError
   > {
     const queryParams = new URLSearchParams();
@@ -2079,7 +2102,9 @@ export class ApiClient {
     return this.get<{ count: number }>("/v1/notifications/unread-count");
   }
 
-  async markNotificationAsRead(id: string): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
+  async markNotificationAsRead(
+    id: string
+  ): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
     return this.patch<Record<string, unknown>>(`/v1/notifications/${id}/read`);
   }
 
@@ -2103,11 +2128,16 @@ export class ApiClient {
     return this.get<AdminNotificationType[]>("/v1/notifications/admin/types");
   }
 
-  async updateAdminNotificationType(id: string, data: AdminUpdateNotificationTypePayload): Promise<ApiResponse<AdminNotificationType> | ApiError> {
+  async updateAdminNotificationType(
+    id: string,
+    data: AdminUpdateNotificationTypePayload
+  ): Promise<ApiResponse<AdminNotificationType> | ApiError> {
     return this.patch<AdminNotificationType>(`/v1/notifications/admin/types/${id}`, data);
   }
 
-  async sendAdminNotification(data: AdminSendNotificationPayload): Promise<ApiResponse<{ sent: number }> | ApiError> {
+  async sendAdminNotification(
+    data: AdminSendNotificationPayload
+  ): Promise<ApiResponse<{ sent: number }> | ApiError> {
     return this.post<{ sent: number }>("/v1/notifications/admin/send", data);
   }
 
@@ -2121,7 +2151,10 @@ export class ApiClient {
     search?: string;
     type?: string;
     target?: string;
-  }): Promise<ApiResponse<{ items: AdminNotificationLog[]; pagination: AdminNotificationLogPagination }> | ApiError> {
+  }): Promise<
+    | ApiResponse<{ items: AdminNotificationLog[]; pagination: AdminNotificationLogPagination }>
+    | ApiError
+  > {
     const queryParams = new URLSearchParams();
     if (params.limit) queryParams.append("limit", String(params.limit));
     if (params.offset) queryParams.append("offset", String(params.offset));
@@ -2134,15 +2167,24 @@ export class ApiClient {
     );
   }
 
-  async createAdminNotificationGroup(data: { name: string; description?: string; userIds: string[] }): Promise<ApiResponse<AdminNotificationGroup> | ApiError> {
+  async createAdminNotificationGroup(data: {
+    name: string;
+    description?: string;
+    userIds: string[];
+  }): Promise<ApiResponse<AdminNotificationGroup> | ApiError> {
     return this.post<AdminNotificationGroup>("/v1/notifications/admin/groups", data);
   }
 
-  async updateAdminNotificationGroup(id: string, data: { name?: string; description?: string; userIds?: string[] }): Promise<ApiResponse<AdminNotificationGroup> | ApiError> {
+  async updateAdminNotificationGroup(
+    id: string,
+    data: { name?: string; description?: string; userIds?: string[] }
+  ): Promise<ApiResponse<AdminNotificationGroup> | ApiError> {
     return this.patch<AdminNotificationGroup>(`/v1/notifications/admin/groups/${id}`, data);
   }
 
-  async deleteAdminNotificationGroup(id: string): Promise<ApiResponse<AdminNotificationGroup> | ApiError> {
+  async deleteAdminNotificationGroup(
+    id: string
+  ): Promise<ApiResponse<AdminNotificationGroup> | ApiError> {
     return this.delete<AdminNotificationGroup>(`/v1/notifications/admin/groups/${id}`);
   }
 
@@ -2213,7 +2255,10 @@ export class ApiClient {
 
   async updateInvoice(
     id: string,
-    details: Partial<InvoiceDetails> & { contractId?: string | null; document?: Record<string, unknown> }
+    details: Partial<InvoiceDetails> & {
+      contractId?: string | null;
+      document?: Record<string, unknown>;
+    }
   ): Promise<ApiResponse<Invoice> | ApiError> {
     /**
      * UPDATE INVOICE
@@ -2252,7 +2297,9 @@ export class ApiClient {
     return this.post<Invoice>(`/v1/invoices/${id}/withdraw`, reason ? { reason } : {});
   }
 
-  async getInvoicesByApplication(applicationId: string): Promise<ApiResponse<Invoice[]> | ApiError> {
+  async getInvoicesByApplication(
+    applicationId: string
+  ): Promise<ApiResponse<Invoice[]> | ApiError> {
     return this.get<Invoice[]>(`/v1/invoices/by-application/${applicationId}`);
   }
 
@@ -2285,12 +2332,14 @@ export class ApiClient {
   }
 
   // Marketplace and note servicing
-  async getMarketplaceNotes(params: {
-    page?: number;
-    pageSize?: number;
-    search?: string;
-    featuredOnly?: boolean;
-  } = {}): Promise<ApiResponse<NotesResponse> | ApiError> {
+  async getMarketplaceNotes(
+    params: {
+      page?: number;
+      pageSize?: number;
+      search?: string;
+      featuredOnly?: boolean;
+    } = {}
+  ): Promise<ApiResponse<NotesResponse> | ApiError> {
     const queryParams = new URLSearchParams();
     queryParams.append("page", String(params.page ?? 1));
     queryParams.append("pageSize", String(params.pageSize ?? 12));
@@ -2299,12 +2348,14 @@ export class ApiClient {
     return this.get<NotesResponse>(`/v1/marketplace/notes?${queryParams.toString()}`);
   }
 
-  async getPublicMarketplaceNotes(params: {
-    page?: number;
-    pageSize?: number;
-    search?: string;
-    featuredOnly?: boolean;
-  } = {}): Promise<ApiResponse<NotesResponse> | ApiError> {
+  async getPublicMarketplaceNotes(
+    params: {
+      page?: number;
+      pageSize?: number;
+      search?: string;
+      featuredOnly?: boolean;
+    } = {}
+  ): Promise<ApiResponse<NotesResponse> | ApiError> {
     const queryParams = new URLSearchParams();
     queryParams.append("page", String(params.page ?? 1));
     queryParams.append("pageSize", String(params.pageSize ?? 12));
@@ -2332,19 +2383,27 @@ export class ApiClient {
     return this.get<InvestorPortfolioResponse>("/v1/investor/portfolio");
   }
 
-  async getInvestorPortfolioHistory(range: InvestorPortfolioHistoryRange = "6M"): Promise<ApiResponse<InvestorPortfolioHistoryResponse> | ApiError> {
+  async getInvestorPortfolioHistory(
+    range: InvestorPortfolioHistoryRange = "6M"
+  ): Promise<ApiResponse<InvestorPortfolioHistoryResponse> | ApiError> {
     const queryParams = new URLSearchParams({ range });
-    return this.get<InvestorPortfolioHistoryResponse>(`/v1/investor/portfolio/history?${queryParams.toString()}`);
+    return this.get<InvestorPortfolioHistoryResponse>(
+      `/v1/investor/portfolio/history?${queryParams.toString()}`
+    );
   }
 
-  async getInvestorBalanceActivity(params: {
-    page?: number;
-    pageSize?: number;
-  } = {}): Promise<ApiResponse<InvestorBalanceActivityResponse> | ApiError> {
+  async getInvestorBalanceActivity(
+    params: {
+      page?: number;
+      pageSize?: number;
+    } = {}
+  ): Promise<ApiResponse<InvestorBalanceActivityResponse> | ApiError> {
     const queryParams = new URLSearchParams();
     queryParams.append("page", String(params.page ?? 1));
     queryParams.append("pageSize", String(params.pageSize ?? 20));
-    return this.get<InvestorBalanceActivityResponse>(`/v1/investor/balance/activity?${queryParams.toString()}`);
+    return this.get<InvestorBalanceActivityResponse>(
+      `/v1/investor/balance/activity?${queryParams.toString()}`
+    );
   }
 
   async postInvestorBalanceTestTopup(input: {
@@ -2385,7 +2444,9 @@ export class ApiClient {
     return this.post<WithdrawalInstruction>("/v1/admin/withdrawals", data);
   }
 
-  async generateWithdrawalLetter(id: string): Promise<ApiResponse<WithdrawalInstruction> | ApiError> {
+  async generateWithdrawalLetter(
+    id: string
+  ): Promise<ApiResponse<WithdrawalInstruction> | ApiError> {
     return this.post<WithdrawalInstruction>(`/v1/admin/withdrawals/${id}/generate-letter`, {});
   }
 
@@ -2401,20 +2462,16 @@ export class ApiClient {
   async markWithdrawalCompleted(
     id: string
   ): Promise<ApiResponse<WithdrawalInstruction> | ApiError> {
-    return this.post<WithdrawalInstruction>(
-      `/v1/admin/withdrawals/${id}/mark-completed`,
-      {}
-    );
+    return this.post<WithdrawalInstruction>(`/v1/admin/withdrawals/${id}/mark-completed`, {});
   }
 
   async updateWithdrawalBeneficiary(
     id: string,
     beneficiarySnapshot: Record<string, unknown>
   ): Promise<ApiResponse<WithdrawalInstruction> | ApiError> {
-    return this.patch<WithdrawalInstruction>(
-      `/v1/admin/withdrawals/${id}/beneficiary`,
-      { beneficiarySnapshot }
-    );
+    return this.patch<WithdrawalInstruction>(`/v1/admin/withdrawals/${id}/beneficiary`, {
+      beneficiarySnapshot,
+    });
   }
 
   // Invoice APIs removed.

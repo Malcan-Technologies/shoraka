@@ -321,13 +321,13 @@ model IssuerOrganization {
 }
 
 model IssuerOrganizationFinancialStatement {
-  id                           String        @id @default(cuid())
-  issuer_organization_id      String        @unique
-  financial_statements        Json
-  source_application_id       String?
+  id                             String   @id @default(cuid())
+  issuer_organization_id         String   @unique
+  financial_statements           Json
+  source_application_id          String?
   source_application_revision_id String?
-  created_at                   DateTime      @default(now())
-  updated_at                   DateTime      @updatedAt
+  created_at                     DateTime @default(now())
+  updated_at                     DateTime @updatedAt
 
   @@map("issuer_organization_financial_statements")
 }
@@ -579,58 +579,58 @@ model Invoice {
 }
 
 model Note {
-  id                          String     @id @default(cuid())
-  source_application_id       String
-  source_contract_id          String?
-  source_invoice_id           String?    @unique
-  issuer_organization_id      String
-  status                      NoteStatus @default(DRAFT)
-  listing_status              NoteListingStatus @default(NOT_LISTED)
-  funding_status              NoteFundingStatus @default(NOT_OPEN)
-  servicing_status            NoteServicingStatus @default(NOT_STARTED)
-  title                       String
-  note_reference              String     @unique
-  product_snapshot            Json?
-  issuer_snapshot             Json
-  paymaster_snapshot          Json?
-  contract_snapshot           Json?
-  invoice_snapshot            Json?
-  requested_amount            Decimal    @db.Decimal(18, 6)
-  target_amount               Decimal    @db.Decimal(18, 6)
-  funded_amount               Decimal    @default(0) @db.Decimal(18, 6)
-  minimum_funding_percent     Decimal    @default(80) @db.Decimal(5, 2)
-  profit_rate_percent         Decimal?   @db.Decimal(7, 4)
-  platform_fee_rate_percent   Decimal    @default(0) @db.Decimal(5, 2)
-  service_fee_rate_percent    Decimal    @default(0) @db.Decimal(5, 2)
-  service_fee_customer_scope  String?
-  is_featured                 Boolean    @default(false)
-  featured_rank               Int?
-  featured_from               DateTime?
-  featured_until              DateTime?
-  maturity_date               DateTime?
-  grace_period_days           Int        @default(7)
-  arrears_threshold_days      Int        @default(14)
-  tawidh_rate_cap_percent     Decimal    @default(1) @db.Decimal(5, 2)
-  gharamah_rate_cap_percent   Decimal    @default(9) @db.Decimal(5, 2)
-  published_at                DateTime?
-  funding_closed_at           DateTime?
-  activated_at                DateTime?
-  repaid_at                   DateTime?
-  arrears_started_at          DateTime?
-  default_marked_at           DateTime?
+  id                              String                @id @default(cuid())
+  source_application_id           String
+  source_contract_id              String?
+  source_invoice_id               String?               @unique
+  issuer_organization_id          String
+  status                          NoteStatus            @default(DRAFT)
+  listing_status                  NoteListingStatus     @default(NOT_LISTED)
+  funding_status                  NoteFundingStatus     @default(NOT_OPEN)
+  servicing_status                NoteServicingStatus   @default(NOT_STARTED)
+  title                           String
+  note_reference                  String                @unique
+  product_snapshot                Json?
+  issuer_snapshot                 Json
+  paymaster_snapshot              Json?
+  contract_snapshot               Json?
+  invoice_snapshot                Json?
+  requested_amount                Decimal               @db.Decimal(18, 6)
+  target_amount                   Decimal               @db.Decimal(18, 6)
+  funded_amount                   Decimal               @default(0) @db.Decimal(18, 6)
+  minimum_funding_percent         Decimal               @default(80) @db.Decimal(5, 2)
+  profit_rate_percent             Decimal?              @db.Decimal(7, 4)
+  platform_fee_rate_percent       Decimal               @default(0) @db.Decimal(5, 2)
+  service_fee_rate_percent        Decimal               @default(0) @db.Decimal(5, 2)
+  service_fee_customer_scope      String?
+  is_featured                     Boolean               @default(false)
+  featured_rank                   Int?
+  featured_from                   DateTime?
+  featured_until                  DateTime?
+  maturity_date                   DateTime?
+  grace_period_days               Int                   @default(7)
+  arrears_threshold_days          Int                   @default(14)
+  tawidh_rate_cap_percent         Decimal               @default(1) @db.Decimal(5, 2)
+  gharamah_rate_cap_percent       Decimal               @default(9) @db.Decimal(5, 2)
+  published_at                    DateTime?
+  funding_closed_at               DateTime?
+  activated_at                    DateTime?
+  repaid_at                       DateTime?
+  arrears_started_at              DateTime?
+  default_marked_at               DateTime?
   default_marked_by_admin_user_id String?
-  default_reason              String?
-  metadata                    Json?
-  created_at                  DateTime   @default(now())
-  updated_at                  DateTime   @updatedAt
-  listing                     NoteListing?
-  investments                 NoteInvestment[]
-  payment_schedules           NotePaymentSchedule[]
-  payments                    NotePayment[]
-  settlements                 NoteSettlement[]
-  ledger_entries              NoteLedgerEntry[]
-  events                      NoteEvent[]
-  admin_actions               NoteAdminAction[]
+  default_reason                  String?
+  metadata                        Json?
+  created_at                      DateTime              @default(now())
+  updated_at                      DateTime              @updatedAt
+  listing                         NoteListing?
+  investments                     NoteInvestment[]
+  payment_schedules               NotePaymentSchedule[]
+  payments                        NotePayment[]
+  settlements                     NoteSettlement[]
+  ledger_entries                  NoteLedgerEntry[]
+  events                          NoteEvent[]
+  admin_actions                   NoteAdminAction[]
 
   @@index([source_application_id])
   @@index([source_contract_id])
@@ -691,50 +691,51 @@ model NoteInvestment {
 
 /// Per-investor-organization cash available for marketplace commits (minimal interaction/testing ledger).
 model InvestorBalance {
-  id                       String                @id @default(cuid())
-  investor_organization_id String                @unique
-  available_amount         Decimal               @default(0) @db.Decimal(18, 6)
-  created_at               DateTime              @default(now())
-  updated_at               DateTime              @updatedAt
-  investor_organization    InvestorOrganization  @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
+  id                       String               @id @default(cuid())
+  investor_organization_id String               @unique
+  available_amount         Decimal              @default(0) @db.Decimal(18, 6)
+  created_at               DateTime             @default(now())
+  updated_at               DateTime             @updatedAt
+  investor_organization    InvestorOrganization @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
 
   @@map("investor_balances")
 }
 
 /// Append-only balance movements for audit and reconciliation of investor pool cash.
 model InvestorBalanceTransaction {
-  id                       String                           @id @default(cuid())
+  id                       String                              @id @default(cuid())
   investor_organization_id String
   direction                InvestorBalanceTransactionDirection
-  amount                   Decimal                          @db.Decimal(18, 6)
+  amount                   Decimal                             @db.Decimal(18, 6)
   source                   InvestorBalanceTransactionSource
   note_id                  String?
   note_investment_id       String?
-  idempotency_key          String                           @unique
+  idempotency_key          String                              @unique
   metadata                 Json?
-  posted_at                DateTime                         @default(now())
-  created_at               DateTime                         @default(now())
-  investor_organization    InvestorOrganization             @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
+  posted_at                DateTime                            @default(now())
+  created_at               DateTime                            @default(now())
+  investor_organization    InvestorOrganization                @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
 
   @@index([investor_organization_id, posted_at])
   @@map("investor_balance_transactions")
 }
+
 model NotePaymentSchedule {
-  id                  String                @id @default(cuid())
-  note_id             String
-  status              NotePaymentStatus     @default(PENDING)
-  sequence            Int
-  due_date            DateTime
-  expected_principal  Decimal               @default(0) @db.Decimal(18, 6)
-  expected_profit     Decimal               @default(0) @db.Decimal(18, 6)
-  expected_total      Decimal               @default(0) @db.Decimal(18, 6)
-  paid_principal      Decimal               @default(0) @db.Decimal(18, 6)
-  paid_profit         Decimal               @default(0) @db.Decimal(18, 6)
-  paid_total          Decimal               @default(0) @db.Decimal(18, 6)
-  metadata            Json?
-  created_at          DateTime              @default(now())
-  updated_at          DateTime              @updatedAt
-  note                Note                  @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  id                 String            @id @default(cuid())
+  note_id            String
+  status             NotePaymentStatus @default(PENDING)
+  sequence           Int
+  due_date           DateTime
+  expected_principal Decimal           @default(0) @db.Decimal(18, 6)
+  expected_profit    Decimal           @default(0) @db.Decimal(18, 6)
+  expected_total     Decimal           @default(0) @db.Decimal(18, 6)
+  paid_principal     Decimal           @default(0) @db.Decimal(18, 6)
+  paid_profit        Decimal           @default(0) @db.Decimal(18, 6)
+  paid_total         Decimal           @default(0) @db.Decimal(18, 6)
+  metadata           Json?
+  created_at         DateTime          @default(now())
+  updated_at         DateTime          @updatedAt
+  note               Note              @relation(fields: [note_id], references: [id], onDelete: Cascade)
 
   @@unique([note_id, sequence])
   @@index([note_id])
@@ -744,23 +745,23 @@ model NotePaymentSchedule {
 }
 
 model NotePayment {
-  id                         String              @id @default(cuid())
+  id                         String            @id @default(cuid())
   note_id                    String
   schedule_id                String?
   source                     NotePaymentSource
-  status                     NotePaymentStatus   @default(PENDING)
-  receipt_amount             Decimal             @db.Decimal(18, 6)
+  status                     NotePaymentStatus @default(PENDING)
+  receipt_amount             Decimal           @db.Decimal(18, 6)
   receipt_date               DateTime
-  received_into_account_code String               @default("REPAYMENT_POOL")
+  received_into_account_code String            @default("REPAYMENT_POOL")
   evidence_s3_key            String?
   reference                  String?
   recorded_by_user_id        String?
   reconciled_by_user_id      String?
   reconciled_at              DateTime?
   metadata                   Json?
-  created_at                 DateTime            @default(now())
-  updated_at                 DateTime            @updatedAt
-  note                       Note                @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  created_at                 DateTime          @default(now())
+  updated_at                 DateTime          @updatedAt
+  note                       Note              @relation(fields: [note_id], references: [id], onDelete: Cascade)
 
   @@index([note_id])
   @@index([schedule_id])
@@ -771,32 +772,39 @@ model NotePayment {
 }
 
 model NoteSettlement {
-  id                      String                @id @default(cuid())
-  note_id                 String
-  payment_id              String?
-  status                  NoteSettlementStatus  @default(PREVIEW)
-  settlement_type         NoteSettlementType    @default(STANDARD)
-  gross_receipt_amount    Decimal               @default(0) @db.Decimal(18, 6)
-  investor_principal      Decimal               @default(0) @db.Decimal(18, 6)
-  investor_profit_gross   Decimal               @default(0) @db.Decimal(18, 6)
-  service_fee_amount      Decimal               @default(0) @db.Decimal(18, 6)
-  investor_profit_net     Decimal               @default(0) @db.Decimal(18, 6)
-  tawidh_amount           Decimal               @default(0) @db.Decimal(18, 6)
-  gharamah_amount         Decimal               @default(0) @db.Decimal(18, 6)
-  issuer_residual_amount  Decimal               @default(0) @db.Decimal(18, 6)
-  unapplied_amount        Decimal               @default(0) @db.Decimal(18, 6)
-  preview_snapshot        Json
-  approved_by_user_id     String?
-  approved_at             DateTime?
-  posted_at               DateTime?
-  idempotency_key         String?               @unique
-  service_fee_trustee_status        ServiceFeeTrusteeInstructionStatus?
-  service_fee_trustee_submitted_at  DateTime?
-  service_fee_trustee_completed_at  DateTime?
-  created_at              DateTime              @default(now())
-  updated_at              DateTime              @updatedAt
-  note                    Note                  @relation(fields: [note_id], references: [id], onDelete: Cascade)
-  withdrawals             WithdrawalInstruction[]
+  id                               String                              @id @default(cuid())
+  note_id                          String
+  payment_id                       String?
+  status                           NoteSettlementStatus                @default(PREVIEW)
+  settlement_type                  NoteSettlementType                  @default(STANDARD)
+  gross_receipt_amount             Decimal                             @default(0) @db.Decimal(18, 6)
+  investor_principal               Decimal                             @default(0) @db.Decimal(18, 6)
+  investor_profit_gross            Decimal                             @default(0) @db.Decimal(18, 6)
+  profit_start_date                DateTime?
+  profit_maturity_date             DateTime?
+  profit_days                      Int                                 @default(0)
+  annual_profit_rate_percent       Decimal                             @default(0) @db.Decimal(9, 6)
+  service_fee_amount               Decimal                             @default(0) @db.Decimal(18, 6)
+  investor_profit_net              Decimal                             @default(0) @db.Decimal(18, 6)
+  tawidh_amount                    Decimal                             @default(0) @db.Decimal(18, 6)
+  tawidh_investor_share_percent    Decimal                             @default(0) @db.Decimal(9, 6)
+  tawidh_investor_amount           Decimal                             @default(0) @db.Decimal(18, 6)
+  tawidh_account_amount            Decimal                             @default(0) @db.Decimal(18, 6)
+  gharamah_amount                  Decimal                             @default(0) @db.Decimal(18, 6)
+  issuer_residual_amount           Decimal                             @default(0) @db.Decimal(18, 6)
+  unapplied_amount                 Decimal                             @default(0) @db.Decimal(18, 6)
+  preview_snapshot                 Json
+  approved_by_user_id              String?
+  approved_at                      DateTime?
+  posted_at                        DateTime?
+  idempotency_key                  String?                             @unique
+  service_fee_trustee_status       ServiceFeeTrusteeInstructionStatus?
+  service_fee_trustee_submitted_at DateTime?
+  service_fee_trustee_completed_at DateTime?
+  created_at                       DateTime                            @default(now())
+  updated_at                       DateTime                            @updatedAt
+  note                             Note                                @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  withdrawals                      WithdrawalInstruction[]
 
   @@index([note_id])
   @@index([payment_id])
@@ -807,14 +815,14 @@ model NoteSettlement {
 }
 
 model NoteLedgerAccount {
-  id            String                @id @default(cuid())
-  code          String                @unique
-  name          String
-  type          NoteLedgerAccountType
-  currency      String                @default("MYR")
-  is_system     Boolean               @default(true)
-  created_at    DateTime              @default(now())
-  updated_at    DateTime              @updatedAt
+  id             String                @id @default(cuid())
+  code           String                @unique
+  name           String
+  type           NoteLedgerAccountType
+  currency       String                @default("MYR")
+  is_system      Boolean               @default(true)
+  created_at     DateTime              @default(now())
+  updated_at     DateTime              @updatedAt
   ledger_entries NoteLedgerEntry[]
 
   @@index([type])
@@ -822,22 +830,22 @@ model NoteLedgerAccount {
 }
 
 model NoteLedgerEntry {
-  id                String              @id @default(cuid())
-  note_id           String?
-  account_id        String
-  settlement_id     String?
-  payment_id        String?
-  withdrawal_id     String?
-  direction         NoteLedgerDirection
-  amount            Decimal             @db.Decimal(18, 6)
-  currency          String              @default("MYR")
-  description       String
-  idempotency_key   String              @unique
-  metadata          Json?
-  posted_at         DateTime            @default(now())
-  created_at        DateTime            @default(now())
-  note              Note?               @relation(fields: [note_id], references: [id], onDelete: SetNull)
-  account           NoteLedgerAccount   @relation(fields: [account_id], references: [id], onDelete: Restrict)
+  id              String              @id @default(cuid())
+  note_id         String?
+  account_id      String
+  settlement_id   String?
+  payment_id      String?
+  withdrawal_id   String?
+  direction       NoteLedgerDirection
+  amount          Decimal             @db.Decimal(18, 6)
+  currency        String              @default("MYR")
+  description     String
+  idempotency_key String              @unique
+  metadata        Json?
+  posted_at       DateTime            @default(now())
+  created_at      DateTime            @default(now())
+  note            Note?               @relation(fields: [note_id], references: [id], onDelete: SetNull)
+  account         NoteLedgerAccount   @relation(fields: [account_id], references: [id], onDelete: Restrict)
 
   @@index([note_id])
   @@index([account_id])
@@ -891,47 +899,47 @@ model NoteAdminAction {
 }
 
 model PlatformFinanceSetting {
-  id                              String   @id @default(cuid())
-  key                             String   @unique
-  grace_period_days               Int      @default(7)
-  arrears_threshold_days          Int      @default(14)
-  tawidh_rate_cap_percent         Decimal  @default(1) @db.Decimal(5, 2)
-  gharamah_rate_cap_percent       Decimal  @default(9) @db.Decimal(5, 2)
-  platform_fee_rate_cap_percent   Decimal  @default(3) @db.Decimal(5, 2)
-  default_tawidh_rate_percent     Decimal  @default(0) @db.Decimal(5, 2)
-  default_gharamah_rate_percent   Decimal  @default(0) @db.Decimal(5, 2)
-  withdrawal_letter_template      String   @default("DEFAULT_WITHDRAWAL_LETTER")
-  arrears_letter_template         String   @default("DEFAULT_ARREARS_LETTER")
-  default_letter_template         String   @default("DEFAULT_DEFAULT_LETTER")
-  updated_by_user_id              String?
-  metadata                        Json?
-  created_at                      DateTime @default(now())
-  updated_at                      DateTime @updatedAt
+  id                            String   @id @default(cuid())
+  key                           String   @unique
+  grace_period_days             Int      @default(7)
+  arrears_threshold_days        Int      @default(14)
+  tawidh_rate_cap_percent       Decimal  @default(1) @db.Decimal(5, 2)
+  gharamah_rate_cap_percent     Decimal  @default(9) @db.Decimal(5, 2)
+  platform_fee_rate_cap_percent Decimal  @default(3) @db.Decimal(5, 2)
+  default_tawidh_rate_percent   Decimal  @default(0) @db.Decimal(5, 2)
+  default_gharamah_rate_percent Decimal  @default(0) @db.Decimal(5, 2)
+  withdrawal_letter_template    String   @default("DEFAULT_WITHDRAWAL_LETTER")
+  arrears_letter_template       String   @default("DEFAULT_ARREARS_LETTER")
+  default_letter_template       String   @default("DEFAULT_DEFAULT_LETTER")
+  updated_by_user_id            String?
+  metadata                      Json?
+  created_at                    DateTime @default(now())
+  updated_at                    DateTime @updatedAt
 
   @@map("platform_finance_settings")
 }
 
 model WithdrawalInstruction {
-  id                     String              @id @default(cuid())
-  note_id                String?
-  settlement_id          String?
+  id                       String           @id @default(cuid())
+  note_id                  String?
+  settlement_id            String?
   investor_organization_id String?
-  issuer_organization_id String?
-  requested_by_user_id   String
-  submitted_by_user_id   String?
-  status                 WithdrawalStatus    @default(DRAFT)
-  withdrawal_type        WithdrawalType
-  amount                 Decimal             @db.Decimal(18, 6)
-  currency               String              @default("MYR")
-  beneficiary_snapshot   Json
-  letter_s3_key          String?
-  generated_at           DateTime?
-  submitted_to_trustee_at DateTime?
-  completed_at           DateTime?
-  metadata               Json?
-  created_at             DateTime            @default(now())
-  updated_at             DateTime            @updatedAt
-  settlement             NoteSettlement?     @relation(fields: [settlement_id], references: [id], onDelete: SetNull)
+  issuer_organization_id   String?
+  requested_by_user_id     String
+  submitted_by_user_id     String?
+  status                   WithdrawalStatus @default(DRAFT)
+  withdrawal_type          WithdrawalType
+  amount                   Decimal          @db.Decimal(18, 6)
+  currency                 String           @default("MYR")
+  beneficiary_snapshot     Json
+  letter_s3_key            String?
+  generated_at             DateTime?
+  submitted_to_trustee_at  DateTime?
+  completed_at             DateTime?
+  metadata                 Json?
+  created_at               DateTime         @default(now())
+  updated_at               DateTime         @updatedAt
+  settlement               NoteSettlement?  @relation(fields: [settlement_id], references: [id], onDelete: SetNull)
 
   @@index([note_id])
   @@index([settlement_id])
@@ -1161,19 +1169,19 @@ model ApplicationLog {
 }
 
 model Product {
-  id                     String   @id @default(cuid())
-  base_id                String?
-  created_at             DateTime @default(now())
-  updated_at             DateTime @updatedAt
-  workflow               Json
-  category_display_order Int?
-  product_display_order  Int?
-  offer_expiry_days      Int?
+  id                                String   @id @default(cuid())
+  base_id                           String?
+  created_at                        DateTime @default(now())
+  updated_at                        DateTime @updatedAt
+  workflow                          Json
+  category_display_order            Int?
+  product_display_order             Int?
+  offer_expiry_days                 Int?
   marketplace_listing_duration_days Int?
   // Default investor-side service fee rate (percent of investor profit) for notes under this product.
-  service_fee_rate_percent Decimal @default(15) @db.Decimal(5, 2)
+  service_fee_rate_percent          Decimal  @default(15) @db.Decimal(5, 2)
   // Default contract financing facility fee rate (percent of approved facility) to prefill new contract offers.
-  default_facility_fee_rate_percent Decimal @default(1) @db.Decimal(5, 2)
+  default_facility_fee_rate_percent Decimal  @default(1) @db.Decimal(5, 2)
 
   status     ProductStatus @default(ACTIVE)
   deleted_at DateTime?
@@ -1422,6 +1430,7 @@ enum InvestorBalanceTransactionSource {
   NOTE_INVESTMENT_COMMIT
   NOTE_INVESTMENT_RELEASE
 }
+
 enum NotePaymentSource {
   PAYMASTER
   ISSUER_ON_BEHALF

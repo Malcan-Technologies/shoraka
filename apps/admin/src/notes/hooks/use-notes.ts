@@ -290,7 +290,15 @@ export function useRejectNotePayment() {
   const apiClient = useNotesApiClient();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, paymentId, reason }: { id: string; paymentId: string; reason?: string | null }) => {
+    mutationFn: async ({
+      id,
+      paymentId,
+      reason,
+    }: {
+      id: string;
+      paymentId: string;
+      reason?: string | null;
+    }) => {
       const response = await apiClient.rejectAdminNotePayment(id, paymentId, { reason });
       if (!response.success) throw new Error(response.error.message);
       return response.data;
@@ -467,7 +475,10 @@ export function useMarkNoteDefault() {
   });
 }
 
-function invalidateWithdrawalNote(queryClient: ReturnType<typeof useQueryClient>, noteId: string | null) {
+function invalidateWithdrawalNote(
+  queryClient: ReturnType<typeof useQueryClient>,
+  noteId: string | null
+) {
   invalidateAdminRegistries(queryClient);
   if (!noteId) return;
   queryClient.invalidateQueries({ queryKey: notesKeys.detail(noteId) });

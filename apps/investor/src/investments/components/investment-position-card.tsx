@@ -73,23 +73,28 @@ export function InvestmentPositionCard({
     repaymentSummary?.expectedReturnRatePercent ?? note.profitRatePercent ?? 0
   );
   const tenureDays = resolveTenureDays(note.maturityDate);
-  const repaymentReceived = Number(
-    repaymentSummary?.receivedPayoutAmount ?? note.settlementSummary?.grossReceiptAmount ?? 0
+  const repaymentReceived = Number(repaymentSummary?.receivedPayoutAmount ?? 0);
+  const investedAmount =
+    repaymentSummary != null
+      ? Number(repaymentSummary.investedPrincipal)
+      : Number(note.fundedAmount);
+  const contractualProfitReceived = Number(
+    repaymentSummary?.receivedProfitNetAmount ?? Math.max(0, repaymentReceived - investedAmount)
   );
-  const investedAmount = Number(
-    repaymentSummary?.investedPrincipal ??
-      note.settlementSummary?.investorPoolAmount ??
-      note.fundedAmount
+  const tawidhCompensationReceived = Number(
+    repaymentSummary?.receivedTawidhCompensationAmount ?? 0
   );
-  const yourProfit = repaymentReceived - investedAmount;
   const investorStatusLabel = getNoteDerivedStatusLabel(note, { viewer: "investor" });
   const yourProfitDisplayed =
-    investorStatusLabel === "Settled" ? yourProfit : Math.max(0, yourProfit);
+    investorStatusLabel === "Settled"
+      ? contractualProfitReceived
+      : Math.max(0, contractualProfitReceived);
   const isInvestorSettled = investorStatusLabel === "Settled";
   const repaymentAmountDisplay =
     !isInvestorSettled && repaymentReceived <= 0 ? "—" : formatCurrency(repaymentReceived);
   const profitAmountDisplay =
     !isInvestorSettled && yourProfitDisplayed <= 0 ? "—" : formatCurrency(yourProfitDisplayed);
+  const tawidhCompensationDisplay = formatCurrency(tawidhCompensationReceived);
   const hasRiskRating = Boolean(note.riskRating && note.riskRating.trim() !== "");
   const hasActualReturn = typeof repaymentSummary?.actualReturnRatePercent === "number";
   const actualReturn = hasActualReturn
@@ -136,11 +141,19 @@ export function InvestmentPositionCard({
             </span>
           </p>
           <p className="break-words text-sm leading-snug text-muted-foreground">
-            Your profit:{" "}
+            Contractual profit:{" "}
             <span className="font-semibold text-foreground tabular-nums">
               {profitAmountDisplay}
             </span>
           </p>
+          {tawidhCompensationReceived > 0.005 ? (
+            <p className="break-words text-sm leading-snug text-muted-foreground">
+              Ta&apos;widh compensation:{" "}
+              <span className="font-semibold text-foreground tabular-nums">
+                {tawidhCompensationDisplay}
+              </span>
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -166,7 +179,9 @@ export function InvestmentPositionCard({
                   <PercentBadgeIcon className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="text-sm leading-tight text-muted-foreground">Expected Return</p>
+                  <p className="text-sm leading-tight text-muted-foreground">
+                    Expected return p.a.
+                  </p>
                   <p className="text-lg font-semibold leading-none tracking-tight text-foreground md:text-xl">
                     {expectedReturn.toFixed(1)}%
                   </p>
@@ -210,10 +225,7 @@ export function InvestmentPositionCard({
               {resolvedFooterRows.map((row) => {
                 const RowIcon = row.icon ?? CalendarDaysIcon;
                 return (
-                  <div
-                    key={row.label}
-                    className="flex items-center justify-between gap-3 text-sm"
-                  >
+                  <div key={row.label} className="flex items-center justify-between gap-3 text-sm">
                     <div className="inline-flex items-center gap-2 text-muted-foreground">
                       <RowIcon className="h-4 w-4" />
                       {row.label}
