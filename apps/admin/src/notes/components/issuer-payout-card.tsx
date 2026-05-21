@@ -436,6 +436,19 @@ export function IssuerPayoutCard({
                             nextAction: "Check with Shoraka/Tawarruq operations",
                           };
 
+              const callbackReceivedAt = tradeOrder.callback_received_at
+                ? new Date(tradeOrder.callback_received_at)
+                : null;
+              const statusLastCheckedAt = tradeOrder.status_last_checked_at
+                ? new Date(tradeOrder.status_last_checked_at)
+                : null;
+
+              const statusSource = callbackReceivedAt
+                ? statusLastCheckedAt && callbackReceivedAt.getTime() < statusLastCheckedAt.getTime()
+                  ? "Updated by status query"
+                  : "Updated by callback"
+                : null;
+
               return (
                 <>
                   <div className="mt-2 space-y-1">
@@ -469,6 +482,20 @@ export function IssuerPayoutCard({
                       <div className="flex items-center justify-between gap-4">
                         <span className="text-muted-foreground">Murabaha amount</span>
                         <span className="font-medium">{parsed.murabahaAmount}</span>
+                      </div>
+                    ) : null}
+                    {statusSource ? (
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-muted-foreground">Status source</span>
+                        <span className="font-medium">{statusSource}</span>
+                      </div>
+                    ) : null}
+                    {tradeOrder.callback_received_at ? (
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-muted-foreground">Callback received</span>
+                        <span className="font-medium">
+                          {format(new Date(tradeOrder.callback_received_at), "dd MMM yyyy, h:mm a")}
+                        </span>
                       </div>
                     ) : null}
                     {tradeOrder.status_last_checked_at ? (

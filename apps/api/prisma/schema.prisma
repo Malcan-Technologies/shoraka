@@ -973,6 +973,9 @@ model ShorakaTradeOrder {
   provider_certificate_id  String?
   certificate_uploaded_at   DateTime?
 
+  callback_payload         Json?
+  callback_received_at     DateTime?
+
   created_at                DateTime                 @default(now())
   updated_at                DateTime                 @updatedAt
 

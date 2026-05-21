@@ -286,6 +286,8 @@ type SubmitOrderResult = {
     provider_order_id: string | null;
     status: string;
     submitted_at: Date | null;
+    callback_payload: Prisma.JsonValue | null;
+    callback_received_at: Date | null;
     certificate_s3_key: string | null;
     certificate_file_sha256: string | null;
     provider_certificate_id: string | null;
@@ -305,6 +307,8 @@ type ShorakaStateResponse = {
     idempotency_key: string;
     submitted_at: Date | null;
     status_last_checked_at: Date | null;
+    callback_payload: Prisma.JsonValue | null;
+    callback_received_at: Date | null;
     submit_request_payload: unknown;
     submit_response_payload: unknown;
     status_response_payload: unknown;
@@ -346,6 +350,8 @@ export class ShorakaStpService {
         idempotency_key: tradeOrder.idempotency_key,
         submitted_at: tradeOrder.submitted_at,
         status_last_checked_at: tradeOrder.status_last_checked_at,
+        callback_payload: tradeOrder.callback_payload as Prisma.JsonValue | null,
+        callback_received_at: tradeOrder.callback_received_at,
         submit_request_payload: tradeOrder.submit_request_payload,
         submit_response_payload: tradeOrder.submit_response_payload,
         status_response_payload: tradeOrder.status_response_payload,
@@ -415,6 +421,8 @@ export class ShorakaStpService {
           provider_order_id: existing.provider_order_id,
           status: existing.status,
           submitted_at: existing.submitted_at,
+          callback_payload: existing.callback_payload as Prisma.JsonValue | null,
+          callback_received_at: existing.callback_received_at,
           certificate_s3_key: existing.certificate_s3_key,
           certificate_file_sha256: existing.certificate_file_sha256,
           provider_certificate_id: existing.provider_certificate_id,
@@ -486,6 +494,8 @@ export class ShorakaStpService {
           provider_order_id: created.provider_order_id,
           status: created.status,
           submitted_at: created.submitted_at,
+          callback_payload: created.callback_payload as Prisma.JsonValue | null,
+          callback_received_at: created.callback_received_at,
           certificate_s3_key: created.certificate_s3_key,
           certificate_file_sha256: created.certificate_file_sha256,
           provider_certificate_id: created.provider_certificate_id,
@@ -524,6 +534,8 @@ export class ShorakaStpService {
         provider_order_id: updated.provider_order_id,
         status: updated.status,
         submitted_at: updated.submitted_at,
+        callback_payload: updated.callback_payload as Prisma.JsonValue | null,
+        callback_received_at: updated.callback_received_at,
         certificate_s3_key: updated.certificate_s3_key,
         certificate_file_sha256: updated.certificate_file_sha256,
         provider_certificate_id: updated.provider_certificate_id,

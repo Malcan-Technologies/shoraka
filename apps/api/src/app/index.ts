@@ -18,6 +18,7 @@ import {
   regTankWebhookRouter,
 } from "../modules/regtank/webhook-controller";
 import { signingCloudWebhookRouter } from "../modules/signingcloud/webhook-controller";
+import { shorakaStpWebhookRouter } from "../modules/shoraka-stp/shoraka-stp-webhook-controller";
 
 function parseAllowedOrigins(): string[] {
   if (!process.env.ALLOWED_ORIGINS) {
@@ -88,6 +89,9 @@ export async function createApp(): Promise<Application> {
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+
+  // Shoraka callback expects normal JSON parsing (signature is verified from parsed body).
+  app.use("/v1/webhooks", shorakaStpWebhookRouter);
   app.use(cookieParser()); // Parse HTTP-Only cookies
 
   /**

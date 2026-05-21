@@ -642,6 +642,8 @@ export interface ShorakaTradeOrderStateTradeOrder {
   idempotency_key: string;
   submitted_at: string | null;
   status_last_checked_at: string | null;
+  callback_payload: unknown | null;
+  callback_received_at: string | null;
 
   submit_request_payload: unknown;
   submit_response_payload: unknown;
