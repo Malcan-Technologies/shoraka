@@ -1,3 +1,5 @@
+import { meetsMinimumFunding as meetsMinimumFundingWithTolerance } from "@cashsouk/types";
+
 export interface SettlementWaterfallInput {
   grossReceiptAmount: number;
   fundedPrincipal: number;
@@ -70,8 +72,13 @@ export function calculateLateCharge(input: LateChargeInput) {
   };
 }
 
-export function meetsMinimumFunding(fundedAmount: number, targetAmount: number, minimumFundingPercent = 80) {
-  if (targetAmount <= 0) return false;
-  return (fundedAmount / targetAmount) * 100 >= minimumFundingPercent;
+export function meetsMinimumFunding(
+  fundedAmount: number,
+  targetAmount: number,
+  minimumFundingPercent = 80
+) {
+  return meetsMinimumFundingWithTolerance(fundedAmount, targetAmount, minimumFundingPercent);
 }
+
+export { buildSettlementInvestorAllocations } from "@cashsouk/types";
 

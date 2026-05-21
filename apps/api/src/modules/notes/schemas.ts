@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isNoteMoneyAmount } from "@cashsouk/types";
 import {
   NoteFundingStatus,
   NoteLedgerAccountType,
@@ -106,7 +107,12 @@ export const updateNoteFeaturedSchema = z.object({
 });
 
 export const createInvestmentSchema = z.object({
-  amount: z.number().positive(),
+  amount: z
+    .number()
+    .positive()
+    .refine((value) => isNoteMoneyAmount(value), {
+      message: "Investment amount must have at most 2 decimal places",
+    }),
   investorOrganizationId: z.string().min(1),
 });
 

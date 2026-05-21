@@ -740,3 +740,4 @@ export interface OverdueLateChargeResult {
 }
 
 export * from "./note-expected-return";
+export * from "./note-money";

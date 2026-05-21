@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { useOrganization } from "@cashsouk/config";
-import { useHeader } from "@cashsouk/ui";
+import { formatCurrency, useOrganization } from "@cashsouk/config";
+import { MoneyInput, useHeader } from "@cashsouk/ui";
 import {
   ArrowPathIcon,
   ChevronLeftIcon,
@@ -46,6 +46,7 @@ import {
 import { ONBOARDING_INDUSTRY_OPTIONS } from "@/investments/industry-filter-options";
 import {
   formatNoteReferenceDisplay,
+  isNoteMoneyAmount,
   resolveNetExpectedReturnRatePercent,
   SOUKSCORE_RISK_RATING_GRADES,
   type NoteListItem,
@@ -72,10 +73,6 @@ function parseMarketplaceListPageParam(value: string | null): number {
   const parsed = Number.parseInt(value.trim(), 10);
   if (!Number.isFinite(parsed) || parsed < 1) return 1;
   return parsed;
-}
-
-function currency(amount: number) {
-  return `RM ${amount.toLocaleString("en-MY")}`;
 }
 
 function textOrDash(value?: string | null) {
@@ -388,6 +385,10 @@ export function MarketplacePage() {
       setValidationError("Please enter a valid investment amount.");
       return;
     }
+    if (!isNoteMoneyAmount(parsedAmount)) {
+      setValidationError("Investment amount can have at most 2 decimal places.");
+      return;
+    }
 
     if (parsedAmount > availableBalance) {
       setValidationError("You have insufficient balance");
@@ -396,7 +397,7 @@ export function MarketplacePage() {
 
     if (parsedAmount < activeNote.minInvestment || parsedAmount > activeNote.maxInvestment) {
       setValidationError(
-        `Investment amount must be between ${currency(activeNote.minInvestment)} and ${currency(activeNote.maxInvestment)}.`
+        `Investment amount must be between ${formatCurrency(activeNote.minInvestment)} and ${formatCurrency(activeNote.maxInvestment)}.`
       );
       return;
     }
@@ -418,6 +419,23 @@ export function MarketplacePage() {
     const parsedAmount = parseAmount(investmentAmount);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       toast.error("Invalid investment amount");
+      return;
+    }
+    if (!isNoteMoneyAmount(parsedAmount)) {
+      toast.error("Investment amount can have at most 2 decimal places");
+      return;
+    }
+    if (parsedAmount > availableBalance) {
+      toast.error("You have insufficient balance");
+      return;
+    }
+    if (
+      parsedAmount + 1e-9 < activeNote.minInvestment ||
+      parsedAmount > activeNote.maxInvestment + 1e-9
+    ) {
+      toast.error(
+        `Investment amount must be between ${formatCurrency(activeNote.minInvestment)} and ${formatCurrency(activeNote.maxInvestment)}`
+      );
       return;
     }
     try {
@@ -462,7 +480,7 @@ export function MarketplacePage() {
               <div className="min-w-0 space-y-1.5">
                 <p className="text-sm font-medium text-muted-foreground">Available balance</p>
                 <p className="text-3xl font-semibold leading-none tracking-tight text-foreground tabular-nums sm:text-4xl">
-                  {currency(availableBalance)}
+                  {formatCurrency(availableBalance)}
                 </p>
               </div>
               <div className="flex shrink-0 justify-end sm:justify-end">
@@ -725,19 +743,19 @@ export function MarketplacePage() {
 
           <div className="space-y-4 px-4 pb-4">
             <div className="space-y-2">
-              <Label htmlFor="investment-amount" className="text-xs text-slate-900">
+              <Label className="text-xs text-slate-900">
                 Investment amount
               </Label>
-              <Input
-                id="investment-amount"
-                value={`RM ${investmentAmount}`}
-                onChange={(event) => {
-                  const normalizedValue = event.target.value.replace("RM", "").trim();
-                  setInvestmentAmount(normalizedValue);
+              <MoneyInput
+                value={investmentAmount}
+                onValueChange={(next) => {
+                  setInvestmentAmount(next);
                   if (validationError) setValidationError(null);
                 }}
-                className="h-9 rounded-lg border-slate-200 text-slate-700 focus-visible:ring-slate-300"
-                aria-invalid={Boolean(validationError)}
+                prefix="RM"
+                allowEmpty={false}
+                placeholder="0.00"
+                inputClassName="h-9 rounded-lg border-slate-200 text-slate-700 focus-visible:ring-slate-300"
               />
               {validationError ? (
                 <p className="text-right text-xs text-destructive">{validationError}</p>
@@ -781,7 +799,7 @@ export function MarketplacePage() {
 
             <p className="text-center text-xs text-slate-500">
               {activeNote
-                ? `Min. investment : ${currency(activeNote.minInvestment)} | Max. investment : ${currency(activeNote.maxInvestment)}`
+                ? `Min. investment : ${formatCurrency(activeNote.minInvestment)} | Max. investment : ${formatCurrency(activeNote.maxInvestment)}`
                 : null}
             </p>
           </div>
@@ -794,7 +812,7 @@ export function MarketplacePage() {
             <DialogTitle className="text-xl font-semibold text-slate-900">Confirm investment</DialogTitle>
             <DialogDescription className="pt-3 text-sm text-slate-700">
               Are you sure you want to invest{" "}
-              <span className="font-semibold">RM {parseAmount(investmentAmount).toLocaleString("en-MY")}</span>
+              <span className="font-semibold">{formatCurrency(parseAmount(investmentAmount))}</span>
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-2 p-4">

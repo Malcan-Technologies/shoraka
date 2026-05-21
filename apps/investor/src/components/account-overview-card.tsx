@@ -13,6 +13,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@cashsouk/ui";
+import { formatCurrency } from "@cashsouk/config";
 import type { ChartConfig } from "@cashsouk/ui";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -39,10 +40,6 @@ const chartConfig = {
     color: "hsl(var(--muted))",
   },
 } satisfies ChartConfig;
-
-function formatCurrency(value: number) {
-  return `RM ${value.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 function formatSignedCurrency(value: number) {
   const sign = value > 0 ? "+" : value < 0 ? "-" : "";

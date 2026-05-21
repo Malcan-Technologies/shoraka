@@ -9,23 +9,17 @@ import {
   PercentBadgeIcon,
   ScaleIcon,
 } from "@heroicons/react/24/outline";
+import { formatCurrency } from "@cashsouk/config";
 import {
   formatInvestorReturnRatePercent,
   formatNoteReferenceDisplay,
   resolveNetExpectedReturnRatePercent,
+  roundNoteMoney,
   type NoteListItem,
 } from "@cashsouk/types";
 import { getNoteDerivedStatusLabel, NoteStatusBadge, SoukscoreRiskRatingBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-function formatCurrency(value: number) {
-  const isWholeNumber = Number.isInteger(value);
-  return `RM ${value.toLocaleString("en-MY", {
-    minimumFractionDigits: isWholeNumber ? 0 : 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
 
 function resolveTenureDays(maturityDate: string | null) {
   if (!maturityDate) return 0;
@@ -88,7 +82,7 @@ export function InvestmentPositionCard({
       note.settlementSummary?.investorPoolAmount ??
       note.fundedAmount
   );
-  const yourProfit = repaymentReceived - investedAmount;
+  const yourProfit = roundNoteMoney(repaymentReceived - investedAmount, 2);
   const investorStatusLabel = getNoteDerivedStatusLabel(note, { viewer: "investor" });
   const yourProfitDisplayed =
     investorStatusLabel === "Settled" ? yourProfit : Math.max(0, yourProfit);

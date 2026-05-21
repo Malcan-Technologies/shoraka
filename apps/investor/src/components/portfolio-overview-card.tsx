@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { formatCurrency } from "@cashsouk/config";
 import {
   NoteServicingStatus,
   NoteStatus,
+  roundNoteMoney,
   type InvestorPortfolioHistoryGranularity,
   type NoteListItem,
 } from "@cashsouk/types";
@@ -35,10 +37,6 @@ const API_RANGE_BY_OPTION: Record<RangeOption, "1W" | "1M" | "3M" | "6M" | "YTD"
   "ytd": "YTD",
   "all": "ALL",
 };
-
-function formatCurrency(value: number) {
-  return `RM ${value.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 function parseDateKey(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -135,7 +133,7 @@ function buildInvestmentSummary(notes: NoteListItem[]) {
       const investedAmount = Number(note.investorRepaymentSummary?.investedPrincipal ?? 0);
       const receivedAmount = Number(note.investorRepaymentSummary?.receivedPayoutAmount ?? 0);
       if (Number.isFinite(investedAmount) && investedAmount > 0 && Number.isFinite(receivedAmount)) {
-        realizedProfitAmount += receivedAmount - investedAmount;
+        realizedProfitAmount += roundNoteMoney(receivedAmount - investedAmount, 2);
         realizedReturnBase += investedAmount;
       }
     } else if (isUnderPerformingInvestment(note)) {

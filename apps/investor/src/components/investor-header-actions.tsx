@@ -1,14 +1,8 @@
 "use client";
 
 import { NotificationBell } from "@cashsouk/ui";
+import { formatCurrency } from "@cashsouk/config";
 import { useInvestorPortfolio } from "@/investments/hooks/use-marketplace-notes";
-
-function formatCurrency(value: number) {
-  return `RM ${value.toLocaleString("en-MY", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
 
 export function InvestorHeaderActions() {
   const { data: portfolio } = useInvestorPortfolio();

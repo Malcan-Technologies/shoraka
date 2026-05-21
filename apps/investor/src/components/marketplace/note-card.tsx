@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowDownTrayIcon, BuildingOffice2Icon, DocumentTextIcon, EllipsisVerticalIcon } from "@heroicons/react/24/outline";
+import { formatCurrency } from "@cashsouk/config";
 import { formatInvestorReturnRatePercent, formatNoteReferenceDisplay } from "@cashsouk/types";
 import { SoukscoreRiskRatingBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
@@ -34,10 +35,6 @@ type NoteCardProps = {
   note: MarketplaceNote;
   onInvest: (note: MarketplaceNote) => void;
 };
-
-function currency(amount: number) {
-  return `RM ${amount.toLocaleString("en-MY")}`;
-}
 
 function textOrDash(value?: string | null) {
   return value && value.trim().length > 0 ? value : "-";
@@ -99,8 +96,8 @@ export function NoteCard({ note, onInvest }: NoteCardProps) {
               />
             </div>
             <div className="flex min-h-10 items-center justify-between gap-2 text-xs font-medium tabular-nums text-slate-700">
-              <span className="min-w-0 truncate">Funded {currency(note.fundedAmount)}</span>
-              <span className="min-w-0 shrink-0 text-right">Goal {currency(note.goalAmount)}</span>
+              <span className="min-w-0 truncate">Funded {formatCurrency(note.fundedAmount)}</span>
+              <span className="min-w-0 shrink-0 text-right">Goal {formatCurrency(note.goalAmount)}</span>
             </div>
           </div>
 

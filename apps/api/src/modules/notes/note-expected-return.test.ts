@@ -32,4 +32,10 @@ describe("note expected return (net of service fee)", () => {
   it("formats rate without floating-point noise", () => {
     expect(formatInvestorReturnRatePercent(15.299999999999998)).toBe("15.3%");
   });
+
+  it("rounds money to two decimals with half-up behaviour", () => {
+    expect(roundNoteMoney(10.005, 2)).toBe(10.01);
+    expect(roundNoteMoney(10.004, 2)).toBe(10);
+    expect(roundNoteMoney(1.005 + 2.005, 2)).toBe(3.01);
+  });
 });

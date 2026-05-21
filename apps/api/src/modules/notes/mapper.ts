@@ -1,4 +1,4 @@
-import { isSoukscoreRiskRating, type IssuerResidualPayoutListStatus } from "@cashsouk/types";
+import { isSoukscoreRiskRating, roundNoteMoney, type IssuerResidualPayoutListStatus } from "@cashsouk/types";
 import { NoteSettlementStatus, Prisma, WithdrawalStatus, WithdrawalType } from "@prisma/client";
 
 type NoteWithRelations = Prisma.NoteGetPayload<{
@@ -92,7 +92,7 @@ export function mapWithdrawalInstruction(withdrawal: WithdrawalRecord) {
     submittedByUserId: withdrawal.submitted_by_user_id,
     status: withdrawal.status,
     withdrawalType: withdrawal.withdrawal_type,
-    amount: decimalToNumber(withdrawal.amount),
+    amount: moneyToNumber(withdrawal.amount),
     grossFundedAmount,
     platformFeeAmount,
     facilityFeeRatePercent,
@@ -114,6 +114,11 @@ export function mapWithdrawalInstruction(withdrawal: WithdrawalRecord) {
 function decimalToNumber(value: Prisma.Decimal | number | null | undefined): number {
   if (value == null) return 0;
   return typeof value === "number" ? value : value.toNumber();
+}
+
+/** Investor-visible money fields are rounded to 2dp at the API boundary. */
+function moneyToNumber(value: Prisma.Decimal | number | null | undefined): number {
+  return roundNoteMoney(decimalToNumber(value), 2);
 }
 
 function iso(value: Date | null | undefined): string | null {
@@ -153,13 +158,13 @@ function resolveInvoiceAmount(note: NoteWithRelations): number {
   const offerDetails = asRecord(
     invoiceSnapshot?.offer_details as Prisma.JsonValue | null | undefined
   );
-  return (
+  const amount =
     numberFromUnknown(details?.value) ||
     numberFromUnknown(details?.invoice_value) ||
     numberFromUnknown(details?.invoiceAmount) ||
     numberFromUnknown(offerDetails?.invoice_value) ||
-    numberFromUnknown(note.requested_amount)
-  );
+    decimalToNumber(note.requested_amount);
+  return roundNoteMoney(amount, 2);
 }
 
 function resolveRiskRating(note: NoteWithRelations) {
@@ -239,22 +244,24 @@ function resolveSettlementSummary(note: NoteWithRelations) {
     null;
   if (!settlement) return null;
 
-  const operatingAccountAmount = decimalToNumber(settlement.service_fee_amount);
+  const operatingAccountAmount = moneyToNumber(settlement.service_fee_amount);
   const isPostedWithServiceFee =
     settlement.status === NoteSettlementStatus.POSTED && operatingAccountAmount > 0.005;
 
   return {
     settlementId: settlement.id,
     status: settlement.status,
-    grossReceiptAmount: decimalToNumber(settlement.gross_receipt_amount),
-    investorPoolAmount:
+    grossReceiptAmount: moneyToNumber(settlement.gross_receipt_amount),
+    investorPoolAmount: roundNoteMoney(
       decimalToNumber(settlement.investor_principal) +
-      decimalToNumber(settlement.investor_profit_net),
-    operatingAccountAmount,
-    tawidhAccountAmount: decimalToNumber(settlement.tawidh_amount),
-    gharamahAccountAmount: decimalToNumber(settlement.gharamah_amount),
-    issuerResidualAmount: decimalToNumber(settlement.issuer_residual_amount),
-    unappliedAmount: decimalToNumber(settlement.unapplied_amount),
+        decimalToNumber(settlement.investor_profit_net),
+      2
+    ),
+    operatingAccountAmount: moneyToNumber(settlement.service_fee_amount),
+    tawidhAccountAmount: moneyToNumber(settlement.tawidh_amount),
+    gharamahAccountAmount: moneyToNumber(settlement.gharamah_amount),
+    issuerResidualAmount: moneyToNumber(settlement.issuer_residual_amount),
+    unappliedAmount: moneyToNumber(settlement.unapplied_amount),
     postedAt: iso(settlement.posted_at),
     serviceFeeTrusteeStatus: isPostedWithServiceFee
       ? settlement.service_fee_trustee_status ?? null
@@ -328,10 +335,11 @@ function resolveFeaturedActive(note: NoteWithRelations) {
 }
 
 export function mapNoteListItem(note: NoteWithRelations) {
-  const targetAmount = decimalToNumber(note.target_amount);
-  const fundedAmount = decimalToNumber(note.funded_amount);
+  const targetAmount = moneyToNumber(note.target_amount);
+  const fundedAmount = moneyToNumber(note.funded_amount);
   const invoiceAmount = resolveInvoiceAmount(note);
-  const fundingPercent = targetAmount > 0 ? (fundedAmount / targetAmount) * 100 : 0;
+  const fundingPercent =
+    targetAmount > 0 ? roundNoteMoney((fundedAmount / targetAmount) * 100, 1) : 0;
 
   return {
     id: note.id,
@@ -351,7 +359,7 @@ export function mapNoteListItem(note: NoteWithRelations) {
     listingStatus: note.listing_status,
     fundingStatus: note.funding_status,
     servicingStatus: note.servicing_status,
-    requestedAmount: decimalToNumber(note.requested_amount),
+    requestedAmount: moneyToNumber(note.requested_amount),
     invoiceAmount,
     settlementAmount: invoiceAmount,
     targetAmount,
@@ -415,7 +423,7 @@ export function mapNoteDetail(
       investorOrganizationId: investment.investor_organization_id,
       investorUserId: investment.investor_user_id,
       status: investment.status,
-      amount: decimalToNumber(investment.amount),
+      amount: moneyToNumber(investment.amount),
       allocationPercent: decimalToNumber(investment.allocation_percent),
       committedAt: investment.committed_at.toISOString(),
       confirmedAt: iso(investment.confirmed_at),
@@ -427,12 +435,12 @@ export function mapNoteDetail(
       status: schedule.status,
       sequence: schedule.sequence,
       dueDate: schedule.due_date.toISOString(),
-      expectedPrincipal: decimalToNumber(schedule.expected_principal),
-      expectedProfit: decimalToNumber(schedule.expected_profit),
-      expectedTotal: decimalToNumber(schedule.expected_total),
-      paidPrincipal: decimalToNumber(schedule.paid_principal),
-      paidProfit: decimalToNumber(schedule.paid_profit),
-      paidTotal: decimalToNumber(schedule.paid_total),
+      expectedPrincipal: moneyToNumber(schedule.expected_principal),
+      expectedProfit: moneyToNumber(schedule.expected_profit),
+      expectedTotal: moneyToNumber(schedule.expected_total),
+      paidPrincipal: moneyToNumber(schedule.paid_principal),
+      paidProfit: moneyToNumber(schedule.paid_profit),
+      paidTotal: moneyToNumber(schedule.paid_total),
     })),
     payments: note.payments.map((payment) => ({
       id: payment.id,
@@ -440,7 +448,7 @@ export function mapNoteDetail(
       scheduleId: payment.schedule_id,
       source: payment.source,
       status: payment.status,
-      receiptAmount: decimalToNumber(payment.receipt_amount),
+      receiptAmount: moneyToNumber(payment.receipt_amount),
       receiptDate: payment.receipt_date.toISOString(),
       receivedIntoAccountCode: payment.received_into_account_code,
       evidenceS3Key: payment.evidence_s3_key,
@@ -456,15 +464,15 @@ export function mapNoteDetail(
       paymentId: settlement.payment_id,
       status: settlement.status,
       settlementType: settlement.settlement_type,
-      grossReceiptAmount: decimalToNumber(settlement.gross_receipt_amount),
-      investorPrincipal: decimalToNumber(settlement.investor_principal),
-      investorProfitGross: decimalToNumber(settlement.investor_profit_gross),
-      serviceFeeAmount: decimalToNumber(settlement.service_fee_amount),
-      investorProfitNet: decimalToNumber(settlement.investor_profit_net),
-      tawidhAmount: decimalToNumber(settlement.tawidh_amount),
-      gharamahAmount: decimalToNumber(settlement.gharamah_amount),
-      issuerResidualAmount: decimalToNumber(settlement.issuer_residual_amount),
-      unappliedAmount: decimalToNumber(settlement.unapplied_amount),
+      grossReceiptAmount: moneyToNumber(settlement.gross_receipt_amount),
+      investorPrincipal: moneyToNumber(settlement.investor_principal),
+      investorProfitGross: moneyToNumber(settlement.investor_profit_gross),
+      serviceFeeAmount: moneyToNumber(settlement.service_fee_amount),
+      investorProfitNet: moneyToNumber(settlement.investor_profit_net),
+      tawidhAmount: moneyToNumber(settlement.tawidh_amount),
+      gharamahAmount: moneyToNumber(settlement.gharamah_amount),
+      issuerResidualAmount: moneyToNumber(settlement.issuer_residual_amount),
+      unappliedAmount: moneyToNumber(settlement.unapplied_amount),
       previewSnapshot: asRecord(settlement.preview_snapshot) ?? {},
       approvedAt: iso(settlement.approved_at),
       postedAt: iso(settlement.posted_at),
@@ -517,7 +525,7 @@ export function mapLedgerEntry(
     accountCode: entry.account.code,
     accountName: entry.account.name,
     direction: entry.direction,
-    amount: decimalToNumber(entry.amount),
+    amount: moneyToNumber(entry.amount),
     currency: entry.currency,
     description: entry.description,
     idempotencyKey: entry.idempotency_key,
