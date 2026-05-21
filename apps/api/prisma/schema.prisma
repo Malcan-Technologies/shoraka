@@ -973,10 +973,10 @@ model ShorakaTradeOrder {
   provider_certificate_id  String?
   certificate_uploaded_at   DateTime?
 
-  created_at                 DateTime                 @default(now())
-  updated_at                 DateTime                 @updatedAt
+  created_at                DateTime                 @default(now())
+  updated_at                DateTime                 @updatedAt
 
-  withdrawalInstruction      WithdrawalInstruction    @relation(fields: [withdrawal_instruction_id], references: [id], onDelete: Cascade)
+  withdrawalInstruction     WithdrawalInstruction    @relation(fields: [withdrawal_instruction_id], references: [id], onDelete: Cascade)
 
   @@index([note_id])
   @@map("shoraka_trade_orders")

@@ -64,8 +64,11 @@ type SubmitOrderResult = {
     provider_order_id: string | null;
     status: string;
     submitted_at: Date | null;
+    certificate_s3_key: string | null;
+    certificate_file_sha256: string | null;
+    provider_certificate_id: string | null;
+    certificate_uploaded_at: Date | null;
   };
-  certificate: { certificate_s3_key: string } | null;
 };
 
 type ShorakaStateResponse = {
@@ -81,16 +84,13 @@ type ShorakaStateResponse = {
     submit_request_payload: unknown;
     submit_response_payload: unknown;
     status_response_payload: unknown;
+    certificate_s3_key: string | null;
+    certificate_file_sha256: string | null;
+    provider_certificate_id: string | null;
+    certificate_uploaded_at: Date | null;
     created_at: Date;
     updated_at: Date;
   };
-  certificate: {
-    id: string;
-    certificate_s3_key: string;
-    certificate_file_sha256: string | null;
-    provider_certificate_id: string | null;
-    created_at: Date;
-  } | null;
 };
 
 export class ShorakaStpService {
@@ -101,7 +101,6 @@ export class ShorakaStpService {
   async getStateForWithdrawal(withdrawalInstructionId: string): Promise<ShorakaStateResponse | null> {
     const tradeOrder = await prisma.shorakaTradeOrder.findUnique({
       where: { withdrawal_instruction_id: withdrawalInstructionId },
-      include: { certificate: true },
     });
 
     if (!tradeOrder) return null;
@@ -119,18 +118,13 @@ export class ShorakaStpService {
         submit_request_payload: tradeOrder.submit_request_payload,
         submit_response_payload: tradeOrder.submit_response_payload,
         status_response_payload: tradeOrder.status_response_payload,
+        certificate_s3_key: tradeOrder.certificate_s3_key,
+        certificate_file_sha256: tradeOrder.certificate_file_sha256,
+        provider_certificate_id: tradeOrder.provider_certificate_id,
+        certificate_uploaded_at: tradeOrder.certificate_uploaded_at,
         created_at: tradeOrder.created_at,
         updated_at: tradeOrder.updated_at,
       },
-      certificate: tradeOrder.certificate
-        ? {
-            id: tradeOrder.certificate.id,
-            certificate_s3_key: tradeOrder.certificate.certificate_s3_key,
-            certificate_file_sha256: tradeOrder.certificate.certificate_file_sha256,
-            provider_certificate_id: tradeOrder.certificate.provider_certificate_id,
-            created_at: tradeOrder.certificate.created_at,
-          }
-        : null,
     };
   }
 
@@ -165,7 +159,6 @@ export class ShorakaStpService {
 
     const existing = await prisma.shorakaTradeOrder.findUnique({
       where: { withdrawal_instruction_id: withdrawalInstructionId },
-      include: { certificate: true },
     });
 
     if (existing?.provider_order_id) {
@@ -176,8 +169,11 @@ export class ShorakaStpService {
           provider_order_id: existing.provider_order_id,
           status: existing.status,
           submitted_at: existing.submitted_at,
+          certificate_s3_key: existing.certificate_s3_key,
+          certificate_file_sha256: existing.certificate_file_sha256,
+          provider_certificate_id: existing.provider_certificate_id,
+          certificate_uploaded_at: existing.certificate_uploaded_at,
         },
-        certificate: existing.certificate ? { certificate_s3_key: existing.certificate.certificate_s3_key } : null,
       };
     }
 
@@ -227,7 +223,6 @@ export class ShorakaStpService {
           submit_response_payload: response as unknown as Prisma.JsonObject,
           submitted_at: now,
         },
-        include: { certificate: true },
       });
 
       return {
@@ -237,8 +232,11 @@ export class ShorakaStpService {
           provider_order_id: created.provider_order_id,
           status: created.status,
           submitted_at: created.submitted_at,
+          certificate_s3_key: created.certificate_s3_key,
+          certificate_file_sha256: created.certificate_file_sha256,
+          provider_certificate_id: created.provider_certificate_id,
+          certificate_uploaded_at: created.certificate_uploaded_at,
         },
-        certificate: null,
       };
     }
 
@@ -251,7 +249,6 @@ export class ShorakaStpService {
         submit_response_payload: response as unknown as Prisma.JsonObject,
         submitted_at: now,
       },
-      include: { certificate: true },
     });
 
     logger.info(
@@ -266,8 +263,11 @@ export class ShorakaStpService {
         provider_order_id: updated.provider_order_id,
         status: updated.status,
         submitted_at: updated.submitted_at,
+        certificate_s3_key: updated.certificate_s3_key,
+        certificate_file_sha256: updated.certificate_file_sha256,
+        provider_certificate_id: updated.provider_certificate_id,
+        certificate_uploaded_at: updated.certificate_uploaded_at,
       },
-      certificate: updated.certificate ? { certificate_s3_key: updated.certificate.certificate_s3_key } : null,
     };
   }
 
@@ -279,7 +279,6 @@ export class ShorakaStpService {
 
     const tradeOrder = await prisma.shorakaTradeOrder.findUnique({
       where: { withdrawal_instruction_id: withdrawalInstructionId },
-      include: { certificate: true },
     });
     if (!tradeOrder?.provider_order_id) throw new Error("Missing ShorakaTradeOrder/provider_order_id");
 
@@ -309,10 +308,9 @@ export class ShorakaStpService {
 
     const tradeOrder = await prisma.shorakaTradeOrder.findUnique({
       where: { withdrawal_instruction_id: withdrawalInstructionId },
-      include: { certificate: true },
     });
     if (!tradeOrder?.provider_order_id) throw new Error("Missing ShorakaTradeOrder/provider_order_id");
-    if (tradeOrder.certificate) {
+    if (tradeOrder.certificate_s3_key) {
       return (await this.getStateForWithdrawal(withdrawalInstructionId)) as ShorakaStateResponse;
     }
 
@@ -331,13 +329,15 @@ export class ShorakaStpService {
 
     // Provider_certificate_id is optional; only store when present.
     const providerCertificateId: string | null = null;
+    const uploadedAt = new Date();
 
-    await prisma.shorakaCertificate.create({
+    await prisma.shorakaTradeOrder.update({
+      where: { withdrawal_instruction_id: withdrawalInstructionId },
       data: {
-        shoraka_trade_order_id: tradeOrder.id,
         certificate_s3_key: key,
         certificate_file_sha256: sha256,
         provider_certificate_id: providerCertificateId,
+        certificate_uploaded_at: uploadedAt,
       },
     });
 
