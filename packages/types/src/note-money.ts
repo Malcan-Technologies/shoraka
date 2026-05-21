@@ -28,12 +28,34 @@ export type MarketplaceCommitBounds = {
  * Derive min/max commit for one investor action from note capacity.
  * Remaining capacity is rounded to 2dp so UI and API agree on ticket bounds.
  */
+/** Align note target/funded with investor-facing 2dp (matches API list mapper). */
+export function normalizeNoteCapacityAmount(value: number): number {
+  return roundNoteMoney(value, NOTE_MONEY_DECIMALS);
+}
+
+/**
+ * Upper bound on `funded_amount` before committing `commitAmount`.
+ * Includes half-cent tolerance so sub-cent ledger drift does not block the displayed max.
+ */
+export function maxFundedBeforeMarketplaceCommit(
+  targetAmount: number,
+  commitAmount: number
+): number {
+  return (
+    normalizeNoteCapacityAmount(targetAmount) -
+    commitAmount +
+    NOTE_MONEY_TOLERANCE
+  );
+}
+
 export function computeMarketplaceCommitBounds(
   targetAmount: number,
   fundedAmount: number
 ): MarketplaceCommitBounds {
+  const target = normalizeNoteCapacityAmount(targetAmount);
+  const funded = normalizeNoteCapacityAmount(fundedAmount);
   const remainingCapacity = roundNoteMoney(
-    Math.max(0, Number(targetAmount) - Number(fundedAmount)),
+    Math.max(0, target - funded),
     NOTE_MONEY_DECIMALS
   );
   if (!Number.isFinite(remainingCapacity) || remainingCapacity <= 0) {

@@ -55,9 +55,32 @@ describe("note lifecycle calculators", () => {
     });
 
     expect(result.profitDays).toBe(90);
-    expect(result.investorProfitGross).toBeCloseTo(1_775.34246575, 6);
-    expect(result.serviceFeeAmount).toBeCloseTo(177.53424657, 6);
-    expect(result.investorProfitNet).toBeCloseTo(1_597.80821918, 6);
+    expect(result.investorProfitGross).toBe(1_775.34);
+    expect(result.serviceFeeAmount).toBe(177.53);
+    expect(result.investorProfitNet).toBe(1_597.81);
+  });
+
+  it("reconciles settlement so repayment ledger debits equal gross receipt", () => {
+    const result = calculateSettlementWaterfall({
+      grossReceiptAmount: 79_677.88,
+      fundedPrincipal: 47_806.73,
+      profitRatePercent: 10,
+      profitStartDate: new Date("2026-01-01T00:00:00.000Z"),
+      profitMaturityDate: new Date("2026-05-21T00:00:00.000Z"),
+      serviceFeeRatePercent: 15,
+    });
+
+    const repaymentDebits =
+      result.investorPrincipal +
+      result.investorProfitNet +
+      result.serviceFeeAmount +
+      result.tawidhAmount +
+      result.gharamahAmount +
+      result.issuerResidualAmount;
+
+    expect(repaymentDebits).toBe(result.grossReceiptAmount);
+    expect(result.unappliedAmount).toBe(0);
+    expect(result.investorProfitNet + result.serviceFeeAmount).toBe(result.investorProfitGross);
   });
 
   it("allocates profit and Ta'widh only across eligible investments and scales principal to the waterfall", () => {

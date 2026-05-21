@@ -38,7 +38,9 @@ import {
   INVESTOR_RETURN_RATE_DISPLAY_DECIMALS,
   isNoteFullyFunded,
   isSoukscoreRiskRating,
+  maxFundedBeforeMarketplaceCommit,
   meetsMinimumFunding,
+  normalizeNoteCapacityAmount,
   NOTE_MONEY_TOLERANCE,
   roundNoteMoney,
 } from "@cashsouk/types";
@@ -2212,8 +2214,8 @@ export class NoteService {
       throw new AppError(409, "NOTE_NOT_OPEN", "Note is not open for investment");
     }
 
-    const target = toNumber(note.target_amount);
-    const funded = toNumber(note.funded_amount);
+    const target = normalizeNoteCapacityAmount(toNumber(note.target_amount));
+    const funded = normalizeNoteCapacityAmount(toNumber(note.funded_amount));
     const bounds = computeMarketplaceCommitBounds(target, funded);
     if (bounds.remainingCapacity <= 0) {
       throw new AppError(
@@ -2238,7 +2240,9 @@ export class NoteService {
     }
 
     const investmentAmount = money(input.amount);
-    const remainingCapacityFloor = money(target - input.amount);
+    const remainingCapacityFloor = money(
+      maxFundedBeforeMarketplaceCommit(target, input.amount)
+    );
 
     const updated = await prisma.$transaction(async (tx) => {
       const capacityUpdate = await tx.note.updateMany({
@@ -2269,8 +2273,8 @@ export class NoteService {
           throw new AppError(409, "NOTE_NOT_OPEN", "Note is not open for investment");
         }
         const retryBounds = computeMarketplaceCommitBounds(
-          toNumber(current.target_amount),
-          toNumber(current.funded_amount)
+          normalizeNoteCapacityAmount(toNumber(current.target_amount)),
+          normalizeNoteCapacityAmount(toNumber(current.funded_amount))
         );
         throw new AppError(
           422,
@@ -2543,6 +2547,9 @@ export class NoteService {
         "Notes that meet the minimum funding threshold should be closed, not failed"
       );
     }
+    const minimumFundingPercent = toNumber(note.minimum_funding_percent);
+    const minimumFundingAmount =
+      targetAmount * (minimumFundingPercent - NOTE_MONEY_TOLERANCE) / 100;
     let failedInvestorOrganizationIds: string[] = [];
     const updated = await prisma.$transaction(async (tx) => {
       const releasedCommitments = await tx.noteInvestment.findMany({
@@ -3344,7 +3351,7 @@ export class NoteService {
         data: {
           note_id: id,
           payment_id: linkedPaymentId,
-          gross_receipt_amount: money(grossReceipt),
+          gross_receipt_amount: money(waterfall.grossReceiptAmount),
           investor_principal: money(waterfall.investorPrincipal),
           profit_start_date: waterfall.profitStartDate,
           profit_maturity_date: waterfall.profitMaturityDate,

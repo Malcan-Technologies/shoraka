@@ -753,7 +753,6 @@ export function MarketplacePage() {
                   if (validationError) setValidationError(null);
                 }}
                 prefix="RM"
-                allowEmpty={false}
                 placeholder="0.00"
                 inputClassName="h-9 rounded-lg border-slate-200 text-slate-700 focus-visible:ring-slate-300"
               />

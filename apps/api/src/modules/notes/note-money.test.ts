@@ -4,7 +4,10 @@ import {
   buildSettlementInvestorAllocations,
   computeMarketplaceCommitBounds,
   isNoteMoneyAmount,
+  maxFundedBeforeMarketplaceCommit,
   meetsMinimumFunding,
+  NOTE_MONEY_TOLERANCE,
+  normalizeNoteCapacityAmount,
 } from "@cashsouk/types";
 
 describe("note money helpers", () => {
@@ -20,6 +23,20 @@ describe("note money helpers", () => {
     const bounds = computeMarketplaceCommitBounds(100000.007, 0);
     expect(bounds.remainingCapacity).toBe(100000.01);
     expect(bounds.maxCommit).toBe(100000.01);
+  });
+
+  it("allows investing the displayed max when funded has sub-cent drift", () => {
+    const target = 100_000;
+    const fundedLedger = 52_193.271;
+    const fundedDisplay = normalizeNoteCapacityAmount(fundedLedger);
+    expect(fundedDisplay).toBe(52_193.27);
+
+    const bounds = computeMarketplaceCommitBounds(target, fundedDisplay);
+    expect(bounds.maxCommit).toBe(47_806.73);
+
+    const maxFunded = maxFundedBeforeMarketplaceCommit(target, bounds.maxCommit);
+    expect(fundedLedger).toBeLessThanOrEqual(maxFunded);
+    expect(bounds.maxCommit + NOTE_MONEY_TOLERANCE).toBeGreaterThanOrEqual(bounds.maxCommit);
   });
 
   it("treats funding near threshold as met with tolerance", () => {
