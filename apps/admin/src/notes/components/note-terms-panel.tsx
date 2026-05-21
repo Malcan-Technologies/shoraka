@@ -91,13 +91,18 @@ export function NoteTermsPanel({ note }: { note: NoteDetail }) {
           <Row label="Invoice amount" value={formatCurrency(invoiceAmount)} />
           <Row label="Target amount" value={formatCurrency(note.targetAmount)} />
           <Row label="Risk rating" value={riskRating} />
-          <Row label="Profit rate" value={note.profitRatePercent == null ? "—" : `${note.profitRatePercent}%`} />
+          <Row
+            label="Profit rate"
+            value={note.profitRatePercent == null ? "—" : `${note.profitRatePercent}% p.a.`}
+          />
           <Row label="Platform fee" value={`${note.platformFeeRatePercent}% at disbursement`} />
           <Row label="Service fee" value={`${note.serviceFeeRatePercent}% of investor profit`} />
-          <Row label="Late caps" value={`Ta'widh ${note.tawidhRateCapPercent}%, Gharamah ${note.gharamahRateCapPercent}%`} />
+          <Row
+            label="Late caps"
+            value={`Ta'widh ${note.tawidhRateCapPercent}%, Gharamah ${note.gharamahRateCapPercent}%`}
+          />
         </div>
       </CardContent>
     </Card>
   );
 }
-

@@ -233,10 +233,7 @@ function resolveProductName(note: NoteWithRelations): string | null {
 }
 
 function resolveSettlementSummary(note: NoteWithRelations) {
-  const settlement =
-    note.settlements.find((item) => item.status === "POSTED") ??
-    note.settlements.find((item) => item.status === "APPROVED") ??
-    null;
+  const settlement = note.settlements.find((item) => item.status === "POSTED") ?? null;
   if (!settlement) return null;
 
   const operatingAccountAmount = decimalToNumber(settlement.service_fee_amount);
@@ -249,15 +246,23 @@ function resolveSettlementSummary(note: NoteWithRelations) {
     grossReceiptAmount: decimalToNumber(settlement.gross_receipt_amount),
     investorPoolAmount:
       decimalToNumber(settlement.investor_principal) +
-      decimalToNumber(settlement.investor_profit_net),
+      decimalToNumber(settlement.investor_profit_net) +
+      decimalToNumber(settlement.tawidh_investor_amount),
     operatingAccountAmount,
-    tawidhAccountAmount: decimalToNumber(settlement.tawidh_amount),
+    totalTawidhAmount: decimalToNumber(settlement.tawidh_amount),
+    tawidhInvestorSharePercent: decimalToNumber(settlement.tawidh_investor_share_percent),
+    tawidhInvestorAmount: decimalToNumber(settlement.tawidh_investor_amount),
+    tawidhAccountAmount: decimalToNumber(settlement.tawidh_account_amount),
     gharamahAccountAmount: decimalToNumber(settlement.gharamah_amount),
     issuerResidualAmount: decimalToNumber(settlement.issuer_residual_amount),
     unappliedAmount: decimalToNumber(settlement.unapplied_amount),
+    profitStartDate: iso(settlement.profit_start_date),
+    profitMaturityDate: iso(settlement.profit_maturity_date),
+    profitDays: settlement.profit_days,
+    annualProfitRatePercent: decimalToNumber(settlement.annual_profit_rate_percent),
     postedAt: iso(settlement.posted_at),
     serviceFeeTrusteeStatus: isPostedWithServiceFee
-      ? settlement.service_fee_trustee_status ?? null
+      ? (settlement.service_fee_trustee_status ?? null)
       : null,
     serviceFeeTrusteeSubmittedAt: isPostedWithServiceFee
       ? iso(settlement.service_fee_trustee_submitted_at)
@@ -367,6 +372,7 @@ export function mapNoteListItem(note: NoteWithRelations) {
     featuredUntil: iso(note.featured_until),
     featuredActive: resolveFeaturedActive(note),
     maturityDate: iso(note.maturity_date),
+    activatedAt: iso(note.activated_at),
     publishedAt: iso(note.published_at),
     settlementSummary: resolveSettlementSummary(note),
     createdAt: note.created_at.toISOString(),
@@ -457,10 +463,17 @@ export function mapNoteDetail(
       settlementType: settlement.settlement_type,
       grossReceiptAmount: decimalToNumber(settlement.gross_receipt_amount),
       investorPrincipal: decimalToNumber(settlement.investor_principal),
+      profitStartDate: iso(settlement.profit_start_date),
+      profitMaturityDate: iso(settlement.profit_maturity_date),
+      profitDays: settlement.profit_days,
+      annualProfitRatePercent: decimalToNumber(settlement.annual_profit_rate_percent),
       investorProfitGross: decimalToNumber(settlement.investor_profit_gross),
       serviceFeeAmount: decimalToNumber(settlement.service_fee_amount),
       investorProfitNet: decimalToNumber(settlement.investor_profit_net),
       tawidhAmount: decimalToNumber(settlement.tawidh_amount),
+      tawidhInvestorSharePercent: decimalToNumber(settlement.tawidh_investor_share_percent),
+      tawidhInvestorAmount: decimalToNumber(settlement.tawidh_investor_amount),
+      tawidhAccountAmount: decimalToNumber(settlement.tawidh_account_amount),
       gharamahAmount: decimalToNumber(settlement.gharamah_amount),
       issuerResidualAmount: decimalToNumber(settlement.issuer_residual_amount),
       unappliedAmount: decimalToNumber(settlement.unapplied_amount),

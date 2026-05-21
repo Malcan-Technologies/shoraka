@@ -7,7 +7,7 @@ tags:
   - notes
   - finance
 order: 20
-updated: 2026-05-18
+updated: 2026-05-21
 ---
 
 ## Overview
@@ -150,17 +150,13 @@ The repayment amount is based on the invoice face value. It is not the same as t
 
 Repayment is usually paid by the paymaster into the Repayment Pool. The issuer may also pay the settlement amount on behalf of the paymaster through the issuer portal. When that happens, the admin should review the submitted payment, approve or reject it, and preserve the payment source in the audit trail.
 
-### Multiple payments
+### Repayment receipts and settlement
 
-If the repayment arrives in more than one tranche, simply record each receipt under Receipt Intake. The settlement waterfall **automatically aggregates** all eligible payments (`RECEIVED`, `RECONCILED`, `PARTIAL`) for the note — admins do not need to pick a single payment row.
+Record each tranche with **Record receipt** in the settlement panel. Open receipts must reach the **invoice settlement amount** (invoice face value) before you can preview settlement. The waterfall **automatically aggregates** all eligible payments (`RECEIVED`, `RECONCILED`, `PARTIAL`) — you do not pick a single payment row.
 
-The settlement panel shows:
+The panel shows open receipt totals, remaining capacity, and which receipts count toward settlement. Use **Fill remaining** in the record dialog to pre-fill the shortfall.
 
-- a `Receipts included in settlement` summary listing every payment that contributes to the waterfall;
-- an `Included in settlement` badge on each eligible receipt in the Payment Review table;
-- a `Use Settlement Amount` shortcut that pre-fills the remaining shortfall when recording the next receipt.
-
-When the gross receipt total in the waterfall matches the agreed settlement amount, the admin can preview, approve, and post.
+When open receipts cover the invoice amount and any issuer submissions are approved, preview the waterfall, then approve and post.
 
 ### Approve and post confirmation
 
@@ -172,14 +168,15 @@ When settlement is posted, the Repayment Pool is allocated across the relevant b
 
 - investors receive principal and net profit according to their allocation,
 - the Operating Account receives the service fee (up to 15% of investor profit),
-- Ta'widh and Gharamah amounts are posted if approved late charges apply,
+- approved Ta'widh can be split by admin so a percentage is returned to investors while the balance remains in the Ta'widh Account,
+- Gharamah is posted to the Gharamah Account if approved late charges apply,
 - any issuer residual is credited to the Issuer Payable bucket (not paid out yet — see the next section).
 
 After settlement is posted, further payment actions on this note are disabled.
 
 ## Issuer Residual Refund
 
-The issuer residual is the leftover amount owed to the issuer after investor principal, investor profit, service fee, and any late charges have been applied. It exists when a note is not 100% funded by investors.
+The issuer residual is the leftover amount owed to the issuer after investor principal, investor profit, service fee, and full approved late charges have been applied. Splitting Ta'widh between investors and the Ta'widh Account does not change the total late charge used to calculate residual. It exists when a note is not 100% funded by investors.
 
 The residual workflow has four steps, tracked by a `WithdrawalInstruction` of type `ISSUER_RESIDUAL_RETURN`:
 
@@ -234,13 +231,15 @@ Example: if a note is 60% funded and the paymaster repays 100% of the invoice, t
 
 Late charges are handled manually when repayment funds are received. They are not posted automatically by a daily system job.
 
-Before applying late charges, run the overdue check on the note. This helps confirm the overdue days and prevents duplicate late-charge allocation by taking previous late charges into account.
+Before applying late charges, use **Apply suggested fees** or **Custom amounts** in the settlement panel. Suggested amounts respect both Syariah caps (1% / 9% p.a. after grace) and **settlement headroom**: the invoice settlement pool minus investor principal and **full contractual gross profit** (locked to activation through contractual maturity, even if repayment is early).
 
-Late charges are borne by the issuer, but they are deducted from repayment proceeds before any issuer residual is computed.
+Late charges are borne by the issuer and are **not added on top** of the invoice settlement amount — they are allocated from the same repayment pool in the waterfall. If headroom is zero (for example a fully funded note where profit consumes the spread), no late fees can be charged even when Syariah caps would allow more.
 
 - **Grace period** is configurable. The standard default is 7 days.
-- **Ta'widh** is set at receipt time and capped at 1% per annum.
-- **Gharamah** is set at receipt time and capped at 9% per annum.
+- **Payment due** for overdue timing uses the first scheduled installment due date when schedules exist; **profit accrual** uses contractual maturity (or the last schedule due date if maturity is unset).
+- **Ta'widh** and **Gharamah** are queued in the panel, then saved when you **Preview settlement**.
+- **Investor Ta'widh share** is optional at preview. The selected percentage is returned to investors according to their allocation; the remaining Ta'widh stays in the Ta'widh Account. Splitting Ta'widh to investors does not change total late charges or issuer residual.
+- **Gharamah** is capped at 9% per annum after grace.
 - **Arrears** starts after the grace period plus the arrears threshold. With a 7-day grace period and 14-day arrears threshold, arrears starts 21 days after the missed payment date.
 - **Default** is never automatic. Admin can mark a note as default only after it is already in arrears.
 

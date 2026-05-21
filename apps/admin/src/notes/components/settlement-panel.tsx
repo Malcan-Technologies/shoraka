@@ -3,13 +3,20 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { ArrowDownTrayIcon, CheckCircleIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowDownTrayIcon,
+  CheckCircleIcon,
+  DocumentTextIcon,
+  PlusIcon,
+} from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { parseMoney } from "@cashsouk/ui";
 import type {
   NoteDetail,
   NotePayment,
   NotePaymentSource,
+  NoteSettlementPreviewResult,
+  OverdueLateChargeResult,
   ServiceFeeTrusteeInstructionStatus,
 } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
@@ -60,29 +67,14 @@ import {
 } from "../hooks/use-notes";
 import { cn } from "@/lib/utils";
 
-type OverdueLateChargeResult = {
-  overdue: boolean;
-  dueDate: string | null;
-  checkDate: string;
-  gracePeriodDays: number;
-  daysLate: number;
-  receiptAmount: number;
-  totalTawidhCap: number;
-  totalGharamahCap: number;
-  appliedTawidhAmount: number;
-  appliedGharamahAmount: number;
-  remainingTawidhAmount: number;
-  remainingGharamahAmount: number;
-  suggestedTawidhAmount: number;
-  suggestedGharamahAmount: number;
-  message: string;
-};
-
 type RecordPaymentSource = "PAYMASTER" | "ISSUER_ON_BEHALF";
 type OverdueFeeInputMode = "AMOUNT" | "PERCENTAGE";
 
 const ACTION_CARD_CLASS =
   "border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]";
+const SECTION_COMPLETE_CLASS = "border-emerald-200 bg-emerald-50/40";
+const SECTION_COMPLETE_HEADER_CLASS =
+  "mb-2 text-xs font-medium uppercase tracking-wider text-emerald-900";
 const OPEN_PAYMENT_STATUSES = ["PENDING", "PARTIAL", "RECEIVED", "RECONCILED"];
 
 function serviceFeeTrusteeStatusLabel(status: ServiceFeeTrusteeInstructionStatus | null) {
@@ -148,13 +140,6 @@ function settlementIsComplete(grossReceiptAmount: number, settlementAmount: numb
   return settlementAmount > 0 && grossReceiptAmount + 0.005 >= settlementAmount;
 }
 
-function settlementRequiredAmount(
-  settlementAmount: number,
-  settlement: { tawidhAmount?: number; gharamahAmount?: number } | null
-) {
-  return settlementAmount + (settlement?.tawidhAmount ?? 0) + (settlement?.gharamahAmount ?? 0);
-}
-
 function roundToTwoDecimals(value: number) {
   return Math.round(value * 100) / 100;
 }
@@ -195,22 +180,36 @@ function getSettlementValue(settlement: Record<string, unknown>, key: string) {
   return 0;
 }
 
-function getOverdueSnapshot(note: NoteDetail) {
-  if (!note.maturityDate) {
-    return { daysPastMaturity: 0, daysOverdue: 0, label: "No maturity date set" };
-  }
-  const maturityDate = new Date(note.maturityDate);
-  const today = new Date();
-  const maturityStart = new Date(
-    maturityDate.getFullYear(),
-    maturityDate.getMonth(),
-    maturityDate.getDate()
-  );
-  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const daysPastMaturity = Math.max(
+function resolvePaymentDueDate(note: NoteDetail) {
+  const schedules = [...(note.paymentSchedules ?? [])].sort((a, b) => a.sequence - b.sequence);
+  return schedules[0]?.dueDate ?? note.maturityDate;
+}
+
+function resolveProfitMaturityDate(note: NoteDetail) {
+  const schedules = [...(note.paymentSchedules ?? [])].sort((a, b) => a.sequence - b.sequence);
+  return note.maturityDate ?? schedules.at(-1)?.dueDate ?? null;
+}
+
+function utcStartOfDayMs(date: Date) {
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+}
+
+function calculateCalendarDayCount(startDate: Date, endDate: Date) {
+  if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime())) return 0;
+  return Math.max(
     0,
-    Math.floor((todayStart.getTime() - maturityStart.getTime()) / 86_400_000)
+    Math.floor((utcStartOfDayMs(endDate) - utcStartOfDayMs(startDate)) / 86_400_000)
   );
+}
+
+function getOverdueSnapshot(note: NoteDetail) {
+  const dueDateValue = resolvePaymentDueDate(note);
+  if (!dueDateValue) {
+    return { daysPastMaturity: 0, daysOverdue: 0, label: "No payment due date set" };
+  }
+  const dueDate = new Date(dueDateValue);
+  const today = new Date();
+  const daysPastMaturity = calculateCalendarDayCount(dueDate, today);
   const daysOverdue = Math.max(0, daysPastMaturity - note.gracePeriodDays);
   const label =
     daysOverdue > 0
@@ -221,11 +220,58 @@ function getOverdueSnapshot(note: NoteDetail) {
   return { daysPastMaturity, daysOverdue, label };
 }
 
-function getPreviousLateFeeSummary(note: NoteDetail) {
-  const appliedBySettlement = note.settlements
-    .filter((settlement) => settlement.status !== "VOID")
-    .reduce((sum, settlement) => sum + settlement.tawidhAmount + settlement.gharamahAmount, 0);
-  const submittedByIssuer = note.payments
+function readHeadroomFromPreviewSnapshot(snapshot: Record<string, unknown> | undefined) {
+  const value = snapshot?.availableLateFeeHeadroomAmount;
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function estimateLateFeeHeadroom(note: NoteDetail, settlementAmount: number) {
+  if (!note.activatedAt || !note.profitRatePercent || settlementAmount <= 0) return null;
+  const profitMaturityDate = resolveProfitMaturityDate(note);
+  if (!profitMaturityDate) return null;
+  const profitDays = calculateCalendarDayCount(new Date(note.activatedAt), new Date(profitMaturityDate));
+  const investorProfitGross =
+    note.fundedAmount * (note.profitRatePercent / 100) * (profitDays / 365);
+  return Math.max(0, settlementAmount - note.fundedAmount - investorProfitGross);
+}
+
+function resolvePanelLateFeeHeadroom(input: {
+  preview: NoteSettlementPreviewResult | null;
+  lateChargeResult: OverdueLateChargeResult | null;
+  previewSnapshot?: Record<string, unknown>;
+  note: NoteDetail;
+  settlementAmount: number;
+}) {
+  if (input.preview != null && typeof input.preview.availableLateFeeHeadroomAmount === "number") {
+    return input.preview.availableLateFeeHeadroomAmount;
+  }
+  if (
+    input.lateChargeResult != null &&
+    typeof input.lateChargeResult.availableLateFeeHeadroomAmount === "number"
+  ) {
+    return input.lateChargeResult.availableLateFeeHeadroomAmount;
+  }
+  const fromSnapshot = readHeadroomFromPreviewSnapshot(input.previewSnapshot);
+  if (fromSnapshot != null) return fromSnapshot;
+  return estimateLateFeeHeadroom(input.note, input.settlementAmount);
+}
+
+function settlementLateFeeTotal(settlement: { tawidhAmount: number; gharamahAmount: number }) {
+  return settlement.tawidhAmount + settlement.gharamahAmount;
+}
+
+function getLateFeeLedgerSummary(note: NoteDetail) {
+  let postedToLedger = 0;
+  let approvedNotPosted = 0;
+
+  for (const settlement of note.settlements) {
+    if (settlement.status === "VOID") continue;
+    const total = settlementLateFeeTotal(settlement);
+    if (settlement.status === "POSTED") postedToLedger += total;
+    else if (settlement.status === "APPROVED") approvedNotPosted += total;
+  }
+
+  const issuerLateFeePaymentsSubmitted = note.payments
     .filter((payment) => {
       const metadata = getPaymentMetadata(payment);
       return (
@@ -235,7 +281,8 @@ function getPreviousLateFeeSummary(note: NoteDetail) {
       );
     })
     .reduce((sum, payment) => sum + payment.receiptAmount, 0);
-  return { appliedBySettlement, submittedByIssuer };
+
+  return { postedToLedger, approvedNotPosted, issuerLateFeePaymentsSubmitted };
 }
 
 function formatMaturityDate(value: string | null) {
@@ -266,6 +313,8 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
   const [recordPaymentSource, setRecordPaymentSource] =
     React.useState<RecordPaymentSource>("PAYMASTER");
   const [tawidhAmount, setTawidhAmount] = React.useState("0");
+  const [tawidhInvestorSharePercentInput, setTawidhInvestorSharePercentInput] =
+    React.useState("0.00");
   const [gharamahAmount, setGharamahAmount] = React.useState("0");
   const [overdueFeeInputMode, setOverdueFeeInputMode] =
     React.useState<OverdueFeeInputMode>("AMOUNT");
@@ -280,7 +329,8 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
   const [defaultReason, setDefaultReason] = React.useState("");
   const [recordPaymentDialogOpen, setRecordPaymentDialogOpen] = React.useState(false);
   const [overdueFeeDialogOpen, setOverdueFeeDialogOpen] = React.useState(false);
-  const [preview, setPreview] = React.useState<Record<string, unknown> | null>(null);
+  const [preview, setPreview] = React.useState<NoteSettlementPreviewResult | null>(null);
+  const syncedPreviewIdRef = React.useRef<string | null>(null);
   const [lateChargeResult, setLateChargeResult] = React.useState<OverdueLateChargeResult | null>(
     null
   );
@@ -302,16 +352,13 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
     useAdminS3DocumentViewDownload();
 
   const settlementAmount = getSettlementAmount(note);
-  const localPreviewSettlement =
-    typeof preview?.settlementId === "string"
-      ? {
-          id: preview.settlementId,
-          status: "PREVIEW" as const,
-          grossReceiptAmount: Number(preview.grossReceiptAmount ?? 0),
-          tawidhAmount: Number(preview.tawidhAmount ?? 0),
-          gharamahAmount: Number(preview.gharamahAmount ?? 0),
-        }
-      : null;
+  const localPreviewSettlement = preview
+    ? {
+        ...preview,
+        id: preview.settlementId,
+        status: "PREVIEW" as const,
+      }
+    : null;
   const persistedPreviewSettlement =
     note.settlements.find((settlement) => settlement.status === "PREVIEW") ?? null;
   const persistedApprovedSettlement =
@@ -327,9 +374,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
     ? note.fundingStatus !== "FUNDED"
       ? "Payment and settlement open only after the note reaches the funding threshold and funding is closed as funded."
       : "Payment and settlement open only after admin activates the funded note for servicing."
-    : persistedPostedSettlement
-      ? "Payment and settlement actions are closed because settlement has already been posted."
-      : null;
+    : null;
   const previewSettlementCandidate = settlementLocked
     ? null
     : (localPreviewSettlement ?? persistedPreviewSettlement);
@@ -341,29 +386,47 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
     postSettlementCandidate?.grossReceiptAmount ??
     persistedPostedSettlement?.grossReceiptAmount ??
     0;
-  const previewSettlementRequiredAmount = settlementRequiredAmount(
-    settlementAmount,
-    previewSettlementCandidate
-  );
-  const postSettlementRequiredAmount = settlementRequiredAmount(
-    settlementAmount,
-    postSettlementCandidate
-  );
-  const activeSettlementRequiredAmount = settlementRequiredAmount(
-    settlementAmount,
-    previewSettlementCandidate ?? postSettlementCandidate ?? persistedPostedSettlement
-  );
+  const previewSettlementRequiredAmount = settlementAmount;
+  const postSettlementRequiredAmount = settlementAmount;
+  const activeSettlementRequiredAmount = settlementAmount;
   const pendingPayments = note.payments.filter((payment) => payment.status === "PENDING");
   const openReceiptTotal = note.payments
     .filter((payment) => OPEN_PAYMENT_STATUSES.includes(payment.status))
     .reduce((sum, payment) => sum + payment.receiptAmount, 0);
-  const pendingLateFeeTotal = (Number(tawidhAmount) || 0) + (Number(gharamahAmount) || 0);
-  const recordPaymentLimit = Math.max(
-    settlementAmount + pendingLateFeeTotal,
-    activeSettlementRequiredAmount
+  const pendingTawidhAmount = Number(tawidhAmount) || 0;
+  const pendingGharamahAmount = Number(gharamahAmount) || 0;
+  const pendingLateFeeTotal = pendingTawidhAmount + pendingGharamahAmount;
+  const availableLateFeeHeadroom = resolvePanelLateFeeHeadroom({
+    preview,
+    lateChargeResult,
+    previewSnapshot: persistedPreviewSettlement?.previewSnapshot,
+    note,
+    settlementAmount,
+  });
+  const pendingLateFeesExceedHeadroom =
+    availableLateFeeHeadroom != null && pendingLateFeeTotal > availableLateFeeHeadroom + 0.005;
+  const tawidhInvestorSharePercent = Math.min(
+    100,
+    Math.max(0, parseMoney(tawidhInvestorSharePercentInput))
   );
+  const pendingTawidhInvestorAmount = calculatePercentAmount(
+    pendingTawidhAmount,
+    tawidhInvestorSharePercent
+  );
+  const recordPaymentLimit = settlementAmount;
+  const previewInputsMatchSaved =
+    previewSettlementCandidate != null &&
+    Math.abs(pendingTawidhAmount - previewSettlementCandidate.tawidhAmount) < 0.01 &&
+    Math.abs(pendingGharamahAmount - previewSettlementCandidate.gharamahAmount) < 0.01 &&
+    (pendingTawidhAmount <= 0.005 ||
+      Math.abs(
+        tawidhInvestorSharePercent - (previewSettlementCandidate.tawidhInvestorSharePercent ?? 0)
+      ) < 0.01);
+  const settlementInputsDirty =
+    previewSettlementCandidate != null && !previewInputsMatchSaved && !settlementLocked;
   const canApproveSettlement =
     approveSettlementId != null &&
+    !settlementInputsDirty &&
     pendingPayments.length === 0 &&
     settlementIsComplete(
       previewSettlementCandidate?.grossReceiptAmount ?? 0,
@@ -411,10 +474,37 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
           createdAt: event.createdAt,
         }))
     : [];
+  const paymentDueDateValue = resolvePaymentDueDate(note);
   const maturityDateLabel = formatMaturityDate(note.maturityDate);
-  const maturityTimingLabel = formatMaturityTiming(note.maturityDate);
+  const paymentDueDateLabel = formatMaturityDate(paymentDueDateValue);
+  const maturityTimingLabel = formatMaturityTiming(paymentDueDateValue ?? note.maturityDate);
   const overdueSnapshot = getOverdueSnapshot(note);
-  const previousLateFeeSummary = getPreviousLateFeeSummary(note);
+  const noteIsOverdue = overdueSnapshot.daysOverdue > 0;
+  const profitMaturityDateValue = resolveProfitMaturityDate(note);
+  const profitMaturityDateLabel = formatMaturityDate(profitMaturityDateValue);
+  const paymentDueDiffersFromProfitMaturity =
+    paymentDueDateValue != null &&
+    profitMaturityDateValue != null &&
+    new Date(paymentDueDateValue).toDateString() !== new Date(profitMaturityDateValue).toDateString();
+  const lateFeesBlockedByZeroHeadroom =
+    availableLateFeeHeadroom != null && availableLateFeeHeadroom <= 0.005 && noteIsOverdue;
+  const lateFeeLedger = getLateFeeLedgerSummary(note);
+  const savedPreviewLateFeeTotal = previewSettlementCandidate
+    ? settlementLateFeeTotal(previewSettlementCandidate)
+    : 0;
+  const hasLateFeeActivity =
+    pendingLateFeeTotal > 0.005 ||
+    savedPreviewLateFeeTotal > 0.005 ||
+    lateFeeLedger.postedToLedger > 0.005 ||
+    lateFeeLedger.approvedNotPosted > 0.005 ||
+    lateFeeLedger.issuerLateFeePaymentsSubmitted > 0.005;
+  const showOverdueFeesSection = noteIsOverdue || hasLateFeeActivity;
+  const feesNeedPreview = settlementInputsDirty;
+  const previewButtonLabel = settlementInputsDirty
+    ? "Preview settlement (update inputs)"
+    : pendingLateFeeTotal > 0.005
+      ? `Preview settlement (+${formatCurrency(pendingLateFeeTotal)} fees)`
+      : "Preview settlement";
   const settlementActionBlockedReason = servicingBlockedReason
     ? servicingBlockedReason
     : pendingPayments.length > 0
@@ -426,7 +516,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
               activeSettlementGrossReceiptAmount,
               activeSettlementRequiredAmount
             )
-          ? `Recorded receipt is ${formatCurrency(activeSettlementGrossReceiptAmount)}. Required settlement plus late fees is ${formatCurrency(activeSettlementRequiredAmount)} before approval or posting.`
+          ? `Recorded receipt is ${formatCurrency(activeSettlementGrossReceiptAmount)}. Invoice settlement amount ${formatCurrency(activeSettlementRequiredAmount)} is required before approval or posting. Late fees are allocated from this receipt in the waterfall.`
           : null;
   const settlementReadyMessage = canPostSettlement
     ? "Approved settlement is complete. Posting will create ledger entries."
@@ -460,14 +550,27 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
   const waterfallInvestorPrincipal = displayedSettlementRecord
     ? getSettlementValue(displayedSettlementRecord, "investorPrincipal")
     : 0;
+  const waterfallInvestorProfitGross = displayedSettlementRecord
+    ? getSettlementValue(displayedSettlementRecord, "investorProfitGross")
+    : 0;
   const waterfallInvestorProfitNet = displayedSettlementRecord
     ? getSettlementValue(displayedSettlementRecord, "investorProfitNet")
+    : 0;
+  const waterfallServiceFeeRatePercent = note.serviceFeeRatePercent;
+  const waterfallTawidhInvestor = displayedSettlementRecord
+    ? getSettlementValue(displayedSettlementRecord, "tawidhInvestorAmount")
     : 0;
   const waterfallServiceFee = displayedSettlementRecord
     ? getSettlementValue(displayedSettlementRecord, "serviceFeeAmount")
     : 0;
-  const waterfallTawidh = displayedSettlementRecord
+  const waterfallTotalTawidh = displayedSettlementRecord
     ? getSettlementValue(displayedSettlementRecord, "tawidhAmount")
+    : 0;
+  const waterfallTawidh = displayedSettlementRecord
+    ? getSettlementValue(displayedSettlementRecord, "tawidhAccountAmount")
+    : 0;
+  const waterfallTawidhInvestorSharePercent = displayedSettlementRecord
+    ? getSettlementValue(displayedSettlementRecord, "tawidhInvestorSharePercent")
     : 0;
   const waterfallGharamah = displayedSettlementRecord
     ? getSettlementValue(displayedSettlementRecord, "gharamahAmount")
@@ -478,7 +581,22 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
   const waterfallUnapplied = displayedSettlementRecord
     ? getSettlementValue(displayedSettlementRecord, "unappliedAmount")
     : 0;
-  const waterfallInvestorPoolTotal = waterfallInvestorPrincipal + waterfallInvestorProfitNet;
+  const waterfallProfitDays = displayedSettlementRecord
+    ? getSettlementValue(displayedSettlementRecord, "profitDays")
+    : 0;
+  const waterfallAnnualProfitRatePercent = displayedSettlementRecord
+    ? getSettlementValue(displayedSettlementRecord, "annualProfitRatePercent")
+    : 0;
+  const waterfallProfitStartDate =
+    typeof displayedSettlementRecord?.profitStartDate === "string"
+      ? displayedSettlementRecord.profitStartDate
+      : null;
+  const waterfallProfitMaturityDate =
+    typeof displayedSettlementRecord?.profitMaturityDate === "string"
+      ? displayedSettlementRecord.profitMaturityDate
+      : null;
+  const waterfallInvestorPoolTotal =
+    waterfallInvestorPrincipal + waterfallInvestorProfitNet + waterfallTawidhInvestor;
   const waterfallRows = [
     {
       label: "Gross receipt from paymaster or issuer",
@@ -495,7 +613,9 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
       sign: "-",
     },
     {
-      label: "Pay investor net profit",
+      label: "Investor profit payout (net share)",
+      detail:
+        "Investors receive this amount. It is the net portion of gross contractual profit after the platform service fee below.",
       destination: "Investor Pool",
       amount: waterfallInvestorProfitNet,
       runningBalance:
@@ -503,13 +623,26 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
       sign: "-",
     },
     {
-      label: "Deduct service fee",
+      label: "Allocate investor Ta'widh compensation",
+      destination: "Investor Pool",
+      amount: waterfallTawidhInvestor,
+      runningBalance:
+        waterfallGrossReceipt -
+        waterfallInvestorPrincipal -
+        waterfallInvestorProfitNet -
+        waterfallTawidhInvestor,
+      sign: "-",
+    },
+    {
+      label: "Platform service fee (from gross profit)",
+      detail: `Not charged on top of the net payout above. ${waterfallServiceFeeRatePercent}% of ${formatCurrency(waterfallInvestorProfitGross)} gross contractual profit.`,
       destination: "Operating Account",
       amount: waterfallServiceFee,
       runningBalance:
         waterfallGrossReceipt -
         waterfallInvestorPrincipal -
         waterfallInvestorProfitNet -
+        waterfallTawidhInvestor -
         waterfallServiceFee,
       sign: "-",
     },
@@ -521,6 +654,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
         waterfallGrossReceipt -
         waterfallInvestorPrincipal -
         waterfallInvestorProfitNet -
+        waterfallTawidhInvestor -
         waterfallServiceFee -
         waterfallTawidh,
       sign: "-",
@@ -533,6 +667,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
         waterfallGrossReceipt -
         waterfallInvestorPrincipal -
         waterfallInvestorProfitNet -
+        waterfallTawidhInvestor -
         waterfallServiceFee -
         waterfallTawidh -
         waterfallGharamah,
@@ -555,32 +690,52 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
     overdueFeeInputMode === "PERCENTAGE"
       ? calculatePercentAmount(overdueBaseAmount, parseMoney(overdueGharamahPercentInput))
       : parseMoney(overdueGharamahInput);
+  const paymentActionsOpen = servicingOpen && !persistedApprovedSettlement;
+  const receiptRemainingAmount = Math.max(0, settlementAmount - openReceiptTotal);
+  const canRecordMoreReceipts =
+    paymentActionsOpen && settlementAmount > 0.005 && receiptRemainingAmount > 0.005;
+  const settledReceiptTotal = note.payments
+    .filter((payment) => payment.status === "SETTLED")
+    .reduce((sum, payment) => sum + payment.receiptAmount, 0);
+  const repaymentReceiptsThresholdMet =
+    settlementAmount > 0.005 &&
+    pendingPayments.length === 0 &&
+    (eligibleReceiptTotal + 0.005 >= settlementAmount ||
+      settledReceiptTotal + 0.005 >= settlementAmount);
   const canPreviewSettlement =
     !previewSettlement.isPending &&
     settlementLocked == null &&
     servicingOpen &&
     settlementEligiblePayments.length > 0 &&
-    pendingPayments.length === 0;
-  const paymentActionsOpen = servicingOpen && !persistedApprovedSettlement;
-  const recordPaymentActionAvailable = paymentActionsOpen;
-  const paymentReviewActionAvailable = pendingPayments.length > 0 && paymentActionsOpen;
-  const settlementActionAvailable =
-    canPreviewSettlement || canApproveSettlement || canPostSettlement;
-  const overdueActionAvailable = servicingOpen && overdueSnapshot.daysOverdue > 0;
+    pendingPayments.length === 0 &&
+    repaymentReceiptsThresholdMet &&
+    !pendingLateFeesExceedHeadroom;
+  const repaymentReceiptsNeedAttention =
+    paymentActionsOpen && (pendingPayments.length > 0 || canRecordMoreReceipts);
+  const settlementReceiptsComplete = repaymentReceiptsThresholdMet;
+  const settlementSectionNeedAttention =
+    servicingOpen &&
+    !persistedPostedSettlement &&
+    settlementReceiptsComplete &&
+    (canPreviewSettlement || canApproveSettlement || canPostSettlement || feesNeedPreview);
+  const repaymentReceiptsSectionComplete =
+    repaymentReceiptsThresholdMet || persistedPostedSettlement != null;
+  const settlementWaterfallSectionComplete = persistedPostedSettlement != null;
+  const overdueActionAvailable = servicingOpen && noteIsOverdue;
   const canMarkDefault = note.servicingStatus === "ARREARS";
-  const documentActionAvailable =
-    servicingOpen && (overdueSnapshot.daysOverdue > 0 || canMarkDefault);
+  const documentActionAvailable = servicingOpen && (noteIsOverdue || canMarkDefault);
 
   const handleUseSettlementAmount = () => {
     if (settlementAmount <= 0) {
       toast.error("Settlement amount is not available");
       return;
     }
-    const remainder = Math.max(0, recordPaymentLimit - openReceiptTotal);
-    setReceiptAmount(formatAmountInput(remainder > 0 ? remainder : settlementAmount));
+    setReceiptAmount(
+      formatAmountInput(receiptRemainingAmount > 0 ? receiptRemainingAmount : settlementAmount)
+    );
   };
 
-  const handleRecordPayment = () => {
+  const handleOpenRecordPaymentDialog = () => {
     if (servicingBlockedReason) {
       toast.info(servicingBlockedReason);
       return;
@@ -591,19 +746,30 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
       );
       return;
     }
-    const amount = Number(receiptAmount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      toast.error("Enter a valid receipt amount");
+    if (settlementAmount > 0 && openReceiptTotal >= settlementAmount - 0.005) {
+      toast.info("Invoice settlement amount is already fully recorded in open receipts");
       return;
     }
-    if (openReceiptTotal + amount > recordPaymentLimit + 0.005) {
-      toast.error(
-        `Open receipts cannot exceed ${formatCurrency(recordPaymentLimit)} including queued late fees`
-      );
-      return;
-    }
+    setRecordPaymentSource("PAYMASTER");
+    setReference("");
+    handleUseSettlementAmount();
     setRecordPaymentDialogOpen(true);
   };
+
+  const sortedPayments = React.useMemo(() => {
+    const statusRank: Record<string, number> = {
+      PENDING: 0,
+      PARTIAL: 1,
+      RECEIVED: 2,
+      RECONCILED: 3,
+      VOID: 4,
+    };
+    return [...note.payments].sort((left, right) => {
+      const rankDiff = (statusRank[left.status] ?? 9) - (statusRank[right.status] ?? 9);
+      if (rankDiff !== 0) return rankDiff;
+      return new Date(right.receiptDate).getTime() - new Date(left.receiptDate).getTime();
+    });
+  }, [note.payments]);
 
   const handleConfirmRecordPayment = async () => {
     if (servicingBlockedReason) {
@@ -623,7 +789,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
     }
     if (openReceiptTotal + amount > recordPaymentLimit + 0.005) {
       toast.error(
-        `Open receipts cannot exceed ${formatCurrency(recordPaymentLimit)} including queued late fees`
+        `Open receipts cannot exceed the invoice settlement amount of ${formatCurrency(recordPaymentLimit)}`
       );
       return;
     }
@@ -635,8 +801,6 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
           receiptAmount: amount,
           receiptDate: new Date().toISOString(),
           reference: reference || null,
-          pendingTawidhAmount: Number(tawidhAmount) || 0,
-          pendingGharamahAmount: Number(gharamahAmount) || 0,
           metadata:
             recordPaymentSource === "ISSUER_ON_BEHALF" ? { paymentPurpose: "SETTLEMENT" } : null,
         },
@@ -684,42 +848,66 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
     }
   };
 
-  const overdueCheckBasis = eligibleReceiptTotal > 0 ? eligibleReceiptTotal : settlementAmount;
-
-  const handleCheckOverdueLateCharge = async () => {
+  const runOverdueLateChargeCheck = async () => {
     if (servicingBlockedReason) {
       toast.info(servicingBlockedReason);
+      return null;
+    }
+    const result = await checkOverdueLateCharge.mutateAsync({
+      id: note.id,
+      input: {
+        receiptAmount: settlementAmount,
+        receiptDate: new Date().toISOString(),
+      },
+    });
+    setLateChargeResult(result);
+    return result;
+  };
+
+  const queueLateFeeAmounts = (tawidh: number, gharamah: number) => {
+    const total = tawidh + gharamah;
+    if (availableLateFeeHeadroom != null && total > availableLateFeeHeadroom + 0.005) {
+      toast.error(
+        `Late fees exceed the available settlement headroom of ${formatCurrency(availableLateFeeHeadroom)}`
+      );
       return;
     }
+    setTawidhAmount(formatAmountInput(tawidh));
+    setGharamahAmount(formatAmountInput(gharamah));
+    if (total <= 0.005) return;
+    toast.success(
+      `Queued ${formatCurrency(total)} in late fees. Preview settlement below to save to the waterfall.`
+    );
+  };
+
+  const handleApplySuggestedLateFees = async () => {
     try {
-      const result = await checkOverdueLateCharge.mutateAsync({
-        id: note.id,
-        input: {
-          receiptAmount: overdueCheckBasis > 0 ? overdueCheckBasis : settlementAmount,
-          receiptDate: new Date().toISOString(),
-        },
-      });
-      setLateChargeResult(result);
-      toast.success(result.message);
+      const result = await runOverdueLateChargeCheck();
+      if (!result) return;
+      if (!result.overdue) {
+        toast.info(result.message);
+        return;
+      }
+      if (result.remainingTawidhAmount <= 0 && result.remainingGharamahAmount <= 0) {
+        toast.info("All allowable overdue fees have already been applied.");
+        return;
+      }
+      const tawidh = result.suggestedTawidhAmount;
+      const gharamah = result.suggestedGharamahAmount;
+      if (tawidh + gharamah <= 0.005) {
+        toast.info("No late fees to apply for the current overdue check.");
+        return;
+      }
+      queueLateFeeAmounts(tawidh, gharamah);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to check overdue late fees");
+      toast.error(err instanceof Error ? err.message : "Failed to apply suggested late fees");
     }
   };
 
   const handleOpenOverdueFeeDialog = async () => {
-    if (servicingBlockedReason) {
-      toast.info(servicingBlockedReason);
-      return;
-    }
     try {
-      const result = await checkOverdueLateCharge.mutateAsync({
-        id: note.id,
-        input: {
-          receiptAmount: overdueCheckBasis > 0 ? overdueCheckBasis : settlementAmount,
-          receiptDate: new Date().toISOString(),
-        },
-      });
-      setLateChargeResult(result);
+      const result = await runOverdueLateChargeCheck();
+      if (!result) return;
       setOverdueTawidhInput(formatAmountInput(result.suggestedTawidhAmount));
       setOverdueGharamahInput(formatAmountInput(result.suggestedGharamahAmount));
       setOverdueTawidhPercentInput(
@@ -732,7 +920,6 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
           calculatePercentFromAmount(result.suggestedGharamahAmount, result.receiptAmount)
         )
       );
-
       if (!result.overdue) {
         toast.info(result.message);
         return;
@@ -770,11 +957,24 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
       toast.error("Enter at least one overdue fee amount");
       return;
     }
-    setTawidhAmount(formatAmountInput(tawidh));
-    setGharamahAmount(formatAmountInput(gharamah));
+    queueLateFeeAmounts(tawidh, gharamah);
     setOverdueFeeDialogOpen(false);
-    toast.success("Overdue fees applied to the settlement waterfall");
   };
+
+  React.useEffect(() => {
+    if (!persistedPreviewSettlement || settlementLocked) {
+      syncedPreviewIdRef.current = null;
+      return;
+    }
+    const syncKey = `${note.id}:${persistedPreviewSettlement.id}`;
+    if (syncedPreviewIdRef.current === syncKey) return;
+    setTawidhAmount(formatAmountInput(persistedPreviewSettlement.tawidhAmount));
+    setGharamahAmount(formatAmountInput(persistedPreviewSettlement.gharamahAmount));
+    setTawidhInvestorSharePercentInput(
+      formatPercentInput(persistedPreviewSettlement.tawidhInvestorSharePercent ?? 0)
+    );
+    syncedPreviewIdRef.current = syncKey;
+  }, [note.id, settlementLocked, persistedPreviewSettlement]);
 
   const handlePreview = async () => {
     if (servicingBlockedReason) {
@@ -797,16 +997,24 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
       toast.error("Review or reject pending payments before previewing settlement");
       return;
     }
+    if (pendingLateFeesExceedHeadroom) {
+      toast.error(
+        `Late fees exceed the available settlement headroom of ${formatCurrency(availableLateFeeHeadroom ?? 0)}`
+      );
+      return;
+    }
     try {
       const result = await previewSettlement.mutateAsync({
         id: note.id,
         input: {
           receiptDate: new Date().toISOString(),
           tawidhAmount: Number(tawidhAmount) || 0,
+          tawidhInvestorSharePercent,
           gharamahAmount: Number(gharamahAmount) || 0,
         },
       });
       setPreview(result);
+      syncedPreviewIdRef.current = `${note.id}:${result.settlementId}`;
       toast.success("Settlement preview generated");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to preview settlement");
@@ -821,6 +1029,10 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
     }
     if (pendingPayments.length > 0) {
       toast.error("Review or reject pending payments before approving settlement");
+      return;
+    }
+    if (settlementInputsDirty) {
+      toast.error("Preview the updated settlement inputs before approving");
       return;
     }
     setSettlementConfirm("approve");
@@ -995,19 +1207,33 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
             </div>
           ) : null}
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl border bg-primary/5 p-4 md:col-span-2 xl:col-span-1">
-              <div className="text-xs text-muted-foreground">Settlement Amount Due</div>
+            <div
+              className={cn(
+                "rounded-xl border p-4 md:col-span-2 xl:col-span-1",
+                repaymentReceiptsNeedAttention ? ACTION_CARD_CLASS : "bg-card"
+              )}
+            >
+              <div className="text-xs text-muted-foreground">Invoice settlement amount</div>
               <div className="mt-1 text-2xl font-semibold text-primary">
                 {formatCurrency(settlementAmount)}
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
-                This is the invoice amount that must be paid into the Repayment Pool.
+                Repayment receipts should total this amount. Ta&apos;widh and Gharamah are taken
+                from this pool in the waterfall (they are not added on top).
               </p>
             </div>
             <div className="rounded-xl border bg-card p-4">
-              <div className="text-xs text-muted-foreground">Maturity Date</div>
-              <div className="mt-1 text-lg font-semibold">{maturityDateLabel}</div>
+              <div className="text-xs text-muted-foreground">Payment due / maturity</div>
+              <div className="mt-1 text-lg font-semibold">{paymentDueDateLabel}</div>
               <div className="mt-1 text-xs text-muted-foreground">{maturityTimingLabel}</div>
+              {paymentDueDateValue &&
+              note.maturityDate &&
+              new Date(paymentDueDateValue).toDateString() !==
+                new Date(note.maturityDate).toDateString() ? (
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Contractual maturity {maturityDateLabel}
+                </div>
+              ) : null}
             </div>
             <div className="rounded-xl border bg-card p-4">
               <div className="text-xs text-muted-foreground">Grace and Arrears</div>
@@ -1031,81 +1257,94 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
 
           <div
             className={cn(
-              "rounded-xl border bg-muted/20 p-4",
-              recordPaymentActionAvailable && ACTION_CARD_CLASS
+              "rounded-xl border p-4",
+              repaymentReceiptsSectionComplete
+                ? SECTION_COMPLETE_CLASS
+                : repaymentReceiptsNeedAttention
+                  ? ACTION_CARD_CLASS
+                  : "bg-muted/20"
             )}
           >
+            {repaymentReceiptsSectionComplete ? (
+              <div className={SECTION_COMPLETE_HEADER_CLASS}>Repayment receipts complete</div>
+            ) : null}
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="text-sm font-medium">1. Record Payment</div>
+                <div className="text-sm font-medium">1. Repayment receipts</div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Capture a verified receipt from the paymaster or from the issuer paying on behalf.
-                  New receipts are auto-selected as the basis for the next settlement.
+                  Record paymaster or issuer receipts, approve issuer submissions, then preview
+                  settlement when open receipts reach the invoice amount.
                 </p>
               </div>
-              <Badge variant="outline">{note.payments.length} receipts</Badge>
+              <Button
+                size="sm"
+                className="gap-1.5 rounded-xl"
+                onClick={handleOpenRecordPaymentDialog}
+                disabled={recordPayment.isPending || !canRecordMoreReceipts}
+              >
+                <PlusIcon className="h-4 w-4" />
+                Record receipt
+              </Button>
             </div>
+
+            {!repaymentReceiptsSectionComplete &&
+            !canRecordMoreReceipts &&
+            paymentActionsOpen &&
+            settlementAmount > 0.005 ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Open receipts already reach the invoice settlement amount. Record receipt is
+                disabled until receipts are reduced or the settlement amount changes.
+              </p>
+            ) : null}
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <MoneyMetric label="Open receipts" value={openReceiptTotal} />
+              <MoneyMetric label="Invoice settlement" value={settlementAmount} />
+              <MoneyMetric label="Remaining to record" value={receiptRemainingAmount} />
+            </div>
+
+            {pendingPayments.length > 0 ? (
+              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-900">
+                {pendingPayments.length} issuer payment
+                {pendingPayments.length === 1 ? "" : "s"} awaiting approval before you can preview
+                settlement.
+              </div>
+            ) : null}
+
             {servicingBlockedReason ? (
               <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
                 {servicingBlockedReason}
               </div>
             ) : null}
-            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_auto]">
-              <Input
-                value={receiptAmount}
-                onChange={(event) => setReceiptAmount(event.target.value)}
-                placeholder="Receipt amount"
-                disabled={!paymentActionsOpen}
-              />
-              <Button
-                variant="outline"
-                onClick={handleUseSettlementAmount}
-                disabled={settlementAmount <= 0 || !paymentActionsOpen}
-              >
-                Use Settlement Amount
-              </Button>
-              <Button
-                onClick={handleRecordPayment}
-                disabled={recordPayment.isPending || !paymentActionsOpen}
-              >
-                Record Payment
-              </Button>
-            </div>
-          </div>
 
-          <div
-            className={cn(
-              "rounded-xl border p-4",
-              paymentReviewActionAvailable && ACTION_CARD_CLASS
-            )}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-medium">2. Payment Review</div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Review issuer-submitted payments and choose the receipt that should drive
-                  settlement.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {pendingPayments.length > 0 ? (
-                  <Badge variant="secondary">{pendingPayments.length} pending approval</Badge>
-                ) : null}
-                <Badge variant="outline">{settlementEligiblePayments.length} eligible</Badge>
-              </div>
-            </div>
             {note.payments.length === 0 ? (
-              <div className="mt-4 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                No payment receipts recorded yet.
+              <div className="mt-4 flex flex-col items-start gap-3 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                <span>No repayment receipts yet.</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 rounded-xl"
+                  onClick={handleOpenRecordPaymentDialog}
+                  disabled={!canRecordMoreReceipts}
+                >
+                  <PlusIcon className="h-4 w-4" />
+                  Record first receipt
+                </Button>
               </div>
             ) : (
               <div className="mt-4 space-y-3">
-                {note.payments.map((payment) => {
+                {sortedPayments.map((payment) => {
                   const isIncluded = includedPaymentIds.has(payment.id);
+                  const isPending = payment.status === "PENDING";
                   return (
                     <div
                       key={payment.id}
-                      className={`rounded-lg border p-3 ${isIncluded ? "border-primary/50 bg-primary/5" : "bg-card"}`}
+                      className={cn(
+                        "rounded-lg border p-3",
+                        isPending && "border-amber-200 bg-amber-50/40",
+                        !isPending && isIncluded && "border-border bg-muted/50",
+                        !isPending && !isIncluded && "bg-card"
+                      )}
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
@@ -1128,12 +1367,15 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                         </div>
                         <div className="flex flex-wrap items-center justify-end gap-2">
                           {isIncluded ? (
-                            <Badge variant="default" className="gap-1 px-2 py-1">
+                            <Badge
+                              variant="secondary"
+                              className="gap-1 border-transparent bg-foreground px-2 py-1 text-background hover:bg-foreground/90"
+                            >
                               <CheckCircleIcon className="h-3.5 w-3.5" />
-                              Included in settlement
+                              Counts toward settlement
                             </Badge>
                           ) : null}
-                          {payment.status === "PENDING" ? (
+                          {isPending ? (
                             <>
                               <Button
                                 size="sm"
@@ -1154,7 +1396,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                           ) : null}
                         </div>
                       </div>
-                      {payment.status === "PENDING" ? (
+                      {isPending ? (
                         <Input
                           className="mt-3"
                           value={rejectionReasons[payment.id] ?? ""}
@@ -1176,36 +1418,40 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
 
           <div
             className={cn(
-              "rounded-xl border bg-muted/20 p-4",
-              settlementActionAvailable && ACTION_CARD_CLASS
+              "rounded-xl border p-4",
+              settlementWaterfallSectionComplete
+                ? SECTION_COMPLETE_CLASS
+                : settlementSectionNeedAttention
+                  ? ACTION_CARD_CLASS
+                  : "bg-muted/20"
             )}
           >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-medium">3. Settlement Waterfall</div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Preview the allocation, approve it, then post ledger entries once the settlement
-                  is ready.
-                </p>
-              </div>
-              <div className="flex flex-wrap justify-end gap-2">
-                <Button variant="outline" onClick={handlePreview} disabled={!canPreviewSettlement}>
-                  Preview
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={requestApproveSettlement}
-                  disabled={!canApproveSettlement || approveSettlement.isPending || !servicingOpen}
-                >
-                  Approve
-                </Button>
-                <Button
-                  onClick={requestPostSettlement}
-                  disabled={!canPostSettlement || postSettlement.isPending || !servicingOpen}
-                >
-                  Post
-                </Button>
-              </div>
+            {settlementWaterfallSectionComplete ? (
+              <div className={SECTION_COMPLETE_HEADER_CLASS}>Settlement posted</div>
+            ) : null}
+            <div>
+              <div className="text-sm font-medium">2. Settlement &amp; waterfall</div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {showOverdueFeesSection
+                  ? "Late fees are only booked to the ledger when settlement is posted. Until then they live in a preview (or are queued locally before you preview)."
+                  : "Preview settlement to calculate the waterfall, then approve and post."}
+              </p>
+              <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-muted-foreground">
+                <li>Record and approve repayment receipts.</li>
+                {showOverdueFeesSection ? <li>Apply suggested or custom late fees.</li> : null}
+                <li>
+                  <span className="font-medium text-foreground">Preview settlement</span>
+                  {showOverdueFeesSection
+                    ? " to save fees into the waterfall row and review allocations."
+                    : " to review allocations."}
+                </li>
+                <li>
+                  Approve, then post
+                  {showOverdueFeesSection
+                    ? " — late fees hit Ta'widh / Gharamah accounts on post."
+                    : "."}
+                </li>
+              </ol>
             </div>
 
             <div className="mt-4">
@@ -1222,7 +1468,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                       <div className="mt-1 text-xs text-muted-foreground">
                         {settlementEligiblePayments.length} receipt
                         {settlementEligiblePayments.length === 1 ? "" : "s"} aggregated · settlement
-                        requires {formatCurrency(activeSettlementRequiredAmount)}
+                        requires {formatCurrency(activeSettlementRequiredAmount)} invoice settlement
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -1276,79 +1522,228 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
               </div>
             ) : null}
 
-            <div
-              className={cn(
-                "mt-4 rounded-xl border bg-card p-4",
-                overdueActionAvailable && ACTION_CARD_CLASS
-              )}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-medium">Overdue Fees</div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Apply Ta&apos;widh and Gharamah for receipts paid after the grace period.
-                    Amounts are queued into the next preview and validated against the configured
-                    caps.
+            {showOverdueFeesSection ? (
+              <div
+                className={cn(
+                  "mt-4 rounded-xl border bg-card p-4",
+                  (overdueActionAvailable || pendingLateFeeTotal > 0.005) && ACTION_CARD_CLASS
+                )}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium">Late fees</div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Caps from payment due {paymentDueDateLabel} plus {note.gracePeriodDays}-day
+                      grace. Fees come from the settlement receipt pool, not on top of it.
+                      {paymentDueDiffersFromProfitMaturity
+                        ? ` Contractual profit accrues to ${profitMaturityDateLabel}.`
+                        : ""}
+                      {availableLateFeeHeadroom != null
+                        ? ` Available late-fee headroom after investor principal and contractual profit is ${formatCurrency(availableLateFeeHeadroom)}.`
+                        : " Available late-fee headroom will be confirmed during preview."}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <Badge variant="secondary">{overdueSnapshot.label}</Badge>
+                    {pendingLateFeeTotal > 0.005 ? (
+                      <div className="flex flex-wrap justify-end gap-1.5">
+                        <Badge variant="outline">
+                          Ta&apos;widh {formatCurrency(Number(tawidhAmount) || 0)}
+                        </Badge>
+                        <Badge variant="outline">
+                          Gharamah {formatCurrency(Number(gharamahAmount) || 0)}
+                        </Badge>
+                        {feesNeedPreview ? (
+                          <Badge variant="secondary">Queued for preview</Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="border-emerald-200 bg-emerald-50/80 text-emerald-900"
+                          >
+                            In preview
+                          </Badge>
+                        )}
+                        {pendingLateFeesExceedHeadroom ? (
+                          <Badge variant="destructive">Exceeds headroom</Badge>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="mt-3 rounded-lg border bg-card p-3">
+                  <div className="grid gap-3 md:grid-cols-[1fr_10rem] md:items-end">
+                    <div>
+                      <label
+                        className="text-sm font-medium"
+                        htmlFor="tawidh-investor-share-percent"
+                      >
+                        Ta&apos;widh investor share
+                      </label>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Optional percentage of total Ta&apos;widh returned to investors during the
+                        settlement waterfall. The total Ta&apos;widh charge still reduces issuer
+                        residual.
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="relative">
+                        <Input
+                          id="tawidh-investor-share-percent"
+                          className="pr-8"
+                          value={tawidhInvestorSharePercentInput}
+                          onChange={(event) => {
+                            if (isTwoDecimalInput(event.target.value)) {
+                              setTawidhInvestorSharePercentInput(event.target.value);
+                            }
+                          }}
+                          onBlur={() =>
+                            setTawidhInvestorSharePercentInput(
+                              formatPercentInput(tawidhInvestorSharePercent)
+                            )
+                          }
+                          disabled={!servicingOpen || (Number(tawidhAmount) || 0) <= 0}
+                          inputMode="decimal"
+                          placeholder="0.00"
+                        />
+                        <span
+                          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground"
+                          aria-hidden
+                        >
+                          %
+                        </span>
+                      </div>
+                      <div className="text-right text-xs text-muted-foreground">
+                        {formatCurrency(pendingTawidhInvestorAmount)} to investors
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+                  <p className="max-w-md text-xs text-muted-foreground">
+                    {lateFeesBlockedByZeroHeadroom
+                      ? "No late fees can be charged: settlement headroom is fully used by investor principal and contractual profit."
+                      : pendingLateFeesExceedHeadroom
+                        ? `Queued fees exceed the available settlement headroom of ${formatCurrency(availableLateFeeHeadroom ?? 0)}. Reduce Ta'widh or Gharamah before preview.`
+                        : feesNeedPreview && pendingLateFeeTotal > 0.005
+                          ? `${formatCurrency(pendingLateFeeTotal)} queued locally — use Preview settlement below.`
+                          : pendingLateFeeTotal > 0.005
+                            ? "Fees are in the saved preview. Approve and post when receipts are complete."
+                            : "Apply system-suggested caps, or open custom amounts if you need to adjust."}
+                  </p>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button
+                      onClick={handleApplySuggestedLateFees}
+                      disabled={
+                        checkOverdueLateCharge.isPending ||
+                        !noteIsOverdue ||
+                        !servicingOpen ||
+                        lateFeesBlockedByZeroHeadroom
+                      }
+                    >
+                      {checkOverdueLateCharge.isPending ? "Checking…" : "Apply suggested fees"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleOpenOverdueFeeDialog}
+                      disabled={
+                        checkOverdueLateCharge.isPending || !noteIsOverdue || !servicingOpen
+                      }
+                    >
+                      Custom amounts
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/30 px-4 py-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">Late fees</div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    No Ta&apos;widh or Gharamah for this settlement. Checked against payment due{" "}
+                    {paymentDueDateLabel} with {note.gracePeriodDays}-day grace —{" "}
+                    {overdueSnapshot.label.toLowerCase()}.
                   </p>
                 </div>
-                <Badge variant={overdueSnapshot.daysOverdue > 0 ? "secondary" : "outline"}>
-                  {overdueSnapshot.label}
-                </Badge>
-              </div>
-              <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
-                <MoneyMetric
-                  label="Previously Applied Fees"
-                  value={previousLateFeeSummary.appliedBySettlement}
-                />
-                <MoneyMetric
-                  label="Late Fee Payments Submitted"
-                  value={previousLateFeeSummary.submittedByIssuer}
-                />
-              </div>
-              {pendingLateFeeTotal > 0 ? (
-                <div className="mt-3 rounded-lg border bg-primary/5 p-3 text-sm">
-                  <div className="font-medium text-primary">
-                    {formatCurrency(pendingLateFeeTotal)} queued for next settlement preview
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    Ta&apos;widh {formatCurrency(Number(tawidhAmount) || 0)} · Gharamah{" "}
-                    {formatCurrency(Number(gharamahAmount) || 0)}
-                  </div>
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className="gap-1 border-emerald-200 bg-emerald-50/80 text-emerald-900"
+                  >
+                    <CheckCircleIcon className="h-3.5 w-3.5" />
+                    RM 0.00
+                  </Badge>
+                  <Badge variant="outline">{overdueSnapshot.label}</Badge>
                 </div>
-              ) : null}
-              {lateChargeResult ? (
-                <p className="mt-3 text-xs text-muted-foreground">{lateChargeResult.message}</p>
-              ) : null}
-              <div className="mt-4 flex flex-wrap justify-end gap-2">
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/20 p-4">
+              <div className="text-xs text-muted-foreground">
+                {feesNeedPreview
+                  ? "Preview saves queued late fees into the settlement row and opens the waterfall."
+                  : previewSettlementCandidate
+                    ? "Preview is saved. Approve when receipts cover the invoice settlement amount, then post."
+                    : "Generate a preview after receipts reach the invoice settlement amount."}
+              </div>
+              <div className="flex flex-wrap justify-end gap-2">
                 <Button
-                  variant="outline"
-                  onClick={handleCheckOverdueLateCharge}
-                  disabled={checkOverdueLateCharge.isPending || !servicingOpen}
+                  variant={feesNeedPreview ? "default" : "outline"}
+                  onClick={handlePreview}
+                  disabled={!canPreviewSettlement}
                 >
-                  Check Only
+                  {previewButtonLabel}
                 </Button>
                 <Button
-                  onClick={handleOpenOverdueFeeDialog}
-                  disabled={
-                    checkOverdueLateCharge.isPending ||
-                    overdueSnapshot.daysOverdue <= 0 ||
-                    !servicingOpen
-                  }
+                  variant="outline"
+                  onClick={requestApproveSettlement}
+                  disabled={!canApproveSettlement || approveSettlement.isPending || !servicingOpen}
                 >
-                  Check and Charge
+                  Approve
+                </Button>
+                <Button
+                  onClick={requestPostSettlement}
+                  disabled={!canPostSettlement || postSettlement.isPending || !servicingOpen}
+                >
+                  Post
                 </Button>
               </div>
             </div>
+
             {displayedSettlement ? (
               <div className="mt-4 space-y-4">
-                <div className="rounded-xl border bg-card p-4">
+                <div
+                  className={cn(
+                    "rounded-xl border p-4",
+                    settlementWaterfallSectionComplete ? SECTION_COMPLETE_CLASS : "bg-card"
+                  )}
+                >
+                  {settlementWaterfallSectionComplete ? (
+                    <div className={SECTION_COMPLETE_HEADER_CLASS}>
+                      Settlement waterfall complete
+                    </div>
+                  ) : null}
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-medium">Waterfall Calculation</div>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Starts with the gross receipt, then deducts each allocation until the
+                        Starts with the gross receipt, then allocates each bucket until the
                         remaining balance is known.
                       </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Profit is locked from {formatMaturityDate(waterfallProfitStartDate)} to{" "}
+                        {formatMaturityDate(waterfallProfitMaturityDate)} ({waterfallProfitDays}{" "}
+                        days) at {waterfallAnnualProfitRatePercent}% p.a. Early settlement does not
+                        reduce profit; late settlement adds only approved late charges after grace.
+                      </p>
+                      {waterfallInvestorProfitGross > 0.005 ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Gross contractual profit {formatCurrency(waterfallInvestorProfitGross)} is
+                          split once: {formatCurrency(waterfallInvestorProfitNet)} to investors and{" "}
+                          {formatCurrency(waterfallServiceFee)} to the platform (
+                          {waterfallServiceFeeRatePercent}% of gross profit). The two profit rows
+                          below show that split, not a second charge to investors.
+                        </p>
+                      ) : null}
                     </div>
                     <Badge variant="outline">
                       Settlement due {formatCurrency(settlementAmount)}
@@ -1367,14 +1762,19 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                         className="grid grid-cols-[1fr_9rem_9rem_9rem] gap-3 border-t px-3 py-3 text-sm"
                       >
                         <div>
-                          <span
-                            className={
-                              row.sign === "+" ? "text-emerald-700" : "text-muted-foreground"
-                            }
-                          >
-                            {row.sign}
-                          </span>{" "}
-                          {row.label}
+                          <div>
+                            <span
+                              className={
+                                row.sign === "+" ? "text-emerald-700" : "text-muted-foreground"
+                              }
+                            >
+                              {row.sign}
+                            </span>{" "}
+                            {row.label}
+                          </div>
+                          {"detail" in row && row.detail ? (
+                            <p className="mt-0.5 text-xs text-muted-foreground">{row.detail}</p>
+                          ) : null}
                         </div>
                         <div className="text-right text-xs text-muted-foreground">
                           {row.destination}
@@ -1403,17 +1803,17 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                   <PoolSummaryCard
                     label="Investor Pool"
                     value={waterfallInvestorPoolTotal}
-                    description="Principal plus net profit returned to investors."
+                    description="Principal, investors' net profit share, and any investor Ta'widh compensation. Platform service fee is not deducted again here."
                   />
                   <PoolSummaryCard
                     label="Operating Account"
                     value={waterfallServiceFee}
-                    description="Service fee retained by the platform."
+                    description={`Platform share of gross contractual profit (${waterfallServiceFeeRatePercent}% of ${formatCurrency(waterfallInvestorProfitGross)}).`}
                   />
                   <PoolSummaryCard
                     label="Ta'widh Account"
                     value={waterfallTawidh}
-                    description="Compensation portion of late charges."
+                    description={`${formatCurrency(waterfallTotalTawidh)} total Ta'widh; ${waterfallTawidhInvestorSharePercent}% shared with investors.`}
                   />
                   <PoolSummaryCard
                     label="Gharamah Account"
@@ -1429,7 +1829,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                         ? "border-destructive/40 bg-destructive/5 shadow-[0_0_0_1px_hsl(var(--destructive)/0.12),0_0_24px_hsl(var(--destructive)/0.14)]"
                         : !serviceFeeTrusteeWorkflowComplete
                           ? cn("border-amber-200 bg-amber-50/50", ACTION_CARD_CLASS)
-                          : "border-emerald-200 bg-emerald-50/40"
+                          : SECTION_COMPLETE_CLASS
                     )}
                   >
                     {serviceFeeTrusteeNeedsPdf ? (
@@ -1756,20 +2156,45 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
       <Dialog open={recordPaymentDialogOpen} onOpenChange={setRecordPaymentDialogOpen}>
         <DialogContent className="rounded-2xl sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Record Paymaster Receipt?</DialogTitle>
+            <DialogTitle>Record repayment receipt</DialogTitle>
             <DialogDescription className="text-[15px] leading-7">
-              Confirm the verified receipt before it is added to this note. This creates a payment
-              record that can be used for settlement preview.
+              Add a verified receipt to the repayment pool. Open receipts must reach{" "}
+              {formatCurrency(settlementAmount)} before settlement preview.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="rounded-2xl border bg-primary/5 p-4">
-              <div className="text-xs text-muted-foreground">Receipt amount</div>
-              <div className="mt-1 text-2xl font-semibold text-primary">
-                {formatCurrency(Number(receiptAmount) || 0)}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border bg-muted/30 p-3">
+                <div className="text-xs text-muted-foreground">Already recorded (open)</div>
+                <div className="mt-1 font-semibold">{formatCurrency(openReceiptTotal)}</div>
               </div>
-              <div className="mt-2 text-xs text-muted-foreground">
-                Settlement amount due: {formatCurrency(settlementAmount)}
+              <div className="rounded-xl border bg-muted/30 p-3">
+                <div className="text-xs text-muted-foreground">Remaining capacity</div>
+                <div className="mt-1 font-semibold">{formatCurrency(receiptRemainingAmount)}</div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="admin-payment-amount">
+                Receipt amount
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  id="admin-payment-amount"
+                  className="min-w-[12rem] flex-1 rounded-xl"
+                  value={receiptAmount}
+                  onChange={(event) => setReceiptAmount(event.target.value)}
+                  placeholder="0.00"
+                  inputMode="decimal"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-xl"
+                  onClick={handleUseSettlementAmount}
+                  disabled={settlementAmount <= 0}
+                >
+                  Fill remaining
+                </Button>
               </div>
             </div>
             <div className="space-y-2">
@@ -1785,7 +2210,9 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="PAYMASTER">Paymaster</SelectItem>
-                  <SelectItem value="ISSUER_ON_BEHALF">Issuer on behalf of paymaster</SelectItem>
+                  <SelectItem value="ISSUER_ON_BEHALF">
+                    Issuer on behalf (requires approval in list)
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1795,11 +2222,17 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
               </label>
               <Input
                 id="admin-payment-reference"
+                className="rounded-xl"
                 value={reference}
                 onChange={(event) => setReference(event.target.value)}
                 placeholder="Bank transfer reference or receipt number"
               />
             </div>
+            {recordPaymentSource === "ISSUER_ON_BEHALF" ? (
+              <p className="text-xs text-muted-foreground">
+                Issuer receipts stay pending until you approve them in the receipt list.
+              </p>
+            ) : null}
           </div>
           <DialogFooter>
             <Button
@@ -1817,7 +2250,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
               onClick={handleConfirmRecordPayment}
               disabled={recordPayment.isPending}
             >
-              {recordPayment.isPending ? "Recording..." : "Confirm Record Payment"}
+              {recordPayment.isPending ? "Recording..." : "Record receipt"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1825,10 +2258,10 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
       <Dialog open={overdueFeeDialogOpen} onOpenChange={setOverdueFeeDialogOpen}>
         <DialogContent className="rounded-2xl sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Charge Overdue Fees?</DialogTitle>
+            <DialogTitle>Custom late fee amounts</DialogTitle>
             <DialogDescription className="text-[15px] leading-7">
-              Set the Ta&apos;widh and Gharamah amounts to include in the next settlement waterfall.
-              Amounts cannot exceed the remaining caps calculated from today&apos;s overdue check.
+              Adjust Ta&apos;widh and Gharamah within today&apos;s caps. Queued fees are saved when
+              you preview settlement below.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1996,7 +2429,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
               Cancel
             </Button>
             <Button type="button" className="rounded-xl" onClick={handleApplyOverdueFees}>
-              Apply to Settlement Preview
+              Queue fees
             </Button>
           </DialogFooter>
         </DialogContent>

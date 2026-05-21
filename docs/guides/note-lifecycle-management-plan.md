@@ -573,10 +573,10 @@ Proposed settlement waterfall:
 2. Or record issuer-on-behalf-of-paymaster receipt submitted through the issuer portal.
 3. Match receipt to note and payment schedule.
 4. Allocate investor principal repayment based on confirmed investment allocations.
-5. Calculate gross investor profit according to accepted note terms.
+5. Calculate gross investor profit from the annual profit rate, prorated from note activation/trustee disbursement completion through the scheduled maturity date. This contractual profit is locked even if repayment arrives early.
 6. Deduct customer-specific service fee from gross investor profit, capped at the configured note/customer rate and standard maximum of 15% of profit.
 7. Allocate investor net profit.
-8. Allocate late charges if applicable.
+8. Allocate late charges if applicable. Admin can allocate a percentage of total Ta'widh to investors according to their profit allocation; the remaining Ta'widh goes to the Ta'widh Account, and all Gharamah goes to the Gharamah Account.
 9. Allocate issuer residual payable for the unfunded portion.
 10. Post ledger entries.
 11. Mark settlement as approved and posted.
@@ -590,10 +590,12 @@ Formula baseline:
 - `issuer_on_behalf_receipt_amount = amount received from issuer on behalf of paymaster`
 - `repayment_receipt_amount = paymaster_receipt_amount + issuer_on_behalf_receipt_amount`
 - `investor_principal_due = funded_amount`
-- `investor_gross_profit_due = calculated from note terms`
+- `investor_gross_profit_due = funded_amount * annual_profit_rate * (days from activation to scheduled maturity / 365)`
 - `service_fee_due = investor_gross_profit_due * service_fee_rate`, capped at standard maximum of 15% of profit
 - `investor_net_profit_due = investor_gross_profit_due - service_fee_due`
 - `late_charge_due = ta'widh_amount + gharamah_amount`
+- `tawidh_investor_share = ta'widh_amount * admin_selected_share_percent`
+- `tawidh_account_amount = ta'widh_amount - tawidh_investor_share`
 - `issuer_residual_due = repayment_receipt_amount - investor_principal_due - investor_net_profit_due - service_fee_due - late_charge_due`
 
 The issuer residual should never be posted from a negative value. If the formula is negative, the note is underpaid and should remain in partial or exception state.
@@ -602,6 +604,8 @@ Fee timing:
 
 - Platform fee is applied once at disbursement and should not be deducted again during repayment settlement.
 - Service fee is applied when paymaster repayment is received, before investor profit is distributed.
+- Service fee applies only to contractual investor profit. It does not apply to any Ta'widh amount admin allocates to investors.
+- Early settlement does not reduce contractual investor profit. Late settlement does not extend contractual investor profit; approved late charges are added separately after the grace period.
 
 Investor split:
 
@@ -687,14 +691,10 @@ Recommended default:
 Admin controls:
 
 - Record early receipt.
-- Calculate settlement as of value date.
-- Recompute profit if early payment affects profit under the note terms.
-- Preview early-payment adjustment.
+- Calculate settlement against the locked contractual profit through scheduled maturity.
+- Keep investor profit unchanged even when the paymaster or issuer settles early.
+- Preview settlement with no early-payment rebate unless a future product override is approved.
 - Approve and post settlement.
-
-Open policy decision:
-
-- Confirm whether advance payment reduces expected profit, preserves original profit, or applies a product-specific rebate.
 
 ### Late Payment
 
@@ -708,6 +708,7 @@ Admin controls:
 - Split late charge into:
   - ta'widh compensation account,
   - gharamah charity account.
+- Optionally allocate a percentage of total ta'widh to investors at settlement; the balance remains in the Ta'widh Account.
 - Suggest configured default ta'widh and gharamah values at receipt time.
 - Allow admin to manually set ta'widh up to the configured 1% per annum cap.
 - Allow admin to manually set gharamah up to the configured 9% per annum cap.
@@ -986,9 +987,10 @@ Recommended model:
 - Ta'widh is compensation/recovery and can be tracked separately from platform fee income.
 - Gharamah is a charity-bound amount and must be tracked in a separate account.
 - Ta'widh and gharamah are both set manually by admin at the point repayment funds are received, subject to their configured caps.
-- Admin should see the split before approval.
+- Admin should see the split before approval, including any optional percentage of total Ta'widh allocated to investors.
 - Settlement should prevent posting if the late charge split is missing, unapproved, or out of balance.
 - Reports should separately export ta'widh and gharamah amounts.
+- Reports should also distinguish total Ta'widh charged, Ta'widh allocated to investors, and the remaining Ta'widh Account amount.
 - Late fees are paid by the issuer, not the paymaster.
 - The default grace period should be 7 days.
 - Ta'widh should be manually set and capped at 1% per annum.
@@ -1127,4 +1129,3 @@ The safest first slice is admin-visible note creation and review without investo
 5. Add read-only marketplace listing API from published notes.
 
 After that, add investment commitments, funding close, servicing, payment receipt, settlement, late payment, and issuer residual return workflows in separate slices.
-
