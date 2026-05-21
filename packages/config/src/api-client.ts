@@ -110,6 +110,8 @@ import type {
   UpdateNoteFeaturedInput,
   UpdateNoteDraftInput,
   WithdrawalInstruction,
+  ShorakaWithdrawalState,
+  ShorakaSubmitOrderStateResponse,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -2472,6 +2474,39 @@ export class ApiClient {
     return this.patch<WithdrawalInstruction>(`/v1/admin/withdrawals/${id}/beneficiary`, {
       beneficiarySnapshot,
     });
+  }
+
+  async getAdminWithdrawalShoraka(
+    id: string
+  ): Promise<ApiResponse<ShorakaWithdrawalState | null> | ApiError> {
+    return this.get<ShorakaWithdrawalState | null>(`/v1/admin/withdrawals/${id}/shoraka`);
+  }
+
+  async submitAdminWithdrawalShorakaSubmitOrder(
+    id: string
+  ): Promise<ApiResponse<ShorakaSubmitOrderStateResponse> | ApiError> {
+    return this.post<ShorakaSubmitOrderStateResponse>(
+      `/v1/admin/withdrawals/${id}/shoraka/submit-order`,
+      {}
+    );
+  }
+
+  async queryAdminWithdrawalShorakaStatus(
+    id: string
+  ): Promise<ApiResponse<ShorakaWithdrawalState> | ApiError> {
+    return this.post<ShorakaWithdrawalState>(
+      `/v1/admin/withdrawals/${id}/shoraka/query-status`,
+      {}
+    );
+  }
+
+  async fetchAdminWithdrawalShorakaCertificate(
+    id: string
+  ): Promise<ApiResponse<ShorakaWithdrawalState> | ApiError> {
+    return this.post<ShorakaWithdrawalState>(
+      `/v1/admin/withdrawals/${id}/shoraka/fetch-certificate`,
+      {}
+    );
   }
 
   // Invoice APIs removed.
