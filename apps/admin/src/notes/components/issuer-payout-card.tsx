@@ -91,6 +91,9 @@ const STATUS_COPY: Record<
 
 const ACTION_CARD_CLASS =
   "border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]";
+const SECTION_COMPLETE_CLASS = "border-emerald-200 bg-emerald-50/40";
+const SECTION_COMPLETE_HEADER_CLASS =
+  "mb-2 text-xs font-medium uppercase tracking-wider text-emerald-900";
 
 type IssuerPayoutKind = "DISBURSEMENT" | "RESIDUAL";
 
@@ -157,10 +160,12 @@ export function IssuerPayoutCard({
   const currentFields = snapshotToFields(withdrawal.beneficiarySnapshot);
   const beneficiaryComplete =
     currentFields.bank_name.trim() !== "" && currentFields.account_number.trim() !== "";
+  const payoutComplete = status === "COMPLETED";
   const actionAvailable =
-    status === "LETTER_GENERATED" ||
-    status === "SUBMITTED_TO_TRUSTEE" ||
-    (status === "DRAFT" && beneficiaryComplete);
+    !payoutComplete &&
+    (status === "LETTER_GENERATED" ||
+      status === "SUBMITTED_TO_TRUSTEE" ||
+      (status === "DRAFT" && beneficiaryComplete));
   const guardedAction = (run: () => void) => {
     if (servicingBlockedReason) {
       toast.info(servicingBlockedReason);
@@ -249,7 +254,23 @@ export function IssuerPayoutCard({
           : null;
 
   return (
-    <div className={cn("mt-4 rounded-xl border bg-card p-4", actionAvailable && ACTION_CARD_CLASS)}>
+    <div
+      className={cn(
+        "mt-4 rounded-xl border p-4",
+        payoutComplete
+          ? SECTION_COMPLETE_CLASS
+          : actionAvailable
+            ? ACTION_CARD_CLASS
+            : "bg-card"
+      )}
+    >
+      {payoutComplete ? (
+        <div className={SECTION_COMPLETE_HEADER_CLASS}>
+          {kind === "RESIDUAL"
+            ? "Issuer residual refund complete"
+            : "Issuer disbursement complete"}
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -271,13 +292,13 @@ export function IssuerPayoutCard({
               {statusCopy.label}
             </Badge>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
             {formatCurrency(withdrawal.amount)} — {kindCopy.description}
           </p>
         </div>
         <div className="text-right">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Amount</div>
-          <div className="text-xl font-semibold text-primary">
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Amount</div>
+          <div className="text-base font-semibold tabular-nums text-primary">
             {formatCurrency(withdrawal.amount)}
           </div>
         </div>
@@ -319,9 +340,9 @@ export function IssuerPayoutCard({
       ) : null}
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border bg-muted/20 p-3 text-xs">
+        <div className="rounded-lg border bg-muted/20 p-3">
           <div className="flex items-center justify-between">
-            <div className="font-medium uppercase tracking-wider text-muted-foreground">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               Beneficiary
             </div>
             {status === "DRAFT" ? (
@@ -335,7 +356,7 @@ export function IssuerPayoutCard({
               </button>
             ) : null}
           </div>
-          <div className="mt-2 space-y-1 text-foreground">
+          <div className="mt-2 space-y-0.5 text-[11px] leading-snug text-foreground">
             <div>
               <span className="text-muted-foreground">Bank: </span>
               {currentFields.bank_name || <span className="text-amber-700">missing</span>}
@@ -352,32 +373,34 @@ export function IssuerPayoutCard({
             ) : null}
           </div>
         </div>
-        <div className="rounded-lg border bg-muted/20 p-3 text-xs">
-          <div className="font-medium uppercase tracking-wider text-muted-foreground">Timeline</div>
-          <ul className="mt-2 space-y-1 text-foreground">
-            <li>
+        <div className="rounded-lg border bg-muted/20 p-3">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            Timeline
+          </div>
+          <div className="mt-2 space-y-0.5 text-[11px] leading-snug text-foreground">
+            <div>
               <span className="text-muted-foreground">Created: </span>
               {format(new Date(withdrawal.createdAt), "dd MMM yyyy, h:mm a")}
-            </li>
+            </div>
             {withdrawal.generatedAt ? (
-              <li>
+              <div>
                 <span className="text-muted-foreground">Letter generated: </span>
                 {format(new Date(withdrawal.generatedAt), "dd MMM yyyy, h:mm a")}
-              </li>
+              </div>
             ) : null}
             {withdrawal.submittedToTrusteeAt ? (
-              <li>
+              <div>
                 <span className="text-muted-foreground">Submitted to trustee: </span>
                 {format(new Date(withdrawal.submittedToTrusteeAt), "dd MMM yyyy, h:mm a")}
-              </li>
+              </div>
             ) : null}
             {withdrawal.completedAt ? (
-              <li>
+              <div>
                 <span className="text-muted-foreground">Completed: </span>
                 {format(new Date(withdrawal.completedAt), "dd MMM yyyy, h:mm a")}
-              </li>
+              </div>
             ) : null}
-          </ul>
+          </div>
         </div>
       </div>
 

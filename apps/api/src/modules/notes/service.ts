@@ -33,8 +33,6 @@ import {
 } from "../../lib/invoice-offer";
 import {
   buildInvestorPortfolioTotals,
-  buildSettlementInvestorAllocations,
-  computeExpectedPayoutAmount,
   computeMarketplaceCommitBounds,
   computeNetExpectedReturnRatePercent,
   INVESTOR_RETURN_RATE_DISPLAY_DECIMALS,
@@ -74,8 +72,11 @@ import {
 } from "../notification/note-lifecycle-notifications";
 import { noteInclude, noteRepository } from "./repository";
 import {
+  buildSettlementAllocations,
   calculateLateCharge as calculateLateChargeValues,
+  calculateCalendarDayCount,
   calculateSettlementWaterfall,
+  capLateFeeSuggestionsByHeadroom,
 } from "./calculators";
 import type {
   createInvestmentSchema,
@@ -233,6 +234,7 @@ type SettlementAllocation = {
   investorOrganizationId: string;
   principal: number;
   profitNet: number;
+  tawidhInvestorShare: number;
 };
 
 type NoteWithRelations = Prisma.NoteGetPayload<{ include: typeof noteInclude }>;
@@ -332,7 +334,9 @@ function resolvePortfolioDelta(tx: InvestorPortfolioHistoryTransaction) {
 
   if (tx.source === InvestorBalanceTransactionSource.NOTE_INVESTMENT_RELEASE) {
     const metadata = asRecord(tx.metadata);
-    return metadata?.releaseReason === "SETTLEMENT_PAYOUT" ? toNumber(metadata?.profitNet) : 0;
+    return metadata?.releaseReason === "SETTLEMENT_PAYOUT"
+      ? toNumber(metadata?.profitNet) + toNumber(metadata?.tawidhInvestorShare)
+      : 0;
   }
 
   return resolveSignedBalanceDelta(tx);
@@ -358,9 +362,71 @@ function resolveSettlementAllocations(snapshot: unknown): SettlementAllocation[]
         investorOrganizationId: allocation.investorOrganizationId,
         principal: toNumber(allocation.principal),
         profitNet: toNumber(allocation.profitNet),
+        tawidhInvestorShare: toNumber(allocation.tawidhInvestorShare),
       },
     ];
   });
+}
+
+function resolvePaymentSchedulesBySequence(note: {
+  payment_schedules?: Array<{ due_date: Date; sequence?: number | null }>;
+}) {
+  return [...(note.payment_schedules ?? [])].sort(
+    (left, right) => (left.sequence ?? 0) - (right.sequence ?? 0)
+  );
+}
+
+function resolveFirstPaymentDueDate(note: {
+  maturity_date?: Date | null;
+  payment_schedules?: Array<{ due_date: Date; sequence?: number | null }>;
+}) {
+  const schedules = resolvePaymentSchedulesBySequence(note);
+  return schedules[0]?.due_date ?? note.maturity_date ?? null;
+}
+
+function resolveProfitMaturityDate(note: {
+  maturity_date?: Date | null;
+  payment_schedules?: Array<{ due_date: Date; sequence?: number | null }>;
+}) {
+  const schedules = resolvePaymentSchedulesBySequence(note);
+  return note.maturity_date ?? schedules.at(-1)?.due_date ?? null;
+}
+
+function calculateProfitDays(startDate: Date | null, maturityDate: Date | null) {
+  if (!startDate || !maturityDate) return 0;
+  return calculateCalendarDayCount(startDate, maturityDate);
+}
+
+function resolveAvailableLateFeeHeadroomForNote(
+  note: {
+    activated_at?: Date | null;
+    funded_amount: Prisma.Decimal | number | string;
+    profit_rate_percent?: Prisma.Decimal | number | string | null;
+    service_fee_rate_percent: Prisma.Decimal | number | string;
+    maturity_date?: Date | null;
+    payment_schedules?: Array<{ due_date: Date; sequence?: number | null }>;
+    invoice_snapshot?: Prisma.JsonValue | null;
+    requested_amount?: Prisma.Decimal | number | string | null;
+  },
+  grossReceiptAmount?: number
+): number | null {
+  const settlementAmount = grossReceiptAmount ?? resolveNoteSettlementAmount(note);
+  if (settlementAmount <= 0 || !note.activated_at) return null;
+  const profitMaturityDate = resolveProfitMaturityDate(note);
+  if (!profitMaturityDate) return null;
+  const profitRatePercent = toNumber(note.profit_rate_percent);
+  if (profitRatePercent <= 0) return 0;
+
+  return calculateSettlementWaterfall({
+    grossReceiptAmount: settlementAmount,
+    fundedPrincipal: toNumber(note.funded_amount),
+    profitRatePercent,
+    profitStartDate: note.activated_at,
+    profitMaturityDate,
+    serviceFeeRatePercent: toNumber(note.service_fee_rate_percent),
+    tawidhAmount: 0,
+    gharamahAmount: 0,
+  }).availableLateFeeHeadroomAmount;
 }
 
 function buildInvestorRepaymentSummary(
@@ -370,7 +436,9 @@ function buildInvestorRepaymentSummary(
   const investorInvestments = note.investments.filter(
     (investment) =>
       investorOrganizationIds.has(investment.investor_organization_id) &&
-      investment.status !== NoteInvestmentStatus.CANCELLED
+      (investment.status === NoteInvestmentStatus.COMMITTED ||
+        investment.status === NoteInvestmentStatus.CONFIRMED ||
+        investment.status === NoteInvestmentStatus.SETTLED)
   );
 
   const investedPrincipal = investorInvestments.reduce(
@@ -387,20 +455,39 @@ function buildInvestorRepaymentSummary(
     netExpectedReturnRatePercent,
     INVESTOR_RETURN_RATE_DISPLAY_DECIMALS
   );
-  const expectedPayoutAmount = computeExpectedPayoutAmount(
-    investedPrincipal,
-    netExpectedReturnRatePercent
-  );
+  const profitMaturityDate = resolveProfitMaturityDate(note);
+  const expectedProfitDays =
+    note.activated_at && profitMaturityDate
+      ? calculateProfitDays(note.activated_at, profitMaturityDate)
+      : 365;
+  const expectedProfitGrossAmount =
+    investedPrincipal * (grossProfitRatePercent / 100) * (expectedProfitDays / 365);
+  const expectedServiceFeeAmount =
+    expectedProfitGrossAmount * (toNumber(note.service_fee_rate_percent) / 100);
+  const expectedProfitAmount = Math.max(0, expectedProfitGrossAmount - expectedServiceFeeAmount);
+  const expectedPayoutAmount = investedPrincipal + expectedProfitAmount;
 
-  const receivedPayoutAmount = note.settlements
+  const receivedAllocations = note.settlements
     .filter((settlement) => settlement.status === NoteSettlementStatus.POSTED)
     .flatMap((settlement) => resolveSettlementAllocations(settlement.preview_snapshot))
-    .filter((allocation) => investorOrganizationIds.has(allocation.investorOrganizationId))
-    .reduce((sum, allocation) => sum + allocation.principal + allocation.profitNet, 0);
+    .filter((allocation) => investorOrganizationIds.has(allocation.investorOrganizationId));
+  const receivedProfitNetAmount = receivedAllocations.reduce(
+    (sum, allocation) => sum + allocation.profitNet,
+    0
+  );
+  const receivedTawidhCompensationAmount = receivedAllocations.reduce(
+    (sum, allocation) => sum + allocation.tawidhInvestorShare,
+    0
+  );
+  const receivedPayoutAmount = receivedAllocations.reduce(
+    (sum, allocation) =>
+      sum + allocation.principal + allocation.profitNet + allocation.tawidhInvestorShare,
+    0
+  );
 
   const actualReturnRatePercent =
-    investedPrincipal > 0 && receivedPayoutAmount > 0
-      ? ((receivedPayoutAmount - investedPrincipal) / investedPrincipal) * 100
+    investedPrincipal > 0 && receivedProfitNetAmount > 0
+      ? (receivedProfitNetAmount / investedPrincipal) * 100
       : null;
   const progressPercent =
     expectedPayoutAmount > 0
@@ -410,7 +497,10 @@ function buildInvestorRepaymentSummary(
   return {
     investedPrincipal: roundNoteMoney(investedPrincipal, 2),
     expectedPayoutAmount: roundNoteMoney(expectedPayoutAmount, 2),
+    expectedProfitAmount: roundNoteMoney(expectedProfitAmount, 2),
     receivedPayoutAmount: roundNoteMoney(receivedPayoutAmount, 2),
+    receivedProfitNetAmount: roundNoteMoney(receivedProfitNetAmount, 2),
+    receivedTawidhCompensationAmount: roundNoteMoney(receivedTawidhCompensationAmount, 2),
     expectedReturnRatePercent,
     actualReturnRatePercent:
       actualReturnRatePercent == null ? null : roundNoteMoney(actualReturnRatePercent, 2),
@@ -480,8 +570,6 @@ function assertSettlementAmountComplete(settlement: {
 }) {
   const settlementAmount = resolveNoteSettlementAmount(settlement.note);
   const grossReceiptAmount = toNumber(settlement.gross_receipt_amount);
-  const requiredReceiptAmount =
-    settlementAmount + toNumber(settlement.tawidh_amount) + toNumber(settlement.gharamah_amount);
   if (settlementAmount > 0 && grossReceiptAmount + 0.005 < settlementAmount) {
     throw new AppError(
       422,
@@ -489,11 +577,36 @@ function assertSettlementAmountComplete(settlement: {
       "Settlement cannot be approved or posted until the full invoice settlement amount has been received"
     );
   }
-  if (requiredReceiptAmount > 0 && grossReceiptAmount > requiredReceiptAmount + 0.005) {
+  if (settlementAmount > 0 && grossReceiptAmount > settlementAmount + 0.005) {
     throw new AppError(
       422,
       "SETTLEMENT_RECEIPT_LIMIT_EXCEEDED",
-      "Settlement receipt cannot exceed the invoice settlement amount plus approved late fees"
+      "Settlement receipt cannot exceed the invoice settlement amount. Late fees are allocated from this receipt in the waterfall."
+    );
+  }
+}
+
+function assertSettlementWaterfallBalanced(settlement: {
+  gross_receipt_amount: Prisma.Decimal | number | string;
+  investor_principal: Prisma.Decimal | number | string;
+  investor_profit_gross: Prisma.Decimal | number | string;
+  tawidh_amount: Prisma.Decimal | number | string;
+  gharamah_amount: Prisma.Decimal | number | string;
+  issuer_residual_amount: Prisma.Decimal | number | string;
+}) {
+  const grossReceiptAmount = toNumber(settlement.gross_receipt_amount);
+  const allocatedAmount =
+    toNumber(settlement.investor_principal) +
+    toNumber(settlement.investor_profit_gross) +
+    toNumber(settlement.tawidh_amount) +
+    toNumber(settlement.gharamah_amount) +
+    toNumber(settlement.issuer_residual_amount);
+
+  if (allocatedAmount > grossReceiptAmount + 0.005) {
+    throw new AppError(
+      422,
+      "SETTLEMENT_WATERFALL_SHORTFALL",
+      "Settlement receipt is not enough to cover investor principal, contractual profit, and approved late charges"
     );
   }
 }
@@ -505,60 +618,26 @@ const OPEN_PAYMENT_STATUSES: NotePaymentStatus[] = [
   NotePaymentStatus.RECONCILED,
 ];
 
-function resolveActiveSettlementLateFeeAmount(note: {
-  settlements?: Array<{
-    status: NoteSettlementStatus;
-    tawidh_amount?: Prisma.Decimal | number | string | null;
-    gharamah_amount?: Prisma.Decimal | number | string | null;
-  }>;
+function resolveSettlementReceiptLimit(note: {
+  invoice_snapshot?: Prisma.JsonValue | null;
+  requested_amount?: Prisma.Decimal | number | string | null;
 }) {
-  const settlement = note.settlements?.find(
-    (item) =>
-      item.status === NoteSettlementStatus.POSTED ||
-      item.status === NoteSettlementStatus.APPROVED ||
-      item.status === NoteSettlementStatus.PREVIEW
-  );
-  if (!settlement) return 0;
-  return toNumber(settlement.tawidh_amount) + toNumber(settlement.gharamah_amount);
-}
-
-function resolveSettlementReceiptLimit(
-  note: {
-    invoice_snapshot?: Prisma.JsonValue | null;
-    requested_amount?: Prisma.Decimal | number | string | null;
-    settlements?: Array<{
-      status: NoteSettlementStatus;
-      tawidh_amount?: Prisma.Decimal | number | string | null;
-      gharamah_amount?: Prisma.Decimal | number | string | null;
-    }>;
-  },
-  pendingLateFeeAmount = 0
-) {
-  return (
-    resolveNoteSettlementAmount(note) +
-    Math.max(resolveActiveSettlementLateFeeAmount(note), pendingLateFeeAmount)
-  );
+  return resolveNoteSettlementAmount(note);
 }
 
 function assertReceiptAmountWithinSettlementLimit(
   note: {
     invoice_snapshot?: Prisma.JsonValue | null;
     requested_amount?: Prisma.Decimal | number | string | null;
-    settlements?: Array<{
-      status: NoteSettlementStatus;
-      tawidh_amount?: Prisma.Decimal | number | string | null;
-      gharamah_amount?: Prisma.Decimal | number | string | null;
-    }>;
   },
-  receiptAmount: number,
-  pendingLateFeeAmount = 0
+  receiptAmount: number
 ) {
-  const limit = resolveSettlementReceiptLimit(note, pendingLateFeeAmount);
+  const limit = resolveSettlementReceiptLimit(note);
   if (limit > 0 && receiptAmount > limit + 0.005) {
     throw new AppError(
       422,
       "SETTLEMENT_RECEIPT_LIMIT_EXCEEDED",
-      "Open receipts cannot exceed the invoice settlement amount plus late fees"
+      "Open receipts cannot exceed the invoice settlement amount. Late fees are taken from this receipt in the settlement waterfall."
     );
   }
 }
@@ -571,7 +650,7 @@ function resolvePendingReceiptLateFeeAmount(
     grace_period_days: number;
     tawidh_rate_cap_percent: Prisma.Decimal | number | string;
     gharamah_rate_cap_percent: Prisma.Decimal | number | string;
-    payment_schedules?: Array<{ due_date: Date }>;
+    payment_schedules?: Array<{ due_date: Date; sequence?: number | null }>;
     settlements?: Array<{
       status: NoteSettlementStatus;
       tawidh_amount?: Prisma.Decimal | number | string | null;
@@ -589,7 +668,7 @@ function resolvePendingReceiptLateFeeAmount(
   const pendingLateFeeAmount = pendingTawidhAmount + pendingGharamahAmount;
   if (pendingLateFeeAmount <= 0) return 0;
 
-  const dueDate = note.payment_schedules?.[0]?.due_date ?? note.maturity_date;
+  const dueDate = resolveFirstPaymentDueDate(note);
   if (!dueDate) {
     throw new AppError(
       422,
@@ -650,27 +729,19 @@ function resolvePendingReceiptLateFeeAmount(
   return pendingLateFeeAmount;
 }
 
-function assertOpenReceiptsWithinSettlementLimit(
-  note: {
-    invoice_snapshot?: Prisma.JsonValue | null;
-    requested_amount?: Prisma.Decimal | number | string | null;
-    payments?: Array<{
-      id?: string;
-      status: NotePaymentStatus;
-      receipt_amount: Prisma.Decimal | number | string;
-    }>;
-    settlements?: Array<{
-      status: NoteSettlementStatus;
-      tawidh_amount?: Prisma.Decimal | number | string | null;
-      gharamah_amount?: Prisma.Decimal | number | string | null;
-    }>;
-  },
-  pendingLateFeeAmount = 0
-) {
+function assertOpenReceiptsWithinSettlementLimit(note: {
+  invoice_snapshot?: Prisma.JsonValue | null;
+  requested_amount?: Prisma.Decimal | number | string | null;
+  payments?: Array<{
+    id?: string;
+    status: NotePaymentStatus;
+    receipt_amount: Prisma.Decimal | number | string;
+  }>;
+}) {
   const openReceiptAmount = (note.payments ?? [])
     .filter((payment) => OPEN_PAYMENT_STATUSES.includes(payment.status))
     .reduce((sum, payment) => sum + toNumber(payment.receipt_amount), 0);
-  assertReceiptAmountWithinSettlementLimit(note, openReceiptAmount, pendingLateFeeAmount);
+  assertReceiptAmountWithinSettlementLimit(note, openReceiptAmount);
 }
 
 function assertNoPendingPaymentsForSettlement(note: {
@@ -773,10 +844,110 @@ function dateFrom(value: string | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function daysBetweenCalendarDates(from: Date, to: Date) {
-  const fromStart = new Date(from.getFullYear(), from.getMonth(), from.getDate());
-  const toStart = new Date(to.getFullYear(), to.getMonth(), to.getDate());
-  return Math.floor((toStart.getTime() - fromStart.getTime()) / 86_400_000);
+function resolveConfirmedSettlementInvestments(
+  investments: Array<{
+    id: string;
+    status: NoteInvestmentStatus;
+    amount: Prisma.Decimal | number | string;
+    investor_organization_id: string;
+  }>
+) {
+  return investments.filter((investment) => investment.status === NoteInvestmentStatus.CONFIRMED);
+}
+
+function assertConfirmedInvestmentPrincipalMatchesWaterfall(
+  eligiblePrincipal: number,
+  investorPrincipal: number
+) {
+  if (eligiblePrincipal + 0.005 < investorPrincipal) {
+    throw new AppError(
+      422,
+      "SETTLEMENT_INVESTMENT_PRINCIPAL_MISMATCH",
+      "Confirmed investment principal is less than the settlement investor principal"
+    );
+  }
+}
+
+function buildAllocationsForSettlementRecord(
+  settlement: {
+    investor_principal: Prisma.Decimal | number | string;
+    investor_profit_net: Prisma.Decimal | number | string;
+    tawidh_investor_amount: Prisma.Decimal | number | string;
+  },
+  confirmedInvestments: Array<{
+    id: string;
+    investor_organization_id: string;
+    amount: Prisma.Decimal | number | string;
+  }>
+) {
+  return buildSettlementAllocations({
+    investments: confirmedInvestments.map((investment) => ({
+      id: investment.id,
+      investorOrganizationId: investment.investor_organization_id,
+      amount: toNumber(investment.amount),
+    })),
+    investorPrincipal: toNumber(settlement.investor_principal),
+    investorProfitNet: toNumber(settlement.investor_profit_net),
+    tawidhInvestorAmount: toNumber(settlement.tawidh_investor_amount),
+  });
+}
+
+function assertSettlementAllocationsFundable(
+  settlement: {
+    investor_principal: Prisma.Decimal | number | string;
+    investor_profit_net: Prisma.Decimal | number | string;
+    tawidh_investor_amount: Prisma.Decimal | number | string;
+  },
+  confirmedInvestments: Array<{
+    id: string;
+    investor_organization_id: string;
+    amount: Prisma.Decimal | number | string;
+  }>
+) {
+  const investorPrincipal = toNumber(settlement.investor_principal);
+  const investorProfitNet = toNumber(settlement.investor_profit_net);
+  const tawidhInvestorAmount = toNumber(settlement.tawidh_investor_amount);
+  const expectedInvestorPool = investorPrincipal + investorProfitNet + tawidhInvestorAmount;
+
+  if (investorPrincipal > 0.005 && confirmedInvestments.length === 0) {
+    throw new AppError(
+      422,
+      "SETTLEMENT_NO_CONFIRMED_INVESTMENTS",
+      "Settlement cannot be approved or posted until confirmed investments exist for this note"
+    );
+  }
+
+  const eligiblePrincipal = confirmedInvestments.reduce(
+    (sum, investment) => sum + toNumber(investment.amount),
+    0
+  );
+  assertConfirmedInvestmentPrincipalMatchesWaterfall(eligiblePrincipal, investorPrincipal);
+
+  const allocations = buildAllocationsForSettlementRecord(settlement, confirmedInvestments);
+  const allocatedInvestorPool = allocations.reduce(
+    (sum, allocation) =>
+      sum + allocation.principal + allocation.profitNet + allocation.tawidhInvestorShare,
+    0
+  );
+
+  if (Math.abs(allocatedInvestorPool - expectedInvestorPool) > 0.05) {
+    throw new AppError(
+      422,
+      "SETTLEMENT_ALLOCATION_MISMATCH",
+      "Investor allocations do not match the settlement pool. Void and re-preview settlement after funding is confirmed."
+    );
+  }
+}
+
+function mergeAllocationsIntoPreviewSnapshot(
+  snapshot: Prisma.JsonValue | null | undefined,
+  allocations: ReturnType<typeof buildSettlementAllocations>
+) {
+  const base =
+    snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)
+      ? { ...(snapshot as Record<string, unknown>) }
+      : {};
+  return { ...base, allocations };
 }
 
 async function renderPdfBuffer(title: string, rows: Array<[string, string]>): Promise<Buffer> {
@@ -915,7 +1086,11 @@ export class NoteService {
   async resignSourceInvoiceOffer(
     noteId: string,
     adminUserId: string,
-    logContext?: { ipAddress?: string | null; userAgent?: string | null; deviceInfo?: string | null }
+    logContext?: {
+      ipAddress?: string | null;
+      userAgent?: string | null;
+      deviceInfo?: string | null;
+    }
   ) {
     return adminResignInvoiceOfferFromNote({ noteId, adminUserId, logContext });
   }
@@ -1634,9 +1809,7 @@ export class NoteService {
                 : undefined,
             platform_fee_rate_percent: money(resolveOfferedPlatformFeeRatePercent(invoiceOffer)),
             service_fee_rate_percent: money(
-              product?.service_fee_rate_percent
-                ? product.service_fee_rate_percent.toNumber()
-                : 15
+              product?.service_fee_rate_percent ? product.service_fee_rate_percent.toNumber() : 15
             ),
             maturity_date:
               typeof invoiceDetails.maturity_date === "string"
@@ -1878,7 +2051,8 @@ export class NoteService {
     }
     const now = new Date();
     const noteProductSnapshot = asRecord(note.product_snapshot);
-    const productId = typeof noteProductSnapshot?.product_id === "string" ? noteProductSnapshot.product_id : null;
+    const productId =
+      typeof noteProductSnapshot?.product_id === "string" ? noteProductSnapshot.product_id : null;
 
     const fallbackDurationDays = DEFAULT_LISTING_DURATION_DAYS;
     let durationDays = fallbackDurationDays;
@@ -2210,7 +2384,8 @@ export class NoteService {
       const result = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
       // Lock and compute facility-fee progress (contract financing only).
       const noteSourceContractId = result.source_contract_id;
-      const isContractFinancing = typeof noteSourceContractId === "string" && noteSourceContractId.length > 0;
+      const isContractFinancing =
+        typeof noteSourceContractId === "string" && noteSourceContractId.length > 0;
 
       let contractDetailsRecord: Record<string, unknown> | null = null;
       let facilityFeeCharged = 0;
@@ -2233,7 +2408,8 @@ export class NoteService {
         const approvedFacilityAmount = Number(cd.approved_facility) || 0;
         const facilityFeeRatePercentRaw = cd.facility_fee_rate_percent;
         facilityFeeRatePercent =
-          typeof facilityFeeRatePercentRaw === "number" && Number.isFinite(facilityFeeRatePercentRaw)
+          typeof facilityFeeRatePercentRaw === "number" &&
+          Number.isFinite(facilityFeeRatePercentRaw)
             ? facilityFeeRatePercentRaw
             : 0;
         facilityFeePaidBefore = Number(cd.facility_fee_paid_amount) || 0;
@@ -2319,7 +2495,6 @@ export class NoteService {
             platformFee,
             facilityFeeCharged,
           });
-
         }
       }
 
@@ -2884,23 +3059,7 @@ export class NoteService {
     const openReceiptAmount = note.payments
       .filter((payment) => OPEN_PAYMENT_STATUSES.includes(payment.status))
       .reduce((sum, payment) => sum + toNumber(payment.receipt_amount), 0);
-    if (actor.portal === "ISSUER") {
-      const issuerPendingFees =
-        (input.pendingTawidhAmount ?? 0) + (input.pendingGharamahAmount ?? 0);
-      if (issuerPendingFees > 0.005) {
-        throw new AppError(
-          422,
-          "ISSUER_PENDING_FEES_NOT_ALLOWED",
-          "Late fee allowances on a receipt can only be set by an administrator"
-        );
-      }
-    }
-    const pendingLateFeeAmount = resolvePendingReceiptLateFeeAmount(note, input);
-    assertReceiptAmountWithinSettlementLimit(
-      note,
-      openReceiptAmount + input.receiptAmount,
-      pendingLateFeeAmount
-    );
+    assertReceiptAmountWithinSettlementLimit(note, openReceiptAmount + input.receiptAmount);
     const requiresAdminReview = input.source === "ISSUER_ON_BEHALF" && actor.portal === "ISSUER";
     const paymentPurpose = resolveIssuerPaymentPurpose(input);
     if (requiresAdminReview) {
@@ -3077,11 +3236,16 @@ export class NoteService {
     const grossReceipt = input.receiptAmount ?? aggregateReceiptAmount;
     if (grossReceipt <= 0)
       throw new AppError(422, "SETTLEMENT_RECEIPT_REQUIRED", "Receipt amount is required");
-    assertReceiptAmountWithinSettlementLimit(
-      note,
-      grossReceipt,
-      (input.tawidhAmount ?? 0) + (input.gharamahAmount ?? 0)
-    );
+    assertReceiptAmountWithinSettlementLimit(note, grossReceipt);
+    const previewTawidhAmount = input.tawidhAmount ?? 0;
+    const previewGharamahAmount = input.gharamahAmount ?? 0;
+    if (previewTawidhAmount + previewGharamahAmount > 0.005) {
+      resolvePendingReceiptLateFeeAmount(note, {
+        receiptDate: input.receiptDate ?? new Date().toISOString(),
+        pendingTawidhAmount: previewTawidhAmount,
+        pendingGharamahAmount: previewGharamahAmount,
+      });
+    }
     const includedPaymentIds = eligiblePayments.map((payment) => payment.id);
     const linkedPaymentId =
       input.paymentId && eligiblePayments.some((payment) => payment.id === input.paymentId)
@@ -3090,53 +3254,119 @@ export class NoteService {
           ? eligiblePayments[0].id
           : null;
 
+    if (!note.activated_at) {
+      throw new AppError(
+        409,
+        "NOTE_ACTIVATION_DATE_REQUIRED",
+        "Settlement profit cannot be calculated before the issuer disbursement has been completed"
+      );
+    }
+    const profitMaturityDate = resolveProfitMaturityDate(note);
+    if (!profitMaturityDate) {
+      throw new AppError(
+        422,
+        "NOTE_MATURITY_DATE_REQUIRED",
+        "Settlement profit cannot be calculated before the note maturity date is set"
+      );
+    }
+    const profitRatePercent = toNumber(note.profit_rate_percent);
+    if (profitRatePercent <= 0) {
+      throw new AppError(
+        422,
+        "NOTE_PROFIT_RATE_REQUIRED",
+        "Settlement profit cannot be calculated before a positive note profit rate is set"
+      );
+    }
+
     const waterfall = calculateSettlementWaterfall({
       grossReceiptAmount: grossReceipt,
       fundedPrincipal: toNumber(note.funded_amount),
-      profitRatePercent: toNumber(note.profit_rate_percent),
+      profitRatePercent,
+      profitStartDate: note.activated_at,
+      profitMaturityDate,
       serviceFeeRatePercent: toNumber(note.service_fee_rate_percent),
-      tawidhAmount: input.tawidhAmount ?? 0,
-      gharamahAmount: input.gharamahAmount ?? 0,
+      tawidhAmount: previewTawidhAmount,
+      tawidhInvestorSharePercent: input.tawidhInvestorSharePercent ?? 0,
+      gharamahAmount: previewGharamahAmount,
+    });
+    if (
+      previewTawidhAmount + previewGharamahAmount >
+      waterfall.availableLateFeeHeadroomAmount + 0.005
+    ) {
+      throw new AppError(
+        422,
+        "SETTLEMENT_LATE_FEE_HEADROOM_EXCEEDED",
+        "Late fees exceed the repayment headroom available after investor principal and contractual profit"
+      );
+    }
+    if (waterfall.settlementShortfallAmount > 0.005) {
+      throw new AppError(
+        422,
+        "SETTLEMENT_WATERFALL_SHORTFALL",
+        "Settlement receipt is not enough to cover investor principal, contractual profit, and approved late charges"
+      );
+    }
+
+    const confirmedInvestments = resolveConfirmedSettlementInvestments(note.investments);
+    const eligiblePrincipal = confirmedInvestments.reduce(
+      (sum, investment) => sum + toNumber(investment.amount),
+      0
+    );
+    assertConfirmedInvestmentPrincipalMatchesWaterfall(
+      eligiblePrincipal,
+      waterfall.investorPrincipal
+    );
+    const allocations = buildSettlementAllocations({
+      investments: confirmedInvestments.map((investment) => ({
+        id: investment.id,
+        investorOrganizationId: investment.investor_organization_id,
+        amount: toNumber(investment.amount),
+      })),
+      investorPrincipal: waterfall.investorPrincipal,
+      investorProfitNet: waterfall.investorProfitNet,
+      tawidhInvestorAmount: waterfall.tawidhInvestorAmount,
     });
 
     const snapshot = {
       ...waterfall,
+      profitStartDate: waterfall.profitStartDate.toISOString(),
+      profitMaturityDate: waterfall.profitMaturityDate.toISOString(),
       includedPaymentIds,
-      allocations: buildSettlementInvestorAllocations({
-        investments: note.investments.map((investment) => ({
-          investmentId: investment.id,
-          investorOrganizationId: investment.investor_organization_id,
-          amount: toNumber(investment.amount),
-        })),
-        investorPrincipal: waterfall.investorPrincipal,
-        investorProfitNet: waterfall.investorProfitNet,
-      }).map(({ investmentId, investorOrganizationId, principal, profitNet }) => ({
-        investmentId,
-        investorOrganizationId,
-        principal,
-        profitNet,
-      })),
+      allocations,
     };
 
-    const settlement = await prisma.noteSettlement.create({
-      data: {
-        note_id: id,
-        payment_id: linkedPaymentId,
-        gross_receipt_amount: money(grossReceipt),
-        investor_principal: money(waterfall.investorPrincipal),
-        investor_profit_gross: money(waterfall.investorProfitGross),
-        service_fee_amount: money(waterfall.serviceFeeAmount),
-        investor_profit_net: money(waterfall.investorProfitNet),
-        tawidh_amount: money(waterfall.tawidhAmount),
-        gharamah_amount: money(waterfall.gharamahAmount),
-        issuer_residual_amount: money(waterfall.issuerResidualAmount),
-        unapplied_amount: money(waterfall.unappliedAmount),
-        settlement_type:
-          waterfall.tawidhAmount > 0 || waterfall.gharamahAmount > 0
-            ? NoteSettlementType.LATE
-            : NoteSettlementType.STANDARD,
-        preview_snapshot: snapshot,
-      },
+    const settlement = await prisma.$transaction(async (tx) => {
+      await tx.noteSettlement.updateMany({
+        where: { note_id: id, status: NoteSettlementStatus.PREVIEW },
+        data: { status: NoteSettlementStatus.VOID },
+      });
+      return tx.noteSettlement.create({
+        data: {
+          note_id: id,
+          payment_id: linkedPaymentId,
+          gross_receipt_amount: money(grossReceipt),
+          investor_principal: money(waterfall.investorPrincipal),
+          profit_start_date: waterfall.profitStartDate,
+          profit_maturity_date: waterfall.profitMaturityDate,
+          profit_days: waterfall.profitDays,
+          annual_profit_rate_percent: money(waterfall.annualProfitRatePercent),
+          investor_profit_gross: money(waterfall.investorProfitGross),
+          service_fee_amount: money(waterfall.serviceFeeAmount),
+          investor_profit_net: money(waterfall.investorProfitNet),
+          tawidh_amount: money(waterfall.tawidhAmount),
+          tawidh_investor_share_percent: money(waterfall.tawidhInvestorSharePercent),
+          tawidh_investor_amount: money(waterfall.tawidhInvestorAmount),
+          tawidh_account_amount: money(waterfall.tawidhAccountAmount),
+          gharamah_amount: money(waterfall.gharamahAmount),
+          issuer_residual_amount: money(waterfall.issuerResidualAmount),
+          unapplied_amount: money(waterfall.unappliedAmount),
+          settlement_type:
+            waterfall.tawidhAmount > 0 || waterfall.gharamahAmount > 0
+              ? NoteSettlementType.LATE
+              : NoteSettlementType.STANDARD,
+          preview_snapshot: snapshot,
+        },
+      });
     });
     await prisma.noteEvent.create({
       data: {
@@ -3174,17 +3404,29 @@ export class NoteService {
     }
     assertNoteReadyForServicing(settlement.note);
     assertNoPendingPaymentsForSettlement(settlement.note);
-    assertOpenReceiptsWithinSettlementLimit(
-      settlement.note,
-      toNumber(settlement.tawidh_amount) + toNumber(settlement.gharamah_amount)
-    );
+    assertOpenReceiptsWithinSettlementLimit(settlement.note);
     if (settlement.status !== NoteSettlementStatus.PREVIEW) {
       throw new AppError(409, "SETTLEMENT_NOT_PREVIEW", "Only preview settlements can be approved");
     }
     assertSettlementAmountComplete(settlement);
+    assertSettlementWaterfallBalanced(settlement);
     await assertRepaymentReceiptLedgerComplete(
       settlement.note_id,
       toNumber(settlement.gross_receipt_amount)
+    );
+
+    const confirmedForApproval = await prisma.noteInvestment.findMany({
+      where: { note_id: id, status: NoteInvestmentStatus.CONFIRMED },
+      select: { id: true, investor_organization_id: true, amount: true },
+    });
+    assertSettlementAllocationsFundable(settlement, confirmedForApproval);
+    const approvalAllocations = buildAllocationsForSettlementRecord(
+      settlement,
+      confirmedForApproval
+    );
+    const approvalSnapshot = mergeAllocationsIntoPreviewSnapshot(
+      settlement.preview_snapshot,
+      approvalAllocations
     );
 
     await prisma.noteSettlement.update({
@@ -3193,6 +3435,7 @@ export class NoteService {
         status: NoteSettlementStatus.APPROVED,
         approved_by_user_id: actor.userId,
         approved_at: new Date(),
+        preview_snapshot: json(approvalSnapshot),
       },
     });
     await this.logEvent(prisma, id, "SETTLEMENT_APPROVED", actor, { settlementId });
@@ -3221,10 +3464,7 @@ export class NoteService {
     }
     assertNoteReadyForServicing(settlement.note);
     assertNoPendingPaymentsForSettlement(settlement.note);
-    assertOpenReceiptsWithinSettlementLimit(
-      settlement.note,
-      toNumber(settlement.tawidh_amount) + toNumber(settlement.gharamah_amount)
-    );
+    assertOpenReceiptsWithinSettlementLimit(settlement.note);
     if (settlement.status !== NoteSettlementStatus.APPROVED) {
       throw new AppError(
         409,
@@ -3233,6 +3473,7 @@ export class NoteService {
       );
     }
     assertSettlementAmountComplete(settlement);
+    assertSettlementWaterfallBalanced(settlement);
     await assertRepaymentReceiptLedgerComplete(
       settlement.note_id,
       toNumber(settlement.gross_receipt_amount)
@@ -3255,7 +3496,20 @@ export class NoteService {
     const repaidInvestorOrgIds = repaidInvestorSnapshot.map((row) => row.investor_organization_id);
 
     await prisma.$transaction(async (tx) => {
-      const settlementAllocations = resolveSettlementAllocations(settlement.preview_snapshot);
+      const confirmedForPost = await tx.noteInvestment.findMany({
+        where: { note_id: id, status: NoteInvestmentStatus.CONFIRMED },
+        select: { id: true, investor_organization_id: true, amount: true },
+      });
+      assertSettlementAllocationsFundable(settlement, confirmedForPost);
+      const settlementAllocations = buildAllocationsForSettlementRecord(
+        settlement,
+        confirmedForPost
+      );
+      const postedSnapshot = mergeAllocationsIntoPreviewSnapshot(
+        settlement.preview_snapshot,
+        settlementAllocations
+      );
+
       await this.postSettlementLedger(tx, settlement, actor);
       await tx.noteSettlement.update({
         where: { id: settlementId },
@@ -3263,13 +3517,15 @@ export class NoteService {
           status: NoteSettlementStatus.POSTED,
           posted_at: new Date(),
           idempotency_key: `settlement:${settlementId}`,
+          preview_snapshot: json(postedSnapshot),
           ...(toNumber(settlement.service_fee_amount) > 0.005
             ? { service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.PENDING_LETTER }
             : {}),
         },
       });
       for (const allocation of settlementAllocations) {
-        const releasedAmount = allocation.principal + allocation.profitNet;
+        const releasedAmount =
+          allocation.principal + allocation.profitNet + allocation.tawidhInvestorShare;
         if (releasedAmount <= 0) continue;
         await creditInvestorBalance(tx, {
           investorOrganizationId: allocation.investorOrganizationId,
@@ -3283,6 +3539,7 @@ export class NoteService {
             settlementId,
             principal: allocation.principal,
             profitNet: allocation.profitNet,
+            tawidhInvestorShare: allocation.tawidhInvestorShare,
           },
         });
       }
@@ -3399,10 +3656,10 @@ export class NoteService {
     assertNoteReadyForServicing(note);
     assertNoPostedSettlement(note);
 
-    const schedule = note.payment_schedules[0] ?? null;
-    const dueDate = schedule?.due_date ?? note.maturity_date;
+    const dueDate = resolveFirstPaymentDueDate(note);
     const checkDate = input.receiptDate ? new Date(input.receiptDate) : new Date();
-    const receiptAmount = input.receiptAmount ?? resolveNoteSettlementAmount(note);
+    const invoiceSettlementAmount = resolveNoteSettlementAmount(note);
+    const receiptAmount = input.receiptAmount ?? invoiceSettlementAmount;
 
     if (!dueDate) {
       return {
@@ -3418,6 +3675,7 @@ export class NoteService {
         appliedGharamahAmount: 0,
         remainingTawidhAmount: 0,
         remainingGharamahAmount: 0,
+        availableLateFeeHeadroomAmount: null,
         suggestedTawidhAmount: 0,
         suggestedGharamahAmount: 0,
         message: "No due date is available for this note.",
@@ -3425,7 +3683,7 @@ export class NoteService {
     }
 
     const total = calculateLateChargeValues({
-      receiptAmount,
+      receiptAmount: invoiceSettlementAmount,
       dueDate,
       receiptDate: checkDate,
       gracePeriodDays: note.grace_period_days,
@@ -3449,6 +3707,22 @@ export class NoteService {
     const remainingTawidhAmount = Math.max(0, total.tawidhCap - appliedTawidhAmount);
     const remainingGharamahAmount = Math.max(0, total.gharamahCap - appliedGharamahAmount);
     const overdue = total.daysLate > 0;
+    const availableLateFeeHeadroomAmount = resolveAvailableLateFeeHeadroomForNote(
+      note,
+      invoiceSettlementAmount
+    );
+    const cappedSuggestions = capLateFeeSuggestionsByHeadroom({
+      remainingTawidhAmount: overdue ? remainingTawidhAmount : 0,
+      remainingGharamahAmount: overdue ? remainingGharamahAmount : 0,
+      availableLateFeeHeadroomAmount,
+    });
+    const suggestedTawidhAmount = overdue ? cappedSuggestions.suggestedTawidhAmount : 0;
+    const suggestedGharamahAmount = overdue ? cappedSuggestions.suggestedGharamahAmount : 0;
+    const headroomLimitedSuggestions =
+      overdue &&
+      availableLateFeeHeadroomAmount != null &&
+      suggestedTawidhAmount + suggestedGharamahAmount + 0.005 <
+        remainingTawidhAmount + remainingGharamahAmount;
 
     return {
       overdue,
@@ -3463,13 +3737,18 @@ export class NoteService {
       appliedGharamahAmount,
       remainingTawidhAmount,
       remainingGharamahAmount,
-      suggestedTawidhAmount: overdue ? remainingTawidhAmount : 0,
-      suggestedGharamahAmount: overdue ? remainingGharamahAmount : 0,
+      availableLateFeeHeadroomAmount,
+      suggestedTawidhAmount,
+      suggestedGharamahAmount,
       message: !overdue
         ? "Payment is not overdue after the grace period."
         : remainingTawidhAmount <= 0 && remainingGharamahAmount <= 0
           ? "This payment is overdue, but all allowable late fees have already been applied."
-          : "Payment is overdue. Suggested late fees exclude previously approved or posted late fees.",
+          : availableLateFeeHeadroomAmount != null && availableLateFeeHeadroomAmount <= 0.005
+            ? "This payment is overdue, but no late fees can be charged because the invoice settlement pool has no headroom after investor principal and contractual profit."
+            : headroomLimitedSuggestions
+              ? "Payment is overdue. Suggested late fees are capped by settlement headroom after investor principal and contractual profit."
+              : "Payment is overdue. Suggested late fees exclude previously approved or posted late fees.",
     };
   }
 
@@ -3485,7 +3764,7 @@ export class NoteService {
       if (note) {
         const dueDate = new Date(result.dueDate);
         const checkDate = new Date(result.checkDate);
-        const daysPastDue = Math.max(0, daysBetweenCalendarDates(dueDate, checkDate));
+        const daysPastDue = Math.max(0, calculateCalendarDayCount(dueDate, checkDate));
         const daysAfterGrace = Math.max(0, daysPastDue - note.grace_period_days);
         const isArrears = daysAfterGrace >= note.arrears_threshold_days;
         const nextServicingStatus = isArrears
@@ -3721,7 +4000,10 @@ export class NoteService {
     if (toNumber(settlement.service_fee_amount) <= 0.005) {
       throw new AppError(409, "NO_SERVICE_FEE", "This settlement has no service fee instruction.");
     }
-    if (settlement.service_fee_trustee_status !== ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE) {
+    if (
+      settlement.service_fee_trustee_status !==
+      ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE
+    ) {
       throw new AppError(
         409,
         "SERVICE_FEE_TRUSTEE_NOT_SUBMITTED",
@@ -3824,7 +4106,9 @@ export class NoteService {
         gharamah_rate_cap_percent:
           input.gharamahRateCapPercent != null ? money(input.gharamahRateCapPercent) : undefined,
         platform_fee_rate_cap_percent:
-          input.platformFeeRateCapPercent != null ? money(input.platformFeeRateCapPercent) : undefined,
+          input.platformFeeRateCapPercent != null
+            ? money(input.platformFeeRateCapPercent)
+            : undefined,
         default_tawidh_rate_percent:
           input.defaultTawidhRatePercent != null
             ? money(input.defaultTawidhRatePercent)
@@ -3846,7 +4130,9 @@ export class NoteService {
         gharamah_rate_cap_percent:
           input.gharamahRateCapPercent != null ? money(input.gharamahRateCapPercent) : undefined,
         platform_fee_rate_cap_percent:
-          input.platformFeeRateCapPercent != null ? money(input.platformFeeRateCapPercent) : undefined,
+          input.platformFeeRateCapPercent != null
+            ? money(input.platformFeeRateCapPercent)
+            : undefined,
         default_tawidh_rate_percent:
           input.defaultTawidhRatePercent != null
             ? money(input.defaultTawidhRatePercent)
@@ -4308,11 +4594,9 @@ export class NoteService {
     const issuerPayableId = await this.getLedgerAccountId(tx, "ISSUER_PAYABLE");
     const fundedAmount = params?.fundedAmount ?? toNumber(note.funded_amount);
     const platformFee =
-      params?.platformFee ??
-      fundedAmount * (toNumber(note.platform_fee_rate_percent) / 100);
+      params?.platformFee ?? fundedAmount * (toNumber(note.platform_fee_rate_percent) / 100);
     const facilityFeeCharged = params?.facilityFeeCharged ?? 0;
-    const netDisbursement =
-      params?.netDisbursement ?? Math.max(0, fundedAmount - platformFee);
+    const netDisbursement = params?.netDisbursement ?? Math.max(0, fundedAmount - platformFee);
     const entries = [
       {
         account_id: investorPoolId,
@@ -4373,7 +4657,7 @@ export class NoteService {
 
     await tx.noteLedgerEntry.upsert({
       where: { idempotency_key: `payment:${payment.id}:receipt` },
-      update: {},
+      update: { amount: money(amount) },
       create: {
         note_id: payment.note_id,
         account_id: repaymentPoolId,
@@ -4417,6 +4701,12 @@ export class NoteService {
     );
     const grossReceiptValue = toNumber(settlement.gross_receipt_amount);
     const receiptShortfall = Math.max(0, grossReceiptValue - existingReceiptTotal);
+    const receiptExcess = Math.max(0, existingReceiptTotal - grossReceiptValue);
+    const tawidhAmount = toNumber(settlement.tawidh_amount);
+    const tawidhInvestorAmount = toNumber(settlement.tawidh_investor_amount);
+    const tawidhAccountAmount =
+      toNumber(settlement.tawidh_account_amount) ||
+      Math.max(0, tawidhAmount - tawidhInvestorAmount);
     const entries: Array<
       [string, string, NoteLedgerDirection, Prisma.Decimal | number | string, string]
     > = [];
@@ -4427,6 +4717,15 @@ export class NoteService {
         NoteLedgerDirection.CREDIT,
         money(receiptShortfall),
         "Repayment receipt shortfall",
+      ]);
+    }
+    if (receiptExcess > 0.005) {
+      entries.push([
+        "repayment-receipt-excess-adjustment",
+        repaymentPoolId,
+        NoteLedgerDirection.DEBIT,
+        money(receiptExcess),
+        "Repayment pool excess corrected before settlement",
       ]);
     }
     entries.push(
@@ -4456,7 +4755,7 @@ export class NoteService {
         repaymentPoolId,
         NoteLedgerDirection.DEBIT,
         settlement.tawidh_amount,
-        "Ta'widh paid from repayment pool",
+        "Total Ta'widh paid from repayment pool",
       ],
       [
         "repayment-to-gharamah",
@@ -4487,6 +4786,13 @@ export class NoteService {
         "Investor net profit returned",
       ],
       [
+        "investor-tawidh",
+        investorPoolId,
+        NoteLedgerDirection.CREDIT,
+        money(tawidhInvestorAmount),
+        "Investor Ta'widh compensation returned",
+      ],
+      [
         "service-fee",
         operatingId,
         NoteLedgerDirection.CREDIT,
@@ -4497,8 +4803,8 @@ export class NoteService {
         "tawidh",
         tawidhId,
         NoteLedgerDirection.CREDIT,
-        settlement.tawidh_amount,
-        "Ta'widh late charge",
+        money(tawidhAccountAmount),
+        "Ta'widh late charge retained in Ta'widh account",
       ],
       [
         "gharamah",

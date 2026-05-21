@@ -32,6 +32,7 @@ function formatEventLabel(eventType: string) {
     SETTLEMENT_APPROVED: "Settlement approved",
     SETTLEMENT_POSTED: "Settlement posted",
     LATE_CHARGE_APPROVED: "Late charge approved",
+    OVERDUE_LATE_CHARGE_CHECKED: "Overdue late charge checked",
     ARREARS_LETTER_GENERATED: "Arrears letter generated",
     DEFAULT_LETTER_GENERATED: "Default letter generated",
     SERVICE_FEE_TRUSTEE_LETTER_GENERATED: "Service fee trustee letter generated",
@@ -83,17 +84,50 @@ function formatMetadataValue(value: unknown) {
   return null;
 }
 
+const PROSE_METADATA_KEYS = new Set(["message", "reason", "description", "remark", "note"]);
+const COMPACT_METADATA_LIMIT = 8;
+const PROSE_VALUE_MIN_LENGTH = 48;
+
+function isProseMetadataField(key: string, value: string) {
+  if (PROSE_METADATA_KEYS.has(key.toLowerCase())) return true;
+  return value.length >= PROSE_VALUE_MIN_LENGTH;
+}
+
+type TimelineMetadataDetail = { key: string; label: string; value: string };
+
 function extractS3Key(event: NoteEvent) {
   const s3Key = event.metadata?.s3Key;
   return typeof s3Key === "string" && s3Key.trim() ? s3Key : null;
 }
 
-function extractMetadataDetails(event: NoteEvent) {
-  return Object.entries(event.metadata ?? {})
+function extractMetadataDetails(event: NoteEvent): {
+  compact: TimelineMetadataDetail[];
+  prose: TimelineMetadataDetail[];
+} {
+  const details = Object.entries(event.metadata ?? {})
     .filter(([key]) => key !== "s3Key")
-    .map(([key, value]) => ({ label: formatMetadataLabel(key), value: formatMetadataValue(value) }))
-    .filter((detail): detail is { label: string; value: string } => Boolean(detail.value))
-    .slice(0, 6);
+    .map(([key, value]) => ({
+      key,
+      label: formatMetadataLabel(key),
+      value: formatMetadataValue(value),
+    }))
+    .filter((detail): detail is TimelineMetadataDetail => Boolean(detail.value));
+
+  const compact: TimelineMetadataDetail[] = [];
+  const prose: TimelineMetadataDetail[] = [];
+
+  for (const detail of details) {
+    if (isProseMetadataField(detail.key, detail.value)) {
+      prose.push(detail);
+    } else {
+      compact.push(detail);
+    }
+  }
+
+  return {
+    compact: compact.slice(0, COMPACT_METADATA_LIMIT),
+    prose,
+  };
 }
 
 function buildFileName(event: NoteEvent) {
@@ -140,7 +174,8 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
                 <div className="space-y-5">
                   {note.events.map((event, index) => {
                     const s3Key = extractS3Key(event);
-                    const metadataDetails = extractMetadataDetails(event);
+                    const { compact: compactMetadata, prose: proseMetadata } =
+                      extractMetadataDetails(event);
                     const createdAt = new Date(event.createdAt);
 
                     return (
@@ -178,17 +213,37 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
                             </p>
                           </div>
 
-                          {metadataDetails.length > 0 ? (
+                          {compactMetadata.length > 0 ? (
                             <div className="mt-2 flex flex-wrap gap-1">
-                              {metadataDetails.map((detail) => (
+                              {compactMetadata.map((detail) => (
                                 <Badge
-                                  key={`${event.id}-${detail.label}`}
+                                  key={`${event.id}-${detail.key}`}
                                   variant="outline"
-                                  className="h-5 px-1.5 text-[10px] font-normal"
+                                  className="h-auto min-h-5 max-w-full items-start whitespace-normal px-1.5 py-0.5 text-[10px] font-normal leading-snug"
                                 >
-                                  <span className="mr-0.5 text-muted-foreground">{detail.label}:</span>
-                                  {detail.value}
+                                  <span className="mr-0.5 shrink-0 text-muted-foreground">
+                                    {detail.label}:
+                                  </span>
+                                  <span className="break-words">{detail.value}</span>
                                 </Badge>
+                              ))}
+                            </div>
+                          ) : null}
+
+                          {proseMetadata.length > 0 ? (
+                            <div className="mt-2 space-y-2">
+                              {proseMetadata.map((detail) => (
+                                <div
+                                  key={`${event.id}-${detail.key}-prose`}
+                                  className="rounded-lg border bg-muted/30 px-2.5 py-2 text-[11px]"
+                                >
+                                  <div className="text-[11px] font-medium text-muted-foreground">
+                                    {detail.label}
+                                  </div>
+                                  <p className="mt-0.5 break-words text-[11px] leading-snug text-foreground">
+                                    {detail.value}
+                                  </p>
+                                </div>
                               ))}
                             </div>
                           ) : null}

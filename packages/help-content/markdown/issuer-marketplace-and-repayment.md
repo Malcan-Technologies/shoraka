@@ -62,7 +62,7 @@ Once the full settlement amount is received, admin posts the settlement. Funds i
 
 1. Investor principal (proportional to each investor's commitment) and investor profit.
 2. Service fee deducted from investor profit (capped at 15%).
-3. Approved late charges, if any (Ta'widh and Gharamah).
+3. Approved late charges, if any. Admin may allocate a percentage of Ta'widh to investors, but the full Ta'widh amount and all Gharamah still reduce your residual.
 4. **Issuer residual refund** — paid back to you. See the next section.
 
 Posting the settlement transitions the note to the **Repaid** stage in the lifecycle, but the cycle is only fully closed once any residual refund owed to you has actually been disbursed.
@@ -88,6 +88,8 @@ Late charges are **borne by the issuer**, but they are taken from the repayment 
 
 - **Ta'widh** (compensation): capped at 1% per annum.
 - **Gharamah** (charity/penalty): capped at 9% per annum.
+
+Admin can optionally return part of the approved Ta'widh amount to investors during settlement. This changes only the destination of that Ta'widh amount; it does not reduce the total late charge applied before your residual is calculated.
 
 If the matter escalates further, admin may mark the note as **Defaulted** and trigger formal default communication. Default is never automatic — it is a manual admin action.
 

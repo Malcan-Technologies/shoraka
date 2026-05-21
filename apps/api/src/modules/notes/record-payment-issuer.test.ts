@@ -1,5 +1,5 @@
 /**
- * Issuer partial on-behalf payments share admin receipt caps; coverage for review gate and fee-field guard.
+ * Issuer partial on-behalf payments share admin receipt caps; coverage for review gate.
  */
 jest.mock("./mapper", () => ({
   ...jest.requireActual<typeof import("./mapper")>("./mapper"),
@@ -20,10 +20,9 @@ jest.mock("./repository", () => ({
 }));
 
 jest.mock("../notification/note-lifecycle-notifications", () => {
-  const actual =
-    jest.requireActual<typeof import("../notification/note-lifecycle-notifications")>(
-      "../notification/note-lifecycle-notifications"
-    );
+  const actual = jest.requireActual<typeof import("../notification/note-lifecycle-notifications")>(
+    "../notification/note-lifecycle-notifications"
+  );
   return {
     ...actual,
     notifyNotePaymentReceived: jest.fn().mockResolvedValue(undefined),
@@ -113,26 +112,49 @@ describe("NoteService recordPayment issuer on behalf", () => {
     expect(noteLifecycle.notifyNotePaymentReceived).not.toHaveBeenCalled();
   });
 
-  it("rejects issuer attempts to attach pending late-fee allowance fields", async () => {
+  it("ignores stale pending late-fee allowance fields on receipt recording", async () => {
     (noteRepository.findById as jest.Mock).mockResolvedValue({ ...baseNote });
-    const service = new NoteService();
-    await expect(
-      service.recordPayment(
-        "note-1",
-        {
+
+    const tx = {
+      notePayment: {
+        create: jest.fn().mockResolvedValue({
+          id: "pay-1",
+          note_id: "note-1",
+          receipt_amount: new Prisma.Decimal("100"),
           source: NotePaymentSource.ISSUER_ON_BEHALF,
-          receiptAmount: 100,
-          receiptDate: new Date().toISOString(),
-          pendingTawidhAmount: 1,
-        },
-        issuerActor
-      )
-    ).rejects.toEqual(
+          reference: null as string | null,
+        }),
+      },
+      noteEvent: { create: jest.fn().mockResolvedValue({}) },
+      note: {
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ ...baseNote }),
+      },
+    };
+    (prisma.$transaction as jest.Mock).mockImplementation(async (fn: (t: typeof tx) => unknown) =>
+      fn(tx)
+    );
+
+    const service = new NoteService();
+    await service.recordPayment(
+      "note-1",
+      {
+        source: NotePaymentSource.ISSUER_ON_BEHALF,
+        receiptAmount: 100,
+        receiptDate: new Date().toISOString(),
+      },
+      issuerActor
+    );
+
+    expect(tx.noteEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        code: "ISSUER_PENDING_FEES_NOT_ALLOWED",
+        data: expect.objectContaining({
+          metadata: expect.not.objectContaining({
+            pendingTawidhAmount: expect.anything(),
+            pendingGharamahAmount: expect.anything(),
+          }),
+        }),
       })
     );
-    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it("rejects issuer partial when aggregate would exceed settlement cap", async () => {

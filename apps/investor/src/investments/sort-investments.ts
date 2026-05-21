@@ -27,7 +27,7 @@ export function getInvestmentStatusLabel(note: NoteListItem) {
 }
 
 function getInvestedAmount(note: NoteListItem) {
-  return Number(note.investorRepaymentSummary?.investedPrincipal ?? note.settlementSummary?.investorPoolAmount ?? note.fundedAmount);
+  return Number(note.investorRepaymentSummary?.investedPrincipal ?? note.fundedAmount);
 }
 
 function getExpectedReturn(note: NoteListItem) {
@@ -58,13 +58,18 @@ function getMostRelevantRank(note: NoteListItem) {
   return 4;
 }
 
-function compareBySortOption(left: NoteListItem, right: NoteListItem, sortOption: InvestmentSortOption) {
+function compareBySortOption(
+  left: NoteListItem,
+  right: NoteListItem,
+  sortOption: InvestmentSortOption
+) {
   if (sortOption === "newest") return getUpdatedTimestamp(right) - getUpdatedTimestamp(left);
   if (sortOption === "oldest") return getUpdatedTimestamp(left) - getUpdatedTimestamp(right);
   if (sortOption === "highest_amount") return getInvestedAmount(right) - getInvestedAmount(left);
   if (sortOption === "lowest_amount") return getInvestedAmount(left) - getInvestedAmount(right);
   if (sortOption === "highest_return") return getExpectedReturn(right) - getExpectedReturn(left);
-  if (sortOption === "maturity_soonest") return getMaturityTimestamp(left) - getMaturityTimestamp(right);
+  if (sortOption === "maturity_soonest")
+    return getMaturityTimestamp(left) - getMaturityTimestamp(right);
 
   const rankDifference = getMostRelevantRank(left) - getMostRelevantRank(right);
   if (rankDifference !== 0) return rankDifference;

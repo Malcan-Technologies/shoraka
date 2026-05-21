@@ -81,9 +81,7 @@ export const getAdminInvestmentsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().optional(),
-  status: z
-    .enum(["COMMITTED", "CONFIRMED", "RELEASED", "CANCELLED", "SETTLED"])
-    .optional(),
+  status: z.enum(["COMMITTED", "CONFIRMED", "RELEASED", "CANCELLED", "SETTLED"]).optional(),
   noteId: z.string().optional(),
   investorOrganizationId: z.string().optional(),
 });
@@ -128,8 +126,6 @@ export const recordPaymentSchema = z.object({
   reference: z.string().max(120).nullable().optional(),
   evidenceS3Key: z.string().max(500).nullable().optional(),
   scheduleId: z.string().nullable().optional(),
-  pendingTawidhAmount: z.number().min(0).optional(),
-  pendingGharamahAmount: z.number().min(0).optional(),
   metadata: z.record(z.unknown()).nullable().optional(),
 });
 
@@ -142,6 +138,7 @@ export const settlementPreviewSchema = z.object({
   receiptAmount: z.number().positive().optional(),
   receiptDate: z.string().datetime().optional(),
   tawidhAmount: z.number().min(0).optional(),
+  tawidhInvestorSharePercent: z.number().min(0).max(100).optional(),
   gharamahAmount: z.number().min(0).optional(),
 });
 

@@ -2,7 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { FunnelIcon, XMarkIcon, ArrowPathIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
+import {
+  FunnelIcon,
+  XMarkIcon,
+  ArrowPathIcon,
+  MagnifyingGlassIcon,
+} from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import type { NoteListItem } from "@cashsouk/types";
 import {
@@ -66,7 +71,7 @@ export default function IssuerNotesPage() {
     setTitle("Notes");
   }, [setTitle]);
 
-  const allNotes = data?.notes ?? [];
+  const allNotes = React.useMemo(() => data?.notes ?? [], [data?.notes]);
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
   const notesAfterSettlementFilter = React.useMemo(() => {
@@ -82,8 +87,7 @@ export default function IssuerNotesPage() {
   }, [notesAfterSettlementFilter, normalizedSearch]);
 
   const activeFilterCount = listFilter === ISSUER_NOTES_FILTER_EXCLUDE_SETTLED ? 1 : 0;
-  const hasFilters =
-    searchQuery !== "" || listFilter !== ISSUER_NOTES_FILTER_ALL;
+  const hasFilters = searchQuery !== "" || listFilter !== ISSUER_NOTES_FILTER_ALL;
 
   const handleReload = () => {
     setReloadSpin(true);
@@ -162,7 +166,11 @@ export default function IssuerNotesPage() {
                   </DropdownMenuContent>
                 </DropdownMenu>
                 {hasFilters ? (
-                  <Button variant="ghost" onClick={handleClearFilters} className="h-11 gap-2 rounded-xl">
+                  <Button
+                    variant="ghost"
+                    onClick={handleClearFilters}
+                    className="h-11 gap-2 rounded-xl"
+                  >
                     <XMarkIcon className="h-4 w-4" />
                     Clear
                   </Button>
@@ -190,122 +198,143 @@ export default function IssuerNotesPage() {
             {displayNotes.length ? (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {displayNotes.map((note) => (
-              <Card key={note.id} className="flex h-full flex-col rounded-2xl">
-                <CardHeader className="shrink-0">
-                  <div className="flex min-h-[4.5rem] items-start justify-between gap-3">
-                    <CardTitle className="line-clamp-2 flex-1 pr-1 text-lg leading-snug">
-                      {note.title}
-                    </CardTitle>
-                    <NoteStatusBadge
-                      note={note}
-                      className="max-w-[48%] shrink-0 self-start text-xs font-semibold"
-                    />
-                  </div>
-                </CardHeader>
-                <CardContent className="flex flex-1 flex-col">
-                  <div className="flex min-h-0 flex-1 flex-col gap-4 text-sm">
-                  <div className="grid grid-cols-3 gap-3 text-sm">
-                    <div className="min-w-0">
-                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Target
-                      </div>
-                      <div className="mt-2 text-left text-xl font-semibold leading-tight tracking-tight tabular-nums text-foreground">
-                        {formatCurrency(note.targetAmount)}
-                      </div>
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Funded
-                      </div>
-                      <div className="mt-2 text-left text-xl font-semibold leading-none tabular-nums text-foreground">
-                        {note.fundingPercent.toFixed(1)}%
-                      </div>
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        <span>Risk rating</span>
-                        <InfoTooltip content={RISK_TOOLTIP_TEXT} iconClassName="h-3.5 w-3.5 shrink-0" />
-                      </div>
-                      <div className="mt-2 rounded-2xl border bg-muted/20 p-3">
-                        <SoukscoreRiskRatingBadge
-                          riskRating={note.riskRating}
-                          className={cn(
-                            "flex w-full items-center justify-center rounded-xl px-2 py-2",
-                            "text-4xl font-semibold leading-none tracking-tight"
-                          )}
+                  <Card key={note.id} className="flex h-full flex-col rounded-2xl">
+                    <CardHeader className="shrink-0">
+                      <div className="flex min-h-[4.5rem] items-start justify-between gap-3">
+                        <CardTitle className="line-clamp-2 flex-1 pr-1 text-lg leading-snug">
+                          {note.title}
+                        </CardTitle>
+                        <NoteStatusBadge
+                          note={note}
+                          className="max-w-[48%] shrink-0 self-start text-xs font-semibold"
                         />
                       </div>
-                    </div>
-                  </div>
-                  {note.settlementSummary ? (
-                    (() => {
-                      const preset = note.issuerResidualPayout
-                        ? issuerSettlementPayoutSummaryFromResidualStatus(note.issuerResidualPayout)
-                        : {
-                            tone: "emerald" as const,
-                            blurb: "Posted settlement allocation across the platform buckets.",
-                          };
-                      const isAmber = preset.tone === "amber";
-                      const labelMuted = isAmber
-                        ? "text-amber-800 dark:text-amber-200/90"
-                        : "text-emerald-800 dark:text-emerald-200/90";
-                      return (
-                        <div
-                          className={cn(
-                            "rounded-xl border p-3",
-                            isAmber
-                              ? "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/35 dark:text-amber-100"
-                              : "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-800/60 dark:bg-emerald-950/35 dark:text-emerald-100"
-                          )}
-                        >
-                          <p className="text-xs leading-relaxed opacity-90">{preset.blurb}</p>
-                          <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                            <div>
-                              <div className={labelMuted}>Repayment Pool</div>
-                              <div className="font-semibold">
-                                {formatCurrency(note.settlementSummary.grossReceiptAmount)}
-                              </div>
+                    </CardHeader>
+                    <CardContent className="flex flex-1 flex-col">
+                      <div className="flex min-h-0 flex-1 flex-col gap-4 text-sm">
+                        <div className="grid grid-cols-3 gap-3 text-sm">
+                          <div className="min-w-0">
+                            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              Target
                             </div>
-                            <div>
-                              <div className={labelMuted}>Investor Pool</div>
-                              <div className="font-semibold">
-                                {formatCurrency(note.settlementSummary.investorPoolAmount)}
-                              </div>
-                            </div>
-                            <div>
-                              <div className={labelMuted}>Operating</div>
-                              <div className="font-semibold">
-                                {formatCurrency(note.settlementSummary.operatingAccountAmount)}
-                              </div>
-                            </div>
-                            <div>
-                              <div className={labelMuted}>{"Ta'widh"}</div>
-                              <div className="font-semibold">
-                                {formatCurrency(note.settlementSummary.tawidhAccountAmount)}
-                              </div>
-                            </div>
-                            <div>
-                              <div className={labelMuted}>Gharamah</div>
-                              <div className="font-semibold">
-                                {formatCurrency(note.settlementSummary.gharamahAccountAmount)}
-                              </div>
+                            <div className="mt-2 text-left text-xl font-semibold leading-tight tracking-tight tabular-nums text-foreground">
+                              {formatCurrency(note.targetAmount)}
                             </div>
                           </div>
-                          <div className="mt-2 text-xs font-medium">
-                            Issuer residual: {formatCurrency(note.settlementSummary.issuerResidualAmount)}
+                          <div className="min-w-0">
+                            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              Funded
+                            </div>
+                            <div className="mt-2 text-left text-xl font-semibold leading-none tabular-nums text-foreground">
+                              {note.fundingPercent.toFixed(1)}%
+                            </div>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              <span>Risk rating</span>
+                              <InfoTooltip
+                                content={RISK_TOOLTIP_TEXT}
+                                iconClassName="h-3.5 w-3.5 shrink-0"
+                              />
+                            </div>
+                            <div className="mt-2 rounded-2xl border bg-muted/20 p-3">
+                              <SoukscoreRiskRatingBadge
+                                riskRating={note.riskRating}
+                                className={cn(
+                                  "flex w-full items-center justify-center rounded-xl px-2 py-2",
+                                  "text-4xl font-semibold leading-none tracking-tight"
+                                )}
+                              />
+                            </div>
                           </div>
                         </div>
-                      );
-                    })()
-                  ) : null}
-                  </div>
-                </CardContent>
-                <CardFooter className="mt-auto flex w-full flex-col items-stretch">
-                  <Button asChild className="w-full">
-                    <Link href={`/notes/${note.id}`}>View Note</Link>
-                  </Button>
-                </CardFooter>
-              </Card>
+                        {note.settlementSummary
+                          ? (() => {
+                              const preset = note.issuerResidualPayout
+                                ? issuerSettlementPayoutSummaryFromResidualStatus(
+                                    note.issuerResidualPayout
+                                  )
+                                : {
+                                    tone: "emerald" as const,
+                                    blurb:
+                                      "Posted settlement allocation across the platform buckets.",
+                                  };
+                              const isAmber = preset.tone === "amber";
+                              const labelMuted = isAmber
+                                ? "text-amber-800 dark:text-amber-200/90"
+                                : "text-emerald-800 dark:text-emerald-200/90";
+                              return (
+                                <div
+                                  className={cn(
+                                    "rounded-xl border p-3",
+                                    isAmber
+                                      ? "border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-800/60 dark:bg-amber-950/35 dark:text-amber-100"
+                                      : "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-800/60 dark:bg-emerald-950/35 dark:text-emerald-100"
+                                  )}
+                                >
+                                  <p className="text-xs leading-relaxed opacity-90">
+                                    {preset.blurb}
+                                  </p>
+                                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                                    <div>
+                                      <div className={labelMuted}>Repayment Pool</div>
+                                      <div className="font-semibold">
+                                        {formatCurrency(note.settlementSummary.grossReceiptAmount)}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className={labelMuted}>Investor Pool</div>
+                                      <div className="font-semibold">
+                                        {formatCurrency(note.settlementSummary.investorPoolAmount)}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className={labelMuted}>Operating</div>
+                                      <div className="font-semibold">
+                                        {formatCurrency(
+                                          note.settlementSummary.operatingAccountAmount
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className={labelMuted}>{"Ta'widh Account"}</div>
+                                      <div className="font-semibold">
+                                        {formatCurrency(note.settlementSummary.tawidhAccountAmount)}
+                                      </div>
+                                      {note.settlementSummary.tawidhInvestorAmount > 0.005 ? (
+                                        <div className="text-[11px] opacity-80">
+                                          {formatCurrency(
+                                            note.settlementSummary.tawidhInvestorAmount
+                                          )}{" "}
+                                          to investors
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                    <div>
+                                      <div className={labelMuted}>Gharamah</div>
+                                      <div className="font-semibold">
+                                        {formatCurrency(
+                                          note.settlementSummary.gharamahAccountAmount
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="mt-2 text-xs font-medium">
+                                    Issuer residual:{" "}
+                                    {formatCurrency(note.settlementSummary.issuerResidualAmount)}
+                                  </div>
+                                </div>
+                              );
+                            })()
+                          : null}
+                      </div>
+                    </CardContent>
+                    <CardFooter className="mt-auto flex w-full flex-col items-stretch">
+                      <Button asChild className="w-full">
+                        <Link href={`/notes/${note.id}`}>View Note</Link>
+                      </Button>
+                    </CardFooter>
+                  </Card>
                 ))}
               </div>
             ) : (
@@ -326,4 +355,3 @@ export default function IssuerNotesPage() {
     </div>
   );
 }
-

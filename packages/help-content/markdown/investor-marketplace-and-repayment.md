@@ -107,6 +107,7 @@ When this happens:
 
 - Late charges (Ta'widh up to 1% p.a., Gharamah up to 9% p.a.) are **borne by the issuer**, not investors.
 - Your principal and profit calculation are not penalised by late charges.
+- Admin may allocate part of Ta'widh back to investors as compensation during settlement. If this happens, it appears separately from your contractual profit.
 - In a worst-case scenario where the matter cannot be resolved, admin may mark the note as **Defaulted** and pursue formal recovery. Default is never automatic — it is a deliberate admin action.
 
 ## Withdrawals From Your Wallet

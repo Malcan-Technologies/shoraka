@@ -139,10 +139,17 @@ export interface NoteSettlementPoolSummary {
   grossReceiptAmount: number;
   investorPoolAmount: number;
   operatingAccountAmount: number;
+  totalTawidhAmount: number;
+  tawidhInvestorSharePercent: number;
+  tawidhInvestorAmount: number;
   tawidhAccountAmount: number;
   gharamahAccountAmount: number;
   issuerResidualAmount: number;
   unappliedAmount: number;
+  profitStartDate: string | null;
+  profitMaturityDate: string | null;
+  profitDays: number;
+  annualProfitRatePercent: number;
   postedAt: string | null;
   /** Posted settlement with platform service fee: trustee instruction workflow (pools). */
   serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus | null;
@@ -160,7 +167,10 @@ export type IssuerResidualPayoutListStatus =
 export interface NoteInvestorRepaymentSummary {
   investedPrincipal: number;
   expectedPayoutAmount: number;
+  expectedProfitAmount: number;
   receivedPayoutAmount: number;
+  receivedProfitNetAmount: number;
+  receivedTawidhCompensationAmount: number;
   expectedReturnRatePercent: number;
   actualReturnRatePercent: number | null;
   progressPercent: number;
@@ -193,6 +203,7 @@ export interface NoteListItem extends NoteMoneySummary {
   maturityDate: string | null;
   /** Marketplace listing close time (`note_listings.closes_at`); used for funding-window countdown. */
   listingClosesAt: string | null;
+  activatedAt: string | null;
   publishedAt: string | null;
   settlementSummary: NoteSettlementPoolSummary | null;
   /** Issuer portal list: residual trustee payout vs `settlementSummary` (omitted elsewhere). */
@@ -307,10 +318,17 @@ export interface NoteSettlement {
   settlementType: NoteSettlementType;
   grossReceiptAmount: number;
   investorPrincipal: number;
+  profitStartDate: string | null;
+  profitMaturityDate: string | null;
+  profitDays: number;
+  annualProfitRatePercent: number;
   investorProfitGross: number;
   serviceFeeAmount: number;
   investorProfitNet: number;
   tawidhAmount: number;
+  tawidhInvestorSharePercent: number;
+  tawidhInvestorAmount: number;
+  tawidhAccountAmount: number;
   gharamahAmount: number;
   issuerResidualAmount: number;
   unappliedAmount: number;
@@ -320,6 +338,39 @@ export interface NoteSettlement {
   serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus | null;
   serviceFeeTrusteeSubmittedAt: string | null;
   serviceFeeTrusteeCompletedAt: string | null;
+}
+
+export interface NoteSettlementAllocationPreview {
+  investmentId: string;
+  investorOrganizationId: string;
+  principal: number;
+  profitNet: number;
+  tawidhInvestorShare: number;
+}
+
+export interface NoteSettlementPreviewResult {
+  settlementId: string;
+  grossReceiptAmount: number;
+  investorPrincipal: number;
+  profitStartDate: string;
+  profitMaturityDate: string;
+  profitDays: number;
+  annualProfitRatePercent: number;
+  investorProfitGross: number;
+  serviceFeeAmount: number;
+  investorProfitNet: number;
+  tawidhAmount: number;
+  tawidhInvestorSharePercent: number;
+  tawidhInvestorAmount: number;
+  tawidhAccountAmount: number;
+  gharamahAmount: number;
+  investorPoolTotal: number;
+  availableLateFeeHeadroomAmount: number;
+  settlementShortfallAmount: number;
+  issuerResidualAmount: number;
+  unappliedAmount: number;
+  includedPaymentIds: string[];
+  allocations: NoteSettlementAllocationPreview[];
 }
 
 export interface NoteEvent {
@@ -703,9 +754,60 @@ export interface RecordNotePaymentInput {
   reference?: string | null;
   evidenceS3Key?: string | null;
   scheduleId?: string | null;
-  pendingTawidhAmount?: number;
-  pendingGharamahAmount?: number;
   metadata?: Record<string, unknown> | null;
+}
+
+export function mapNoteSettlementToPoolSummary(
+  settlement: Pick<
+    NoteSettlement,
+    | "id"
+    | "status"
+    | "grossReceiptAmount"
+    | "investorPrincipal"
+    | "investorProfitNet"
+    | "tawidhAmount"
+    | "tawidhInvestorSharePercent"
+    | "tawidhInvestorAmount"
+    | "tawidhAccountAmount"
+    | "gharamahAmount"
+    | "issuerResidualAmount"
+    | "unappliedAmount"
+    | "profitStartDate"
+    | "profitMaturityDate"
+    | "profitDays"
+    | "annualProfitRatePercent"
+    | "postedAt"
+    | "serviceFeeAmount"
+    | "serviceFeeTrusteeStatus"
+    | "serviceFeeTrusteeSubmittedAt"
+    | "serviceFeeTrusteeCompletedAt"
+  >
+): NoteSettlementPoolSummary {
+  return {
+    settlementId: settlement.id,
+    status: settlement.status,
+    grossReceiptAmount: settlement.grossReceiptAmount,
+    investorPoolAmount:
+      settlement.investorPrincipal +
+      settlement.investorProfitNet +
+      settlement.tawidhInvestorAmount,
+    operatingAccountAmount: settlement.serviceFeeAmount,
+    totalTawidhAmount: settlement.tawidhAmount,
+    tawidhInvestorSharePercent: settlement.tawidhInvestorSharePercent,
+    tawidhInvestorAmount: settlement.tawidhInvestorAmount,
+    tawidhAccountAmount: settlement.tawidhAccountAmount,
+    gharamahAccountAmount: settlement.gharamahAmount,
+    issuerResidualAmount: settlement.issuerResidualAmount,
+    unappliedAmount: settlement.unappliedAmount,
+    profitStartDate: settlement.profitStartDate,
+    profitMaturityDate: settlement.profitMaturityDate,
+    profitDays: settlement.profitDays,
+    annualProfitRatePercent: settlement.annualProfitRatePercent,
+    postedAt: settlement.postedAt,
+    serviceFeeTrusteeStatus: settlement.serviceFeeTrusteeStatus,
+    serviceFeeTrusteeSubmittedAt: settlement.serviceFeeTrusteeSubmittedAt,
+    serviceFeeTrusteeCompletedAt: settlement.serviceFeeTrusteeCompletedAt,
+  };
 }
 
 export interface SettlementPreviewInput {
@@ -713,6 +815,7 @@ export interface SettlementPreviewInput {
   receiptAmount?: number;
   receiptDate?: string;
   tawidhAmount?: number;
+  tawidhInvestorSharePercent?: number;
   gharamahAmount?: number;
 }
 
@@ -734,6 +837,8 @@ export interface OverdueLateChargeResult {
   appliedGharamahAmount: number;
   remainingTawidhAmount: number;
   remainingGharamahAmount: number;
+  /** Max Ta'widh + Gharamah that fit in the invoice settlement pool after principal and gross profit. */
+  availableLateFeeHeadroomAmount: number | null;
   suggestedTawidhAmount: number;
   suggestedGharamahAmount: number;
   message: string;
