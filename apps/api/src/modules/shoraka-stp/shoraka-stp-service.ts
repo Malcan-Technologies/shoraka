@@ -104,7 +104,7 @@ export function getMalaysiaCutoffWarning(now: Date): string | null {
 
   if (!inWindow) return null;
 
-  return "Shoraka matching may be processed on the next trading day due to daily cutoff/maintenance. Please confirm before proceeding if same-day transaction date is required.";
+  return "Shoraka orders cannot be submitted between 11:30 PM and 12:30 AM MYT because orders may remain Active and require cancellation. Please submit after 12:30 AM.";
 }
 
 async function resolveOwnershipForIssuerDisbursement(args: {
@@ -400,6 +400,16 @@ export class ShorakaStpService {
       throw new Error("Invalid withdrawal_type for shoraka submitorder");
     }
 
+    const now = new Date();
+    const cutoffWarning = getMalaysiaCutoffWarning(now);
+    if (cutoffWarning) {
+      throw new AppError(
+        400,
+        "SHORAKA_CUTOFF_WINDOW",
+        cutoffWarning
+      );
+    }
+
     const withdrawalMetadata = asRecord(withdrawal.metadata);
     const grossFundedAmount = numberFromJson(withdrawalMetadata?.grossFundedAmount);
     if (grossFundedAmount == null) {
@@ -438,8 +448,8 @@ export class ShorakaStpService {
       };
     }
 
-    const now = new Date();
-    const cutoffWarning = getMalaysiaCutoffWarning(now);
+    // Safe window: capture warning (should be null) and continue.
+    // Note: `getMalaysiaCutoffWarning` only returns a value inside the unsafe window.
     const ownership = await resolveOwnershipForIssuerDisbursement({
       withdrawalMetadata,
       issuerOrganizationId: withdrawal.issuer_organization_id,

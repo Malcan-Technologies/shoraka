@@ -150,6 +150,21 @@ export function IssuerPayoutCard({
   const queryShorakaStatus = useQueryShorakaStatus(withdrawal.id);
   const fetchShorakaCertificate = useFetchShorakaCertificate(withdrawal.id);
 
+  const shorakaUnsafeSubmitWindowMessage =
+    "Shoraka orders cannot be submitted between 11:30 PM and 12:30 AM MYT because orders may remain Active and require cancellation. Please submit after 12:30 AM.";
+  const isMalaysiaUnsafeShorakaSubmitWindow = (() => {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Kuala_Lumpur",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(now);
+    const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+    const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+    return (hour === 23 && minute >= 30) || (hour === 0 && minute >= 0 && minute < 30);
+  })();
+
   const shorakaTradeOrder = shorakaStateQuery.data?.tradeOrder ?? null;
   const hasShorakaCertificate = Boolean(shorakaTradeOrder?.certificate_s3_key);
   const shouldGateMarkDisbursed =
@@ -405,11 +420,17 @@ export function IssuerPayoutCard({
                       toast.error(err instanceof Error ? err.message : "Failed to submit Shoraka order");
                     }
                   }}
-                  disabled={submitShorakaOrder.isPending}
+                  disabled={submitShorakaOrder.isPending || isMalaysiaUnsafeShorakaSubmitWindow}
                 >
                   Submit Shoraka Order
                 </Button>
               </div>
+
+              {isMalaysiaUnsafeShorakaSubmitWindow ? (
+                <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-amber-900">
+                  {shorakaUnsafeSubmitWindowMessage}
+                </div>
+              ) : null}
             </div>
           ) : (
             (() => {
@@ -466,10 +487,21 @@ export function IssuerPayoutCard({
                         <span className="font-medium">{tradeOrder.provider_order_id}</span>
                       </div>
                     ) : null}
+                    {parsed.orderDate ? (
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-muted-foreground">Order date</span>
+                        <span className="font-medium">{parsed.orderDate}</span>
+                      </div>
+                    ) : null}
                     {parsed.valueDate ? (
                       <div className="flex items-center justify-between gap-4">
                         <span className="text-muted-foreground">Value date</span>
                         <span className="font-medium">{parsed.valueDate}</span>
+                      </div>
+                    ) : null}
+                    {parsed.orderDate || parsed.valueDate ? (
+                      <div className="pt-1 text-[11px] text-muted-foreground">
+                        Order date = Shoraka trade submission date. Value date = intended disbursement date.
                       </div>
                     ) : null}
                     {parsed.orderAmount ? (
