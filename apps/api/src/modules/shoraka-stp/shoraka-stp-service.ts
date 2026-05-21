@@ -188,10 +188,10 @@ export function deriveOperationalStatus(args: {
       providerStatus,
       label: "Pending Sell",
       meaning: SHORAKA_PROVIDER_MEANINGS.PENDING_SELL_REVIEW_OR_RETRY,
-      nextAction: "Manual review required",
+      nextAction: "Query status again later; manual review if stuck",
       canFetchCertificate: false,
       hasCertificate,
-      requiresManualReview: true,
+      requiresManualReview: false,
       cutoffWarning: args.cutoffWarning,
     };
   }

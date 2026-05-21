@@ -440,7 +440,7 @@ export function IssuerPayoutCard({
                   ) : null}
 
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {operational.providerStatus === "Active" ? (
+                    {operational.providerStatus === "Active" || operational.providerStatus === "Pending Sell" ? (
                       <Button
                         size="sm"
                         className="gap-1.5"
