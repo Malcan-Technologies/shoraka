@@ -1040,9 +1040,9 @@ export function SSMVerificationPanel({
 
               <div className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
                 {companyNameCheck.status === "match" ? (
-                  "The submitted company name matches the SSM/CTOS record."
+                  "The submitted company name matches the record."
                 ) : companyNameCheck.status === "difference" ? (
-                  "The submitted company name is different from the SSM/CTOS record. This does not block approval. Please review manually."
+                  "The submitted company name is different from the record. This does not block approval. Please review manually."
                 ) : (
                   "Company name check is unavailable because one side is missing."
                 )}
