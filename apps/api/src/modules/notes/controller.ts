@@ -3,6 +3,7 @@ import { UserRole } from "@prisma/client";
 import { requireRole } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { noteService } from "./service";
+import { shorakaStpService } from "../shoraka-stp/shoraka-stp-service";
 import {
   applicationIdParamSchema,
   bucketAccountParamSchema,
@@ -648,6 +649,45 @@ withdrawalsRouter.post("/:id/mark-completed", async (req: Request, res: Response
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await noteService.markWithdrawalCompleted(id, getActor(req, res, "ADMIN")));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Shoraka Al-Amin STP integration (Phase 1: manual admin-triggered)
+// Routes are mounted under /v1/admin/withdrawals.
+withdrawalsRouter.post("/:id/shoraka/submit-order", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    send(res, await shorakaStpService.submitOrderForWithdrawal(id));
+  } catch (error) {
+    next(error);
+  }
+});
+
+withdrawalsRouter.post("/:id/shoraka/query-status", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    await shorakaStpService.queryStatusForWithdrawal(id);
+    send(res, await shorakaStpService.getStateForWithdrawal(id));
+  } catch (error) {
+    next(error);
+  }
+});
+
+withdrawalsRouter.post("/:id/shoraka/fetch-certificate", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    send(res, await shorakaStpService.fetchCertificateForWithdrawal(id));
+  } catch (error) {
+    next(error);
+  }
+});
+
+withdrawalsRouter.get("/:id/shoraka", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    send(res, await shorakaStpService.getStateForWithdrawal(id));
   } catch (error) {
     next(error);
   }

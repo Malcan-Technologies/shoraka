@@ -48,6 +48,7 @@ import {
   BuildingOffice2Icon,
   DocumentTextIcon,
   CheckCircleIcon,
+  XCircleIcon,
   ExclamationTriangleIcon,
   PencilSquareIcon,
   InboxIcon,
@@ -60,6 +61,7 @@ import type {
   DirectorKycStatus,
   OnboardingApplicationResponse,
 } from "@cashsouk/types";
+import { compareCompanyNamesForStrictDisplayExact } from "@cashsouk/types";
 import {
   buildOnboardingCtosComparison,
   buildSharePctMapFromCorporateEntities,
@@ -798,6 +800,10 @@ export function SSMVerificationPanel({
 
   const isAlreadyVerified = application.ssmApproved;
   const { company } = comparison;
+  const companyNameCheck = compareCompanyNamesForStrictDisplayExact({
+    submittedName: company.applicationName,
+    extractedName: company.ctosName,
+  });
 
   return (
     <div className="space-y-6">
@@ -1004,6 +1010,59 @@ export function SSMVerificationPanel({
                 )
               }
             />
+
+            <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  {companyNameCheck.status === "match" ? (
+                    <CheckCircleIcon className="h-4 w-4 text-emerald-600" aria-hidden />
+                  ) : companyNameCheck.status === "difference" ? (
+                    <XCircleIcon className="h-4 w-4 text-red-600" aria-hidden />
+                  ) : (
+                    <ExclamationTriangleIcon className="h-4 w-4 text-slate-500" aria-hidden />
+                  )}
+                  <span className="font-medium text-foreground">Company name check</span>
+                </div>
+                {companyNameCheck.status === "match" ? (
+                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">
+                    Match
+                  </span>
+                ) : companyNameCheck.status === "difference" ? (
+                  <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700">
+                    Difference found
+                  </span>
+                ) : (
+                  <span className="rounded-full border border-border bg-background px-2 py-1 text-xs font-semibold text-muted-foreground">
+                    Not available
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+                {companyNameCheck.status === "match" ? (
+                  "The submitted company name matches the record."
+                ) : companyNameCheck.status === "difference" ? (
+                  "The submitted company name is different from the record. This does not block approval. Please review manually."
+                ) : (
+                  "Company name check is unavailable because one side is missing."
+                )}
+              </div>
+
+              <div className="mt-3 space-y-2 text-[13px]">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-muted-foreground">Submitted name</span>
+                  <span className="max-w-[62%] break-words text-right text-foreground">
+                    {companyNameCheck.submittedName ?? "—"}
+                  </span>
+                </div>
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-muted-foreground">SSM/CTOS name</span>
+                  <span className="max-w-[62%] break-words text-right text-foreground">
+                    {companyNameCheck.extractedName ?? "—"}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <DirectorBucketsBlock title="Directors" buckets={comparison.directors} ctosOrgState={orgFetchState} />

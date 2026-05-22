@@ -629,7 +629,7 @@ export default function IssuerNoteDetailPage() {
         </Card>
 
         {shouldShowIssuerDisbursementBreakdown ? (
-          <Card>
+            <Card className="rounded-2xl">
             <CardHeader>
               <CardTitle className="text-base">Disbursement breakdown</CardTitle>
             </CardHeader>

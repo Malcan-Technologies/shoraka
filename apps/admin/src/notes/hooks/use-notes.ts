@@ -6,6 +6,8 @@ import type {
   SettlementPreviewInput,
   UpdateNoteFeaturedInput,
   UpdateNoteDraftInput,
+  ShorakaWithdrawalState,
+  ShorakaSubmitOrderStateResponse,
 } from "@cashsouk/types";
 import { adminInvestmentsKeys } from "@/investments/hooks/use-admin-investments";
 import { notesKeys } from "../query-keys";
@@ -547,6 +549,71 @@ export function useUpdateWithdrawalBeneficiary() {
     },
     onSuccess: (withdrawal) => {
       invalidateWithdrawalNote(queryClient, withdrawal.noteId);
+    },
+  });
+}
+
+export function useShorakaWithdrawalState(withdrawalId: string | null) {
+  const apiClient = useNotesApiClient();
+  return useQuery({
+    queryKey: ["shoraka", "withdrawal", withdrawalId ?? ""],
+    queryFn: async () => {
+      if (!withdrawalId) return null;
+      const response = await apiClient.getAdminWithdrawalShoraka(withdrawalId);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    enabled: Boolean(withdrawalId),
+  });
+}
+
+export function useSubmitShorakaOrder(withdrawalId: string | null) {
+  const apiClient = useNotesApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!withdrawalId) throw new Error("Withdrawal id is required");
+      const response = await apiClient.submitAdminWithdrawalShorakaSubmitOrder(withdrawalId);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data as ShorakaSubmitOrderStateResponse;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shoraka", "withdrawal", withdrawalId ?? ""] });
+    },
+  });
+}
+
+export function useQueryShorakaStatus(withdrawalId: string | null) {
+  const apiClient = useNotesApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!withdrawalId) throw new Error("Withdrawal id is required");
+      const response = await apiClient.queryAdminWithdrawalShorakaStatus(withdrawalId);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data as ShorakaWithdrawalState;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shoraka", "withdrawal", withdrawalId ?? ""] });
+    },
+  });
+}
+
+export function useFetchShorakaCertificate(withdrawalId: string | null) {
+  const apiClient = useNotesApiClient();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!withdrawalId) throw new Error("Withdrawal id is required");
+      const response = await apiClient.fetchAdminWithdrawalShorakaCertificate(withdrawalId);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data as ShorakaWithdrawalState;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shoraka", "withdrawal", withdrawalId ?? ""] });
     },
   });
 }

@@ -40,6 +40,10 @@ import {
   useMarkWithdrawalCompleted,
   useMarkWithdrawalSubmitted,
   useUpdateWithdrawalBeneficiary,
+  useFetchShorakaCertificate,
+  useQueryShorakaStatus,
+  useShorakaWithdrawalState,
+  useSubmitShorakaOrder,
 } from "@/notes/hooks/use-notes";
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import { cn } from "@/lib/utils";
@@ -140,6 +144,49 @@ export function IssuerPayoutCard({
   const markCompleted = useMarkWithdrawalCompleted();
   const updateBeneficiary = useUpdateWithdrawalBeneficiary();
   const { handleViewDocument, viewDocumentPending } = useAdminS3DocumentViewDownload();
+
+  const shorakaStateQuery = useShorakaWithdrawalState(withdrawal.id);
+  const submitShorakaOrder = useSubmitShorakaOrder(withdrawal.id);
+  const queryShorakaStatus = useQueryShorakaStatus(withdrawal.id);
+  const fetchShorakaCertificate = useFetchShorakaCertificate(withdrawal.id);
+
+  const shorakaUnsafeSubmitWindowMessage =
+    "Shoraka orders cannot be submitted between 11:30 PM and 12:30 AM MYT because orders may remain Active and require cancellation. Please submit after 12:30 AM.";
+  const isMalaysiaUnsafeShorakaSubmitWindow = (() => {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Kuala_Lumpur",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(now);
+    const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+    const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+    return (hour === 23 && minute >= 30) || (hour === 0 && minute >= 0 && minute < 30);
+  })();
+
+  const shorakaTradeOrder = shorakaStateQuery.data?.tradeOrder ?? null;
+  const hasShorakaCertificate = Boolean(shorakaTradeOrder?.certificate_s3_key);
+  const shouldGateMarkDisbursed =
+    withdrawal.withdrawalType === WithdrawalType.ISSUER_DISBURSEMENT;
+
+  const markDisbursedDisabledBecauseShoraka =
+    shouldGateMarkDisbursed &&
+    (shorakaStateQuery.isPending ||
+      shorakaStateQuery.isError ||
+      !shorakaTradeOrder ||
+      !hasShorakaCertificate);
+
+  const markDisbursedHelperText =
+    shouldGateMarkDisbursed && (shorakaStateQuery.isPending || shorakaStateQuery.isError || !hasShorakaCertificate) ? (
+      shorakaStateQuery.isPending ? (
+        "Checking Shoraka certificate status…"
+      ) : shorakaStateQuery.isError ? (
+        "Unable to verify Shoraka certificate status. Please refresh or try again."
+      ) : (
+        "Shoraka certificate must be fetched before marking issuer disbursement as completed."
+      )
+    ) : null;
 
   const [confirmAction, setConfirmAction] = React.useState<
     "generate" | "submit" | "complete" | null
@@ -339,6 +386,234 @@ export function IssuerPayoutCard({
         </div>
       ) : null}
 
+      {withdrawal.withdrawalType === WithdrawalType.ISSUER_DISBURSEMENT ? (
+        <div className="mt-4 rounded-lg border bg-muted/20 p-3 text-[11px]">
+          <div className="flex items-center justify-between">
+            <div className="font-medium uppercase tracking-wider text-muted-foreground">Shoraka STP</div>
+          </div>
+
+          {shorakaStateQuery.isPending ? (
+            <div className="mt-2 text-muted-foreground">Checking Shoraka certificate status…</div>
+          ) : shorakaStateQuery.data == null ? (
+            <div className="mt-2">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Status</span>
+                <span className="font-medium">Not submitted</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Next action</span>
+                <span className="text-foreground">Submit Shoraka order</span>
+              </div>
+              <div className="mt-2">
+                <Button
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={async () => {
+                    try {
+                      if (servicingBlockedReason) {
+                        toast.info(servicingBlockedReason);
+                        return;
+                      }
+                      await submitShorakaOrder.mutateAsync();
+                      toast.success("Shoraka order submitted");
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : "Failed to submit Shoraka order");
+                    }
+                  }}
+                  disabled={submitShorakaOrder.isPending || isMalaysiaUnsafeShorakaSubmitWindow}
+                >
+                  Submit Shoraka Order
+                </Button>
+              </div>
+
+              {isMalaysiaUnsafeShorakaSubmitWindow ? (
+                <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-amber-900">
+                  {shorakaUnsafeSubmitWindowMessage}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            (() => {
+              const state = shorakaStateQuery.data;
+              const tradeOrder = state.tradeOrder;
+              const parsed = state.parsed;
+              const operational = state.operationalStatus;
+              const hasCertificate = Boolean(tradeOrder.certificate_s3_key);
+
+              const step =
+                operational.providerStatus === "Active"
+                  ? { status: "Matching in progress", nextAction: "Query status again later" }
+                  : operational.providerStatus === "Pending Sell"
+                    ? {
+                        status: "Pending sell",
+                        nextAction: "Query status again later; contact operations if stuck",
+                      }
+                    : operational.providerStatus === "Completed" && !hasCertificate
+                      ? { status: "Completed", nextAction: "Fetch certificate" }
+                      : operational.providerStatus === "Completed" && hasCertificate
+                        ? { status: "Certificate ready", nextAction: "You may proceed with disbursement" }
+                        : {
+                            status: "Manual review required",
+                            nextAction: "Check with Shoraka/Tawarruq operations",
+                          };
+
+              const callbackReceivedAt = tradeOrder.callback_received_at
+                ? new Date(tradeOrder.callback_received_at)
+                : null;
+              const statusLastCheckedAt = tradeOrder.status_last_checked_at
+                ? new Date(tradeOrder.status_last_checked_at)
+                : null;
+
+              const statusSource = callbackReceivedAt
+                ? statusLastCheckedAt && callbackReceivedAt.getTime() < statusLastCheckedAt.getTime()
+                  ? "Updated by status query"
+                  : "Updated by callback"
+                : null;
+
+              return (
+                <>
+                  <div className="mt-2 space-y-1">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-muted-foreground">Status</span>
+                      <span className="font-medium">{step.status}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-muted-foreground">Next action</span>
+                      <span className="text-foreground">{step.nextAction}</span>
+                    </div>
+                    {tradeOrder.provider_order_id ? (
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-muted-foreground">Order ID</span>
+                        <span className="font-medium">{tradeOrder.provider_order_id}</span>
+                      </div>
+                    ) : null}
+                    {parsed.orderDate ? (
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-muted-foreground">Order date</span>
+                        <span className="font-medium">{parsed.orderDate}</span>
+                      </div>
+                    ) : null}
+                    {parsed.valueDate ? (
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-muted-foreground">Value date</span>
+                        <span className="font-medium">{parsed.valueDate}</span>
+                      </div>
+                    ) : null}
+                    {parsed.orderDate || parsed.valueDate ? (
+                      <div className="pt-1 text-[11px] text-muted-foreground">
+                        Order date = Shoraka trade submission date. Value date = intended disbursement date.
+                      </div>
+                    ) : null}
+                    {parsed.orderAmount ? (
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-muted-foreground">Order amount</span>
+                        <span className="font-medium">{parsed.orderAmount}</span>
+                      </div>
+                    ) : null}
+                    {parsed.murabahaAmount ? (
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-muted-foreground">Murabaha amount</span>
+                        <span className="font-medium">{parsed.murabahaAmount}</span>
+                      </div>
+                    ) : null}
+                    {statusSource ? (
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-muted-foreground">Status source</span>
+                        <span className="font-medium">{statusSource}</span>
+                      </div>
+                    ) : null}
+                    {tradeOrder.callback_received_at ? (
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-muted-foreground">Callback received</span>
+                        <span className="font-medium">
+                          {format(new Date(tradeOrder.callback_received_at), "dd MMM yyyy, h:mm a")}
+                        </span>
+                      </div>
+                    ) : null}
+                    {tradeOrder.status_last_checked_at ? (
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-muted-foreground">Last checked</span>
+                        <span className="font-medium">
+                          {format(new Date(tradeOrder.status_last_checked_at), "dd MMM yyyy, h:mm a")}
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {state.cutoffWarning ? (
+                    <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-amber-900">
+                      {state.cutoffWarning}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {operational.providerStatus === "Active" || operational.providerStatus === "Pending Sell" ? (
+                      <Button
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={async () => {
+                          try {
+                            if (servicingBlockedReason) {
+                              toast.info(servicingBlockedReason);
+                              return;
+                            }
+                            await queryShorakaStatus.mutateAsync();
+                            toast.success("Shoraka status queried");
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Failed to query Shoraka status");
+                          }
+                        }}
+                        disabled={queryShorakaStatus.isPending}
+                      >
+                        Query Status
+                      </Button>
+                    ) : null}
+
+                    {operational.canFetchCertificate ? (
+                      <Button
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={async () => {
+                          try {
+                            if (servicingBlockedReason) {
+                              toast.info(servicingBlockedReason);
+                              return;
+                            }
+                            await fetchShorakaCertificate.mutateAsync();
+                            toast.success("Shoraka certificate fetched");
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Failed to fetch certificate");
+                          }
+                        }}
+                        disabled={fetchShorakaCertificate.isPending}
+                      >
+                        Fetch Certificate
+                      </Button>
+                    ) : null}
+
+                    {tradeOrder.certificate_s3_key ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => {
+                          const key = tradeOrder.certificate_s3_key;
+                          if (!key) return;
+                          void handleViewDocument(key);
+                        }}
+                        disabled={viewDocumentPending}
+                      >
+                        View Certificate
+                      </Button>
+                    ) : null}
+                  </div>
+                </>
+              );
+            })()
+          )}
+        </div>
+      ) : null}
+
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div className="rounded-lg border bg-muted/20 p-3">
           <div className="flex items-center justify-between">
@@ -443,12 +718,15 @@ export function IssuerPayoutCard({
           <Button
             size="sm"
             onClick={() => guardedAction(() => setConfirmAction("complete"))}
-            disabled={pendingAny}
+            disabled={pendingAny || markDisbursedDisabledBecauseShoraka}
             className="gap-1.5"
           >
             <CheckCircleIcon className="h-4 w-4" />
             Mark Disbursed
           </Button>
+        ) : null}
+        {status === "SUBMITTED_TO_TRUSTEE" && markDisbursedHelperText ? (
+          <div className="w-full text-right text-xs text-muted-foreground">{markDisbursedHelperText}</div>
         ) : null}
         {pendingAny ? (
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">

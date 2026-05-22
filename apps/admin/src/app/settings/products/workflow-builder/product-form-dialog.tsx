@@ -368,15 +368,21 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         const serviceFeeRatePercentNum =
           serviceFeeRatePercent.trim() !== ""
             ? (() => {
-                const n = Number(serviceFeeRatePercent);
-                return !Number.isNaN(n) && n >= 0 && n <= 15 ? n : null;
+                const v = serviceFeeRatePercent.trim();
+                const decimalOk =
+                  /^\d+(\.\d{0,2})?$/.test(v) || /^\d+\.$/.test(v) || /^\.\d{1,2}$/.test(v);
+                const n = Number(v);
+                return !Number.isNaN(n) && n >= 0 && n <= 15 && decimalOk ? n : null;
               })()
             : 15;
         const defaultFacilityFeeRatePercentNum =
           defaultFacilityFeeRatePercent.trim() !== ""
             ? (() => {
-                const n = Number(defaultFacilityFeeRatePercent);
-                return !Number.isNaN(n) && n >= 0 && n <= 100 ? n : null;
+                const v = defaultFacilityFeeRatePercent.trim();
+                const decimalOk =
+                  /^\d+(\.\d{0,2})?$/.test(v) || /^\d+\.$/.test(v) || /^\.\d{1,2}$/.test(v);
+                const n = Number(v);
+                return !Number.isNaN(n) && n >= 0 && n <= 1 && decimalOk ? n : null;
               })()
             : 1;
         const created = await createProduct.mutateAsync({
@@ -417,15 +423,21 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       const serviceFeeRatePercentNum =
         serviceFeeRatePercent.trim() !== ""
           ? (() => {
-              const n = Number(serviceFeeRatePercent);
-              return !Number.isNaN(n) && n >= 0 && n <= 15 ? n : null;
+              const v = serviceFeeRatePercent.trim();
+              const decimalOk =
+                /^\d+(\.\d{0,2})?$/.test(v) || /^\d+\.$/.test(v) || /^\.\d{1,2}$/.test(v);
+              const n = Number(v);
+              return !Number.isNaN(n) && n >= 0 && n <= 15 && decimalOk ? n : null;
             })()
           : 15;
       const defaultFacilityFeeRatePercentNum =
         defaultFacilityFeeRatePercent.trim() !== ""
           ? (() => {
-              const n = Number(defaultFacilityFeeRatePercent);
-              return !Number.isNaN(n) && n >= 0 && n <= 100 ? n : null;
+              const v = defaultFacilityFeeRatePercent.trim();
+              const decimalOk =
+                /^\d+(\.\d{0,2})?$/.test(v) || /^\d+\.$/.test(v) || /^\.\d{1,2}$/.test(v);
+              const n = Number(v);
+              return !Number.isNaN(n) && n >= 0 && n <= 1 && decimalOk ? n : null;
             })()
           : 1;
       if (isEdit && product) {
@@ -514,20 +526,27 @@ const marketplaceListingDurationError = (() => {
 const serviceFeeRatePercentError = (() => {
   const v = serviceFeeRatePercent.trim();
   if (v === "") return null;
+  const decimalOk =
+    /^\d+(\.\d{0,2})?$/.test(v) || /^\d+\.$/.test(v) || /^\.\d{1,2}$/.test(v);
+  if (!decimalOk) return "Service fee rate must be between 0% and 15%, up to 2 decimal places";
   const num = Number(v);
-  if (Number.isNaN(num)) return "Service fee rate must be a number";
-  if (num < 0 || num > 15) return "Service fee rate must be between 0 and 15";
+  if (Number.isNaN(num)) return "Service fee rate must be a valid number";
+  if (num < 0 || num > 15) return "Service fee rate must be between 0% and 15%";
   return null;
 })();
 
-/** Default facility fee rate validation: blank treated as default (1). 0-100 inclusive. */
+/** Default facility fee rate validation: blank treated as default (1). 0-1 inclusive. */
 const defaultFacilityFeeRatePercentError = (() => {
   const v = defaultFacilityFeeRatePercent.trim();
   if (v === "") return null;
+  const decimalOk =
+    /^\d+(\.\d{0,2})?$/.test(v) || /^\d+\.$/.test(v) || /^\.\d{1,2}$/.test(v);
+  if (!decimalOk)
+    return "Default facility fee rate must be between 0% and 1%, up to 2 decimal places";
   const num = Number(v);
-  if (Number.isNaN(num)) return "Default facility fee rate must be a number";
-  if (num < 0 || num > 100)
-    return "Default facility fee rate must be between 0 and 100%";
+  if (Number.isNaN(num)) return "Default facility fee rate must be a valid number";
+  if (num < 0 || num > 1)
+    return "Default facility fee rate must be between 0% and 1%";
   return null;
 })();
 
@@ -806,8 +825,8 @@ const hasChanges = !isEdit
                     className={INPUT_CLASS}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Percentage of investor profit used to calculate the service fee. This value is snapshotted onto notes
-                    created from this product.
+                    Percentage of investor profit retained as service fee. Allowed range: 0% to 15%, up to 2 decimal
+                    places.
                   </p>
 
                   <Label
@@ -825,7 +844,8 @@ const hasChanges = !isEdit
                     className={INPUT_CLASS}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Prefills the facility fee rate for new contract offers. Admins can override this per offer.
+                    Default Facility Fee rate for new contract offers. Allowed range: 0% to 1%, up to 2 decimal
+                    places. Admin can override this value before sending the contract offer.
                   </p>
                 </div>
               </div>
@@ -926,6 +946,7 @@ const hasChanges = !isEdit
                   !!offerExpiryError ||
                   !!marketplaceListingDurationError ||
                   !!serviceFeeRatePercentError ||
+                  !!defaultFacilityFeeRatePercentError ||
                   (isEdit && !hasChanges)
                 }
               >

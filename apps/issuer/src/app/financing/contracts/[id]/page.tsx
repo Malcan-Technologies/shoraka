@@ -197,34 +197,25 @@ export default function ContractDetailsPage() {
                     <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       Facility fee tracker
                     </h4>
-                    <div className="flex justify-between gap-4 sm:gap-6">
-                      <div className="min-w-0">
-                        <p className="text-base font-semibold tabular-nums leading-7 text-foreground">
-                          {facilityFeePaidNum != null ? formatMoney(facilityFeePaidNum) : EM_DASH}
-                        </p>
-                        <p className="text-xs font-normal leading-5 text-muted-foreground">
-                          (Paid so far)
-                        </p>
-                      </div>
-                      <div className="min-w-0 text-right">
-                        <p className="text-base font-semibold tabular-nums leading-7 text-foreground">
-                          {facilityFeeCapNum != null ? formatMoney(facilityFeeCapNum) : EM_DASH}
-                        </p>
-                        <p className="text-xs font-normal leading-5 text-muted-foreground">
-                          (Facility fee cap)
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex justify-between gap-4 sm:gap-6">
-                      <div className="min-w-0">
-                        <p className="text-base font-semibold tabular-nums leading-7 text-foreground">
-                          {facilityFeeRemainingNum != null ? formatMoney(facilityFeeRemainingNum) : EM_DASH}
-                        </p>
-                        <p className="text-xs font-normal leading-5 text-muted-foreground">
-                          (Remaining)
-                        </p>
-                      </div>
-                      <div />
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <MetricBox
+                        label="Cap"
+                        value={facilityFeeCapNum != null ? formatMoney(facilityFeeCapNum) : EM_DASH}
+                      />
+                      <MetricBox
+                        label="Paid so far"
+                        value={
+                          facilityFeePaidNum != null ? formatMoney(facilityFeePaidNum) : EM_DASH
+                        }
+                      />
+                      <MetricBox
+                        label="Remaining"
+                        value={
+                          facilityFeeRemainingNum != null
+                            ? formatMoney(facilityFeeRemainingNum)
+                            : EM_DASH
+                        }
+                      />
                     </div>
                   </div>
                 ) : null}

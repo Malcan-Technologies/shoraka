@@ -73,6 +73,15 @@ const marketplaceListingDurationDaysSchema = z
   .optional()
   .nullable();
 
+function hasMaxDecimalPlaces(value: number, maxDecimals: number): boolean {
+  if (!Number.isFinite(value)) return false;
+  const factor = 10 ** maxDecimals;
+  const scaled = value * factor;
+  const rounded = Math.round(scaled);
+  // Tolerate tiny floating point errors from parsing.
+  return Math.abs(scaled - rounded) < 1e-9;
+}
+
 // Body for POST /v1/products (create). Version defaults to 1; not accepted from client.
 export const createProductBodySchema = z.object({
   workflow: z
@@ -88,8 +97,20 @@ export const createProductBodySchema = z.object({
     }, { message: "workflow[0].config.category is required and must be a non-empty string" }),
   offer_expiry_days: offerExpiryDaysSchema,
   marketplace_listing_duration_days: marketplaceListingDurationDaysSchema,
-  service_fee_rate_percent: z.number().min(0).max(15).optional().nullable(),
-  default_facility_fee_rate_percent: z.number().min(0).max(100).optional().nullable(),
+  service_fee_rate_percent: z
+    .number()
+    .min(0)
+    .max(15)
+    .refine((v) => hasMaxDecimalPlaces(v, 2), { message: "Service fee rate can have up to 2 decimal places" })
+    .optional()
+    .nullable(),
+  default_facility_fee_rate_percent: z
+    .number()
+    .min(0)
+    .max(1)
+    .refine((v) => hasMaxDecimalPlaces(v, 2), { message: "Default facility fee rate can have up to 2 decimal places" })
+    .optional()
+    .nullable(),
 });
 
 export type CreateProductBody = z.infer<typeof createProductBodySchema>;
@@ -111,8 +132,20 @@ export const updateProductBodySchema = z.object({
   completeCreate: z.boolean().optional(),
   offer_expiry_days: offerExpiryDaysSchema,
   marketplace_listing_duration_days: marketplaceListingDurationDaysSchema,
-  service_fee_rate_percent: z.number().min(0).max(15).optional().nullable(),
-  default_facility_fee_rate_percent: z.number().min(0).max(100).optional().nullable(),
+  service_fee_rate_percent: z
+    .number()
+    .min(0)
+    .max(15)
+    .refine((v) => hasMaxDecimalPlaces(v, 2), { message: "Service fee rate can have up to 2 decimal places" })
+    .optional()
+    .nullable(),
+  default_facility_fee_rate_percent: z
+    .number()
+    .min(0)
+    .max(1)
+    .refine((v) => hasMaxDecimalPlaces(v, 2), { message: "Default facility fee rate can have up to 2 decimal places" })
+    .optional()
+    .nullable(),
 });
 
 export type UpdateProductBody = z.infer<typeof updateProductBodySchema>;
