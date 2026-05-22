@@ -1,11 +1,12 @@
 "use client";
 
 import { NotificationBell } from "@cashsouk/ui";
-import { formatCurrency } from "@cashsouk/config";
+import { formatCurrency, useOrganization } from "@cashsouk/config";
 import { useInvestorPortfolio } from "@/investments/hooks/use-marketplace-notes";
 
 export function InvestorHeaderActions() {
-  const { data: portfolio } = useInvestorPortfolio();
+  const { activeOrganization } = useOrganization();
+  const { data: portfolio } = useInvestorPortfolio(activeOrganization?.id);
   const availableBalance = Number(portfolio?.availableBalance ?? 0);
 
   return (

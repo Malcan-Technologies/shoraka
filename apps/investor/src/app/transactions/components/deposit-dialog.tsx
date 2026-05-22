@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useInvestorBalanceTestTopupMutation } from "@/components/dev-balance-topup";
-import { MIN_DEPOSIT_AMOUNT } from "./transactions-mock-data";
+import { MIN_DEPOSIT_AMOUNT } from "./transactions.types";
 import { parseMoneyAmount } from "./transaction-utils";
 
 interface DepositDialogProps {
@@ -24,6 +24,7 @@ interface DepositDialogProps {
   onValidationErrorChange: (error: string | null) => void;
   onBankTransfer: () => void;
   onFpx: () => void;
+  onDevTopupSuccess: (amount: number) => void;
 }
 
 export function DepositDialog({
@@ -36,6 +37,7 @@ export function DepositDialog({
   onValidationErrorChange,
   onBankTransfer,
   onFpx,
+  onDevTopupSuccess,
 }: DepositDialogProps) {
   const topUp = useInvestorBalanceTestTopupMutation();
 
@@ -53,9 +55,7 @@ export function DepositDialog({
     onValidationErrorChange(null);
     try {
       await topUp.mutateAsync({ investorOrganizationId, amount: parsed });
-      toast.success(`Test top-up: RM ${parsed.toLocaleString("en-MY")}`);
-      onAmountChange("");
-      onOpenChange(false);
+      onDevTopupSuccess(parsed);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Test top-up failed");
     }
@@ -63,7 +63,7 @@ export function DepositDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-xl p-0">
+      <DialogContent className="max-w-md rounded-xl p-0" aria-describedby={undefined}>
         <DialogHeader className="border-b px-6 pb-4 pt-6 text-center">
           <DialogTitle className="text-xl font-semibold">Deposit</DialogTitle>
         </DialogHeader>

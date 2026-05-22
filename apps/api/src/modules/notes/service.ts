@@ -89,6 +89,7 @@ import type {
   getNotesQuerySchema,
   investorBalanceActivityQuerySchema,
   investorPortfolioHistoryQuerySchema,
+  investorPortfolioQuerySchema,
   lateChargeSchema,
   overdueLateChargeSchema,
   paymentReviewSchema,
@@ -982,6 +983,15 @@ export class NoteService {
       select: { id: true },
     });
     return orgs.map((org) => org.id);
+  }
+
+  private async resolveInvestorOrgIds(userId: string, investorOrganizationId?: string) {
+    const accessibleIds = await this.listInvestorOrganizationIds(userId);
+    if (!investorOrganizationId) return accessibleIds;
+    if (!accessibleIds.includes(investorOrganizationId)) {
+      throw new AppError(403, "INVESTOR_ORG_FORBIDDEN", "Investor organization not accessible");
+    }
+    return [investorOrganizationId];
   }
 
   async listAdminNotes(params: z.infer<typeof getNotesQuerySchema>) {
@@ -2726,8 +2736,11 @@ export class NoteService {
     };
   }
 
-  async getInvestorPortfolio(userId: string) {
-    const orgIds = await this.listInvestorOrganizationIds(userId);
+  async getInvestorPortfolio(
+    userId: string,
+    query: z.infer<typeof investorPortfolioQuerySchema> = {}
+  ) {
+    const orgIds = await this.resolveInvestorOrgIds(userId, query.investorOrganizationId);
     const investments = await prisma.noteInvestment.findMany({
       where: {
         investor_organization_id: { in: orgIds },
@@ -2754,7 +2767,7 @@ export class NoteService {
     userId: string,
     query: z.infer<typeof investorBalanceActivityQuerySchema>
   ) {
-    const orgIds = await this.listInvestorOrganizationIds(userId);
+    const orgIds = await this.resolveInvestorOrgIds(userId, query.investorOrganizationId);
     if (orgIds.length === 0) {
       return {
         entries: [],
@@ -2829,7 +2842,7 @@ export class NoteService {
     query: z.infer<typeof investorPortfolioHistoryQuerySchema>
   ) {
     const granularity = resolveHistoryGranularity(query.range);
-    const orgIds = await this.listInvestorOrganizationIds(userId);
+    const orgIds = await this.resolveInvestorOrgIds(userId, query.investorOrganizationId);
     if (orgIds.length === 0) {
       return {
         range: query.range,

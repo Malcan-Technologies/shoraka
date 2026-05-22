@@ -4,26 +4,25 @@ import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { useOrganization } from "@cashsouk/config";
 import { Card, CardContent, CardHeader, CardTitle, useHeader } from "@cashsouk/ui";
-import { TransactionsSummaryCards } from "./_components/transactions-summary-cards";
-import { TransactionsActions } from "./_components/transactions-actions";
-import { TransactionsTable, type TransactionFilters } from "./_components/transactions-table";
-import { WithdrawRequestDialog } from "./_components/withdraw-request-dialog";
-import { WithdrawConfirmDialog } from "./_components/withdraw-confirm-dialog";
-import { WithdrawSuccessDialog } from "./_components/withdraw-success-dialog";
-import { DepositDialog } from "./_components/deposit-dialog";
-import { DepositSuccessDialog } from "./_components/deposit-success-dialog";
-import { StatementDialog } from "./_components/statement-dialog";
+import { TransactionsSummaryCards } from "./components/transactions-summary-cards";
+import { TransactionsActions } from "./components/transactions-actions";
+import { TransactionsTable, type TransactionFilters } from "./components/transactions-table";
+import { WithdrawRequestDialog } from "./components/withdraw-request-dialog";
+import { WithdrawConfirmDialog } from "./components/withdraw-confirm-dialog";
+import { WithdrawSuccessDialog } from "./components/withdraw-success-dialog";
+import { DepositDialog } from "./components/deposit-dialog";
+import { DepositSuccessDialog } from "./components/deposit-success-dialog";
+import { StatementDialog } from "./components/statement-dialog";
 import {
-  MOCK_SUMMARY,
-  MOCK_TRANSACTIONS,
   MIN_DEPOSIT_AMOUNT,
   MIN_WITHDRAWAL_AMOUNT,
-  type MockTransaction,
+  TRANSACTION_TYPE_FILTER_OPTIONS,
+  type Transaction,
   type TransactionType,
-} from "./_components/transactions-mock-data";
-import { mapActivityEntryToTransaction, parseMoneyAmount } from "./_components/transaction-utils";
+} from "./components/transactions.types";
+import { mapActivityEntryToTransaction, parseMoneyAmount } from "./components/transaction-utils";
 import {
-  useInvestorBalanceActivity,
+  useInvestorBalanceActivityAll,
   useInvestorInvestments,
   useInvestorPortfolio,
   useInvestorPortfolioHistory,
@@ -38,9 +37,9 @@ function buildTrendMetric(currentValue: number, previousValue: number) {
 }
 
 function filterTransactions(
-  transactions: MockTransaction[],
+  transactions: Transaction[],
   filters: TransactionFilters
-): MockTransaction[] {
+): Transaction[] {
   const now = Date.now();
   const rangeMs: Record<TransactionFilters["timeRange"], number | null> = {
     all: null,
@@ -59,7 +58,7 @@ function filterTransactions(
   });
 }
 
-function paginateTransactions(transactions: MockTransaction[], page: number, pageSize: number) {
+function paginateTransactions(transactions: Transaction[], page: number, pageSize: number) {
   const start = (page - 1) * pageSize;
   return transactions.slice(start, start + pageSize);
 }
@@ -68,6 +67,7 @@ export default function TransactionsPage() {
   const { setTitle } = useHeader();
   const searchParams = useSearchParams();
   const { activeOrganization } = useOrganization();
+  const orgId = activeOrganization?.id;
 
   const [page, setPage] = React.useState(1);
   const [filters, setFilters] = React.useState<TransactionFilters>({
@@ -91,9 +91,9 @@ export default function TransactionsPage() {
   const [statementStartDate, setStatementStartDate] = React.useState("");
   const [statementEndDate, setStatementEndDate] = React.useState("");
 
-  const portfolioQuery = useInvestorPortfolio();
-  const portfolioHistoryQuery = useInvestorPortfolioHistory("1W");
-  const activityQuery = useInvestorBalanceActivity({ page: 1, pageSize: 100 });
+  const portfolioQuery = useInvestorPortfolio(orgId);
+  const portfolioHistoryQuery = useInvestorPortfolioHistory("1W", orgId);
+  const activityQuery = useInvestorBalanceActivityAll(orgId);
   const investmentsQuery = useInvestorInvestments();
 
   const noteReferenceById = React.useMemo(() => {
@@ -110,7 +110,10 @@ export default function TransactionsPage() {
 
   React.useEffect(() => {
     const typeParam = searchParams.get("type");
-    if (typeParam && ["Deposit", "Withdrawal", "Investment", "Returns", "SST"].includes(typeParam)) {
+    if (
+      typeParam &&
+      (TRANSACTION_TYPE_FILTER_OPTIONS as readonly string[]).includes(typeParam)
+    ) {
       setFilters((current) => ({ ...current, type: typeParam as TransactionType }));
       setPage(1);
     }
@@ -119,7 +122,17 @@ export default function TransactionsPage() {
   const portfolioTotal = Number(portfolioQuery.data?.portfolioTotal ?? 0);
   const totalInvestment = Number(portfolioQuery.data?.totalInvestment ?? 0);
   const availableBalance = Number(portfolioQuery.data?.availableBalance ?? 0);
-  const hasPortfolioData = portfolioQuery.isSuccess && portfolioTotal > 0;
+
+  const portfolioTrend = React.useMemo(() => {
+    const points = portfolioHistoryQuery.data?.points ?? [];
+    if (points.length === 0) return buildTrendMetric(portfolioTotal, portfolioTotal);
+    const first = points[0];
+    const last = points[points.length - 1];
+    return buildTrendMetric(
+      last ? last.portfolioTotal : portfolioTotal,
+      first ? first.portfolioTotal : portfolioTotal
+    );
+  }, [portfolioHistoryQuery.data?.points, portfolioTotal]);
 
   const investmentTrend = React.useMemo(() => {
     const points = portfolioHistoryQuery.data?.points ?? [];
@@ -142,23 +155,18 @@ export default function TransactionsPage() {
     );
   }, [availableBalance, portfolioHistoryQuery.data?.points]);
 
-  const summary = hasPortfolioData
-    ? {
-        totalPortfolioSize: portfolioTotal,
-        totalInvestment,
-        availableBalance,
-        trendAmount: investmentTrend.trendAmount,
-        trendPercent: investmentTrend.trendPercent,
-      }
-    : {
-        ...MOCK_SUMMARY,
-        trendAmount: balanceTrend.trendAmount || MOCK_SUMMARY.trendAmount,
-        trendPercent: balanceTrend.trendPercent || MOCK_SUMMARY.trendPercent,
-      };
+  const summary = {
+    totalPortfolioSize: portfolioTotal,
+    totalInvestment,
+    availableBalance,
+    portfolioTrend,
+    investmentTrend,
+    balanceTrend,
+  };
 
-  const liveTransactions = React.useMemo(() => {
+  const allTransactions = React.useMemo(() => {
     const entries = activityQuery.data?.entries ?? [];
-    if (entries.length === 0) return null;
+    if (entries.length === 0) return [];
 
     const sorted = [...entries].sort(
       (a, b) => new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime()
@@ -176,7 +184,6 @@ export default function TransactionsPage() {
     });
   }, [activityQuery.data?.entries, activityQuery.data?.summary, noteReferenceById]);
 
-  const allTransactions = liveTransactions ?? MOCK_TRANSACTIONS;
   const filteredTransactions = React.useMemo(
     () => filterTransactions(allTransactions, filters),
     [allTransactions, filters]
@@ -185,7 +192,7 @@ export default function TransactionsPage() {
 
   React.useEffect(() => {
     setPage(1);
-  }, [filters]);
+  }, [filters, orgId]);
 
   function validateDepositAmount(): number | null {
     const amount = parseMoneyAmount(depositAmount);
@@ -207,9 +214,7 @@ export default function TransactionsPage() {
     return amount;
   }
 
-  function handleDepositSubmit() {
-    const amount = validateDepositAmount();
-    if (amount === null) return;
+  function handleDepositSuccess(amount: number) {
     setConfirmedAmount(amount);
     setDepositOpen(false);
     setDepositSuccessOpen(true);
@@ -232,7 +237,6 @@ export default function TransactionsPage() {
 
   function handleSeeWithdrawalHistory() {
     setWithdrawRequestOpen(false);
-    setFilters((current) => ({ ...current, type: "Withdrawal" }));
     setPage(1);
   }
 
@@ -271,13 +275,20 @@ export default function TransactionsPage() {
       <DepositDialog
         open={depositOpen}
         onOpenChange={setDepositOpen}
-        investorOrganizationId={activeOrganization?.id}
+        investorOrganizationId={orgId}
         amount={depositAmount}
         onAmountChange={setDepositAmount}
         validationError={depositError}
         onValidationErrorChange={setDepositError}
-        onBankTransfer={handleDepositSubmit}
-        onFpx={handleDepositSubmit}
+        onBankTransfer={() => {
+          const amount = validateDepositAmount();
+          if (amount !== null) handleDepositSuccess(amount);
+        }}
+        onFpx={() => {
+          const amount = validateDepositAmount();
+          if (amount !== null) handleDepositSuccess(amount);
+        }}
+        onDevTopupSuccess={handleDepositSuccess}
       />
 
       <DepositSuccessDialog

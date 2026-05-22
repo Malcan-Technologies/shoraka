@@ -2,10 +2,10 @@ import { formatCurrency } from "@cashsouk/config";
 import type { InvestorBalanceActivityEntry } from "@cashsouk/types";
 import { formatNoteReferenceDisplay } from "@cashsouk/types";
 import type {
-  MockTransaction,
+  Transaction,
   TransactionContext,
   TransactionType,
-} from "./transactions-mock-data";
+} from "./transactions.types";
 
 export function parseMoneyAmount(value: string): number {
   return Number(value.replaceAll(",", "").replaceAll(" ", "")) || 0;
@@ -16,11 +16,10 @@ export function formatTransactionDateTime(value: string): string {
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleString("en-MY", {
     day: "2-digit",
-    month: "2-digit",
+    month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    hour12: true,
   });
 }
 
@@ -122,7 +121,7 @@ export function mapActivityEntryToTransaction(
   entry: InvestorBalanceActivityEntry,
   runningBalance: number | undefined,
   noteReferenceById: Map<string, string>
-): MockTransaction {
+): Transaction {
   const type = mapActivitySourceToType(entry.source, entry.metadata);
   return {
     id: entry.id,

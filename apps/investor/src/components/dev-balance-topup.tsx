@@ -27,7 +27,8 @@ export function useInvestorBalanceTestTopupMutation() {
       return response.data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: marketplaceKeys.portfolio });
+      queryClient.invalidateQueries({ queryKey: marketplaceKeys.portfolioRoot });
+      queryClient.invalidateQueries({ queryKey: marketplaceKeys.portfolioHistoryRoot });
       queryClient.invalidateQueries({ queryKey: marketplaceKeys.investorBalanceActivityRoot });
     },
   });

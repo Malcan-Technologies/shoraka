@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogTitle,
 } from "@/components/ui/dialog";
 
 interface WithdrawSuccessDialogProps {
@@ -18,6 +20,11 @@ export function WithdrawSuccessDialog({ open, onOpenChange, amount }: WithdrawSu
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md rounded-xl px-6 py-8 text-center">
+        <DialogTitle className="sr-only">Withdrawal submitted successfully</DialogTitle>
+        <DialogDescription className="sr-only">
+          Your withdrawal request for {formatCurrency(amount)} has been submitted successfully. The
+          amount will be credited to your account within 2-3 business days.
+        </DialogDescription>
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-800">
           <CheckIcon className="h-8 w-8 text-white" strokeWidth={2.5} />
         </div>

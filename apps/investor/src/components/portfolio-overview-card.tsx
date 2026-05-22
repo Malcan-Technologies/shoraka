@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { formatCurrency } from "@cashsouk/config";
+import { formatCurrency, useOrganization } from "@cashsouk/config";
 import {
   NoteServicingStatus,
   NoteStatus,
@@ -159,8 +159,10 @@ function buildInvestmentSummary(notes: NoteListItem[]) {
 
 export function PortfolioOverviewCard() {
   const [activeRange, setActiveRange] = useState<RangeOption>("3m");
-  const { data: portfolio } = useInvestorPortfolio();
-  const { data: history } = useInvestorPortfolioHistory(API_RANGE_BY_OPTION[activeRange]);
+  const { activeOrganization } = useOrganization();
+  const orgId = activeOrganization?.id;
+  const { data: portfolio } = useInvestorPortfolio(orgId);
+  const { data: history } = useInvestorPortfolioHistory(API_RANGE_BY_OPTION[activeRange], orgId);
   const { data: investedNotesData } = useInvestorInvestments();
 
   const portfolioTotal = Number(portfolio?.portfolioTotal ?? 0);

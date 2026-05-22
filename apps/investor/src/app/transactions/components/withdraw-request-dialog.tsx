@@ -10,7 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { MOCK_BANK_DETAILS, MIN_WITHDRAWAL_AMOUNT } from "./transactions-mock-data";
+import { MIN_WITHDRAWAL_AMOUNT } from "./transactions.types";
+
+// Placeholder until withdraw flow reads linked bank account from the API.
+const PLACEHOLDER_BANK_DETAILS = {
+  bankName: "RHB Islamic Bank Berhad",
+  accountNumber: "465874838",
+} as const;
 
 interface WithdrawRequestDialogProps {
   open: boolean;
@@ -33,7 +39,7 @@ export function WithdrawRequestDialog({
 }: WithdrawRequestDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-xl p-0">
+      <DialogContent className="max-w-md rounded-xl p-0" aria-describedby={undefined}>
         <DialogHeader className="border-b px-6 pb-4 pt-6 text-center">
           <DialogTitle className="text-xl font-semibold">Withdrawal Request</DialogTitle>
         </DialogHeader>
@@ -60,11 +66,11 @@ export function WithdrawRequestDialog({
           <div className="space-y-1 text-sm">
             <p>
               <span className="text-muted-foreground">Bank: </span>
-              <span className="font-medium">{MOCK_BANK_DETAILS.bankName}</span>
+              <span className="font-medium">{PLACEHOLDER_BANK_DETAILS.bankName}</span>
             </p>
             <p>
               <span className="text-muted-foreground">Account number: </span>
-              <span className="font-medium">{MOCK_BANK_DETAILS.accountNumber}</span>
+              <span className="font-medium">{PLACEHOLDER_BANK_DETAILS.accountNumber}</span>
             </p>
           </div>
         </div>
@@ -85,7 +91,7 @@ export function WithdrawRequestDialog({
 
         <div className="border-t px-6 py-4 text-center">
           <Link
-            href="/transactions?type=Withdrawal"
+            href="/transactions"
             className="text-sm font-medium text-primary hover:underline"
             onClick={onSeeWithdrawalHistory}
           >

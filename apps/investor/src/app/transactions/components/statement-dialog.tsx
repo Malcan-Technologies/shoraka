@@ -47,7 +47,7 @@ export function StatementDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-xl p-0">
+      <DialogContent className="max-w-md rounded-xl p-0" aria-describedby={undefined}>
         <DialogHeader className="border-b px-6 pb-4 pt-6 text-center">
           <DialogTitle className="text-xl font-semibold">Statement</DialogTitle>
         </DialogHeader>

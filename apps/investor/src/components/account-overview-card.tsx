@@ -13,7 +13,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@cashsouk/ui";
-import { formatCurrency } from "@cashsouk/config";
+import { formatCurrency, useOrganization } from "@cashsouk/config";
 import type { ChartConfig } from "@cashsouk/ui";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -93,8 +93,10 @@ function TrendIndicator({
 }
 
 export function AccountOverviewCard({ isDisabled = false }: AccountOverviewCardProps) {
-  const { data: portfolio } = useInvestorPortfolio();
-  const { data: weeklyHistory } = useInvestorPortfolioHistory("1W");
+  const { activeOrganization } = useOrganization();
+  const orgId = activeOrganization?.id;
+  const { data: portfolio } = useInvestorPortfolio(orgId);
+  const { data: weeklyHistory } = useInvestorPortfolioHistory("1W", orgId);
   const portfolioTotal = Number(portfolio?.portfolioTotal ?? 0);
   const totalInvestment = Number(portfolio?.totalInvestment ?? 0);
   const availableBalance = Number(portfolio?.availableBalance ?? 0);

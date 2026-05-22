@@ -120,7 +120,7 @@ export function MarketplacePage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { activeOrganization } = useOrganization();
-  const { data: portfolio } = useInvestorPortfolio();
+  const { data: portfolio } = useInvestorPortfolio(activeOrganization?.id);
   const commitInvestment = useCommitInvestment();
   const availableBalance = Number(portfolio?.availableBalance ?? 0);
 

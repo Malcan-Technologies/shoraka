@@ -35,12 +35,18 @@ export const bucketActivityQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-export const investorBalanceActivityQuerySchema = z.object({
+export const investorOrganizationScopeSchema = z.object({
+  investorOrganizationId: z.string().min(1).optional(),
+});
+
+export const investorPortfolioQuerySchema = investorOrganizationScopeSchema;
+
+export const investorBalanceActivityQuerySchema = investorOrganizationScopeSchema.extend({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-export const investorPortfolioHistoryQuerySchema = z.object({
+export const investorPortfolioHistoryQuerySchema = investorOrganizationScopeSchema.extend({
   range: z.enum(["1W", "1M", "3M", "6M", "YTD", "ALL"]).default("6M"),
 });
 

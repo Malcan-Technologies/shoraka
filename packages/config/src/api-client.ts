@@ -2379,14 +2379,27 @@ export class ApiClient {
     return this.get<NotesResponse>("/v1/investor/investments");
   }
 
-  async getInvestorPortfolio(): Promise<ApiResponse<InvestorPortfolioResponse> | ApiError> {
-    return this.get<InvestorPortfolioResponse>("/v1/investor/portfolio");
+  async getInvestorPortfolio(
+    investorOrganizationId?: string
+  ): Promise<ApiResponse<InvestorPortfolioResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    if (investorOrganizationId) {
+      queryParams.append("investorOrganizationId", investorOrganizationId);
+    }
+    const suffix = queryParams.toString();
+    return this.get<InvestorPortfolioResponse>(
+      `/v1/investor/portfolio${suffix ? `?${suffix}` : ""}`
+    );
   }
 
   async getInvestorPortfolioHistory(
-    range: InvestorPortfolioHistoryRange = "6M"
+    range: InvestorPortfolioHistoryRange = "6M",
+    investorOrganizationId?: string
   ): Promise<ApiResponse<InvestorPortfolioHistoryResponse> | ApiError> {
     const queryParams = new URLSearchParams({ range });
+    if (investorOrganizationId) {
+      queryParams.append("investorOrganizationId", investorOrganizationId);
+    }
     return this.get<InvestorPortfolioHistoryResponse>(
       `/v1/investor/portfolio/history?${queryParams.toString()}`
     );
@@ -2396,11 +2409,15 @@ export class ApiClient {
     params: {
       page?: number;
       pageSize?: number;
+      investorOrganizationId?: string;
     } = {}
   ): Promise<ApiResponse<InvestorBalanceActivityResponse> | ApiError> {
     const queryParams = new URLSearchParams();
     queryParams.append("page", String(params.page ?? 1));
     queryParams.append("pageSize", String(params.pageSize ?? 20));
+    if (params.investorOrganizationId) {
+      queryParams.append("investorOrganizationId", params.investorOrganizationId);
+    }
     return this.get<InvestorBalanceActivityResponse>(
       `/v1/investor/balance/activity?${queryParams.toString()}`
     );

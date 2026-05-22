@@ -14,8 +14,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { MockTransaction, TransactionContext, TransactionType } from "./transactions-mock-data";
-import { TRANSACTION_TYPE_OPTIONS } from "./transactions-mock-data";
+import type { Transaction, TransactionContext, TransactionType } from "./transactions.types";
+import { TRANSACTION_TYPE_FILTER_OPTIONS } from "./transactions.types";
 import {
   formatTransactionDateTime,
   isCreditTransaction,
@@ -97,7 +97,7 @@ export interface TransactionFilters {
 }
 
 interface TransactionsTableProps {
-  transactions: MockTransaction[];
+  transactions: Transaction[];
   totalCount: number;
   page: number;
   pageSize: number;
@@ -138,7 +138,7 @@ function FilterButton({
   );
 }
 
-function DesktopTransactionRow({ tx }: { tx: MockTransaction }) {
+function DesktopTransactionRow({ tx }: { tx: Transaction }) {
   const isCredit = isCreditTransaction(tx.type);
 
   return (
@@ -159,7 +159,7 @@ function DesktopTransactionRow({ tx }: { tx: MockTransaction }) {
   );
 }
 
-function MobileTransactionRow({ tx }: { tx: MockTransaction }) {
+function MobileTransactionRow({ tx }: { tx: Transaction }) {
   const amount = splitSignedTransactionAmount(tx.type, tx.amount);
   const balance = splitBalanceAmount(tx.balance);
   const isCredit = isCreditTransaction(tx.type);
@@ -230,7 +230,7 @@ export function TransactionsTable({
               }
             >
               <DropdownMenuRadioItem value="all">All types</DropdownMenuRadioItem>
-              {TRANSACTION_TYPE_OPTIONS.map((type) => (
+              {TRANSACTION_TYPE_FILTER_OPTIONS.map((type) => (
                 <DropdownMenuRadioItem key={type} value={type}>
                   {type}
                 </DropdownMenuRadioItem>
