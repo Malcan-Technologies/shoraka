@@ -48,6 +48,7 @@ import {
   BuildingOffice2Icon,
   DocumentTextIcon,
   CheckCircleIcon,
+  XCircleIcon,
   ExclamationTriangleIcon,
   PencilSquareIcon,
   InboxIcon,
@@ -60,6 +61,7 @@ import type {
   DirectorKycStatus,
   OnboardingApplicationResponse,
 } from "@cashsouk/types";
+import { compareCompanyNamesForStrictDisplayExact } from "@cashsouk/types";
 import {
   buildOnboardingCtosComparison,
   buildSharePctMapFromCorporateEntities,
@@ -798,6 +800,10 @@ export function SSMVerificationPanel({
 
   const isAlreadyVerified = application.ssmApproved;
   const { company } = comparison;
+  const companyNameCheck = compareCompanyNamesForStrictDisplayExact({
+    submittedName: company.applicationName,
+    extractedName: company.ctosName,
+  });
 
   return (
     <div className="space-y-6">
@@ -1004,6 +1010,39 @@ export function SSMVerificationPanel({
                 )
               }
             />
+
+            <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  {companyNameCheck.status === "match" ? (
+                    <CheckCircleIcon className="h-4 w-4 text-emerald-600" aria-hidden />
+                  ) : companyNameCheck.status === "difference" ? (
+                    <XCircleIcon className="h-4 w-4 text-red-600" aria-hidden />
+                  ) : (
+                    <ExclamationTriangleIcon className="h-4 w-4 text-slate-500" aria-hidden />
+                  )}
+                  <span className="font-medium text-foreground">Company name check</span>
+                </div>
+                <span className="text-sm font-semibold text-foreground">
+                  {companyNameCheck.status === "match"
+                    ? "Match"
+                    : companyNameCheck.status === "difference"
+                      ? "Difference found"
+                      : "Not available"}
+                </span>
+              </div>
+
+              <div className="mt-2 space-y-1 text-[13px] text-muted-foreground">
+                <div>
+                  <span className="font-medium text-foreground">Submitted:</span>{" "}
+                  {companyNameCheck.submittedName ?? "—"}
+                </div>
+                <div>
+                  <span className="font-medium text-foreground">CTOS/SSM:</span>{" "}
+                  {companyNameCheck.extractedName ?? "—"}
+                </div>
+              </div>
+            </div>
           </div>
 
           <DirectorBucketsBlock title="Directors" buckets={comparison.directors} ctosOrgState={orgFetchState} />
