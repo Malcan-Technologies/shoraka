@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { useOrganization } from "@cashsouk/config";
-import { useHeader } from "@cashsouk/ui";
+import { formatCurrency, useOrganization } from "@cashsouk/config";
+import { MoneyInput, useHeader } from "@cashsouk/ui";
 import {
   ArrowPathIcon,
   ChevronLeftIcon,
@@ -35,7 +35,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MarketplaceNote, NoteCard as MarketplaceMockNoteCard } from "@/components/marketplace/note-card";
-import { InvestmentsDevBalanceTopup } from "./_components/investments-dev-balance-topup";
 import { InvestorInvestmentsList } from "@/components/dashboard-investments-section";
 import { computeMarketplaceCommitBounds } from "@/investments/marketplace-commit-bounds";
 import {
@@ -44,21 +43,27 @@ import {
   useMarketplaceNotes,
 } from "@/investments/hooks/use-marketplace-notes";
 import { ONBOARDING_INDUSTRY_OPTIONS } from "@/investments/industry-filter-options";
-import { formatNoteReferenceDisplay, SOUKSCORE_RISK_RATING_GRADES, type NoteListItem } from "@cashsouk/types";
+import {
+  formatNoteReferenceDisplay,
+  isNoteMoneyAmount,
+  resolveNetExpectedReturnRatePercent,
+  SOUKSCORE_RISK_RATING_GRADES,
+  type NoteListItem,
+} from "@cashsouk/types";
 
 const MARKETPLACE_SECONDARY_BUTTON_CLASS =
   "bg-slate-100 text-slate-700 hover:bg-slate-200";
 
-function resolveMarketplaceDaysLeft(maturityDate?: string | null): number | null {
-  if (!maturityDate) return null;
+function resolveMarketplaceListingDaysLeft(listingClosesAt?: string | null): number | null {
+  if (!listingClosesAt) return null;
 
-  const target = new Date(maturityDate);
+  const target = new Date(listingClosesAt);
   if (Number.isNaN(target.getTime())) {
     return null;
   }
 
   const millisRemaining = target.getTime() - Date.now();
-  return Math.max(1, Math.ceil(millisRemaining / (1000 * 60 * 60 * 24)));
+  return Math.max(0, Math.ceil(millisRemaining / (1000 * 60 * 60 * 24)));
 }
 const MARKETPLACE_LISTINGS_PAGE_SIZE = 9;
 
@@ -67,10 +72,6 @@ function parseMarketplaceListPageParam(value: string | null): number {
   const parsed = Number.parseInt(value.trim(), 10);
   if (!Number.isFinite(parsed) || parsed < 1) return 1;
   return parsed;
-}
-
-function currency(amount: number) {
-  return `RM ${amount.toLocaleString("en-MY")}`;
 }
 
 function textOrDash(value?: string | null) {
@@ -90,7 +91,7 @@ function toMarketplaceNote(note: NoteListItem): MarketplaceNote {
     note.targetAmount,
     note.fundedAmount
   );
-  const tenorDays = resolveMarketplaceDaysLeft(note.maturityDate);
+  const tenorDays = resolveMarketplaceListingDaysLeft(note.listingClosesAt);
 
   return {
     id: note.id,
@@ -101,7 +102,7 @@ function toMarketplaceNote(note: NoteListItem): MarketplaceNote {
     industry: note.issuerIndustry?.trim() || null,
     fundedAmount: note.fundedAmount,
     goalAmount: note.targetAmount,
-    annualReturn: note.profitRatePercent,
+    annualReturn: resolveNetExpectedReturnRatePercent(note),
     tenorDays,
     riskScore: note.riskRating,
     daysLeft: tenorDays,
@@ -119,7 +120,7 @@ export function MarketplacePage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { activeOrganization } = useOrganization();
-  const { data: portfolio } = useInvestorPortfolio();
+  const { data: portfolio } = useInvestorPortfolio(activeOrganization?.id);
   const commitInvestment = useCommitInvestment();
   const availableBalance = Number(portfolio?.availableBalance ?? 0);
 
@@ -383,6 +384,10 @@ export function MarketplacePage() {
       setValidationError("Please enter a valid investment amount.");
       return;
     }
+    if (!isNoteMoneyAmount(parsedAmount)) {
+      setValidationError("Investment amount can have at most 2 decimal places.");
+      return;
+    }
 
     if (parsedAmount > availableBalance) {
       setValidationError("You have insufficient balance");
@@ -391,7 +396,7 @@ export function MarketplacePage() {
 
     if (parsedAmount < activeNote.minInvestment || parsedAmount > activeNote.maxInvestment) {
       setValidationError(
-        `Investment amount must be between ${currency(activeNote.minInvestment)} and ${currency(activeNote.maxInvestment)}.`
+        `Investment amount must be between ${formatCurrency(activeNote.minInvestment)} and ${formatCurrency(activeNote.maxInvestment)}.`
       );
       return;
     }
@@ -413,6 +418,23 @@ export function MarketplacePage() {
     const parsedAmount = parseAmount(investmentAmount);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       toast.error("Invalid investment amount");
+      return;
+    }
+    if (!isNoteMoneyAmount(parsedAmount)) {
+      toast.error("Investment amount can have at most 2 decimal places");
+      return;
+    }
+    if (parsedAmount > availableBalance) {
+      toast.error("You have insufficient balance");
+      return;
+    }
+    if (
+      parsedAmount + 1e-9 < activeNote.minInvestment ||
+      parsedAmount > activeNote.maxInvestment + 1e-9
+    ) {
+      toast.error(
+        `Investment amount must be between ${formatCurrency(activeNote.minInvestment)} and ${formatCurrency(activeNote.maxInvestment)}`
+      );
       return;
     }
     try {
@@ -453,16 +475,11 @@ export function MarketplacePage() {
 
         {!isLoading && !error ? (
           <div className="space-y-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div className="min-w-0 space-y-1.5">
-                <p className="text-sm font-medium text-muted-foreground">Available balance</p>
-                <p className="text-3xl font-semibold leading-none tracking-tight text-foreground tabular-nums sm:text-4xl">
-                  {currency(availableBalance)}
-                </p>
-              </div>
-              <div className="flex shrink-0 justify-end sm:justify-end">
-                <InvestmentsDevBalanceTopup investorOrganizationId={activeOrganization?.id} />
-              </div>
+            <div className="min-w-0 space-y-1.5">
+              <p className="text-sm font-medium text-muted-foreground">Available balance</p>
+              <p className="text-3xl font-semibold leading-none tracking-tight text-foreground tabular-nums sm:text-4xl">
+                {formatCurrency(availableBalance)}
+              </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -720,19 +737,18 @@ export function MarketplacePage() {
 
           <div className="space-y-4 px-4 pb-4">
             <div className="space-y-2">
-              <Label htmlFor="investment-amount" className="text-xs text-slate-900">
+              <Label className="text-xs text-slate-900">
                 Investment amount
               </Label>
-              <Input
-                id="investment-amount"
-                value={`RM ${investmentAmount}`}
-                onChange={(event) => {
-                  const normalizedValue = event.target.value.replace("RM", "").trim();
-                  setInvestmentAmount(normalizedValue);
+              <MoneyInput
+                value={investmentAmount}
+                onValueChange={(next) => {
+                  setInvestmentAmount(next);
                   if (validationError) setValidationError(null);
                 }}
-                className="h-9 rounded-lg border-slate-200 text-slate-700 focus-visible:ring-slate-300"
-                aria-invalid={Boolean(validationError)}
+                prefix="RM"
+                placeholder="0.00"
+                inputClassName="h-9 rounded-lg border-slate-200 text-slate-700 focus-visible:ring-slate-300"
               />
               {validationError ? (
                 <p className="text-right text-xs text-destructive">{validationError}</p>
@@ -776,7 +792,7 @@ export function MarketplacePage() {
 
             <p className="text-center text-xs text-slate-500">
               {activeNote
-                ? `Min. investment : ${currency(activeNote.minInvestment)} | Max. investment : ${currency(activeNote.maxInvestment)}`
+                ? `Min. investment : ${formatCurrency(activeNote.minInvestment)} | Max. investment : ${formatCurrency(activeNote.maxInvestment)}`
                 : null}
             </p>
           </div>
@@ -789,7 +805,7 @@ export function MarketplacePage() {
             <DialogTitle className="text-xl font-semibold text-slate-900">Confirm investment</DialogTitle>
             <DialogDescription className="pt-3 text-sm text-slate-700">
               Are you sure you want to invest{" "}
-              <span className="font-semibold">RM {parseAmount(investmentAmount).toLocaleString("en-MY")}</span>
+              <span className="font-semibold">{formatCurrency(parseAmount(investmentAmount))}</span>
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-2 p-4">

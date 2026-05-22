@@ -13,6 +13,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@cashsouk/ui";
+import { formatCurrency, useOrganization } from "@cashsouk/config";
 import type { ChartConfig } from "@cashsouk/ui";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -39,10 +40,6 @@ const chartConfig = {
     color: "hsl(var(--muted))",
   },
 } satisfies ChartConfig;
-
-function formatCurrency(value: number) {
-  return `RM ${value.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 function formatSignedCurrency(value: number) {
   const sign = value > 0 ? "+" : value < 0 ? "-" : "";
@@ -96,8 +93,10 @@ function TrendIndicator({
 }
 
 export function AccountOverviewCard({ isDisabled = false }: AccountOverviewCardProps) {
-  const { data: portfolio } = useInvestorPortfolio();
-  const { data: weeklyHistory } = useInvestorPortfolioHistory("1W");
+  const { activeOrganization } = useOrganization();
+  const orgId = activeOrganization?.id;
+  const { data: portfolio } = useInvestorPortfolio(orgId);
+  const { data: weeklyHistory } = useInvestorPortfolioHistory("1W", orgId);
   const portfolioTotal = Number(portfolio?.portfolioTotal ?? 0);
   const totalInvestment = Number(portfolio?.totalInvestment ?? 0);
   const availableBalance = Number(portfolio?.availableBalance ?? 0);

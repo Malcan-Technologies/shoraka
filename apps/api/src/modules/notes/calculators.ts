@@ -1,3 +1,9 @@
+import {
+  meetsMinimumFunding as meetsMinimumFundingWithTolerance,
+  NOTE_MONEY_DECIMALS,
+  roundNoteMoney,
+} from "@cashsouk/types";
+
 export interface SettlementWaterfallInput {
   grossReceiptAmount: number;
   fundedPrincipal: number;
@@ -61,7 +67,7 @@ export function calculateSettlementWaterfall(input: SettlementWaterfallInput) {
       issuerResidualAmount
   );
 
-  return {
+  return reconcileSettlementWaterfall({
     grossReceiptAmount: input.grossReceiptAmount,
     investorPrincipal,
     profitStartDate: input.profitStartDate,
@@ -81,6 +87,109 @@ export function calculateSettlementWaterfall(input: SettlementWaterfallInput) {
     settlementShortfallAmount,
     issuerResidualAmount,
     unappliedAmount,
+  });
+}
+
+export type SettlementWaterfallResult = {
+  grossReceiptAmount: number;
+  investorPrincipal: number;
+  profitStartDate: Date;
+  profitMaturityDate: Date;
+  profitDays: number;
+  annualProfitRatePercent: number;
+  investorProfitGross: number;
+  serviceFeeAmount: number;
+  investorProfitNet: number;
+  tawidhAmount: number;
+  tawidhInvestorSharePercent: number;
+  tawidhInvestorAmount: number;
+  tawidhAccountAmount: number;
+  gharamahAmount: number;
+  investorPoolTotal: number;
+  availableLateFeeHeadroomAmount: number;
+  settlementShortfallAmount: number;
+  issuerResidualAmount: number;
+  unappliedAmount: number;
+};
+
+/**
+ * Round settlement lines to MYR 2dp and set issuer residual to the remainder so
+ * principal + net profit + service fee + late fees + issuer residual = gross receipt
+ * (matches what postSettlementLedger debits from the repayment pool).
+ */
+export function reconcileSettlementWaterfall(
+  waterfall: SettlementWaterfallResult
+): SettlementWaterfallResult {
+  const grossReceiptAmount = roundNoteMoney(waterfall.grossReceiptAmount, NOTE_MONEY_DECIMALS);
+  const investorPrincipal = roundNoteMoney(waterfall.investorPrincipal, NOTE_MONEY_DECIMALS);
+  const investorProfitGross = roundNoteMoney(waterfall.investorProfitGross, NOTE_MONEY_DECIMALS);
+  const serviceFeeAmount = roundNoteMoney(waterfall.serviceFeeAmount, NOTE_MONEY_DECIMALS);
+  const investorProfitNet = roundNoteMoney(
+    investorProfitGross - serviceFeeAmount,
+    NOTE_MONEY_DECIMALS
+  );
+  const tawidhAmount = roundNoteMoney(waterfall.tawidhAmount, NOTE_MONEY_DECIMALS);
+  const gharamahAmount = roundNoteMoney(waterfall.gharamahAmount, NOTE_MONEY_DECIMALS);
+  const tawidhInvestorAmount = roundNoteMoney(waterfall.tawidhInvestorAmount, NOTE_MONEY_DECIMALS);
+  const tawidhAccountAmount = roundNoteMoney(
+    tawidhAmount - tawidhInvestorAmount,
+    NOTE_MONEY_DECIMALS
+  );
+
+  const issuerResidualAmount = Math.max(
+    0,
+    roundNoteMoney(
+      grossReceiptAmount -
+        investorPrincipal -
+        investorProfitNet -
+        serviceFeeAmount -
+        tawidhAmount -
+        gharamahAmount,
+      NOTE_MONEY_DECIMALS
+    )
+  );
+  const unappliedAmount = Math.max(
+    0,
+    roundNoteMoney(
+      grossReceiptAmount -
+        investorPrincipal -
+        investorProfitNet -
+        serviceFeeAmount -
+        tawidhAmount -
+        gharamahAmount -
+        issuerResidualAmount,
+      NOTE_MONEY_DECIMALS
+    )
+  );
+
+  return {
+    ...waterfall,
+    grossReceiptAmount,
+    investorPrincipal,
+    investorProfitGross,
+    serviceFeeAmount,
+    investorProfitNet,
+    tawidhAmount,
+    tawidhInvestorAmount,
+    tawidhAccountAmount,
+    gharamahAmount,
+    issuerResidualAmount,
+    unappliedAmount,
+    investorPoolTotal: roundNoteMoney(
+      investorPrincipal + investorProfitNet + tawidhInvestorAmount,
+      NOTE_MONEY_DECIMALS
+    ),
+    availableLateFeeHeadroomAmount: roundNoteMoney(
+      Math.max(0, grossReceiptAmount - investorPrincipal - investorProfitGross),
+      NOTE_MONEY_DECIMALS
+    ),
+    settlementShortfallAmount: roundNoteMoney(
+      Math.max(
+        0,
+        investorPrincipal + investorProfitGross + tawidhAmount + gharamahAmount - grossReceiptAmount
+      ),
+      NOTE_MONEY_DECIMALS
+    ),
   };
 }
 
@@ -116,9 +225,10 @@ export function meetsMinimumFunding(
   targetAmount: number,
   minimumFundingPercent = 80
 ) {
-  if (targetAmount <= 0) return false;
-  return (fundedAmount / targetAmount) * 100 >= minimumFundingPercent;
+  return meetsMinimumFundingWithTolerance(fundedAmount, targetAmount, minimumFundingPercent);
 }
+
+export { buildSettlementInvestorAllocations } from "@cashsouk/types";
 
 export type SettlementAllocationRow = {
   investmentId: string;

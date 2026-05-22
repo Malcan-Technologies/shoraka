@@ -1,7 +1,8 @@
 "use client";
 
 import { ArrowDownTrayIcon, BuildingOffice2Icon, DocumentTextIcon, EllipsisVerticalIcon } from "@heroicons/react/24/outline";
-import { formatNoteReferenceDisplay } from "@cashsouk/types";
+import { formatCurrency } from "@cashsouk/config";
+import { formatInvestorReturnRatePercent, formatNoteReferenceDisplay } from "@cashsouk/types";
 import { SoukscoreRiskRatingBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -34,10 +35,6 @@ type NoteCardProps = {
   note: MarketplaceNote;
   onInvest: (note: MarketplaceNote) => void;
 };
-
-function currency(amount: number) {
-  return `RM ${amount.toLocaleString("en-MY")}`;
-}
 
 function textOrDash(value?: string | null) {
   return value && value.trim().length > 0 ? value : "-";
@@ -99,16 +96,16 @@ export function NoteCard({ note, onInvest }: NoteCardProps) {
               />
             </div>
             <div className="flex min-h-10 items-center justify-between gap-2 text-xs font-medium tabular-nums text-slate-700">
-              <span className="min-w-0 truncate">Funded {currency(note.fundedAmount)}</span>
-              <span className="min-w-0 shrink-0 text-right">Goal {currency(note.goalAmount)}</span>
+              <span className="min-w-0 truncate">Funded {formatCurrency(note.fundedAmount)}</span>
+              <span className="min-w-0 shrink-0 text-right">Goal {formatCurrency(note.goalAmount)}</span>
             </div>
           </div>
 
           <div className="grid shrink-0 grid-cols-3 gap-3 items-stretch">
             <div className="flex flex-col text-center">
               <div className="flex flex-1 flex-col rounded-2xl border bg-muted/20 p-3">
-                <div className="flex min-h-[4.25rem] flex-1 items-center justify-center text-4xl font-semibold leading-none tabular-nums text-slate-900">
-                  {note.annualReturn !== null ? `${note.annualReturn}%` : "-"}
+                <div className="flex min-h-[4.25rem] flex-1 items-center justify-center px-1.5 text-[clamp(1.5rem,4.5vw,2rem)] font-semibold leading-none tabular-nums text-slate-900">
+                  {formatInvestorReturnRatePercent(note.annualReturn)}
                 </div>
               </div>
               <div className="mt-1 text-[11px] text-slate-500">Per annum</div>

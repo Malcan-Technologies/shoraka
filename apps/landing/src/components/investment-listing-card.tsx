@@ -5,7 +5,7 @@ import {
   DocumentTextIcon,
   EllipsisVerticalIcon,
 } from "@heroicons/react/24/outline";
-import { formatNoteReferenceDisplay } from "@cashsouk/types";
+import { formatInvestorReturnRatePercent, formatNoteReferenceDisplay } from "@cashsouk/types";
 import { Button, SoukscoreRiskRatingBadge, cn } from "@cashsouk/ui";
 
 export type InvestmentListingData = {
@@ -104,8 +104,8 @@ export function InvestmentListingCard({
           <div className="grid grid-cols-3 gap-3">
             <div className="text-center">
               <div className="rounded-2xl border bg-muted/20 p-3">
-                <p className="flex min-h-[4.25rem] items-center justify-center text-4xl font-semibold leading-none tabular-nums text-foreground">
-                  {data.ratePercent !== null ? `${data.ratePercent}%` : "-"}
+                <p className="flex min-h-[4.25rem] items-center justify-center px-1.5 text-[clamp(1.5rem,4.5vw,2rem)] font-semibold leading-none tabular-nums text-foreground">
+                  {formatInvestorReturnRatePercent(data.ratePercent)}
                 </p>
               </div>
               <p className="mt-1 text-[11px] text-muted-foreground">Per annum</p>

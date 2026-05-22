@@ -11,6 +11,7 @@
  */
 
 import { NoteFundingStatus, NoteStatus } from "@prisma/client";
+import { isNoteFullyFunded, meetsMinimumFunding } from "@cashsouk/types";
 import { prisma } from "../prisma";
 import { logger } from "../logger";
 import { noteService } from "../../modules/notes/service";
@@ -59,7 +60,7 @@ export async function runNoteListingExpiryJob(): Promise<NoteListingExpiryResult
   const candidateNotes = openNotes.filter((note) => {
     const target = toNumber(note.target_amount);
     const funded = toNumber(note.funded_amount);
-    const isFullyFunded = target > 0 && funded + 0.005 >= target;
+    const isFullyFunded = isNoteFullyFunded(funded, target);
     const isExpired = Boolean(note.listing?.closes_at && note.listing.closes_at <= now);
     return isFullyFunded || isExpired;
   });
@@ -76,9 +77,11 @@ export async function runNoteListingExpiryJob(): Promise<NoteListingExpiryResult
   for (const note of candidateNotes) {
     const targetAmount = toNumber(note.target_amount);
     const fundedAmount = toNumber(note.funded_amount);
-    const minimumPercent = toNumber(note.minimum_funding_percent);
-    const fundingPercent = targetAmount > 0 ? (fundedAmount / targetAmount) * 100 : 0;
-    const meetsMinimum = fundingPercent + 0.005 >= minimumPercent;
+    const meetsMinimum = meetsMinimumFunding(
+      fundedAmount,
+      targetAmount,
+      toNumber(note.minimum_funding_percent)
+    );
 
     try {
       if (meetsMinimum) {
@@ -92,7 +95,7 @@ export async function runNoteListingExpiryJob(): Promise<NoteListingExpiryResult
       const message = err instanceof Error ? err.message : String(err);
       result.errors.push({ noteId: note.id, error: message });
       logger.error(
-        { err, noteId: note.id, fundingPercent, meetsMinimum },
+        { err, noteId: note.id, meetsMinimum },
         "Note listing expiry job: failed to auto-close note"
       );
     }

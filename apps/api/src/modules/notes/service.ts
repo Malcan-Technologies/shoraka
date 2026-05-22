@@ -31,13 +31,32 @@ import {
   resolveOfferedProfitRate,
   resolveRequestedInvoiceAmount,
 } from "../../lib/invoice-offer";
-import { isSoukscoreRiskRating } from "@cashsouk/types";
+import {
+  buildInvestorPortfolioTotals,
+  computeMarketplaceCommitBounds,
+  computeNetExpectedReturnRatePercent,
+  INVESTOR_RETURN_RATE_DISPLAY_DECIMALS,
+  isNoteFullyFunded,
+  isSoukscoreRiskRating,
+  maxFundedBeforeMarketplaceCommit,
+  meetsMinimumFunding,
+  normalizeNoteCapacityAmount,
+  NOTE_MONEY_TOLERANCE,
+  roundNoteMoney,
+} from "@cashsouk/types";
 import { adminResignInvoiceOfferFromNote } from "../admin/offer-resign-service";
 import {
   buildOfferSigningAdminView,
   noteAllowsInvoiceResign,
 } from "../signingcloud/offer-signing-admin-view";
 import { creditInvestorBalance, debitInvestorBalanceForCommit } from "./investor-balance";
+import {
+  buildInvestorBalanceStatement,
+  buildStatementFilename,
+  renderStatementCsv,
+  renderStatementPdf,
+  type StatementLedgerEntry,
+} from "./investor-balance-statement";
 import {
   mapLedgerEntry,
   mapMarketplaceNoteDetail,
@@ -76,7 +95,10 @@ import type {
   getAdminInvestmentsQuerySchema,
   getNotesQuerySchema,
   investorBalanceActivityQuerySchema,
+  investorBalanceStatementQuerySchema,
+  investorInvestmentsQuerySchema,
   investorPortfolioHistoryQuerySchema,
+  investorPortfolioQuerySchema,
   lateChargeSchema,
   overdueLateChargeSchema,
   paymentReviewSchema,
@@ -228,11 +250,6 @@ type SettlementAllocation = {
 };
 
 type NoteWithRelations = Prisma.NoteGetPayload<{ include: typeof noteInclude }>;
-
-function roundTo(value: number, decimals: number) {
-  const factor = 10 ** decimals;
-  return Math.round(value * factor) / factor;
-}
 
 function clampPercent(value: number) {
   return Math.max(0, Math.min(100, value));
@@ -440,14 +457,23 @@ function buildInvestorRepaymentSummary(
     (sum, investment) => sum + toNumber(investment.amount),
     0
   );
-  const expectedReturnRatePercent = toNumber(note.profit_rate_percent);
+  const grossProfitRatePercent = toNumber(note.profit_rate_percent);
+  const netExpectedReturnRatePercent =
+    computeNetExpectedReturnRatePercent(
+      grossProfitRatePercent,
+      toNumber(note.service_fee_rate_percent)
+    ) ?? 0;
+  const expectedReturnRatePercent = roundNoteMoney(
+    netExpectedReturnRatePercent,
+    INVESTOR_RETURN_RATE_DISPLAY_DECIMALS
+  );
   const profitMaturityDate = resolveProfitMaturityDate(note);
   const expectedProfitDays =
     note.activated_at && profitMaturityDate
       ? calculateProfitDays(note.activated_at, profitMaturityDate)
       : 365;
   const expectedProfitGrossAmount =
-    investedPrincipal * (expectedReturnRatePercent / 100) * (expectedProfitDays / 365);
+    investedPrincipal * (grossProfitRatePercent / 100) * (expectedProfitDays / 365);
   const expectedServiceFeeAmount =
     expectedProfitGrossAmount * (toNumber(note.service_fee_rate_percent) / 100);
   const expectedProfitAmount = Math.max(0, expectedProfitGrossAmount - expectedServiceFeeAmount);
@@ -481,22 +507,35 @@ function buildInvestorRepaymentSummary(
       : 0;
 
   return {
-    investedPrincipal: roundTo(investedPrincipal, 2),
-    expectedPayoutAmount: roundTo(expectedPayoutAmount, 2),
-    expectedProfitAmount: roundTo(expectedProfitAmount, 2),
-    receivedPayoutAmount: roundTo(receivedPayoutAmount, 2),
-    receivedProfitNetAmount: roundTo(receivedProfitNetAmount, 2),
-    receivedTawidhCompensationAmount: roundTo(receivedTawidhCompensationAmount, 2),
-    expectedReturnRatePercent: roundTo(expectedReturnRatePercent, 2),
+    investedPrincipal: roundNoteMoney(investedPrincipal, 2),
+    expectedPayoutAmount: roundNoteMoney(expectedPayoutAmount, 2),
+    expectedProfitAmount: roundNoteMoney(expectedProfitAmount, 2),
+    receivedPayoutAmount: roundNoteMoney(receivedPayoutAmount, 2),
+    receivedProfitNetAmount: roundNoteMoney(receivedProfitNetAmount, 2),
+    receivedTawidhCompensationAmount: roundNoteMoney(receivedTawidhCompensationAmount, 2),
+    expectedReturnRatePercent,
     actualReturnRatePercent:
-      actualReturnRatePercent == null ? null : roundTo(actualReturnRatePercent, 2),
-    progressPercent: roundTo(progressPercent, 2),
+      actualReturnRatePercent == null ? null : roundNoteMoney(actualReturnRatePercent, 2),
+    progressPercent: roundNoteMoney(progressPercent, 2),
   };
 }
 
-/** Standard marketplace ticket floor (MYR). When remaining capacity is smaller, min commit equals remainder. */
-const MARKETPLACE_MIN_COMMIT_MYR = 100;
+/** When remaining capacity is smaller, min commit equals remainder (see shared helper). */
 const DEFAULT_LISTING_DURATION_DAYS = 14;
+
+function toReconciledPortfolioHistoryPoint(
+  availableBalance: number,
+  portfolioTotal: number,
+  date: string
+): InvestorPortfolioHistoryPoint {
+  const committed = portfolioTotal - availableBalance;
+  const totals = buildInvestorPortfolioTotals(availableBalance, committed);
+  return {
+    date,
+    availableBalance: totals.availableBalance,
+    portfolioTotal: totals.portfolioTotal,
+  };
+}
 
 function resolveNoteSettlementAmount(note: {
   invoice_snapshot?: Prisma.JsonValue | null;
@@ -955,6 +994,15 @@ export class NoteService {
     return orgs.map((org) => org.id);
   }
 
+  private async resolveInvestorOrgIds(userId: string, investorOrganizationId?: string) {
+    const accessibleIds = await this.listInvestorOrganizationIds(userId);
+    if (!investorOrganizationId) return accessibleIds;
+    if (!accessibleIds.includes(investorOrganizationId)) {
+      throw new AppError(403, "INVESTOR_ORG_FORBIDDEN", "Investor organization not accessible");
+    }
+    return [investorOrganizationId];
+  }
+
   async listAdminNotes(params: z.infer<typeof getNotesQuerySchema>) {
     const { notes, totalCount } = await noteRepository.list(params);
     const productIds = notes
@@ -1168,8 +1216,11 @@ export class NoteService {
     const fundingReady = fundingCandidates.filter((note) => {
       const targetAmount = toNumber(note.target_amount);
       if (targetAmount <= 0) return false;
-      const fundingPercent = (toNumber(note.funded_amount) / targetAmount) * 100;
-      return fundingPercent + 0.005 >= toNumber(note.minimum_funding_percent);
+      return meetsMinimumFunding(
+        toNumber(note.funded_amount),
+        targetAmount,
+        toNumber(note.minimum_funding_percent)
+      );
     }).length;
 
     const breakdown = {
@@ -2182,34 +2233,35 @@ export class NoteService {
       throw new AppError(409, "NOTE_NOT_OPEN", "Note is not open for investment");
     }
 
-    const target = toNumber(note.target_amount);
-    const funded = toNumber(note.funded_amount);
-    const remainingCapacity = Math.max(target - funded, 0);
-    if (remainingCapacity <= 0) {
+    const target = normalizeNoteCapacityAmount(toNumber(note.target_amount));
+    const funded = normalizeNoteCapacityAmount(toNumber(note.funded_amount));
+    const bounds = computeMarketplaceCommitBounds(target, funded);
+    if (bounds.remainingCapacity <= 0) {
       throw new AppError(
         409,
         "NOTE_FULLY_ALLOCATED",
         "This note has no remaining funding capacity"
       );
     }
-    if (input.amount > remainingCapacity) {
+    if (input.amount > bounds.maxCommit + NOTE_MONEY_TOLERANCE) {
       throw new AppError(
         422,
         "NOTE_OVERSUBSCRIBED",
-        `Investment exceeds remaining note capacity of ${remainingCapacity.toFixed(2)}`
+        `Investment exceeds remaining note capacity of ${bounds.maxCommit.toFixed(2)}`
       );
     }
-    const minCommit = Math.min(MARKETPLACE_MIN_COMMIT_MYR, remainingCapacity);
-    if (input.amount + 1e-9 < minCommit) {
+    if (input.amount + NOTE_MONEY_TOLERANCE < bounds.minCommit) {
       throw new AppError(
         422,
         "INVESTMENT_BELOW_MINIMUM",
-        `Minimum commitment for this note is ${minCommit.toFixed(2)}`
+        `Minimum commitment for this note is ${bounds.minCommit.toFixed(2)}`
       );
     }
 
     const investmentAmount = money(input.amount);
-    const remainingCapacityFloor = money(target - input.amount);
+    const remainingCapacityFloor = money(
+      maxFundedBeforeMarketplaceCommit(target, input.amount)
+    );
 
     const updated = await prisma.$transaction(async (tx) => {
       const capacityUpdate = await tx.note.updateMany({
@@ -2239,14 +2291,14 @@ export class NoteService {
         ) {
           throw new AppError(409, "NOTE_NOT_OPEN", "Note is not open for investment");
         }
-        const remainingCapacity = Math.max(
-          toNumber(current.target_amount) - toNumber(current.funded_amount),
-          0
+        const retryBounds = computeMarketplaceCommitBounds(
+          normalizeNoteCapacityAmount(toNumber(current.target_amount)),
+          normalizeNoteCapacityAmount(toNumber(current.funded_amount))
         );
         throw new AppError(
           422,
           "NOTE_OVERSUBSCRIBED",
-          `Investment exceeds remaining note capacity of ${remainingCapacity.toFixed(2)}`
+          `Investment exceeds remaining note capacity of ${retryBounds.maxCommit.toFixed(2)}`
         );
       }
 
@@ -2277,7 +2329,7 @@ export class NoteService {
     const updatedTarget = toNumber(updated.target_amount);
     if (
       updatedTarget > 0 &&
-      updatedFunded + 0.005 >= updatedTarget &&
+      isNoteFullyFunded(updatedFunded, updatedTarget) &&
       updated.status === NoteStatus.PUBLISHED &&
       updated.funding_status === NoteFundingStatus.OPEN
     ) {
@@ -2311,11 +2363,15 @@ export class NoteService {
         "Only notes with open funding can be closed"
       );
     }
-    const fundingPercent =
-      toNumber(note.target_amount) > 0
-        ? (toNumber(note.funded_amount) / toNumber(note.target_amount)) * 100
-        : 0;
-    if (fundingPercent < toNumber(note.minimum_funding_percent)) {
+    const targetAmount = toNumber(note.target_amount);
+    const fundedAmount = toNumber(note.funded_amount);
+    if (
+      !meetsMinimumFunding(
+        fundedAmount,
+        targetAmount,
+        toNumber(note.minimum_funding_percent)
+      )
+    ) {
       throw new AppError(
         409,
         "NOTE_MINIMUM_FUNDING_NOT_MET",
@@ -2496,16 +2552,23 @@ export class NoteService {
       );
     }
     const targetAmount = toNumber(note.target_amount);
-    const minimumFundingAmount = targetAmount * (toNumber(note.minimum_funding_percent) / 100);
-    const fundingPercent =
-      targetAmount > 0 ? (toNumber(note.funded_amount) / targetAmount) * 100 : 0;
-    if (fundingPercent + 0.005 >= toNumber(note.minimum_funding_percent)) {
+    const fundedAmount = toNumber(note.funded_amount);
+    if (
+      meetsMinimumFunding(
+        fundedAmount,
+        targetAmount,
+        toNumber(note.minimum_funding_percent)
+      )
+    ) {
       throw new AppError(
         409,
         "NOTE_MINIMUM_FUNDING_MET",
         "Notes that meet the minimum funding threshold should be closed, not failed"
       );
     }
+    const minimumFundingPercent = toNumber(note.minimum_funding_percent);
+    const minimumFundingAmount =
+      targetAmount * (minimumFundingPercent - NOTE_MONEY_TOLERANCE) / 100;
     let failedInvestorOrganizationIds: string[] = [];
     const updated = await prisma.$transaction(async (tx) => {
       const releasedCommitments = await tx.noteInvestment.findMany({
@@ -2664,8 +2727,18 @@ export class NoteService {
     return mapMarketplaceNoteDetail(note);
   }
 
-  async listInvestorInvestments(userId: string) {
-    const orgIds = await this.listInvestorOrganizationIds(userId);
+  async listInvestorInvestments(
+    userId: string,
+    query: z.infer<typeof investorInvestmentsQuerySchema> = {}
+  ) {
+    const orgIds = await this.resolveInvestorOrgIds(userId, query.investorOrganizationId);
+    if (orgIds.length === 0) {
+      return {
+        notes: [],
+        pagination: { page: 1, pageSize: 1, totalCount: 0, totalPages: 1 },
+      };
+    }
+
     const orgIdSet = new Set(orgIds);
     const notes = await prisma.note.findMany({
       where: { investments: { some: { investor_organization_id: { in: orgIds } } } },
@@ -2682,8 +2755,11 @@ export class NoteService {
     };
   }
 
-  async getInvestorPortfolio(userId: string) {
-    const orgIds = await this.listInvestorOrganizationIds(userId);
+  async getInvestorPortfolio(
+    userId: string,
+    query: z.infer<typeof investorPortfolioQuerySchema> = {}
+  ) {
+    const orgIds = await this.resolveInvestorOrgIds(userId, query.investorOrganizationId);
     const investments = await prisma.noteInvestment.findMany({
       where: {
         investor_organization_id: { in: orgIds },
@@ -2699,11 +2775,9 @@ export class NoteService {
       (sum, row) => sum + toNumber(row.available_amount),
       0
     );
-    const portfolioTotal = availableBalance + committed;
+    const portfolioTotals = buildInvestorPortfolioTotals(availableBalance, committed);
     return {
-      totalInvestment: committed,
-      portfolioTotal,
-      availableBalance,
+      ...portfolioTotals,
       investmentCount: investments.length,
     };
   }
@@ -2712,7 +2786,7 @@ export class NoteService {
     userId: string,
     query: z.infer<typeof investorBalanceActivityQuerySchema>
   ) {
-    const orgIds = await this.listInvestorOrganizationIds(userId);
+    const orgIds = await this.resolveInvestorOrgIds(userId, query.investorOrganizationId);
     if (orgIds.length === 0) {
       return {
         entries: [],
@@ -2757,7 +2831,7 @@ export class NoteService {
         id: entry.id,
         investorOrganizationId: entry.investor_organization_id,
         direction: entry.direction,
-        amount: toNumber(entry.amount),
+        amount: roundNoteMoney(toNumber(entry.amount), 2),
         source: entry.source,
         noteId: entry.note_id,
         noteInvestmentId: entry.note_investment_id,
@@ -2773,12 +2847,103 @@ export class NoteService {
         totalPages: Math.max(1, Math.ceil(totalCount / query.pageSize)),
       },
       summary: {
-        inTotal: roundTo(inTotal, 2),
-        outTotal: roundTo(outTotal, 2),
-        netChange: roundTo(inTotal - outTotal, 2),
-        availableBalance: roundTo(availableBalance, 2),
+        inTotal: roundNoteMoney(inTotal, 2),
+        outTotal: roundNoteMoney(outTotal, 2),
+        netChange: roundNoteMoney(inTotal - outTotal, 2),
+        availableBalance: roundNoteMoney(availableBalance, 2),
       },
       generatedAt: new Date().toISOString(),
+    };
+  }
+
+  async exportInvestorBalanceStatement(
+    userId: string,
+    query: z.infer<typeof investorBalanceStatementQuerySchema>
+  ) {
+    const orgIds = await this.resolveInvestorOrgIds(userId, query.investorOrganizationId);
+    if (orgIds.length === 0) {
+      throw new AppError(404, "INVESTOR_ORG_NOT_FOUND", "No investor organization found");
+    }
+
+    const organizations = await prisma.investorOrganization.findMany({
+      where: { id: { in: orgIds } },
+      select: {
+        id: true,
+        name: true,
+        first_name: true,
+        last_name: true,
+        registration_number: true,
+      },
+    });
+
+    const accountName =
+      organizations.length === 1
+        ? organizations[0]?.name?.trim() ||
+          [organizations[0]?.first_name, organizations[0]?.last_name].filter(Boolean).join(" ") ||
+          "Investor account"
+        : "Combined investor accounts";
+
+    const accountId =
+      organizations.length === 1
+        ? organizations[0]?.registration_number?.trim() || organizations[0]?.id || orgIds[0]!
+        : orgIds.join(", ");
+
+    const ledgerRows = await prisma.investorBalanceTransaction.findMany({
+      where: { investor_organization_id: { in: orgIds } },
+      orderBy: [{ posted_at: "asc" }, { created_at: "asc" }],
+    });
+
+    const noteIds = [
+      ...new Set(
+        ledgerRows
+          .map((row) => row.note_id)
+          .filter((value): value is string => typeof value === "string" && value.length > 0)
+      ),
+    ];
+    const notes =
+      noteIds.length > 0
+        ? await prisma.note.findMany({
+            where: { id: { in: noteIds } },
+            select: { id: true, note_reference: true },
+          })
+        : [];
+    const noteReferenceById = new Map(
+      notes.map((note) => [note.id, note.note_reference ?? note.id])
+    );
+
+    const entries: StatementLedgerEntry[] = ledgerRows.map((row) => ({
+      id: row.id,
+      direction: row.direction,
+      amount: roundNoteMoney(toNumber(row.amount), 2),
+      source: row.source,
+      noteId: row.note_id,
+      metadata: asRecord(row.metadata),
+      postedAt: row.posted_at,
+    }));
+
+    const statement = buildInvestorBalanceStatement({
+      accountName,
+      accountId,
+      periodStart: query.startDate,
+      periodEnd: query.endDate,
+      generatedAt: new Date(),
+      entries,
+      noteReferenceById,
+    });
+
+    const filename = buildStatementFilename(query.startDate, query.endDate, query.format);
+    if (query.format === "csv") {
+      return {
+        buffer: renderStatementCsv(statement),
+        contentType: "text/csv; charset=utf-8",
+        filename,
+      };
+    }
+
+    return {
+      buffer: await renderStatementPdf(statement),
+      contentType: "application/pdf",
+      filename,
     };
   }
 
@@ -2787,7 +2952,7 @@ export class NoteService {
     query: z.infer<typeof investorPortfolioHistoryQuerySchema>
   ) {
     const granularity = resolveHistoryGranularity(query.range);
-    const orgIds = await this.listInvestorOrganizationIds(userId);
+    const orgIds = await this.resolveInvestorOrgIds(userId, query.investorOrganizationId);
     if (orgIds.length === 0) {
       return {
         range: query.range,
@@ -2831,11 +2996,11 @@ export class NoteService {
     const currentPortfolioTotal = availableBalance + committed;
     if (transactions.length === 0) {
       const points: InvestorPortfolioHistoryPoint[] = [
-        {
-          date: toDateKey(new Date()),
-          availableBalance: roundTo(availableBalance, 2),
-          portfolioTotal: roundTo(currentPortfolioTotal, 2),
-        },
+        toReconciledPortfolioHistoryPoint(
+          availableBalance,
+          currentPortfolioTotal,
+          toDateKey(new Date())
+        ),
       ];
       return {
         range: query.range,
@@ -2887,11 +3052,13 @@ export class NoteService {
       const key = toDateKey(cursor);
       carryForwardBalance += dailyBalanceNet.get(key) ?? 0;
       carryForwardPortfolioTotal += dailyPortfolioDelta.get(key) ?? 0;
-      points.push({
-        date: key,
-        availableBalance: roundTo(carryForwardBalance, 2),
-        portfolioTotal: roundTo(carryForwardPortfolioTotal, 2),
-      });
+      points.push(
+        toReconciledPortfolioHistoryPoint(
+          carryForwardBalance,
+          carryForwardPortfolioTotal,
+          key
+        )
+      );
     }
 
     return {
@@ -3307,7 +3474,7 @@ export class NoteService {
         data: {
           note_id: id,
           payment_id: linkedPaymentId,
-          gross_receipt_amount: money(grossReceipt),
+          gross_receipt_amount: money(waterfall.grossReceiptAmount),
           investor_principal: money(waterfall.investorPrincipal),
           profit_start_date: waterfall.profitStartDate,
           profit_maturity_date: waterfall.profitMaturityDate,

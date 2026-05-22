@@ -21,24 +21,18 @@ import {
   DropdownMenuTrigger,
   Input,
 } from "@cashsouk/ui";
-import { SOUKSCORE_RISK_RATING_GRADES, formatNoteReferenceDisplay, type NoteListItem } from "@cashsouk/types";
+import {
+  SOUKSCORE_RISK_RATING_GRADES,
+  formatNoteReferenceDisplay,
+  resolveNetExpectedReturnRatePercent,
+  type NoteListItem,
+} from "@cashsouk/types";
 import { computeMarketplaceCommitBounds } from "@/lib/marketplace-commit-bounds";
+import { resolveMarketplaceListingDaysLeft } from "@/lib/marketplace-listing-days";
 import {
   PublicMarketplaceNoteCard,
   type PublicMarketplaceNote,
 } from "./public-marketplace-note-card";
-
-function resolveMarketplaceDaysLeft(maturityDate?: string | null): number | null {
-  if (!maturityDate) return null;
-
-  const target = new Date(maturityDate);
-  if (Number.isNaN(target.getTime())) {
-    return null;
-  }
-
-  const millisRemaining = target.getTime() - Date.now();
-  return Math.max(1, Math.ceil(millisRemaining / (1000 * 60 * 60 * 24)));
-}
 const ONBOARDING_INDUSTRY_OPTIONS = [
   "Agriculture, Forestry, Fishing",
   "Manufacturing",
@@ -64,7 +58,7 @@ const MARKETPLACE_LISTINGS_PAGE_SIZE = 9;
 
 function toMarketplaceNote(note: NoteListItem): PublicMarketplaceNote {
   const { investable } = computeMarketplaceCommitBounds(note.targetAmount, note.fundedAmount);
-  const tenorDays = resolveMarketplaceDaysLeft(note.maturityDate);
+  const tenorDays = resolveMarketplaceListingDaysLeft(note.listingClosesAt);
 
   return {
     id: note.id,
@@ -75,7 +69,7 @@ function toMarketplaceNote(note: NoteListItem): PublicMarketplaceNote {
     industry: note.issuerIndustry?.trim() || null,
     fundedAmount: note.fundedAmount,
     goalAmount: note.targetAmount,
-    annualReturn: note.profitRatePercent,
+    annualReturn: resolveNetExpectedReturnRatePercent(note),
     tenorDays,
     riskScore: note.riskRating,
     daysLeft: tenorDays,

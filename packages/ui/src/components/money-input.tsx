@@ -20,6 +20,10 @@ interface MoneyInputProps {
   onBlurComplete?: (formattedValue: string) => void;
 }
 
+function stripCommas(value: string): string {
+  return value.replace(/,/g, "");
+}
+
 export function MoneyInput({
   value,
   onValueChange,
@@ -35,26 +39,28 @@ export function MoneyInput({
 }: MoneyInputProps) {
   const isValidMoneyInput = (raw: string): boolean => {
     if (raw === "") return allowEmpty;
-    const regex = allowNegative
-      ? new RegExp(`^-?\\d{0,${maxIntDigits}}(\\.\\d{0,2})?$`)
-      : new RegExp(`^\\d{0,${maxIntDigits}}(\\.\\d{0,2})?$`);
-    if (!regex.test(raw)) return false;
-    const [intPart] = raw.replace(/^-/, "").split(".");
-    if (intPart.length > maxIntDigits) return false;
+    const charPattern = allowNegative ? /^-?[\d,]*\.?\d{0,2}$/ : /^[\d,]*\.?\d{0,2}$/;
+    if (!charPattern.test(raw)) return false;
+    if ((raw.match(/\./g) ?? []).length > 1) return false;
+
+    const numeric = stripCommas(raw);
+    if (numeric === "" || numeric === "-" || numeric === ".") return true;
+
+    const intDigits = numeric.replace(/^-/, "").split(".")[0] ?? "";
+    if (intDigits.length > maxIntDigits) return false;
     return true;
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
-    const unformatted = raw.replace(/,/g, "");
+    const numeric = stripCommas(raw);
 
-    if (unformatted === "" && allowEmpty) {
-      onValueChange(unformatted);
+    if (numeric === "" && allowEmpty) {
+      onValueChange("");
       return;
     }
 
-    const [intPart] = unformatted.split(".");
-    const intOnly = (intPart ?? "").replace(/^-/, "");
+    const intOnly = numeric.replace(/^-/, "").split(".")[0] ?? "";
     if (intOnly.length > maxIntDigits) {
       const input = e.target as HTMLInputElement;
       const pos = Math.min(value.length, input.selectionStart ?? value.length);
@@ -64,13 +70,13 @@ export function MoneyInput({
       return;
     }
 
-    if (isValidMoneyInput(unformatted)) {
-      onValueChange(unformatted);
+    if (isValidMoneyInput(raw)) {
+      onValueChange(raw);
     }
   };
 
   const handleBlur = () => {
-    if (value === "" && allowEmpty) {
+    if (stripCommas(value) === "" && allowEmpty) {
       onBlurComplete?.("");
       return;
     }
@@ -78,12 +84,6 @@ export function MoneyInput({
       const formatted = formatMoney(value);
       onValueChange(formatted);
       onBlurComplete?.(formatted);
-    }
-  };
-
-  const handleFocus = () => {
-    if (value.includes(",")) {
-      onValueChange(value.replace(/,/g, ""));
     }
   };
 
@@ -103,7 +103,6 @@ export function MoneyInput({
         placeholder={placeholder}
         disabled={disabled}
         onChange={handleChange}
-        onFocus={handleFocus}
         onBlur={handleBlur}
         className={cn(inputClassName, hasPrefixDisplay && "pl-12")}
       />

@@ -1,0 +1,52 @@
+"use client";
+
+import { CheckIcon } from "@heroicons/react/24/outline";
+import { formatCurrency } from "@cashsouk/config";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+interface DepositSuccessDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  amount: number;
+}
+
+export function DepositSuccessDialog({ open, onOpenChange, amount }: DepositSuccessDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md rounded-xl px-6 py-8 text-center">
+        <DialogTitle className="sr-only">Deposit submitted successfully</DialogTitle>
+        <DialogDescription className="sr-only">
+          Your deposit request for {formatCurrency(amount)} has been submitted successfully. The
+          amount will be credited to your account within 2-3 business days.
+        </DialogDescription>
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-800">
+          <CheckIcon className="h-8 w-8 text-white" strokeWidth={2.5} />
+        </div>
+
+        <div className="mt-6 space-y-2">
+          <p className="text-muted-foreground">Your deposit request for</p>
+          <p className="text-3xl font-bold text-primary">{formatCurrency(amount)}</p>
+          <p className="text-lg font-semibold">has been submitted successfully</p>
+          <p className="text-sm text-muted-foreground">
+            The amount will be credited to your account within 2-3 business days
+          </p>
+        </div>
+
+        <Button
+          type="button"
+          variant="action"
+          className="mt-8 h-11 w-full rounded-xl"
+          onClick={() => onOpenChange(false)}
+        >
+          OK
+        </Button>
+      </DialogContent>
+    </Dialog>
+  );
+}

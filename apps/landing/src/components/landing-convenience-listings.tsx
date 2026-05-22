@@ -10,7 +10,8 @@ import {
 } from "@heroicons/react/24/solid";
 import { Button } from "@cashsouk/ui";
 import { createApiClient } from "@cashsouk/config/src/api-client";
-import type { NoteListItem } from "@cashsouk/types";
+import { resolveNetExpectedReturnRatePercent, type NoteListItem } from "@cashsouk/types";
+import { resolveMarketplaceListingDaysLeft } from "@/lib/marketplace-listing-days";
 import { InvestmentListingsCarousel } from "./investment-listings-carousel";
 import type { InvestmentListingData } from "./investment-listing-card";
 
@@ -86,20 +87,8 @@ function ConvenienceSection() {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-function resolveMarketplaceDaysLeft(maturityDate?: string | null): number | null {
-  if (!maturityDate) return null;
-
-  const target = new Date(maturityDate);
-  if (Number.isNaN(target.getTime())) {
-    return null;
-  }
-
-  const millisRemaining = target.getTime() - Date.now();
-  return Math.max(1, Math.ceil(millisRemaining / (1000 * 60 * 60 * 24)));
-}
-
 function mapNoteToInvestmentListing(note: NoteListItem): InvestmentListingData {
-  const daysLeft = resolveMarketplaceDaysLeft(note.maturityDate);
+  const daysLeft = resolveMarketplaceListingDaysLeft(note.listingClosesAt);
   return {
     id: note.id,
     noteReference: note.noteReference.trim() || null,
@@ -108,7 +97,7 @@ function mapNoteToInvestmentListing(note: NoteListItem): InvestmentListingData {
     daysLeft,
     funded: note.fundedAmount,
     goal: note.targetAmount,
-    ratePercent: note.profitRatePercent,
+    ratePercent: resolveNetExpectedReturnRatePercent(note),
     tenorDays: daysLeft,
     score: note.riskRating,
   };

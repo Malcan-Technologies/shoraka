@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useOrganization } from "@cashsouk/config";
 import {
   ArrowPathIcon,
   ChevronLeftIcon,
@@ -27,8 +28,11 @@ import { ONBOARDING_INDUSTRY_OPTIONS } from "@/investments/industry-filter-optio
 import { sortInvestorInvestments } from "@/investments/sort-investments";
 import { InvestmentPositionCard } from "@/investments/components/investment-position-card";
 import { cn } from "@/lib/utils";
-import type { NoteListItem } from "@cashsouk/types";
-import { SOUKSCORE_RISK_RATING_GRADES } from "@cashsouk/types";
+import {
+  resolveNetExpectedReturnRatePercent,
+  SOUKSCORE_RISK_RATING_GRADES,
+  type NoteListItem,
+} from "@cashsouk/types";
 import { getNoteDerivedStatusLabel } from "@cashsouk/ui";
 
 export function DashboardInvestmentsSection() {
@@ -71,7 +75,8 @@ export function InvestorInvestmentsList({
   showViewAllButton = false,
   showStatusFilter = false,
 }: InvestorInvestmentsListProps) {
-  const { data, isLoading, error, refetch } = useInvestorInvestments();
+  const { activeOrganization } = useOrganization();
+  const { data, isLoading, error, refetch } = useInvestorInvestments(activeOrganization?.id);
   const notes = useMemo(() => data?.notes ?? [], [data?.notes]);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -127,7 +132,7 @@ export function InvestorInvestmentsList({
       const matchesIndustry =
         industryFilter === "all" || (note.issuerIndustry?.trim() ?? "") === industryFilter;
       const matchesRisk = riskFilter === "all" || (note.riskRating ?? "") === riskFilter;
-      const annualReturn = note.profitRatePercent;
+      const annualReturn = resolveNetExpectedReturnRatePercent(note);
       const matchesProfit =
         profitFilter === "all" ||
         (annualReturn !== null &&

@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
-import { formatCurrency } from "@cashsouk/config";
+import { formatCurrency, useOrganization } from "@cashsouk/config";
 import type {
   InvestorBalanceActivityEntry,
   MarketplaceNoteDetail,
@@ -112,7 +112,9 @@ export default function InvestmentDetailPage() {
   const params = useParams<{ id: string }>();
   const noteId = params.id;
   const { setTitle } = useHeader();
-  const investmentsQuery = useInvestorInvestments();
+  const { activeOrganization } = useOrganization();
+  const orgId = activeOrganization?.id;
+  const investmentsQuery = useInvestorInvestments(orgId);
 
   const investedNote = React.useMemo(
     () => investmentsQuery.data?.notes.find((entry) => entry.id === noteId) ?? null,
@@ -125,8 +127,8 @@ export default function InvestmentDetailPage() {
 
   const marketplaceQuery = useMarketplaceNote(noteId, { enabled: shouldFetchMarketplace });
   const activityQuery = useInvestorBalanceActivity(
-    { page: 1, pageSize: 100 },
-    { enabled: Boolean(investedNote) }
+    { page: 1, pageSize: 100, investorOrganizationId: activeOrganization?.id },
+    { enabled: Boolean(investedNote) && Boolean(activeOrganization?.id) }
   );
 
   const marketplaceNote = marketplaceQuery.data ?? null;
@@ -231,7 +233,7 @@ export default function InvestmentDetailPage() {
                   <ActivitySkeleton />
                 ) : noteActivity.length > 0 ? (
                   <div className="overflow-hidden rounded-2xl border border-slate-200">
-                    <div className="hidden grid-cols-[minmax(0,1.2fr)_140px_180px] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-medium uppercase tracking-wide text-slate-500 md:grid">
+                    <div className="hidden grid-cols-[minmax(0,1.2fr)_140px_180px] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-medium text-slate-500 md:grid">
                       <div>Transaction type</div>
                       <div>Amount</div>
                       <div>Time</div>

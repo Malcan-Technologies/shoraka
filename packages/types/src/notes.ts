@@ -201,6 +201,8 @@ export interface NoteListItem extends NoteMoneySummary {
   featuredUntil: string | null;
   featuredActive: boolean;
   maturityDate: string | null;
+  /** Marketplace listing close time (`note_listings.closes_at`); used for funding-window countdown. */
+  listingClosesAt: string | null;
   activatedAt: string | null;
   publishedAt: string | null;
   settlementSummary: NoteSettlementPoolSummary | null;
@@ -755,6 +757,13 @@ export interface InvestorBalanceActivityResponse {
   generatedAt: string;
 }
 
+export interface ExportInvestorBalanceStatementParams {
+  startDate: string;
+  endDate: string;
+  investorOrganizationId?: string;
+  format: "csv" | "pdf";
+}
+
 export interface EligibleNoteInvoice {
   invoiceId: string;
   applicationId: string;
@@ -903,3 +912,6 @@ export interface OverdueLateChargeResult {
   suggestedGharamahAmount: number;
   message: string;
 }
+
+export * from "./note-expected-return";
+export * from "./note-money";

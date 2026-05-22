@@ -9,14 +9,23 @@ export const marketplaceKeys = {
   list: (params: { search: string; page: number; pageSize: number; featuredOnly: boolean }) =>
     [...marketplaceKeys.all, "list", params] as const,
   detail: (id?: string) => [...marketplaceKeys.all, "detail", id] as const,
-  portfolio: ["investor-portfolio"] as const,
+  portfolioRoot: ["investor-portfolio"] as const,
+  portfolio: (investorOrganizationId?: string) =>
+    [...marketplaceKeys.portfolioRoot, investorOrganizationId] as const,
   portfolioHistoryRoot: ["investor-portfolio-history"] as const,
-  portfolioHistory: (range: InvestorPortfolioHistoryRange) =>
-    [...marketplaceKeys.portfolioHistoryRoot, range] as const,
+  portfolioHistory: (range: InvestorPortfolioHistoryRange, investorOrganizationId?: string) =>
+    [...marketplaceKeys.portfolioHistoryRoot, range, investorOrganizationId] as const,
   investorBalanceActivityRoot: ["investor-balance-activity"] as const,
-  investorBalanceActivity: (params: { page: number; pageSize: number }) =>
-    [...marketplaceKeys.investorBalanceActivityRoot, params] as const,
-  investorInvestments: ["investor-investments"] as const,
+  investorBalanceActivity: (params: {
+    page: number;
+    pageSize: number;
+    investorOrganizationId?: string;
+  }) => [...marketplaceKeys.investorBalanceActivityRoot, params] as const,
+  investorBalanceActivityAll: (investorOrganizationId?: string) =>
+    [...marketplaceKeys.investorBalanceActivityRoot, "all", investorOrganizationId] as const,
+  investorInvestmentsRoot: ["investor-investments"] as const,
+  investorInvestments: (investorOrganizationId?: string) =>
+    [...marketplaceKeys.investorInvestmentsRoot, investorOrganizationId] as const,
 };
 
 function useMarketplaceApiClient() {
@@ -84,43 +93,50 @@ export function useCommitInvestment() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: marketplaceKeys.all });
       queryClient.invalidateQueries({ queryKey: marketplaceKeys.detail(variables.noteId) });
-      queryClient.invalidateQueries({ queryKey: marketplaceKeys.portfolio });
+      queryClient.invalidateQueries({ queryKey: marketplaceKeys.portfolioRoot });
       queryClient.invalidateQueries({ queryKey: marketplaceKeys.portfolioHistoryRoot });
       queryClient.invalidateQueries({ queryKey: marketplaceKeys.investorBalanceActivityRoot });
+      queryClient.invalidateQueries({ queryKey: marketplaceKeys.investorInvestmentsRoot });
     },
   });
 }
 
-export function useInvestorPortfolio() {
+export function useInvestorPortfolio(investorOrganizationId?: string) {
   const apiClient = useMarketplaceApiClient();
   return useQuery({
-    queryKey: marketplaceKeys.portfolio,
+    queryKey: marketplaceKeys.portfolio(investorOrganizationId),
+    enabled: Boolean(investorOrganizationId),
     queryFn: async () => {
-      const response = await apiClient.getInvestorPortfolio();
+      const response = await apiClient.getInvestorPortfolio(investorOrganizationId);
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
   });
 }
 
-export function useInvestorPortfolioHistory(range: InvestorPortfolioHistoryRange) {
+export function useInvestorPortfolioHistory(
+  range: InvestorPortfolioHistoryRange,
+  investorOrganizationId?: string
+) {
   const apiClient = useMarketplaceApiClient();
   return useQuery({
-    queryKey: marketplaceKeys.portfolioHistory(range),
+    queryKey: marketplaceKeys.portfolioHistory(range, investorOrganizationId),
+    enabled: Boolean(investorOrganizationId),
     queryFn: async () => {
-      const response = await apiClient.getInvestorPortfolioHistory(range);
+      const response = await apiClient.getInvestorPortfolioHistory(range, investorOrganizationId);
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
   });
 }
 
-export function useInvestorInvestments() {
+export function useInvestorInvestments(investorOrganizationId?: string) {
   const apiClient = useMarketplaceApiClient();
   return useQuery({
-    queryKey: marketplaceKeys.investorInvestments,
+    queryKey: marketplaceKeys.investorInvestments(investorOrganizationId),
+    enabled: Boolean(investorOrganizationId),
     queryFn: async () => {
-      const response = await apiClient.getInvestorInvestments();
+      const response = await apiClient.getInvestorInvestments(investorOrganizationId);
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
@@ -131,21 +147,71 @@ export function useInvestorBalanceActivity(
   {
     page = 1,
     pageSize = 20,
+    investorOrganizationId,
   }: {
     page?: number;
     pageSize?: number;
+    investorOrganizationId?: string;
   } = {},
   options?: { enabled?: boolean }
 ) {
   const apiClient = useMarketplaceApiClient();
-  const allowFetch = options?.enabled ?? true;
+  const allowFetch = (options?.enabled ?? true) && Boolean(investorOrganizationId);
   return useQuery({
-    queryKey: marketplaceKeys.investorBalanceActivity({ page, pageSize }),
+    queryKey: marketplaceKeys.investorBalanceActivity({ page, pageSize, investorOrganizationId }),
     enabled: allowFetch,
     queryFn: async () => {
-      const response = await apiClient.getInvestorBalanceActivity({ page, pageSize });
+      const response = await apiClient.getInvestorBalanceActivity({
+        page,
+        pageSize,
+        investorOrganizationId,
+      });
       if (!response.success) throw new Error(response.error.message);
       return response.data;
+    },
+  });
+}
+
+const ACTIVITY_FETCH_PAGE_SIZE = 100;
+
+/** Loads every balance-activity page for the active org (API caps pageSize at 100). */
+export function useInvestorBalanceActivityAll(
+  investorOrganizationId?: string,
+  options?: { enabled?: boolean }
+) {
+  const apiClient = useMarketplaceApiClient();
+  const allowFetch = (options?.enabled ?? true) && Boolean(investorOrganizationId);
+  return useQuery({
+    queryKey: marketplaceKeys.investorBalanceActivityAll(investorOrganizationId),
+    enabled: allowFetch,
+    queryFn: async () => {
+      const first = await apiClient.getInvestorBalanceActivity({
+        page: 1,
+        pageSize: ACTIVITY_FETCH_PAGE_SIZE,
+        investorOrganizationId,
+      });
+      if (!first.success) throw new Error(first.error.message);
+
+      const allEntries = [...first.data.entries];
+      const { totalPages } = first.data.pagination;
+
+      if (totalPages > 1) {
+        const remainingPages = await Promise.all(
+          Array.from({ length: totalPages - 1 }, (_, index) =>
+            apiClient.getInvestorBalanceActivity({
+              page: index + 2,
+              pageSize: ACTIVITY_FETCH_PAGE_SIZE,
+              investorOrganizationId,
+            })
+          )
+        );
+        for (const response of remainingPages) {
+          if (!response.success) throw new Error(response.error.message);
+          allEntries.push(...response.data.entries);
+        }
+      }
+
+      return { ...first.data, entries: allEntries };
     },
   });
 }

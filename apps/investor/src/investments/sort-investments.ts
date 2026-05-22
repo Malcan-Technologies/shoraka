@@ -1,4 +1,4 @@
-import type { NoteListItem } from "@cashsouk/types";
+import { resolveNetExpectedReturnRatePercent, type NoteListItem } from "@cashsouk/types";
 
 export type InvestmentSortOption =
   | "most_relevant"
@@ -32,7 +32,9 @@ function getInvestedAmount(note: NoteListItem) {
 
 function getExpectedReturn(note: NoteListItem) {
   return Number(
-    note.investorRepaymentSummary?.expectedReturnRatePercent ?? note.profitRatePercent ?? 0
+    note.investorRepaymentSummary?.expectedReturnRatePercent ??
+      resolveNetExpectedReturnRatePercent(note) ??
+      0
   );
 }
 

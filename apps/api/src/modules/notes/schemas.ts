@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isNoteMoneyAmount } from "@cashsouk/types";
 import {
   NoteFundingStatus,
   NoteLedgerAccountType,
@@ -34,12 +35,35 @@ export const bucketActivityQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-export const investorBalanceActivityQuerySchema = z.object({
+export const investorOrganizationScopeSchema = z.object({
+  investorOrganizationId: z.string().min(1).optional(),
+});
+
+export const investorPortfolioQuerySchema = investorOrganizationScopeSchema;
+
+export const investorInvestmentsQuerySchema = investorOrganizationScopeSchema;
+
+export const investorBalanceActivityQuerySchema = investorOrganizationScopeSchema.extend({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-export const investorPortfolioHistoryQuerySchema = z.object({
+const statementDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must use YYYY-MM-DD format");
+
+export const investorBalanceStatementQuerySchema = investorOrganizationScopeSchema
+  .extend({
+    startDate: statementDateSchema,
+    endDate: statementDateSchema,
+    format: z.enum(["csv", "pdf"]).default("csv"),
+  })
+  .refine((value) => value.startDate <= value.endDate, {
+    message: "Start date must be on or before end date",
+    path: ["startDate"],
+  });
+
+export const investorPortfolioHistoryQuerySchema = investorOrganizationScopeSchema.extend({
   range: z.enum(["1W", "1M", "3M", "6M", "YTD", "ALL"]).default("6M"),
 });
 
@@ -114,7 +138,12 @@ export const updateNoteFeaturedSchema = z.object({
 });
 
 export const createInvestmentSchema = z.object({
-  amount: z.number().positive(),
+  amount: z
+    .number()
+    .positive()
+    .refine((value) => isNoteMoneyAmount(value), {
+      message: "Investment amount must have at most 2 decimal places",
+    }),
   investorOrganizationId: z.string().min(1),
 });
 

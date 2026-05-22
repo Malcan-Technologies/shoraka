@@ -101,6 +101,7 @@ import type {
   NoteLedgerEntry,
   NotesResponse,
   InvestorBalanceActivityResponse,
+  ExportInvestorBalanceStatementParams,
   InvestorPortfolioResponse,
   InvestorPortfolioHistoryRange,
   InvestorPortfolioHistoryResponse,
@@ -2377,18 +2378,38 @@ export class ApiClient {
     return this.post<MarketplaceNoteDetail>(`/v1/marketplace/notes/${id}/investments`, data);
   }
 
-  async getInvestorInvestments(): Promise<ApiResponse<NotesResponse> | ApiError> {
-    return this.get<NotesResponse>("/v1/investor/investments");
+  async getInvestorInvestments(
+    investorOrganizationId?: string
+  ): Promise<ApiResponse<NotesResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    if (investorOrganizationId) {
+      queryParams.append("investorOrganizationId", investorOrganizationId);
+    }
+    const suffix = queryParams.toString();
+    return this.get<NotesResponse>(`/v1/investor/investments${suffix ? `?${suffix}` : ""}`);
   }
 
-  async getInvestorPortfolio(): Promise<ApiResponse<InvestorPortfolioResponse> | ApiError> {
-    return this.get<InvestorPortfolioResponse>("/v1/investor/portfolio");
+  async getInvestorPortfolio(
+    investorOrganizationId?: string
+  ): Promise<ApiResponse<InvestorPortfolioResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    if (investorOrganizationId) {
+      queryParams.append("investorOrganizationId", investorOrganizationId);
+    }
+    const suffix = queryParams.toString();
+    return this.get<InvestorPortfolioResponse>(
+      `/v1/investor/portfolio${suffix ? `?${suffix}` : ""}`
+    );
   }
 
   async getInvestorPortfolioHistory(
-    range: InvestorPortfolioHistoryRange = "6M"
+    range: InvestorPortfolioHistoryRange = "6M",
+    investorOrganizationId?: string
   ): Promise<ApiResponse<InvestorPortfolioHistoryResponse> | ApiError> {
     const queryParams = new URLSearchParams({ range });
+    if (investorOrganizationId) {
+      queryParams.append("investorOrganizationId", investorOrganizationId);
+    }
     return this.get<InvestorPortfolioHistoryResponse>(
       `/v1/investor/portfolio/history?${queryParams.toString()}`
     );
@@ -2398,14 +2419,52 @@ export class ApiClient {
     params: {
       page?: number;
       pageSize?: number;
+      investorOrganizationId?: string;
     } = {}
   ): Promise<ApiResponse<InvestorBalanceActivityResponse> | ApiError> {
     const queryParams = new URLSearchParams();
     queryParams.append("page", String(params.page ?? 1));
     queryParams.append("pageSize", String(params.pageSize ?? 20));
+    if (params.investorOrganizationId) {
+      queryParams.append("investorOrganizationId", params.investorOrganizationId);
+    }
     return this.get<InvestorBalanceActivityResponse>(
       `/v1/investor/balance/activity?${queryParams.toString()}`
     );
+  }
+
+  async exportInvestorBalanceStatement(
+    params: ExportInvestorBalanceStatementParams
+  ): Promise<Blob> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("startDate", params.startDate);
+    queryParams.append("endDate", params.endDate);
+    queryParams.append("format", params.format);
+    if (params.investorOrganizationId) {
+      queryParams.append("investorOrganizationId", params.investorOrganizationId);
+    }
+
+    const url = `${this.baseUrl}/v1/investor/balance/statement?${queryParams.toString()}`;
+    const authToken = await this.getAuthToken();
+
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Statement export failed: ${response.statusText}`);
+    }
+
+    return response.blob();
   }
 
   async postInvestorBalanceTestTopup(input: {
