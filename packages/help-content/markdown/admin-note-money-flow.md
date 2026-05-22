@@ -144,6 +144,22 @@ The note moves to the **Funded** stage. An **Issuer Disbursement** card appears 
 
 While any disbursement withdrawal is open, the lifecycle card shows a `Pending Disbursement` badge and the four-step sub-stepper. The Finance → Issuer Payouts queue lists every disbursement and residual refund in flight in one place, with a Type column to tell them apart.
 
+### Shoraka STP (issuer disbursement proof)
+For some issuer disbursement withdrawals, you will also see a **Shoraka STP** box inside the **Issuer Disbursement** card.
+
+What it is:
+- Shoraka STP helps Cashsouk confirm the financing amount went through a Shariah-compliant commodity trade process.
+- Cashsouk saves the Shoraka certificate PDF as proof for the final payout step.
+
+How to use it (typical flow):
+- Submit Shoraka Order → Query Status until the trade shows `Completed`
+- When it shows `Completed`, click **Fetch Certificate** (this stores the PDF in S3)
+- **Mark Disbursed** only becomes available after the certificate is fetched
+
+Cutoff reminder (MYT):
+- During **11:30 PM to 12:30 AM**, you cannot submit a Shoraka order.
+- Query Status, Fetch Certificate, and View Certificate still work during this time.
+
 ## Repayment And Settlement
 
 The repayment amount is based on the invoice face value. It is not the same as the funded amount or the disbursed amount.

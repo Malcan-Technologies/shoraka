@@ -611,6 +611,68 @@ export interface WithdrawalInstruction {
   createdAt: string;
 }
 
+export interface ShorakaOperationalStatus {
+  providerStatus: string;
+  label: string;
+  nextAction: string;
+  meaning: string;
+  canFetchCertificate: boolean;
+  hasCertificate: boolean;
+  requiresManualReview: boolean;
+  cutoffWarning: string | null;
+}
+
+export interface ShorakaTradeOrderParsedFields {
+  orderDate: string | null;
+  valueDate: string | null;
+  cancelDate: string | null;
+  ownershipName: string | null;
+  orderAmount: string | null;
+  murabahaAmount: string | null;
+  certificateUrl: string | null;
+  certificateDetails1: string | null;
+  certificateDetails2: string | null;
+  certificateDetails3: string | null;
+}
+
+export interface ShorakaTradeOrderStateTradeOrder {
+  id: string;
+  withdrawal_instruction_id: string;
+  note_id: string;
+  provider_order_id: string | null;
+  status: string;
+  idempotency_key: string;
+  submitted_at: string | null;
+  status_last_checked_at: string | null;
+  callback_payload: unknown | null;
+  callback_received_at: string | null;
+
+  submit_request_payload: unknown;
+  submit_response_payload: unknown;
+  status_response_payload: unknown;
+
+  certificate_s3_key: string | null;
+  certificate_file_sha256: string | null;
+  provider_certificate_id: string | null;
+  certificate_uploaded_at: string | null;
+
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ShorakaWithdrawalState {
+  tradeOrder: ShorakaTradeOrderStateTradeOrder;
+  operationalStatus: ShorakaOperationalStatus;
+  parsed: ShorakaTradeOrderParsedFields;
+  cutoffWarning: string | null;
+}
+
+export interface ShorakaSubmitOrderStateResponse {
+  tradeOrder: ShorakaTradeOrderStateTradeOrder;
+  operationalStatus: ShorakaOperationalStatus;
+  cutoffWarning: string | null;
+}
+
 export interface GetAdminNotesParams {
   page: number;
   pageSize: number;

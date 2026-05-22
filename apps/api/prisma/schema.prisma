@@ -927,19 +927,20 @@ model WithdrawalInstruction {
   issuer_organization_id   String?
   requested_by_user_id     String
   submitted_by_user_id     String?
-  status                   WithdrawalStatus @default(DRAFT)
+  status                   WithdrawalStatus    @default(DRAFT)
   withdrawal_type          WithdrawalType
-  amount                   Decimal          @db.Decimal(18, 6)
-  currency                 String           @default("MYR")
+  amount                   Decimal             @db.Decimal(18, 6)
+  currency                 String              @default("MYR")
   beneficiary_snapshot     Json
   letter_s3_key            String?
   generated_at             DateTime?
   submitted_to_trustee_at  DateTime?
   completed_at             DateTime?
   metadata                 Json?
-  created_at               DateTime         @default(now())
-  updated_at               DateTime         @updatedAt
-  settlement               NoteSettlement?  @relation(fields: [settlement_id], references: [id], onDelete: SetNull)
+  created_at               DateTime            @default(now())
+  updated_at               DateTime            @updatedAt
+  settlement               NoteSettlement?     @relation(fields: [settlement_id], references: [id], onDelete: SetNull)
+  shoraka_trade_order     ShorakaTradeOrder?
 
   @@index([note_id])
   @@index([settlement_id])
@@ -949,6 +950,39 @@ model WithdrawalInstruction {
   @@index([status])
   @@index([created_at])
   @@map("withdrawal_instructions")
+}
+
+model ShorakaTradeOrder {
+  id                        String                    @id @default(cuid())
+  withdrawal_instruction_id String                   @unique
+  note_id                   String
+
+  provider_order_id         String?                  @unique
+  status                     String                   @default("PENDING_SUBMISSION")
+
+  idempotency_key           String                   @unique
+  submit_request_payload    Json?
+  submit_response_payload   Json?
+  status_response_payload   Json?
+
+  submitted_at               DateTime?
+  status_last_checked_at    DateTime?
+
+  certificate_s3_key        String?
+  certificate_file_sha256  String?
+  provider_certificate_id  String?
+  certificate_uploaded_at   DateTime?
+
+  callback_payload         Json?
+  callback_received_at     DateTime?
+
+  created_at                DateTime                 @default(now())
+  updated_at                DateTime                 @updatedAt
+
+  withdrawalInstruction     WithdrawalInstruction    @relation(fields: [withdrawal_instruction_id], references: [id], onDelete: Cascade)
+
+  @@index([note_id])
+  @@map("shoraka_trade_orders")
 }
 
 model OrganizationMember {

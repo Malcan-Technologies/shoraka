@@ -4392,6 +4392,21 @@ export class NoteService {
 
     const completedAt = new Date();
     const withdrawal = await prisma.$transaction(async (tx) => {
+      if (existing.withdrawal_type === WithdrawalType.ISSUER_DISBURSEMENT) {
+        const shorakaTradeOrder = await tx.shorakaTradeOrder.findUnique({
+          where: { withdrawal_instruction_id: id },
+          select: { certificate_s3_key: true },
+        });
+
+        if (!shorakaTradeOrder?.certificate_s3_key) {
+          throw new AppError(
+            400,
+            "SHORAKA_CERTIFICATE_REQUIRED",
+            "Shoraka certificate must be fetched before marking issuer disbursement as completed."
+          );
+        }
+      }
+
       const stateUpdate = await tx.withdrawalInstruction.updateMany({
         where: { id, status: WithdrawalStatus.SUBMITTED_TO_TRUSTEE },
         data: {

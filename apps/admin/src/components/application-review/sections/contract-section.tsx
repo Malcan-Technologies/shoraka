@@ -234,14 +234,21 @@ export function ContractSection({
     const n = Number(trimmed);
     return Number.isFinite(n) ? n : null;
   }, [facilityFeeRatePercentInput]);
-  const facilityFeeRatePercentError =
-    facilityFeeRatePercentParsed == null
-      ? facilityFeeRatePercentInput.trim().length > 0
+  const facilityFeeRatePercentError = (() => {
+    if (facilityFeeRatePercentParsed == null) {
+      return facilityFeeRatePercentInput.trim().length > 0
         ? "Facility fee rate must be a valid number"
-        : null
-      : facilityFeeRatePercentParsed < 0 || facilityFeeRatePercentParsed > 100
-        ? "Facility fee rate must be between 0 and 100%"
         : null;
+    }
+    if (facilityFeeRatePercentParsed < 0 || facilityFeeRatePercentParsed > 1) {
+      return "Facility fee rate must be between 0% and 1%";
+    }
+    const scaled = facilityFeeRatePercentParsed * 100;
+    const rounded = Math.round(scaled);
+    return Math.abs(scaled - rounded) > 1e-9
+      ? "Facility fee rate can have up to 2 decimal places"
+      : null;
+  })();
   // Facility fee rate is optional; errors are only used to block "Send Offer" when a value is provided.
 
   const assertLargePrivateThenOpenOffer = () => {
@@ -523,6 +530,7 @@ export function ContractSection({
                           !isReviewable ||
                           !!isActionLocked ||
                           !!isSendOfferPending ||
+                          !!facilityFeeRatePercentError ||
                           !canSendContractOffer
                         }
                         onClick={assertLargePrivateThenOpenOffer}
@@ -566,7 +574,8 @@ export function ContractSection({
                       aria-invalid={!!facilityFeeRatePercentError}
                     />
                     <div className="text-xs text-muted-foreground">
-                      Applies only to Contract Financing; charged progressively at disbursement.
+                      Facility Fee rate for this contract offer. Allowed range: 0% to 1%, up to 2 decimal places.
+                      This is charged progressively only when invoice financing is disbursed.
                     </div>
                   </div>
                   {facilityFeeRatePercentError ? (
@@ -814,7 +823,9 @@ export function ContractSection({
             </Button>
             <Button
               onClick={handleConfirmContractOffer}
-              disabled={!canSendContractOffer || !!isSendOfferPending}
+              disabled={
+                !canSendContractOffer || !!isSendOfferPending || !!facilityFeeRatePercentError
+              }
               className="rounded-xl"
             >
               {isSendOfferPending ? "Sending..." : "Confirm & Send Offer"}
