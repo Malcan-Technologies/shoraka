@@ -326,6 +326,7 @@ export default function TransactionsPage() {
       <StatementDialog
         open={statementOpen}
         onOpenChange={setStatementOpen}
+        investorOrganizationId={orgId}
         startDate={statementStartDate}
         endDate={statementEndDate}
         onStartDateChange={setStatementStartDate}

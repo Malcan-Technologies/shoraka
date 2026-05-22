@@ -101,6 +101,7 @@ import type {
   NoteLedgerEntry,
   NotesResponse,
   InvestorBalanceActivityResponse,
+  ExportInvestorBalanceStatementParams,
   InvestorPortfolioResponse,
   InvestorPortfolioHistoryRange,
   InvestorPortfolioHistoryResponse,
@@ -2421,6 +2422,40 @@ export class ApiClient {
     return this.get<InvestorBalanceActivityResponse>(
       `/v1/investor/balance/activity?${queryParams.toString()}`
     );
+  }
+
+  async exportInvestorBalanceStatement(
+    params: ExportInvestorBalanceStatementParams
+  ): Promise<Blob> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("startDate", params.startDate);
+    queryParams.append("endDate", params.endDate);
+    queryParams.append("format", params.format);
+    if (params.investorOrganizationId) {
+      queryParams.append("investorOrganizationId", params.investorOrganizationId);
+    }
+
+    const url = `${this.baseUrl}/v1/investor/balance/statement?${queryParams.toString()}`;
+    const authToken = await this.getAuthToken();
+
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Statement export failed: ${response.statusText}`);
+    }
+
+    return response.blob();
   }
 
   async postInvestorBalanceTestTopup(input: {

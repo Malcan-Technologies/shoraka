@@ -695,6 +695,13 @@ export interface InvestorBalanceActivityResponse {
   generatedAt: string;
 }
 
+export interface ExportInvestorBalanceStatementParams {
+  startDate: string;
+  endDate: string;
+  investorOrganizationId?: string;
+  format: "csv" | "pdf";
+}
+
 export interface EligibleNoteInvoice {
   invoiceId: string;
   applicationId: string;

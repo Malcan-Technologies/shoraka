@@ -23,6 +23,7 @@ import {
   settlementActionSchema,
   settlementPreviewSchema,
   investorBalanceActivityQuerySchema,
+  investorBalanceStatementQuerySchema,
   investorPortfolioHistoryQuerySchema,
   investorPortfolioQuerySchema,
   testInvestorBalanceTopupSchema,
@@ -513,6 +514,21 @@ investorNotesRouter.get("/balance/activity", async (req: Request, res: Response,
   try {
     const query = investorBalanceActivityQuerySchema.parse(req.query);
     send(res, await noteService.listInvestorBalanceActivity(getActor(req, res, "INVESTOR").userId, query));
+  } catch (error) {
+    next(error);
+  }
+});
+
+investorNotesRouter.get("/balance/statement", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const query = investorBalanceStatementQuerySchema.parse(req.query);
+    const result = await noteService.exportInvestorBalanceStatement(
+      getActor(req, res, "INVESTOR").userId,
+      query
+    );
+    res.setHeader("Content-Type", result.contentType);
+    res.setHeader("Content-Disposition", `attachment; filename="${result.filename}"`);
+    res.send(result.buffer);
   } catch (error) {
     next(error);
   }

@@ -51,6 +51,13 @@ import {
 } from "../signingcloud/offer-signing-admin-view";
 import { creditInvestorBalance, debitInvestorBalanceForCommit } from "./investor-balance";
 import {
+  buildInvestorBalanceStatement,
+  buildStatementFilename,
+  renderStatementCsv,
+  renderStatementPdf,
+  type StatementLedgerEntry,
+} from "./investor-balance-statement";
+import {
   mapLedgerEntry,
   mapMarketplaceNoteDetail,
   mapNoteDetail,
@@ -88,6 +95,7 @@ import type {
   getAdminInvestmentsQuerySchema,
   getNotesQuerySchema,
   investorBalanceActivityQuerySchema,
+  investorBalanceStatementQuerySchema,
   investorPortfolioHistoryQuerySchema,
   investorPortfolioQuerySchema,
   lateChargeSchema,
@@ -2834,6 +2842,97 @@ export class NoteService {
         availableBalance: roundNoteMoney(availableBalance, 2),
       },
       generatedAt: new Date().toISOString(),
+    };
+  }
+
+  async exportInvestorBalanceStatement(
+    userId: string,
+    query: z.infer<typeof investorBalanceStatementQuerySchema>
+  ) {
+    const orgIds = await this.resolveInvestorOrgIds(userId, query.investorOrganizationId);
+    if (orgIds.length === 0) {
+      throw new AppError(404, "INVESTOR_ORG_NOT_FOUND", "No investor organization found");
+    }
+
+    const organizations = await prisma.investorOrganization.findMany({
+      where: { id: { in: orgIds } },
+      select: {
+        id: true,
+        name: true,
+        first_name: true,
+        last_name: true,
+        registration_number: true,
+      },
+    });
+
+    const accountName =
+      organizations.length === 1
+        ? organizations[0]?.name?.trim() ||
+          [organizations[0]?.first_name, organizations[0]?.last_name].filter(Boolean).join(" ") ||
+          "Investor account"
+        : "Combined investor accounts";
+
+    const accountId =
+      organizations.length === 1
+        ? organizations[0]?.registration_number?.trim() || organizations[0]?.id || orgIds[0]!
+        : orgIds.join(", ");
+
+    const ledgerRows = await prisma.investorBalanceTransaction.findMany({
+      where: { investor_organization_id: { in: orgIds } },
+      orderBy: [{ posted_at: "asc" }, { created_at: "asc" }],
+    });
+
+    const noteIds = [
+      ...new Set(
+        ledgerRows
+          .map((row) => row.note_id)
+          .filter((value): value is string => typeof value === "string" && value.length > 0)
+      ),
+    ];
+    const notes =
+      noteIds.length > 0
+        ? await prisma.note.findMany({
+            where: { id: { in: noteIds } },
+            select: { id: true, note_reference: true },
+          })
+        : [];
+    const noteReferenceById = new Map(
+      notes.map((note) => [note.id, note.note_reference ?? note.id])
+    );
+
+    const entries: StatementLedgerEntry[] = ledgerRows.map((row) => ({
+      id: row.id,
+      direction: row.direction,
+      amount: roundNoteMoney(toNumber(row.amount), 2),
+      source: row.source,
+      noteId: row.note_id,
+      metadata: asRecord(row.metadata),
+      postedAt: row.posted_at,
+    }));
+
+    const statement = buildInvestorBalanceStatement({
+      accountName,
+      accountId,
+      periodStart: query.startDate,
+      periodEnd: query.endDate,
+      generatedAt: new Date(),
+      entries,
+      noteReferenceById,
+    });
+
+    const filename = buildStatementFilename(query.startDate, query.endDate, query.format);
+    if (query.format === "csv") {
+      return {
+        buffer: renderStatementCsv(statement),
+        contentType: "text/csv; charset=utf-8",
+        filename,
+      };
+    }
+
+    return {
+      buffer: await renderStatementPdf(statement),
+      contentType: "application/pdf",
+      filename,
     };
   }
 
