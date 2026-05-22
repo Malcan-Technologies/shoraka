@@ -34,9 +34,9 @@ export interface TransactionsSummary {
   balanceTrend: SummaryTrend;
 }
 
-/** Filter options backed by live balance-activity sources today. Withdrawal omitted until wired. */
 export const TRANSACTION_TYPE_FILTER_OPTIONS = [
   "Deposit",
+  "Withdrawal",
   "Investment",
   "Returns",
   "Release",

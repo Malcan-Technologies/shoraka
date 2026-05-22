@@ -48,6 +48,14 @@ export interface BankAccountDetails {
   displayArea: string;
 }
 
+export function getBankAccountField(
+  bankDetails: BankAccountDetails | null | undefined,
+  fieldName: string
+): string {
+  if (!bankDetails?.content) return "";
+  const field = bankDetails.content.find((item) => item.fieldName === fieldName);
+  return field?.fieldValue ?? "";
+}
 
 export interface Organization {
   id: string;

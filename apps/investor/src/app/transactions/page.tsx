@@ -237,6 +237,7 @@ export default function TransactionsPage() {
 
   function handleSeeWithdrawalHistory() {
     setWithdrawRequestOpen(false);
+    setFilters((current) => ({ ...current, type: "Withdrawal" }));
     setPage(1);
   }
 
