@@ -2378,8 +2378,15 @@ export class ApiClient {
     return this.post<MarketplaceNoteDetail>(`/v1/marketplace/notes/${id}/investments`, data);
   }
 
-  async getInvestorInvestments(): Promise<ApiResponse<NotesResponse> | ApiError> {
-    return this.get<NotesResponse>("/v1/investor/investments");
+  async getInvestorInvestments(
+    investorOrganizationId?: string
+  ): Promise<ApiResponse<NotesResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    if (investorOrganizationId) {
+      queryParams.append("investorOrganizationId", investorOrganizationId);
+    }
+    const suffix = queryParams.toString();
+    return this.get<NotesResponse>(`/v1/investor/investments${suffix ? `?${suffix}` : ""}`);
   }
 
   async getInvestorPortfolio(

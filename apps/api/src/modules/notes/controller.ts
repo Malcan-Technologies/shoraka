@@ -25,6 +25,7 @@ import {
   settlementPreviewSchema,
   investorBalanceActivityQuerySchema,
   investorBalanceStatementQuerySchema,
+  investorInvestmentsQuerySchema,
   investorPortfolioHistoryQuerySchema,
   investorPortfolioQuerySchema,
   testInvestorBalanceTopupSchema,
@@ -487,7 +488,11 @@ investorNotesRouter.use(requireRole(UserRole.INVESTOR));
 
 investorNotesRouter.get("/investments", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    send(res, await noteService.listInvestorInvestments(getActor(req, res, "INVESTOR").userId));
+    const query = investorInvestmentsQuerySchema.parse(req.query);
+    send(
+      res,
+      await noteService.listInvestorInvestments(getActor(req, res, "INVESTOR").userId, query)
+    );
   } catch (error) {
     next(error);
   }

@@ -163,7 +163,7 @@ export function PortfolioOverviewCard() {
   const orgId = activeOrganization?.id;
   const { data: portfolio } = useInvestorPortfolio(orgId);
   const { data: history } = useInvestorPortfolioHistory(API_RANGE_BY_OPTION[activeRange], orgId);
-  const { data: investedNotesData } = useInvestorInvestments();
+  const { data: investedNotesData } = useInvestorInvestments(orgId);
 
   const portfolioTotal = Number(portfolio?.portfolioTotal ?? 0);
   const investmentSummary = useMemo(

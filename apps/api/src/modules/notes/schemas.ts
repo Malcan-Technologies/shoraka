@@ -41,6 +41,8 @@ export const investorOrganizationScopeSchema = z.object({
 
 export const investorPortfolioQuerySchema = investorOrganizationScopeSchema;
 
+export const investorInvestmentsQuerySchema = investorOrganizationScopeSchema;
+
 export const investorBalanceActivityQuerySchema = investorOrganizationScopeSchema.extend({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),

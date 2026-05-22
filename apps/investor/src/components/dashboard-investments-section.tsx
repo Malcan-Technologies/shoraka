@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useOrganization } from "@cashsouk/config";
 import {
   ArrowPathIcon,
   ChevronLeftIcon,
@@ -74,7 +75,8 @@ export function InvestorInvestmentsList({
   showViewAllButton = false,
   showStatusFilter = false,
 }: InvestorInvestmentsListProps) {
-  const { data, isLoading, error, refetch } = useInvestorInvestments();
+  const { activeOrganization } = useOrganization();
+  const { data, isLoading, error, refetch } = useInvestorInvestments(activeOrganization?.id);
   const notes = useMemo(() => data?.notes ?? [], [data?.notes]);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [search, setSearch] = useState("");

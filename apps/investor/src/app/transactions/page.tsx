@@ -94,7 +94,7 @@ export default function TransactionsPage() {
   const portfolioQuery = useInvestorPortfolio(orgId);
   const portfolioHistoryQuery = useInvestorPortfolioHistory("1W", orgId);
   const activityQuery = useInvestorBalanceActivityAll(orgId);
-  const investmentsQuery = useInvestorInvestments();
+  const investmentsQuery = useInvestorInvestments(orgId);
 
   const noteReferenceById = React.useMemo(() => {
     const map = new Map<string, string>();

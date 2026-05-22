@@ -113,7 +113,8 @@ export default function InvestmentDetailPage() {
   const noteId = params.id;
   const { setTitle } = useHeader();
   const { activeOrganization } = useOrganization();
-  const investmentsQuery = useInvestorInvestments();
+  const orgId = activeOrganization?.id;
+  const investmentsQuery = useInvestorInvestments(orgId);
 
   const investedNote = React.useMemo(
     () => investmentsQuery.data?.notes.find((entry) => entry.id === noteId) ?? null,

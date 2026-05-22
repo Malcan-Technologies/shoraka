@@ -23,7 +23,9 @@ export const marketplaceKeys = {
   }) => [...marketplaceKeys.investorBalanceActivityRoot, params] as const,
   investorBalanceActivityAll: (investorOrganizationId?: string) =>
     [...marketplaceKeys.investorBalanceActivityRoot, "all", investorOrganizationId] as const,
-  investorInvestments: ["investor-investments"] as const,
+  investorInvestmentsRoot: ["investor-investments"] as const,
+  investorInvestments: (investorOrganizationId?: string) =>
+    [...marketplaceKeys.investorInvestmentsRoot, investorOrganizationId] as const,
 };
 
 function useMarketplaceApiClient() {
@@ -94,6 +96,7 @@ export function useCommitInvestment() {
       queryClient.invalidateQueries({ queryKey: marketplaceKeys.portfolioRoot });
       queryClient.invalidateQueries({ queryKey: marketplaceKeys.portfolioHistoryRoot });
       queryClient.invalidateQueries({ queryKey: marketplaceKeys.investorBalanceActivityRoot });
+      queryClient.invalidateQueries({ queryKey: marketplaceKeys.investorInvestmentsRoot });
     },
   });
 }
@@ -127,12 +130,13 @@ export function useInvestorPortfolioHistory(
   });
 }
 
-export function useInvestorInvestments() {
+export function useInvestorInvestments(investorOrganizationId?: string) {
   const apiClient = useMarketplaceApiClient();
   return useQuery({
-    queryKey: marketplaceKeys.investorInvestments,
+    queryKey: marketplaceKeys.investorInvestments(investorOrganizationId),
+    enabled: Boolean(investorOrganizationId),
     queryFn: async () => {
-      const response = await apiClient.getInvestorInvestments();
+      const response = await apiClient.getInvestorInvestments(investorOrganizationId);
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },

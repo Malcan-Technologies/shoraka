@@ -96,6 +96,7 @@ import type {
   getNotesQuerySchema,
   investorBalanceActivityQuerySchema,
   investorBalanceStatementQuerySchema,
+  investorInvestmentsQuerySchema,
   investorPortfolioHistoryQuerySchema,
   investorPortfolioQuerySchema,
   lateChargeSchema,
@@ -2726,8 +2727,18 @@ export class NoteService {
     return mapMarketplaceNoteDetail(note);
   }
 
-  async listInvestorInvestments(userId: string) {
-    const orgIds = await this.listInvestorOrganizationIds(userId);
+  async listInvestorInvestments(
+    userId: string,
+    query: z.infer<typeof investorInvestmentsQuerySchema> = {}
+  ) {
+    const orgIds = await this.resolveInvestorOrgIds(userId, query.investorOrganizationId);
+    if (orgIds.length === 0) {
+      return {
+        notes: [],
+        pagination: { page: 1, pageSize: 1, totalCount: 0, totalPages: 1 },
+      };
+    }
+
     const orgIdSet = new Set(orgIds);
     const notes = await prisma.note.findMany({
       where: { investments: { some: { investor_organization_id: { in: orgIds } } } },
