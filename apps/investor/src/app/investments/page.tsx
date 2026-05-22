@@ -35,7 +35,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MarketplaceNote, NoteCard as MarketplaceMockNoteCard } from "@/components/marketplace/note-card";
-import { InvestmentsDevBalanceTopup } from "./_components/investments-dev-balance-topup";
 import { InvestorInvestmentsList } from "@/components/dashboard-investments-section";
 import { computeMarketplaceCommitBounds } from "@/investments/marketplace-commit-bounds";
 import {
@@ -476,16 +475,11 @@ export function MarketplacePage() {
 
         {!isLoading && !error ? (
           <div className="space-y-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div className="min-w-0 space-y-1.5">
-                <p className="text-sm font-medium text-muted-foreground">Available balance</p>
-                <p className="text-3xl font-semibold leading-none tracking-tight text-foreground tabular-nums sm:text-4xl">
-                  {formatCurrency(availableBalance)}
-                </p>
-              </div>
-              <div className="flex shrink-0 justify-end sm:justify-end">
-                <InvestmentsDevBalanceTopup investorOrganizationId={activeOrganization?.id} />
-              </div>
+            <div className="min-w-0 space-y-1.5">
+              <p className="text-sm font-medium text-muted-foreground">Available balance</p>
+              <p className="text-3xl font-semibold leading-none tracking-tight text-foreground tabular-nums sm:text-4xl">
+                {formatCurrency(availableBalance)}
+              </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">

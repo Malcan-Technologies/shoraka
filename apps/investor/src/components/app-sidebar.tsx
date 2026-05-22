@@ -14,6 +14,7 @@ import {
   QuestionMarkCircleIcon,
   ArrowTrendingUpIcon,
   ChartBarSquareIcon,
+  BanknotesIcon,
 } from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
@@ -232,6 +233,29 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <Link href="/investments">
                       <ChartBarSquareIcon className="h-4 w-4" />
                       <span>Investments</span>
+                    </Link>
+                  </SidebarMenuButton>
+                )}
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                {isFeaturesDisabled ? (
+                  <SidebarMenuButton
+                    disabled
+                    tooltip={isPendingApproval ? "Pending approval" : "Complete onboarding to access"}
+                    className="opacity-50 cursor-not-allowed"
+                  >
+                    <BanknotesIcon className="h-4 w-4" />
+                    <span>Transactions</span>
+                  </SidebarMenuButton>
+                ) : (
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === "/transactions"}
+                    tooltip="Transactions"
+                  >
+                    <Link href="/transactions">
+                      <BanknotesIcon className="h-4 w-4" />
+                      <span>Transactions</span>
                     </Link>
                   </SidebarMenuButton>
                 )}
