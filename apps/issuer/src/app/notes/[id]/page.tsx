@@ -645,8 +645,7 @@ export default function IssuerNoteDetailPage() {
                   {formatCurrency(issuerDisbursementWithdrawal.platformFeeAmount!)}
                 </span>
               </div>
-              {issuerDisbursementWithdrawal.facilityFeeCharged != null &&
-              issuerDisbursementWithdrawal.facilityFeeCharged > 0 ? (
+              {issuerDisbursementWithdrawal.facilityFeeCharged != null ? (
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-sm text-muted-foreground">Facility fee</span>
                   <span className="text-sm font-semibold text-foreground tabular-nums">

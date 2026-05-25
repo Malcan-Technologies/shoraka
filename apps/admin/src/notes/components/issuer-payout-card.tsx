@@ -370,7 +370,7 @@ export function IssuerPayoutCard({
               <span className="text-muted-foreground">Platform fee</span>
               <span className="font-medium">{formatCurrency(withdrawal.platformFeeAmount)}</span>
             </div>
-            {withdrawal.facilityFeeCharged != null && withdrawal.facilityFeeCharged > 0 ? (
+            {withdrawal.facilityFeeCharged != null ? (
               <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground">Facility fee</span>
                 <span className="font-medium">{formatCurrency(withdrawal.facilityFeeCharged)}</span>
