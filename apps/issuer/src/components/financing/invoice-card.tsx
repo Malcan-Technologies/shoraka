@@ -61,11 +61,12 @@ function InvoiceFeeSummary({ display }: { display: ReturnType<typeof buildInvoic
   const netLabel = display.phase === "charged" ? "Net disbursed" : "Expected net disbursement";
   const feesLabel = display.phase === "charged" ? "Fees charged" : "Fees estimated";
   const facilitySuffix = display.phase === "charged" ? "" : " est.";
+  const capReached = display.facilityFeeFullyCollected && display.facilityFeeAmount === 0;
   const parts = [
     display.platformFeeAmount != null ? `Platform ${money(display.platformFeeAmount)}` : null,
     display.facilityFeeAmount != null
-      ? display.facilityFeeFullyCollected
-        ? "Facility cap reached"
+      ? capReached
+        ? `Facility ${money(display.facilityFeeAmount)} (cap reached)`
         : `Facility ${money(display.facilityFeeAmount)}${facilitySuffix}`
       : null,
   ].filter(Boolean);

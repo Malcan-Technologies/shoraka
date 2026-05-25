@@ -31,6 +31,8 @@ import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labe
 import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
 import type { Invoice } from "@cashsouk/types";
 import type { NormalizedInvoice } from "../../../(application-management)/applications/status";
+import { Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 function formatMoney(value: unknown) {
   return formatMoneyDisplay(value, EM_DASH);
@@ -212,8 +214,8 @@ export default function ContractDetailsPage() {
                   {availableFacilityDisplay != null ? formatMoney(availableFacilityDisplay) : EM_DASH}
                 </LabelValue>
                 {overUtilizedAmount != null && overUtilizedAmount > 0 ? (
-                  <p className="text-xs font-medium leading-5 text-amber-700">
-                    Over-utilised by {formatMoney(overUtilizedAmount)}
+                  <p className="text-xs font-medium leading-5 text-muted-foreground">
+                    Facility usage exceeds the approved limit. Please contact support.
                   </p>
                 ) : null}
                 <div className="h-2 w-full overflow-hidden rounded-full border border-border bg-foreground/35 shadow-sm dark:bg-muted">
@@ -245,8 +247,19 @@ export default function ContractDetailsPage() {
                         {facilityFeePaidNum != null ? formatMoney(facilityFeePaidNum) : EM_DASH} /{" "}
                         {facilityFeeCapNum != null ? formatMoney(facilityFeeCapNum) : EM_DASH} cap
                       </span>
+                      <span className="ml-1 inline-flex items-center align-middle">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-[260px] whitespace-normal break-words">
+                              Facility fee is deducted from each invoice financing disbursement until the facility fee cap is reached.
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </span>
                     </p>
-                    <p>Deducted progressively when invoice financing is disbursed.</p>
                   </div>
                 ) : null}
               </div>
