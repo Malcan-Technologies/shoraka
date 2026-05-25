@@ -187,7 +187,7 @@ function InvoiceFeesCell({
   });
 
   if (display.phase === "none") return <span className="tabular-nums">—</span>;
-  if (display.phase === "pending") return <span className="text-muted-foreground">To be confirmed</span>;
+  if (display.phase === "pending") return <span className="tabular-nums">—</span>;
 
   const platformLine =
     display.platformFeeAmount != null ? `Platform ${money(display.platformFeeAmount)}` : null;
