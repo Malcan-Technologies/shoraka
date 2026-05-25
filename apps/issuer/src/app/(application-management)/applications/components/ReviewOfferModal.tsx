@@ -40,6 +40,12 @@ const PLATFORM_FEE_TOOLTIP =
 const PROFIT_RATE_TOOLTIP =
   "Profit per annum (%). Deducted during settlement when calculating the residual refund to the issuer.";
 
+const CONTRACT_FACILITY_FEE_RATE_TOOLTIP =
+  "Facility fee is deducted from each invoice financing disbursement under this contract.";
+
+const CONTRACT_FACILITY_FEE_CAP_TOOLTIP =
+  "Maximum total facility fee that can be collected for this contract.";
+
 type ReviewOfferModalProps = {
   type: "contract" | "invoice";
   applicationId: string;
@@ -437,48 +443,37 @@ export function ReviewOfferModal({
                   <dd className="font-medium text-foreground text-right tabular-nums">
                     {contractName}
                   </dd>
-                  <dt className="text-muted-foreground font-medium">{summarySecondLabel}</dt>
-                  <dd className="font-medium text-foreground text-right tabular-nums">
-                    {summarySecondValue}
-                  </dd>
 
                   {contractValueNumber != null ? (
                     <>
-                      <dt className="text-muted-foreground font-medium">Contract value</dt>
+                      <dt className="text-muted-foreground font-medium">Contract value:</dt>
                       <dd className="font-medium text-foreground text-right tabular-nums">
                         {formatCurrency(contractValueNumber)}
                       </dd>
                     </>
                   ) : null}
 
-                  {contractStartDate != null ? (
-                    <>
-                      <dt className="text-muted-foreground font-medium">Contract start date</dt>
-                      <dd className="font-medium text-foreground text-right tabular-nums">
-                        {contractStartDate}
-                      </dd>
-                    </>
-                  ) : null}
-
-                  <dt className="text-muted-foreground font-medium">{summaryThirdLabel}</dt>
+                  <dt className="text-muted-foreground font-medium">Contract period:</dt>
                   <dd className="font-medium text-foreground text-right tabular-nums">
-                    {summaryThirdValue}
+                    {contractStartDate != null && contractEndDate != null ? `${contractStartDate} – ${contractEndDate}` : "—"}
                   </dd>
 
-                  <dt className="text-muted-foreground font-medium">Facility fee rate:</dt>
+                  <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
+                    Facility fee rate:
+                    <InfoTooltip content={CONTRACT_FACILITY_FEE_RATE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+                  </dt>
                   <dd className="font-medium text-foreground text-right tabular-nums">
                     {facilityFeeRatePercentNumber != null ? `${facilityFeeRatePercentNumber}%` : "—"}
                   </dd>
 
-                  <dt className="text-muted-foreground font-medium">Facility fee cap:</dt>
+                  <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
+                    Facility fee cap:
+                    <InfoTooltip content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+                  </dt>
                   <dd className="font-medium text-foreground text-right tabular-nums">
                     {maximumFacilityFeeNumber != null ? formatCurrency(maximumFacilityFeeNumber) : "—"}
                   </dd>
                 </dl>
-
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Facility fee is deducted progressively when invoice financing is disbursed.
-                </p>
               </>
             ) : (
               <>
