@@ -253,8 +253,8 @@ export default function ContractDetailsPage() {
                             <TooltipTrigger asChild>
                               <Info className="h-3.5 w-3.5 text-muted-foreground" />
                             </TooltipTrigger>
-                            <TooltipContent className="max-w-[260px] whitespace-normal break-words">
-                                      Shows the total facility fee collected so far against the maximum facility fee cap for this contract.
+                            <TooltipContent className="max-w-[240px] whitespace-normal break-words bg-popover px-2 py-1.5 text-popover-foreground shadow-md">
+                              Shows the total facility fee collected so far for this contract. Facility fee is deducted from each invoice financing disbursement until the cap is reached.
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
