@@ -74,6 +74,15 @@ function formatValue(key: string, value: unknown): React.ReactNode {
   return String(value);
 }
 
+function numberOrNull(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value.replace(/,/g, ""));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 function renderFileLabel(doc?: FileDoc) {
   if (!doc?.file_name) return REVIEW_EMPTY_LABEL;
   if (!doc.file_size) return doc.file_name;
@@ -218,6 +227,21 @@ export function ContractDetailView({ contractId }: ContractDetailViewProps) {
   const [isOpeningDocument, setIsOpeningDocument] = React.useState(false);
   const contractDetails = (data?.contractDetails ?? null) as Record<string, unknown> | null;
   const customerDetails = (data?.customerDetails ?? null) as Record<string, unknown> | null;
+
+  const facilityFeeRatePercent = numberOrNull(contractDetails?.facility_fee_rate_percent);
+  const facilityFeePaidAmount = numberOrNull(contractDetails?.facility_fee_paid_amount);
+  const approvedFacility = numberOrNull(contractDetails?.approved_facility);
+  const facilityFeeCap =
+    facilityFeeRatePercent != null && approvedFacility != null
+      ? approvedFacility * (facilityFeeRatePercent / 100)
+      : null;
+  const facilityFeeCollectedDisplay =
+    facilityFeeRatePercent != null &&
+    facilityFeeRatePercent > 0 &&
+    facilityFeePaidAmount != null &&
+    facilityFeeCap != null
+      ? `${formatCurrency(facilityFeePaidAmount)} / ${formatCurrency(facilityFeeCap)} cap`
+      : null;
 
   const openDocument = React.useCallback(
     async (s3Key: string) => {
@@ -406,9 +430,13 @@ export function ContractDetailView({ contractId }: ContractDetailViewProps) {
                             "approved_facility",
                             "utilized_facility",
                             "available_facility",
+                            "facility_fee_paid_amount",
                             "document",
                           ]}
                         />
+                        {facilityFeeCollectedDisplay ? (
+                          <DetailRow label="Facility fee collected" value={facilityFeeCollectedDisplay} />
+                        ) : null}
                       </div>
                     </div>
                   </CardContent>
