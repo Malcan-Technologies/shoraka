@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FileText } from "lucide-react";
+import { FileText, Info } from "lucide-react";
 import { LinkIcon } from "@heroicons/react/24/outline";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -66,7 +66,7 @@ function InvoiceFeeSummary({
         <LabelValue label="Platform fee" tabular>
           —
         </LabelValue>
-        <LabelValue label="Facility fee" tabular>
+        <LabelValue label="Estimated facility fee" tabular>
           —
         </LabelValue>
       </div>
@@ -80,23 +80,61 @@ function InvoiceFeeSummary({
 
   const platformValue = display.platformFeeAmount != null ? money(display.platformFeeAmount) : "—";
 
+  const platformTooltip = "Platform fee for this invoice financing. Shown when available from the accepted offer or actual disbursement.";
+
   const facilityValue =
     display.facilityFeeAmount != null
       ? `${money(display.facilityFeeAmount)}${capReached ? " (cap reached)" : ""}`
       : "—";
 
-  // Keep labels consistent across invoice statuses; only values change.
+  const facilityLabel = display.phase === "charged" ? "Facility fee" : "Estimated facility fee";
+  const facilityTooltip =
+    display.phase === "charged"
+      ? "Facility fee applied to this invoice disbursement."
+      : "Estimated facility fee based on this invoice and the remaining contract facility fee cap. Final amount may change at disbursement.";
+
   return (
     <div className="space-y-1">
       <LabelValue label="Net disbursed" tabular>
         {netDisbursed}
       </LabelValue>
+
       <LabelValue label="Platform fee" tabular>
-        {platformValue}
+        <span className="inline-flex items-center gap-1.5">
+          <span>{platformValue}</span>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex items-center align-middle">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-[260px] whitespace-normal break-words bg-popover px-2 py-1.5 text-popover-foreground shadow-md">
+                {platformTooltip}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </span>
       </LabelValue>
-      <LabelValue label="Facility fee" tabular>
-        {facilityValue}
-      </LabelValue>
+
+      <div className="text-[17px] leading-7">
+        <span className="font-normal text-muted-foreground">
+          {facilityLabel}:
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="ml-1 inline-flex items-center align-middle">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-[260px] whitespace-normal break-words bg-popover px-2 py-1.5 text-popover-foreground shadow-md">
+                {facilityTooltip}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </span>
+        <span className="ml-1 font-medium tabular-nums text-foreground">{facilityValue}</span>
+      </div>
     </div>
   );
 }
