@@ -240,8 +240,8 @@ export function ContractSection({
         ? "Facility fee rate must be a valid number"
         : null;
     }
-    if (facilityFeeRatePercentParsed < 0 || facilityFeeRatePercentParsed > 1) {
-      return "Facility fee rate must be between 0% and 1%";
+    if (facilityFeeRatePercentParsed < 0 || facilityFeeRatePercentParsed > 100) {
+      return "Facility fee rate must be between 0% and 100%";
     }
     const scaled = facilityFeeRatePercentParsed * 100;
     const rounded = Math.round(scaled);
@@ -574,7 +574,7 @@ export function ContractSection({
                       aria-invalid={!!facilityFeeRatePercentError}
                     />
                     <div className="text-xs text-muted-foreground">
-                      Facility Fee rate for this contract offer. Allowed range: 0% to 1%, up to 2 decimal places.
+                      Facility Fee rate for this contract offer. Allowed range: 0% to 100%, up to 2 decimal places.
                       This is charged progressively only when invoice financing is disbursed.
                     </div>
                   </div>
