@@ -45,7 +45,8 @@ function getFacilityFeeDisplay(note: NoteDetail): string | null {
   );
   const chargedAmount = numberOrNull(disbursement?.facilityFeeCharged);
   if (chargedAmount != null && chargedAmount > 0) {
-    return `${formatCurrency(chargedAmount)} charged`;
+    // Commercial Terms are a terms summary. Use "at disbursement" wording.
+    return `${formatCurrency(chargedAmount)} at disbursement`;
   }
 
   const contract = asRecord(note.contractSnapshot);
@@ -63,7 +64,8 @@ function getFacilityFeeDisplay(note: NoteDetail): string | null {
   const rawFee = baseAmount * (rate / 100);
   const estimatedFee = remainingCap != null ? Math.min(rawFee, remainingCap) : rawFee;
   if (estimatedFee <= 0) return null;
-  return `Estimated ${formatCurrency(estimatedFee)}`;
+  // Keep terms wording consistent with the "at disbursement" style.
+  return `${formatCurrency(estimatedFee)} at disbursement`;
 }
 
 function getFundingProgressClass(note: NoteDetail) {
@@ -133,7 +135,7 @@ export function NoteTermsPanel({ note }: { note: NoteDetail }) {
             value={note.profitRatePercent == null ? "—" : `${note.profitRatePercent}% p.a.`}
           />
           <Row label="Platform fee" value={`${note.platformFeeRatePercent}% at disbursement`} />
-          {facilityFeeDisplay ? <Row label="Facility fee" value={facilityFeeDisplay} /> : null}
+          <Row label="Facility fee" value={facilityFeeDisplay ?? "—"} />
           <Row label="Service fee" value={`${note.serviceFeeRatePercent}% of investor profit`} />
           <Row
             label="Late caps"
