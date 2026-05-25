@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FileText, MoreVertical } from "lucide-react";
+import { FileText, MoreVertical, Info } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -194,7 +194,18 @@ export function DashboardContractCard({
                   <span className="font-medium tabular-nums text-foreground">
                     {formatMoney(row.facilityFeePaidAmount)} / {formatMoney(row.facilityFeeCapAmount)} cap
                   </span>
-                  <span className="block">Deducted only when invoices are disbursed.</span>
+                  <span className="ml-1 inline-flex items-center align-middle">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[260px] whitespace-normal break-words bg-popover px-2 py-1.5 text-popover-foreground shadow-md">
+                          Facility fee is deducted from each invoice financing disbursement until the facility fee cap is reached.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </span>
                 </p>
               ) : null}
             </div>

@@ -66,7 +66,7 @@ function InvoiceFeeSummary({
         <LabelValue label="Platform fee" tabular>
           —
         </LabelValue>
-        <LabelValue label="Estimated facility fee" tabular>
+        <LabelValue label="Facility fee" tabular>
           —
         </LabelValue>
       </div>
@@ -85,7 +85,7 @@ function InvoiceFeeSummary({
       ? `${money(display.facilityFeeAmount)}${capReached ? " (cap reached)" : ""}`
       : "—";
 
-  const facilityLabel = display.phase === "charged" ? "Facility fee" : "Estimated facility fee";
+  const facilityLabel = "Facility fee";
 
   return (
     <div className="space-y-1">
