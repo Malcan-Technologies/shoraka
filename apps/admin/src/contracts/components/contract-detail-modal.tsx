@@ -53,6 +53,13 @@ function isIsoDate(value: unknown): value is string {
 function formatValue(key: string, value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return "—";
   if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (key === "facility_fee_rate_percent") {
+    const n = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(n)) return "—";
+    // Keep it simple: 1 -> "1%", 1.5 -> "1.5%", 100 -> "100%".
+    const rounded = Math.round(n * 100) / 100;
+    return `${Number.isInteger(rounded) ? rounded : rounded}%`;
+  }
   if (typeof value === "number") {
     if (key.includes("value") || key.includes("facility") || key.includes("amount") || key.includes("financing")) {
       return formatCurrency(value);
@@ -94,12 +101,23 @@ function DynamicRows({
   const rows = Object.entries(data).filter(([key]) => !exclude.includes(key));
   if (rows.length === 0) return null;
 
+  const getLabelOverride = (key: string): string | null => {
+    switch (key) {
+      case "facility_fee_paid_amount":
+        return "Facility fee collected";
+      case "facility_fee_rate_percent":
+        return "Facility fee rate";
+      default:
+        return null;
+    }
+  };
+
   return (
     <div>
       {rows.map(([key, value]) => (
         <DetailRow
           key={key}
-          label={key.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())}
+          label={getLabelOverride(key) ?? key.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())}
           value={formatValue(key, value)}
         />
       ))}
