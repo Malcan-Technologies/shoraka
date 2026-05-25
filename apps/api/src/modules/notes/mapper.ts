@@ -1,5 +1,6 @@
 import { isSoukscoreRiskRating, roundNoteMoney, type IssuerResidualPayoutListStatus } from "@cashsouk/types";
 import { NoteSettlementStatus, Prisma, WithdrawalStatus, WithdrawalType } from "@prisma/client";
+import { sortAdminNoteEvents } from "./admin-note-events-sorting";
 
 type NoteWithRelations = Prisma.NoteGetPayload<{
   include: {
@@ -394,6 +395,16 @@ export function mapNoteDetail(
   options: { withdrawals?: WithdrawalRecord[] } = {}
 ) {
   const withdrawals = options.withdrawals ?? [];
+
+  const sortedEvents = sortAdminNoteEvents(
+    note.events.map((event) => ({
+      id: event.id,
+      eventType: event.event_type,
+      createdAt: event.created_at,
+    })),
+    "newest-first"
+  );
+
   return {
     ...mapNoteListItem(note),
     issuerResidualPayout: resolveIssuerResidualPayoutListStatus(note, withdrawals),
@@ -493,17 +504,35 @@ export function mapNoteDetail(
       serviceFeeTrusteeSubmittedAt: iso(settlement.service_fee_trustee_submitted_at),
       serviceFeeTrusteeCompletedAt: iso(settlement.service_fee_trustee_completed_at),
     })),
-    events: note.events.map((event) => ({
-      id: event.id,
-      noteId: event.note_id,
-      eventType: event.event_type,
-      actorUserId: event.actor_user_id,
-      actorRole: event.actor_role,
-      portal: event.portal,
-      correlationId: event.correlation_id,
-      metadata: asRecord(event.metadata),
-      createdAt: event.created_at.toISOString(),
-    })),
+    events: sortedEvents.map((sortedEvent) => {
+      const event = note.events.find((e) => e.id === sortedEvent.id);
+      if (!event) {
+        // Defensive fallback for unexpected missing events.
+        return {
+          id: sortedEvent.id,
+          noteId: note.id,
+          eventType: sortedEvent.eventType,
+          actorUserId: null,
+          actorRole: null,
+          portal: null,
+          correlationId: null,
+          metadata: null,
+          createdAt: new Date(sortedEvent.createdAt).toISOString(),
+        };
+      }
+
+      return {
+        id: event.id,
+        noteId: event.note_id,
+        eventType: event.event_type,
+        actorUserId: event.actor_user_id,
+        actorRole: event.actor_role,
+        portal: event.portal,
+        correlationId: event.correlation_id,
+        metadata: asRecord(event.metadata),
+        createdAt: event.created_at.toISOString(),
+      };
+    }),
     withdrawals: withdrawals.map(mapWithdrawalInstruction),
   };
 }
