@@ -66,7 +66,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { buildContractFacilityFeeText } from "@/lib/facility-fee-display";
 
 const SKELETON_COUNT = 8;
 const MOCK_APPLICATION_COUNT = 10;
@@ -171,12 +170,6 @@ function ApplicationCard({
   const isDraft = application.status === "draft";
   const isGenericDraft = application.type === "Generic";
   const hasContract = application.type === "Contract financing";
-  const contractFacilityFeeText = buildContractFacilityFeeText({
-    ratePercent: application.facilityFeeRatePercent,
-    capAmount: application.facilityFeeCapAmount,
-    approvedFacilityAmount: application.approvedFacilityAmount,
-  });
-
   const useDraftCardLayout = isDraft && isGenericDraft;
 
   const displayId = "#" + application.id.slice(-8).toUpperCase();
@@ -332,7 +325,7 @@ function ApplicationCard({
               <span className="text-foreground">{formatDateTime(application.submittedAt)}</span>
             </div>
           ) : (
-          <div className="flex flex-wrap justify-between gap-6">
+            <div className="flex flex-wrap justify-between gap-6 items-start">
             <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[15px] leading-6">
               {hasContract && application.contractTitle && (
                 <>
@@ -361,12 +354,16 @@ function ApplicationCard({
                 </span>
                 <span className="text-muted-foreground">Approved facility:</span>
                 <span className="text-foreground">{application.approvedFacility}</span>
-                {contractFacilityFeeText ? (
+                {application.facilityFeeRatePercent != null && application.facilityFeeRatePercent > 0 ? (
                   <>
-                    <span className="text-muted-foreground">Facility fee:</span>
-                    <span className="text-foreground">
-                      {contractFacilityFeeText.replace("Facility fee: ", "")}
-                    </span>
+                    <span className="text-muted-foreground">Facility fee rate:</span>
+                    <span className="text-foreground">{application.facilityFeeRatePercent}%</span>
+                  </>
+                ) : null}
+                {application.facilityFeeCapAmount != null ? (
+                  <>
+                    <span className="text-muted-foreground">Facility fee cap:</span>
+                    <span className="text-foreground">{formatCurrency(application.facilityFeeCapAmount)}</span>
                   </>
                 ) : null}
               </div>

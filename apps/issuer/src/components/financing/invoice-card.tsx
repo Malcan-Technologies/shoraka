@@ -65,7 +65,7 @@ function InvoiceFeeSummary({ display }: { display: ReturnType<typeof buildInvoic
     display.platformFeeAmount != null ? `Platform ${money(display.platformFeeAmount)}` : null,
     display.facilityFeeAmount != null
       ? display.facilityFeeFullyCollected
-        ? "Facility fee fully collected"
+        ? "Facility cap reached"
         : `Facility ${money(display.facilityFeeAmount)}${facilitySuffix}`
       : null,
   ].filter(Boolean);

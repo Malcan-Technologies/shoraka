@@ -189,20 +189,40 @@ function InvoiceFeesCell({
   if (display.phase === "none") return <span className="tabular-nums">—</span>;
   if (display.phase === "pending") return <span className="text-muted-foreground">To be confirmed</span>;
 
-  const facilitySuffix = display.phase === "charged" ? " charged" : " est.";
+  const platformLine =
+    display.platformFeeAmount != null ? `Platform ${money(display.platformFeeAmount)}` : null;
+
+  if (platformLine == null && display.facilityFeeAmount == null) {
+    return <span className="tabular-nums">—</span>;
+  }
+
+  const facilityLine = (() => {
+    if (display.facilityFeeAmount == null) return null;
+    const capReached = display.facilityFeeFullyCollected && display.facilityFeeAmount === 0;
+    if (capReached) {
+      return "cap_reached";
+    }
+    return display.phase === "charged"
+      ? `Facility ${money(display.facilityFeeAmount)} charged`
+      : `Facility ${money(display.facilityFeeAmount)} est.`;
+  })();
+
   return (
-    <div className="space-y-0.5 text-[13px] leading-5">
-      {display.platformFeeAmount != null ? (
-        <p className="whitespace-nowrap tabular-nums">Platform {money(display.platformFeeAmount)}</p>
-      ) : invoice.platformFee !== "—" ? (
-        <p className="whitespace-nowrap tabular-nums">Platform {invoice.platformFee}</p>
-      ) : null}
-      {display.facilityFeeAmount != null ? (
-        <p className="whitespace-nowrap tabular-nums">
-          {display.facilityFeeFullyCollected
-            ? "Facility fee fully collected"
-            : `Facility ${money(display.facilityFeeAmount)}${facilitySuffix}`}
-        </p>
+    <div className="min-w-0 w-full">
+      <div className="text-[13px] leading-5 tabular-nums whitespace-normal break-words">
+        {platformLine ?? "—"}
+      </div>
+      {facilityLine ? (
+        <div className="text-[13px] leading-5 whitespace-normal break-words tabular-nums">
+          {facilityLine === "cap_reached" ? (
+            <>
+              Facility {money(display.facilityFeeAmount)}
+              <span className="ml-1 text-xs leading-4 text-muted-foreground">(cap reached)</span>
+            </>
+          ) : (
+            facilityLine
+          )}
+        </div>
       ) : null}
     </div>
   );
