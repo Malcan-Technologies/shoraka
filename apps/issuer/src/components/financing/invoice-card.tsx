@@ -50,38 +50,51 @@ function ReviewOfferButton({ show, onClick }: { show: boolean; onClick?: () => v
   );
 }
 
-function InvoiceFeeSummary({ display }: { display: ReturnType<typeof buildInvoiceFeeDisplay> }) {
-  if (display.phase === "none") {
-    return <LabelValue label="Fees">—</LabelValue>;
-  }
-  if (display.phase === "pending") {
-    return <LabelValue label="Fees">To be confirmed</LabelValue>;
+function InvoiceFeeSummary({
+  display,
+  hideFeeValues,
+}: {
+  display: ReturnType<typeof buildInvoiceFeeDisplay>;
+  hideFeeValues?: boolean;
+}) {
+  if (hideFeeValues) {
+    return (
+      <div className="space-y-1">
+        <LabelValue label="Net disbursed" tabular>
+          —
+        </LabelValue>
+        <LabelValue label="Platform fee" tabular>
+          —
+        </LabelValue>
+        <LabelValue label="Facility fee" tabular>
+          —
+        </LabelValue>
+      </div>
+    );
   }
 
-  const netLabel = display.phase === "charged" ? "Net disbursed" : "Expected net disbursement";
   const capReached = display.facilityFeeFullyCollected && display.facilityFeeAmount === 0;
 
-  const platformLabel = display.phase === "charged" ? "Platform fee charged" : "Platform fee";
-  const facilityLabel = display.phase === "charged" ? "Facility fee charged" : "Estimated facility fee";
+  const netDisbursed =
+    display.phase === "charged" && display.netDisbursementAmount != null ? money(display.netDisbursementAmount) : "—";
 
   const platformValue = display.platformFeeAmount != null ? money(display.platformFeeAmount) : "—";
+
   const facilityValue =
     display.facilityFeeAmount != null
       ? `${money(display.facilityFeeAmount)}${capReached ? " (cap reached)" : ""}`
       : "—";
 
+  // Keep labels consistent across invoice statuses; only values change.
   return (
     <div className="space-y-1">
-      {display.netDisbursementAmount != null ? (
-        <LabelValue label={netLabel} tabular>
-          {money(display.netDisbursementAmount)}
-        </LabelValue>
-      ) : null}
-
-      <LabelValue label={platformLabel} tabular>
+      <LabelValue label="Net disbursed" tabular>
+        {netDisbursed}
+      </LabelValue>
+      <LabelValue label="Platform fee" tabular>
         {platformValue}
       </LabelValue>
-      <LabelValue label={facilityLabel} tabular>
+      <LabelValue label="Facility fee" tabular>
         {facilityValue}
       </LabelValue>
     </div>
@@ -130,6 +143,7 @@ export function DashboardInvoiceCard({
     actual: row.note?.disbursementBreakdown,
   });
   const showFeeSummary = feeDisplay.phase !== "pending" || offerStatus === "Offer received";
+  const hideFeesBeforeAcceptance = offerStatus === "Offer received";
 
   return (
     <Card className="min-w-0 max-w-full rounded-xl border border-border bg-muted/50 shadow-none">
@@ -217,7 +231,9 @@ export function DashboardInvoiceCard({
               <LabelValue label="Financing amount" tabular>
                 {formatMoney(row.financingAmount)}
               </LabelValue>
-              {showFeeSummary ? <InvoiceFeeSummary display={feeDisplay} /> : null}
+              {showFeeSummary ? (
+                <InvoiceFeeSummary display={feeDisplay} hideFeeValues={hideFeesBeforeAcceptance} />
+              ) : null}
             </div>
             <div className="min-w-0 w-full space-y-2">
               <div className="h-3 w-full overflow-hidden rounded-full border border-border bg-foreground/35 dark:bg-muted shadow-sm">
