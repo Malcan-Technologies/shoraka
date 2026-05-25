@@ -179,6 +179,20 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
               <dd className="font-medium text-foreground">
                 {formatMoneyDisplay(details.offered_facility as number)}
               </dd>
+              {facilityFeeRatePercent != null ? (
+                <>
+                  <dt className="text-muted-foreground">Facility fee rate</dt>
+                  <dd className="font-medium text-foreground">
+                    {facilityFeeRatePercent}%
+                  </dd>
+                </>
+              ) : null}
+              {facilityFeeCapAmount != null ? (
+                <>
+                  <dt className="text-muted-foreground">Facility fee cap</dt>
+                  <dd className="font-medium text-foreground">{money(facilityFeeCapAmount)}</dd>
+                </>
+              ) : null}
               <dt className="text-muted-foreground">Expires</dt>
               <dd className="font-medium text-foreground">
                 {formatDate(details.expires_at as string)}
@@ -215,57 +229,53 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
                   )}
                 </>
               )}
-              {details.platform_fee_rate_percent != null &&
-              invoiceFeeDisplay?.phase !== "estimated" && (
+              {details.platform_fee_rate_percent != null ? (
                 <>
-                  <dt className="text-muted-foreground">Platform fee deducted</dt>
+                  <dt className="text-muted-foreground">Platform fee</dt>
                   <dd className="font-medium text-foreground">
-                    {(details.platform_fee_rate_percent as number)}% at disbursement
+                    {(details.platform_fee_rate_percent as number)}% deducted at disbursement
                   </dd>
                 </>
-              )}
-              {invoiceFeeDisplay?.phase === "estimated" &&
-              invoiceFeeDisplay.platformFeeAmount != null &&
-              invoiceFeeDisplay.netDisbursementAmount != null ? (
+              ) : null}
+
+              {invoiceFeeDisplay?.facilityFeeAmount != null ? (
                 <>
-                  <dt className="text-muted-foreground">Financing amount</dt>
+                  <dt className="text-muted-foreground">Facility fee</dt>
                   <dd className="font-medium text-foreground">
-                    {formatMoneyDisplay(details.offered_amount as number)}
+                    {facilityFeeRatePercent != null && facilityFeeRatePercent > 0
+                      ? `${facilityFeeRatePercent}% deducted progressively at disbursement`
+                      : "Deduced progressively at disbursement"}
                   </dd>
-                  <dt className="text-muted-foreground">Platform fee deducted</dt>
+                  <dt className="text-muted-foreground">Estimated facility fee</dt>
+                  <dd className="font-medium text-foreground">{money(invoiceFeeDisplay.facilityFeeAmount)}</dd>
+                </>
+              ) : null}
+
+              {facilityFeeCapAmount != null ? (
+                <>
+                  <dt className="text-muted-foreground">Facility fee cap</dt>
+                  <dd className="font-medium text-foreground">{money(facilityFeeCapAmount)}</dd>
+                </>
+              ) : null}
+              {context.invoice.contract_id ? (
+                <>
+                  <dt className="text-muted-foreground">Facility fee collected so far</dt>
+                  <dd className="font-medium text-foreground">{money(facilityFeePaidAmount)}</dd>
+                </>
+              ) : null}
+              {facilityFeeRemainingAfter != null ? (
+                <>
+                  <dt className="text-muted-foreground">Facility fee remaining after this invoice</dt>
+                  <dd className="font-medium text-foreground">{money(facilityFeeRemainingAfter)}</dd>
+                </>
+              ) : null}
+
+              {context.invoice.details?.maturity_date ? (
+                <>
+                  <dt className="text-muted-foreground">Maturity date</dt>
                   <dd className="font-medium text-foreground">
-                    {money(invoiceFeeDisplay.platformFeeAmount)}
+                    {formatDate(context.invoice.details.maturity_date)}
                   </dd>
-                  {invoiceFeeDisplay.facilityFeeAmount != null ? (
-                    <>
-                      <dt className="text-muted-foreground">Estimated facility fee</dt>
-                      <dd className="font-medium text-foreground">
-                        {money(invoiceFeeDisplay.facilityFeeAmount)}
-                      </dd>
-                    </>
-                  ) : null}
-                  <dt className="text-muted-foreground">Expected net disbursement</dt>
-                  <dd className="font-medium text-foreground">
-                    {money(invoiceFeeDisplay.netDisbursementAmount)}
-                  </dd>
-                  {facilityFeeCapAmount != null ? (
-                    <>
-                      <dt className="text-muted-foreground">Facility fee cap</dt>
-                      <dd className="font-medium text-foreground">{money(facilityFeeCapAmount)}</dd>
-                    </>
-                  ) : null}
-                  {context.invoice.contract_id ? (
-                    <>
-                      <dt className="text-muted-foreground">Facility fee collected so far</dt>
-                      <dd className="font-medium text-foreground">{money(facilityFeePaidAmount)}</dd>
-                    </>
-                  ) : null}
-                  {facilityFeeRemainingAfter != null ? (
-                    <>
-                      <dt className="text-muted-foreground">Facility fee remaining after this invoice</dt>
-                      <dd className="font-medium text-foreground">{money(facilityFeeRemainingAfter)}</dd>
-                    </>
-                  ) : null}
                 </>
               ) : null}
               <dt className="text-muted-foreground">Expires</dt>

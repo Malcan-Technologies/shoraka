@@ -113,6 +113,18 @@ export function ReviewOfferModal({
     type === "contract" && contractDetails?.end_date
       ? formatDateOrDash(String(contractDetails.end_date))
       : null;
+  const contractStartDate =
+    type === "contract" && contractDetails?.start_date ? formatDateOrDash(String(contractDetails.start_date)) : null;
+  const contractValueNumber =
+    type === "contract" &&
+    contractDetails != null &&
+    (contractDetails.contract_value != null || contractDetails.value != null)
+      ? (() => {
+          const raw = contractDetails.contract_value ?? contractDetails.value;
+          const n = Number(raw);
+          return Number.isFinite(n) ? n : null;
+        })()
+      : null;
   const offeredValue =
     type === "contract"
       ? od?.offered_facility != null
@@ -225,24 +237,10 @@ export function ReviewOfferModal({
       ? (invoiceFinancingAmountNumber * invoicePlatformFeeRatePercentNumber) / 100
       : null;
 
-  const expectedNetDisbursementPlatformOnlyNumber =
-    expectedPlatformFeeNumber != null && invoiceFinancingAmountNumber != null
-      ? invoiceFinancingAmountNumber - expectedPlatformFeeNumber
-      : null;
-
   const showExpectedInvoicePlatformOnlyBreakdown =
     type === "invoice" &&
     expectedPlatformFeeNumber != null &&
-    expectedNetDisbursementPlatformOnlyNumber != null &&
     invoiceFinancingAmountNumber != null;
-
-  const expectedNetDisbursementNumber =
-    expectedFacilityFeeNumber != null &&
-    expectedPlatformFeeNumber != null &&
-    invoiceFinancingAmountNumber != null &&
-    Number.isFinite(invoiceFinancingAmountNumber)
-      ? invoiceFinancingAmountNumber - expectedPlatformFeeNumber - expectedFacilityFeeNumber
-      : null;
 
   const facilityFeeRemainingAfterInvoiceNumber =
     facilityFeeRemainingAmountNumber != null && expectedFacilityFeeNumber != null
@@ -254,7 +252,6 @@ export function ReviewOfferModal({
     isContractLinkedInvoice &&
     expectedFacilityFeeNumber != null &&
     expectedPlatformFeeNumber != null &&
-    expectedNetDisbursementNumber != null &&
     invoiceFinancingAmountNumber != null;
 
   const summarySecondLabel = type === "contract" ? "Approved facility:" : "Invoice value:";
@@ -463,6 +460,22 @@ export function ReviewOfferModal({
               </dd>
               {type === "contract" ? (
                 <>
+                  {contractValueNumber != null ? (
+                    <>
+                      <dt className="text-muted-foreground font-medium">Contract value</dt>
+                      <dd className="font-medium text-foreground text-right tabular-nums">
+                        {formatCurrency(contractValueNumber)}
+                      </dd>
+                    </>
+                  ) : null}
+                  {contractStartDate != null ? (
+                    <>
+                      <dt className="text-muted-foreground font-medium">Contract start date</dt>
+                      <dd className="font-medium text-foreground text-right tabular-nums">
+                        {contractStartDate}
+                      </dd>
+                    </>
+                  ) : null}
                   <dt className="text-muted-foreground font-medium">{summaryThirdLabel}</dt>
                   <dd className="font-medium text-foreground text-right tabular-nums">
                     {summaryThirdValue}
@@ -509,11 +522,6 @@ export function ReviewOfferModal({
                       {expectedFacilityFeeNumber != null ? formatCurrency(expectedFacilityFeeNumber) : "—"}
                     </dd>
 
-                    <dt className="text-muted-foreground font-medium">Expected net disbursement</dt>
-                    <dd className="font-medium text-foreground text-right tabular-nums">
-                      {expectedNetDisbursementNumber != null ? formatCurrency(expectedNetDisbursementNumber) : "—"}
-                    </dd>
-
                     {contractFacilityFeeCapAmountNumber != null ? (
                       <>
                         <dt className="text-muted-foreground font-medium">Facility fee cap</dt>
@@ -550,13 +558,6 @@ export function ReviewOfferModal({
                     <dd className="font-medium text-foreground text-right tabular-nums">
                       {expectedPlatformFeeNumber != null ? formatCurrency(expectedPlatformFeeNumber) : "—"}
                     </dd>
-
-                    <dt className="text-muted-foreground font-medium">Expected net disbursement</dt>
-                    <dd className="font-medium text-foreground text-right tabular-nums">
-                      {expectedNetDisbursementPlatformOnlyNumber != null
-                        ? formatCurrency(expectedNetDisbursementPlatformOnlyNumber)
-                        : "—"}
-                    </dd>
                   </>
                 ) : (
                   <>
@@ -583,7 +584,7 @@ export function ReviewOfferModal({
               <p className="mt-3 text-xs text-muted-foreground">
                 {showExpectedInvoiceFacilityBreakdown
                   ? "Facility fee is deducted progressively when invoice financing is disbursed."
-                  : "Final amount is confirmed at disbursement."}
+                  : "Final disbursement amount will be confirmed after funding closes and applicable fees are applied."}
               </p>
             ) : null}
 
