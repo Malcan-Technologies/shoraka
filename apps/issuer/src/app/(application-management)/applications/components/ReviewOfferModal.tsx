@@ -134,6 +134,16 @@ export function ReviewOfferModal({
 
   const invoiceMaturityDate =
     type === "invoice" && invoice?.maturityDate ? formatDateOrDash(String(invoice.maturityDate)) : null;
+
+  const requestedFacilityNumber =
+    type === "contract" && od?.requested_facility != null && Number.isFinite(Number(od.requested_facility))
+      ? Number(od.requested_facility)
+      : null;
+
+  const requestedFinancingNumber =
+    type === "invoice" && od?.requested_amount != null && Number.isFinite(Number(od.requested_amount))
+      ? Number(od.requested_amount)
+      : null;
   const offeredValue =
     type === "contract"
       ? od?.offered_facility != null
@@ -453,6 +463,15 @@ export function ReviewOfferModal({
                     </>
                   ) : null}
 
+                  {requestedFacilityNumber != null ? (
+                    <>
+                      <dt className="text-muted-foreground font-medium">Requested facility:</dt>
+                      <dd className="font-medium text-foreground text-right tabular-nums">
+                        {formatCurrency(requestedFacilityNumber)}
+                      </dd>
+                    </>
+                  ) : null}
+
                   <dt className="text-muted-foreground font-medium">Contract period:</dt>
                   <dd className="font-medium text-foreground text-right tabular-nums">
                     {contractStartDate != null && contractEndDate != null ? `${contractStartDate} – ${contractEndDate}` : "—"}
@@ -485,6 +504,15 @@ export function ReviewOfferModal({
 
                   <dt className="text-muted-foreground font-medium">{summarySecondLabel}</dt>
                   <dd className="font-medium text-foreground text-right tabular-nums">{summarySecondValue}</dd>
+
+                  {requestedFinancingNumber != null ? (
+                    <>
+                      <dt className="text-muted-foreground font-medium">Requested financing:</dt>
+                      <dd className="font-medium text-foreground text-right tabular-nums">
+                        {formatCurrency(requestedFinancingNumber)}
+                      </dd>
+                    </>
+                  ) : null}
 
                   {invoiceMaturityDate != null ? (
                     <>
