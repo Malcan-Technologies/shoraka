@@ -1,0 +1,2615 @@
+================================================================================
+AFTER OFFER TO NOTE MONEY FLOW — FEATURE-BY-FEATURE FRONTEND MANUAL UAT GUIDE
+================================================================================
+
+Purpose:
+This guide is for slow manual frontend testing. It is organized by feature, not by
+separate theory sections. For each feature, check the screen, amount, calculation,
+bucket movement, visible activity/history, and stop rules together.
+
+Important testing rule:
+Do not move to the next feature until the STOP POINT for the current feature is
+complete.
+
+Fixed UAT numbers used throughout:
+- Target funded amount: RM100,000
+- Investor A investment: RM60,000
+- Investor B investment: RM40,000
+- Profit rate: 10%
+- Platform fee: 3%
+- Facility fee: 1% if contract financing applies
+- Service fee: 15% of gross investor profit
+- Normal repayment example: RM110,000
+- Residual repayment example: RM112,000
+- Partial funding example: RM80,000
+- Failed funding example: RM50,000
+
+Simple money memory:
+- Gross funded amount is the full investor-funded amount.
+- Net issuer payout is what issuer receives after platform/facility fees.
+- Shoraka uses gross funded amount.
+- Trustee issuer payout uses net issuer payout.
+- Platform fee and facility fee happen at funding close.
+- Service fee happens later during settlement.
+- Ta'widh and Gharamah happen only in late/arrears/default scenarios.
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 1 — Admin sends offer
+################################################################################
+
+What this feature means:
+- Admin reviews the issuer application and sends a commercial offer.
+- Contract offer means facility-level approval.
+- Invoice offer means invoice/note-level financing approval.
+
+Why this feature exists:
+- Offer is the business agreement before note creation.
+- Admin should not create a note until issuer accepts or signs the offer.
+
+Who is involved:
+[ ] Admin
+[ ] Issuer
+[ ] Investor
+
+Where to check:
+Admin:
+[ ] Admin portal → Applications → Application list
+[ ] Admin portal → Application detail
+[ ] Review tabs: Financial, Company, Business & Guarantor, Documents, Contract, Invoice
+[ ] Contract tab if contract financing
+[ ] Invoice tab if invoice financing
+
+Issuer:
+[ ] No required action yet until offer is sent
+
+Investor:
+[ ] No investor screen yet
+
+What should be shown before action:
+[ ] Status: Submitted, Under review, Contract pending, or Invoice pending depending on workflow
+[ ] Amount: approved facility or invoice amount if visible
+[ ] Button: Send Contract Offer or Send Invoice Offer only after required tabs are approved/unlocked
+[ ] Warning/helper text: locked tabs or missing review requirements if not ready
+[ ] Card/section: review tabs and offer section
+
+What to click:
+[ ] Admin opens the application
+[ ] Admin checks required review tabs
+[ ] Admin sends contract offer if contract financing
+[ ] Admin sends invoice offer if invoice financing
+
+What should be shown after action:
+[ ] New status: Contract Sent, Invoice Offer Sent, Offer Sent, or Waiting for issuer
+[ ] New button: offer action should no longer look like a fresh unsent offer
+[ ] New card: offer summary if supported
+[ ] New amount: offered facility RM1,000,000 or offered invoice amount RM100,000 in this UAT
+[ ] Success toast/message: offer sent
+[ ] Timeline/activity event if visible: offer sent event
+
+Manual calculation:
+Formula:
+- No money movement calculation yet.
+Example:
+- Offered invoice amount should be RM100,000.
+- Contract facility should be RM1,000,000 if contract financing is used.
+Expected:
+- The offer terms match the approved terms.
+
+Bucket movement:
+- No bucket movement yet.
+- No investor money has been committed.
+- No issuer payout exists.
+
+Ledger/activity/frontend history check:
+[ ] Finance → Buckets activity if visible: no money movement
+[ ] Note timeline if visible: no note yet
+[ ] Wallet/transaction history if visible: no investor wallet movement
+[ ] Finance queue if visible: no issuer payout, repayment, or service fee queue item
+[ ] Application activity/timeline/notification if visible: offer sent
+
+What should NOT happen:
+[ ] Wrong button: Create Note should not be usable before issuer accepts/signs
+[ ] Wrong amount: offer amount should not exceed approved product/business limits
+[ ] Wrong status: application should not jump straight to completed before issuer action
+[ ] Wrong bucket movement: no Operating Account, Investor Pool, or Issuer Payable movement
+[ ] Wrong ledger/activity: no money ledger entry
+
+STOP AND INVESTIGATE if:
+[ ] Offer button appears while required tabs are locked or unapproved.
+[ ] Admin can create note before issuer accepts/signs.
+[ ] Investor can see anything in marketplace at this stage.
+[ ] Any money bucket changes.
+
+Notes:
+- ________________________________________________________________
+- ________________________________________________________________
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 2 — Issuer accepts/signs offer
+################################################################################
+
+What this feature means:
+- Issuer receives the offer and accepts/signs it.
+- Issuer can decline or be blocked if the offer expired.
+
+Why this feature exists:
+- Issuer must agree to financing terms before note creation.
+- This prevents Cashsouk from publishing investor funding for unaccepted terms.
+
+Who is involved:
+[ ] Admin
+[ ] Issuer
+[ ] Investor
+
+Where to check:
+Admin:
+[ ] Application detail → offer status
+[ ] Application timeline/activity if visible
+
+Issuer:
+[ ] Issuer portal → Applications
+[ ] Offer detail/review screen
+[ ] Issuer portal → Financing after acceptance
+
+Investor:
+[ ] No investor screen yet
+
+What should be shown before action:
+[ ] Status: Offer Received, Action Required, Contract Sent, or Invoice Offer Sent
+[ ] Amount: offered amount RM100,000 or facility RM1,000,000
+[ ] Button: Review Offer, Accept/Sign, Decline
+[ ] Warning/helper text: expiry date and signing requirement if any
+[ ] Card/section: offer summary
+
+What to click:
+[ ] Issuer opens Applications
+[ ] Issuer clicks Review Offer
+[ ] Issuer accepts/signs, or confirms expired offer is blocked
+
+What should be shown after action:
+[ ] New status: Accepted, Signed, Approved, or Completed
+[ ] New button: accept/sign no longer pending
+[ ] New card: approved contract/invoice visible in Financing if supported
+[ ] New amount: terms match accepted offer
+[ ] Success toast/message: offer accepted/signed
+[ ] Timeline/activity event if visible: issuer accepted/signed offer
+
+Manual calculation:
+Formula:
+- No cash calculation yet.
+Example:
+- If shown, expected platform fee later = RM100,000 x 3% = RM3,000.
+- If shown, expected facility fee later = RM100,000 x 1% = RM1,000.
+Expected:
+- Issuer sees the same accepted terms admin sent.
+
+Bucket movement:
+- No bucket movement yet.
+- This is agreement/signing only.
+
+Ledger/activity/frontend history check:
+[ ] Finance → Buckets activity if visible: no money movement
+[ ] Note timeline if visible: no note yet
+[ ] Wallet/transaction history if visible: no investor wallet movement
+[ ] Finance queue if visible: no queue item yet
+[ ] Application activity/timeline/notification if visible: accepted/signed offer
+
+What should NOT happen:
+[ ] Wrong button: expired offer should not allow Accept/Sign
+[ ] Wrong amount: issuer should not see different terms from admin offer
+[ ] Wrong status: offer should not stay pending after successful accept/sign
+[ ] Wrong bucket movement: no money buckets should move
+[ ] Wrong ledger/activity: no investor or payout transaction
+
+STOP AND INVESTIGATE if:
+[ ] Issuer can accept an expired offer.
+[ ] Admin can create note while offer is still pending.
+[ ] Accepted terms do not match sent terms.
+[ ] Any money movement appears.
+
+Notes:
+- ________________________________________________________________
+- ________________________________________________________________
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 3 — Admin creates draft note
+################################################################################
+
+What this feature means:
+- Admin creates a note from the approved/accepted invoice/application.
+- The note starts as Draft.
+
+Why this feature exists:
+- Draft lets admin check note details before investors can see it.
+- Draft protects investors from incomplete or wrong note information.
+
+Who is involved:
+[ ] Admin
+[ ] Issuer
+[ ] Investor
+
+Where to check:
+Admin:
+[ ] Admin portal → Notes → Create Note
+[ ] Admin portal → Application detail → linked note/create note if available
+[ ] Admin note detail after save
+
+Issuer:
+[ ] Financing page may show approved contract/invoice
+[ ] Notes page may not show a funding note yet until publish
+
+Investor:
+[ ] Investor marketplace must not show Draft note
+
+What should be shown before action:
+[ ] Status: application Approved/Completed
+[ ] Amount: target amount RM100,000
+[ ] Button: Create Note or Save Draft
+[ ] Warning/helper text: missing required note fields if incomplete
+[ ] Card/section: note setup fields
+
+What to click:
+[ ] Admin selects approved invoice/application
+[ ] Admin fills/checks note terms
+[ ] Admin saves Draft
+
+What should be shown after action:
+[ ] New status: Draft
+[ ] New button: Publish when note is ready
+[ ] New card: note detail page
+[ ] New amount: target RM100,000, profit rate 10%, platform fee 3%, service fee 15%, facility fee 1% if applicable
+[ ] Success toast/message: note saved
+[ ] Timeline/activity event if visible: note created/draft saved
+
+Manual calculation:
+Formula:
+- No cash movement yet.
+Example:
+- Platform fee later = 100,000 x 3% = RM3,000.
+- Service fee later = gross investor profit x 15%.
+- Facility fee later = 100,000 x 1% = RM1,000 if applicable.
+Expected:
+- Note stores the terms that later calculations will use.
+
+Bucket movement:
+- No bucket movement yet.
+- No investor funding yet.
+
+Ledger/activity/frontend history check:
+[ ] Finance → Buckets activity if visible: no movement
+[ ] Note timeline if visible: draft note created
+[ ] Wallet/transaction history if visible: no investor movement
+[ ] Finance queue if visible: no issuer payout
+
+What should NOT happen:
+[ ] Wrong button: investor Invest button should not exist yet
+[ ] Wrong amount: note target should not differ from approved offer without explanation
+[ ] Wrong status: note should not start Published or Active
+[ ] Wrong bucket movement: no Investor Pool or Issuer Payable movement
+[ ] Wrong ledger/activity: no payout or repayment activity
+
+STOP AND INVESTIGATE if:
+[ ] Draft note appears in investor marketplace.
+[ ] Issuer payout card appears while Draft.
+[ ] Funding progress starts before publish.
+[ ] Any bucket movement appears.
+
+Notes:
+- ________________________________________________________________
+- ________________________________________________________________
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 4 — Admin publishes note
+################################################################################
+
+What this feature means:
+- Admin publishes the Draft note to the investor marketplace.
+- The note becomes visible for investor funding.
+
+Why this feature exists:
+- Publishing starts the funding window.
+- Investors can only fund notes that are ready and approved for marketplace.
+
+Who is involved:
+[ ] Admin
+[ ] Issuer
+[ ] Investor
+
+Where to check:
+Admin:
+[ ] Admin portal → Notes list
+[ ] Admin portal → Note detail → lifecycle/funding progress
+
+Issuer:
+[ ] Issuer portal → Notes or Financing if visible
+
+Investor:
+[ ] Investor portal → Marketplace
+[ ] Investor note card
+
+What should be shown before action:
+[ ] Status: Draft
+[ ] Amount: target RM100,000
+[ ] Button: Publish
+[ ] Warning/helper text: missing fields if publish is blocked
+[ ] Card/section: note details ready for publish
+
+What to click:
+[ ] Admin clicks Publish
+[ ] Admin confirms publish modal if shown
+
+What should be shown after action:
+[ ] New status: Published/Open Funding
+[ ] New button: Close Funding or Fail Funding may appear for admin when allowed
+[ ] New card: investor marketplace card
+[ ] New amount: funding progress 0% / RM0 of RM100,000
+[ ] Success toast/message: note published
+[ ] Timeline/activity event if visible: note published
+
+Manual calculation:
+Formula:
+- Funding progress = funded amount / target amount.
+Example:
+- RM0 / RM100,000 = 0%.
+Expected:
+- Marketplace and admin note detail show 0% funded.
+
+Bucket movement:
+- No money movement yet until investor invests.
+- Publishing only opens the funding window.
+
+Ledger/activity/frontend history check:
+[ ] Finance → Buckets activity if visible: no money movement
+[ ] Note timeline if visible: published event
+[ ] Wallet/transaction history if visible: no investor movement
+[ ] Finance queue if visible: no issuer payout yet
+[ ] Issuer/investor notification if visible: note/funding available
+
+What should NOT happen:
+[ ] Wrong button: Mark Disbursed, Shoraka, settlement, repayment actions should not appear yet
+[ ] Wrong amount: funding progress should not show money already funded
+[ ] Wrong status: note should not become Funded or Active
+[ ] Wrong bucket movement: no fees or issuer payable
+[ ] Wrong ledger/activity: no investment transaction until investor invests
+
+STOP AND INVESTIGATE if:
+[ ] Draft note remains hidden from admin after save.
+[ ] Investor cannot see Published/Open Funding note.
+[ ] Marketplace accepts a Draft note.
+[ ] Issuer payout card appears before funding close.
+
+Notes:
+- ________________________________________________________________
+- ________________________________________________________________
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 5 — Investor funding
+################################################################################
+
+What this feature means:
+- Investors commit money to the published note.
+- Investor A commits RM60,000 and Investor B commits RM40,000.
+
+Why this feature exists:
+- The issuer payout can only be prepared after investors fund enough money.
+- Investor funding progress tells everyone how close the note is to closing.
+
+Who is involved:
+[ ] Admin
+[ ] Issuer
+[ ] Investor
+
+Where to check:
+Admin:
+[ ] Admin portal → Note detail → funding progress
+[ ] Admin portal → Note timeline/activity if visible
+
+Issuer:
+[ ] Issuer portal → Notes or Financing → funding progress if visible
+
+Investor:
+[ ] Investor portal → Marketplace
+[ ] Investor note card
+[ ] Investor portfolio/investments
+[ ] Investor wallet/transactions if visible
+
+What should be shown before action:
+[ ] Status: Published/Open Funding
+[ ] Amount: target RM100,000, progress 0%
+[ ] Button: Invest
+[ ] Warning/helper text: insufficient balance or eligibility warning if applicable
+[ ] Card/section: note card showing target, profit rate, risk, maturity, time remaining
+
+What to click:
+[ ] Investor A invests RM60,000
+[ ] Investor B invests RM40,000
+
+What should be shown after action:
+[ ] New status: still Open Funding until close/auto-close; may auto-close at 100%
+[ ] New button: Invest disabled/hidden after full funding or close
+[ ] New card: portfolio commitment/investment row
+[ ] New amount: progress 60% after Investor A, then 100% after Investor B
+[ ] Success toast/message: investment committed
+[ ] Timeline/activity event if visible: investor commitment/funding progress event
+
+Manual calculation:
+Formula:
+- Funding progress = total committed / target.
+Example:
+- Investor A: 60,000 / 100,000 = 60%.
+- Investor B: (60,000 + 40,000) / 100,000 = 100%.
+Expected:
+- Progress shows 60% after Investor A and 100% after Investor B.
+
+Bucket movement:
+- Investor money is reserved/held for the note.
+- Investor Pool or funding progress should reflect RM60,000 then RM100,000 if visible.
+- Investor wallet/balance may reduce or show held/committed amount if visible.
+
+Ledger/activity/frontend history check:
+[ ] Finance → Buckets activity if visible: Investor Pool/funding activity
+[ ] Note timeline if visible: investment/funding event
+[ ] Wallet/transaction history if visible: commitment/hold/debit
+[ ] Finance queue if visible: no issuer payout until funding close
+[ ] Investor portfolio if visible: commitment amount and status
+
+What should NOT happen:
+[ ] Wrong button: Invest should not be allowed after closed/fully funded/failed
+[ ] Wrong amount: total commitments should not exceed RM100,000
+[ ] Wrong status: note should not become Active from investment alone
+[ ] Wrong bucket movement: no platform/facility/service fee yet
+[ ] Wrong ledger/activity: investor return should not appear yet
+
+STOP AND INVESTIGATE if:
+[ ] Investor can overfund the note.
+[ ] Investor can invest with insufficient balance.
+[ ] Investor can invest after funding closes.
+[ ] Investor wallet/portfolio does not show commitment if the UI supports it.
+
+Notes:
+- ________________________________________________________________
+- ________________________________________________________________
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 6 — Funding close
+################################################################################
+
+What this feature means:
+- Funding close ends investor commitments and creates the issuer payout preparation.
+- This is the first big money split.
+
+Why this feature exists:
+- Cashsouk must calculate fees and net issuer payout before trustee payout starts.
+- The note is Funded, but not Active yet.
+
+Who is involved:
+[ ] Admin
+[ ] Issuer
+[ ] Investor
+
+Where to check:
+Admin:
+[ ] Admin portal → Note detail
+[ ] Lifecycle/funding progress
+[ ] Issuer Disbursement card
+[ ] Finance → Buckets
+[ ] Finance → Issuer Payouts
+
+Issuer:
+[ ] Issuer portal → Notes/Financing funding status if visible
+
+Investor:
+[ ] Investor portfolio/investments status if visible
+
+What should be shown before action:
+[ ] Status: Published/Open Funding with 100% funded, or ready to close at/above minimum
+[ ] Amount: funded amount RM100,000
+[ ] Button: Close Funding, or auto-close result if fully funded
+[ ] Warning/helper text: below-minimum funding should not close successfully
+[ ] Card/section: funding progress
+
+What to click:
+[ ] Admin clicks Close Funding if not auto-closed
+[ ] Or refresh/check after auto-close
+
+What should be shown after action:
+[ ] New status: Funded
+[ ] New button: issuer payout/trustee workflow buttons begin
+[ ] New card: Issuer Disbursement card
+[ ] New amount: platform fee RM3,000, facility fee RM1,000, net issuer payout RM96,000
+[ ] Success toast/message: funding closed
+[ ] Timeline/activity event if visible: funding closed/funded event
+
+Manual calculation:
+Formula:
+- Net issuer payout = funded amount - platform fee - facility fee.
+Example:
+- Platform fee = 100,000 x 3% = RM3,000.
+- Facility fee = 100,000 x 1% = RM1,000.
+- Net issuer payout = 100,000 - 3,000 - 1,000 = RM96,000.
+Expected:
+- 100,000 = 3,000 + 1,000 + 96,000.
+- Shoraka amount = RM100,000 gross funded.
+- Trustee payout amount = RM96,000 net issuer payout.
+
+Bucket movement:
+- Investor Pool is used for RM100,000.
+- Operating Account gets RM3,000 platform fee.
+- Operating Account gets RM1,000 facility fee.
+- Issuer Payable gets RM96,000.
+- Service fee should NOT appear yet.
+- Ta'widh/Gharamah should NOT appear in happy path.
+
+Ledger/activity/frontend history check:
+[ ] Finance → Buckets activity if visible: Investor Pool, Operating Account, Issuer Payable
+[ ] Note timeline if visible: funding closed
+[ ] Wallet/transaction history if visible: investment confirmed/held
+[ ] Finance queue if visible: Finance → Issuer Payouts shows issuer disbursement
+
+What should NOT happen:
+[ ] Wrong button: settlement/post actions should not be final yet
+[ ] Wrong amount: Shoraka should not use RM96,000
+[ ] Wrong status: note should not become Active yet
+[ ] Wrong bucket movement: service fee, Ta'widh, Gharamah should not move
+[ ] Wrong ledger/activity: no repayment or investor return yet
+
+STOP AND INVESTIGATE if:
+[ ] Service fee is deducted from issuer payout.
+[ ] Platform/facility fee reduces Shoraka amount.
+[ ] Issuer payout card appears before funding close.
+[ ] Note becomes Active immediately after funding close.
+[ ] Fee split does not balance to RM100,000.
+
+Notes:
+- ________________________________________________________________
+- ________________________________________________________________
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 7 — Issuer disbursement trustee letter
+################################################################################
+
+What this feature means:
+- Admin prepares the trustee instruction letter for paying issuer.
+- The letter amount is the net issuer payout.
+
+Why this feature exists:
+- Trustee needs a PDF instruction before payout is submitted/recorded.
+- Generating a letter is not the same as moving money.
+
+Who is involved:
+[ ] Admin
+[ ] Issuer
+[ ] Investor
+
+Where to check:
+Admin:
+[ ] Admin portal → Note detail → Issuer Disbursement card
+[ ] Finance → Issuer Payouts
+[ ] Note timeline/activity if visible
+
+Issuer:
+[ ] Issuer portal may still show Funded/pending disbursement if visible
+
+Investor:
+[ ] Investor portfolio may show confirmed/funded position if visible
+
+What should be shown before action:
+[ ] Status: Draft issuer disbursement instruction
+[ ] Amount: RM96,000
+[ ] Button: Generate Letter
+[ ] Warning/helper text: beneficiary details can be reviewed before letter
+[ ] Card/section: beneficiary details and issuer payout workflow
+
+What to click:
+[ ] Generate Letter
+[ ] View Letter
+[ ] Mark Submitted to Trustee
+
+What should be shown after action:
+[ ] New status: Letter Generated, then Submitted to Trustee
+[ ] New button: View Letter after generation; Mark Submitted after letter generation
+[ ] New card: letter/document link if visible
+[ ] New amount: letter amount RM96,000
+[ ] Success toast/message: letter generated/submitted
+[ ] Timeline/activity event if visible: letter generated/submitted
+
+Manual calculation:
+Formula:
+- Letter amount = net issuer payout.
+Example:
+- RM100,000 - RM3,000 - RM1,000 = RM96,000.
+Expected:
+- Issuer disbursement trustee letter shows RM96,000, not RM100,000.
+
+Bucket movement:
+- Generate Letter should NOT move money.
+- Mark Submitted should NOT move money.
+- Issuer Payable remains pending RM96,000 until Mark Disbursed.
+
+Ledger/activity/frontend history check:
+[ ] Finance → Buckets activity if visible: no new bucket movement from letter generation/submission
+[ ] Note timeline if visible: letter generated/submitted
+[ ] Wallet/transaction history if visible: no investor return
+[ ] Finance queue if visible: Issuer Payouts status moves Draft → Letter Generated → Submitted
+
+What should NOT happen:
+[ ] Wrong button: Mark Submitted should not appear before Generate Letter
+[ ] Wrong amount: letter should not use RM100,000 gross
+[ ] Wrong status: note should not become Active from letter generation/submission
+[ ] Wrong bucket movement: Issuer Payable should not clear yet
+[ ] Wrong ledger/activity: no payout-completed event before trustee confirms payment
+
+STOP AND INVESTIGATE if:
+[ ] Letter generation changes money status.
+[ ] Letter uses gross amount instead of net amount.
+[ ] Mark Disbursed is enabled before Shoraka certificate.
+[ ] Issuer Payable clears before Mark Disbursed.
+
+Notes:
+- ________________________________________________________________
+- ________________________________________________________________
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 8 — Shoraka STP
+################################################################################
+
+What this feature means:
+- Shoraka STP is proof that the Islamic financing went through commodity trade.
+- It is not the payout.
+
+Why this feature exists:
+- Issuer disbursement requires Shariah commodity trade proof before Mark Disbursed.
+- Shoraka uses gross funded amount.
+
+Who is involved:
+[ ] Admin
+[ ] Issuer
+[ ] Investor
+
+Where to check:
+Admin:
+[ ] Admin portal → Note detail → Issuer Disbursement card → Shoraka STP box
+[ ] Note timeline/activity if visible
+
+Issuer:
+[ ] Issuer generally does not operate Shoraka
+
+Investor:
+[ ] Investor generally does not see Shoraka controls
+
+What should be shown before action:
+[ ] Status: No Shoraka order, or current Shoraka status
+[ ] Amount: RM100,000 order_amount / murabaha_amount if shown
+[ ] Button: Submit Shoraka Order outside cutoff
+[ ] Warning/helper text: cutoff warning between 11:30 PM and 12:30 AM MYT
+[ ] Card/section: Shoraka STP box inside Issuer Disbursement card
+
+What to click:
+[ ] Submit Shoraka Order
+[ ] Query Status
+[ ] Fetch Certificate when Completed
+[ ] View Certificate after fetch
+
+What should be shown after action:
+[ ] New status: Active, Pending Sell, Completed, Cancelled, Take Delivery, Unknown, or certificate fetched state
+[ ] New button: Query Status, Fetch Certificate, View Certificate depending on status
+[ ] New card: certificate link after fetch
+[ ] New amount: Shoraka amount stays RM100,000
+[ ] Success toast/message: order submitted/status queried/certificate fetched
+[ ] Timeline/activity event if visible: Shoraka order/status/certificate event
+
+Manual calculation:
+Formula:
+- Shoraka amount = gross funded amount.
+Example:
+- Gross funded amount = RM100,000.
+- Net issuer payout = RM96,000.
+Expected:
+- Shoraka order amount and murabaha amount use RM100,000, not RM96,000.
+
+Bucket movement:
+- No bucket movement from Shoraka.
+- Shoraka is proof/audit only.
+- No fee deduction happens here.
+
+Ledger/activity/frontend history check:
+[ ] Finance → Buckets activity if visible: no movement caused by Shoraka
+[ ] Note timeline if visible: Shoraka status/certificate event if supported
+[ ] Wallet/transaction history if visible: no investor movement
+[ ] Finance queue if visible: issuer payout remains pending until Mark Disbursed
+
+Status meaning:
+- Active: order received, trade not complete; query again or wait callback.
+- Pending Sell: sell leg pending; query again or contact operations if stuck.
+- Completed: trade complete; Fetch Certificate should appear.
+- Cancelled: manual review; no disbursement.
+- Take Delivery: special/manual state; no automatic disbursement.
+- Unknown: unsafe/manual review.
+- Callback Completed: may update status, but must not auto-disburse.
+
+What should NOT happen:
+[ ] Wrong button: Fetch Certificate should not appear before Completed
+[ ] Wrong amount: Shoraka should not use RM96,000
+[ ] Wrong status: callback should not mark issuer disbursed
+[ ] Wrong bucket movement: no bucket changes from submit/query/fetch
+[ ] Wrong ledger/activity: no payout completed event from Shoraka alone
+
+STOP AND INVESTIGATE if:
+[ ] Submit is enabled during 11:30 PM–12:30 AM MYT cutoff.
+[ ] Shoraka uses net amount RM96,000.
+[ ] Mark Disbursed is enabled before certificate exists.
+[ ] Callback auto-marks issuer disbursed.
+[ ] Cancelled/Take Delivery/Unknown allows payout without manual review.
+
+Notes:
+- ________________________________________________________________
+- ________________________________________________________________
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 9 — Mark issuer disbursed / note becomes Active
+################################################################################
+
+What this feature means:
+- Admin marks issuer payout completed only after trustee confirms payment.
+- The note becomes Active.
+
+Why this feature exists:
+- Active means issuer received money and servicing/profit clock can begin.
+- This is the real payout completion step.
+
+Who is involved:
+[ ] Admin
+[ ] Issuer
+[ ] Investor
+
+Where to check:
+Admin:
+[ ] Admin portal → Note detail → Issuer Disbursement card
+[ ] Finance → Issuer Payouts
+[ ] Note lifecycle
+[ ] Note timeline/activity if visible
+
+Issuer:
+[ ] Issuer portal → Notes → Active note
+
+Investor:
+[ ] Investor portal → Portfolio/Investments → active/confirmed position
+
+What should be shown before action:
+[ ] Status: Submitted to Trustee and Shoraka certificate fetched
+[ ] Amount: RM96,000 payout
+[ ] Button: Mark Disbursed enabled only after certificate
+[ ] Warning/helper text: certificate required if not fetched
+[ ] Card/section: Issuer Disbursement card
+
+What to click:
+[ ] Admin confirms trustee paid issuer
+[ ] Admin clicks Mark Disbursed
+
+What should be shown after action:
+[ ] New status: Disbursed/Completed
+[ ] New button: Mark Disbursed no longer available
+[ ] New card: repayment/servicing area available
+[ ] New amount: Issuer Payable no longer pending RM96,000
+[ ] Success toast/message: issuer disbursed/note active
+[ ] Timeline/activity event if visible: issuer disbursed, note active
+
+Manual calculation:
+Formula:
+- Issuer Payable cleared = net issuer payout.
+Example:
+- Issuer Payable clears RM96,000.
+Expected:
+- RM96,000 no longer appears as pending issuer payout after completion.
+
+Bucket movement:
+- Issuer Payable is cleared/reduced by RM96,000.
+- Note becomes Active.
+- No service fee movement yet.
+
+Ledger/activity/frontend history check:
+[ ] Finance → Buckets activity if visible: Issuer Payable cleared
+[ ] Note timeline if visible: disbursed/active event
+[ ] Wallet/transaction history if visible: no investor return yet
+[ ] Finance queue if visible: Finance → Issuer Payouts no longer pending, or shows completed
+
+What should NOT happen:
+[ ] Wrong button: Mark Disbursed should be disabled before certificate
+[ ] Wrong amount: should clear RM96,000, not RM100,000
+[ ] Wrong status: note should not be Active before certificate/trustee confirmation
+[ ] Wrong bucket movement: no service fee or repayment movement
+[ ] Wrong ledger/activity: no investor payout event yet
+
+STOP AND INVESTIGATE if:
+[ ] Note becomes Active before certificate exists.
+[ ] Mark Disbursed is allowed before trustee confirmation.
+[ ] Issuer payout remains pending after completed.
+[ ] Investor receives return at activation.
+
+Notes:
+- ________________________________________________________________
+- ________________________________________________________________
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 10 — Repayment recorded
+################################################################################
+
+What this feature means:
+- Admin records money received from paymaster or issuer on behalf.
+- Recording repayment is not the same as paying investors.
+
+Why this feature exists:
+- Settlement needs approved/eligible repayment receipts before money can be allocated.
+
+Who is involved:
+[ ] Admin
+[ ] Issuer
+[ ] Investor
+
+Where to check:
+Admin:
+[ ] Admin portal → Active note → Settlement/repayment area
+[ ] Admin portal → Finance → Repayments
+[ ] Finance → Buckets if visible
+
+Issuer:
+[ ] Issuer portal → repayment submission/payment proof if supported
+[ ] Issuer repayment status pending/approved/rejected if supported
+
+Investor:
+[ ] Investor wallet/portfolio should not show return yet
+
+What should be shown before action:
+[ ] Status: Active note
+[ ] Amount: repayment amount RM110,000
+[ ] Button: Record Receipt/Add Payment, or approve issuer-submitted repayment
+[ ] Warning/helper text: evidence upload/source requirement if applicable
+[ ] Card/section: payment list/repayment area
+
+What to click:
+[ ] Admin records RM110,000 repayment
+[ ] Admin chooses source Paymaster or Issuer on behalf
+[ ] Admin uploads evidence if required
+[ ] Admin approves issuer-submitted repayment if applicable
+
+What should be shown after action:
+[ ] New status: payment Received/Reconciled/Approved depending on flow
+[ ] New button: Preview Settlement when enough approved receipts exist
+[ ] New card: payment row in payment list
+[ ] New amount: RM110,000 receipt/open settlement amount
+[ ] Success toast/message: payment recorded/approved
+[ ] Timeline/activity event if visible: repayment received/approved
+
+Manual calculation:
+Formula:
+- Repayment receipt total = sum of approved/eligible receipts.
+Example:
+- RM110,000 receipt covers the normal settlement example.
+Expected:
+- Settlement can preview only when eligible repayment covers required amount.
+
+Bucket movement:
+- Repayment Pool receives RM110,000.
+- Investor should NOT receive money yet.
+- Settlement should not post while repayment is pending approval.
+
+Ledger/activity/frontend history check:
+[ ] Finance → Buckets activity if visible: Repayment Pool receives RM110,000
+[ ] Note timeline if visible: repayment recorded/approved
+[ ] Wallet/transaction history if visible: no investor return yet
+[ ] Finance queue if visible: Finance → Repayments shows pending/approved status
+
+What should NOT happen:
+[ ] Wrong button: Post Settlement should not appear before preview/approval
+[ ] Wrong amount: payment amount should not exceed allowed remaining capacity without warning
+[ ] Wrong status: note should not become Repaid just from recording payment
+[ ] Wrong bucket movement: no investor payout before settlement post
+[ ] Wrong ledger/activity: investor wallet should not be credited yet
+
+STOP AND INVESTIGATE if:
+[ ] Investor return appears immediately when repayment is recorded.
+[ ] Settlement can post while payment is pending approval.
+[ ] Repayment can be recorded before note is Active.
+[ ] Repayment Pool amount does not match RM110,000 if visible.
+
+Notes:
+- ________________________________________________________________
+- ________________________________________________________________
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 11 — Settlement preview
+################################################################################
+
+What this feature means:
+- Settlement preview shows the calculation before final posting.
+- Preview is not final money movement.
+
+Why this feature exists:
+- Admin must check the waterfall before investor wallets and fee allocations are finalized.
+
+Who is involved:
+[ ] Admin
+[ ] Issuer
+[ ] Investor
+
+Where to check:
+Admin:
+[ ] Admin portal → Note detail → Settlement panel/waterfall
+[ ] Payment list/open receipt summary
+
+Issuer:
+[ ] Usually no action in preview
+
+Investor:
+[ ] Investor wallet should not be credited during preview
+
+What should be shown before action:
+[ ] Status: Active note with eligible repayment receipt
+[ ] Amount: RM110,000 repayment
+[ ] Button: Preview Settlement
+[ ] Warning/helper text: missing payment approval if applicable
+[ ] Card/section: settlement waterfall panel
+
+What to click:
+[ ] Preview Settlement
+
+What should be shown after action:
+[ ] New status: Preview/Calculated if shown
+[ ] New button: Approve after preview
+[ ] New card: settlement waterfall details
+[ ] New amount: principal, gross profit, service fee, net investor profit, residual, investor allocation
+[ ] Success toast/message: preview generated if shown
+[ ] Timeline/activity event if visible: preview may or may not create event
+
+Manual calculation:
+Formula:
+- Gross profit = principal x profit rate x days / 365.
+- Service fee = gross profit x service fee %.
+- Net investor profit = gross profit - service fee.
+- Residual = repayment - principal - net investor profit - service fee - Ta'widh - Gharamah.
+Example:
+- Principal = RM100,000.
+- Gross profit = 100,000 x 10% x 365 / 365 = RM10,000.
+- Service fee = 10,000 x 15% = RM1,500.
+- Net investor profit = 10,000 - 1,500 = RM8,500.
+- Residual = 110,000 - 100,000 - 8,500 - 1,500 - 0 - 0 = RM0.
+Expected:
+- Preview shows principal RM100,000, service fee RM1,500, net investor profit RM8,500, residual RM0.
+
+Bucket movement:
+- No final bucket movement yet from preview.
+- Preview is calculation only.
+
+Ledger/activity/frontend history check:
+[ ] Finance → Buckets activity if visible: no final movement from preview
+[ ] Note timeline if visible: preview event only if system records it
+[ ] Wallet/transaction history if visible: no investor credit
+[ ] Finance queue if visible: no service fee instruction until settlement is posted
+
+What should NOT happen:
+[ ] Wrong button: Post should not be available before approval
+[ ] Wrong amount: investor should not receive gross profit before service fee
+[ ] Wrong status: settlement should not become Posted from preview
+[ ] Wrong bucket movement: no investor/service fee/residual final movement yet
+[ ] Wrong ledger/activity: no investor wallet credit yet
+
+STOP AND INVESTIGATE if:
+[ ] Preview numbers do not balance.
+[ ] Service fee appears as funding close fee instead of settlement fee.
+[ ] Investor wallet is credited during preview.
+[ ] Residual formula does not match visible numbers.
+
+Notes:
+- ________________________________________________________________
+- ________________________________________________________________
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 12 — Settlement approve and post
+################################################################################
+
+What this feature means:
+- Approve confirms the preview.
+- Post finalizes the waterfall and allocates repayment.
+
+Why this feature exists:
+- Posting is the real settlement action. It credits investor returns and allocates fees/residual.
+
+Who is involved:
+[ ] Admin
+[ ] Issuer
+[ ] Investor
+
+Where to check:
+Admin:
+[ ] Admin portal → Note detail → Settlement panel
+[ ] Finance → Buckets
+[ ] Finance → Service Fee after post
+[ ] Finance → Issuer Payouts if residual exists
+
+Issuer:
+[ ] Issuer portal may show repaid/settled or residual status if visible
+
+Investor:
+[ ] Investor portfolio/wallet after post
+
+What should be shown before action:
+[ ] Status: settlement preview ready
+[ ] Amount: RM110,000 repayment split
+[ ] Button: Approve after preview, then Post only after approval
+[ ] Warning/helper text: confirmation modal with totals
+[ ] Card/section: settlement waterfall
+
+What to click:
+[ ] Approve Settlement
+[ ] Confirm totals
+[ ] Post Settlement
+[ ] Confirm posting modal
+
+What should be shown after action:
+[ ] New status: Posted
+[ ] New button: post disabled/no duplicate post
+[ ] New card: investor payout summary, service fee instruction if applicable, residual card if residual exists
+[ ] New amount: investor wallets receive RM108,500 total, Operating Account receives RM1,500 service fee
+[ ] Success toast/message: settlement posted
+[ ] Timeline/activity event if visible: settlement approved/posted
+
+Manual calculation:
+Formula:
+- Posted split = investor principal + net investor profit + service fee + residual + Ta'widh + Gharamah.
+Example:
+- Investor total = RM100,000 principal + RM8,500 net profit = RM108,500.
+- Service fee = RM1,500.
+- Residual = RM0.
+Expected:
+- 108,500 + 1,500 + 0 = 110,000.
+
+Bucket movement:
+- Repayment Pool is split.
+- Investor wallets/Investor Pool receive RM108,500 total.
+- Operating Account receives RM1,500 service fee.
+- Issuer Payable receives residual if any.
+- Service fee should not be deducted twice.
+
+Ledger/activity/frontend history check:
+[ ] Finance → Buckets activity if visible: Repayment Pool split, Operating Account service fee
+[ ] Note timeline if visible: settlement approved/posted
+[ ] Wallet/transaction history if visible: investor payout entries
+[ ] Finance queue if visible: Service Fee queue appears if service fee instruction needed
+
+What should NOT happen:
+[ ] Wrong button: Post should not appear before Approve
+[ ] Wrong amount: investor should not receive service fee portion
+[ ] Wrong status: settlement should not post twice
+[ ] Wrong bucket movement: service fee should not move twice
+[ ] Wrong ledger/activity: duplicate investor payout should not appear
+
+STOP AND INVESTIGATE if:
+[ ] Post button is visible before approval.
+[ ] Settlement can post twice.
+[ ] Service fee is deducted twice.
+[ ] Note does not become Repaid/Settled when no residual remains.
+
+Notes:
+- ________________________________________________________________
+- ________________________________________________________________
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 13 — Investor return
+################################################################################
+
+What this feature means:
+- Investors see their principal and net profit returned after settlement post.
+
+Why this feature exists:
+- Investor return confirms that settlement allocation reached the correct investor accounts.
+
+Who is involved:
+[ ] Admin
+[ ] Issuer
+[ ] Investor
+
+Where to check:
+Admin:
+[ ] Note settlement summary
+[ ] Finance → Buckets / investor return activity if visible
+
+Issuer:
+[ ] Issuer may see note repaid/settled status if visible
+
+Investor:
+[ ] Investor A portal → Portfolio/Investments
+[ ] Investor A portal → Wallet/Transactions
+[ ] Investor B portal → Portfolio/Investments
+[ ] Investor B portal → Wallet/Transactions
+
+What should be shown before action:
+[ ] Status: settlement Posted
+[ ] Amount: investor allocation totals
+[ ] Button: no investor action required
+[ ] Warning/helper text: none unless payout pending
+[ ] Card/section: portfolio/wallet transaction
+
+What to click:
+[ ] Investor A opens Portfolio/Wallet
+[ ] Investor B opens Portfolio/Wallet
+
+What should be shown after action:
+[ ] New status: Repaid/Settled/Returned investment status
+[ ] New button: no invest action for closed note
+[ ] New card: return transaction if supported
+[ ] New amount: Investor A RM65,100, Investor B RM43,400
+[ ] Success toast/message: not required for read-only check
+[ ] Timeline/activity event if visible: settlement/return posted
+
+Manual calculation:
+Formula:
+- Investor share = investor investment / total funded.
+- Investor principal return = principal x investor share.
+- Investor profit return = net investor profit x investor share.
+Example:
+- Investor A share = 60,000 / 100,000 = 60%.
+- Investor A principal = RM60,000.
+- Investor A profit = 8,500 x 60% = RM5,100.
+- Investor A total = RM65,100.
+- Investor B share = 40,000 / 100,000 = 40%.
+- Investor B principal = RM40,000.
+- Investor B profit = 8,500 x 40% = RM3,400.
+- Investor B total = RM43,400.
+Expected:
+- Investor A receives RM65,100.
+- Investor B receives RM43,400.
+
+Bucket movement:
+- Investor return has already been allocated during settlement post.
+- Investor wallets/transactions should show return.
+- Service fee portion stays with Operating Account, not investors.
+
+Ledger/activity/frontend history check:
+[ ] Finance → Buckets activity if visible: investor return allocation
+[ ] Note timeline if visible: settlement posted/repaid
+[ ] Wallet/transaction history if visible: Investor A RM65,100 and Investor B RM43,400
+[ ] Finance queue if visible: no duplicate investor payout queue
+
+What should NOT happen:
+[ ] Wrong button: investor should not see settlement admin controls
+[ ] Wrong amount: investors should not receive gross profit before service fee
+[ ] Wrong status: investor investment should not stay funding if settlement posted
+[ ] Wrong bucket movement: service fee should not be paid to investors
+[ ] Wrong ledger/activity: investor should not receive payout before settlement post
+
+STOP AND INVESTIGATE if:
+[ ] Investor A/B split does not match 60%/40%.
+[ ] Investor receives service fee portion.
+[ ] Investor return appears before settlement post.
+[ ] Investor wallet/portfolio totals disagree.
+
+Notes:
+- ________________________________________________________________
+- ________________________________________________________________
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 14 — Service fee trustee instruction
+################################################################################
+
+What this feature means:
+- Service fee instruction is an operational/audit step after settlement.
+- It is not a new fee.
+
+Why this feature exists:
+- Trustee/internal operations may need a service fee instruction record after settlement posted.
+
+Who is involved:
+[ ] Admin
+[ ] Issuer
+[ ] Investor
+
+Where to check:
+Admin:
+[ ] Admin portal → Note detail → Settlement panel → Service fee instruction card
+[ ] Admin portal → Finance → Service Fee
+[ ] Note timeline/activity if visible
+
+Issuer:
+[ ] Issuer should not provide bank details for service fee instruction
+
+Investor:
+[ ] Investor should not see service fee as their profit
+
+What should be shown before action:
+[ ] Status: settlement Posted and service fee exists
+[ ] Amount: RM1,500 service fee
+[ ] Button: Generate Letter
+[ ] Warning/helper text: instruction workflow if shown
+[ ] Card/section: service fee instruction card / Finance → Service Fee row
+
+What to click:
+[ ] Generate Letter
+[ ] View/Download
+[ ] Mark Submitted
+[ ] Mark Instruction Completed
+
+What should be shown after action:
+[ ] New status: Letter Generated → Submitted → Completed
+[ ] New button: next instruction button appears at each step
+[ ] New card: completed instruction or queue item cleared
+[ ] New amount: service fee remains RM1,500
+[ ] Success toast/message: instruction updated
+[ ] Timeline/activity event if visible: service fee letter/submitted/completed
+
+Manual calculation:
+Formula:
+- Service fee = gross investor profit x service fee %.
+Example:
+- RM10,000 x 15% = RM1,500.
+Expected:
+- Instruction amount is RM1,500.
+
+Bucket movement:
+- Service fee was already allocated during settlement post.
+- Completing instruction should not create a second service fee.
+- No issuer payout movement.
+
+Ledger/activity/frontend history check:
+[ ] Finance → Buckets activity if visible: no duplicate service fee movement
+[ ] Note timeline if visible: service fee instruction status events
+[ ] Wallet/transaction history if visible: no investor change
+[ ] Finance queue if visible: Service Fee queue moves through statuses or clears after completed
+
+What should NOT happen:
+[ ] Wrong button: no Shoraka
+[ ] Wrong amount: no second RM1,500 fee
+[ ] Wrong status: note should not regress
+[ ] Wrong bucket movement: Operating Account should not receive duplicate fee
+[ ] Wrong ledger/activity: no issuer bank payout
+
+STOP AND INVESTIGATE if:
+[ ] Service fee instruction asks for issuer bank details.
+[ ] Completing instruction creates another service fee.
+[ ] Shoraka is required for service fee instruction.
+[ ] Investor return changes after completing instruction.
+
+Notes:
+- ________________________________________________________________
+- ________________________________________________________________
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 15 — Issuer residual return
+################################################################################
+
+What this feature means:
+- Residual is leftover repayment money owed back to issuer after settlement.
+- It is not new financing.
+
+Why this feature exists:
+- If repayment is more than investor principal, investor net profit, service fee, and late charges, leftover belongs to issuer.
+
+Who is involved:
+[ ] Admin
+[ ] Issuer
+[ ] Investor
+
+Where to check:
+Admin:
+[ ] Note detail → Settlement panel → Issuer Residual Refund card
+[ ] Finance → Issuer Payouts
+[ ] Finance → Buckets
+[ ] Note timeline/activity if visible
+
+Issuer:
+[ ] Issuer portal → residual/refund status if visible
+
+Investor:
+[ ] Investor return should not include issuer residual
+
+What should be shown before action:
+[ ] Status: settlement Posted with residual
+[ ] Amount: RM2,000 residual in RM112,000 scenario
+[ ] Button: Generate residual letter
+[ ] Warning/helper text: no Shoraka needed
+[ ] Card/section: Issuer Residual Refund card
+
+What to click:
+[ ] Generate residual letter
+[ ] View Letter
+[ ] Mark Submitted
+[ ] Mark Disbursed
+
+What should be shown after action:
+[ ] New status: residual Draft → Letter Generated → Submitted → Disbursed/Completed
+[ ] New button: next residual workflow button
+[ ] New card: residual completed or queue cleared
+[ ] New amount: RM2,000 residual cleared from Issuer Payable after disbursed
+[ ] Success toast/message: residual instruction updated
+[ ] Timeline/activity event if visible: residual letter/submitted/disbursed
+
+Manual calculation:
+Formula:
+- Residual = repayment - principal - net investor profit - service fee - Ta'widh - Gharamah.
+Example:
+- Residual = 112,000 - 100,000 - 8,500 - 1,500 = RM2,000.
+Expected:
+- Residual card and Finance → Issuer Payouts show RM2,000.
+
+Bucket movement:
+- Settlement post credits Issuer Payable RM2,000.
+- Residual Mark Disbursed clears Issuer Payable RM2,000.
+- No Shoraka.
+
+Ledger/activity/frontend history check:
+[ ] Finance → Buckets activity if visible: Issuer Payable credited/cleared RM2,000
+[ ] Note timeline if visible: residual workflow events
+[ ] Wallet/transaction history if visible: no investor change from residual
+[ ] Finance queue if visible: Issuer Payouts residual item appears and clears/completes
+
+What should NOT happen:
+[ ] Wrong button: Shoraka should not appear
+[ ] Wrong amount: residual should not use full repayment
+[ ] Wrong status: note should not be fully settled before residual completion if residual is pending
+[ ] Wrong bucket movement: investor should not receive residual
+[ ] Wrong ledger/activity: no Shoraka/certificate event for residual
+
+STOP AND INVESTIGATE if:
+[ ] Residual asks for Shoraka certificate.
+[ ] Residual is paid to investor.
+[ ] Issuer Payable does not clear after Mark Disbursed.
+[ ] Residual calculation does not match RM2,000 example.
+
+Notes:
+- ________________________________________________________________
+- ________________________________________________________________
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 16 — Failed funding below minimum
+################################################################################
+
+What this feature means:
+- Funding fails because not enough investor money was raised.
+
+Why this feature exists:
+- Issuer should not receive money if the note did not meet minimum funding.
+- Investor commitments should be released/returned.
+
+Who is involved:
+[ ] Admin
+[ ] Issuer
+[ ] Investor
+
+Where to check:
+Admin:
+[ ] Note detail
+[ ] Marketplace/listing status
+[ ] Finance → Buckets if visible
+[ ] Note timeline/activity if visible
+
+Issuer:
+[ ] Issuer note/financing view if visible
+
+Investor:
+[ ] Portfolio/investments
+[ ] Wallet/transactions if visible
+
+What should be shown before action:
+[ ] Status: Published/Open Funding below minimum
+[ ] Amount: target RM100,000, minimum RM80,000, funded RM50,000
+[ ] Button: Fail Funding, or expired job causes failure
+[ ] Warning/helper text: below minimum
+[ ] Card/section: funding progress
+
+What to click:
+[ ] Admin clicks Fail Funding if manual
+[ ] Or refresh after expiry job/test data
+
+What should be shown after action:
+[ ] New status: Failed Funding
+[ ] New button: Invest disabled/hidden
+[ ] New card: no issuer disbursement card
+[ ] New amount: commitments released/returned if visible
+[ ] Success toast/message: funding failed
+[ ] Timeline/activity event if visible: failed funding event
+
+Manual calculation:
+Formula:
+- Minimum amount = target x minimum funding percent.
+Example:
+- 100,000 x 80% = RM80,000 minimum.
+- RM50,000 funded is below RM80,000.
+Expected:
+- Funding fails.
+
+Bucket movement:
+- Investor commitment released/returned if visible.
+- No Issuer Payable.
+- No platform fee.
+- No facility fee.
+- No service fee.
+- No Shoraka.
+- No trustee payout letter.
+
+Ledger/activity/frontend history check:
+[ ] Finance → Buckets activity if visible: investor release/refund only
+[ ] Note timeline if visible: failed funding event
+[ ] Wallet/transaction history if visible: release/refund activity
+[ ] Finance queue if visible: no issuer payout, no service fee
+
+What should NOT happen:
+[ ] Wrong button: no Shoraka, no Generate issuer letter
+[ ] Wrong amount: no net issuer payout
+[ ] Wrong status: note should not close as Funded
+[ ] Wrong bucket movement: Operating Account should not receive platform/facility/service fee
+[ ] Wrong ledger/activity: no payout activity
+
+STOP AND INVESTIGATE if:
+[ ] Failed below-minimum note creates issuer disbursement.
+[ ] Fees are charged on failed funding.
+[ ] Investor commitment is not released/returned if UI supports it.
+[ ] Marketplace still accepts investment.
+
+Notes:
+- ________________________________________________________________
+- ________________________________________________________________
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 17 — Partial funding above minimum
+################################################################################
+
+What this feature means:
+- The note did not reach full target, but reached minimum funding and can close.
+
+Why this feature exists:
+- Business may allow funding close if enough money was raised, even below target.
+- Calculations must use actual funded amount, not target.
+
+Who is involved:
+[ ] Admin
+[ ] Issuer
+[ ] Investor
+
+Where to check:
+Admin:
+[ ] Note detail
+[ ] Issuer Disbursement card
+[ ] Shoraka STP box
+[ ] Finance → Buckets
+
+Issuer:
+[ ] Issuer note/financing funding status if visible
+
+Investor:
+[ ] Investor portfolio actual commitment
+
+What should be shown before action:
+[ ] Status: Published/Open Funding at or above minimum
+[ ] Amount: target RM100,000, minimum RM80,000, funded RM80,000
+[ ] Button: Close Funding, or expiry closes successfully
+[ ] Warning/helper text: partial above minimum if shown
+[ ] Card/section: funding progress
+
+What to click:
+[ ] Close Funding
+[ ] Or refresh after expiry/auto-close path
+
+What should be shown after action:
+[ ] New status: Funded
+[ ] New button: issuer payout workflow begins
+[ ] New card: Issuer Disbursement card
+[ ] New amount: platform fee RM2,400, facility fee RM800, net issuer payout RM76,800, Shoraka RM80,000
+[ ] Success toast/message: funding closed
+[ ] Timeline/activity event if visible: funding closed
+
+Manual calculation:
+Formula:
+- Platform fee = funded amount x 3%.
+- Facility fee = funded amount x 1%.
+- Net issuer payout = funded amount - platform fee - facility fee.
+Example:
+- Platform fee = 80,000 x 3% = RM2,400.
+- Facility fee = 80,000 x 1% = RM800.
+- Net issuer payout = 80,000 - 2,400 - 800 = RM76,800.
+Expected:
+- Shoraka amount = RM80,000.
+- Trustee payout amount = RM76,800.
+
+Bucket movement:
+- Investor Pool uses RM80,000 actual funded amount.
+- Operating Account gets RM2,400 platform fee.
+- Operating Account gets RM800 facility fee.
+- Issuer Payable gets RM76,800.
+
+Ledger/activity/frontend history check:
+[ ] Finance → Buckets activity if visible: split uses RM80,000
+[ ] Note timeline if visible: funding closed
+[ ] Wallet/transaction history if visible: actual commitment only
+[ ] Finance queue if visible: Issuer Payouts shows RM76,800
+
+What should NOT happen:
+[ ] Wrong button: failed funding action should not be the final state if minimum met
+[ ] Wrong amount: payout should not use RM100,000 target
+[ ] Wrong status: note should not fail if minimum met and product allows close
+[ ] Wrong bucket movement: fees should not calculate from target
+[ ] Wrong ledger/activity: Shoraka should not use RM76,800 net
+
+STOP AND INVESTIGATE if:
+[ ] UI uses RM100,000 target instead of RM80,000 actual funded.
+[ ] Issuer payout shows RM96,000 in the RM80,000 scenario.
+[ ] Shoraka order uses RM76,800 instead of RM80,000.
+[ ] Settlement later uses target instead of funded principal.
+
+Notes:
+- ________________________________________________________________
+- ________________________________________________________________
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 18 — Listing expiry and auto-close
+################################################################################
+
+What this feature means:
+- A listing can close automatically when fully funded or when the funding window expires.
+
+Why this feature exists:
+- Investors should not keep funding expired notes.
+- Notes should move to the correct next state without duplicate actions.
+
+Who is involved:
+[ ] Admin
+[ ] Issuer
+[ ] Investor
+
+Where to check:
+Admin:
+[ ] Note detail
+[ ] Notes list
+[ ] Finance queues
+[ ] Timeline/activity if visible
+
+Issuer:
+[ ] Issuer Notes/Financing after refresh if visible
+
+Investor:
+[ ] Marketplace after refresh
+[ ] Portfolio/wallet if commitments exist
+
+What should be shown before action:
+[ ] Status: Published/Open Funding
+[ ] Amount: funded amount and minimum threshold
+[ ] Button: Close Funding/Fail Funding if manual path, or no duplicate action after auto path
+[ ] Warning/helper text: countdown/listing window
+[ ] Card/section: funding progress and time remaining
+
+What to click:
+[ ] Refresh after auto-close/expiry job/test setup
+[ ] Or use manual Close/Fail Funding if testing manual path
+
+What should be shown after action:
+[ ] New status: Funded if fully funded or expired at/above minimum
+[ ] New status: Failed Funding if expired below minimum
+[ ] New button: no more Invest button
+[ ] New card: Issuer Disbursement card only for successful close
+[ ] New amount: funding close split only for successful close
+[ ] Timeline/activity event if visible: auto-close/expiry result
+
+Manual calculation:
+Formula:
+- Compare funded amount against minimum.
+Example:
+- RM100,000 funded = fully funded; closes successfully.
+- RM50,000 funded below RM80,000 minimum = failed funding.
+- RM80,000 funded at minimum = closes successfully.
+Expected:
+- Correct status based on funded amount.
+
+Bucket movement:
+- Fully funded/above-minimum: same bucket movement as Feature 6 or 17.
+- Below-minimum: investor release/refund only; no fees or issuer payable.
+- No duplicate movement if expiry job runs twice.
+
+Ledger/activity/frontend history check:
+[ ] Finance → Buckets activity if visible: one correct movement only
+[ ] Note timeline if visible: auto-close/expiry event
+[ ] Wallet/transaction history if visible: commitment confirmed or released
+[ ] Finance queue if visible: correct next queue item only
+
+What should NOT happen:
+[ ] Wrong button: expired notes should not accept investment
+[ ] Wrong amount: duplicate close should not duplicate fees/payout
+[ ] Wrong status: below-minimum should not become Funded
+[ ] Wrong bucket movement: no duplicate ledger movement
+[ ] Wrong ledger/activity: no duplicate timeline activity if idempotency is visible
+
+STOP AND INVESTIGATE if:
+[ ] Expired note still accepts investment.
+[ ] Below-minimum expiry creates issuer payout.
+[ ] Running expiry twice creates duplicate fees/payouts.
+[ ] Admin/issuer/investor views disagree after refresh.
+
+Notes:
+- ________________________________________________________________
+- ________________________________________________________________
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 19 — Late charges / Ta'widh / Gharamah
+################################################################################
+
+What this feature means:
+- Late charges apply only for late/arrears/default scenarios.
+- They are not part of the normal happy path.
+
+Why this feature exists:
+- Late repayment may require compensation or penalty/charity allocation.
+- Settlement must still balance to the repayment received.
+
+Who is involved:
+[ ] Admin
+[ ] Issuer
+[ ] Investor
+
+Where to check:
+Admin:
+[ ] Note detail → late/arrears/default area
+[ ] Settlement preview/waterfall
+[ ] Finance → Buckets
+[ ] Arrears/default documents if visible
+
+Issuer:
+[ ] Issuer note repayment/late state if visible
+
+Investor:
+[ ] Investor return if Ta'widh investor portion is configured
+
+What should be shown before action:
+[ ] Status: Late/Arrears/Default-related scenario
+[ ] Amount: Ta'widh and Gharamah only if late charge flow is used
+[ ] Button: late charge/apply/review/generate arrears/default letter if supported
+[ ] Warning/helper text: late/default indicator
+[ ] Card/section: late charge panel and settlement waterfall
+
+What to click:
+[ ] Open late charge panel if supported
+[ ] Preview settlement with late charges
+[ ] Generate arrears/default documents if supported
+
+What should be shown after action:
+[ ] New status: late charge reflected in settlement preview/post if applied
+[ ] New button: next supported late/default action
+[ ] New card: Ta'widh/Gharamah rows, arrears/default documents if supported
+[ ] New amount: residual reduced by late charges
+[ ] Success toast/message: late charge/document action if applicable
+[ ] Timeline/activity event if visible: late charge/document event
+
+Manual calculation:
+Formula:
+- Residual = repayment - principal - net investor profit - service fee - Ta'widh - Gharamah.
+Example:
+- Repayment RM112,000.
+- Principal RM100,000.
+- Net investor profit RM8,500.
+- Service fee RM1,500.
+- Ta'widh RM500.
+- Gharamah RM300.
+- Residual = 112,000 - 100,000 - 8,500 - 1,500 - 500 - 300 = RM1,200.
+Expected:
+- 100,000 + 8,500 + 1,500 + 500 + 300 + 1,200 = 112,000.
+
+Bucket movement:
+- Ta'widh may partly go to investors and/or Ta'widh Account depending on configuration.
+- Gharamah goes to Gharamah Account.
+- Both reduce issuer residual.
+- Gharamah is not investor profit.
+
+Ledger/activity/frontend history check:
+[ ] Finance → Buckets activity if visible: Ta'widh Account and Gharamah Account rows
+[ ] Note timeline if visible: late/arrears/default activity
+[ ] Wallet/transaction history if visible: Ta'widh investor portion only if configured
+[ ] Finance queue if visible: arrears/default documents if supported
+
+What should NOT happen:
+[ ] Wrong button: happy path should not show late-charge action as required
+[ ] Wrong amount: late charges should not make total split exceed repayment
+[ ] Wrong status: normal on-time note should not become arrears/default
+[ ] Wrong bucket movement: Gharamah should not go to investor as normal profit
+[ ] Wrong ledger/activity: late charges should not appear in normal happy path
+
+STOP AND INVESTIGATE if:
+[ ] Ta'widh/Gharamah appear in normal non-late happy path.
+[ ] Gharamah is paid as investor profit.
+[ ] Total split exceeds repayment received.
+[ ] Investor principal changes because of late charges.
+
+Notes:
+- ________________________________________________________________
+- ________________________________________________________________
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 20 — Full portal/page/tab checklist
+################################################################################
+
+This is a reference checklist. Use it after the feature flow to confirm no page was missed.
+
+ADMIN — Applications
+What this page is for:
+- Review issuer applications and send offers.
+What should show:
+[ ] Application list
+[ ] Application detail
+[ ] Review tabs
+[ ] Contract tab
+[ ] Invoice tab
+[ ] Offer status
+Why it should show:
+- Admin must confirm business readiness before note creation.
+What action should be available:
+[ ] Send offer only after prerequisites
+What should be blocked:
+[ ] Create note before accepted/signed offer
+Stop conditions:
+[ ] Offer button appears too early
+
+ADMIN — Notes list
+What this page is for:
+- Find and open notes by stage.
+What should show:
+[ ] Draft
+[ ] Published/Open Funding
+[ ] Funded
+[ ] Active
+[ ] Repaid/Settled
+[ ] Failed Funding
+Why it should show:
+- Admin needs to know next operations step.
+What action should be available:
+[ ] Open note and stage-appropriate action
+What should be blocked:
+[ ] Investor-only investment controls
+Stop conditions:
+[ ] Draft note looks public
+
+ADMIN — Note detail
+What this page is for:
+- Operate one note end to end.
+What should show:
+[ ] Lifecycle stepper
+[ ] Funding progress
+[ ] Issuer Disbursement card
+[ ] Shoraka box
+[ ] Trustee letter buttons
+[ ] Payment list
+[ ] Settlement panel
+[ ] Residual card
+[ ] Service fee instruction
+[ ] Arrears/default documents
+[ ] Activity timeline
+Why it should show:
+- Every money-control step needs visible proof and next action.
+What action should be available:
+[ ] Only the current stage action
+What should be blocked:
+[ ] Future dangerous actions
+Stop conditions:
+[ ] Mark Disbursed before certificate
+[ ] Post before approval
+
+ADMIN — Finance pages
+What this page is for:
+- Check operational money queues and bucket activity.
+What should show:
+[ ] Finance → Buckets: Investor Pool, Repayment Pool, Operating Account, Issuer Payable, Ta'widh Account, Gharamah Account
+[ ] Finance → Issuer Payouts: disbursement and residual payout queue
+[ ] Finance → Repayments: repayment queue and approval status
+[ ] Finance → Service Fee: service fee instruction queue
+Why it should show:
+- Admin needs one place to see money waiting for action.
+What action should be available:
+[ ] Queue-specific review/generate/submit/complete actions
+What should be blocked:
+[ ] Duplicate fee or payout creation
+Stop conditions:
+[ ] Completed item stays pending without explanation
+
+ADMIN — Activity/timeline/notifications
+What this page is for:
+- Show important events.
+What should show:
+[ ] Note published
+[ ] Funding succeeded/failed
+[ ] Note active
+[ ] Repayment/settlement
+[ ] Letter generated/submitted/completed
+[ ] Shoraka status/certificate if visible
+Why it should show:
+- Operations needs visible history.
+What action should be available:
+[ ] View event details if supported
+What should be blocked:
+[ ] False success event before real action
+Stop conditions:
+[ ] Timeline says money moved before completion action
+
+ISSUER — Applications
+What this page is for:
+- Issuer reviews and accepts/signs offers.
+What should show:
+[ ] Offer Received
+[ ] Review Offer
+[ ] Accept/sign
+[ ] Decline
+[ ] Expired offer blocked
+Why it should show:
+- Issuer must agree before note creation.
+What action should be available:
+[ ] Accept/sign valid offer
+What should be blocked:
+[ ] Accept expired offer
+Stop conditions:
+[ ] Expired offer can be accepted
+
+ISSUER — Financing
+What this page is for:
+- Issuer sees approved contract/invoice financing.
+What should show:
+[ ] Approved contract
+[ ] Approved invoice
+[ ] Note link
+[ ] Utilisation/funding progress if visible
+Why it should show:
+- Issuer needs to understand approved financing and funding progress.
+What action should be available:
+[ ] View details and repayment actions if supported
+What should be blocked:
+[ ] Investor funding controls
+Stop conditions:
+[ ] Issuer can change accepted terms without new offer
+
+ISSUER — Notes
+What this page is for:
+- Issuer tracks funding, active note, repayment, residual, and repaid state.
+What should show:
+[ ] Funding note
+[ ] Active note
+[ ] Repayment/maturity
+[ ] Repayment submission if available
+[ ] Residual status if available
+[ ] Repaid status
+Why it should show:
+- Issuer needs to know the note lifecycle.
+What action should be available:
+[ ] Submit repayment proof if supported
+What should be blocked:
+[ ] Admin Shoraka/trustee/settlement controls
+Stop conditions:
+[ ] Issuer can mark disbursement or settlement
+
+ISSUER — Dashboard/activity/notifications
+What this page is for:
+- Show recent issuer actions and financing status.
+What should show:
+[ ] Application updates
+[ ] Financing updates
+[ ] Note updates
+[ ] Notification/action badges
+Why it should show:
+- Issuer needs reminders and status clarity.
+What action should be available:
+[ ] Open relevant application/note
+What should be blocked:
+[ ] Admin-only actions
+Stop conditions:
+[ ] Issuer sees privileged admin actions
+
+INVESTOR — Marketplace
+What this page is for:
+- Investor chooses notes to fund.
+What should show:
+[ ] Published notes only
+[ ] Target amount
+[ ] Progress
+[ ] Risk
+[ ] Profit
+[ ] Maturity
+[ ] Time remaining
+[ ] Invest action
+Why it should show:
+- Investor needs enough information to decide.
+What action should be available:
+[ ] Invest while open and eligible
+What should be blocked:
+[ ] Draft/closed/failed/fully funded note investment
+Stop conditions:
+[ ] Investment allowed after funding closes
+
+INVESTOR — Portfolio/Investments
+What this page is for:
+- Investor tracks commitment and position.
+What should show:
+[ ] Commitment amount
+[ ] Funding status
+[ ] Confirmed/active status
+[ ] Repaid/returned status
+Why it should show:
+- Investor needs proof of reserved and returned money.
+What action should be available:
+[ ] View investment details
+What should be blocked:
+[ ] Admin settlement controls
+Stop conditions:
+[ ] Investment status does not match note status
+
+INVESTOR — Wallet/Transactions
+What this page is for:
+- Investor sees balance changes.
+What should show:
+[ ] Balance reduced/held after investment
+[ ] Failed funding release
+[ ] Settlement payout
+[ ] Investor A RM65,100
+[ ] Investor B RM43,400
+Why it should show:
+- Investor needs money movement history.
+What action should be available:
+[ ] View transaction details
+What should be blocked:
+[ ] Duplicate settlement payout
+Stop conditions:
+[ ] Final return does not match manual calculation
+
+INVESTOR — Notifications
+What this page is for:
+- Inform investor about funding and settlement events.
+What should show:
+[ ] Funding succeeded/failed
+[ ] Note active
+[ ] Settlement posted/repaid if wired
+Why it should show:
+- Investor needs status updates without admin access.
+What action should be available:
+[ ] Open related investment
+What should be blocked:
+[ ] Admin-only links/actions
+Stop conditions:
+[ ] Notification says paid before settlement post
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 21 — Full happy path one-page checklist
+################################################################################
+
+Use this only after reading the detailed feature sections.
+
+[ ] Feature 1: Admin sends offer.
+[ ] Feature 2: Issuer accepts/signs offer.
+[ ] Feature 3: Admin creates Draft note.
+[ ] Feature 4: Admin publishes note.
+[ ] Feature 5: Investor A invests RM60,000 and Investor B invests RM40,000.
+[ ] Feature 6: Funding closes and note becomes Funded.
+[ ] Feature 7: Admin generates issuer disbursement trustee letter.
+[ ] Feature 7: Admin marks issuer letter submitted to trustee.
+[ ] Feature 8: Admin submits Shoraka order for RM100,000.
+[ ] Feature 8: Shoraka reaches Completed by query or callback.
+[ ] Feature 8: Admin fetches and views certificate.
+[ ] Feature 9: Admin marks issuer disbursed.
+[ ] Feature 9: Note becomes Active.
+[ ] Feature 10: Admin records RM110,000 repayment.
+[ ] Feature 11: Admin previews settlement.
+[ ] Feature 12: Admin approves and posts settlement.
+[ ] Feature 13: Investor A receives RM65,100.
+[ ] Feature 13: Investor B receives RM43,400.
+[ ] Feature 14: Admin completes service fee trustee instruction if required.
+[ ] Feature 15: Residual path tested with RM112,000 repayment.
+[ ] Feature 16: Failed funding below minimum tested.
+[ ] Feature 17: Partial funding above minimum tested.
+[ ] Feature 18: Expiry/auto-close tested.
+[ ] Feature 19: Late charge scenario tested only after happy path works.
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 22 — Pass/fail table
+################################################################################
+
+Fill this table while testing. Test IDs are grouped by feature.
+
++----------------------------+----------+---------------------------+--------------------------------------+-------------------------------+--------------------------------------+------------------------+---------------+-----------+-------+
+| Test ID                    | Portal   | Page                      | Scenario                             | Action                        | Expected visible result              | Manual number check    | Actual result | Pass/Fail | Notes |
++----------------------------+----------+---------------------------+--------------------------------------+-------------------------------+--------------------------------------+------------------------+---------------+-----------+-------+
+| FEATURE-01-OFFER           | Admin    | Application detail        | Admin sends offer                    | Send offer                    | Offer Sent / waiting issuer          | Terms match offer      |               |           |       |
+| FEATURE-01-TABS            | Admin    | Application detail        | Review tabs gating                   | Open tabs                     | Offer only after prerequisites        | No money movement      |               |           |       |
+| FEATURE-02-ISSUER-ACCEPT   | Issuer   | Applications              | Issuer accepts/signs                 | Accept/sign                   | Offer accepted/completed             | Terms match            |               |           |       |
+| FEATURE-02-EXPIRED         | Issuer   | Applications              | Expired offer blocked                | Try accept expired            | Accept/sign blocked                  | No money movement      |               |           |       |
+| FEATURE-03-DRAFT-NOTE      | Admin    | Notes                     | Draft note created                   | Save draft                    | Draft note visible to admin           | Target RM100k          |               |           |       |
+| FEATURE-03-DRAFT-HIDDEN    | Investor | Marketplace               | Draft hidden                         | Open marketplace              | Draft note not visible               | No funding             |               |           |       |
+| FEATURE-04-PUBLISH         | Admin    | Note detail               | Publish note                         | Publish                       | Published/Open Funding                | Progress 0%            |               |           |       |
+| FEATURE-04-MARKETPLACE     | Investor | Marketplace               | Published note visible               | Open marketplace              | Note card visible                    | Target RM100k          |               |           |       |
+| FEATURE-05-INVEST-A        | Investor | Marketplace               | Investor A funds                     | Invest RM60k                  | Progress 60%                         | 60k/100k               |               |           |       |
+| FEATURE-05-INVEST-B        | Investor | Marketplace               | Investor B funds                     | Invest RM40k                  | Progress 100%                        | 60k+40k=100k           |               |           |       |
+| FEATURE-05-WALLET          | Investor | Wallet                    | Commitment held/reduced              | Check wallet                  | Commitment activity visible           | RM60k/RM40k            |               |           |       |
+| FEATURE-05-BLOCK-OVERFUND  | Investor | Marketplace               | Cannot overfund                      | Try extra investment          | Blocked                              | Max RM100k             |               |           |       |
+| FEATURE-06-FUNDING-CLOSE   | Admin    | Note detail               | Funding closes                       | Close/auto-close              | Note Funded                          | Net RM96k              |               |           |       |
+| FEATURE-06-BUCKETS         | Admin    | Finance → Buckets         | Funding close buckets                | Review buckets                | Investor/Operating/Issuer split       | 100k=3k+1k+96k         |               |           |       |
+| FEATURE-06-NO-SERVICE-FEE  | Admin    | Note detail               | Service fee not at close             | Review fees                   | No service fee deduction              | Service fee RM0 now    |               |           |       |
+| FEATURE-07-LETTER          | Admin    | Issuer Disbursement card  | Generate issuer letter               | Generate Letter               | View Letter visible                   | Letter RM96k           |               |           |       |
+| FEATURE-07-SUBMITTED       | Admin    | Issuer Disbursement card  | Mark submitted                       | Mark Submitted                | Status Submitted to Trustee           | No bucket movement     |               |           |       |
+| FEATURE-08-SHORAKA-SUBMIT  | Admin    | Shoraka box               | Submit Shoraka                       | Submit order                  | Order created                         | Order RM100k           |               |           |       |
+| FEATURE-08-CUTOFF          | Admin    | Shoraka box               | Cutoff blocked                       | Try during cutoff             | Submit disabled                       | 11:30-12:30 MYT        |               |           |       |
+| FEATURE-08-CERT            | Admin    | Shoraka box               | Fetch certificate                    | Fetch Certificate             | View Certificate visible              | Gross RM100k           |               |           |       |
+| FEATURE-08-NO-BUCKET       | Admin    | Finance → Buckets         | Shoraka no bucket movement           | Submit/query/fetch            | No bucket movement                    | Proof only             |               |           |       |
+| FEATURE-09-DISBURSED       | Admin    | Issuer Disbursement card  | Mark issuer disbursed                | Mark Disbursed                | Note Active                           | Clear RM96k            |               |           |       |
+| FEATURE-09-BLOCK-CERT      | Admin    | Issuer Disbursement card  | Block before certificate             | Try early                     | Disabled/helper text                  | Cert missing           |               |           |       |
+| FEATURE-10-REPAYMENT       | Admin    | Settlement panel          | Record repayment                     | Record RM110k                 | Payment listed                        | Receipt RM110k         |               |           |       |
+| FEATURE-10-REPAY-BUCKET    | Admin    | Finance → Buckets         | Repayment Pool receives              | Review buckets                | Repayment Pool RM110k activity        | RM110k                 |               |           |       |
+| FEATURE-11-PREVIEW         | Admin    | Settlement panel          | Preview settlement                   | Preview                       | Waterfall shown                       | Residual RM0           |               |           |       |
+| FEATURE-11-NO-PAYOUT       | Investor | Wallet                    | Preview no investor credit           | Check wallet                  | No credit yet                         | Preview only           |               |           |       |
+| FEATURE-12-APPROVE-POST    | Admin    | Settlement panel          | Approve and post                     | Approve/Post                  | Settlement Posted                     | 108.5k+1.5k=110k       |               |           |       |
+| FEATURE-12-NO-DUPLICATE    | Admin    | Settlement panel          | Cannot post twice                    | Try post again                | Duplicate blocked                     | Already posted         |               |           |       |
+| FEATURE-13-INVESTOR-A      | Investor | Wallet/Portfolio          | Investor A return                    | Check return                  | RM65,100 visible                      | 60k+5.1k               |               |           |       |
+| FEATURE-13-INVESTOR-B      | Investor | Wallet/Portfolio          | Investor B return                    | Check return                  | RM43,400 visible                      | 40k+3.4k               |               |           |       |
+| FEATURE-14-SERVICE-FEE     | Admin    | Finance → Service Fee     | Service fee instruction              | Generate/submit/complete      | Instruction completed                 | RM1,500                |               |           |       |
+| FEATURE-14-NO-DUP-FEE      | Admin    | Finance → Buckets         | No duplicate service fee             | Complete instruction          | No second fee                         | Fee still RM1.5k       |               |           |       |
+| FEATURE-15-RESIDUAL        | Admin    | Residual card             | Residual refund                      | Generate/complete             | Residual paid/completed               | RM2,000                |               |           |       |
+| FEATURE-15-NO-SHORAKA      | Admin    | Residual card             | Residual no Shoraka                  | Review residual               | No Shoraka required                   | Residual only          |               |           |       |
+| FEATURE-16-FAILED          | Admin    | Note detail               | Failed below minimum                 | Fail/expire                   | Failed Funding                        | Funded RM50k           |               |           |       |
+| FEATURE-16-REFUND          | Investor | Wallet/Portfolio          | Commitment released                  | Check investor                | Release/refund visible if supported   | RM50k release          |               |           |       |
+| FEATURE-17-PARTIAL         | Admin    | Note detail               | Partial above minimum                | Close RM80k                   | Funded                                | Net RM76.8k            |               |           |       |
+| FEATURE-17-SHORAKA         | Admin    | Shoraka box               | Partial Shoraka gross                | Submit order                  | Shoraka RM80k                         | Not RM76.8k            |               |           |       |
+| FEATURE-18-EXPIRY-FAIL     | All      | Notes/Marketplace         | Expiry below minimum                 | Refresh after expiry          | Failed Funding                        | Below RM80k            |               |           |       |
+| FEATURE-18-EXPIRY-CLOSE    | All      | Notes/Marketplace         | Expiry at/above minimum              | Refresh after expiry          | Funding closes                        | At least RM80k         |               |           |       |
+| FEATURE-19-TAWIDH          | Admin    | Late charge panel         | Ta'widh calculation                  | Apply late scenario           | Ta'widh visible only if late           | RM500 example          |               |           |       |
+| FEATURE-19-GHARAMAH        | Admin    | Late charge panel         | Gharamah calculation                 | Apply late scenario           | Gharamah visible only if late          | RM300 example          |               |           |       |
+| FEATURE-19-BALANCE         | Admin    | Settlement panel          | Late split balances                  | Preview late settlement       | Total equals repayment                 | RM112k total           |               |           |       |
+| FEATURE-20-ADMIN-PAGES     | Admin    | Portal pages              | Admin page/tab coverage              | Review checklist              | All admin pages checked                | No money mismatch      |               |           |       |
+| FEATURE-20-ISSUER-PAGES    | Issuer   | Portal pages              | Issuer page/tab coverage             | Review checklist              | All issuer pages checked               | Status matches         |               |           |       |
+| FEATURE-20-INVESTOR-PAGES  | Investor | Portal pages              | Investor page/tab coverage           | Review checklist              | All investor pages checked             | Return matches         |               |           |       |
+| BUCKET-INVESTOR-POOL       | Admin    | Finance → Buckets         | Investor Pool movement               | Review funding                | Investor funding/return visible        | 100k/108.5k            |               |           |       |
+| BUCKET-REPAYMENT-POOL      | Admin    | Finance → Buckets         | Repayment Pool movement              | Record/settle repayment       | Receipt then split visible             | RM110k                 |               |           |       |
+| BUCKET-OPERATING           | Admin    | Finance → Buckets         | Operating Account fees               | Review fees                   | Platform/facility/service fees         | 3k+1k+1.5k             |               |           |       |
+| BUCKET-ISSUER-PAYABLE      | Admin    | Finance → Buckets         | Issuer Payable movement              | Close/disburse/residual       | Credited then cleared                  | 96k / 2k               |               |           |       |
+| BUCKET-TAWIDH              | Admin    | Finance → Buckets         | Ta'widh Account                      | Late scenario                 | Ta'widh allocation if configured       | Late only              |               |           |       |
+| BUCKET-GHARAMAH            | Admin    | Finance → Buckets         | Gharamah Account                     | Late scenario                 | Gharamah allocation                    | Not investor profit    |               |           |       |
+| LEDGER-TIMELINE-01         | Admin    | Note timeline             | Timeline coverage                    | Review timeline               | Key feature events visible             | No false money move    |               |           |       |
+| LEDGER-WALLET-01           | Investor | Wallet                    | Wallet history coverage              | Review wallet                 | Commitment/release/return visible      | Amounts match          |               |           |       |
+| LETTER-ISSUER-01           | Admin    | Issuer Disbursement card  | Issuer trustee letter                | Generate/submit/disburse      | Correct status sequence                | RM96k                  |               |           |       |
+| LETTER-RESIDUAL-01         | Admin    | Residual card             | Residual letter                      | Generate/submit/disburse      | No Shoraka                             | RM2k                   |               |           |       |
+| LETTER-SERVICE-01          | Admin    | Service Fee queue         | Service fee instruction              | Generate/submit/complete      | No duplicate fee                       | RM1.5k                 |               |           |       |
++----------------------------+----------+---------------------------+--------------------------------------+-------------------------------+--------------------------------------+------------------------+---------------+-----------+-------+
+
+--------------------------------------------------------------------------------
+STOP POINT
+--------------------------------------------------------------------------------
+Before continuing:
+[ ] I completed this feature.
+[ ] I understand what changed.
+[ ] I checked visible UI.
+[ ] I checked the manual calculation.
+[ ] I checked bucket/ledger/activity if visible.
+[ ] I recorded actual result.
+
+Notes before next feature:
+- ________________________________________________________________
+- ________________________________________________________________
+
+
+
+
+
+
+
+
+################################################################################
+FEATURE 23 — Daily testing progress tracker
+################################################################################
+
+Do not move to the next phase until all STOP POINT boxes are completed.
+
+Day/date: ______________________
+
+Today I am testing:
+[ ] Feature 1
+[ ] Feature 2
+[ ] Feature 3
+[ ] Feature 4
+[ ] Feature 5
+[ ] Feature 6
+[ ] Feature 7
+[ ] Feature 8
+[ ] Feature 9
+[ ] Feature 10
+[ ] Feature 11
+[ ] Feature 12
+[ ] Feature 13
+[ ] Feature 14
+[ ] Feature 15
+[ ] Feature 16
+[ ] Feature 17
+[ ] Feature 18
+[ ] Feature 19
+[ ] Feature 20
+[ ] Feature 21
+[ ] Feature 22
+
+What passed today:
+- ________________________________________________________________
+- ________________________________________________________________
+
+What failed today:
+- ________________________________________________________________
+- ________________________________________________________________
+
+Screenshots/evidence captured:
+- ________________________________________________________________
+- ________________________________________________________________
+
+Questions for business/engineering:
+- ________________________________________________________________
+- ________________________________________________________________
+
+Final daily status:
+[ ] Safe to continue tomorrow
+[ ] Need investigation before continuing
+[ ] Blocked by missing data/user/access
+
+================================================================================
+END OF FEATURE-BY-FEATURE FRONTEND MANUAL UAT GUIDE
+================================================================================
