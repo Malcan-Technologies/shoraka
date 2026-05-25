@@ -135,7 +135,7 @@ export function NoteTermsPanel({ note }: { note: NoteDetail }) {
             value={note.profitRatePercent == null ? "—" : `${note.profitRatePercent}% p.a.`}
           />
           <Row label="Platform fee" value={`${note.platformFeeRatePercent}% at disbursement`} />
-          <Row label="Facility fee" value={facilityFeeDisplay ?? "—"} />
+          {facilityFeeDisplay ? <Row label="Facility fee" value={facilityFeeDisplay} /> : null}
           <Row label="Service fee" value={`${note.serviceFeeRatePercent}% of investor profit`} />
           <Row
             label="Late caps"
