@@ -153,10 +153,6 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
           contractFacilityFeePaidAmount: facilityFeePaidAmount,
         })
       : null;
-  const facilityFeeRemainingAfter =
-    invoiceFeeDisplay?.facilityFeeAmount != null && facilityFeeCapAmount != null
-      ? Math.max(0, facilityFeeCapAmount - facilityFeePaidAmount - invoiceFeeDisplay.facilityFeeAmount)
-      : null;
 
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
@@ -205,10 +201,6 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
               <dd className="font-medium text-foreground">
                 {formatMoneyDisplay(details.requested_amount as number)}
               </dd>
-              <dt className="text-muted-foreground">Financing Amount</dt>
-              <dd className="font-medium text-foreground">
-                {formatMoneyDisplay(details.offered_amount as number)}
-              </dd>
               {(details.offered_ratio_percent != null || details.offered_profit_rate_percent != null) && (
                 <>
                   {details.offered_ratio_percent != null && (
@@ -248,25 +240,6 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
                   </dd>
                   <dt className="text-muted-foreground">Estimated facility fee</dt>
                   <dd className="font-medium text-foreground">{money(invoiceFeeDisplay.facilityFeeAmount)}</dd>
-                </>
-              ) : null}
-
-              {facilityFeeCapAmount != null ? (
-                <>
-                  <dt className="text-muted-foreground">Facility fee cap</dt>
-                  <dd className="font-medium text-foreground">{money(facilityFeeCapAmount)}</dd>
-                </>
-              ) : null}
-              {context.invoice.contract_id ? (
-                <>
-                  <dt className="text-muted-foreground">Facility fee collected so far</dt>
-                  <dd className="font-medium text-foreground">{money(facilityFeePaidAmount)}</dd>
-                </>
-              ) : null}
-              {facilityFeeRemainingAfter != null ? (
-                <>
-                  <dt className="text-muted-foreground">Facility fee remaining after this invoice</dt>
-                  <dd className="font-medium text-foreground">{money(facilityFeeRemainingAfter)}</dd>
                 </>
               ) : null}
 
