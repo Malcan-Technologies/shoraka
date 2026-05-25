@@ -25,11 +25,12 @@ import {
   displayCell,
   formatDate,
 } from "@/components/financing/utils";
-import { ReviewOfferModal } from "@/components/review-offer-modal";
+import { ReviewOfferModal } from "../../../(application-management)/applications/components/ReviewOfferModal";
 import { getOfferStatus } from "@/lib/offer-utils";
 import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labels";
 import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
 import type { Invoice } from "@cashsouk/types";
+import type { NormalizedInvoice } from "../../../(application-management)/applications/status";
 
 function formatMoney(value: unknown) {
   return formatMoneyDisplay(value, EM_DASH);
@@ -41,10 +42,39 @@ export default function ContractDetailsPage() {
   const { activeOrganization } = useOrganization();
   const orgId = activeOrganization?.id;
   const { setTitle } = useHeader();
-  const [offerModalContext, setOfferModalContext] = useState<Parameters<typeof ReviewOfferModal>[0]["context"]>(null);
+  const [offerModalContext, setOfferModalContext] = useState<{
+    applicationId: string;
+    invoice: NormalizedInvoice;
+  } | null>(null);
   const [invoiceListFilters, setInvoiceListFilters] = useState<InvoiceFinancingListFiltersState>(
     DEFAULT_INVOICE_FINANCING_LIST_FILTERS
   );
+
+  const toNormalizedInvoiceForOfferModal = (inv: Invoice): NormalizedInvoice => {
+    const invoiceDetails = inv.details;
+    const od = inv.offer_details as Record<string, unknown> | null | undefined;
+    return {
+      id: inv.id,
+      number: invoiceDetails.number,
+      contractId: inv.contract_id ?? null,
+      maturityDate: invoiceDetails.maturity_date ?? null,
+      value: Number.isFinite(invoiceDetails.value as number) ? invoiceDetails.value : null,
+      appliedFinancing: null,
+      document: "—",
+      documentS3Key: null,
+      financingOffered: od?.offered_amount != null ? String(od.offered_amount) : "—",
+      platformFee: "—",
+      profitRate: od?.offered_profit_rate_percent != null ? `${od.offered_profit_rate_percent}%` : "—",
+      status: inv.status,
+      offerStatus: null,
+      canReviewOffer: true,
+      offer_details: od,
+      signedOfferLetterAvailable: false,
+      signedOfferLetterS3Key: null,
+      withdrawReason: undefined,
+      reasonOrRemarks: undefined,
+    };
+  };
 
   useEffect(() => {
     setTitle("Contract");
@@ -135,11 +165,16 @@ export default function ContractDetailsPage() {
 
   return (
     <div className={cn(shellClass, "space-y-5 md:space-y-6")}>
-      <ReviewOfferModal
-        open={offerModalContext !== null}
-        onOpenChange={(open) => !open && setOfferModalContext(null)}
-        context={offerModalContext}
-      />
+      {offerModalContext && (
+        <ReviewOfferModal
+          type="invoice"
+          applicationId={offerModalContext.applicationId}
+          contractId={contractId}
+          invoice={offerModalContext.invoice}
+          requiresInvoiceSigning
+          onClose={() => setOfferModalContext(null)}
+        />
+      )}
 
       <section className="mb-5 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
         <div>
@@ -294,11 +329,8 @@ export default function ContractDetailsPage() {
                 }}
                 onReviewOffer={() =>
                   setOfferModalContext({
-                    type: "invoice",
                     applicationId: inv.applicationId,
-                    invoiceId: inv.id,
-                    invoice: modalInvoice,
-                    contract: asContractForModal(row.contractForModal),
+                    invoice: toNormalizedInvoiceForOfferModal(modalInvoice) as unknown as NormalizedInvoice,
                   })
                 }
               />
