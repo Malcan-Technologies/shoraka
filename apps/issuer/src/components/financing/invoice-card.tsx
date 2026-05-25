@@ -59,17 +59,16 @@ function InvoiceFeeSummary({ display }: { display: ReturnType<typeof buildInvoic
   }
 
   const netLabel = display.phase === "charged" ? "Net disbursed" : "Expected net disbursement";
-  const feesLabel = display.phase === "charged" ? "Fees charged" : "Fees estimated";
-  const facilitySuffix = display.phase === "charged" ? "" : " est.";
   const capReached = display.facilityFeeFullyCollected && display.facilityFeeAmount === 0;
-  const parts = [
-    display.platformFeeAmount != null ? `Platform ${money(display.platformFeeAmount)}` : null,
+
+  const platformLabel = display.phase === "charged" ? "Platform fee charged" : "Platform fee";
+  const facilityLabel = display.phase === "charged" ? "Facility fee charged" : "Estimated facility fee";
+
+  const platformValue = display.platformFeeAmount != null ? money(display.platformFeeAmount) : "—";
+  const facilityValue =
     display.facilityFeeAmount != null
-      ? capReached
-        ? `Facility ${money(display.facilityFeeAmount)} (cap reached)`
-        : `Facility ${money(display.facilityFeeAmount)}${facilitySuffix}`
-      : null,
-  ].filter(Boolean);
+      ? `${money(display.facilityFeeAmount)}${capReached ? " (cap reached)" : ""}`
+      : "—";
 
   return (
     <div className="space-y-1">
@@ -78,12 +77,13 @@ function InvoiceFeeSummary({ display }: { display: ReturnType<typeof buildInvoic
           {money(display.netDisbursementAmount)}
         </LabelValue>
       ) : null}
-      <p className="text-[17px] leading-7 text-foreground">
-        <span className="font-normal text-muted-foreground">{feesLabel}: </span>
-        <span className="font-medium tabular-nums text-foreground">
-          {parts.length > 0 ? parts.join(" + ") : "—"}
-        </span>
-      </p>
+
+      <LabelValue label={platformLabel} tabular>
+        {platformValue}
+      </LabelValue>
+      <LabelValue label={facilityLabel} tabular>
+        {facilityValue}
+      </LabelValue>
     </div>
   );
 }
