@@ -26,6 +26,7 @@ import {
 import { WithdrawReason } from "@cashsouk/types";
 import { useOrganizationApplications } from "@/hooks/use-applications";
 import { getCardStatus, APPLICATION_STATUS_PRIORITY, type NormalizedApplication, type NormalizedInvoice } from "./status";
+import { numberOrNull } from "@/lib/facility-fee-display";
 
 export interface UseApplicationsDataOptions {
   debugShowSkeleton?: boolean;
@@ -284,13 +285,28 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
   else if (contractDetails.value != null) contractValue = Number(contractDetails.value);
 
   let approvedFacility = "N/A";
+  let approvedFacilityAmount: number | null = null;
   const approvedVal = resolveApprovedFacility(contractStatus ?? "", contractDetails);
   if (approvedVal > 0) {
+    approvedFacilityAmount = approvedVal;
     approvedFacility = formatCurrency(approvedVal);
   } else if (contractStatus === "APPROVED") {
     const ras = api.review_and_submit;
-    if (ras?.approved_facility != null) approvedFacility = formatCurrency(Number(ras.approved_facility));
+    if (ras?.approved_facility != null) {
+      approvedFacilityAmount = Number(ras.approved_facility);
+      approvedFacility = formatCurrency(approvedFacilityAmount);
+    }
   }
+
+  const facilityFeeRatePercent = numberOrNull(
+    contractDetails.facility_fee_rate_percent ??
+      (contract?.offer_details as Record<string, unknown> | null | undefined)?.facility_fee_rate_percent
+  );
+  const facilityFeePaidAmount = numberOrNull(contractDetails.facility_fee_paid_amount) ?? 0;
+  const facilityFeeCapAmount =
+    facilityFeeRatePercent != null && approvedFacilityAmount != null && facilityFeeRatePercent > 0
+      ? approvedFacilityAmount * (facilityFeeRatePercent / 100)
+      : null;
 
   const created = api.created_at ? new Date(api.created_at) : new Date();
   const updated = api.updated_at ? new Date(api.updated_at) : created;
@@ -331,6 +347,10 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     contractValue,
     facilityApplied,
     approvedFacility,
+    approvedFacilityAmount,
+    facilityFeeRatePercent,
+    facilityFeeCapAmount,
+    facilityFeePaidAmount,
     updatedAt: updated.toISOString(),
     invoices: invoices.map((inv, idx) => prepareInvoice(inv, contractStatus, structureType, idx, reviewRemarks)),
     contractStatus,

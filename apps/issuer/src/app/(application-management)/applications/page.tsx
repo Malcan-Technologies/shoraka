@@ -66,6 +66,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { buildContractFacilityFeeText } from "@/lib/facility-fee-display";
 
 const SKELETON_COUNT = 8;
 const MOCK_APPLICATION_COUNT = 10;
@@ -170,6 +171,11 @@ function ApplicationCard({
   const isDraft = application.status === "draft";
   const isGenericDraft = application.type === "Generic";
   const hasContract = application.type === "Contract financing";
+  const contractFacilityFeeText = buildContractFacilityFeeText({
+    ratePercent: application.facilityFeeRatePercent,
+    capAmount: application.facilityFeeCapAmount,
+    approvedFacilityAmount: application.approvedFacilityAmount,
+  });
 
   const useDraftCardLayout = isDraft && isGenericDraft;
 
@@ -355,6 +361,14 @@ function ApplicationCard({
                 </span>
                 <span className="text-muted-foreground">Approved facility:</span>
                 <span className="text-foreground">{application.approvedFacility}</span>
+                {contractFacilityFeeText ? (
+                  <>
+                    <span className="text-muted-foreground">Facility fee:</span>
+                    <span className="text-foreground">
+                      {contractFacilityFeeText.replace("Facility fee: ", "")}
+                    </span>
+                  </>
+                ) : null}
               </div>
             )}
           </div>

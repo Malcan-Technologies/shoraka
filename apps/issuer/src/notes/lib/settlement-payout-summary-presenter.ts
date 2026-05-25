@@ -29,6 +29,6 @@ export function issuerSettlementPayoutSummaryFromResidualStatus(
   return {
     tone: "emerald",
     badgeLabel: "Settled",
-    blurb: "Posted settlement allocation across the platform buckets.",
+    blurb: "Posted settlement allocation below.",
   };
 }

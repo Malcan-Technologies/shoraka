@@ -2010,6 +2010,7 @@ export class ApplicationService {
     const offerDetails: ContractOfferDetails = {
       requested_facility: Number(offer.requested_facility) || undefined,
       offered_facility: Number(offer.offered_facility) || undefined,
+      facility_fee_rate_percent: Number(offer.facility_fee_rate_percent) || undefined,
       expires_at: typeof offer.expires_at === "string" ? offer.expires_at : undefined,
     };
 
@@ -2041,7 +2042,7 @@ export class ApplicationService {
 
     const dbInvoice = await prisma.invoice.findFirst({
       where: { id: invoiceId, application_id: applicationId },
-      select: { status: true, offer_details: true },
+      select: { status: true, offer_details: true, contract_id: true },
     });
     if (!dbInvoice) {
       throw new AppError(404, "NOT_FOUND", "Invoice not found");
@@ -2056,12 +2057,32 @@ export class ApplicationService {
       throw new AppError(400, "INVALID_STATE", "Invoice has no offer details");
     }
 
+    let facilityFeeRatePercent: number | undefined;
+    let facilityFeeCapAmount: number | undefined;
+    if (dbInvoice.contract_id) {
+      const contract = await prisma.contract.findUnique({
+        where: { id: dbInvoice.contract_id },
+        select: { contract_details: true },
+      });
+      const cd = (contract?.contract_details as Record<string, unknown> | null) ?? null;
+      const rate = Number(cd?.facility_fee_rate_percent);
+      const approvedFacility = Number(cd?.approved_facility);
+      if (Number.isFinite(rate) && rate > 0) {
+        facilityFeeRatePercent = rate;
+        if (Number.isFinite(approvedFacility) && approvedFacility > 0) {
+          facilityFeeCapAmount = approvedFacility * (rate / 100);
+        }
+      }
+    }
+
     const offerDetails: InvoiceOfferDetails = {
       requested_amount: Number(offer.requested_amount) || undefined,
       offered_amount: Number(offer.offered_amount) || undefined,
       offered_ratio_percent: Number(offer.offered_ratio_percent) || undefined,
       offered_profit_rate_percent: Number(offer.offered_profit_rate_percent) || undefined,
       platform_fee_rate_percent: resolveOfferedPlatformFeeRatePercent(offer),
+      facility_fee_rate_percent: facilityFeeRatePercent,
+      facility_fee_cap_amount: facilityFeeCapAmount,
       expires_at: typeof offer.expires_at === "string" ? offer.expires_at : undefined,
     };
 

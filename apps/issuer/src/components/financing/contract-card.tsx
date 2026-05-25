@@ -188,6 +188,15 @@ export function DashboardContractCard({
                   <p className="text-sm font-normal leading-6 text-muted-foreground">(Approved facility)</p>
                 </div>
               </div>
+              {row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null ? (
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Facility fee collected:{" "}
+                  <span className="font-medium tabular-nums text-foreground">
+                    {formatMoney(row.facilityFeePaidAmount)} / {formatMoney(row.facilityFeeCapAmount)} cap
+                  </span>
+                  <span className="block">Deducted only when invoices are disbursed.</span>
+                </p>
+              ) : null}
             </div>
           </div>
         </div>

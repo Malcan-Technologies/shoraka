@@ -33,6 +33,7 @@ import {
 import { toast } from "sonner";
 import { formatMoneyDisplay } from "@cashsouk/ui";
 import type { Contract, Invoice } from "@cashsouk/types";
+import { buildInvoiceFeeDisplay, money, numberOrNull } from "@/lib/facility-fee-display";
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return "—";
@@ -47,7 +48,7 @@ function formatDate(value: string | null | undefined): string {
 
 type OfferContext =
   | { type: "contract"; applicationId: string; contract: Contract }
-  | { type: "invoice"; applicationId: string; invoiceId: string; invoice: Invoice };
+  | { type: "invoice"; applicationId: string; invoiceId: string; invoice: Invoice; contract?: Contract };
 
 interface ReviewOfferModalProps {
   open: boolean;
@@ -129,6 +130,33 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
 
   const od = context.type === "contract" ? context.contract?.offer_details : context.invoice?.offer_details;
   const details = od as Record<string, unknown> | null | undefined;
+  const contractDetails =
+    context.type === "invoice"
+      ? (context.contract?.contract_details as Record<string, unknown> | null | undefined)
+      : null;
+  const approvedFacilityAmount = numberOrNull(contractDetails?.approved_facility);
+  const facilityFeeRatePercent = numberOrNull(contractDetails?.facility_fee_rate_percent);
+  const facilityFeePaidAmount = numberOrNull(contractDetails?.facility_fee_paid_amount) ?? 0;
+  const facilityFeeCapAmount =
+    approvedFacilityAmount != null && facilityFeeRatePercent != null && facilityFeeRatePercent > 0
+      ? approvedFacilityAmount * (facilityFeeRatePercent / 100)
+      : null;
+  const invoiceFeeDisplay =
+    context.type === "invoice"
+      ? buildInvoiceFeeDisplay({
+          status: context.invoice.status,
+          offerDetails: details,
+          financingAmount: context.invoice.details?.value,
+          isContractFinancing: Boolean(context.invoice.contract_id),
+          contractFacilityFeeRatePercent: facilityFeeRatePercent,
+          contractFacilityFeeCapAmount: facilityFeeCapAmount,
+          contractFacilityFeePaidAmount: facilityFeePaidAmount,
+        })
+      : null;
+  const facilityFeeRemainingAfter =
+    invoiceFeeDisplay?.facilityFeeAmount != null && facilityFeeCapAmount != null
+      ? Math.max(0, facilityFeeCapAmount - facilityFeePaidAmount - invoiceFeeDisplay.facilityFeeAmount)
+      : null;
 
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
@@ -187,14 +215,59 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
                   )}
                 </>
               )}
-              {details.platform_fee_rate_percent != null && (
+              {details.platform_fee_rate_percent != null &&
+              invoiceFeeDisplay?.phase !== "estimated" && (
                 <>
-                  <dt className="text-muted-foreground">Platform fee</dt>
+                  <dt className="text-muted-foreground">Platform fee deducted</dt>
                   <dd className="font-medium text-foreground">
                     {(details.platform_fee_rate_percent as number)}% at disbursement
                   </dd>
                 </>
               )}
+              {invoiceFeeDisplay?.phase === "estimated" &&
+              invoiceFeeDisplay.platformFeeAmount != null &&
+              invoiceFeeDisplay.netDisbursementAmount != null ? (
+                <>
+                  <dt className="text-muted-foreground">Financing amount</dt>
+                  <dd className="font-medium text-foreground">
+                    {formatMoneyDisplay(details.offered_amount as number)}
+                  </dd>
+                  <dt className="text-muted-foreground">Platform fee deducted</dt>
+                  <dd className="font-medium text-foreground">
+                    {money(invoiceFeeDisplay.platformFeeAmount)}
+                  </dd>
+                  {invoiceFeeDisplay.facilityFeeAmount != null ? (
+                    <>
+                      <dt className="text-muted-foreground">Estimated facility fee</dt>
+                      <dd className="font-medium text-foreground">
+                        {money(invoiceFeeDisplay.facilityFeeAmount)}
+                      </dd>
+                    </>
+                  ) : null}
+                  <dt className="text-muted-foreground">Expected net disbursement</dt>
+                  <dd className="font-medium text-foreground">
+                    {money(invoiceFeeDisplay.netDisbursementAmount)}
+                  </dd>
+                  {facilityFeeCapAmount != null ? (
+                    <>
+                      <dt className="text-muted-foreground">Facility fee cap</dt>
+                      <dd className="font-medium text-foreground">{money(facilityFeeCapAmount)}</dd>
+                    </>
+                  ) : null}
+                  {context.invoice.contract_id ? (
+                    <>
+                      <dt className="text-muted-foreground">Facility fee collected so far</dt>
+                      <dd className="font-medium text-foreground">{money(facilityFeePaidAmount)}</dd>
+                    </>
+                  ) : null}
+                  {facilityFeeRemainingAfter != null ? (
+                    <>
+                      <dt className="text-muted-foreground">Facility fee remaining after this invoice</dt>
+                      <dd className="font-medium text-foreground">{money(facilityFeeRemainingAfter)}</dd>
+                    </>
+                  ) : null}
+                </>
+              ) : null}
               <dt className="text-muted-foreground">Expires</dt>
               <dd className="font-medium text-foreground">
                 {formatDate(details.expires_at as string)}

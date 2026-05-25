@@ -154,6 +154,10 @@ export interface NormalizedApplication {
   contractValue: number | null;
   facilityApplied: number | null;
   approvedFacility: string;
+  approvedFacilityAmount: number | null;
+  facilityFeeRatePercent: number | null;
+  facilityFeeCapAmount: number | null;
+  facilityFeePaidAmount: number | null;
   updatedAt: string;
   invoices: NormalizedInvoice[];
   contractStatus: string | null;

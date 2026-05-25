@@ -28,7 +28,7 @@ import {
 import { ReviewOfferModal } from "@/components/review-offer-modal";
 import { getOfferStatus } from "@/lib/offer-utils";
 import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labels";
-import { asInvoiceForModal } from "@/types/issuer-dashboard";
+import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
 import type { Invoice } from "@cashsouk/types";
 
 function formatMoney(value: unknown) {
@@ -74,8 +74,6 @@ export default function ContractDetailsPage() {
     row?.facilityFeeCapAmount != null ? Number(row.facilityFeeCapAmount) : null;
   const facilityFeePaidNum =
     row?.facilityFeePaidAmount != null ? Number(row.facilityFeePaidAmount) : null;
-  const facilityFeeRemainingNum =
-    row?.facilityFeeRemainingAmount != null ? Number(row.facilityFeeRemainingAmount) : null;
 
   const contractPeriod =
     row?.contractStartDate && row?.contractEndDate
@@ -190,33 +188,16 @@ export default function ContractDetailsPage() {
                   </div>
                 </div>
 
-                {row.facilityFeeCapAmount != null &&
-                row.facilityFeePaidAmount != null &&
-                row.facilityFeeRemainingAmount != null ? (
-                  <div className="mt-4 space-y-3">
-                    <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Facility fee tracker
-                    </h4>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                      <MetricBox
-                        label="Cap"
-                        value={facilityFeeCapNum != null ? formatMoney(facilityFeeCapNum) : EM_DASH}
-                      />
-                      <MetricBox
-                        label="Paid so far"
-                        value={
-                          facilityFeePaidNum != null ? formatMoney(facilityFeePaidNum) : EM_DASH
-                        }
-                      />
-                      <MetricBox
-                        label="Remaining"
-                        value={
-                          facilityFeeRemainingNum != null
-                            ? formatMoney(facilityFeeRemainingNum)
-                            : EM_DASH
-                        }
-                      />
-                    </div>
+                {row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null ? (
+                  <div className="mt-3 text-sm leading-6 text-muted-foreground">
+                    <p>
+                      Facility fee collected:{" "}
+                      <span className="font-medium tabular-nums text-foreground">
+                        {facilityFeePaidNum != null ? formatMoney(facilityFeePaidNum) : EM_DASH} /{" "}
+                        {facilityFeeCapNum != null ? formatMoney(facilityFeeCapNum) : EM_DASH} cap
+                      </span>
+                    </p>
+                    <p>Deducted progressively when invoice financing is disbursed.</p>
                   </div>
                 ) : null}
               </div>
@@ -290,12 +271,20 @@ export default function ContractDetailsPage() {
                 key={inv.id}
                 row={inv}
                 offerStatus={getOfferStatus(modalInvoice)}
+                contractFeeContext={{
+                  facilityFeeRatePercent:
+                    (asContractForModal(row.contractForModal).contract_details as Record<string, unknown> | null)
+                      ?.facility_fee_rate_percent,
+                  facilityFeeCapAmount: row.facilityFeeCapAmount,
+                  facilityFeePaidAmount: row.facilityFeePaidAmount,
+                }}
                 onReviewOffer={() =>
                   setOfferModalContext({
                     type: "invoice",
                     applicationId: inv.applicationId,
                     invoiceId: inv.id,
                     invoice: modalInvoice,
+                    contract: asContractForModal(row.contractForModal),
                   })
                 }
               />

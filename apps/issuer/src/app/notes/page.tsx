@@ -257,7 +257,7 @@ export default function IssuerNotesPage() {
                                 : {
                                     tone: "emerald" as const,
                                     blurb:
-                                      "Posted settlement allocation across the platform buckets.",
+                                      "Posted settlement allocation below.",
                                   };
                               const isAmber = preset.tone === "amber";
                               const labelMuted = isAmber

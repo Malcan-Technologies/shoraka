@@ -375,7 +375,7 @@ export default function IssuerNoteDetailPage() {
       ? "Posted allocation below. Your residual is still being paid via the trustee; it is not complete until that payout is marked paid."
       : issuerResidualDisbursement?.kind === "awaiting"
         ? "Posted allocation below. Your residual has not been sent yet; admin will initiate the trustee withdrawal."
-        : "Posted settlement allocation across the platform buckets.";
+        : "Posted settlement allocation below.";
   const riskRating = getRiskRating(note);
   const riskRatingForBadge = riskRating === "—" ? null : riskRating;
 
@@ -656,7 +656,7 @@ export default function IssuerNoteDetailPage() {
                 </div>
               ) : null}
               <div className="flex items-center justify-between gap-4 pt-1">
-                <span className="text-sm text-muted-foreground">Net amount to issuer</span>
+                <span className="text-sm text-muted-foreground">Net to issuer</span>
                 <span className="text-sm font-semibold text-primary tabular-nums">
                   {formatCurrency(issuerDisbursementWithdrawal.netIssuerDisbursement!)}
                 </span>
@@ -674,27 +674,27 @@ export default function IssuerNoteDetailPage() {
             <CardContent className="space-y-4">
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                 <BucketPayoutCard
-                  label="Repayment Pool"
+                  label="Total received"
                   value={settlementSummary.grossReceiptAmount}
-                  description="Gross receipt paid into the repayment pool."
+                  description="Gross receipt recorded for this note."
                 />
                 <BucketPayoutCard
-                  label="Investor Pool"
+                  label="Investors"
                   value={settlementSummary.investorPoolAmount}
                   description="Principal, net profit, and any investor Ta'widh compensation."
                 />
                 <BucketPayoutCard
-                  label="Operating Account"
+                  label="Platform fee"
                   value={settlementSummary.operatingAccountAmount}
                   description="Service fee retained by the platform."
                 />
                 <BucketPayoutCard
-                  label="Ta'widh Account"
+                  label="Ta'widh"
                   value={settlementSummary.tawidhAccountAmount}
                   description={`${formatCurrency(settlementSummary.totalTawidhAmount)} total Ta'widh; ${formatCurrency(settlementSummary.tawidhInvestorAmount)} allocated to investors.`}
                 />
                 <BucketPayoutCard
-                  label="Gharamah Account"
+                  label="Gharamah"
                   value={settlementSummary.gharamahAccountAmount}
                   description="Approved charity/penalty late-fee allocation."
                 />
@@ -795,7 +795,7 @@ export default function IssuerNoteDetailPage() {
 
         <LedgerPanel
           note={note}
-          description="Movements between platform buckets only. Trustee and bank legs are not mirrored, so this is not a full double-entry view and totals are not shown."
+          description="Posted note activity. Trustee and bank transfer details are shown only when available."
         />
       </div>
 

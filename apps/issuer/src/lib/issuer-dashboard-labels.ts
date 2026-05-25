@@ -1,7 +1,7 @@
 import { InvoiceStatus } from "@cashsouk/types";
 import type { IssuerDashboardNote } from "@/types/issuer-dashboard";
 
-/** Issuer financing dashboard (cards + contract detail): only these seven user-facing buckets. */
+/** Issuer financing dashboard (cards + contract detail): only these seven user-facing groups. */
 export type IssuerFinancingStatusKind =
   | "draft"
   | "pending_approval"

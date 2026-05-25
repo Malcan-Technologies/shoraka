@@ -25,6 +25,7 @@ import {
   formatDate,
   formatMoney,
 } from "./utils";
+import { buildInvoiceFeeDisplay, money } from "@/lib/facility-fee-display";
 
 function offerBadge(offerStatus: OfferStatus) {
   if (!offerStatus) return null;
@@ -49,14 +50,57 @@ function ReviewOfferButton({ show, onClick }: { show: boolean; onClick?: () => v
   );
 }
 
+function InvoiceFeeSummary({ display }: { display: ReturnType<typeof buildInvoiceFeeDisplay> }) {
+  if (display.phase === "none") {
+    return <LabelValue label="Fees">—</LabelValue>;
+  }
+  if (display.phase === "pending") {
+    return <LabelValue label="Fees">To be confirmed</LabelValue>;
+  }
+
+  const netLabel = display.phase === "charged" ? "Net disbursed" : "Expected net disbursement";
+  const feesLabel = display.phase === "charged" ? "Fees charged" : "Fees estimated";
+  const facilitySuffix = display.phase === "charged" ? "" : " est.";
+  const parts = [
+    display.platformFeeAmount != null ? `Platform ${money(display.platformFeeAmount)}` : null,
+    display.facilityFeeAmount != null
+      ? `Facility ${money(display.facilityFeeAmount)}${
+          display.facilityFeeFullyCollected ? " fully collected" : facilitySuffix
+        }`
+      : null,
+  ].filter(Boolean);
+
+  return (
+    <div className="space-y-1">
+      {display.netDisbursementAmount != null ? (
+        <LabelValue label={netLabel} tabular>
+          {money(display.netDisbursementAmount)}
+        </LabelValue>
+      ) : null}
+      <p className="text-[17px] leading-7 text-foreground">
+        <span className="font-normal text-muted-foreground">{feesLabel}: </span>
+        <span className="font-medium tabular-nums text-foreground">
+          {parts.length > 0 ? parts.join(" + ") : "—"}
+        </span>
+      </p>
+    </div>
+  );
+}
+
 export function DashboardInvoiceCard({
   row,
   offerStatus,
   onReviewOffer,
+  contractFeeContext,
 }: {
   row: IssuerDashboardInvoice;
   offerStatus: OfferStatus;
   onReviewOffer: () => void;
+  contractFeeContext?: {
+    facilityFeeRatePercent?: unknown;
+    facilityFeeCapAmount?: unknown;
+    facilityFeePaidAmount?: unknown;
+  };
 }) {
   const router = useRouter();
   const actionRequiredApplicationIds = row.actionRequiredApplicationIds ?? [];
@@ -70,6 +114,21 @@ export function DashboardInvoiceCard({
   const noteRef = displayCell(row.note?.noteReference);
   const invDetails = asInvoiceForModal(row.invoiceForModal)?.details;
   const maturityRaw = invDetails?.maturity_date ?? row.note?.maturityDate ?? null;
+  const offerDetails = asInvoiceForModal(row.invoiceForModal)?.offer_details as
+    | Record<string, unknown>
+    | null
+    | undefined;
+  const feeDisplay = buildInvoiceFeeDisplay({
+    status: row.note?.noteStatus ?? row.invoiceStatus,
+    offerDetails,
+    financingAmount: row.financingAmount,
+    isContractFinancing: Boolean(row.contractId),
+    contractFacilityFeeRatePercent: contractFeeContext?.facilityFeeRatePercent,
+    contractFacilityFeeCapAmount: contractFeeContext?.facilityFeeCapAmount,
+    contractFacilityFeePaidAmount: contractFeeContext?.facilityFeePaidAmount,
+    actual: row.note?.disbursementBreakdown,
+  });
+  const showFeeSummary = feeDisplay.phase !== "pending" || offerStatus === "Offer received";
 
   return (
     <Card className="min-w-0 max-w-full rounded-xl border border-border bg-muted/50 shadow-none">
@@ -157,6 +216,7 @@ export function DashboardInvoiceCard({
               <LabelValue label="Financing amount" tabular>
                 {formatMoney(row.financingAmount)}
               </LabelValue>
+              {showFeeSummary ? <InvoiceFeeSummary display={feeDisplay} /> : null}
             </div>
             <div className="min-w-0 w-full space-y-2">
               <div className="h-3 w-full overflow-hidden rounded-full border border-border bg-foreground/35 dark:bg-muted shadow-sm">

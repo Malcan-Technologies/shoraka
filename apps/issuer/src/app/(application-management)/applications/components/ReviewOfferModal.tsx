@@ -190,6 +190,14 @@ export function ReviewOfferModal({
         )
       : null;
 
+  const contractFacilityFeeCapAmountNumber =
+    approvedFacilityAmountNumber != null &&
+    contractFacilityFeeRatePercentNumber != null &&
+    Number.isFinite(approvedFacilityAmountNumber) &&
+    Number.isFinite(contractFacilityFeeRatePercentNumber)
+      ? (approvedFacilityAmountNumber * contractFacilityFeeRatePercentNumber) / 100
+      : null;
+
   const invoiceFinancingAmountNumber =
     type === "invoice" && od?.offered_amount != null ? Number(od.offered_amount) : null;
 
@@ -234,6 +242,11 @@ export function ReviewOfferModal({
     invoiceFinancingAmountNumber != null &&
     Number.isFinite(invoiceFinancingAmountNumber)
       ? invoiceFinancingAmountNumber - expectedPlatformFeeNumber - expectedFacilityFeeNumber
+      : null;
+
+  const facilityFeeRemainingAfterInvoiceNumber =
+    facilityFeeRemainingAmountNumber != null && expectedFacilityFeeNumber != null
+      ? Math.max(0, facilityFeeRemainingAmountNumber - expectedFacilityFeeNumber)
       : null;
 
   const showExpectedInvoiceFacilityBreakdown =
@@ -460,7 +473,7 @@ export function ReviewOfferModal({
                       ? `${facilityFeeRatePercentNumber}%`
                       : "—"}
                   </dd>
-                  <dt className="text-muted-foreground font-medium">Maximum facility fee:</dt>
+                  <dt className="text-muted-foreground font-medium">Facility fee cap:</dt>
                   <dd className="font-medium text-foreground text-right tabular-nums">
                     {maximumFacilityFeeNumber != null
                       ? formatCurrency(maximumFacilityFeeNumber)
@@ -481,17 +494,17 @@ export function ReviewOfferModal({
             {type === "invoice" ? (
                 showExpectedInvoiceFacilityBreakdown ? (
                   <>
-                    <dt className="text-muted-foreground font-medium">Invoice financing amount</dt>
+                    <dt className="text-muted-foreground font-medium">Financing amount</dt>
                     <dd className="font-medium text-foreground text-right tabular-nums">
                       {formatCurrency(invoiceFinancingAmountNumber ?? 0)}
                     </dd>
 
-                    <dt className="text-muted-foreground font-medium">Expected platform fee</dt>
+                    <dt className="text-muted-foreground font-medium">Platform fee deducted</dt>
                     <dd className="font-medium text-foreground text-right tabular-nums">
                       {expectedPlatformFeeNumber != null ? formatCurrency(expectedPlatformFeeNumber) : "—"}
                     </dd>
 
-                    <dt className="text-muted-foreground font-medium">Expected facility fee</dt>
+                    <dt className="text-muted-foreground font-medium">Estimated facility fee</dt>
                     <dd className="font-medium text-foreground text-right tabular-nums">
                       {expectedFacilityFeeNumber != null ? formatCurrency(expectedFacilityFeeNumber) : "—"}
                     </dd>
@@ -500,15 +513,40 @@ export function ReviewOfferModal({
                     <dd className="font-medium text-foreground text-right tabular-nums">
                       {expectedNetDisbursementNumber != null ? formatCurrency(expectedNetDisbursementNumber) : "—"}
                     </dd>
+
+                    {contractFacilityFeeCapAmountNumber != null ? (
+                      <>
+                        <dt className="text-muted-foreground font-medium">Facility fee cap</dt>
+                        <dd className="font-medium text-foreground text-right tabular-nums">
+                          {formatCurrency(contractFacilityFeeCapAmountNumber)}
+                        </dd>
+                      </>
+                    ) : null}
+                    {contractFacilityFeePaidAmountNumber != null ? (
+                      <>
+                        <dt className="text-muted-foreground font-medium">Facility fee collected so far</dt>
+                        <dd className="font-medium text-foreground text-right tabular-nums">
+                          {formatCurrency(contractFacilityFeePaidAmountNumber)}
+                        </dd>
+                      </>
+                    ) : null}
+                    {facilityFeeRemainingAfterInvoiceNumber != null ? (
+                      <>
+                        <dt className="text-muted-foreground font-medium">Facility fee remaining after this invoice</dt>
+                        <dd className="font-medium text-foreground text-right tabular-nums">
+                          {formatCurrency(facilityFeeRemainingAfterInvoiceNumber)}
+                        </dd>
+                      </>
+                    ) : null}
                   </>
                 ) : showExpectedInvoicePlatformOnlyBreakdown ? (
                   <>
-                    <dt className="text-muted-foreground font-medium">Invoice financing amount</dt>
+                    <dt className="text-muted-foreground font-medium">Financing amount</dt>
                     <dd className="font-medium text-foreground text-right tabular-nums">
                       {formatCurrency(invoiceFinancingAmountNumber ?? 0)}
                     </dd>
 
-                    <dt className="text-muted-foreground font-medium">Expected platform fee</dt>
+                    <dt className="text-muted-foreground font-medium">Platform fee deducted</dt>
                     <dd className="font-medium text-foreground text-right tabular-nums">
                       {expectedPlatformFeeNumber != null ? formatCurrency(expectedPlatformFeeNumber) : "—"}
                     </dd>
@@ -536,14 +574,16 @@ export function ReviewOfferModal({
 
             {type === "contract" ? (
               <p className="mt-3 text-xs text-muted-foreground">
-                Facility fee is charged progressively only when invoice financing is disbursed.
+                Facility fee is deducted progressively when invoice financing is disbursed.
               </p>
             ) : null}
 
             {type === "invoice" &&
             (showExpectedInvoiceFacilityBreakdown || showExpectedInvoicePlatformOnlyBreakdown) ? (
               <p className="mt-3 text-xs text-muted-foreground">
-                Final amount is confirmed at disbursement.
+                {showExpectedInvoiceFacilityBreakdown
+                  ? "Facility fee is deducted progressively when invoice financing is disbursed."
+                  : "Final amount is confirmed at disbursement."}
               </p>
             ) : null}
 
