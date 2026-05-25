@@ -24,10 +24,46 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function numberOrNull(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value.replace(/,/g, ""));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 function getRiskRating(note: NoteDetail) {
   const offerDetails = asRecord(note.invoiceSnapshot?.offer_details);
   const riskRating = offerDetails?.risk_rating;
   return isSoukscoreRiskRating(riskRating) ? riskRating : "—";
+}
+
+function getFacilityFeeDisplay(note: NoteDetail): string | null {
+  const disbursement = note.withdrawals?.find(
+    (withdrawal) => withdrawal.withdrawalType === "ISSUER_DISBURSEMENT"
+  );
+  const chargedAmount = numberOrNull(disbursement?.facilityFeeCharged);
+  if (chargedAmount != null && chargedAmount > 0) {
+    return `${formatCurrency(chargedAmount)} charged`;
+  }
+
+  const contract = asRecord(note.contractSnapshot);
+  const contractDetails = asRecord(contract?.contract_details);
+  const rate = numberOrNull(contractDetails?.facility_fee_rate_percent);
+  if (rate == null || rate <= 0) return null;
+
+  const approvedFacility = numberOrNull(contractDetails?.approved_facility);
+  const paidAmount = numberOrNull(contractDetails?.facility_fee_paid_amount) ?? 0;
+  const cap = approvedFacility != null ? approvedFacility * (rate / 100) : null;
+  const remainingCap = cap != null ? Math.max(0, cap - paidAmount) : null;
+  const baseAmount = numberOrNull(note.fundedAmount) ?? numberOrNull(note.targetAmount);
+  if (baseAmount == null || baseAmount <= 0) return null;
+
+  const rawFee = baseAmount * (rate / 100);
+  const estimatedFee = remainingCap != null ? Math.min(rawFee, remainingCap) : rawFee;
+  if (estimatedFee <= 0) return null;
+  return `Estimated ${formatCurrency(estimatedFee)}`;
 }
 
 function getFundingProgressClass(note: NoteDetail) {
@@ -45,6 +81,7 @@ export function NoteTermsPanel({ note }: { note: NoteDetail }) {
   const riskRating = getRiskRating(note);
   const progressValue = Math.min(Math.max(note.fundingPercent, 0), 100);
   const progressClassName = getFundingProgressClass(note);
+  const facilityFeeDisplay = getFacilityFeeDisplay(note);
   const isFundingOpen = note.fundingStatus === "OPEN";
   const isFundingClosed = note.fundingStatus === "CLOSED" || note.fundingStatus === "FUNDED";
   const fundingStatusLabel = isFundingOpen
@@ -96,6 +133,7 @@ export function NoteTermsPanel({ note }: { note: NoteDetail }) {
             value={note.profitRatePercent == null ? "—" : `${note.profitRatePercent}% p.a.`}
           />
           <Row label="Platform fee" value={`${note.platformFeeRatePercent}% at disbursement`} />
+          {facilityFeeDisplay ? <Row label="Facility fee" value={facilityFeeDisplay} /> : null}
           <Row label="Service fee" value={`${note.serviceFeeRatePercent}% of investor profit`} />
           <Row
             label="Late caps"

@@ -64,9 +64,9 @@ function InvoiceFeeSummary({ display }: { display: ReturnType<typeof buildInvoic
   const parts = [
     display.platformFeeAmount != null ? `Platform ${money(display.platformFeeAmount)}` : null,
     display.facilityFeeAmount != null
-      ? `Facility ${money(display.facilityFeeAmount)}${
-          display.facilityFeeFullyCollected ? " fully collected" : facilitySuffix
-        }`
+      ? display.facilityFeeFullyCollected
+        ? "Facility fee fully collected"
+        : `Facility ${money(display.facilityFeeAmount)}${facilitySuffix}`
       : null,
   ].filter(Boolean);
 

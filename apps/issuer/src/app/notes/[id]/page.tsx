@@ -605,9 +605,8 @@ export default function IssuerNoteDetailPage() {
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              Open the payment instructions, transfer the amount you are confirming into the
-              repayment pool on behalf of the paymaster, then submit the reference for admin
-              reconciliation.
+              Open the payment instructions, transfer the amount you are confirming on behalf of
+              the paymaster, then submit the reference for admin reconciliation.
             </p>
             {paymentBlockedReason ? (
               <div
@@ -818,7 +817,7 @@ export default function IssuerNoteDetailPage() {
           <DialogHeader>
             <DialogTitle>Confirm repayment (on behalf of paymaster)</DialogTitle>
             <DialogDescription className="text-[15px] leading-7">
-              Use the instructions below to pay into the Repayment Pool. Submit this confirmation
+              Use the instructions below to make the repayment transfer. Submit this confirmation
               only after the transfer for the amount you enter has been made. Admin will reconcile
               before settlement is posted.
             </DialogDescription>
@@ -830,7 +829,7 @@ export default function IssuerNoteDetailPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <span>Repayment pool received</span>
+                      <span>Repayments received</span>
                       <InfoTooltip
                         content={REPAYMENT_POOL_RECEIVED_TOOLTIP}
                         iconClassName="h-3.5 w-3.5 shrink-0"

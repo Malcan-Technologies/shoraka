@@ -199,8 +199,9 @@ function InvoiceFeesCell({
       ) : null}
       {display.facilityFeeAmount != null ? (
         <p className="whitespace-nowrap tabular-nums">
-          Facility {money(display.facilityFeeAmount)}
-          {display.facilityFeeFullyCollected ? " fully collected" : facilitySuffix}
+          {display.facilityFeeFullyCollected
+            ? "Facility fee fully collected"
+            : `Facility ${money(display.facilityFeeAmount)}${facilitySuffix}`}
         </p>
       ) : null}
     </div>

@@ -65,6 +65,15 @@ export default function ContractDetailsPage() {
 
   const approvedNum = row?.approvedFacilityAmount != null ? Number(row.approvedFacilityAmount) : null;
   const utilizedNum = row?.utilizedFacilityAmount != null ? Number(row.utilizedFacilityAmount) : null;
+  const availableNum = row?.availableFacilityAmount != null ? Number(row.availableFacilityAmount) : null;
+  const overUtilizedAmount =
+    approvedNum != null && utilizedNum != null && utilizedNum > approvedNum
+      ? utilizedNum - approvedNum
+      : availableNum != null && availableNum < 0
+        ? Math.abs(availableNum)
+        : null;
+  const availableFacilityDisplay =
+    availableNum != null ? Math.max(0, availableNum) : approvedNum != null && utilizedNum != null ? Math.max(0, approvedNum - utilizedNum) : null;
   const utilisationPct =
     approvedNum != null && utilizedNum != null && approvedNum > 0
       ? Math.round((utilizedNum / approvedNum) * 100)
@@ -165,8 +174,13 @@ export default function ContractDetailsPage() {
 
               <div className="min-w-0 w-full space-y-2">
                 <LabelValue label="Available facility" tabular>
-                  {row.availableFacilityAmount != null ? formatMoney(row.availableFacilityAmount) : EM_DASH}
+                  {availableFacilityDisplay != null ? formatMoney(availableFacilityDisplay) : EM_DASH}
                 </LabelValue>
+                {overUtilizedAmount != null && overUtilizedAmount > 0 ? (
+                  <p className="text-xs font-medium leading-5 text-amber-700">
+                    Over-utilised by {formatMoney(overUtilizedAmount)}
+                  </p>
+                ) : null}
                 <div className="h-2 w-full overflow-hidden rounded-full border border-border bg-foreground/35 shadow-sm dark:bg-muted">
                   <div
                     className="h-2 rounded-full bg-foreground"
