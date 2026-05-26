@@ -188,6 +188,24 @@ export function IssuerPayoutCard({
       )
     ) : null;
 
+  const generateLetterDisabledBecauseShoraka =
+    shouldGateMarkDisbursed &&
+    (shorakaStateQuery.isPending ||
+      shorakaStateQuery.isError ||
+      !shorakaTradeOrder ||
+      !hasShorakaCertificate);
+
+  const generateLetterHelperText =
+    shouldGateMarkDisbursed && generateLetterDisabledBecauseShoraka ? (
+      shorakaStateQuery.isPending ? (
+        "Checking Tawarruq certificate status…"
+      ) : shorakaStateQuery.isError ? (
+        "Unable to verify Tawarruq certificate status. Please refresh and try again."
+      ) : (
+        "Tawarruq Certificate must be fetched before generating the trustee letter."
+      )
+    ) : null;
+
   const [confirmAction, setConfirmAction] = React.useState<
     "generate" | "submit" | "complete" | null
   >(null);
@@ -229,6 +247,10 @@ export function IssuerPayoutCard({
           toast.error(
             "Add at least the issuer bank name and account number before generating the letter."
           );
+          return;
+        }
+        if (generateLetterDisabledBecauseShoraka) {
+          toast.error(generateLetterHelperText ?? "Tawarruq Certificate is required.");
           return;
         }
         await generateLetter.mutateAsync(withdrawal.id);
@@ -726,12 +748,15 @@ export function IssuerPayoutCard({
           <Button
             size="sm"
             onClick={() => guardedAction(() => setConfirmAction("generate"))}
-            disabled={pendingAny || !beneficiaryComplete}
+            disabled={pendingAny || !beneficiaryComplete || generateLetterDisabledBecauseShoraka}
             className="gap-1.5"
           >
             <DocumentTextIcon className="h-4 w-4" />
             Generate Letter
           </Button>
+        ) : null}
+        {status === "DRAFT" && generateLetterHelperText ? (
+          <div className="w-full text-right text-xs text-muted-foreground">{generateLetterHelperText}</div>
         ) : null}
         {status === "LETTER_GENERATED" ? (
           <Button
