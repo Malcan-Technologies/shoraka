@@ -27,6 +27,10 @@ export function isCreditTransaction(type: TransactionType): boolean {
   return type === "Deposit" || type === "Returns" || type === "Release";
 }
 
+export function getTransactionAmountToneClassName(type: TransactionType): string {
+  return isCreditTransaction(type) ? "text-emerald-700" : "text-destructive";
+}
+
 export function formatSignedTransactionAmount(type: TransactionType, amount: number): string {
   const prefix = isCreditTransaction(type) ? "+" : "-";
   return `${prefix}${formatCurrency(amount)}`;

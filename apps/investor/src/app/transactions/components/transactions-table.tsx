@@ -18,7 +18,7 @@ import type { Transaction, TransactionContext, TransactionType } from "./transac
 import { TRANSACTION_TYPE_FILTER_OPTIONS } from "./transactions.types";
 import {
   formatTransactionDateTime,
-  isCreditTransaction,
+  getTransactionAmountToneClassName,
   splitBalanceAmount,
   splitSignedTransactionAmount,
 } from "./transaction-utils";
@@ -139,7 +139,7 @@ function FilterButton({
 }
 
 function DesktopTransactionRow({ tx }: { tx: Transaction }) {
-  const isCredit = isCreditTransaction(tx.type);
+  const amountToneClassName = getTransactionAmountToneClassName(tx.type);
 
   return (
     <div className={cn(DESKTOP_ROW, "border-b border-border py-4 last:border-b-0")}>
@@ -149,7 +149,7 @@ function DesktopTransactionRow({ tx }: { tx: Transaction }) {
       </TableCell>
       <MoneyTableCell
         {...splitSignedTransactionAmount(tx.type, tx.amount)}
-        toneClassName={isCredit ? "text-emerald-700" : "text-foreground"}
+        toneClassName={amountToneClassName}
       />
       <MoneyTableCell {...splitBalanceAmount(tx.balance)} />
       <TableCell className="pr-6 text-right text-sm tabular-nums text-muted-foreground whitespace-nowrap">
@@ -162,7 +162,7 @@ function DesktopTransactionRow({ tx }: { tx: Transaction }) {
 function MobileTransactionRow({ tx }: { tx: Transaction }) {
   const amount = splitSignedTransactionAmount(tx.type, tx.amount);
   const balance = splitBalanceAmount(tx.balance);
-  const isCredit = isCreditTransaction(tx.type);
+  const amountToneClassName = getTransactionAmountToneClassName(tx.type);
 
   return (
     <div className="space-y-2 px-6 py-4">
@@ -171,12 +171,7 @@ function MobileTransactionRow({ tx }: { tx: Transaction }) {
           <p className="font-medium">{tx.type}</p>
           <TransactionContextSubtitle context={tx.context} />
         </div>
-        <div
-          className={cn(
-            "shrink-0 font-medium tabular-nums",
-            isCredit ? "text-emerald-700" : "text-foreground"
-          )}
-        >
+        <div className={cn("shrink-0 font-medium tabular-nums", amountToneClassName)}>
           <span>{amount.prefix}</span>
           <span>{amount.digits}</span>
         </div>
