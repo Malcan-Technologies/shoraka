@@ -444,6 +444,17 @@ export function FinancialStatementsStep({
   const [activeYearTab, setActiveYearTab] = React.useState("");
   const [initialPayloadSnapshot, setInitialPayloadSnapshot] = React.useState("");
 
+  // If the user navigates between applications without a full page refresh, this step component may keep its
+  // local state. Reset it whenever `applicationId` changes so auto-prefill and form initialization rerun.
+  React.useEffect(() => {
+    setIsInitialized(false);
+    setAutoPrefillApplied(false);
+    setFyeDateInput("");
+    setFormsByYear({});
+    setActiveYearTab("");
+    setInitialPayloadSnapshot("");
+  }, [applicationId]);
+
   const onDataChangeRef = React.useRef(onDataChange);
   React.useEffect(() => {
     onDataChangeRef.current = onDataChange;
