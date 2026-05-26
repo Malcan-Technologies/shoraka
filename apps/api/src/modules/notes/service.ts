@@ -4346,6 +4346,23 @@ export class NoteService {
     const withdrawal = await prisma.withdrawalInstruction.findUnique({ where: { id } });
     if (!withdrawal)
       throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal instruction not found");
+
+    // Issuer disbursement trustee letter must only be generated after Tawarruq Certificate is fetched/stored.
+    if (withdrawal.withdrawal_type === WithdrawalType.ISSUER_DISBURSEMENT) {
+      const shorakaTradeOrder = await prisma.shorakaTradeOrder.findUnique({
+        where: { withdrawal_instruction_id: id },
+        select: { certificate_s3_key: true },
+      });
+
+      if (!shorakaTradeOrder?.certificate_s3_key) {
+        throw new AppError(
+          400,
+          "TAWARRUQ_CERTIFICATE_REQUIRED_FOR_TRUSTEE_LETTER",
+          "Tawarruq Certificate must be fetched before generating the trustee letter."
+        );
+      }
+    }
+
     const buffer = await renderPdfBuffer("Trustee Withdrawal Instruction", [
       ["Withdrawal ID", withdrawal.id],
       ["Type", withdrawal.withdrawal_type],
