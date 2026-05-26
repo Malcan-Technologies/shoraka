@@ -325,6 +325,26 @@ type ShorakaStateResponse = {
 };
 
 export class ShorakaStpService {
+  private async logShorakaStpEvent(
+    noteId: string,
+    eventType: string,
+    metadata?: Prisma.InputJsonValue
+  ) {
+    await prisma.noteEvent.create({
+      data: {
+        note_id: noteId,
+        event_type: eventType,
+        actor_user_id: null,
+        actor_role: null,
+        portal: null,
+        ip_address: null,
+        user_agent: null,
+        correlation_id: null,
+        metadata,
+      },
+    });
+  }
+
   private getWithdrawalsError() {
     return new Error("Withdrawal not found");
   }
@@ -497,6 +517,15 @@ export class ShorakaStpService {
         },
       });
 
+      // Activity Timeline event: order successfully submitted.
+      await this.logShorakaStpEvent(withdrawal.note_id ?? "unknown-note", "SHORAKA_ORDER_SUBMITTED", {
+        provider_order_id: providerOrderId,
+        order_amount: values.order_amount,
+        murabaha_amount: values.murabaha_amount,
+        value_date: values.value_date,
+        order_date: now.toISOString(),
+      });
+
       return {
         tradeOrder: {
           id: created.id,
@@ -639,6 +668,13 @@ export class ShorakaStpService {
         provider_certificate_id: providerCertificateId,
         certificate_uploaded_at: uploadedAt,
       },
+    });
+
+    // Activity Timeline event: certificate successfully fetched/stored.
+    await this.logShorakaStpEvent(withdrawal.note_id ?? "unknown-note", "SHORAKA_CERTIFICATE_FETCHED", {
+      document_type: "Tawarruq Certificate",
+      certificate_available: true,
+      provider_order_id: providerOrderId,
     });
 
     return (await this.getStateForWithdrawal(withdrawalInstructionId)) as ShorakaStateResponse;

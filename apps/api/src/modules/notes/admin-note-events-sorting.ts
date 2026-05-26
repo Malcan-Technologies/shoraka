@@ -20,6 +20,9 @@ const ADMIN_NOTE_EVENT_LIFECYCLE_PRIORITY: Record<string, number> = Object.freez
     "INVESTMENT_COMMITTED",
     "CLOSE_FUNDING",
     "ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED",
+    // Tawarruq actions inside the Issuer Disbursement flow (logged by Shoraka STP integration)
+    "SHORAKA_ORDER_SUBMITTED",
+    "SHORAKA_CERTIFICATE_FETCHED",
     "WITHDRAWAL_LETTER_GENERATED",
     "WITHDRAWAL_SUBMITTED_TO_TRUSTEE",
     "WITHDRAWAL_COMPLETED",

@@ -779,6 +779,9 @@ Events list:
    - Some parts use `SECTION_COMPLETE_CLASS`, but other sub-sections rely on mixed conditional wrappers.
 4. **Tawarruq Certificate needs a persistent place to view later.**
    - Current certificate view button exists inside `IssuerPayoutCard` only when the Tawarruq Transaction state data is loaded; after disbursement is marked complete, certificate visibility may require re-open depending on lifecycle transitions.
+   - Tawarruq actions are now logged in the Activity Timeline as NoteEvents:
+     - `SHORAKA_ORDER_SUBMITTED` (Tawarruq order submitted)
+     - `SHORAKA_CERTIFICATE_FETCHED` (Tawarruq Certificate fetched)
 5. Must later support issuer-side certificate visibility; redesign context must keep existing admin “View Tawarruq Certificate” capability.
 
 ## Proposed high-level structure for next phase (no implementation yet)

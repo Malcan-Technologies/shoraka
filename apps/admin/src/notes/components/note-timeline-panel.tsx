@@ -39,6 +39,8 @@ function formatEventLabel(eventType: string) {
     SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED: "Service fee trustee letter submitted",
     SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED: "Service fee trustee instruction completed",
     NOTE_DEFAULT_MARKED: "Default marked",
+    SHORAKA_ORDER_SUBMITTED: "Tawarruq order submitted",
+    SHORAKA_CERTIFICATE_FETCHED: "Tawarruq Certificate fetched",
   };
 
   const fallback =
