@@ -163,6 +163,11 @@ describe("AuditLogAggregator", () => {
         { id: "2", created_at: new Date("2026-01-01T11:00:00Z"), user_id: userId, text: "Application" },
       ])
     );
+    aggregator.registerAdapter(
+      new MockAdapter("Note", "organization", "note", [
+        { id: "3", created_at: new Date("2026-01-01T12:00:00Z"), user_id: userId, text: "Note" },
+      ])
+    );
 
     const result = await aggregator.aggregate(userId, {
       limit: 10,
@@ -170,9 +175,9 @@ describe("AuditLogAggregator", () => {
       portalType: "investor",
     });
 
-    expect(result.activities).toHaveLength(1);
-    expect(result.activities[0].domain).toBe("onboarding");
-    expect(result.total).toBe(1);
-    expect(result.unfilteredTotal).toBe(1);
+    expect(result.activities).toHaveLength(2);
+    expect(result.activities.map((activity) => activity.domain)).toEqual(["note", "onboarding"]);
+    expect(result.total).toBe(2);
+    expect(result.unfilteredTotal).toBe(2);
   });
 });

@@ -25,13 +25,14 @@ The feed no longer mirrors every audit log. Low-value internal updates such as s
 - `Note`
   - Badge tone: success
   - Badge classes: `border-transparent bg-status-success-bg text-status-success-text`
-  - Reserved for the next pass; not yet rendered in `/activity`
+  - Used for curated note lifecycle milestones only
 
 ## Investor
 
-The investor page only shows investor-scoped onboarding activity. Application-domain rows are issuer-only until the product has an explicit investor-facing application model and access path.
+The investor page shows investor-scoped onboarding activity and curated note milestones. Application-domain rows remain issuer-only.
 
 - onboarding logs are scoped by `investor_organization_id`
+- note logs are scoped to notes the active investor organization has invested in
 - application logs are excluded from the investor `/activity` feed and filters
 
 ### Onboarding
@@ -53,12 +54,39 @@ The investor page only shows investor-scoped onboarding activity. Application-do
   - Title: `Onboarding Approved`
   - Description: `Your organization onboarding was approved and no further action is needed.`
 
+### Note
+
+- Raw types: `INVESTMENT_COMMITTED`
+  - Domain badge: `Note`
+  - Title: `Investment Committed`
+  - Description: `Your investment in note <reference> was committed successfully.`
+- Raw types: `SETTLEMENT_POSTED`
+  - Domain badge: `Note`
+  - Title: `Settlement Posted`
+  - Description: `Your returns for note <reference> were posted.`
+- Raw types: `FAIL_FUNDING`
+  - Domain badge: `Note`
+  - Title: `Funding Unsuccessful`
+  - Description: `Note <reference> did not meet the minimum funding threshold and committed funds were released.`
+- Raw types: `ACTIVATE`, issuer-disbursement `WITHDRAWAL_COMPLETED`
+  - Domain badge: `Note`
+  - Title: `Note Active`
+  - Description: `Note <reference> is now active and servicing has started.`
+- Raw types: `NOTE_DEFAULT_MARKED`
+  - Domain badge: `Note`
+  - Title: `Note Defaulted`
+  - Description: `Note <reference> was marked in default and requires attention.`
+
+Investor `/activity` does not duplicate raw ledger rows from `/transactions` or note-detail balance activity. Commits, releases, and payouts remain on those dedicated money surfaces unless they also represent a curated note milestone above.
+For investor payouts, `SETTLEMENT_POSTED` is the visible milestone. `PAYMENT_RECEIVED` remains an internal servicing event and is intentionally hidden from the investor feed to avoid duplicating the same repayment cycle at two nearby steps.
+
 ## Issuer
 
-The issuer page uses the same curated event set and copy as the investor page. The difference is data scope:
+The issuer page uses the same onboarding event set as the investor page, plus issuer-scoped application and note milestones. The difference is data scope:
 
 - onboarding logs are scoped by `issuer_organization_id`
 - application logs are scoped to applications whose `issuer_organization_id` matches the active organization
+- note logs are scoped to notes whose `issuer_organization_id` matches the active organization
 
 ### Onboarding
 
@@ -85,6 +113,16 @@ Visible application events match the investor portal:
 - invoice offer milestones
 - `OFFER_EXPIRED`
 
+### Note
+
+- `NOTE_CREATED_FROM_INVOICE` -> `Note Created`
+- `PUBLISH` -> `Note Published`
+- `CLOSE_FUNDING` -> `Funding Closed`
+- `ISSUER_PAYMENT_SUBMITTED` -> `Payment Submitted`
+- `FAIL_FUNDING` -> `Funding Unsuccessful`
+- `ACTIVATE`, issuer-disbursement `WITHDRAWAL_COMPLETED` -> `Note Active`
+- `NOTE_DEFAULT_MARKED` -> `Note Defaulted`
+
 ## Hidden from the feed
 
 These logs still exist as audit records but are intentionally hidden from `/activity`:
@@ -93,3 +131,7 @@ These logs still exist as audit records but are intentionally hidden from `/acti
 - application section-level review events
 - application item-level review events
 - internal reset-style status churn that does not help a user understand what changed
+- note operational steps such as Shoraka or trustee processing details
+- note settlement approval workflow internals
+- note repayment receipt events that are superseded by the investor-facing `Settlement Posted` milestone
+- investor ledger rows that are already covered by `/transactions` and note-detail balance activity

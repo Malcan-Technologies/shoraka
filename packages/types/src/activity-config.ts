@@ -20,7 +20,7 @@ export const ACTIVITY_DOMAIN_CONFIG: Record<ActivityDomain, ActivityDomainConfig
   },
   note: {
     label: "Note",
-    filterable: false,
+    filterable: true,
     portals: ["investor", "issuer"],
   },
 };

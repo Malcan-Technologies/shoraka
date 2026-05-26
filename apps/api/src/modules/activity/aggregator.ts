@@ -5,6 +5,7 @@ import {
 } from "./adapters/base";
 import { OrganizationLogAdapter } from "./adapters/organization-log";
 import { ApplicationLogAdapter } from "./adapters/application-log";
+import { NoteLogAdapter } from "./adapters/note-log";
 
 export class AuditLogAggregator {
   private adapters: AuditLogAdapter<any>[] = [];
@@ -13,6 +14,7 @@ export class AuditLogAggregator {
     // Register default adapters
     this.registerAdapter(new OrganizationLogAdapter());
     this.registerAdapter(new ApplicationLogAdapter());
+    this.registerAdapter(new NoteLogAdapter());
   }
 
   /**

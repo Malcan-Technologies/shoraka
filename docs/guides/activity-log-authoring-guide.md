@@ -21,6 +21,7 @@ If the event is only useful for admin audit, debugging, or detailed review trace
 - Adapter base contract: `apps/api/src/modules/activity/adapters/base.ts`
 - Onboarding feed shaping: `apps/api/src/modules/activity/adapters/organization-log.ts`
 - Application feed shaping: `apps/api/src/modules/activity/adapters/application-log.ts`
+- Note feed shaping: `apps/api/src/modules/activity/adapters/note-log.ts`
 - Shared row UI: `packages/ui/src/components/activity-item.tsx`
 - Shared badge UI: `packages/ui/src/components/activity-badge.tsx`
 - Shared toolbar UI: `packages/ui/src/components/activity-toolbar.tsx`
@@ -58,7 +59,7 @@ Use domains to answer "what part of the product is this about?"
 - `application`
   - Financing application lifecycle, offers, and major status changes
 - `note`
-  - Reserved for the next pass
+  - Curated note lifecycle milestones only
 
 Choose the narrowest stable domain that a user would recognize. Do not invent a new domain for one-off internal mechanics.
 
@@ -132,14 +133,16 @@ When adding a new user-facing activity:
    - `references` when applicable
 8. Update `docs/guides/activity-log-inventory.md` if the visible feed changes.
 
-## Future domains
+## Note domain rules
 
-When note activity is added in a later pass:
+The `note` domain is now used for curated note lifecycle milestones only.
 
-- add `note` feed shaping in a dedicated adapter
-- reuse the same `domain`, `title`, `description` model
-- only surface note events that represent clear milestones, terminal outcomes, or attention-needed states
-- avoid exposing ledger noise or internal servicing detail unless it changes the user’s next decision
+- shared note events should be reserved for major state changes that materially affect both issuer and investor portals
+- issuer-only note events should cover origination, listing, and issuer repayment workflow milestones
+- investor-only note events should cover the investor organization’s own commitment or return milestones
+- when both repayment receipt and settlement payout exist in the lifecycle, prefer the investor-visible payout milestone instead of surfacing both
+- do not surface raw `investor_balance_transactions` rows in `/activity`; those belong on `/transactions` and note-detail money views
+- hide trustee, Shoraka, settlement-approval, and other operational steps unless they are the clearest user-facing milestone
 
 ## Rule of thumb
 
