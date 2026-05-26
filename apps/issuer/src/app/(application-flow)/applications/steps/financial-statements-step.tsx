@@ -418,6 +418,7 @@ export function FinancialStatementsStep({
 }: FinancialStatementsStepProps) {
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const [autoPrefillApplied, setAutoPrefillApplied] = React.useState(false);
+  const [autoPrefillMode, setAutoPrefillMode] = React.useState<"allYears" | "previousYearOnly">("allYears");
 
   const appShape = application as
     | (typeof application & {
@@ -449,6 +450,7 @@ export function FinancialStatementsStep({
   React.useEffect(() => {
     setIsInitialized(false);
     setAutoPrefillApplied(false);
+    setAutoPrefillMode("allYears");
     setFyeDateInput("");
     setFormsByYear({});
     setActiveYearTab("");
@@ -507,9 +509,23 @@ export function FinancialStatementsStep({
         const latest = orgLatestFinancialStatementsQuery.data;
         if (latest?.financial_statements && isV2FinancialSaved(latest.financial_statements)) {
           const qNorm = normalizeFinancialStatementsQuestionnaire(latest.financial_statements.questionnaire);
+          const requiredYears = qNorm ? getIssuerFinancialTabYears(qNorm, new Date()) : [];
+          const isTwoYears = requiredYears.length === 2;
+          const stableYear = isTwoYears ? Math.min(...requiredYears) : null;
+
           const map: Record<string, FinancialStatementsPayload> = {};
-          for (const [k, v] of Object.entries(latest.financial_statements.unaudited_by_year)) {
-            map[k] = fromSaved(v);
+          if (isTwoYears && stableYear != null) {
+            // When two years are required, keep the "current/latest" year blank.
+            // We only reuse the earlier/stable year block from the org-level latest data.
+            const stableKey = String(stableYear);
+            const stableBlock = latest.financial_statements.unaudited_by_year[stableKey];
+            if (stableBlock) {
+              map[stableKey] = fromSaved(stableBlock);
+            }
+          } else {
+            for (const [k, v] of Object.entries(latest.financial_statements.unaudited_by_year)) {
+              map[k] = fromSaved(v);
+            }
           }
           setFormsByYear(map);
 
@@ -518,6 +534,7 @@ export function FinancialStatementsStep({
             const built = buildV2ApiPayload(qNorm, map);
             setInitialPayloadSnapshot(JSON.stringify(built));
             setAutoPrefillApplied(true);
+            setAutoPrefillMode(isTwoYears ? "previousYearOnly" : "allYears");
           } else {
             setInitialPayloadSnapshot(
               JSON.stringify({
@@ -960,7 +977,9 @@ export function FinancialStatementsStep({
           <div className="space-y-4 px-3">
             {autoPrefillApplied ? (
               <p className="text-xs text-muted-foreground">
-                Auto-filled from previous submitted application. Please review before continuing.
+                {autoPrefillMode === "previousYearOnly"
+                  ? "Previous financial year auto-filled from a previous submitted application. Please review before continuing."
+                  : "Auto-filled from previous submitted application. Please review before continuing."}
               </p>
             ) : null}
           {!questionnaireDto ? (
