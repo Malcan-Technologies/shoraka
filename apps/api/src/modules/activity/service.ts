@@ -2,6 +2,10 @@ import { auditLogAggregator } from "./aggregator";
 import { GetActivitiesQuery } from "./schemas";
 import { logger } from "../../lib/logger";
 import { ActivityCategory } from "./adapters/base";
+import { OrganizationService } from "../organization/service";
+import { AppError } from "../../lib/http/error-handler";
+
+const organizationService = new OrganizationService();
 
 export const activityService = {
   /**
@@ -9,7 +13,7 @@ export const activityService = {
    */
   async getActivities(userId: string, query: GetActivitiesQuery) {
     try {
-      const { page, limit, search, categories, eventType, eventTypes, startDate, endDate, dateRange } = query;
+      const { page, limit, search, categories, domains, eventType, eventTypes, startDate, endDate, dateRange } = query;
       const offset = (page - 1) * limit;
 
       let finalStartDate = startDate ? new Date(startDate) : undefined;
@@ -37,9 +41,14 @@ export const activityService = {
         combinedEventTypes.push(eventType);
       }
 
+      if (query.organizationId && query.portalType) {
+        await organizationService.getOrganization(userId, query.organizationId, query.portalType);
+      }
+
       const result = await auditLogAggregator.aggregate(userId, {
         search,
         categories: categories as ActivityCategory[],
+        domains,
         event_types: combinedEventTypes.length > 0 ? combinedEventTypes : undefined,
         startDate: finalStartDate,
         endDate: finalEndDate,
@@ -60,6 +69,10 @@ export const activityService = {
         },
       };
     } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+
       logger.error("Failed to get aggregated activities", { error, userId, query });
       return {
         activities: [],

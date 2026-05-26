@@ -5,6 +5,7 @@ import {
 } from "./adapters/base";
 import { OrganizationLogAdapter } from "./adapters/organization-log";
 import { ApplicationLogAdapter } from "./adapters/application-log";
+import { NoteLogAdapter } from "./adapters/note-log";
 
 export class AuditLogAggregator {
   private adapters: AuditLogAdapter<any>[] = [];
@@ -13,6 +14,7 @@ export class AuditLogAggregator {
     // Register default adapters
     this.registerAdapter(new OrganizationLogAdapter());
     this.registerAdapter(new ApplicationLogAdapter());
+    this.registerAdapter(new NoteLogAdapter());
   }
 
   /**
@@ -29,12 +31,17 @@ export class AuditLogAggregator {
     userId: string,
     filters: ActivityFilters
   ): Promise<{ activities: UnifiedActivity[]; total: number; unfilteredTotal: number }> {
-    const { categories, limit = 10, offset = 0 } = filters;
+    const { categories, domains, limit = 10, offset = 0 } = filters;
 
-    // Filter adapters by category if specified
-    const activeAdapters = categories && categories.length > 0
-      ? this.adapters.filter((a) => categories.includes(a.category))
-      : this.adapters;
+    const activeAdapters = this.adapters.filter((adapter) => {
+      if (filters.portalType === "investor" && adapter.domain === "application") {
+        return false;
+      }
+
+      const matchesCategory = !categories || categories.length === 0 || categories.includes(adapter.category);
+      const matchesDomain = !domains || domains.length === 0 || domains.includes(adapter.domain);
+      return matchesCategory && matchesDomain;
+    });
 
     // For runtime aggregation with pagination across multiple tables:
     // To get the correct sorted slice (offset, limit), we need to fetch
@@ -79,6 +86,7 @@ export class AuditLogAggregator {
       activeAdapters.map((adapter) =>
         adapter.count(userId, {
           categories,
+          domains,
           organizationId: filters.organizationId,
           portalType: filters.portalType,
         })

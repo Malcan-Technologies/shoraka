@@ -1725,6 +1725,8 @@ export class ApiClient {
     queryParams.append("page", String(params.page));
     queryParams.append("limit", String(params.limit));
     if (params.search) queryParams.append("search", params.search);
+    if (params.domains && params.domains.length > 0)
+      queryParams.append("domains", params.domains.join(","));
     if (params.eventType) queryParams.append("eventType", params.eventType);
     if (params.eventTypes && params.eventTypes.length > 0)
       queryParams.append("eventTypes", params.eventTypes.join(","));

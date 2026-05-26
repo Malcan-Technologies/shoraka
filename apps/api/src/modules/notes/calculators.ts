@@ -260,6 +260,21 @@ export function buildSettlementAllocations(input: {
   });
 }
 
+/** Total return % on invested principal from net profit and investor Ta'widh share. */
+export function computeActualReturnRatePercent(input: {
+  investedPrincipal: number;
+  receivedProfitNetAmount: number;
+  receivedTawidhCompensationAmount: number;
+}): number | null {
+  const { investedPrincipal, receivedProfitNetAmount, receivedTawidhCompensationAmount } = input;
+  if (investedPrincipal <= 0) return null;
+
+  const receivedReturnAmount = receivedProfitNetAmount + receivedTawidhCompensationAmount;
+  if (receivedReturnAmount <= 0) return null;
+
+  return (receivedReturnAmount / investedPrincipal) * 100;
+}
+
 /** Scale Syariah-capped late fees to fit repayment headroom after principal and gross profit. */
 export function capLateFeeSuggestionsByHeadroom(input: {
   remainingTawidhAmount: number;

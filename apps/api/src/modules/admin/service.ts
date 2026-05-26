@@ -5927,6 +5927,51 @@ export class AdminService {
     return `invoice_details:${idx}:${sanitized}`;
   }
 
+  private getContractReference(application: {
+    contract_id?: string | null;
+    contract?: { contract_details?: { number?: string | number } | null } | null;
+  }) {
+    const contractId = application.contract_id ?? undefined;
+    const contractNumber = application.contract?.contract_details?.number;
+
+    return {
+      contractId,
+      contractNumber:
+        contractNumber != null && String(contractNumber).trim() !== ""
+          ? String(contractNumber).trim()
+          : undefined,
+    };
+  }
+
+  private getInvoiceReference(
+    application: { invoices?: { id: string; details?: { number?: string | number } }[] },
+    invoiceKey: string
+  ) {
+    const invoices = application.invoices ?? [];
+    const byId = invoices.find((invoice) => invoice.id === invoiceKey);
+    const matchedInvoice =
+      byId ??
+      invoices.find(
+        (invoice) => this.resolveInvoiceScopeKeyById(application, invoice.id) === invoiceKey
+      );
+
+    if (!matchedInvoice) {
+      return {
+        invoiceId: undefined,
+        invoiceNumber: undefined,
+      };
+    }
+
+    const invoiceNumber = matchedInvoice.details?.number;
+    return {
+      invoiceId: matchedInvoice.id,
+      invoiceNumber:
+        invoiceNumber != null && String(invoiceNumber).trim() !== ""
+          ? String(invoiceNumber).trim()
+          : undefined,
+    };
+  }
+
   async patchContractCustomerLargePrivateCompany(
     applicationId: string,
     isLargePrivateCompany: boolean,
@@ -6156,12 +6201,24 @@ export class AdminService {
       };
     });
 
+    const contractReference = this.getContractReference(
+      application as {
+        contract_id?: string | null;
+        contract?: { contract_details?: { number?: string | number } | null } | null;
+      }
+    );
+
     await logApplicationActivity({
       userId: reviewerUserId,
       applicationId,
+      entityId: contractReference.contractId,
       portal: ActivityPortal.ADMIN,
       eventType: "CONTRACT_OFFER_SENT",
       metadata: {
+        ...(contractReference.contractId ? { contract_id: contractReference.contractId } : {}),
+        ...(contractReference.contractNumber
+          ? { contract_number: contractReference.contractNumber }
+          : {}),
         requested_facility: contractOfferMeta.requestedFacility,
         offered_facility: offeredFacility,
         expires_at: expiresAt,
@@ -6460,10 +6517,11 @@ export class AdminService {
     await logApplicationActivity({
       userId: reviewerUserId,
       applicationId,
-      entityId: scopeKey,
+      entityId: invoiceId,
       portal: ActivityPortal.ADMIN,
       eventType: "INVOICE_OFFER_SENT",
       metadata: {
+        invoice_id: invoiceId,
         invoice_number: invoiceOfferMeta.invoiceNumber,
         requested_amount: invoiceOfferMeta.requestedAmount,
         offered_amount: offeredAmount,
@@ -6741,11 +6799,25 @@ export class AdminService {
       });
     }
     if (didRetractContractOffer && section === "contract_details") {
+      const contractReference = this.getContractReference(
+        application as {
+          contract_id?: string | null;
+          contract?: { contract_details?: { number?: string | number } | null } | null;
+        }
+      );
+
       await logApplicationActivity({
         userId: reviewerUserId,
         applicationId,
+        entityId: contractReference.contractId,
         portal: ActivityPortal.ADMIN,
         eventType: "CONTRACT_OFFER_RETRACTED",
+        metadata: {
+          ...(contractReference.contractId ? { contract_id: contractReference.contractId } : {}),
+          ...(contractReference.contractNumber
+            ? { contract_number: contractReference.contractNumber }
+            : {}),
+        },
         ipAddress: logContext?.ipAddress ?? undefined,
         userAgent: logContext?.userAgent ?? undefined,
         deviceInfo: logContext?.deviceInfo ?? undefined,
@@ -6855,12 +6927,23 @@ export class AdminService {
       }
     }
     if (didRetractInvoiceOffer && itemType === "invoice") {
+      const invoiceReference = this.getInvoiceReference(
+        application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+        itemId
+      );
+
       await logApplicationActivity({
         userId: reviewerUserId,
         applicationId,
-        entityId: itemId,
+        entityId: invoiceReference.invoiceId,
         portal: ActivityPortal.ADMIN,
         eventType: "INVOICE_OFFER_RETRACTED",
+        metadata: {
+          ...(invoiceReference.invoiceId ? { invoice_id: invoiceReference.invoiceId } : {}),
+          ...(invoiceReference.invoiceNumber
+            ? { invoice_number: invoiceReference.invoiceNumber }
+            : {}),
+        },
         ipAddress: logContext?.ipAddress ?? undefined,
         userAgent: logContext?.userAgent ?? undefined,
         deviceInfo: logContext?.deviceInfo ?? undefined,

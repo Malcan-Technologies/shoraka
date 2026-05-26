@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { GetActivitiesParams } from "@cashsouk/types";
+import { getFilterableActivityDomains, type GetActivitiesParams } from "@cashsouk/types";
 import { useActivities } from "../../hooks/use-activities";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 
 export default function ActivityPage() {
   const { setTitle } = useHeader();
+  const availableDomains = getFilterableActivityDomains("issuer");
 
   useEffect(() => {
     setTitle("Activity");
@@ -19,7 +20,7 @@ export default function ActivityPage() {
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [eventTypes, setEventTypes] = useState<string[]>([]);
+  const [domains, setDomains] = useState<NonNullable<GetActivitiesParams["domains"]>>([]);
   const [dateRange, setDateRange] = useState("all");
   const [page, setPage] = useState(1);
   const limit = 10;
@@ -31,8 +32,8 @@ export default function ActivityPage() {
     "30d": "30d",
   };
 
-  const handleEventTypesChange = useCallback((values: string[]) => {
-    setEventTypes(values);
+  const handleDomainsChange = useCallback((values: NonNullable<GetActivitiesParams["domains"]>) => {
+    setDomains(values);
     setPage(1);
   }, []);
 
@@ -53,7 +54,7 @@ export default function ActivityPage() {
     page,
     limit,
     search: debouncedSearch || undefined,
-    eventTypes: eventTypes.length > 0 ? eventTypes : undefined,
+    domains: domains.length > 0 ? domains : undefined,
     dateRange: apiDateRangeByUi[dateRange],
   });
 
@@ -62,7 +63,7 @@ export default function ActivityPage() {
 
   const handleClearFilters = () => {
     setSearch("");
-    setEventTypes([]);
+    setDomains([]);
     setDateRange("all");
     setPage(1);
   };
@@ -85,8 +86,9 @@ export default function ActivityPage() {
             <ActivityToolbar
               searchQuery={search}
               onSearchChange={setSearch}
-              eventTypeFilters={eventTypes}
-              onEventTypeFiltersChange={handleEventTypesChange}
+              availableDomains={availableDomains}
+              domainFilters={domains}
+              onDomainFiltersChange={handleDomainsChange}
               dateRangeFilter={dateRange}
               onDateRangeFilterChange={handleDateRangeChange}
               totalCount={pagination?.unfilteredTotal || 0}
@@ -97,11 +99,11 @@ export default function ActivityPage() {
             />
 
             <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-              <div className="grid grid-cols-[1fr_400px] gap-12 px-6 py-3 border-b bg-muted/30 text-sm font-medium text-muted-foreground">
+              <div className="grid grid-cols-[minmax(0,1fr)_320px] gap-8 px-6 py-3 border-b bg-muted/30 text-sm font-medium text-muted-foreground">
                 <div className="flex-1">Activity</div>
-                <div className="flex items-center gap-12">
-                  <div className="w-[120px]">Event</div>
-                  <div className="min-w-[160px] text-right">Time</div>
+                <div className="grid grid-cols-[120px_160px] gap-8">
+                  <div>Domain</div>
+                  <div className="text-right">Time</div>
                 </div>
               </div>
 
@@ -121,15 +123,7 @@ export default function ActivityPage() {
                   ))
                 ) : activities.length > 0 ? (
                   activities.map((activity) => (
-                    <ActivityItem
-                      key={activity.id}
-                      activity={
-                        activity.event_type === "APPLICATION_RESUBMITTED"
-                          ? { ...activity, activity: "Application resubmitted" }
-                          : activity
-                      }
-                      className="px-6 hover:bg-muted/20"
-                    />
+                    <ActivityItem key={activity.id} activity={activity} className="px-6 hover:bg-muted/20" />
                   ))
                 ) : (
                   <div className="py-12 text-center text-muted-foreground">

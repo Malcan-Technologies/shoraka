@@ -8,6 +8,7 @@ import {
   type NoteListItem,
 } from "@cashsouk/types";
 import { resolveMarketplaceListingDaysLeft } from "@/lib/marketplace-listing-days";
+import { resolveMarketplaceDaysToMaturity } from "@cashsouk/types";
 
 function formatCurrency(amount: number) {
   return `RM ${amount.toLocaleString("en-MY", {
@@ -64,6 +65,7 @@ export function LandingMarketplacePreview({
           <div className="mt-10 grid gap-6 lg:grid-cols-3 lg:items-stretch">
             {notes.map((note) => {
               const daysLeft = resolveMarketplaceListingDaysLeft(note.listingClosesAt);
+              const daysToMaturity = resolveMarketplaceDaysToMaturity(note.maturityDate);
               const fundingPercent = resolveFundingPercent(note);
               const riskRatingForBadge = note.riskRating?.trim() ? note.riskRating : null;
               const netReturn = resolveNetExpectedReturnRatePercent(note);
@@ -121,7 +123,7 @@ export function LandingMarketplacePreview({
                         <div className="flex flex-col text-center">
                           <div className="flex flex-1 flex-col rounded-2xl border bg-muted/20 p-3">
                             <div className="flex min-h-[4.25rem] flex-1 items-center justify-center text-4xl font-semibold leading-none tabular-nums text-foreground">
-                              {daysLeft ?? "-"}
+                              {daysToMaturity ?? "-"}
                             </div>
                           </div>
                           <div className="mt-1 text-xs text-muted-foreground">Days</div>

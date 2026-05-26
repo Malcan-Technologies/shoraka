@@ -1,27 +1,36 @@
-import activityEvents from "./activity-events.json";
+export type ActivityDomain = "onboarding" | "application" | "note";
+export type ActivityPortal = "investor" | "issuer";
 
-export interface EventConfig {
+export interface ActivityDomainConfig {
   label: string;
-  dotColor: string;
+  filterable: boolean;
+  portals: ActivityPortal[];
 }
 
-/**
- * Centralized configuration for all activity events.
- * Maps raw event types to human-readable labels and UI colors.
- */
-export const ACTIVITY_EVENT_CONFIG: Record<string, EventConfig> = activityEvents;
+export const ACTIVITY_DOMAIN_CONFIG: Record<ActivityDomain, ActivityDomainConfig> = {
+  onboarding: {
+    label: "Onboarding",
+    filterable: true,
+    portals: ["investor", "issuer"],
+  },
+  application: {
+    label: "Application",
+    filterable: true,
+    portals: ["issuer"],
+  },
+  note: {
+    label: "Note",
+    filterable: true,
+    portals: ["investor", "issuer"],
+  },
+};
 
-/**
- * Fallback for unknown event types
- */
-export function getEventConfig(eventType: string): EventConfig {
-  return (
-    ACTIVITY_EVENT_CONFIG[eventType] || {
-      label: eventType
-        .replace(/_/g, " ")
-        .toLowerCase()
-        .replace(/\b\w/g, (c) => c.toUpperCase()),
-      dotColor: "bg-gray-400",
-    }
-  );
+export function getActivityDomainConfig(domain: ActivityDomain): ActivityDomainConfig {
+  return ACTIVITY_DOMAIN_CONFIG[domain];
+}
+
+export function getFilterableActivityDomains(portal: ActivityPortal): ActivityDomain[] {
+  return (Object.entries(ACTIVITY_DOMAIN_CONFIG) as Array<[ActivityDomain, ActivityDomainConfig]>)
+    .filter(([, config]) => config.filterable && config.portals.includes(portal))
+    .map(([domain]) => domain);
 }

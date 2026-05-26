@@ -1,6 +1,5 @@
 import { prisma } from "../../../lib/prisma";
 import { OnboardingLog, Prisma } from "@prisma/client";
-import activityEvents from "@cashsouk/types/src/activity-events.json";
 import {
   AuditLogAdapter,
   UnifiedActivity,
@@ -9,11 +8,10 @@ import {
   buildDateFilter,
 } from "./base";
 
-const ACTIVITY_EVENT_CONFIG = activityEvents as Record<string, { label: string; dotColor: string }>;
-
 export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
   public readonly name = "OrganizationLogAdapter";
   public readonly category: ActivityCategory = "organization";
+  public readonly domain = "onboarding" as const;
 
   async query(
     userId: string,
@@ -46,12 +44,13 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
     // Pre-calculate which event types match the search string via their shared labels
     const matchingEventTypes = search
       ? finalEventTypes.filter((et) => {
-        const config = ACTIVITY_EVENT_CONFIG[et];
-        const label = config?.label.toLowerCase() || "";
-        const description = this.buildDescription(et, {}).toLowerCase();
+        const presentation = this.buildPresentation(et, {});
         const searchTerm = search.toLowerCase();
 
-        return label.includes(searchTerm) || description.includes(searchTerm);
+        return (
+          presentation.title.toLowerCase().includes(searchTerm) ||
+          presentation.description.toLowerCase().includes(searchTerm)
+        );
       })
       : [];
 
@@ -124,12 +123,13 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
 
     const matchingEventTypes = search
       ? finalEventTypes.filter((et) => {
-        const config = ACTIVITY_EVENT_CONFIG[et];
-        const label = config?.label.toLowerCase() || "";
-        const description = this.buildDescription(et, {}).toLowerCase();
+        const presentation = this.buildPresentation(et, {});
         const searchTerm = search.toLowerCase();
 
-        return label.includes(searchTerm) || description.includes(searchTerm);
+        return (
+          presentation.title.toLowerCase().includes(searchTerm) ||
+          presentation.description.toLowerCase().includes(searchTerm)
+        );
       })
       : [];
 
@@ -170,16 +170,19 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
   }
 
   transform(record: OnboardingLog): UnifiedActivity {
+    const metadata = record.metadata as Record<string, unknown>;
+    const presentation = this.buildPresentation(record.event_type, metadata);
+
     return {
       id: record.id,
       user_id: record.user_id,
       category: this.category,
+      domain: this.domain,
       event_type: record.event_type,
-      activity: this.buildDescription(
-        record.event_type,
-        record.metadata as Record<string, unknown>
-      ),
-      metadata: record.metadata as Record<string, unknown>,
+      activity: presentation.title,
+      title: presentation.title,
+      description: presentation.description,
+      metadata,
       ip_address: record.ip_address,
       user_agent: record.user_agent,
       device_info: record.device_info,
@@ -188,71 +191,47 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
     };
   }
 
-  buildDescription(
-    eventType: string,
-    metadata?: Record<string, unknown>
-  ): string {
+  buildPresentation(eventType: string, metadata?: Record<string, unknown>) {
     switch (eventType) {
       case "ONBOARDING_STARTED":
-        return "Started the onboarding process";
-      case "ONBOARDING_RESUMED":
-        return "Resumed the onboarding process";
-      case "ONBOARDING_STATUS_UPDATED":
-        return `Onboarding status updated to: ${metadata?.status || "Processing"}`;
+        return {
+          title: "Onboarding Started",
+          description: "Your organization onboarding has started and you can continue it at any time.",
+        };
       case "ONBOARDING_CANCELLED":
-        return "Cancelled the onboarding process";
+        return {
+          title: "Onboarding Closed",
+          description: "Your organization onboarding was cancelled and will not continue.",
+        };
       case "ONBOARDING_REJECTED":
-        return `Onboarding was rejected: ${metadata?.reason || "Check your documents"}`;
-      case "SOPHISTICATED_STATUS_UPDATED":
-        return `Sophisticated investor status: ${metadata?.isSophisticated ? "Approved" : "Rejected"}`;
+        return {
+          title: "Onboarding Rejected",
+          description: `Your organization onboarding was rejected${metadata?.reason ? `: ${metadata.reason}` : "."}`,
+        };
       case "FINAL_APPROVAL_COMPLETED":
-        return "Final onboarding approval completed";
-      case "FORM_FILLED":
-        return `Completed onboarding section: ${metadata?.section || "Profile"}`;
       case "ONBOARDING_APPROVED":
-        return "Onboarding application was approved";
-      case "AML_APPROVED":
-        return "AML verification was approved";
-      case "TNC_APPROVED":
-        return "T&C documents were approved";
-      case "SSM_APPROVED":
-        return "SSM document verification was approved";
-      case "TNC_ACCEPTED":
-        return "Accepted the Terms & Conditions";
-      case "USER_COMPLETED":
-        return "Successfully completed the onboarding process";
-      case "KYC_APPROVED":
-        return "KYC verification was approved";
-      case "KYB_APPROVED":
-        return "KYB verification was approved";
+        return {
+          title: "Onboarding Approved",
+          description: "Your organization onboarding was approved and no further action is needed.",
+        };
       default:
-        return eventType
-          .split("_")
-          .map(
-            (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-          )
-          .join(" ");
+        return {
+          title: eventType
+            .split("_")
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(" "),
+          description: "This onboarding update was recorded for your organization.",
+        };
     }
   }
 
   getEventTypes(): string[] {
     return [
       "ONBOARDING_STARTED",
-      "ONBOARDING_RESUMED",
-      "ONBOARDING_STATUS_UPDATED",
       "ONBOARDING_CANCELLED",
       "ONBOARDING_REJECTED",
-      "SOPHISTICATED_STATUS_UPDATED",
       "FINAL_APPROVAL_COMPLETED",
-      "FORM_FILLED",
       "ONBOARDING_APPROVED",
-      "AML_APPROVED",
-      "TNC_APPROVED",
-      "SSM_APPROVED",
-      "TNC_ACCEPTED",
-      "USER_COMPLETED",
-      "KYC_APPROVED",
-      "KYB_APPROVED"
     ];
   }
 }
