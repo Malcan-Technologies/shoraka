@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
@@ -47,6 +48,7 @@ import {
 } from "@/notes/hooks/use-notes";
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import { cn } from "@/lib/utils";
+import { notesKeys } from "@/notes/query-keys";
 
 type BeneficiaryFields = {
   bank_name: string;
@@ -138,6 +140,7 @@ export function IssuerPayoutCard({
   kind,
   servicingBlockedReason,
 }: IssuerPayoutCardProps) {
+  const queryClient = useQueryClient();
   const kindCopy = KIND_COPY[kind];
   const generateLetter = useGenerateWithdrawalLetter();
   const markSubmitted = useMarkWithdrawalSubmitted();
@@ -466,6 +469,7 @@ export function IssuerPayoutCard({
                       }
                       await submitShorakaOrder.mutateAsync();
                       toast.success("Tawarruq order submitted");
+                      queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
                     } catch (err) {
                       toast.error(err instanceof Error ? err.message : "Failed to submit Tawarruq order");
                     }
@@ -633,6 +637,7 @@ export function IssuerPayoutCard({
                             }
                             await fetchShorakaCertificate.mutateAsync();
                             toast.success("Tawarruq certificate fetched");
+                            queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
                           } catch (err) {
                             toast.error(err instanceof Error ? err.message : "Failed to fetch certificate");
                           }
