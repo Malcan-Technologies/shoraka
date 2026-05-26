@@ -35,6 +35,7 @@ import {
   useIssuerNote,
   useIssuerNotePaymentInstructions,
   useSubmitIssuerPayment,
+  useViewIssuerShorakaCertificate,
 } from "@/notes/hooks/use-issuer-notes";
 import { LedgerPanel } from "@/notes/components/ledger-panel";
 import {
@@ -270,6 +271,7 @@ export default function IssuerNoteDetailPage() {
   const { data: note, isLoading, error } = useIssuerNote(noteId);
   const { data: instructions } = useIssuerNotePaymentInstructions(noteId);
   const submitPayment = useSubmitIssuerPayment(noteId);
+  const viewShorakaCertificate = useViewIssuerShorakaCertificate(noteId);
   const [reference, setReference] = React.useState("");
   const [paymentAmountInput, setPaymentAmountInput] = React.useState("");
   const [paymentDialogOpen, setPaymentDialogOpen] = React.useState(false);
@@ -375,7 +377,7 @@ export default function IssuerNoteDetailPage() {
       ? "Posted allocation below. Your residual is still being paid via the trustee; it is not complete until that payout is marked paid."
       : issuerResidualDisbursement?.kind === "awaiting"
         ? "Posted allocation below. Your residual has not been sent yet; admin will initiate the trustee withdrawal."
-        : "Posted settlement allocation across the platform buckets.";
+        : "Posted settlement allocation below.";
   const riskRating = getRiskRating(note);
   const riskRatingForBadge = riskRating === "—" ? null : riskRating;
 
@@ -605,9 +607,8 @@ export default function IssuerNoteDetailPage() {
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              Open the payment instructions, transfer the amount you are confirming into the
-              repayment pool on behalf of the paymaster, then submit the reference for admin
-              reconciliation.
+              Open the payment instructions, transfer the amount you are confirming on behalf of
+              the paymaster, then submit the reference for admin reconciliation.
             </p>
             {paymentBlockedReason ? (
               <div
@@ -646,8 +647,7 @@ export default function IssuerNoteDetailPage() {
                   {formatCurrency(issuerDisbursementWithdrawal.platformFeeAmount!)}
                 </span>
               </div>
-              {issuerDisbursementWithdrawal.facilityFeeCharged != null &&
-              issuerDisbursementWithdrawal.facilityFeeCharged > 0 ? (
+              {issuerDisbursementWithdrawal.facilityFeeCharged != null ? (
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-sm text-muted-foreground">Facility fee</span>
                   <span className="text-sm font-semibold text-foreground tabular-nums">
@@ -656,11 +656,39 @@ export default function IssuerNoteDetailPage() {
                 </div>
               ) : null}
               <div className="flex items-center justify-between gap-4 pt-1">
-                <span className="text-sm text-muted-foreground">Net amount to issuer</span>
+                <span className="text-sm text-muted-foreground">Net to issuer</span>
                 <span className="text-sm font-semibold text-primary tabular-nums">
                   {formatCurrency(issuerDisbursementWithdrawal.netIssuerDisbursement!)}
                 </span>
               </div>
+
+              {issuerDisbursementWithdrawal?.status === "COMPLETED" &&
+              issuerDisbursementWithdrawal?.hasShorakaCertificate ? (
+                <div className="rounded-lg border bg-card p-4">
+                  <div className="text-sm font-medium">Tawarruq Certificate</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Certificate fetched and stored for this financing.
+                  </div>
+                  <div className="mt-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={async () => {
+                        try {
+                          const result = await viewShorakaCertificate.mutateAsync();
+                          if (result.viewUrl) window.open(result.viewUrl, "_blank", "noopener,noreferrer");
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : "Failed to open certificate");
+                        }
+                      }}
+                      disabled={viewShorakaCertificate.isPending}
+                    >
+                      View Tawarruq Certificate
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         ) : null}
@@ -674,27 +702,27 @@ export default function IssuerNoteDetailPage() {
             <CardContent className="space-y-4">
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                 <BucketPayoutCard
-                  label="Repayment Pool"
+                  label="Total received"
                   value={settlementSummary.grossReceiptAmount}
-                  description="Gross receipt paid into the repayment pool."
+                  description="Gross receipt recorded for this note."
                 />
                 <BucketPayoutCard
-                  label="Investor Pool"
+                  label="Investors"
                   value={settlementSummary.investorPoolAmount}
                   description="Principal, net profit, and any investor Ta'widh compensation."
                 />
                 <BucketPayoutCard
-                  label="Operating Account"
+                  label="Platform fee"
                   value={settlementSummary.operatingAccountAmount}
                   description="Service fee retained by the platform."
                 />
                 <BucketPayoutCard
-                  label="Ta'widh Account"
+                  label="Ta'widh"
                   value={settlementSummary.tawidhAccountAmount}
                   description={`${formatCurrency(settlementSummary.totalTawidhAmount)} total Ta'widh; ${formatCurrency(settlementSummary.tawidhInvestorAmount)} allocated to investors.`}
                 />
                 <BucketPayoutCard
-                  label="Gharamah Account"
+                  label="Gharamah"
                   value={settlementSummary.gharamahAccountAmount}
                   description="Approved charity/penalty late-fee allocation."
                 />
@@ -795,7 +823,7 @@ export default function IssuerNoteDetailPage() {
 
         <LedgerPanel
           note={note}
-          description="Movements between platform buckets only. Trustee and bank legs are not mirrored, so this is not a full double-entry view and totals are not shown."
+          description="Posted note activity. Trustee and bank transfer details are shown only when available."
         />
       </div>
 
@@ -818,7 +846,7 @@ export default function IssuerNoteDetailPage() {
           <DialogHeader>
             <DialogTitle>Confirm repayment (on behalf of paymaster)</DialogTitle>
             <DialogDescription className="text-[15px] leading-7">
-              Use the instructions below to pay into the Repayment Pool. Submit this confirmation
+              Use the instructions below to make the repayment transfer. Submit this confirmation
               only after the transfer for the amount you enter has been made. Admin will reconcile
               before settlement is posted.
             </DialogDescription>
@@ -830,7 +858,7 @@ export default function IssuerNoteDetailPage() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <span>Repayment pool received</span>
+                      <span>Repayments received</span>
                       <InfoTooltip
                         content={REPAYMENT_POOL_RECEIVED_TOOLTIP}
                         iconClassName="h-3.5 w-3.5 shrink-0"

@@ -355,7 +355,7 @@ export const sendContractOfferSchema = z.object({
     .coerce
     .number()
     .min(0)
-    .max(1)
+    .max(100)
     .refine((v) => Number.isFinite(v) && Math.abs(v * 100 - Math.round(v * 100)) < 1e-9, {
       message: "Facility fee rate can have up to 2 decimal places",
     })

@@ -535,18 +535,18 @@ const serviceFeeRatePercentError = (() => {
   return null;
 })();
 
-/** Default facility fee rate validation: blank treated as default (1). 0-1 inclusive. */
+/** Default facility fee rate validation: blank treated as default (1). 0-100 inclusive. */
 const defaultFacilityFeeRatePercentError = (() => {
   const v = defaultFacilityFeeRatePercent.trim();
   if (v === "") return null;
   const decimalOk =
     /^\d+(\.\d{0,2})?$/.test(v) || /^\d+\.$/.test(v) || /^\.\d{1,2}$/.test(v);
   if (!decimalOk)
-    return "Default facility fee rate must be between 0% and 1%, up to 2 decimal places";
+    return "Default facility fee rate must be between 0% and 100%, up to 2 decimal places";
   const num = Number(v);
   if (Number.isNaN(num)) return "Default facility fee rate must be a valid number";
-  if (num < 0 || num > 1)
-    return "Default facility fee rate must be between 0% and 1%";
+  if (num < 0 || num > 100)
+    return "Default facility fee rate must be between 0% and 100%";
   return null;
 })();
 
@@ -844,7 +844,7 @@ const hasChanges = !isEdit
                     className={INPUT_CLASS}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Default Facility Fee rate for new contract offers. Allowed range: 0% to 1%, up to 2 decimal
+                    Default Facility Fee rate for new contract offers. Allowed range: 0% to 100%, up to 2 decimal
                     places. Admin can override this value before sending the contract offer.
                   </p>
                 </div>

@@ -592,6 +592,18 @@ issuerNotesRouter.get("/notes/:id/ledger", async (req: Request, res: Response, n
   }
 });
 
+issuerNotesRouter.post("/notes/:id/shoraka-certificate/view-url", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    send(
+      res,
+      await noteService.getIssuerShorakaCertificateViewUrl(id, getActor(req, res, "ISSUER").userId)
+    );
+  } catch (error) {
+    next(error);
+  }
+});
+
 issuerNotesRouter.post("/notes/:id/payments/on-behalf-of-paymaster", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);

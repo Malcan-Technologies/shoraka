@@ -257,7 +257,7 @@ export default function IssuerNotesPage() {
                                 : {
                                     tone: "emerald" as const,
                                     blurb:
-                                      "Posted settlement allocation across the platform buckets.",
+                                      "Posted settlement allocation below.",
                                   };
                               const isAmber = preset.tone === "amber";
                               const labelMuted = isAmber
@@ -277,19 +277,19 @@ export default function IssuerNotesPage() {
                                   </p>
                                   <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
                                     <div>
-                                      <div className={labelMuted}>Repayment Pool</div>
+                                      <div className={labelMuted}>Total received</div>
                                       <div className="font-semibold">
                                         {formatCurrency(note.settlementSummary.grossReceiptAmount)}
                                       </div>
                                     </div>
                                     <div>
-                                      <div className={labelMuted}>Investor Pool</div>
+                                      <div className={labelMuted}>Investors</div>
                                       <div className="font-semibold">
                                         {formatCurrency(note.settlementSummary.investorPoolAmount)}
                                       </div>
                                     </div>
                                     <div>
-                                      <div className={labelMuted}>Operating</div>
+                                      <div className={labelMuted}>Platform fee</div>
                                       <div className="font-semibold">
                                         {formatCurrency(
                                           note.settlementSummary.operatingAccountAmount
@@ -297,7 +297,7 @@ export default function IssuerNotesPage() {
                                       </div>
                                     </div>
                                     <div>
-                                      <div className={labelMuted}>{"Ta'widh Account"}</div>
+                                      <div className={labelMuted}>{"Ta'widh"}</div>
                                       <div className="font-semibold">
                                         {formatCurrency(note.settlementSummary.tawidhAccountAmount)}
                                       </div>

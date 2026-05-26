@@ -53,6 +53,13 @@ function isIsoDate(value: unknown): value is string {
 function formatValue(key: string, value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return "—";
   if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (key === "facility_fee_rate_percent") {
+    const n = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(n)) return "—";
+    // Keep it simple: 1 -> "1%", 1.5 -> "1.5%", 100 -> "100%".
+    const rounded = Math.round(n * 100) / 100;
+    return `${Number.isInteger(rounded) ? rounded : rounded}%`;
+  }
   if (typeof value === "number") {
     if (key.includes("value") || key.includes("facility") || key.includes("amount") || key.includes("financing")) {
       return formatCurrency(value);
@@ -65,6 +72,15 @@ function formatValue(key: string, value: unknown): React.ReactNode {
   }
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
+}
+
+function numberOrNull(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value.replace(/,/g, ""));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 function renderFileLabel(doc?: FileDoc) {
@@ -94,12 +110,23 @@ function DynamicRows({
   const rows = Object.entries(data).filter(([key]) => !exclude.includes(key));
   if (rows.length === 0) return null;
 
+  const getLabelOverride = (key: string): string | null => {
+    switch (key) {
+      case "facility_fee_paid_amount":
+        return "Facility fee collected";
+      case "facility_fee_rate_percent":
+        return "Facility fee rate";
+      default:
+        return null;
+    }
+  };
+
   return (
     <div>
       {rows.map(([key, value]) => (
         <DetailRow
           key={key}
-          label={key.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())}
+          label={getLabelOverride(key) ?? key.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())}
           value={formatValue(key, value)}
         />
       ))}
@@ -200,6 +227,21 @@ export function ContractDetailView({ contractId }: ContractDetailViewProps) {
   const [isOpeningDocument, setIsOpeningDocument] = React.useState(false);
   const contractDetails = (data?.contractDetails ?? null) as Record<string, unknown> | null;
   const customerDetails = (data?.customerDetails ?? null) as Record<string, unknown> | null;
+
+  const facilityFeeRatePercent = numberOrNull(contractDetails?.facility_fee_rate_percent);
+  const facilityFeePaidAmount = numberOrNull(contractDetails?.facility_fee_paid_amount);
+  const approvedFacility = numberOrNull(contractDetails?.approved_facility);
+  const facilityFeeCap =
+    facilityFeeRatePercent != null && approvedFacility != null
+      ? approvedFacility * (facilityFeeRatePercent / 100)
+      : null;
+  const facilityFeeCollectedDisplay =
+    facilityFeeRatePercent != null &&
+    facilityFeeRatePercent > 0 &&
+    facilityFeePaidAmount != null &&
+    facilityFeeCap != null
+      ? `${formatCurrency(facilityFeePaidAmount)} / ${formatCurrency(facilityFeeCap)} cap`
+      : null;
 
   const openDocument = React.useCallback(
     async (s3Key: string) => {
@@ -388,9 +430,13 @@ export function ContractDetailView({ contractId }: ContractDetailViewProps) {
                             "approved_facility",
                             "utilized_facility",
                             "available_facility",
+                            "facility_fee_paid_amount",
                             "document",
                           ]}
                         />
+                        {facilityFeeCollectedDisplay ? (
+                          <DetailRow label="Facility fee collected" value={facilityFeeCollectedDisplay} />
+                        ) : null}
                       </div>
                     </div>
                   </CardContent>

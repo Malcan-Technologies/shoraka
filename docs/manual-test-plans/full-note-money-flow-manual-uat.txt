@@ -1,0 +1,2985 @@
+================================================================================
+FULL CASHSOUK NOTE MONEY FLOW MANUAL UAT TEST PLAN
+================================================================================
+
+SECTION 1 - What this test plan is for
+================================================================================
+
+This manual UAT plan verifies the full Cashsouk note money flow.
+
+Use this file line by line.
+
+This test verifies:
+
+1. Money movement from issuer application to note creation.
+2. Money movement from investor funding to issuer disbursement.
+3. Platform fee calculation.
+4. Facility fee calculation.
+5. Net issuer disbursement calculation.
+6. Investor balance debit and credit behavior.
+7. Note ledger bucket movement.
+8. Trustee withdrawal letter generation.
+9. Shoraka STP order creation.
+10. Shoraka certificate gating before disbursement.
+11. Repayment receipt into the repayment pool.
+12. Settlement waterfall calculation.
+13. Investor principal and profit return.
+14. Service fee.
+15. Issuer residual return.
+16. Residual return is not blocked by Shoraka.
+17. Failed funding returns investor money.
+18. Negative cases and edge cases.
+
+Source files used for this plan:
+
+- apps/api/prisma/schema.prisma
+- apps/api/src/modules/notes/service.ts
+- apps/api/src/modules/notes/calculators.ts
+- apps/api/src/modules/notes/investor-balance.ts
+- apps/api/src/lib/facility-fee.ts
+- apps/api/src/modules/shoraka-stp/shoraka-stp-service.ts
+- apps/api/src/modules/shoraka-stp/shoraka-stp-webhook-controller.ts
+- apps/admin/src/notes/components/issuer-payout-card.tsx
+- apps/admin/src/notes/hooks/use-notes.ts
+- apps/issuer/src/app/notes/[id]/page.tsx
+- packages/types/src/notes.ts
+- packages/config/src/api-client.ts
+- docs/ai-context/shoraka-stp-integration-context.md
+- apps/api/src/modules/notes/calculators.test.ts
+- apps/api/src/modules/shoraka-stp/shoraka-stp-service.spec.ts
+
+Important rule:
+
+Do not pass a test only because the UI looks correct.
+For every money step, verify:
+
+1. UI value.
+2. DB value.
+3. Manual calculation.
+4. Ledger/bucket movement.
+
+STOP AND INVESTIGATE if any of those four do not match.
+
+
+SECTION 2 - Test data to use
+================================================================================
+
+Use this main happy-path scenario.
+
+Product:
+
+- Product type: Contract financing.
+- Platform fee rate: 3%.
+- Facility fee rate: 1%.
+- Service fee rate: 15%.
+- Profit rate: 10% per year.
+- Listing duration: use the value configured on the Product if present.
+- If the Product listing duration is empty, code uses the default note listing duration.
+
+Contract:
+
+- Approved facility: RM1,000,000.00
+- Facility fee rate: 1%
+- Facility fee paid before: RM0.00
+
+Note:
+
+- Target amount: RM100,000.00
+- Gross funded amount: RM100,000.00
+- Investor A investment: RM60,000.00
+- Investor B investment: RM40,000.00
+- Platform fee: RM3,000.00
+- Facility fee: RM1,000.00
+- Net issuer disbursement: RM96,000.00
+- Shoraka amount: RM100,000.00
+- Trustee withdrawal letter amount: RM96,000.00
+
+Settlement:
+
+- Repayment received: RM110,000.00
+- Funded principal: RM100,000.00
+- Profit rate: 10% per year.
+- Service fee rate: 15%.
+- Profit days: calculate from notes.activated_at to notes.maturity_date.
+- Use UTC calendar days, not partial hours.
+
+Main settlement example if profit days = 365:
+
+Formula:
+
+grossProfit = principal x profitRate% x profitDays / 365
+grossProfit = 100,000 x 10% x 365 / 365
+grossProfit = RM10,000.00
+
+serviceFee = grossProfit x serviceFeeRate%
+serviceFee = 10,000 x 15%
+serviceFee = RM1,500.00
+
+netInvestorProfit = grossProfit - serviceFee
+netInvestorProfit = 10,000 - 1,500
+netInvestorProfit = RM8,500.00
+
+issuerResidual = receipt - principal - netInvestorProfit - serviceFee - tawidh - gharamah
+issuerResidual = 110,000 - 100,000 - 8,500 - 1,500 - 0 - 0
+issuerResidual = RM0.00
+
+Investor split:
+
+Investor A share = 60,000 / 100,000 = 60%
+Investor B share = 40,000 / 100,000 = 40%
+
+Investor A principal = 100,000 x 60% = RM60,000.00
+Investor A net profit = 8,500 x 60% = RM5,100.00
+Investor A total return = RM65,100.00
+
+Investor B principal = 100,000 x 40% = RM40,000.00
+Investor B net profit = 8,500 x 40% = RM3,400.00
+Investor B total return = RM43,400.00
+
+Total investor return = 65,100 + 43,400 = RM108,500.00
+Operating account service fee = RM1,500.00
+Total settlement split = 108,500 + 1,500 = RM110,000.00
+
+STOP AND INVESTIGATE if total settlement split does not equal RM110,000.00.
+
+Residual test variant:
+
+To force issuer residual for UAT, use receipt RM112,000.00 with same 365-day profit.
+
+issuerResidual = 112,000 - 100,000 - 8,500 - 1,500
+issuerResidual = RM2,000.00
+
+Expected:
+
+- A residual withdrawal is created.
+- withdrawal_type = ISSUER_RESIDUAL_RETURN
+- amount = RM2,000.00
+- No Shoraka certificate is required for this residual withdrawal.
+
+
+SECTION 3 - Big picture flow diagram
+================================================================================
+
+Application
+-> Admin review
+-> Offer accepted/signed
+-> Contract/invoice approved
+-> Note created
+-> Note published
+-> Investor funding
+-> Close funding
+-> Issuer disbursement withdrawal created
+-> Shoraka STP certificate required
+-> Trustee letter generated
+-> Trustee letter submitted
+-> Mark disbursed
+-> Note active
+-> Repayment received
+-> Settlement preview
+-> Settlement approve
+-> Settlement post
+-> Investor balances credited
+-> Issuer residual returned if any
+
+Simple money story:
+
+1. Investors put money into the note.
+2. At funding close, Cashsouk deducts platform and facility fees.
+3. The issuer gets only the net amount.
+4. Shoraka is submitted for the gross funded amount.
+5. Trustee letter pays the net issuer amount.
+6. Issuer/paymaster repays into the repayment pool.
+7. Settlement splits repayment to investors, platform service fee, late-fee accounts, and issuer residual.
+
+
+SECTION 4 - DB tables/entities cheat sheet
+================================================================================
+
+Application
+
+- Represents: issuer financing request.
+- Created: issuer onboarding/application flow.
+- Inspect fields: id, status, issuer_organization_id, financing_type, contract_id.
+- Expected in this test: status should become COMPLETED before note creation.
+- STOP AND INVESTIGATE if note creation is allowed before the application is completed.
+
+Product
+
+- Represents: financing product configuration.
+- Created: admin settings/product setup.
+- Inspect fields: id, workflow, service_fee_rate_percent, marketplace_listing_duration_days.
+- Expected in this test: service_fee_rate_percent = 15.
+- Listing duration may come from marketplace_listing_duration_days.
+
+Contract
+
+- Represents: contract financing source and facility details.
+- Created: application/contract review flow.
+- Inspect fields: id, status, contract_details, offer_details, customer_details.
+- Expected contract_details:
+  approved_facility = 1000000
+  facility_fee_rate_percent = 1
+  facility_fee_paid_amount = 0 before close funding
+  facility_fee_paid_amount = 1000 after close funding
+
+Invoice
+
+- Represents: invoice being financed.
+- Created: application/invoice flow.
+- Inspect fields: id, status, details, offer_details, contract_id.
+- Expected:
+  status = APPROVED before note creation.
+  offer_details should include platform_fee_rate_percent = 3.
+  offer_details should include profit rate or the note should be manually set to 10%.
+  details.maturity_date should exist for settlement profit calculation.
+
+Note
+
+- Represents: one marketplace funding and repayment record.
+- Created: admin creates note from invoice/application.
+- Inspect fields:
+  id
+  status
+  listing_status
+  funding_status
+  servicing_status
+  source_application_id
+  source_contract_id
+  source_invoice_id
+  issuer_organization_id
+  target_amount
+  funded_amount
+  platform_fee_rate_percent
+  service_fee_rate_percent
+  profit_rate_percent
+  maturity_date
+  published_at
+  funding_closed_at
+  activated_at
+  repaid_at
+- Expected values:
+  After create: status = DRAFT, funding_status = NOT_OPEN, funded_amount = 0.
+  After publish: status = PUBLISHED, funding_status = OPEN.
+  After close funding: status = FUNDING, funding_status = FUNDED, listing_status = CLOSED.
+  After mark disbursed: status = ACTIVE, servicing_status = CURRENT, activated_at is set.
+  After settlement with no residual: status = REPAID, servicing_status = SETTLED.
+  After settlement with residual: status stays ACTIVE/CURRENT until residual withdrawal is completed.
+
+NoteListing
+
+- Represents: marketplace listing window.
+- Created/updated: note publish.
+- Inspect fields: note_id, status, opens_at, closes_at, published_at, unpublished_at.
+- Expected after publish:
+  status = PUBLISHED
+  opens_at is set
+  closes_at is set
+  published_at is set
+
+NoteInvestment
+
+- Represents: one investor organization's commitment.
+- Created: investor invests in marketplace.
+- Inspect fields:
+  note_id
+  investor_organization_id
+  investor_user_id
+  status
+  amount
+  allocation_percent
+  committed_at
+  confirmed_at
+  released_at
+- Expected:
+  Investor A: amount = 60000, allocation_percent = 60.
+  Investor B: amount = 40000, allocation_percent = 40.
+  Before close: status = COMMITTED.
+  After close: status = CONFIRMED.
+  After failed funding: status = RELEASED.
+  After settlement post: status = SETTLED.
+
+InvestorBalance
+
+- Represents: spendable investor wallet balance.
+- Created/updated: top-up, investment commit, failed funding, settlement payout.
+- Inspect fields: investor_organization_id, available_amount.
+- Expected:
+  Before investing, each investor has enough balance.
+  After Investor A invests, A balance decreases by RM60,000.
+  After Investor B invests, B balance decreases by RM40,000.
+  After failed funding, balances increase back by committed amount.
+  After settlement, balances increase by principal + net profit + investor ta'widh share.
+
+InvestorBalanceTransaction
+
+- Represents: audit trail for investor wallet movements.
+- Created: commit debit, failed funding credit, settlement credit.
+- Inspect fields:
+  investor_organization_id
+  direction
+  amount
+  source
+  note_id
+  note_investment_id
+  idempotency_key
+  metadata
+  posted_at
+- Expected:
+  Investment commit: direction = OUT, source = NOTE_INVESTMENT_COMMIT.
+  Failed funding refund: direction = IN, source = NOTE_INVESTMENT_RELEASE.
+  Settlement payout: direction = IN, source = NOTE_INVESTMENT_RELEASE, metadata.releaseReason = SETTLEMENT_PAYOUT.
+
+NoteLedgerAccount
+
+- Represents: accounting bucket definitions.
+- Expected account codes:
+  INVESTOR_POOL
+  REPAYMENT_POOL
+  OPERATING_ACCOUNT
+  TAWIDH_ACCOUNT
+  GHARAMAH_ACCOUNT
+  ISSUER_PAYABLE
+
+NoteLedgerEntry
+
+- Represents: note-level bucket movement.
+- Created:
+  closeFunding posts disbursement entries.
+  recordPayment posts repayment receipt.
+  postSettlement posts waterfall entries.
+  markWithdrawalCompleted posts issuer payable debit.
+- Inspect fields:
+  note_id
+  account_id
+  settlement_id
+  payment_id
+  withdrawal_id
+  direction
+  amount
+  description
+  idempotency_key
+- Expected:
+  Close funding:
+    INVESTOR_POOL DEBIT 100000
+    OPERATING_ACCOUNT CREDIT 3000
+    OPERATING_ACCOUNT CREDIT 1000
+    ISSUER_PAYABLE CREDIT 96000
+  Payment:
+    REPAYMENT_POOL CREDIT 110000
+  Settlement:
+    REPAYMENT_POOL DEBIT principal, investor profit, service fee, late fees, residual
+    INVESTOR_POOL CREDIT principal and net profit
+    OPERATING_ACCOUNT CREDIT service fee
+    ISSUER_PAYABLE CREDIT residual if any
+  Mark disbursed:
+    ISSUER_PAYABLE DEBIT 96000
+  Mark residual completed:
+    ISSUER_PAYABLE DEBIT residual amount
+
+WithdrawalInstruction
+
+- Represents: trustee payout instruction.
+- Created:
+  closeFunding creates ISSUER_DISBURSEMENT.
+  postSettlement creates ISSUER_RESIDUAL_RETURN if residual > 0.
+- Inspect fields:
+  note_id
+  settlement_id
+  issuer_organization_id
+  status
+  withdrawal_type
+  amount
+  letter_s3_key
+  generated_at
+  submitted_to_trustee_at
+  completed_at
+  metadata
+- Expected issuer disbursement:
+  withdrawal_type = ISSUER_DISBURSEMENT
+  amount = 96000
+  metadata.grossFundedAmount = 100000
+  metadata.platformFeeAmount = 3000
+  metadata.facilityFeeCharged = 1000
+  metadata.netIssuerDisbursement = 96000
+- Expected residual:
+  withdrawal_type = ISSUER_RESIDUAL_RETURN
+  amount = residual amount
+  no Shoraka certificate required
+
+ShorakaTradeOrder
+
+- Represents: Shoraka STP order for issuer disbursement only.
+- Created: Submit Shoraka Order.
+- Inspect fields:
+  withdrawal_instruction_id
+  note_id
+  provider_order_id
+  status
+  submit_request_payload
+  submit_response_payload
+  status_response_payload
+  callback_payload
+  callback_received_at
+  certificate_s3_key
+  certificate_file_sha256
+  certificate_uploaded_at
+- Expected:
+  One row per ISSUER_DISBURSEMENT withdrawal.
+  No row required for ISSUER_RESIDUAL_RETURN.
+  submit_request_payload.order_amount = "100000.00"
+  submit_request_payload.murabaha_amount = "100000.00"
+  certificate_s3_key stays null until manual fetch certificate.
+
+NotePayment
+
+- Represents: repayment receipt.
+- Created: admin records payment, or issuer submits payment and admin approves.
+- Inspect fields:
+  note_id
+  source
+  status
+  receipt_amount
+  receipt_date
+  evidence_s3_key
+  reference
+  received_into_account_code
+- Expected:
+  receipt_amount = 110000
+  status = RECEIVED after admin record/approval
+  received_into_account_code = REPAYMENT_POOL
+
+NotePaymentSchedule
+
+- Represents: expected repayment schedule.
+- Created: note creation.
+- Inspect fields:
+  note_id
+  due_date
+  expected_principal
+  expected_profit
+  expected_total
+- Expected:
+  expected_principal = target amount
+  due_date = maturity date if available
+
+NoteSettlement
+
+- Represents: settlement waterfall result.
+- Created: settlement preview.
+- Updated: approve and post.
+- Inspect fields:
+  status
+  gross_receipt_amount
+  investor_principal
+  investor_profit_gross
+  profit_start_date
+  profit_maturity_date
+  profit_days
+  annual_profit_rate_percent
+  service_fee_amount
+  investor_profit_net
+  tawidh_amount
+  tawidh_investor_amount
+  tawidh_account_amount
+  gharamah_amount
+  issuer_residual_amount
+  preview_snapshot
+  approved_at
+  posted_at
+  service_fee_trustee_status
+- Expected:
+  PREVIEW after preview.
+  APPROVED after approve.
+  POSTED after post.
+  service_fee_trustee_status = PENDING_LETTER if service fee > 0.
+
+
+SECTION 5 - Manual test steps: application to note creation
+================================================================================
+
+Step 1 - Create or choose the Product
+
+UI action:
+1. Log in to Admin.
+2. Go to Settings / Products.
+3. Create or choose a contract financing product.
+4. Set service fee rate to 15%.
+5. Confirm marketplace listing duration is set, or note that default duration will be used.
+
+Expected UI result:
+- Product saves successfully.
+- Product shows service fee rate = 15%.
+
+Expected DB result:
+- products.service_fee_rate_percent = 15.
+- products.marketplace_listing_duration_days is either set or null.
+
+Manual calculation:
+- No money calculation yet.
+
+What can go wrong:
+- If service fee is not 15%, settlement numbers will differ.
+- STOP AND INVESTIGATE before continuing.
+
+Step 2 - Create issuer and application
+
+UI action:
+1. Log in to Issuer portal.
+2. Create or use an issuer organization.
+3. Complete onboarding.
+4. Start a financing application.
+5. Choose the Product from Step 1.
+
+Expected UI result:
+- Issuer can submit application.
+- Application appears in Admin review queue.
+
+Expected DB result:
+- applications row exists.
+- applications.issuer_organization_id is set.
+- applications.financing_type contains the product id/name.
+
+Manual calculation:
+- No money movement yet.
+
+What can go wrong:
+- Missing issuer onboarding data can block review.
+- Wrong product means service fee or workflow can differ.
+
+Step 3 - Admin reviews application
+
+UI action:
+1. Log in to Admin.
+2. Open the application.
+3. Complete required review sections.
+4. Approve or complete application based on current workflow.
+
+Expected UI result:
+- Application reaches completed/approved state required for note creation.
+
+Expected DB result:
+- applications.status = COMPLETED before using create note from application.
+
+Manual calculation:
+- No money movement yet.
+
+What can go wrong:
+- If status is not COMPLETED, createFromApplication rejects with APPLICATION_NOT_COMPLETED.
+
+Step 4 - Set offer / contract / invoice details
+
+UI action:
+1. In application review, set offer amount = RM100,000.
+2. Set platform fee rate = 3%.
+3. Set profit rate = 10%.
+4. Set approved facility = RM1,000,000.
+5. Set facility fee rate = 1%.
+6. Set facility fee paid before = RM0.
+7. Create or approve invoice linked to the contract.
+8. Set maturity date exactly one year after expected activation if you want the simple 365-day settlement example.
+
+Expected UI result:
+- Offer details display:
+  Amount RM100,000
+  Platform fee 3%
+  Profit rate 10%
+  Facility fee 1%
+
+Expected DB result:
+- invoices.status = APPROVED.
+- invoices.offer_details.platform_fee_rate_percent = 3.
+- contract_details.approved_facility = 1000000.
+- contract_details.facility_fee_rate_percent = 1.
+- contract_details.facility_fee_paid_amount = 0.
+
+Manual calculation:
+- No money movement yet.
+
+What can go wrong:
+- If source_contract_id is missing, facility fee will not be charged.
+- If invoice is not APPROVED, note creation rejects with INVOICE_NOT_APPROVED.
+
+Step 5 - Create the note
+
+UI action:
+1. In Admin, create note from the approved application or invoice.
+2. Use title: "UAT Full Money Flow RM100k".
+
+Expected UI result:
+- Admin note detail opens.
+- Note appears as draft.
+
+Expected DB result:
+- notes.status = DRAFT.
+- notes.funding_status = NOT_OPEN.
+- notes.listing_status = NOT_LISTED or DRAFT.
+- notes.target_amount = 100000.
+- notes.funded_amount = 0.
+- notes.platform_fee_rate_percent = 3.
+- notes.service_fee_rate_percent = 15.
+- notes.profit_rate_percent = 10.
+- notes.source_contract_id is not null for contract financing.
+- notes.source_invoice_id is set.
+- note_payment_schedules row exists.
+
+Manual calculation:
+- Expected schedule principal = RM100,000.
+- Expected schedule profit for full year = RM100,000 x 10% = RM10,000.
+- Expected schedule total = RM110,000.
+
+What can go wrong:
+- If service fee is not copied from product, settlement service fee will differ.
+- If maturity_date is missing, settlement preview will fail with NOTE_MATURITY_DATE_REQUIRED.
+
+
+SECTION 6 - Manual test steps: publish and funding
+================================================================================
+
+Step 1 - Publish note
+
+UI action:
+1. Open Admin Note Detail.
+2. Click Publish.
+
+Expected UI result:
+- Note status changes to published/open for funding.
+- Investor marketplace can see the note.
+
+Expected DB result:
+- notes.status = PUBLISHED.
+- notes.funding_status = OPEN.
+- notes.listing_status = PUBLISHED.
+- notes.published_at is set.
+- note_listings.status = PUBLISHED.
+- note_listings.opens_at is set.
+- note_listings.closes_at is set.
+
+Manual calculation:
+- No money movement yet.
+
+What can go wrong:
+- Publish fails if platform fee exceeds platform cap.
+- Publish fails if service fee is above 15%.
+
+Step 2 - Prepare investor balances
+
+UI action:
+1. Ensure Investor A has available balance at least RM60,000.
+2. Ensure Investor B has available balance at least RM40,000.
+3. Record the starting balance for each investor.
+
+Expected DB result:
+- investor_balances.available_amount for Investor A >= 60000.
+- investor_balances.available_amount for Investor B >= 40000.
+
+Manual calculation:
+- Record:
+  Investor A starting balance = __________________
+  Investor B starting balance = __________________
+
+What can go wrong:
+- Investment fails with INSUFFICIENT_INVESTOR_BALANCE if balance is too low.
+
+Step 3 - Investor A invests RM60,000
+
+UI action:
+1. Log in as Investor A.
+2. Open marketplace note.
+3. Invest RM60,000.
+4. Confirm investment.
+
+Expected UI result:
+- Investment succeeds.
+- Funding progress becomes 60%.
+
+Expected DB result:
+- notes.funded_amount increases to 60000.
+- note_investments row exists:
+  investor_organization_id = Investor A org id
+  amount = 60000
+  allocation_percent = 60
+  status = COMMITTED
+- investor_balances.available_amount decreases by 60000.
+- investor_balance_transactions row exists:
+  direction = OUT
+  amount = 60000
+  source = NOTE_INVESTMENT_COMMIT
+  note_id = :noteId
+
+Manual calculation:
+- Investor A balance after = Investor A starting balance - 60000.
+
+What can go wrong:
+- If note auto-closes early, check if funding reached full target.
+- If allocation_percent is not 60, check target amount.
+
+Step 4 - Investor B invests RM40,000
+
+UI action:
+1. Log in as Investor B.
+2. Open marketplace note.
+3. Invest RM40,000.
+4. Confirm investment.
+
+Expected UI result:
+- Investment succeeds.
+- Funding progress becomes 100%.
+- System may auto-close funding after full funding.
+
+Expected DB result:
+- notes.funded_amount = 100000.
+- note_investments row exists:
+  investor_organization_id = Investor B org id
+  amount = 40000
+  allocation_percent = 40
+  status = COMMITTED or CONFIRMED if auto-close already ran
+- investor_balances.available_amount decreases by 40000.
+- investor_balance_transactions row exists:
+  direction = OUT
+  amount = 40000
+  source = NOTE_INVESTMENT_COMMIT
+
+Manual calculation:
+- Investor B balance after = Investor B starting balance - 40000.
+- Total funded = 60000 + 40000 = RM100,000.
+- Investor A share = 60000 / 100000 = 60%.
+- Investor B share = 40000 / 100000 = 40%.
+
+What can go wrong:
+- If funded_amount does not equal sum of investments, STOP AND INVESTIGATE.
+- If investment amount exceeds remaining capacity, backend should reject with NOTE_OVERSUBSCRIBED.
+
+
+SECTION 7 - Manual test steps: close funding
+================================================================================
+
+Important:
+
+If the system auto-closed funding when Investor B funded the note to 100%, verify the same expected results below.
+If not auto-closed, close funding manually from Admin.
+
+Step 1 - Close funding
+
+UI action:
+1. Open Admin Note Detail.
+2. Click Close Funding.
+
+Expected UI result:
+- Note no longer appears open for funding.
+- Admin note detail shows issuer disbursement/payout section.
+
+Expected DB result:
+- notes.status = FUNDING.
+- notes.funding_status = FUNDED.
+- notes.listing_status = CLOSED.
+- notes.funding_closed_at is set.
+- note_investments.status = CONFIRMED for Investor A and B.
+- note_investments.confirmed_at is set.
+
+Manual calculation:
+
+Platform fee:
+platformFee = fundedAmount x platformFeeRate%
+platformFee = 100000 x 3%
+platformFee = RM3,000.00
+
+Facility fee:
+facilityFeeCap = approvedFacility x facilityFeeRate%
+facilityFeeCap = 1000000 x 1%
+facilityFeeCap = RM10,000.00
+
+rawFacilityFee = fundedAmount x facilityFeeRate%
+rawFacilityFee = 100000 x 1%
+rawFacilityFee = RM1,000.00
+
+remainingFacilityFee = facilityFeeCap - facilityFeePaidBefore
+remainingFacilityFee = 10000 - 0
+remainingFacilityFee = RM10,000.00
+
+facilityFeeCharged = min(rawFacilityFee, remainingFacilityFee)
+facilityFeeCharged = min(1000, 10000)
+facilityFeeCharged = RM1,000.00
+
+Net issuer disbursement:
+netIssuerDisbursement = fundedAmount - platformFee - facilityFeeCharged
+netIssuerDisbursement = 100000 - 3000 - 1000
+netIssuerDisbursement = RM96,000.00
+
+Expected DB - withdrawal:
+
+- withdrawal_instructions row exists.
+- withdrawal_type = ISSUER_DISBURSEMENT.
+- status = DRAFT.
+- amount = 96000.
+- metadata.grossFundedAmount = 100000.
+- metadata.platformFeeAmount = 3000.
+- metadata.facilityFeeRatePercent = 1.
+- metadata.facilityFeeCap = 10000.
+- metadata.facilityFeePaidBefore = 0.
+- metadata.facilityFeeCharged = 1000.
+- metadata.netIssuerDisbursement = 96000.
+
+Expected DB - contract:
+
+- contract_details.facility_fee_paid_amount = 1000.
+
+Expected ledger/buckets:
+
+- INVESTOR_POOL DEBIT 100000.
+- OPERATING_ACCOUNT CREDIT 3000 for platform fee.
+- OPERATING_ACCOUNT CREDIT 1000 for facility fee.
+- ISSUER_PAYABLE CREDIT 96000.
+
+Manual ledger check:
+
+100000 = 3000 + 1000 + 96000
+100000 = 100000
+
+STOP AND INVESTIGATE if the ledger does not balance.
+
+What can go wrong:
+
+- Close funding fails if minimum funding is not met.
+- Facility fee will be 0 if source_contract_id is missing.
+- Facility fee will be capped if prior facility_fee_paid_amount already uses the cap.
+- Duplicate withdrawal should not be created for same note/type.
+
+
+SECTION 8 - Manual test steps: issuer payout and trustee letter
+================================================================================
+
+Step 1 - Open issuer payout card
+
+UI action:
+1. Open Admin Note Detail.
+2. Find "Issuer Disbursement" card.
+
+Expected UI result:
+- Amount shows RM96,000.00.
+- Disbursement breakdown appears.
+
+Expected UI values:
+- Gross funded = RM100,000.00
+- Platform fee = RM3,000.00
+- Facility fee = RM1,000.00
+- Net to issuer = RM96,000.00
+
+Expected DB result:
+- UI values match withdrawal_instructions.metadata and withdrawal_instructions.amount.
+
+Manual calculation:
+- Same as Section 7.
+
+STOP AND INVESTIGATE if the UI uses RM100,000 as the payout amount.
+
+Step 2 - Generate trustee withdrawal letter
+
+UI action:
+1. Confirm beneficiary details are present.
+2. If missing, edit beneficiary details while withdrawal is still DRAFT.
+3. Click Generate Letter.
+4. Confirm action.
+
+Expected UI result:
+- Status changes to "Letter generated - awaiting trustee submission".
+- View Letter button appears.
+
+Expected DB result:
+- withdrawal_instructions.status = LETTER_GENERATED.
+- withdrawal_instructions.letter_s3_key is set.
+- withdrawal_instructions.generated_at is set.
+
+Expected letter result:
+- Letter amount = MYR 96000.00.
+- Letter type = ISSUER_DISBURSEMENT.
+
+Manual calculation:
+- Trustee payout amount = net issuer disbursement = RM96,000.
+
+Important explanation:
+
+- Shoraka amount = gross funded amount = RM100,000.
+- Trustee payout amount = net issuer amount = RM96,000.
+- These two are intentionally different.
+
+STOP AND INVESTIGATE if the trustee letter amount is RM100,000.
+
+Step 3 - Mark withdrawal submitted to trustee
+
+UI action:
+1. Click Mark Submitted to Trustee.
+2. Confirm action.
+
+Expected UI result:
+- Status changes to "Submitted to trustee - awaiting confirmation".
+
+Expected DB result:
+- withdrawal_instructions.status = SUBMITTED_TO_TRUSTEE.
+- withdrawal_instructions.submitted_to_trustee_at is set.
+- withdrawal_instructions.submitted_by_user_id is set.
+
+Manual calculation:
+- No new money movement yet.
+- Trustee submission is an operational status step.
+
+What can go wrong:
+- Backend rejects if letter is not generated first.
+
+
+SECTION 9 - Manual test steps: Shoraka STP
+================================================================================
+
+Step 1 - Confirm Shoraka section appears only for issuer disbursement
+
+UI action:
+1. Open Admin Note Detail.
+2. Look at Issuer Disbursement card.
+3. Confirm Shoraka STP section appears.
+
+Expected UI result:
+- Shoraka STP section appears for ISSUER_DISBURSEMENT.
+
+Expected DB result:
+- No shoraka_trade_orders row exists before submit, unless already submitted.
+
+Manual calculation:
+- Shoraka amount should be gross funded amount = RM100,000.
+
+What can go wrong:
+- If Shoraka appears on residual withdrawal, STOP AND INVESTIGATE.
+
+Step 2 - Check cutoff window before submit
+
+UI action:
+1. Check Malaysia time.
+2. If current time is between 11:30 PM and 12:30 AM MYT, confirm Submit Shoraka Order is disabled.
+3. If outside the window, continue.
+
+Expected UI result:
+- During cutoff, UI shows:
+  "Shoraka orders cannot be submitted between 11:30 PM and 12:30 AM MYT..."
+- Submit button disabled.
+
+Expected backend result:
+- Backend rejects submit during cutoff with code SHORAKA_CUTOFF_WINDOW.
+
+Manual calculation:
+- Unsafe window:
+  23:30 to 23:59 MYT
+  00:00 to 00:29 MYT
+- Safe again at 00:30 MYT.
+
+What can go wrong:
+- UI and backend cutoff rules must match.
+- STOP AND INVESTIGATE if UI allows submit but backend rejects, or backend allows submit during cutoff.
+
+Step 3 - Submit Shoraka Order
+
+UI action:
+1. Click Submit Shoraka Order.
+2. Confirm success toast.
+
+Expected UI result:
+- Shoraka section shows Order ID.
+- Status may show Active, Pending Sell, Completed, or manual review status depending on provider response.
+
+Expected Shoraka request:
+
+- product_type = FINANCING
+- commodity_type = 000-COPPER
+- ownership = issuer organization name
+- value_date = current Malaysia/intended disbursement date in dd/mm/yyyy format
+- order_currency = MYR
+- order_amount = 100000.00
+- murabaha_amount = 100000.00
+- tenor = O/N
+- order_type = Buy & Sell
+
+Expected DB result:
+
+- shoraka_trade_orders row is created.
+- withdrawal_instruction_id = :withdrawalId.
+- note_id = :noteId.
+- provider_order_id exists.
+- status = provider status.
+- idempotency_key = shoraka:submit::withdrawalId style.
+- submit_request_payload.order_amount = "100000.00".
+- submit_request_payload.murabaha_amount = "100000.00".
+- submit_request_payload.ownership = issuer organization name.
+- submit_response_payload is saved.
+- submitted_at is set.
+- certificate_s3_key = null.
+
+Manual calculation:
+
+- order_amount = metadata.grossFundedAmount = RM100,000.
+- Do not subtract platform fee.
+- Do not subtract facility fee.
+- Do not use withdrawal.amount.
+
+STOP AND INVESTIGATE if order_amount or murabaha_amount is RM96,000.
+
+Step 4 - Test status Active
+
+UI action:
+1. If status is Active, read the Shoraka card.
+2. Click Query Status later.
+
+Expected UI result:
+- Status label means matching in progress.
+- Next action says query status again later.
+- Fetch Certificate is not enabled.
+
+Expected DB result:
+- shoraka_trade_orders.status = Active.
+- certificate_s3_key = null.
+
+Manual calculation:
+- No money movement.
+
+Step 5 - Test status Pending Sell
+
+UI action:
+1. Use test/provider mock or callback/status query to get Pending Sell.
+2. Refresh Admin Note Detail.
+
+Expected UI result:
+- Status means sell leg pending.
+- Next action says query status again later or contact operations if stuck.
+- Fetch Certificate is not enabled.
+
+Expected DB result:
+- shoraka_trade_orders.status = Pending Sell.
+- certificate_s3_key = null.
+
+Manual calculation:
+- No money movement.
+
+Step 6 - Query status to Completed
+
+UI action:
+1. Click Query Status.
+2. Use provider/mock so status becomes Completed.
+
+Expected UI result:
+- Status changes to Completed.
+- Next action is Fetch Certificate.
+- Fetch Certificate button appears.
+
+Expected DB result:
+- shoraka_trade_orders.status = Completed.
+- shoraka_trade_orders.status_response_payload is saved.
+- shoraka_trade_orders.status_last_checked_at is set.
+- certificate_s3_key is still null.
+
+Manual calculation:
+- Still no money movement.
+
+Step 7 - Callback updates to Completed
+
+UI/API action:
+1. Simulate Shoraka callback to /v1/webhooks/shoraka-stp/callback.
+2. Use matching provider_order_id.
+3. Use valid apiId and signature.
+4. Send status = Completed.
+
+Expected backend result:
+- Response is plain text OK.
+
+Expected DB result:
+- shoraka_trade_orders.status = Completed.
+- callback_payload saved.
+- callback_received_at set.
+- status_last_checked_at set.
+- certificate_s3_key remains null.
+
+Expected UI result:
+- UI may show "Updated by callback".
+- Fetch Certificate becomes available.
+
+Manual calculation:
+- Callback updates status only.
+- Callback does not fetch certificate.
+- Callback does not mark disbursed.
+
+STOP AND INVESTIGATE if callback creates certificate_s3_key automatically.
+
+Step 8 - Fetch Shoraka certificate
+
+UI action:
+1. Click Fetch Certificate.
+
+Expected UI result:
+- Success toast.
+- View Certificate button appears.
+- Mark Disbursed becomes enabled after the withdrawal is submitted to trustee.
+
+Expected DB result:
+- shoraka_trade_orders.certificate_s3_key is set.
+- shoraka_trade_orders.certificate_file_sha256 is set.
+- shoraka_trade_orders.certificate_uploaded_at is set.
+- certificate_s3_key format:
+  shoraka-certificates/:withdrawalId/:providerOrderId-:timestamp.pdf
+
+Expected S3 result:
+- PDF exists at certificate_s3_key.
+- Content type is application/pdf.
+
+Manual calculation:
+- No money movement.
+
+What can go wrong:
+- Fetch Certificate before Completed should fail with SHORAKA_STATUS_INVALID.
+- Missing provider_order_id should fail.
+
+
+SECTION 10 - Manual test steps: mark disbursed
+================================================================================
+
+Step 1 - Try Mark Disbursed before certificate
+
+UI action:
+1. Use a submitted-to-trustee issuer disbursement withdrawal with no certificate_s3_key.
+2. Try to click Mark Disbursed.
+
+Expected UI result:
+- Button is disabled.
+- Helper text says Shoraka certificate must be fetched before marking issuer disbursement completed.
+
+Expected DB result:
+- withdrawal_instructions.status remains SUBMITTED_TO_TRUSTEE.
+- notes.status remains FUNDING.
+- notes.activated_at remains null.
+
+Manual calculation:
+- No money movement.
+
+Step 2 - Try backend directly before certificate
+
+API action:
+1. Call POST /v1/admin/withdrawals/:withdrawalId/mark-completed.
+
+Expected backend result:
+- Error code = SHORAKA_CERTIFICATE_REQUIRED.
+- Status code = 400.
+
+Expected DB result:
+- No change.
+
+STOP AND INVESTIGATE if backend allows this.
+
+Step 3 - Fetch certificate, then mark disbursed
+
+UI action:
+1. Fetch certificate.
+2. Confirm certificate_s3_key exists.
+3. Click Mark Disbursed.
+4. Confirm action.
+
+Expected UI result:
+- Success toast:
+  "Issuer disbursement recorded - note is now active"
+- Withdrawal status becomes Disbursed/Completed.
+- Note becomes Active.
+
+Expected DB result:
+- withdrawal_instructions.status = COMPLETED.
+- withdrawal_instructions.completed_at is set.
+- notes.status = ACTIVE.
+- notes.servicing_status = CURRENT.
+- notes.activated_at is set.
+- note_ledger_entries has ISSUER_PAYABLE DEBIT 96000.
+
+Manual calculation:
+- Issuer payable was credited RM96,000 at close funding.
+- Issuer payable is debited RM96,000 when trustee payout is completed.
+- Issuer payable net for this disbursement should be zero.
+
+Important:
+
+activated_at is the profit start date.
+Settlement profit starts from activation/disbursement, not close funding.
+
+STOP AND INVESTIGATE if activated_at is not set after mark disbursed.
+
+
+SECTION 11 - Manual test steps: repayment/payment
+================================================================================
+
+Step 1 - Create repayment/payment receipt
+
+UI action:
+1. Open Issuer Note Detail or Admin Note Detail.
+2. Record repayment/payment receipt of RM110,000.
+3. Use source PAYMASTER or ISSUER_ON_BEHALF based on the UI flow.
+4. If issuer submits payment, have Admin approve it.
+
+Expected UI result:
+- Payment appears in payment/settlement area.
+- Repayment pool received shows RM110,000 after Admin approval/receipt.
+
+Expected DB result:
+- note_payments row exists:
+  note_id = :noteId
+  receipt_amount = 110000
+  status = RECEIVED after Admin record/approval
+  received_into_account_code = REPAYMENT_POOL
+  receipt_date is set
+- note_ledger_entries row exists:
+  account = REPAYMENT_POOL
+  direction = CREDIT
+  amount = 110000
+  description = Repayment receipt recorded
+
+Manual calculation:
+- Repayment pool increased by RM110,000.
+
+What can go wrong:
+- Issuer-submitted payments may be PENDING first and need Admin approval.
+- Pending payments block settlement.
+- Payment cannot be recorded before note is active/ready for servicing.
+
+
+SECTION 12 - Manual test steps: settlement preview / approve / post
+================================================================================
+
+Step 1 - Preview settlement
+
+UI action:
+1. Open Admin Note Detail.
+2. Go to Settlement panel.
+3. Preview settlement using receipt amount RM110,000.
+4. Use tawidh = 0 and gharamah = 0 for main happy path.
+
+Expected UI result:
+- Settlement preview shows principal, profit, service fee, investor pool, and issuer residual.
+
+Expected DB result:
+- note_settlements row exists.
+- status = PREVIEW.
+- gross_receipt_amount = 110000.
+- investor_principal = 100000.
+- profit_start_date = notes.activated_at.
+- profit_maturity_date = notes.maturity_date.
+- profit_days = whole UTC calendar days.
+- annual_profit_rate_percent = 10.
+- investor_profit_gross = calculated gross profit.
+- service_fee_amount = calculated service fee.
+- investor_profit_net = gross profit - service fee.
+- issuer_residual_amount = calculated residual.
+- preview_snapshot contains allocations.
+
+Manual calculation:
+
+Formula:
+
+profitDays = UTC calendar days between activated_at and maturity_date.
+grossProfit = fundedPrincipal x profitRate% x profitDays / 365.
+serviceFee = grossProfit x serviceFeeRate%.
+netInvestorProfit = grossProfit - serviceFee.
+issuerResidual = receipt - principal - netInvestorProfit - serviceFee - tawidh - gharamah.
+
+Example if profitDays = 365:
+
+fundedPrincipal = RM100,000.
+receipt = RM110,000.
+profitRate = 10%.
+serviceFeeRate = 15%.
+tawidh = 0.
+gharamah = 0.
+
+grossProfit = 100000 x 10% x 365 / 365 = RM10,000.00
+serviceFee = 10000 x 15% = RM1,500.00
+netInvestorProfit = 10000 - 1500 = RM8,500.00
+issuerResidual = 110000 - 100000 - 8500 - 1500 = RM0.00
+
+Investor allocation:
+
+Investor A share = 60%
+Investor B share = 40%
+
++----------------+------------+------------+----------------+
+| Investor       | Principal  | Net Profit | Total Credit   |
++----------------+------------+------------+----------------+
+| Investor A     | 60,000.00  | 5,100.00   | 65,100.00      |
+| Investor B     | 40,000.00  | 3,400.00   | 43,400.00      |
++----------------+------------+------------+----------------+
+| Total          |100,000.00  | 8,500.00   |108,500.00      |
++----------------+------------+------------+----------------+
+
+Settlement split:
+
++--------------------------+------------+
+| Bucket                   | Amount     |
++--------------------------+------------+
+| Investor principal       |100,000.00  |
+| Investor net profit      |  8,500.00  |
+| Service fee              |  1,500.00  |
+| Issuer residual          |      0.00  |
+| Total                    |110,000.00  |
++--------------------------+------------+
+
+STOP AND INVESTIGATE if total does not equal receipt amount.
+
+Step 2 - Approve settlement
+
+UI action:
+1. Click Approve Settlement.
+2. Confirm action.
+
+Expected UI result:
+- Settlement status changes to approved.
+
+Expected DB result:
+- note_settlements.status = APPROVED.
+- approved_by_user_id is set.
+- approved_at is set.
+
+Manual calculation:
+- No new calculation.
+- Approved row should match preview row.
+
+What can go wrong:
+- Settlement cannot approve if amount is incomplete or ledger receipt is missing.
+
+Step 3 - Post settlement
+
+UI action:
+1. Click Post Settlement.
+2. Confirm action.
+
+Expected UI result:
+- Settlement status changes to posted.
+- Settlement payout summary appears.
+- Investor balances should reflect returned money.
+- If residual = 0, note may become REPAID/SETTLED.
+- If residual > 0, residual withdrawal appears and note stays current until paid.
+
+Expected DB result:
+- note_settlements.status = POSTED.
+- note_settlements.posted_at is set.
+- note_investments.status = SETTLED.
+- note_payments.status = SETTLED.
+- investor_balance_transactions created for each investor:
+  direction = IN
+  source = NOTE_INVESTMENT_RELEASE
+  metadata.releaseReason = SETTLEMENT_PAYOUT
+- investor_balances.available_amount increases:
+  Investor A + RM65,100.00
+  Investor B + RM43,400.00
+- note_ledger_entries created for settlement waterfall.
+- If service_fee_amount > 0:
+  note_settlements.service_fee_trustee_status = PENDING_LETTER.
+
+Expected ledger result:
+- REPAYMENT_POOL DEBIT investor principal RM100,000.
+- REPAYMENT_POOL DEBIT investor net profit RM8,500.
+- REPAYMENT_POOL DEBIT service fee RM1,500.
+- INVESTOR_POOL CREDIT investor principal RM100,000.
+- INVESTOR_POOL CREDIT investor net profit RM8,500.
+- OPERATING_ACCOUNT CREDIT service fee RM1,500.
+
+Manual calculation:
+- Investor credits = RM108,500.
+- Service fee = RM1,500.
+- Total = RM110,000.
+
+STOP AND INVESTIGATE if investor credits + service fee + residual + late fees do not equal receipt.
+
+Residual variant:
+
+If receipt = RM112,000:
+
+grossProfit = RM10,000.
+serviceFee = RM1,500.
+netInvestorProfit = RM8,500.
+issuerResidual = 112000 - 100000 - 8500 - 1500 = RM2,000.
+
+Expected:
+- Investor credits remain RM108,500.
+- Operating service fee remains RM1,500.
+- ISSUER_RESIDUAL_RETURN withdrawal amount = RM2,000.
+- Total = 108,500 + 1,500 + 2,000 = RM112,000.
+
+
+SECTION 13 - Manual test steps: issuer residual return
+================================================================================
+
+Use the residual variant from Section 12.
+
+Step 1 - Confirm residual withdrawal exists
+
+UI action:
+1. Open Admin Note Detail after posting settlement with residual.
+2. Find Issuer Residual Refund card.
+
+Expected UI result:
+- Residual payout card appears.
+- Amount = RM2,000.00.
+- No Shoraka STP section appears.
+
+Expected DB result:
+- withdrawal_instructions row exists:
+  settlement_id = :settlementId
+  withdrawal_type = ISSUER_RESIDUAL_RETURN
+  amount = 2000
+  status = DRAFT
+- shoraka_trade_orders has no row for this residual withdrawal.
+
+Manual calculation:
+- Residual = receipt - principal - net profit - service fee - late fees.
+- Residual = 112000 - 100000 - 8500 - 1500 = 2000.
+
+Step 2 - Generate residual trustee letter
+
+UI action:
+1. Generate Letter on residual card.
+2. View Letter.
+
+Expected UI result:
+- Status = LETTER_GENERATED.
+- Letter available.
+
+Expected DB result:
+- letter_s3_key is set.
+- generated_at is set.
+
+Expected letter:
+- Amount = RM2,000.00.
+
+Step 3 - Submit and complete residual withdrawal
+
+UI action:
+1. Mark Submitted to Trustee.
+2. Mark Disbursed / Complete.
+
+Expected UI result:
+- Residual payout marked complete.
+- Note becomes REPAID/SETTLED after all residual withdrawals are completed.
+
+Expected DB result:
+- withdrawal_instructions.status = COMPLETED.
+- completed_at is set.
+- No Shoraka certificate_s3_key is required.
+- note_ledger_entries has ISSUER_PAYABLE DEBIT 2000.
+- notes.status = REPAID.
+- notes.servicing_status = SETTLED.
+- notes.repaid_at is set.
+
+Manual calculation:
+- ISSUER_PAYABLE residual credit from settlement = RM2,000.
+- ISSUER_PAYABLE residual debit from completed withdrawal = RM2,000.
+- Net residual issuer payable should be zero.
+
+Important explanation:
+
+Residual is post-settlement leftover money returned to the issuer.
+It is not a new financing disbursement.
+Therefore it should not be blocked by Shoraka.
+
+STOP AND INVESTIGATE if residual Mark Completed requires Shoraka certificate.
+
+
+SECTION 14 - Manual test steps: failed funding
+================================================================================
+
+Create a separate note for this test.
+
+Step 1 - Create and publish a second note
+
+UI action:
+1. Create a note with target RM100,000.
+2. Publish it.
+
+Expected DB result:
+- notes.status = PUBLISHED.
+- notes.funding_status = OPEN.
+
+Step 2 - Fund below minimum
+
+UI action:
+1. Investor A invests RM50,000 only.
+2. Do not add Investor B.
+
+Expected DB result:
+- notes.funded_amount = 50000.
+- note_investments.status = COMMITTED.
+- Investor A balance decreased by RM50,000.
+
+Manual calculation:
+- Minimum funding default = 80%.
+- Required minimum = 100000 x 80% = RM80,000.
+- Current funding = RM50,000.
+- Minimum not met.
+
+Step 3 - Fail funding
+
+UI action:
+1. Admin clicks Fail Funding.
+
+Expected UI result:
+- Note marked failed funding.
+- No issuer payout card.
+- No Shoraka section.
+
+Expected DB result:
+- notes.status = FAILED_FUNDING.
+- notes.funding_status = FAILED.
+- notes.listing_status = CLOSED.
+- note_investments.status = RELEASED.
+- note_investments.released_at is set.
+- investor_balances.available_amount for Investor A increases by RM50,000.
+- investor_balance_transactions row:
+  direction = IN
+  source = NOTE_INVESTMENT_RELEASE
+  amount = 50000
+  idempotency_key contains fail-funding investment id.
+- withdrawal_instructions has no ISSUER_DISBURSEMENT for this note.
+- shoraka_trade_orders has no row for this note.
+
+Manual check:
+- Total investor refund = total committed amount.
+- Refund = RM50,000.
+
+STOP AND INVESTIGATE if issuer withdrawal exists after failed funding.
+
+
+SECTION 14A - Scripts, jobs, and automated status transitions
+================================================================================
+
+This section covers backend automation that can affect the note money flow.
+
+Important finding:
+
+There is an hourly note listing expiry cron job.
+It can automatically close funding or fail funding.
+This is probably what "expiry" means.
+
+Script/job summary:
+
++--------------------------------------+---------------------------------------------------------------+-----------------------------+-------------------------------------------------------+---------------------------------------------------------------+-----------------+---------------+
+| Script/job                           | File path                                                     | Trigger                     | Purpose                                               | Tables affected                                               | Money movement? | UAT required? |
++--------------------------------------+---------------------------------------------------------------+-----------------------------+-------------------------------------------------------+---------------------------------------------------------------+-----------------+---------------+
+| Background job bootstrap             | apps/api/src/lib/jobs/index.ts                                | API startup                 | Registers scheduled jobs                              | Depends on child jobs                                         | Indirect        | Yes           |
+| Note listing expiry job              | apps/api/src/lib/jobs/note-listing-expiry.ts                  | Hourly cron + manual script | Closes expired/fully-funded listings                  | notes, note_listings, note_investments, withdrawals, ledger, balances | Yes        | Yes           |
+| Manual note expiry runner            | apps/api/scripts/run-note-listing-expiry.ts                   | pnpm run-note-listing-expiry | Runs note listing expiry once                         | Same as note listing expiry job                               | Yes             | Yes           |
+| Inline fully-funded auto-close       | apps/api/src/modules/notes/service.ts                         | Investor commit API         | Closes funding when funded amount reaches target      | notes, investments, withdrawals, ledger, contract             | Yes             | Yes           |
+| Manual fail funding API flow         | apps/api/src/modules/notes/service.ts                         | Admin API/UI                | Fails underfunded note and refunds investors          | notes, investments, investor_balances, balance_transactions   | Yes             | Yes           |
+| Offer expiry job                     | apps/api/src/lib/jobs/offer-expiry.ts                         | Hourly cron + manual script | Withdraws expired pre-note offers                     | contracts, invoices, applications, reviews, notifications     | No              | Yes, pre-note |
+| Manual offer expiry runner           | apps/api/scripts/run-offer-expiry.ts                          | pnpm run-offer-expiry       | Runs offer expiry once                                | Same as offer expiry job                                      | No              | Yes, pre-note |
+| Expired offer seed helper            | apps/api/scripts/seed-expired-offer-for-test.ts               | Manual command              | Backdates offer expires_at for UAT                    | contracts or invoices                                         | No              | Optional      |
+| On-time settlement seed helper       | apps/api/scripts/seed-ontime-test-note.ts                     | Manual command              | Creates active on-time note test data                 | notes, note_listings, note_payment_schedules, investments     | No ledger       | Optional      |
+| Late-fee test note seed helper       | apps/api/scripts/seed-late-fee-test-note.ts                   | Manual command              | Creates late/arrears note test data                   | notes, note_listings, note_payment_schedules, investments     | No ledger       | Optional      |
+| Prefunding note seed helper          | apps/api/scripts/seed-prefunding-test-notes.ts                | Manual command              | Creates draft prefunding notes                        | notes, note_payment_schedules                                 | No              | Optional      |
+| Note scenario seed helper            | apps/api/scripts/seed-note-scenarios.ts                       | Manual command              | Creates one draft note from a completed application   | notes                                                          | No              | Optional      |
+| Deployment migration task            | docker/migrate.sh, .github/workflows/deploy*.yml              | GitHub Actions / ECS task   | Runs Prisma migrations and data backfills             | Prisma migration-dependent                                    | Can affect old money rows | Deployment UAT |
+| CTOS KYB retry job                   | apps/api/src/lib/jobs/ctos-kyb-retry.ts                       | Every 5 minutes cron        | Retries onboarding KYB links                          | ctos_party_supplements and KYB-related rows                   | No              | Not money UAT |
+| Notification cleanup job             | apps/api/src/lib/jobs/index.ts                                | Daily cron                  | Cleans old notifications                              | notifications                                                 | No              | No            |
++--------------------------------------+---------------------------------------------------------------+-----------------------------+-------------------------------------------------------+---------------------------------------------------------------+-----------------+---------------+
+
+14A.1 - Background job bootstrap
+--------------------------------------------------------------------------------
+
+Script/job name:
+- Background job bootstrap.
+
+File path:
+- apps/api/src/lib/jobs/index.ts
+- apps/api/src/index.ts starts it with initJobs().
+
+How it is triggered:
+- API server startup.
+- When the API starts, initJobs() registers cron schedules.
+
+Business flow affected:
+- Offer expiry.
+- Note listing expiry.
+- CTOS KYB retry.
+- Notification cleanup.
+
+DB tables read/written:
+- Depends on each child job.
+
+Statuses changed:
+- Depends on child job.
+
+Money/bucket movement:
+- Indirect only.
+- Note listing expiry can create money movement by calling closeFunding() or failFunding().
+
+Idempotency:
+- Bootstrap itself is not a data mutation.
+- If multiple API instances run initJobs(), cron jobs may run in more than one process.
+- Child jobs must be safe enough to handle repeated attempts.
+
+Manual UAT:
+1. Start API locally.
+2. Confirm logs show "Background jobs initialized".
+3. Do not rely only on startup logs for money UAT.
+4. Test note listing expiry using the manual runner below.
+
+STOP AND INVESTIGATE if jobs are registered more times than expected in production without operational control.
+
+
+14A.2 - Note listing / funding expiry job
+--------------------------------------------------------------------------------
+
+Script/job name:
+- Note listing expiry job.
+
+File paths:
+- apps/api/src/lib/jobs/note-listing-expiry.ts
+- apps/api/scripts/run-note-listing-expiry.ts
+
+How it is triggered:
+- Hourly cron from apps/api/src/lib/jobs/index.ts:
+  cron schedule = 0 * * * *
+- Manual command from apps/api/package.json:
+  pnpm --filter @cashsouk/api run-note-listing-expiry
+
+Purpose:
+- Finds open notes where:
+  1. note_listings.closes_at has passed, OR
+  2. note is fully funded.
+- If funded amount meets minimum funding threshold, it calls noteService.closeFunding().
+- If funded amount is below minimum funding threshold, it calls noteService.failFunding().
+
+Expiry field:
+- note_listings.closes_at controls listing expiry.
+- notes.funding_closed_at records when funding was closed.
+- notes.funding_closed_at is not the expiry trigger.
+
+Tables read:
+- notes
+- note_listings
+
+Tables written if note is funded:
+- notes
+- note_investments
+- withdrawal_instructions
+- contracts if facility fee is charged
+- note_ledger_entries
+- note_events
+- note_admin_actions
+- notifications through notification service
+
+Tables written if note fails:
+- notes
+- note_investments
+- investor_balances
+- investor_balance_transactions
+- note_events
+- note_admin_actions
+- notifications through notification service
+
+Statuses changed if funded:
+- notes.status: PUBLISHED -> FUNDING
+- notes.funding_status: OPEN -> FUNDED
+- notes.listing_status: PUBLISHED -> CLOSED
+- note_investments.status: COMMITTED -> CONFIRMED
+- withdrawal_instructions.status: DRAFT for the new issuer disbursement withdrawal
+
+Statuses changed if failed:
+- notes.status: PUBLISHED -> FAILED_FUNDING
+- notes.funding_status: OPEN -> FAILED
+- notes.listing_status: PUBLISHED -> CLOSED
+- note_investments.status: COMMITTED -> RELEASED
+
+Money/bucket movement if funded:
+- Same as close funding.
+- INVESTOR_POOL DEBIT funded amount.
+- OPERATING_ACCOUNT CREDIT platform fee.
+- OPERATING_ACCOUNT CREDIT facility fee if contract financing and fee is due.
+- ISSUER_PAYABLE CREDIT net issuer disbursement.
+- Creates ISSUER_DISBURSEMENT withdrawal.
+
+Money/bucket movement if failed:
+- No note ledger bucket movement.
+- InvestorBalance is credited back for each released commitment.
+- investor_balance_transactions direction = IN, source = NOTE_INVESTMENT_RELEASE.
+
+Shoraka behavior:
+- The expiry job does not create shoraka_trade_orders.
+- Shoraka row is created only when admin clicks Submit Shoraka Order.
+
+Idempotency:
+- The job only selects notes where status = PUBLISHED and funding_status = OPEN.
+- After the first successful run, the note is no longer OPEN.
+- Running again should not close/fail the same note again.
+- closeFunding checks existing ISSUER_DISBURSEMENT withdrawal before creating one.
+- failFunding refund transactions use idempotency keys:
+  investor-balance:release:fail-funding:<investmentId>
+
+Manual UAT case A - expired listing with zero investment:
+
+Setup data:
+1. Create and publish a note with target RM100,000.
+2. Do not invest.
+3. Set note_listings.closes_at to a past timestamp.
+
+Run trigger:
+1. Run:
+   pnpm --filter @cashsouk/api run-note-listing-expiry
+
+Expected UI result:
+- Note is no longer open in investor marketplace.
+- Admin shows failed funding status.
+
+Expected DB result:
+- notes.status = FAILED_FUNDING.
+- notes.funding_status = FAILED.
+- notes.listing_status = CLOSED.
+- No withdrawal_instructions ISSUER_DISBURSEMENT row.
+- No shoraka_trade_orders row.
+
+Expected ledger/bucket result:
+- No note_ledger_entries for disbursement.
+- No investor_balance_transactions if there were no investments.
+
+Manual calculation:
+- funded amount = 0.
+- minimum required = 100000 x 80% = 80000.
+- 0 < 80000, so funding fails.
+
+Negative case:
+- Run the command again.
+- Expected: no new changes.
+
+STOP AND INVESTIGATE if an issuer disbursement is created.
+
+Manual UAT case B - expired listing below minimum with refund:
+
+Setup data:
+1. Create and publish a note with target RM100,000.
+2. Investor A invests RM50,000.
+3. Set note_listings.closes_at to a past timestamp.
+
+Run trigger:
+1. Run:
+   pnpm --filter @cashsouk/api run-note-listing-expiry
+
+Expected UI result:
+- Note shows failed funding.
+
+Expected DB result:
+- notes.status = FAILED_FUNDING.
+- notes.funding_status = FAILED.
+- note_investments.status = RELEASED.
+- note_investments.released_at is set.
+- investor_balances.available_amount increases by RM50,000.
+- investor_balance_transactions has IN RM50,000 with source NOTE_INVESTMENT_RELEASE.
+- No issuer disbursement withdrawal.
+- No Shoraka row.
+
+Manual calculation:
+- minimum required = 80000.
+- funded = 50000.
+- 50000 < 80000, so refund RM50,000.
+
+Idempotency test:
+1. Run expiry command again.
+2. Confirm no second refund transaction is created.
+3. Confirm investor balance did not increase again.
+
+STOP AND INVESTIGATE if investor is refunded twice.
+
+Manual UAT case C - expired listing at/above minimum:
+
+Setup data:
+1. Create and publish a note with target RM100,000.
+2. Investor A invests RM80,000.
+3. Set note_listings.closes_at to a past timestamp.
+
+Run trigger:
+1. Run:
+   pnpm --filter @cashsouk/api run-note-listing-expiry
+
+Expected UI result:
+- Note is funded/closed.
+- Issuer Disbursement card appears.
+
+Expected DB result:
+- notes.status = FUNDING.
+- notes.funding_status = FUNDED.
+- notes.listing_status = CLOSED.
+- note_investments.status = CONFIRMED.
+- withdrawal_instructions row:
+  withdrawal_type = ISSUER_DISBURSEMENT
+  amount = funded amount - platform fee - facility fee
+- shoraka_trade_orders has no row yet.
+
+Expected ledger/bucket result:
+- INVESTOR_POOL DEBIT funded amount.
+- OPERATING_ACCOUNT CREDIT platform fee.
+- OPERATING_ACCOUNT CREDIT facility fee if applicable.
+- ISSUER_PAYABLE CREDIT net issuer disbursement.
+
+Manual calculation for RM80,000 with same rates:
+- platform fee = 80000 x 3% = RM2,400.
+- facility fee = 80000 x 1% = RM800, unless capped lower.
+- net issuer = 80000 - 2400 - 800 = RM76,800.
+- ledger check: 80000 = 2400 + 800 + 76800.
+
+Idempotency test:
+1. Run expiry command again.
+2. Confirm no duplicate withdrawal.
+3. Confirm no duplicate disbursement ledger entries.
+
+STOP AND INVESTIGATE if a shoraka_trade_orders row exists before Submit Shoraka Order.
+
+
+14A.3 - Inline fully-funded auto-close
+--------------------------------------------------------------------------------
+
+Script/job name:
+- Inline fully-funded auto-close after investment.
+
+File path:
+- apps/api/src/modules/notes/service.ts
+- Function: createInvestment()
+
+How it is triggered:
+- Investor investment API/UI.
+- After an investment is committed, the service checks if funded amount reached target.
+- If fully funded, it calls closeFunding() with system actor.
+
+Business flow affected:
+- Fully funded notes may close before note_listings.closes_at.
+- The hourly expiry job is a backup if inline auto-close fails.
+
+Tables read/written:
+- Same funded close path as closeFunding:
+  notes, note_investments, withdrawal_instructions, contracts, note_ledger_entries, events, admin actions.
+
+Statuses changed:
+- Same as close funding:
+  PUBLISHED/OPEN -> FUNDING/FUNDED/CLOSED.
+
+Money/bucket movement:
+- Same as close funding.
+
+Idempotency:
+- createInvestment updates note capacity with conditions.
+- closeFunding only runs if note still has status PUBLISHED and funding_status OPEN.
+- If inline auto-close races with expiry job, one should succeed and the other should receive NOTE_FUNDING_NOT_OPEN.
+
+Manual UAT:
+1. Publish a RM100,000 note.
+2. Investor A invests RM60,000.
+3. Investor B invests RM40,000.
+4. Immediately refresh Admin Note Detail.
+5. Confirm the note either:
+   - auto-closed to FUNDING/FUNDED, or
+   - remains open briefly but closes when expiry job is manually run.
+
+Expected DB result if auto-close succeeds:
+- notes.status = FUNDING.
+- notes.funding_status = FUNDED.
+- note_investments.status = CONFIRMED.
+- issuer disbursement withdrawal exists.
+
+Negative case:
+1. Try to invest another RM1 after full funding.
+2. Expected error: NOTE_FULLY_ALLOCATED or NOTE_NOT_OPEN.
+
+STOP AND INVESTIGATE if funded_amount exceeds target_amount.
+
+
+14A.4 - Failed funding automation
+--------------------------------------------------------------------------------
+
+Finding:
+- Failed funding can happen two ways:
+  1. Manual Admin action through failFunding().
+  2. Hourly note listing expiry job when listing expired and funding is below minimum.
+
+No separate failed-funding-only cron was found.
+
+File paths:
+- apps/api/src/modules/notes/service.ts
+- apps/api/src/lib/jobs/note-listing-expiry.ts
+
+How it is triggered:
+- Admin UI/API.
+- Hourly listing expiry cron.
+- Manual run-note-listing-expiry script.
+
+Tables read/written:
+- notes
+- note_investments
+- investor_balances
+- investor_balance_transactions
+- note_events
+- note_admin_actions
+
+Statuses changed:
+- notes.status = FAILED_FUNDING.
+- notes.funding_status = FAILED.
+- notes.listing_status = CLOSED.
+- note_investments.status = RELEASED.
+
+Money/bucket movement:
+- InvestorBalance credited back.
+- No note ledger movement.
+
+Idempotency:
+- Only OPEN notes can fail.
+- Balance transaction idempotency key prevents duplicate refund for same investment.
+
+Manual UAT:
+- Use Section 14 failed funding plus Section 14A.2 expired below-minimum case.
+
+STOP AND INVESTIGATE if:
+- Investors are refunded twice.
+- An issuer disbursement withdrawal is created.
+- Shoraka row is created.
+
+
+14A.5 - Offer expiry job
+--------------------------------------------------------------------------------
+
+Script/job name:
+- Offer expiry job.
+
+File paths:
+- apps/api/src/lib/jobs/offer-expiry.ts
+- apps/api/scripts/run-offer-expiry.ts
+- apps/api/scripts/seed-expired-offer-for-test.ts
+
+How it is triggered:
+- Hourly cron from apps/api/src/lib/jobs/index.ts:
+  cron schedule = 0 * * * *
+- Manual command:
+  pnpm --filter @cashsouk/api run-offer-expiry
+- Test helper:
+  pnpm --filter @cashsouk/api seed-expired-offer-for-test
+
+Purpose:
+- Sends 24-hour expiry reminders for OFFER_SENT contract/invoice offers.
+- Withdraws expired contract offers.
+- Withdraws expired invoice offers.
+- Updates application status after withdrawal.
+
+Business flow affected:
+- Pre-note application/offer flow.
+- Can prevent note creation because withdrawn invoices/contracts should not become notes.
+
+Tables read:
+- contracts
+- invoices
+- applications
+- users/organization recipients through notification lookup
+
+Tables written:
+- contracts
+- invoices
+- applications
+- application_reviews
+- application activity logs
+- notifications / notification logs
+
+Statuses changed:
+- contracts.status: OFFER_SENT -> WITHDRAWN.
+- invoices.status: OFFER_SENT -> WITHDRAWN.
+- applications.status may change to WITHDRAWN depending on remaining contract/invoice state.
+- application_reviews status may become WITHDRAWN for contract_details.
+
+Money/bucket movement:
+- None.
+- No note ledger movement.
+- No investor balance movement.
+- No withdrawal instruction.
+
+Idempotency:
+- Job selects rows where status = OFFER_SENT and expires_at < now.
+- After first run, status becomes WITHDRAWN and offer_details is cleared.
+- Running again should not withdraw the same row again.
+- Notifications use idempotency suffixes in NotificationService calls.
+
+Manual UAT:
+1. Create an application with an offer in OFFER_SENT state.
+2. Run:
+   pnpm --filter @cashsouk/api seed-expired-offer-for-test
+3. Run:
+   pnpm --filter @cashsouk/api run-offer-expiry
+
+Expected UI result:
+- Offer no longer appears as active/acceptable.
+- Application status reflects withdrawn offer state.
+
+Expected DB result:
+- For contract offer:
+  contracts.status = WITHDRAWN.
+  contracts.withdraw_reason = OFFER_EXPIRED.
+  contracts.offer_details = null.
+  linked applications may be WITHDRAWN.
+- For invoice offer:
+  invoices.status = WITHDRAWN.
+  invoices.withdraw_reason = OFFER_EXPIRED.
+  invoices.offer_details = null.
+
+Expected ledger/bucket result:
+- No note_ledger_entries.
+- No investor balance transactions.
+- No withdrawals.
+
+Negative case:
+1. Try to create a note from a withdrawn invoice.
+2. Expected: should be blocked because note creation requires approved invoice/application state.
+
+Idempotency test:
+1. Run offer expiry twice.
+2. Confirm no duplicate application activity or unexpected status changes.
+
+STOP AND INVESTIGATE if offer expiry changes an already approved note or moves money.
+
+
+14A.6 - Maturity, overdue, late, arrears, and default status
+--------------------------------------------------------------------------------
+
+Finding:
+- No cron/script was found that automatically marks notes LATE, ARREARS, or DEFAULTED by maturity date.
+- The overdue/late-charge flow appears manual via API/UI.
+
+Relevant file path:
+- apps/api/src/modules/notes/service.ts
+
+Relevant functions:
+- checkOverdueLateCharge()
+- applyOverdueLateCharge()
+- approveLateCharge()
+- generateNoteLetter()
+- markDefault()
+
+How it is triggered:
+- Admin API/UI, not cron.
+
+Business flow affected:
+- Active servicing after note maturity/due date.
+- Late fee suggestions.
+- Arrears/default status.
+
+Tables read:
+- notes
+- note_payment_schedules
+- note_settlements
+- note_payments
+
+Tables written:
+- notes, only when applyOverdueLateCharge changes servicing status.
+- note_events.
+- S3 if arrears/default letter is generated.
+
+Statuses changed:
+- applyOverdueLateCharge can set:
+  servicing_status = LATE
+  servicing_status = ARREARS
+  notes.status = ARREARS if arrears threshold is reached
+- markDefault can set:
+  notes.status = DEFAULTED
+  servicing_status = DEFAULTED
+
+Money/bucket movement:
+- No immediate money movement.
+- No ledger movement.
+- Late fees are only included later in settlement preview/post.
+
+Manual UAT:
+1. Use a note with activated_at set and maturity/due date in the past.
+2. Run overdue check from Admin UI.
+3. Apply overdue late charge check.
+4. Confirm note servicing status changes to LATE or ARREARS based on days after grace.
+
+Manual calculation:
+- daysPastDue = UTC calendar days from due_date to checkDate.
+- daysAfterGrace = daysPastDue - grace_period_days.
+- if daysAfterGrace > 0, note is overdue.
+- if daysAfterGrace >= arrears_threshold_days, servicing_status should become ARREARS.
+
+Expected DB result:
+- notes.servicing_status = LATE or ARREARS.
+- notes.status = ARREARS only if arrears threshold reached.
+- note_events contains OVERDUE_LATE_CHARGE_CHECKED.
+
+Negative case:
+- If payment is not overdue after grace, status should not change to LATE/ARREARS.
+
+STOP AND INVESTIGATE if a cron changes late/arrears status without an Admin action, because no such cron was found.
+
+
+14A.7 - Payment reconciliation / repayment processing
+--------------------------------------------------------------------------------
+
+Finding:
+- No payment import/reconciliation cron or worker was found.
+- Repayment is manual/API-driven through recordPayment() and approvePayment().
+- A deployment migration exists to sync old repayment ledger credits to capped payment amounts.
+
+Runtime file path:
+- apps/api/src/modules/notes/service.ts
+
+Migration/backfill file:
+- apps/api/prisma/migrations/20260521140000_sync_repayment_ledger_to_capped_payments/migration.sql
+
+How runtime payment is triggered:
+- Admin records payment directly, or issuer submits payment and Admin approves it.
+
+Tables read:
+- notes
+- note_payments
+- note_settlements
+
+Tables written:
+- note_payments
+- note_ledger_entries
+- note_events
+
+Statuses changed:
+- note_payments.status = PENDING for issuer-submitted payment needing review.
+- note_payments.status = RECEIVED after Admin record/approval.
+- note_payments.status = VOID if rejected.
+
+Money/bucket movement:
+- RECEIVED payment posts:
+  REPAYMENT_POOL CREDIT receipt_amount.
+- Ledger idempotency key:
+  payment:<paymentId>:receipt
+
+Idempotency:
+- postPaymentReceiptLedger uses upsert by idempotency key.
+- Approving the same payment twice should be blocked because payment is no longer PENDING.
+
+Manual UAT:
+1. Record or approve payment RM110,000.
+2. Confirm one note_payments row.
+3. Confirm one REPAYMENT_POOL CREDIT ledger row.
+4. Try to approve same payment again if possible.
+5. Expected: rejected because payment is not PENDING.
+
+STOP AND INVESTIGATE if duplicate REPAYMENT_POOL credits exist for the same payment_id.
+
+
+14A.8 - Settlement automation
+--------------------------------------------------------------------------------
+
+Finding:
+- No automatic settlement preview/approve/post cron was found.
+- Settlement appears manual via Admin API/UI.
+
+Relevant file path:
+- apps/api/src/modules/notes/service.ts
+
+Relevant functions:
+- previewSettlement()
+- approveSettlement()
+- postSettlement()
+
+How it is triggered:
+- Admin UI/API.
+
+Tables written:
+- note_settlements
+- note_ledger_entries
+- investor_balances
+- investor_balance_transactions
+- note_investments
+- note_payments
+- withdrawal_instructions if issuer residual exists
+- notes
+- note_events
+
+Statuses changed:
+- note_settlements: PREVIEW -> APPROVED -> POSTED.
+- note_investments: CONFIRMED -> SETTLED.
+- note_payments: RECEIVED/RECONCILED/PARTIAL -> SETTLED.
+- notes may become REPAID/SETTLED if no residual.
+- notes stays CURRENT if residual withdrawal remains pending.
+
+Money/bucket movement:
+- Only on postSettlement().
+- Credits investor balances.
+- Posts repayment waterfall ledger entries.
+- Creates issuer residual withdrawal if residual > 0.
+
+Idempotency:
+- Only PREVIEW settlements can be approved.
+- Only APPROVED settlements can be posted.
+- postSettlement sets idempotency_key = settlement:<settlementId>.
+- Investor balance release idempotency keys include settlementId and investmentId.
+
+Manual UAT:
+- Use Section 12.
+
+STOP AND INVESTIGATE if any settlement posts automatically without Admin action.
+
+
+14A.9 - Withdrawal / trustee automation
+--------------------------------------------------------------------------------
+
+Finding:
+- No trustee sync cron or worker was found.
+- Trustee letter generation, mark submitted, and mark completed are manual API/UI actions.
+
+Relevant file path:
+- apps/api/src/modules/notes/service.ts
+
+Relevant functions:
+- generateWithdrawalLetter()
+- markWithdrawalSubmitted()
+- markWithdrawalCompleted()
+- generateServiceFeeTrusteeLetter()
+- markServiceFeeTrusteeLetterSubmitted()
+- markServiceFeeTrusteeInstructionCompleted()
+
+How it is triggered:
+- Admin UI/API.
+
+Tables written:
+- withdrawal_instructions
+- note_ledger_entries for issuer payable debit when issuer payout is completed
+- note_settlements for service fee trustee workflow
+- note_events
+- notes when issuer disbursement/residual completion changes note status
+
+Money/bucket movement:
+- Mark issuer disbursement completed:
+  ISSUER_PAYABLE DEBIT net issuer disbursement.
+- Mark issuer residual completed:
+  ISSUER_PAYABLE DEBIT residual amount.
+- Service fee trustee workflow does not create new money movement; settlement posting already moved the service fee in ledger.
+
+Idempotency:
+- State transitions require exact previous status.
+- Letter must be generated before submit.
+- Submit must happen before complete.
+- Completed withdrawal cannot be completed again.
+
+Manual UAT:
+- Use Sections 8, 10, and 13.
+
+STOP AND INVESTIGATE if trustee completion can happen before letter submission.
+
+
+14A.10 - Shoraka automation
+--------------------------------------------------------------------------------
+
+Finding:
+- No Shoraka polling cron was found.
+- No auto-fetch certificate job was found.
+- No auto-mark-disbursed job was found.
+- Shoraka has manual submit/query/fetch plus provider callback.
+
+Relevant file paths:
+- apps/api/src/modules/shoraka-stp/shoraka-stp-service.ts
+- apps/api/src/modules/shoraka-stp/shoraka-stp-webhook-controller.ts
+- apps/admin/src/notes/components/issuer-payout-card.tsx
+
+How it is triggered:
+- Admin clicks Submit Shoraka Order.
+- Admin clicks Query Status.
+- Shoraka sends callback.
+- Admin clicks Fetch Certificate.
+
+Tables written:
+- shoraka_trade_orders.
+
+Statuses changed:
+- shoraka_trade_orders.status is updated from submit response, manual query, or callback.
+
+Money/bucket movement:
+- None.
+- Shoraka does not move Cashsouk ledger buckets.
+
+Idempotency:
+- submitOrderForWithdrawal returns existing order if provider_order_id already exists.
+- certificate fetch returns existing state if certificate_s3_key already exists.
+
+Callback behavior:
+- Callback verifies signature.
+- Callback updates status, callback_payload, callback_received_at, status_last_checked_at.
+- Callback does not fetch certificate.
+- Callback does not mark disbursed.
+
+Manual UAT:
+1. Submit order.
+2. Simulate callback Completed.
+3. Confirm certificate_s3_key remains null.
+4. Confirm Mark Disbursed remains blocked.
+5. Fetch certificate manually.
+6. Confirm Mark Disbursed is then allowed.
+
+STOP AND INVESTIGATE if callback auto-fetches certificate or auto-marks disbursed.
+
+
+14A.11 - Cleanup, backfill, migration, and seed scripts
+--------------------------------------------------------------------------------
+
+Deployment migration task:
+
+File paths:
+- docker/migrate.sh
+- docker/migrate.Dockerfile
+- infra/ecs-task-definition-migrate.json
+- .github/workflows/deploy.yml
+- .github/workflows/deploy-all.yml
+
+How it is triggered:
+- GitHub Actions deployment.
+- ECS Fargate migration task.
+- Manual workflow dispatch for migration-only mode.
+
+Purpose:
+- Runs prisma migrate deploy.
+- Uses PostgreSQL advisory lock to reduce concurrent migration risk.
+- Some migrations include data backfills for note money data.
+
+Relevant note-money migrations found:
+- 20260518104500_service_fee_trustee_instruction_status
+  Adds service fee trustee workflow columns and backfills posted settlements with service fee.
+- 20260519120000_marketplace_listing_duration_days
+  Adds product marketplace listing duration.
+- 20260521001633_add_shoraka_stp_phase1
+  Adds Shoraka trade order structures.
+- 20260521060000_note_settlement_proration_tawidh_split
+  Adds settlement profit/date and ta'widh split fields.
+- 20260521120000_cap_legacy_settlement_gross_receipt
+  Caps legacy PREVIEW/APPROVED settlement gross receipt.
+- 20260521130000_cap_legacy_open_receipts_safe_invoice_parse
+  Caps legacy settlement/payment receipts.
+- 20260521140000_sync_repayment_ledger_to_capped_payments
+  Syncs repayment pool ledger credits to capped note_payments receipt_amount.
+
+Money/bucket movement:
+- Migrations can update old note_settlements, note_payments, and note_ledger_entries.
+- They are deployment-time backfills, not normal runtime flow.
+
+Manual deployment UAT:
+1. Before migration, snapshot affected rows in staging.
+2. Run migration task.
+3. Confirm migration task exit code = 0.
+4. Check _prisma_migrations for finished_at.
+5. Run ledger queries for affected notes.
+6. Confirm repayment ledger credit equals note_payments.receipt_amount after sync migration.
+
+STOP AND INVESTIGATE if migration changes current active UAT note unexpectedly.
+
+Manual seed scripts:
+
+- apps/api/scripts/seed-note-scenarios.ts
+  Creates a draft note from a completed application and approved invoice.
+
+- apps/api/scripts/seed-prefunding-test-notes.ts
+  Creates draft prefunding notes from approved invoices or cloned note snapshots.
+
+- apps/api/scripts/seed-ontime-test-note.ts
+  Creates an ACTIVE/CURRENT on-time note from a template note for settlement UAT.
+
+- apps/api/scripts/seed-late-fee-test-note.ts
+  Creates an ACTIVE/LATE or ARREARS note from a template note for late-fee UAT.
+
+- apps/api/scripts/seed-expired-offer-for-test.ts
+  Backdates OFFER_SENT contract/invoice offer_details.expires_at.
+
+Seed script warning:
+- These scripts directly write DB rows.
+- They may bypass normal UI/API validation.
+- Use only in local/staging.
+- Do not treat seed script behavior as production money movement.
+
+No script/job found for these areas:
+
+1. No automatic settlement posting job found.
+2. No automatic investor payout job found.
+3. No automatic payment import/reconciliation job found.
+4. No automatic trustee status sync job found.
+5. No Shoraka polling job found.
+6. No automatic Shoraka certificate fetch job found.
+7. No automatic mark-disbursed job found.
+8. No automatic maturity-to-late cron found.
+9. No automatic default cron found.
+
+
+SECTION 15 - Bucket reconciliation checklist
+================================================================================
+
+InvestorBalance
+
+Before investment:
+- Investor A available balance = starting A.
+- Investor B available balance = starting B.
+
+After investment:
+- Investor A available = starting A - 60000.
+- Investor B available = starting B - 40000.
+- Transactions:
+  A OUT 60000 NOTE_INVESTMENT_COMMIT.
+  B OUT 40000 NOTE_INVESTMENT_COMMIT.
+
+After failed funding:
+- Investor balance increases by full committed amount.
+- Direction = IN.
+- Source = NOTE_INVESTMENT_RELEASE.
+
+After settlement:
+- Investor A available increases by principal + net profit + investor ta'widh share.
+- Investor B available increases by principal + net profit + investor ta'widh share.
+
+INVESTOR_POOL
+
+After funding close:
+- DEBIT funded amount RM100,000.
+- Meaning: investor pool cash is moved into fees and issuer payable.
+
+After settlement:
+- CREDIT investor principal.
+- CREDIT investor net profit.
+- CREDIT investor ta'widh share if any.
+
+OPERATING_ACCOUNT
+
+After funding close:
+- CREDIT platform fee RM3,000.
+- CREDIT facility fee RM1,000.
+
+After settlement:
+- CREDIT service fee RM1,500 if 365-day example.
+
+ISSUER_PAYABLE
+
+After close funding:
+- CREDIT net issuer amount RM96,000.
+
+After mark disbursed:
+- DEBIT RM96,000.
+- Net disbursement payable should be zero.
+
+After settlement with residual:
+- CREDIT residual amount.
+
+After residual complete:
+- DEBIT residual amount.
+- Net residual payable should be zero.
+
+REPAYMENT_POOL
+
+When repayment received:
+- CREDIT repayment receipt RM110,000.
+
+When settlement posted:
+- DEBIT investor principal.
+- DEBIT investor net profit.
+- DEBIT service fee.
+- DEBIT tawidh.
+- DEBIT gharamah.
+- DEBIT issuer residual.
+
+Manual check:
+- REPAYMENT_POOL debits from settlement should equal receipt after any receipt adjustment.
+
+TAWIDH_ACCOUNT
+
+Only applies if ta'widh late compensation is included.
+
+Expected:
+- REPAYMENT_POOL DEBIT total ta'widh.
+- INVESTOR_POOL CREDIT investor share of ta'widh.
+- TAWIDH_ACCOUNT CREDIT retained ta'widh account share.
+
+GHARAMAH_ACCOUNT
+
+Only applies if gharamah penalty is included.
+
+Expected:
+- REPAYMENT_POOL DEBIT gharamah.
+- GHARAMAH_ACCOUNT CREDIT gharamah.
+
+Global bucket checks:
+
+1. Funding close:
+   funded amount = platform fee + facility fee + net issuer disbursement.
+
+2. Settlement:
+   receipt = investor principal + investor net profit + service fee + tawidh + gharamah + issuer residual.
+
+3. Investor split:
+   sum investor credits = investor principal + investor net profit + investor ta'widh share.
+
+STOP AND INVESTIGATE if any sum does not balance to the cent.
+
+
+SECTION 16 - Edge cases to test
+================================================================================
+
+1. Invoice-only note with no facility fee
+
+Setup:
+- source_contract_id should be null.
+- funded amount RM100,000.
+- platform fee 3%.
+
+Expected:
+- facilityFeeCharged = 0.
+- net issuer disbursement = 100000 - 3000 = RM97,000.
+- No contract facility_fee_paid_amount update.
+
+2. Contract note with facility fee cap partially used
+
+Setup:
+- approved facility RM1,000,000.
+- facility fee rate 1%.
+- facility_fee_paid_amount = RM9,500.
+- funded amount RM100,000.
+
+Manual calculation:
+- cap = 1000000 x 1% = 10000.
+- raw = 100000 x 1% = 1000.
+- remaining = 10000 - 9500 = 500.
+- charged = min(1000, 500) = RM500.
+- net = 100000 - 3000 - 500 = RM96,500.
+
+Expected:
+- facilityFeeCharged = 500.
+- contract facility_fee_paid_amount becomes 10000.
+
+3. Contract note where facility fee cap is fully paid
+
+Setup:
+- facility_fee_paid_amount = RM10,000.
+
+Expected:
+- remaining facility fee = 0.
+- facilityFeeCharged = 0.
+- net = 100000 - 3000 = RM97,000.
+
+4. Shoraka status Active and stays Active
+
+Expected:
+- Cannot fetch certificate.
+- Cannot mark disbursed.
+- Query status remains available.
+
+5. Shoraka status Pending Sell then callback Completed
+
+Expected:
+- Pending Sell means no certificate fetch.
+- Callback Completed updates status.
+- Fetch certificate becomes available.
+
+6. Shoraka status Cancelled
+
+Expected:
+- Manual review required.
+- Cannot fetch certificate.
+- Cannot mark disbursed.
+
+7. Fetch certificate before Completed should fail
+
+Expected:
+- Backend returns SHORAKA_STATUS_INVALID.
+- certificate_s3_key remains null.
+
+8. Mark Disbursed before certificate should fail
+
+Expected:
+- UI disabled.
+- Backend returns SHORAKA_CERTIFICATE_REQUIRED.
+
+9. Cutoff window submit should fail
+
+Expected:
+- 11:30 PM to 12:29 AM MYT submit blocked.
+- Query/fetch/callback not blocked.
+
+10. Residual return should not require Shoraka
+
+Expected:
+- No Shoraka section.
+- No certificate_s3_key required.
+- Mark complete succeeds after trustee submission.
+
+11. Failed funding returns all investor money
+
+Expected:
+- Total refunds equal total committed amount.
+- No issuer disbursement.
+
+12. Settlement with exact repayment no residual
+
+Example:
+- receipt = principal + gross profit.
+- residual = 0.
+- note becomes REPAID after posting.
+
+13. Settlement with overpayment creates residual
+
+Example:
+- receipt = RM112,000.
+- residual = RM2,000 in 365-day scenario.
+
+14. Settlement with underpayment / partial repayment if supported
+
+Expected:
+- Settlement may fail if shortfall exists.
+- Check backend error SETTLEMENT_WATERFALL_SHORTFALL.
+
+15. Service fee rate changed by product/note
+
+Setup:
+- service fee rate = 10%.
+
+Expected:
+- serviceFee = grossProfit x 10%.
+- investor net profit increases.
+- operating service fee decreases.
+
+16. Investor split with rounding cents
+
+Setup:
+- investors fund uneven amounts such as RM33,333.33 and RM66,666.67.
+
+Expected:
+- Allocations should sum to waterfall totals.
+- STOP AND INVESTIGATE if total cents do not reconcile.
+
+
+SECTION 17 - SQL/check queries
+================================================================================
+
+Use these in Prisma Studio, psql, or your DB tool.
+
+Replace:
+
+- :noteId with the note id.
+- :withdrawalId with withdrawal id.
+- :investorOrgId with investor organization id.
+- :settlementId with settlement id.
+
+Notes:
+
+select
+  id,
+  status,
+  listing_status,
+  funding_status,
+  servicing_status,
+  target_amount,
+  funded_amount,
+  platform_fee_rate_percent,
+  service_fee_rate_percent,
+  profit_rate_percent,
+  maturity_date,
+  published_at,
+  funding_closed_at,
+  activated_at,
+  repaid_at,
+  source_contract_id,
+  source_invoice_id
+from notes
+where id = :noteId;
+
+Note listing:
+
+select
+  id,
+  note_id,
+  status,
+  opens_at,
+  closes_at,
+  published_at,
+  unpublished_at
+from note_listings
+where note_id = :noteId;
+
+Investments:
+
+select
+  id,
+  note_id,
+  investor_organization_id,
+  investor_user_id,
+  status,
+  amount,
+  allocation_percent,
+  committed_at,
+  confirmed_at,
+  released_at
+from note_investments
+where note_id = :noteId
+order by created_at;
+
+Investor balances:
+
+select
+  investor_organization_id,
+  available_amount,
+  updated_at
+from investor_balances
+where investor_organization_id = :investorOrgId;
+
+Investor balance transactions:
+
+select
+  id,
+  investor_organization_id,
+  direction,
+  amount,
+  source,
+  note_id,
+  note_investment_id,
+  idempotency_key,
+  metadata,
+  posted_at
+from investor_balance_transactions
+where note_id = :noteId
+order by posted_at;
+
+Withdrawal instructions:
+
+select
+  id,
+  note_id,
+  settlement_id,
+  issuer_organization_id,
+  status,
+  withdrawal_type,
+  amount,
+  currency,
+  letter_s3_key,
+  generated_at,
+  submitted_to_trustee_at,
+  completed_at,
+  metadata
+from withdrawal_instructions
+where note_id = :noteId
+order by created_at;
+
+Shoraka trade order:
+
+select
+  id,
+  withdrawal_instruction_id,
+  note_id,
+  provider_order_id,
+  status,
+  submitted_at,
+  status_last_checked_at,
+  callback_received_at,
+  submit_request_payload,
+  submit_response_payload,
+  status_response_payload,
+  callback_payload,
+  certificate_s3_key,
+  certificate_file_sha256,
+  certificate_uploaded_at
+from shoraka_trade_orders
+where withdrawal_instruction_id = :withdrawalId;
+
+Ledger entries by note:
+
+select
+  e.id,
+  a.code as account_code,
+  e.direction,
+  e.amount,
+  e.description,
+  e.payment_id,
+  e.settlement_id,
+  e.withdrawal_id,
+  e.idempotency_key,
+  e.posted_at
+from note_ledger_entries e
+join note_ledger_accounts a on a.id = e.account_id
+where e.note_id = :noteId
+order by e.posted_at, e.created_at;
+
+Ledger sum by account/direction:
+
+select
+  a.code as account_code,
+  e.direction,
+  sum(e.amount) as total_amount
+from note_ledger_entries e
+join note_ledger_accounts a on a.id = e.account_id
+where e.note_id = :noteId
+group by a.code, e.direction
+order by a.code, e.direction;
+
+Payments:
+
+select
+  id,
+  note_id,
+  source,
+  status,
+  receipt_amount,
+  receipt_date,
+  received_into_account_code,
+  evidence_s3_key,
+  reference,
+  recorded_by_user_id,
+  reconciled_by_user_id,
+  reconciled_at,
+  metadata
+from note_payments
+where note_id = :noteId
+order by created_at;
+
+Settlements:
+
+select
+  id,
+  note_id,
+  payment_id,
+  status,
+  settlement_type,
+  gross_receipt_amount,
+  investor_principal,
+  investor_profit_gross,
+  profit_start_date,
+  profit_maturity_date,
+  profit_days,
+  annual_profit_rate_percent,
+  service_fee_amount,
+  investor_profit_net,
+  tawidh_amount,
+  tawidh_investor_amount,
+  tawidh_account_amount,
+  gharamah_amount,
+  issuer_residual_amount,
+  unapplied_amount,
+  approved_at,
+  posted_at,
+  service_fee_trustee_status,
+  preview_snapshot
+from note_settlements
+where note_id = :noteId
+order by created_at;
+
+Contract facility fee check:
+
+select
+  id,
+  status,
+  contract_details
+from contracts
+where id = (
+  select source_contract_id
+  from notes
+  where id = :noteId
+);
+
+
+SECTION 18 - Pass/fail sign-off table
+================================================================================
+
+Fill this table while testing.
+
++---------+--------------------------------------+------------------------------+---------------+-----------+-------+
+| Test ID | Area                                 | Expected Result              | Actual Result | Pass/Fail | Notes |
++---------+--------------------------------------+------------------------------+---------------+-----------+-------+
+| UAT-01  | Product setup                         | Service fee = 15%            |               |           |       |
+| UAT-02  | Application completed                  | Application COMPLETED        |               |           |       |
+| UAT-03  | Contract/invoice setup                 | Offer/contract values match  |               |           |       |
+| UAT-04  | Note creation                          | Draft note created           |               |           |       |
+| UAT-05  | Note publish                           | OPEN marketplace listing     |               |           |       |
+| UAT-06  | Investor A funding                     | A commits RM60,000           |               |           |       |
+| UAT-07  | Investor B funding                     | B commits RM40,000           |               |           |       |
+| UAT-08  | Investor balances                      | Balances decrease correctly  |               |           |       |
+| UAT-09  | Close funding                          | Note FUNDED                  |               |           |       |
+| UAT-10  | Platform fee                           | RM3,000                      |               |           |       |
+| UAT-11  | Facility fee                           | RM1,000                      |               |           |       |
+| UAT-12  | Net issuer disbursement                | RM96,000                     |               |           |       |
+| UAT-13  | Disbursement ledger                    | 100,000 = 4,000 + 96,000     |               |           |       |
+| UAT-14  | Issuer payout card                     | Breakdown matches DB         |               |           |       |
+| UAT-15  | Trustee letter                         | Letter amount RM96,000       |               |           |       |
+| UAT-16  | Mark submitted                         | Status SUBMITTED_TO_TRUSTEE  |               |           |       |
+| UAT-17  | Shoraka submit                         | Gross order RM100,000        |               |           |       |
+| UAT-18  | Shoraka status                         | Active/Pending/Completed OK  |               |           |       |
+| UAT-19  | Shoraka callback                       | Status updates only          |               |           |       |
+| UAT-20  | Certificate fetch                      | S3 key and sha256 saved      |               |           |       |
+| UAT-21  | Disbursement block                     | Blocked before certificate   |               |           |       |
+| UAT-22  | Mark disbursed                         | Note ACTIVE                  |               |           |       |
+| UAT-23  | Repayment receipt                      | REPAYMENT_POOL credit        |               |           |       |
+| UAT-24  | Settlement preview                     | Waterfall correct            |               |           |       |
+| UAT-25  | Settlement approval                    | Status APPROVED              |               |           |       |
+| UAT-26  | Settlement posting                     | Investors credited           |               |           |       |
+| UAT-27  | Service fee                            | Operating account credited   |               |           |       |
+| UAT-28  | Residual return                        | Residual withdrawal created  |               |           |       |
+| UAT-29  | Residual no Shoraka                    | No certificate required      |               |           |       |
+| UAT-30  | Failed funding                         | Investor refund complete     |               |           |       |
+| UAT-31  | Cutoff window                          | Submit blocked               |               |           |       |
+| UAT-32  | Edge cases                             | All negative cases pass      |               |           |       |
+| UAT-33  | Expired listing no investment          | Failed, no money movement    |               |           |       |
+| UAT-34  | Expired listing below minimum          | Failed and refunded once     |               |           |       |
+| UAT-35  | Expired listing at/above minimum       | Funded and withdrawal made   |               |           |       |
+| UAT-36  | Fully funded auto-close                | No overfunding/duplicates    |               |           |       |
+| UAT-37  | Expiry idempotency                     | No duplicate refunds/ledger  |               |           |       |
+| UAT-38  | Offer expiry                           | Offers withdrawn, no money   |               |           |       |
+| UAT-39  | Late/arrears manual update             | Status changes only by API   |               |           |       |
+| UAT-40  | Payment receipt idempotency            | One REPAYMENT_POOL credit    |               |           |       |
+| UAT-41  | Settlement manual only                 | No auto investor credits     |               |           |       |
+| UAT-42  | Trustee workflow manual only           | No auto trustee completion   |               |           |       |
+| UAT-43  | Shoraka callback safety                | No auto cert/disbursement    |               |           |       |
+| UAT-44  | Migration/backfill check               | Old money rows reconcile     |               |           |       |
++---------+--------------------------------------+------------------------------+---------------+-----------+-------+
+
+
+SECTION 19 - What to tell boss
+================================================================================
+
+I am creating a manual UAT checklist for the full money flow because this affects real funds.
+
+The plan checks application-to-note creation, investor funding, fee calculation, Shoraka STP, trustee disbursement, settlement, investor return, and issuer residual.
+
+I will first test with simple numbers and manually reconcile DB values, UI values, ledger buckets, and generated letters before confirming the flow.
+
+The key controls are:
+
+1. Investor money must debit and credit correctly.
+2. Platform and facility fees must be deducted correctly.
+3. Shoraka must use gross funded amount.
+4. Trustee disbursement must use net issuer amount.
+5. Certificate must exist before issuer disbursement can be marked complete.
+6. Residual return must not be blocked by Shoraka.
+7. Settlement must split repayment correctly between investors, fees, and issuer residual.
+
+
+SECTION 20 - Open questions to confirm
+================================================================================
+
+1. Same-day Shoraka certificate/valueDate vs actual disbursement rule with Shariah advisor.
+
+2. Exact legal trustee withdrawal letter template.
+   Current generated letter contains basic fields:
+   Withdrawal ID, Type, Amount, Requested by, Generated at.
+   Confirm whether this is enough for UAT/legal review.
+
+3. Whether auto-fetch certificate should ever be enabled.
+   Current behavior is manual fetch only.
+
+4. Whether callback retry behavior is confirmed with Shoraka.
+   Current callback updates status only.
+   It does not fetch certificate.
+   It does not auto-mark disbursed.
+
+5. Whether service fee/profit calculation matches product/legal agreement.
+   Current code uses:
+   profitDays = UTC calendar days from activated_at to maturity_date.
+   grossProfit = principal x annual rate x days / 365.
+   serviceFee = grossProfit x service fee rate.
+
+6. Whether late fee / ta'widh / gharamah flows need separate UAT.
+   This plan includes basic checks, but late fees have their own caps and headroom rules.
+
+7. Whether ledger direction names are business-intuitive.
+   The ledger is a platform bucket movement view, not a full bank double-entry ledger.
+
+8. Whether issuer residual should be paid immediately after settlement post or only after a separate trustee operation.
+   Current behavior creates a residual withdrawal and requires trustee completion.
+
+9. Whether facility fee fields should remain inside contract_details JSON or become first-class columns.
+
+10. Whether product service fee changes after note creation should affect old notes.
+    Current note stores service_fee_rate_percent at note level when the note is created/updated.
+
+END OF TEST PLAN

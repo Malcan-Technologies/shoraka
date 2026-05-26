@@ -39,9 +39,20 @@ function formatEventLabel(eventType: string) {
     SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED: "Service fee trustee letter submitted",
     SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED: "Service fee trustee instruction completed",
     NOTE_DEFAULT_MARKED: "Default marked",
+    SHORAKA_ORDER_SUBMITTED: "Tawarruq order submitted",
+    SHORAKA_CERTIFICATE_FETCHED: "Tawarruq Certificate fetched",
   };
 
-  return labels[eventType] ?? eventType.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
+  const fallback =
+    eventType.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
+
+  // User-facing mapping: provider/internal wording "Shoraka" → business wording "Tawarruq".
+  // Keep event type constants/internal codes unchanged.
+  let label = labels[eventType] ?? fallback;
+  label = label.replace(/\bShoraka\s+Stp\b/g, "Tawarruq Transaction");
+  label = label.replace(/\bShoraka\b/g, "Tawarruq");
+
+  return label;
 }
 
 function getEventIcon(eventType: string) {

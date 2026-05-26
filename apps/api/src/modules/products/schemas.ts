@@ -107,7 +107,7 @@ export const createProductBodySchema = z.object({
   default_facility_fee_rate_percent: z
     .number()
     .min(0)
-    .max(1)
+    .max(100)
     .refine((v) => hasMaxDecimalPlaces(v, 2), { message: "Default facility fee rate can have up to 2 decimal places" })
     .optional()
     .nullable(),
@@ -142,7 +142,7 @@ export const updateProductBodySchema = z.object({
   default_facility_fee_rate_percent: z
     .number()
     .min(0)
-    .max(1)
+    .max(100)
     .refine((v) => hasMaxDecimalPlaces(v, 2), { message: "Default facility fee rate can have up to 2 decimal places" })
     .optional()
     .nullable(),

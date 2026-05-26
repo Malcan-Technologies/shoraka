@@ -605,6 +605,11 @@ export interface WithdrawalInstruction {
   currency: string;
   beneficiarySnapshot: Record<string, unknown>;
   letterS3Key: string | null;
+  /**
+   * True when the issuer disbursement has an associated Shoraka certificate stored in S3.
+   * This is safe for UI gating and does not expose the raw S3 key.
+   */
+  hasShorakaCertificate?: boolean;
   generatedAt: string | null;
   submittedToTrusteeAt: string | null;
   completedAt: string | null;

@@ -35,10 +35,16 @@ import type { ApiError } from "@cashsouk/types";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 
 const PLATFORM_FEE_TOOLTIP =
-  "Deducted from disbursement when funding closes (applied as a percentage of the funded amount).";
+  "Deducted from disbursement when funding closes, applied as a percentage of the funded amount.";
 
 const PROFIT_RATE_TOOLTIP =
   "Profit per annum (%). Deducted during settlement when calculating the residual refund to the issuer.";
+
+const CONTRACT_FACILITY_FEE_RATE_TOOLTIP =
+  "Facility fee is deducted from each invoice financing disbursement under this contract.";
+
+const CONTRACT_FACILITY_FEE_CAP_TOOLTIP =
+  "Maximum total facility fee that can be collected for this contract.";
 
 type ReviewOfferModalProps = {
   type: "contract" | "invoice";
@@ -112,6 +118,31 @@ export function ReviewOfferModal({
   const contractEndDate =
     type === "contract" && contractDetails?.end_date
       ? formatDateOrDash(String(contractDetails.end_date))
+      : null;
+  const contractStartDate =
+    type === "contract" && contractDetails?.start_date ? formatDateOrDash(String(contractDetails.start_date)) : null;
+  const contractValueNumber =
+    type === "contract" &&
+    contractDetails != null &&
+    (contractDetails.contract_value != null || contractDetails.value != null)
+      ? (() => {
+          const raw = contractDetails.contract_value ?? contractDetails.value;
+          const n = Number(raw);
+          return Number.isFinite(n) ? n : null;
+        })()
+      : null;
+
+  const invoiceMaturityDate =
+    type === "invoice" && invoice?.maturityDate ? formatDateOrDash(String(invoice.maturityDate)) : null;
+
+  const requestedFacilityNumber =
+    type === "contract" && od?.requested_facility != null && Number.isFinite(Number(od.requested_facility))
+      ? Number(od.requested_facility)
+      : null;
+
+  const requestedFinancingNumber =
+    type === "invoice" && od?.requested_amount != null && Number.isFinite(Number(od.requested_amount))
+      ? Number(od.requested_amount)
       : null;
   const offeredValue =
     type === "contract"
@@ -217,32 +248,10 @@ export function ReviewOfferModal({
       ? (invoiceFinancingAmountNumber * invoicePlatformFeeRatePercentNumber) / 100
       : null;
 
-  const expectedNetDisbursementPlatformOnlyNumber =
-    expectedPlatformFeeNumber != null && invoiceFinancingAmountNumber != null
-      ? invoiceFinancingAmountNumber - expectedPlatformFeeNumber
-      : null;
-
-  const showExpectedInvoicePlatformOnlyBreakdown =
-    type === "invoice" &&
-    expectedPlatformFeeNumber != null &&
-    expectedNetDisbursementPlatformOnlyNumber != null &&
-    invoiceFinancingAmountNumber != null;
-
-  const expectedNetDisbursementNumber =
-    expectedFacilityFeeNumber != null &&
-    expectedPlatformFeeNumber != null &&
-    invoiceFinancingAmountNumber != null &&
-    Number.isFinite(invoiceFinancingAmountNumber)
-      ? invoiceFinancingAmountNumber - expectedPlatformFeeNumber - expectedFacilityFeeNumber
-      : null;
-
-  const showExpectedInvoiceFacilityBreakdown =
-    type === "invoice" &&
-    isContractLinkedInvoice &&
-    expectedFacilityFeeNumber != null &&
-    expectedPlatformFeeNumber != null &&
-    expectedNetDisbursementNumber != null &&
-    invoiceFinancingAmountNumber != null;
+  const facilityFeeEstimatedTooltip =
+    expectedFacilityFeeNumber != null && expectedFacilityFeeNumber > 0
+      ? "Deducted from disbursement when funding closes. For contract financing, this is collected progressively until the facility fee cap is reached."
+      : "Deducted from disbursement when funding closes. For contract financing, this is collected progressively until the facility fee cap is reached. No facility fee applies here because the cap has already been reached.";
 
   const summarySecondLabel = type === "contract" ? "Approved facility:" : "Invoice value:";
   const summarySecondValue =
@@ -437,115 +446,105 @@ export function ReviewOfferModal({
               </p>
             </div>
 
-            <dl className="grid grid-cols-[1fr_auto] gap-x-6 gap-y-3 text-sm py-4 border-y border-border">
-              <dt className="text-muted-foreground font-medium">
-                {type === "contract" ? "Contract name:" : "Invoice number:"}
-              </dt>
-              <dd className="font-medium text-foreground text-right tabular-nums">
-                {contractName}
-              </dd>
-              <dt className="text-muted-foreground font-medium">{summarySecondLabel}</dt>
-              <dd className="font-medium text-foreground text-right tabular-nums">
-                {summarySecondValue}
-              </dd>
-              {type === "contract" ? (
-                <>
-                  <dt className="text-muted-foreground font-medium">{summaryThirdLabel}</dt>
+            {type === "contract" ? (
+              <>
+                <dl className="grid grid-cols-[1fr_auto] gap-x-6 gap-y-3 text-sm py-4 border-y border-border">
+                  <dt className="text-muted-foreground font-medium">Contract name:</dt>
                   <dd className="font-medium text-foreground text-right tabular-nums">
-                    {summaryThirdValue}
+                    {contractName}
                   </dd>
-                  <dt className="text-muted-foreground font-medium">Facility fee rate:</dt>
+
+                  {contractValueNumber != null ? (
+                    <>
+                      <dt className="text-muted-foreground font-medium">Contract value:</dt>
+                      <dd className="font-medium text-foreground text-right tabular-nums">
+                        {formatCurrency(contractValueNumber)}
+                      </dd>
+                    </>
+                  ) : null}
+
+                  {requestedFacilityNumber != null ? (
+                    <>
+                      <dt className="text-muted-foreground font-medium">Requested facility:</dt>
+                      <dd className="font-medium text-foreground text-right tabular-nums">
+                        {formatCurrency(requestedFacilityNumber)}
+                      </dd>
+                    </>
+                  ) : null}
+
+                  <dt className="text-muted-foreground font-medium">Contract period:</dt>
                   <dd className="font-medium text-foreground text-right tabular-nums">
-                    {facilityFeeRatePercentNumber != null
-                      ? `${facilityFeeRatePercentNumber}%`
-                      : "—"}
+                    {contractStartDate != null && contractEndDate != null ? `${contractStartDate} – ${contractEndDate}` : "—"}
                   </dd>
-                  <dt className="text-muted-foreground font-medium">Maximum facility fee:</dt>
+
+                  <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
+                    Facility fee rate:
+                    <InfoTooltip content={CONTRACT_FACILITY_FEE_RATE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+                  </dt>
                   <dd className="font-medium text-foreground text-right tabular-nums">
-                    {maximumFacilityFeeNumber != null
-                      ? formatCurrency(maximumFacilityFeeNumber)
-                      : "—"}
+                    {facilityFeeRatePercentNumber != null ? `${facilityFeeRatePercentNumber}%` : "—"}
                   </dd>
-                </>
-              ) : (
-                <>
+
+                  <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
+                    Facility fee cap:
+                    <InfoTooltip content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+                  </dt>
+                  <dd className="font-medium text-foreground text-right tabular-nums">
+                    {maximumFacilityFeeNumber != null ? formatCurrency(maximumFacilityFeeNumber) : "—"}
+                  </dd>
+                </dl>
+              </>
+            ) : (
+              <>
+                <dl
+                  className="grid grid-cols-[1fr_auto] gap-x-6 gap-y-3 text-sm py-4 border-y border-border"
+                >
+                  <dt className="text-muted-foreground font-medium">Invoice number:</dt>
+                  <dd className="font-medium text-foreground text-right tabular-nums">{contractName}</dd>
+
+                  <dt className="text-muted-foreground font-medium">{summarySecondLabel}</dt>
+                  <dd className="font-medium text-foreground text-right tabular-nums">{summarySecondValue}</dd>
+
+                  {requestedFinancingNumber != null ? (
+                    <>
+                      <dt className="text-muted-foreground font-medium">Requested financing:</dt>
+                      <dd className="font-medium text-foreground text-right tabular-nums">
+                        {formatCurrency(requestedFinancingNumber)}
+                      </dd>
+                    </>
+                  ) : null}
+
+                  {invoiceMaturityDate != null ? (
+                    <>
+                      <dt className="text-muted-foreground font-medium">Maturity date</dt>
+                      <dd className="font-medium text-foreground text-right tabular-nums">{invoiceMaturityDate}</dd>
+                    </>
+                  ) : null}
+
                   <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
                     {summaryThirdLabel}
                     <InfoTooltip content={PROFIT_RATE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
                   </dt>
+                  <dd className="font-medium text-foreground text-right tabular-nums">{summaryThirdValue}</dd>
+
+                  <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
+                    Platform fee
+                    <InfoTooltip content={PLATFORM_FEE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+                  </dt>
                   <dd className="font-medium text-foreground text-right tabular-nums">
-                    {summaryThirdValue}
+                    {expectedPlatformFeeNumber != null ? formatCurrency(expectedPlatformFeeNumber) : "—"}
                   </dd>
-                </>
-              )}
-            {type === "invoice" ? (
-                showExpectedInvoiceFacilityBreakdown ? (
-                  <>
-                    <dt className="text-muted-foreground font-medium">Invoice financing amount</dt>
-                    <dd className="font-medium text-foreground text-right tabular-nums">
-                      {formatCurrency(invoiceFinancingAmountNumber ?? 0)}
-                    </dd>
 
-                    <dt className="text-muted-foreground font-medium">Expected platform fee</dt>
-                    <dd className="font-medium text-foreground text-right tabular-nums">
-                      {expectedPlatformFeeNumber != null ? formatCurrency(expectedPlatformFeeNumber) : "—"}
-                    </dd>
-
-                    <dt className="text-muted-foreground font-medium">Expected facility fee</dt>
-                    <dd className="font-medium text-foreground text-right tabular-nums">
-                      {expectedFacilityFeeNumber != null ? formatCurrency(expectedFacilityFeeNumber) : "—"}
-                    </dd>
-
-                    <dt className="text-muted-foreground font-medium">Expected net disbursement</dt>
-                    <dd className="font-medium text-foreground text-right tabular-nums">
-                      {expectedNetDisbursementNumber != null ? formatCurrency(expectedNetDisbursementNumber) : "—"}
-                    </dd>
-                  </>
-                ) : showExpectedInvoicePlatformOnlyBreakdown ? (
-                  <>
-                    <dt className="text-muted-foreground font-medium">Invoice financing amount</dt>
-                    <dd className="font-medium text-foreground text-right tabular-nums">
-                      {formatCurrency(invoiceFinancingAmountNumber ?? 0)}
-                    </dd>
-
-                    <dt className="text-muted-foreground font-medium">Expected platform fee</dt>
-                    <dd className="font-medium text-foreground text-right tabular-nums">
-                      {expectedPlatformFeeNumber != null ? formatCurrency(expectedPlatformFeeNumber) : "—"}
-                    </dd>
-
-                    <dt className="text-muted-foreground font-medium">Expected net disbursement</dt>
-                    <dd className="font-medium text-foreground text-right tabular-nums">
-                      {expectedNetDisbursementPlatformOnlyNumber != null
-                        ? formatCurrency(expectedNetDisbursementPlatformOnlyNumber)
-                        : "—"}
-                    </dd>
-                  </>
-                ) : (
-                  <>
-                    <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
-                      Platform fee (at disbursement):
-                      <InfoTooltip content={PLATFORM_FEE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
-                    </dt>
-                    <dd className="font-medium text-foreground text-right tabular-nums">
-                      {invoice?.platformFee ?? "—"}
-                    </dd>
-                  </>
-                )
-              ) : null}
-            </dl>
-
-            {type === "contract" ? (
-              <p className="mt-3 text-xs text-muted-foreground">
-                Facility fee is charged progressively only when invoice financing is disbursed.
-              </p>
-            ) : null}
-
-            {type === "invoice" &&
-            (showExpectedInvoiceFacilityBreakdown || showExpectedInvoicePlatformOnlyBreakdown) ? (
-              <p className="mt-3 text-xs text-muted-foreground">
-                Final amount is confirmed at disbursement.
-              </p>
-            ) : null}
+                  <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
+                    Estimated facility fee
+                    <InfoTooltip content={facilityFeeEstimatedTooltip} iconClassName="h-3.5 w-3.5 shrink-0" />
+                  </dt>
+                  <dd className="font-medium text-foreground text-right tabular-nums">
+                    {expectedFacilityFeeNumber != null ? formatCurrency(expectedFacilityFeeNumber) : "—"}
+                  </dd>
+                </dl>
+              </>
+            )}
 
             <button
               type="button"

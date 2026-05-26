@@ -25,6 +25,7 @@ import {
   formatDate,
   formatMoney,
 } from "./utils";
+import { buildInvoiceFeeDisplay, money } from "@/lib/facility-fee-display";
 
 function offerBadge(offerStatus: OfferStatus) {
   if (!offerStatus) return null;
@@ -49,14 +50,74 @@ function ReviewOfferButton({ show, onClick }: { show: boolean; onClick?: () => v
   );
 }
 
+function InvoiceFeeSummary({
+  display,
+  hideFeeValues,
+}: {
+  display: ReturnType<typeof buildInvoiceFeeDisplay>;
+  hideFeeValues?: boolean;
+}) {
+  if (hideFeeValues) {
+    return (
+      <div className="space-y-1">
+        <LabelValue label="Net disbursed" tabular>
+          —
+        </LabelValue>
+        <LabelValue label="Platform fee" tabular>
+          —
+        </LabelValue>
+        <LabelValue label="Facility fee" tabular>
+          —
+        </LabelValue>
+      </div>
+    );
+  }
+
+  const capReached = display.facilityFeeFullyCollected && display.facilityFeeAmount === 0;
+
+  const netDisbursed =
+    display.phase === "charged" && display.netDisbursementAmount != null ? money(display.netDisbursementAmount) : "—";
+
+  const platformValue = display.platformFeeAmount != null ? money(display.platformFeeAmount) : "—";
+
+  const facilityValue =
+    display.facilityFeeAmount != null
+      ? `${money(display.facilityFeeAmount)}${capReached ? " (cap reached)" : ""}`
+      : "—";
+
+  const facilityLabel = "Facility fee";
+
+  return (
+    <div className="space-y-1">
+      <LabelValue label="Net disbursed" tabular>
+        {netDisbursed}
+      </LabelValue>
+
+      <LabelValue label="Platform fee" tabular>
+        {platformValue}
+      </LabelValue>
+
+      <LabelValue label={facilityLabel} tabular>
+        {facilityValue}
+      </LabelValue>
+    </div>
+  );
+}
+
 export function DashboardInvoiceCard({
   row,
   offerStatus,
   onReviewOffer,
+  contractFeeContext,
 }: {
   row: IssuerDashboardInvoice;
   offerStatus: OfferStatus;
   onReviewOffer: () => void;
+  contractFeeContext?: {
+    facilityFeeRatePercent?: unknown;
+    facilityFeeCapAmount?: unknown;
+    facilityFeePaidAmount?: unknown;
+  };
 }) {
   const router = useRouter();
   const actionRequiredApplicationIds = row.actionRequiredApplicationIds ?? [];
@@ -70,6 +131,22 @@ export function DashboardInvoiceCard({
   const noteRef = displayCell(row.note?.noteReference);
   const invDetails = asInvoiceForModal(row.invoiceForModal)?.details;
   const maturityRaw = invDetails?.maturity_date ?? row.note?.maturityDate ?? null;
+  const offerDetails = asInvoiceForModal(row.invoiceForModal)?.offer_details as
+    | Record<string, unknown>
+    | null
+    | undefined;
+  const feeDisplay = buildInvoiceFeeDisplay({
+    status: row.note?.noteStatus ?? row.invoiceStatus,
+    offerDetails,
+    financingAmount: row.financingAmount,
+    isContractFinancing: Boolean(row.contractId),
+    contractFacilityFeeRatePercent: contractFeeContext?.facilityFeeRatePercent,
+    contractFacilityFeeCapAmount: contractFeeContext?.facilityFeeCapAmount,
+    contractFacilityFeePaidAmount: contractFeeContext?.facilityFeePaidAmount,
+    actual: row.note?.disbursementBreakdown,
+  });
+  const showFeeSummary = feeDisplay.phase !== "pending" || offerStatus === "Offer received";
+  const hideFeesBeforeAcceptance = offerStatus === "Offer received";
 
   return (
     <Card className="min-w-0 max-w-full rounded-xl border border-border bg-muted/50 shadow-none">
@@ -157,6 +234,9 @@ export function DashboardInvoiceCard({
               <LabelValue label="Financing amount" tabular>
                 {formatMoney(row.financingAmount)}
               </LabelValue>
+              {showFeeSummary ? (
+                <InvoiceFeeSummary display={feeDisplay} hideFeeValues={hideFeesBeforeAcceptance} />
+              ) : null}
             </div>
             <div className="min-w-0 w-full space-y-2">
               <div className="h-3 w-full overflow-hidden rounded-full border border-border bg-foreground/35 dark:bg-muted shadow-sm">

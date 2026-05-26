@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FileText, MoreVertical } from "lucide-react";
+import { FileText, MoreVertical, Info } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -78,17 +78,6 @@ export function DashboardContractCard({
         : EM_DASH;
 
   const stats = row.invoiceStats;
-  const pendingCount = Math.max(0, stats.total - stats.approved - stats.rejected);
-  const fundedCount = stats.activeNotes + stats.completedNotes;
-
-  const invoiceBreakdownParts = [
-    pendingCount > 0 ? `${pendingCount} pending` : null,
-    stats.approved > 0 ? `${stats.approved} approved` : null,
-    fundedCount > 0 ? `${fundedCount} funded` : null,
-    stats.completedNotes > 0 ? `${stats.completedNotes} completed` : null,
-    stats.rejected > 0 ? `${stats.rejected} rejected` : null,
-  ].filter(Boolean) as string[];
-  const invoiceBreakdownLabel = invoiceBreakdownParts.length > 0 ? invoiceBreakdownParts.join(", ") : null;
 
   return (
     <Card className="min-w-0 max-w-full rounded-xl border border-border bg-muted/50 shadow-none">
@@ -159,12 +148,6 @@ export function DashboardContractCard({
               <p className="text-[17px] leading-7 text-foreground">
                 <span className="font-normal text-muted-foreground">Invoices: </span>
                 <span className="font-medium tabular-nums text-foreground">{stats.total}</span>
-                {invoiceBreakdownLabel ? (
-                  <span className="text-sm font-normal leading-6 text-muted-foreground">
-                    {" "}
-                    ({invoiceBreakdownLabel})
-                  </span>
-                ) : null}
               </p>
             </div>
             <div className="min-w-0 w-full space-y-2">
@@ -188,6 +171,26 @@ export function DashboardContractCard({
                   <p className="text-sm font-normal leading-6 text-muted-foreground">(Approved facility)</p>
                 </div>
               </div>
+              {row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null ? (
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Facility fee collected:{" "}
+                  <span className="font-medium tabular-nums text-foreground">
+                    {formatMoney(row.facilityFeePaidAmount)} / {formatMoney(row.facilityFeeCapAmount)} cap
+                  </span>
+                  <span className="ml-1 inline-flex items-center align-middle">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-[260px] whitespace-normal break-words bg-popover px-2 py-1.5 text-popover-foreground shadow-md">
+                          Shows the total facility fee collected so far for this contract. Facility fee is deducted from each invoice financing disbursement until the cap is reached.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </span>
+                </p>
+              ) : null}
             </div>
           </div>
         </div>

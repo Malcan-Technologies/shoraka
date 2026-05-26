@@ -22,7 +22,7 @@ import {
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
-import { putS3ObjectBuffer } from "../../lib/s3/client";
+import { generatePresignedViewUrl, putS3ObjectBuffer } from "../../lib/s3/client";
 import { resolveApprovedFacilityForRefresh } from "../../lib/contract-facility";
 import { computeProgressiveFacilityFee } from "../../lib/facility-fee";
 import {
@@ -3167,8 +3167,55 @@ export class NoteService {
     const withdrawals = await prisma.withdrawalInstruction.findMany({
       where: { note_id: id },
       orderBy: { created_at: "desc" },
+      include: {
+        shoraka_trade_order: {
+          select: { certificate_s3_key: true },
+        },
+      },
     });
-    return mapNoteDetail(note, { withdrawals });
+    return mapNoteDetail(note, { withdrawals, includeEvents: false });
+  }
+
+  async getIssuerShorakaCertificateViewUrl(noteId: string, userId: string) {
+    const note = await noteRepository.findById(noteId);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+
+    const allowed = await prisma.issuerOrganization.findFirst({
+      where: {
+        id: note.issuer_organization_id,
+        OR: [{ owner_user_id: userId }, { members: { some: { user_id: userId } } }],
+      },
+    });
+    if (!allowed) throw new AppError(403, "ISSUER_NOTE_FORBIDDEN", "Issuer note is not accessible");
+
+    const issuerDisbursementWithdrawal = await prisma.withdrawalInstruction.findFirst({
+      where: { note_id: noteId, withdrawal_type: WithdrawalType.ISSUER_DISBURSEMENT },
+      orderBy: { created_at: "desc" },
+      select: { id: true, status: true },
+    });
+
+    if (!issuerDisbursementWithdrawal) {
+      throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Issuer disbursement withdrawal not found");
+    }
+    if (issuerDisbursementWithdrawal.status !== WithdrawalStatus.COMPLETED) {
+      throw new AppError(
+        409,
+        "SHORAKA_CERTIFICATE_NOT_READY",
+        "Shoraka certificate is not ready yet for this financing"
+      );
+    }
+
+    const shorakaTradeOrder = await prisma.shorakaTradeOrder.findUnique({
+      where: { withdrawal_instruction_id: issuerDisbursementWithdrawal.id },
+      select: { certificate_s3_key: true },
+    });
+
+    if (!shorakaTradeOrder?.certificate_s3_key) {
+      throw new AppError(404, "SHORAKA_CERTIFICATE_NOT_FOUND", "Shoraka certificate not found");
+    }
+
+    const { viewUrl, expiresIn } = await generatePresignedViewUrl({ key: shorakaTradeOrder.certificate_s3_key });
+    return { viewUrl, expiresIn };
   }
 
   getPaymentInstructions(id: string) {

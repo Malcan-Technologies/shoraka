@@ -540,10 +540,6 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
       : null;
     return forSettlement ?? issuerResiduals[0] ?? null;
   })();
-  const disbursementWithdrawal = (() => {
-    const list = note.withdrawals ?? [];
-    return list.find((w) => w.withdrawalType === "ISSUER_DISBURSEMENT") ?? null;
-  })();
   const waterfallGrossReceipt = displayedSettlementRecord
     ? getSettlementValue(displayedSettlementRecord, "grossReceiptAmount")
     : 0;
@@ -1181,31 +1177,6 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {disbursementWithdrawal &&
-          disbursementWithdrawal.status !== "COMPLETED" &&
-          disbursementWithdrawal.status !== "CANCELLED" ? (
-            <div
-              className={cn(
-                "rounded-xl border border-amber-200 bg-amber-50/40 p-4",
-                ACTION_CARD_CLASS
-              )}
-            >
-              <div className="mb-2 text-xs font-medium uppercase tracking-wider text-amber-900">
-                Awaiting issuer disbursement
-              </div>
-              <p className="text-xs text-amber-900/80">
-                Funding has closed. The net amount below must be paid out to the issuer via the
-                trustee before servicing begins. Once the disbursement is marked complete, the note
-                will move to ACTIVE and repayment receipts can be recorded.
-              </p>
-              <IssuerPayoutCard
-                note={note}
-                withdrawal={disbursementWithdrawal}
-                kind="DISBURSEMENT"
-                servicingBlockedReason={null}
-              />
-            </div>
-          ) : null}
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <div
               className={cn(
