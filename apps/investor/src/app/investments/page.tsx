@@ -47,6 +47,8 @@ import {
   formatNoteReferenceDisplay,
   isNoteMoneyAmount,
   resolveNetExpectedReturnRatePercent,
+  resolveMarketplaceDaysToMaturity,
+  resolveMarketplaceListingDaysLeft,
   SOUKSCORE_RISK_RATING_GRADES,
   type NoteListItem,
 } from "@cashsouk/types";
@@ -54,17 +56,6 @@ import {
 const MARKETPLACE_SECONDARY_BUTTON_CLASS =
   "bg-slate-100 text-slate-700 hover:bg-slate-200";
 
-function resolveMarketplaceListingDaysLeft(listingClosesAt?: string | null): number | null {
-  if (!listingClosesAt) return null;
-
-  const target = new Date(listingClosesAt);
-  if (Number.isNaN(target.getTime())) {
-    return null;
-  }
-
-  const millisRemaining = target.getTime() - Date.now();
-  return Math.max(0, Math.ceil(millisRemaining / (1000 * 60 * 60 * 24)));
-}
 const MARKETPLACE_LISTINGS_PAGE_SIZE = 9;
 
 function parseMarketplaceListPageParam(value: string | null): number {
@@ -91,7 +82,8 @@ function toMarketplaceNote(note: NoteListItem): MarketplaceNote {
     note.targetAmount,
     note.fundedAmount
   );
-  const tenorDays = resolveMarketplaceListingDaysLeft(note.listingClosesAt);
+  const daysLeft = resolveMarketplaceListingDaysLeft(note.listingClosesAt);
+  const tenorDays = resolveMarketplaceDaysToMaturity(note.maturityDate);
 
   return {
     id: note.id,
@@ -105,7 +97,7 @@ function toMarketplaceNote(note: NoteListItem): MarketplaceNote {
     annualReturn: resolveNetExpectedReturnRatePercent(note),
     tenorDays,
     riskScore: note.riskRating,
-    daysLeft: tenorDays,
+    daysLeft,
     minInvestment: minCommit,
     maxInvestment: maxCommit,
     investable,

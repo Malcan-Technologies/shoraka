@@ -12,6 +12,7 @@ import { Button } from "@cashsouk/ui";
 import { createApiClient } from "@cashsouk/config/src/api-client";
 import { resolveNetExpectedReturnRatePercent, type NoteListItem } from "@cashsouk/types";
 import { resolveMarketplaceListingDaysLeft } from "@/lib/marketplace-listing-days";
+import { resolveMarketplaceDaysToMaturity } from "@cashsouk/types";
 import { InvestmentListingsCarousel } from "./investment-listings-carousel";
 import type { InvestmentListingData } from "./investment-listing-card";
 
@@ -89,6 +90,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 function mapNoteToInvestmentListing(note: NoteListItem): InvestmentListingData {
   const daysLeft = resolveMarketplaceListingDaysLeft(note.listingClosesAt);
+  const tenorDays = resolveMarketplaceDaysToMaturity(note.maturityDate);
   return {
     id: note.id,
     noteReference: note.noteReference.trim() || null,
@@ -98,7 +100,7 @@ function mapNoteToInvestmentListing(note: NoteListItem): InvestmentListingData {
     funded: note.fundedAmount,
     goal: note.targetAmount,
     ratePercent: resolveNetExpectedReturnRatePercent(note),
-    tenorDays: daysLeft,
+    tenorDays,
     score: note.riskRating,
   };
 }

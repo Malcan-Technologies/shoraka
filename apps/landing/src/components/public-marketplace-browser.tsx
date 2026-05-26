@@ -29,6 +29,7 @@ import {
 } from "@cashsouk/types";
 import { computeMarketplaceCommitBounds } from "@/lib/marketplace-commit-bounds";
 import { resolveMarketplaceListingDaysLeft } from "@/lib/marketplace-listing-days";
+import { resolveMarketplaceDaysToMaturity } from "@cashsouk/types";
 import {
   PublicMarketplaceNoteCard,
   type PublicMarketplaceNote,
@@ -58,7 +59,8 @@ const MARKETPLACE_LISTINGS_PAGE_SIZE = 9;
 
 function toMarketplaceNote(note: NoteListItem): PublicMarketplaceNote {
   const { investable } = computeMarketplaceCommitBounds(note.targetAmount, note.fundedAmount);
-  const tenorDays = resolveMarketplaceListingDaysLeft(note.listingClosesAt);
+  const daysLeft = resolveMarketplaceListingDaysLeft(note.listingClosesAt);
+  const tenorDays = resolveMarketplaceDaysToMaturity(note.maturityDate);
 
   return {
     id: note.id,
@@ -72,7 +74,7 @@ function toMarketplaceNote(note: NoteListItem): PublicMarketplaceNote {
     annualReturn: resolveNetExpectedReturnRatePercent(note),
     tenorDays,
     riskScore: note.riskRating,
-    daysLeft: tenorDays,
+    daysLeft,
     investable,
     isFeatured: note.featuredActive,
     featuredRank: note.featuredRank ?? undefined,
