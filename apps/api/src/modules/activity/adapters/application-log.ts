@@ -46,20 +46,8 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       created_at: buildDateFilter(startDate, endDate),
     };
 
-    // If organization-scoped filter provided, resolve application ids for the organization
     if (organizationId && portalType) {
-      // For issuer portal, applications have issuer_organization_id
-      const appWhere: Prisma.ApplicationWhereInput =
-        portalType === "issuer"
-          ? { issuer_organization_id: organizationId }
-          : {}; // investor-side application org linkage not modeled here
-
-      const apps = await prisma.application.findMany({
-        where: appWhere,
-        select: { id: true },
-      });
-      const appIds = apps.map((a) => a.id);
-      where.application_id = { in: appIds.length > 0 ? appIds : ["__none__"] };
+      where.application_id = { in: await this.getScopedApplicationIds(organizationId, portalType) };
     } else {
       where.user_id = userId;
     }
@@ -111,17 +99,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
     };
 
     if (organizationId && portalType) {
-      const appWhere: Prisma.ApplicationWhereInput =
-        portalType === "issuer"
-          ? { issuer_organization_id: organizationId }
-          : {};
-
-      const apps = await prisma.application.findMany({
-        where: appWhere,
-        select: { id: true },
-      });
-      const appIds = apps.map((a) => a.id);
-      where.application_id = { in: appIds.length > 0 ? appIds : ["__none__"] };
+      where.application_id = { in: await this.getScopedApplicationIds(organizationId, portalType) };
     } else {
       where.user_id = userId;
     }
@@ -150,6 +128,20 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
     }
 
     return prisma.applicationLog.count({ where });
+  }
+
+  private async getScopedApplicationIds(organizationId: string, portalType: "investor" | "issuer") {
+    if (portalType === "investor") {
+      // Applications belong to issuers only, so investor activity must never query this domain.
+      return ["__none__"];
+    }
+
+    const apps = await prisma.application.findMany({
+      where: { issuer_organization_id: organizationId },
+      select: { id: true },
+    });
+
+    return apps.length > 0 ? apps.map((app) => app.id) : ["__none__"];
   }
 
   private async enrichRecordReferences(records: ApplicationLog[]) {

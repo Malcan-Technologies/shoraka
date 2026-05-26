@@ -2,6 +2,10 @@ import { auditLogAggregator } from "./aggregator";
 import { GetActivitiesQuery } from "./schemas";
 import { logger } from "../../lib/logger";
 import { ActivityCategory } from "./adapters/base";
+import { OrganizationService } from "../organization/service";
+import { AppError } from "../../lib/http/error-handler";
+
+const organizationService = new OrganizationService();
 
 export const activityService = {
   /**
@@ -37,6 +41,10 @@ export const activityService = {
         combinedEventTypes.push(eventType);
       }
 
+      if (query.organizationId && query.portalType) {
+        await organizationService.getOrganization(userId, query.organizationId, query.portalType);
+      }
+
       const result = await auditLogAggregator.aggregate(userId, {
         search,
         categories: categories as ActivityCategory[],
@@ -61,6 +69,10 @@ export const activityService = {
         },
       };
     } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+
       logger.error("Failed to get aggregated activities", { error, userId, query });
       return {
         activities: [],

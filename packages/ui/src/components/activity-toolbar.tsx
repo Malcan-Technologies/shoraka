@@ -17,13 +17,6 @@ import {
 } from "@heroicons/react/24/outline";
 import { ACTIVITY_DOMAIN_CONFIG, ActivityDomain } from "@cashsouk/types";
 
-const DOMAIN_OPTIONS = Object.entries(ACTIVITY_DOMAIN_CONFIG)
-  .filter(([, config]) => config.filterable)
-  .map(([value, config]) => ({
-    value: value as ActivityDomain,
-    label: config.label,
-  }));
-
 const DATE_RANGES = [
   { value: "all", label: "All Time" },
   { value: "24h", label: "Last 24 Hours" },
@@ -34,6 +27,7 @@ const DATE_RANGES = [
 interface ActivityToolbarProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
+  availableDomains: ActivityDomain[];
   domainFilters: ActivityDomain[];
   onDomainFiltersChange: (values: ActivityDomain[]) => void;
   dateRangeFilter: string;
@@ -48,6 +42,7 @@ interface ActivityToolbarProps {
 export function ActivityToolbar({
   searchQuery,
   onSearchChange,
+  availableDomains,
   domainFilters,
   onDomainFiltersChange,
   dateRangeFilter,
@@ -59,6 +54,14 @@ export function ActivityToolbar({
   isLoading = false,
 }: ActivityToolbarProps) {
   const [isSpinning, setIsSpinning] = React.useState(false);
+  const domainOptions = React.useMemo(
+    () =>
+      availableDomains.map((value) => ({
+        value,
+        label: ACTIVITY_DOMAIN_CONFIG[value].label,
+      })),
+    [availableDomains]
+  );
 
   const isAllDomains = domainFilters.length === 0;
 
@@ -131,7 +134,7 @@ export function ActivityToolbar({
               {isAllDomains && <FilterDot />}
               All Domains
             </DropdownMenuItem>
-            {DOMAIN_OPTIONS.map((opt) => (
+            {domainOptions.map((opt) => (
               <DropdownMenuItem
                 key={opt.value}
                 className="pl-8 relative"

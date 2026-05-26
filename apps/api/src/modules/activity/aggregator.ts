@@ -31,8 +31,11 @@ export class AuditLogAggregator {
   ): Promise<{ activities: UnifiedActivity[]; total: number; unfilteredTotal: number }> {
     const { categories, domains, limit = 10, offset = 0 } = filters;
 
-    // Filter adapters by category if specified
     const activeAdapters = this.adapters.filter((adapter) => {
+      if (filters.portalType === "investor" && adapter.domain === "application") {
+        return false;
+      }
+
       const matchesCategory = !categories || categories.length === 0 || categories.includes(adapter.category);
       const matchesDomain = !domains || domains.length === 0 || domains.includes(adapter.domain);
       return matchesCategory && matchesDomain;

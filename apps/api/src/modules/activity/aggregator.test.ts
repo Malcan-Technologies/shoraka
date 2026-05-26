@@ -148,4 +148,31 @@ describe("AuditLogAggregator", () => {
     expect(result.activities).toHaveLength(1);
     expect(result.activities[0].domain).toBe("application");
   });
+
+  it("should exclude application activities for investor-scoped requests", async () => {
+    const aggregator = new AuditLogAggregator();
+    (aggregator as any).adapters = [];
+
+    aggregator.registerAdapter(
+      new MockAdapter("Onboarding", "organization", "onboarding", [
+        { id: "1", created_at: new Date("2026-01-01T10:00:00Z"), user_id: userId, text: "Onboarding" },
+      ])
+    );
+    aggregator.registerAdapter(
+      new MockAdapter("Application", "organization", "application", [
+        { id: "2", created_at: new Date("2026-01-01T11:00:00Z"), user_id: userId, text: "Application" },
+      ])
+    );
+
+    const result = await aggregator.aggregate(userId, {
+      limit: 10,
+      offset: 0,
+      portalType: "investor",
+    });
+
+    expect(result.activities).toHaveLength(1);
+    expect(result.activities[0].domain).toBe("onboarding");
+    expect(result.total).toBe(1);
+    expect(result.unfilteredTotal).toBe(1);
+  });
 });

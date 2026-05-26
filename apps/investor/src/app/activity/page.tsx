@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { GetActivitiesParams } from "@cashsouk/types";
+import { getFilterableActivityDomains, type GetActivitiesParams } from "@cashsouk/types";
 import { useActivities } from "../../hooks/use-activities";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
@@ -10,6 +10,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 
 export default function ActivityPage() {
   const { setTitle } = useHeader();
+  const availableDomains = getFilterableActivityDomains("investor");
 
   useEffect(() => {
     setTitle("Activity");
@@ -83,6 +84,7 @@ export default function ActivityPage() {
             <ActivityToolbar
               searchQuery={search}
               onSearchChange={setSearch}
+              availableDomains={availableDomains}
               domainFilters={domains}
               onDomainFiltersChange={handleDomainsChange}
               dateRangeFilter={dateRange}

@@ -17,6 +17,10 @@ const { prisma } = jest.requireMock("../../../lib/prisma") as {
 describe("ApplicationLogAdapter", () => {
   const adapter = new ApplicationLogAdapter();
 
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it("builds user-facing presentation copy", () => {
     expect(adapter.buildPresentation("APPLICATION_CREATED")).toEqual({
       title: "Application Started",
@@ -175,6 +179,64 @@ describe("ApplicationLogAdapter", () => {
       contractId: "contract_456",
       contractNumber: "CT-2026-001",
     });
+  });
+
+  it("returns no application activity for investor-scoped requests", async () => {
+    prisma.applicationLog.findMany.mockResolvedValue([]);
+
+    const records = await adapter.query("user123", {
+      organizationId: "investor-org-1",
+      portalType: "investor",
+    });
+
+    expect(prisma.application.findMany).not.toHaveBeenCalled();
+    expect(prisma.applicationLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          application_id: { in: ["__none__"] },
+        }),
+      })
+    );
+    expect(records).toEqual([]);
+  });
+
+  it("keeps issuer-scoped requests limited to the active issuer organization", async () => {
+    prisma.application.findMany.mockResolvedValue([{ id: "app_1" }, { id: "app_2" }]);
+    prisma.applicationLog.findMany.mockResolvedValue([]);
+
+    await adapter.query("user123", {
+      organizationId: "issuer-org-1",
+      portalType: "issuer",
+    });
+
+    expect(prisma.application.findMany).toHaveBeenCalledWith({
+      where: { issuer_organization_id: "issuer-org-1" },
+      select: { id: true },
+    });
+    expect(prisma.applicationLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          application_id: { in: ["app_1", "app_2"] },
+        }),
+      })
+    );
+  });
+
+  it("returns zero application counts for investor-scoped requests", async () => {
+    prisma.applicationLog.count.mockResolvedValue(0);
+
+    const count = await adapter.count("user123", {
+      organizationId: "investor-org-1",
+      portalType: "investor",
+    });
+
+    expect(prisma.application.findMany).not.toHaveBeenCalled();
+    expect(prisma.applicationLog.count).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        application_id: { in: ["__none__"] },
+      }),
+    });
+    expect(count).toBe(0);
   });
 
   it("only exposes high-signal application events", () => {

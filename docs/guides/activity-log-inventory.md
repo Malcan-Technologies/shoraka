@@ -29,10 +29,10 @@ The feed no longer mirrors every audit log. Low-value internal updates such as s
 
 ## Investor
 
-The investor page shows the same curated domains and event copy as the issuer page. The difference is data scope:
+The investor page only shows investor-scoped onboarding activity. Application-domain rows are issuer-only until the product has an explicit investor-facing application model and access path.
 
 - onboarding logs are scoped by `investor_organization_id`
-- application logs currently remain subject to the existing investor-side application scoping behavior in the adapter
+- application logs are excluded from the investor `/activity` feed and filters
 
 ### Onboarding
 
@@ -52,87 +52,6 @@ The investor page shows the same curated domains and event copy as the issuer pa
   - Domain badge: `Onboarding`
   - Title: `Onboarding Approved`
   - Description: `Your organization onboarding was approved and no further action is needed.`
-
-### Application
-
-Application-domain rows always show the application reference inside the description sentence. In the issuer portal this uses the same visible format as the applications list: `#` plus the last 8 characters of the application ID, uppercased. Contract and invoice milestone rows should weave the linked contract or invoice reference into the wording itself, for example `An invoice offer for invoice <invoice reference> is ready for your review and response.`
-
-- Raw types: `APPLICATION_CREATED`
-  - Domain badge: `Application`
-  - Title: `Application Started`
-  - Description: `You created application <application reference> and can continue it before submitting.`
-- Raw types: `APPLICATION_SUBMITTED`
-  - Domain badge: `Application`
-  - Title: `Application Submitted`
-  - Description: `Application <application reference> was submitted and is now under review.`
-- Raw types: `APPLICATION_RESUBMITTED`
-  - Domain badge: `Application`
-  - Title: `Application Resubmitted`
-  - Description: `You resubmitted application <application reference> after making the requested updates.`
-- Raw types: `AMENDMENTS_SUBMITTED`
-  - Domain badge: `Application`
-  - Title: `Changes Requested`
-  - Description: `We need updates to application <application reference> before it can continue.`
-- Raw types: `APPLICATION_APPROVED`
-  - Domain badge: `Application`
-  - Title: `Application Approved`
-  - Description: `Application <application reference> was approved and no further action is needed.`
-- Raw types: `APPLICATION_REJECTED`
-  - Domain badge: `Application`
-  - Title: `Application Rejected`
-  - Description: `Application <application reference> was rejected and will not continue.`
-- Raw types: `APPLICATION_WITHDRAWN`
-  - Domain badge: `Application`
-  - Title: `Application Closed`
-  - Description: `Application <application reference> was withdrawn and is no longer active.`
-- Raw types: `APPLICATION_COMPLETED`
-  - Domain badge: `Application`
-  - Title: `Application Completed`
-  - Description: `Application <application reference> completed successfully.`
-- Raw types: `CONTRACT_OFFER_SENT`
-  - Domain badge: `Application`
-  - Title: `Contract Offer Sent`
-  - Description: `A contract offer for contract <contract reference> is ready for your review and response.`
-- Raw types: `CONTRACT_OFFER_ACCEPTED`
-  - Domain badge: `Application`
-  - Title: `Contract Offer Accepted`
-  - Description: `The offer for contract <contract reference> was accepted and your application can move forward.`
-- Raw types: `CONTRACT_OFFER_REJECTED`
-  - Domain badge: `Application`
-  - Title: `Contract Offer Declined`
-  - Description: `The contract offer was declined and this application is now closed.`
-- Raw types: `CONTRACT_OFFER_RETRACTED`
-  - Domain badge: `Application`
-  - Title: `Contract Offer Retracted`
-  - Description: `The contract offer was withdrawn before it was accepted.`
-- Raw types: `CONTRACT_WITHDRAWN`
-  - Domain badge: `Application`
-  - Title: `Contract Withdrawn`
-  - Description: `The contract linked to this application was withdrawn.`
-- Raw types: `INVOICE_OFFER_SENT`
-  - Domain badge: `Application`
-  - Title: `Invoice Offer Sent`
-  - Description: `An invoice offer is ready for your review and response.`
-- Raw types: `INVOICE_OFFER_ACCEPTED`
-  - Domain badge: `Application`
-  - Title: `Invoice Offer Accepted`
-  - Description: `The invoice offer was accepted and funding can continue.`
-- Raw types: `INVOICE_OFFER_REJECTED`
-  - Domain badge: `Application`
-  - Title: `Invoice Offer Declined`
-  - Description: `The invoice offer was declined and this application has stopped moving forward.`
-- Raw types: `INVOICE_OFFER_RETRACTED`
-  - Domain badge: `Application`
-  - Title: `Invoice Offer Retracted`
-  - Description: `The invoice offer was withdrawn before it was accepted.`
-- Raw types: `INVOICE_WITHDRAWN`
-  - Domain badge: `Application`
-  - Title: `Invoice Withdrawn`
-  - Description: `An invoice linked to this application was withdrawn.`
-- Raw types: `OFFER_EXPIRED`
-  - Domain badge: `Application`
-  - Title: `Offer Expired`
-  - Description: `An outstanding offer expired before it was accepted.`
 
 ## Issuer
 
