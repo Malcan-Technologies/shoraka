@@ -181,10 +181,22 @@
           "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:SC_API_SECRET::"
         },
         {
+          "name": "SHORAKA_BASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:SHORAKA_BASE_URL::"
+        },
+        {
+          "name": "SHORAKA_API_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:SHORAKA_API_ID::"
+        },
+        {
+          "name": "SHORAKA_SECRET_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:SHORAKA_SECRET_KEY::"
+        },
+        {
           "name": "API_PUBLIC_URL",
           "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:API_PUBLIC_URL::"
         },
-                {
+        {
           "name": "CTOS_CLIENT_ID",
           "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CTOS_CLIENT_ID::"
         },

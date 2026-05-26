@@ -6,6 +6,7 @@ import {
   InvoiceStatus,
   NotePaymentStatus,
   ApplicationStatus,
+  WithdrawalType,
 } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
@@ -54,6 +55,12 @@ export type IssuerDashboardNoteDto = {
   fundingDeadline: string | null;
   maturityDate: string | null;
   marketplaceStatusLabel: string | null;
+  disbursementBreakdown: {
+    grossFundedAmount: string | null;
+    platformFeeAmount: string | null;
+    facilityFeeCharged: string | null;
+    netIssuerDisbursement: string | null;
+  } | null;
 };
 
 export type IssuerDashboardInvoiceDto = {
@@ -160,7 +167,8 @@ function mapNoteToDto(
     minimum_funding_percent: Prisma.Decimal;
     maturity_date: Date | null;
     listing: { status: string; closes_at: Date | null } | null;
-  }
+  },
+  disbursementBreakdown?: IssuerDashboardNoteDto["disbursementBreakdown"]
 ): IssuerDashboardNoteDto {
   const progress = fundingProgressPercent(note.funded_amount, note.target_amount);
   const listingCloses = note.listing?.closes_at ?? null;
@@ -193,6 +201,7 @@ function mapNoteToDto(
     fundingDeadline,
     maturityDate,
     marketplaceStatusLabel,
+    disbursementBreakdown: disbursementBreakdown ?? null,
   };
 }
 
@@ -241,10 +250,37 @@ export class IssuerDashboardService {
       include: { listing: true },
     });
 
+    const disbursementWithdrawals = await prisma.withdrawalInstruction.findMany({
+      where: {
+        issuer_organization_id: organizationId,
+        withdrawal_type: WithdrawalType.ISSUER_DISBURSEMENT,
+        note_id: { not: null },
+      },
+      orderBy: { created_at: "desc" },
+      select: { note_id: true, metadata: true },
+    });
+
     type NoteWithListing = (typeof notes)[number];
 
     const notesByInvoiceId = new Map<string, NoteWithListing>();
     const notesByContractId = new Map<string, NoteWithListing[]>();
+    const disbursementByNoteId = new Map<string, IssuerDashboardNoteDto["disbursementBreakdown"]>();
+    for (const withdrawal of disbursementWithdrawals) {
+      if (!withdrawal.note_id || disbursementByNoteId.has(withdrawal.note_id)) continue;
+      const metadata = asRecord(withdrawal.metadata);
+      disbursementByNoteId.set(withdrawal.note_id, {
+        grossFundedAmount:
+          metadata?.grossFundedAmount != null ? decimalToNumber(metadata.grossFundedAmount).toFixed(2) : null,
+        platformFeeAmount:
+          metadata?.platformFeeAmount != null ? decimalToNumber(metadata.platformFeeAmount).toFixed(2) : null,
+        facilityFeeCharged:
+          metadata?.facilityFeeCharged != null ? decimalToNumber(metadata.facilityFeeCharged).toFixed(2) : null,
+        netIssuerDisbursement:
+          metadata?.netIssuerDisbursement != null
+            ? decimalToNumber(metadata.netIssuerDisbursement).toFixed(2)
+            : null,
+      });
+    }
     for (const n of notes) {
       if (n.source_invoice_id) {
         notesByInvoiceId.set(n.source_invoice_id, n);
@@ -485,7 +521,7 @@ export class IssuerDashboardService {
           invoiceValue: invVal !== null ? invVal.toFixed(2) : null,
           financingAmount,
           submissionDate: inv.created_at.toISOString(),
-          note: invNote ? mapNoteToDto(invNote) : null,
+          note: invNote ? mapNoteToDto(invNote, disbursementByNoteId.get(invNote.id)) : null,
           actionRequiredApplicationIds:
             app.status === ApplicationStatus.AMENDMENT_REQUESTED ? [app.id] : [],
         });

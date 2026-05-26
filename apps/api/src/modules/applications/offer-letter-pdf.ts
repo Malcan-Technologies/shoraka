@@ -87,6 +87,7 @@ function signatureBlock(doc: PDFDoc): void {
 export type ContractOfferDetails = {
   requested_facility?: number;
   offered_facility?: number;
+  facility_fee_rate_percent?: number;
   expires_at?: string;
 };
 
@@ -97,6 +98,8 @@ export type InvoiceOfferDetails = {
   offered_profit_rate_percent?: number;
   /** Percent of funded amount withheld as platform fee at disbursement. */
   platform_fee_rate_percent?: number;
+  facility_fee_rate_percent?: number;
+  facility_fee_cap_amount?: number;
   expires_at?: string;
 };
 
@@ -123,6 +126,11 @@ function formatDate(value: string | undefined): string {
   }
 }
 
+function formatPercent(value: number | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return `${Number.isInteger(value) ? value : Number(value.toFixed(2))}%`;
+}
+
 export function buildInvoiceOfferLetterTerms(
   invoiceId: string,
   offer: InvoiceOfferDetails
@@ -131,6 +139,24 @@ export function buildInvoiceOfferLetterTerms(
     offer.platform_fee_rate_percent != null && Number.isFinite(offer.platform_fee_rate_percent)
       ? offer.platform_fee_rate_percent
       : 0;
+  const facilityFeeTerms =
+    offer.facility_fee_rate_percent != null && offer.facility_fee_rate_percent > 0
+      ? [
+          {
+            label: "Facility fee rate",
+            value: `${formatPercent(offer.facility_fee_rate_percent)} of each disbursed invoice financing amount`,
+          },
+          {
+            label: "Facility fee cap",
+            value: formatAmount(offer.facility_fee_cap_amount),
+          },
+          {
+            label: "Facility fee collection",
+            value:
+              "Deducted from issuer disbursement progressively when invoice financing is disbursed, subject to the facility fee cap",
+          },
+        ]
+      : [];
 
   return [
     { label: "Our reference (invoice ID)", value: invoiceId },
@@ -145,6 +171,7 @@ export function buildInvoiceOfferLetterTerms(
       label: "Platform fee (at disbursement)",
       value: `${platformFeePct}% of the funded amount, deducted from disbursement proceeds`,
     },
+    ...facilityFeeTerms,
     { label: "This offer expires on", value: formatDate(offer.expires_at) },
   ];
 }
@@ -166,6 +193,19 @@ export function buildContractOfferLetterPdf(
   termLine(doc, "Our reference (contract ID)", contractId);
   termLine(doc, "Requested facility", formatAmount(offer.requested_facility));
   termLine(doc, "Proposed offered facility", formatAmount(offer.offered_facility));
+  if (offer.facility_fee_rate_percent != null && offer.facility_fee_rate_percent > 0) {
+    const cap =
+      offer.offered_facility != null
+        ? offer.offered_facility * (offer.facility_fee_rate_percent / 100)
+        : undefined;
+    termLine(doc, "Facility fee rate", formatPercent(offer.facility_fee_rate_percent));
+    termLine(doc, "Facility fee cap", formatAmount(cap));
+    termLine(
+      doc,
+      "Facility fee collection",
+      "Deducted from issuer disbursement progressively when invoice financing is disbursed"
+    );
+  }
   termLine(doc, "This offer expires on", formatDate(offer.expires_at));
   sectionHeading(doc, "General");
   bodyParagraphs(doc);

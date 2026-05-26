@@ -12,7 +12,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useOrganization } from "@cashsouk/config";
 import { useHeader } from "@cashsouk/ui";
-import type { Contract, Invoice, Product } from "@cashsouk/types";
+import type { Invoice, Product } from "@cashsouk/types";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,9 +25,10 @@ import { useProducts } from "@/hooks/use-products";
 import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
 import type { IssuerDashboardContract, IssuerDashboardInvoice } from "@/types/issuer-dashboard";
 import { getOfferStatus } from "@/lib/offer-utils";
-import { ReviewOfferModal } from "@/components/review-offer-modal";
+import { ReviewOfferModal } from "../(application-management)/applications/components/ReviewOfferModal";
 import { DashboardContractCard } from "@/components/financing/contract-card";
 import { DashboardInvoiceCard } from "@/components/financing/invoice-card";
+import type { NormalizedInvoice } from "../(application-management)/applications/status";
 import {
   FinancingContractFilterToolbar,
   FinancingInvoiceFilterToolbar,
@@ -140,9 +141,35 @@ function IssuerFinancingPageContent() {
   const [reloadSpin, setReloadSpin] = React.useState(false);
 
   type OfferContext =
-    | { type: "contract"; applicationId: string; contract: Contract }
-    | { type: "invoice"; applicationId: string; invoiceId: string; invoice: Invoice };
+    | { type: "contract"; applicationId: string; contractId: string }
+    | { type: "invoice"; applicationId: string; contractId: string | null; invoiceId: string; invoice: NormalizedInvoice };
   const [offerModalContext, setOfferModalContext] = React.useState<OfferContext | null>(null);
+
+  const toNormalizedInvoiceForOfferModal = (inv: Invoice): NormalizedInvoice => {
+    const invoiceDetails = inv.details;
+    const od = inv.offer_details as Record<string, unknown> | null | undefined;
+    return {
+      id: inv.id,
+      number: invoiceDetails.number,
+      contractId: inv.contract_id ?? null,
+      maturityDate: invoiceDetails.maturity_date ?? null,
+      value: Number.isFinite(invoiceDetails.value as number) ? invoiceDetails.value : null,
+      appliedFinancing: null,
+      document: invoiceDetails.document?.file_name ?? "—",
+      documentS3Key: invoiceDetails.document?.s3_key ?? null,
+      financingOffered: od?.offered_amount != null ? String(od.offered_amount) : "—",
+      platformFee: "—",
+      profitRate: od?.offered_profit_rate_percent != null ? `${od.offered_profit_rate_percent}%` : "—",
+      status: inv.status,
+      offerStatus: null,
+      canReviewOffer: true,
+      offer_details: od,
+      signedOfferLetterAvailable: false,
+      signedOfferLetterS3Key: null,
+      withdrawReason: undefined,
+      reasonOrRemarks: undefined,
+    };
+  };
 
   const handleReload = () => {
     setReloadSpin(true);
@@ -213,11 +240,15 @@ function IssuerFinancingPageContent() {
   return (
     <div className={issuerMainContentClassName}>
       <div className={cn("min-w-0 max-w-full space-y-6", issuerPageGutterClassName)}>
-        <ReviewOfferModal
-          open={offerModalContext !== null}
-          onOpenChange={(open) => !open && setOfferModalContext(null)}
-          context={offerModalContext}
-        />
+        {offerModalContext && (
+          <ReviewOfferModal
+            type={offerModalContext.type}
+            applicationId={offerModalContext.applicationId}
+            contractId={offerModalContext.contractId ?? undefined}
+            invoice={offerModalContext.type === "invoice" ? offerModalContext.invoice : undefined}
+            onClose={() => setOfferModalContext(null)}
+          />
+        )}
 
         <PageHeader />
 
@@ -301,7 +332,7 @@ function IssuerFinancingPageContent() {
                           setOfferModalContext({
                             type: "contract",
                             applicationId: c.applicationId,
-                            contract: modalContract,
+                            contractId: modalContract.id,
                           })
                         }
                       />
@@ -354,7 +385,8 @@ function IssuerFinancingPageContent() {
                             type: "invoice",
                             applicationId: inv.applicationId,
                             invoiceId: inv.id,
-                            invoice: modalInvoice,
+                            contractId: modalInvoice.contract_id ?? null,
+                            invoice: toNormalizedInvoiceForOfferModal(modalInvoice),
                           })
                         }
                       />

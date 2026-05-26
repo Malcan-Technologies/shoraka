@@ -18,6 +18,9 @@ jest.mock("../../lib/prisma", () => ({
     issuerOrganization: {
       findUnique: jest.fn(),
     },
+    noteEvent: {
+      create: jest.fn(),
+    },
   },
 }));
 
@@ -72,6 +75,7 @@ describe("shoraka-stp fetch-certificate guard (Phase 1)", () => {
 
     expect(getCertificatePdf).not.toHaveBeenCalled();
     expect(putS3ObjectBuffer).not.toHaveBeenCalled();
+    expect(prisma.noteEvent.create).not.toHaveBeenCalled();
   });
 
   it("allows fetch when provider status is Completed", async () => {
@@ -129,6 +133,19 @@ describe("shoraka-stp fetch-certificate guard (Phase 1)", () => {
     expect(callArgs.key).toContain(
       "shoraka-certificates/withdrawal-1/provider-order-1-1700000000000.pdf"
     );
+    expect(prisma.noteEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          note_id: "note-1",
+          event_type: "SHORAKA_CERTIFICATE_FETCHED",
+          metadata: expect.objectContaining({
+            document_type: "Tawarruq Certificate",
+            certificate_available: true,
+            provider_order_id: "provider-order-1",
+          }),
+        }),
+      })
+    );
 
     dateNowSpy.mockRestore();
   });
@@ -167,6 +184,7 @@ describe("shoraka-stp cutoff window (submit-order)", () => {
     });
 
     expect(submitOrder).not.toHaveBeenCalled();
+    expect(prisma.noteEvent.create).not.toHaveBeenCalled();
   });
 
   it("allows submit-order before 23:30 MYT", async () => {
@@ -211,6 +229,17 @@ describe("shoraka-stp cutoff window (submit-order)", () => {
     });
 
     expect(submitOrder).toHaveBeenCalledTimes(1);
+    expect(prisma.noteEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          note_id: "note-1",
+          event_type: "SHORAKA_ORDER_SUBMITTED",
+          metadata: expect.objectContaining({
+            provider_order_id: "provider-order-1",
+          }),
+        }),
+      })
+    );
   });
 
   it("allows submit-order after 00:30 MYT", async () => {

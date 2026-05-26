@@ -50,9 +50,10 @@ import {
   type NormalizedApplication,
   type NormalizedInvoice,
 } from "../status";
+import { buildInvoiceFeeDisplay, money } from "@/lib/facility-fee-display";
 
-const PLATFORM_FEE_HEADER_TOOLTIP =
-  "Deducted from disbursement when funding closes (applied as a percentage of the funded amount).";
+const FEES_HEADER_TOOLTIP =
+  "Platform fee and facility fee, where applicable, deducted from issuer disbursement.";
 
 const PROFIT_RATE_HEADER_TOOLTIP =
   "Profit per annum (%). Deducted during settlement when calculating the residual refund to the issuer.";
@@ -69,7 +70,7 @@ const COL_MIN = {
   appliedFinancing: 132,
   documents: 200,
   financingOffered: 136,
-  platformFee: 108,
+  fees: 156,
   profitRate: 96,
 } as const;
 
@@ -87,7 +88,7 @@ const SCROLLABLE_COL_MIN_TOTAL_PX =
   COL_MIN.appliedFinancing +
   COL_MIN.documents +
   COL_MIN.financingOffered +
-  COL_MIN.platformFee +
+  COL_MIN.fees +
   COL_MIN.profitRate;
 
 /** When the container is narrower than this, the scroll region shows a horizontal scrollbar. */
@@ -164,6 +165,65 @@ function IssuerInvoiceCurrencyCellFromFormatted({ formatted }: { formatted: stri
     <div className="flex w-full min-w-0 items-baseline justify-between gap-2 text-[15px]">
       <span className="shrink-0 text-left">RM</span>
       <span className="min-w-0 flex-1 text-right tabular-nums">{match[1]}</span>
+    </div>
+  );
+}
+
+function InvoiceFeesCell({
+  application,
+  invoice,
+}: {
+  application: NormalizedApplication;
+  invoice: NormalizedInvoice;
+}) {
+  const display = buildInvoiceFeeDisplay({
+    status: invoice.status,
+    offerDetails: invoice.offer_details,
+    financingAmount: invoice.appliedFinancing,
+    isContractFinancing: application.type === "Contract financing" && !!invoice.contractId,
+    contractFacilityFeeRatePercent: application.facilityFeeRatePercent,
+    contractFacilityFeeCapAmount: application.facilityFeeCapAmount,
+    contractFacilityFeePaidAmount: application.facilityFeePaidAmount,
+  });
+
+  if (display.phase === "none") return <span className="tabular-nums">—</span>;
+  if (display.phase === "pending") return <span className="tabular-nums">—</span>;
+
+  const platformLine =
+    display.platformFeeAmount != null ? `Platform ${money(display.platformFeeAmount)}` : null;
+
+  if (platformLine == null && display.facilityFeeAmount == null) {
+    return <span className="tabular-nums">—</span>;
+  }
+
+  const facilityLine = (() => {
+    if (display.facilityFeeAmount == null) return null;
+    const capReached = display.facilityFeeFullyCollected && display.facilityFeeAmount === 0;
+    if (capReached) {
+      return "cap_reached";
+    }
+    return display.phase === "charged"
+      ? `Facility ${money(display.facilityFeeAmount)} charged`
+      : `Facility ${money(display.facilityFeeAmount)} est.`;
+  })();
+
+  return (
+    <div className="min-w-0 w-full">
+      <div className="text-[13px] leading-5 tabular-nums whitespace-normal break-words">
+        {platformLine ?? "—"}
+      </div>
+      {facilityLine ? (
+        <div className="text-[13px] leading-5 whitespace-normal break-words tabular-nums">
+          {facilityLine === "cap_reached" ? (
+            <>
+              Facility {money(display.facilityFeeAmount)}
+              <span className="ml-1 text-xs leading-4 text-muted-foreground">(cap reached)</span>
+            </>
+          ) : (
+            facilityLine
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -286,7 +346,7 @@ export function ScrollableInvoiceTable({
           <col style={{ width: flexColWidth, minWidth: COL_MIN.appliedFinancing }} />
           <col style={{ width: flexColWidth, minWidth: COL_MIN.documents }} />
           <col style={{ width: flexColWidth, minWidth: COL_MIN.financingOffered }} />
-          <col style={{ width: flexColWidth, minWidth: COL_MIN.platformFee }} />
+          <col style={{ width: flexColWidth, minWidth: COL_MIN.fees }} />
           <col style={{ width: flexColWidth, minWidth: COL_MIN.profitRate }} />
           <col style={{ width: COL_STICKY.status, minWidth: COL_STICKY.status }} />
           <col style={{ width: actionColWidthPx, minWidth: actionColWidthPx }} />
@@ -355,9 +415,9 @@ export function ScrollableInvoiceTable({
               )}
             >
               <span className="inline-flex items-center gap-1.5">
-                Platform fee
+                Fees
                 <InfoTooltip
-                  content={PLATFORM_FEE_HEADER_TOOLTIP}
+                  content={FEES_HEADER_TOOLTIP}
                   iconClassName="h-3.5 w-3.5 shrink-0"
                 />
               </span>
@@ -499,7 +559,7 @@ export function ScrollableInvoiceTable({
                       "align-middle text-left tabular-nums whitespace-nowrap text-foreground"
                     )}
                   >
-                    {inv.platformFee}
+                    <InvoiceFeesCell application={application} invoice={inv} />
                   </TableCell>
                   <TableCell
                     className={cn(

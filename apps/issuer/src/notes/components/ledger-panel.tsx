@@ -23,7 +23,7 @@ function formatDateTime(value: string) {
 
 export function LedgerPanel({
   note,
-  description = "Accounting-style postings across the platform buckets.",
+  description = "Posted activity for this note.",
 }: {
   note: NoteDetail;
   description?: string;
@@ -47,7 +47,7 @@ export function LedgerPanel({
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${note.noteReference}-ledger.csv`;
+    link.download = `${note.noteReference}-activity-records.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -56,7 +56,7 @@ export function LedgerPanel({
     <Card className="rounded-2xl">
       <CardHeader className="flex flex-row items-start justify-between gap-3">
         <div>
-          <CardTitle className="text-base">Ledger</CardTitle>
+          <CardTitle className="text-base">Activity records</CardTitle>
           <p className="mt-1 text-xs text-muted-foreground">{description}</p>
         </div>
         <Button size="sm" variant="outline" onClick={handleExport} disabled={entries.length === 0}>
@@ -65,9 +65,9 @@ export function LedgerPanel({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading ledger...</p>
+          <p className="text-sm text-muted-foreground">Loading activity records...</p>
         ) : entries.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No ledger entries posted yet.</p>
+          <p className="text-sm text-muted-foreground">No activity records posted yet.</p>
         ) : (
           <div className="overflow-hidden rounded-xl border">
             <div className="overflow-x-auto">
@@ -75,7 +75,7 @@ export function LedgerPanel({
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="min-w-36">Posted</TableHead>
-                    <TableHead className="min-w-44">Account</TableHead>
+                    <TableHead className="min-w-44">Category</TableHead>
                     <TableHead className="min-w-64">Description</TableHead>
                     <TableHead className="text-right">Debit</TableHead>
                     <TableHead className="text-right">Credit</TableHead>

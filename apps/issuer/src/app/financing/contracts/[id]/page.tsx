@@ -25,11 +25,14 @@ import {
   displayCell,
   formatDate,
 } from "@/components/financing/utils";
-import { ReviewOfferModal } from "@/components/review-offer-modal";
+import { ReviewOfferModal } from "../../../(application-management)/applications/components/ReviewOfferModal";
 import { getOfferStatus } from "@/lib/offer-utils";
 import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labels";
-import { asInvoiceForModal } from "@/types/issuer-dashboard";
+import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
 import type { Invoice } from "@cashsouk/types";
+import type { NormalizedInvoice } from "../../../(application-management)/applications/status";
+import { Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 function formatMoney(value: unknown) {
   return formatMoneyDisplay(value, EM_DASH);
@@ -41,10 +44,39 @@ export default function ContractDetailsPage() {
   const { activeOrganization } = useOrganization();
   const orgId = activeOrganization?.id;
   const { setTitle } = useHeader();
-  const [offerModalContext, setOfferModalContext] = useState<Parameters<typeof ReviewOfferModal>[0]["context"]>(null);
+  const [offerModalContext, setOfferModalContext] = useState<{
+    applicationId: string;
+    invoice: NormalizedInvoice;
+  } | null>(null);
   const [invoiceListFilters, setInvoiceListFilters] = useState<InvoiceFinancingListFiltersState>(
     DEFAULT_INVOICE_FINANCING_LIST_FILTERS
   );
+
+  const toNormalizedInvoiceForOfferModal = (inv: Invoice): NormalizedInvoice => {
+    const invoiceDetails = inv.details;
+    const od = inv.offer_details as Record<string, unknown> | null | undefined;
+    return {
+      id: inv.id,
+      number: invoiceDetails.number,
+      contractId: inv.contract_id ?? null,
+      maturityDate: invoiceDetails.maturity_date ?? null,
+      value: Number.isFinite(invoiceDetails.value as number) ? invoiceDetails.value : null,
+      appliedFinancing: null,
+      document: "—",
+      documentS3Key: null,
+      financingOffered: od?.offered_amount != null ? String(od.offered_amount) : "—",
+      platformFee: "—",
+      profitRate: od?.offered_profit_rate_percent != null ? `${od.offered_profit_rate_percent}%` : "—",
+      status: inv.status,
+      offerStatus: null,
+      canReviewOffer: true,
+      offer_details: od,
+      signedOfferLetterAvailable: false,
+      signedOfferLetterS3Key: null,
+      withdrawReason: undefined,
+      reasonOrRemarks: undefined,
+    };
+  };
 
   useEffect(() => {
     setTitle("Contract");
@@ -65,6 +97,15 @@ export default function ContractDetailsPage() {
 
   const approvedNum = row?.approvedFacilityAmount != null ? Number(row.approvedFacilityAmount) : null;
   const utilizedNum = row?.utilizedFacilityAmount != null ? Number(row.utilizedFacilityAmount) : null;
+  const availableNum = row?.availableFacilityAmount != null ? Number(row.availableFacilityAmount) : null;
+  const overUtilizedAmount =
+    approvedNum != null && utilizedNum != null && utilizedNum > approvedNum
+      ? utilizedNum - approvedNum
+      : availableNum != null && availableNum < 0
+        ? Math.abs(availableNum)
+        : null;
+  const availableFacilityDisplay =
+    availableNum != null ? Math.max(0, availableNum) : approvedNum != null && utilizedNum != null ? Math.max(0, approvedNum - utilizedNum) : null;
   const utilisationPct =
     approvedNum != null && utilizedNum != null && approvedNum > 0
       ? Math.round((utilizedNum / approvedNum) * 100)
@@ -74,8 +115,6 @@ export default function ContractDetailsPage() {
     row?.facilityFeeCapAmount != null ? Number(row.facilityFeeCapAmount) : null;
   const facilityFeePaidNum =
     row?.facilityFeePaidAmount != null ? Number(row.facilityFeePaidAmount) : null;
-  const facilityFeeRemainingNum =
-    row?.facilityFeeRemainingAmount != null ? Number(row.facilityFeeRemainingAmount) : null;
 
   const contractPeriod =
     row?.contractStartDate && row?.contractEndDate
@@ -128,11 +167,16 @@ export default function ContractDetailsPage() {
 
   return (
     <div className={cn(shellClass, "space-y-5 md:space-y-6")}>
-      <ReviewOfferModal
-        open={offerModalContext !== null}
-        onOpenChange={(open) => !open && setOfferModalContext(null)}
-        context={offerModalContext}
-      />
+      {offerModalContext && (
+        <ReviewOfferModal
+          type="invoice"
+          applicationId={offerModalContext.applicationId}
+          contractId={contractId}
+          invoice={offerModalContext.invoice}
+          requiresInvoiceSigning
+          onClose={() => setOfferModalContext(null)}
+        />
+      )}
 
       <section className="mb-5 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
         <div>
@@ -167,8 +211,13 @@ export default function ContractDetailsPage() {
 
               <div className="min-w-0 w-full space-y-2">
                 <LabelValue label="Available facility" tabular>
-                  {row.availableFacilityAmount != null ? formatMoney(row.availableFacilityAmount) : EM_DASH}
+                  {availableFacilityDisplay != null ? formatMoney(availableFacilityDisplay) : EM_DASH}
                 </LabelValue>
+                {overUtilizedAmount != null && overUtilizedAmount > 0 ? (
+                  <p className="text-xs font-medium leading-5 text-muted-foreground">
+                    Facility usage exceeds the approved limit. Please contact support.
+                  </p>
+                ) : null}
                 <div className="h-2 w-full overflow-hidden rounded-full border border-border bg-foreground/35 shadow-sm dark:bg-muted">
                   <div
                     className="h-2 rounded-full bg-foreground"
@@ -190,33 +239,27 @@ export default function ContractDetailsPage() {
                   </div>
                 </div>
 
-                {row.facilityFeeCapAmount != null &&
-                row.facilityFeePaidAmount != null &&
-                row.facilityFeeRemainingAmount != null ? (
-                  <div className="mt-4 space-y-3">
-                    <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Facility fee tracker
-                    </h4>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                      <MetricBox
-                        label="Cap"
-                        value={facilityFeeCapNum != null ? formatMoney(facilityFeeCapNum) : EM_DASH}
-                      />
-                      <MetricBox
-                        label="Paid so far"
-                        value={
-                          facilityFeePaidNum != null ? formatMoney(facilityFeePaidNum) : EM_DASH
-                        }
-                      />
-                      <MetricBox
-                        label="Remaining"
-                        value={
-                          facilityFeeRemainingNum != null
-                            ? formatMoney(facilityFeeRemainingNum)
-                            : EM_DASH
-                        }
-                      />
-                    </div>
+                {row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null ? (
+                  <div className="mt-3 text-sm leading-6 text-muted-foreground">
+                    <p>
+                      Facility fee collected:{" "}
+                      <span className="font-medium tabular-nums text-foreground">
+                        {facilityFeePaidNum != null ? formatMoney(facilityFeePaidNum) : EM_DASH} /{" "}
+                        {facilityFeeCapNum != null ? formatMoney(facilityFeeCapNum) : EM_DASH} cap
+                      </span>
+                      <span className="ml-1 inline-flex items-center align-middle">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-[240px] whitespace-normal break-words bg-popover px-2 py-1.5 text-popover-foreground shadow-md">
+                              Shows the total facility fee collected so far for this contract. Facility fee is deducted from each invoice financing disbursement until the cap is reached.
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </span>
+                    </p>
                   </div>
                 ) : null}
               </div>
@@ -290,12 +333,17 @@ export default function ContractDetailsPage() {
                 key={inv.id}
                 row={inv}
                 offerStatus={getOfferStatus(modalInvoice)}
+                contractFeeContext={{
+                  facilityFeeRatePercent:
+                    (asContractForModal(row.contractForModal).contract_details as Record<string, unknown> | null)
+                      ?.facility_fee_rate_percent,
+                  facilityFeeCapAmount: row.facilityFeeCapAmount,
+                  facilityFeePaidAmount: row.facilityFeePaidAmount,
+                }}
                 onReviewOffer={() =>
                   setOfferModalContext({
-                    type: "invoice",
                     applicationId: inv.applicationId,
-                    invoiceId: inv.id,
-                    invoice: modalInvoice,
+                    invoice: toNormalizedInvoiceForOfferModal(modalInvoice) as unknown as NormalizedInvoice,
                   })
                 }
               />

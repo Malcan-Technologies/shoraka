@@ -1,5 +1,6 @@
 import { isSoukscoreRiskRating, roundNoteMoney, type IssuerResidualPayoutListStatus } from "@cashsouk/types";
 import { NoteSettlementStatus, Prisma, WithdrawalStatus, WithdrawalType } from "@prisma/client";
+import { sortAdminNoteEvents } from "./admin-note-events-sorting";
 
 type NoteWithRelations = Prisma.NoteGetPayload<{
   include: {
@@ -56,6 +57,7 @@ function normaliseBeneficiarySnapshot(raw: Prisma.JsonValue | null): Record<stri
 }
 
 export function mapWithdrawalInstruction(withdrawal: WithdrawalRecord) {
+  const hasShorakaCertificate = Boolean((withdrawal as WithdrawalRecordWithOptionalShorakaTradeOrder).shoraka_trade_order?.certificate_s3_key);
   const metadata = asRecord(withdrawal.metadata);
   const grossFundedAmount = metadata
     ? numberFromUnknownOrUndefined(metadata.grossFundedAmount)
@@ -108,8 +110,13 @@ export function mapWithdrawalInstruction(withdrawal: WithdrawalRecord) {
     submittedToTrusteeAt: iso(withdrawal.submitted_to_trustee_at),
     completedAt: iso(withdrawal.completed_at),
     createdAt: withdrawal.created_at.toISOString(),
+    hasShorakaCertificate,
   };
 }
+
+type WithdrawalRecordWithOptionalShorakaTradeOrder = WithdrawalRecord & {
+  shoraka_trade_order?: { certificate_s3_key: string | null } | null;
+};
 
 function decimalToNumber(value: Prisma.Decimal | number | null | undefined): number {
   if (value == null) return 0;
@@ -391,9 +398,22 @@ export function mapNoteListItem(note: NoteWithRelations) {
 
 export function mapNoteDetail(
   note: NoteWithRelations,
-  options: { withdrawals?: WithdrawalRecord[] } = {}
+  options: { withdrawals?: WithdrawalRecord[]; includeEvents?: boolean } = {}
 ) {
   const withdrawals = options.withdrawals ?? [];
+  const includeEvents = options.includeEvents ?? true;
+
+  const sortedEvents = includeEvents
+    ? sortAdminNoteEvents(
+        note.events.map((event) => ({
+          id: event.id,
+          eventType: event.event_type,
+          createdAt: event.created_at,
+        })),
+        "newest-first"
+      )
+    : [];
+
   return {
     ...mapNoteListItem(note),
     issuerResidualPayout: resolveIssuerResidualPayoutListStatus(note, withdrawals),
@@ -493,17 +513,37 @@ export function mapNoteDetail(
       serviceFeeTrusteeSubmittedAt: iso(settlement.service_fee_trustee_submitted_at),
       serviceFeeTrusteeCompletedAt: iso(settlement.service_fee_trustee_completed_at),
     })),
-    events: note.events.map((event) => ({
-      id: event.id,
-      noteId: event.note_id,
-      eventType: event.event_type,
-      actorUserId: event.actor_user_id,
-      actorRole: event.actor_role,
-      portal: event.portal,
-      correlationId: event.correlation_id,
-      metadata: asRecord(event.metadata),
-      createdAt: event.created_at.toISOString(),
-    })),
+    events: includeEvents
+      ? sortedEvents.map((sortedEvent) => {
+          const event = note.events.find((e) => e.id === sortedEvent.id);
+          if (!event) {
+            // Defensive fallback for unexpected missing events.
+            return {
+              id: sortedEvent.id,
+              noteId: note.id,
+              eventType: sortedEvent.eventType,
+              actorUserId: null,
+              actorRole: null,
+              portal: null,
+              correlationId: null,
+              metadata: null,
+              createdAt: new Date(sortedEvent.createdAt).toISOString(),
+            };
+          }
+
+          return {
+            id: event.id,
+            noteId: event.note_id,
+            eventType: event.event_type,
+            actorUserId: event.actor_user_id,
+            actorRole: event.actor_role,
+            portal: event.portal,
+            correlationId: event.correlation_id,
+            metadata: asRecord(event.metadata),
+            createdAt: event.created_at.toISOString(),
+          };
+        })
+      : [],
     withdrawals: withdrawals.map(mapWithdrawalInstruction),
   };
 }

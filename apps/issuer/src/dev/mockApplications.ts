@@ -211,11 +211,20 @@ export function generateMockApplications(count: number): NormalizedApplication[]
     const facilityApplied = scenario.hasContract ? Math.floor((contractVal ?? 0) * 0.9) : null;
     const hasOfferOrApproved =
       scenario.contractStatus === "OFFER_SENT" || scenario.contractStatus === "APPROVED";
-    const approvedFacility = hasOfferOrApproved
-      ? `RM ${((facilityApplied ?? 180000) * 1.05).toLocaleString("en-MY", { minimumFractionDigits: 2 })}`
+    const approvedFacilityAmount = hasOfferOrApproved
+      ? (facilityApplied ?? 180000) * 1.05
       : scenario.contractStatus === "APPROVED"
-        ? "RM 200,000.00"
+        ? 200000
+        : null;
+    const approvedFacility =
+      approvedFacilityAmount != null
+        ? `RM ${approvedFacilityAmount.toLocaleString("en-MY", { minimumFractionDigits: 2 })}`
         : "N/A";
+    const facilityFeeRatePercent = scenario.hasContract ? 1 : null;
+    const facilityFeeCapAmount =
+      approvedFacilityAmount != null && facilityFeeRatePercent != null
+        ? approvedFacilityAmount * (facilityFeeRatePercent / 100)
+        : null;
 
     const contractTitle = scenario.hasContract
       ? scenario.contractTitle ?? CONTRACT_TITLES[i % CONTRACT_TITLES.length]
@@ -234,6 +243,10 @@ export function generateMockApplications(count: number): NormalizedApplication[]
       contractValue: contractVal,
       facilityApplied,
       approvedFacility,
+      approvedFacilityAmount,
+      facilityFeeRatePercent,
+      facilityFeeCapAmount,
+      facilityFeePaidAmount: scenario.hasContract ? 0 : null,
       updatedAt: updatedDate.toISOString(),
       invoices,
       contractStatus: scenario.contractStatus,

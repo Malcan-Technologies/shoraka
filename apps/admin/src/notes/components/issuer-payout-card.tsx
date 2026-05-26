@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
@@ -47,6 +48,7 @@ import {
 } from "@/notes/hooks/use-notes";
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import { cn } from "@/lib/utils";
+import { notesKeys } from "@/notes/query-keys";
 
 type BeneficiaryFields = {
   bank_name: string;
@@ -138,6 +140,7 @@ export function IssuerPayoutCard({
   kind,
   servicingBlockedReason,
 }: IssuerPayoutCardProps) {
+  const queryClient = useQueryClient();
   const kindCopy = KIND_COPY[kind];
   const generateLetter = useGenerateWithdrawalLetter();
   const markSubmitted = useMarkWithdrawalSubmitted();
@@ -151,7 +154,7 @@ export function IssuerPayoutCard({
   const fetchShorakaCertificate = useFetchShorakaCertificate(withdrawal.id);
 
   const shorakaUnsafeSubmitWindowMessage =
-    "Shoraka orders cannot be submitted between 11:30 PM and 12:30 AM MYT because orders may remain Active and require cancellation. Please submit after 12:30 AM.";
+    "Tawarruq orders cannot be submitted between 11:30 PM and 12:30 AM MYT because orders may remain Active and require cancellation. Please submit after 12:30 AM.";
   const isMalaysiaUnsafeShorakaSubmitWindow = (() => {
     const now = new Date();
     const parts = new Intl.DateTimeFormat("en-GB", {
@@ -180,11 +183,29 @@ export function IssuerPayoutCard({
   const markDisbursedHelperText =
     shouldGateMarkDisbursed && (shorakaStateQuery.isPending || shorakaStateQuery.isError || !hasShorakaCertificate) ? (
       shorakaStateQuery.isPending ? (
-        "Checking Shoraka certificate status…"
+        "Checking Tawarruq certificate status…"
       ) : shorakaStateQuery.isError ? (
-        "Unable to verify Shoraka certificate status. Please refresh or try again."
+        "Unable to verify Tawarruq transaction status. Please refresh or try again."
       ) : (
-        "Shoraka certificate must be fetched before marking issuer disbursement as completed."
+        "Tawarruq Certificate must be fetched before marking issuer disbursement as completed."
+      )
+    ) : null;
+
+  const generateLetterDisabledBecauseShoraka =
+    shouldGateMarkDisbursed &&
+    (shorakaStateQuery.isPending ||
+      shorakaStateQuery.isError ||
+      !shorakaTradeOrder ||
+      !hasShorakaCertificate);
+
+  const generateLetterHelperText =
+    shouldGateMarkDisbursed && generateLetterDisabledBecauseShoraka ? (
+      shorakaStateQuery.isPending ? (
+        "Checking Tawarruq certificate status…"
+      ) : shorakaStateQuery.isError ? (
+        "Unable to verify Tawarruq certificate status. Please refresh and try again."
+      ) : (
+        "Tawarruq Certificate must be fetched before generating the trustee letter."
       )
     ) : null;
 
@@ -229,6 +250,10 @@ export function IssuerPayoutCard({
           toast.error(
             "Add at least the issuer bank name and account number before generating the letter."
           );
+          return;
+        }
+        if (generateLetterDisabledBecauseShoraka) {
+          toast.error(generateLetterHelperText ?? "Tawarruq Certificate is required.");
           return;
         }
         await generateLetter.mutateAsync(withdrawal.id);
@@ -370,7 +395,7 @@ export function IssuerPayoutCard({
               <span className="text-muted-foreground">Platform fee</span>
               <span className="font-medium">{formatCurrency(withdrawal.platformFeeAmount)}</span>
             </div>
-            {withdrawal.facilityFeeCharged != null && withdrawal.facilityFeeCharged > 0 ? (
+            {withdrawal.facilityFeeCharged != null ? (
               <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground">Facility fee</span>
                 <span className="font-medium">{formatCurrency(withdrawal.facilityFeeCharged)}</span>
@@ -389,11 +414,39 @@ export function IssuerPayoutCard({
       {withdrawal.withdrawalType === WithdrawalType.ISSUER_DISBURSEMENT ? (
         <div className="mt-4 rounded-lg border bg-muted/20 p-3 text-[11px]">
           <div className="flex items-center justify-between">
-            <div className="font-medium uppercase tracking-wider text-muted-foreground">Shoraka STP</div>
+            <div className="font-medium uppercase tracking-wider text-muted-foreground">
+              Tawarruq Transaction
+            </div>
           </div>
 
+          {payoutComplete && hasShorakaCertificate ? (
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3">
+              <div className="min-w-0">
+                <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Tawarruq Certificate
+                </div>
+                <div className="mt-1 text-[11px] text-muted-foreground">Certificate fetched and stored.</div>
+              </div>
+              <div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => {
+                    const key = shorakaTradeOrder?.certificate_s3_key;
+                    if (!key) return;
+                    void handleViewDocument(key);
+                  }}
+                  disabled={viewDocumentPending}
+                >
+                  View Tawarruq Certificate
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
           {shorakaStateQuery.isPending ? (
-            <div className="mt-2 text-muted-foreground">Checking Shoraka certificate status…</div>
+            <div className="mt-2 text-muted-foreground">Checking Tawarruq certificate status…</div>
           ) : shorakaStateQuery.data == null ? (
             <div className="mt-2">
               <div className="flex items-center justify-between gap-4">
@@ -402,7 +455,7 @@ export function IssuerPayoutCard({
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground">Next action</span>
-                <span className="text-foreground">Submit Shoraka order</span>
+                <span className="text-foreground">Submit Tawarruq order</span>
               </div>
               <div className="mt-2">
                 <Button
@@ -415,14 +468,15 @@ export function IssuerPayoutCard({
                         return;
                       }
                       await submitShorakaOrder.mutateAsync();
-                      toast.success("Shoraka order submitted");
+                      toast.success("Tawarruq order submitted");
+                      queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
                     } catch (err) {
-                      toast.error(err instanceof Error ? err.message : "Failed to submit Shoraka order");
+                      toast.error(err instanceof Error ? err.message : "Failed to submit Tawarruq order");
                     }
                   }}
                   disabled={submitShorakaOrder.isPending || isMalaysiaUnsafeShorakaSubmitWindow}
                 >
-                  Submit Shoraka Order
+                  Submit Tawarruq Order
                 </Button>
               </div>
 
@@ -454,7 +508,7 @@ export function IssuerPayoutCard({
                         ? { status: "Certificate ready", nextAction: "You may proceed with disbursement" }
                         : {
                             status: "Manual review required",
-                            nextAction: "Check with Shoraka/Tawarruq operations",
+                        nextAction: "Check with Tawarruq operations",
                           };
 
               const callbackReceivedAt = tradeOrder.callback_received_at
@@ -501,7 +555,7 @@ export function IssuerPayoutCard({
                     ) : null}
                     {parsed.orderDate || parsed.valueDate ? (
                       <div className="pt-1 text-[11px] text-muted-foreground">
-                        Order date = Shoraka trade submission date. Value date = intended disbursement date.
+                        Order date = Tawarruq trade submission date. Value date = intended disbursement date.
                       </div>
                     ) : null}
                     {parsed.orderAmount ? (
@@ -558,9 +612,11 @@ export function IssuerPayoutCard({
                               return;
                             }
                             await queryShorakaStatus.mutateAsync();
-                            toast.success("Shoraka status queried");
+                            toast.success("Tawarruq transaction status queried");
                           } catch (err) {
-                            toast.error(err instanceof Error ? err.message : "Failed to query Shoraka status");
+                            toast.error(
+                              err instanceof Error ? err.message : "Failed to query Tawarruq transaction status"
+                            );
                           }
                         }}
                         disabled={queryShorakaStatus.isPending}
@@ -580,18 +636,19 @@ export function IssuerPayoutCard({
                               return;
                             }
                             await fetchShorakaCertificate.mutateAsync();
-                            toast.success("Shoraka certificate fetched");
+                            toast.success("Tawarruq certificate fetched");
+                            queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
                           } catch (err) {
                             toast.error(err instanceof Error ? err.message : "Failed to fetch certificate");
                           }
                         }}
                         disabled={fetchShorakaCertificate.isPending}
                       >
-                        Fetch Certificate
+                        Fetch Tawarruq Certificate
                       </Button>
                     ) : null}
 
-                    {tradeOrder.certificate_s3_key ? (
+                    {tradeOrder.certificate_s3_key && !payoutComplete ? (
                       <Button
                         variant="outline"
                         size="sm"
@@ -603,7 +660,7 @@ export function IssuerPayoutCard({
                         }}
                         disabled={viewDocumentPending}
                       >
-                        View Certificate
+                        View Tawarruq Certificate
                       </Button>
                     ) : null}
                   </div>
@@ -696,12 +753,15 @@ export function IssuerPayoutCard({
           <Button
             size="sm"
             onClick={() => guardedAction(() => setConfirmAction("generate"))}
-            disabled={pendingAny || !beneficiaryComplete}
+            disabled={pendingAny || !beneficiaryComplete || generateLetterDisabledBecauseShoraka}
             className="gap-1.5"
           >
             <DocumentTextIcon className="h-4 w-4" />
             Generate Letter
           </Button>
+        ) : null}
+        {status === "DRAFT" && generateLetterHelperText ? (
+          <div className="w-full text-right text-xs text-muted-foreground">{generateLetterHelperText}</div>
         ) : null}
         {status === "LETTER_GENERATED" ? (
           <Button

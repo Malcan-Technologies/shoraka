@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Switch } from "@/components/ui/switch";
@@ -42,6 +42,7 @@ import { NoteTermsPanel } from "@/notes/components/note-terms-panel";
 import { NoteTimelinePanel } from "@/notes/components/note-timeline-panel";
 import { SettlementPanel } from "@/notes/components/settlement-panel";
 import { SourceApplicationPanel } from "@/notes/components/source-application-panel";
+import { IssuerPayoutCard } from "@/notes/components/issuer-payout-card";
 import { OfferSigningPanel } from "@/components/offer-signing-panel";
 import { useResignNoteInvoiceOffer } from "@/notes/hooks/use-resign-invoice-offer";
 import {
@@ -169,6 +170,11 @@ export default function NoteDetailPage() {
     }),
     [publishNote.isPending, unpublishNote.isPending, closeFunding.isPending, failFunding.isPending]
   );
+
+  const disbursementWithdrawal = React.useMemo(() => {
+    const withdrawals = note?.withdrawals ?? [];
+    return withdrawals.find((w) => w.withdrawalType === "ISSUER_DISBURSEMENT") ?? null;
+  }, [note]);
 
   const runConfirmedAction = async () => {
     if (!note || !pendingAction) return;
@@ -430,6 +436,45 @@ export default function NoteDetailPage() {
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)]">
                 <div className="min-w-0 space-y-6">
                   <NoteTermsPanel note={note} />
+                  <Card className="rounded-2xl">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Funding &amp; Issuer Disbursement</CardTitle>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Manage funding close payout, Tawarruq Transaction, trustee submission, and issuer disbursement before servicing begins.
+                      </p>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      {disbursementWithdrawal && disbursementWithdrawal.status !== "CANCELLED" ? (
+                        disbursementWithdrawal.status !== "COMPLETED" ? (
+                          <div
+                            className={`rounded-xl border border-amber-200 p-4 border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]`}
+                          >
+                            <div className="mb-2 text-xs font-medium uppercase tracking-wider text-amber-900">
+                              Awaiting issuer disbursement
+                            </div>
+                            <p className="text-xs text-amber-900/80">
+                              Funding has closed. The net amount below must be paid out to the issuer via
+                              the trustee before servicing begins. Once the disbursement is marked complete, the
+                              note will move to ACTIVE and repayment receipts can be recorded.
+                            </p>
+                            <IssuerPayoutCard
+                              note={note}
+                              withdrawal={disbursementWithdrawal}
+                              kind="DISBURSEMENT"
+                              servicingBlockedReason={null}
+                            />
+                          </div>
+                        ) : (
+                          <IssuerPayoutCard
+                            note={note}
+                            withdrawal={disbursementWithdrawal}
+                            kind="DISBURSEMENT"
+                            servicingBlockedReason={null}
+                          />
+                        )
+                      ) : null}
+                    </CardContent>
+                  </Card>
                   <SettlementPanel note={note} />
                   <LedgerPanel note={note} />
                 </div>

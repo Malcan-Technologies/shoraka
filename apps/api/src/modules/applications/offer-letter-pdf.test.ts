@@ -28,4 +28,25 @@ describe("buildInvoiceOfferLetterTerms", () => {
       value: "0% of the funded amount, deducted from disbursement proceeds",
     });
   });
+
+  it("includes facility fee terms for contract financing invoices", async () => {
+    const terms = buildInvoiceOfferLetterTerms("inv-789", {
+      offered_amount: 100_000,
+      offered_ratio_percent: 80,
+      offered_profit_rate_percent: 12,
+      platform_fee_rate_percent: 3,
+      facility_fee_rate_percent: 1,
+      facility_fee_cap_amount: 1_000,
+      expires_at: "2026-06-01T00:00:00.000Z",
+    });
+
+    expect(terms).toContainEqual({
+      label: "Facility fee rate",
+      value: "1% of each disbursed invoice financing amount",
+    });
+    expect(terms).toContainEqual({
+      label: "Facility fee cap",
+      value: "RM 1,000.00",
+    });
+  });
 });

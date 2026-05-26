@@ -58,6 +58,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import type { NormalizedApplication, NormalizedInvoice } from "./status";
 import { ScrollableInvoiceTable } from "./components/scrollable-invoice-table";
 import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
+import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
 import {
   Dialog,
@@ -170,7 +171,6 @@ function ApplicationCard({
   const isDraft = application.status === "draft";
   const isGenericDraft = application.type === "Generic";
   const hasContract = application.type === "Contract financing";
-
   const useDraftCardLayout = isDraft && isGenericDraft;
 
   const displayId = "#" + application.id.slice(-8).toUpperCase();
@@ -326,7 +326,7 @@ function ApplicationCard({
               <span className="text-foreground">{formatDateTime(application.submittedAt)}</span>
             </div>
           ) : (
-          <div className="flex flex-wrap justify-between gap-6">
+            <div className="flex flex-wrap justify-between gap-6 items-start">
             <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[15px] leading-6">
               {hasContract && application.contractTitle && (
                 <>
@@ -354,7 +354,35 @@ function ApplicationCard({
                     : "—"}
                 </span>
                 <span className="text-muted-foreground">Approved facility:</span>
-                <span className="text-foreground">{application.approvedFacility}</span>
+                <span className="text-foreground">
+                  {application.approvedFacilityAmount != null ? application.approvedFacility : "—"}
+                </span>
+
+                <span className="text-muted-foreground inline-flex items-center gap-1.5">
+                  Facility fee rate:
+                  <InfoTooltip
+                    content="Facility fee is deducted from each invoice financing disbursement under this contract."
+                    iconClassName="h-3.5 w-3.5 shrink-0"
+                  />
+                </span>
+                <span className="text-foreground">
+                  {application.approvedFacilityAmount != null && application.facilityFeeRatePercent != null && application.facilityFeeRatePercent > 0
+                    ? `${application.facilityFeeRatePercent}%`
+                    : "—"}
+                </span>
+
+                <span className="text-muted-foreground inline-flex items-center gap-1.5">
+                  Facility fee cap:
+                  <InfoTooltip
+                    content="Maximum total facility fee that can be collected for this contract."
+                    iconClassName="h-3.5 w-3.5 shrink-0"
+                  />
+                </span>
+                <span className="text-foreground">
+                  {application.approvedFacilityAmount != null && application.facilityFeeCapAmount != null
+                    ? formatCurrency(application.facilityFeeCapAmount)
+                    : "—"}
+                </span>
               </div>
             )}
           </div>

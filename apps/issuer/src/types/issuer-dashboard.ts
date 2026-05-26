@@ -15,6 +15,12 @@ export type IssuerDashboardNote = {
   fundingDeadline: string | null;
   maturityDate: string | null;
   marketplaceStatusLabel: string | null;
+  disbursementBreakdown: {
+    grossFundedAmount: string | null;
+    platformFeeAmount: string | null;
+    facilityFeeCharged: string | null;
+    netIssuerDisbursement: string | null;
+  } | null;
 };
 
 export type IssuerDashboardInvoice = {

@@ -74,6 +74,18 @@ export function useIssuerNoteLedger(id?: string) {
   });
 }
 
+export function useViewIssuerShorakaCertificate(noteId: string | null) {
+  const apiClient = useIssuerNotesApiClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!noteId) throw new Error("Note ID is required");
+      const response = await apiClient.getIssuerShorakaCertificateViewUrl(noteId);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+  });
+}
+
 export function useSubmitIssuerPayment(noteId: string) {
   const apiClient = useIssuerNotesApiClient();
   const queryClient = useQueryClient();
