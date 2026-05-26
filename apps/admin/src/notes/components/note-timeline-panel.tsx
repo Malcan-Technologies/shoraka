@@ -41,7 +41,16 @@ function formatEventLabel(eventType: string) {
     NOTE_DEFAULT_MARKED: "Default marked",
   };
 
-  return labels[eventType] ?? eventType.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
+  const fallback =
+    eventType.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
+
+  // User-facing mapping: provider/internal wording "Shoraka" → business wording "Tawarruq".
+  // Keep event type constants/internal codes unchanged.
+  let label = labels[eventType] ?? fallback;
+  label = label.replace(/\bShoraka\s+Stp\b/g, "Tawarruq Transaction");
+  label = label.replace(/\bShoraka\b/g, "Tawarruq");
+
+  return label;
 }
 
 function getEventIcon(eventType: string) {

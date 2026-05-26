@@ -440,14 +440,14 @@ export default function NoteDetailPage() {
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">Funding &amp; Issuer Disbursement</CardTitle>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Manage funding close payout, Shoraka STP, trustee submission, and issuer disbursement before servicing begins.
+                        Manage funding close payout, Tawarruq Transaction, trustee submission, and issuer disbursement before servicing begins.
                       </p>
                     </CardHeader>
                     <CardContent className="space-y-6">
                       {disbursementWithdrawal && disbursementWithdrawal.status !== "CANCELLED" ? (
                         disbursementWithdrawal.status !== "COMPLETED" ? (
                           <div
-                            className={`rounded-xl border border-amber-200 bg-amber-50/40 p-4 border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]`}
+                            className={`rounded-xl border border-amber-200 p-4 border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]`}
                           >
                             <div className="mb-2 text-xs font-medium uppercase tracking-wider text-amber-900">
                               Awaiting issuer disbursement

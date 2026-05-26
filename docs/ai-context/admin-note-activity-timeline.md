@@ -72,6 +72,21 @@ Priority numbers increase from earliest → latest lifecycle step.
 Unknown event types use `UNKNOWN_EVENT_PRIORITY = 999`.
 
 ================================================================================
+4.1) Future Tawarruq event priority placement (if/when event types exist)
+================================================================================
+If Tawarruq/Shoraka-related event types are ever added to the note event stream (for example `SHORAKA_ORDER_SUBMITTED`, `SHORAKA_STATUS_COMPLETED`, `SHORAKA_CERTIFICATE_FETCHED`), they should be inserted into the lifecycle priority map in this business order:
+1. `CLOSE_FUNDING`
+2. `ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED`
+3. `TAWARRUQ_ORDER_SUBMITTED` / `SHORAKA_ORDER_SUBMITTED`
+4. `TAWARRUQ_STATUS_COMPLETED` / `SHORAKA_STATUS_COMPLETED`
+5. `TAWARRUQ_CERTIFICATE_FETCHED` / `SHORAKA_CERTIFICATE_FETCHED`
+6. `WITHDRAWAL_LETTER_GENERATED`
+7. `WITHDRAWAL_SUBMITTED_TO_TRUSTEE`
+8. `WITHDRAWAL_COMPLETED`
+
+Keep the timeline display rule unchanged (`newest-first` with deterministic tie-breakers).
+
+================================================================================
 5. Important example
 ================================================================================
 

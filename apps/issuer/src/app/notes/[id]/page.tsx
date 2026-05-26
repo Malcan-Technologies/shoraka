@@ -665,7 +665,7 @@ export default function IssuerNoteDetailPage() {
               {issuerDisbursementWithdrawal?.status === "COMPLETED" &&
               issuerDisbursementWithdrawal?.hasShorakaCertificate ? (
                 <div className="rounded-lg border bg-card p-4">
-                  <div className="text-sm font-medium">Shoraka certificate</div>
+                  <div className="text-sm font-medium">Tawarruq Certificate</div>
                   <div className="mt-1 text-xs text-muted-foreground">
                     Certificate fetched and stored for this financing.
                   </div>
@@ -684,7 +684,7 @@ export default function IssuerNoteDetailPage() {
                       }}
                       disabled={viewShorakaCertificate.isPending}
                     >
-                      View Certificate
+                      View Tawarruq Certificate
                     </Button>
                   </div>
                 </div>

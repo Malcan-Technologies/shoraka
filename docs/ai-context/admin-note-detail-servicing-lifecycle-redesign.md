@@ -16,7 +16,7 @@ This file records all current Admin Note Detail servicing/disbursement/settlemen
 Admin Note Detail page sections currently rendered around:
 - Note Lifecycle / Servicing Lifecycle (next-step buttons + stage stepper + sub-steppers)
 - Issuer Disbursement (via `IssuerPayoutCard` when awaiting payout)
-- Shoraka STP block (inside `IssuerPayoutCard` for issuer disbursement)
+- Tawarruq Transaction block (inside `IssuerPayoutCard` for issuer disbursement)
 - Beneficiary (inside `IssuerPayoutCard`)
 - Disbursement timeline (inside `IssuerPayoutCard`)
 - Repayment receipts
@@ -28,6 +28,13 @@ Admin Note Detail page sections currently rendered around:
 - Arrears and default documents (generate letters → view/download → mark default)
 - Ledger (ledger table + export)
 - Activity Timeline on the right side (note events, including generated documents)
+
+## Tawarruq Wording Decision
+- User-facing UI should say **“Tawarruq Transaction”** for the workflow/process.
+- User-facing UI should say **“Tawarruq Certificate”** for the PDF/certificate document.
+- **“Shoraka” remains internal provider terminology only** (code/provider names), and should not be the main workflow label in admin/issuer UI.
+- **Tawarruq Certificate must remain accessible after disbursement completion.**
+- **Tawarruq Transaction belongs in “Funding & Issuer Disbursement”, before servicing begins.**
 
 ## Current UI inventory
 
@@ -504,7 +511,7 @@ Default reason + action row:
        - “Confirm Approve” or “Confirm Post”
        - shows “Approving…” / “Posting…” when pending
 
-### 3) Issuer Disbursement + Beneficiary + Shoraka STP (via `IssuerPayoutCard`)
+### 3) Issuer Disbursement + Beneficiary + Tawarruq Transaction (via `IssuerPayoutCard`)
 **File:** `apps/admin/src/notes/components/issuer-payout-card.tsx`
 
 This component is used for both:
@@ -560,27 +567,27 @@ Shows:
     - rendered only when `withdrawal.facilityFeeCharged != null` (in current code after our earlier display updates)
   - Net to issuer
 
-#### 3.3) Shoraka STP block (issuer disbursement only; conditional)
+#### 3.3) Tawarruq Transaction block (issuer disbursement only; conditional)
 Rendered only when:
 - withdrawal.withdrawalType === `ISSUER_DISBURSEMENT`
 
 Sub-logic inside:
 1. When `shorakaStateQuery.isPending`:
-   - “Checking Shoraka certificate status…”
+   - “Checking Tawarruq certificate status…”
 
 2. When `shorakaStateQuery.data == null`:
    - “Status: Not submitted”
-   - “Next action: Submit Shoraka order”
-   - Primary button: “Submit Shoraka Order”
+   - “Next action: Submit Tawarruq order”
+   - Primary button: “Submit Tawarruq Order”
      - disabled when:
        - submitShorakaOrder.isPending
        - `isMalaysiaUnsafeShorakaSubmitWindow` is true
    - If Malaysia unsafe window:
      - amber bordered warning with `shorakaUnsafeSubmitWindowMessage`:
-       - “Shoraka orders cannot be submitted between 11:30 PM and 12:30 AM MYT…”
+       - “Tawarruq orders cannot be submitted between 11:30 PM and 12:30 AM MYT…”
 
 3. When `shorakaStateQuery.data` is present:
-   - Displays Shoraka internal provider state:
+   - Displays Tawarruq Transaction status:
      - “Status: {step.status}”
      - “Next action: {step.nextAction}”
    - Optional fields shown if available:
@@ -594,19 +601,19 @@ Sub-logic inside:
      - Callback received timestamp when available
      - Last checked timestamp when available
    - Certificate controls shown based on operationalStatus + certificate presence:
-     - Button “Fetch Certificate” (disabled when fetchShorakaCertificate.isPending) when completed but certificate not ready (operational provider status Completed and !hasCertificate)
-     - Button “View Certificate” when `tradeOrder.certificate_s3_key` exists (disabled when viewDocumentPending)
+     - Button “Fetch Tawarruq Certificate” (disabled when fetchShorakaCertificate.isPending) when completed but certificate not ready (operational provider status Completed and !hasCertificate)
+     - Button “View Tawarruq Certificate” when `tradeOrder.certificate_s3_key` exists (disabled when viewDocumentPending)
 
 Disbursed gating / disable logic:
-- “Mark Disbursed” button is gated by Shoraka certificate fetch & state:
+- “Mark Disbursed” button is gated by Tawarruq certificate fetch & state:
   - `markDisbursedDisabledBecauseShoraka` disables “Mark Disbursed” when:
     - shorakaStateQuery pending/error
     - tradeOrder missing
-    - no Shoraka certificate
+    - no Tawarruq certificate
   - Helper text displayed in right-aligned helper area:
-    - when pending: “Checking Shoraka certificate status…”
+    - when pending: “Checking Tawarruq certificate status…”
     - on error: “Unable to verify…”
-    - else: “Shoraka certificate must be fetched before marking…”
+    - else: “Tawarruq Certificate must be fetched before marking…”
 
 #### 3.4) Beneficiary section (always shown in IssuerPayoutCard)
 Title: “Beneficiary”
@@ -770,9 +777,9 @@ Events list:
    - Disbursement is a prerequisite to active servicing, but it is shown as part of the same servicing panel.
 3. **Completed vs pending sections are not visually distinct enough across all sub-sections.**
    - Some parts use `SECTION_COMPLETE_CLASS`, but other sub-sections rely on mixed conditional wrappers.
-4. **Shoraka certificate needs a persistent place to view later.**
-   - Current certificate view button exists inside `IssuerPayoutCard` only when the Shoraka state data is loaded; after disbursement is marked complete, certificate visibility may require re-open depending on lifecycle transitions.
-5. Must later support issuer-side certificate visibility; redesign context must keep existing admin “View Certificate” capability.
+4. **Tawarruq Certificate needs a persistent place to view later.**
+   - Current certificate view button exists inside `IssuerPayoutCard` only when the Tawarruq Transaction state data is loaded; after disbursement is marked complete, certificate visibility may require re-open depending on lifecycle transitions.
+5. Must later support issuer-side certificate visibility; redesign context must keep existing admin “View Tawarruq Certificate” capability.
 
 ## Proposed high-level structure for next phase (no implementation yet)
 This is a recommended structure that preserves every existing UI item in the new layout.
@@ -780,7 +787,7 @@ This is a recommended structure that preserves every existing UI item in the new
 1. Funding & Issuer Disbursement
    - Funding closed state / checklist
    - “Issuer Disbursement” card (gross funded, platform fee, facility fee, net to issuer)
-   - Shoraka STP workflow
+   - Tawarruq Transaction workflow
    - Trustee letter generation + submission/complete
    - Beneficiary details + edit + timeline
    - Disbursement timeline / mark disbursed gate + helper texts
@@ -802,7 +809,7 @@ This is a recommended structure that preserves every existing UI item in the new
 - `apps/admin/src/app/notes/[id]/page.tsx` (layout + column placement)
 - `apps/admin/src/notes/components/note-lifecycle-card.tsx` (Note Lifecycle / next steps / sub-steppers)
 - `apps/admin/src/notes/components/settlement-panel.tsx` (servicing lifecycle container + repayment/settlement/late fee/letters)
-- `apps/admin/src/notes/components/issuer-payout-card.tsx` (issuer disbursement + residual refund + Shoraka STP + beneficiary dialog + timeline + letter workflow)
+- `apps/admin/src/notes/components/issuer-payout-card.tsx` (issuer disbursement + residual refund + Tawarruq Transaction + beneficiary dialog + timeline + letter workflow)
 - `apps/admin/src/notes/components/ledger-panel.tsx` (ledger table + export CSV)
 - `apps/admin/src/notes/components/note-timeline-panel.tsx` (activity timeline list + generated document links)
 - (Also visible on the page but not expanded here unless required)
@@ -828,11 +835,11 @@ Every item below must still exist in some form after the redesign:
      - status badge + title
      - amount line + description
      - disbursement breakdown (gross funded, platform fee, facility fee if charged or null gating as implemented, net to issuer)
-     - Shoraka STP workflow:
+     - Tawarruq Transaction workflow:
        - checking state
-       - not submitted state + Submit Shoraka Order button + unsafe-window message
+       - not submitted state + Submit Tawarruq Order button + unsafe-window message
        - status/next action + optional order/value/murabaha fields + callback received/last checked
-       - Fetch Certificate + View Certificate buttons
+       - Fetch Tawarruq Certificate + View Tawarruq Certificate buttons
        - mark disbursed gating helper text
      - Beneficiary panel:
        - edit button only in Draft
@@ -918,7 +925,7 @@ Every item below must still exist in some form after the redesign:
 6. Arrears/default documents:
    - generated letters list uses note.events to discover letters; view/download actions are conditional on s3Key.
 7. IssuerPayoutCard:
-   - “Mark Disbursed” is disabled based on Shoraka certificate fetch state; helper text changes accordingly.
+   - “Mark Disbursed” is disabled based on Tawarruq certificate fetch state; helper text changes accordingly.
 8. Activity timeline:
    - generated document controls are conditional on metadata s3Key and are disabled while viewDocumentPending.
 
@@ -931,14 +938,14 @@ Every item below must still exist in some form after the redesign:
   - trustee instruction / service fee workflow
   - issuer residual refund (payout card or info box)
   - arrears and default documents
-- Shoraka STP and all “View/Generate/Mark” controls inside `IssuerPayoutCard` were preserved when moved (including certificate fetch + view certificate actions).
+- Tawarruq Transaction and all “View/Generate/Mark” controls inside `IssuerPayoutCard` were preserved when moved (including certificate fetch + view certificate actions).
 
 ## Implemented structure (Phase 3A)
-- Admin Shoraka certificate access remains visible after issuer disbursement completion.
+- Admin Tawarruq Certificate access remains visible after issuer disbursement completion.
 - Issuer-side certificate visibility is still a future Phase 3B task.
 
 ## Implemented structure (Phase 3B)
-- Issuer Note Detail shows a simple “View Certificate” access for the Shoraka certificate when available.
+- Issuer Note Detail shows a simple “View Tawarruq Certificate” access for the Tawarruq Certificate when available.
 - Issuer only sees the certificate action; internal Shoraka/order/provider workflow details remain admin-only.
 
 ## Confirmation: no runtime code changes in this task
