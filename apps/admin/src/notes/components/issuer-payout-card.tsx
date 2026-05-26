@@ -392,6 +392,32 @@ export function IssuerPayoutCard({
             <div className="font-medium uppercase tracking-wider text-muted-foreground">Shoraka STP</div>
           </div>
 
+          {payoutComplete && hasShorakaCertificate ? (
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3">
+              <div className="min-w-0">
+                <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  Shoraka certificate
+                </div>
+                <div className="mt-1 text-[11px] text-muted-foreground">Certificate fetched and stored.</div>
+              </div>
+              <div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => {
+                    const key = shorakaTradeOrder?.certificate_s3_key;
+                    if (!key) return;
+                    void handleViewDocument(key);
+                  }}
+                  disabled={viewDocumentPending}
+                >
+                  View Certificate
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
           {shorakaStateQuery.isPending ? (
             <div className="mt-2 text-muted-foreground">Checking Shoraka certificate status…</div>
           ) : shorakaStateQuery.data == null ? (
@@ -591,7 +617,7 @@ export function IssuerPayoutCard({
                       </Button>
                     ) : null}
 
-                    {tradeOrder.certificate_s3_key ? (
+                    {tradeOrder.certificate_s3_key && !payoutComplete ? (
                       <Button
                         variant="outline"
                         size="sm"

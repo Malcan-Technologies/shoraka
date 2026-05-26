@@ -933,7 +933,9 @@ Every item below must still exist in some form after the redesign:
   - arrears and default documents
 - Shoraka STP and all “View/Generate/Mark” controls inside `IssuerPayoutCard` were preserved when moved (including certificate fetch + view certificate actions).
 
-Note: a persistent Shoraka certificate viewer is not implemented in this phase.
+## Implemented structure (Phase 3A)
+- Admin Shoraka certificate access remains visible after issuer disbursement completion.
+- Issuer-side certificate visibility is still a future Phase 3B task.
 
 ## Confirmation: no runtime code changes in this task
 This phase is a UI-only restructure: no backend/database/API/calculation logic was changed.
