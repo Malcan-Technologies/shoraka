@@ -585,6 +585,16 @@ export function FinancialStatementsStep({
     return years;
   }, [questionnaireDto]);
 
+  const yearTabHasMissingRequiredFields = React.useCallback(
+    (year: number) => {
+      if (readOnly) return false;
+      if (!questionnaireDto) return false;
+      const form = formsByYear[String(year)] ?? emptyQuestionnaireBlock();
+      return !yearFormIsValid(form);
+    },
+    [readOnly, questionnaireDto, formsByYear]
+  );
+
   React.useEffect(() => {
     if (!questionnaireDto) return;
 
@@ -1001,7 +1011,15 @@ export function FinancialStatementsStep({
                 <TabsList className="mb-4 h-auto w-full flex-wrap justify-start gap-1 bg-muted p-1 sm:w-auto">
                   {yearsToShow.map((y) => (
                     <TabsTrigger key={y} value={String(y)} className="min-w-[4.5rem]">
-                      {`FY${y}`}
+                      <span className="inline-flex items-center gap-2">
+                        <span>{`FY${y}`}</span>
+                        {yearTabHasMissingRequiredFields(y) ? (
+                          <span
+                            aria-hidden
+                            className="inline-block h-2 w-2 rounded-full bg-amber-500 shadow-[0_0_0_1px_hsl(var(--primary)/0.12)]"
+                          />
+                        ) : null}
+                      </span>
                     </TabsTrigger>
                   ))}
                 </TabsList>
