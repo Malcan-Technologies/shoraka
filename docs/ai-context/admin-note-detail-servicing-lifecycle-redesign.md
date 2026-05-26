@@ -937,6 +937,10 @@ Every item below must still exist in some form after the redesign:
 - Admin Shoraka certificate access remains visible after issuer disbursement completion.
 - Issuer-side certificate visibility is still a future Phase 3B task.
 
+## Implemented structure (Phase 3B)
+- Issuer Note Detail shows a simple “View Certificate” access for the Shoraka certificate when available.
+- Issuer only sees the certificate action; internal Shoraka/order/provider workflow details remain admin-only.
+
 ## Confirmation: no runtime code changes in this task
 This phase is a UI-only restructure: no backend/database/API/calculation logic was changed.
 

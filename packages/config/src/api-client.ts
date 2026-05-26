@@ -2492,6 +2492,15 @@ export class ApiClient {
     return this.get<NoteLedgerEntry[]>(`/v1/issuer/notes/${id}/ledger`);
   }
 
+  async getIssuerShorakaCertificateViewUrl(
+    noteId: string
+  ): Promise<ApiResponse<{ viewUrl: string; expiresIn: number }> | ApiError> {
+    return this.post<{ viewUrl: string; expiresIn: number }>(
+      `/v1/issuer/notes/${noteId}/shoraka-certificate/view-url`,
+      {}
+    );
+  }
+
   async submitIssuerPaymentOnBehalfOfPaymaster(
     id: string,
     data: RecordNotePaymentInput

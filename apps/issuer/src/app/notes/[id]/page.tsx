@@ -35,6 +35,7 @@ import {
   useIssuerNote,
   useIssuerNotePaymentInstructions,
   useSubmitIssuerPayment,
+  useViewIssuerShorakaCertificate,
 } from "@/notes/hooks/use-issuer-notes";
 import { LedgerPanel } from "@/notes/components/ledger-panel";
 import {
@@ -270,6 +271,7 @@ export default function IssuerNoteDetailPage() {
   const { data: note, isLoading, error } = useIssuerNote(noteId);
   const { data: instructions } = useIssuerNotePaymentInstructions(noteId);
   const submitPayment = useSubmitIssuerPayment(noteId);
+  const viewShorakaCertificate = useViewIssuerShorakaCertificate(noteId);
   const [reference, setReference] = React.useState("");
   const [paymentAmountInput, setPaymentAmountInput] = React.useState("");
   const [paymentDialogOpen, setPaymentDialogOpen] = React.useState(false);
@@ -659,6 +661,33 @@ export default function IssuerNoteDetailPage() {
                   {formatCurrency(issuerDisbursementWithdrawal.netIssuerDisbursement!)}
                 </span>
               </div>
+
+              {issuerDisbursementWithdrawal?.status === "COMPLETED" ? (
+                <div className="rounded-lg border bg-card p-4">
+                  <div className="text-sm font-medium">Shoraka certificate</div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Certificate fetched and stored for this financing.
+                  </div>
+                  <div className="mt-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={async () => {
+                        try {
+                          const result = await viewShorakaCertificate.mutateAsync();
+                          if (result.viewUrl) window.open(result.viewUrl, "_blank", "noopener,noreferrer");
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : "Failed to open certificate");
+                        }
+                      }}
+                      disabled={viewShorakaCertificate.isPending}
+                    >
+                      View Certificate
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         ) : null}
