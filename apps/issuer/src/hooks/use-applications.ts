@@ -98,7 +98,14 @@ export function useUpdateApplicationStatus() {
       }
       return response.data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (application, variables) => {
+      const organizationId = application?.issuer_organization_id as string | null | undefined;
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: ["issuer-org-latest-financial-statements", organizationId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["issuer-org-latest-financial-statements"] });
+      }
+
       queryClient.invalidateQueries({ queryKey: ["application", variables.id] });
       queryClient.invalidateQueries({ queryKey: ["applications"] });
       queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
@@ -131,7 +138,14 @@ export function useResubmitApplication() {
       }
       return json.data;
     },
-    onSuccess: (_, id) => {
+    onSuccess: (application, id) => {
+      const organizationId = application?.issuer_organization_id as string | null | undefined;
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: ["issuer-org-latest-financial-statements", organizationId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["issuer-org-latest-financial-statements"] });
+      }
+
       queryClient.invalidateQueries({ queryKey: ["application", id] });
       queryClient.invalidateQueries({ queryKey: ["applications"] });
       queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });

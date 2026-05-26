@@ -418,6 +418,7 @@ export function FinancialStatementsStep({
 }: FinancialStatementsStepProps) {
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const [autoPrefillApplied, setAutoPrefillApplied] = React.useState(false);
+  const [autoPrefillMode, setAutoPrefillMode] = React.useState<"allYears" | "previousYearOnly">("allYears");
 
   const appShape = application as
     | (typeof application & {
@@ -443,6 +444,18 @@ export function FinancialStatementsStep({
   const [hasSubmitted, setHasSubmitted] = React.useState(false);
   const [activeYearTab, setActiveYearTab] = React.useState("");
   const [initialPayloadSnapshot, setInitialPayloadSnapshot] = React.useState("");
+
+  // If the user navigates between applications without a full page refresh, this step component may keep its
+  // local state. Reset it whenever `applicationId` changes so auto-prefill and form initialization rerun.
+  React.useEffect(() => {
+    setIsInitialized(false);
+    setAutoPrefillApplied(false);
+    setAutoPrefillMode("allYears");
+    setFyeDateInput("");
+    setFormsByYear({});
+    setActiveYearTab("");
+    setInitialPayloadSnapshot("");
+  }, [applicationId]);
 
   const onDataChangeRef = React.useRef(onDataChange);
   React.useEffect(() => {
@@ -496,9 +509,23 @@ export function FinancialStatementsStep({
         const latest = orgLatestFinancialStatementsQuery.data;
         if (latest?.financial_statements && isV2FinancialSaved(latest.financial_statements)) {
           const qNorm = normalizeFinancialStatementsQuestionnaire(latest.financial_statements.questionnaire);
+          const requiredYears = qNorm ? getIssuerFinancialTabYears(qNorm, new Date()) : [];
+          const isTwoYears = requiredYears.length === 2;
+          const stableYear = isTwoYears ? Math.min(...requiredYears) : null;
+
           const map: Record<string, FinancialStatementsPayload> = {};
-          for (const [k, v] of Object.entries(latest.financial_statements.unaudited_by_year)) {
-            map[k] = fromSaved(v);
+          if (isTwoYears && stableYear != null) {
+            // When two years are required, keep the "current/latest" year blank.
+            // We only reuse the earlier/stable year block from the org-level latest data.
+            const stableKey = String(stableYear);
+            const stableBlock = latest.financial_statements.unaudited_by_year[stableKey];
+            if (stableBlock) {
+              map[stableKey] = fromSaved(stableBlock);
+            }
+          } else {
+            for (const [k, v] of Object.entries(latest.financial_statements.unaudited_by_year)) {
+              map[k] = fromSaved(v);
+            }
           }
           setFormsByYear(map);
 
@@ -507,6 +534,7 @@ export function FinancialStatementsStep({
             const built = buildV2ApiPayload(qNorm, map);
             setInitialPayloadSnapshot(JSON.stringify(built));
             setAutoPrefillApplied(true);
+            setAutoPrefillMode(isTwoYears ? "previousYearOnly" : "allYears");
           } else {
             setInitialPayloadSnapshot(
               JSON.stringify({
@@ -556,6 +584,16 @@ export function FinancialStatementsStep({
     console.log("Years to show:", dbg.years);
     return years;
   }, [questionnaireDto]);
+
+  const yearTabHasMissingRequiredFields = React.useCallback(
+    (year: number) => {
+      if (readOnly) return false;
+      if (!questionnaireDto) return false;
+      const form = formsByYear[String(year)] ?? emptyQuestionnaireBlock();
+      return !yearFormIsValid(form);
+    },
+    [readOnly, questionnaireDto, formsByYear]
+  );
 
   React.useEffect(() => {
     if (!questionnaireDto) return;
@@ -949,7 +987,9 @@ export function FinancialStatementsStep({
           <div className="space-y-4 px-3">
             {autoPrefillApplied ? (
               <p className="text-xs text-muted-foreground">
-                Auto-filled from previous submitted application. Please review before continuing.
+                {autoPrefillMode === "previousYearOnly"
+                  ? "Previous financial year auto-filled from a previous submitted application. Please review before continuing."
+                  : "Auto-filled from previous submitted application. Please review before continuing."}
               </p>
             ) : null}
           {!questionnaireDto ? (
@@ -971,7 +1011,15 @@ export function FinancialStatementsStep({
                 <TabsList className="mb-4 h-auto w-full flex-wrap justify-start gap-1 bg-muted p-1 sm:w-auto">
                   {yearsToShow.map((y) => (
                     <TabsTrigger key={y} value={String(y)} className="min-w-[4.5rem]">
-                      {`FY${y}`}
+                      <span className="inline-flex items-center gap-2">
+                        <span>{`FY${y}`}</span>
+                        {yearTabHasMissingRequiredFields(y) ? (
+                          <span
+                            aria-hidden
+                            className="inline-block h-2 w-2 rounded-full bg-amber-500 shadow-[0_0_0_1px_hsl(var(--primary)/0.12)]"
+                          />
+                        ) : null}
+                      </span>
                     </TabsTrigger>
                   ))}
                 </TabsList>
