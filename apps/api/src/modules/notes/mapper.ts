@@ -398,18 +398,21 @@ export function mapNoteListItem(note: NoteWithRelations) {
 
 export function mapNoteDetail(
   note: NoteWithRelations,
-  options: { withdrawals?: WithdrawalRecord[] } = {}
+  options: { withdrawals?: WithdrawalRecord[]; includeEvents?: boolean } = {}
 ) {
   const withdrawals = options.withdrawals ?? [];
+  const includeEvents = options.includeEvents ?? true;
 
-  const sortedEvents = sortAdminNoteEvents(
-    note.events.map((event) => ({
-      id: event.id,
-      eventType: event.event_type,
-      createdAt: event.created_at,
-    })),
-    "newest-first"
-  );
+  const sortedEvents = includeEvents
+    ? sortAdminNoteEvents(
+        note.events.map((event) => ({
+          id: event.id,
+          eventType: event.event_type,
+          createdAt: event.created_at,
+        })),
+        "newest-first"
+      )
+    : [];
 
   return {
     ...mapNoteListItem(note),
@@ -510,35 +513,37 @@ export function mapNoteDetail(
       serviceFeeTrusteeSubmittedAt: iso(settlement.service_fee_trustee_submitted_at),
       serviceFeeTrusteeCompletedAt: iso(settlement.service_fee_trustee_completed_at),
     })),
-    events: sortedEvents.map((sortedEvent) => {
-      const event = note.events.find((e) => e.id === sortedEvent.id);
-      if (!event) {
-        // Defensive fallback for unexpected missing events.
-        return {
-          id: sortedEvent.id,
-          noteId: note.id,
-          eventType: sortedEvent.eventType,
-          actorUserId: null,
-          actorRole: null,
-          portal: null,
-          correlationId: null,
-          metadata: null,
-          createdAt: new Date(sortedEvent.createdAt).toISOString(),
-        };
-      }
+    events: includeEvents
+      ? sortedEvents.map((sortedEvent) => {
+          const event = note.events.find((e) => e.id === sortedEvent.id);
+          if (!event) {
+            // Defensive fallback for unexpected missing events.
+            return {
+              id: sortedEvent.id,
+              noteId: note.id,
+              eventType: sortedEvent.eventType,
+              actorUserId: null,
+              actorRole: null,
+              portal: null,
+              correlationId: null,
+              metadata: null,
+              createdAt: new Date(sortedEvent.createdAt).toISOString(),
+            };
+          }
 
-      return {
-        id: event.id,
-        noteId: event.note_id,
-        eventType: event.event_type,
-        actorUserId: event.actor_user_id,
-        actorRole: event.actor_role,
-        portal: event.portal,
-        correlationId: event.correlation_id,
-        metadata: asRecord(event.metadata),
-        createdAt: event.created_at.toISOString(),
-      };
-    }),
+          return {
+            id: event.id,
+            noteId: event.note_id,
+            eventType: event.event_type,
+            actorUserId: event.actor_user_id,
+            actorRole: event.actor_role,
+            portal: event.portal,
+            correlationId: event.correlation_id,
+            metadata: asRecord(event.metadata),
+            createdAt: event.created_at.toISOString(),
+          };
+        })
+      : [],
     withdrawals: withdrawals.map(mapWithdrawalInstruction),
   };
 }

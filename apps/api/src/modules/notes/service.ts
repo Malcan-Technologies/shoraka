@@ -3173,7 +3173,7 @@ export class NoteService {
         },
       },
     });
-    return mapNoteDetail(note, { withdrawals });
+    return mapNoteDetail(note, { withdrawals, includeEvents: false });
   }
 
   async getIssuerShorakaCertificateViewUrl(noteId: string, userId: string) {
