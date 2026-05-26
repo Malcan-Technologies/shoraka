@@ -86,6 +86,7 @@ import {
   calculateCalendarDayCount,
   calculateSettlementWaterfall,
   capLateFeeSuggestionsByHeadroom,
+  computeActualReturnRatePercent,
 } from "./calculators";
 import type {
   createInvestmentSchema,
@@ -497,10 +498,11 @@ function buildInvestorRepaymentSummary(
     0
   );
 
-  const actualReturnRatePercent =
-    investedPrincipal > 0 && receivedProfitNetAmount > 0
-      ? (receivedProfitNetAmount / investedPrincipal) * 100
-      : null;
+  const actualReturnRatePercent = computeActualReturnRatePercent({
+    investedPrincipal,
+    receivedProfitNetAmount,
+    receivedTawidhCompensationAmount,
+  });
   const progressPercent =
     expectedPayoutAmount > 0
       ? clampPercent((receivedPayoutAmount / expectedPayoutAmount) * 100)

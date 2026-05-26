@@ -5,6 +5,7 @@ import {
   calculateLateCharge,
   calculateSettlementWaterfall,
   capLateFeeSuggestionsByHeadroom,
+  computeActualReturnRatePercent,
   meetsMinimumFunding,
 } from "./calculators";
 
@@ -251,5 +252,33 @@ describe("note lifecycle calculators", () => {
       waterfall.investorProfitNet
     );
     expect(allocations.every((row) => row.principal < row.amount)).toBe(true);
+  });
+
+  it("includes investor Ta'widh compensation in actual return rate", () => {
+    expect(
+      computeActualReturnRatePercent({
+        investedPrincipal: 10_000,
+        receivedProfitNetAmount: 500,
+        receivedTawidhCompensationAmount: 100,
+      })
+    ).toBe(6);
+
+    expect(
+      computeActualReturnRatePercent({
+        investedPrincipal: 10_000,
+        receivedProfitNetAmount: 0,
+        receivedTawidhCompensationAmount: 250,
+      })
+    ).toBe(2.5);
+  });
+
+  it("returns null actual return rate when no investor return has been received", () => {
+    expect(
+      computeActualReturnRatePercent({
+        investedPrincipal: 10_000,
+        receivedProfitNetAmount: 0,
+        receivedTawidhCompensationAmount: 0,
+      })
+    ).toBeNull();
   });
 });
