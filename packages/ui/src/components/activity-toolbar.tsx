@@ -15,14 +15,14 @@ import {
   XMarkIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
-import { ACTIVITY_EVENT_CONFIG } from "@cashsouk/types";
-import { ScrollArea } from "./scroll-area";
+import { ACTIVITY_DOMAIN_CONFIG, ActivityDomain } from "@cashsouk/types";
 
-// Get all event types from config for the filter
-const EVENT_TYPE_OPTIONS = Object.entries(ACTIVITY_EVENT_CONFIG).map(([value, config]) => ({
-  value,
-  label: config.label,
-}));
+const DOMAIN_OPTIONS = Object.entries(ACTIVITY_DOMAIN_CONFIG)
+  .filter(([, config]) => config.filterable)
+  .map(([value, config]) => ({
+    value: value as ActivityDomain,
+    label: config.label,
+  }));
 
 const DATE_RANGES = [
   { value: "all", label: "All Time" },
@@ -34,8 +34,8 @@ const DATE_RANGES = [
 interface ActivityToolbarProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
-  eventTypeFilters: string[];
-  onEventTypeFiltersChange: (values: string[]) => void;
+  domainFilters: ActivityDomain[];
+  onDomainFiltersChange: (values: ActivityDomain[]) => void;
   dateRangeFilter: string;
   onDateRangeFilterChange: (value: string) => void;
   totalCount: number;
@@ -48,8 +48,8 @@ interface ActivityToolbarProps {
 export function ActivityToolbar({
   searchQuery,
   onSearchChange,
-  eventTypeFilters,
-  onEventTypeFiltersChange,
+  domainFilters,
+  onDomainFiltersChange,
   dateRangeFilter,
   onDateRangeFilterChange,
   totalCount,
@@ -60,11 +60,11 @@ export function ActivityToolbar({
 }: ActivityToolbarProps) {
   const [isSpinning, setIsSpinning] = React.useState(false);
 
-  const isAllEvents = eventTypeFilters.length === 0;
+  const isAllDomains = domainFilters.length === 0;
 
-  const hasFilters = searchQuery !== "" || !isAllEvents || dateRangeFilter !== "all";
+  const hasFilters = searchQuery !== "" || !isAllDomains || dateRangeFilter !== "all";
 
-  const activeEventFilterCount = eventTypeFilters.length;
+  const activeDomainFilterCount = domainFilters.length;
 
   const handleReload = () => {
     setIsSpinning(true);
@@ -72,17 +72,17 @@ export function ActivityToolbar({
     setTimeout(() => setIsSpinning(false), 500);
   };
 
-  const handleToggleEventType = (value: string) => {
+  const handleToggleDomain = (value: ActivityDomain | "all") => {
     if (value === "all") {
-      onEventTypeFiltersChange([]);
+      onDomainFiltersChange([]);
       return;
     }
 
-    const newFilters = eventTypeFilters.includes(value)
-      ? eventTypeFilters.filter((v) => v !== value)
-      : [...eventTypeFilters, value];
+    const newFilters = domainFilters.includes(value)
+      ? domainFilters.filter((v) => v !== value)
+      : [...domainFilters, value];
 
-    onEventTypeFiltersChange(newFilters);
+    onDomainFiltersChange(newFilters);
   };
 
   const FilterDot = () => (
@@ -111,40 +111,36 @@ export function ActivityToolbar({
               className="gap-2 h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-offset-0"
             >
               <FunnelIcon className="h-4 w-4" />
-              Event Type
-              {activeEventFilterCount > 0 && (
+              Domain
+              {activeDomainFilterCount > 0 && (
                 <Badge
                   variant="default"
                   className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs shadow-none"
                 >
-                  {activeEventFilterCount}
+                  {activeDomainFilterCount}
                 </Badge>
               )}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 p-0">
-            <ScrollArea className="h-[400px]">
-              <div className="p-1">
-                <DropdownMenuLabel>Event Type</DropdownMenuLabel>
-                <DropdownMenuItem
-                  className="pl-8 relative"
-                  onClick={() => handleToggleEventType("all")}
-                >
-                  {isAllEvents && <FilterDot />}
-                  All Events
-                </DropdownMenuItem>
-                {EVENT_TYPE_OPTIONS.map((opt) => (
-                  <DropdownMenuItem
-                    key={opt.value}
-                    className="pl-8 relative"
-                    onClick={() => handleToggleEventType(opt.value)}
-                  >
-                    {eventTypeFilters.includes(opt.value) && <FilterDot />}
-                    {opt.label}
-                  </DropdownMenuItem>
-                ))}
-              </div>
-            </ScrollArea>
+          <DropdownMenuContent align="end" className="w-56 p-1">
+            <DropdownMenuLabel>Domain</DropdownMenuLabel>
+            <DropdownMenuItem
+              className="pl-8 relative"
+              onClick={() => handleToggleDomain("all")}
+            >
+              {isAllDomains && <FilterDot />}
+              All Domains
+            </DropdownMenuItem>
+            {DOMAIN_OPTIONS.map((opt) => (
+              <DropdownMenuItem
+                key={opt.value}
+                className="pl-8 relative"
+                onClick={() => handleToggleDomain(opt.value)}
+              >
+                {domainFilters.includes(opt.value) && <FilterDot />}
+                {opt.label}
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
 

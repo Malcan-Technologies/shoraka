@@ -17,14 +17,21 @@ describe("ActivityService", () => {
           {
             id: "1",
             user_id: userId,
-            category: "security",
-            event_type: "LOGIN",
-            activity: "Logged in",
+            category: "organization",
+            domain: "application",
+            event_type: "APPLICATION_SUBMITTED",
+            activity: "Application Submitted",
+            title: "Application Submitted",
+            description: "Your financing application was submitted and is now under review.",
+            references: {
+              applicationId: "app_123",
+            },
             created_at: new Date(),
-            source_table: "security_logs",
+            source_table: "application_logs",
           },
         ],
         total: 1,
+        unfilteredTotal: 1,
       };
 
       (auditLogAggregator.aggregate as jest.Mock).mockResolvedValue(mockResult);
@@ -41,7 +48,8 @@ describe("ActivityService", () => {
       );
       expect(result.activities).toHaveLength(1);
       expect(result.pagination.total).toBe(1);
-      expect(result.activities[0].activity).toBe("Logged in");
+      expect(result.activities[0].activity).toBe("Application Submitted");
+      expect(result.activities[0].references).toEqual({ applicationId: "app_123" });
     });
 
     it("should handle aggregator errors gracefully", async () => {

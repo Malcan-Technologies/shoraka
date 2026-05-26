@@ -9,7 +9,7 @@ export const activityService = {
    */
   async getActivities(userId: string, query: GetActivitiesQuery) {
     try {
-      const { page, limit, search, categories, eventType, eventTypes, startDate, endDate, dateRange } = query;
+      const { page, limit, search, categories, domains, eventType, eventTypes, startDate, endDate, dateRange } = query;
       const offset = (page - 1) * limit;
 
       let finalStartDate = startDate ? new Date(startDate) : undefined;
@@ -40,6 +40,7 @@ export const activityService = {
       const result = await auditLogAggregator.aggregate(userId, {
         search,
         categories: categories as ActivityCategory[],
+        domains,
         event_types: combinedEventTypes.length > 0 ? combinedEventTypes : undefined,
         startDate: finalStartDate,
         endDate: finalEndDate,

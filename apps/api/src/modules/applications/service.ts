@@ -1624,12 +1624,23 @@ export class ApplicationService {
 
     const eventType =
       action === "accept" ? "CONTRACT_OFFER_ACCEPTED" : "CONTRACT_WITHDRAWN";
+    const contractNumber = (
+      application as {
+        contract?: { contract_details?: { number?: string | number } | null } | null;
+      }
+    ).contract?.contract_details?.number;
+
     await logApplicationActivity({
       userId,
       applicationId,
+      entityId: application.contract_id ?? undefined,
       portal: ActivityPortal.ISSUER,
       eventType,
       metadata: {
+        ...(application.contract_id ? { contract_id: application.contract_id } : {}),
+        ...(contractNumber != null && String(contractNumber).trim() !== ""
+          ? { contract_number: String(contractNumber).trim() }
+          : {}),
         offered_facility: responseMeta.offeredFacility,
         requested_facility: responseMeta.requestedFacility,
         responded_at: responseMeta.now,
@@ -1917,7 +1928,7 @@ export class ApplicationService {
     await logApplicationActivity({
       userId,
       applicationId,
-      entityId: scopeKey ?? undefined,
+      entityId: invoiceId,
       portal: ActivityPortal.ISSUER,
       eventType,
       metadata: {

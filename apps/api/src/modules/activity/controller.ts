@@ -30,6 +30,13 @@ router.get(
               ? req.query.categories.split(",")
               : [req.query.categories]
           : undefined,
+        domains: req.query.domains
+          ? Array.isArray(req.query.domains)
+            ? req.query.domains
+            : typeof req.query.domains === "string"
+              ? req.query.domains.split(",")
+              : [req.query.domains]
+          : undefined,
         eventTypes: req.query.eventTypes
           ? Array.isArray(req.query.eventTypes)
             ? req.query.eventTypes

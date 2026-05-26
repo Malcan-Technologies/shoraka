@@ -1,27 +1,25 @@
-import activityEvents from "./activity-events.json";
+export type ActivityDomain = "onboarding" | "application" | "note";
 
-export interface EventConfig {
+export interface ActivityDomainConfig {
   label: string;
-  dotColor: string;
+  filterable: boolean;
 }
 
-/**
- * Centralized configuration for all activity events.
- * Maps raw event types to human-readable labels and UI colors.
- */
-export const ACTIVITY_EVENT_CONFIG: Record<string, EventConfig> = activityEvents;
+export const ACTIVITY_DOMAIN_CONFIG: Record<ActivityDomain, ActivityDomainConfig> = {
+  onboarding: {
+    label: "Onboarding",
+    filterable: true,
+  },
+  application: {
+    label: "Application",
+    filterable: true,
+  },
+  note: {
+    label: "Note",
+    filterable: false,
+  },
+};
 
-/**
- * Fallback for unknown event types
- */
-export function getEventConfig(eventType: string): EventConfig {
-  return (
-    ACTIVITY_EVENT_CONFIG[eventType] || {
-      label: eventType
-        .replace(/_/g, " ")
-        .toLowerCase()
-        .replace(/\b\w/g, (c) => c.toUpperCase()),
-      dotColor: "bg-gray-400",
-    }
-  );
+export function getActivityDomainConfig(domain: ActivityDomain): ActivityDomainConfig {
+  return ACTIVITY_DOMAIN_CONFIG[domain];
 }

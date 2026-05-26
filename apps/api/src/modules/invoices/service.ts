@@ -434,7 +434,11 @@ async deleteInvoice(id: string, userId: string) {
         eventType: "INVOICE_WITHDRAWN",
         portal: ActivityPortal.ISSUER,
         entityId: id,
-        metadata: { withdraw_reason: finalReason, invoice_number: invoiceNumber },
+        metadata: {
+          invoice_id: id,
+          withdraw_reason: finalReason,
+          ...(invoiceNumber ? { invoice_number: invoiceNumber } : {}),
+        },
       });
 
       const allInvoices = await this.repository.findByApplicationId(invoice.application_id);

@@ -1,3 +1,5 @@
+import type { ActivityDomain } from "./activity-config";
+
 export type UserRole = "INVESTOR" | "ISSUER" | "ADMIN";
 
 export type LoanStatus =
@@ -74,18 +76,31 @@ export type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue };
 
+export interface ActivityReferences {
+  applicationId?: string;
+  applicationReference?: string;
+  contractId?: string;
+  contractNumber?: string;
+  invoiceId?: string;
+  invoiceNumber?: string;
+}
+
 export interface Activity {
   id: string;
   user_id: string;
   category: ActivityCategory;
+  domain: ActivityDomain;
   event_type: string; // Displayed as "Event" in UI
-  activity: string;   // Displayed as "Activity" in UI (human-readable)
+  activity: string;   // Backward-compatible alias for title.
+  title: string;
+  description: string;
   metadata: JsonValue | null;
   ip_address: string | null;
   user_agent: string | null;
   device_info: string | null;
   created_at: string; // Displayed as "Time" in UI
   source_table: string;
+  references?: ActivityReferences | null;
   status?: "success" | "failed";
 }
 
@@ -94,6 +109,7 @@ export interface GetActivitiesParams {
   limit: number;
   search?: string;
   categories?: ActivityCategory[];
+  domains?: ActivityDomain[];
   eventType?: string;
   eventTypes?: string[];
   status?: "success" | "failed";

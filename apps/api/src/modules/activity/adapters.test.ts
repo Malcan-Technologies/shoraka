@@ -12,14 +12,15 @@ describe("Activity Adapters", () => {
   describe("OrganizationLogAdapter", () => {
     const adapter = new OrganizationLogAdapter();
 
-    it("should build correct descriptions", () => {
-      expect(adapter.buildDescription("ONBOARDING_STARTED")).toBe("Started the onboarding process");
-      expect(adapter.buildDescription("FORM_FILLED", { section: "Business Info" })).toBe(
-        "Completed onboarding section: Business Info"
-      );
-      expect(adapter.buildDescription("ONBOARDING_STATUS_UPDATED", { status: "APPROVED" })).toBe(
-        "Onboarding status updated to: APPROVED"
-      );
+    it("should build curated onboarding presentation copy", () => {
+      expect(adapter.buildPresentation("ONBOARDING_STARTED")).toEqual({
+        title: "Onboarding Started",
+        description: "Your organization onboarding has started and you can continue it at any time.",
+      });
+      expect(adapter.buildPresentation("ONBOARDING_REJECTED", { reason: "Missing documents" })).toEqual({
+        title: "Onboarding Rejected",
+        description: "Your organization onboarding was rejected: Missing documents",
+      });
     });
 
     it("should transform record correctly", () => {
@@ -37,6 +38,19 @@ describe("Activity Adapters", () => {
 
       const unified = adapter.transform(record as any);
       expect(unified.category).toBe("organization");
+      expect(unified.domain).toBe("onboarding");
+      expect(unified.title).toBe("Onboarding Completed");
+      expect(unified.description).toBe("This onboarding update was recorded for your organization.");
+    });
+
+    it("should only expose major onboarding milestones", () => {
+      expect(adapter.getEventTypes()).toEqual([
+        "ONBOARDING_STARTED",
+        "ONBOARDING_CANCELLED",
+        "ONBOARDING_REJECTED",
+        "FINAL_APPROVAL_COMPLETED",
+        "ONBOARDING_APPROVED",
+      ]);
     });
   });
 });

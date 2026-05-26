@@ -1,5 +1,6 @@
 import { AuditLogAggregator } from "./aggregator";
 import { AuditLogAdapter, UnifiedActivity, ActivityFilters, ActivityCategory } from "./adapters/base";
+import { ActivityDomain } from "@cashsouk/types";
 
 // Mock data record type
 interface MockRecord {
@@ -14,6 +15,7 @@ class MockAdapter implements AuditLogAdapter<MockRecord> {
   constructor(
     public readonly name: string,
     public readonly category: ActivityCategory,
+    public readonly domain: ActivityDomain,
     private mockData: MockRecord[]
   ) {}
 
@@ -30,14 +32,20 @@ class MockAdapter implements AuditLogAdapter<MockRecord> {
       id: record.id,
       user_id: record.user_id,
       category: this.category,
+      domain: this.domain,
       event_type: "MOCK_EVENT",
       activity: record.text,
+      title: record.text,
+      description: `${record.text} description`,
       created_at: record.created_at,
       source_table: "mock",
     };
   }
 
-  buildDescription() { return ""; }
+  buildPresentation() {
+    return { title: "Mock Event", description: "Mock description" };
+  }
+
   getEventTypes() { return ["MOCK_EVENT"]; }
 }
 
@@ -53,12 +61,12 @@ describe("AuditLogAggregator", () => {
     const date2 = new Date("2026-01-01T11:00:00Z");
     const date3 = new Date("2026-01-01T09:00:00Z");
 
-    const adapterA = new MockAdapter("A", "organization", [
+    const adapterA = new MockAdapter("A", "organization", "onboarding", [
       { id: "1", user_id: userId, text: "Later Org", created_at: date2 },
       { id: "2", user_id: userId, text: "Earlier Org", created_at: date3 },
     ]);
 
-    const adapterB = new MockAdapter("B", "organization", [
+    const adapterB = new MockAdapter("B", "organization", "application", [
       { id: "3", user_id: userId, text: "Middle Org", created_at: date1 },
     ]);
 
@@ -84,7 +92,7 @@ describe("AuditLogAggregator", () => {
       created_at: new Date(2026, 0, i + 1),
     }));
 
-    aggregator.registerAdapter(new MockAdapter("A", "organization", data));
+    aggregator.registerAdapter(new MockAdapter("A", "organization", "application", data));
 
     // Page 1 (limit 10)
     const result1 = await aggregator.aggregate(userId, { limit: 10, offset: 0 });
@@ -100,7 +108,11 @@ describe("AuditLogAggregator", () => {
     const aggregator = new AuditLogAggregator();
     (aggregator as any).adapters = [];
 
-    aggregator.registerAdapter(new MockAdapter("A", "organization", [{ id: "1", created_at: new Date(), user_id: userId, text: "Test Activity" }]));
+    aggregator.registerAdapter(
+      new MockAdapter("A", "organization", "onboarding", [
+        { id: "1", created_at: new Date(), user_id: userId, text: "Test Activity" },
+      ])
+    );
 
     const result = await aggregator.aggregate(userId, {
       limit: 10,
@@ -110,5 +122,30 @@ describe("AuditLogAggregator", () => {
 
     expect(result.activities).toHaveLength(1);
     expect(result.activities[0].category).toBe("organization");
+  });
+
+  it("should filter by domain", async () => {
+    const aggregator = new AuditLogAggregator();
+    (aggregator as any).adapters = [];
+
+    aggregator.registerAdapter(
+      new MockAdapter("A", "organization", "onboarding", [
+        { id: "1", created_at: new Date("2026-01-01T10:00:00Z"), user_id: userId, text: "Onboarding" },
+      ])
+    );
+    aggregator.registerAdapter(
+      new MockAdapter("B", "organization", "application", [
+        { id: "2", created_at: new Date("2026-01-01T11:00:00Z"), user_id: userId, text: "Application" },
+      ])
+    );
+
+    const result = await aggregator.aggregate(userId, {
+      limit: 10,
+      offset: 0,
+      domains: ["application"],
+    });
+
+    expect(result.activities).toHaveLength(1);
+    expect(result.activities[0].domain).toBe("application");
   });
 });
