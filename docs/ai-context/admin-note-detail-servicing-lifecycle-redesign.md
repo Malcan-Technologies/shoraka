@@ -922,6 +922,19 @@ Every item below must still exist in some form after the redesign:
 8. Activity timeline:
    - generated document controls are conditional on metadata s3Key and are disabled while viewDocumentPending.
 
+## Implemented structure (Phase 2)
+- Funding & Issuer Disbursement card is now rendered as a dedicated section near the top of the Admin Note Detail page (`apps/admin/src/app/notes/[id]/page.tsx`).
+- The “Awaiting issuer disbursement” UI wrapper + `IssuerPayoutCard` for `kind="DISBURSEMENT"` was removed from `SettlementPanel` and is no longer visually buried under “Servicing Lifecycle”.
+- `SettlementPanel` now focuses on maturity-driven servicing only:
+  - repayment receipts
+  - settlement preview/approve/post + waterfall
+  - trustee instruction / service fee workflow
+  - issuer residual refund (payout card or info box)
+  - arrears and default documents
+- Shoraka STP and all “View/Generate/Mark” controls inside `IssuerPayoutCard` were preserved when moved (including certificate fetch + view certificate actions).
+
+Note: a persistent Shoraka certificate viewer is not implemented in this phase.
+
 ## Confirmation: no runtime code changes in this task
-This task is documentation-only. No code/calculation logic/DB/API changes were made.
+This phase is a UI-only restructure: no backend/database/API/calculation logic was changed.
 
