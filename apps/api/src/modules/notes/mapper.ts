@@ -57,6 +57,7 @@ function normaliseBeneficiarySnapshot(raw: Prisma.JsonValue | null): Record<stri
 }
 
 export function mapWithdrawalInstruction(withdrawal: WithdrawalRecord) {
+  const hasShorakaCertificate = Boolean((withdrawal as WithdrawalRecordWithOptionalShorakaTradeOrder).shoraka_trade_order?.certificate_s3_key);
   const metadata = asRecord(withdrawal.metadata);
   const grossFundedAmount = metadata
     ? numberFromUnknownOrUndefined(metadata.grossFundedAmount)
@@ -109,8 +110,13 @@ export function mapWithdrawalInstruction(withdrawal: WithdrawalRecord) {
     submittedToTrusteeAt: iso(withdrawal.submitted_to_trustee_at),
     completedAt: iso(withdrawal.completed_at),
     createdAt: withdrawal.created_at.toISOString(),
+    hasShorakaCertificate,
   };
 }
+
+type WithdrawalRecordWithOptionalShorakaTradeOrder = WithdrawalRecord & {
+  shoraka_trade_order?: { certificate_s3_key: string | null } | null;
+};
 
 function decimalToNumber(value: Prisma.Decimal | number | null | undefined): number {
   if (value == null) return 0;

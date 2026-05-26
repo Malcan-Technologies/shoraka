@@ -662,7 +662,8 @@ export default function IssuerNoteDetailPage() {
                 </span>
               </div>
 
-              {issuerDisbursementWithdrawal?.status === "COMPLETED" ? (
+              {issuerDisbursementWithdrawal?.status === "COMPLETED" &&
+              issuerDisbursementWithdrawal?.hasShorakaCertificate ? (
                 <div className="rounded-lg border bg-card p-4">
                   <div className="text-sm font-medium">Shoraka certificate</div>
                   <div className="mt-1 text-xs text-muted-foreground">

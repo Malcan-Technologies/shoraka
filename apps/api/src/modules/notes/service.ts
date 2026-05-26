@@ -3167,6 +3167,11 @@ export class NoteService {
     const withdrawals = await prisma.withdrawalInstruction.findMany({
       where: { note_id: id },
       orderBy: { created_at: "desc" },
+      include: {
+        shoraka_trade_order: {
+          select: { certificate_s3_key: true },
+        },
+      },
     });
     return mapNoteDetail(note, { withdrawals });
   }
