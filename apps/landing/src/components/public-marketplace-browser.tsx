@@ -24,7 +24,6 @@ import {
 import {
   SOUKSCORE_RISK_RATING_GRADES,
   formatNoteReferenceDisplay,
-  resolveNetExpectedReturnRatePercent,
   type NoteListItem,
 } from "@cashsouk/types";
 import { computeMarketplaceCommitBounds } from "@/lib/marketplace-commit-bounds";
@@ -71,7 +70,7 @@ function toMarketplaceNote(note: NoteListItem): PublicMarketplaceNote {
     industry: note.issuerIndustry?.trim() || null,
     fundedAmount: note.fundedAmount,
     goalAmount: note.targetAmount,
-    annualReturn: resolveNetExpectedReturnRatePercent(note),
+    annualReturn: note.profitRatePercent,
     tenorDays,
     riskScore: note.riskRating,
     daysLeft,

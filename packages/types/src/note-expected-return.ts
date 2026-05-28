@@ -15,7 +15,8 @@ export function formatInvestorReturnRatePercent(
 ): string {
   if (rate == null) return "-";
   const rounded = roundNoteMoney(rate, decimalPlaces);
-  return `${rounded.toFixed(decimalPlaces)}%`;
+  const formatted = rounded.toFixed(decimalPlaces).replace(/\.0+$/, "");
+  return `${formatted}%`;
 }
 
 /**

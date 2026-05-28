@@ -4,6 +4,7 @@ import { ArrowDownTrayIcon, BuildingOffice2Icon, DocumentTextIcon, EllipsisVerti
 import { formatCurrency } from "@cashsouk/config";
 import { formatInvestorReturnRatePercent, formatNoteReferenceDisplay } from "@cashsouk/types";
 import { SoukscoreRiskRatingBadge } from "@cashsouk/ui";
+import { MarketplaceReturnRateTooltip } from "@/investments/components/investment-return-breakdown";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -108,7 +109,10 @@ export function NoteCard({ note, onInvest }: NoteCardProps) {
                   {formatInvestorReturnRatePercent(note.annualReturn)}
                 </div>
               </div>
-              <div className="mt-1 text-[11px] text-slate-500">Per annum</div>
+              <div className="mt-1 inline-flex items-center justify-center gap-1 text-[11px] text-slate-500">
+                Per annum
+                <MarketplaceReturnRateTooltip />
+              </div>
             </div>
             <div className="flex flex-col text-center">
               <div className="flex flex-1 flex-col rounded-2xl border bg-muted/20 p-3">

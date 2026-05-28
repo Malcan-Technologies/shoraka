@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import type { ActivityDomain, ActivityReferences } from "@cashsouk/types";
 
 /**
  * Activity category - maps to audit log source
@@ -12,14 +13,18 @@ export interface UnifiedActivity {
   id: string;
   user_id: string;
   category: ActivityCategory;
+  domain: ActivityDomain;
   event_type: string; // Raw event type from audit log (displayed as "Event" in UI)
-  activity: string; // Human-readable description (displayed as "Activity" in UI)
+  activity: string; // Backward-compatible alias for title
+  title: string;
+  description: string;
   metadata?: Record<string, unknown>;
   ip_address?: string | null;
   user_agent?: string | null;
   device_info?: string | null;
   created_at: Date; // Displayed as "Time" in UI
   source_table: string; // For debugging (e.g., "security_logs")
+  references?: ActivityReferences | null;
 }
 
 /**
@@ -28,6 +33,7 @@ export interface UnifiedActivity {
 export interface ActivityFilters {
   search?: string;
   categories?: ActivityCategory[];
+  domains?: ActivityDomain[];
   event_types?: string[];
   startDate?: Date;
   endDate?: Date;
@@ -52,6 +58,7 @@ export interface AuditLogAdapter<T> {
    * Activity category this adapter handles
    */
   readonly category: ActivityCategory;
+  readonly domain: ActivityDomain;
 
   /**
    * Query audit logs for a specific user with filters
@@ -68,14 +75,10 @@ export interface AuditLogAdapter<T> {
    */
   transform(record: T): UnifiedActivity;
 
-  /**
-   * Build human-readable activity description from event type and metadata
-   * This is where adapter-specific logic for creating contextual descriptions lives
-   */
-  buildDescription(
-    eventType: string,
-    metadata?: Record<string, unknown>
-  ): string;
+  buildPresentation(eventType: string, metadata?: Record<string, unknown>): {
+    title: string;
+    description: string;
+  };
 
   /**
    * Get list of event types this adapter handles

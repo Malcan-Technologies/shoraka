@@ -16,7 +16,7 @@ import {
   resolveNetExpectedReturnRatePercent,
   type NoteListItem,
 } from "@cashsouk/types";
-import { getNoteDerivedStatusLabel, NoteStatusBadge, SoukscoreRiskRatingBadge } from "@cashsouk/ui";
+import { getNoteDerivedStatusLabel, InfoTooltip, NoteStatusBadge, SoukscoreRiskRatingBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -100,7 +100,7 @@ export function InvestmentPositionCard({
   const actualReturn = hasActualReturn
     ? `${Number(repaymentSummary?.actualReturnRatePercent).toFixed(1)}%`
     : "-";
-  const returnLabel = "Actual return";
+  const returnLabel = "Total return to date";
   const displayDate = formatDate(investmentDateValue ?? note.updatedAt);
   const resolvedFooterRows: InvestmentPositionCardFooterRow[] = [
     { label: "Maturity date", value: formatDate(note.maturityDate) },
@@ -135,20 +135,27 @@ export function InvestmentPositionCard({
         </div>
         <div className="flex min-w-0 flex-col gap-2">
           <p className="break-words text-sm leading-snug text-muted-foreground">
-            Repayment received:{" "}
+            Total received:{" "}
             <span className="font-semibold text-foreground tabular-nums">
               {repaymentAmountDisplay}
             </span>
           </p>
           <p className="break-words text-sm leading-snug text-muted-foreground">
-            Contractual profit:{" "}
+            Net profit received:{" "}
             <span className="font-semibold text-foreground tabular-nums">
               {profitAmountDisplay}
             </span>
           </p>
           {tawidhCompensationReceived > 0.005 ? (
             <p className="break-words text-sm leading-snug text-muted-foreground">
-              Ta&apos;widh compensation:{" "}
+              <span className="inline-flex items-center gap-1">
+                Ta&apos;widh compensation
+                <InfoTooltip
+                  content="Late-payment compensation received. This is separate from contractual profit and is not subject to the service fee."
+                  iconClassName="h-3.5 w-3.5"
+                />
+                :
+              </span>{" "}
               <span className="font-semibold text-foreground tabular-nums">
                 {tawidhCompensationDisplay}
               </span>
@@ -179,8 +186,8 @@ export function InvestmentPositionCard({
                   <PercentBadgeIcon className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="text-sm leading-tight text-muted-foreground">
-                    Expected return p.a.
+                  <p className="inline-flex items-center gap-1 text-sm leading-tight text-muted-foreground">
+                    Expected return (p.a.)
                   </p>
                   <p className="text-lg font-semibold leading-none tracking-tight text-foreground md:text-xl">
                     {formatInvestorReturnRatePercent(expectedReturn)}

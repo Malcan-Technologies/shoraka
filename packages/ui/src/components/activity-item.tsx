@@ -12,24 +12,24 @@ export function ActivityItem({ activity, className, ...props }: ActivityItemProp
   return (
     <div
       className={cn(
-        "flex items-center justify-between py-4 hover:bg-muted/50 transition-colors px-2",
+        "flex items-start justify-between gap-8 py-4 hover:bg-muted/50 transition-colors px-2",
         className
       )}
       {...props}
     >
       <div className="flex flex-col gap-1 flex-1">
-        <span className="font-semibold text-[15px]">{activity.activity}</span>
+        <span className="font-semibold text-[15px]">{activity.title}</span>
+        <span className="max-w-[70ch] text-sm leading-6 text-muted-foreground">
+          {activity.description}
+        </span>
       </div>
 
-      <div className="flex items-center gap-12 w-full max-w-[400px]">
-        <div className="flex-1 flex justify-start min-w-[120px]">
-          <ActivityBadge
-            category={activity.category}
-            eventType={activity.event_type}
-          />
+      <div className="grid min-w-[300px] grid-cols-[120px_160px] items-start gap-8">
+        <div className="flex justify-start">
+          <ActivityBadge domain={activity.domain} />
         </div>
 
-        <div className="text-sm text-muted-foreground whitespace-nowrap min-w-[160px] text-right">
+        <div className="text-sm text-muted-foreground whitespace-nowrap text-right">
           {format(new Date(activity.created_at), "dd-MM-yyyy hh:mm aa")}
         </div>
       </div>

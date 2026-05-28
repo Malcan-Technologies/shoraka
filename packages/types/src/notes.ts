@@ -164,16 +164,33 @@ export type IssuerResidualPayoutListStatus =
   | { kind: "pending"; withTrustee: boolean }
   | { kind: "awaiting" };
 
+export interface NoteInvestorSettlementEvent {
+  settlementId: string;
+  postedAt: string;
+  principal: number;
+  profitNet: number;
+  tawidhInvestorShare: number;
+}
+
 export interface NoteInvestorRepaymentSummary {
   investedPrincipal: number;
   expectedPayoutAmount: number;
+  /** Net profit after service fee on gross contractual profit. */
   expectedProfitAmount: number;
+  expectedProfitGrossAmount: number;
+  expectedServiceFeeAmount: number;
+  profitDays: number;
+  profitStartDate: string | null;
+  profitMaturityDate: string | null;
   receivedPayoutAmount: number;
   receivedProfitNetAmount: number;
+  receivedProfitGrossAmount: number;
+  receivedServiceFeeAmount: number;
   receivedTawidhCompensationAmount: number;
   expectedReturnRatePercent: number;
   actualReturnRatePercent: number | null;
   progressPercent: number;
+  receivedSettlementEvents: NoteInvestorSettlementEvent[];
 }
 
 export interface NoteListItem extends NoteMoneySummary {

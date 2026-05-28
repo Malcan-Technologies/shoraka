@@ -14,6 +14,7 @@ import { Badge, Card, CardContent, CardHeader, CardTitle, Skeleton, useHeader } 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { InvestmentPositionCard } from "@/investments/components/investment-position-card";
+import { InvestmentReturnBreakdownCard } from "@/investments/components/investment-return-breakdown";
 import {
   useInvestorBalanceActivity,
   useInvestorInvestments,
@@ -60,6 +61,30 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function getActivityMetadataLines(entry: InvestorBalanceActivityEntry) {
+  if (entry.source !== "NOTE_INVESTMENT_RELEASE") return [];
+
+  const metadata = asRecord(entry.metadata);
+  if (metadata?.releaseReason !== "SETTLEMENT_PAYOUT") return [];
+
+  const principal = Number(metadata.principal);
+  const profitNet = Number(metadata.profitNet);
+  const tawidh = Number(metadata.tawidhInvestorShare);
+  const lines: string[] = [];
+
+  if (Number.isFinite(principal) && principal > 0) {
+    lines.push(`Principal ${formatCurrency(principal)}`);
+  }
+  if (Number.isFinite(profitNet) && profitNet > 0) {
+    lines.push(`Net profit ${formatCurrency(profitNet)}`);
+  }
+  if (Number.isFinite(tawidh) && tawidh > 0.005) {
+    lines.push(`Ta'widh ${formatCurrency(tawidh)}`);
+  }
+
+  return lines;
 }
 
 function getActivityLabel(entry: InvestorBalanceActivityEntry) {
@@ -157,6 +182,17 @@ export default function InvestmentDetailPage() {
       .sort((left, right) => new Date(left).getTime() - new Date(right).getTime());
     return commitDates[0] ?? null;
   }, [noteActivity]);
+  const hasSettledBreakdown = React.useMemo(() => {
+    if (!investedNote?.investorRepaymentSummary) return false;
+    const summary = investedNote.investorRepaymentSummary;
+    return (
+      summary.receivedPayoutAmount > 0.005 ||
+      summary.receivedProfitGrossAmount > 0.005 ||
+      summary.receivedProfitNetAmount > 0.005 ||
+      summary.receivedTawidhCompensationAmount > 0.005 ||
+      (summary.receivedSettlementEvents?.length ?? 0) > 0
+    );
+  }, [investedNote]);
 
   if (!note && !positionLoading) {
     const investmentMessage =
@@ -201,31 +237,43 @@ export default function InvestmentDetailPage() {
           />
         ) : null}
 
+        {isInvestedView && investedNote && hasSettledBreakdown ? (
+          <InvestmentReturnBreakdownCard note={investedNote} />
+        ) : null}
+
         {detailCardLoading ? (
           <DetailCardSkeleton />
         ) : note ? (
           <Card className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+            <CardHeader
+              className={cn(
+                "pb-2",
+                isInvestedView
+                  ? "flex flex-row items-center gap-2"
+                  : "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+              )}
+            >
+              <div className="flex items-center gap-2">
                 <CardTitle className="text-xl font-semibold">
                   {isInvestedView ? "Recent note activity" : "Marketplace details"}
                 </CardTitle>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {isInvestedView
-                    ? "Real investor balance entries linked to this note."
-                    : "The key fields below reflect the current published marketplace listing."}
-                </p>
+                {isInvestedView ? (
+                  <Badge
+                    variant="secondary"
+                    className="rounded-full bg-muted font-normal text-muted-foreground hover:bg-muted"
+                  >
+                    {activityQuery.isPending ? "…" : noteActivity.length}
+                  </Badge>
+                ) : null}
               </div>
-              <Badge
-                variant="secondary"
-                className="w-fit rounded-full border-transparent bg-primary text-primary-foreground px-2.5 py-1 text-xs font-medium"
-              >
-                {isInvestedView
-                  ? activityQuery.isPending
-                    ? "…"
-                    : `${noteActivity.length} entries`
-                  : formatEnumLabel(note.listingStatus)}
-              </Badge>
+              {!isInvestedView ? (
+                <Badge
+                  variant="secondary"
+                  className="w-fit rounded-full bg-muted font-normal text-muted-foreground hover:bg-muted"
+                >
+                  {formatEnumLabel(note.listingStatus)}
+                </Badge>
+              ) : null}
             </CardHeader>
             <CardContent className="space-y-3">
               {isInvestedView ? (
@@ -239,7 +287,9 @@ export default function InvestmentDetailPage() {
                       <div>Time</div>
                     </div>
                     <div className="divide-y divide-slate-200">
-                      {noteActivity.map((entry) => (
+                      {noteActivity.map((entry) => {
+                        const metadataLines = getActivityMetadataLines(entry);
+                        return (
                         <div
                           key={entry.id}
                           className="grid gap-2 px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_140px_180px] md:items-center md:gap-4"
@@ -251,11 +301,18 @@ export default function InvestmentDetailPage() {
                             <div className="mt-1 text-xs text-slate-500">
                               {formatEnumLabel(entry.source)}
                             </div>
+                            {metadataLines.length > 0 ? (
+                              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500">
+                                {metadataLines.map((line) => (
+                                  <span key={line}>{line}</span>
+                                ))}
+                              </div>
+                            ) : null}
                           </div>
                           <div
                             className={cn(
                               "font-medium",
-                              entry.direction === "IN" ? "text-emerald-700" : "text-slate-900"
+                              entry.direction === "IN" ? "text-emerald-700" : "text-destructive"
                             )}
                           >
                             {formatSignedCurrency(entry.direction, entry.amount)}
@@ -264,7 +321,8 @@ export default function InvestmentDetailPage() {
                             {formatDateTime(entry.postedAt)}
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ) : (
