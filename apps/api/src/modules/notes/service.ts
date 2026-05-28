@@ -35,6 +35,7 @@ import {
   buildInvestorPortfolioTotals,
   computeMarketplaceCommitBounds,
   computeNetExpectedReturnRatePercent,
+  deriveGrossProfitAndServiceFeeFromNet,
   INVESTOR_RETURN_RATE_DISPLAY_DECIMALS,
   isNoteFullyFunded,
   isSoukscoreRiskRating,
@@ -479,6 +480,9 @@ function buildInvestorRepaymentSummary(
     expectedProfitGrossAmount * (toNumber(note.service_fee_rate_percent) / 100);
   const expectedProfitAmount = Math.max(0, expectedProfitGrossAmount - expectedServiceFeeAmount);
   const expectedPayoutAmount = investedPrincipal + expectedProfitAmount;
+  const profitStartDate = note.activated_at?.toISOString() ?? null;
+  const profitMaturityDateIso = profitMaturityDate?.toISOString() ?? null;
+  const serviceFeeRatePercent = toNumber(note.service_fee_rate_percent);
 
   const receivedAllocations = note.settlements
     .filter((settlement) => settlement.status === NoteSettlementStatus.POSTED)
@@ -497,6 +501,46 @@ function buildInvestorRepaymentSummary(
       sum + allocation.principal + allocation.profitNet + allocation.tawidhInvestorShare,
     0
   );
+  const receivedProfitGrossDerived = deriveGrossProfitAndServiceFeeFromNet(
+    receivedProfitNetAmount,
+    serviceFeeRatePercent
+  );
+  const receivedServiceFeeAmount = receivedProfitGrossDerived.serviceFee;
+  const receivedProfitGrossAmount = receivedProfitGrossDerived.profitGross;
+
+  const receivedSettlementEvents = note.settlements
+    .filter((settlement) => settlement.status === NoteSettlementStatus.POSTED)
+    .flatMap((settlement) => {
+      const allocations = resolveSettlementAllocations(settlement.preview_snapshot).filter(
+        (allocation) => investorOrganizationIds.has(allocation.investorOrganizationId)
+      );
+      if (allocations.length === 0) return [];
+
+      const principal = allocations.reduce((sum, allocation) => sum + allocation.principal, 0);
+      const profitNet = allocations.reduce((sum, allocation) => sum + allocation.profitNet, 0);
+      const tawidhInvestorShare = allocations.reduce(
+        (sum, allocation) => sum + allocation.tawidhInvestorShare,
+        0
+      );
+      const postedAt =
+        settlement.posted_at?.toISOString() ??
+        settlement.approved_at?.toISOString() ??
+        settlement.created_at?.toISOString() ??
+        new Date().toISOString();
+
+      return [
+        {
+          settlementId: settlement.id,
+          postedAt,
+          principal: roundNoteMoney(principal, 2),
+          profitNet: roundNoteMoney(profitNet, 2),
+          tawidhInvestorShare: roundNoteMoney(tawidhInvestorShare, 2),
+        },
+      ];
+    })
+    .sort(
+      (left, right) => new Date(left.postedAt).getTime() - new Date(right.postedAt).getTime()
+    );
 
   const actualReturnRatePercent = computeActualReturnRatePercent({
     investedPrincipal,
@@ -512,13 +556,21 @@ function buildInvestorRepaymentSummary(
     investedPrincipal: roundNoteMoney(investedPrincipal, 2),
     expectedPayoutAmount: roundNoteMoney(expectedPayoutAmount, 2),
     expectedProfitAmount: roundNoteMoney(expectedProfitAmount, 2),
+    expectedProfitGrossAmount: roundNoteMoney(expectedProfitGrossAmount, 2),
+    expectedServiceFeeAmount: roundNoteMoney(expectedServiceFeeAmount, 2),
+    profitDays: expectedProfitDays,
+    profitStartDate,
+    profitMaturityDate: profitMaturityDateIso,
     receivedPayoutAmount: roundNoteMoney(receivedPayoutAmount, 2),
     receivedProfitNetAmount: roundNoteMoney(receivedProfitNetAmount, 2),
+    receivedProfitGrossAmount: roundNoteMoney(receivedProfitGrossAmount, 2),
+    receivedServiceFeeAmount: roundNoteMoney(receivedServiceFeeAmount, 2),
     receivedTawidhCompensationAmount: roundNoteMoney(receivedTawidhCompensationAmount, 2),
     expectedReturnRatePercent,
     actualReturnRatePercent:
       actualReturnRatePercent == null ? null : roundNoteMoney(actualReturnRatePercent, 2),
     progressPercent: roundNoteMoney(progressPercent, 2),
+    receivedSettlementEvents,
   };
 }
 

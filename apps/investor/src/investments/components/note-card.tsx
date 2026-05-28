@@ -2,7 +2,6 @@ import Link from "next/link";
 import { formatCurrency } from "@cashsouk/config";
 import {
   formatInvestorReturnRatePercent,
-  resolveNetExpectedReturnRatePercent,
   type NoteListItem,
 } from "@cashsouk/types";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@cashsouk/ui";
@@ -27,9 +26,9 @@ export function NoteCard({ note }: { note: NoteListItem }) {
             <div className="font-semibold">{formatCurrency(note.targetAmount)}</div>
           </div>
           <div>
-            <div className="text-muted-foreground">Expected return</div>
+            <div className="text-muted-foreground">Profit rate</div>
             <div className="font-semibold">
-              {formatInvestorReturnRatePercent(resolveNetExpectedReturnRatePercent(note))}
+              {formatInvestorReturnRatePercent(note.profitRatePercent)}
             </div>
           </div>
           <div>

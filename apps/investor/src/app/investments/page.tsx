@@ -46,7 +46,6 @@ import { ONBOARDING_INDUSTRY_OPTIONS } from "@/investments/industry-filter-optio
 import {
   formatNoteReferenceDisplay,
   isNoteMoneyAmount,
-  resolveNetExpectedReturnRatePercent,
   resolveMarketplaceDaysToMaturity,
   resolveMarketplaceListingDaysLeft,
   SOUKSCORE_RISK_RATING_GRADES,
@@ -94,7 +93,7 @@ function toMarketplaceNote(note: NoteListItem): MarketplaceNote {
     industry: note.issuerIndustry?.trim() || null,
     fundedAmount: note.fundedAmount,
     goalAmount: note.targetAmount,
-    annualReturn: resolveNetExpectedReturnRatePercent(note),
+    annualReturn: note.profitRatePercent,
     tenorDays,
     riskScore: note.riskRating,
     daysLeft,
@@ -798,6 +797,7 @@ export function MarketplacePage() {
             <DialogDescription className="pt-3 text-sm text-slate-700">
               Are you sure you want to invest{" "}
               <span className="font-semibold">{formatCurrency(parseAmount(investmentAmount))}</span>
+              ?
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-2 p-4">
