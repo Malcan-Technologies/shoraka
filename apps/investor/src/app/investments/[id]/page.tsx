@@ -205,27 +205,35 @@ export default function InvestmentDetailPage() {
           <DetailCardSkeleton />
         ) : note ? (
           <Card className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+            <CardHeader
+              className={cn(
+                "pb-2",
+                isInvestedView
+                  ? "flex flex-row items-center gap-2"
+                  : "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+              )}
+            >
+              <div className="flex items-center gap-2">
                 <CardTitle className="text-xl font-semibold">
                   {isInvestedView ? "Recent note activity" : "Marketplace details"}
                 </CardTitle>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {isInvestedView
-                    ? "Real investor balance entries linked to this note."
-                    : "The key fields below reflect the current published marketplace listing."}
-                </p>
+                {isInvestedView ? (
+                  <Badge
+                    variant="secondary"
+                    className="rounded-full bg-muted font-normal text-muted-foreground hover:bg-muted"
+                  >
+                    {activityQuery.isPending ? "…" : noteActivity.length}
+                  </Badge>
+                ) : null}
               </div>
-              <Badge
-                variant="secondary"
-                className="w-fit rounded-full border-transparent bg-primary text-primary-foreground px-2.5 py-1 text-xs font-medium"
-              >
-                {isInvestedView
-                  ? activityQuery.isPending
-                    ? "…"
-                    : `${noteActivity.length} entries`
-                  : formatEnumLabel(note.listingStatus)}
-              </Badge>
+              {!isInvestedView ? (
+                <Badge
+                  variant="secondary"
+                  className="w-fit rounded-full bg-muted font-normal text-muted-foreground hover:bg-muted"
+                >
+                  {formatEnumLabel(note.listingStatus)}
+                </Badge>
+              ) : null}
             </CardHeader>
             <CardContent className="space-y-3">
               {isInvestedView ? (
@@ -255,7 +263,7 @@ export default function InvestmentDetailPage() {
                           <div
                             className={cn(
                               "font-medium",
-                              entry.direction === "IN" ? "text-emerald-700" : "text-slate-900"
+                              entry.direction === "IN" ? "text-emerald-700" : "text-destructive"
                             )}
                           >
                             {formatSignedCurrency(entry.direction, entry.amount)}
