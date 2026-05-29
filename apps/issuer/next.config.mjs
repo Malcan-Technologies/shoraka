@@ -38,6 +38,32 @@ const nextConfig = {
           },
         ],
       },
+      {
+        source: "/prototype/ekyc/capture.html",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: [
+              "default-src 'self'",
+              "base-uri 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://code.jquery.com blob:",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob: https:",
+              "font-src 'self' data: https:",
+              // WiseAI returns the console origin dynamically, so connect-src needs broad https access here.
+              "connect-src 'self' https: http://localhost:4000 http://localhost:3001 blob:",
+              "media-src 'self' blob:",
+              "worker-src 'self' blob:",
+              "frame-src 'none'",
+              "form-action 'self'",
+            ].join("; "),
+          },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(self), microphone=(), geolocation=(), browsing-topics=()",
+          },
+        ],
+      },
     ];
   },
 };

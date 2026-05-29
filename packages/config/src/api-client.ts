@@ -82,6 +82,9 @@ import type {
   WithdrawReason,
   AdminCtosReportListItem,
   SoukscoreRiskRating,
+  EkycPrototypeDocType,
+  EkycPrototypeSession,
+  EkycPrototypeSessionStatus,
   CreateNoteFromApplicationInput,
   CreateNoteInvestmentInput,
   EligibleNoteInvoicesResponse,
@@ -361,6 +364,24 @@ export class ApiClient {
       method: "PATCH",
       body: JSON.stringify(body),
     });
+  }
+
+  async createPrototypeEkycSession(input: {
+    email: string;
+    docType: EkycPrototypeDocType;
+  }): Promise<ApiResponse<EkycPrototypeSession> | ApiError> {
+    const query = new URLSearchParams({
+      email: input.email,
+      docType: input.docType,
+    });
+    return this.get<EkycPrototypeSession>(`/v1/prototype/ekyc/session?${query.toString()}`);
+  }
+
+  async getPrototypeEkycStatus(
+    token: string
+  ): Promise<ApiResponse<EkycPrototypeSessionStatus> | ApiError> {
+    const query = new URLSearchParams({ token });
+    return this.get<EkycPrototypeSessionStatus>(`/v1/prototype/ekyc/status?${query.toString()}`);
   }
 
   // Admin - User Management
