@@ -28,6 +28,24 @@ export interface ApiError {
   correlationId: string;
 }
 
+export type EkycPrototypeDocType = "mykad" | "passport";
+
+export type EkycPrototypeStatus = "pending" | "submitted" | "error";
+
+export interface EkycPrototypeSession {
+  email: string;
+  docType: EkycPrototypeDocType;
+  url: string;
+  token: string;
+}
+
+export interface EkycPrototypeSessionStatus {
+  status: EkycPrototypeStatus;
+  decrypted: unknown | null;
+  submitResponse: unknown | null;
+  error: string | null;
+}
+
 export interface User {
   id: string;
   user_id?: string | null;

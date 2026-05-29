@@ -34,6 +34,7 @@ import {
   withdrawalsRouter,
 } from "./modules/notes/controller";
 import { issuerDashboardRouter } from "./modules/issuer-dashboard/controller";
+import { ekycPrototypeRouter } from "./modules/ekyc-prototype/controller";
 export function registerRoutes(app: Application): void {
   // Swagger API documentation (only in development)
   if (process.env.NODE_ENV !== "production") {
@@ -145,6 +146,7 @@ export function registerRoutes(app: Application): void {
 
   // Public marketplace preview for landing pages (read-only)
   v1Router.use("/public/marketplace", publicMarketplaceRouter);
+  v1Router.use("/prototype/ekyc", ekycPrototypeRouter);
 
   // Site documents routes (authenticated users)
   v1Router.use("/documents", requireAuth, siteDocumentUserRouter);
