@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import type { UserRole } from "@cashsouk/types";
+import type { AdminPermission, AdminRole, UserRole } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -14,12 +14,18 @@ export interface CurrentUser {
   roles: UserRole[];
   investor_onboarding_completed: boolean;
   issuer_onboarding_completed: boolean;
-  admin: { status: string } | null;
+  admin: {
+    status: string;
+    role_description: AdminRole | null;
+  } | null;
 }
 
-interface MeResponse {
+export interface MeResponse {
   user: CurrentUser;
   activeRole: string | null;
+  permissions: AdminPermission[];
+  roleKey: string | null;
+  roleName: string | null;
   sessions: {
     active: number;
   };

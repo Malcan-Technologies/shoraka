@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AdminService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
-import { requireRole } from "../../lib/auth/middleware";
+import { requirePermission, requireRole } from "../../lib/auth/middleware";
 import { UserRole } from "@prisma/client";
 import {
   getUsersQuerySchema,
@@ -14,6 +14,7 @@ import {
   exportAccessLogsQuerySchema,
   getAdminUsersQuerySchema,
   updateAdminRoleSchema,
+  updateAdminRolePermissionsSchema,
   inviteAdminSchema,
   acceptInvitationSchema,
   getSecurityLogsQuerySchema,
@@ -87,6 +88,54 @@ function ctosRowPublicSummary(row: {
   };
 }
 
+
+router.get(
+  "/roles",
+  requirePermission("roles.manage"),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await adminService.listAdminRoleConfigs();
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.patch(
+  "/roles/:key/permissions",
+  requirePermission("roles.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { key } = req.params;
+      const validated = updateAdminRolePermissionsSchema.parse(req.body);
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const result = await adminService.updateAdminRolePermissions(
+        req,
+        key,
+        validated,
+        req.user.user_id
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 /**
  * @swagger
@@ -876,7 +925,7 @@ router.get(
  */
 router.put(
   "/admin-users/:id/role",
-  requireRole(UserRole.ADMIN),
+  requirePermission("roles.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;

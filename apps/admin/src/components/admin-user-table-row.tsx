@@ -26,6 +26,7 @@ import type { AdminUser, AdminRole } from "@cashsouk/types";
 interface AdminUserTableRowProps {
   user: AdminUser;
   onUpdate: (userId: string, updates: Partial<AdminUser>) => void;
+  canManageRoles: boolean;
 }
 
 const roleConfig: Record<AdminRole, { label: string; iconColor: string; bgClass: string; borderClass: string }> = {
@@ -55,7 +56,7 @@ const roleConfig: Record<AdminRole, { label: string; iconColor: string; bgClass:
   },
 };
 
-export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
+export function AdminUserTableRow({ user, onUpdate, canManageRoles }: AdminUserTableRowProps) {
   const [isEditingRole, setIsEditingRole] = React.useState(false);
   const currentRole = user.admin?.role_description || null;
   const [selectedRole, setSelectedRole] = React.useState<AdminRole | null>(currentRole);
@@ -112,6 +113,13 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
   const role = user.admin?.role_description;
 
   const handleStartEditRole = () => {
+    if (!canManageRoles) {
+      toast.error("Cannot edit role", {
+        description: "Your role does not have permission to manage admin roles.",
+      });
+      return;
+    }
+
     if (status === "INACTIVE") {
       toast.error("Cannot edit role", {
         description: "Please activate the admin user before changing their role.",
@@ -212,20 +220,26 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
         ) : role ? (
           <button
             onClick={handleStartEditRole}
-            disabled={status === "INACTIVE"}
+            disabled={!canManageRoles || status === "INACTIVE"}
             className={`group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium text-foreground ${
               roleConfig[role].bgClass
             } ${roleConfig[role].borderClass} ${
-              status === "INACTIVE" 
+              !canManageRoles || status === "INACTIVE"
                 ? "opacity-50 cursor-not-allowed" 
                 : "hover:shadow-sm transition-shadow"
             }`}
-            title={status === "INACTIVE" ? "Activate admin to edit role" : "Click to edit role"}
+            title={
+              !canManageRoles
+                ? "You do not have permission to edit admin roles"
+                : status === "INACTIVE"
+                  ? "Activate admin to edit role"
+                  : "Click to edit role"
+            }
           >
             <UserCircleIcon className={`h-3 w-3 ${roleConfig[role].iconColor}`} />
             {roleConfig[role].label}
             <PencilIcon className={`h-3 w-3 ${
-              status === "INACTIVE" 
+              !canManageRoles || status === "INACTIVE"
                 ? "opacity-0" 
                 : "opacity-0 group-hover:opacity-70 transition-opacity"
             }`} />

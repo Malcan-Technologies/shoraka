@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { SidebarTrigger } from "../../../components/ui/sidebar";
 import { Separator } from "../../../components/ui/separator";
 import { SystemHealthIndicator } from "../../../components/system-health-indicator";
@@ -18,85 +19,15 @@ import { AdminUsersTable } from "../../../components/admin-users-table";
 import { AdminUsersToolbar } from "../../../components/admin-users-toolbar";
 import { PendingInvitationsTable } from "../../../components/pending-invitations-table";
 import { useAdminUsers } from "../../../hooks/use-admin-users";
+import { RequirePermission } from "../../../components/require-permission";
+import { ADMIN_ROLE_REFERENCE } from "../../../components/admin-role-metadata";
 import {
   usePendingInvitations,
   useResendInvitation,
   useRevokeInvitation,
 } from "../../../hooks/use-pending-invitations";
-import {
-  ShieldCheckIcon,
-  DocumentCheckIcon,
-  CogIcon,
-  BanknotesIcon,
-  ArrowPathIcon,
-} from "@heroicons/react/24/outline";
+import { ArrowPathIcon, AdjustmentsHorizontalIcon } from "@heroicons/react/24/outline";
 import type { AdminUser, AdminRole } from "@cashsouk/types";
-
-const roles = [
-  {
-    name: "Super Admin",
-    icon: ShieldCheckIcon,
-    color: "text-red-600",
-    bgColor: "bg-red-50",
-    borderColor: "border-red-200",
-    description:
-      "Full administrative access to all platform features and settings. Can manage all users, configure system settings, and oversee all operations.",
-    permissions: [
-      "Complete access to all modules",
-      "User and role management",
-      "Security and RBAC configuration",
-      "Platform settings and limits",
-      "All compliance and operational tools",
-    ],
-  },
-  {
-    name: "Compliance Officer",
-    icon: DocumentCheckIcon,
-    color: "text-blue-600",
-    bgColor: "bg-blue-50",
-    borderColor: "border-blue-200",
-    description:
-      "Manages regulatory compliance, KYC verification, and fraud prevention. Ensures platform adheres to Malaysian financial regulations and Shariah principles.",
-    permissions: [
-      "KYC and AML verification",
-      "Sanctions screening and blacklist management",
-      "Regulatory reporting",
-      "Access logs and audit trails",
-      "Data export for compliance",
-    ],
-  },
-  {
-    name: "Operations Officer",
-    icon: CogIcon,
-    color: "text-purple-600",
-    bgColor: "bg-purple-50",
-    borderColor: "border-purple-200",
-    description:
-      "Handles day-to-day platform operations including financing management, user support, and communication. Oversees investment processing and customer service.",
-    permissions: [
-      "Financing and investment management",
-      "User account operations",
-      "Repayment and transaction records",
-      "Customer support tools",
-      "Marketing and communications",
-    ],
-  },
-  {
-    name: "Finance Officer",
-    icon: BanknotesIcon,
-    color: "text-green-600",
-    bgColor: "bg-green-50",
-    borderColor: "border-green-200",
-    description:
-      "Manages financial operations including fund disbursements and payment processing. Monitors transaction flows and financial compliance.",
-    permissions: [
-      "Disbursement triggering",
-      "Financial compliance viewing",
-      "Data export for finance",
-      "Limited financing operations access",
-    ],
-  },
-];
 
 const ITEMS_PER_PAGE = 10;
 
@@ -182,6 +113,7 @@ export default function RolesPage() {
       </header>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        <RequirePermission permission="roles.manage">
         <div className="w-full px-2 md:px-4 py-8 space-y-6">
           {/* Page Header */}
           <div className="flex items-center justify-between">
@@ -191,9 +123,17 @@ export default function RolesPage() {
                 Manage admin user roles, permissions, and access levels.
               </p>
             </div>
-            <Button variant="action" onClick={() => setInviteDialogOpen(true)}>
-              Invite Admin User
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button variant="outline" asChild className="h-11 rounded-xl">
+                <Link href="/settings/roles/configuration">
+                  <AdjustmentsHorizontalIcon className="h-4 w-4" />
+                  Permission Configuration
+                </Link>
+              </Button>
+              <Button variant="action" onClick={() => setInviteDialogOpen(true)}>
+                Invite Admin User
+              </Button>
+            </div>
           </div>
 
           {/* Compact Role Reference Section */}
@@ -202,7 +142,7 @@ export default function RolesPage() {
               Role Definitions (hover for details)
             </p>
             <div className="flex flex-wrap gap-2">
-              {roles.map((role) => (
+              {ADMIN_ROLE_REFERENCE.map((role) => (
                 <RoleBadgeInfo key={role.name} role={role} />
               ))}
             </div>
@@ -259,9 +199,11 @@ export default function RolesPage() {
               totalPages={totalPages}
               onPageChange={setCurrentPage}
               onUpdateUser={handleUpdateUser}
+              canManageRoles
             />
           </div>
         </div>
+        </RequirePermission>
       </div>
 
       <InviteAdminDialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen} />

@@ -7,7 +7,7 @@ import {
   ReviewSection,
   OnboardingStatus,
 } from "@prisma/client";
-import { SOUKSCORE_RISK_RATING_GRADES } from "@cashsouk/types";
+import { ADMIN_PERMISSIONS, SOUKSCORE_RISK_RATING_GRADES } from "@cashsouk/types";
 
 // Helper for parsing boolean query params (handles "true"/"false" strings properly)
 const booleanQueryParam = z
@@ -106,6 +106,14 @@ export const updateAdminRoleSchema = z.object({
 });
 
 export type UpdateAdminRoleInput = z.infer<typeof updateAdminRoleSchema>;
+
+export const updateAdminRolePermissionsSchema = z.object({
+  permissions: z.array(z.enum(ADMIN_PERMISSIONS)),
+});
+
+export type UpdateAdminRolePermissionsInput = z.infer<
+  typeof updateAdminRolePermissionsSchema
+>;
 
 export const inviteAdminSchema = z.object({
   email: z.preprocess(

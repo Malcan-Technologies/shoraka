@@ -5,6 +5,7 @@ import {
   AccessLog,
   UserRole,
   Admin,
+  AdminRoleConfig,
   AdminInvitation,
   SecurityLog,
   AdminRole,
@@ -746,6 +747,28 @@ export class AdminRepository {
     return prisma.admin.update({
       where: { user_id: userId },
       data: { role_description: roleDescription },
+    });
+  }
+
+  async listAdminRoleConfigs(): Promise<AdminRoleConfig[]> {
+    return prisma.adminRoleConfig.findMany({
+      orderBy: [{ is_default: "desc" }, { name: "asc" }],
+    });
+  }
+
+  async getAdminRoleConfigByKey(key: string): Promise<AdminRoleConfig | null> {
+    return prisma.adminRoleConfig.findUnique({
+      where: { key },
+    });
+  }
+
+  async updateAdminRolePermissions(
+    key: string,
+    permissions: string[]
+  ): Promise<AdminRoleConfig> {
+    return prisma.adminRoleConfig.update({
+      where: { key },
+      data: { permissions },
     });
   }
 

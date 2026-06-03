@@ -171,7 +171,7 @@ The `AdminInvitation` model tracks pending invitations:
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|
 | GET | `/v1/admin/users` | Get paginated list of admin users with filters | ADMIN role |
-| PATCH | `/v1/admin/users/:userId/role` | Update admin user role | SUPER_ADMIN only |
+| PUT | `/v1/admin/admin-users/:id/role` | Update admin user role | `roles.manage` |
 | PATCH | `/v1/admin/users/:userId/status` | Activate/deactivate admin user | SUPER_ADMIN only |
 
 ### Invitation Management
@@ -191,11 +191,15 @@ The `AdminInvitation` model tracks pending invitations:
 
 - Only users with `ADMIN` role can access the admin portal
 - Only users with `ACTIVE` admin status can access admin features
-- Only `SUPER_ADMIN` role can:
-  - Invite new admin users
-  - Change admin roles
-  - Activate/deactivate admin accounts
-  - Resend or revoke invitations
+- Core RBAC now resolves permissions from the database-backed `admin_roles` catalog
+- `GET /v1/admin/roles` is enforced with `roles.manage`
+- `PATCH /v1/admin/roles/:key/permissions` is enforced with `roles.manage`
+- `PUT /v1/admin/admin-users/:id/role` is enforced with `roles.manage`
+- `/settings/roles` and `/settings/roles/configuration` are hidden and blocked unless the admin has `roles.manage`
+- The seeded `SUPER_ADMIN` role includes `roles.manage`; other seeded roles start with no live permissions
+- Additional admin-management endpoints on this page still use the broader `ADMIN` gate today and can be moved onto finer-grained permissions later
+
+See `docs/guides/rbac.md` for the permission catalog, runtime flow, and instructions for adding new roles and permissions.
 
 ### Invitation Security
 
@@ -309,11 +313,11 @@ All admin management actions are logged:
 ### Issue: "Cannot change admin role"
 
 **Possible Causes:**
-- User doesn't have SUPER_ADMIN role
+- User doesn't have the `roles.manage` permission
 - Backend API error
 
 **Solution:**
-1. Verify current user has SUPER_ADMIN role
+1. Verify current user has the `roles.manage` permission
 2. Check browser console for errors
 3. Check backend logs for API errors
 

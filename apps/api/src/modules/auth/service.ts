@@ -26,6 +26,7 @@ import { createHmac } from "crypto";
 import { getEnv } from "../../config/env";
 import { NotificationService } from "../notification/service";
 import { NotificationTypeIds } from "../notification/registry";
+import { resolveAdminAccess } from "../../lib/auth/rbac";
 
 const cognitoClient = new CognitoIdentityProviderClient({
   region: process.env.COGNITO_REGION || "ap-southeast-5",
@@ -512,8 +513,16 @@ export class AuthService {
    */
   async getCurrentUser(userId: string): Promise<{
     userId: string;
-    user: User & { admin: { status: string; role_description: string | null } | null };
+    user: User & {
+      admin: {
+        status: string;
+        role_description: string | null;
+      } | null;
+    };
     activeRole: UserRole | null;
+    permissions: string[];
+    roleKey: string | null;
+    roleName: string | null;
     sessions: {
       active: number;
     };
@@ -527,9 +536,8 @@ export class AuthService {
       where: { cognito_sub: userId },
       include: {
         admin: {
-          select: {
-            status: true,
-            role_description: true,
+          include: {
+            role: true,
           },
         },
       },
@@ -542,11 +550,15 @@ export class AuthService {
     const activeSession = await this.repository.findActiveSession(user.user_id);
     const activeSessionsCount = await this.repository.countActiveSessions(user.user_id);
     const recentLogins = await this.repository.findRecentLogins(user.user_id, 3);
+    const access = user.admin ? await resolveAdminAccess(prisma, user.admin) : null;
 
     return {
       userId: user.user_id,
       user,
       activeRole: activeSession?.active_role || null,
+      permissions: access?.permissions ?? [],
+      roleKey: access?.roleKey ?? null,
+      roleName: access?.roleName ?? null,
       sessions: {
         active: activeSessionsCount > 0 ? activeSessionsCount : 1,
       },

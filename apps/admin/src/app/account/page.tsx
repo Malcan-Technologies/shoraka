@@ -76,6 +76,9 @@ interface UserData {
 interface MeResponse {
   user: UserData;
   activeRole: string | null;
+   permissions: string[];
+  roleKey: string | null;
+  roleName: string | null;
   sessions: {
     active: number;
   };
@@ -217,6 +220,9 @@ export default function AccountPage() {
       queryClient.setQueryData(CURRENT_USER_QUERY_KEY, {
         user: profileData.user,
         activeRole: profileData.activeRole,
+        permissions: profileData.permissions,
+        roleKey: profileData.roleKey,
+        roleName: profileData.roleName,
         sessions: profileData.sessions,
         recentLogins: profileData.recentLogins,
       });

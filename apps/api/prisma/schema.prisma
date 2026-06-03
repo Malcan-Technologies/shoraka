@@ -124,16 +124,37 @@ model UserSession {
   @@map("user_sessions")
 }
 
+model AdminRoleConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  permissions String[] @default([])
+  is_system   Boolean  @default(false)
+  is_editable Boolean  @default(true)
+  is_default  Boolean  @default(false)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  admins      Admin[]
+
+  @@index([is_system])
+  @@index([is_default])
+  @@map("admin_roles")
+}
+
 model Admin {
   id               String    @id @default(cuid())
   user_id          String    @unique
+  role_id          String?
   role_description AdminRole
   status           String    @default("ACTIVE")
   last_login       DateTime?
   created_at       DateTime  @default(now())
   updated_at       DateTime  @updatedAt
   user             User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  role             AdminRoleConfig? @relation(fields: [role_id], references: [id], onDelete: SetNull)
 
+  @@index([role_id])
   @@index([user_id])
   @@index([status])
   @@map("admins")

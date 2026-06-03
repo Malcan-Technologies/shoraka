@@ -31,6 +31,7 @@ import type {
   UpdateUserProfileInput,
   GetAdminUsersQuery,
   UpdateAdminRoleInput,
+  UpdateAdminRolePermissionsInput,
   InviteAdminInput,
   AcceptInvitationInput,
   GetSecurityLogsQuery,
@@ -51,12 +52,16 @@ import {
 import { getIssuerRecipientUserIdsForApplication } from "../notification/application-recipients";
 import { getRegTankConfig } from "../../config/regtank";
 import type {
+  AdminRoleConfigRecord,
+  AdminPermission,
   OnboardingApprovalStatus,
   OnboardingApplicationResponse,
   OnboardingStatusEnum,
   UserDetailResponse,
 } from "@cashsouk/types";
 import {
+  ADMIN_PERMISSIONS,
+  FULL_ACCESS_ADMIN_ROLE_KEYS,
   getSectionForPendingAmendment,
   getSectionForScopeKey,
   parseItemScopeKey,
@@ -102,6 +107,7 @@ import {
   buildOfferSigningAdminView,
   contractResignBlockedByNotes,
 } from "../signingcloud/offer-signing-admin-view";
+import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
 
 const APPLICATION_ACTION_REQUIRED_STATUSES = [
   ApplicationStatus.SUBMITTED,
@@ -154,6 +160,118 @@ export class AdminService {
     this.regTankApiClient = new RegTankAPIClient();
     this.notificationService = new NotificationService();
     this.productRepository = new ProductRepository();
+  }
+
+  private sortAdminRolesCatalog(roles: AdminRoleConfigRecord[]): AdminRoleConfigRecord[] {
+    return [...roles].sort((a, b) => {
+      if (a.key === "SUPER_ADMIN") return -1;
+      if (b.key === "SUPER_ADMIN") return 1;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    });
+  }
+
+  private async countAdminRoleAssignments(): Promise<Map<string, number>> {
+    const rows = await prisma.admin.groupBy({
+      by: ["role_description"],
+      _count: { _all: true },
+    });
+
+    const counts = new Map<string, number>();
+    for (const row of rows) {
+      counts.set(row.role_description, row._count._all);
+    }
+
+    return counts;
+  }
+
+  private toAdminRoleConfigRecord(
+    role: {
+      id: string;
+      key: string;
+      name: string;
+      description: string | null;
+      permissions: string[];
+      is_system: boolean;
+      is_editable: boolean;
+      is_default: boolean;
+    },
+    memberCount: number
+  ): AdminRoleConfigRecord {
+    return {
+      id: role.id,
+      key: role.key,
+      name: role.name,
+      description: role.description,
+      permissions: role.permissions.filter((permission): permission is AdminPermission =>
+        ADMIN_PERMISSIONS.includes(permission as AdminPermission)
+      ),
+      isSystem: role.is_system,
+      isEditable: role.is_editable,
+      isDefault: role.is_default,
+      memberCount,
+    };
+  }
+
+  async listAdminRoleConfigs(): Promise<{ roles: AdminRoleConfigRecord[] }> {
+    await ensureAdminRoleCatalog(prisma);
+
+    const [roles, roleCounts] = await Promise.all([
+      this.repository.listAdminRoleConfigs(),
+      this.countAdminRoleAssignments(),
+    ]);
+
+    return {
+      roles: this.sortAdminRolesCatalog(
+        roles.map((role) =>
+          this.toAdminRoleConfigRecord(role, roleCounts.get(role.key) ?? 0)
+        )
+      ),
+    };
+  }
+
+  async updateAdminRolePermissions(
+    req: Request,
+    roleKey: string,
+    data: UpdateAdminRolePermissionsInput,
+    updatedBy: string
+  ): Promise<{ role: AdminRoleConfigRecord }> {
+    await ensureAdminRoleCatalog(prisma);
+
+    const role = await this.repository.getAdminRoleConfigByKey(roleKey);
+    if (!role) {
+      throw new AppError(404, "NOT_FOUND", "Admin role not found");
+    }
+
+    if (!role.is_editable || FULL_ACCESS_ADMIN_ROLE_KEYS.includes(role.key as AdminRole)) {
+      throw new AppError(403, "FORBIDDEN", "This admin role cannot be edited");
+    }
+
+    const updatedRole = await this.repository.updateAdminRolePermissions(
+      roleKey,
+      [...new Set(data.permissions)]
+    );
+    const roleCounts = await this.countAdminRoleAssignments();
+
+    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
+    await this.repository.createSecurityLog({
+      userId: updatedBy,
+      eventType: "ROLE_PERMISSIONS_UPDATED",
+      ipAddress,
+      userAgent,
+      deviceInfo,
+      metadata: {
+        roleKey,
+        previousPermissions: role.permissions,
+        nextPermissions: updatedRole.permissions,
+      },
+    });
+
+    return {
+      role: this.toAdminRoleConfigRecord(
+        updatedRole,
+        roleCounts.get(updatedRole.key) ?? 0
+      ),
+    };
   }
 
   private async sendIssuerNotification<T extends NotificationTypeId>(

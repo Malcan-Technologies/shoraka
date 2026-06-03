@@ -12,6 +12,7 @@ interface AdminUsersTableProps {
   totalPages: number;
   onPageChange: (page: number) => void;
   onUpdateUser: (userId: string, updates: Partial<AdminUser>) => void;
+  canManageRoles: boolean;
 }
 
 function TableSkeleton() {
@@ -53,6 +54,7 @@ export function AdminUsersTable({
   totalPages,
   onPageChange,
   onUpdateUser,
+  canManageRoles,
 }: AdminUsersTableProps) {
 
 
@@ -84,7 +86,12 @@ export function AdminUsersTable({
                 users
                   .filter((user) => user.user_id) // Filter out users without user_id
                   .map((user) => (
-                    <AdminUserTableRow key={user.user_id!} user={user} onUpdate={onUpdateUser} />
+                    <AdminUserTableRow
+                      key={user.user_id!}
+                      user={user}
+                      onUpdate={onUpdateUser}
+                      canManageRoles={canManageRoles}
+                    />
                   ))
               )}
             </TableBody>
