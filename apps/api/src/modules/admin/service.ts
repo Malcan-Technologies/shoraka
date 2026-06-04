@@ -171,14 +171,36 @@ export class AdminService {
   }
 
   private async countAdminRoleAssignments(): Promise<Map<string, number>> {
-    const rows = await prisma.admin.groupBy({
-      by: ["role_description"],
+    const roleIdRows = await prisma.admin.groupBy({
+      by: ["role_id"],
       _count: { _all: true },
     });
 
+    const roleIds = roleIdRows
+      .map((row) => row.role_id)
+      .filter((roleId): roleId is string => roleId !== null);
+
+    const roleConfigs = roleIds.length
+      ? await prisma.adminRoleConfig.findMany({
+          where: { id: { in: roleIds } },
+          select: { id: true, key: true },
+        })
+      : [];
+
+    const roleKeyById = new Map(roleConfigs.map((role) => [role.id, role.key]));
     const counts = new Map<string, number>();
-    for (const row of rows) {
-      counts.set(row.role_description, row._count._all);
+
+    for (const row of roleIdRows) {
+      if (!row.role_id) {
+        continue;
+      }
+
+      const roleKey = roleKeyById.get(row.role_id);
+      if (!roleKey) {
+        continue;
+      }
+
+      counts.set(roleKey, row._count._all);
     }
 
     return counts;

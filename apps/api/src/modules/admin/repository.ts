@@ -30,8 +30,24 @@ import {
   resolveRequestedFacility,
   resolveOfferedFacility,
 } from "../../lib/contract-facility";
+import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
 
 export class AdminRepository {
+  private async resolveAdminRoleId(roleKey: AdminRole): Promise<string> {
+    await ensureAdminRoleCatalog(prisma);
+
+    const role = await prisma.adminRoleConfig.findUnique({
+      where: { key: roleKey },
+      select: { id: true },
+    });
+
+    if (!role) {
+      throw new Error(`Admin role catalog entry not found for role ${roleKey}`);
+    }
+
+    return role.id;
+  }
+
   /**
    * Get users with pagination and filters
    */
@@ -731,9 +747,12 @@ export class AdminRepository {
    * Create Admin record
    */
   async createAdmin(userId: string, roleDescription: AdminRole): Promise<Admin> {
+    const roleId = await this.resolveAdminRoleId(roleDescription);
+
     return prisma.admin.create({
       data: {
         user_id: userId,
+        role_id: roleId,
         role_description: roleDescription,
         status: "ACTIVE",
       },
@@ -744,9 +763,14 @@ export class AdminRepository {
    * Update admin role description
    */
   async updateAdminRole(userId: string, roleDescription: AdminRole): Promise<Admin> {
+    const roleId = await this.resolveAdminRoleId(roleDescription);
+
     return prisma.admin.update({
       where: { user_id: userId },
-      data: { role_description: roleDescription },
+      data: {
+        role_id: roleId,
+        role_description: roleDescription,
+      },
     });
   }
 
