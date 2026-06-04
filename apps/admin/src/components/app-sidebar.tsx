@@ -192,6 +192,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { can } = usePermissions();
   const canManageRoles = can("roles.manage");
+  const canManageNotifications = can("notifications.manage");
   const { data: pendingCountData } = usePendingApprovalCount();
   const { data: noteActionCountData } = useNoteActionRequiredCount();
   const { data: pendingRepaymentsData } = usePendingRepayments();
@@ -490,7 +491,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                             {item.items
                               .filter(
                                 (subItem) =>
-                                  subItem.url !== "/settings/roles" || canManageRoles
+                                  (subItem.url !== "/settings/roles" || canManageRoles) &&
+                                  (subItem.url !== "/settings/notifications" || canManageNotifications)
                               )
                               .map((subItem) => (
                               <SidebarMenuSubItem key={subItem.title}>

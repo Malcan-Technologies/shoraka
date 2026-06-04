@@ -2,6 +2,7 @@ import { AdminRole } from "./admin";
 
 export const ADMIN_PERMISSIONS = [
   "roles.manage",
+  "notifications.manage",
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
@@ -16,7 +17,7 @@ export const DEFAULT_ADMIN_ROLE_KEYS = [
 export type DefaultAdminRoleKey = (typeof DEFAULT_ADMIN_ROLE_KEYS)[number];
 export type AdminRoleKey = DefaultAdminRoleKey | (string & {});
 
-export const ADMIN_ROLE_CATALOG_REVISION = 3;
+export const ADMIN_ROLE_CATALOG_REVISION = 4;
 
 export interface AdminRoleTemplate {
   key: AdminRoleKey;
@@ -107,7 +108,7 @@ export const DEFAULT_ADMIN_ROLE_TEMPLATES: AdminRoleTemplate[] = [
     isSystem: true,
     isEditable: true,
     isDefault: true,
-    permissions: [],
+    permissions: pickPermissions("notifications.manage"),
   },
   {
     key: AdminRole.FINANCE_OFFICER,
@@ -128,4 +129,10 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
     description: "Manage the admin role catalog, permission matrices, and admin role assignments.",
     permissions: pickPermissions("roles.manage"),
   },
+  {
+    key: "notificationAdministration",
+    label: "Notification Administration",
+    description: "Manage the notification system, including notification types, groups, and logs.",
+    permissions: pickPermissions("notifications.manage"),
+  }
 ];

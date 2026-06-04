@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { NotificationService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
-import { requireAuth, requireRole } from "../../lib/auth/middleware";
+import { requireAuth, requirePermission, requireRole } from "../../lib/auth/middleware";
 import {
   NotificationFiltersSchema,
   UpdatePreferenceSchema,
@@ -247,7 +247,7 @@ router.put(
 router.get(
   "/admin/types",
   requireAuth,
-  requireRole(UserRole.ADMIN),
+  requirePermission("notifications.manage"),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await notificationService.getAllNotificationTypes();
@@ -289,7 +289,7 @@ router.get(
 router.patch(
   "/admin/types/:id",
   requireAuth,
-  requireRole(UserRole.ADMIN),
+  requirePermission("notifications.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = UpdateNotificationTypeSchema.parse(req.body);
@@ -326,7 +326,7 @@ router.patch(
 router.post(
   "/admin/send",
   requireAuth,
-  requireRole(UserRole.ADMIN),
+  requirePermission("notifications.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = AdminSendNotificationSchema.parse(req.body);
@@ -389,7 +389,7 @@ router.post(
 router.get(
   "/admin/logs",
   requireAuth,
-  requireRole(UserRole.ADMIN),
+  requirePermission("notifications.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const filters = {
@@ -414,7 +414,7 @@ router.get(
 router.get(
   "/admin/groups",
   requireAuth,
-  requireRole(UserRole.ADMIN),
+  requirePermission("notifications.manage"),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const groups = await notificationService.getAllNotificationGroups();
@@ -432,7 +432,7 @@ router.get(
 router.post(
   "/admin/groups",
   requireAuth,
-  requireRole(UserRole.ADMIN),
+  requirePermission("notifications.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = CreateNotificationGroupSchema.parse(req.body);
@@ -489,7 +489,7 @@ router.post(
 router.patch(
   "/admin/groups/:id",
   requireAuth,
-  requireRole(UserRole.ADMIN),
+  requirePermission("notifications.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = UpdateNotificationGroupSchema.parse(req.body);
@@ -508,7 +508,7 @@ router.patch(
 router.delete(
   "/admin/groups/:id",
   requireAuth,
-  requireRole(UserRole.ADMIN),
+  requirePermission("notifications.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await notificationService.deleteNotificationGroup(req.params.id);
@@ -526,7 +526,7 @@ router.delete(
 router.post(
   "/admin/seed-types",
   requireAuth,
-  requireRole(UserRole.ADMIN),
+  requirePermission("notifications.manage"),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await notificationService.seedNotificationTypes();
