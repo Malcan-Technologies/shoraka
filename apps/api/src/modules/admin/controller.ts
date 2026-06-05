@@ -12,7 +12,9 @@ import {
   updateUserProfileSchema,
   updateUserIdSchema,
   exportAccessLogsQuerySchema,
+  adminRoleParamsSchema,
   getAdminUsersQuerySchema,
+  createAdminRoleSchema,
   updateAdminRoleSchema,
   updateAdminRolePermissionsSchema,
   inviteAdminSchema,
@@ -107,12 +109,40 @@ router.get(
   }
 );
 
+router.post(
+  "/roles",
+  requirePermission("roles.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = createAdminRoleSchema.parse(req.body);
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const result = await adminService.createAdminRole(
+        req,
+        validated,
+        req.user.user_id
+      );
+
+      res.status(201).json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 router.patch(
   "/roles/:key/permissions",
   requirePermission("roles.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { key } = req.params;
+      const { key } = adminRoleParamsSchema.parse(req.params);
       const validated = updateAdminRolePermissionsSchema.parse(req.body);
 
       if (!req.user) {
@@ -125,6 +155,30 @@ router.patch(
         validated,
         req.user.user_id
       );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.delete(
+  "/roles/:key",
+  requirePermission("roles.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { key } = adminRoleParamsSchema.parse(req.params);
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const result = await adminService.deleteAdminRole(req, key, req.user.user_id);
 
       res.json({
         success: true,

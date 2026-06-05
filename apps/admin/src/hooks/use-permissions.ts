@@ -1,15 +1,16 @@
 "use client";
 
-import type { AdminPermission } from "@cashsouk/types";
+import { FULL_ACCESS_ADMIN_ROLE_KEYS, type AdminPermission } from "@cashsouk/types";
 import { useCurrentUser } from "./use-current-user";
 
 export function usePermissions() {
   const { data, isLoading } = useCurrentUser();
   const permissions = data?.permissions ?? [];
   const roleKey = data?.roleKey;
+  const hasFullAccessRole = roleKey ? FULL_ACCESS_ADMIN_ROLE_KEYS.includes(roleKey) : false;
 
   const can = (permission: AdminPermission): boolean => {
-    if (roleKey === "SUPER_ADMIN") {
+    if (hasFullAccessRole) {
       return true;
     }
 
@@ -17,7 +18,7 @@ export function usePermissions() {
   };
 
   const canAny = (...requiredPermissions: AdminPermission[]): boolean => {
-    if (roleKey === "SUPER_ADMIN") {
+    if (hasFullAccessRole) {
       return true;
     }
 

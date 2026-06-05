@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { NotificationService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
-import { requireAuth, requirePermission, requireRole } from "../../lib/auth/middleware";
+import { requireAuth, requirePermission } from "../../lib/auth/middleware";
 import {
   NotificationFiltersSchema,
   UpdatePreferenceSchema,
@@ -10,7 +10,6 @@ import {
   CreateNotificationGroupSchema,
   UpdateNotificationGroupSchema,
 } from "./schemas";
-import { UserRole } from "@prisma/client";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 
 const router = Router();

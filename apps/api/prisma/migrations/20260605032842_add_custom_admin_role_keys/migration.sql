@@ -1,0 +1,3 @@
+-- Intentionally left blank.
+-- This migration is kept as a no-op because the AdminRole enum was already
+-- created by earlier migration history.

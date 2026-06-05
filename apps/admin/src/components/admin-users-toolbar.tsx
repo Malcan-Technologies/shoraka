@@ -16,13 +16,15 @@ import {
   XMarkIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
-import { AdminRole } from "@cashsouk/types";
+import type { AdminRoleConfigRecord, AdminRoleKey } from "@cashsouk/types";
+import { getAdminRoleDisplayInfo } from "./admin-role-metadata";
 
 interface AdminUsersToolbarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  selectedRoles: AdminRole[];
-  onRolesChange: (roles: AdminRole[]) => void;
+  availableRoles: AdminRoleConfigRecord[];
+  selectedRoles: AdminRoleKey[];
+  onRolesChange: (roles: AdminRoleKey[]) => void;
   selectedStatuses: ("ACTIVE" | "INACTIVE")[];
   onStatusesChange: (statuses: ("ACTIVE" | "INACTIVE")[]) => void;
   totalCount: number;
@@ -30,13 +32,6 @@ interface AdminUsersToolbarProps {
   onReload?: () => void;
   isLoading?: boolean;
 }
-
-const roleOptions: { value: AdminRole; label: string }[] = [
-  { value: AdminRole.SUPER_ADMIN, label: "Super Admin" },
-  { value: AdminRole.COMPLIANCE_OFFICER, label: "Compliance Officer" },
-  { value: AdminRole.OPERATIONS_OFFICER, label: "Operations Officer" },
-  { value: AdminRole.FINANCE_OFFICER, label: "Finance Officer" },
-];
 
 const statusOptions: { value: "ACTIVE" | "INACTIVE"; label: string }[] = [
   { value: "ACTIVE", label: "Active" },
@@ -46,6 +41,7 @@ const statusOptions: { value: "ACTIVE" | "INACTIVE"; label: string }[] = [
 export function AdminUsersToolbar({
   searchQuery,
   onSearchChange,
+  availableRoles,
   selectedRoles,
   onRolesChange,
   selectedStatuses,
@@ -69,13 +65,23 @@ export function AdminUsersToolbar({
     setTimeout(() => setIsSpinning(false), 500);
   };
 
-  const handleRoleToggle = (role: AdminRole) => {
+  const handleRoleToggle = (role: AdminRoleKey) => {
     if (selectedRoles.includes(role)) {
       onRolesChange(selectedRoles.filter((r) => r !== role));
     } else {
       onRolesChange([...selectedRoles, role]);
     }
   };
+
+  const roleOptions = availableRoles.map((role) => ({
+    value: role.key,
+    label: getAdminRoleDisplayInfo(
+      role.key,
+      role.name,
+      role.description,
+      role.badgeColor
+    ).name,
+  }));
 
   const handleStatusToggle = (status: "ACTIVE" | "INACTIVE") => {
     if (selectedStatuses.includes(status)) {

@@ -84,7 +84,12 @@ function CallbackPageContent() {
             loginUrl.searchParams.set("invitation_role", invitationRole);
           }
           // Set the callback URL to preserve invitation through OAuth flow
-          loginUrl.searchParams.set("callback_url", `${ADMIN_URL}/callback?invitation=${invitationToken}&role=${invitationRole || "SUPER_ADMIN"}`);
+          const callbackUrl = new URL(`${ADMIN_URL}/callback`);
+          callbackUrl.searchParams.set("invitation", invitationToken);
+          if (invitationRole) {
+            callbackUrl.searchParams.set("role", invitationRole);
+          }
+          loginUrl.searchParams.set("callback_url", callbackUrl.toString());
           
           window.location.href = loginUrl.toString();
           return;

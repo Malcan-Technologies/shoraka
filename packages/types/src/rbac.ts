@@ -1,4 +1,4 @@
-import { AdminRole } from "./admin";
+import { AdminRole, type AdminRoleKey } from "./admin";
 
 export const ADMIN_PERMISSIONS = [
   "roles.manage",
@@ -7,25 +7,20 @@ export const ADMIN_PERMISSIONS = [
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
 
-export const DEFAULT_ADMIN_ROLE_KEYS = [
-  AdminRole.SUPER_ADMIN,
-  AdminRole.COMPLIANCE_OFFICER,
-  AdminRole.OPERATIONS_OFFICER,
-  AdminRole.FINANCE_OFFICER,
-] as const;
+export type AdminRoleBadgeColor = `#${string}`;
 
-export type DefaultAdminRoleKey = (typeof DEFAULT_ADMIN_ROLE_KEYS)[number];
-export type AdminRoleKey = DefaultAdminRoleKey | (string & {});
+export const DEFAULT_ADMIN_ROLE_BADGE_COLOR: AdminRoleBadgeColor = "#475569";
+export const SUPER_ADMIN_BADGE_COLOR: AdminRoleBadgeColor = "#DC2626";
 
-export const ADMIN_ROLE_CATALOG_REVISION = 4;
+export const SYSTEM_ADMIN_ROLE_KEYS = [AdminRole.SUPER_ADMIN] as const;
 
-export interface AdminRoleTemplate {
+export interface SystemAdminRoleTemplate {
   key: AdminRoleKey;
   name: string;
   description: string;
+  badgeColor: AdminRoleBadgeColor;
   isSystem: boolean;
   isEditable: boolean;
-  isDefault: boolean;
   permissions: AdminPermission[];
 }
 
@@ -44,7 +39,6 @@ export interface ResolvedAdminAccess {
   isSuperAdmin: boolean;
   isSystemRole: boolean;
   isEditable: boolean;
-  isDefaultRole: boolean;
 }
 
 export interface AdminRoleConfigRecord {
@@ -52,10 +46,10 @@ export interface AdminRoleConfigRecord {
   key: AdminRoleKey;
   name: string;
   description: string | null;
+  badgeColor: AdminRoleBadgeColor;
   permissions: AdminPermission[];
   isSystem: boolean;
   isEditable: boolean;
-  isDefault: boolean;
   memberCount: number;
 }
 
@@ -67,8 +61,16 @@ export interface AdminRoleConfigResponse {
   role: AdminRoleConfigRecord;
 }
 
+export interface CreateAdminRoleInput {
+  key: AdminRoleKey;
+  name: string;
+  description?: string;
+  badgeColor: AdminRoleBadgeColor;
+}
+
 export interface UpdateAdminRolePermissionsInput {
   permissions: AdminPermission[];
+  badgeColor: AdminRoleBadgeColor;
 }
 
 export const FULL_ACCESS_ADMIN_ROLE_KEYS: AdminRoleKey[] = [AdminRole.SUPER_ADMIN];
@@ -79,48 +81,16 @@ function pickPermissions(...permissions: AdminPermission[]): AdminPermission[] {
   return permissions;
 }
 
-export const DEFAULT_ADMIN_ROLE_TEMPLATES: AdminRoleTemplate[] = [
-  {
-    key: AdminRole.SUPER_ADMIN,
-    name: "Super Admin",
-    description:
-      "Full administrative access to all platform features, role configuration, and sensitive operational controls.",
-    isSystem: true,
-    isEditable: false,
-    isDefault: true,
-    permissions: allPermissions,
-  },
-  {
-    key: AdminRole.COMPLIANCE_OFFICER,
-    name: "Compliance Officer",
-    description:
-      "Reviews regulated workflows, investigations, and audit data without managing platform configuration.",
-    isSystem: true,
-    isEditable: true,
-    isDefault: true,
-    permissions: [],
-  },
-  {
-    key: AdminRole.OPERATIONS_OFFICER,
-    name: "Operations Officer",
-    description:
-      "Runs daily platform operations across users, organizations, financing workflows, and notes.",
-    isSystem: true,
-    isEditable: true,
-    isDefault: true,
-    permissions: pickPermissions("notifications.manage"),
-  },
-  {
-    key: AdminRole.FINANCE_OFFICER,
-    name: "Finance Officer",
-    description:
-      "Monitors financing operations and financial controls, including disbursement actions and related records.",
-    isSystem: true,
-    isEditable: true,
-    isDefault: true,
-    permissions: [],
-  },
-];
+export const SUPER_ADMIN_ROLE_TEMPLATE: SystemAdminRoleTemplate = {
+  key: AdminRole.SUPER_ADMIN,
+  name: "Super Admin",
+  description:
+    "Full administrative access to all platform features, role configuration, and sensitive operational controls.",
+  badgeColor: SUPER_ADMIN_BADGE_COLOR,
+  isSystem: true,
+  isEditable: false,
+  permissions: allPermissions,
+};
 
 export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
   {

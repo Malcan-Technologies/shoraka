@@ -13,30 +13,30 @@ import {
   BreadcrumbSeparator,
 } from "../../../components/ui/breadcrumb";
 import { Button } from "../../../components/ui/button";
-import { RoleBadgeInfo } from "../../../components/role-badge-info";
 import { InviteAdminDialog } from "../../../components/invite-admin-dialog";
 import { AdminUsersTable } from "../../../components/admin-users-table";
 import { AdminUsersToolbar } from "../../../components/admin-users-toolbar";
 import { PendingInvitationsTable } from "../../../components/pending-invitations-table";
 import { useAdminUsers } from "../../../hooks/use-admin-users";
+import { useAdminRoleConfigs } from "../../../hooks/use-admin-role-config";
 import { RequirePermission } from "../../../components/require-permission";
-import { ADMIN_ROLE_REFERENCE } from "../../../components/admin-role-metadata";
 import {
   usePendingInvitations,
   useResendInvitation,
   useRevokeInvitation,
 } from "../../../hooks/use-pending-invitations";
 import { ArrowPathIcon, AdjustmentsHorizontalIcon } from "@heroicons/react/24/outline";
-import type { AdminUser, AdminRole } from "@cashsouk/types";
+import type { AdminRoleKey, AdminUser } from "@cashsouk/types";
 
 const ITEMS_PER_PAGE = 10;
 
 export default function RolesPage() {
   const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [selectedRoles, setSelectedRoles] = React.useState<AdminRole[]>([]);
+  const [selectedRoles, setSelectedRoles] = React.useState<AdminRoleKey[]>([]);
   const [selectedStatuses, setSelectedStatuses] = React.useState<("ACTIVE" | "INACTIVE")[]>([]);
   const [currentPage, setCurrentPage] = React.useState(1);
+  const { data: availableRoles = [] } = useAdminRoleConfigs();
 
   // Pending invitations state
   const [invitationsPage, setInvitationsPage] = React.useState(1);
@@ -136,18 +136,6 @@ export default function RolesPage() {
             </div>
           </div>
 
-          {/* Compact Role Reference Section */}
-          <div className="px-4 py-3 bg-muted/20 rounded-lg border border-border">
-            <p className="text-xs text-muted-foreground mb-2">
-              Role Definitions (hover for details)
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {ADMIN_ROLE_REFERENCE.map((role) => (
-                <RoleBadgeInfo key={role.name} role={role} />
-              ))}
-            </div>
-          </div>
-
           {/* Pending Invitations Section */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -166,6 +154,7 @@ export default function RolesPage() {
             </div>
             <PendingInvitationsTable
               invitations={pendingInvitations}
+              availableRoles={availableRoles}
               isLoading={invitationsLoading}
               currentPage={invitationsPage}
               totalPages={invitationsTotalPages}
@@ -183,6 +172,7 @@ export default function RolesPage() {
             <AdminUsersToolbar
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
+              availableRoles={availableRoles}
               selectedRoles={selectedRoles}
               onRolesChange={(roles) => setSelectedRoles(roles)}
               selectedStatuses={selectedStatuses}
@@ -194,6 +184,7 @@ export default function RolesPage() {
             />
             <AdminUsersTable
               users={adminUsers}
+              availableRoles={availableRoles}
               isLoading={isLoading}
               currentPage={currentPage}
               totalPages={totalPages}
@@ -206,7 +197,11 @@ export default function RolesPage() {
         </RequirePermission>
       </div>
 
-      <InviteAdminDialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen} />
+      <InviteAdminDialog
+        open={inviteDialogOpen}
+        onOpenChange={setInviteDialogOpen}
+        availableRoles={availableRoles}
+      />
     </>
   );
 }

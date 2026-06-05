@@ -1,27 +1,38 @@
-import { AdminRole, OrganizationMemberRole } from "@prisma/client";
+import { OrganizationMemberRole } from "@prisma/client";
+import { type AdminRoleKey, SUPER_ADMIN_ROLE_TEMPLATE } from "@cashsouk/types";
 
-const roleLabels: Record<AdminRole, string> = {
-  SUPER_ADMIN: "Super Admin",
-  COMPLIANCE_OFFICER: "Compliance Officer",
-  OPERATIONS_OFFICER: "Operations Officer",
-  FINANCE_OFFICER: "Finance Officer",
-};
+interface AdminInvitationRoleCopy {
+  key: AdminRoleKey;
+  name: string;
+  description?: string | null;
+}
 
-const roleDescriptions: Record<AdminRole, string> = {
-  SUPER_ADMIN: "Full administrative access to all platform features and settings",
-  COMPLIANCE_OFFICER: "Manages regulatory compliance, KYC verification, and fraud prevention",
-  OPERATIONS_OFFICER:
-    "Handles day-to-day platform operations including loan management and user support",
-  FINANCE_OFFICER: "Manages financial operations, transactions, and reporting",
-};
+function formatRoleLabel(role: AdminRoleKey): string {
+  return role
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function formatRoleDescription(role: AdminInvitationRoleCopy): string {
+  if (role.description?.trim()) {
+    return role.description.trim();
+  }
+
+  if (role.key === SUPER_ADMIN_ROLE_TEMPLATE.key) {
+    return SUPER_ADMIN_ROLE_TEMPLATE.description;
+  }
+
+  return "Admin role with a tailored permission set for your organization.";
+}
 
 export function adminInvitationTemplate(
   inviteLink: string,
-  role: AdminRole,
+  role: AdminInvitationRoleCopy,
   inviterName?: string
 ): { subject: string; html: string; text: string } {
-  const roleLabel = roleLabels[role];
-  const roleDescription = roleDescriptions[role];
+  const roleLabel = role.name.trim() || formatRoleLabel(role.key);
+  const roleDescription = formatRoleDescription(role);
   const inviterText = inviterName ? ` by ${inviterName}` : "";
 
   const subject = `You've been invited to join CashSouk as ${roleLabel}`;

@@ -144,7 +144,7 @@ The `Admin` model stores admin-specific information:
 |-------|------|-------------|
 | `id` | String (CUID) | Unique identifier |
 | `user_id` | String (FK) | Reference to User table |
-| `role_description` | AdminRole (enum) | SUPER_ADMIN, COMPLIANCE_OFFICER, OPERATIONS_OFFICER, FINANCE_OFFICER |
+| `role_description` | String | Role key from the `admin_roles` catalog (e.g. `SUPER_ADMIN`, custom keys) |
 | `status` | String | ACTIVE or INACTIVE |
 | `created_at` | DateTime | Creation timestamp |
 | `updated_at` | DateTime | Last update timestamp |
@@ -157,7 +157,7 @@ The `AdminInvitation` model tracks pending invitations:
 |-------|------|-------------|
 | `id` | String (CUID) | Unique identifier |
 | `email` | String (optional) | Email address (optional for link-based invitations) |
-| `role_description` | AdminRole (enum) | Role to assign when invitation is accepted |
+| `role_description` | String | Role key to assign when invitation is accepted |
 | `token` | String (unique) | Unique invitation token |
 | `invited_by` | String (FK) | Reference to User who sent invitation |
 | `expires_at` | DateTime | Invitation expiry date (default: 24 hours, configurable via `INVITATION_TOKEN_EXPIRY_HOURS`) |

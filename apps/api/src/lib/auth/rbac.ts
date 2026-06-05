@@ -1,21 +1,14 @@
 import type { Admin, AdminRoleConfig, PrismaClient } from "@prisma/client";
 import {
   ADMIN_PERMISSIONS,
-  ADMIN_ROLE_CATALOG_REVISION,
-  DEFAULT_ADMIN_ROLE_TEMPLATES,
   FULL_ACCESS_ADMIN_ROLE_KEYS,
+  SUPER_ADMIN_ROLE_TEMPLATE,
   type AdminPermission,
   type AdminRoleKey,
-  type AdminRoleTemplate,
   type ResolvedAdminAccess,
 } from "@cashsouk/types";
 
 const validPermissions = new Set<string>(ADMIN_PERMISSIONS);
-const roleTemplateByKey = new Map(
-  DEFAULT_ADMIN_ROLE_TEMPLATES.map((template) => [template.key, template])
-);
-
-let syncedCatalogRevision: number | null = null;
 let syncPromise: Promise<void> | null = null;
 
 type AdminWithRoleConfig = Pick<Admin, "id" | "role_id" | "role_description"> & {
@@ -28,10 +21,6 @@ function sanitizePermissions(permissions: string[]): AdminPermission[] {
   );
 }
 
-function getDefaultTemplate(roleKey: string): AdminRoleTemplate | undefined {
-  return roleTemplateByKey.get(roleKey as AdminRoleKey);
-}
-
 function toResolvedAccess(
   role: Pick<
     AdminRoleConfig,
@@ -40,6 +29,7 @@ function toResolvedAccess(
 ): ResolvedAdminAccess {
   const isSuperAdmin = FULL_ACCESS_ADMIN_ROLE_KEYS.includes(role.key as AdminRoleKey);
   const permissions = isSuperAdmin ? [...ADMIN_PERMISSIONS] : sanitizePermissions(role.permissions);
+  const isSystemRole = role.key === SUPER_ADMIN_ROLE_TEMPLATE.key;
 
   return {
     roleKey: role.key as AdminRoleKey,
@@ -47,59 +37,39 @@ function toResolvedAccess(
     description: role.description ?? null,
     permissions,
     isSuperAdmin,
-    isSystemRole: role.is_system,
-    isEditable: role.is_editable,
-    isDefaultRole: role.is_default,
+    isSystemRole,
+    isEditable: !isSystemRole,
   };
 }
 
-async function syncTemplate(
-  prisma: PrismaClient,
-  template: AdminRoleTemplate
-): Promise<void> {
+async function syncSuperAdminRole(prisma: PrismaClient): Promise<void> {
   await prisma.adminRoleConfig.upsert({
-    where: { key: template.key },
+    where: { key: SUPER_ADMIN_ROLE_TEMPLATE.key },
     create: {
-      key: template.key,
-      name: template.name,
-      description: template.description,
-      permissions: template.permissions,
-      is_system: template.isSystem,
-      is_editable: template.isEditable,
-      is_default: template.isDefault,
+      key: SUPER_ADMIN_ROLE_TEMPLATE.key,
+      name: SUPER_ADMIN_ROLE_TEMPLATE.name,
+      description: SUPER_ADMIN_ROLE_TEMPLATE.description,
+      badge_color: SUPER_ADMIN_ROLE_TEMPLATE.badgeColor,
+      permissions: SUPER_ADMIN_ROLE_TEMPLATE.permissions,
+      is_system: true,
+      is_editable: false,
+      is_default: false,
     },
-    update: template.isEditable
-      ? {
-          name: template.name,
-          description: template.description,
-          is_system: template.isSystem,
-          is_editable: template.isEditable,
-          is_default: template.isDefault,
-        }
-      : {
-          name: template.name,
-          description: template.description,
-          permissions: template.permissions,
-          is_system: template.isSystem,
-          is_editable: template.isEditable,
-          is_default: template.isDefault,
-        },
+    update: {
+      name: SUPER_ADMIN_ROLE_TEMPLATE.name,
+      description: SUPER_ADMIN_ROLE_TEMPLATE.description,
+      permissions: SUPER_ADMIN_ROLE_TEMPLATE.permissions,
+      is_system: true,
+      is_editable: false,
+      // The legacy column still exists, but the product no longer models default roles.
+      is_default: false,
+    },
   });
 }
 
 export async function ensureAdminRoleCatalog(prisma: PrismaClient): Promise<void> {
-  if (syncedCatalogRevision === ADMIN_ROLE_CATALOG_REVISION) {
-    return;
-  }
-
   if (!syncPromise) {
-    syncPromise = (async () => {
-      for (const template of DEFAULT_ADMIN_ROLE_TEMPLATES) {
-        await syncTemplate(prisma, template);
-      }
-
-      syncedCatalogRevision = ADMIN_ROLE_CATALOG_REVISION;
-    })().finally(() => {
+    syncPromise = syncSuperAdminRole(prisma).finally(() => {
       syncPromise = null;
     });
   }
@@ -130,21 +100,5 @@ export async function resolveAdminAccess(
     return toResolvedAccess(roleConfig);
   }
 
-  const fallbackTemplate = getDefaultTemplate(admin.role_description);
-  if (!fallbackTemplate) {
-    throw new Error(`Unable to resolve admin RBAC role for admin ${admin.id}`);
-  }
-
-  return {
-    roleKey: fallbackTemplate.key,
-    roleName: fallbackTemplate.name,
-    description: fallbackTemplate.description,
-    permissions: FULL_ACCESS_ADMIN_ROLE_KEYS.includes(fallbackTemplate.key)
-      ? [...ADMIN_PERMISSIONS]
-      : [...fallbackTemplate.permissions],
-    isSuperAdmin: FULL_ACCESS_ADMIN_ROLE_KEYS.includes(fallbackTemplate.key),
-    isSystemRole: fallbackTemplate.isSystem,
-    isEditable: fallbackTemplate.isEditable,
-    isDefaultRole: fallbackTemplate.isDefault,
-  };
+  throw new Error(`Unable to resolve admin RBAC role for admin ${admin.id}`);
 }

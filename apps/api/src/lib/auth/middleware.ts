@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { AppError } from "../http/error-handler";
 import { Admin, AdminRoleConfig, User, UserRole } from "@prisma/client";
-import type { AdminPermission, AdminRoleKey } from "@cashsouk/types";
+import { FULL_ACCESS_ADMIN_ROLE_KEYS, type AdminPermission, type AdminRoleKey } from "@cashsouk/types";
 import { prisma } from "../prisma";
 import { verifyCognitoAccessToken } from "./cognito-jwt-verifier";
 import { resolveAdminAccess } from "./rbac";
@@ -175,7 +175,7 @@ function hasRequiredPermissions(req: Request, permissions: AdminPermission[]): b
     return false;
   }
 
-  if (req.adminRoleKey === "SUPER_ADMIN") {
+  if (req.adminRoleKey && FULL_ACCESS_ADMIN_ROLE_KEYS.includes(req.adminRoleKey)) {
     return true;
   }
 
@@ -206,7 +206,7 @@ export function requireAnyPermission(...permissions: AdminPermission[]) {
       return;
     }
 
-    if (req.adminRoleKey === "SUPER_ADMIN") {
+    if (req.adminRoleKey && FULL_ACCESS_ADMIN_ROLE_KEYS.includes(req.adminRoleKey)) {
       next();
       return;
     }
@@ -224,7 +224,7 @@ export function requireAnyPermission(...permissions: AdminPermission[]) {
 }
 
 export function userHasPermission(req: Request, permission: AdminPermission): boolean {
-  if (req.adminRoleKey === "SUPER_ADMIN") {
+  if (req.adminRoleKey && FULL_ACCESS_ADMIN_ROLE_KEYS.includes(req.adminRoleKey)) {
     return true;
   }
 

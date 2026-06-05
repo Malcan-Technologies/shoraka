@@ -31,6 +31,7 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@cashsouk/ui";
 import { CURRENT_USER_QUERY_KEY } from "../../hooks/use-current-user";
+import { getAdminRoleDisplayInfo } from "../../components/admin-role-metadata";
 import {
   EnvelopeIcon,
   UserCircleIcon,
@@ -230,6 +231,9 @@ export default function AccountPage() {
   }, [profileData, queryClient]);
 
   const userData = profileData?.user;
+  const adminRoleDisplay = userData?.admin?.role_description
+    ? getAdminRoleDisplayInfo(userData.admin.role_description)
+    : null;
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -324,26 +328,13 @@ export default function AccountPage() {
               <div className="space-y-3">
                 <Label className="text-base font-medium">Admin Role</Label>
                 <div className="flex flex-wrap gap-2">
-                  {userData?.admin?.role_description ? (
+                  {adminRoleDisplay ? (
                     <Badge
                       variant="outline"
-                      className={
-                        userData.admin.role_description === "SUPER_ADMIN"
-                          ? "bg-red-50 text-red-700 border-red-200"
-                          : userData.admin.role_description === "COMPLIANCE_OFFICER"
-                            ? "bg-blue-50 text-blue-700 border-blue-200"
-                            : userData.admin.role_description === "OPERATIONS_OFFICER"
-                              ? "bg-purple-50 text-purple-700 border-purple-200"
-                              : "bg-green-50 text-green-700 border-green-200"
-                      }
+                      className="border"
+                      style={adminRoleDisplay.badgeStyle}
                     >
-                      {userData.admin.role_description === "SUPER_ADMIN"
-                        ? "Super Admin"
-                        : userData.admin.role_description === "COMPLIANCE_OFFICER"
-                          ? "Compliance Officer"
-                          : userData.admin.role_description === "OPERATIONS_OFFICER"
-                            ? "Operations Officer"
-                            : "Finance Officer"}
+                      {adminRoleDisplay.name}
                     </Badge>
                   ) : (
                     <p className="text-sm text-muted-foreground">No admin role assigned</p>

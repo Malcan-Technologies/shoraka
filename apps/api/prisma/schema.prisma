@@ -129,6 +129,7 @@ model AdminRoleConfig {
   key         String   @unique
   name        String
   description String?
+  badge_color String   @default("#475569")
   permissions String[] @default([])
   is_system   Boolean  @default(false)
   is_editable Boolean  @default(true)
@@ -146,7 +147,7 @@ model Admin {
   id               String    @id @default(cuid())
   user_id          String    @unique
   role_id          String?
-  role_description AdminRole
+  role_description String
   status           String    @default("ACTIVE")
   last_login       DateTime?
   created_at       DateTime  @default(now())
@@ -163,7 +164,7 @@ model Admin {
 model AdminInvitation {
   id                 String    @id @default(cuid())
   email              String
-  role_description   AdminRole
+  role_description   String
   token              String    @unique
   expires_at         DateTime
   accepted           Boolean   @default(false)
@@ -1408,13 +1409,6 @@ enum UserRole {
   INVESTOR
   ISSUER
   ADMIN
-}
-
-enum AdminRole {
-  SUPER_ADMIN
-  COMPLIANCE_OFFICER
-  OPERATIONS_OFFICER
-  FINANCE_OFFICER
 }
 
 enum LoanStatus {

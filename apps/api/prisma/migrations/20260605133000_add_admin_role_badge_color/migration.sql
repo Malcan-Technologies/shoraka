@@ -1,0 +1,2 @@
+ALTER TABLE "admin_roles"
+ADD COLUMN "badge_color" TEXT NOT NULL DEFAULT '#475569';

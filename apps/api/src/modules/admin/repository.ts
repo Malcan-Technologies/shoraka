@@ -8,7 +8,6 @@ import {
   AdminRoleConfig,
   AdminInvitation,
   SecurityLog,
-  AdminRole,
   OnboardingLog,
   OrganizationType,
   OnboardingStatus,
@@ -17,6 +16,7 @@ import {
   ReviewSection,
   ReviewStepStatus,
 } from "@prisma/client";
+import type { AdminRoleKey } from "@cashsouk/types";
 import type {
   GetUsersQuery,
   GetAccessLogsQuery,
@@ -33,7 +33,7 @@ import {
 import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
 
 export class AdminRepository {
-  private async resolveAdminRoleId(roleKey: AdminRole): Promise<string> {
+  private async resolveAdminRoleId(roleKey: AdminRoleKey): Promise<string> {
     await ensureAdminRoleCatalog(prisma);
 
     const role = await prisma.adminRoleConfig.findUnique({
@@ -746,7 +746,7 @@ export class AdminRepository {
   /**
    * Create Admin record
    */
-  async createAdmin(userId: string, roleDescription: AdminRole): Promise<Admin> {
+  async createAdmin(userId: string, roleDescription: AdminRoleKey): Promise<Admin> {
     const roleId = await this.resolveAdminRoleId(roleDescription);
 
     return prisma.admin.create({
@@ -762,7 +762,7 @@ export class AdminRepository {
   /**
    * Update admin role description
    */
-  async updateAdminRole(userId: string, roleDescription: AdminRole): Promise<Admin> {
+  async updateAdminRole(userId: string, roleDescription: AdminRoleKey): Promise<Admin> {
     const roleId = await this.resolveAdminRoleId(roleDescription);
 
     return prisma.admin.update({
@@ -776,7 +776,7 @@ export class AdminRepository {
 
   async listAdminRoleConfigs(): Promise<AdminRoleConfig[]> {
     return prisma.adminRoleConfig.findMany({
-      orderBy: [{ is_default: "desc" }, { name: "asc" }],
+      orderBy: [{ name: "asc" }],
     });
   }
 
@@ -786,13 +786,56 @@ export class AdminRepository {
     });
   }
 
+  async createAdminRoleConfig(data: {
+    key: string;
+    name: string;
+    description?: string;
+    badgeColor: string;
+  }): Promise<AdminRoleConfig> {
+    return prisma.adminRoleConfig.create({
+      data: {
+        key: data.key,
+        name: data.name,
+        description: data.description ?? null,
+        badge_color: data.badgeColor,
+        permissions: [],
+        is_system: false,
+        is_editable: true,
+        is_default: false,
+      },
+    });
+  }
+
+  async countAdminsByRoleKey(roleKey: string): Promise<number> {
+    return prisma.admin.count({
+      where: { role_description: roleKey },
+    });
+  }
+
+  async countPendingInvitationsByRoleKey(roleKey: string): Promise<number> {
+    return prisma.adminInvitation.count({
+      where: {
+        role_description: roleKey,
+        accepted: false,
+        expires_at: { gt: new Date() },
+      },
+    });
+  }
+
+  async deleteAdminRoleConfig(key: string): Promise<AdminRoleConfig> {
+    return prisma.adminRoleConfig.delete({
+      where: { key },
+    });
+  }
+
   async updateAdminRolePermissions(
     key: string,
-    permissions: string[]
+    permissions: string[],
+    badgeColor: string
   ): Promise<AdminRoleConfig> {
     return prisma.adminRoleConfig.update({
       where: { key },
-      data: { permissions },
+      data: { permissions, badge_color: badgeColor },
     });
   }
 
@@ -821,7 +864,7 @@ export class AdminRepository {
    */
   async createAdminInvitation(data: {
     email: string;
-    roleDescription: AdminRole;
+    roleDescription: AdminRoleKey;
     token: string;
     expiresAt: Date;
     invitedByUserId: string;
@@ -866,7 +909,7 @@ export class AdminRepository {
     page?: number;
     pageSize?: number;
     search?: string;
-    roleDescription?: AdminRole;
+    roleDescription?: AdminRoleKey;
   }): Promise<{
     invitations: (AdminInvitation & {
       invited_by: { first_name: string; last_name: string; email: string };
@@ -885,7 +928,7 @@ export class AdminRepository {
     const where: {
       accepted: boolean;
       expires_at: { gt: Date };
-      role_description?: AdminRole;
+      role_description?: string;
       OR?: Array<{
         email?: { contains: string; mode: "insensitive" };
       }>;

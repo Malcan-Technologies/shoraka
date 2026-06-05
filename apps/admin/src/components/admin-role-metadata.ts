@@ -1,91 +1,117 @@
+import { CogIcon, ShieldCheckIcon } from "@heroicons/react/24/outline";
 import {
-  BanknotesIcon,
-  CogIcon,
-  DocumentCheckIcon,
-  ShieldCheckIcon,
-} from "@heroicons/react/24/outline";
-import { AdminRole } from "@cashsouk/types";
-import type { ComponentType } from "react";
+  AdminRole,
+  DEFAULT_ADMIN_ROLE_BADGE_COLOR,
+  SUPER_ADMIN_BADGE_COLOR,
+  type AdminRoleBadgeColor,
+  type AdminRoleKey,
+} from "@cashsouk/types";
+import type { CSSProperties, ComponentType } from "react";
 
 export interface AdminRoleDisplayInfo {
-  key: AdminRole;
+  key: AdminRoleKey;
   name: string;
-  icon: ComponentType<{ className?: string }>;
-  color: string;
-  bgColor: string;
-  borderColor: string;
+  badgeColor: AdminRoleBadgeColor;
+  icon: ComponentType<{ className?: string; style?: CSSProperties }>;
+  badgeStyle: CSSProperties;
+  iconStyle: CSSProperties;
   description: string;
-  permissions: string[];
 }
 
-export const ADMIN_ROLE_DISPLAY: Record<AdminRole, AdminRoleDisplayInfo> = {
+const SEEDED_ROLE_DISPLAY: Partial<Record<AdminRoleKey, Omit<AdminRoleDisplayInfo, "badgeColor">>> = {
   [AdminRole.SUPER_ADMIN]: {
     key: AdminRole.SUPER_ADMIN,
     name: "Super Admin",
     icon: ShieldCheckIcon,
-    color: "text-red-600",
-    bgColor: "bg-red-50",
-    borderColor: "border-red-200",
+    badgeStyle: {},
+    iconStyle: {},
     description:
       "Full administrative access to all platform features and settings. Can manage all users, configure system settings, and oversee all operations.",
-    permissions: [
-      "Complete access to all modules",
-      "User and role management",
-      "Security and RBAC configuration",
-      "Platform settings and limits",
-      "All compliance and operational tools",
-    ],
-  },
-  [AdminRole.COMPLIANCE_OFFICER]: {
-    key: AdminRole.COMPLIANCE_OFFICER,
-    name: "Compliance Officer",
-    icon: DocumentCheckIcon,
-    color: "text-blue-600",
-    bgColor: "bg-blue-50",
-    borderColor: "border-blue-200",
-    description:
-      "Manages regulatory compliance, KYC verification, and fraud prevention. Ensures platform adheres to Malaysian financial regulations and Shariah principles.",
-    permissions: [
-      "KYC and AML verification",
-      "Sanctions screening and blacklist management",
-      "Regulatory reporting",
-      "Access logs and audit trails",
-      "Data export for compliance",
-    ],
-  },
-  [AdminRole.OPERATIONS_OFFICER]: {
-    key: AdminRole.OPERATIONS_OFFICER,
-    name: "Operations Officer",
-    icon: CogIcon,
-    color: "text-purple-600",
-    bgColor: "bg-purple-50",
-    borderColor: "border-purple-200",
-    description:
-      "Handles day-to-day platform operations including financing management, user support, and communication. Oversees investment processing and customer service.",
-    permissions: [
-      "Financing and investment management",
-      "User account operations",
-      "Repayment and transaction records",
-      "Customer support tools",
-      "Marketing and communications",
-    ],
-  },
-  [AdminRole.FINANCE_OFFICER]: {
-    key: AdminRole.FINANCE_OFFICER,
-    name: "Finance Officer",
-    icon: BanknotesIcon,
-    color: "text-green-600",
-    bgColor: "bg-green-50",
-    borderColor: "border-green-200",
-    description:
-      "Manages financial operations including fund disbursements and payment processing. Monitors transaction flows and financial compliance.",
-    permissions: [
-      "Disbursement triggering",
-      "Financial compliance viewing",
-      "Data export for finance",
-      "Limited financing operations access",
-    ],
   },
 };
 
-export const ADMIN_ROLE_REFERENCE = Object.values(ADMIN_ROLE_DISPLAY);
+function formatRoleKey(roleKey: string): string {
+  return roleKey
+    .split("_")
+    .map((segment) => segment.charAt(0) + segment.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function normalizeHexColor(
+  color: string | null | undefined,
+  fallback: AdminRoleBadgeColor = DEFAULT_ADMIN_ROLE_BADGE_COLOR
+): AdminRoleBadgeColor {
+  if (!color) {
+    return fallback;
+  }
+
+  const trimmed = color.trim();
+  if (/^#[0-9A-Fa-f]{6}$/.test(trimmed)) {
+    return trimmed.toUpperCase() as AdminRoleBadgeColor;
+  }
+
+  return fallback;
+}
+
+function hexToRgb(color: AdminRoleBadgeColor) {
+  return {
+    r: Number.parseInt(color.slice(1, 3), 16),
+    g: Number.parseInt(color.slice(3, 5), 16),
+    b: Number.parseInt(color.slice(5, 7), 16),
+  };
+}
+
+export function getAdminRoleBadgeStyles(
+  color: string | null | undefined
+): {
+  badgeColor: AdminRoleBadgeColor;
+  badgeStyle: CSSProperties;
+  iconStyle: CSSProperties;
+} {
+  const badgeColor = normalizeHexColor(color);
+  const rgb = hexToRgb(badgeColor);
+
+  return {
+    badgeColor,
+    badgeStyle: {
+      backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.12)`,
+      borderColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.28)`,
+      color: "hsl(var(--foreground))",
+    },
+    iconStyle: {
+      color: badgeColor,
+    },
+  };
+}
+
+export function getAdminRoleDisplayInfo(
+  roleKey: AdminRoleKey,
+  fallbackName?: string | null,
+  fallbackDescription?: string | null,
+  badgeColor?: AdminRoleBadgeColor | null
+): AdminRoleDisplayInfo {
+  const styles = getAdminRoleBadgeStyles(
+    badgeColor ?? (roleKey === AdminRole.SUPER_ADMIN ? SUPER_ADMIN_BADGE_COLOR : undefined)
+  );
+  const seededDisplay = SEEDED_ROLE_DISPLAY[roleKey];
+  if (seededDisplay) {
+    return {
+      ...seededDisplay,
+      badgeColor: styles.badgeColor,
+      badgeStyle: styles.badgeStyle,
+      iconStyle: styles.iconStyle,
+    };
+  }
+
+  return {
+    key: roleKey,
+    name: fallbackName?.trim() || formatRoleKey(roleKey),
+    badgeColor: styles.badgeColor,
+    icon: CogIcon,
+    badgeStyle: styles.badgeStyle,
+    iconStyle: styles.iconStyle,
+    description:
+      fallbackDescription?.trim() ||
+      "Admin role with a tailored permission set.",
+  };
+}

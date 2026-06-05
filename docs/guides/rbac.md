@@ -34,16 +34,13 @@ Current live permissions:
 
 The backend and frontend both import from the same source so route guards and UI guards stay aligned.
 
-## Default roles
+## Role catalog
 
-The default system roles are also defined in `packages/types/src/rbac.ts`:
+`SUPER_ADMIN` is the only built-in admin role. `ensureAdminRoleCatalog()` guarantees that this single
+system role exists in `admin_roles`.
 
-- `SUPER_ADMIN`
-- `COMPLIANCE_OFFICER`
-- `OPERATIONS_OFFICER`
-- `FINANCE_OFFICER`
-
-These are synced into the `admin_roles` table by `ensureAdminRoleCatalog()`.
+Every other admin role is created in the admin portal and persisted directly in `admin_roles`.
+There is no longer a seeded default-role catalog in code.
 
 `SUPER_ADMIN` is the only full-access bypass role. All other roles rely on their explicit permission list.
 
@@ -61,40 +58,46 @@ These are synced into the `admin_roles` table by `ensureAdminRoleCatalog()`.
 The live permission catalog is intentionally small until more routes are migrated.
 
 - `GET /v1/admin/roles` requires `roles.manage`
+- `POST /v1/admin/roles` requires `roles.manage`
+- `DELETE /v1/admin/roles/:key` requires `roles.manage`
 - `PATCH /v1/admin/roles/:key/permissions` requires `roles.manage`
 - `PUT /v1/admin/admin-users/:id/role` requires `roles.manage`
 
 `/settings/roles` and `/settings/roles/configuration` are also gated in the admin UI on `roles.manage`.
 
-`SUPER_ADMIN` is the only seeded role with `roles.manage`. Other seeded roles start with no live permissions until you assign them in the catalog.
+`SUPER_ADMIN` is the only built-in role with the full-access bypass. All other roles must be created
+and configured in the catalog before they can be assigned or used in invitations.
 
 ## Add a new permission
 
 1. Add the permission string to `ADMIN_PERMISSIONS` in `packages/types/src/rbac.ts`.
 2. Add it to `ADMIN_PERMISSION_GROUPS` so the configuration UI can render it.
-3. Assign it to the appropriate role templates in `DEFAULT_ADMIN_ROLE_TEMPLATES`.
-4. If the default catalog changed, bump `ADMIN_ROLE_CATALOG_REVISION`.
-5. Enforce it on the API route with `requirePermission(...)`.
-6. Gate the related UI using `usePermissions().can(...)` or `usePermissions().canAny(...)`.
+3. Enforce it on the API route with `requirePermission(...)`.
+4. Gate the related UI using `usePermissions().can(...)` or `usePermissions().canAny(...)`.
 
-## Add a new default role
+## Create a role
 
-1. Add the new enum value to `AdminRole` in:
-   - `packages/types/src/admin.ts`
-   - `apps/api/prisma/schema.prisma`
-2. Add the role key to `DEFAULT_ADMIN_ROLE_KEYS`.
-3. Add a new entry to `DEFAULT_ADMIN_ROLE_TEMPLATES`.
-4. Update any UI label maps that display admin roles.
-5. Run a Prisma migration for the enum change.
+Roles other than `SUPER_ADMIN` are created at runtime through the admin role catalog.
 
-## Add a custom role
+1. Open `/settings/roles/configuration` in the admin portal.
+2. Use `Create role` to add a new catalog entry. The role key is generated automatically from the role name.
+3. Save the permission matrix for the new role.
+4. Pick a badge color using the custom color input.
+5. Assign the role through the admin user table or invitation dialog.
 
-The database layer now supports custom role rows in `admin_roles`, but there is not yet a runtime role-management endpoint or admin UI for creating custom roles.
+Created roles are stored in `admin_roles`, and admin assignments/invitations persist the role key string
+while `role_id` remains the authoritative relation to the catalog row. The selected badge color is
+stored alongside the role record.
 
-For now, custom roles can be inserted operationally if needed, as long as:
+## Delete a role
 
-- `admins.role_id` references the custom row
-- `admins.role_description` remains a sensible fallback key
+Roles can be deleted from `/settings/roles/configuration` when they are no longer in use.
+
+- `SUPER_ADMIN` cannot be deleted.
+- A role cannot be deleted while any admins are still assigned to it.
+- A role cannot be deleted while any pending invitations still reference it.
+
+Reassign admins and revoke or replace pending invitations before deleting the role.
 
 ## Enforce on a route
 
@@ -129,7 +132,8 @@ const canManageRoles = can("roles.manage");
 const canReviewOrManage = canAny("applications.review", "applications.manage");
 ```
 
-`SUPER_ADMIN` bypasses permission checks in `can()` and `canAny()`. Everyone else is checked against the permission list from `GET /v1/auth/me`.
+`SUPER_ADMIN` bypasses permission checks in `can()` and `canAny()`. Everyone else is checked against
+the permission list from `GET /v1/auth/me`.
 
 ### Block a whole page
 
