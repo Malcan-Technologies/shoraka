@@ -126,6 +126,16 @@ export async function shorakaStpCallbackHandler(
       },
     });
 
+    // Success log for operations: confirm webhook was verified + persisted.
+    logger.info(
+      {
+        correlationId: res.locals.correlationId,
+        orderId: parsed.orderId,
+        status: normalizedStatus,
+      },
+      "Shoraka callback processed successfully"
+    );
+
     res.status(200).type("text/plain").send("OK");
   } catch (error) {
     next(error);
