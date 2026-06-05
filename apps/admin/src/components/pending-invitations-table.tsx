@@ -9,7 +9,12 @@ import {
 } from "@/components/ui/table";
 import { Skeleton, Badge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
-import type { PendingInvitation, AdminRole } from "@cashsouk/types";
+import type {
+  AdminRoleBadgeColor,
+  AdminRoleConfigRecord,
+  AdminRoleKey,
+  PendingInvitation,
+} from "@cashsouk/types";
 import {
   ClockIcon,
   PaperAirplaneIcon,
@@ -19,9 +24,11 @@ import {
 import { CheckCircleIcon } from "@heroicons/react/24/solid";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
+import { getAdminRoleDisplayInfo } from "./admin-role-metadata";
 
 interface PendingInvitationsTableProps {
   invitations: PendingInvitation[];
+  availableRoles: AdminRoleConfigRecord[];
   isLoading?: boolean;
   currentPage: number;
   totalPages: number;
@@ -33,16 +40,24 @@ interface PendingInvitationsTableProps {
 function InvitationRow({
   invitation,
   inviteUrl,
+  availableRoles,
   onResend,
   onRevoke,
 }: {
   invitation: PendingInvitation;
   inviteUrl: string;
+  availableRoles: AdminRoleConfigRecord[];
   onResend: (id: string) => void;
   onRevoke: (id: string) => void;
 }) {
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
-  const colors = roleColors[invitation.role_description];
+  const roleRecord = availableRoles.find((role) => role.key === invitation.role_description);
+  const roleDisplay = getAdminRoleDisplayInfo(
+    invitation.role_description,
+    roleRecord?.name,
+    roleRecord?.description,
+    roleRecord?.badgeColor
+  );
   const isExpired = new Date(invitation.expires_at) < new Date();
 
   const handleCopyLink = async () => {
@@ -63,9 +78,10 @@ function InvitationRow({
       </TableCell>
       <TableCell>
         <Badge
-          className={`${colors.bg} ${colors.text} ${colors.border} border font-medium hover:${colors.bg}`}
+          className="border font-medium"
+          style={getRoleBadgeClasses(invitation.role_description, roleRecord?.badgeColor)}
         >
-          {roleLabels[invitation.role_description]}
+          {roleDisplay.name}
         </Badge>
       </TableCell>
       <TableCell>
@@ -133,35 +149,12 @@ function InvitationRow({
   );
 }
 
-const roleColors: Record<AdminRole, { bg: string; text: string; border: string }> = {
-  SUPER_ADMIN: {
-    bg: "bg-red-50",
-    text: "text-red-700",
-    border: "border-red-200",
-  },
-  COMPLIANCE_OFFICER: {
-    bg: "bg-blue-50",
-    text: "text-blue-700",
-    border: "border-blue-200",
-  },
-  OPERATIONS_OFFICER: {
-    bg: "bg-purple-50",
-    text: "text-purple-700",
-    border: "border-purple-200",
-  },
-  FINANCE_OFFICER: {
-    bg: "bg-green-50",
-    text: "text-green-700",
-    border: "border-green-200",
-  },
-};
-
-const roleLabels: Record<AdminRole, string> = {
-  SUPER_ADMIN: "Super Admin",
-  COMPLIANCE_OFFICER: "Compliance Officer",
-  OPERATIONS_OFFICER: "Operations Officer",
-  FINANCE_OFFICER: "Finance Officer",
-};
+function getRoleBadgeClasses(
+  roleKey: AdminRoleKey,
+  badgeColor?: AdminRoleBadgeColor | null
+) {
+  return getAdminRoleDisplayInfo(roleKey, undefined, undefined, badgeColor ?? undefined).badgeStyle;
+}
 
 function TableSkeleton() {
   return (
@@ -191,6 +184,7 @@ function TableSkeleton() {
 
 export function PendingInvitationsTable({
   invitations = [],
+  availableRoles,
   isLoading = false,
   currentPage,
   totalPages,
@@ -200,7 +194,7 @@ export function PendingInvitationsTable({
 }: PendingInvitationsTableProps) {
   const adminPortalUrl = process.env.NEXT_PUBLIC_ADMIN_URL || "http://localhost:3003";
 
-  const getInviteUrl = (token: string, role: AdminRole) => {
+  const getInviteUrl = (token: string, role: AdminRoleKey) => {
     return `${adminPortalUrl}/callback?invitation=${token}&role=${role}`;
   };
 
@@ -233,6 +227,7 @@ export function PendingInvitationsTable({
                     key={invitation.id}
                     invitation={invitation}
                     inviteUrl={getInviteUrl(invitation.token, invitation.role_description)}
+                    availableRoles={availableRoles}
                     onResend={onResend}
                     onRevoke={onRevoke}
                   />

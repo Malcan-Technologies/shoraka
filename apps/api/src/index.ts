@@ -39,7 +39,10 @@ async function main(): Promise<void> {
   // Dynamic import AFTER env setup - this ensures Prisma sees the DATABASE_URL
   const { createApp } = await import("./app");
   const { initJobs } = await import("./lib/jobs");
+  const { prisma } = await import("./lib/prisma");
+  const { ensureAdminRoleCatalog } = await import("./lib/auth/rbac");
 
+  await ensureAdminRoleCatalog(prisma);
   const app = await createApp();
   initJobs();
 

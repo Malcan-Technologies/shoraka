@@ -3,15 +3,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@cashsouk/ui";
 import { AdminUserTableRow } from "./admin-user-table-row";
 import { Button } from "@/components/ui/button";
-import type { AdminUser } from "@cashsouk/types";
+import type { AdminRoleConfigRecord, AdminUser } from "@cashsouk/types";
 
 interface AdminUsersTableProps {
   users: AdminUser[];
+  availableRoles: AdminRoleConfigRecord[];
   isLoading?: boolean;
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
   onUpdateUser: (userId: string, updates: Partial<AdminUser>) => void;
+  canManageRoles: boolean;
 }
 
 function TableSkeleton() {
@@ -48,11 +50,13 @@ function TableSkeleton() {
 
 export function AdminUsersTable({
   users,
+  availableRoles,
   isLoading = false,
   currentPage,
   totalPages,
   onPageChange,
   onUpdateUser,
+  canManageRoles,
 }: AdminUsersTableProps) {
 
 
@@ -84,7 +88,13 @@ export function AdminUsersTable({
                 users
                   .filter((user) => user.user_id) // Filter out users without user_id
                   .map((user) => (
-                    <AdminUserTableRow key={user.user_id!} user={user} onUpdate={onUpdateUser} />
+                    <AdminUserTableRow
+                      key={user.user_id!}
+                      user={user}
+                      availableRoles={availableRoles}
+                      onUpdate={onUpdateUser}
+                      canManageRoles={canManageRoles}
+                    />
                   ))
               )}
             </TableBody>

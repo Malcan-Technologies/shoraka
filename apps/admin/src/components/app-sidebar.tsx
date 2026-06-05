@@ -62,6 +62,7 @@ import {
   buildApplicationSidebarGroups,
 } from "@/applications/application-nav-groups";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/use-permissions";
 
 function ApplicationNavSectionHeader({
   kind,
@@ -189,6 +190,9 @@ const navAudit = [
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
+  const { can } = usePermissions();
+  const canManageRoles = can("roles.manage");
+  const canManageNotifications = can("notifications.manage");
   const { data: pendingCountData } = usePendingApprovalCount();
   const { data: noteActionCountData } = useNoteActionRequiredCount();
   const { data: pendingRepaymentsData } = usePendingRepayments();
@@ -484,7 +488,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         </CollapsibleTrigger>
                         <CollapsibleContent>
                           <SidebarMenuSub>
-                            {item.items.map((subItem) => (
+                            {item.items
+                              .filter(
+                                (subItem) =>
+                                  (subItem.url !== "/settings/roles" || canManageRoles) &&
+                                  (subItem.url !== "/settings/notifications" || canManageNotifications)
+                              )
+                              .map((subItem) => (
                               <SidebarMenuSubItem key={subItem.title}>
                                 <SidebarMenuSubButton asChild isActive={pathname === subItem.url}>
                                   <Link href={subItem.url}>

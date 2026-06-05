@@ -21,44 +21,43 @@ import {
   UserCircleIcon,
 } from "@heroicons/react/24/outline";
 import { useUpdateAdminRole, useDeactivateAdmin, useReactivateAdmin } from "@/hooks/use-admin-users";
-import type { AdminUser, AdminRole } from "@cashsouk/types";
+import type {
+  AdminRoleBadgeColor,
+  AdminRoleConfigRecord,
+  AdminRoleKey,
+  AdminUser,
+} from "@cashsouk/types";
+import { getAdminRoleDisplayInfo } from "./admin-role-metadata";
 
 interface AdminUserTableRowProps {
   user: AdminUser;
+  availableRoles: AdminRoleConfigRecord[];
   onUpdate: (userId: string, updates: Partial<AdminUser>) => void;
+  canManageRoles: boolean;
 }
 
-const roleConfig: Record<AdminRole, { label: string; iconColor: string; bgClass: string; borderClass: string }> = {
-  SUPER_ADMIN: {
-    label: "Super Admin",
-    iconColor: "text-red-600",
-    bgClass: "bg-red-500/10",
-    borderClass: "border-red-500/30",
-  },
-  COMPLIANCE_OFFICER: {
-    label: "Compliance Officer",
-    iconColor: "text-blue-600",
-    bgClass: "bg-blue-500/10",
-    borderClass: "border-blue-500/30",
-  },
-  OPERATIONS_OFFICER: {
-    label: "Operations Officer",
-    iconColor: "text-purple-600",
-    bgClass: "bg-purple-500/10",
-    borderClass: "border-purple-500/30",
-  },
-  FINANCE_OFFICER: {
-    label: "Finance Officer",
-    iconColor: "text-green-600",
-    bgClass: "bg-green-500/10",
-    borderClass: "border-green-500/30",
-  },
-};
+function getRoleClasses(
+  roleKey: AdminRoleKey,
+  badgeColor?: AdminRoleBadgeColor | null
+) {
+  const display = getAdminRoleDisplayInfo(roleKey, undefined, undefined, badgeColor ?? undefined);
 
-export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
+  return {
+    label: display.name,
+    iconStyle: display.iconStyle,
+    badgeStyle: display.badgeStyle,
+  };
+}
+
+export function AdminUserTableRow({
+  user,
+  availableRoles,
+  onUpdate,
+  canManageRoles,
+}: AdminUserTableRowProps) {
   const [isEditingRole, setIsEditingRole] = React.useState(false);
   const currentRole = user.admin?.role_description || null;
-  const [selectedRole, setSelectedRole] = React.useState<AdminRole | null>(currentRole);
+  const [selectedRole, setSelectedRole] = React.useState<AdminRoleKey | null>(currentRole);
   const updateRoleMutation = useUpdateAdminRole();
   const deactivateMutation = useDeactivateAdmin();
   const reactivateMutation = useReactivateAdmin();
@@ -66,6 +65,27 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
   React.useEffect(() => {
     setSelectedRole(currentRole);
   }, [currentRole]);
+
+  const selectableRoles = React.useMemo(() => {
+    if (!currentRole || availableRoles.some((role) => role.key === currentRole)) {
+      return availableRoles;
+    }
+
+    return [
+      {
+        id: `fallback-${currentRole}`,
+        key: currentRole,
+        name: getAdminRoleDisplayInfo(currentRole).name,
+        description: null,
+        badgeColor: getAdminRoleDisplayInfo(currentRole).badgeColor,
+        permissions: [],
+        isSystem: false,
+        isEditable: true,
+        memberCount: 0,
+      },
+      ...availableRoles,
+    ];
+  }, [availableRoles, currentRole]);
 
   const handleRoleChange = async () => {
     if (!selectedRole || selectedRole === currentRole) {
@@ -84,10 +104,17 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
         userId: user.user_id,
         data: { roleDescription: selectedRole },
       });
+      const selectedRoleRecord = selectableRoles.find((roleOption) => roleOption.key === selectedRole);
+      const selectedRoleDisplay = getAdminRoleDisplayInfo(
+        selectedRole,
+        selectedRoleRecord?.name,
+        selectedRoleRecord?.description,
+        selectedRoleRecord?.badgeColor
+      );
       toast.success("Role updated", {
-        description: `${user.first_name} ${user.last_name} is now ${roleConfig[selectedRole].label}`,
+        description: `${user.first_name} ${user.last_name} is now ${selectedRoleDisplay.name}`,
       });
-    setIsEditingRole(false);
+      setIsEditingRole(false);
       onUpdate(user.user_id, { 
         admin: { 
           ...user.admin, 
@@ -110,8 +137,17 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
 
   const status = user.admin?.status || "INACTIVE";
   const role = user.admin?.role_description;
+  const roleRecord = role ? selectableRoles.find((roleOption) => roleOption.key === role) : null;
+  const roleClasses = role ? getRoleClasses(role, roleRecord?.badgeColor) : null;
 
   const handleStartEditRole = () => {
+    if (!canManageRoles) {
+      toast.error("Cannot edit role", {
+        description: "Your role does not have permission to manage admin roles.",
+      });
+      return;
+    }
+
     if (status === "INACTIVE") {
       toast.error("Cannot edit role", {
         description: "Please activate the admin user before changing their role.",
@@ -176,15 +212,20 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
           <div className="flex items-center gap-2">
             <Select
               value={selectedRole || ""}
-              onValueChange={(value) => setSelectedRole(value as AdminRole)}
+              onValueChange={(value) => setSelectedRole(value)}
             >
               <SelectTrigger className="w-[180px] h-9 rounded-lg">
                 <SelectValue placeholder="Select role" />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(roleConfig).map(([key, config]) => (
-                  <SelectItem key={key} value={key}>
-                    {config.label}
+                {selectableRoles.map((roleOption) => (
+                  <SelectItem key={roleOption.key} value={roleOption.key}>
+                    {getAdminRoleDisplayInfo(
+                      roleOption.key,
+                      roleOption.name,
+                      roleOption.description,
+                      roleOption.badgeColor
+                    ).name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -212,20 +253,28 @@ export function AdminUserTableRow({ user, onUpdate }: AdminUserTableRowProps) {
         ) : role ? (
           <button
             onClick={handleStartEditRole}
-            disabled={status === "INACTIVE"}
-            className={`group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium text-foreground ${
-              roleConfig[role].bgClass
-            } ${roleConfig[role].borderClass} ${
-              status === "INACTIVE" 
+            disabled={!canManageRoles || status === "INACTIVE"}
+            className={`group inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
+              !canManageRoles || status === "INACTIVE"
                 ? "opacity-50 cursor-not-allowed" 
                 : "hover:shadow-sm transition-shadow"
             }`}
-            title={status === "INACTIVE" ? "Activate admin to edit role" : "Click to edit role"}
+            style={roleClasses?.badgeStyle}
+            title={
+              !canManageRoles
+                ? "You do not have permission to edit admin roles"
+                : status === "INACTIVE"
+                  ? "Activate admin to edit role"
+                  : "Click to edit role"
+            }
           >
-            <UserCircleIcon className={`h-3 w-3 ${roleConfig[role].iconColor}`} />
-            {roleConfig[role].label}
+            <UserCircleIcon
+              className="h-3 w-3"
+              style={roleClasses?.iconStyle}
+            />
+            {roleClasses?.label ?? role}
             <PencilIcon className={`h-3 w-3 ${
-              status === "INACTIVE" 
+              !canManageRoles || status === "INACTIVE"
                 ? "opacity-0" 
                 : "opacity-0 group-hover:opacity-70 transition-opacity"
             }`} />

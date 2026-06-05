@@ -1,14 +1,20 @@
 import { Request, Response, NextFunction } from "express";
 import { AppError } from "../http/error-handler";
-import { User, UserRole } from "@prisma/client";
+import { Admin, AdminRoleConfig, User, UserRole } from "@prisma/client";
+import { FULL_ACCESS_ADMIN_ROLE_KEYS, type AdminPermission, type AdminRoleKey } from "@cashsouk/types";
 import { prisma } from "../prisma";
 import { verifyCognitoAccessToken } from "./cognito-jwt-verifier";
+import { resolveAdminAccess } from "./rbac";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       user?: User;
+      admin?: (Admin & { role?: AdminRoleConfig | null }) | null;
+      adminPermissions?: AdminPermission[];
+      adminRoleKey?: AdminRoleKey;
+      adminRoleName?: string;
       cognitoSub?: string;
       activeRole?: UserRole;
     }
@@ -65,6 +71,29 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
     req.cognitoSub = cognitoPayload.sub;
     // Default activeRole to first role (can be changed via role switching endpoint)
     req.activeRole = user.roles[0] || UserRole.INVESTOR;
+
+    if (user.roles.includes(UserRole.ADMIN)) {
+      const admin = await prisma.admin.findUnique({
+        where: { user_id: user.user_id },
+        include: {
+          role: true,
+        },
+      });
+
+      req.admin = admin;
+
+      if (admin) {
+        const access = await resolveAdminAccess(prisma, admin);
+        req.adminPermissions = access.permissions;
+        req.adminRoleKey = access.roleKey;
+        req.adminRoleName = access.roleName;
+      } else {
+        req.adminPermissions = [];
+      }
+    } else {
+      req.admin = null;
+      req.adminPermissions = [];
+    }
 
     next();
   } catch (error) {
@@ -139,4 +168,65 @@ export function requireAllRoles(...roles: UserRole[]) {
 
     next();
   };
+}
+
+function hasRequiredPermissions(req: Request, permissions: AdminPermission[]): boolean {
+  if (!req.user || !req.user.roles.includes(UserRole.ADMIN) || !req.admin) {
+    return false;
+  }
+
+  if (req.adminRoleKey && FULL_ACCESS_ADMIN_ROLE_KEYS.includes(req.adminRoleKey)) {
+    return true;
+  }
+
+  const assignedPermissions = new Set(req.adminPermissions ?? []);
+  return permissions.every((permission) => assignedPermissions.has(permission));
+}
+
+export function requirePermission(...permissions: AdminPermission[]) {
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    if (!req.user) {
+      next(new AppError(401, "UNAUTHORIZED", "Authentication required"));
+      return;
+    }
+
+    if (!hasRequiredPermissions(req, permissions)) {
+      next(new AppError(403, "FORBIDDEN", "Insufficient permissions"));
+      return;
+    }
+
+    next();
+  };
+}
+
+export function requireAnyPermission(...permissions: AdminPermission[]) {
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    if (!req.user) {
+      next(new AppError(401, "UNAUTHORIZED", "Authentication required"));
+      return;
+    }
+
+    if (req.adminRoleKey && FULL_ACCESS_ADMIN_ROLE_KEYS.includes(req.adminRoleKey)) {
+      next();
+      return;
+    }
+
+    const assignedPermissions = new Set(req.adminPermissions ?? []);
+    const hasAnyPermission = permissions.some((permission) => assignedPermissions.has(permission));
+
+    if (!hasAnyPermission) {
+      next(new AppError(403, "FORBIDDEN", "Insufficient permissions"));
+      return;
+    }
+
+    next();
+  };
+}
+
+export function userHasPermission(req: Request, permission: AdminPermission): boolean {
+  if (req.adminRoleKey && FULL_ACCESS_ADMIN_ROLE_KEYS.includes(req.adminRoleKey)) {
+    return true;
+  }
+
+  return (req.adminPermissions ?? []).includes(permission);
 }

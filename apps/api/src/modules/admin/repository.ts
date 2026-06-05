@@ -5,9 +5,9 @@ import {
   AccessLog,
   UserRole,
   Admin,
+  AdminRoleConfig,
   AdminInvitation,
   SecurityLog,
-  AdminRole,
   OnboardingLog,
   OrganizationType,
   OnboardingStatus,
@@ -16,6 +16,7 @@ import {
   ReviewSection,
   ReviewStepStatus,
 } from "@prisma/client";
+import type { AdminRoleKey } from "@cashsouk/types";
 import type {
   GetUsersQuery,
   GetAccessLogsQuery,
@@ -29,8 +30,24 @@ import {
   resolveRequestedFacility,
   resolveOfferedFacility,
 } from "../../lib/contract-facility";
+import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
 
 export class AdminRepository {
+  private async resolveAdminRoleId(roleKey: AdminRoleKey): Promise<string> {
+    await ensureAdminRoleCatalog(prisma);
+
+    const role = await prisma.adminRoleConfig.findUnique({
+      where: { key: roleKey },
+      select: { id: true },
+    });
+
+    if (!role) {
+      throw new Error(`Admin role catalog entry not found for role ${roleKey}`);
+    }
+
+    return role.id;
+  }
+
   /**
    * Get users with pagination and filters
    */
@@ -729,10 +746,13 @@ export class AdminRepository {
   /**
    * Create Admin record
    */
-  async createAdmin(userId: string, roleDescription: AdminRole): Promise<Admin> {
+  async createAdmin(userId: string, roleDescription: AdminRoleKey): Promise<Admin> {
+    const roleId = await this.resolveAdminRoleId(roleDescription);
+
     return prisma.admin.create({
       data: {
         user_id: userId,
+        role_id: roleId,
         role_description: roleDescription,
         status: "ACTIVE",
       },
@@ -742,10 +762,80 @@ export class AdminRepository {
   /**
    * Update admin role description
    */
-  async updateAdminRole(userId: string, roleDescription: AdminRole): Promise<Admin> {
+  async updateAdminRole(userId: string, roleDescription: AdminRoleKey): Promise<Admin> {
+    const roleId = await this.resolveAdminRoleId(roleDescription);
+
     return prisma.admin.update({
       where: { user_id: userId },
-      data: { role_description: roleDescription },
+      data: {
+        role_id: roleId,
+        role_description: roleDescription,
+      },
+    });
+  }
+
+  async listAdminRoleConfigs(): Promise<AdminRoleConfig[]> {
+    return prisma.adminRoleConfig.findMany({
+      orderBy: [{ name: "asc" }],
+    });
+  }
+
+  async getAdminRoleConfigByKey(key: string): Promise<AdminRoleConfig | null> {
+    return prisma.adminRoleConfig.findUnique({
+      where: { key },
+    });
+  }
+
+  async createAdminRoleConfig(data: {
+    key: string;
+    name: string;
+    description?: string;
+    badgeColor: string;
+  }): Promise<AdminRoleConfig> {
+    return prisma.adminRoleConfig.create({
+      data: {
+        key: data.key,
+        name: data.name,
+        description: data.description ?? null,
+        badge_color: data.badgeColor,
+        permissions: [],
+        is_system: false,
+        is_editable: true,
+        is_default: false,
+      },
+    });
+  }
+
+  async countAdminsByRoleKey(roleKey: string): Promise<number> {
+    return prisma.admin.count({
+      where: { role_description: roleKey },
+    });
+  }
+
+  async countPendingInvitationsByRoleKey(roleKey: string): Promise<number> {
+    return prisma.adminInvitation.count({
+      where: {
+        role_description: roleKey,
+        accepted: false,
+        expires_at: { gt: new Date() },
+      },
+    });
+  }
+
+  async deleteAdminRoleConfig(key: string): Promise<AdminRoleConfig> {
+    return prisma.adminRoleConfig.delete({
+      where: { key },
+    });
+  }
+
+  async updateAdminRolePermissions(
+    key: string,
+    permissions: string[],
+    badgeColor: string
+  ): Promise<AdminRoleConfig> {
+    return prisma.adminRoleConfig.update({
+      where: { key },
+      data: { permissions, badge_color: badgeColor },
     });
   }
 
@@ -774,7 +864,7 @@ export class AdminRepository {
    */
   async createAdminInvitation(data: {
     email: string;
-    roleDescription: AdminRole;
+    roleDescription: AdminRoleKey;
     token: string;
     expiresAt: Date;
     invitedByUserId: string;
@@ -819,7 +909,7 @@ export class AdminRepository {
     page?: number;
     pageSize?: number;
     search?: string;
-    roleDescription?: AdminRole;
+    roleDescription?: AdminRoleKey;
   }): Promise<{
     invitations: (AdminInvitation & {
       invited_by: { first_name: string; last_name: string; email: string };
@@ -838,7 +928,7 @@ export class AdminRepository {
     const where: {
       accepted: boolean;
       expires_at: { gt: Date };
-      role_description?: AdminRole;
+      role_description?: string;
       OR?: Array<{
         email?: { contains: string; mode: "insensitive" };
       }>;

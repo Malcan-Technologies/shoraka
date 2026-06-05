@@ -1,13 +1,16 @@
 import { z } from "zod";
 import {
   UserRole,
-  AdminRole,
   ApplicationStatus,
   ContractStatus,
   ReviewSection,
   OnboardingStatus,
 } from "@prisma/client";
-import { SOUKSCORE_RISK_RATING_GRADES } from "@cashsouk/types";
+import {
+  ADMIN_PERMISSIONS,
+  SYSTEM_ADMIN_ROLE_KEYS,
+  SOUKSCORE_RISK_RATING_GRADES,
+} from "@cashsouk/types";
 
 // Helper for parsing boolean query params (handles "true"/"false" strings properly)
 const booleanQueryParam = z
@@ -91,28 +94,90 @@ export const exportAccessLogsQuerySchema = getAccessLogsQuerySchema.extend({
 export type ExportAccessLogsQuery = z.infer<typeof exportAccessLogsQuerySchema>;
 
 // Admin management schemas
+const adminRoleKeySchema = z
+  .string()
+  .trim()
+  .min(1, "Role key is required")
+  .max(80, "Role key must be 80 characters or fewer")
+  .regex(
+    /^[A-Z][A-Z0-9_]*$/,
+    "Role key must start with a letter and contain only uppercase letters, numbers, and underscores"
+  );
+
+const reservedAdminRoleKeys = new Set<string>(SYSTEM_ADMIN_ROLE_KEYS);
+
+const adminRoleNameSchema = z
+  .string()
+  .trim()
+  .min(2, "Role name must be at least 2 characters")
+  .max(80, "Role name must be 80 characters or fewer");
+
+const adminRoleDescriptionSchema = z.preprocess(
+  (value) => {
+    if (typeof value !== "string") {
+      return value;
+    }
+
+    const trimmed = value.trim();
+    return trimmed.length === 0 ? undefined : trimmed;
+  },
+  z.string().max(240, "Description must be 240 characters or fewer").optional()
+);
+
+const adminRoleBadgeColorSchema = z
+  .string()
+  .trim()
+  .regex(/^#(?:[0-9A-Fa-f]{6})$/, "Badge color must be a valid 6-digit hex color");
+
+export const adminRoleParamsSchema = z.object({
+  key: adminRoleKeySchema,
+});
+
+export type AdminRoleParams = z.infer<typeof adminRoleParamsSchema>;
+
 export const getAdminUsersQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(10),
   search: z.string().optional(),
-  roleDescription: z.nativeEnum(AdminRole).optional(),
+  roleDescription: adminRoleKeySchema.optional(),
   status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
 });
 
 export type GetAdminUsersQuery = z.infer<typeof getAdminUsersQuerySchema>;
 
 export const updateAdminRoleSchema = z.object({
-  roleDescription: z.nativeEnum(AdminRole),
+  roleDescription: adminRoleKeySchema,
 });
 
 export type UpdateAdminRoleInput = z.infer<typeof updateAdminRoleSchema>;
+
+export const createAdminRoleSchema = z.object({
+  key: adminRoleKeySchema.refine(
+    (value) => !reservedAdminRoleKeys.has(value),
+    "System role keys are reserved"
+  ),
+  name: adminRoleNameSchema,
+  description: adminRoleDescriptionSchema,
+  badgeColor: adminRoleBadgeColorSchema,
+});
+
+export type CreateAdminRoleInput = z.infer<typeof createAdminRoleSchema>;
+
+export const updateAdminRolePermissionsSchema = z.object({
+  permissions: z.array(z.enum(ADMIN_PERMISSIONS)),
+  badgeColor: adminRoleBadgeColorSchema,
+});
+
+export type UpdateAdminRolePermissionsInput = z.infer<
+  typeof updateAdminRolePermissionsSchema
+>;
 
 export const inviteAdminSchema = z.object({
   email: z.preprocess(
     (val) => (val === "" || val === null || val === undefined ? undefined : val),
     z.string().email("Please enter a valid email address").optional()
   ),
-  roleDescription: z.nativeEnum(AdminRole),
+  roleDescription: adminRoleKeySchema,
 });
 
 export type InviteAdminInput = z.infer<typeof inviteAdminSchema>;
@@ -149,7 +214,7 @@ export const getPendingInvitationsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(10),
   search: z.string().optional(),
-  roleDescription: z.nativeEnum(AdminRole).optional(),
+  roleDescription: adminRoleKeySchema.optional(),
 });
 
 export type GetPendingInvitationsQuery = z.infer<typeof getPendingInvitationsQuerySchema>;

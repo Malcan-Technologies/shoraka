@@ -29,14 +29,13 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useInviteAdmin, useGenerateInvitationUrl } from "@/hooks/use-admin-users";
-import { AdminRole } from "@cashsouk/types";
+import type { AdminRoleConfigRecord } from "@cashsouk/types";
 import { ClipboardIcon, CheckIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { getAdminRoleDisplayInfo } from "./admin-role-metadata";
 
 const inviteAdminSchema = z.object({
   email: z.string().email("Please enter a valid email address").optional(),
-  roleDescription: z.nativeEnum(AdminRole, {
-    required_error: "Please select a role",
-  }),
+  roleDescription: z.string().min(1, "Please select a role"),
 });
 
 type InviteAdminFormValues = z.infer<typeof inviteAdminSchema>;
@@ -44,16 +43,14 @@ type InviteAdminFormValues = z.infer<typeof inviteAdminSchema>;
 interface InviteAdminDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  availableRoles: AdminRoleConfigRecord[];
 }
 
-const roleOptions = [
-  { value: AdminRole.SUPER_ADMIN, label: "Super Admin" },
-  { value: AdminRole.COMPLIANCE_OFFICER, label: "Compliance Officer" },
-  { value: AdminRole.OPERATIONS_OFFICER, label: "Operations Officer" },
-  { value: AdminRole.FINANCE_OFFICER, label: "Finance Officer" },
-];
-
-export function InviteAdminDialog({ open, onOpenChange }: InviteAdminDialogProps) {
+export function InviteAdminDialog({
+  open,
+  onOpenChange,
+  availableRoles,
+}: InviteAdminDialogProps) {
   const [inviteUrl, setInviteUrl] = React.useState<string | null>(null);
   const [messageId, setMessageId] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
@@ -66,11 +63,24 @@ export function InviteAdminDialog({ open, onOpenChange }: InviteAdminDialogProps
     resolver: zodResolver(inviteAdminSchema),
     defaultValues: {
       email: "",
-      roleDescription: undefined,
+      roleDescription: "",
     },
   });
 
   const formValues = useWatch({ control: form.control }) as InviteAdminFormValues;
+  const roleOptions = React.useMemo(
+    () =>
+      availableRoles.map((role) => ({
+        value: role.key,
+        label: getAdminRoleDisplayInfo(
+          role.key,
+          role.name,
+          role.description,
+          role.badgeColor
+        ).name,
+      })),
+    [availableRoles]
+  );
   // Only role is required for link generation
 
   React.useEffect(() => {
@@ -319,13 +329,10 @@ export function InviteAdminDialog({ open, onOpenChange }: InviteAdminDialogProps
               <FormField
                 control={form.control}
                 name="roleDescription"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Admin Role</FormLabel>
-                    <Select
-                      onValueChange={(value) => field.onChange(value as AdminRole)}
-                      value={field.value}
-                    >
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Admin Role</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger className="h-11 rounded-xl">
                         <SelectValue placeholder="Select a role" />
@@ -341,8 +348,8 @@ export function InviteAdminDialog({ open, onOpenChange }: InviteAdminDialogProps
                   </Select>
                   <FormMessage />
                 </FormItem>
-              )}
-            />
+                )}
+              />
 
               {inviteUrl && (
                 <div className="rounded-lg border bg-muted/20 p-3">

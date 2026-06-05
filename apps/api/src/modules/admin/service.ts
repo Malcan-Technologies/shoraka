@@ -4,7 +4,6 @@ import {
   AccessLog,
   UserRole,
   Prisma,
-  AdminRole,
   OnboardingLog,
   SecurityLog,
   OrganizationType,
@@ -30,7 +29,9 @@ import type {
   UpdateUserOnboardingInput,
   UpdateUserProfileInput,
   GetAdminUsersQuery,
+  CreateAdminRoleInput,
   UpdateAdminRoleInput,
+  UpdateAdminRolePermissionsInput,
   InviteAdminInput,
   AcceptInvitationInput,
   GetSecurityLogsQuery,
@@ -50,13 +51,20 @@ import {
 } from "../notification/registry";
 import { getIssuerRecipientUserIdsForApplication } from "../notification/application-recipients";
 import { getRegTankConfig } from "../../config/regtank";
-import type {
-  OnboardingApprovalStatus,
-  OnboardingApplicationResponse,
-  OnboardingStatusEnum,
-  UserDetailResponse,
+import {
+  AdminRole,
+  type AdminRoleBadgeColor,
+  type AdminRoleConfigRecord,
+  type AdminPermission,
+  type AdminRoleKey,
+  type OnboardingApprovalStatus,
+  type OnboardingApplicationResponse,
+  type OnboardingStatusEnum,
+  type UserDetailResponse,
 } from "@cashsouk/types";
 import {
+  ADMIN_PERMISSIONS,
+  SYSTEM_ADMIN_ROLE_KEYS,
   getSectionForPendingAmendment,
   getSectionForScopeKey,
   parseItemScopeKey,
@@ -102,6 +110,7 @@ import {
   buildOfferSigningAdminView,
   contractResignBlockedByNotes,
 } from "../signingcloud/offer-signing-admin-view";
+import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
 
 const APPLICATION_ACTION_REQUIRED_STATUSES = [
   ApplicationStatus.SUBMITTED,
@@ -111,6 +120,7 @@ const APPLICATION_ACTION_REQUIRED_STATUSES = [
   ApplicationStatus.CONTRACT_ACCEPTED,
   ApplicationStatus.INVOICE_PENDING,
 ] as const;
+const RESERVED_ADMIN_ROLE_KEYS = new Set<string>(SYSTEM_ADMIN_ROLE_KEYS);
 
 type ResubmitComparisonAmendmentRemark = {
   scope: string;
@@ -154,6 +164,275 @@ export class AdminService {
     this.regTankApiClient = new RegTankAPIClient();
     this.notificationService = new NotificationService();
     this.productRepository = new ProductRepository();
+  }
+
+  private sortAdminRolesCatalog(roles: AdminRoleConfigRecord[]): AdminRoleConfigRecord[] {
+    return [...roles].sort((a, b) => {
+      if (a.key === "SUPER_ADMIN") return -1;
+      if (b.key === "SUPER_ADMIN") return 1;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    });
+  }
+
+  private async countAdminRoleAssignments(): Promise<Map<string, number>> {
+    const roleIdRows = await prisma.admin.groupBy({
+      by: ["role_id"],
+      _count: { _all: true },
+    });
+
+    const roleIds = roleIdRows
+      .map((row) => row.role_id)
+      .filter((roleId): roleId is string => roleId !== null);
+
+    const roleConfigs = roleIds.length
+      ? await prisma.adminRoleConfig.findMany({
+          where: { id: { in: roleIds } },
+          select: { id: true, key: true },
+        })
+      : [];
+
+    const roleKeyById = new Map(roleConfigs.map((role) => [role.id, role.key]));
+    const counts = new Map<string, number>();
+
+    for (const row of roleIdRows) {
+      if (!row.role_id) {
+        continue;
+      }
+
+      const roleKey = roleKeyById.get(row.role_id);
+      if (!roleKey) {
+        continue;
+      }
+
+      counts.set(roleKey, row._count._all);
+    }
+
+    return counts;
+  }
+
+  private toAdminRoleConfigRecord(
+    role: {
+      id: string;
+      key: string;
+      name: string;
+      description: string | null;
+      badge_color: string;
+      permissions: string[];
+      is_system: boolean;
+      is_editable: boolean;
+    },
+    memberCount: number
+  ): AdminRoleConfigRecord {
+    const isSystemRole = RESERVED_ADMIN_ROLE_KEYS.has(role.key);
+
+    return {
+      id: role.id,
+      key: role.key,
+      name: role.name,
+      description: role.description,
+      badgeColor: role.badge_color as AdminRoleBadgeColor,
+      permissions: role.permissions.filter((permission): permission is AdminPermission =>
+        ADMIN_PERMISSIONS.includes(permission as AdminPermission)
+      ),
+      isSystem: isSystemRole,
+      isEditable: !isSystemRole,
+      memberCount,
+    };
+  }
+
+  async listAdminRoleConfigs(): Promise<{ roles: AdminRoleConfigRecord[] }> {
+    await ensureAdminRoleCatalog(prisma);
+
+    const [roles, roleCounts] = await Promise.all([
+      this.repository.listAdminRoleConfigs(),
+      this.countAdminRoleAssignments(),
+    ]);
+
+    return {
+      roles: this.sortAdminRolesCatalog(
+        roles.map((role) =>
+          this.toAdminRoleConfigRecord(role, roleCounts.get(role.key) ?? 0)
+        )
+      ),
+    };
+  }
+
+  private async requireAdminRoleConfig(roleKey: AdminRoleKey) {
+    await ensureAdminRoleCatalog(prisma);
+
+    const role = await this.repository.getAdminRoleConfigByKey(roleKey);
+    if (!role) {
+      throw new AppError(404, "NOT_FOUND", "Admin role not found");
+    }
+
+    return role;
+  }
+
+  private async getAdminRoleUsage(roleKey: AdminRoleKey) {
+    const [assignedAdminCount, pendingInvitationCount] = await Promise.all([
+      this.repository.countAdminsByRoleKey(roleKey),
+      this.repository.countPendingInvitationsByRoleKey(roleKey),
+    ]);
+
+    return {
+      assignedAdminCount,
+      pendingInvitationCount,
+    };
+  }
+
+  async updateAdminRolePermissions(
+    req: Request,
+    roleKey: string,
+    data: UpdateAdminRolePermissionsInput,
+    updatedBy: string
+  ): Promise<{ role: AdminRoleConfigRecord }> {
+    await ensureAdminRoleCatalog(prisma);
+
+    const role = await this.repository.getAdminRoleConfigByKey(roleKey);
+    if (!role) {
+      throw new AppError(404, "NOT_FOUND", "Admin role not found");
+    }
+
+    if (RESERVED_ADMIN_ROLE_KEYS.has(role.key)) {
+      const nextPermissions = [...new Set(data.permissions)].sort();
+      const currentPermissions = [...role.permissions].sort();
+
+      if (JSON.stringify(nextPermissions) !== JSON.stringify(currentPermissions)) {
+        throw new AppError(
+          403,
+          "FORBIDDEN",
+          "System role permissions cannot be edited"
+        );
+      }
+    }
+
+    const updatedRole = await this.repository.updateAdminRolePermissions(
+      roleKey,
+      [...new Set(data.permissions)],
+      data.badgeColor
+    );
+    const roleCounts = await this.countAdminRoleAssignments();
+
+    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
+    await this.repository.createSecurityLog({
+      userId: updatedBy,
+      eventType: "ROLE_PERMISSIONS_UPDATED",
+      ipAddress,
+      userAgent,
+      deviceInfo,
+      metadata: {
+        roleKey,
+        previousPermissions: role.permissions,
+        nextPermissions: updatedRole.permissions,
+        previousBadgeColor: role.badge_color,
+        nextBadgeColor: updatedRole.badge_color,
+      },
+    });
+
+    return {
+      role: this.toAdminRoleConfigRecord(
+        updatedRole,
+        roleCounts.get(updatedRole.key) ?? 0
+      ),
+    };
+  }
+
+  async createAdminRole(
+    req: Request,
+    data: CreateAdminRoleInput,
+    createdBy: string
+  ): Promise<{ role: AdminRoleConfigRecord }> {
+    await ensureAdminRoleCatalog(prisma);
+
+    if (RESERVED_ADMIN_ROLE_KEYS.has(data.key)) {
+      throw new AppError(400, "VALIDATION_ERROR", "System role keys are reserved");
+    }
+
+    const existingRole = await this.repository.getAdminRoleConfigByKey(data.key);
+    if (existingRole) {
+      throw new AppError(409, "CONFLICT", "An admin role with this key already exists");
+    }
+
+    const createdRole = await this.repository.createAdminRoleConfig(data);
+    const roleCounts = await this.countAdminRoleAssignments();
+    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
+
+    await this.repository.createSecurityLog({
+      userId: createdBy,
+      eventType: "ROLE_CREATED",
+      ipAddress,
+      userAgent,
+      deviceInfo,
+      metadata: {
+        roleKey: createdRole.key,
+        roleName: createdRole.name,
+        badgeColor: createdRole.badge_color,
+      },
+    });
+
+    return {
+      role: this.toAdminRoleConfigRecord(createdRole, roleCounts.get(createdRole.key) ?? 0),
+    };
+  }
+
+  async deleteAdminRole(
+    req: Request,
+    roleKey: string,
+    deletedBy: string
+  ): Promise<{ deletedRoleKey: AdminRoleKey }> {
+    await ensureAdminRoleCatalog(prisma);
+
+    const role = await this.repository.getAdminRoleConfigByKey(roleKey);
+    if (!role) {
+      throw new AppError(404, "NOT_FOUND", "Admin role not found");
+    }
+
+    if (RESERVED_ADMIN_ROLE_KEYS.has(role.key)) {
+      throw new AppError(403, "FORBIDDEN", "This admin role cannot be deleted");
+    }
+
+    const usage = await this.getAdminRoleUsage(role.key as AdminRoleKey);
+    if (usage.assignedAdminCount > 0 || usage.pendingInvitationCount > 0) {
+      const usageMessages: string[] = [];
+
+      if (usage.assignedAdminCount > 0) {
+        usageMessages.push(
+          `${usage.assignedAdminCount} admin${usage.assignedAdminCount === 1 ? "" : "s"}`
+        );
+      }
+
+      if (usage.pendingInvitationCount > 0) {
+        usageMessages.push(
+          `${usage.pendingInvitationCount} pending invitation${
+            usage.pendingInvitationCount === 1 ? "" : "s"
+          }`
+        );
+      }
+
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        `This admin role is still in use by ${usageMessages.join(" and ")}.`,
+        usage
+      );
+    }
+
+    await this.repository.deleteAdminRoleConfig(role.key);
+
+    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
+    await this.repository.createSecurityLog({
+      userId: deletedBy,
+      eventType: "ROLE_REMOVED",
+      ipAddress,
+      userAgent,
+      deviceInfo,
+      metadata: {
+        deletedRoleKey: role.key,
+        deletedRoleName: role.name,
+      },
+    });
+
+    return { deletedRoleKey: role.key as AdminRoleKey };
   }
 
   private async sendIssuerNotification<T extends NotificationTypeId>(
@@ -1067,7 +1346,7 @@ export class AdminService {
    */
   async getAdminUsers(params: GetAdminUsersQuery): Promise<{
     users: (User & {
-      admin: { role_description: AdminRole; status: string; last_login: Date | null } | null;
+      admin: { role_description: string; status: string; last_login: Date | null } | null;
     })[];
     pagination: {
       page: number;
@@ -1098,7 +1377,7 @@ export class AdminService {
     userId: string,
     data: UpdateAdminRoleInput,
     updatedBy: string
-  ): Promise<User & { admin: { role_description: AdminRole } | null }> {
+  ): Promise<User & { admin: { role_description: string } | null }> {
     const user = await this.repository.getUserById(userId);
     if (!user) {
       throw new AppError(404, "NOT_FOUND", "User not found");
@@ -1112,6 +1391,8 @@ export class AdminService {
     if (!admin) {
       throw new AppError(404, "NOT_FOUND", "Admin record not found");
     }
+
+    await this.requireAdminRoleConfig(data.roleDescription);
 
     const previousRole = admin.role_description;
     await this.repository.updateAdminRole(userId, data.roleDescription);
@@ -1137,7 +1418,7 @@ export class AdminService {
     return {
       ...updatedUser!,
       admin: updatedAdmin,
-    } as User & { admin: { role_description: AdminRole } | null };
+    } as User & { admin: { role_description: string } | null };
   }
 
   /**
@@ -1274,6 +1555,8 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Inviter not found");
     }
 
+    await this.requireAdminRoleConfig(data.roleDescription);
+
     // Use placeholder email if not provided (for link-based invitations)
     const email = data.email?.toLowerCase() || `invitation-${Date.now()}@cashsouk.com`;
 
@@ -1329,6 +1612,8 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Inviter not found");
     }
 
+    const invitedRole = await this.requireAdminRoleConfig(data.roleDescription);
+
     // Generate invitation URL (creates invitation record if needed)
     const { inviteUrl } = await this.generateInvitationUrl(data, invitedBy);
 
@@ -1340,7 +1625,15 @@ export class AdminService {
     if (data.email) {
       try {
         const inviterName = `${inviter.first_name} ${inviter.last_name}`;
-        const template = adminInvitationTemplate(inviteUrl, data.roleDescription, inviterName);
+        const template = adminInvitationTemplate(
+          inviteUrl,
+          {
+            key: invitedRole.key as AdminRoleKey,
+            name: invitedRole.name,
+            description: invitedRole.description,
+          },
+          inviterName
+        );
 
         const result = await sendEmail({
           to: data.email,
@@ -1401,7 +1694,7 @@ export class AdminService {
     authenticatedUser?: User
   ): Promise<{
     user: User;
-    admin: { role_description: AdminRole; status: "ACTIVE" | "INACTIVE" };
+    admin: { role_description: string; status: "ACTIVE" | "INACTIVE" };
   }> {
     const invitation = await this.repository.getAdminInvitationByToken(data.token);
 
@@ -1416,6 +1709,8 @@ export class AdminService {
     if (new Date() > invitation.expires_at) {
       throw new AppError(400, "VALIDATION_ERROR", "Invitation has expired");
     }
+
+    await this.requireAdminRoleConfig(invitation.role_description);
 
     // Find user - if invitation has a placeholder email, use authenticated user
     // Otherwise, find by invitation email
@@ -1551,12 +1846,12 @@ export class AdminService {
     page?: number;
     pageSize?: number;
     search?: string;
-    roleDescription?: AdminRole;
+    roleDescription?: AdminRoleKey;
   }): Promise<{
     invitations: Array<{
       id: string;
       email: string;
-      role_description: AdminRole;
+      role_description: string;
       token: string;
       expires_at: Date;
       created_at: Date;
@@ -1604,6 +1899,8 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Inviter not found");
     }
 
+    const invitationRole = await this.requireAdminRoleConfig(invitation.role_description);
+
     // Generate invitation URL
     const adminPortalUrl = process.env.ADMIN_URL || "http://localhost:3003";
     const inviteUrl = `${adminPortalUrl}/callback?invitation=${invitation.token}&role=${invitation.role_description}`;
@@ -1614,7 +1911,15 @@ export class AdminService {
 
     try {
       const inviterName = `${inviter.first_name} ${inviter.last_name}`;
-      const template = adminInvitationTemplate(inviteUrl, invitation.role_description, inviterName);
+      const template = adminInvitationTemplate(
+        inviteUrl,
+        {
+          key: invitationRole.key as AdminRoleKey,
+          name: invitationRole.name,
+          description: invitationRole.description,
+        },
+        inviterName
+      );
 
       const result = await sendEmail({
         to: invitation.email,

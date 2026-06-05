@@ -233,10 +233,9 @@ export interface DashboardStatsResponse {
 // Admin Management Types
 export enum AdminRole {
   SUPER_ADMIN = "SUPER_ADMIN",
-  COMPLIANCE_OFFICER = "COMPLIANCE_OFFICER",
-  OPERATIONS_OFFICER = "OPERATIONS_OFFICER",
-  FINANCE_OFFICER = "FINANCE_OFFICER",
 }
+
+export type AdminRoleKey = AdminRole | (string & {});
 
 export interface AdminUser {
   id: string;
@@ -245,7 +244,7 @@ export interface AdminUser {
   last_name: string;
   email: string;
   admin: {
-    role_description: AdminRole | null;
+    role_description: AdminRoleKey | null;
     status: "ACTIVE" | "INACTIVE";
     last_login: string | null;
   } | null;
@@ -254,7 +253,7 @@ export interface AdminUser {
 
 export interface GetAdminUsersParams extends PaginationParams {
   search?: string;
-  roleDescription?: AdminRole;
+  roleDescription?: AdminRoleKey;
   status?: "ACTIVE" | "INACTIVE";
 }
 
@@ -264,12 +263,12 @@ export interface AdminUsersResponse {
 }
 
 export interface UpdateAdminRoleInput {
-  roleDescription: AdminRole;
+  roleDescription: AdminRoleKey;
 }
 
 export interface InviteAdminInput {
   email?: string;
-  roleDescription: AdminRole;
+  roleDescription: AdminRoleKey;
 }
 
 export interface InviteAdminResponse {
@@ -390,7 +389,7 @@ export interface ExportOnboardingLogsParams
 export interface PendingInvitation {
   id: string;
   email: string;
-  role_description: AdminRole;
+  role_description: AdminRoleKey;
   token: string;
   expires_at: string;
   created_at: string;
@@ -403,7 +402,7 @@ export interface PendingInvitation {
 
 export interface GetPendingInvitationsParams extends PaginationParams {
   search?: string;
-  roleDescription?: AdminRole;
+  roleDescription?: AdminRoleKey;
 }
 
 export interface PendingInvitationsResponse {

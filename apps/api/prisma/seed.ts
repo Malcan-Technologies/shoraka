@@ -1,4 +1,5 @@
-import { PrismaClient, Prisma, UserRole, AdminRole, OrganizationType } from "@prisma/client";
+import { PrismaClient, Prisma, UserRole, OrganizationType } from "@prisma/client";
+import { AdminRole } from "@cashsouk/types";
 import { logger } from "../src/lib/logger";
 import { generateUniqueUserId } from "../src/lib/user-id-generator";
 
