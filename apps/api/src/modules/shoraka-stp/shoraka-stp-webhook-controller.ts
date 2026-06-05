@@ -88,6 +88,18 @@ export async function shorakaStpCallbackHandler(
   next: NextFunction
 ) {
   try {
+    // Always log that the webhook endpoint was hit (before validation/signature checks).
+    // Avoid logging secrets/signature payloads.
+    const body = req.body as unknown as Record<string, unknown> | undefined;
+    logger.info(
+      {
+        correlationId: res.locals.correlationId,
+        orderId: typeof body?.orderId === "string" ? body.orderId : undefined,
+        apiId: typeof body?.apiId === "string" ? body.apiId : undefined,
+      },
+      "Shoraka callback endpoint hit"
+    );
+
     const parsed = callbackBodySchema.parse(req.body);
 
     const expectedApiId = envRequired("SHORAKA_API_ID");
