@@ -660,7 +660,9 @@ jobs:
           aws ecs wait services-stable \
             --cluster default \
             --services admin-cashsouk-544e \
-            --region ${{ env.AWS_REGION }}
+            --region ${{ env.AWS_REGION }} \
+            --max-attempts 80 \
+            --delay 15
 
           RUNNING_TASK_DEF=$(aws ecs describe-services \
             --cluster default \

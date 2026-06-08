@@ -1,0 +1,86 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DenyCashSoukEcr",
+      "Effect": "Deny",
+      "Action": "ecr:*",
+      "Resource": "arn:aws:ecr:ap-southeast-5:652821469470:repository/*cashsouk*"
+    },
+    {
+      "Sid": "DenyCashSoukEcsServices",
+      "Effect": "Deny",
+      "Action": "ecs:*",
+      "Resource": "arn:aws:ecs:ap-southeast-5:652821469470:service/default/*cashsouk*"
+    },
+    {
+      "Sid": "DenyCashSoukEcsByName",
+      "Effect": "Deny",
+      "NotAction": ["ecs:Describe*", "ecs:List*"],
+      "Resource": "*",
+      "Condition": {
+        "StringLike": {
+          "ecs:service": "*cashsouk*"
+        }
+      }
+    },
+    {
+      "Sid": "DenyCashSoukTaskDefinitions",
+      "Effect": "Deny",
+      "Action": [
+        "ecs:RegisterTaskDefinition",
+        "ecs:DeregisterTaskDefinition",
+        "ecs:RunTask"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringLike": {
+          "ecs:TaskDefinitionFamily": "*cashsouk*"
+        }
+      }
+    },
+    {
+      "Sid": "DenyCashSoukDeregisterTaskDefinitionArn",
+      "Effect": "Deny",
+      "Action": "ecs:DeregisterTaskDefinition",
+      "Resource": "arn:aws:ecs:ap-southeast-5:652821469470:task-definition/*cashsouk*"
+    },
+    {
+      "Sid": "DenyCashSoukStopTask",
+      "Effect": "Deny",
+      "Action": "ecs:StopTask",
+      "Resource": "*",
+      "Condition": {
+        "StringLike": {
+          "ecs:TaskDefinitionFamily": "*cashsouk*"
+        }
+      }
+    },
+    {
+      "Sid": "DenyCashSoukSecrets",
+      "Effect": "Deny",
+      "Action": "secretsmanager:*",
+      "Resource": [
+        "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:cashsouk/*",
+        "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV*",
+        "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:Frontend_Secrets*",
+        "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:rds!db-*"
+      ]
+    },
+    {
+      "Sid": "DenyCashSoukRds",
+      "Effect": "Deny",
+      "Action": "rds:*",
+      "Resource": "arn:aws:rds:ap-southeast-5:652821469470:db:cashsouk-prod-db"
+    },
+    {
+      "Sid": "DenyPassCashSoukEcsRoles",
+      "Effect": "Deny",
+      "Action": "iam:PassRole",
+      "Resource": [
+        "arn:aws:iam::652821469470:role/ecsTaskRole",
+        "arn:aws:iam::652821469470:role/service-role/ecsTaskExecutionRole"
+      ]
+    }
+  ]
+}
