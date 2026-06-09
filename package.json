@@ -12,7 +12,9 @@
     "e2e": "playwright test",
     "clean": "turbo run clean && rm -rf node_modules",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,mdx}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,mdx}\""
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,mdx}\"",
+    "env:localhost": "bash ./scripts/use-dev-env.sh localhost",
+    "env:tunnel": "bash ./scripts/use-dev-env.sh tunnel"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",

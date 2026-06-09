@@ -15,8 +15,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { isAuthenticated } = useAuth();
 
-  // Prototype eKYC and auth callback must remain reachable without a portal session.
-  const shouldSkipAuthGuard = pathname === "/callback" || pathname.startsWith("/prototype");
+  // OAuth callback must remain reachable without a portal session.
+  const shouldSkipAuthGuard = pathname === "/callback";
 
   // Skip auth guard for callback page
   if (shouldSkipAuthGuard) {

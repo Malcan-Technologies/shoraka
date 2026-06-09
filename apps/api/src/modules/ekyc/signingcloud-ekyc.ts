@@ -1,7 +1,4 @@
-/**
- * SigningCloud eKYC helpers for the standalone WiseAI prototype flow.
- */
-
+import { AppError } from "../../lib/http/error-handler";
 import {
   encryptPayload,
   decryptSigningCloudResponse,
@@ -31,8 +28,9 @@ export interface SubmitSigningCloudEkycResultInput {
 function requireSigningCloudConfig() {
   const config = readSigningCloudConfigFromEnv();
   if (!config) {
-    throw new Error("SigningCloud is not configured");
+    throw new AppError(503, "SIGNINGCLOUD_NOT_CONFIGURED", "SigningCloud is not configured");
   }
+
   return config;
 }
 
@@ -50,9 +48,7 @@ export async function getSigningCloudEkycSession(
 
   const response = await fetch(
     `${config.baseUrl}/signserver/v1/user/ekyc/getToken?${query.toString()}`,
-    {
-      method: "GET",
-    }
+    { method: "GET" }
   );
   const body = (await response.json()) as {
     result: number;
@@ -62,7 +58,11 @@ export async function getSigningCloudEkycSession(
   };
 
   if (body.result !== 0 || !body.url || !body.token) {
-    throw new Error(`SigningCloud getToken failed: ${JSON.stringify(body)}`);
+    throw new AppError(
+      502,
+      "SIGNINGCLOUD_EKYC_GET_TOKEN_FAILED",
+      `SigningCloud getToken failed: ${body.message ?? JSON.stringify(body)}`
+    );
   }
 
   return {
@@ -105,7 +105,11 @@ export async function submitSigningCloudEkycResult(
     | Record<string, unknown>;
 
   if ("result" in body && typeof body.result === "number" && body.result !== 0) {
-    throw new Error(`SigningCloud submitResult failed: ${JSON.stringify(body)}`);
+    throw new AppError(
+      502,
+      "SIGNINGCLOUD_EKYC_SUBMIT_FAILED",
+      `SigningCloud submitResult failed: ${JSON.stringify(body)}`
+    );
   }
 
   if (

@@ -7,7 +7,8 @@
  */
 
 import * as React from "react";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { QRCodeSVG } from "qrcode.react";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { TextareaWithCharCount } from "@/components/textarea-with-char-count";
 import { Label } from "@/components/ui/label";
@@ -28,11 +29,17 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useAcceptInvoiceOffer, useRejectContractOffer, useRejectInvoiceOffer } from "@/hooks/use-applications";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
-import { ArrowDownTrayIcon, CheckIcon, CheckCircleIcon } from "@heroicons/react/24/solid";
+import {
+  ArrowDownTrayIcon,
+  ArrowLeftIcon,
+  CheckIcon,
+  CheckCircleIcon,
+} from "@heroicons/react/24/solid";
 import { toast } from "sonner";
 import type { NormalizedInvoice } from "../status";
 import type { ApiError } from "@cashsouk/types";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
+import { useEkycFlow } from "./use-ekyc-flow";
 
 const PLATFORM_FEE_TOOLTIP =
   "Deducted from disbursement when funding closes, applied as a percentage of the funded amount.";
@@ -65,6 +72,41 @@ function formatDateOrDash(value: string | null | undefined): string {
   return format(d, "d MMM yyyy");
 }
 
+function getApiErrorDetails(
+  response: ApiError | Error | unknown,
+  fallback: string
+): { code: string | null; message: string } {
+  if (
+    response &&
+    typeof response === "object" &&
+    "success" in response &&
+    response.success === false &&
+    "error" in response &&
+    response.error &&
+    typeof response.error === "object"
+  ) {
+    const error = response.error as { code?: string; message?: string };
+    return {
+      code: typeof error.code === "string" ? error.code : null,
+      message: typeof error.message === "string" ? error.message : fallback,
+    };
+  }
+
+  if (response instanceof Error) {
+    const maybeCode =
+      "code" in response && typeof response.code === "string" ? response.code : null;
+    return {
+      code: maybeCode,
+      message: response.message || fallback,
+    };
+  }
+
+  return {
+    code: null,
+    message: fallback,
+  };
+}
+
 /** Only mounted when Review Offer is clicked. Renders once, no isOpen toggle to avoid flash. */
 export function ReviewOfferModal({
   type,
@@ -79,6 +121,7 @@ export function ReviewOfferModal({
     () => createApiClient(API_URL, getAccessToken),
     [getAccessToken]
   );
+  const ekyc = useEkycFlow({ apiClient, apiBaseUrl: API_URL });
 
   const shouldLoadContract = !!contractId;
   const { data: contractRecord, isLoading: isLoadingContract } = useContract(
@@ -103,6 +146,8 @@ export function ReviewOfferModal({
   const [rejectionReason, setRejectionReason] = React.useState("");
   const [selectedDeclineReason, setSelectedDeclineReason] = React.useState("");
   const [isRejectMode, setIsRejectMode] = React.useState(false);
+  const [modalStep, setModalStep] = React.useState<"review" | "ekyc">("review");
+  const [isContinuingToSigning, setIsContinuingToSigning] = React.useState(false);
   const isOtherDeclineReason = selectedDeclineReason === OTHER_ISSUER_DECLINE_REASON_VALUE;
   const isSigningOverrideEnabled = process.env.NODE_ENV !== "production";
 
@@ -323,44 +368,115 @@ export function ReviewOfferModal({
     }
   };
 
+  const startSigningFlow = React.useCallback(async (): Promise<string> => {
+    if (type === "contract") {
+      const res = await apiClient.startContractOfferSigning(applicationId);
+      if (res.success && res.data?.signingUrl) {
+        return res.data.signingUrl;
+      }
+
+      const err = getApiErrorDetails(res, "Failed to start signing");
+      const error = new Error(err.message) as Error & { code?: string | null };
+      error.code = err.code;
+      throw error;
+    }
+
+    if (!invoice?.id) {
+      throw new Error("Invoice ID is missing. Please refresh and try again.");
+    }
+
+    const res = await apiClient.startInvoiceOfferSigning(applicationId, invoice.id);
+    if (res.success && res.data?.signingUrl) {
+      return res.data.signingUrl;
+    }
+
+    const err = getApiErrorDetails(res, "Failed to start signing");
+    const error = new Error(err.message) as Error & { code?: string | null };
+    error.code = err.code;
+    throw error;
+  }, [apiClient, applicationId, invoice?.id, type]);
+
   const handleAccept = async () => {
     setAcceptSigningLoading(true);
     try {
-      if (type === "contract") {
-        const res = await apiClient.startContractOfferSigning(applicationId);
-        if (res.success && res.data?.signingUrl) {
-          window.location.assign(res.data.signingUrl);
-          return;
-        }
-        const err = res as ApiError;
-        throw new Error(
-          !res.success && err.error?.message ? err.error.message : "Failed to start signing"
-        );
+      const invoiceId = invoice?.id;
+
+      if (type === "invoice" && !invoiceId) {
+        return;
       }
-      if (!invoice?.id) return;
-      if (!requiresInvoiceSigning) {
-        await acceptInvoice.mutateAsync({ applicationId, invoiceId: invoice.id });
+
+      if (type === "invoice" && !requiresInvoiceSigning) {
+        await acceptInvoice.mutateAsync({ applicationId, invoiceId: invoiceId! });
         toast.success("Offer accepted");
         onClose();
         return;
       }
-      const res = await apiClient.startInvoiceOfferSigning(applicationId, invoice.id);
-      if (res.success && res.data?.signingUrl) {
-        window.location.assign(res.data.signingUrl);
+
+      const signingUrl = await startSigningFlow();
+      window.location.assign(signingUrl);
+    } catch (e) {
+      const err = getApiErrorDetails(e, "Could not start signing");
+      if (err.code === "EKYC_REQUIRED") {
+        ekyc.reset();
+        setModalStep("ekyc");
+        toast.info("Identity verification required", {
+          description: "Scan the QR code with your phone to continue.",
+        });
         return;
       }
-      const err = res as ApiError;
-      throw new Error(
-        !res.success && err.error?.message ? err.error.message : "Failed to start signing"
-      );
-    } catch (e) {
+
       toast.error("Could not start signing", {
-        description: e instanceof Error ? e.message : "Unknown error",
+        description: err.message,
       });
     } finally {
       setAcceptSigningLoading(false);
     }
   };
+
+  React.useEffect(() => {
+    if (modalStep !== "ekyc" || ekyc.captureUrl || ekyc.isGenerating) {
+      return;
+    }
+
+    ekyc.generateSession().catch(() => undefined);
+  }, [ekyc.captureUrl, ekyc.generateSession, ekyc.isGenerating, modalStep]);
+
+  React.useEffect(() => {
+    if (modalStep !== "ekyc" || ekyc.status !== "submitted" || isContinuingToSigning) {
+      return;
+    }
+
+    let active = true;
+
+    const continueToSigning = async () => {
+      setIsContinuingToSigning(true);
+
+      try {
+        const signingUrl = await startSigningFlow();
+        window.location.assign(signingUrl);
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+
+        const err = getApiErrorDetails(error, "Could not continue to signing");
+        toast.error("Could not continue to signing", {
+          description: err.message,
+        });
+      } finally {
+        if (active) {
+          setIsContinuingToSigning(false);
+        }
+      }
+    };
+
+    // Once the phone flow reports success, resume the original signing journey automatically.
+    continueToSigning().catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, [ekyc.status, isContinuingToSigning, modalStep, startSigningFlow]);
 
   const handleAcceptOverride = async () => {
     setAcceptOverrideLoading(true);
@@ -396,10 +512,10 @@ export function ReviewOfferModal({
   const isPending =
     acceptSigningLoading ||
     acceptOverrideLoading ||
+    isContinuingToSigning ||
     acceptInvoice.isPending ||
     rejectContract.isPending ||
     rejectInvoice.isPending;
-
   const confirmDeclineDisabled =
     isPending ||
     !selectedDeclineReason ||
@@ -414,10 +530,74 @@ export function ReviewOfferModal({
         <DialogTitle className="sr-only">
           Financing offer approved — Review and respond
         </DialogTitle>
+        <DialogDescription className="sr-only">
+          {modalStep === "ekyc"
+            ? "Scan the QR code on your phone to complete identity verification."
+            : "Review the financing offer and accept or decline."}
+        </DialogDescription>
         {isLoading ? (
           <p className="text-sm text-muted-foreground py-8">Loading offer...</p>
         ) : (
           <>
+            {modalStep === "ekyc" ? (
+              <div className="space-y-5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setModalStep("review");
+                  }}
+                  className="h-auto w-fit px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
+                >
+                  <ArrowLeftIcon className="mr-2 h-4 w-4" />
+                  Back to offer
+                </Button>
+
+                <div className="text-center space-y-2">
+                  <p className="text-base font-semibold text-foreground">Identity verification</p>
+                  <p className="text-sm text-muted-foreground">
+                    Scan with your phone. We&apos;ll continue to signing automatically once complete.
+                  </p>
+                </div>
+
+                <div className="flex flex-col items-center gap-4 py-2">
+                  {ekyc.captureUrl ? (
+                    <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+                      <QRCodeSVG value={ekyc.captureUrl} size={220} />
+                    </div>
+                  ) : (
+                    <div className="flex h-[252px] w-[252px] items-center justify-center">
+                      <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    </div>
+                  )}
+
+                  {isContinuingToSigning || ekyc.status === "submitted" ? (
+                    <p className="text-sm text-muted-foreground">Continuing to signing...</p>
+                  ) : null}
+
+                  {ekyc.status === "error" ? (
+                    <div className="flex w-full max-w-xs flex-col items-center gap-3">
+                      <p className="text-center text-sm text-destructive">
+                        {ekyc.error || "Identity verification failed."}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          ekyc.generateSession().catch(() => undefined);
+                        }}
+                        disabled={ekyc.isGenerating || isContinuingToSigning}
+                        className="w-full"
+                      >
+                        Try again
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : (
+              <>
             <div className="flex flex-col items-center text-center mb-6">
               <div
                 className="w-[74px] h-[74px] rounded-full flex items-center justify-center mb-4 shadow-none"
@@ -692,6 +872,8 @@ export function ReviewOfferModal({
                 </Button>
               )}
             </div>
+              </>
+            )}
           </>
         )}
       </DialogContent>

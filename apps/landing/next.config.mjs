@@ -1,6 +1,4 @@
-// next.config.js stays CommonJS; shared list lives in packages/config.
-// eslint-disable-next-line @typescript-eslint/no-require-imports -- CJS config cannot import .cjs via ESM syntax
-const { DEV_TUNNEL_ORIGINS } = require("../../packages/config/dev-tunnel-origins.cjs");
+import { DEV_TUNNEL_ORIGINS } from "../../packages/config/dev-tunnel-origins.mjs";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -49,4 +47,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;

@@ -1,11 +1,13 @@
 import path from "path";
 import { fileURLToPath } from "url";
+import { DEV_TUNNEL_ORIGINS } from "../../packages/config/dev-tunnel-origins.cjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const monorepoRoot = path.join(/* turbopackIgnore: true */ __dirname, "../..");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  allowedDevOrigins: DEV_TUNNEL_ORIGINS,
   output: "standalone",
   outputFileTracingRoot: monorepoRoot,
   transpilePackages: [
@@ -39,7 +41,7 @@ const nextConfig = {
         ],
       },
       {
-        source: "/prototype/ekyc/capture.html",
+        source: "/ekyc/capture.html",
         headers: [
           {
             key: "Content-Security-Policy",
@@ -50,7 +52,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https:",
               "font-src 'self' data: https:",
-              // WiseAI returns the console origin dynamically, so connect-src needs broad https access here.
+              // SigningCloud SDK returns the console origin dynamically, so connect-src needs broad https access here.
               "connect-src 'self' https: http://localhost:4000 http://localhost:3001 blob:",
               "media-src 'self' blob:",
               "worker-src 'self' blob:",

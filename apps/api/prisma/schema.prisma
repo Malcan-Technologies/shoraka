@@ -43,10 +43,28 @@ model User {
   security_logs                    SecurityLog[]
   notification_preferences         UserNotificationPreference[]
   sessions                         UserSession[]
+  signingcloud_ekyc                SigningCloudEkyc?
   authored_review_remarks          ApplicationReviewRemark[]
 
   @@index([cognito_sub])
   @@map("users")
+}
+
+model SigningCloudEkyc {
+  user_id       String                 @id
+  session_token String?                @unique
+  sdk_endpoint  String?
+  doc_type      String
+  status        SigningCloudEkycStatus @default(pending)
+  last_error    String?
+  completed_at  DateTime?
+  created_at    DateTime               @default(now())
+  updated_at    DateTime               @updatedAt
+  user          User                   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([completed_at])
+  @@map("signingcloud_ekyc")
 }
 
 model Loan {
@@ -1409,6 +1427,12 @@ enum UserRole {
   INVESTOR
   ISSUER
   ADMIN
+}
+
+enum SigningCloudEkycStatus {
+  pending
+  submitted
+  error
 }
 
 enum LoanStatus {
