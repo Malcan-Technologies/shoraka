@@ -128,13 +128,24 @@ export async function shorakaStpCallbackHandler(
         {
           signaturePreview: parsed.signature.slice(0, 8),
           expectedSignaturePreview: expectedSignature.slice(0, 8),
-          // Useful for debugging field order & null/blank handling, without the secret.
-          signatureSourceMaskedPreview: signatureSourceMasked.slice(0, 120),
-          // Extra debugging for the common "optional fields become null/undefined" case.
-          optionalFields: {
-            cancelDate: parsed.cancelDate === null ? null : parsed.cancelDate ?? undefined,
-            tenorOther: parsed.tenorOther === null ? null : parsed.tenorOther ?? undefined,
-            tenorOtherUnit: parsed.tenorOtherUnit === null ? null : parsed.tenorOtherUnit ?? undefined,
+          // Full masked signature source (secret replaced), to compare field order + values.
+          signatureSourceMasked,
+          // Useful for debugging optional fields and the exact values used in sigPart().
+          callbackValuesForSignature: {
+            commodityType: parsed.commodityType,
+            valueDate: parsed.valueDate,
+            cancelDate: parsed.cancelDate,
+            orderAmount: parsed.orderAmount,
+            murabahaAmount: parsed.murabahaAmount,
+            tenor: parsed.tenor,
+            tenorOther: parsed.tenorOther,
+            tenorOtherUnit: parsed.tenorOtherUnit,
+            // What actually gets signed for the optional fields (null/undefined => "").
+            sigParts: {
+              cancelDate: sigPart(parsed.cancelDate),
+              tenorOther: sigPart(parsed.tenorOther),
+              tenorOtherUnit: sigPart(parsed.tenorOtherUnit),
+            },
           },
         },
         "Shoraka callback signature mismatch"
