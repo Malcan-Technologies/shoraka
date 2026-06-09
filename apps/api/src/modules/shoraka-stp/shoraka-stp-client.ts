@@ -78,11 +78,17 @@ export async function submitOrder(params: {
   const signatureSource = buildSubmitSignatureSource(params.values);
   const signature = sha256Hex(signatureSource);
 
-  // IMPORTANT: do not include secret/signature source in logs.
+  // IMPORTANT: do not include real secret/signature source in logs.
+  // We mask the first segment (the secret) and log only previews.
+  const signatureSourceParts = signatureSource.split(";");
+  if (signatureSourceParts.length > 0) signatureSourceParts[0] = "***SECRET***";
+  const signatureSourceMasked = signatureSourceParts.join(";");
+
   logger.info(
     {
       endpoint: "/api/submitorder",
-      signaturePreview: signature.slice(0, 6),
+      signaturePreview: signature.slice(0, 8),
+      signatureSourceMaskedPreview: signatureSourceMasked.slice(0, 140),
     },
     "Shoraka submitorder request prepared"
   );
