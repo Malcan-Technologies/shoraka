@@ -65,35 +65,6 @@ function sigPart(v: unknown): string {
   return String(v);
 }
 
-function buildCallbackSignatureSource(body: z.infer<typeof callbackBodySchema>): string {
-  // Signature format:
-  // SECRET_KEY;API_ID;order_id;status;bank_name;ownership_name;commodity_type;unit;volume;product_type;value_date;cancel_date;order_type;order_currency;order_amount;murabaha_amount;tenor;tenor_other;tenor_other_unit
-  const secretKey = envRequired("SHORAKA_SECRET_KEY");
-  const apiId = envRequired("SHORAKA_API_ID");
-
-  return [
-    secretKey,
-    apiId,
-    body.orderId,
-    sigPart(body.status),
-    sigPart(body.bankName),
-    sigPart(body.ownershipName),
-    sigPart(body.commodityType),
-    sigPart(body.unit),
-    sigPart(body.volume),
-    sigPart(body.productType),
-    sigPart(body.valueDate),
-    sigPart(body.cancelDate),
-    sigPart(body.orderType),
-    sigPart(body.orderCurrency),
-    sigPart(body.orderAmount),
-    sigPart(body.murabahaAmount),
-    sigPart(body.tenor),
-    sigPart(body.tenorOther),
-    sigPart(body.tenorOtherUnit),
-  ].join(";");
-}
-
 export async function shorakaStpCallbackHandler(
   req: Request,
   res: Response,
@@ -119,12 +90,55 @@ export async function shorakaStpCallbackHandler(
       throw new AppError(401, "SHORAKA_API_ID_INVALID", "Invalid Shoraka apiId");
     }
 
-    const signatureSource = buildCallbackSignatureSource(parsed);
+    // Build callback signature source in the exact order expected by the backend.
+    // We also build a masked version for safe debug logging (no real secret in logs).
+    const secretKey = envRequired("SHORAKA_SECRET_KEY");
+    const apiId = envRequired("SHORAKA_API_ID");
+
+    const signatureSourceParts = [
+      secretKey,
+      apiId,
+      parsed.orderId,
+      sigPart(parsed.status),
+      sigPart(parsed.bankName),
+      sigPart(parsed.ownershipName),
+      sigPart(parsed.commodityType),
+      sigPart(parsed.unit),
+      sigPart(parsed.volume),
+      sigPart(parsed.productType),
+      sigPart(parsed.valueDate),
+      sigPart(parsed.cancelDate),
+      sigPart(parsed.orderType),
+      sigPart(parsed.orderCurrency),
+      sigPart(parsed.orderAmount),
+      sigPart(parsed.murabahaAmount),
+      sigPart(parsed.tenor),
+      sigPart(parsed.tenorOther),
+      sigPart(parsed.tenorOtherUnit),
+    ];
+
+    const signatureSource = signatureSourceParts.join(";");
+    const signatureSourceMasked = ["***SECRET***", apiId, ...signatureSourceParts.slice(2)].join(";");
+
     const expectedSignature = sha256Hex(signatureSource);
 
     if (expectedSignature !== parsed.signature) {
       // Log only a short preview; never log secrets or the signature source string.
-      logger.warn({ signaturePreview: parsed.signature.slice(0, 6) }, "Shoraka callback signature mismatch");
+      logger.warn(
+        {
+          signaturePreview: parsed.signature.slice(0, 8),
+          expectedSignaturePreview: expectedSignature.slice(0, 8),
+          // Useful for debugging field order & null/blank handling, without the secret.
+          signatureSourceMaskedPreview: signatureSourceMasked.slice(0, 120),
+          // Extra debugging for the common "optional fields become null/undefined" case.
+          optionalFields: {
+            cancelDate: parsed.cancelDate === null ? null : parsed.cancelDate ?? undefined,
+            tenorOther: parsed.tenorOther === null ? null : parsed.tenorOther ?? undefined,
+            tenorOtherUnit: parsed.tenorOtherUnit === null ? null : parsed.tenorOtherUnit ?? undefined,
+          },
+        },
+        "Shoraka callback signature mismatch"
+      );
       throw new AppError(401, "INVALID_SIGNATURE", "Invalid webhook signature");
     }
 
