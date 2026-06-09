@@ -32,11 +32,23 @@ const callbackBodySchema = z.object({
   tenorOtherUnit: z.union([z.string(), z.null()]).nullable().optional(),
 
   // Other certificate details we store as payload for audit.
-  certificateDetails1: z.union([z.string(), z.null()]).nullable().optional(),
-  certificateDetails2: z.union([z.string(), z.null()]).nullable().optional(),
-  certificateDetails3: z.union([z.string(), z.null()]).nullable().optional(),
+  // Provider sometimes sends these as arrays; accept them and stringify for storage consistency.
+  certificateDetails1: z.union([z.string(), z.array(z.unknown()), z.null()]).nullable().optional(),
+  certificateDetails2: z.union([z.string(), z.array(z.unknown()), z.null()]).nullable().optional(),
+  certificateDetails3: z.union([z.string(), z.array(z.unknown()), z.null()]).nullable().optional(),
   certificateUrl: z.union([z.string(), z.null()]).nullable().optional(),
 });
+
+function stringifyIfArray(v: unknown): unknown {
+  if (!Array.isArray(v)) return v;
+  // Store as JSON string so older code/UI that expects string won't break.
+  try {
+    return JSON.stringify(v);
+  } catch {
+    // Fallback: keep something predictable even if JSON.stringify fails for weird values.
+    return String(v);
+  }
+}
 
 function sha256Hex(value: string): string {
   return crypto.createHash("sha256").update(value, "utf8").digest("hex");
@@ -128,11 +140,19 @@ export async function shorakaStpCallbackHandler(
     const normalizedStatus = normalizeProviderStatus(parsed.status);
 
     // Update status only (do not auto-fetch certificate).
+    // Persist payload with stable types (string for certificateDetails1/2/3).
+    const payloadForDb = {
+      ...req.body,
+      certificateDetails1: stringifyIfArray((req.body as Record<string, unknown>)?.certificateDetails1),
+      certificateDetails2: stringifyIfArray((req.body as Record<string, unknown>)?.certificateDetails2),
+      certificateDetails3: stringifyIfArray((req.body as Record<string, unknown>)?.certificateDetails3),
+    };
+
     await prisma.shorakaTradeOrder.update({
       where: { id: existing.id },
       data: {
         status: normalizedStatus,
-        callback_payload: req.body,
+        callback_payload: payloadForDb,
         callback_received_at: new Date(),
         status_last_checked_at: new Date(),
       },
