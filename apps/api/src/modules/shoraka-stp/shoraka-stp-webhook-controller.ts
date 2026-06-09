@@ -94,91 +94,205 @@ export async function shorakaStpCallbackHandler(
     // We also build a masked version for safe debug logging (no real secret in logs).
     const secretKey = envRequired("SHORAKA_SECRET_KEY");
     const apiId = envRequired("SHORAKA_API_ID");
-
     // Signature format:
     // SECRET_KEY;API_ID;order_id;status;bank_name;ownership_name;commodity_type;unit;volume;product_type;value_date;cancel_date;order_type;order_currency;order_amount;murabaha_amount;tenor;tenor_other;tenor_other_unit
     // For optional fields, backend uses: null/undefined => ""
+
+    // TEMP DEBUG - remove after Shoraka signature issue is resolved.
     const tenorIsON = typeof parsed.tenor === "string" && parsed.tenor.trim() === "O/N";
 
-    const signatureSourcePartsAsIs = [
-      secretKey,
-      apiId,
-      parsed.orderId,
-      sigPart(parsed.status),
-      sigPart(parsed.bankName),
-      sigPart(parsed.ownershipName),
-      sigPart(parsed.commodityType),
-      sigPart(parsed.unit),
-      sigPart(parsed.volume),
-      sigPart(parsed.productType),
-      sigPart(parsed.valueDate),
-      sigPart(parsed.cancelDate),
-      sigPart(parsed.orderType),
-      sigPart(parsed.orderCurrency),
-      sigPart(parsed.orderAmount),
-      sigPart(parsed.murabahaAmount),
-      sigPart(parsed.tenor),
-      sigPart(parsed.tenorOther),
-      sigPart(parsed.tenorOtherUnit),
-    ];
-
-    const signatureSourcePartsNormalized = [
-      secretKey,
-      apiId,
-      parsed.orderId,
-      sigPart(parsed.status),
-      sigPart(parsed.bankName),
-      sigPart(parsed.ownershipName),
-      sigPart(parsed.commodityType),
-      sigPart(parsed.unit),
-      sigPart(parsed.volume),
-      sigPart(parsed.productType),
-      sigPart(parsed.valueDate),
-      sigPart(parsed.cancelDate),
-      sigPart(parsed.orderType),
-      sigPart(parsed.orderCurrency),
-      sigPart(parsed.orderAmount),
-      sigPart(parsed.murabahaAmount),
-      sigPart(parsed.tenor),
-      // If tenor is O/N, force signed tenorOther and tenorOtherUnit to "".
-      sigPart(tenorIsON ? "" : parsed.tenorOther),
-      sigPart(tenorIsON ? "" : parsed.tenorOtherUnit),
-    ];
-
-    const expectedSignatureAsIs = sha256Hex(signatureSourcePartsAsIs.join(";"));
-    const expectedSignatureNormalized = sha256Hex(signatureSourcePartsNormalized.join(";"));
-
     const receivedSignature = parsed.signature;
+    const receivedSignaturePreview = receivedSignature.slice(0, 8);
 
-    if (expectedSignatureAsIs !== receivedSignature) {
-      // Only log the first 8 chars of each signature candidate.
-      const isNormalizedMatch = expectedSignatureNormalized === receivedSignature;
-      logger.warn(
-        {
-          signaturePreview: receivedSignature.slice(0, 8),
-          expectedSignatureAsIsPreview: expectedSignatureAsIs.slice(0, 8),
-          expectedSignatureNormalizedPreview: expectedSignatureNormalized.slice(0, 8),
-          tenorIsON,
+    const bodyRec = req.body && typeof req.body === "object" ? (req.body as Record<string, unknown>) : null;
+    const rawBodyForLog =
+      bodyRec
+        ? {
+            ...bodyRec,
+            // Avoid logging full signature; only preview.
+            signature:
+              typeof bodyRec.signature === "string" ? bodyRec.signature.slice(0, 8) + "..." : undefined,
+          }
+        : req.body;
+
+    logger.warn(
+      {
+        callbackSignatureRawBody: rawBodyForLog,
+        callbackSigningValues: {
+          secret: "***SECRET***",
+          apiId,
+          orderId: parsed.orderId,
+          status: parsed.status,
+          bankName: parsed.bankName,
+          ownershipName: parsed.ownershipName,
+          commodityType: parsed.commodityType,
+          unit: parsed.unit,
+          volume: parsed.volume,
+          productType: parsed.productType,
+          valueDate: parsed.valueDate,
+          cancelDate: parsed.cancelDate,
+          orderType: parsed.orderType,
+          orderCurrency: parsed.orderCurrency,
+          orderAmount: parsed.orderAmount,
+          murabahaAmount: parsed.murabahaAmount,
+          tenor: parsed.tenor,
           tenorOther: parsed.tenorOther,
           tenorOtherUnit: parsed.tenorOtherUnit,
-          // Masking: do not log secret. (We also avoid logging full signature source string.)
         },
-        "Shoraka callback signature mismatch (as-is vs O/N-normalized)"
-      );
+      },
+      "TEMP DEBUG - Shoraka callback signature inputs"
+    );
 
-      if (!isNormalizedMatch) {
-        throw new AppError(401, "INVALID_SIGNATURE", "Invalid webhook signature");
-      }
+    function buildSignatureSourceMaskedAndHash(input: {
+      commodityTypeSigned: unknown;
+      tenorOtherSigned: unknown;
+      tenorOtherUnitSigned: unknown;
+      unitSigned: unknown;
+    }): { sourceMasked: string; signature: string } {
+      const parts: unknown[] = [
+        "***SECRET***",
+        apiId,
+        parsed.orderId,
+        sigPart(parsed.status),
+        sigPart(parsed.bankName),
+        sigPart(parsed.ownershipName),
+        sigPart(input.commodityTypeSigned),
+        sigPart(input.unitSigned),
+        sigPart(parsed.volume),
+        sigPart(parsed.productType),
+        sigPart(parsed.valueDate),
+        sigPart(parsed.cancelDate),
+        sigPart(parsed.orderType),
+        sigPart(parsed.orderCurrency),
+        sigPart(parsed.orderAmount),
+        sigPart(parsed.murabahaAmount),
+        sigPart(parsed.tenor),
+        sigPart(input.tenorOtherSigned),
+        sigPart(input.tenorOtherUnitSigned),
+      ];
 
-      // Candidate signature matches after O/N normalization; proceed and treat it as verified.
-      logger.info(
-        {
-          signaturePreview: receivedSignature.slice(0, 8),
-          expectedSignatureNormalizedPreview: expectedSignatureNormalized.slice(0, 8),
-        },
-        "Shoraka callback signature matched after O/N normalization"
-      );
+      // Build real hash with the real secretKey, but only masked string for logs.
+      const hashParts: unknown[] = [
+        secretKey,
+        apiId,
+        parsed.orderId,
+        sigPart(parsed.status),
+        sigPart(parsed.bankName),
+        sigPart(parsed.ownershipName),
+        sigPart(input.commodityTypeSigned),
+        sigPart(input.unitSigned),
+        sigPart(parsed.volume),
+        sigPart(parsed.productType),
+        sigPart(parsed.valueDate),
+        sigPart(parsed.cancelDate),
+        sigPart(parsed.orderType),
+        sigPart(parsed.orderCurrency),
+        sigPart(parsed.orderAmount),
+        sigPart(parsed.murabahaAmount),
+        sigPart(parsed.tenor),
+        sigPart(input.tenorOtherSigned),
+        sigPart(input.tenorOtherUnitSigned),
+      ];
+
+      return {
+        sourceMasked: parts.join(";"),
+        signature: sha256Hex(hashParts.join(";")),
+      };
     }
+
+    const commodityNormalized = parsed.commodityType === "COPPER" ? "000-COPPER" : parsed.commodityType;
+    const unitNormalized = parsed.unit === "Tonnes" ? "Tonne" : parsed.unit;
+
+    const candidates = [
+      {
+        name: "asIs",
+        commodityTypeSigned: parsed.commodityType,
+        unitSigned: parsed.unit,
+        tenorOtherSigned: parsed.tenorOther,
+        tenorOtherUnitSigned: parsed.tenorOtherUnit,
+      },
+      {
+        name: "onNormalized",
+        commodityTypeSigned: parsed.commodityType,
+        unitSigned: parsed.unit,
+        tenorOtherSigned: tenorIsON ? "" : parsed.tenorOther,
+        tenorOtherUnitSigned: tenorIsON ? "" : parsed.tenorOtherUnit,
+      },
+      {
+        name: "commodityNormalized",
+        commodityTypeSigned: commodityNormalized,
+        unitSigned: parsed.unit,
+        tenorOtherSigned: parsed.tenorOther,
+        tenorOtherUnitSigned: parsed.tenorOtherUnit,
+      },
+      {
+        name: "onAndCommodityNormalized",
+        commodityTypeSigned: commodityNormalized,
+        unitSigned: parsed.unit,
+        tenorOtherSigned: tenorIsON ? "" : parsed.tenorOther,
+        tenorOtherUnitSigned: tenorIsON ? "" : parsed.tenorOtherUnit,
+      },
+      {
+        name: "unitSingular",
+        commodityTypeSigned: parsed.commodityType,
+        unitSigned: unitNormalized,
+        tenorOtherSigned: parsed.tenorOther,
+        tenorOtherUnitSigned: parsed.tenorOtherUnit,
+      },
+      {
+        name: "unitAndCommodityNormalized",
+        commodityTypeSigned: commodityNormalized,
+        unitSigned: unitNormalized,
+        tenorOtherSigned: parsed.tenorOther,
+        tenorOtherUnitSigned: parsed.tenorOtherUnit,
+      },
+      {
+        name: "allNormalized",
+        commodityTypeSigned: commodityNormalized,
+        unitSigned: unitNormalized,
+        tenorOtherSigned: tenorIsON ? "" : parsed.tenorOther,
+        tenorOtherUnitSigned: tenorIsON ? "" : parsed.tenorOtherUnit,
+      },
+    ];
+
+    const candidateResults = candidates.map((c) => {
+      const built = buildSignatureSourceMaskedAndHash({
+        commodityTypeSigned: c.commodityTypeSigned,
+        unitSigned: c.unitSigned,
+        tenorOtherSigned: c.tenorOtherSigned,
+        tenorOtherUnitSigned: c.tenorOtherUnitSigned,
+      });
+      const candidateMatches = built.signature === receivedSignature;
+      return {
+        candidate: c.name,
+        generatedSignaturePreview: built.signature.slice(0, 8),
+        matches: candidateMatches,
+        sourceMasked: built.sourceMasked,
+      };
+    });
+
+    const matching = candidateResults.find((r) => r.matches);
+
+    logger.warn(
+      {
+        receivedSignaturePreview,
+        candidateResults,
+      },
+      "TEMP DEBUG - Shoraka callback signature candidate previews"
+    );
+
+    if (!matching) {
+      throw new AppError(401, "INVALID_SIGNATURE", "Invalid webhook signature");
+    }
+
+    logger.info(
+      {
+        receivedSignaturePreview,
+        matchedCandidate: matching.candidate,
+        matchedGeneratedSignaturePreview: matching.generatedSignaturePreview,
+      },
+      "Shoraka callback signature matched (after candidate normalization)"
+    );
 
     const orderId = parsed.orderId;
     const existing = await prisma.shorakaTradeOrder.findUnique({
