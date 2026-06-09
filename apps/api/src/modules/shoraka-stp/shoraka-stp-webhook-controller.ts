@@ -95,7 +95,12 @@ export async function shorakaStpCallbackHandler(
     const secretKey = envRequired("SHORAKA_SECRET_KEY");
     const apiId = envRequired("SHORAKA_API_ID");
 
-    const signatureSourceParts = [
+    // Signature format:
+    // SECRET_KEY;API_ID;order_id;status;bank_name;ownership_name;commodity_type;unit;volume;product_type;value_date;cancel_date;order_type;order_currency;order_amount;murabaha_amount;tenor;tenor_other;tenor_other_unit
+    // For optional fields, backend uses: null/undefined => ""
+    const tenorIsON = typeof parsed.tenor === "string" && parsed.tenor.trim() === "O/N";
+
+    const signatureSourcePartsAsIs = [
       secretKey,
       apiId,
       parsed.orderId,
@@ -117,40 +122,62 @@ export async function shorakaStpCallbackHandler(
       sigPart(parsed.tenorOtherUnit),
     ];
 
-    const signatureSource = signatureSourceParts.join(";");
-    const signatureSourceMasked = ["***SECRET***", apiId, ...signatureSourceParts.slice(2)].join(";");
+    const signatureSourcePartsNormalized = [
+      secretKey,
+      apiId,
+      parsed.orderId,
+      sigPart(parsed.status),
+      sigPart(parsed.bankName),
+      sigPart(parsed.ownershipName),
+      sigPart(parsed.commodityType),
+      sigPart(parsed.unit),
+      sigPart(parsed.volume),
+      sigPart(parsed.productType),
+      sigPart(parsed.valueDate),
+      sigPart(parsed.cancelDate),
+      sigPart(parsed.orderType),
+      sigPart(parsed.orderCurrency),
+      sigPart(parsed.orderAmount),
+      sigPart(parsed.murabahaAmount),
+      sigPart(parsed.tenor),
+      // If tenor is O/N, force signed tenorOther and tenorOtherUnit to "".
+      sigPart(tenorIsON ? "" : parsed.tenorOther),
+      sigPart(tenorIsON ? "" : parsed.tenorOtherUnit),
+    ];
 
-    const expectedSignature = sha256Hex(signatureSource);
+    const expectedSignatureAsIs = sha256Hex(signatureSourcePartsAsIs.join(";"));
+    const expectedSignatureNormalized = sha256Hex(signatureSourcePartsNormalized.join(";"));
 
-    if (expectedSignature !== parsed.signature) {
-      // Log only a short preview; never log secrets or the signature source string.
+    const receivedSignature = parsed.signature;
+
+    if (expectedSignatureAsIs !== receivedSignature) {
+      // Only log the first 8 chars of each signature candidate.
+      const isNormalizedMatch = expectedSignatureNormalized === receivedSignature;
       logger.warn(
         {
-          signaturePreview: parsed.signature.slice(0, 8),
-          expectedSignaturePreview: expectedSignature.slice(0, 8),
-          // Full masked signature source (secret replaced), to compare field order + values.
-          signatureSourceMasked,
-          // Useful for debugging optional fields and the exact values used in sigPart().
-          callbackValuesForSignature: {
-            commodityType: parsed.commodityType,
-            valueDate: parsed.valueDate,
-            cancelDate: parsed.cancelDate,
-            orderAmount: parsed.orderAmount,
-            murabahaAmount: parsed.murabahaAmount,
-            tenor: parsed.tenor,
-            tenorOther: parsed.tenorOther,
-            tenorOtherUnit: parsed.tenorOtherUnit,
-            // What actually gets signed for the optional fields (null/undefined => "").
-            sigParts: {
-              cancelDate: sigPart(parsed.cancelDate),
-              tenorOther: sigPart(parsed.tenorOther),
-              tenorOtherUnit: sigPart(parsed.tenorOtherUnit),
-            },
-          },
+          signaturePreview: receivedSignature.slice(0, 8),
+          expectedSignatureAsIsPreview: expectedSignatureAsIs.slice(0, 8),
+          expectedSignatureNormalizedPreview: expectedSignatureNormalized.slice(0, 8),
+          tenorIsON,
+          tenorOther: parsed.tenorOther,
+          tenorOtherUnit: parsed.tenorOtherUnit,
+          // Masking: do not log secret. (We also avoid logging full signature source string.)
         },
-        "Shoraka callback signature mismatch"
+        "Shoraka callback signature mismatch (as-is vs O/N-normalized)"
       );
-      throw new AppError(401, "INVALID_SIGNATURE", "Invalid webhook signature");
+
+      if (!isNormalizedMatch) {
+        throw new AppError(401, "INVALID_SIGNATURE", "Invalid webhook signature");
+      }
+
+      // Candidate signature matches after O/N normalization; proceed and treat it as verified.
+      logger.info(
+        {
+          signaturePreview: receivedSignature.slice(0, 8),
+          expectedSignatureNormalizedPreview: expectedSignatureNormalized.slice(0, 8),
+        },
+        "Shoraka callback signature matched after O/N normalization"
+      );
     }
 
     const orderId = parsed.orderId;
