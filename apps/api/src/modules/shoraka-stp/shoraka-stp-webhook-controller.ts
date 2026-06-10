@@ -32,11 +32,23 @@ const callbackBodySchema = z.object({
   tenorOtherUnit: z.union([z.string(), z.null()]).nullable().optional(),
 
   // Other certificate details we store as payload for audit.
-  certificateDetails1: z.union([z.string(), z.null()]).nullable().optional(),
-  certificateDetails2: z.union([z.string(), z.null()]).nullable().optional(),
-  certificateDetails3: z.union([z.string(), z.null()]).nullable().optional(),
+  // Provider sometimes sends these as arrays; accept them and stringify for storage consistency.
+  certificateDetails1: z.union([z.string(), z.array(z.unknown()), z.null()]).nullable().optional(),
+  certificateDetails2: z.union([z.string(), z.array(z.unknown()), z.null()]).nullable().optional(),
+  certificateDetails3: z.union([z.string(), z.array(z.unknown()), z.null()]).nullable().optional(),
   certificateUrl: z.union([z.string(), z.null()]).nullable().optional(),
 });
+
+function stringifyIfArray(v: unknown): unknown {
+  if (!Array.isArray(v)) return v;
+  // Store as JSON string so older code/UI that expects string won't break.
+  try {
+    return JSON.stringify(v);
+  } catch {
+    // Fallback: keep something predictable even if JSON.stringify fails for weird values.
+    return String(v);
+  }
+}
 
 function sha256Hex(value: string): string {
   return crypto.createHash("sha256").update(value, "utf8").digest("hex");
@@ -51,35 +63,6 @@ function envRequired(name: string): string {
 function sigPart(v: unknown): string {
   if (v === null || v === undefined) return "";
   return String(v);
-}
-
-function buildCallbackSignatureSource(body: z.infer<typeof callbackBodySchema>): string {
-  // Signature format:
-  // SECRET_KEY;API_ID;order_id;status;bank_name;ownership_name;commodity_type;unit;volume;product_type;value_date;cancel_date;order_type;order_currency;order_amount;murabaha_amount;tenor;tenor_other;tenor_other_unit
-  const secretKey = envRequired("SHORAKA_SECRET_KEY");
-  const apiId = envRequired("SHORAKA_API_ID");
-
-  return [
-    secretKey,
-    apiId,
-    body.orderId,
-    sigPart(body.status),
-    sigPart(body.bankName),
-    sigPart(body.ownershipName),
-    sigPart(body.commodityType),
-    sigPart(body.unit),
-    sigPart(body.volume),
-    sigPart(body.productType),
-    sigPart(body.valueDate),
-    sigPart(body.cancelDate),
-    sigPart(body.orderType),
-    sigPart(body.orderCurrency),
-    sigPart(body.orderAmount),
-    sigPart(body.murabahaAmount),
-    sigPart(body.tenor),
-    sigPart(body.tenorOther),
-    sigPart(body.tenorOtherUnit),
-  ].join(";");
 }
 
 export async function shorakaStpCallbackHandler(
@@ -107,14 +90,209 @@ export async function shorakaStpCallbackHandler(
       throw new AppError(401, "SHORAKA_API_ID_INVALID", "Invalid Shoraka apiId");
     }
 
-    const signatureSource = buildCallbackSignatureSource(parsed);
-    const expectedSignature = sha256Hex(signatureSource);
+    // Build callback signature source in the exact order expected by the backend.
+    // We also build a masked version for safe debug logging (no real secret in logs).
+    const secretKey = envRequired("SHORAKA_SECRET_KEY");
+    const apiId = envRequired("SHORAKA_API_ID");
+    // Signature format:
+    // SECRET_KEY;API_ID;order_id;status;bank_name;ownership_name;commodity_type;unit;volume;product_type;value_date;cancel_date;order_type;order_currency;order_amount;murabaha_amount;tenor;tenor_other;tenor_other_unit
+    // For optional fields, backend uses: null/undefined => ""
 
-    if (expectedSignature !== parsed.signature) {
-      // Log only a short preview; never log secrets or the signature source string.
-      logger.warn({ signaturePreview: parsed.signature.slice(0, 6) }, "Shoraka callback signature mismatch");
+    // TEMP DEBUG - remove after Shoraka signature issue is resolved.
+    const tenorIsON = typeof parsed.tenor === "string" && parsed.tenor.trim() === "O/N";
+
+    const receivedSignature = parsed.signature;
+    const receivedSignaturePreview = receivedSignature.slice(0, 8);
+
+    const bodyRec = req.body && typeof req.body === "object" ? (req.body as Record<string, unknown>) : null;
+    const rawBodyForLog =
+      bodyRec
+        ? {
+            ...bodyRec,
+            // Avoid logging full signature; only preview.
+            signature:
+              typeof bodyRec.signature === "string" ? bodyRec.signature.slice(0, 8) + "..." : undefined,
+          }
+        : req.body;
+
+    logger.warn(
+      {
+        callbackSignatureRawBody: rawBodyForLog,
+        callbackSigningValues: {
+          secret: "***SECRET***",
+          apiId,
+          orderId: parsed.orderId,
+          status: parsed.status,
+          bankName: parsed.bankName,
+          ownershipName: parsed.ownershipName,
+          commodityType: parsed.commodityType,
+          unit: parsed.unit,
+          volume: parsed.volume,
+          productType: parsed.productType,
+          valueDate: parsed.valueDate,
+          cancelDate: parsed.cancelDate,
+          orderType: parsed.orderType,
+          orderCurrency: parsed.orderCurrency,
+          orderAmount: parsed.orderAmount,
+          murabahaAmount: parsed.murabahaAmount,
+          tenor: parsed.tenor,
+          tenorOther: parsed.tenorOther,
+          tenorOtherUnit: parsed.tenorOtherUnit,
+        },
+      },
+      "TEMP DEBUG - Shoraka callback signature inputs"
+    );
+
+    function buildSignatureSourceMaskedAndHash(input: {
+      commodityTypeSigned: unknown;
+      tenorOtherSigned: unknown;
+      tenorOtherUnitSigned: unknown;
+      unitSigned: unknown;
+    }): { sourceMasked: string; signature: string } {
+      const parts: unknown[] = [
+        "***SECRET***",
+        apiId,
+        parsed.orderId,
+        sigPart(parsed.status),
+        sigPart(parsed.bankName),
+        sigPart(parsed.ownershipName),
+        sigPart(input.commodityTypeSigned),
+        sigPart(input.unitSigned),
+        sigPart(parsed.volume),
+        sigPart(parsed.productType),
+        sigPart(parsed.valueDate),
+        sigPart(parsed.cancelDate),
+        sigPart(parsed.orderType),
+        sigPart(parsed.orderCurrency),
+        sigPart(parsed.orderAmount),
+        sigPart(parsed.murabahaAmount),
+        sigPart(parsed.tenor),
+        sigPart(input.tenorOtherSigned),
+        sigPart(input.tenorOtherUnitSigned),
+      ];
+
+      // Build real hash with the real secretKey, but only masked string for logs.
+      const hashParts: unknown[] = [
+        secretKey,
+        apiId,
+        parsed.orderId,
+        sigPart(parsed.status),
+        sigPart(parsed.bankName),
+        sigPart(parsed.ownershipName),
+        sigPart(input.commodityTypeSigned),
+        sigPart(input.unitSigned),
+        sigPart(parsed.volume),
+        sigPart(parsed.productType),
+        sigPart(parsed.valueDate),
+        sigPart(parsed.cancelDate),
+        sigPart(parsed.orderType),
+        sigPart(parsed.orderCurrency),
+        sigPart(parsed.orderAmount),
+        sigPart(parsed.murabahaAmount),
+        sigPart(parsed.tenor),
+        sigPart(input.tenorOtherSigned),
+        sigPart(input.tenorOtherUnitSigned),
+      ];
+
+      return {
+        sourceMasked: parts.join(";"),
+        signature: sha256Hex(hashParts.join(";")),
+      };
+    }
+
+    const commodityNormalized = parsed.commodityType === "COPPER" ? "000-COPPER" : parsed.commodityType;
+    const unitNormalized = parsed.unit === "Tonnes" ? "Tonne" : parsed.unit;
+
+    const candidates = [
+      {
+        name: "asIs",
+        commodityTypeSigned: parsed.commodityType,
+        unitSigned: parsed.unit,
+        tenorOtherSigned: parsed.tenorOther,
+        tenorOtherUnitSigned: parsed.tenorOtherUnit,
+      },
+      {
+        name: "onNormalized",
+        commodityTypeSigned: parsed.commodityType,
+        unitSigned: parsed.unit,
+        tenorOtherSigned: tenorIsON ? "" : parsed.tenorOther,
+        tenorOtherUnitSigned: tenorIsON ? "" : parsed.tenorOtherUnit,
+      },
+      {
+        name: "commodityNormalized",
+        commodityTypeSigned: commodityNormalized,
+        unitSigned: parsed.unit,
+        tenorOtherSigned: parsed.tenorOther,
+        tenorOtherUnitSigned: parsed.tenorOtherUnit,
+      },
+      {
+        name: "onAndCommodityNormalized",
+        commodityTypeSigned: commodityNormalized,
+        unitSigned: parsed.unit,
+        tenorOtherSigned: tenorIsON ? "" : parsed.tenorOther,
+        tenorOtherUnitSigned: tenorIsON ? "" : parsed.tenorOtherUnit,
+      },
+      {
+        name: "unitSingular",
+        commodityTypeSigned: parsed.commodityType,
+        unitSigned: unitNormalized,
+        tenorOtherSigned: parsed.tenorOther,
+        tenorOtherUnitSigned: parsed.tenorOtherUnit,
+      },
+      {
+        name: "unitAndCommodityNormalized",
+        commodityTypeSigned: commodityNormalized,
+        unitSigned: unitNormalized,
+        tenorOtherSigned: parsed.tenorOther,
+        tenorOtherUnitSigned: parsed.tenorOtherUnit,
+      },
+      {
+        name: "allNormalized",
+        commodityTypeSigned: commodityNormalized,
+        unitSigned: unitNormalized,
+        tenorOtherSigned: tenorIsON ? "" : parsed.tenorOther,
+        tenorOtherUnitSigned: tenorIsON ? "" : parsed.tenorOtherUnit,
+      },
+    ];
+
+    const candidateResults = candidates.map((c) => {
+      const built = buildSignatureSourceMaskedAndHash({
+        commodityTypeSigned: c.commodityTypeSigned,
+        unitSigned: c.unitSigned,
+        tenorOtherSigned: c.tenorOtherSigned,
+        tenorOtherUnitSigned: c.tenorOtherUnitSigned,
+      });
+      const candidateMatches = built.signature === receivedSignature;
+      return {
+        candidate: c.name,
+        generatedSignaturePreview: built.signature.slice(0, 8),
+        matches: candidateMatches,
+        sourceMasked: built.sourceMasked,
+      };
+    });
+
+    const matching = candidateResults.find((r) => r.matches);
+
+    logger.warn(
+      {
+        receivedSignaturePreview,
+        candidateResults,
+      },
+      "TEMP DEBUG - Shoraka callback signature candidate previews"
+    );
+
+    if (!matching) {
       throw new AppError(401, "INVALID_SIGNATURE", "Invalid webhook signature");
     }
+
+    logger.info(
+      {
+        receivedSignaturePreview,
+        matchedCandidate: matching.candidate,
+        matchedGeneratedSignaturePreview: matching.generatedSignaturePreview,
+      },
+      "Shoraka callback signature matched (after candidate normalization)"
+    );
 
     const orderId = parsed.orderId;
     const existing = await prisma.shorakaTradeOrder.findUnique({
@@ -128,11 +306,19 @@ export async function shorakaStpCallbackHandler(
     const normalizedStatus = normalizeProviderStatus(parsed.status);
 
     // Update status only (do not auto-fetch certificate).
+    // Persist payload with stable types (string for certificateDetails1/2/3).
+    const payloadForDb = {
+      ...req.body,
+      certificateDetails1: stringifyIfArray((req.body as Record<string, unknown>)?.certificateDetails1),
+      certificateDetails2: stringifyIfArray((req.body as Record<string, unknown>)?.certificateDetails2),
+      certificateDetails3: stringifyIfArray((req.body as Record<string, unknown>)?.certificateDetails3),
+    };
+
     await prisma.shorakaTradeOrder.update({
       where: { id: existing.id },
       data: {
         status: normalizedStatus,
-        callback_payload: req.body,
+        callback_payload: payloadForDb,
         callback_received_at: new Date(),
         status_last_checked_at: new Date(),
       },

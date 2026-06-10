@@ -1,0 +1,200 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ServiceLinkedRoles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateServiceLinkedRole",
+        "iam:GetRole"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "iam:AWSServiceName": [
+            "ecs.amazonaws.com",
+            "elasticloadbalancing.amazonaws.com",
+            "rds.amazonaws.com",
+            "ecs.application-autoscaling.amazonaws.com",
+            "spot.amazonaws.com",
+            "ecr.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "RdsCreate",
+      "Effect": "Allow",
+      "Action": [
+        "rds:CreateDBInstance",
+        "rds:CreateDBSubnetGroup",
+        "rds:CreateDBParameterGroup"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "LogsCreateVastik",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:PutRetentionPolicy",
+        "logs:TagLogGroup",
+        "logs:TagResource"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringLike": {
+          "logs:LogGroupName": "*vast*"
+        }
+      }
+    },
+    {
+      "Sid": "EcrCreateAnyNonDenied",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:CreateRepository",
+        "ecr:PutLifecyclePolicy",
+        "ecr:PutImageScanningConfiguration",
+        "ecr:PutEncryptionConfiguration"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "Ec2CreateNetworking",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateSecurityGroup",
+        "ec2:DeleteSecurityGroup",
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:AuthorizeSecurityGroupEgress",
+        "ec2:RevokeSecurityGroupIngress",
+        "ec2:RevokeSecurityGroupEgress",
+        "ec2:ModifySecurityGroupAttributes",
+        "ec2:DescribeSecurityGroupRules",
+        "ec2:CreateTags",
+        "ec2:DeleteTags"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "Ec2LaunchInstances",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:RunInstances",
+        "ec2:StartInstances",
+        "ec2:StopInstances",
+        "ec2:RebootInstances",
+        "ec2:TerminateInstances",
+        "ec2:DescribeInstances",
+        "ec2:DescribeInstanceTypes",
+        "ec2:DescribeInstanceAttribute",
+        "ec2:DescribeImages",
+        "ec2:DescribeSnapshots",
+        "ec2:DescribeKeyPairs",
+        "ec2:CreateKeyPair",
+        "ec2:DeleteKeyPair",
+        "ec2:ImportKeyPair",
+        "ec2:DescribeVolumes",
+        "ec2:CreateVolume",
+        "ec2:AttachVolume",
+        "ec2:DetachVolume",
+        "ec2:DeleteVolume",
+        "ec2:ModifyInstanceAttribute",
+        "ec2:ModifyNetworkInterfaceAttribute",
+        "ec2:DescribeNetworkInterfaceAttribute",
+        "ec2:AttachNetworkInterface",
+        "ec2:DetachNetworkInterface",
+        "ec2:DescribeAddresses",
+        "ec2:AllocateAddress",
+        "ec2:AssociateAddress",
+        "ec2:DisassociateAddress",
+        "ec2:ReleaseAddress",
+        "ec2:GetConsoleOutput",
+        "ec2:GetPasswordData"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ElbCreate",
+      "Effect": "Allow",
+      "Action": [
+        "elasticloadbalancing:CreateLoadBalancer",
+        "elasticloadbalancing:CreateTargetGroup",
+        "elasticloadbalancing:CreateListener",
+        "elasticloadbalancing:CreateRule",
+        "elasticloadbalancing:ModifyLoadBalancerAttributes",
+        "elasticloadbalancing:ModifyTargetGroup",
+        "elasticloadbalancing:ModifyListener",
+        "elasticloadbalancing:RegisterTargets",
+        "elasticloadbalancing:DeregisterTargets",
+        "elasticloadbalancing:AddTags",
+        "elasticloadbalancing:DeleteLoadBalancer",
+        "elasticloadbalancing:DeleteTargetGroup",
+        "elasticloadbalancing:DeleteListener"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcsAutoscaling",
+      "Effect": "Allow",
+      "Action": [
+        "application-autoscaling:RegisterScalableTarget",
+        "application-autoscaling:DeregisterScalableTarget",
+        "application-autoscaling:PutScalingPolicy",
+        "application-autoscaling:DeleteScalingPolicy",
+        "application-autoscaling:DescribeScalableTargets",
+        "application-autoscaling:DescribeScalingPolicies",
+        "application-autoscaling:DescribeScalingActivities"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "CloudWatchAlarmsForScaling",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:PutMetricAlarm",
+        "cloudwatch:DeleteAlarms",
+        "cloudwatch:DescribeAlarms"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "KmsForSecretsAndRds",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt",
+        "kms:DescribeKey",
+        "kms:GenerateDataKey",
+        "kms:CreateGrant"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": [
+            "secretsmanager.ap-southeast-5.amazonaws.com",
+            "rds.ap-southeast-5.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "SecretsListForConsole",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:ListSecrets"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SsmCreateParameters",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:AddTagsToResource"
+      ],
+      "Resource": [
+        "arn:aws:ssm:ap-southeast-5:652821469470:parameter/vastik/*",
+        "arn:aws:ssm:ap-southeast-5:652821469470:parameter/vastix/*"
+      ]
+    }
+  ]
+}

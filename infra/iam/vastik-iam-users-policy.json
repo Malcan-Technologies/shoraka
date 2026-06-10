@@ -1,0 +1,136 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CreateAndManageVastixUsers",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateUser",
+        "iam:DeleteUser",
+        "iam:GetUser",
+        "iam:ListUsers",
+        "iam:UpdateUser",
+        "iam:TagUser",
+        "iam:UntagUser",
+        "iam:ListUserTags"
+      ],
+      "Resource": "arn:aws:iam::652821469470:user/*"
+    },
+    {
+      "Sid": "AddUsersToVastikGroupOnly",
+      "Effect": "Allow",
+      "Action": [
+        "iam:AddUserToGroup",
+        "iam:RemoveUserFromGroup"
+      ],
+      "Resource": "arn:aws:iam::652821469470:group/Vastik"
+    },
+    {
+      "Sid": "ListGroupsForConsole",
+      "Effect": "Allow",
+      "Action": [
+        "iam:ListGroups",
+        "iam:GetGroup",
+        "iam:ListGroupsForUser"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadPoliciesForConsole",
+      "Effect": "Allow",
+      "Action": [
+        "iam:ListPolicies",
+        "iam:GetPolicy",
+        "iam:ListPolicyVersions",
+        "iam:GetPolicyVersion"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AttachVastikPoliciesToUsersOnly",
+      "Effect": "Allow",
+      "Action": [
+        "iam:AttachUserPolicy",
+        "iam:DetachUserPolicy",
+        "iam:ListAttachedUserPolicies"
+      ],
+      "Resource": "arn:aws:iam::652821469470:user/*",
+      "Condition": {
+        "ArnLike": {
+          "iam:PolicyARN": [
+            "arn:aws:iam::652821469470:policy/VastikDeployPolicy",
+            "arn:aws:iam::652821469470:policy/VastikDenyCashSoukPolicy",
+            "arn:aws:iam::652821469470:policy/VastikCreatePolicy",
+            "arn:aws:iam::652821469470:policy/VastikIamUsersPolicy"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "UserCredentials",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateLoginProfile",
+        "iam:UpdateLoginProfile",
+        "iam:DeleteLoginProfile",
+        "iam:GetLoginProfile",
+        "iam:CreateAccessKey",
+        "iam:UpdateAccessKey",
+        "iam:DeleteAccessKey",
+        "iam:ListAccessKeys",
+        "iam:GetAccessKeyLastUsed"
+      ],
+      "Resource": "arn:aws:iam::652821469470:user/*"
+    },
+    {
+      "Sid": "DenyAddUsersToOtherGroups",
+      "Effect": "Deny",
+      "Action": [
+        "iam:AddUserToGroup",
+        "iam:RemoveUserFromGroup"
+      ],
+      "NotResource": "arn:aws:iam::652821469470:group/Vastik"
+    },
+    {
+      "Sid": "DenyAttachNonVastikPolicies",
+      "Effect": "Deny",
+      "Action": [
+        "iam:AttachUserPolicy",
+        "iam:PutUserPolicy"
+      ],
+      "Resource": "arn:aws:iam::652821469470:user/*",
+      "Condition": {
+        "ArnNotLike": {
+          "iam:PolicyARN": [
+            "arn:aws:iam::652821469470:policy/VastikDeployPolicy",
+            "arn:aws:iam::652821469470:policy/VastikDenyCashSoukPolicy",
+            "arn:aws:iam::652821469470:policy/VastikCreatePolicy",
+            "arn:aws:iam::652821469470:policy/VastikIamUsersPolicy"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "DenyIamAdmin",
+      "Effect": "Deny",
+      "Action": [
+        "iam:CreatePolicy",
+        "iam:DeletePolicy",
+        "iam:CreatePolicyVersion",
+        "iam:DeletePolicyVersion",
+        "iam:AttachGroupPolicy",
+        "iam:DetachGroupPolicy",
+        "iam:CreateGroup",
+        "iam:DeleteGroup",
+        "iam:UpdateGroup",
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:PutRolePolicy",
+        "iam:UpdateAssumeRolePolicy"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

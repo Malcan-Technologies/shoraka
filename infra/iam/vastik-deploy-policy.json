@@ -1,0 +1,241 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EcrAuth",
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcrVastik",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "ecr:PutImage",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload",
+        "ecr:DescribeImages",
+        "ecr:ListImages",
+        "ecr:DescribeRepositories",
+        "ecr:CreateRepository",
+        "ecr:PutLifecyclePolicy",
+        "ecr:TagResource"
+      ],
+      "Resource": "arn:aws:ecr:ap-southeast-5:652821469470:repository/*"
+    },
+    {
+      "Sid": "EcrCreateVastik",
+      "Effect": "Allow",
+      "Action": ["ecr:CreateRepository", "ecr:PutLifecyclePolicy"],
+      "Resource": "*",
+      "Condition": {
+        "StringLike": {
+          "ecr:RepositoryName": ["vastik-*", "vastix/*"]
+        }
+      }
+    },
+    {
+      "Sid": "EcsRead",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:Describe*",
+        "ecs:List*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcsDeploy",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:CreateCluster",
+        "ecs:DeleteCluster",
+        "ecs:RegisterTaskDefinition",
+        "ecs:DeregisterTaskDefinition",
+        "ecs:CreateService",
+        "ecs:UpdateService",
+        "ecs:DeleteService",
+        "ecs:RunTask",
+        "ecs:StopTask",
+        "ecs:TagResource",
+        "ecs:UntagResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "PassVastikEcsRoles",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": [
+        "arn:aws:iam::652821469470:role/vastikEcsTaskExecutionRole",
+        "arn:aws:iam::652821469470:role/vastikEcsTaskRole"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "ecs-tasks.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "LogsVastik",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogStreams",
+        "logs:DescribeLogGroups",
+        "logs:FilterLogEvents",
+        "logs:GetLogEvents"
+      ],
+      "Resource": [
+        "arn:aws:logs:ap-southeast-5:652821469470:log-group:*vast*",
+        "arn:aws:logs:ap-southeast-5:652821469470:log-group:*vast*:*"
+      ]
+    },
+    {
+      "Sid": "SecretsManagerVastik",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:CreateSecret",
+        "secretsmanager:PutSecretValue",
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:UpdateSecret",
+        "secretsmanager:DeleteSecret",
+        "secretsmanager:ListSecretVersionIds",
+        "secretsmanager:TagResource",
+        "secretsmanager:ListSecrets"
+      ],
+      "Resource": [
+        "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:vastik/*",
+        "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:vastix/*",
+        "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:prod/vastik/*",
+        "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:prod/vastix/*"
+      ]
+    },
+    {
+      "Sid": "SecretsManagerCreateVastik",
+      "Effect": "Allow",
+      "Action": "secretsmanager:CreateSecret",
+      "Resource": "*",
+      "Condition": {
+        "StringLike": {
+          "secretsmanager:Name": ["vastik/*", "vastix/*", "prod/vastik/*", "prod/vastix/*"]
+        }
+      }
+    },
+    {
+      "Sid": "RdsDescribe",
+      "Effect": "Allow",
+      "Action": [
+        "rds:Describe*",
+        "rds:ListTagsForResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "RdsManageVastik",
+      "Effect": "Allow",
+      "Action": [
+        "rds:CreateDBInstance",
+        "rds:ModifyDBInstance",
+        "rds:DeleteDBInstance",
+        "rds:RebootDBInstance",
+        "rds:CreateDBSubnetGroup",
+        "rds:ModifyDBSubnetGroup",
+        "rds:DeleteDBSubnetGroup",
+        "rds:AddTagsToResource",
+        "rds:CreateDBSnapshot",
+        "rds:DescribeDBSnapshots"
+      ],
+      "Resource": [
+        "arn:aws:rds:ap-southeast-5:652821469470:db:vastik-*",
+        "arn:aws:rds:ap-southeast-5:652821469470:db:vastix-*",
+        "arn:aws:rds:ap-southeast-5:652821469470:subgrp:vastik-*",
+        "arn:aws:rds:ap-southeast-5:652821469470:subgrp:vastix-*",
+        "arn:aws:rds:ap-southeast-5:652821469470:snapshot:vastik-*",
+        "arn:aws:rds:ap-southeast-5:652821469470:snapshot:vastix-*"
+      ]
+    },
+    {
+      "Sid": "SsmVastik",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:GetParametersByPath",
+        "ssm:PutParameter",
+        "ssm:DeleteParameter",
+        "ssm:DescribeParameters"
+      ],
+      "Resource": [
+        "arn:aws:ssm:ap-southeast-5:652821469470:parameter/vastik/*",
+        "arn:aws:ssm:ap-southeast-5:652821469470:parameter/vastix/*"
+      ]
+    },
+    {
+      "Sid": "Ec2Describe",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSecurityGroupRules",
+        "ec2:DescribeNetworkInterfaces",
+        "ec2:DescribeAvailabilityZones"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "Ec2VastikNetworking",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateSecurityGroup",
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:AuthorizeSecurityGroupEgress",
+        "ec2:CreateTags"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ElbDescribe",
+      "Effect": "Allow",
+      "Action": [
+        "elasticloadbalancing:Describe*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ElbVastik",
+      "Effect": "Allow",
+      "Action": [
+        "elasticloadbalancing:CreateLoadBalancer",
+        "elasticloadbalancing:CreateTargetGroup",
+        "elasticloadbalancing:CreateListener",
+        "elasticloadbalancing:ModifyLoadBalancerAttributes",
+        "elasticloadbalancing:ModifyTargetGroup",
+        "elasticloadbalancing:RegisterTargets",
+        "elasticloadbalancing:AddTags"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AcmAndRoute53",
+      "Effect": "Allow",
+      "Action": [
+        "acm:ListCertificates",
+        "acm:DescribeCertificate",
+        "acm:RequestCertificate",
+        "route53:ListHostedZones",
+        "route53:GetHostedZone",
+        "route53:ListResourceRecordSets",
+        "route53:ChangeResourceRecordSets"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
