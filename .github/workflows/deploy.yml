@@ -766,7 +766,7 @@ jobs:
           TASK_DEF_ARN="$(aws ecs register-task-definition --cli-input-json "$TASK_DEF" --region "$AWS_REGION" --query 'taskDefinition.taskDefinitionArn' --output text)"
 
           aws ecs update-service --cluster "$ECS_CLUSTER" --service api-cashsouk-09ff --task-definition "$TASK_DEF_ARN" --force-new-deployment --region "$AWS_REGION" > /dev/null
-          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services api-cashsouk-09ff --region "$AWS_REGION" --max-attempts 80 --delay 15
+          ./scripts/ecs-wait-rollout.sh "$ECS_CLUSTER" api-cashsouk-09ff "$AWS_REGION" 80 15
 
           SERVICE_JSON="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services api-cashsouk-09ff --region "$AWS_REGION" --output json)"
           RUNNING_TASK_DEF="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .taskDefinition')"
@@ -815,7 +815,7 @@ jobs:
           TASK_DEF_ARN="$(aws ecs register-task-definition --cli-input-json "$TASK_DEF" --region "$AWS_REGION" --query 'taskDefinition.taskDefinitionArn' --output text)"
 
           aws ecs update-service --cluster "$ECS_CLUSTER" --service landing-cashsouk-1156 --task-definition "$TASK_DEF_ARN" --force-new-deployment --region "$AWS_REGION" > /dev/null
-          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services landing-cashsouk-1156 --region "$AWS_REGION" --max-attempts 80 --delay 15
+          ./scripts/ecs-wait-rollout.sh "$ECS_CLUSTER" landing-cashsouk-1156 "$AWS_REGION" 80 15
 
           SERVICE_JSON="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services landing-cashsouk-1156 --region "$AWS_REGION" --output json)"
           RUNNING_TASK_DEF="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .taskDefinition')"
@@ -861,7 +861,7 @@ jobs:
           TASK_DEF_ARN="$(aws ecs register-task-definition --cli-input-json "$TASK_DEF" --region "$AWS_REGION" --query 'taskDefinition.taskDefinitionArn' --output text)"
 
           aws ecs update-service --cluster "$ECS_CLUSTER" --service investor-cashsouk-50e5 --task-definition "$TASK_DEF_ARN" --force-new-deployment --region "$AWS_REGION" > /dev/null
-          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services investor-cashsouk-50e5 --region "$AWS_REGION" --max-attempts 80 --delay 15
+          ./scripts/ecs-wait-rollout.sh "$ECS_CLUSTER" investor-cashsouk-50e5 "$AWS_REGION" 80 15
 
           SERVICE_JSON="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services investor-cashsouk-50e5 --region "$AWS_REGION" --output json)"
           RUNNING_TASK_DEF="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .taskDefinition')"
@@ -907,7 +907,7 @@ jobs:
           TASK_DEF_ARN="$(aws ecs register-task-definition --cli-input-json "$TASK_DEF" --region "$AWS_REGION" --query 'taskDefinition.taskDefinitionArn' --output text)"
 
           aws ecs update-service --cluster "$ECS_CLUSTER" --service issuer-cashsouk-ff47 --task-definition "$TASK_DEF_ARN" --force-new-deployment --region "$AWS_REGION" > /dev/null
-          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services issuer-cashsouk-ff47 --region "$AWS_REGION" --max-attempts 80 --delay 15
+          ./scripts/ecs-wait-rollout.sh "$ECS_CLUSTER" issuer-cashsouk-ff47 "$AWS_REGION" 80 15
 
           SERVICE_JSON="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services issuer-cashsouk-ff47 --region "$AWS_REGION" --output json)"
           RUNNING_TASK_DEF="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .taskDefinition')"
@@ -953,7 +953,7 @@ jobs:
           TASK_DEF_ARN="$(aws ecs register-task-definition --cli-input-json "$TASK_DEF" --region "$AWS_REGION" --query 'taskDefinition.taskDefinitionArn' --output text)"
 
           aws ecs update-service --cluster "$ECS_CLUSTER" --service admin-cashsouk-544e --task-definition "$TASK_DEF_ARN" --force-new-deployment --region "$AWS_REGION" > /dev/null
-          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services admin-cashsouk-544e --region "$AWS_REGION" --max-attempts 80 --delay 15
+          ./scripts/ecs-wait-rollout.sh "$ECS_CLUSTER" admin-cashsouk-544e "$AWS_REGION" 80 15
 
           SERVICE_JSON="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services admin-cashsouk-544e --region "$AWS_REGION" --output json)"
           RUNNING_TASK_DEF="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .taskDefinition')"
