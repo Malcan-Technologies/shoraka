@@ -657,12 +657,7 @@ jobs:
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
 
-          aws ecs wait services-stable \
-            --cluster default \
-            --services admin-cashsouk-544e \
-            --region ${{ env.AWS_REGION }} \
-            --max-attempts 80 \
-            --delay 15
+          ./scripts/ecs-wait-rollout.sh default admin-cashsouk-544e ${{ env.AWS_REGION }} 80 15
 
           RUNNING_TASK_DEF=$(aws ecs describe-services \
             --cluster default \
