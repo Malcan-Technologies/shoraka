@@ -373,6 +373,7 @@ export class ApiClient {
 
   async createEkycSession(input: {
     docType: EkycDocType;
+    force?: boolean;
   }): Promise<ApiResponse<EkycSession> | ApiError> {
     return this.post<EkycSession>("/v1/ekyc/session", input);
   }

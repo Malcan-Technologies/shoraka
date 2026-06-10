@@ -9,6 +9,11 @@ import {
   getSigningCloudAccessToken,
   readSigningCloudConfigFromEnv,
 } from "../signingcloud/signingcloud-api";
+import {
+  parseSigningCloudErrorText,
+  signingCloudEkycPublicErrorCode,
+  signingCloudEkycUserMessage,
+} from "./signingcloud-user-messages";
 
 export interface SigningCloudEkycSession {
   url: string;
@@ -28,7 +33,11 @@ export interface SubmitSigningCloudEkycResultInput {
 function requireSigningCloudConfig() {
   const config = readSigningCloudConfigFromEnv();
   if (!config) {
-    throw new AppError(503, "SIGNINGCLOUD_NOT_CONFIGURED", "SigningCloud is not configured");
+    throw new AppError(
+      503,
+      signingCloudEkycPublicErrorCode("SIGNINGCLOUD_NOT_CONFIGURED"),
+      signingCloudEkycUserMessage("SIGNINGCLOUD_NOT_CONFIGURED")
+    );
   }
 
   return config;
@@ -38,7 +47,20 @@ export async function getSigningCloudEkycSession(
   email: string
 ): Promise<SigningCloudEkycSession> {
   const config = requireSigningCloudConfig();
-  const accessToken = await getSigningCloudAccessToken(config);
+  let accessToken: string;
+  try {
+    accessToken = await getSigningCloudAccessToken(config);
+  } catch (error) {
+    const technicalMessage =
+      error instanceof Error ? error.message : "SigningCloud access token failed";
+    const vendor = parseSigningCloudErrorText(technicalMessage);
+    throw new AppError(
+      502,
+      signingCloudEkycPublicErrorCode("SIGNINGCLOUD_ACCESS_TOKEN_FAILED", vendor),
+      signingCloudEkycUserMessage("SIGNINGCLOUD_ACCESS_TOKEN_FAILED", vendor),
+      vendor
+    );
+  }
   const { data, mac } = encryptPayload(JSON.stringify({ email }), config.apiSecret);
   const query = new URLSearchParams({
     accesstoken: accessToken,
@@ -58,10 +80,12 @@ export async function getSigningCloudEkycSession(
   };
 
   if (body.result !== 0 || !body.url || !body.token) {
+    const vendor = { result: body.result, message: body.message };
     throw new AppError(
       502,
-      "SIGNINGCLOUD_EKYC_GET_TOKEN_FAILED",
-      `SigningCloud getToken failed: ${body.message ?? JSON.stringify(body)}`
+      signingCloudEkycPublicErrorCode("SIGNINGCLOUD_EKYC_GET_TOKEN_FAILED", vendor),
+      signingCloudEkycUserMessage("SIGNINGCLOUD_EKYC_GET_TOKEN_FAILED", vendor),
+      vendor
     );
   }
 
@@ -105,10 +129,15 @@ export async function submitSigningCloudEkycResult(
     | Record<string, unknown>;
 
   if ("result" in body && typeof body.result === "number" && body.result !== 0) {
+    const vendor = {
+      result: body.result,
+      message: typeof body.message === "string" ? body.message : undefined,
+    };
     throw new AppError(
       502,
       "SIGNINGCLOUD_EKYC_SUBMIT_FAILED",
-      `SigningCloud submitResult failed: ${JSON.stringify(body)}`
+      signingCloudEkycUserMessage("SIGNINGCLOUD_EKYC_SUBMIT_FAILED", vendor),
+      vendor
     );
   }
 

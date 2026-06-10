@@ -434,12 +434,18 @@ export function ReviewOfferModal({
   };
 
   React.useEffect(() => {
-    if (modalStep !== "ekyc" || ekyc.captureUrl || ekyc.isGenerating) {
+    // Auto-create once per eKYC step visit; do not retry in a loop after failure.
+    if (
+      modalStep !== "ekyc" ||
+      ekyc.captureUrl ||
+      ekyc.isGenerating ||
+      ekyc.status === "error"
+    ) {
       return;
     }
 
     ekyc.generateSession().catch(() => undefined);
-  }, [ekyc.captureUrl, ekyc.generateSession, ekyc.isGenerating, modalStep]);
+  }, [ekyc.captureUrl, ekyc.generateSession, ekyc.isGenerating, ekyc.status, modalStep]);
 
   React.useEffect(() => {
     if (modalStep !== "ekyc" || ekyc.status !== "submitted" || isContinuingToSigning) {
@@ -562,11 +568,11 @@ export function ReviewOfferModal({
                 </div>
 
                 <div className="flex flex-col items-center gap-4 py-2">
-                  {ekyc.captureUrl ? (
+                  {ekyc.captureUrl && ekyc.status !== "error" ? (
                     <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
                       <QRCodeSVG value={ekyc.captureUrl} size={220} />
                     </div>
-                  ) : (
+                  ) : ekyc.status === "error" ? null : (
                     <div className="flex h-[252px] w-[252px] items-center justify-center">
                       <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                     </div>
@@ -577,22 +583,44 @@ export function ReviewOfferModal({
                   ) : null}
 
                   {ekyc.status === "error" ? (
-                    <div className="flex w-full max-w-xs flex-col items-center gap-3">
-                      <p className="text-center text-sm text-destructive">
+                    <div className="flex w-full max-w-xs flex-col items-center gap-2 text-center">
+                      <p className="text-sm text-destructive">
                         {ekyc.error || "Identity verification failed."}
                       </p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          ekyc.generateSession().catch(() => undefined);
-                        }}
-                        disabled={ekyc.isGenerating || isContinuingToSigning}
-                        className="w-full"
-                      >
-                        Try again
-                      </Button>
+                      {ekyc.requiresSupport ? (
+                        <p className="text-sm text-muted-foreground">
+                          Email{" "}
+                          <a
+                            href="mailto:support@cashsouk.my"
+                            className="font-medium text-foreground underline underline-offset-2"
+                          >
+                            support@cashsouk.my
+                          </a>{" "}
+                          and we&apos;ll help you continue.
+                        </p>
+                      ) : null}
                     </div>
+                  ) : null}
+
+                  {ekyc.isPendingStale && ekyc.status === "pending" ? (
+                    <p className="text-center text-sm text-muted-foreground max-w-xs">
+                      Still waiting on your phone. Complete verification on your phone, or go back and
+                      try accepting the offer again if it is stuck.
+                    </p>
+                  ) : null}
+
+                  {ekyc.status === "error" && !isContinuingToSigning && !ekyc.requiresSupport ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        ekyc.generateSession({ force: true }).catch(() => undefined);
+                      }}
+                      disabled={ekyc.isGenerating}
+                      className="w-full max-w-xs"
+                    >
+                      {ekyc.isGenerating ? "Generating..." : "New QR"}
+                    </Button>
                   ) : null}
                 </div>
               </div>

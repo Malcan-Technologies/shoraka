@@ -295,6 +295,7 @@
       const docType = params.get("docType") || "mykad";
       const apiBase = (params.get("api") || "").replace(/\/$/, "");
       const containerId = "ekyc-container";
+      const BOOT_TIMEOUT_MS = 45000;
 
       const bootOverlay = document.getElementById("boot-overlay");
       const submitOverlay = document.getElementById("submit-overlay");
@@ -302,6 +303,10 @@
       const errorOverlay = document.getElementById("error-overlay");
       const errorMessageEl = document.getElementById("error-message");
       const retryButton = document.getElementById("retry-button");
+
+      let bootFinished = false;
+      let bootTimeoutId = null;
+      let wiseAiWatcherInstalled = false;
 
       function setPageState(state) {
         document.body.className = "state-" + state;
@@ -315,17 +320,89 @@
         });
       }
 
+      function clearBootTimeout() {
+        if (bootTimeoutId !== null) {
+          window.clearTimeout(bootTimeoutId);
+          bootTimeoutId = null;
+        }
+      }
+
       function showError(message) {
         errorMessageEl.textContent = message;
         setPageState("error-boot");
         showOverlay(errorOverlay);
       }
 
+      async function reportFailure(reason, code) {
+        if (!token || !apiBase) {
+          return;
+        }
+
+        try {
+          await fetch(apiBase + "/v1/ekyc/fail", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: token, reason: reason, code: code }),
+          });
+        } catch (_error) {
+          // Best-effort so desktop polling can recover.
+        }
+      }
+
+      function showCaptureError(message, code) {
+        clearBootTimeout();
+        bootFinished = true;
+        reportFailure(message, code);
+        showError(message);
+      }
+
+      function installWiseAiAuthWatcher(wiseEndpoint) {
+        if (wiseAiWatcherInstalled || !wiseEndpoint) {
+          return;
+        }
+
+        var wiseHost = null;
+        try {
+          wiseHost = new URL(wiseEndpoint).host;
+        } catch (_error) {
+          return;
+        }
+
+        wiseAiWatcherInstalled = true;
+        var originalFetch = window.fetch.bind(window);
+
+        window.fetch = function (input, init) {
+          return originalFetch(input, init).then(function (response) {
+            if (!bootFinished && response.status === 401) {
+              var requestUrl =
+                typeof input === "string"
+                  ? input
+                  : input instanceof Request
+                    ? input.url
+                    : String(input);
+
+              try {
+                if (new URL(requestUrl).host === wiseHost) {
+                  showCaptureError(
+                    "This verification session is invalid or expired. Tap New QR on your computer and scan again.",
+                    "WISEAI_UNAUTHORIZED"
+                  );
+                }
+              } catch (_error) {
+                // Ignore malformed request URLs.
+              }
+            }
+
+            return response;
+          });
+        };
+      }
+
       async function submitCompletion(rawResult) {
         const response = await fetch(apiBase + "/v1/ekyc/complete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token, result: rawResult }),
+          body: JSON.stringify({ token: token, result: rawResult }),
         });
         const body = await response.json();
         if (!response.ok) {
@@ -345,37 +422,65 @@
         }
 
         if (typeof WAILib === "undefined" || !WAILib.SDK) {
-          showError("The verification tools failed to load. Check your connection and try again.");
+          showCaptureError(
+            "The verification tools failed to load. Check your connection and try again.",
+            "SDK_LOAD_FAILED"
+          );
           return;
         }
+
+        installWiseAiAuthWatcher(endpoint);
 
         setPageState("boot");
         showOverlay(bootOverlay);
 
-        const sdk = new WAILib.SDK(
-          token,
-          endpoint,
-          containerId,
-          {
-            docType: docType,
-            showActionButtons: true,
-            cameraFit: true,
-            enableIDFraudDetection: true,
-          },
-          "/wailib/models"
-        );
+        bootTimeoutId = window.setTimeout(function () {
+          if (bootFinished) {
+            return;
+          }
+
+          showCaptureError(
+            "Verification is taking too long. Tap New QR on your computer and scan again.",
+            "BOOT_TIMEOUT"
+          );
+        }, BOOT_TIMEOUT_MS);
+
+        var sdk = null;
+        try {
+          sdk = new WAILib.SDK(
+            token,
+            endpoint,
+            containerId,
+            {
+              docType: docType,
+              showActionButtons: true,
+              cameraFit: true,
+              enableIDFraudDetection: true,
+            },
+            "/wailib/models"
+          );
+        } catch (error) {
+          var initMessage =
+            error instanceof Error
+              ? error.message
+              : "The verification tools could not start.";
+          showCaptureError(initMessage, "SDK_INIT_FAILED");
+          return;
+        }
 
         try {
           sdk.startCamera();
         } catch (error) {
-          const message =
+          var cameraMessage =
             error instanceof Error
               ? error.message
               : "Camera access is required to complete verification.";
-          showError(message);
+          showCaptureError(cameraMessage, "CAMERA_START_FAILED");
           return;
         }
 
+        bootFinished = true;
+        clearBootTimeout();
         setPageState("capturing");
         showOverlay(null);
 
@@ -389,16 +494,16 @@
               setPageState("done");
               showOverlay(doneOverlay);
             } catch (error) {
-              const message = error instanceof Error ? error.message : "Submission failed.";
-              showError(message);
+              var submitMessage = error instanceof Error ? error.message : "Submission failed.";
+              showCaptureError(submitMessage, "SUBMIT_FAILED");
             }
           },
           onError: function (_stage, error) {
-            const message =
+            var captureMessage =
               typeof error === "string" && error.trim()
                 ? error
                 : "Verification was interrupted. Please try again.";
-            showError(message);
+            showCaptureError(captureMessage, "CAPTURE_FAILED");
           },
         });
       }

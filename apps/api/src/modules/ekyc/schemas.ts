@@ -4,6 +4,13 @@ export const EKYC_DOC_TYPES = ["mykad", "passport"] as const;
 
 export const sessionBodySchema = z.object({
   docType: z.enum(EKYC_DOC_TYPES).default("mykad"),
+  force: z.boolean().optional().default(false),
+});
+
+export const failBodySchema = z.object({
+  token: z.string().min(1),
+  reason: z.string().min(1).max(500),
+  code: z.string().max(64).optional(),
 });
 
 export const statusQuerySchema = z.object({

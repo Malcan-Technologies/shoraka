@@ -11,6 +11,18 @@ import {
 
 export { EKYC_DOC_TYPES };
 
+/** SigningCloud eKYC tokens are short-lived; reuse only within this window. */
+const EKYC_SESSION_TTL_MS = 25 * 60 * 1000;
+
+function isPendingSessionFresh(updatedAt: Date): boolean {
+  return Date.now() - updatedAt.getTime() < EKYC_SESSION_TTL_MS;
+}
+
+function sanitizeClientFailureReason(reason: string): string {
+  const trimmed = reason.trim();
+  return trimmed.length > 0 ? trimmed.slice(0, 500) : "Identity verification failed";
+}
+
 function normalizeMykadNumber(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
@@ -185,7 +197,12 @@ class EkycService {
     };
   }
 
-  async createSession(userId: string, docType: EkycDocType): Promise<EkycSession> {
+  async createSession(
+    userId: string,
+    docType: EkycDocType,
+    options?: { force?: boolean }
+  ): Promise<EkycSession> {
+    const force = options?.force === true;
     const user = await prisma.user.findUnique({
       where: { user_id: userId },
       select: { email: true },
@@ -201,18 +218,29 @@ class EkycService {
         session_token: true,
         sdk_endpoint: true,
         doc_type: true,
+        updated_at: true,
       },
     });
     if (existing?.status === SigningCloudEkycStatus.submitted) {
       throw new AppError(409, "EKYC_ALREADY_COMPLETED", "Identity verification has already been completed");
     }
 
-    // Reuse an in-progress session so the same QR stays valid when the modal is reopened.
+    // Reuse a fresh in-progress session so the same QR stays valid when the modal is reopened.
     if (
+      !force &&
       existing?.status === SigningCloudEkycStatus.pending &&
       existing.session_token &&
-      existing.sdk_endpoint
+      existing.sdk_endpoint &&
+      isPendingSessionFresh(existing.updated_at)
     ) {
+      logger.info(
+        {
+          userId,
+          sessionToken: existing.session_token,
+          ageMs: Date.now() - existing.updated_at.getTime(),
+        },
+        "Reusing in-progress eKYC session"
+      );
       return {
         docType: existing.doc_type as EkycDocType,
         url: existing.sdk_endpoint,
@@ -221,6 +249,7 @@ class EkycService {
     }
 
     const { url, token } = await getSigningCloudEkycSession(user.email.trim());
+    logger.info({ userId, force, sdkEndpoint: url }, "Minted new eKYC session");
 
     await prisma.signingCloudEkyc.upsert({
       where: { user_id: userId },
@@ -244,6 +273,53 @@ class EkycService {
     });
 
     return { docType, url, token };
+  }
+
+  async failSession(
+    token: string,
+    reason: string,
+    code?: string
+  ): Promise<EkycSessionStatus> {
+    const record = await prisma.signingCloudEkyc.findUnique({
+      where: { session_token: token },
+      select: { user_id: true, status: true, last_error: true, completed_at: true },
+    });
+    if (!record) {
+      throw new AppError(404, "NOT_FOUND", "Unknown eKYC session token");
+    }
+
+    if (record.status === SigningCloudEkycStatus.submitted) {
+      return {
+        status: "submitted",
+        error: null,
+        completedAt: record.completed_at?.toISOString() ?? null,
+      };
+    }
+
+    const message = sanitizeClientFailureReason(reason);
+
+    await prisma.signingCloudEkyc.update({
+      where: { user_id: record.user_id },
+      data: {
+        status: SigningCloudEkycStatus.error,
+        last_error: message,
+      },
+    });
+
+    logger.warn(
+      {
+        userId: record.user_id,
+        sessionToken: token,
+        code: code ?? null,
+      },
+      "eKYC session failed from capture client"
+    );
+
+    return {
+      status: "error",
+      error: message,
+      completedAt: null,
+    };
   }
 
   async getSessionStatus(token: string): Promise<EkycSessionStatus> {
