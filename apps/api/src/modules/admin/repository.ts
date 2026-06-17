@@ -812,6 +812,12 @@ export class AdminRepository {
     });
   }
 
+  async countActiveSuperAdmins(): Promise<number> {
+    return prisma.admin.count({
+      where: { role_description: "SUPER_ADMIN", status: "ACTIVE" },
+    });
+  }
+
   async countPendingInvitationsByRoleKey(roleKey: string): Promise<number> {
     return prisma.adminInvitation.count({
       where: {

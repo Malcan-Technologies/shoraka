@@ -30,6 +30,8 @@ The system supports four distinct admin roles, each with specific permissions an
 - Platform settings and limits
 - All compliance and operational tools
 
+**Lockout protection:** The system enforces at least one active Super Admin at all times. The last active Super Admin cannot be deactivated or have their role changed to a non-Super-Admin role. The Super Admin role itself cannot be deleted, and its permissions cannot be modified.
+
 ### Compliance Officer
 
 **Description:** Manages regulatory compliance, KYC verification, and fraud prevention. Ensures platform adheres to Malaysian financial regulations and Shariah principles.

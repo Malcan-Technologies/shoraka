@@ -427,6 +427,21 @@ The `document_management.*` permissions apply only to the standalone Document Ma
 
 `GET /v1/regtank/admin/onboarding-settings/:formId` uses `requireRole("ADMIN")` only. This route is an internal ops/debug endpoint not used by any admin frontend page. It is outside the RBAC rollout scope.
 
+### Super Admin lockout protection
+
+The system must always have at least one active Super Admin. The following protections are enforced:
+
+| Action | Protection |
+|---|---|
+| Delete Super Admin role | Backend returns `403` (`"This admin role cannot be deleted"`). Frontend hides/disables delete button for `isSystem` roles. |
+| Edit Super Admin permissions | Backend returns `403` (`"System role permissions cannot be edited"`). Frontend sets `isEditable: false` for system roles. |
+| Deactivate last active Super Admin | Backend returns `400` (`"At least one active Super Admin must remain…"`). Frontend disables the Deactivate button with tooltip. |
+| Change last active Super Admin to another role | Backend returns `400` (`"At least one active Super Admin must remain…"`). Frontend blocks the edit with an error toast. |
+
+**Count logic:** Active Super Admin count is determined by `Admin.role_description === "SUPER_ADMIN"` AND `Admin.status === "ACTIVE"`. Pending invitations do not count.
+
+**Developer rule:** Do not weaken or skip the lockout checks in `adminService.deactivateAdmin()` and `adminService.updateAdminRole()` in `apps/api/src/modules/admin/service.ts`.
+
 ---
 
 ## 7. Future-only permissions

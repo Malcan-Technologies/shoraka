@@ -53,6 +53,14 @@ export default function RolesPage() {
     status: selectedStatuses.length === 1 ? selectedStatuses[0] : undefined,
   });
 
+  const { data: superAdminData } = useAdminUsers({
+    page: 1,
+    roleDescription: "SUPER_ADMIN",
+    status: "ACTIVE",
+    pageSize: 1,
+  });
+  const activeSuperAdminCount = superAdminData?.pagination.totalCount ?? 0;
+
   const adminUsers = data?.users || [];
   const totalPages = data?.pagination.totalPages || 0;
 
@@ -200,6 +208,7 @@ export default function RolesPage() {
               onPageChange={setCurrentPage}
               onUpdateUser={handleUpdateUser}
               canManageRoles
+              activeSuperAdminCount={activeSuperAdminCount}
             />
           </div>
         </div>
