@@ -28,12 +28,9 @@ export interface ApiError {
   correlationId: string;
 }
 
-export type EkycDocType = "mykad" | "passport";
-
-export type EkycStatus = "pending" | "submitted" | "error";
+export type EkycStatus = "pending" | "verified" | "failed" | "error";
 
 export interface EkycSession {
-  docType: EkycDocType;
   /** SigningCloud SDK endpoint from getToken. */
   url: string;
   /** Session token for SDK capture, /complete, and status polling. */

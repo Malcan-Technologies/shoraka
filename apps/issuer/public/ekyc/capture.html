@@ -195,8 +195,8 @@
         background: var(--brand-hover);
       }
 
-      body.state-capturing .header-subtitle,
-      body.state-submitting .header-subtitle,
+      body.state-capturing .app-header,
+      body.state-submitting .app-header,
       body.state-done .app-header,
       body.state-error-boot .capture-stage {
         display: none;
@@ -207,22 +207,8 @@
         display: none;
       }
 
-      /* Nudge WiseAI capture UI to fill the mobile stage without changing SDK behaviour. */
+      /* Branding only — avoid overriding WiseAI camera sizing/crop (breaks guide vs detection). */
       @media (max-width: 768px) {
-        .capture-stage .camera-ui-container,
-        .capture-stage .wise-video-container {
-          width: 100% !important;
-          max-width: 100% !important;
-          margin: 0 !important;
-        }
-
-        .capture-stage .wise-camera {
-          width: 100% !important;
-          height: 100% !important;
-          max-height: none !important;
-          object-fit: cover;
-        }
-
         .capture-stage [class~="wise-button-red-1"],
         .capture-stage [class~="wise-button-blue-1"] {
           background-color: var(--brand) !important;
@@ -266,16 +252,25 @@
     <div id="submit-overlay" class="page-overlay" aria-hidden="true">
       <div class="overlay-card">
         <div class="spinner" aria-hidden="true"></div>
-        <h2>Submitting verification</h2>
-        <p>Please keep this page open.</p>
+        <h2 id="submit-overlay-title">Submitting verification</h2>
+        <p id="submit-overlay-message">Please keep this page open.</p>
       </div>
     </div>
 
     <div id="done-overlay" class="page-overlay" aria-hidden="true">
       <div class="overlay-card">
         <div class="status-icon success" aria-hidden="true">✓</div>
-        <h2>Verification complete</h2>
-        <p>You can close this page and return to continue signing.</p>
+        <h2 id="done-overlay-title">Verification complete</h2>
+        <p id="done-overlay-message">You can close this page and return to continue signing.</p>
+      </div>
+    </div>
+
+    <div id="failed-overlay" class="page-overlay" aria-hidden="true">
+      <div class="overlay-card">
+        <div class="status-icon error" aria-hidden="true">!</div>
+        <h2 id="failed-overlay-title">Identity not verified</h2>
+        <p id="failed-overlay-message">We could not verify your identity. Tap New QR on your computer and try again.</p>
+        <button type="button" class="action-button" id="failed-retry-button">Close</button>
       </div>
     </div>
 
@@ -292,7 +287,6 @@
       const params = new URLSearchParams(window.location.search);
       const token = params.get("token");
       const endpoint = params.get("endpoint");
-      const docType = params.get("docType") || "mykad";
       const apiBase = (params.get("api") || "").replace(/\/$/, "");
       const containerId = "ekyc-container";
       const BOOT_TIMEOUT_MS = 45000;
@@ -300,9 +294,16 @@
       const bootOverlay = document.getElementById("boot-overlay");
       const submitOverlay = document.getElementById("submit-overlay");
       const doneOverlay = document.getElementById("done-overlay");
+      const failedOverlay = document.getElementById("failed-overlay");
       const errorOverlay = document.getElementById("error-overlay");
       const errorMessageEl = document.getElementById("error-message");
       const retryButton = document.getElementById("retry-button");
+      const failedRetryButton = document.getElementById("failed-retry-button");
+      const submitOverlayTitle = document.getElementById("submit-overlay-title");
+      const submitOverlayMessage = document.getElementById("submit-overlay-message");
+      const doneOverlayTitle = document.getElementById("done-overlay-title");
+      const doneOverlayMessage = document.getElementById("done-overlay-message");
+      const failedOverlayMessage = document.getElementById("failed-overlay-message");
 
       let bootFinished = false;
       let bootTimeoutId = null;
@@ -313,7 +314,7 @@
       }
 
       function showOverlay(overlay) {
-        [bootOverlay, submitOverlay, doneOverlay, errorOverlay].forEach(function (element) {
+        [bootOverlay, submitOverlay, doneOverlay, failedOverlay, errorOverlay].forEach(function (element) {
           const isVisible = element === overlay;
           element.classList.toggle("visible", isVisible);
           element.setAttribute("aria-hidden", isVisible ? "false" : "true");
@@ -415,6 +416,47 @@
         return body;
       }
 
+      function resolveCompletionStatus(body) {
+        if (body && body.data && typeof body.data.status === "string") {
+          return body.data.status;
+        }
+        return null;
+      }
+
+      function resolveOutcomeErrorMessage(body, fallback) {
+        if (body && body.data && typeof body.data.error === "string" && body.data.error.trim()) {
+          return body.data.error;
+        }
+        return fallback;
+      }
+
+      function showVerificationOutcome(body) {
+        const status = resolveCompletionStatus(body);
+
+        if (status === "verified") {
+          setPageState("done");
+          showOverlay(doneOverlay);
+          return;
+        }
+
+        if (status === "failed") {
+          failedOverlayMessage.textContent = resolveOutcomeErrorMessage(
+            body,
+            "We could not verify your identity. Tap New QR on your computer and try again."
+          );
+          setPageState("failed");
+          showOverlay(failedOverlay);
+          return;
+        }
+
+        showError(
+          resolveOutcomeErrorMessage(
+            body,
+            "We could not complete verification. Tap New QR on your computer and try again."
+          )
+        );
+      }
+
       async function run() {
         if (!token || !endpoint || !apiBase) {
           showError("This verification link is incomplete. Scan the QR code again from your computer.");
@@ -452,7 +494,7 @@
             endpoint,
             containerId,
             {
-              docType: docType,
+              docType: "mykad",
               showActionButtons: true,
               cameraFit: true,
               enableIDFraudDetection: true,
@@ -490,9 +532,8 @@
             showOverlay(submitOverlay);
 
             try {
-              await submitCompletion(rawResult);
-              setPageState("done");
-              showOverlay(doneOverlay);
+              const completionBody = await submitCompletion(rawResult);
+              showVerificationOutcome(completionBody);
             } catch (error) {
               var submitMessage = error instanceof Error ? error.message : "Submission failed.";
               showCaptureError(submitMessage, "SUBMIT_FAILED");
@@ -510,6 +551,10 @@
 
       retryButton.addEventListener("click", function () {
         window.location.reload();
+      });
+
+      failedRetryButton.addEventListener("click", function () {
+        window.close();
       });
 
       run();

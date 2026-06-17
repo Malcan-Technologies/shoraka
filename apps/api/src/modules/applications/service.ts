@@ -492,7 +492,7 @@ export class ApplicationService {
       select: { status: true },
     });
 
-    if (record?.status !== SigningCloudEkycStatus.submitted) {
+    if (record?.status !== SigningCloudEkycStatus.verified) {
       throw new AppError(
         403,
         "EKYC_REQUIRED",

@@ -146,8 +146,12 @@ function ApplicationCard({
   onDocumentDownload: (s3Key: string) => Promise<void>;
   onViewSignedContractOffer?: (signedOfferLetterS3Key: string) => Promise<void>;
   onViewSignedInvoiceOffer?: (signedOfferLetterS3Key: string) => Promise<void>;
-  onReviewContractOffer?: (applicationId: string, contractId: string) => void;
-  onReviewInvoiceOffer?: (applicationId: string, invoice: NormalizedInvoice) => void;
+  onReviewContractOffer?: (applicationId: string, contractId: string, issuerOrganizationId?: string) => void;
+  onReviewInvoiceOffer?: (
+    applicationId: string,
+    invoice: NormalizedInvoice,
+    issuerOrganizationId?: string
+  ) => void;
   onCancelApplication?: (applicationId: string) => void;
   onDeleteDraft?: (applicationId: string) => void;
   onWithdrawInvoice?: (invoiceId: string, applicationId: string, organizationId?: string) => void;
@@ -225,7 +229,7 @@ function ApplicationCard({
                       className="rounded-xl"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onReviewContractOffer(application.id, application.contractId!);
+                        onReviewContractOffer(application.id, application.contractId!, application.issuerOrganizationId);
                       }}
                     >
                       Review Contract Financing Offer
@@ -458,21 +462,33 @@ export default function ApplicationsPage() {
   const [selectedContractId, setSelectedContractId] = React.useState<string | null>(null);
   const [selectedInvoice, setSelectedInvoice] = React.useState<NormalizedInvoice | null>(null);
 
-  const openReviewContractOffer = React.useCallback((applicationId: string, contractId: string) => {
-    setOfferType("contract");
-    setSelectedApplicationId(applicationId);
-    setSelectedContractId(contractId);
-    setSelectedInvoice(null);
-    setReviewModalOpen(true);
-  }, []);
+  const [selectedIssuerOrganizationId, setSelectedIssuerOrganizationId] = React.useState<
+    string | undefined
+  >(undefined);
 
-  const openReviewInvoiceOffer = React.useCallback((applicationId: string, invoice: NormalizedInvoice) => {
-    setOfferType("invoice");
-    setSelectedApplicationId(applicationId);
-    setSelectedContractId(invoice.contractId ?? null);
-    setSelectedInvoice(invoice);
-    setReviewModalOpen(true);
-  }, []);
+  const openReviewContractOffer = React.useCallback(
+    (applicationId: string, contractId: string, issuerOrganizationId?: string) => {
+      setOfferType("contract");
+      setSelectedApplicationId(applicationId);
+      setSelectedContractId(contractId);
+      setSelectedInvoice(null);
+      setSelectedIssuerOrganizationId(issuerOrganizationId);
+      setReviewModalOpen(true);
+    },
+    []
+  );
+
+  const openReviewInvoiceOffer = React.useCallback(
+    (applicationId: string, invoice: NormalizedInvoice, issuerOrganizationId?: string) => {
+      setOfferType("invoice");
+      setSelectedApplicationId(applicationId);
+      setSelectedContractId(invoice.contractId ?? null);
+      setSelectedInvoice(invoice);
+      setSelectedIssuerOrganizationId(issuerOrganizationId);
+      setReviewModalOpen(true);
+    },
+    []
+  );
 
   const handleWithdrawApplicationClick = React.useCallback((applicationId: string) => {
     if (withdrawDialogScheduledRef.current) return;
@@ -1214,6 +1230,7 @@ export default function ApplicationsPage() {
         <ReviewOfferModal
           type={offerType}
           applicationId={selectedApplicationId}
+          issuerOrganizationId={selectedIssuerOrganizationId}
           contractId={selectedContractId ?? undefined}
           invoice={offerType === "invoice" ? selectedInvoice ?? undefined : undefined}
           requiresInvoiceSigning

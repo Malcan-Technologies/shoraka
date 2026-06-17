@@ -271,10 +271,22 @@ Existing docs:
 
 SigningCloud is used for offer acceptance when configured.
 
-Flow:
+### eKYC (identity verification)
+
+Before the first offer signing, each issuer user must complete SigningCloud eKYC once. MyKad name and IC sent to SigningCloud come from RegTank-backed issuer org data, not from the mobile capture SDK.
+
+Full flow, API, and troubleshooting: **[SigningCloud eKYC Flow](../../integrations/signingcloud-ekyc-flow.md)**.
+
+Summary:
+
+- Accept in **Review offer** modal → if `EKYC_REQUIRED`, modal shows QR step.
+- Phone opens `apps/issuer/public/ekyc/capture.html` (WiseAI MyKad capture).
+- Desktop polls until `signingcloud_ekyc.status = verified`, then continues to signing.
+
+### Offer signing
 
 - Issuer opens the offer review modal from the applications list.
-- The modal calls the relevant `start-signing` API.
+- After eKYC (when required), the modal calls the relevant `start-signing` API.
 - API returns a `signingUrl`.
 - Browser redirects to SigningCloud.
 - Issuer returns to the applications dashboard with signing query parameters.
@@ -284,7 +296,7 @@ Flow:
 
 Important implementation detail:
 
-- The applications list offer modal supports SigningCloud.
+- The applications list offer modal supports SigningCloud and eKYC.
 - The home dashboard offer modal calls accept APIs directly and can fail when signing is required. Future work should consolidate these modals before extending the offer/note boundary.
 
 ## Status Model

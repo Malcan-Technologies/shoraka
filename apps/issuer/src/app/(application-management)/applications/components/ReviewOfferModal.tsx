@@ -25,7 +25,7 @@ import {
   resolveIssuerOfferDeclineReason,
 } from "@/lib/issuer-offer-decline-reasons";
 import { useContract } from "@/hooks/use-contracts";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import { useAcceptInvoiceOffer, useRejectContractOffer, useRejectInvoiceOffer } from "@/hooks/use-applications";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
@@ -34,6 +34,7 @@ import {
   ArrowLeftIcon,
   CheckIcon,
   CheckCircleIcon,
+  XCircleIcon,
 } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
 import type { NormalizedInvoice } from "../status";
@@ -56,6 +57,8 @@ const CONTRACT_FACILITY_FEE_CAP_TOOLTIP =
 type ReviewOfferModalProps = {
   type: "contract" | "invoice";
   applicationId: string;
+  /** Application's issuer org — preferred over active org from context for eKYC session create. */
+  issuerOrganizationId?: string;
   contractId?: string;
   invoice?: NormalizedInvoice | null;
   requiresInvoiceSigning?: boolean;
@@ -111,17 +114,24 @@ function getApiErrorDetails(
 export function ReviewOfferModal({
   type,
   applicationId,
+  issuerOrganizationId: issuerOrganizationIdProp,
   contractId,
   invoice,
   requiresInvoiceSigning = true,
   onClose,
 }: ReviewOfferModalProps) {
   const { getAccessToken } = useAuthToken();
+  const { activeOrganization } = useOrganization();
+  const issuerOrganizationId = issuerOrganizationIdProp ?? activeOrganization?.id;
   const apiClient = React.useMemo(
     () => createApiClient(API_URL, getAccessToken),
     [getAccessToken]
   );
-  const ekyc = useEkycFlow({ apiClient, apiBaseUrl: API_URL });
+  const ekyc = useEkycFlow({
+    apiClient,
+    apiBaseUrl: API_URL,
+    issuerOrganizationId,
+  });
 
   const shouldLoadContract = !!contractId;
   const { data: contractRecord, isLoading: isLoadingContract } = useContract(
@@ -433,56 +443,44 @@ export function ReviewOfferModal({
     }
   };
 
+  const handleContinueToSigning = async () => {
+    setIsContinuingToSigning(true);
+    try {
+      const signingUrl = await startSigningFlow();
+      window.location.assign(signingUrl);
+    } catch (error) {
+      const err = getApiErrorDetails(error, "Could not continue to signing");
+      toast.error("Could not continue to signing", {
+        description: err.message,
+      });
+    } finally {
+      setIsContinuingToSigning(false);
+    }
+  };
+
   React.useEffect(() => {
     // Auto-create once per eKYC step visit; do not retry in a loop after failure.
     if (
       modalStep !== "ekyc" ||
+      !issuerOrganizationId ||
       ekyc.captureUrl ||
       ekyc.isGenerating ||
-      ekyc.status === "error"
+      ekyc.status === "error" ||
+      ekyc.status === "failed" ||
+      ekyc.status === "verified"
     ) {
       return;
     }
 
     ekyc.generateSession().catch(() => undefined);
-  }, [ekyc.captureUrl, ekyc.generateSession, ekyc.isGenerating, ekyc.status, modalStep]);
-
-  React.useEffect(() => {
-    if (modalStep !== "ekyc" || ekyc.status !== "submitted" || isContinuingToSigning) {
-      return;
-    }
-
-    let active = true;
-
-    const continueToSigning = async () => {
-      setIsContinuingToSigning(true);
-
-      try {
-        const signingUrl = await startSigningFlow();
-        window.location.assign(signingUrl);
-      } catch (error) {
-        if (!active) {
-          return;
-        }
-
-        const err = getApiErrorDetails(error, "Could not continue to signing");
-        toast.error("Could not continue to signing", {
-          description: err.message,
-        });
-      } finally {
-        if (active) {
-          setIsContinuingToSigning(false);
-        }
-      }
-    };
-
-    // Once the phone flow reports success, resume the original signing journey automatically.
-    continueToSigning().catch(() => undefined);
-
-    return () => {
-      active = false;
-    };
-  }, [ekyc.status, isContinuingToSigning, modalStep, startSigningFlow]);
+  }, [
+    ekyc.captureUrl,
+    ekyc.generateSession,
+    ekyc.isGenerating,
+    ekyc.status,
+    issuerOrganizationId,
+    modalStep,
+  ]);
 
   const handleAcceptOverride = async () => {
     setAcceptOverrideLoading(true);
@@ -562,12 +560,57 @@ export function ReviewOfferModal({
 
                 <div className="text-center space-y-2">
                   <p className="text-base font-semibold text-foreground">Identity verification</p>
-                  <p className="text-sm text-muted-foreground">
-                    Scan with your phone. We&apos;ll continue to signing automatically once complete.
-                  </p>
+                  {ekyc.status === "verified" ? (
+                    <p className="text-sm text-muted-foreground">
+                      Your identity has been verified. Continue to signing when you are ready.
+                    </p>
+                  ) : ekyc.status === "failed" ? (
+                    <p className="text-sm text-muted-foreground">
+                      We could not verify your identity. Scan a new QR code and try again.
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Scan with your phone to verify your identity before signing.
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex flex-col items-center gap-4 py-2">
+                  {ekyc.status === "verified" ? (
+                    <div className="flex w-full max-w-xs flex-col items-center gap-4 text-center">
+                      <CheckCircleIcon className="h-16 w-16 text-primary" aria-hidden="true" />
+                      <p className="text-sm font-medium text-foreground">Identity verified</p>
+                      <Button
+                        type="button"
+                        className="w-full rounded-xl"
+                        onClick={() => {
+                          handleContinueToSigning().catch(() => undefined);
+                        }}
+                        disabled={isContinuingToSigning}
+                      >
+                        {isContinuingToSigning ? "Opening signing..." : "Continue to signing"}
+                      </Button>
+                    </div>
+                  ) : ekyc.status === "failed" ? (
+                    <div className="flex w-full max-w-xs flex-col items-center gap-4 text-center">
+                      <XCircleIcon className="h-16 w-16 text-destructive" aria-hidden="true" />
+                      <p className="text-sm text-destructive">
+                        {ekyc.error || "We could not verify your identity."}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          ekyc.generateSession({ force: true }).catch(() => undefined);
+                        }}
+                        disabled={ekyc.isGenerating}
+                        className="w-full max-w-xs rounded-xl"
+                      >
+                        {ekyc.isGenerating ? "Generating..." : "Try again"}
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
                   {ekyc.captureUrl && ekyc.status !== "error" ? (
                     <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
                       <QRCodeSVG value={ekyc.captureUrl} size={220} />
@@ -577,10 +620,6 @@ export function ReviewOfferModal({
                       <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                     </div>
                   )}
-
-                  {isContinuingToSigning || ekyc.status === "submitted" ? (
-                    <p className="text-sm text-muted-foreground">Continuing to signing...</p>
-                  ) : null}
 
                   {ekyc.status === "error" ? (
                     <div className="flex w-full max-w-xs flex-col items-center gap-2 text-center">
@@ -617,11 +656,13 @@ export function ReviewOfferModal({
                         ekyc.generateSession({ force: true }).catch(() => undefined);
                       }}
                       disabled={ekyc.isGenerating}
-                      className="w-full max-w-xs"
+                      className="w-full max-w-xs rounded-xl"
                     >
                       {ekyc.isGenerating ? "Generating..." : "New QR"}
                     </Button>
                   ) : null}
+                    </>
+                  )}
                 </div>
               </div>
             ) : (

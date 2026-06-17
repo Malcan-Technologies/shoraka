@@ -1,6 +1,7 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
+import { ZodError } from "zod";
 import { requireAuth } from "../../lib/auth/middleware";
-import { AppError } from "../../lib/http/error-handler";
+import { AppError, formatZodMessage } from "../../lib/http/error-handler";
 import {
   completeBodySchema,
   failBodySchema,
@@ -34,16 +35,16 @@ router.get("/me", requireAuth, async (req: Request, res: Response, next: NextFun
 
 router.post("/session", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { docType, force } = sessionBodySchema.parse(req.body);
-    const data = await ekycService.createSession(getUserId(req), docType, { force });
+    const { issuerOrganizationId, force } = sessionBodySchema.parse(req.body);
+    const data = await ekycService.createSession(getUserId(req), issuerOrganizationId, { force });
     res.json({
       success: true,
       data,
       correlationId: res.locals.correlationId,
     });
   } catch (error) {
-    if (error instanceof Error && error.name === "ZodError") {
-      return next(new AppError(400, "VALIDATION_ERROR", error.message));
+    if (error instanceof ZodError) {
+      return next(new AppError(400, "VALIDATION_ERROR", formatZodMessage(error)));
     }
     next(error);
   }
@@ -59,8 +60,8 @@ router.get("/status", async (req: Request, res: Response, next: NextFunction) =>
       correlationId: res.locals.correlationId,
     });
   } catch (error) {
-    if (error instanceof Error && error.name === "ZodError") {
-      return next(new AppError(400, "VALIDATION_ERROR", error.message));
+    if (error instanceof ZodError) {
+      return next(new AppError(400, "VALIDATION_ERROR", formatZodMessage(error)));
     }
     next(error);
   }
@@ -76,8 +77,8 @@ router.post("/fail", async (req: Request, res: Response, next: NextFunction) => 
       correlationId: res.locals.correlationId,
     });
   } catch (error) {
-    if (error instanceof Error && error.name === "ZodError") {
-      return next(new AppError(400, "VALIDATION_ERROR", error.message));
+    if (error instanceof ZodError) {
+      return next(new AppError(400, "VALIDATION_ERROR", formatZodMessage(error)));
     }
     next(error);
   }
@@ -93,8 +94,8 @@ router.post("/complete", async (req: Request, res: Response, next: NextFunction)
       correlationId: res.locals.correlationId,
     });
   } catch (error) {
-    if (error instanceof Error && error.name === "ZodError") {
-      return next(new AppError(400, "VALIDATION_ERROR", error.message));
+    if (error instanceof ZodError) {
+      return next(new AppError(400, "VALIDATION_ERROR", formatZodMessage(error)));
     }
     next(error);
   }

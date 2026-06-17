@@ -1,9 +1,7 @@
 import { z } from "zod";
 
-export const EKYC_DOC_TYPES = ["mykad", "passport"] as const;
-
 export const sessionBodySchema = z.object({
-  docType: z.enum(EKYC_DOC_TYPES).default("mykad"),
+  issuerOrganizationId: z.string().cuid(),
   force: z.boolean().optional().default(false),
 });
 

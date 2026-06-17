@@ -7,6 +7,7 @@ import type { ApiError, EkycSessionStatus } from "@cashsouk/types";
 type UseEkycFlowOptions = {
   apiClient: ApiClient;
   apiBaseUrl: string;
+  issuerOrganizationId: string | undefined;
 };
 
 type GenerateSessionOptions = {
@@ -70,6 +71,7 @@ function getErrorMessage(response: ApiError | Error | unknown, fallback: string)
 export function useEkycFlow({
   apiClient,
   apiBaseUrl,
+  issuerOrganizationId,
 }: UseEkycFlowOptions): UseEkycFlowResult {
   const [token, setToken] = React.useState<string | null>(null);
   const [endpoint, setEndpoint] = React.useState<string | null>(null);
@@ -90,7 +92,6 @@ export function useEkycFlow({
     const captureParams = new URLSearchParams({
       token,
       endpoint,
-      docType: "mykad",
       api: apiBaseUrl,
     });
 
@@ -132,12 +133,20 @@ export function useEkycFlow({
   const generateSession = React.useCallback(
     async (options?: GenerateSessionOptions) => {
       const force = options?.force === true;
+      if (!issuerOrganizationId) {
+        setStatus("error");
+        setError("Select an organization before starting identity verification.");
+        setErrorCode(null);
+        setPendingSince(null);
+        return false;
+      }
+
       setIsGenerating(true);
       setError(null);
       setErrorCode(null);
 
       try {
-        const response = await apiClient.createEkycSession({ docType: "mykad", force });
+        const response = await apiClient.createEkycSession({ issuerOrganizationId, force });
         if (!response.success) {
           setStatus("error");
           setErrorCode(getErrorCode(response));
@@ -162,7 +171,7 @@ export function useEkycFlow({
         setIsGenerating(false);
       }
     },
-    [apiClient]
+    [apiClient, issuerOrganizationId]
   );
 
   React.useEffect(() => {

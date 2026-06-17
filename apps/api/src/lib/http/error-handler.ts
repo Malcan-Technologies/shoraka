@@ -14,7 +14,7 @@ export class AppError extends Error {
   }
 }
 
-function formatZodMessage(zodError: ZodError): string {
+export function formatZodMessage(zodError: ZodError): string {
   const first = zodError.issues[0];
   if (!first) return "Validation failed";
   const path = first.path.length ? `${first.path.join(".")}: ` : "";

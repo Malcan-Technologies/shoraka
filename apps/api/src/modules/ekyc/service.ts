@@ -1,18 +1,27 @@
-import type { EkycDocType, EkycMeStatus, EkycSession, EkycSessionStatus } from "@cashsouk/types";
+import type { EkycMeStatus, EkycSession, EkycSessionStatus } from "@cashsouk/types";
 import { SigningCloudEkycStatus } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
-import { EKYC_DOC_TYPES } from "./schemas";
+import {
+  resolveIssuerEkycIdentityForOrganization,
+} from "./resolve-issuer-ekyc-identity";
 import {
   getSigningCloudEkycSession,
   submitSigningCloudEkycResult,
 } from "./signingcloud-ekyc";
 
-export { EKYC_DOC_TYPES };
+/** SigningCloud eKYC is MyKad-only in CashSouk. */
+const EKYC_DOC_TYPE = "mykad";
 
 /** SigningCloud eKYC tokens are short-lived; reuse only within this window. */
 const EKYC_SESSION_TTL_MS = 25 * 60 * 1000;
+
+const EKYC_VERIFICATION_FAILED_MESSAGE =
+  "We could not verify your identity. Please try again with a clear photo of your IC.";
+
+const EKYC_SESSION_ORG_MISSING_MESSAGE =
+  "This verification session is invalid. Generate a new QR code on your computer and try again.";
 
 function isPendingSessionFresh(updatedAt: Date): boolean {
   return Date.now() - updatedAt.getTime() < EKYC_SESSION_TTL_MS;
@@ -23,40 +32,13 @@ function sanitizeClientFailureReason(reason: string): string {
   return trimmed.length > 0 ? trimmed.slice(0, 500) : "Identity verification failed";
 }
 
-function normalizeMykadNumber(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const digitsOnly = value.replace(/\D/g, "");
-  return digitsOnly.length > 0 ? digitsOnly : null;
-}
-
-function normalizePassportNumber(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const compact = value.trim().toUpperCase().replace(/\s+/g, "");
-  return compact.length > 0 ? compact : null;
-}
-
-function normalizeName(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const name = value.trim().toUpperCase();
-  return name.length > 0 ? name : null;
-}
-
 function unwrapPlainEkycResult(result: unknown): Record<string, unknown> | null {
   if (!result || typeof result !== "object") {
     return null;
   }
 
   const record = result as Record<string, unknown>;
-  if (record.ekycSuccess !== undefined || record.mykadFront || record.passport) {
+  if (record.ekycSuccess !== undefined || record.mykadFront) {
     return record;
   }
 
@@ -66,11 +48,7 @@ function unwrapPlainEkycResult(result: unknown): Record<string, unknown> | null 
   }
 
   const nestedRecord = nested as Record<string, unknown>;
-  if (
-    nestedRecord.ekycSuccess !== undefined ||
-    nestedRecord.mykadFront ||
-    nestedRecord.passport
-  ) {
+  if (nestedRecord.ekycSuccess !== undefined || nestedRecord.mykadFront) {
     return nestedRecord;
   }
 
@@ -131,59 +109,6 @@ function extractEkycResult(result: unknown): string {
   throw new AppError(400, "INVALID_EKYC_RESULT", "SDK result did not include capture data");
 }
 
-function buildSubmitFields(
-  docType: EkycDocType,
-  plain: Record<string, unknown> | null
-): { name: string; icNumber: string; country: string; ekycDocType: string } {
-  const country = "MYS";
-  const ekycDocType = docType === "mykad" ? "mykad" : "PASSPORT";
-
-  if (plain) {
-    if (docType === "mykad") {
-      const mykadFront =
-        plain.mykadFront && typeof plain.mykadFront === "object"
-          ? (plain.mykadFront as Record<string, unknown>)
-          : null;
-      const name = normalizeName(mykadFront?.name);
-      const icNumber = normalizeMykadNumber(mykadFront?.icNumber);
-      if (name && icNumber) {
-        return { name, icNumber, country, ekycDocType };
-      }
-    } else {
-      const passport =
-        plain.passport && typeof plain.passport === "object"
-          ? (plain.passport as Record<string, unknown>)
-          : null;
-      const name = normalizeName(passport?.name);
-      const icNumber = normalizePassportNumber(passport?.passportNumber);
-      if (name && icNumber) {
-        return { name, icNumber, country, ekycDocType };
-      }
-    }
-  }
-
-  // SigningCloud decrypts ekycResult server-side when the SDK returns encryptedData.
-  return { name: "", icNumber: "", country, ekycDocType };
-}
-
-function logSdkCaptureResult(sessionToken: string, result: unknown): void {
-  const encryptedData = extractEncryptedData(result);
-  const plain = unwrapPlainEkycResult(result);
-
-  logger.info(
-    {
-      sessionToken,
-      hasEncryptedData: Boolean(encryptedData),
-      encryptedDataLength: encryptedData?.length ?? 0,
-      hasPlainPayload: Boolean(plain),
-      ekycSuccess: plain?.ekycSuccess,
-      hasMykadFront: Boolean(plain?.mykadFront),
-      hasPassport: Boolean(plain?.passport),
-    },
-    "eKYC SDK capture result received"
-  );
-}
-
 class EkycService {
   async getMeStatus(userId: string): Promise<EkycMeStatus> {
     const record = await prisma.signingCloudEkyc.findUnique({
@@ -192,14 +117,14 @@ class EkycService {
     });
 
     return {
-      completed: record?.status === SigningCloudEkycStatus.submitted,
+      completed: record?.status === SigningCloudEkycStatus.verified,
       completedAt: record?.completed_at?.toISOString() ?? null,
     };
   }
 
   async createSession(
     userId: string,
-    docType: EkycDocType,
+    issuerOrganizationId: string,
     options?: { force?: boolean }
   ): Promise<EkycSession> {
     const force = options?.force === true;
@@ -211,21 +136,22 @@ class EkycService {
       throw new AppError(400, "INVALID_STATE", "Your account must have an email address to verify identity");
     }
 
+    const email = user.email.trim();
+    await resolveIssuerEkycIdentityForOrganization(userId, issuerOrganizationId, email);
+
     const existing = await prisma.signingCloudEkyc.findUnique({
       where: { user_id: userId },
       select: {
         status: true,
         session_token: true,
         sdk_endpoint: true,
-        doc_type: true,
         updated_at: true,
       },
     });
-    if (existing?.status === SigningCloudEkycStatus.submitted) {
+    if (existing?.status === SigningCloudEkycStatus.verified) {
       throw new AppError(409, "EKYC_ALREADY_COMPLETED", "Identity verification has already been completed");
     }
 
-    // Reuse a fresh in-progress session so the same QR stays valid when the modal is reopened.
     if (
       !force &&
       existing?.status === SigningCloudEkycStatus.pending &&
@@ -233,29 +159,25 @@ class EkycService {
       existing.sdk_endpoint &&
       isPendingSessionFresh(existing.updated_at)
     ) {
-      logger.info(
-        {
-          userId,
-          sessionToken: existing.session_token,
-          ageMs: Date.now() - existing.updated_at.getTime(),
-        },
-        "Reusing in-progress eKYC session"
-      );
+      await prisma.signingCloudEkyc.update({
+        where: { user_id: userId },
+        data: { issuer_organization_id: issuerOrganizationId },
+      });
+
       return {
-        docType: existing.doc_type as EkycDocType,
         url: existing.sdk_endpoint,
         token: existing.session_token,
       };
     }
 
-    const { url, token } = await getSigningCloudEkycSession(user.email.trim());
-    logger.info({ userId, force, sdkEndpoint: url }, "Minted new eKYC session");
+    const { url, token } = await getSigningCloudEkycSession(email);
 
     await prisma.signingCloudEkyc.upsert({
       where: { user_id: userId },
       create: {
         user_id: userId,
-        doc_type: docType,
+        issuer_organization_id: issuerOrganizationId,
+        doc_type: EKYC_DOC_TYPE,
         session_token: token,
         sdk_endpoint: url,
         status: SigningCloudEkycStatus.pending,
@@ -263,7 +185,8 @@ class EkycService {
         completed_at: null,
       },
       update: {
-        doc_type: docType,
+        issuer_organization_id: issuerOrganizationId,
+        doc_type: EKYC_DOC_TYPE,
         session_token: token,
         sdk_endpoint: url,
         status: SigningCloudEkycStatus.pending,
@@ -272,7 +195,7 @@ class EkycService {
       },
     });
 
-    return { docType, url, token };
+    return { url, token };
   }
 
   async failSession(
@@ -288,9 +211,9 @@ class EkycService {
       throw new AppError(404, "NOT_FOUND", "Unknown eKYC session token");
     }
 
-    if (record.status === SigningCloudEkycStatus.submitted) {
+    if (record.status === SigningCloudEkycStatus.verified) {
       return {
-        status: "submitted",
+        status: "verified" as const,
         error: null,
         completedAt: record.completed_at?.toISOString() ?? null,
       };
@@ -316,7 +239,7 @@ class EkycService {
     );
 
     return {
-      status: "error",
+      status: "error" as const,
       error: message,
       completedAt: null,
     };
@@ -343,7 +266,7 @@ class EkycService {
       where: { session_token: token },
       select: {
         user_id: true,
-        doc_type: true,
+        issuer_organization_id: true,
         status: true,
         completed_at: true,
         user: { select: { email: true } },
@@ -353,14 +276,14 @@ class EkycService {
       throw new AppError(404, "NOT_FOUND", "Unknown eKYC session token");
     }
 
-    const email = record.user.email.trim();
-    if (!email) {
+    const accountEmail = record.user.email.trim();
+    if (!accountEmail) {
       throw new AppError(400, "INVALID_STATE", "Your account must have an email address to verify identity");
     }
 
-    if (record.status === SigningCloudEkycStatus.submitted) {
+    if (record.status === SigningCloudEkycStatus.verified) {
       return {
-        status: "submitted",
+        status: "verified" as const,
         error: null,
         completedAt: record.completed_at?.toISOString() ?? null,
       };
@@ -368,33 +291,54 @@ class EkycService {
 
     try {
       assertSdkCaptureSuccess(result);
-      logSdkCaptureResult(token, result);
 
+      if (!record.issuer_organization_id) {
+        throw new AppError(400, "EKYC_SESSION_ORG_MISSING", EKYC_SESSION_ORG_MISSING_MESSAGE);
+      }
+
+      const identity = await resolveIssuerEkycIdentityForOrganization(
+        record.user_id,
+        record.issuer_organization_id,
+        accountEmail
+      );
       const ekycResult = extractEkycResult(result);
-      const plain = unwrapPlainEkycResult(result);
-      const submitFields = buildSubmitFields(record.doc_type as EkycDocType, plain);
-      await submitSigningCloudEkycResult({
-        email,
+      const submitResult = await submitSigningCloudEkycResult({
+        email: accountEmail,
         ekycResult,
-        name: submitFields.name,
-        icNumber: submitFields.icNumber,
-        country: submitFields.country,
-        ekycDocType: submitFields.ekycDocType,
+        name: identity.name,
+        icNumber: identity.icNumber,
         token,
       });
+
+      if (!submitResult.userVerificationSuccess) {
+        await prisma.signingCloudEkyc.update({
+          where: { user_id: record.user_id },
+          data: {
+            status: SigningCloudEkycStatus.failed,
+            last_error: EKYC_VERIFICATION_FAILED_MESSAGE,
+            completed_at: null,
+          },
+        });
+
+        return {
+          status: "failed" as const,
+          error: EKYC_VERIFICATION_FAILED_MESSAGE,
+          completedAt: null,
+        };
+      }
 
       const completedAt = new Date();
       await prisma.signingCloudEkyc.update({
         where: { user_id: record.user_id },
         data: {
-          status: SigningCloudEkycStatus.submitted,
+          status: SigningCloudEkycStatus.verified,
           last_error: null,
           completed_at: completedAt,
         },
       });
 
       return {
-        status: "submitted",
+        status: "verified" as const,
         error: null,
         completedAt: completedAt.toISOString(),
       };

@@ -1,4 +1,4 @@
-import { DEV_TUNNEL_ORIGINS } from "../../packages/config/dev-tunnel-origins.mjs";
+import { DEV_TUNNEL_ORIGINS } from "../../packages/config/dev-tunnel-origins.cjs";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
