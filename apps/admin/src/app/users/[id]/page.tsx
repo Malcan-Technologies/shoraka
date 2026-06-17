@@ -226,6 +226,7 @@ function EditAccountCard({
   canManage?: boolean;
 }) {
   const hasChanges = JSON.stringify(draft) !== JSON.stringify(buildDraft(user));
+  const disabledReason = !canManage ? "You do not have permission to perform this action." : undefined;
 
   return (
     <Card className="rounded-2xl">
@@ -244,9 +245,12 @@ function EditAccountCard({
               value={draft.userId}
               maxLength={5}
               className="font-mono uppercase"
-              onChange={(event) =>
-                onDraftChange({ ...draft, userId: event.target.value.toUpperCase().slice(0, 5) })
-              }
+              disabled={!canManage}
+              title={disabledReason}
+              onChange={(event) => {
+                if (!canManage) return;
+                onDraftChange({ ...draft, userId: event.target.value.toUpperCase().slice(0, 5) });
+              }}
             />
           </div>
           <div className="space-y-2">
@@ -254,7 +258,12 @@ function EditAccountCard({
             <Input
               id="first-name"
               value={draft.firstName}
-              onChange={(event) => onDraftChange({ ...draft, firstName: event.target.value })}
+              disabled={!canManage}
+              title={disabledReason}
+              onChange={(event) => {
+                if (!canManage) return;
+                onDraftChange({ ...draft, firstName: event.target.value });
+              }}
             />
           </div>
           <div className="space-y-2">
@@ -262,7 +271,12 @@ function EditAccountCard({
             <Input
               id="last-name"
               value={draft.lastName}
-              onChange={(event) => onDraftChange({ ...draft, lastName: event.target.value })}
+              disabled={!canManage}
+              title={disabledReason}
+              onChange={(event) => {
+                if (!canManage) return;
+                onDraftChange({ ...draft, lastName: event.target.value });
+              }}
             />
           </div>
           <div className="space-y-2">
@@ -271,7 +285,12 @@ function EditAccountCard({
               id="phone"
               value={draft.phone}
               placeholder="+60..."
-              onChange={(event) => onDraftChange({ ...draft, phone: event.target.value })}
+              disabled={!canManage}
+              title={disabledReason}
+              onChange={(event) => {
+                if (!canManage) return;
+                onDraftChange({ ...draft, phone: event.target.value });
+              }}
             />
           </div>
         </div>
@@ -285,7 +304,12 @@ function EditAccountCard({
               </div>
               <Switch
                 checked={draft.investorOnboarded}
-                onCheckedChange={(checked) => onDraftChange({ ...draft, investorOnboarded: checked })}
+                disabled={!canManage}
+                title={disabledReason}
+                onCheckedChange={(checked) => {
+                  if (!canManage) return;
+                  onDraftChange({ ...draft, investorOnboarded: checked });
+                }}
               />
             </div>
           </div>
@@ -297,7 +321,12 @@ function EditAccountCard({
               </div>
               <Switch
                 checked={draft.issuerOnboarded}
-                onCheckedChange={(checked) => onDraftChange({ ...draft, issuerOnboarded: checked })}
+                disabled={!canManage}
+                title={disabledReason}
+                onCheckedChange={(checked) => {
+                  if (!canManage) return;
+                  onDraftChange({ ...draft, issuerOnboarded: checked });
+                }}
               />
             </div>
           </div>
