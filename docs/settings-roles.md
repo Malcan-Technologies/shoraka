@@ -195,9 +195,9 @@ The `AdminInvitation` model tracks pending invitations:
 - `GET /v1/admin/roles` is enforced with `roles.manage`
 - `PATCH /v1/admin/roles/:key/permissions` is enforced with `roles.manage`
 - `PUT /v1/admin/admin-users/:id/role` is enforced with `roles.manage`
-- `/settings/roles` and `/settings/roles/configuration` are hidden and blocked unless the admin has `roles.manage`
-- The seeded `SUPER_ADMIN` role includes `roles.manage`; other seeded roles start with no live permissions
-- Additional admin-management endpoints on this page still use the broader `ADMIN` gate today and can be moved onto finer-grained permissions later
+- `/settings/roles` and `/settings/roles/configuration` are visible to any admin with `roles.view`; mutations require `roles.manage`
+- The `SUPER_ADMIN` role has full access via the `FULL_ACCESS_ADMIN_ROLE_KEYS` bypass; all other roles depend on their assigned permission list
+- All admin-management endpoints on this page are enforced with specific `requirePermission(...)` guards
 
 See `docs/guides/rbac.md` for the permission catalog, runtime flow, and instructions for adding new roles and permissions.
 
