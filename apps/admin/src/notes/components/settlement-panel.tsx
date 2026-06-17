@@ -22,6 +22,7 @@ import type {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   Dialog,
   DialogContent,
@@ -308,6 +309,11 @@ function formatMaturityTiming(value: string | null) {
 }
 
 export function SettlementPanel({ note }: { note: NoteDetail }) {
+  const { can } = usePermissions();
+  const canRepayment = can("notes.repayment.manage");
+  const canSettlement = can("notes.settlement.manage");
+  const canDisbursement = can("notes.disbursement.manage");
+  const canDefault = can("notes.default.manage");
   const [receiptAmount, setReceiptAmount] = React.useState("");
   const [reference, setReference] = React.useState("");
   const [recordPaymentSource, setRecordPaymentSource] =
@@ -1251,7 +1257,8 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                 size="sm"
                 className="gap-1.5 rounded-xl"
                 onClick={handleOpenRecordPaymentDialog}
-                disabled={recordPayment.isPending || !canRecordMoreReceipts}
+                disabled={recordPayment.isPending || !canRecordMoreReceipts || !canRepayment}
+                title={!canRepayment ? "You do not have permission to perform this action." : undefined}
               >
                 <PlusIcon className="h-4 w-4" />
                 Record receipt
@@ -1351,7 +1358,8 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                               <Button
                                 size="sm"
                                 onClick={() => handleApprovePayment(payment)}
-                                disabled={approvePayment.isPending || !paymentActionsOpen}
+                                disabled={approvePayment.isPending || !paymentActionsOpen || !canRepayment}
+                                title={!canRepayment ? "You do not have permission to perform this action." : undefined}
                               >
                                 Approve
                               </Button>
@@ -1359,7 +1367,8 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                                 size="sm"
                                 variant="destructive"
                                 onClick={() => handleRejectPayment(payment)}
-                                disabled={rejectPayment.isPending}
+                                disabled={rejectPayment.isPending || !canRepayment}
+                                title={!canRepayment ? "You do not have permission to perform this action." : undefined}
                               >
                                 Reject
                               </Button>
@@ -1660,20 +1669,23 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                 <Button
                   variant={feesNeedPreview ? "default" : "outline"}
                   onClick={handlePreview}
-                  disabled={!canPreviewSettlement}
+                  disabled={!canPreviewSettlement || !canSettlement}
+                  title={!canSettlement ? "You do not have permission to perform this action." : undefined}
                 >
                   {previewButtonLabel}
                 </Button>
                 <Button
                   variant="outline"
                   onClick={requestApproveSettlement}
-                  disabled={!canApproveSettlement || approveSettlement.isPending || !servicingOpen}
+                  disabled={!canApproveSettlement || approveSettlement.isPending || !servicingOpen || !canSettlement}
+                  title={!canSettlement ? "You do not have permission to perform this action." : undefined}
                 >
                   Approve
                 </Button>
                 <Button
                   onClick={requestPostSettlement}
-                  disabled={!canPostSettlement || postSettlement.isPending || !servicingOpen}
+                  disabled={!canPostSettlement || postSettlement.isPending || !servicingOpen || !canSettlement}
+                  title={!canSettlement ? "You do not have permission to perform this action." : undefined}
                 >
                   Post
                 </Button>
@@ -1858,7 +1870,8 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                           type="button"
                           variant={serviceFeeTrusteeNeedsPdf ? "destructive" : "outline"}
                           onClick={() => void handleServiceFeeTrusteeLetter()}
-                          disabled={serviceFeeTrusteeLetterLocked || serviceFeeTrusteePendingAny}
+                          disabled={serviceFeeTrusteeLetterLocked || serviceFeeTrusteePendingAny || !canDisbursement}
+                          title={!canDisbursement ? "You do not have permission to perform this action." : undefined}
                         >
                           Generate PDF
                         </Button>
@@ -1868,7 +1881,8 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                             size="sm"
                             className="gap-1.5"
                             onClick={() => setServiceFeeTrusteeConfirm("submit")}
-                            disabled={serviceFeeTrusteePendingAny}
+                            disabled={serviceFeeTrusteePendingAny || !canDisbursement}
+                            title={!canDisbursement ? "You do not have permission to perform this action." : undefined}
                           >
                             Mark submitted to trustee
                           </Button>
@@ -1879,7 +1893,8 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                             size="sm"
                             className="gap-1.5"
                             onClick={() => setServiceFeeTrusteeConfirm("complete")}
-                            disabled={serviceFeeTrusteePendingAny}
+                            disabled={serviceFeeTrusteePendingAny || !canDisbursement}
+                            title={!canDisbursement ? "You do not have permission to perform this action." : undefined}
                           >
                             Mark complete
                           </Button>
@@ -1994,14 +2009,16 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                 <Button
                   variant="outline"
                   onClick={() => handleLetter("arrears")}
-                  disabled={arrearsLetter.isPending}
+                  disabled={arrearsLetter.isPending || !canDefault}
+                  title={!canDefault ? "You do not have permission to perform this action." : undefined}
                 >
                   Generate Arrears Letter
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => handleLetter("default")}
-                  disabled={defaultLetter.isPending}
+                  disabled={defaultLetter.isPending || !canDefault}
+                  title={!canDefault ? "You do not have permission to perform this action." : undefined}
                 >
                   Generate Default Letter
                 </Button>
@@ -2088,7 +2105,8 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
               <Button
                 variant="destructive"
                 onClick={handleMarkDefault}
-                disabled={markDefault.isPending || !canMarkDefault}
+                disabled={markDefault.isPending || !canMarkDefault || !canDefault}
+                title={!canDefault ? "You do not have permission to perform this action." : undefined}
               >
                 Mark Default
               </Button>

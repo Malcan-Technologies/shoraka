@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useAdminNotifications } from "@cashsouk/config";
+import { usePermissions } from "../../../hooks/use-permissions";
 import type {
   AdminNotificationType,
   AdminNotificationGroup,
@@ -144,6 +145,8 @@ function getTargetBadge(targetType: string) {
 }
 
 export default function NotificationsAdminPage() {
+  const { can } = usePermissions();
+  const canManage = can("notifications.manage");
   const [page, setPage] = useState(1);
   const [logSearchQuery, setLogSearchQuery] = useState<string>("");
   const [logTypeFilter, setLogTypeFilter] = useState<string>("all");
@@ -415,7 +418,8 @@ export default function NotificationsAdminPage() {
                         });
                       }
                     }}
-                    disabled={isSeeding}
+                    disabled={isSeeding || !canManage}
+                    title={!canManage ? "You do not have permission to perform this action." : undefined}
                   >
                     <RotateCcw className={`h-4 w-4 ${isSeeding ? "animate-spin" : ""}`} />
                     {isSeeding ? "Seeding..." : "Add Missing Types"}
@@ -477,6 +481,8 @@ export default function NotificationsAdminPage() {
                             <Switch
                               checked={type.enabled_platform}
                               onCheckedChange={(checked) => handleTogglePlatform(type.id, checked)}
+                              disabled={!canManage}
+                              title={!canManage ? "You do not have permission to perform this action." : undefined}
                             />
                           </div>
                           <div className="flex flex-col items-center gap-1">
@@ -484,6 +490,8 @@ export default function NotificationsAdminPage() {
                             <Switch
                               checked={type.enabled_email}
                               onCheckedChange={(checked) => handleToggleEmail(type.id, checked)}
+                              disabled={!canManage}
+                              title={!canManage ? "You do not have permission to perform this action." : undefined}
                             />
                           </div>
                         </div>
@@ -695,7 +703,9 @@ export default function NotificationsAdminPage() {
                     </div>
                   </div>
 
-                  <Button type="submit" className="w-full" disabled={isSending}>
+                  <Button type="submit" className="w-full" disabled={isSending || !canManage}
+                    title={!canManage ? "You do not have permission to perform this action." : undefined}
+                  >
                     {isSending ? "Sending..." : "Send Notification"}
                   </Button>
                 </form>
@@ -714,7 +724,12 @@ export default function NotificationsAdminPage() {
                     Create and manage reusable sets of target users.
                   </CardDescription>
                 </div>
-                <Button size="sm" onClick={() => setIsGroupModalOpen(true)}>
+                <Button
+                  size="sm"
+                  onClick={() => setIsGroupModalOpen(true)}
+                  disabled={!canManage}
+                  title={!canManage ? "You do not have permission to perform this action." : undefined}
+                >
                   <Plus className="h-4 w-4 mr-2" />
                   Create Group
                 </Button>
@@ -755,6 +770,8 @@ export default function NotificationsAdminPage() {
                               size="icon"
                               className="h-8 w-8"
                               onClick={() => handleEditGroup(group)}
+                              disabled={!canManage}
+                              title={!canManage ? "You do not have permission to perform this action." : undefined}
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -762,6 +779,8 @@ export default function NotificationsAdminPage() {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-destructive"
+                              disabled={!canManage}
+                              title={!canManage ? "You do not have permission to perform this action." : undefined}
                               onClick={() => {
                                 if (confirm("Are you sure you want to delete this group?")) {
                                   deleteGroup(group.id);
@@ -1090,7 +1109,9 @@ export default function NotificationsAdminPage() {
               <Button type="button" variant="outline" onClick={resetGroupForm}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isCreatingGroup}>
+              <Button type="submit" disabled={isCreatingGroup || !canManage}
+                title={!canManage ? "You do not have permission to perform this action." : undefined}
+              >
                 {editingGroupId ? "Update Group" : "Create Group"}
               </Button>
             </DialogFooter>

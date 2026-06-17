@@ -11,8 +11,13 @@ import { PlatformSection } from "../components/platform-section";
 import { BucketBalancesOverview } from "../components/bucket-balances-overview";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { RequirePermission } from "../components/require-permission";
+import { usePermissions } from "../hooks/use-permissions";
 
 export default function AdminHomePage() {
+  const { can } = usePermissions();
+  const canFinance = can("dashboard.finance.view");
+  const canOperations = can("dashboard.operations.view");
+  const canPlatform = can("dashboard.platform.view");
   const { data: stats, isLoading, refetch, isFetching } = useDashboardStats();
 
   return (
@@ -35,76 +40,82 @@ export default function AdminHomePage() {
             isRefreshing={isFetching}
           />
 
-          <section className="space-y-4">
-            <div>
-              <h2 className="text-xl font-semibold tracking-tight text-primary md:text-2xl">
-                Finance
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Current balances across platform money buckets
-              </p>
-            </div>
-            <BucketBalancesOverview />
-          </section>
-
-          {/* Operations Section */}
-          <section className="space-y-4">
-            <div className="flex items-start justify-between">
+          {canFinance && (
+            <section className="space-y-4">
               <div>
                 <h2 className="text-xl font-semibold tracking-tight text-primary md:text-2xl">
-                  Operations
+                  Finance
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Operational efficiency and processing metrics
+                  Current balances across platform money buckets
                 </p>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => refetch()}
-                disabled={isFetching}
-                className="h-8 w-8 p-0 shrink-0"
-                title="Refresh operations data"
-              >
-                <ArrowPathIcon className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-              </Button>
-            </div>
-            <OperationsSection
-              loading={isLoading}
-              onboarding={stats?.onboardingOperations}
-              applications={stats?.applicationMetrics}
-              contracts={stats?.contractMetrics}
-              notes={stats?.noteMetrics}
-            />
-          </section>
+              <BucketBalancesOverview />
+            </section>
+          )}
+
+          {/* Operations Section */}
+          {canOperations && (
+            <section className="space-y-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold tracking-tight text-primary md:text-2xl">
+                    Operations
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    Operational efficiency and processing metrics
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => refetch()}
+                  disabled={isFetching}
+                  className="h-8 w-8 p-0 shrink-0"
+                  title="Refresh operations data"
+                >
+                  <ArrowPathIcon className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+                </Button>
+              </div>
+              <OperationsSection
+                loading={isLoading}
+                onboarding={stats?.onboardingOperations}
+                applications={stats?.applicationMetrics}
+                contracts={stats?.contractMetrics}
+                notes={stats?.noteMetrics}
+              />
+            </section>
+          )}
 
           {/* Platform Overview Section */}
-          <section className="space-y-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <h2 className="text-xl font-semibold tracking-tight text-primary md:text-2xl">
-                  Platform
-                </h2>
-                <p className="text-sm text-muted-foreground">Users and organization statistics</p>
+          {canPlatform && (
+            <section className="space-y-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold tracking-tight text-primary md:text-2xl">
+                    Platform
+                  </h2>
+                  <p className="text-sm text-muted-foreground">Users and organization statistics</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => refetch()}
+                  disabled={isFetching}
+                  className="h-8 w-8 p-0 shrink-0"
+                  title="Refresh platform data"
+                >
+                  <ArrowPathIcon className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+                </Button>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => refetch()}
-                disabled={isFetching}
-                className="h-8 w-8 p-0 shrink-0"
-                title="Refresh platform data"
-              >
-                <ArrowPathIcon className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-              </Button>
-            </div>
-            <PlatformSection
-              users={stats?.users}
-              organizations={stats?.organizations}
-              signupTrends={stats?.signupTrends}
-              loading={isLoading}
-            />
-          </section>
+              <PlatformSection
+                users={stats?.users}
+                organizations={stats?.organizations}
+                signupTrends={stats?.signupTrends}
+                loading={isLoading}
+              />
+            </section>
+          )}
         </div>
       </div>
       </>

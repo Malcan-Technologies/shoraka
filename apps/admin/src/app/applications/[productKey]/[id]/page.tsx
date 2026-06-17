@@ -150,6 +150,7 @@ const SECTION_PERMISSION_MAP: Record<string, AdminPermission> = {
 
 export default function DynamicApplicationDetailPage() {
   const { can } = usePermissions();
+  const canAppManage = can("applications.manage");
   const params = useParams();
   const router = useRouter();
   const productKey = params.productKey as string;
@@ -749,6 +750,8 @@ export default function DynamicApplicationDetailPage() {
                                 variant="outline"
                                 size="default"
                                 className="gap-2"
+                                disabled={!canAppManage}
+                                title={!canAppManage ? "You do not have permission to perform this action." : undefined}
                                 onClick={async () => {
                                   try {
                                     await updateStatus.mutateAsync({
@@ -791,8 +794,10 @@ export default function DynamicApplicationDetailPage() {
                               className="gap-2 border-amber-500/30 bg-amber-500/10 text-amber-800 hover:bg-amber-500/20 hover:text-amber-900 dark:text-amber-200 dark:hover:text-amber-100"
                               disabled={
                                 app.status === "AMENDMENT_REQUESTED" ||
-                                pendingAmendments.length === 0
+                                pendingAmendments.length === 0 ||
+                                !canAppManage
                               }
+                              title={!canAppManage ? "You do not have permission to perform this action." : undefined}
                               onClick={() => setAmendmentModalOpen(true)}
                             >
                               <PencilSquareIcon className="h-4 w-4" />
@@ -834,8 +839,10 @@ export default function DynamicApplicationDetailPage() {
                               disabled={
                                 app.status === "REJECTED" ||
                                 allSectionsApproved ||
-                                !hasRejectedSection
+                                !hasRejectedSection ||
+                                !canAppManage
                               }
+                              title={!canAppManage ? "You do not have permission to perform this action." : undefined}
                               onClick={() => setRejectApplicationDialogOpen(true)}
                             >
                               <XCircleIcon className="h-4 w-4" />
@@ -1159,7 +1166,7 @@ export default function DynamicApplicationDetailPage() {
                             minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
                             onViewSignedInvoiceOffer={handleViewSignedInvoiceOffer}
                             onViewSignedContractOffer={handleViewSignedContractOffer}
-                            onTriggerGuarantorAml={async (guarantorId) => {
+                            onTriggerGuarantorAml={canAppManage ? async (guarantorId) => {
                               try {
                                 await startGuarantorAml.mutateAsync({
                                   applicationId,
@@ -1171,7 +1178,7 @@ export default function DynamicApplicationDetailPage() {
                                   err instanceof Error ? err.message : "Failed to start AML screening"
                                 );
                               }
-                            }}
+                            } : undefined}
                           />
                         </ApplicationReviewTabContent>
                       );

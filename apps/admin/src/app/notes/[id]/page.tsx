@@ -153,6 +153,7 @@ const noteActionCopy: Record<
 export default function NoteDetailPage() {
   const { can } = usePermissions();
   const canManage = can("notes.manage");
+  const canDisbursement = can("notes.disbursement.manage");
   const params = useParams();
   const router = useRouter();
   const noteId = typeof params.id === "string" ? params.id : "";
@@ -446,6 +447,7 @@ export default function NoteDetailPage() {
                       : undefined
                   }
                   resignPending={resignInvoiceOffer.isPending}
+                  canManage={canManage}
                 />
               ) : null}
 
@@ -478,6 +480,7 @@ export default function NoteDetailPage() {
                               withdrawal={disbursementWithdrawal}
                               kind="DISBURSEMENT"
                               servicingBlockedReason={null}
+                              canManage={canDisbursement}
                             />
                           </div>
                         ) : (
@@ -486,6 +489,7 @@ export default function NoteDetailPage() {
                             withdrawal={disbursementWithdrawal}
                             kind="DISBURSEMENT"
                             servicingBlockedReason={null}
+                            canManage={canDisbursement}
                           />
                         )
                       ) : null}
