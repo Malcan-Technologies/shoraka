@@ -74,6 +74,7 @@ export default function PlatformFinanceSettingsPage() {
   });
 
   const setField = (key: keyof typeof form, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
+  const disabledReason = !canManage ? "You do not have permission to perform this action." : undefined;
   const fieldLabels: Record<keyof typeof form, string> = {
     gracePeriodDays: "Grace period days",
     arrearsThresholdDays: "Arrears threshold days",
@@ -107,8 +108,12 @@ export default function PlatformFinanceSettingsPage() {
                   min={0}
                   step={key.endsWith("Days") ? 1 : 0.01}
                   value={value}
-                  disabled={isLoading}
-                  onChange={(event) => setField(key as keyof typeof form, event.target.value)}
+                  disabled={isLoading || !canManage}
+                  title={!canManage ? disabledReason : undefined}
+                  onChange={(event) => {
+                    if (!canManage) return;
+                    setField(key as keyof typeof form, event.target.value);
+                  }}
                 />
               </div>
             ))}
