@@ -1108,7 +1108,9 @@ export function SSMVerificationPanel({
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="top" sideOffset={6} className={fieldTooltipContentClassName}>
-                    Open RegTank to request an amendment or reject the corporate onboarding.
+                    {disabled && !amendmentInProgress
+                      ? "You do not have permission to perform this action."
+                      : "Open RegTank to request an amendment or reject the corporate onboarding."}
                   </TooltipContent>
                 </Tooltip>
                 <Button
