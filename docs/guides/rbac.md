@@ -22,7 +22,7 @@ The API is the real security boundary. Frontend gating is for navigation and UX 
 
 | Export | Purpose |
 |---|---|
-| `ADMIN_PERMISSIONS` | Readonly tuple of every valid permission string. Derive `AdminPermission` from this. |
+| `ADMIN_PERMISSIONS` | Readonly tuple of all 53 valid permission strings. Derive `AdminPermission` from this. |
 | `AdminPermission` | TypeScript union type of all permission strings. Used as the type for all permission arguments. |
 | `ADMIN_PERMISSION_GROUPS` | Groups permissions by module for the Permission Configuration UI. Every permission must appear in a group. |
 | `FULL_ACCESS_ADMIN_ROLE_KEYS` | Currently `[AdminRole.SUPER_ADMIN]`. Roles in this list bypass `requirePermission` checks entirely. |
@@ -429,6 +429,10 @@ Documents inside a Note Detail page follow `notes.view` for read-only viewing, o
 Documents inside an Application Review section follow `applications.view` for read-only viewing, or `applications.<section>.manage` if the document action is a section workflow step.
 
 The `document_management.*` permissions apply only to the standalone Document Management page at `/documents`.
+
+### Settings > General and Settings > Security
+
+`/settings/general` and `/settings/security` are sidebar links that do not yet have backing `page.tsx` files. They are gated behind `platform_settings.view` in the sidebar. When these pages are implemented, use `platform_settings.view` / `platform_settings.manage` unless the feature scope requires a separate permission key.
 
 ### RegTank onboarding-settings route
 

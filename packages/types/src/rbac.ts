@@ -173,14 +173,14 @@ export const SUPER_ADMIN_ROLE_TEMPLATE: SystemAdminRoleTemplate = {
 export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
   {
     key: "roleAdministration",
-    label: "Role Administration",
+    label: "Roles",
     description: "Manage the admin role catalog, permission matrices, and admin role assignments.",
     permissions: pickPermissions("roles.view", "roles.manage"),
   },
   {
     key: "notificationAdministration",
-    label: "Notification Administration",
-    description: "Manage the notification system, including notification types, groups, and logs.",
+    label: "Notifications",
+    description: "Manage notification types, groups, delivery settings, and logs.",
     permissions: pickPermissions("notifications.view", "notifications.manage"),
   },
   {

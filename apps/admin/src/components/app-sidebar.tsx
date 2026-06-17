@@ -548,7 +548,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                   (subItem.url !== "/settings/roles" || canViewRoles) &&
                                   (subItem.url !== "/settings/notifications" || canViewNotifications) &&
                                   (subItem.url !== "/settings/products" || canViewProducts) &&
-                                  (subItem.url !== "/settings/platform-finance" || canViewPlatformFinance)
+                                  (subItem.url !== "/settings/platform-finance" || canViewPlatformFinance) &&
+                                  (subItem.url !== "/settings/general" || canViewPlatformFinance) &&
+                                  (subItem.url !== "/settings/security" || canViewPlatformFinance)
                               )
                               .map((subItem) => (
                               <SidebarMenuSubItem key={subItem.title}>
