@@ -16,6 +16,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { OnboardingReviewDialog } from "./onboarding-review-dialog";
 import { toTitleCase, type OnboardingApplicationResponse, type OnboardingApprovalStatus } from "@cashsouk/types";
+import { usePermissions } from "@/hooks/use-permissions";
 
 interface OnboardingQueueRowProps {
   application: OnboardingApplicationResponse;
@@ -154,6 +155,8 @@ function formatDate(dateString: string | null | undefined) {
 export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
+  const canManageOnboarding = can("onboarding.manage");
 
   React.useEffect(() => {
     if (!dialogOpen) return;
@@ -245,8 +248,15 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
             <Button
               variant={needsAction ? "default" : "outline"}
               size="sm"
-              onClick={() => setDialogOpen(true)}
+              onClick={() => {
+                if (!canManageOnboarding) return;
+                setDialogOpen(true);
+              }}
               className="gap-1.5"
+              disabled={!canManageOnboarding}
+              title={
+                !canManageOnboarding ? "You do not have permission to perform this action." : undefined
+              }
             >
               <EyeIcon className="h-4 w-4" />
               Review
