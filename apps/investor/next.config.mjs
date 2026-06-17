@@ -1,11 +1,13 @@
 import path from "path";
 import { fileURLToPath } from "url";
+import { DEV_TUNNEL_ORIGINS } from "../../packages/config/dev-tunnel-origins.cjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const monorepoRoot = path.join(/* turbopackIgnore: true */ __dirname, "../..");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  allowedDevOrigins: DEV_TUNNEL_ORIGINS,
   output: "standalone",
   outputFileTracingRoot: monorepoRoot,
   transpilePackages: [

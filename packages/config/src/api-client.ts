@@ -82,9 +82,9 @@ import type {
   WithdrawReason,
   AdminCtosReportListItem,
   SoukscoreRiskRating,
-  EkycPrototypeDocType,
-  EkycPrototypeSession,
-  EkycPrototypeSessionStatus,
+  EkycMeStatus,
+  EkycSession,
+  EkycSessionStatus,
   CreateNoteFromApplicationInput,
   CreateNoteInvestmentInput,
   EligibleNoteInvoicesResponse,
@@ -366,22 +366,20 @@ export class ApiClient {
     });
   }
 
-  async createPrototypeEkycSession(input: {
-    email: string;
-    docType: EkycPrototypeDocType;
-  }): Promise<ApiResponse<EkycPrototypeSession> | ApiError> {
-    const query = new URLSearchParams({
-      email: input.email,
-      docType: input.docType,
-    });
-    return this.get<EkycPrototypeSession>(`/v1/prototype/ekyc/session?${query.toString()}`);
+  async getEkycStatus(): Promise<ApiResponse<EkycMeStatus> | ApiError> {
+    return this.get<EkycMeStatus>("/v1/ekyc/me");
   }
 
-  async getPrototypeEkycStatus(
-    token: string
-  ): Promise<ApiResponse<EkycPrototypeSessionStatus> | ApiError> {
+  async createEkycSession(input: {
+    issuerOrganizationId: string;
+    force?: boolean;
+  }): Promise<ApiResponse<EkycSession> | ApiError> {
+    return this.post<EkycSession>("/v1/ekyc/session", input);
+  }
+
+  async getEkycSessionStatus(token: string): Promise<ApiResponse<EkycSessionStatus> | ApiError> {
     const query = new URLSearchParams({ token });
-    return this.get<EkycPrototypeSessionStatus>(`/v1/prototype/ekyc/status?${query.toString()}`);
+    return this.get<EkycSessionStatus>(`/v1/ekyc/status?${query.toString()}`);
   }
 
   // Admin - User Management

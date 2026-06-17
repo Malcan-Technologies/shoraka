@@ -28,22 +28,24 @@ export interface ApiError {
   correlationId: string;
 }
 
-export type EkycPrototypeDocType = "mykad" | "passport";
+export type EkycStatus = "pending" | "verified" | "failed" | "error";
 
-export type EkycPrototypeStatus = "pending" | "submitted" | "error";
-
-export interface EkycPrototypeSession {
-  email: string;
-  docType: EkycPrototypeDocType;
+export interface EkycSession {
+  /** SigningCloud SDK endpoint from getToken. */
   url: string;
+  /** Session token for SDK capture, /complete, and status polling. */
   token: string;
 }
 
-export interface EkycPrototypeSessionStatus {
-  status: EkycPrototypeStatus;
-  decrypted: unknown | null;
-  submitResponse: unknown | null;
+export interface EkycSessionStatus {
+  status: EkycStatus;
   error: string | null;
+  completedAt: string | null;
+}
+
+export interface EkycMeStatus {
+  completed: boolean;
+  completedAt: string | null;
 }
 
 export interface User {

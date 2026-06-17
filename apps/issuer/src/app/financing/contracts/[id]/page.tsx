@@ -171,6 +171,7 @@ export default function ContractDetailsPage() {
         <ReviewOfferModal
           type="invoice"
           applicationId={offerModalContext.applicationId}
+          issuerOrganizationId={activeOrganization?.id}
           contractId={contractId}
           invoice={offerModalContext.invoice}
           requiresInvoiceSigning

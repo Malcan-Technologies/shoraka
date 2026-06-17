@@ -86,6 +86,15 @@ function getOfferStatus(item: {
 - `platform_fee_rate_percent` (optional; percent of funded amount at disbursement, capped 0–3; included on invoice offer letter PDFs)
 - `expires_at`, `sent_at`, `responded_at`, `responded_by_user_id`, `version`
 
+## eKYC before signing
+
+When SigningCloud is configured, offer signing requires a one-time MyKad verification per issuer user (`signingcloud_ekyc.status = verified`).
+
+- **Review offer modal** (`ReviewOfferModal`) handles this: `start-signing` returning `403 EKYC_REQUIRED` opens a QR step; desktop polls until verified, then redirects to SigningCloud.
+- Session create requires `issuerOrganizationId` (active org) to validate RegTank MyKad details exist; completion resolves identity across all orgs the user belongs to.
+
+See **[SigningCloud eKYC Flow](./signingcloud-ekyc-flow.md)** for sequence diagram, API endpoints, identity rules, and status model.
+
 ## Issuer Accept/Reject API
 
 Requires auth; user must be member or owner of the application’s issuer organization.

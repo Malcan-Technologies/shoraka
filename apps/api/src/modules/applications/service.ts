@@ -16,7 +16,13 @@ import {
   financialStatementsV2Schema,
 } from "./schemas";
 import { AppError } from "../../lib/http/error-handler";
-import { Application, Prisma, ApplicationStatus as DbApplicationStatus, ProductStatus } from "@prisma/client";
+import {
+  Application,
+  Prisma,
+  ApplicationStatus as DbApplicationStatus,
+  ProductStatus,
+  SigningCloudEkycStatus,
+} from "@prisma/client";
 import { requestPresignedUploadUrl, deleteDocumentFromS3 } from "./documents/service";
 import { shouldPreserveApplicationDocumentsInS3 } from "./amendment-preserve-s3";
 import {
@@ -476,6 +482,21 @@ export class ApplicationService {
         403,
         "FORBIDDEN",
         "You do not have access to this application. You must be a member or owner of the organization."
+      );
+    }
+  }
+
+  private async requireCompletedSigningCloudEkyc(userId: string): Promise<void> {
+    const record = await prisma.signingCloudEkyc.findUnique({
+      where: { user_id: userId },
+      select: { status: true },
+    });
+
+    if (record?.status !== SigningCloudEkycStatus.verified) {
+      throw new AppError(
+        403,
+        "EKYC_REQUIRED",
+        "Identity verification (eKYC) is required before signing"
       );
     }
   }
@@ -2147,6 +2168,7 @@ export class ApplicationService {
     if (!user?.email?.trim()) {
       throw new AppError(400, "INVALID_STATE", "Your account must have an email address to sign");
     }
+    await this.requireCompletedSigningCloudEkyc(userId);
 
     if (canReusePendingOfferSigning(contract.offer_signing, contract.signing_sc_contractnum, user.email)) {
       const redirectUrl = buildIssuerSigningReturnUrl(applicationId);
@@ -2291,6 +2313,7 @@ export class ApplicationService {
     if (!user?.email?.trim()) {
       throw new AppError(400, "INVALID_STATE", "Your account must have an email address to sign");
     }
+    await this.requireCompletedSigningCloudEkyc(userId);
 
     if (canReusePendingOfferSigning(dbInvoice.offer_signing, dbInvoice.signing_sc_contractnum, user.email)) {
       const redirectUrl = buildIssuerSigningReturnUrl(applicationId, invoiceId);

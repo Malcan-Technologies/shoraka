@@ -244,6 +244,7 @@ function IssuerFinancingPageContent() {
           <ReviewOfferModal
             type={offerModalContext.type}
             applicationId={offerModalContext.applicationId}
+            issuerOrganizationId={activeOrganization?.id}
             contractId={offerModalContext.contractId ?? undefined}
             invoice={offerModalContext.type === "invoice" ? offerModalContext.invoice : undefined}
             onClose={() => setOfferModalContext(null)}

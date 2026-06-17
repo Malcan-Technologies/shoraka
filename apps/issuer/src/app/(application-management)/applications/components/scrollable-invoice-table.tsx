@@ -282,7 +282,11 @@ export type ScrollableInvoiceTableProps = {
   application: NormalizedApplication;
   onDocumentDownload: (s3Key: string) => Promise<void>;
   onViewSignedInvoiceOffer?: (signedOfferLetterS3Key: string) => Promise<void>;
-  onReviewInvoiceOffer?: (applicationId: string, invoice: NormalizedInvoice) => void;
+  onReviewInvoiceOffer?: (
+    applicationId: string,
+    invoice: NormalizedInvoice,
+    issuerOrganizationId?: string
+  ) => void;
   onWithdrawInvoice?: (invoiceId: string, applicationId: string, organizationId?: string) => void;
   isWithdrawInvoicePending?: boolean;
 };
@@ -619,7 +623,7 @@ export function ScrollableInvoiceTable({
                                 className="h-8 w-full min-w-0 max-w-full text-xs font-medium rounded-xl"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  onReviewInvoiceOffer(application.id, inv);
+                                  onReviewInvoiceOffer(application.id, inv, application.issuerOrganizationId);
                                 }}
                               >
                                 Review Offer
