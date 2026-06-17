@@ -796,7 +796,7 @@ withdrawalsRouter.get(
 
 withdrawalsRouter.post(
   "/",
-  requirePermission("disbursements.manage"),
+  requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
   try {
     const input = createWithdrawalSchema.parse(req.body);
@@ -808,7 +808,7 @@ withdrawalsRouter.post(
 );
 withdrawalsRouter.post(
   "/:id/generate-letter",
-  requirePermission("disbursements.manage"),
+  requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
@@ -820,7 +820,7 @@ withdrawalsRouter.post(
 );
 withdrawalsRouter.post(
   "/:id/mark-submitted-to-trustee",
-  requirePermission("disbursements.manage"),
+  requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
@@ -832,7 +832,7 @@ withdrawalsRouter.post(
 );
 withdrawalsRouter.post(
   "/:id/mark-completed",
-  requirePermission("disbursements.manage"),
+  requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
@@ -845,7 +845,7 @@ withdrawalsRouter.post(
 
 // Shoraka Al-Amin STP integration (Phase 1: manual admin-triggered)
 // Routes are mounted under /v1/admin/withdrawals.
-withdrawalsRouter.post("/:id/shoraka/submit-order", async (req: Request, res: Response, next: NextFunction) => {
+withdrawalsRouter.post("/:id/shoraka/submit-order", requirePermission("notes.disbursement.manage"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await shorakaStpService.submitOrderForWithdrawal(id));
@@ -854,7 +854,7 @@ withdrawalsRouter.post("/:id/shoraka/submit-order", async (req: Request, res: Re
   }
 });
 
-withdrawalsRouter.post("/:id/shoraka/query-status", async (req: Request, res: Response, next: NextFunction) => {
+withdrawalsRouter.post("/:id/shoraka/query-status", requirePermission("notes.disbursement.manage"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     await shorakaStpService.queryStatusForWithdrawal(id);
@@ -864,7 +864,7 @@ withdrawalsRouter.post("/:id/shoraka/query-status", async (req: Request, res: Re
   }
 });
 
-withdrawalsRouter.post("/:id/shoraka/fetch-certificate", async (req: Request, res: Response, next: NextFunction) => {
+withdrawalsRouter.post("/:id/shoraka/fetch-certificate", requirePermission("notes.disbursement.manage"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await shorakaStpService.fetchCertificateForWithdrawal(id));
@@ -881,7 +881,7 @@ withdrawalsRouter.get("/:id/shoraka", async (req: Request, res: Response, next: 
     next(error);
   }
 });
-withdrawalsRouter.patch("/:id/beneficiary", async (req: Request, res: Response, next: NextFunction) => {
+withdrawalsRouter.patch("/:id/beneficiary", requirePermission("notes.disbursement.manage"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     const body = updateWithdrawalBeneficiarySchema.parse(req.body);

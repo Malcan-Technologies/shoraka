@@ -61,7 +61,7 @@ Every admin user is assigned a role. The role determines which permissions that 
 | **Contracts** | `contracts.view` | `contracts.manage` | Contracts list and detail | Resign contract offers |
 | **Bucket Balances** | `bucket_balances.view` | — | Finance Bucket Balances page | View only |
 | **Repayments** | `repayments.view` | — | Finance Repayments page | View only |
-| **Issuer Payouts** | `disbursements.view` | `disbursements.manage` | Issuer Payouts page | Generate letters, mark submitted, mark completed, initiate payouts |
+| **Issuer Payouts** | `disbursements.view` | `notes.disbursement.manage` | Issuer Payouts page (read-only list); mutations via Note Detail | Generate letters, mark submitted, mark completed, initiate payouts, Tawarruq/Shoraka workflow |
 | **Service Fee** | `service_fee.view` | — | Service Fee Trustee Letters page | View only |
 | **Product Settings** | `products.view` | `products.manage` | Products list and settings | Create, edit, archive products |
 | **Platform Finance Settings** | `platform_settings.view` | `platform_settings.manage` | Platform Finance Settings page | Edit and save platform finance settings |
@@ -151,7 +151,7 @@ Suggested permissions:
 - `notes.view`, `notes.repayment.manage`, `notes.settlement.manage`, `notes.disbursement.manage`
 - `bucket_balances.view`
 - `repayments.view`
-- `disbursements.view`, `disbursements.manage`
+- `disbursements.view`
 - `service_fee.view`
 - `investments.view`
 - `contracts.view`

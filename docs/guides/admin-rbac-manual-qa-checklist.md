@@ -57,7 +57,7 @@ Assign these permissions to the test users. Use exactly what is listed below (no
   - `dashboard.platform.view` (optional, only if you also want to see Platform section)
   - `dashboard.operations.view` (optional, only if you also want to see Operations section)
 - Ensure:
-  - no `investments.manage`, `bucket_balances.manage`, `repayments.manage`, `disbursements.manage`, `service_fee.manage`, `contracts.manage`
+  - no `investments.manage`, `bucket_balances.manage`, `repayments.manage`, `service_fee.manage`, `contracts.manage`
 
 ### 10) Notes Operations User
 - Assign:
@@ -278,7 +278,7 @@ Explicit permission coverage:
   - [ ] `repayments.manage` required for mutations
 - [ ] Issuer Payouts / Disbursements:
   - [ ] `disbursements.view` required to see page
-  - [ ] `disbursements.manage` required for payout actions/buttons on payout workflow cards
+  - [ ] `notes.disbursement.manage` required for payout mutation actions (generate letter, mark submitted, mark completed, Tawarruq/Shoraka workflow, edit beneficiary)
 - [ ] Service Fee:
   - [ ] `service_fee.view` required
   - [ ] `service_fee.manage` required for service fee mutation actions/buttons
@@ -291,7 +291,6 @@ Explicit permission coverage:
 - [ ] `bucket_balances.view`
 - [ ] `repayments.view`
 - [ ] `disbursements.view`
-- [ ] `disbursements.manage`
 - [ ] `service_fee.view`
 - [ ] `contracts.view`
 - [ ] `contracts.manage`

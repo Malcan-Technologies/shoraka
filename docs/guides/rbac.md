@@ -342,10 +342,10 @@ Do not block any notification tab behind `notifications.manage`.
 | | |
 |---|---|
 | View | `disbursements.view` |
-| Mutations (generate letter, mark submitted, mark completed, initiate payout) | `disbursements.manage` |
+| Mutations (generate letter, mark submitted, mark completed, initiate payout, Tawarruq/Shoraka workflow, edit beneficiary) | `notes.disbursement.manage` |
 | Backend | `apps/api/src/modules/notes/controller.ts` (`withdrawalsRouter`) |
 | Frontend page | `apps/admin/src/app/finance/issuer-payouts/page.tsx` |
-| Notes | Issuer disbursement actions inside Note Detail use `notes.disbursement.manage`, not `disbursements.manage` |
+| Notes | All withdrawal mutations use `notes.disbursement.manage`. The Issuer Payouts list page itself is read-only and requires only `disbursements.view`. |
 
 ### Service Fee
 
@@ -457,12 +457,12 @@ These permissions have been removed from the catalog because they have no active
 | `bucket_balances.manage` | View-only page; no correction/adjustment routes |
 | `repayments.manage` | Repayment actions inside Note Detail use `notes.repayment.manage` |
 | `service_fee.manage` | Service fee workflow actions inside Note Detail use `notes.settlement.manage` |
+| `disbursements.manage` | All withdrawal mutations now use `notes.disbursement.manage`; this permission was redundant |
 
 The following permissions are **not** in this list because they have active backend routes:
 
 | Permission | Active usage |
 |---|---|
-| `disbursements.manage` | 4 routes in `withdrawalsRouter` (generate letter, mark submitted, mark completed, initiate payout) |
 | `contracts.manage` | `POST /contracts/:id/offers/resign` in `admin/controller.ts` |
 
 ---
