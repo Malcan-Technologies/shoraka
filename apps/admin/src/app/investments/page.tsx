@@ -20,6 +20,7 @@ import {
   adminInvestmentsKeys,
   useAdminInvestments,
 } from "@/investments/hooks/use-admin-investments";
+import { RequirePermission } from "@/components/require-permission";
 
 export default function InvestmentsPage() {
   const router = useRouter();
@@ -82,7 +83,8 @@ export default function InvestmentsPage() {
   }, [investments]);
 
   return (
-    <>
+    <RequirePermission permission="investments.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -197,6 +199,7 @@ export default function InvestmentsPage() {
           </section>
         </div>
       </div>
-    </>
+      </>
+    </RequirePermission>
   );
 }

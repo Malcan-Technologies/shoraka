@@ -10,10 +10,14 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
+import { RequirePermission } from "@/components/require-permission";
+import { usePermissions } from "@/hooks/use-permissions";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export default function PlatformFinanceSettingsPage() {
+  const { can } = usePermissions();
+  const canManage = can("platform_settings.manage");
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
   const queryClient = useQueryClient();
@@ -81,7 +85,8 @@ export default function PlatformFinanceSettingsPage() {
   };
 
   return (
-    <>
+    <RequirePermission permission="platform_settings.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -108,13 +113,18 @@ export default function PlatformFinanceSettingsPage() {
               </div>
             ))}
             <div className="md:col-span-2">
-              <Button onClick={() => updateSettings.mutate()} disabled={updateSettings.isPending}>
+              <Button
+                onClick={() => updateSettings.mutate()}
+                disabled={updateSettings.isPending || !canManage}
+                title={!canManage ? "You do not have permission to perform this action." : undefined}
+              >
                 Save Settings
               </Button>
             </div>
           </CardContent>
         </Card>
       </div>
-    </>
+      </>
+    </RequirePermission>
   );
 }

@@ -45,6 +45,9 @@ import { SourceApplicationPanel } from "@/notes/components/source-application-pa
 import { IssuerPayoutCard } from "@/notes/components/issuer-payout-card";
 import { OfferSigningPanel } from "@/components/offer-signing-panel";
 import { useResignNoteInvoiceOffer } from "@/notes/hooks/use-resign-invoice-offer";
+import { RequirePermission } from "@/components/require-permission";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   isSoukscoreRiskRating,
   mapNoteSettlementToPoolSummary,
@@ -148,6 +151,8 @@ const noteActionCopy: Record<
 };
 
 export default function NoteDetailPage() {
+  const { can } = usePermissions();
+  const canManage = can("notes.manage");
   const params = useParams();
   const router = useRouter();
   const noteId = typeof params.id === "string" ? params.id : "";
@@ -226,7 +231,8 @@ export default function NoteDetailPage() {
   };
 
   return (
-    <>
+    <RequirePermission permission="notes.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -361,15 +367,24 @@ export default function NoteDetailPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center justify-end gap-3">
-                  <div className="flex items-center gap-2 rounded-full border px-3 py-1.5">
-                    <span className="text-xs font-medium text-muted-foreground">Featured</span>
-                    <Switch
-                      id="note-featured-toggle"
-                      checked={featuredEnabled}
-                      onCheckedChange={(checked) => void handleToggleFeatured(Boolean(checked))}
-                      disabled={updateNoteFeatured.isPending}
-                    />
-                  </div>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className={`flex items-center gap-2 rounded-full border px-3 py-1.5 ${!canManage ? "cursor-not-allowed opacity-60" : ""}`}>
+                          <span className="text-xs font-medium text-muted-foreground">Featured</span>
+                          <Switch
+                            id="note-featured-toggle"
+                            checked={featuredEnabled}
+                            onCheckedChange={(checked) => void handleToggleFeatured(Boolean(checked))}
+                            disabled={updateNoteFeatured.isPending || !canManage}
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      {!canManage && (
+                        <TooltipContent side="bottom" className="max-w-xs">You do not have permission to perform this action.</TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
                   <NoteStatusBadge note={note} showDetail />
                 </div>
               </div>
@@ -415,6 +430,7 @@ export default function NoteDetailPage() {
                 note={note}
                 pending={lifecyclePending}
                 onRequestAction={(action) => setPendingAction(action)}
+                canManage={canManage}
               />
 
               {note.sourceInvoiceOfferSigning ? (
@@ -517,6 +533,7 @@ export default function NoteDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+      </>
+    </RequirePermission>
   );
 }

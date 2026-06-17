@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatNoteStatus } from "@/notes/utils/format-note-status";
 import { EyeIcon } from "@heroicons/react/24/outline";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Table,
   TableBody,
@@ -20,6 +21,7 @@ interface SourceInvoicesTableProps {
   creatingInvoiceId: string | null;
   onCreateNote: (invoice: EligibleNoteInvoice) => void;
   onViewNote: (noteId: string) => void;
+  canCreate?: boolean;
 }
 
 function formatDate(value: string | null) {
@@ -51,6 +53,7 @@ export function SourceInvoicesTable({
   creatingInvoiceId,
   onCreateNote,
   onViewNote,
+  canCreate = true,
 }: SourceInvoicesTableProps) {
   return (
     <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
@@ -113,13 +116,26 @@ export function SourceInvoicesTable({
                         View
                       </Button>
                     ) : (
-                      <Button
-                        size="sm"
-                        onClick={() => onCreateNote(invoice)}
-                        disabled={creatingInvoiceId === invoice.invoiceId}
-                      >
-                        {creatingInvoiceId === invoice.invoiceId ? "Creating..." : "Turn Into Note"}
-                      </Button>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className={!canCreate ? "inline-flex cursor-not-allowed" : undefined}>
+                              <Button
+                                size="sm"
+                                onClick={() => onCreateNote(invoice)}
+                                disabled={creatingInvoiceId === invoice.invoiceId || !canCreate}
+                              >
+                                {creatingInvoiceId === invoice.invoiceId ? "Creating..." : "Turn Into Note"}
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          {!canCreate && (
+                            <TooltipContent side="bottom" className="max-w-xs">
+                              You do not have permission to perform this action.
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
+                      </TooltipProvider>
                     )}
                   </TableCell>
                 </TableRow>

@@ -12,6 +12,7 @@ import { useContracts } from "@/contracts/hooks/use-contracts";
 import { contractsKeys } from "@/contracts/query-keys";
 import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import type { ContractListItem, GetAdminContractsParams } from "@cashsouk/types";
+import { RequirePermission } from "@/components/require-permission";
 
 const DEFAULT_STATUS_FILTERS = ["SUBMITTED", "OFFER_SENT", "AMENDMENT_REQUESTED"];
 
@@ -77,7 +78,8 @@ export default function ContractsPage() {
   };
 
   return (
-    <>
+    <RequirePermission permission="contracts.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -132,6 +134,7 @@ export default function ContractsPage() {
           </section>
         </div>
       </div>
-    </>
+      </>
+    </RequirePermission>
   );
 }

@@ -17,6 +17,7 @@ import type { NoteDetail, ServiceFeeTrusteeInstructionStatus } from "@cashsouk/t
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 export type NoteLifecycleAction = "publish" | "unpublish" | "closeFunding" | "failFunding";
@@ -291,6 +292,7 @@ interface NoteLifecycleCardProps {
   note: NoteDetail;
   pending: Partial<Record<NoteLifecycleAction, boolean>>;
   onRequestAction: (action: NoteLifecycleAction) => void;
+  canManage?: boolean;
 }
 
 function getAutoCloseInfo(note: NoteDetail) {
@@ -330,7 +332,7 @@ function getAutoCloseInfo(note: NoteDetail) {
   };
 }
 
-export function NoteLifecycleCard({ note, pending, onRequestAction }: NoteLifecycleCardProps) {
+export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = true }: NoteLifecycleCardProps) {
   const activeIndex = getActiveStageIndex(note);
   const isComplete = note.status === "REPAID" || note.servicingStatus === "SETTLED";
   const { primary, secondary, contextHelper, isFundingOpen } = buildActionPlan(note);
@@ -683,35 +685,61 @@ export function NoteLifecycleCard({ note, pending, onRequestAction }: NoteLifecy
             <div className="flex flex-wrap items-center gap-2">
               {secondary.map((action) => {
                 const Icon = action.icon;
-                return (
+                const btn = (
                   <Button
                     key={action.key}
                     size="sm"
                     variant={action.variant}
                     onClick={() => onRequestAction(action.key)}
-                    disabled={anyPending}
+                    disabled={anyPending || !canManage}
                     className="gap-1.5"
                   >
                     <Icon className="h-4 w-4" />
                     {action.label}
                   </Button>
                 );
+                if (!canManage) {
+                  return (
+                    <TooltipProvider key={action.key}>
+                      <Tooltip>
+                        <TooltipTrigger asChild><span className="inline-flex cursor-not-allowed">{btn}</span></TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-xs">You do not have permission to perform this action.</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  );
+                }
+                return btn;
               })}
               {primary ? (
-                <Button
-                  size="sm"
-                  variant={primary.variant}
-                  onClick={() => onRequestAction(primary.key)}
-                  disabled={anyPending || pending[primary.key]}
-                  className="gap-1.5"
-                >
-                  {pending[primary.key] ? (
-                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <primary.icon className="h-4 w-4" />
-                  )}
-                  {primary.label}
-                </Button>
+                (() => {
+                  const btn = (
+                    <Button
+                      size="sm"
+                      variant={primary.variant}
+                      onClick={() => onRequestAction(primary.key)}
+                      disabled={anyPending || pending[primary.key] || !canManage}
+                      className="gap-1.5"
+                    >
+                      {pending[primary.key] ? (
+                        <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <primary.icon className="h-4 w-4" />
+                      )}
+                      {primary.label}
+                    </Button>
+                  );
+                  if (!canManage) {
+                    return (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild><span className="inline-flex cursor-not-allowed">{btn}</span></TooltipTrigger>
+                          <TooltipContent side="bottom" className="max-w-xs">You do not have permission to perform this action.</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    );
+                  }
+                  return btn;
+                })()
               ) : null}
             </div>
           </div>

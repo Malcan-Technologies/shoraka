@@ -5,10 +5,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
+import { RequirePermission } from "@/components/require-permission";
 
 export default function ApplicationsPage() {
   return (
-    <>
+    <RequirePermission permission="applications.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -34,6 +36,7 @@ export default function ApplicationsPage() {
           </Card>
         </div>
       </div>
-    </>
+      </>
+    </RequirePermission>
   );
 }

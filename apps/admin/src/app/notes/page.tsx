@@ -16,8 +16,12 @@ import {
 } from "@/notes/components/notes-table-toolbar";
 import { useCreateNoteFromInvoice, useNotes, useNoteSourceInvoices } from "@/notes/hooks/use-notes";
 import { notesKeys } from "@/notes/query-keys";
+import { RequirePermission } from "@/components/require-permission";
+import { usePermissions } from "@/hooks/use-permissions";
 
 export default function NotesPage() {
+  const { can } = usePermissions();
+  const canCreate = can("notes.create");
   const router = useRouter();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -105,7 +109,8 @@ export default function NotesPage() {
   const readyInvoicesForDisplay = showReadyInvoices ? readyInvoicesBySearch : [];
 
   return (
-    <>
+    <RequirePermission permission="notes.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -159,11 +164,13 @@ export default function NotesPage() {
               onPageChange={setCurrentPage}
               onViewDetails={handleViewDetails}
               onCreateNote={(invoice) => handleCreateFromInvoice(invoice.invoiceId)}
+              canCreate={canCreate}
             />
           </section>
         </div>
       </div>
-    </>
+      </>
+    </RequirePermission>
   );
 }
 

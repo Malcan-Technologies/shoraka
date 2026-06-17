@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { usePendingServiceFeeTrusteeLetters } from "@/notes/hooks/use-notes";
+import { RequirePermission } from "@/components/require-permission";
 
 function formatDate(value: string | null) {
   if (!value) return "—";
@@ -53,7 +54,8 @@ export default function ServiceFeeTrusteeLettersPage() {
   const distinctNotes = new Set(items.map((item) => item.noteId)).size;
 
   return (
-    <>
+    <RequirePermission permission="service_fee.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -199,6 +201,7 @@ export default function ServiceFeeTrusteeLettersPage() {
           </section>
         </div>
       </div>
-    </>
+      </>
+    </RequirePermission>
   );
 }

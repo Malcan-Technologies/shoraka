@@ -10,6 +10,7 @@ import {
 import type { EligibleNoteInvoice, NoteListItem } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { formatNoteStatus } from "@/notes/utils/format-note-status";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,7 @@ type NotesTableRowProps =
       creatingInvoiceId?: never;
       onViewDetails: (note: NoteListItem) => void;
       onCreateNote?: never;
+      canCreate?: never;
     }
   | {
       note?: never;
@@ -29,6 +31,7 @@ type NotesTableRowProps =
       creatingInvoiceId: string | null;
       onViewDetails?: never;
       onCreateNote: (invoice: EligibleNoteInvoice) => void;
+      canCreate?: boolean;
     };
 
 interface NoteRowProps {
@@ -168,10 +171,12 @@ function ReadyInvoiceRow({
   invoice,
   creatingInvoiceId,
   onCreateNote,
+  canCreate = true,
 }: {
   invoice: EligibleNoteInvoice;
   creatingInvoiceId: string | null;
   onCreateNote: (invoice: EligibleNoteInvoice) => void;
+  canCreate?: boolean;
 }) {
   const invoiceLabel = invoice.invoiceNumber ?? invoice.invoiceId;
   return (
@@ -215,14 +220,27 @@ function ReadyInvoiceRow({
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden truncate">{formatDate(invoice.maturityDate)}</TableCell>
       <TableCell className="min-w-0 overflow-hidden">
-        <Button
-          size="sm"
-          className="w-full truncate px-2"
-          onClick={() => onCreateNote(invoice)}
-          disabled={creatingInvoiceId === invoice.invoiceId}
-        >
-          {creatingInvoiceId === invoice.invoiceId ? "Creating..." : "Turn Into Note"}
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className={!canCreate ? "inline-flex w-full cursor-not-allowed" : "w-full"}>
+                <Button
+                  size="sm"
+                  className="w-full truncate px-2"
+                  onClick={() => onCreateNote(invoice)}
+                  disabled={creatingInvoiceId === invoice.invoiceId || !canCreate}
+                >
+                  {creatingInvoiceId === invoice.invoiceId ? "Creating..." : "Turn Into Note"}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {!canCreate && (
+              <TooltipContent side="bottom" className="max-w-xs">
+                You do not have permission to perform this action.
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
       </TableCell>
     </TableRow>
   );
@@ -235,6 +253,7 @@ export function NotesTableRow(props: NotesTableRowProps) {
         invoice={props.readyInvoice}
         creatingInvoiceId={props.creatingInvoiceId}
         onCreateNote={props.onCreateNote}
+        canCreate={props.canCreate}
       />
     );
   }

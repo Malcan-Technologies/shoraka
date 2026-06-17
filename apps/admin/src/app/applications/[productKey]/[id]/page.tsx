@@ -83,6 +83,9 @@ import {
   ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT,
 } from "@/lib/admin-director-shareholder-review-message";
 import { ApplicationStatusBadge } from "@/components/application-review";
+import { RequirePermission } from "@/components/require-permission";
+import { usePermissions } from "@/hooks/use-permissions";
+import type { AdminPermission } from "@cashsouk/types";
 import JSZip from "jszip";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -136,7 +139,17 @@ function RelatedRecordLink({
   );
 }
 
+const SECTION_PERMISSION_MAP: Record<string, AdminPermission> = {
+  financial: "applications.financial.manage",
+  company_details: "applications.company.manage",
+  business_details: "applications.business_guarantor.manage",
+  supporting_documents: "applications.documents.manage",
+  contract_details: "applications.contract.manage",
+  invoice_details: "applications.invoice.manage",
+};
+
 export default function DynamicApplicationDetailPage() {
+  const { can } = usePermissions();
   const params = useParams();
   const router = useRouter();
   const productKey = params.productKey as string;
@@ -669,7 +682,8 @@ export default function DynamicApplicationDetailPage() {
   }, [app]);
 
   return (
-    <>
+    <RequirePermission permission="applications.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -973,27 +987,33 @@ export default function DynamicApplicationDetailPage() {
                       const applicationWithdrawn = app?.status === "WITHDRAWN";
                       const isContractExistingContract =
                         descriptor.reviewSection === "contract_details" && isExistingContract;
+                      const sectionPermission = SECTION_PERMISSION_MAP[descriptor.reviewSection];
+                      const canManageSection = sectionPermission ? can(sectionPermission) : true;
+                      const tabUnlocked = isTabUnlocked(
+                        descriptor.reviewSection,
+                        sectionStatusMap,
+                        availableReviewSections,
+                        tabPrerequisitesFromApi
+                      );
                       const actionLocked =
                         applicationWithdrawn ||
                         isContractExistingContract ||
-                        !isTabUnlocked(
-                          descriptor.reviewSection,
-                          sectionStatusMap,
-                          availableReviewSections,
-                          tabPrerequisitesFromApi
-                        );
+                        !tabUnlocked ||
+                        !canManageSection;
                       const actionLockTooltip = actionLocked
-                        ? applicationWithdrawn
-                          ? "Application withdrawn"
-                          : isContractExistingContract
-                            ? "Contract was approved in a prior application"
-                            : getTabUnlockTooltip(
-                                descriptor.reviewSection,
-                                sectionStatusMap,
-                                availableReviewSections,
-                                tabPrerequisitesFromApi,
-                                isInvoiceOnly ? { contract_details: "Customer" } : undefined
-                              )
+                        ? !canManageSection
+                          ? "You do not have permission to perform this action."
+                          : applicationWithdrawn
+                            ? "Application withdrawn"
+                            : isContractExistingContract
+                              ? "Contract was approved in a prior application"
+                              : getTabUnlockTooltip(
+                                  descriptor.reviewSection,
+                                  sectionStatusMap,
+                                  availableReviewSections,
+                                  tabPrerequisitesFromApi,
+                                  isInvoiceOnly ? { contract_details: "Customer" } : undefined
+                                )
                         : undefined;
                       const sectionStatus = sectionStatusMap.get(descriptor.reviewSection);
                       return (
@@ -1282,6 +1302,7 @@ export default function DynamicApplicationDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+      </>
+    </RequirePermission>
   );
 }

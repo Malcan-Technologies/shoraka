@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { usePendingIssuerPayouts } from "@/notes/hooks/use-notes";
+import { RequirePermission } from "@/components/require-permission";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   DRAFT: "secondary",
@@ -75,7 +76,8 @@ export default function PendingIssuerPayoutsPage() {
   }, {});
 
   return (
-    <>
+    <RequirePermission permission="disbursements.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -246,6 +248,7 @@ export default function PendingIssuerPayoutsPage() {
           </section>
         </div>
       </div>
-    </>
+      </>
+    </RequirePermission>
   );
 }

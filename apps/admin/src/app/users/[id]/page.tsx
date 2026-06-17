@@ -40,6 +40,8 @@ import {
   useUpdateUserProfile,
   useUserDetail,
 } from "@/hooks/use-users";
+import { RequirePermission } from "@/components/require-permission";
+import { usePermissions } from "@/hooks/use-permissions";
 
 type OrganizationTab = "all" | "investor" | "issuer";
 
@@ -214,12 +216,14 @@ function EditAccountCard({
   onDraftChange,
   onSave,
   saving,
+  canManage = true,
 }: {
   user: UserDetailResponse;
   draft: UserDraft;
   onDraftChange: (draft: UserDraft) => void;
   onSave: () => void;
   saving: boolean;
+  canManage?: boolean;
 }) {
   const hasChanges = JSON.stringify(draft) !== JSON.stringify(buildDraft(user));
 
@@ -300,7 +304,7 @@ function EditAccountCard({
         </div>
 
         <div className="flex justify-end">
-          <Button onClick={onSave} disabled={!hasChanges || saving}>
+          <Button onClick={onSave} disabled={!hasChanges || saving || !canManage} title={!canManage ? "You do not have permission to perform this action." : undefined}>
             {saving ? "Saving..." : "Save changes"}
           </Button>
         </div>
@@ -476,6 +480,8 @@ function OrganizationRow({ organization }: { organization: UserOrganizationSumma
 }
 
 export default function UserDetailPage() {
+  const { can } = usePermissions();
+  const canManage = can("users.manage");
   const params = useParams();
   const router = useRouter();
   const routeUserId = params.id as string;
@@ -558,7 +564,8 @@ export default function UserDetailPage() {
   const displayName = user ? `${user.first_name} ${user.last_name}`.trim() || user.email : "User";
 
   return (
-    <>
+    <RequirePermission permission="users.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -597,6 +604,7 @@ export default function UserDetailPage() {
                 onDraftChange={setDraft}
                 onSave={() => setShowConfirmDialog(true)}
                 saving={isSaving}
+                canManage={canManage}
               />
               <AccountMetadataCard user={user} />
               <OrganizationsTable
@@ -619,6 +627,7 @@ export default function UserDetailPage() {
         userName={displayName}
         onConfirm={handleConfirmSave}
       />
-    </>
+      </>
+    </RequirePermission>
   );
 }
