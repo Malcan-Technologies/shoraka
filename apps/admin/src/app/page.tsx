@@ -10,12 +10,14 @@ import { OperationsSection } from "../components/operations-section";
 import { PlatformSection } from "../components/platform-section";
 import { BucketBalancesOverview } from "../components/bucket-balances-overview";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
+import { RequirePermission } from "../components/require-permission";
 
 export default function AdminHomePage() {
   const { data: stats, isLoading, refetch, isFetching } = useDashboardStats();
 
   return (
-    <>
+    <RequirePermission permission="dashboard.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -105,6 +107,7 @@ export default function AdminHomePage() {
           </section>
         </div>
       </div>
-    </>
+      </>
+    </RequirePermission>
   );
 }

@@ -40,7 +40,7 @@ export default function RolesConfigurationPage() {
       </header>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <RequirePermission permission="roles.manage">
+        <RequirePermission permission="roles.view">
           <div className="w-full px-2 md:px-4 py-8">
             <AdminPermissionConfiguration />
           </div>

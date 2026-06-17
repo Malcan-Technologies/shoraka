@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction, Router } from "express";
 import { UserRole } from "@prisma/client";
-import { requireRole } from "../../lib/auth/middleware";
+import { requirePermission, requireRole } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { noteService } from "./service";
 import { shorakaStpService } from "../shoraka-stp/shoraka-stp-service";
@@ -68,32 +68,47 @@ export const investorNotesRouter = Router();
 
 adminNotesRouter.use(requireRole(UserRole.ADMIN));
 
-adminNotesRouter.get("/", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.get(
+  "/",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const params = getNotesQuerySchema.parse(req.query);
     send(res, await noteService.listAdminNotes(params));
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.get("/source-invoices", async (_req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.get(
+  "/source-invoices",
+  requirePermission("notes.view"),
+  async (_req: Request, res: Response, next: NextFunction) => {
   try {
     send(res, await noteService.listSourceInvoicesForNotes());
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.get("/bucket-balances", async (_req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.get(
+  "/bucket-balances",
+  requirePermission("bucket_balances.view"),
+  async (_req: Request, res: Response, next: NextFunction) => {
   try {
     send(res, await noteService.listLedgerBucketBalances());
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.get("/bucket-balances/:accountCode/activity", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.get(
+  "/bucket-balances/:accountCode/activity",
+  requirePermission("bucket_balances.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { accountCode } = bucketAccountParamSchema.parse(req.params);
     const query = bucketActivityQuerySchema.parse(req.query);
@@ -101,26 +116,36 @@ adminNotesRouter.get("/bucket-balances/:accountCode/activity", async (req: Reque
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.get("/action-count", async (_req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.get(
+  "/action-count",
+  requirePermission("notes.view"),
+  async (_req: Request, res: Response, next: NextFunction) => {
   try {
     send(res, await noteService.getActionRequiredCount());
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.get("/pending-repayments", async (_req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.get(
+  "/pending-repayments",
+  requirePermission("repayments.view"),
+  async (_req: Request, res: Response, next: NextFunction) => {
   try {
     send(res, await noteService.listPendingRepayments());
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
 adminNotesRouter.get(
   "/pending-service-fee-trustee-letters",
+  requirePermission("service_fee.view"),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       send(res, await noteService.listPendingServiceFeeTrusteeLetters());
@@ -132,6 +157,7 @@ adminNotesRouter.get(
 
 adminNotesRouter.post(
   "/from-application/:applicationId",
+  requirePermission("notes.create"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { applicationId } = applicationIdParamSchema.parse(req.params);
@@ -145,6 +171,7 @@ adminNotesRouter.post(
 
 adminNotesRouter.post(
   "/from-invoice/:invoiceId",
+  requirePermission("notes.create"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { invoiceId } = invoiceIdParamSchema.parse(req.params);
@@ -156,16 +183,23 @@ adminNotesRouter.post(
   }
 );
 
-adminNotesRouter.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.get(
+  "/:id",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await noteService.getAdminNoteDetail(id));
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.post("/:id/offers/invoices/resign", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.post(
+  "/:id/offers/invoices/resign",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const actor = getActor(req, res, "ADMIN");
     const { id } = idParamSchema.parse(req.params);
@@ -180,9 +214,13 @@ adminNotesRouter.post("/:id/offers/invoices/resign", async (req: Request, res: R
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.patch("/:id/draft", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.patch(
+  "/:id/draft",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     const input = updateNoteDraftSchema.parse(req.body);
@@ -190,9 +228,13 @@ adminNotesRouter.patch("/:id/draft", async (req: Request, res: Response, next: N
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.patch("/:id/featured", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.patch(
+  "/:id/featured",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     const input = updateNoteFeaturedSchema.parse(req.body);
@@ -200,72 +242,104 @@ adminNotesRouter.patch("/:id/featured", async (req: Request, res: Response, next
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.post("/:id/publish", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.post(
+  "/:id/publish",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await noteService.publish(id, getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.post("/:id/unpublish", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.post(
+  "/:id/unpublish",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await noteService.unpublish(id, getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.post("/:id/funding/close", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.post(
+  "/:id/funding/close",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await noteService.closeFunding(id, getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.post("/:id/funding/fail", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.post(
+  "/:id/funding/fail",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await noteService.failFunding(id, getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.post("/:id/activate", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.post(
+  "/:id/activate",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await noteService.activate(id, getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.get("/:id/events", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.get(
+  "/:id/events",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await noteService.listEvents(id));
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.get("/:id/ledger", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.get(
+  "/:id/ledger",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await noteService.listLedger(id));
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.post("/:id/payments", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.post(
+  "/:id/payments",
+  requirePermission("notes.repayment.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     const input = recordPaymentSchema.parse(req.body);
@@ -273,9 +347,13 @@ adminNotesRouter.post("/:id/payments", async (req: Request, res: Response, next:
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.post("/:id/payments/:paymentId/approve", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.post(
+  "/:id/payments/:paymentId/approve",
+  requirePermission("notes.repayment.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     const paymentId = String(req.params.paymentId ?? "");
@@ -283,9 +361,13 @@ adminNotesRouter.post("/:id/payments/:paymentId/approve", async (req: Request, r
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.post("/:id/payments/:paymentId/reject", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.post(
+  "/:id/payments/:paymentId/reject",
+  requirePermission("notes.repayment.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     const paymentId = String(req.params.paymentId ?? "");
@@ -294,9 +376,13 @@ adminNotesRouter.post("/:id/payments/:paymentId/reject", async (req: Request, re
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.post("/:id/settlements/preview", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.post(
+  "/:id/settlements/preview",
+  requirePermission("notes.settlement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     const input = settlementPreviewSchema.parse(req.body);
@@ -304,9 +390,13 @@ adminNotesRouter.post("/:id/settlements/preview", async (req: Request, res: Resp
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.post("/:id/settlements/approve", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.post(
+  "/:id/settlements/approve",
+  requirePermission("notes.settlement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     const { settlementId } = settlementActionSchema.parse(req.body);
@@ -314,9 +404,13 @@ adminNotesRouter.post("/:id/settlements/approve", async (req: Request, res: Resp
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.post("/:id/settlements/post", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.post(
+  "/:id/settlements/post",
+  requirePermission("notes.settlement.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     const { settlementId } = settlementActionSchema.parse(req.body);
@@ -324,10 +418,12 @@ adminNotesRouter.post("/:id/settlements/post", async (req: Request, res: Respons
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
 adminNotesRouter.post(
   "/:id/settlements/:settlementId/service-fee/generate-trustee-letter",
+  requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
@@ -343,6 +439,7 @@ adminNotesRouter.post(
 
 adminNotesRouter.post(
   "/:id/settlements/:settlementId/service-fee/mark-submitted-to-trustee",
+  requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
@@ -362,6 +459,7 @@ adminNotesRouter.post(
 
 adminNotesRouter.post(
   "/:id/settlements/:settlementId/service-fee/mark-completed",
+  requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id, settlementId } = noteSettlementParamsSchema.parse(req.params);
@@ -379,16 +477,23 @@ adminNotesRouter.post(
   }
 );
 
-adminNotesRouter.post("/:id/late-charge/calculate", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.post(
+  "/:id/late-charge/calculate",
+  requirePermission("notes.default.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     lateChargeSchema.parse(req.body);
     send(res, await noteService.calculateLateCharge(req.body));
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.post("/:id/late-charge/check-overdue", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.post(
+  "/:id/late-charge/check-overdue",
+  requirePermission("notes.default.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     const input = overdueLateChargeSchema.parse(req.body);
@@ -396,9 +501,13 @@ adminNotesRouter.post("/:id/late-charge/check-overdue", async (req: Request, res
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.post("/:id/late-charge/approve", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.post(
+  "/:id/late-charge/approve",
+  requirePermission("notes.default.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     const input = lateChargeSchema.parse(req.body);
@@ -406,27 +515,39 @@ adminNotesRouter.post("/:id/late-charge/approve", async (req: Request, res: Resp
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.post("/:id/arrears/generate-letter", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.post(
+  "/:id/arrears/generate-letter",
+  requirePermission("notes.default.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await noteService.generateNoteLetter(id, "arrears", getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.post("/:id/default/generate-letter", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.post(
+  "/:id/default/generate-letter",
+  requirePermission("notes.default.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await noteService.generateNoteLetter(id, "default", getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-adminNotesRouter.post("/:id/default/mark", async (req: Request, res: Response, next: NextFunction) => {
+adminNotesRouter.post(
+  "/:id/default/mark",
+  requirePermission("notes.default.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     const { reason } = defaultMarkSchema.parse(req.body);
@@ -434,7 +555,8 @@ adminNotesRouter.post("/:id/default/mark", async (req: Request, res: Response, n
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
 marketplaceRouter.use(requireRole(UserRole.INVESTOR));
 
@@ -617,77 +739,109 @@ issuerNotesRouter.post("/notes/:id/payments/on-behalf-of-paymaster", async (req:
 
 export const platformFinanceSettingsRouter = Router();
 platformFinanceSettingsRouter.use(requireRole(UserRole.ADMIN));
-platformFinanceSettingsRouter.get("/", async (_req: Request, res: Response, next: NextFunction) => {
+platformFinanceSettingsRouter.get(
+  "/",
+  requirePermission("platform_settings.view"),
+  async (_req: Request, res: Response, next: NextFunction) => {
   try {
     send(res, await noteService.getPlatformFinanceSettings());
   } catch (error) {
     next(error);
   }
-});
-platformFinanceSettingsRouter.patch("/", async (req: Request, res: Response, next: NextFunction) => {
+  }
+);
+platformFinanceSettingsRouter.patch(
+  "/",
+  requirePermission("platform_settings.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const input = updatePlatformFinanceSettingsSchema.parse(req.body);
     send(res, await noteService.updatePlatformFinanceSettings(input, getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
 export const adminInvestmentsRouter = Router();
 adminInvestmentsRouter.use(requireRole(UserRole.ADMIN));
 
-adminInvestmentsRouter.get("/", async (req: Request, res: Response, next: NextFunction) => {
+adminInvestmentsRouter.get(
+  "/",
+  requirePermission("investments.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const params = getAdminInvestmentsQuerySchema.parse(req.query);
     send(res, await noteService.listAdminInvestments(params));
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
 export const withdrawalsRouter = Router();
 withdrawalsRouter.use(requireRole(UserRole.ADMIN));
 
-withdrawalsRouter.get("/pending-issuer-payouts", async (_req: Request, res: Response, next: NextFunction) => {
+withdrawalsRouter.get(
+  "/pending-issuer-payouts",
+  requirePermission("disbursements.view"),
+  async (_req: Request, res: Response, next: NextFunction) => {
   try {
     send(res, await noteService.listPendingIssuerPayouts());
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
-withdrawalsRouter.post("/", async (req: Request, res: Response, next: NextFunction) => {
+withdrawalsRouter.post(
+  "/",
+  requirePermission("disbursements.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const input = createWithdrawalSchema.parse(req.body);
     send(res, await noteService.createWithdrawal(input, getActor(req, res, "ADMIN")), 201);
   } catch (error) {
     next(error);
   }
-});
-withdrawalsRouter.post("/:id/generate-letter", async (req: Request, res: Response, next: NextFunction) => {
+  }
+);
+withdrawalsRouter.post(
+  "/:id/generate-letter",
+  requirePermission("disbursements.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await noteService.generateWithdrawalLetter(id, getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
   }
-});
-withdrawalsRouter.post("/:id/mark-submitted-to-trustee", async (req: Request, res: Response, next: NextFunction) => {
+  }
+);
+withdrawalsRouter.post(
+  "/:id/mark-submitted-to-trustee",
+  requirePermission("disbursements.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await noteService.markWithdrawalSubmitted(id, getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
   }
-});
-withdrawalsRouter.post("/:id/mark-completed", async (req: Request, res: Response, next: NextFunction) => {
+  }
+);
+withdrawalsRouter.post(
+  "/:id/mark-completed",
+  requirePermission("disbursements.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await noteService.markWithdrawalCompleted(id, getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
   }
-});
+  }
+);
 
 // Shoraka Al-Amin STP integration (Phase 1: manual admin-triggered)
 // Routes are mounted under /v1/admin/withdrawals.

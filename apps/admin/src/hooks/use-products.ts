@@ -9,18 +9,21 @@ export function useProducts(params: {
   search?: string;
   active?: boolean;
   includeDeleted?: boolean;
+  enabled?: boolean;
 }) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
+  const { enabled = true, ...queryParams } = params;
 
   return useQuery({
-    queryKey: ["admin", "products", params],
+    queryKey: ["admin", "products", queryParams],
     queryFn: async () => {
-      const response = await apiClient.getProducts(params);
+      const response = await apiClient.getProducts(queryParams);
       if (!response.success) {
         throw new Error(response.error.message);
       }
       return response.data;
     },
+    enabled,
   });
 }

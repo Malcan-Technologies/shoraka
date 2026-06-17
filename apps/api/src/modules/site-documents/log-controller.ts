@@ -1,6 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
-import { requireRole } from "../../lib/auth/middleware";
-import { UserRole } from "@prisma/client";
+import { requirePermission } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { siteDocumentService } from "./service";
 import {
@@ -16,7 +15,7 @@ const router = Router();
  */
 router.get(
   "/",
-  requireRole(UserRole.ADMIN),
+  requirePermission("audit.document.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = getDocumentLogsQuerySchema.parse(req.query);
@@ -46,7 +45,7 @@ router.get(
  */
 router.get(
   "/export",
-  requireRole(UserRole.ADMIN),
+  requirePermission("audit.document.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = exportDocumentLogsQuerySchema.parse(req.query);

@@ -35,6 +35,7 @@ interface PendingInvitationsTableProps {
   onPageChange: (page: number) => void;
   onResend: (invitationId: string) => void;
   onRevoke: (invitationId: string) => void;
+  canManageRoles?: boolean;
 }
 
 function InvitationRow({
@@ -43,12 +44,14 @@ function InvitationRow({
   availableRoles,
   onResend,
   onRevoke,
+  canManageRoles = false,
 }: {
   invitation: PendingInvitation;
   inviteUrl: string;
   availableRoles: AdminRoleConfigRecord[];
   onResend: (id: string) => void;
   onRevoke: (id: string) => void;
+  canManageRoles?: boolean;
 }) {
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
   const roleRecord = availableRoles.find((role) => role.key === invitation.role_description);
@@ -128,6 +131,8 @@ function InvitationRow({
               variant="outline"
               size="sm"
               onClick={() => onResend(invitation.id)}
+              disabled={!canManageRoles}
+              title={!canManageRoles ? "You do not have permission to perform this action." : undefined}
               className="gap-1.5"
             >
               <PaperAirplaneIcon className="size-4" />
@@ -138,6 +143,8 @@ function InvitationRow({
             variant="outline"
             size="sm"
             onClick={() => onRevoke(invitation.id)}
+            disabled={!canManageRoles}
+            title={!canManageRoles ? "You do not have permission to perform this action." : undefined}
             className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
           >
             <XMarkIcon className="size-4" />
