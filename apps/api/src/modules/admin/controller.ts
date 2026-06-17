@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AdminService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
-import { requirePermission, requireRole } from "../../lib/auth/middleware";
+import { requirePermission } from "../../lib/auth/middleware";
 import { UserRole } from "@prisma/client";
 import { FULL_ACCESS_ADMIN_ROLE_KEYS, type AdminPermission, type AdminRoleKey } from "@cashsouk/types";
 import {
@@ -975,7 +975,7 @@ router.get(
  */
 router.patch(
   "/users/:id/user-id",
-  requireRole(UserRole.ADMIN),
+  requirePermission("users.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -1005,7 +1005,7 @@ router.patch(
  */
 router.get(
   "/admin-users",
-  requireRole(UserRole.ADMIN),
+  requirePermission("roles.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = getAdminUsersQuerySchema.parse(req.query);
@@ -1067,7 +1067,7 @@ router.put(
  */
 router.put(
   "/admin-users/:id/deactivate",
-  requireRole(UserRole.ADMIN),
+  requirePermission("roles.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -1100,7 +1100,7 @@ router.put(
  */
 router.put(
   "/admin-users/:id/reactivate",
-  requireRole(UserRole.ADMIN),
+  requirePermission("roles.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -1133,7 +1133,7 @@ router.put(
  */
 router.post(
   "/invite/generate-url",
-  requireRole(UserRole.ADMIN),
+  requirePermission("roles.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = inviteAdminSchema.parse(req.body);
@@ -1166,7 +1166,7 @@ router.post(
  */
 router.post(
   "/invite",
-  requireRole(UserRole.ADMIN),
+  requirePermission("roles.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = inviteAdminSchema.parse(req.body);
@@ -1199,7 +1199,7 @@ router.post(
  */
 router.post(
   "/generate-invite-link",
-  requireRole(UserRole.ADMIN),
+  requirePermission("roles.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = inviteAdminSchema.parse(req.body);
@@ -1386,7 +1386,7 @@ router.get(
  */
 router.get(
   "/onboarding-logs",
-  requireRole(UserRole.ADMIN),
+  requirePermission("onboarding.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = getOnboardingLogsQuerySchema.parse(req.query);
@@ -1422,7 +1422,7 @@ router.get(
  */
 router.get(
   "/onboarding-logs/export",
-  requireRole(UserRole.ADMIN),
+  requirePermission("onboarding.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = exportOnboardingLogsQuerySchema.parse(req.query);
@@ -1512,7 +1512,7 @@ router.get(
  */
 router.get(
   "/onboarding-logs/:id",
-  requireRole(UserRole.ADMIN),
+  requirePermission("onboarding.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -1544,7 +1544,7 @@ router.get(
  */
 router.get(
   "/invitations/pending",
-  requireRole(UserRole.ADMIN),
+  requirePermission("roles.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = getPendingInvitationsQuerySchema.parse(req.query);
@@ -1572,7 +1572,7 @@ router.get(
  */
 router.post(
   "/invitations/:id/resend",
-  requireRole(UserRole.ADMIN),
+  requirePermission("roles.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -1605,7 +1605,7 @@ router.post(
  */
 router.delete(
   "/invitations/:id/revoke",
-  requireRole(UserRole.ADMIN),
+  requirePermission("roles.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -2263,7 +2263,7 @@ router.post(
  */
 router.get(
   "/applications/:id",
-  requireRole(UserRole.ADMIN),
+  requirePermission("applications.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -2286,7 +2286,7 @@ router.get(
  */
 router.post(
   "/applications/:applicationId/guarantors/:clientGuarantorId/start-aml",
-  requireRole(UserRole.ADMIN),
+  requirePermission("applications.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user?.user_id) {
@@ -2311,7 +2311,7 @@ router.post(
 
 router.get(
   "/applications/:id/resubmit-comparison",
-  requireRole(UserRole.ADMIN),
+  requirePermission("applications.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     logger.info({
       applicationId: req.params.id,
@@ -2334,7 +2334,7 @@ router.get(
 
 router.get(
   "/organizations/:portal/:id/ctos-reports/:reportId/html",
-  requireRole(UserRole.ADMIN),
+  requirePermission("organizations.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { portal, id, reportId } = req.params;
@@ -2356,7 +2356,7 @@ router.get(
 
 router.get(
   "/organizations/:portal/:id/ctos-reports/:reportId/pdf",
-  requireRole(UserRole.ADMIN),
+  requirePermission("organizations.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { portal, id, reportId } = req.params;
@@ -2386,7 +2386,7 @@ router.get(
 
 router.get(
   "/organizations/:portal/:id/ctos-reports/:reportId",
-  requireRole(UserRole.ADMIN),
+  requirePermission("organizations.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { portal, id, reportId } = req.params;
@@ -2425,7 +2425,7 @@ router.get(
 
 router.get(
   "/organizations/:portal/:id/ctos-reports",
-  requireRole(UserRole.ADMIN),
+  requirePermission("organizations.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { portal, id } = req.params;
@@ -2458,7 +2458,7 @@ router.get(
 
 router.post(
   "/organizations/:portal/:id/ctos-reports",
-  requireRole(UserRole.ADMIN),
+  requirePermission("organizations.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { portal, id } = req.params;
@@ -2499,7 +2499,7 @@ router.post(
 
 router.get(
   "/applications/:id/ctos-reports/:reportId/html",
-  requireRole(UserRole.ADMIN),
+  requirePermission("applications.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id: applicationId, reportId } = req.params;
@@ -2524,7 +2524,7 @@ router.get(
 
 router.get(
   "/applications/:id/ctos-reports/:reportId/pdf",
-  requireRole(UserRole.ADMIN),
+  requirePermission("applications.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id: applicationId, reportId } = req.params;
@@ -2557,7 +2557,7 @@ router.get(
 
 router.get(
   "/applications/:id/ctos-reports",
-  requireRole(UserRole.ADMIN),
+  requirePermission("applications.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id: applicationId } = req.params;
@@ -2582,7 +2582,7 @@ router.get(
 
 router.post(
   "/applications/:id/ctos-reports",
-  requireRole(UserRole.ADMIN),
+  requirePermission("applications.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id: applicationId } = req.params;
@@ -2607,7 +2607,7 @@ router.post(
 
 router.get(
   "/applications/:id/ctos-subject-reports",
-  requireRole(UserRole.ADMIN),
+  requirePermission("applications.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id: applicationId } = req.params;
@@ -2632,7 +2632,7 @@ router.get(
 
 router.post(
   "/applications/:id/ctos-subject-reports",
-  requireRole(UserRole.ADMIN),
+  requirePermission("applications.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id: applicationId } = req.params;
@@ -2666,7 +2666,7 @@ router.post(
 
 router.get(
   "/organizations/:portal/:id/ctos-subject-reports",
-  requireRole(UserRole.ADMIN),
+  requirePermission("organizations.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { portal, id } = req.params;
@@ -2699,7 +2699,7 @@ router.get(
 
 router.post(
   "/organizations/:portal/:id/ctos-subject-reports",
-  requireRole(UserRole.ADMIN),
+  requirePermission("organizations.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { portal, id } = req.params;
@@ -3056,7 +3056,7 @@ router.post(
 
 router.patch(
   "/applications/:id/contract/customer-large-private",
-  requireRole(UserRole.ADMIN),
+  requirePermission("applications.contract.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3083,7 +3083,7 @@ router.patch(
 
 router.post(
   "/applications/:id/offers/contracts/send",
-  requireRole(UserRole.ADMIN),
+  requirePermission("applications.contract.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3112,7 +3112,7 @@ router.post(
 
 router.post(
   "/applications/:id/offers/invoices/:invoiceId/send",
-  requireRole(UserRole.ADMIN),
+  requirePermission("applications.invoice.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3145,7 +3145,7 @@ router.post(
 
 router.get(
   "/applications/:id/offers/contracts/signed-letter",
-  requireRole(UserRole.ADMIN),
+  requirePermission("applications.contract.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -3161,7 +3161,7 @@ router.get(
 
 router.get(
   "/applications/:id/offers/invoices/:invoiceId/signed-letter",
-  requireRole(UserRole.ADMIN),
+  requirePermission("applications.invoice.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id, invoiceId } = req.params;
@@ -3177,7 +3177,7 @@ router.get(
 
 router.post(
   "/applications/:id/reviews/pending-amendments",
-  requireRole(UserRole.ADMIN),
+  requirePermission("applications.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3216,7 +3216,7 @@ router.post(
 
 router.get(
   "/applications/:id/reviews/pending-amendments",
-  requireRole(UserRole.ADMIN),
+  requirePermission("applications.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -3235,7 +3235,7 @@ router.get(
 
 router.patch(
   "/applications/:id/reviews/pending-amendments/:scope/:scopeKey",
-  requireRole(UserRole.ADMIN),
+  requirePermission("applications.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3263,7 +3263,7 @@ router.patch(
 
 router.delete(
   "/applications/:id/reviews/pending-amendments/:scope/:scopeKey",
-  requireRole(UserRole.ADMIN),
+  requirePermission("applications.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
@@ -3289,7 +3289,7 @@ router.delete(
 
 router.post(
   "/applications/:id/reviews/submit-amendment-request",
-  requireRole(UserRole.ADMIN),
+  requirePermission("applications.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
