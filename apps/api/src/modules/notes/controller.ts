@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction, Router } from "express";
 import { UserRole } from "@prisma/client";
-import { requirePermission, requireRole } from "../../lib/auth/middleware";
+import { requirePermission, requireAnyPermission, requireRole } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { noteService } from "./service";
 import { shorakaStpService } from "../shoraka-stp/shoraka-stp-service";
@@ -95,7 +95,7 @@ adminNotesRouter.get(
 
 adminNotesRouter.get(
   "/bucket-balances",
-  requirePermission("bucket_balances.view"),
+  requireAnyPermission("bucket_balances.view", "dashboard.finance.view"),
   async (_req: Request, res: Response, next: NextFunction) => {
   try {
     send(res, await noteService.listLedgerBucketBalances());
