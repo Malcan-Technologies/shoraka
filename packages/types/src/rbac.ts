@@ -58,15 +58,11 @@ export const ADMIN_PERMISSIONS = [
 
   // Finance / operational panels
   "investments.view",
-  "investments.manage",
   "bucket_balances.view",
-  "bucket_balances.manage",
   "repayments.view",
-  "repayments.manage",
   "disbursements.view",
   "disbursements.manage",
   "service_fee.view",
-  "service_fee.manage",
 
   // Contracts (standalone)
   "contracts.view",
@@ -78,9 +74,6 @@ export const ADMIN_PERMISSIONS = [
   "platform_settings.view",
   "platform_settings.manage",
 
-  // Reports
-  "reports.view",
-  "reports.export",
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
@@ -264,15 +257,11 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
     description: "View and manage operational finance panels.",
     permissions: pickPermissions(
       "investments.view",
-      "investments.manage",
       "bucket_balances.view",
-      "bucket_balances.manage",
       "repayments.view",
-      "repayments.manage",
       "disbursements.view",
       "disbursements.manage",
       "service_fee.view",
-      "service_fee.manage",
       "contracts.view",
       "contracts.manage"
     ),
@@ -288,10 +277,4 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
       "platform_settings.manage"
     ),
   },
-  {
-    key: "reports",
-    label: "Reports",
-    description: "View and export reports.",
-    permissions: pickPermissions("reports.view", "reports.export"),
-  }
 ];

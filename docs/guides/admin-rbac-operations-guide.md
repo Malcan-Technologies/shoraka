@@ -58,14 +58,13 @@ Every admin user is assigned a role. The role determines which permissions that 
 | **Product Logs** | `audit.product.view` | — | Product Logs page | View, search, filter, export product logs |
 | **Document Management** | `document_management.view` | `document_management.manage` | Standalone Document Management page | Upload, edit, replace, archive, restore site documents |
 | **Investments** | `investments.view` | — | Investments list | View only |
-| **Contracts** | `contracts.view` | `contracts.manage` | Contracts list and detail | Manage contracts |
+| **Contracts** | `contracts.view` | `contracts.manage` | Contracts list and detail | Resign contract offers |
 | **Bucket Balances** | `bucket_balances.view` | — | Finance Bucket Balances page | View only |
 | **Repayments** | `repayments.view` | — | Finance Repayments page | View only |
-| **Issuer Payouts** | `disbursements.view` | `disbursements.manage` | Issuer Payouts page | Manage issuer payout actions |
+| **Issuer Payouts** | `disbursements.view` | `disbursements.manage` | Issuer Payouts page | Generate letters, mark submitted, mark completed, initiate payouts |
 | **Service Fee** | `service_fee.view` | — | Service Fee Trustee Letters page | View only |
 | **Product Settings** | `products.view` | `products.manage` | Products list and settings | Create, edit, archive products |
 | **Platform Finance Settings** | `platform_settings.view` | `platform_settings.manage` | Platform Finance Settings page | Edit and save platform finance settings |
-| **Reports** | `reports.view` | `reports.export` | Reports page (future) | Export reports (future) |
 
 ---
 
@@ -180,6 +179,8 @@ Suggested permissions:
 - `service_fee.view`
 - `products.view`
 - `platform_settings.view`
+
+
 
 ---
 

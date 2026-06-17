@@ -22,7 +22,7 @@ The API is the real security boundary. Frontend gating is for navigation and UX 
 
 | Export | Purpose |
 |---|---|
-| `ADMIN_PERMISSIONS` | Readonly tuple of all 53 valid permission strings. Derive `AdminPermission` from this. |
+| `ADMIN_PERMISSIONS` | Readonly tuple of all 47 valid permission strings. Derive `AdminPermission` from this. |
 | `AdminPermission` | TypeScript union type of all permission strings. Used as the type for all permission arguments. |
 | `ADMIN_PERMISSION_GROUPS` | Groups permissions by module for the Permission Configuration UI. Every permission must appear in a group. |
 | `FULL_ACCESS_ADMIN_ROLE_KEYS` | Currently `[AdminRole.SUPER_ADMIN]`. Roles in this list bypass `requirePermission` checks entirely. |
@@ -307,7 +307,6 @@ Do not block any notification tab behind `notifications.manage`.
 | | |
 |---|---|
 | View | `investments.view` |
-| Mutations | `investments.manage` (no active mutation routes currently) |
 | Backend | `apps/api/src/modules/notes/controller.ts` (`adminInvestmentsRouter`) |
 | Frontend page | `apps/admin/src/app/investments/page.tsx` |
 
@@ -316,7 +315,7 @@ Do not block any notification tab behind `notifications.manage`.
 | | |
 |---|---|
 | View | `contracts.view` |
-| Mutations | `contracts.manage` |
+| Mutations (resign offer) | `contracts.manage` |
 | Backend | `apps/api/src/modules/admin/controller.ts` |
 | Frontend pages | `apps/admin/src/app/contracts/page.tsx`, `apps/admin/src/app/contracts/[id]/page.tsx` |
 | Notes | Contract tab inside Application Review uses `applications.contract.manage`, not `contracts.manage` |
@@ -326,7 +325,6 @@ Do not block any notification tab behind `notifications.manage`.
 | | |
 |---|---|
 | View | `bucket_balances.view` |
-| Mutations | `bucket_balances.manage` (no active mutation routes currently) |
 | Backend | `apps/api/src/modules/notes/controller.ts` |
 | Frontend page | `apps/admin/src/app/finance/buckets/page.tsx` |
 
@@ -335,16 +333,16 @@ Do not block any notification tab behind `notifications.manage`.
 | | |
 |---|---|
 | View | `repayments.view` |
-| Mutations | `repayments.manage` (no active standalone mutation routes — repayment actions inside Note Detail use `notes.repayment.manage`) |
 | Backend | `apps/api/src/modules/notes/controller.ts` |
 | Frontend page | `apps/admin/src/app/finance/repayments/page.tsx` |
+| Notes | Repayment actions inside Note Detail use `notes.repayment.manage` |
 
 ### Disbursements / Issuer Payouts
 
 | | |
 |---|---|
 | View | `disbursements.view` |
-| Mutations | `disbursements.manage` |
+| Mutations (generate letter, mark submitted, mark completed, initiate payout) | `disbursements.manage` |
 | Backend | `apps/api/src/modules/notes/controller.ts` (`withdrawalsRouter`) |
 | Frontend page | `apps/admin/src/app/finance/issuer-payouts/page.tsx` |
 | Notes | Issuer disbursement actions inside Note Detail use `notes.disbursement.manage`, not `disbursements.manage` |
@@ -354,10 +352,9 @@ Do not block any notification tab behind `notifications.manage`.
 | | |
 |---|---|
 | View | `service_fee.view` |
-| Mutations | `service_fee.manage` (no active standalone mutation routes) |
 | Backend | `apps/api/src/modules/notes/controller.ts` |
 | Frontend page | `apps/admin/src/app/finance/service-fee-trustee-letters/page.tsx` |
-| Notes | Service fee actions inside Note settlement workflow use `notes.settlement.manage` |
+| Notes | Service fee workflow actions inside Note Detail use `notes.settlement.manage` |
 
 ### Product Settings
 
@@ -376,14 +373,6 @@ Do not block any notification tab behind `notifications.manage`.
 | Mutations | `platform_settings.manage` |
 | Backend | `apps/api/src/modules/notes/controller.ts` (`platformFinanceSettingsRouter`) |
 | Frontend page | `apps/admin/src/app/settings/platform-finance/page.tsx` |
-
-### Reports
-
-| | |
-|---|---|
-| View | `reports.view` |
-| Export | `reports.export` |
-| Notes | Future only — no admin page currently exists |
 
 ---
 
@@ -444,17 +433,22 @@ The `document_management.*` permissions apply only to the standalone Document Ma
 
 The following permissions exist in `ADMIN_PERMISSIONS` and `ADMIN_PERMISSION_GROUPS` but do not currently have active admin pages or full workflows. Do not create new routes or pages for these without product confirmation.
 
-| Permission | Reason |
+These permissions have been removed from the catalog because they have no active code usage. Add them back when the corresponding page or action is implemented.
+
+| Permission | Reason removed |
 |---|---|
 | `reports.view`, `reports.export` | No reports page exists |
-| `withdrawals.view`, `withdrawals.manage` | No standalone investor withdrawal admin page exists |
-| `settlements.view`, `settlements.manage` | No standalone settlement page exists |
-| `investments.manage` | Investment listing exists but no admin mutation routes |
-| `bucket_balances.manage` | View-only page, no correction/adjustment routes |
-| `repayments.manage` | Repayment actions use `notes.repayment.manage` instead |
-| `disbursements.manage` | Issuer payout actions use `notes.disbursement.manage` for Note Detail workflows |
-| `service_fee.manage` | Service fee actions use `notes.settlement.manage` for Note workflows |
-| `contracts.manage` | No active frontend mutation currently wired |
+| `investments.manage` | Investment listing is read-only; no admin mutation routes |
+| `bucket_balances.manage` | View-only page; no correction/adjustment routes |
+| `repayments.manage` | Repayment actions inside Note Detail use `notes.repayment.manage` |
+| `service_fee.manage` | Service fee workflow actions inside Note Detail use `notes.settlement.manage` |
+
+The following permissions are **not** in this list because they have active backend routes:
+
+| Permission | Active usage |
+|---|---|
+| `disbursements.manage` | 4 routes in `withdrawalsRouter` (generate letter, mark submitted, mark completed, initiate payout) |
+| `contracts.manage` | `POST /contracts/:id/offers/resign` in `admin/controller.ts` |
 
 ---
 
