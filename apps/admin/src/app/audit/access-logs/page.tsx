@@ -9,6 +9,7 @@ import { AccessLogsTable } from "../../../components/access-logs-table";
 import { AccessLogsToolbar } from "../../../components/access-logs-toolbar";
 import { useAccessLogs } from "../../../hooks/use-access-logs";
 import type { EventType, GetAccessLogsParams } from "@cashsouk/types";
+import { RequirePermission } from "../../../components/require-permission";
 
 // Access/Authentication event types (excludes security events which are in Security Logs, and onboarding events which are in Onboarding Logs)
 const ACCESS_EVENT_TYPES: EventType[] = [
@@ -423,7 +424,8 @@ export default function AccessLogsPage() {
   const loading = isLoading;
 
   return (
-    <>
+    <RequirePermission permission="audit.access.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -477,6 +479,7 @@ export default function AccessLogsPage() {
           />
         </div>
       </div>
-    </>
+      </>
+    </RequirePermission>
   );
 }

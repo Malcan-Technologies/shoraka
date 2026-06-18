@@ -1395,6 +1395,21 @@ export class AdminService {
     await this.requireAdminRoleConfig(data.roleDescription);
 
     const previousRole = admin.role_description;
+
+    if (
+      previousRole === AdminRole.SUPER_ADMIN &&
+      data.roleDescription !== AdminRole.SUPER_ADMIN
+    ) {
+      const activeSuperAdminCount = await this.repository.countActiveSuperAdmins();
+      if (activeSuperAdminCount <= 1) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          "At least one active Super Admin must remain. Assign another Super Admin before changing this role."
+        );
+      }
+    }
+
     await this.repository.updateAdminRole(userId, data.roleDescription);
 
     // Log ROLE_SWITCHED event in SecurityLog
@@ -1447,6 +1462,17 @@ export class AdminService {
       // Admin record is created with ACTIVE status by default, so we'll deactivate it below
     } else if (admin.status === "INACTIVE") {
       throw new AppError(400, "VALIDATION_ERROR", "Admin is already deactivated");
+    }
+
+    if (admin.role_description === AdminRole.SUPER_ADMIN) {
+      const activeSuperAdminCount = await this.repository.countActiveSuperAdmins();
+      if (activeSuperAdminCount <= 1) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          "At least one active Super Admin must remain. Assign another Super Admin before deactivating this user."
+        );
+      }
     }
 
     // Update admin status to INACTIVE

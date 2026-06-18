@@ -1,8 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { AuthService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
-import { requireAuth, requireRole } from "../../lib/auth/middleware";
-import { UserRole } from "@prisma/client";
+import { requireAuth, requirePermission } from "../../lib/auth/middleware";
 import {
   syncUserSchema,
   addRoleSchema,
@@ -598,7 +597,7 @@ router.post(
 router.post(
   "/admin/create-user",
   requireAuth,
-  requireRole(UserRole.ADMIN),
+  requirePermission("roles.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = createAdminUserSchema.parse(req.body) as CreateAdminUserInput;

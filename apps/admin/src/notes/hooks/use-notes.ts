@@ -90,7 +90,7 @@ export function useNoteBucketActivity(accountCode: string | null, page: number, 
   });
 }
 
-export function useNoteActionRequiredCount() {
+export function useNoteActionRequiredCount({ enabled = true }: { enabled?: boolean } = {}) {
   const apiClient = useNotesApiClient();
   return useQuery({
     queryKey: [...notesKeys.all, "action-count"],
@@ -101,10 +101,11 @@ export function useNoteActionRequiredCount() {
     },
     staleTime: 30000,
     refetchInterval: 60000,
+    enabled,
   });
 }
 
-export function usePendingRepayments() {
+export function usePendingRepayments({ enabled = true }: { enabled?: boolean } = {}) {
   const apiClient = useNotesApiClient();
   return useQuery({
     queryKey: [...notesKeys.all, "pending-repayments"],
@@ -115,10 +116,11 @@ export function usePendingRepayments() {
     },
     staleTime: 30000,
     refetchInterval: 60000,
+    enabled,
   });
 }
 
-export function usePendingIssuerPayouts() {
+export function usePendingIssuerPayouts({ enabled = true }: { enabled?: boolean } = {}) {
   const apiClient = useNotesApiClient();
   return useQuery({
     queryKey: [...notesKeys.all, "pending-issuer-payouts"],
@@ -129,10 +131,15 @@ export function usePendingIssuerPayouts() {
     },
     staleTime: 30000,
     refetchInterval: 60000,
+    enabled,
   });
 }
 
-export function usePendingServiceFeeTrusteeLetters() {
+export function usePendingServiceFeeTrusteeLetters({
+  enabled = true,
+}: {
+  enabled?: boolean;
+} = {}) {
   const apiClient = useNotesApiClient();
   return useQuery({
     queryKey: [...notesKeys.all, "pending-service-fee-trustee-letters"],
@@ -143,6 +150,7 @@ export function usePendingServiceFeeTrusteeLetters() {
     },
     staleTime: 30000,
     refetchInterval: 60000,
+    enabled,
   });
 }
 

@@ -8,6 +8,7 @@ import { SystemHealthIndicator } from "../../components/system-health-indicator"
 import { UsersTable } from "../../components/users-table";
 import { UsersTableToolbar } from "../../components/users-table-toolbar";
 import { useUsers } from "../../hooks/use-users";
+import { RequirePermission } from "../../components/require-permission";
 import type { GetUsersParams, UserRole } from "@cashsouk/types";
 
 // Mock users removed - using API data
@@ -74,7 +75,8 @@ export default function UsersPage() {
   const loading = isLoading;
 
   return (
-    <>
+    <RequirePermission permission="users.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -125,7 +127,8 @@ export default function UsersPage() {
           />
         </div>
       </div>
-    </>
+      </>
+    </RequirePermission>
   );
 }
 

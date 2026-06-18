@@ -23,6 +23,7 @@ interface NotesTableProps {
   onPageChange: (page: number) => void;
   onViewDetails: (note: NoteListItem) => void;
   onCreateNote: (invoice: EligibleNoteInvoice) => void;
+  canCreate?: boolean;
 }
 
 function TableSkeleton() {
@@ -52,6 +53,7 @@ export function NotesTable({
   onPageChange,
   onViewDetails,
   onCreateNote,
+  canCreate,
 }: NotesTableProps) {
   const totalPages = Math.ceil(totalNotes / pageSize);
   const startIndex = (currentPage - 1) * pageSize + 1;
@@ -109,6 +111,7 @@ export function NotesTable({
                     readyInvoice={invoice}
                     creatingInvoiceId={creatingInvoiceId}
                     onCreateNote={onCreateNote}
+                    canCreate={canCreate}
                   />
                 ))}
                 {notes.map((note) => (

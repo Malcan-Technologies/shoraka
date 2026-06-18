@@ -8,6 +8,7 @@ import { SystemHealthIndicator } from "../../components/system-health-indicator"
 import { OrganizationsTable } from "../../components/organizations-table";
 import { OrganizationsTableToolbar } from "../../components/organizations-table-toolbar";
 import { useOrganizations } from "../../hooks/use-organizations";
+import { RequirePermission } from "../../components/require-permission";
 import { Badge } from "../../components/ui/badge";
 import {
   BanknotesIcon,
@@ -117,7 +118,8 @@ export default function OrganizationsPage() {
   const totalOrganizations = totalInvestorOrganizations + totalIssuerOrganizations;
 
   return (
-    <>
+    <RequirePermission permission="organizations.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -214,6 +216,7 @@ export default function OrganizationsPage() {
           </section>
         </div>
       </div>
-    </>
+      </>
+    </RequirePermission>
   );
 }

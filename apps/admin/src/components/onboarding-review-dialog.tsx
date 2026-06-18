@@ -50,6 +50,7 @@ import {
   getFinalStatusLabel,
 } from "@cashsouk/types";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   UserIcon,
   EnvelopeIcon,
@@ -149,6 +150,8 @@ export function OnboardingReviewDialog({
   open,
   onOpenChange,
 }: OnboardingReviewDialogProps) {
+  const { can } = usePermissions();
+  const canManage = can("onboarding.manage");
   const queryClient = useQueryClient();
   const {
     data: application,
@@ -201,11 +204,13 @@ export function OnboardingReviewDialog({
     : hasOnboardingApproval && hasAmlApproval && hasTncAccepted;
 
   const handleOpenRegTank = () => {
+    if (!canManage) return;
     if (!application?.regtankPortalUrl) return;
     window.open(application.regtankPortalUrl, "_blank", "noopener,noreferrer");
   };
 
   const handleOpenKycReview = () => {
+    if (!canManage) return;
     if (!application) return;
     const url = isCompany && application.kybPortalUrl
       ? application.kybPortalUrl
@@ -346,7 +351,8 @@ export function OnboardingReviewDialog({
                 variant="outline"
                 onClick={handleOpenRegTank}
                 className="w-full gap-2"
-                disabled={!application.regtankPortalUrl}
+                disabled={!application.regtankPortalUrl || !canManage}
+                title={!canManage ? "You do not have permission to perform this action." : undefined}
               >
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                 View in RegTank Portal
@@ -435,7 +441,8 @@ export function OnboardingReviewDialog({
               <Button
                 onClick={handleOpenRegTank}
                 className="w-full gap-2"
-                disabled={!application.regtankPortalUrl}
+                disabled={!application.regtankPortalUrl || !canManage}
+                title={!canManage ? "You do not have permission to perform this action." : undefined}
               >
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                 Open Onboarding Review
@@ -480,7 +487,8 @@ export function OnboardingReviewDialog({
                 onClick={() => setShowRedoConfirm(true)}
                 variant="outline"
                 className="w-full gap-2"
-                disabled={restartMutation.isPending}
+                disabled={restartMutation.isPending || !canManage}
+                title={!canManage ? "You do not have permission to perform this action." : undefined}
               >
                 <ArrowPathIcon className="h-4 w-4" />
                 Restart Onboarding
@@ -563,7 +571,10 @@ export function OnboardingReviewDialog({
               <Button
                 onClick={handleOpenKycReview}
                 className="w-full gap-2"
-                disabled={isCompany ? !application.kybPortalUrl : !application.kycPortalUrl}
+                disabled={
+                  !canManage || (isCompany ? !application.kybPortalUrl : !application.kycPortalUrl)
+                }
+                title={!canManage ? "You do not have permission to perform this action." : undefined}
               >
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                 {isCompany ? "Open KYB/AML Review" : "Open KYC/AML Review"}
@@ -609,7 +620,8 @@ export function OnboardingReviewDialog({
                 onClick={() => setShowRedoConfirm(true)}
                 variant="outline"
                 className="w-full gap-2"
-                disabled={restartMutation.isPending}
+                disabled={restartMutation.isPending || !canManage}
+                title={!canManage ? "You do not have permission to perform this action." : undefined}
               >
                 <ArrowPathIcon className="h-4 w-4" />
                 Restart Onboarding
@@ -624,7 +636,7 @@ export function OnboardingReviewDialog({
           <SSMVerificationPanel
             application={application}
             onApprove={handleSSMApprove}
-            disabled={ssmApprovalMutation.isPending}
+            disabled={ssmApprovalMutation.isPending || !canManage}
           />
         );
 
@@ -650,7 +662,8 @@ export function OnboardingReviewDialog({
               <Button
                 onClick={handleOpenRegTank}
                 className="w-full gap-2"
-                disabled={!application.regtankPortalUrl}
+                disabled={!application.regtankPortalUrl || !canManage}
+                title={!canManage ? "You do not have permission to perform this action." : undefined}
               >
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                 Open RegTank Portal
@@ -759,7 +772,8 @@ export function OnboardingReviewDialog({
               <Button
                 onClick={() => setShowFinalApprovalConfirm(true)}
                 className="w-full gap-2"
-                disabled={!allRequirementsMet || finalApprovalMutation.isPending}
+                disabled={!allRequirementsMet || finalApprovalMutation.isPending || !canManage}
+                title={!canManage ? "You do not have permission to perform this action." : undefined}
               >
                 {finalApprovalMutation.isPending ? (
                   <ArrowPathIcon className="h-4 w-4 animate-spin" />
@@ -783,7 +797,8 @@ export function OnboardingReviewDialog({
                 onClick={() => setShowRedoConfirm(true)}
                 variant="outline"
                 className="w-full gap-2"
-                disabled={restartMutation.isPending}
+                disabled={restartMutation.isPending || !canManage}
+                title={!canManage ? "You do not have permission to perform this action." : undefined}
               >
                 <ArrowPathIcon className="h-4 w-4" />
                 Restart Onboarding
@@ -815,7 +830,8 @@ export function OnboardingReviewDialog({
                 onClick={() => setShowRedoConfirm(true)}
                 variant="outline"
                 className="w-full gap-2"
-                disabled={restartMutation.isPending}
+                disabled={restartMutation.isPending || !canManage}
+                title={!canManage ? "You do not have permission to perform this action." : undefined}
               >
                 <ArrowPathIcon className="h-4 w-4" />
                 Restart Onboarding
@@ -842,7 +858,8 @@ export function OnboardingReviewDialog({
                 onClick={() => setShowRedoConfirm(true)}
                 variant="outline"
                 className="w-full gap-2"
-                disabled={restartMutation.isPending}
+                disabled={restartMutation.isPending || !canManage}
+                title={!canManage ? "You do not have permission to perform this action." : undefined}
               >
                 <ArrowPathIcon className="h-4 w-4" />
                 Restart Onboarding
@@ -869,7 +886,8 @@ export function OnboardingReviewDialog({
                 onClick={() => setShowRedoConfirm(true)}
                 variant="outline"
                 className="w-full gap-2"
-                disabled={restartMutation.isPending}
+                disabled={restartMutation.isPending || !canManage}
+                title={!canManage ? "You do not have permission to perform this action." : undefined}
               >
                 <ArrowPathIcon className="h-4 w-4" />
                 Restart Onboarding
@@ -908,8 +926,9 @@ export function OnboardingReviewDialog({
                     variant="outline"
                     size="sm"
                     onClick={handleCombinedRefresh}
-                    disabled={isCombinedRefreshing}
+                    disabled={isCombinedRefreshing || !canManage}
                     className="gap-1.5"
+                    title={!canManage ? "You do not have permission to perform this action." : undefined}
                   >
                     <ArrowPathIcon
                       className={`h-4 w-4 ${isCombinedRefreshing ? "animate-spin" : ""}`}

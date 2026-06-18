@@ -162,6 +162,7 @@ function BadgeColorPicker({
 export function AdminPermissionConfiguration() {
   const { can } = usePermissions();
   const canManageRoles = can("roles.manage");
+  const canEditPermissions = canManageRoles;
   const { data: roles = [], isLoading, refetch } = useAdminRoleConfigs();
   const createRole = useCreateAdminRole();
   const deleteRole = useDeleteAdminRole();
@@ -226,11 +227,9 @@ export function AdminPermissionConfiguration() {
       draftBadgeColor !== selectedRole.badgeColor);
 
   const togglePermission = (permission: AdminPermission, checked: boolean) => {
-    setDraftPermissions((current) =>
-      checked
-        ? Array.from(new Set([...current, permission]))
-        : current.filter((item) => item !== permission)
-    );
+    setDraftPermissions((current) => {
+      return checked ? Array.from(new Set([...current, permission])) : current.filter((item) => item !== permission);
+    });
   };
 
   const handleSave = async () => {
@@ -542,6 +541,7 @@ export function AdminPermissionConfiguration() {
                 const grantedCount = group.permissions.filter((permission) =>
                   selectedPermissionSet.has(permission)
                 ).length;
+                const allSelected = grantedCount === group.permissions.length && group.permissions.length > 0;
 
                 return (
                   <section key={group.key} className="space-y-3">
@@ -552,9 +552,51 @@ export function AdminPermissionConfiguration() {
                           {group.description}
                         </p>
                       </div>
-                      <Badge variant="outline">
-                        {grantedCount}/{group.permissions.length} enabled
-                      </Badge>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline">
+                          {allSelected ? "All selected" : `${grantedCount}/${group.permissions.length} enabled`}
+                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 rounded-xl px-3"
+                            disabled={!canEditPermissions || !selectedRole.isEditable}
+                            onClick={() => {
+                              if (!canEditPermissions || !selectedRole.isEditable) return;
+                              setDraftPermissions((current) => {
+                                const next = new Set(current);
+                                for (const permission of group.permissions) {
+                                  next.add(permission);
+                                }
+                                return Array.from(next);
+                              });
+                            }}
+                          >
+                            Select all
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 rounded-xl px-3"
+                            disabled={!canEditPermissions || !selectedRole.isEditable}
+                            onClick={() => {
+                              if (!canEditPermissions || !selectedRole.isEditable) return;
+                              setDraftPermissions((current) => {
+                                const next = new Set(current);
+                                for (const permission of group.permissions) {
+                                  next.delete(permission);
+                                }
+                                return Array.from(next);
+                              });
+                            }}
+                          >
+                            Clear all
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                     <div className="grid gap-3 md:grid-cols-2">
                       {group.permissions.map((permission) => {

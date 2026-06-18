@@ -1,0 +1,406 @@
+=== Admin RBAC Manual QA Checklist ===
+
+=== Test setup (test roles/users) ===
+
+Assign these permissions to the test users. Use exactly what is listed below (no extra `.manage` permissions), except Super Admin which should have full access.
+
+=== 1) Super Admin ===
+[ ] Assign: `FULL_ACCESS_ADMIN_ROLE_KEYS` (full access).
+
+=== 2) View-only Admin (all `.view`, no `.manage`) ===
+-
+[ ] Assign: every permission in `packages/types/src/rbac.ts` that ends with `.view`
+[ ] Ensure: user has **zero** permissions that end with `.manage`
+
+=== 3) Applications Viewer (comments only) ===
+-
+[ ] Assign:
+  - `applications.view`
+[ ] Ensure:
+  - no `applications.manage` or any `applications.*.manage`
+
+=== 4) Applications Financial Reviewer ===
+-
+[ ] Assign:
+  - `applications.view`
+  - `applications.financial.manage`
+
+=== 5) Roles Viewer ===
+-
+[ ] Assign:
+  - `roles.view`
+[ ] Ensure:
+  - no `roles.manage`
+
+=== 6) Roles Manager ===
+-
+[ ] Assign:
+  - `roles.view`
+  - `roles.manage`
+
+=== 7) Notifications Viewer ===
+-
+[ ] Assign:
+  - `notifications.view`
+[ ] Ensure:
+  - no `notifications.manage`
+
+=== 8) Audit Access Viewer ===
+-
+[ ] Assign:
+  - `audit.access.view`
+[ ] Ensure:
+  - no `audit.security.view`, `audit.document.view`, `audit.product.view`
+
+=== 9) Finance Viewer (view permissions only) ===
+-
+[ ] Assign:
+  - `investments.view`
+  - `bucket_balances.view`
+  - `repayments.view`
+  - `disbursements.view`
+  - `service_fee.view`
+  - `contracts.view`
+  - `dashboard.finance.view`
+  - `dashboard.platform.view` (optional, only if you also want to see Platform section)
+  - `dashboard.operations.view` (optional, only if you also want to see Operations section)
+[ ] Ensure:
+  - no `investments.manage`, `bucket_balances.manage`, `repayments.manage`, `service_fee.manage`, `contracts.manage`
+
+=== 10) Notes Operations User ===
+-
+[ ] Assign:
+  - `notes.view`
+  - `notes.create` (if you want to test create flow visibility)
+  - At least one of the note action permissions below, depending on what you want to validate:
+    - `notes.disbursement.manage` (issuer payout / disbursement workflow)
+    - `notes.repayment.manage` (repayment workflow in settlement panel)
+    - `notes.settlement.manage` (preview/approve/post settlement)
+    - `notes.default.manage` (late/default letters and mark default)
+[ ] Recommended for first pass:
+  - `notes.disbursement.manage`
+  - `notes.repayment.manage`
+  - `notes.settlement.manage`
+  - `notes.default.manage`
+
+=== General RBAC behavior checklist ===
+
+Run these for each test role/user above (at least for the roles that have relevant permissions for that page).
+
+[ ] Login as **Super Admin** and confirm you can access every admin page/route listed below.
+[ ] Login as **View-only Admin**:
+  [ ] Confirm sidebar/menu items show only for permissions ending with `.view`.
+  [ ] Directly open any admin route that requires a missing `.view` permission (paste URL in browser) and confirm **Access Denied** appears.
+  [ ] Confirm read-only pages load successfully when `.view` exists.
+  [ ] Confirm any mutation/action buttons are present but **disabled/greyed out** when `.manage` is missing, and the tooltip/helper text says:
+    - `You do not have permission to perform this action.`
+[ ] For each role, attempt an action by clicking a disabled/greyed-out button (or calling the same action URL/API if applicable) and confirm the backend returns **403 Forbidden**.
+[ ] Confirm that when `.view` is missing, page data is not loaded (no spinner stays forever; page should show Access Denied, and network calls should not succeed).
+[ ] Confirm frontend hiding + backend enforcement are consistent:
+  [ ] If frontend disables/hides an action due to missing permission, backend must also block it with 403.
+[ ] Confirm Application comments remain allowed when only `applications.view` is present (no requirement for `applications.manage`).
+
+=== Expected results table (quick reference) ===
+Test role | Expected sidebar visibility | Expected page access | Expected disabled buttons | Expected backend
+Super Admin | All | All | None | Success
+View-only Admin | Only `.view` items | All `.view` pages | All mutation buttons disabled | 403 for mutations
+Applications Viewer | Applications (view) | Applications pages readable | Approve/Reject/AML/CTOS/Reset/Item actions disabled | 403 for mutations
+Applications Financial Reviewer | Applications + financial section manage | Applications readable + financial actions | Financial approve/reset/AML allowed (others disabled) | 403 for disallowed actions
+Roles Viewer | Roles menu + configuration read-only | Roles pages readable | All role mutations disabled | 403 for mutations
+Roles Manager | Roles + config + mutations | Roles pages readable + mutations enabled | None (mutations should work) | Success for mutations
+Notifications Viewer | Notifications menu | Notifications tabs readable | Toggles/seed/send/group mutations disabled | 403 for mutations
+Audit Access Viewer | Only Access Logs | Access Logs page readable | Security/Document/Product audit disabled/not visible | 403 for disallowed
+Finance Viewer | Finance widgets + finance-related menus | Finance pages readable | Finance mutations disabled | 403 for mutations
+Notes Operations User | Notes menu + note sub-actions as granted | Notes pages readable | Mutation buttons enabled only for granted note permissions | 403 for missing note mutations
+
+=== Page-by-page checklist ===
+
+For each page, do:
+1) Sidebar visibility check
+2) Direct URL access check (paste URL)
+3) Read vs mutation behavior check (buttons disabled + tooltip)
+
+=== Dashboard ===
+[ ] (Super Admin) Confirm dashboard loads with widgets/sections visible.
+[ ] (View-only Admin with dashboard `.view` permissions) Confirm dashboard shows.
+[ ] (No `dashboard.finance.view`) Confirm **Finance** section is hidden.
+[ ] (No `dashboard.operations.view`) Confirm **Operations** section is hidden.
+[ ] (No `dashboard.platform.view`) Confirm **Platform** section is hidden.
+[ ] Confirm `/` page is blocked when `dashboard.view` is missing.
+[ ] Confirm `/v1/admin/dashboard/stats` is still protected by `dashboard.view` (API spot-check below).
+
+=== Notes ===
+[ ] Open Notes listing:
+  [ ] `notes.view` allows access
+  [ ] If `notes.view` missing, confirm Access Denied
+[ ] Notes create flow (if you want to test):
+  [ ] `notes.create` enables create actions/CTA
+  [ ] Missing `notes.create` keeps actions disabled/greyed out
+[ ] Notes detail page for a note with disbursement workflow:
+  [ ] With `notes.view` only: disbursement workflow buttons disabled
+  [ ] With `notes.disbursement.manage`: Generate trustee letter / Submit to trustee / Mark disbursed enabled
+[ ] Settlement panel:
+  [ ] With `notes.view` only: repayment and settlement controls disabled
+  [ ] With `notes.repayment.manage`: Record receipt / Approve / Reject enabled where applicable
+  [ ] With `notes.settlement.manage`: Preview/Approve/Post enabled where applicable
+  [ ] With `notes.default.manage`: Generate Arrears/Default letters + Mark Default enabled where applicable
+
+Confirm each of these explicitly:
+[ ] `notes.disbursement.manage`
+[ ] `notes.repayment.manage`
+[ ] `notes.settlement.manage`
+[ ] `notes.default.manage`
+
+=== Applications ===
+[ ] Open Applications landing:
+  [ ] `applications.view` allows view
+  [ ] Missing `applications.view` => Access Denied
+[ ] Application detail:
+  [ ] `applications.view` shows app review sections in read-only
+  [ ] `applications.manage` enables app-level actions (reject/reset/status actions)
+[ ] Application comments verification:
+  [ ] With `applications.view` only: confirm adding/seeing section comments works
+  [ ] With `applications.view` only: confirm approve/reject/reset section actions are disabled (section manage still required)
+[ ] Section-level permissions verification:
+  [ ] With only `applications.financial.manage`: confirm financial section actions are enabled, other section actions disabled
+  [ ] With `applications.manage`: confirm all app-level actions are enabled (and section actions still depend on section manage where implemented)
+
+Explicit permission coverage:
+[ ] `applications.manage`
+[ ] `applications.financial.manage`
+[ ] `applications.company.manage`
+[ ] `applications.business_guarantor.manage`
+[ ] `applications.documents.manage`
+[ ] `applications.contract.manage`
+[ ] `applications.invoice.manage`
+[ ] Confirm application comments work with `applications.view`.
+
+=== Onboarding ===
+[ ] Open onboarding approval:
+  [ ] `onboarding.view` required to access page
+  [ ] Missing `onboarding.view` => Access Denied
+[ ] Dialog actions:
+  [ ] With `onboarding.view` only: Approve/Reject/Restart/Final Complete/SSM approvals disabled
+  [ ] With `onboarding.manage` present: those mutation buttons enabled
+
+Explicit permission coverage:
+[ ] `onboarding.view`
+[ ] `onboarding.manage`
+
+=== Users ===
+[ ] Open Users listing:
+  [ ] `users.view` required
+  [ ] Without `users.view` => Access Denied
+[ ] Open User detail:
+  [ ] With `users.view` only: edit controls disabled/greyed out
+  [ ] With `users.manage`: mutation actions enabled
+
+Explicit permission coverage:
+[ ] `users.view`
+[ ] `users.manage`
+
+=== Organizations ===
+[ ] Open Organizations listing:
+  [ ] `organizations.view` required
+[ ] Open Organization detail:
+  [ ] With `organizations.view` only: management toggle/actions disabled
+  [ ] With `organizations.manage`: enabled
+
+Explicit permission coverage:
+[ ] `organizations.view`
+[ ] `organizations.manage`
+
+=== Roles ===
+[ ] Open Roles list:
+  [ ] `roles.view` required
+  [ ] Without `roles.view` => Access Denied
+[ ] Confirm Permission Configuration page:
+  [ ] Visible/readable with `roles.view`
+  [ ] Save Changes / role mutations disabled without `roles.manage`
+[ ] With `roles.manage`:
+  [ ] Create/edit/delete role actions work
+  [ ] Invite admin user works
+  [ ] Activate/deactivate admin user works
+  [ ] Resend/revoke/reactivate invitation works
+
+Explicit permission coverage:
+[ ] `roles.view`
+[ ] `roles.manage`
+
+=== Notifications ===
+[ ] Open Notifications admin page:
+  [ ] `notifications.view` required
+  [ ] Confirm tabs are viewable when only `notifications.view` exists
+[ ] With only `notifications.view`:
+  [ ] Toggles are disabled
+  [ ] “Add Missing Types” is disabled
+  [ ] “Send Notification” is disabled
+  [ ] Create/Edit/Delete group actions are disabled
+[ ] With `notifications.manage`:
+  [ ] Toggles, seed types, send notification, and group CRUD enabled
+
+Explicit permission coverage:
+[ ] `notifications.view`
+[ ] `notifications.manage`
+
+=== Audit Logs ===
+[ ] Access Logs:
+  [ ] Visible/readable with `audit.access.view`
+  [ ] Missing permission => not visible or Access Denied
+[ ] Repeat spot checks for:
+  [ ] `audit.security.view`
+  [ ] `audit.document.view`
+  [ ] `audit.product.view`
+
+=== Document Management ===
+[ ] Standalone Document Management:
+  [ ] `document_management.view` required to access
+  [ ] `document_management.manage` required for Upload/Edit/Replace/Archive/Restore
+[ ] Confirm documents inside Notes/Application follow parent permissions (no standalone `document_management.*` requirement for those embedded flows).
+
+Explicit permission coverage:
+[ ] `document_management.view`
+[ ] `document_management.manage`
+
+=== Finance ===
+[ ] Investments page:
+  [ ] `investments.view` required
+  [ ] `investments.manage` required for mutations (if any exist)
+[ ] Bucket Balances:
+  [ ] `bucket_balances.view` required
+  [ ] `bucket_balances.manage` required for adjustments/mutations
+[ ] Repayments:
+  [ ] `repayments.view` required
+  [ ] `repayments.manage` required for mutations
+[ ] Issuer Payouts / Disbursements:
+  [ ] `disbursements.view` required to see page
+  [ ] `notes.disbursement.manage` required for payout mutation actions (generate letter, mark submitted, mark completed, Tawarruq/Shoraka workflow, edit beneficiary)
+[ ] Service Fee:
+  [ ] `service_fee.view` required
+  [ ] `service_fee.manage` required for service fee mutation actions/buttons
+[ ] Contracts:
+  [ ] `contracts.view` required
+  [ ] `contracts.manage` required for “Resign Offer” mutations
+
+Explicit permission coverage:
+[ ] `investments.view`
+[ ] `bucket_balances.view`
+[ ] `repayments.view`
+[ ] `disbursements.view`
+[ ] `service_fee.view`
+[ ] `contracts.view`
+[ ] `contracts.manage`
+[ ] Ensure “Resign Offer”:
+  [ ] In Contract Detail modal: disabled without `contracts.manage`
+  [ ] In Note Detail invoice resign: gated/disabled without `notes.manage`
+
+=== Settings ===
+
+=== Products ===
+[ ] `/settings/products`:
+  [ ] `products.view` required
+  [ ] With `products.view` only: Create/Edit/Delete disabled
+  [ ] With `products.manage`: actions enabled
+
+Explicit permission coverage:
+[ ] `products.view`
+[ ] `products.manage`
+
+=== Platform Finance Settings ===
+[ ] `/settings/platform-finance`:
+  [ ] `platform_settings.view` required
+  [ ] With `platform_settings.view` only: Save/modify disabled
+  [ ] With `platform_settings.manage`: Save/modify enabled
+
+Explicit permission coverage:
+[ ] `platform_settings.view`
+[ ] `platform_settings.manage`
+
+=== Direct URL testing (paste URLs) ===
+
+For each test role, paste these into the browser address bar. Confirm the expected outcome:
+
+[ ] `/notes`
+[ ] `/applications`
+[ ] `/settings/roles`
+[ ] `/settings/roles/configuration`
+[ ] `/settings/notifications`
+[ ] `/audit/access-logs`
+[ ] `/audit/security-logs`
+[ ] `/documents`
+[ ] `/finance/buckets`
+[ ] `/settings/products`
+[ ] `/settings/platform-finance`
+
+Expected rule:
+[ ] If required `.view` permission is missing => show Access Denied (or app’s equivalent deny UI).
+[ ] If `.view` exists but `.manage` is missing => page loads, but mutation controls are disabled.
+
+=== Backend/API spot-check (optional but recommended) ===
+
+Use any method you already have (browser devtools network tab, Postman, or your existing test harness).
+
+[ ] Read endpoint without `.view`:
+  [ ] Pick one read endpoint for a module where you can easily remove `.view` permission
+  [ ] Example: call a Notes read endpoint while missing `notes.view`
+  [ ] Expect: HTTP `403 Forbidden`
+[ ] Mutation endpoint without `.manage`:
+  [ ] Example: call a Notes mutation (record repayment/settlement/default) without `notes.repayment.manage` / `notes.settlement.manage` / `notes.default.manage` as appropriate
+  [ ] Expect: HTTP `403 Forbidden`
+[ ] With Super Admin:
+  [ ] Repeat one read and one mutation call
+  [ ] Expect: success (HTTP `200/2xx`)
+[ ] Application comment endpoint:
+  [ ] Call comment add/view while only having `applications.view`
+  [ ] Expect: success (comments allowed)
+
+=== Super Admin lockout protection ===
+
+Setup: Have exactly one active Super Admin (User A) and one other admin with a different role (User B).
+
+Role deletion
+  [ ] Open Settings > Roles > Permission Configuration
+  [ ] Try to delete the Super Admin role
+  [ ] Expected: blocked - backend returns 403, UI hides or disables the delete button
+
+Last Super Admin deactivation
+  [ ] Log in as a user with roles.manage
+  [ ] Go to Settings > Roles (admin users table)
+  [ ] Find User A (the only active Super Admin)
+  [ ] Click Deactivate on User A
+  [ ] Expected: button is disabled with tooltip "At least one active Super Admin must remain."
+  [ ] If you bypass the UI and call the API directly, expect HTTP 400
+
+Last Super Admin role change
+  [ ] In the admin users table, find User A (only active Super Admin)
+  [ ] Click the role edit icon on User A
+  [ ] Expected: edit is blocked with error "At least one active Super Admin must remain. Assign another Super Admin first."
+  [ ] If you bypass the UI and call the API directly, expect HTTP 400
+
+Second Super Admin present
+  [ ] Assign Super Admin role to User B
+  [ ] Now deactivate User A (no longer the last Super Admin)
+  [ ] Expected: deactivation succeeds
+  [ ] Confirm User B remains active with full access
+
+Pending invitations do not count
+  [ ] Have exactly one active Super Admin (User A)
+  [ ] Create a pending Super Admin invitation (do not accept it yet)
+  [ ] Attempt to deactivate User A
+  [ ] Expected: deactivation is still blocked (pending invitation does not count)
+
+Super Admin permission edit protection
+  [ ] Open Permission Configuration for the Super Admin role
+  [ ] Attempt to uncheck permissions and save
+  [ ] Expected: backend returns 403 - Super Admin retains full access regardless
+
+=== Tester notes (fill in after testing) ===
+
+[ ] Tester name:
+[ ] Date:
+[ ] Environment (local/staging/prod):
+[ ] Build/commit:
+[ ] Pass/fail summary:
+[ ] Issues found:
+[ ] Screenshots/evidence links:
+

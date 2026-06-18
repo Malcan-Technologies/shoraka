@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   useGenerateArrearsLetter,
   useGenerateDefaultLetter,
@@ -17,6 +18,8 @@ import {
 } from "../hooks/use-notes";
 
 export function LateDefaultPanel({ note }: { note: NoteDetail }) {
+  const { can } = usePermissions();
+  const canManage = can("notes.default.manage");
   const [reason, setReason] = React.useState("");
   const arrearsLetter = useGenerateArrearsLetter();
   const defaultLetter = useGenerateDefaultLetter();
@@ -85,10 +88,20 @@ export function LateDefaultPanel({ note }: { note: NoteDetail }) {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => handleLetter("arrears")} disabled={arrearsLetter.isPending}>
+          <Button
+            variant="outline"
+            onClick={() => handleLetter("arrears")}
+            disabled={arrearsLetter.isPending || !canManage}
+            title={!canManage ? "You do not have permission to perform this action." : undefined}
+          >
             Generate Arrears Letter
           </Button>
-          <Button variant="outline" onClick={() => handleLetter("default")} disabled={defaultLetter.isPending}>
+          <Button
+            variant="outline"
+            onClick={() => handleLetter("default")}
+            disabled={defaultLetter.isPending || !canManage}
+            title={!canManage ? "You do not have permission to perform this action." : undefined}
+          >
             Generate Default Letter
           </Button>
         </div>
@@ -166,7 +179,12 @@ export function LateDefaultPanel({ note }: { note: NoteDetail }) {
 
         <div className="grid gap-3 md:grid-cols-[1fr_auto]">
           <Input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Default reason" />
-          <Button variant="destructive" onClick={handleMarkDefault} disabled={markDefault.isPending}>
+          <Button
+            variant="destructive"
+            onClick={handleMarkDefault}
+            disabled={markDefault.isPending || !canManage}
+            title={!canManage ? "You do not have permission to perform this action." : undefined}
+          >
             Mark Default
           </Button>
         </div>

@@ -81,12 +81,14 @@ export function OfferSigningPanel({
   signing,
   onResign,
   resignPending,
+  canManage = true,
 }: {
   title: string;
   description: string;
   signing: OfferSigningAdminView | null | undefined;
   onResign?: () => Promise<void>;
   resignPending?: boolean;
+  canManage?: boolean;
 }) {
   const { handleViewDocument, viewDocumentPending } = useAdminS3DocumentViewDownload();
   const [confirmOpen, setConfirmOpen] = React.useState(false);
@@ -135,7 +137,8 @@ export function OfferSigningPanel({
                 size="sm"
                 className="gap-1.5"
                 onClick={() => setConfirmOpen(true)}
-                disabled={resignPending}
+                disabled={resignPending || !canManage}
+                title={!canManage ? "You do not have permission to perform this action." : undefined}
               >
                 {resignPending ? (
                   <ArrowPathIcon className="h-4 w-4 animate-spin" />

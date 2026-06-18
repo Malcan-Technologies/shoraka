@@ -246,7 +246,7 @@ router.put(
 router.get(
   "/admin/types",
   requireAuth,
-  requirePermission("notifications.manage"),
+  requirePermission("notifications.view"),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await notificationService.getAllNotificationTypes();
@@ -388,7 +388,7 @@ router.post(
 router.get(
   "/admin/logs",
   requireAuth,
-  requirePermission("notifications.manage"),
+  requirePermission("notifications.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const filters = {
@@ -413,7 +413,7 @@ router.get(
 router.get(
   "/admin/groups",
   requireAuth,
-  requirePermission("notifications.manage"),
+  requirePermission("notifications.view"),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const groups = await notificationService.getAllNotificationGroups();

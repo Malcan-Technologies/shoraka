@@ -27,6 +27,7 @@ import {
   usePendingIssuerPayouts,
   usePendingServiceFeeTrusteeLetters,
 } from "@/notes/hooks/use-notes";
+import { usePermissions } from "@/hooks/use-permissions";
 
 interface QuickActionsSectionProps {
   loading?: boolean;
@@ -39,20 +40,28 @@ export function QuickActionsSection({
   onRefresh,
   isRefreshing = false,
 }: QuickActionsSectionProps) {
-  // Fetch real pending approval count from API
-  const { data: pendingCountData, isLoading: isPendingCountLoading } = usePendingApprovalCount();
-  const { data: noteActionCountData, isLoading: isNoteActionCountLoading } = useNoteActionRequiredCount();
-  const { data: pendingRepaymentsData, isLoading: isPendingRepaymentsLoading } = usePendingRepayments();
+  const { can } = usePermissions();
+  const canOnboarding = can("onboarding.view");
+  const canApplications = can("applications.view");
+  const canNotes = can("notes.view");
+  const canRepayments = can("repayments.view");
+  const canServiceFee = can("service_fee.view");
+  const canDisbursements = can("disbursements.view");
+
+  const { data: pendingCountData, isLoading: isPendingCountLoading } = usePendingApprovalCount({ enabled: canOnboarding });
+  const { data: noteActionCountData, isLoading: isNoteActionCountLoading } = useNoteActionRequiredCount({ enabled: canNotes });
+  const { data: pendingRepaymentsData, isLoading: isPendingRepaymentsLoading } = usePendingRepayments({ enabled: canRepayments });
   const { data: pendingIssuerPayoutsData, isLoading: isPendingIssuerPayoutsLoading } =
-    usePendingIssuerPayouts();
+    usePendingIssuerPayouts({ enabled: canDisbursements });
   const { data: pendingServiceFeeLettersData, isLoading: isPendingServiceFeeLettersLoading } =
-    usePendingServiceFeeTrusteeLetters();
+    usePendingServiceFeeTrusteeLetters({ enabled: canServiceFee });
   const { data: applicationsForSidebar = [], isLoading: isApplicationsForSidebarLoading } =
-    useAdminApplicationsForSidebar();
+    useAdminApplicationsForSidebar({ enabled: canApplications });
   const { data: productsData, isLoading: isProductsLoading } = useProducts({
     page: 1,
     pageSize: 100,
     includeDeleted: true,
+    enabled: canApplications,
   });
   const pendingOnboardingCount = pendingCountData?.count ?? 0;
   const applicationNavGroups = React.useMemo(
@@ -93,6 +102,9 @@ export function QuickActionsSection({
     ? `/applications/${applicationActionQueueKey}`
     : "/applications";
 
+  const hasAnyQuickAction =
+    canOnboarding || canApplications || canNotes || canRepayments || canServiceFee || canDisbursements;
+
   return (
     <section className="space-y-4">
       <div className="flex items-start justify-between">
@@ -115,104 +127,120 @@ export function QuickActionsSection({
           </Button>
         )}
       </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 [&>*]:min-h-0">
-        <QuickActionCard
-          title="Onboarding Approval"
-          description="Review pending KYC/KYB applications"
-          count={pendingOnboardingCount}
-          countLabel="pending"
-          href="/onboarding-approval"
-          icon={ClipboardDocumentCheckIcon}
-          variant={
-            pendingOnboardingCount > 3
-              ? "urgent"
-              : pendingOnboardingCount > 0
-                ? "warning"
-                : "default"
-          }
-          loading={loading || isPendingCountLoading}
-        />
-        <QuickActionCard
-          title="Application Actions"
-          description="Review applications, send offers, and process accepted contracts"
-          count={applicationActionCount}
-          countLabel="actions"
-          href={applicationActionHref}
-          icon={DocumentCheckIcon}
-          variant={
-            applicationActionCount > 5
-              ? "urgent"
-              : applicationActionCount > 0
-                ? "warning"
-                : "default"
-          }
-          loading={loading || isApplicationsForSidebarLoading || isProductsLoading}
-        />
-        <QuickActionCard
-          title="Note Actions"
-          description="Create notes from approved invoices, publish drafts, and close funded notes"
-          count={noteActionCount}
-          countLabel="actions"
-          href="/notes"
-          icon={DocumentTextIcon}
-          variant={
-            noteActionCount > 5
-              ? "urgent"
-              : noteActionCount > 0
-                ? "warning"
-                : "default"
-          }
-          loading={loading || isNoteActionCountLoading}
-        />
-        <QuickActionCard
-          title="Pending Repayments"
-          description="Review repayment receipts awaiting reconciliation before settlement"
-          count={pendingRepaymentsCount}
-          countLabel="open"
-          href="/finance/repayments"
-          icon={ArrowDownTrayIcon}
-          variant={
-            pendingRepaymentsCount > 5
-              ? "urgent"
-              : pendingRepaymentsCount > 0
-                ? "warning"
-                : "default"
-          }
-          loading={loading || isPendingRepaymentsLoading}
-        />
-        <QuickActionCard
-          title="Service Fee Instructions"
-          description="Posted settlements with a service fee still in the trustee instruction workflow"
-          count={pendingServiceFeeLettersCount}
-          countLabel="pending"
-          href="/finance/service-fee-trustee-letters"
-          icon={ArrowsRightLeftIcon}
-          variant={
-            pendingServiceFeeLettersCount > 5
-              ? "urgent"
-              : pendingServiceFeeLettersCount > 0
-                ? "warning"
-                : "default"
-          }
-          loading={loading || isPendingServiceFeeLettersLoading}
-        />
-        <QuickActionCard
-          title="Issuer Payouts"
-          description="Issuer residual refunds in flight — generate letters and mark disbursed"
-          count={pendingIssuerPayoutsCount}
-          countLabel="open"
-          href="/finance/issuer-payouts"
-          icon={ArrowUpTrayIcon}
-          variant={
-            pendingIssuerPayoutsCount > 5
-              ? "urgent"
-              : pendingIssuerPayoutsCount > 0
-                ? "warning"
-                : "default"
-          }
-          loading={loading || isPendingIssuerPayoutsLoading}
-        />
-      </div>
+      {!hasAnyQuickAction ? (
+        <p className="text-sm text-muted-foreground">No quick actions available for your role.</p>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 [&>*]:min-h-0">
+          {canOnboarding && (
+            <QuickActionCard
+              title="Onboarding Approval"
+              description="Review pending KYC/KYB applications"
+              count={pendingOnboardingCount}
+              countLabel="pending"
+              href="/onboarding-approval"
+              icon={ClipboardDocumentCheckIcon}
+              variant={
+                pendingOnboardingCount > 3
+                  ? "urgent"
+                  : pendingOnboardingCount > 0
+                    ? "warning"
+                    : "default"
+              }
+              loading={loading || isPendingCountLoading}
+            />
+          )}
+          {canApplications && (
+            <QuickActionCard
+              title="Application Actions"
+              description="Review applications, send offers, and process accepted contracts"
+              count={applicationActionCount}
+              countLabel="actions"
+              href={applicationActionHref}
+              icon={DocumentCheckIcon}
+              variant={
+                applicationActionCount > 5
+                  ? "urgent"
+                  : applicationActionCount > 0
+                    ? "warning"
+                    : "default"
+              }
+              loading={loading || isApplicationsForSidebarLoading || isProductsLoading}
+            />
+          )}
+          {canNotes && (
+            <QuickActionCard
+              title="Note Actions"
+              description="Create notes from approved invoices, publish drafts, and close funded notes"
+              count={noteActionCount}
+              countLabel="actions"
+              href="/notes"
+              icon={DocumentTextIcon}
+              variant={
+                noteActionCount > 5
+                  ? "urgent"
+                  : noteActionCount > 0
+                    ? "warning"
+                    : "default"
+              }
+              loading={loading || isNoteActionCountLoading}
+            />
+          )}
+          {canRepayments && (
+            <QuickActionCard
+              title="Pending Repayments"
+              description="Review repayment receipts awaiting reconciliation before settlement"
+              count={pendingRepaymentsCount}
+              countLabel="open"
+              href="/finance/repayments"
+              icon={ArrowDownTrayIcon}
+              variant={
+                pendingRepaymentsCount > 5
+                  ? "urgent"
+                  : pendingRepaymentsCount > 0
+                    ? "warning"
+                    : "default"
+              }
+              loading={loading || isPendingRepaymentsLoading}
+            />
+          )}
+          {canServiceFee && (
+            <QuickActionCard
+              title="Service Fee Instructions"
+              description="Posted settlements with a service fee still in the trustee instruction workflow"
+              count={pendingServiceFeeLettersCount}
+              countLabel="pending"
+              href="/finance/service-fee-trustee-letters"
+              icon={ArrowsRightLeftIcon}
+              variant={
+                pendingServiceFeeLettersCount > 5
+                  ? "urgent"
+                  : pendingServiceFeeLettersCount > 0
+                    ? "warning"
+                    : "default"
+              }
+              loading={loading || isPendingServiceFeeLettersLoading}
+            />
+          )}
+          {canDisbursements && (
+            <QuickActionCard
+              title="Issuer Payouts"
+              description="Issuer residual refunds in flight — generate letters and mark disbursed"
+              count={pendingIssuerPayoutsCount}
+              countLabel="open"
+              href="/finance/issuer-payouts"
+              icon={ArrowUpTrayIcon}
+              variant={
+                pendingIssuerPayoutsCount > 5
+                  ? "urgent"
+                  : pendingIssuerPayoutsCount > 0
+                    ? "warning"
+                    : "default"
+              }
+              loading={loading || isPendingIssuerPayoutsLoading}
+            />
+          )}
+        </div>
+      )}
     </section>
   );
 }

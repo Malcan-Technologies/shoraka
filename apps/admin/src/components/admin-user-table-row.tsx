@@ -34,6 +34,7 @@ interface AdminUserTableRowProps {
   availableRoles: AdminRoleConfigRecord[];
   onUpdate: (userId: string, updates: Partial<AdminUser>) => void;
   canManageRoles: boolean;
+  activeSuperAdminCount?: number;
 }
 
 function getRoleClasses(
@@ -54,6 +55,7 @@ export function AdminUserTableRow({
   availableRoles,
   onUpdate,
   canManageRoles,
+  activeSuperAdminCount = 0,
 }: AdminUserTableRowProps) {
   const [isEditingRole, setIsEditingRole] = React.useState(false);
   const currentRole = user.admin?.role_description || null;
@@ -140,6 +142,9 @@ export function AdminUserTableRow({
   const roleRecord = role ? selectableRoles.find((roleOption) => roleOption.key === role) : null;
   const roleClasses = role ? getRoleClasses(role, roleRecord?.badgeColor) : null;
 
+  const isLastSuperAdmin =
+    role === "SUPER_ADMIN" && status === "ACTIVE" && activeSuperAdminCount <= 1;
+
   const handleStartEditRole = () => {
     if (!canManageRoles) {
       toast.error("Cannot edit role", {
@@ -154,6 +159,15 @@ export function AdminUserTableRow({
       });
       return;
     }
+
+    if (isLastSuperAdmin) {
+      toast.error("Cannot change role", {
+        description:
+          "At least one active Super Admin must remain. Assign another Super Admin first.",
+      });
+      return;
+    }
+
     setIsEditingRole(true);
   };
 
@@ -308,7 +322,12 @@ export function AdminUserTableRow({
             variant="outline"
             size="sm"
             onClick={handleToggleStatus}
-            disabled={deactivateMutation.isPending}
+            disabled={deactivateMutation.isPending || isLastSuperAdmin}
+            title={
+              isLastSuperAdmin
+                ? "At least one active Super Admin must remain."
+                : undefined
+            }
             className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20"
           >
             <ShieldExclamationIcon className="size-4" />

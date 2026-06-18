@@ -14,6 +14,7 @@ interface AdminUsersTableProps {
   onPageChange: (page: number) => void;
   onUpdateUser: (userId: string, updates: Partial<AdminUser>) => void;
   canManageRoles: boolean;
+  activeSuperAdminCount?: number;
 }
 
 function TableSkeleton() {
@@ -57,6 +58,7 @@ export function AdminUsersTable({
   onPageChange,
   onUpdateUser,
   canManageRoles,
+  activeSuperAdminCount = 0,
 }: AdminUsersTableProps) {
 
 
@@ -94,6 +96,7 @@ export function AdminUsersTable({
                       availableRoles={availableRoles}
                       onUpdate={onUpdateUser}
                       canManageRoles={canManageRoles}
+                      activeSuperAdminCount={activeSuperAdminCount}
                     />
                   ))
               )}

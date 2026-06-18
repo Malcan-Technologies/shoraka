@@ -3,6 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, Skeleton } from "@cashsouk/ui";
+import { usePermissions } from "@/hooks/use-permissions";
+import type { AdminPermission } from "@cashsouk/types";
 import {
   ArrowRightIcon,
   BanknotesIcon,
@@ -83,7 +85,7 @@ interface OperationsSectionProps {
   notes?: NoteDashboardMetrics;
 }
 
-function StageCard({ stage, isDark }: { stage: StageMetric; isDark: boolean }) {
+function StageCard({ stage, isDark, canNavigate }: { stage: StageMetric; isDark: boolean; canNavigate: boolean }) {
   const Icon = stage.icon;
   const known = stage.inFlight + stage.done + stage.lost;
   const segments: { key: BucketKey; label: string; n: number }[] = [
@@ -92,11 +94,11 @@ function StageCard({ stage, isDark }: { stage: StageMetric; isDark: boolean }) {
     { key: "lost", label: stage.lostLabel, n: stage.lost },
   ];
 
-  return (
-    <Link
-      href={stage.href}
-      className="group flex h-full flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:border-primary/40 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
+  const baseClassName = "group flex h-full flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  const navClassName = canNavigate ? `${baseClassName} hover:border-primary/40 hover:bg-muted/30` : `${baseClassName} cursor-default`;
+
+  const inner = (
+    <>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
           <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />
@@ -161,8 +163,18 @@ function StageCard({ stage, isDark }: { stage: StageMetric; isDark: boolean }) {
           </div>
         ))}
       </dl>
-    </Link>
+    </>
   );
+
+  if (canNavigate) {
+    return (
+      <Link href={stage.href} className={navClassName}>
+        {inner}
+      </Link>
+    );
+  }
+
+  return <div className={navClassName}>{inner}</div>;
 }
 
 function PipelineSkeleton() {
@@ -192,6 +204,7 @@ export function OperationsSection({
 }: OperationsSectionProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
+  const { can } = usePermissions();
 
   if (loading) return <PipelineSkeleton />;
 
@@ -266,6 +279,13 @@ export function OperationsSection({
     },
   ];
 
+  const stageNavPermissions: Record<StageMetric["key"], AdminPermission> = {
+    onboarding: "onboarding.view",
+    applications: "applications.view",
+    contracts: "contracts.view",
+    notes: "notes.view",
+  };
+
   const totalActionRequired = stages.reduce((sum, s) => sum + s.actionRequired, 0);
 
   return (
@@ -295,7 +315,7 @@ export function OperationsSection({
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] xl:items-stretch">
           {stages.map((stage, i) => (
             <React.Fragment key={stage.key}>
-              <StageCard stage={stage} isDark={isDark} />
+              <StageCard stage={stage} isDark={isDark} canNavigate={can(stageNavPermissions[stage.key])} />
               {i < stages.length - 1 ? (
                 <div
                   className="hidden items-center justify-center text-muted-foreground xl:flex"

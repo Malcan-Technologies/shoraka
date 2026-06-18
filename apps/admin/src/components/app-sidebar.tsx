@@ -191,15 +191,50 @@ const navAudit = [
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { can } = usePermissions();
-  const canManageRoles = can("roles.manage");
-  const canManageNotifications = can("notifications.manage");
-  const { data: pendingCountData } = usePendingApprovalCount();
-  const { data: noteActionCountData } = useNoteActionRequiredCount();
-  const { data: pendingRepaymentsData } = usePendingRepayments();
-  const { data: pendingIssuerPayoutsData } = usePendingIssuerPayouts();
-  const { data: pendingServiceFeeLettersData } = usePendingServiceFeeTrusteeLetters();
-  const { data: productsData } = useProducts({ page: 1, pageSize: 100, includeDeleted: true });
-  const { data: applicationsForSidebar = [] } = useAdminApplicationsForSidebar();
+  const canViewDashboard = can("dashboard.view");
+  const canViewOnboarding = can("onboarding.view");
+  const canViewApplications = can("applications.view");
+  const canViewContracts = can("contracts.view");
+  const canViewNotes = can("notes.view");
+  const canViewInvestments = can("investments.view");
+
+  const canViewBucketBalances = can("bucket_balances.view");
+  const canViewRepayments = can("repayments.view");
+  const canViewServiceFee = can("service_fee.view");
+  const canViewDisbursements = can("disbursements.view");
+
+  const canViewUsers = can("users.view");
+  const canViewOrganizations = can("organizations.view");
+  const canViewDocuments = can("document_management.view");
+
+  const canViewNotifications = can("notifications.view");
+  const canViewProducts = can("products.view");
+  const canViewPlatformFinance = can("platform_settings.view");
+  const canViewRoles = can("roles.view");
+
+  const canViewAuditAccess = can("audit.access.view");
+  const canViewAuditSecurity = can("audit.security.view");
+  const canViewAuditDocument = can("audit.document.view");
+  const canViewAuditProduct = can("audit.product.view");
+
+  const { data: pendingCountData } = usePendingApprovalCount({ enabled: canViewOnboarding });
+  const { data: noteActionCountData } = useNoteActionRequiredCount({ enabled: canViewNotes });
+  const { data: pendingRepaymentsData } = usePendingRepayments({ enabled: canViewRepayments });
+  const { data: pendingIssuerPayoutsData } = usePendingIssuerPayouts({ enabled: canViewDisbursements });
+  const { data: pendingServiceFeeLettersData } = usePendingServiceFeeTrusteeLetters({
+    enabled: canViewServiceFee,
+  });
+
+  const { data: productsData } = useProducts({
+    page: 1,
+    pageSize: 100,
+    includeDeleted: true,
+    enabled: canViewApplications,
+  });
+
+  const { data: applicationsForSidebar = [] } = useAdminApplicationsForSidebar({
+    enabled: canViewApplications,
+  });
 
   const badges: Record<string, number> = {
     onboardingApproval: pendingCountData?.count || 0,
@@ -247,14 +282,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/"} tooltip="Dashboard">
-                  <Link href="/">
-                    <HomeIcon className="h-4 w-4" />
-                    <span>Dashboard</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {canViewDashboard ? (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname === "/"} tooltip="Dashboard">
+                    <Link href="/">
+                      <HomeIcon className="h-4 w-4" />
+                      <span>Dashboard</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ) : null}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -264,6 +301,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupContent>
             <SidebarMenu>
               {dynamicNavLifecycle.map((item) => {
+                const canShow =
+                  (item.title === "Onboarding Approval" && canViewOnboarding) ||
+                  (item.title === "Applications" && canViewApplications) ||
+                  (item.title === "Contracts" && canViewContracts) ||
+                  (item.title === "Notes" && canViewNotes) ||
+                  (item.title === "Investments" && canViewInvestments);
+
+                if (!canShow) return null;
+
                 const Icon = item.icon;
                 const badgeCount = "badgeKey" in item && item.badgeKey ? badges[item.badgeKey] : 0;
 
@@ -437,6 +483,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupContent>
             <SidebarMenu>
               {navFinance.map((item) => {
+                const canShow =
+                  (item.title === "Bucket Balances" && canViewBucketBalances) ||
+                  (item.title === "Repayments" && canViewRepayments) ||
+                  (item.title === "Service Fee" && canViewServiceFee) ||
+                  (item.title === "Issuer Payouts" && canViewDisbursements);
+
+                if (!canShow) return null;
+
                 const Icon = item.icon;
                 const badgeCount = "badgeKey" in item && item.badgeKey ? badges[item.badgeKey] : 0;
                 return (
@@ -491,8 +545,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                             {item.items
                               .filter(
                                 (subItem) =>
-                                  (subItem.url !== "/settings/roles" || canManageRoles) &&
-                                  (subItem.url !== "/settings/notifications" || canManageNotifications)
+                                  (subItem.url !== "/settings/roles" || canViewRoles) &&
+                                  (subItem.url !== "/settings/notifications" || canViewNotifications) &&
+                                  (subItem.url !== "/settings/products" || canViewProducts) &&
+                                  (subItem.url !== "/settings/platform-finance" || canViewPlatformFinance) &&
+                                  (subItem.url !== "/settings/general" || canViewPlatformFinance) &&
+                                  (subItem.url !== "/settings/security" || canViewPlatformFinance)
                               )
                               .map((subItem) => (
                               <SidebarMenuSubItem key={subItem.title}>
@@ -509,6 +567,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     </Collapsible>
                   );
                 }
+
+                const canShow =
+                  (item.title === "Users" && canViewUsers) ||
+                  (item.title === "Organizations" && canViewOrganizations) ||
+                  (item.title === "Documents" && canViewDocuments);
+
+                if (!canShow && item.title !== "Help") return null;
 
                 return (
                   <SidebarMenuItem key={item.title}>
@@ -534,6 +599,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupContent>
             <SidebarMenu>
               {navAudit.map((item) => {
+                const canShow =
+                  (item.url === "/audit/access-logs" && canViewAuditAccess) ||
+                  (item.url === "/audit/security-logs" && canViewAuditSecurity) ||
+                  (item.url === "/audit/document-logs" && canViewAuditDocument) ||
+                  (item.url === "/audit/product-logs" && canViewAuditProduct);
+
+                if (!canShow) return null;
+
                 const Icon = item.icon;
                 return (
                   <SidebarMenuItem key={item.title}>

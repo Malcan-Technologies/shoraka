@@ -12,6 +12,7 @@ import { invalidateAdminApplicationNavQueries } from "@/lib/admin-application-na
 import { useProducts } from "@/hooks/use-products";
 import { productName, resolveDisplayProductForNav } from "@/app/settings/products/product-utils";
 import { useRouter, useParams } from "next/navigation";
+import { RequirePermission } from "@/components/require-permission";
 import {
   BanknotesIcon,
 } from "@heroicons/react/24/outline";
@@ -97,7 +98,8 @@ export default function DynamicApplicationsPage() {
   };
 
   return (
-    <>
+    <RequirePermission permission="applications.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -155,6 +157,7 @@ export default function DynamicApplicationsPage() {
           </section>
         </div>
       </div>
-    </>
+      </>
+    </RequirePermission>
   );
 }
