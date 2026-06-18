@@ -350,9 +350,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          {hasVisibleLifecycleNav ? (
-            <>
+        {hasVisibleLifecycleNav ? (
+          <SidebarGroup>
+            {hasVisibleLifecycleNav ? (
+              <>
               <SidebarGroupLabel>Lifecycle</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
@@ -532,13 +533,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   })}
                 </SidebarMenu>
               </SidebarGroupContent>
-            </>
-          ) : null}
-        </SidebarGroup>
+              </>
+            ) : null}
+          </SidebarGroup>
+        ) : null}
 
-        <SidebarGroup>
-          {hasVisibleFinanceNav ? (
-            <>
+        {hasVisibleFinanceNav ? (
+          <SidebarGroup>
+            {hasVisibleFinanceNav ? (
+              <>
               <SidebarGroupLabel>Finance</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
@@ -575,13 +578,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   })}
                 </SidebarMenu>
               </SidebarGroupContent>
-            </>
-          ) : null}
-        </SidebarGroup>
+              </>
+            ) : null}
+          </SidebarGroup>
+        ) : null}
 
-        <SidebarGroup>
-          {hasVisiblePlatformNav ? (
-            <>
+        {hasVisiblePlatformNav ? (
+          <SidebarGroup>
+            {hasVisiblePlatformNav ? (
+              <>
               <SidebarGroupLabel>Platform</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
@@ -658,13 +663,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   })}
                 </SidebarMenu>
               </SidebarGroupContent>
-            </>
-          ) : null}
-        </SidebarGroup>
+              </>
+            ) : null}
+          </SidebarGroup>
+        ) : null}
 
-        <SidebarGroup>
-          {hasVisibleAuditNav ? (
-            <>
+        {hasVisibleAuditNav ? (
+          <SidebarGroup>
+            {hasVisibleAuditNav ? (
+              <>
               <SidebarGroupLabel>Audit</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
@@ -695,9 +702,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   })}
                 </SidebarMenu>
               </SidebarGroupContent>
-            </>
-          ) : null}
-        </SidebarGroup>
+              </>
+            ) : null}
+          </SidebarGroup>
+        ) : null}
       </SidebarContent>
       <SidebarFooter>
         <NavUser />
