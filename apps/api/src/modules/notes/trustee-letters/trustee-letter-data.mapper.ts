@@ -51,6 +51,24 @@ function accountRow(account: TrusteeAccountDetails, amount: number, remarks: str
   };
 }
 
+function addPaymentRowIfPositive(input: {
+  rows: TrusteePaymentRow[];
+  rowNo: number;
+  nameOfPayee: string;
+  account: TrusteeAccountDetails;
+  amount: number;
+  remarks: string;
+}): number {
+  if (!Number.isFinite(input.amount) || input.amount <= 0.005) return input.rowNo;
+  input.rows.push({
+    no: input.rowNo,
+    ...accountRow(input.account, input.amount, input.remarks),
+    nameOfPayee: input.nameOfPayee,
+    remarks: input.remarks,
+  });
+  return input.rowNo + 1;
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -81,9 +99,11 @@ export function mapDisbursementLetterData(input: {
   config: ResolvedTrusteeConfig;
   referenceDate?: Date;
 }): TrusteeLetterData {
-  const { letterConfig, bucketAccounts, platformAccounts } = input.config;
+  const { letterConfig, bucketAccounts } = input.config;
   const debit = bucketAccounts.INVESTOR_POOL;
+  const operatingAccount = bucketAccounts.OPERATING_ACCOUNT;
   const platformFee = numberFromMeta(input.metadata, "platformFeeAmount");
+  const successFee = numberFromMeta(input.metadata, "successFeeAmount");
   const facilityFee = numberFromMeta(input.metadata, "facilityFeeCharged");
   const netDisbursement = numberFromMeta(input.metadata, "netIssuerDisbursement") || input.withdrawalAmount;
 
@@ -101,26 +121,45 @@ export function mapDisbursementLetterData(input: {
     });
   }
 
-  if (platformFee > 0.005) {
-    const feeAccount = platformAccounts.platformFee.displayName
-      ? platformAccounts.platformFee
-      : platformAccounts.serviceFee;
-    rows.push({
-      no: rowNo++,
-      ...accountRow(feeAccount, platformFee, "Success Fees to Platform"),
+  if (platformFee > 0.005 && successFee > 0.005) {
+    rowNo = addPaymentRowIfPositive({
+      rows,
+      rowNo,
+      nameOfPayee: "Platform Fee to Platform",
+      account: operatingAccount,
+      amount: platformFee,
+      remarks: "Platform Fee to Platform",
+    });
+    rowNo = addPaymentRowIfPositive({
+      rows,
+      rowNo,
+      nameOfPayee: "Success Fee to Platform",
+      account: operatingAccount,
+      amount: successFee,
+      remarks: "Success Fee to Platform",
+    });
+  } else if (platformFee > 0.005 || successFee > 0.005) {
+    // TODO: render platform fee and success fee as separate rows once upstream disbursement metadata
+    // always stores separate amount fields for both categories.
+    const combinedFee = platformFee + successFee;
+    rowNo = addPaymentRowIfPositive({
+      rows,
+      rowNo,
       nameOfPayee: "Success Fees to Platform",
+      account: operatingAccount,
+      amount: combinedFee,
       remarks: "Success Fees to Platform",
     });
   }
 
-  if (facilityFee > 0.005) {
-    rows.push({
-      no: rowNo++,
-      ...accountRow(platformAccounts.facilityFee, facilityFee, "Facility Fee to Platform"),
-      nameOfPayee: "Facility Fee to Platform",
-      remarks: "Facility Fee to Platform",
-    });
-  }
+  rowNo = addPaymentRowIfPositive({
+    rows,
+    rowNo,
+    nameOfPayee: "Facility Fee to Platform",
+    account: operatingAccount,
+    amount: facilityFee,
+    remarks: "Facility Fee to Platform",
+  });
 
   const now = input.referenceDate ?? new Date();
   return {
@@ -188,18 +227,21 @@ export function mapRepaymentLetterData(input: {
   investorPrincipal: number;
   investorProfitNet: number;
   serviceFeeAmount: number;
+  platformFeeAmount?: number;
   tawidhAccountAmount: number;
   gharamahAmount: number;
   issuerResidualAmount: number;
+  issuerBeneficiarySnapshot?: Record<string, unknown> | null;
+  issuerOrganizationName?: string | null;
   borrowerEntries: RepaymentBorrowerEntry[];
   repaymentAccountName: string;
   config: ResolvedTrusteeConfig;
   referenceDate?: Date;
 }): TrusteeLetterData {
-  const { letterConfig, bucketAccounts, platformAccounts } = input.config;
+  const { letterConfig, bucketAccounts } = input.config;
   const debit = bucketAccounts.REPAYMENT_POOL;
   const investorPool = bucketAccounts.INVESTOR_POOL;
-  const serviceFeeAccount = platformAccounts.serviceFee;
+  const operatingAccount = bucketAccounts.OPERATING_ACCOUNT;
 
   const investorRepayment = input.investorPrincipal + input.investorProfitNet;
 
@@ -217,16 +259,25 @@ export function mapRepaymentLetterData(input: {
     });
   }
 
-  if (input.serviceFeeAmount > 0.005) {
-    rows.push({
-      no: rowNo++,
-      nameOfPayee: "Service Fee to Platform",
-      accountNo: serviceFeeAccount.accountNumber,
-      banker: serviceFeeAccount.bankName,
-      amount: input.serviceFeeAmount,
-      remarks: "Service Fee to Platform",
-    });
-  }
+  rowNo = addPaymentRowIfPositive({
+    rows,
+    rowNo,
+    nameOfPayee: "Service Fee to Platform",
+    account: operatingAccount,
+    amount: input.serviceFeeAmount,
+    remarks: "Service Fee to Platform",
+  });
+
+  // TODO: no separate platform-fee amount is currently persisted in NoteSettlement.
+  // Keep this optional for forward compatibility when upstream starts storing it.
+  rowNo = addPaymentRowIfPositive({
+    rows,
+    rowNo,
+    nameOfPayee: "Platform Fee to Platform",
+    account: operatingAccount,
+    amount: input.platformFeeAmount ?? 0,
+    remarks: "Platform Fee to Platform",
+  });
 
   if (input.tawidhAccountAmount > 0.005) {
     const tawidh = bucketAccounts.TAWIDH_ACCOUNT;
@@ -236,7 +287,7 @@ export function mapRepaymentLetterData(input: {
       accountNo: tawidh.accountNumber,
       banker: tawidh.bankName,
       amount: input.tawidhAccountAmount,
-      remarks: tawidh.remarks || "Ta'widh",
+      remarks: "Ta'widh / late payment compensation",
     });
   }
 
@@ -248,20 +299,43 @@ export function mapRepaymentLetterData(input: {
       accountNo: gharamah.accountNumber,
       banker: gharamah.bankName,
       amount: input.gharamahAmount,
-      remarks: gharamah.remarks || "Gharamah",
+      remarks: "Gharamah / penalty charge",
     });
   }
 
   if (input.issuerResidualAmount > 0.005) {
-    const issuerPayable = bucketAccounts.ISSUER_PAYABLE;
-    rows.push({
-      no: rowNo++,
-      nameOfPayee: issuerPayable.displayName || "Issuer Residual Refund",
-      accountNo: issuerPayable.accountNumber,
-      banker: issuerPayable.bankName,
-      amount: input.issuerResidualAmount,
-      remarks: issuerPayable.remarks || "Issuer Residual Refund",
-    });
+    const issuerSnapshot = asRecord(input.issuerBeneficiarySnapshot);
+    const issuerAccountNumber = issuerSnapshot
+      ? beneficiaryField(issuerSnapshot, "account_number")
+      : "";
+    const issuerBank = issuerSnapshot ? beneficiaryField(issuerSnapshot, "bank_name") : "";
+    const issuerAccountHolder = issuerSnapshot
+      ? beneficiaryField(issuerSnapshot, "account_holder")
+      : "";
+
+    if (issuerAccountNumber && issuerBank) {
+      rows.push({
+        no: rowNo++,
+        nameOfPayee:
+          issuerAccountHolder ||
+          input.issuerOrganizationName ||
+          "Residual refund to Issuer",
+        accountNo: issuerAccountNumber,
+        banker: issuerBank,
+        amount: input.issuerResidualAmount,
+        remarks: "Residual refund to Issuer",
+      });
+    } else {
+      const issuerPayable = bucketAccounts.ISSUER_PAYABLE;
+      rows.push({
+        no: rowNo++,
+        nameOfPayee: issuerPayable.displayName || "Residual refund to Issuer",
+        accountNo: issuerPayable.accountNumber,
+        banker: issuerPayable.bankName,
+        amount: input.issuerResidualAmount,
+        remarks: "Residual refund to Issuer",
+      });
+    }
   }
 
   const now = input.referenceDate ?? new Date();
@@ -269,7 +343,7 @@ export function mapRepaymentLetterData(input: {
     borrowerEntries: input.borrowerEntries,
     repaymentAccountName: input.repaymentAccountName || debit.accountName || debit.displayName || "Repayment Pool",
     investorPoolAccountName: investorPool.accountName || investorPool.displayName || "Investor Pool",
-    serviceFeeAccountNumber: serviceFeeAccount.accountNumber || "—",
+    serviceFeeAccountNumber: operatingAccount.accountNumber || "—",
   });
 
   return {

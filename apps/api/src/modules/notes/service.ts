@@ -118,6 +118,7 @@ import {
   mapDisbursementLetterData,
   mapInvestorWithdrawalLetterData,
   mapRepaymentLetterData,
+  numberFromMeta,
 } from "./trustee-letters/trustee-letter-data.mapper";
 import { renderTrusteeLetterPdf } from "./trustee-letters/trustee-letter-pdf.renderer";
 import type {
@@ -4159,6 +4160,17 @@ export class NoteService {
 
     const receiptAmount = payment ? toNumber(payment.receipt_amount) : toNumber(settlement.gross_receipt_amount);
     const receiptDate = payment?.receipt_date ?? settlement.posted_at ?? new Date();
+    const settlementPreview = asRecord(settlement.preview_snapshot);
+    const platformFeeAmount =
+      numberFromMeta(settlementPreview, "platformFeeAmount") ||
+      numberFromMeta(settlementPreview, "platform_fee_amount");
+
+    const issuerOrg = note.issuer_organization_id
+      ? await prisma.issuerOrganization.findUnique({
+          where: { id: note.issuer_organization_id },
+          select: { id: true, name: true, bank_account_details: true },
+        })
+      : null;
 
     let borrowerEntries = buildRepaymentBorrowerEntries({
       payerName,
@@ -4183,9 +4195,12 @@ export class NoteService {
       investorPrincipal: toNumber(settlement.investor_principal),
       investorProfitNet: toNumber(settlement.investor_profit_net),
       serviceFeeAmount: feeAmount,
+      platformFeeAmount,
       tawidhAccountAmount: tawidhAmount,
       gharamahAmount,
       issuerResidualAmount: issuerResidual,
+      issuerBeneficiarySnapshot: issuerOrg ? buildBeneficiarySnapshot(issuerOrg) : null,
+      issuerOrganizationName: issuerOrg?.name ?? null,
       borrowerEntries,
       repaymentAccountName,
       config: trusteeConfig,
