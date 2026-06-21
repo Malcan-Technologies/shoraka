@@ -71,6 +71,8 @@ import {
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import type { SiteDocumentType, SiteDocumentResponse } from "@cashsouk/types";
+import { RequirePermission } from "../../components/require-permission";
+import { usePermissions } from "../../hooks/use-permissions";
 
 const DOCUMENT_TYPES: { value: SiteDocumentType; label: string }[] = [
   { value: "TERMS_AND_CONDITIONS", label: "Terms & Conditions" },
@@ -105,6 +107,8 @@ function getDocumentTypeLabel(type: SiteDocumentType): string {
 const ITEMS_PER_PAGE = 10;
 
 export default function DocumentsPage() {
+  const { can } = usePermissions();
+  const canManage = can("document_management.manage");
   const queryClient = useQueryClient();
   const [page, setPage] = React.useState(1);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -348,7 +352,8 @@ export default function DocumentsPage() {
   }, [searchQuery, typeFilter, includeInactive]);
 
   return (
-    <>
+    <RequirePermission permission="document_management.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -368,7 +373,12 @@ export default function DocumentsPage() {
                 Upload and manage site-wide documents like Terms & Conditions, Privacy Policy, etc.
               </p>
             </div>
-            <Button variant="action" onClick={() => setUploadDialogOpen(true)}>
+            <Button
+              variant="action"
+              onClick={() => setUploadDialogOpen(true)}
+              disabled={!canManage}
+              title={!canManage ? "You do not have permission to perform this action." : undefined}
+            >
               <PlusIcon className="h-4 w-4 mr-2" />
               Upload Document
             </Button>
@@ -563,7 +573,8 @@ export default function DocumentsPage() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => openEditDialog(doc)}
-                                title="Edit"
+                                title={!canManage ? "You do not have permission to perform this action." : "Edit"}
+                                disabled={!canManage}
                               >
                                 <PencilSquareIcon className="h-4 w-4" />
                               </Button>
@@ -571,7 +582,8 @@ export default function DocumentsPage() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => openReplaceDialog(doc)}
-                                title="Replace File"
+                                title={!canManage ? "You do not have permission to perform this action." : "Replace File"}
+                                disabled={!canManage}
                               >
                                 <ArrowUpTrayIcon className="h-4 w-4" />
                               </Button>
@@ -579,7 +591,8 @@ export default function DocumentsPage() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleArchive(doc.id, doc.title)}
-                                title="Archive"
+                                title={!canManage ? "You do not have permission to perform this action." : "Archive"}
+                                disabled={!canManage}
                                 className="text-muted-foreground hover:text-foreground"
                               >
                                 <ArchiveBoxIcon className="h-4 w-4" />
@@ -590,7 +603,8 @@ export default function DocumentsPage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleRestore(doc.id, doc.title)}
-                              title="Restore"
+                              title={!canManage ? "You do not have permission to perform this action." : "Restore"}
+                              disabled={!canManage}
                             >
                               <ArrowUturnLeftIcon className="h-4 w-4" />
                             </Button>
@@ -850,6 +864,7 @@ export default function DocumentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+      </>
+    </RequirePermission>
   );
 }

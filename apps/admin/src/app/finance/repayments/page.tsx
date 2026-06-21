@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { usePendingRepayments } from "@/notes/hooks/use-notes";
+import { RequirePermission } from "@/components/require-permission";
 
 const SOURCE_LABEL: Record<string, string> = {
   PAYMASTER: "Paymaster",
@@ -72,7 +73,8 @@ export default function PendingRepaymentsPage() {
   ).length;
 
   return (
-    <>
+    <RequirePermission permission="repayments.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -237,6 +239,7 @@ export default function PendingRepaymentsPage() {
           </section>
         </div>
       </div>
-    </>
+      </>
+    </RequirePermission>
   );
 }

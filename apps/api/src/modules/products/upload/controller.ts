@@ -5,6 +5,7 @@
  */
 import { Router, Request, Response, NextFunction } from "express";
 import { AppError } from "../../../lib/http/error-handler";
+import { requirePermission } from "../../../lib/auth/middleware";
 import { generatePresignedUploadUrl, generateProductS3Key, getFileExtension, parseProductS3Key } from "../../../lib/s3/client";
 import type { ProductRepository } from "../repository";
 import { productUploadImageUrlBodySchema, productUploadTemplateUrlBodySchema } from "../schemas";
@@ -52,85 +53,97 @@ function getExistingTemplateKeyFromWorkflow(
 export function createProductUploadsRouter(productRepository: ProductRepository): Router {
   const router = Router({ mergeParams: true });
 
-  router.post("/upload-image-url", async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const productId = req.params.id as string;
-      const validated = productUploadImageUrlBodySchema.parse(req.body);
-      const product = await productRepository.findById(productId);
-      if (!product) throw new AppError(404, "NOT_FOUND", "Product not found");
+  router.post(
+    "/upload-image-url",
+    requirePermission("products.manage"),
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const productId = req.params.id as string;
+        const validated = productUploadImageUrlBodySchema.parse(req.body);
+        const product = await productRepository.findById(productId);
+        if (!product) throw new AppError(404, "NOT_FOUND", "Product not found");
 
-      const workflow = (product.workflow as unknown[]) ?? [];
-      const existingKey = getExistingImageKeyFromWorkflow(workflow);
-      const ext = getFileExtension(validated.fileName) || "png";
-      const keyVersion = existingKey
-        ? (() => {
-            const parsed = parseProductS3Key(existingKey);
-            return parsed ? parsed.version + 1 : 1;
-          })()
-        : 1;
-      const key = generateProductS3Key({
-        productId,
-        version: keyVersion,
-        extension: ext,
-        existingKey: existingKey || undefined,
-      });
-      const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
-        key,
-        contentType: validated.contentType,
-      });
-      res.json({
-        success: true,
-        data: { uploadUrl, s3Key, expiresIn },
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(
-        error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error
-      );
+        const workflow = (product.workflow as unknown[]) ?? [];
+        const existingKey = getExistingImageKeyFromWorkflow(workflow);
+        const ext = getFileExtension(validated.fileName) || "png";
+        const keyVersion = existingKey
+          ? (() => {
+              const parsed = parseProductS3Key(existingKey);
+              return parsed ? parsed.version + 1 : 1;
+            })()
+          : 1;
+        const key = generateProductS3Key({
+          productId,
+          version: keyVersion,
+          extension: ext,
+          existingKey: existingKey || undefined,
+        });
+        const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
+          key,
+          contentType: validated.contentType,
+        });
+        res.json({
+          success: true,
+          data: { uploadUrl, s3Key, expiresIn },
+          correlationId: res.locals.correlationId,
+        });
+      } catch (error) {
+        next(
+          error instanceof Error
+            ? new AppError(400, "VALIDATION_ERROR", error.message)
+            : error
+        );
+      }
     }
-  });
+  );
 
-  router.post("/upload-template-url", async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const productId = req.params.id as string;
-      const validated = productUploadTemplateUrlBodySchema.parse(req.body);
-      const product = await productRepository.findById(productId);
-      if (!product) throw new AppError(404, "NOT_FOUND", "Product not found");
+  router.post(
+    "/upload-template-url",
+    requirePermission("products.manage"),
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const productId = req.params.id as string;
+        const validated = productUploadTemplateUrlBodySchema.parse(req.body);
+        const product = await productRepository.findById(productId);
+        if (!product) throw new AppError(404, "NOT_FOUND", "Product not found");
 
-      const workflow = (product.workflow as unknown[]) ?? [];
-      const existingKey = getExistingTemplateKeyFromWorkflow(
-        workflow,
-        validated.categoryKey,
-        validated.templateIndex
-      );
-      const ext = getFileExtension(validated.fileName) || "pdf";
-      const keyVersion = existingKey
-        ? (() => {
-            const parsed = parseProductS3Key(existingKey);
-            return parsed ? parsed.version + 1 : 1;
-          })()
-        : 1;
-      const key = generateProductS3Key({
-        productId,
-        version: keyVersion,
-        extension: ext,
-        existingKey: existingKey || undefined,
-      });
-      const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
-        key,
-        contentType: validated.contentType,
-      });
-      res.json({
-        success: true,
-        data: { uploadUrl, s3Key, expiresIn },
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(
-        error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error
-      );
+        const workflow = (product.workflow as unknown[]) ?? [];
+        const existingKey = getExistingTemplateKeyFromWorkflow(
+          workflow,
+          validated.categoryKey,
+          validated.templateIndex
+        );
+        const ext = getFileExtension(validated.fileName) || "pdf";
+        const keyVersion = existingKey
+          ? (() => {
+              const parsed = parseProductS3Key(existingKey);
+              return parsed ? parsed.version + 1 : 1;
+            })()
+          : 1;
+        const key = generateProductS3Key({
+          productId,
+          version: keyVersion,
+          extension: ext,
+          existingKey: existingKey || undefined,
+        });
+        const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
+          key,
+          contentType: validated.contentType,
+        });
+        res.json({
+          success: true,
+          data: { uploadUrl, s3Key, expiresIn },
+          correlationId: res.locals.correlationId,
+        });
+      } catch (error) {
+        next(
+          error instanceof Error
+            ? new AppError(400, "VALIDATION_ERROR", error.message)
+            : error
+        );
+      }
     }
-  });
+  );
 
   return router;
 }

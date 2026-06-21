@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { AppError } from "../../lib/http/error-handler";
+import { requirePermission } from "../../lib/auth/middleware";
 import { deleteS3Object } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
 import { ProductRepository } from "./repository";
@@ -24,7 +25,7 @@ const productRepository = new ProductRepository();
  * GET /v1/products
  * List products with pagination and optional search (admin only).
  */
-router.get("/", async (req: Request, res: Response, next: NextFunction) => {
+router.get("/", requirePermission("products.view"), async (req: Request, res: Response, next: NextFunction) => {
   try {
       const validated = getProductsListQuerySchema.parse(req.query);
       const { products, total } = await productRepository.findAll({
@@ -84,7 +85,7 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
  * POST /v1/products
  * Create a product (admin only).
  */
-router.post("/", async (req: Request, res: Response, next: NextFunction) => {
+router.post("/", requirePermission("products.manage"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const validated = createProductBodySchema.parse(req.body);
     applyFinancialDefaults(validated.workflow);
@@ -140,7 +141,7 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
  * GET /v1/products/:id
  * Get a single product by id (admin only).
  */
-router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
+router.get("/:id", requirePermission("products.view"), async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
       const product = await productRepository.findById(id);
@@ -179,7 +180,7 @@ router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
  * Update a product (admin only). Creates a new product record and deactivates the previous one (versioned entities).
  * Response returns the NEW product (new id). Replaced S3 keys are deleted from S3 after a successful update.
  */
-router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => {
+router.patch("/:id", requirePermission("products.manage"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const validated = updateProductBodySchema.parse(req.body);
@@ -262,7 +263,10 @@ const rollbackCreateSchema = z.object({
   s3Keys: z.array(z.string().min(1)).default([]),
 });
 
-router.post("/:id/rollback-create", async (req: Request, res: Response, next: NextFunction) => {
+router.post(
+  "/:id/rollback-create",
+  requirePermission("products.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const { s3Keys } = rollbackCreateSchema.parse(req.body ?? {});
@@ -289,7 +293,8 @@ router.post("/:id/rollback-create", async (req: Request, res: Response, next: Ne
     if (error instanceof AppError) next(error);
     else next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
   }
-});
+  }
+);
 
 /** S3 upload URLs for product image and templates (key version is per file, separate from product version). */
 router.use("/:id", createProductUploadsRouter(productRepository));
@@ -298,7 +303,7 @@ router.use("/:id", createProductUploadsRouter(productRepository));
  * DELETE /v1/products/:id
  * Delete a product (admin only). Also deletes all S3 objects referenced in the product workflow (image and document templates).
  */
-router.delete("/:id", async (req: Request, res: Response, next: NextFunction) => {
+router.delete("/:id", requirePermission("products.manage"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const product = await productRepository.findById(id);

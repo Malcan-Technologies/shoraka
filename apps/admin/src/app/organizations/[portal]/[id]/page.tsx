@@ -43,6 +43,8 @@ import {
   useOrganizationDetail,
   useUpdateSophisticatedStatus,
 } from "@/hooks/use-organization-detail";
+import { RequirePermission } from "@/components/require-permission";
+import { usePermissions } from "@/hooks/use-permissions";
 import type { OrganizationDetailResponse, PortalType } from "@cashsouk/types";
 import { format } from "date-fns";
 import {
@@ -815,6 +817,8 @@ function PageSkeleton() {
 }
 
 export default function OrganizationDetailPage() {
+  const { can } = usePermissions();
+  const canManage = can("organizations.manage");
   const params = useParams();
   const router = useRouter();
   const portal = params.portal as PortalType;
@@ -923,7 +927,8 @@ export default function OrganizationDetailPage() {
   }, [org]);
 
   return (
-    <>
+    <RequirePermission permission="organizations.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -1017,7 +1022,8 @@ export default function OrganizationDetailPage() {
                             <Switch
                               checked={org.isSophisticatedInvestor}
                               onCheckedChange={handleSophisticatedToggle}
-                              disabled={updateSophisticatedMutation.isPending}
+                              disabled={updateSophisticatedMutation.isPending || !canManage}
+                              title={!canManage ? "You do not have permission to perform this action." : undefined}
                             />
                             {org.isSophisticatedInvestor ? (
                               <Badge className="bg-violet-500 text-white text-xs">
@@ -1570,6 +1576,7 @@ export default function OrganizationDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+      </>
+    </RequirePermission>
   );
 }

@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/table";
 import { useNoteBucketActivity, useNoteBucketBalances } from "@/notes/hooks/use-notes";
 import { TablePagination } from "@/shared/admin-list/components/table-pagination";
+import { RequirePermission } from "@/components/require-permission";
 
 const bucketDescriptions: Record<string, string> = {
   INVESTOR_POOL: "Investor funds, disbursements, principal returns, and net profit allocations.",
@@ -189,7 +190,8 @@ export default function BucketBalancesPage() {
   };
 
   return (
-    <>
+    <RequirePermission permission="bucket_balances.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -322,6 +324,7 @@ export default function BucketBalancesPage() {
           </section>
         </div>
       </div>
-    </>
+      </>
+    </RequirePermission>
   );
 }

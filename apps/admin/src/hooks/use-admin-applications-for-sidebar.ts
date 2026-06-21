@@ -7,7 +7,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const PAGE_SIZE = 100;
 const MAX_PAGES = 50;
 
-export function useAdminApplicationsForSidebar() {
+export function useAdminApplicationsForSidebar({ enabled = true }: { enabled?: boolean } = {}) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
@@ -32,5 +32,6 @@ export function useAdminApplicationsForSidebar() {
     },
     staleTime: 0,
     refetchOnMount: "always",
+    enabled,
   });
 }

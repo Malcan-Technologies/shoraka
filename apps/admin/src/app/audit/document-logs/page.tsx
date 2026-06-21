@@ -39,6 +39,7 @@ import {
 } from "@heroicons/react/24/outline";
 import type { DocumentEventType, GetDocumentLogsParams } from "@cashsouk/types";
 import { DATE_RANGES } from "@cashsouk/config";
+import { RequirePermission } from "../../../components/require-permission";
 
 const DOCUMENT_EVENT_TYPES: { value: DocumentEventType; label: string; color: string }[] = [
   { value: "DOCUMENT_CREATED", label: "Created", color: "bg-green-500" },
@@ -167,7 +168,8 @@ export default function DocumentLogsPage() {
   }, [searchQuery, eventTypeFilter, dateRangeFilter]);
 
   return (
-    <>
+    <RequirePermission permission="audit.document.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -418,6 +420,7 @@ export default function DocumentLogsPage() {
           </div>
         </div>
       </div>
-    </>
+      </>
+    </RequirePermission>
   );
 }

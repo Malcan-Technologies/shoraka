@@ -39,6 +39,7 @@ import {
 } from "@heroicons/react/24/outline";
 import type { ProductEventType, GetProductLogsParams } from "@cashsouk/types";
 import { DATE_RANGES } from "@cashsouk/config";
+import { RequirePermission } from "../../../components/require-permission";
 
 const PRODUCT_EVENT_TYPES: { value: ProductEventType; label: string; color: string }[] = [
   { value: "PRODUCT_CREATED", label: "Created", color: "bg-green-500" },
@@ -152,7 +153,8 @@ export default function ProductLogsPage() {
   }, [searchQuery, eventTypeFilter, dateRangeFilter]);
 
   return (
-    <>
+    <RequirePermission permission="audit.product.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -410,6 +412,7 @@ export default function ProductLogsPage() {
           </div>
         </div>
       </div>
-    </>
+      </>
+    </RequirePermission>
   );
 }

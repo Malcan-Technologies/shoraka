@@ -20,6 +20,7 @@ import { PendingInvitationsTable } from "../../../components/pending-invitations
 import { useAdminUsers } from "../../../hooks/use-admin-users";
 import { useAdminRoleConfigs } from "../../../hooks/use-admin-role-config";
 import { RequirePermission } from "../../../components/require-permission";
+import { usePermissions } from "../../../hooks/use-permissions";
 import {
   usePendingInvitations,
   useResendInvitation,
@@ -37,6 +38,8 @@ export default function RolesPage() {
   const [selectedStatuses, setSelectedStatuses] = React.useState<("ACTIVE" | "INACTIVE")[]>([]);
   const [currentPage, setCurrentPage] = React.useState(1);
   const { data: availableRoles = [] } = useAdminRoleConfigs();
+  const { can } = usePermissions();
+  const canManageRoles = can("roles.manage");
 
   // Pending invitations state
   const [invitationsPage, setInvitationsPage] = React.useState(1);
@@ -49,6 +52,14 @@ export default function RolesPage() {
     roleDescription: selectedRoles.length === 1 ? selectedRoles[0] : undefined,
     status: selectedStatuses.length === 1 ? selectedStatuses[0] : undefined,
   });
+
+  const { data: superAdminData } = useAdminUsers({
+    page: 1,
+    roleDescription: "SUPER_ADMIN",
+    status: "ACTIVE",
+    pageSize: 1,
+  });
+  const activeSuperAdminCount = superAdminData?.pagination.totalCount ?? 0;
 
   const adminUsers = data?.users || [];
   const totalPages = data?.pagination.totalPages || 0;
@@ -113,7 +124,7 @@ export default function RolesPage() {
       </header>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <RequirePermission permission="roles.manage">
+        <RequirePermission permission="roles.view">
         <div className="w-full px-2 md:px-4 py-8 space-y-6">
           {/* Page Header */}
           <div className="flex items-center justify-between">
@@ -130,7 +141,12 @@ export default function RolesPage() {
                   Permission Configuration
                 </Link>
               </Button>
-              <Button variant="action" onClick={() => setInviteDialogOpen(true)}>
+              <Button
+                variant="action"
+                onClick={() => setInviteDialogOpen(true)}
+                disabled={!canManageRoles}
+                title={!canManageRoles ? "You do not have permission to perform this action." : undefined}
+              >
                 Invite Admin User
               </Button>
             </div>
@@ -161,6 +177,7 @@ export default function RolesPage() {
               onPageChange={setInvitationsPage}
               onResend={(id) => resendInvitation.mutate(id)}
               onRevoke={(id) => revokeInvitation.mutate(id)}
+              canManageRoles={canManageRoles}
             />
           </div>
 
@@ -191,6 +208,7 @@ export default function RolesPage() {
               onPageChange={setCurrentPage}
               onUpdateUser={handleUpdateUser}
               canManageRoles
+              activeSuperAdminCount={activeSuperAdminCount}
             />
           </div>
         </div>

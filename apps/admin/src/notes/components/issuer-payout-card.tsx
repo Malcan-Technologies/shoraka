@@ -108,6 +108,7 @@ interface IssuerPayoutCardProps {
   withdrawal: WithdrawalInstruction;
   kind: IssuerPayoutKind;
   servicingBlockedReason: string | null;
+  canManage?: boolean;
 }
 
 const KIND_COPY: Record<
@@ -139,6 +140,7 @@ export function IssuerPayoutCard({
   withdrawal,
   kind,
   servicingBlockedReason,
+  canManage = true,
 }: IssuerPayoutCardProps) {
   const queryClient = useQueryClient();
   const kindCopy = KIND_COPY[kind];
@@ -474,7 +476,8 @@ export function IssuerPayoutCard({
                       toast.error(err instanceof Error ? err.message : "Failed to submit Tawarruq order");
                     }
                   }}
-                  disabled={submitShorakaOrder.isPending || isMalaysiaUnsafeShorakaSubmitWindow}
+                  disabled={submitShorakaOrder.isPending || isMalaysiaUnsafeShorakaSubmitWindow || !canManage}
+                  title={!canManage ? "You do not have permission to perform this action." : undefined}
                 >
                   Submit Tawarruq Order
                 </Button>
@@ -619,7 +622,8 @@ export function IssuerPayoutCard({
                             );
                           }
                         }}
-                        disabled={queryShorakaStatus.isPending}
+                        disabled={queryShorakaStatus.isPending || !canManage}
+                        title={!canManage ? "You do not have permission to perform this action." : undefined}
                       >
                         Query Status
                       </Button>
@@ -642,7 +646,8 @@ export function IssuerPayoutCard({
                             toast.error(err instanceof Error ? err.message : "Failed to fetch certificate");
                           }
                         }}
-                        disabled={fetchShorakaCertificate.isPending}
+                        disabled={fetchShorakaCertificate.isPending || !canManage}
+                        title={!canManage ? "You do not have permission to perform this action." : undefined}
                       >
                         Fetch Tawarruq Certificate
                       </Button>
@@ -677,7 +682,7 @@ export function IssuerPayoutCard({
             <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
               Beneficiary
             </div>
-            {status === "DRAFT" ? (
+            {status === "DRAFT" && canManage ? (
               <button
                 type="button"
                 onClick={() => setBeneficiaryDialogOpen(true)}
@@ -753,7 +758,8 @@ export function IssuerPayoutCard({
           <Button
             size="sm"
             onClick={() => guardedAction(() => setConfirmAction("generate"))}
-            disabled={pendingAny || !beneficiaryComplete || generateLetterDisabledBecauseShoraka}
+            disabled={pendingAny || !beneficiaryComplete || generateLetterDisabledBecauseShoraka || !canManage}
+            title={!canManage ? "You do not have permission to perform this action." : undefined}
             className="gap-1.5"
           >
             <DocumentTextIcon className="h-4 w-4" />
@@ -767,7 +773,8 @@ export function IssuerPayoutCard({
           <Button
             size="sm"
             onClick={() => guardedAction(() => setConfirmAction("submit"))}
-            disabled={pendingAny}
+            disabled={pendingAny || !canManage}
+            title={!canManage ? "You do not have permission to perform this action." : undefined}
             className="gap-1.5"
           >
             <ArrowRightCircleIcon className="h-4 w-4" />
@@ -778,7 +785,8 @@ export function IssuerPayoutCard({
           <Button
             size="sm"
             onClick={() => guardedAction(() => setConfirmAction("complete"))}
-            disabled={pendingAny || markDisbursedDisabledBecauseShoraka}
+            disabled={pendingAny || markDisbursedDisabledBecauseShoraka || !canManage}
+            title={!canManage ? "You do not have permission to perform this action." : undefined}
             className="gap-1.5"
           >
             <CheckCircleIcon className="h-4 w-4" />

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, Skeleton } from "@cashsouk/ui
 import { formatCurrency } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
 import { useNoteBucketBalances } from "@/notes/hooks/use-notes";
+import { usePermissions } from "@/hooks/use-permissions";
 
 const bucketDescriptions: Record<string, string> = {
   INVESTOR_POOL: "Investor funds",
@@ -17,6 +18,8 @@ const bucketDescriptions: Record<string, string> = {
 };
 
 export function BucketBalancesOverview() {
+  const { can } = usePermissions();
+  const canViewDetails = can("bucket_balances.view");
   const { data, isLoading, error } = useNoteBucketBalances();
   const buckets = data?.buckets ?? [];
   const largestBalance = Math.max(...buckets.map((bucket) => Math.abs(bucket.balance)), 1);
@@ -52,12 +55,14 @@ export function BucketBalancesOverview() {
               Ledger-derived balances across all platform money buckets.
             </p>
           </div>
-          <Button asChild variant="outline" size="sm" className="gap-2">
-            <Link href="/finance/buckets">
-              View details
-              <ArrowRightIcon className="h-4 w-4" />
-            </Link>
-          </Button>
+          {canViewDetails && (
+            <Button asChild variant="outline" size="sm" className="gap-2">
+              <Link href="/finance/buckets">
+                View details
+                <ArrowRightIcon className="h-4 w-4" />
+              </Link>
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

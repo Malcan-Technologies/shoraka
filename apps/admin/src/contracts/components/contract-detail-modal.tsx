@@ -20,6 +20,7 @@ import {
 import { useContractDetail } from "@/contracts/hooks/use-contract-detail";
 import { useResignContractOffer } from "@/contracts/hooks/use-resign-contract-offer";
 import { OfferSigningPanel } from "@/components/offer-signing-panel";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
 import {
@@ -221,6 +222,8 @@ function ContractDetailSkeleton() {
 }
 
 export function ContractDetailView({ contractId }: ContractDetailViewProps) {
+  const { can } = usePermissions();
+  const canManage = can("contracts.manage");
   const { data, isLoading, error } = useContractDetail(contractId);
   const resignOffer = useResignContractOffer(contractId);
   const { getAccessToken } = useAuthToken();
@@ -541,6 +544,7 @@ export function ContractDetailView({ contractId }: ContractDetailViewProps) {
                         : undefined
                     }
                     resignPending={resignOffer.isPending}
+                    canManage={canManage}
                   />
                 ) : null}
 

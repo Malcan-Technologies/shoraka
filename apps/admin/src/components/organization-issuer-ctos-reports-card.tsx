@@ -38,6 +38,7 @@ import {
   DocumentTextIcon,
   EyeIcon,
 } from "@heroicons/react/24/outline";
+import { usePermissions } from "@/hooks/use-permissions";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -68,6 +69,8 @@ export function OrganizationIssuerCtosReportsCard({
   const { getAccessToken } = useAuthToken();
   const apiClient = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
+  const canManage = can("organizations.manage");
 
   const ctosQuery = useQuery({
     queryKey: ["admin", "organization-ctos-reports", portal, organizationId],
@@ -169,11 +172,14 @@ export function OrganizationIssuerCtosReportsCard({
   );
 
   const onConfirmGetLatest = () => {
+    if (!canManage) return;
     const t = toast.loading("Fetching CTOS report…");
     fetchCtosMutation.mutate(undefined, {
       onSettled: () => toast.dismiss(t),
     });
   };
+
+  const fetchDisabledReason = !canManage ? "You do not have permission to perform this action." : undefined;
 
   return (
     <>
@@ -212,9 +218,11 @@ export function OrganizationIssuerCtosReportsCard({
                 size="sm"
                 variant="secondary"
                 className={cn(CTOS_FETCH_BUTTON_CLASSNAME, "shrink-0")}
-                disabled={fetchCtosMutation.isPending || ctosQuery.isLoading}
+                disabled={fetchCtosMutation.isPending || ctosQuery.isLoading || !canManage}
+                title={!canManage ? fetchDisabledReason : undefined}
                 onClick={(e) => {
                   e.preventDefault();
+                  if (!canManage) return;
                   setGetLatestConfirmOpen(true);
                 }}
               >

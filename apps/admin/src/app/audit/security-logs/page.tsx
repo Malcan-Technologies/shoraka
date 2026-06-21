@@ -9,6 +9,7 @@ import { AccessLogsTable } from "../../../components/access-logs-table";
 import { AccessLogsToolbar } from "../../../components/access-logs-toolbar";
 import { useSecurityLogs } from "../../../hooks/use-security-logs";
 import type { SecurityEventType, GetSecurityLogsParams } from "@cashsouk/types";
+import { RequirePermission } from "../../../components/require-permission";
 
 // Security-related event types
 const SECURITY_EVENT_TYPES: SecurityEventType[] = [
@@ -73,7 +74,8 @@ export default function SecurityLogsPage() {
   const loading = isLoading;
 
   return (
-    <>
+    <RequirePermission permission="audit.security.view">
+      <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
@@ -132,6 +134,7 @@ export default function SecurityLogsPage() {
           />
         </div>
       </div>
-    </>
+      </>
+    </RequirePermission>
   );
 }

@@ -40,6 +40,7 @@ import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { productName } from "../product-utils";
 import { ProductFormDialog } from "../workflow-builder/product-form-dialog";
+import { usePermissions } from "../../../../hooks/use-permissions";
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-MY", {
@@ -50,6 +51,8 @@ function formatDate(dateStr: string): string {
 }
 
 export function ProductsList() {
+  const { can } = usePermissions();
+  const canManage = can("products.manage");
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
   const [search, setSearch] = useState("");
@@ -112,6 +115,8 @@ export function ProductsList() {
           onClick={openCreateProduct}
           className="gap-2 h-11 rounded-xl shrink-0"
           aria-label="Create product"
+          disabled={!canManage}
+          title={!canManage ? "You do not have permission to perform this action." : undefined}
         >
           <PlusIcon className="h-4 w-4" />
           Create product
@@ -229,6 +234,8 @@ export function ProductsList() {
                         className="h-8 "
                         onClick={() => openEditProduct(p)}
                         aria-label={`Edit ${productName(p)}`}
+                        disabled={!canManage}
+                        title={!canManage ? "You do not have permission to perform this action." : undefined}
                       >
                         <PencilSquareIcon className="h-4 w-4 "/>
                       </Button>
@@ -238,6 +245,8 @@ export function ProductsList() {
                         className="h-8  text-destructive hover:bg-destructive/10"
                         onClick={() => setProductToDelete(p)}
                         aria-label={`Delete ${productName(p)}`}
+                        disabled={!canManage}
+                        title={!canManage ? "You do not have permission to perform this action." : undefined}
                       >
                         <TrashIcon className="h-4 w-4"/>
                       </Button>

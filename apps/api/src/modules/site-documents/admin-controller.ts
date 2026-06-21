@@ -1,6 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
-import { requireRole } from "../../lib/auth/middleware";
-import { UserRole } from "@prisma/client";
+import { requirePermission } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { siteDocumentService } from "./service";
 import {
@@ -20,7 +19,7 @@ const router = Router();
  */
 router.get(
   "/",
-  requireRole(UserRole.ADMIN),
+  requirePermission("document_management.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = listDocumentsQuerySchema.parse(req.query);
@@ -47,7 +46,7 @@ router.get(
  */
 router.get(
   "/:id",
-  requireRole(UserRole.ADMIN),
+  requirePermission("document_management.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -70,7 +69,7 @@ router.get(
  */
 router.post(
   "/upload-url",
-  requireRole(UserRole.ADMIN),
+  requirePermission("document_management.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = requestUploadUrlSchema.parse(req.body);
@@ -107,7 +106,7 @@ router.post(
  */
 router.post(
   "/",
-  requireRole(UserRole.ADMIN),
+  requirePermission("document_management.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = createDocumentSchema.parse(req.body);
@@ -145,7 +144,7 @@ router.post(
  */
 router.patch(
   "/:id",
-  requireRole(UserRole.ADMIN),
+  requirePermission("document_management.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -185,7 +184,7 @@ router.patch(
  */
 router.post(
   "/:id/replace-url",
-  requireRole(UserRole.ADMIN),
+  requirePermission("document_management.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -224,7 +223,7 @@ router.post(
  */
 router.post(
   "/:id/replace",
-  requireRole(UserRole.ADMIN),
+  requirePermission("document_management.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -264,7 +263,7 @@ router.post(
  */
 router.delete(
   "/:id",
-  requireRole(UserRole.ADMIN),
+  requirePermission("document_management.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -292,7 +291,7 @@ router.delete(
  */
 router.post(
   "/:id/restore",
-  requireRole(UserRole.ADMIN),
+  requirePermission("document_management.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -324,7 +323,7 @@ router.post(
  */
 router.get(
   "/:id/download",
-  requireRole(UserRole.ADMIN),
+  requirePermission("document_management.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
