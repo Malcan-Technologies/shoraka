@@ -85,7 +85,6 @@ function AccountFields({
       <CardContent className="grid gap-4 md:grid-cols-2">
         {(
           [
-            ["displayName", "Display name"],
             ["bankName", "Bank name"],
             ["accountName", "Account name"],
             ["accountNumber", "Account number"],
@@ -327,7 +326,17 @@ export default function PlatformFinanceSettingsPage() {
                 disabled={disabled || saveMutation.isPending}
                 className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
                 onClick={() => {
-                  const operating = bucketAccounts.OPERATING_ACCOUNT;
+                  const normalizedBucketAccounts = moneyFlowSections.reduce((acc, section) => {
+                    const current = bucketAccounts[section.key];
+                    acc[section.key] = {
+                      ...current,
+                      displayName:
+                        current.displayName.trim() !== "" ? current.displayName : section.title,
+                    };
+                    return acc;
+                  }, { ...bucketAccounts });
+
+                  const operating = normalizedBucketAccounts.OPERATING_ACCOUNT;
                   const operatingFields = {
                     displayName: operating.displayName,
                     bankName: operating.bankName,
@@ -335,7 +344,7 @@ export default function PlatformFinanceSettingsPage() {
                     accountNumber: operating.accountNumber,
                   };
                   saveMutation.mutate({
-                    ledgerBucketAccountsConfig: bucketAccounts,
+                    ledgerBucketAccountsConfig: normalizedBucketAccounts,
                     platformAccountsConfig: {
                       ...platformAccounts,
                       platformOperating: {
