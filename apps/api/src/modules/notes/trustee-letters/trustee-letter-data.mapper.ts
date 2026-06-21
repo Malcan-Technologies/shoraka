@@ -103,7 +103,6 @@ export function mapDisbursementLetterData(input: {
   const debit = bucketAccounts.INVESTOR_POOL;
   const operatingAccount = bucketAccounts.OPERATING_ACCOUNT;
   const platformFee = numberFromMeta(input.metadata, "platformFeeAmount");
-  const successFee = numberFromMeta(input.metadata, "successFeeAmount");
   const facilityFee = numberFromMeta(input.metadata, "facilityFeeCharged");
   const netDisbursement = numberFromMeta(input.metadata, "netIssuerDisbursement") || input.withdrawalAmount;
 
@@ -121,36 +120,14 @@ export function mapDisbursementLetterData(input: {
     });
   }
 
-  if (platformFee > 0.005 && successFee > 0.005) {
-    rowNo = addPaymentRowIfPositive({
-      rows,
-      rowNo,
-      nameOfPayee: "Platform Fee to Platform",
-      account: operatingAccount,
-      amount: platformFee,
-      remarks: "Platform Fee to Platform",
-    });
-    rowNo = addPaymentRowIfPositive({
-      rows,
-      rowNo,
-      nameOfPayee: "Success Fee to Platform",
-      account: operatingAccount,
-      amount: successFee,
-      remarks: "Success Fee to Platform",
-    });
-  } else if (platformFee > 0.005 || successFee > 0.005) {
-    // TODO: render platform fee and success fee as separate rows once upstream disbursement metadata
-    // always stores separate amount fields for both categories.
-    const combinedFee = platformFee + successFee;
-    rowNo = addPaymentRowIfPositive({
-      rows,
-      rowNo,
-      nameOfPayee: "Success Fees to Platform",
-      account: operatingAccount,
-      amount: combinedFee,
-      remarks: "Success Fees to Platform",
-    });
-  }
+  rowNo = addPaymentRowIfPositive({
+    rows,
+    rowNo,
+    nameOfPayee: "Platform Fee to Platform",
+    account: operatingAccount,
+    amount: platformFee,
+    remarks: "Platform Fee to Platform",
+  });
 
   rowNo = addPaymentRowIfPositive({
     rows,
@@ -227,7 +204,6 @@ export function mapRepaymentLetterData(input: {
   investorPrincipal: number;
   investorProfitNet: number;
   serviceFeeAmount: number;
-  platformFeeAmount?: number;
   tawidhAccountAmount: number;
   gharamahAmount: number;
   issuerResidualAmount: number;
@@ -266,17 +242,6 @@ export function mapRepaymentLetterData(input: {
     account: operatingAccount,
     amount: input.serviceFeeAmount,
     remarks: "Service Fee to Platform",
-  });
-
-  // TODO: no separate platform-fee amount is currently persisted in NoteSettlement.
-  // Keep this optional for forward compatibility when upstream starts storing it.
-  rowNo = addPaymentRowIfPositive({
-    rows,
-    rowNo,
-    nameOfPayee: "Platform Fee to Platform",
-    account: operatingAccount,
-    amount: input.platformFeeAmount ?? 0,
-    remarks: "Platform Fee to Platform",
   });
 
   if (input.tawidhAccountAmount > 0.005) {
