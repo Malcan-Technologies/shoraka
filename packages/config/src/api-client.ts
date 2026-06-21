@@ -98,6 +98,7 @@ import type {
   GetAdminInvestmentsParams,
   GetAdminInvestmentsResponse,
   PendingIssuerPayoutsResponse,
+  PendingInvestorWithdrawalsCountResponse,
   PendingRepaymentsResponse,
   PendingServiceFeeTrusteeLettersResponse,
   NoteEvent,
@@ -664,6 +665,14 @@ export class ApiClient {
     ApiResponse<PendingIssuerPayoutsResponse> | ApiError
   > {
     return this.get<PendingIssuerPayoutsResponse>("/v1/admin/withdrawals/pending-issuer-payouts");
+  }
+
+  async getAdminPendingInvestorWithdrawals(): Promise<
+    ApiResponse<PendingInvestorWithdrawalsCountResponse> | ApiError
+  > {
+    return this.get<PendingInvestorWithdrawalsCountResponse>(
+      "/v1/admin/withdrawals/pending-investor-withdrawals"
+    );
   }
 
   async getAdminPendingServiceFeeTrusteeLetters(): Promise<

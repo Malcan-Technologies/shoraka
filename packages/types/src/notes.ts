@@ -575,6 +575,10 @@ export interface PendingServiceFeeTrusteeLettersResponse {
   items: PendingServiceFeeTrusteeLetterItem[];
 }
 
+export interface PendingInvestorWithdrawalsCountResponse {
+  count: number;
+}
+
 export interface PlatformFinanceSetting {
   id: string;
   key: string;

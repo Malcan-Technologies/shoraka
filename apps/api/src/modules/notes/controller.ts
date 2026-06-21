@@ -820,6 +820,18 @@ withdrawalsRouter.get(
 );
 
 withdrawalsRouter.get(
+  "/pending-investor-withdrawals",
+  requirePermission("disbursements.view"),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      send(res, await noteService.getPendingInvestorWithdrawalsCount());
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+withdrawalsRouter.get(
   "/:id",
   requirePermission("disbursements.view"),
   async (req: Request, res: Response, next: NextFunction) => {

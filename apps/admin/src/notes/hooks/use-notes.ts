@@ -15,7 +15,7 @@ import { notesKeys } from "../query-keys";
 /**
  * Broad invalidation that refreshes everything driven by a note-side mutation:
  * the sidebar/dashboard counts (action-count, pending-repayments, pending-issuer-payouts,
- * pending-service-fee-trustee-letters),
+ * pending-service-fee-trustee-letters, pending-investor-withdrawals),
  * the bucket balances, the notes list/detail, and the investments registry. Use this from
  * any mutation that could change a count, bucket balance, or investment status.
  */
@@ -126,6 +126,21 @@ export function usePendingIssuerPayouts({ enabled = true }: { enabled?: boolean 
     queryKey: [...notesKeys.all, "pending-issuer-payouts"],
     queryFn: async () => {
       const response = await apiClient.getAdminPendingIssuerPayouts();
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    staleTime: 30000,
+    refetchInterval: 60000,
+    enabled,
+  });
+}
+
+export function usePendingInvestorWithdrawals({ enabled = true }: { enabled?: boolean } = {}) {
+  const apiClient = useNotesApiClient();
+  return useQuery({
+    queryKey: [...notesKeys.all, "pending-investor-withdrawals"],
+    queryFn: async () => {
+      const response = await apiClient.getAdminPendingInvestorWithdrawals();
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },

@@ -52,6 +52,7 @@ import { useProducts } from "@/hooks/use-products";
 import { useAdminApplicationsForSidebar } from "@/hooks/use-admin-applications-for-sidebar";
 import {
   useNoteActionRequiredCount,
+  usePendingInvestorWithdrawals,
   usePendingRepayments,
   usePendingIssuerPayouts,
   usePendingServiceFeeTrusteeLetters,
@@ -147,7 +148,7 @@ const navFinance = [
     title: "Investor Withdrawals",
     url: "/finance/investor-withdrawals",
     icon: ArrowUpTrayIcon,
-    // badgeKey: "pendingInvestorWithdrawals" as const, // TODO: add when lightweight count endpoint exists
+    badgeKey: "pendingInvestorWithdrawals" as const,
   },
 ] as const;
 
@@ -227,6 +228,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: noteActionCountData } = useNoteActionRequiredCount({ enabled: canViewNotes });
   const { data: pendingRepaymentsData } = usePendingRepayments({ enabled: canViewRepayments });
   const { data: pendingIssuerPayoutsData } = usePendingIssuerPayouts({ enabled: canViewDisbursements });
+  const { data: pendingInvestorWithdrawalsData } = usePendingInvestorWithdrawals({
+    enabled: canViewDisbursements,
+  });
   const { data: pendingServiceFeeLettersData } = usePendingServiceFeeTrusteeLetters({
     enabled: canViewServiceFee,
   });
@@ -248,6 +252,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     pendingRepayments: pendingRepaymentsData?.count || 0,
     pendingServiceFeeTrusteeLetters: pendingServiceFeeLettersData?.count || 0,
     pendingIssuerPayouts: pendingIssuerPayoutsData?.count || 0,
+    pendingInvestorWithdrawals: pendingInvestorWithdrawalsData?.count || 0,
   };
 
   const dynamicNavLifecycle = React.useMemo(() => {

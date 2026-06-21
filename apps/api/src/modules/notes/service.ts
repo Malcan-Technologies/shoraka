@@ -1610,6 +1610,22 @@ export class NoteService {
     };
   }
 
+  async getPendingInvestorWithdrawalsCount() {
+    const count = await prisma.withdrawalInstruction.count({
+      where: {
+        withdrawal_type: WithdrawalType.INVESTOR_WITHDRAWAL,
+        status: {
+          in: [
+            WithdrawalStatus.DRAFT,
+            WithdrawalStatus.LETTER_GENERATED,
+            WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
+          ],
+        },
+      },
+    });
+    return { count };
+  }
+
   async listPendingServiceFeeTrusteeLetters() {
     const settlements = await prisma.noteSettlement.findMany({
       where: {
