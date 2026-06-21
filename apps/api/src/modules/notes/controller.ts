@@ -1,7 +1,13 @@
 import { Request, Response, NextFunction, Router } from "express";
-import { UserRole } from "@prisma/client";
-import { requirePermission, requireAnyPermission, requireRole } from "../../lib/auth/middleware";
+import { UserRole, WithdrawalType } from "@prisma/client";
+import {
+  requirePermission,
+  requireAnyPermission,
+  requireRole,
+  userHasPermission,
+} from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
+import { prisma } from "../../lib/prisma";
 import { noteService } from "./service";
 import { shorakaStpService } from "../shoraka-stp/shoraka-stp-service";
 import {
@@ -60,6 +66,27 @@ function send(res: Response, data: unknown, status = 200) {
     data,
     correlationId: res.locals.correlationId || "unknown",
   });
+}
+
+async function assertWithdrawalManagePermission(req: Request, withdrawalId: string) {
+  const withdrawal = await prisma.withdrawalInstruction.findUnique({
+    where: { id: withdrawalId },
+    select: { withdrawal_type: true },
+  });
+  if (!withdrawal) {
+    throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal instruction not found");
+  }
+
+  if (withdrawal.withdrawal_type === WithdrawalType.INVESTOR_WITHDRAWAL) {
+    if (!userHasPermission(req, "investor_withdrawals.manage")) {
+      throw new AppError(403, "FORBIDDEN", "Insufficient permissions");
+    }
+    return;
+  }
+
+  if (!userHasPermission(req, "notes.disbursement.manage")) {
+    throw new AppError(403, "FORBIDDEN", "Insufficient permissions");
+  }
 }
 
 export const adminNotesRouter = Router();
@@ -796,7 +823,7 @@ withdrawalsRouter.use(requireRole(UserRole.ADMIN));
 
 withdrawalsRouter.get(
   "/",
-  requirePermission("disbursements.view"),
+  requirePermission("investor_withdrawals.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const query = getInvestorWithdrawalsQuerySchema.parse(req.query);
@@ -821,7 +848,7 @@ withdrawalsRouter.get(
 
 withdrawalsRouter.get(
   "/pending-investor-withdrawals",
-  requirePermission("disbursements.view"),
+  requirePermission("investor_withdrawals.view"),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       send(res, await noteService.getPendingInvestorWithdrawalsCount());
@@ -833,7 +860,7 @@ withdrawalsRouter.get(
 
 withdrawalsRouter.get(
   "/:id",
-  requirePermission("disbursements.view"),
+  requirePermission("investor_withdrawals.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = idParamSchema.parse(req.params);
@@ -858,10 +885,10 @@ withdrawalsRouter.post(
 );
 withdrawalsRouter.post(
   "/:id/generate-letter",
-  requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
+    await assertWithdrawalManagePermission(req, id);
     send(res, await noteService.generateWithdrawalLetter(id, getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
@@ -870,10 +897,10 @@ withdrawalsRouter.post(
 );
 withdrawalsRouter.post(
   "/:id/mark-submitted-to-trustee",
-  requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
+    await assertWithdrawalManagePermission(req, id);
     send(res, await noteService.markWithdrawalSubmitted(id, getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
@@ -882,10 +909,10 @@ withdrawalsRouter.post(
 );
 withdrawalsRouter.post(
   "/:id/mark-completed",
-  requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
+    await assertWithdrawalManagePermission(req, id);
     send(res, await noteService.markWithdrawalCompleted(id, getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
@@ -931,9 +958,10 @@ withdrawalsRouter.get("/:id/shoraka", async (req: Request, res: Response, next: 
     next(error);
   }
 });
-withdrawalsRouter.patch("/:id/beneficiary", requirePermission("notes.disbursement.manage"), async (req: Request, res: Response, next: NextFunction) => {
+withdrawalsRouter.patch("/:id/beneficiary", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
+    await assertWithdrawalManagePermission(req, id);
     const body = updateWithdrawalBeneficiarySchema.parse(req.body);
     send(
       res,

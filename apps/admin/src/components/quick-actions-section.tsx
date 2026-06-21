@@ -48,6 +48,7 @@ export function QuickActionsSection({
   const canRepayments = can("repayments.view");
   const canServiceFee = can("service_fee.view");
   const canDisbursements = can("disbursements.view");
+  const canViewInvestorWithdrawals = can("investor_withdrawals.view");
 
   const { data: pendingCountData, isLoading: isPendingCountLoading } = usePendingApprovalCount({ enabled: canOnboarding });
   const { data: noteActionCountData, isLoading: isNoteActionCountLoading } = useNoteActionRequiredCount({ enabled: canNotes });
@@ -55,7 +56,7 @@ export function QuickActionsSection({
   const { data: pendingIssuerPayoutsData, isLoading: isPendingIssuerPayoutsLoading } =
     usePendingIssuerPayouts({ enabled: canDisbursements });
   const { data: pendingInvestorWithdrawalsData, isLoading: isPendingInvestorWithdrawalsLoading } =
-    usePendingInvestorWithdrawals({ enabled: canDisbursements });
+    usePendingInvestorWithdrawals({ enabled: canViewInvestorWithdrawals });
   const { data: pendingServiceFeeLettersData, isLoading: isPendingServiceFeeLettersLoading } =
     usePendingServiceFeeTrusteeLetters({ enabled: canServiceFee });
   const { data: applicationsForSidebar = [], isLoading: isApplicationsForSidebarLoading } =
@@ -225,7 +226,7 @@ export function QuickActionsSection({
               loading={loading || isPendingServiceFeeLettersLoading}
             />
           )}
-          {canDisbursements && (
+          {canViewInvestorWithdrawals && (
             <QuickActionCard
               title="Issuer Payouts"
               description="Issuer residual refunds in flight — generate letters and mark disbursed"

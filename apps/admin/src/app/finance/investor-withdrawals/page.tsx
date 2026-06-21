@@ -282,7 +282,7 @@ function WithdrawalActions({
 
 export default function InvestorWithdrawalsPage() {
   const { can } = usePermissions();
-  const canManage = can("notes.disbursement.manage");
+  const canManage = can("investor_withdrawals.manage");
   const { handleViewDocument, viewDocumentPending } = useAdminS3DocumentViewDownload();
   const { data, isLoading, error, refetch, isFetching } = useInvestorWithdrawals();
 
@@ -296,7 +296,7 @@ export default function InvestorWithdrawalsPage() {
     .reduce((sum, item) => sum + item.amount, 0);
 
   return (
-    <RequirePermission permission="disbursements.view">
+    <RequirePermission permission="investor_withdrawals.view">
       <>
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />

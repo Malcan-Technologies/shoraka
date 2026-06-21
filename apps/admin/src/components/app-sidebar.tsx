@@ -209,6 +209,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canViewRepayments = can("repayments.view");
   const canViewServiceFee = can("service_fee.view");
   const canViewDisbursements = can("disbursements.view");
+  const canViewInvestorWithdrawals = can("investor_withdrawals.view");
 
   const canViewUsers = can("users.view");
   const canViewOrganizations = can("organizations.view");
@@ -229,7 +230,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: pendingRepaymentsData } = usePendingRepayments({ enabled: canViewRepayments });
   const { data: pendingIssuerPayoutsData } = usePendingIssuerPayouts({ enabled: canViewDisbursements });
   const { data: pendingInvestorWithdrawalsData } = usePendingInvestorWithdrawals({
-    enabled: canViewDisbursements,
+    enabled: canViewInvestorWithdrawals,
   });
   const { data: pendingServiceFeeLettersData } = usePendingServiceFeeTrusteeLetters({
     enabled: canViewServiceFee,
@@ -286,7 +287,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       (item.title === "Repayments" && canViewRepayments) ||
       (item.title === "Service Fee" && canViewServiceFee) ||
       (item.title === "Issuer Payouts" && canViewDisbursements) ||
-      (item.title === "Investor Withdrawals" && canViewDisbursements)
+      (item.title === "Investor Withdrawals" && canViewInvestorWithdrawals)
     );
   });
 
@@ -563,7 +564,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       (item.title === "Repayments" && canViewRepayments) ||
                       (item.title === "Service Fee" && canViewServiceFee) ||
                       (item.title === "Issuer Payouts" && canViewDisbursements) ||
-      (item.title === "Investor Withdrawals" && canViewDisbursements);
+      (item.title === "Investor Withdrawals" && canViewInvestorWithdrawals);
 
                     if (!canShow) return null;
 
