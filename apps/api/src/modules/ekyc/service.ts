@@ -3,10 +3,7 @@ import { SigningCloudEkycStatus } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
-import {
-  maskMalaysianIcNumber,
-  parseConfirmedEkycName,
-} from "./confirmed-identity";
+import { parseConfirmedEkycName } from "./confirmed-identity";
 import {
   resolveIssuerEkycIdentityForOrganization,
 } from "./resolve-issuer-ekyc-identity";
@@ -124,7 +121,7 @@ class EkycService {
   async getIdentityPreview(
     userId: string,
     issuerOrganizationId: string
-  ): Promise<{ name: string; icNumber: string; icNumberMasked: string }> {
+  ): Promise<{ name: string; icNumber: string }> {
     const user = await prisma.user.findUnique({
       where: { user_id: userId },
       select: { email: true },
@@ -142,7 +139,6 @@ class EkycService {
     return {
       name: identity.name,
       icNumber: identity.icNumber,
-      icNumberMasked: maskMalaysianIcNumber(identity.icNumber),
     };
   }
 

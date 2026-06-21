@@ -53,7 +53,7 @@ sequenceDiagram
 
 1. User accepts an offer that requires SigningCloud.
 2. If eKYC is missing, modal step switches to **ekyc-confirm**, then **ekyc** (`ReviewOfferModal` + `useEkycFlow`).
-3. User confirms name (editable) and IC (read-only, masked in UI).
+3. User confirms name (editable) and full IC number (read-only, for verification against their MyKad).
 4. `createEkycSession({ issuerOrganizationId, confirmedName, force? })` runs with the active org from `useOrganization()`. IC is resolved server-side from org data.
 5. QR encodes `{issuerOrigin}/ekyc/capture.html?token=…&endpoint=…&api={API_URL}` — **no PII in the URL**.
 6. Desktop polls `GET /v1/ekyc/status?token=` every 2.5s until status is not `pending`.
@@ -94,7 +94,7 @@ Normalization:
 | Session create (`POST /session`) | `resolveIssuerEkycIdentityForOrganization` | Active org only — fail early if MyKad details missing; org id, confirmed name, and org IC stored on `signingcloud_ekyc` |
 | Complete (`POST /complete`) | `resolveIssuerEkycIdentityForOrganization` | Same org as stored on the session row; org IC is always used for submit |
 
-The desktop user may edit the **name** before scanning. That edited name is bound to the session at create time. **IC** is read-only in the UI and always comes from org registration data on the server.
+The desktop user may edit the **name** before scanning. That edited name is bound to the session at create time. **IC** is shown in full (not masked), read-only in the UI, and always comes from org registration data on the server.
 
 Missing identity → `400 EKYC_IDENTITY_NOT_ON_FILE`: *"We don't have your verified MyKad details on file. Complete identity onboarding before signing."*
 
@@ -105,7 +105,7 @@ Base path: `/v1/ekyc` (mounted in `apps/api/src/routes.ts`).
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
 | `GET` | `/me` | Required | User-level completion: `{ completed, completedAt }` |
-| `GET` | `/identity-preview?issuerOrganizationId=` | Required | On-file MyKad details for desktop confirmation |
+| `GET` | `/identity-preview?issuerOrganizationId=` | Required | On-file MyKad details for desktop confirmation: `{ name, icNumber }` (full IC, read-only in UI) |
 | `POST` | `/session` | Required | Start or reuse session; body `{ issuerOrganizationId, confirmedName, force? }` |
 | `GET` | `/status?token=` | None | Poll session status (desktop + debugging) |
 | `POST` | `/complete` | None | Submit WiseAI capture result; body `{ token, result }` |

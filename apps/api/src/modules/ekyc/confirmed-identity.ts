@@ -15,11 +15,3 @@ export function parseConfirmedEkycName(confirmedName?: string): string | null {
 
   return name;
 }
-
-export function maskMalaysianIcNumber(icNumber: string): string {
-  if (icNumber.length !== 12) {
-    return icNumber;
-  }
-
-  return `${icNumber.slice(0, 6)}•••${icNumber.slice(-3)}`;
-}

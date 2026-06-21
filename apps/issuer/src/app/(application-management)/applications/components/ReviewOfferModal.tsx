@@ -648,7 +648,8 @@ export function ReviewOfferModal({
                         {ekyc.identityPreview?.icNumber ?? "—"}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        From your company registration. Contact support if this is incorrect.
+                        IC number on file for verification against your MyKad. Contact support if this is
+                        incorrect.
                       </p>
                     </div>
                     <Button

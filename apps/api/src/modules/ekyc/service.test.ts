@@ -294,7 +294,7 @@ describe("EkycService.getIdentityPreview", () => {
     jest.clearAllMocks();
   });
 
-  it("returns resolved identity with masked IC", async () => {
+  it("returns resolved identity with full IC for confirmation", async () => {
     mockUserFindUnique.mockResolvedValue({ email: "signer@example.com" });
     mockResolveIssuerEkycIdentityForOrganization.mockResolvedValue({
       name: "LUCAS DENG",
@@ -306,7 +306,6 @@ describe("EkycService.getIdentityPreview", () => {
     ).resolves.toEqual({
       name: "LUCAS DENG",
       icNumber: "820508105871",
-      icNumberMasked: "820508•••871",
     });
   });
 });

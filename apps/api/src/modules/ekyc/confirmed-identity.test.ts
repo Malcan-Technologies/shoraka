@@ -1,4 +1,4 @@
-import { maskMalaysianIcNumber, parseConfirmedEkycName } from "./confirmed-identity";
+import { parseConfirmedEkycName } from "./confirmed-identity";
 
 describe("parseConfirmedEkycName", () => {
   it("returns null when name is omitted", () => {
@@ -12,11 +12,5 @@ describe("parseConfirmedEkycName", () => {
 
   it("returns null for whitespace-only names", () => {
     expect(parseConfirmedEkycName("   ")).toBeNull();
-  });
-});
-
-describe("maskMalaysianIcNumber", () => {
-  it("masks the middle digits of a 12-digit IC", () => {
-    expect(maskMalaysianIcNumber("820508105871")).toBe("820508•••871");
   });
 });
