@@ -136,11 +136,6 @@ export default function PlatformFinanceSettingsPage() {
     React.useState<PlatformAccountsConfig>(emptyPlatformAccounts());
   const [bucketAccounts, setBucketAccounts] =
     React.useState<LedgerBucketAccountsConfig>(emptyBucketAccounts());
-  const [letterTemplates, setLetterTemplates] = React.useState({
-    withdrawalLetterTemplate: "DEFAULT_WITHDRAWAL_LETTER",
-    arrearsLetterTemplate: "DEFAULT_ARREARS_LETTER",
-    defaultLetterTemplate: "DEFAULT_DEFAULT_LETTER",
-  });
 
   const latePaymentFields: Array<{
     key: keyof Omit<typeof latePayment, "platformFeeRateCapPercent">;
@@ -193,12 +188,6 @@ export default function PlatformFinanceSettingsPage() {
     },
   ];
 
-  const letterTemplateFields: Array<{ key: keyof typeof letterTemplates; label: string }> = [
-    { key: "withdrawalLetterTemplate", label: "Withdrawal letter template" },
-    { key: "arrearsLetterTemplate", label: "Arrears letter template" },
-    { key: "defaultLetterTemplate", label: "Default letter template" },
-  ];
-
   React.useEffect(() => {
     if (!data) return;
     setLatePayment({
@@ -213,11 +202,6 @@ export default function PlatformFinanceSettingsPage() {
     setTrusteeLetter({ ...DEFAULT_TRUSTEE_LETTER, ...(data.trusteeLetterConfig ?? {}) });
     setPlatformAccounts({ ...emptyPlatformAccounts(), ...(data.platformAccountsConfig ?? {}) });
     setBucketAccounts({ ...emptyBucketAccounts(), ...(data.ledgerBucketAccountsConfig ?? {}) });
-    setLetterTemplates({
-      withdrawalLetterTemplate: data.withdrawalLetterTemplate,
-      arrearsLetterTemplate: data.arrearsLetterTemplate,
-      defaultLetterTemplate: data.defaultLetterTemplate,
-    });
   }, [data]);
 
   const saveMutation = useMutation({
@@ -250,11 +234,10 @@ export default function PlatformFinanceSettingsPage() {
 
         <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
           <Tabs defaultValue="late-payment" className="space-y-6">
-            <TabsList className="grid h-auto w-full max-w-[760px] grid-cols-2 gap-2 md:grid-cols-4">
+            <TabsList className="grid h-auto w-full max-w-[760px] grid-cols-1 gap-2 md:grid-cols-3">
               <TabsTrigger value="late-payment">Late Payment</TabsTrigger>
               <TabsTrigger value="trustee-letter">Trustee Letter</TabsTrigger>
               <TabsTrigger value="money-flow-accounts">Money Flow Accounts</TabsTrigger>
-              <TabsTrigger value="letter-templates">Letter Templates</TabsTrigger>
             </TabsList>
 
             <TabsContent value="late-payment">
@@ -370,35 +353,6 @@ export default function PlatformFinanceSettingsPage() {
               </Button>
             </TabsContent>
 
-            <TabsContent value="letter-templates">
-              <Card className="rounded-2xl p-6 shadow-sm md:p-8">
-                <CardHeader className="px-0 pt-0">
-                  <CardTitle>Letter Templates</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-4 px-0">
-                  {letterTemplateFields.map(({ key, label }) => (
-                    <div key={key} className="space-y-2">
-                      <label className="text-sm font-medium">{label}</label>
-                      <Input
-                        value={letterTemplates[key]}
-                        disabled={disabled}
-                        className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
-                        onChange={(event) =>
-                          setLetterTemplates((prev) => ({ ...prev, [key]: event.target.value }))
-                        }
-                      />
-                    </div>
-                  ))}
-                  <Button
-                    disabled={disabled || saveMutation.isPending}
-                    className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
-                    onClick={() => saveMutation.mutate(letterTemplates)}
-                  >
-                    Save Letter Templates
-                  </Button>
-                </CardContent>
-              </Card>
-            </TabsContent>
           </Tabs>
         </div>
       </>
