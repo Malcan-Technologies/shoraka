@@ -55,6 +55,8 @@ model SigningCloudEkyc {
   issuer_organization_id String?
   session_token          String?                @unique
   sdk_endpoint           String?
+  confirmed_name         String?
+  confirmed_ic_number    String?
   doc_type               String
   status                 SigningCloudEkycStatus @default(pending)
   last_error             String?

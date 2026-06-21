@@ -40,6 +40,7 @@ import { toast } from "sonner";
 import type { NormalizedInvoice } from "../status";
 import type { ApiError } from "@cashsouk/types";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
+import { Input } from "@/components/ui/input";
 import { useEkycFlow } from "./use-ekyc-flow";
 
 const PLATFORM_FEE_TOOLTIP =
@@ -156,7 +157,8 @@ export function ReviewOfferModal({
   const [rejectionReason, setRejectionReason] = React.useState("");
   const [selectedDeclineReason, setSelectedDeclineReason] = React.useState("");
   const [isRejectMode, setIsRejectMode] = React.useState(false);
-  const [modalStep, setModalStep] = React.useState<"review" | "ekyc">("review");
+  const [modalStep, setModalStep] = React.useState<"review" | "ekyc-confirm" | "ekyc">("review");
+  const [confirmedName, setConfirmedName] = React.useState<string | null>(null);
   const [isContinuingToSigning, setIsContinuingToSigning] = React.useState(false);
   const isOtherDeclineReason = selectedDeclineReason === OTHER_ISSUER_DECLINE_REASON_VALUE;
   const isSigningOverrideEnabled = process.env.NODE_ENV !== "production";
@@ -428,9 +430,10 @@ export function ReviewOfferModal({
       const err = getApiErrorDetails(e, "Could not start signing");
       if (err.code === "EKYC_REQUIRED") {
         ekyc.reset();
-        setModalStep("ekyc");
+        setConfirmedName(null);
+        setModalStep("ekyc-confirm");
         toast.info("Identity verification required", {
-          description: "Scan the QR code with your phone to continue.",
+          description: "Confirm your MyKad details, then scan the QR code with your phone.",
         });
         return;
       }
@@ -459,10 +462,47 @@ export function ReviewOfferModal({
   };
 
   React.useEffect(() => {
+    if (modalStep !== "ekyc-confirm" || !issuerOrganizationId) {
+      return;
+    }
+
+    ekyc.loadIdentityPreview().catch(() => undefined);
+  }, [ekyc.loadIdentityPreview, issuerOrganizationId, modalStep]);
+
+  React.useEffect(() => {
+    if (!ekyc.identityPreview || modalStep !== "ekyc-confirm") {
+      return;
+    }
+
+    if (confirmedName === null) {
+      setConfirmedName(ekyc.identityPreview.name);
+    }
+  }, [confirmedName, ekyc.identityPreview, modalStep]);
+
+  const handleConfirmEkycIdentity = () => {
+    const name = (confirmedName ?? "").trim();
+    const icNumber = ekyc.identityPreview?.icNumber.replace(/\D/g, "") ?? "";
+
+    if (!name) {
+      toast.error("Enter your full name exactly as shown on your MyKad.");
+      return;
+    }
+
+    if (icNumber.length !== 12) {
+      toast.error("Your IC number on file is invalid. Contact support to update it before continuing.");
+      return;
+    }
+
+    ekyc.setConfirmedIdentity({ name });
+    setModalStep("ekyc");
+  };
+
+  React.useEffect(() => {
     // Auto-create once per eKYC step visit; do not retry in a loop after failure.
     if (
       modalStep !== "ekyc" ||
       !issuerOrganizationId ||
+      !ekyc.confirmedIdentity ||
       ekyc.captureUrl ||
       ekyc.isGenerating ||
       ekyc.status === "error" ||
@@ -475,6 +515,7 @@ export function ReviewOfferModal({
     ekyc.generateSession().catch(() => undefined);
   }, [
     ekyc.captureUrl,
+    ekyc.confirmedIdentity,
     ekyc.generateSession,
     ekyc.isGenerating,
     ekyc.status,
@@ -535,15 +576,17 @@ export function ReviewOfferModal({
           Financing offer approved — Review and respond
         </DialogTitle>
         <DialogDescription className="sr-only">
-          {modalStep === "ekyc"
-            ? "Scan the QR code on your phone to complete identity verification."
-            : "Review the financing offer and accept or decline."}
+          {modalStep === "ekyc-confirm"
+            ? "Confirm your MyKad name and IC number before scanning the QR code."
+            : modalStep === "ekyc"
+              ? "Scan the QR code on your phone to complete identity verification."
+              : "Review the financing offer and accept or decline."}
         </DialogDescription>
         {isLoading ? (
           <p className="text-sm text-muted-foreground py-8">Loading offer...</p>
         ) : (
           <>
-            {modalStep === "ekyc" ? (
+            {modalStep === "ekyc-confirm" ? (
               <div className="space-y-5">
                 <Button
                   type="button"
@@ -558,6 +601,82 @@ export function ReviewOfferModal({
                   Back to offer
                 </Button>
 
+                <div className="space-y-2">
+                  <p className="text-base font-semibold text-foreground">Confirm your identity</p>
+                  <p className="text-sm text-muted-foreground">
+                    Enter your full name exactly as shown on your MyKad before scanning the QR code on
+                    your phone.
+                  </p>
+                </div>
+
+                {ekyc.isLoadingPreview ? (
+                  <p className="text-sm text-muted-foreground py-8 text-center">Loading your details...</p>
+                ) : ekyc.previewError ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-destructive">{ekyc.previewError}</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full rounded-xl"
+                      onClick={() => {
+                        ekyc.loadIdentityPreview().catch(() => undefined);
+                      }}
+                    >
+                      Try again
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="ekyc-confirmed-name">Full name (as on MyKad)</Label>
+                      <Input
+                        id="ekyc-confirmed-name"
+                        value={confirmedName ?? ""}
+                        onChange={(event) => {
+                          setConfirmedName(event.target.value);
+                        }}
+                        autoComplete="name"
+                        className="rounded-xl"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>IC number</Label>
+                      <div
+                        aria-label="IC number on file"
+                        className="flex h-11 w-full items-center rounded-xl border border-input bg-muted px-3 text-sm text-muted-foreground tabular-nums select-none cursor-default pointer-events-none"
+                      >
+                        {ekyc.identityPreview?.icNumber ?? "—"}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        IC number on file for verification against your MyKad. Contact support if this is
+                        incorrect.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      className="w-full rounded-xl"
+                      onClick={handleConfirmEkycIdentity}
+                    >
+                      Continue to QR scan
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : modalStep === "ekyc" ? (
+              <div className="space-y-5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setModalStep("ekyc-confirm");
+                  }}
+                  className="h-auto w-fit px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
+                >
+                  <ArrowLeftIcon className="mr-2 h-4 w-4" />
+                  Edit MyKad details
+                </Button>
+
                 <div className="text-center space-y-2">
                   <p className="text-base font-semibold text-foreground">Identity verification</p>
                   {ekyc.status === "verified" ? (
@@ -566,7 +685,9 @@ export function ReviewOfferModal({
                     </p>
                   ) : ekyc.status === "failed" ? (
                     <p className="text-sm text-muted-foreground">
-                      We could not verify your identity. Scan a new QR code and try again.
+                      We could not verify your identity. Check that your full name matches your MyKad
+                      exactly, capture a clear photo of your IC, and scan again. Contact support if your
+                      IC number on file is incorrect.
                     </p>
                   ) : (
                     <p className="text-sm text-muted-foreground">
@@ -595,18 +716,20 @@ export function ReviewOfferModal({
                     <div className="flex w-full max-w-xs flex-col items-center gap-4 text-center">
                       <XCircleIcon className="h-16 w-16 text-destructive" aria-hidden="true" />
                       <p className="text-sm text-destructive">
-                        {ekyc.error || "We could not verify your identity."}
+                        {ekyc.error ||
+                          "We could not verify your identity. Check that your full name matches your MyKad exactly, capture a clear photo of your IC, and scan again."}
                       </p>
                       <Button
                         type="button"
                         variant="outline"
                         onClick={() => {
-                          ekyc.generateSession({ force: true }).catch(() => undefined);
+                          ekyc.reset();
+                          setModalStep("ekyc-confirm");
                         }}
                         disabled={ekyc.isGenerating}
                         className="w-full max-w-xs rounded-xl"
                       >
-                        {ekyc.isGenerating ? "Generating..." : "Try again"}
+                        Edit details and try again
                       </Button>
                     </div>
                   ) : (

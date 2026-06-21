@@ -235,7 +235,7 @@
       <div class="brand-mark" aria-hidden="true"></div>
       <div class="header-copy">
         <p class="header-title">Identity verification</p>
-        <p class="header-subtitle">Use your camera to capture your ID and selfie.</p>
+        <p class="header-subtitle">Hold your MyKad in the frame — we&apos;ll capture it automatically.</p>
       </div>
     </header>
 
@@ -269,7 +269,7 @@
       <div class="overlay-card">
         <div class="status-icon error" aria-hidden="true">!</div>
         <h2 id="failed-overlay-title">Identity not verified</h2>
-        <p id="failed-overlay-message">We could not verify your identity. Tap New QR on your computer and try again.</p>
+        <p id="failed-overlay-message">We could not verify your identity. Check that your full name matches your MyKad exactly, capture a clear photo of your IC, and scan again. Contact support if your IC number on file is incorrect.</p>
         <button type="button" class="action-button" id="failed-retry-button">Close</button>
       </div>
     </div>
@@ -400,10 +400,12 @@
       }
 
       async function submitCompletion(rawResult) {
+        const payload = { token: token, result: rawResult };
+
         const response = await fetch(apiBase + "/v1/ekyc/complete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token: token, result: rawResult }),
+          body: JSON.stringify(payload),
         });
         const body = await response.json();
         if (!response.ok) {
@@ -442,7 +444,7 @@
         if (status === "failed") {
           failedOverlayMessage.textContent = resolveOutcomeErrorMessage(
             body,
-            "We could not verify your identity. Tap New QR on your computer and try again."
+            "We could not verify your identity. Check that your full name matches your MyKad exactly, capture a clear photo of your IC, and scan again. Contact support if your IC number on file is incorrect."
           );
           setPageState("failed");
           showOverlay(failedOverlay);
@@ -495,7 +497,7 @@
             containerId,
             {
               docType: "mykad",
-              showActionButtons: true,
+              showActionButtons: false,
               cameraFit: true,
               enableIDFraudDetection: true,
             },
