@@ -19,6 +19,7 @@ import {
 } from "../modules/regtank/webhook-controller";
 import { signingCloudWebhookRouter } from "../modules/signingcloud/webhook-controller";
 import { shorakaStpWebhookRouter } from "../modules/shoraka-stp/shoraka-stp-webhook-controller";
+import { curlecWebhookRouter } from "../modules/payment/webhook-controller";
 
 function parseAllowedOrigins(): string[] {
   if (!process.env.ALLOWED_ORIGINS) {
@@ -84,6 +85,7 @@ export async function createApp(): Promise<Application> {
   app.use(regTankRootWebhookAliasRouter);
   app.use("/v1/webhooks", regTankWebhookRouter);
   app.use("/v1/webhooks/signingcloud", signingCloudWebhookRouter);
+  app.use("/v1/webhooks", curlecWebhookRouter);
   // Alias: some envs use /api/v1/... (Next-style); SigningCloud callUrl must match a mounted path
   app.use("/api/v1/webhooks/signingcloud", signingCloudWebhookRouter);
 
