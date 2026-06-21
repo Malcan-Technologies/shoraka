@@ -37,6 +37,12 @@ export interface EkycSession {
   token: string;
 }
 
+export interface CreateEkycSessionInput {
+  issuerOrganizationId: string;
+  confirmedName: string;
+  force?: boolean;
+}
+
 export interface EkycSessionStatus {
   status: EkycStatus;
   error: string | null;

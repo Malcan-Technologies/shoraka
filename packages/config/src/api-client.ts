@@ -85,6 +85,7 @@ import type {
   EkycMeStatus,
   EkycIdentityPreview,
   EkycSession,
+  CreateEkycSessionInput,
   EkycSessionStatus,
   CreateNoteFromApplicationInput,
   CreateNoteInvestmentInput,
@@ -378,10 +379,9 @@ export class ApiClient {
     return this.get<EkycIdentityPreview>(`/v1/ekyc/identity-preview?${query.toString()}`);
   }
 
-  async createEkycSession(input: {
-    issuerOrganizationId: string;
-    force?: boolean;
-  }): Promise<ApiResponse<EkycSession> | ApiError> {
+  async createEkycSession(
+    input: CreateEkycSessionInput
+  ): Promise<ApiResponse<EkycSession> | ApiError> {
     return this.post<EkycSession>("/v1/ekyc/session", input);
   }
 

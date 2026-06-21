@@ -1,6 +1,8 @@
 const mockFindUnique = jest.fn();
 const mockUpdate = jest.fn();
+const mockUpsert = jest.fn();
 const mockSubmitSigningCloudEkycResult = jest.fn();
+const mockGetSigningCloudEkycSession = jest.fn();
 const mockResolveIssuerEkycIdentityForOrganization = jest.fn();
 const mockUserFindUnique = jest.fn();
 
@@ -9,6 +11,7 @@ jest.mock("../../lib/prisma", () => ({
     signingCloudEkyc: {
       findUnique: (...args: unknown[]) => mockFindUnique(...args),
       update: (...args: unknown[]) => mockUpdate(...args),
+      upsert: (...args: unknown[]) => mockUpsert(...args),
     },
     user: {
       findUnique: (...args: unknown[]) => mockUserFindUnique(...args),
@@ -17,7 +20,7 @@ jest.mock("../../lib/prisma", () => ({
 }));
 
 jest.mock("./signingcloud-ekyc", () => ({
-  getSigningCloudEkycSession: jest.fn(),
+  getSigningCloudEkycSession: (...args: unknown[]) => mockGetSigningCloudEkycSession(...args),
   submitSigningCloudEkycResult: (...args: unknown[]) => mockSubmitSigningCloudEkycResult(...args),
 }));
 
@@ -36,6 +39,105 @@ import { SigningCloudEkycStatus } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { ekycService } from "./service";
 
+describe("EkycService.createSession", () => {
+  const userId = "user-1";
+  const issuerOrganizationId = "org-issuer-1";
+  const confirmedName = "Lucas Deng";
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockUserFindUnique.mockResolvedValue({ email: "signer@example.com" });
+    mockResolveIssuerEkycIdentityForOrganization.mockResolvedValue({
+      name: "LUCAS DENG",
+      icNumber: "820508105871",
+    });
+    mockUpdate.mockResolvedValue({});
+    mockUpsert.mockResolvedValue({});
+    mockGetSigningCloudEkycSession.mockResolvedValue({
+      url: "https://sdk.example/ekyc",
+      token: "session-token-new",
+    });
+  });
+
+  it("binds confirmed name and org IC when creating a new session", async () => {
+    mockFindUnique.mockResolvedValue(null);
+
+    const result = await ekycService.createSession(userId, issuerOrganizationId, confirmedName);
+
+    expect(result).toEqual({
+      url: "https://sdk.example/ekyc",
+      token: "session-token-new",
+    });
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          confirmed_name: "LUCAS DENG",
+          confirmed_ic_number: "820508105871",
+        }),
+        update: expect.objectContaining({
+          confirmed_name: "LUCAS DENG",
+          confirmed_ic_number: "820508105871",
+        }),
+      })
+    );
+  });
+
+  it("reuses a pending session when confirmed name matches", async () => {
+    mockFindUnique.mockResolvedValue({
+      status: SigningCloudEkycStatus.pending,
+      session_token: "session-token-existing",
+      sdk_endpoint: "https://sdk.example/existing",
+      confirmed_name: "LUCAS DENG",
+      issuer_organization_id: issuerOrganizationId,
+      updated_at: new Date(),
+    });
+
+    const result = await ekycService.createSession(userId, issuerOrganizationId, confirmedName);
+
+    expect(result).toEqual({
+      url: "https://sdk.example/existing",
+      token: "session-token-existing",
+    });
+    expect(mockGetSigningCloudEkycSession).not.toHaveBeenCalled();
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
+
+  it("rotates the session token when confirmed name changes", async () => {
+    mockFindUnique.mockResolvedValue({
+      status: SigningCloudEkycStatus.pending,
+      session_token: "session-token-existing",
+      sdk_endpoint: "https://sdk.example/existing",
+      confirmed_name: "OLD NAME",
+      issuer_organization_id: issuerOrganizationId,
+      updated_at: new Date(),
+    });
+
+    const result = await ekycService.createSession(userId, issuerOrganizationId, confirmedName);
+
+    expect(result.token).toBe("session-token-new");
+    expect(mockGetSigningCloudEkycSession).toHaveBeenCalled();
+    expect(mockUpsert).toHaveBeenCalled();
+  });
+
+  it("always rotates when force is true", async () => {
+    mockFindUnique.mockResolvedValue({
+      status: SigningCloudEkycStatus.pending,
+      session_token: "session-token-existing",
+      sdk_endpoint: "https://sdk.example/existing",
+      confirmed_name: "LUCAS DENG",
+      issuer_organization_id: issuerOrganizationId,
+      updated_at: new Date(),
+    });
+
+    const result = await ekycService.createSession(userId, issuerOrganizationId, confirmedName, {
+      force: true,
+    });
+
+    expect(result.token).toBe("session-token-new");
+    expect(mockGetSigningCloudEkycSession).toHaveBeenCalled();
+  });
+});
+
 describe("EkycService.completeSession", () => {
   const sessionToken = "session-token-1";
   const userId = "user-1";
@@ -45,6 +147,7 @@ describe("EkycService.completeSession", () => {
   const pendingRecord = {
     user_id: userId,
     issuer_organization_id: issuerOrganizationId,
+    confirmed_name: "LUCAS DENG",
     status: SigningCloudEkycStatus.pending,
     completed_at: null,
     user: { email: "signer@example.com" },
@@ -54,8 +157,8 @@ describe("EkycService.completeSession", () => {
     jest.clearAllMocks();
     mockUpdate.mockResolvedValue({});
     mockResolveIssuerEkycIdentityForOrganization.mockResolvedValue({
-      name: "AHMAD ALI",
-      icNumber: "901212101234",
+      name: "LUCAS DENG",
+      icNumber: "820508105871",
     });
   });
 
@@ -79,13 +182,13 @@ describe("EkycService.completeSession", () => {
     expect(mockSubmitSigningCloudEkycResult).toHaveBeenCalledWith({
       email: "signer@example.com",
       ekycResult: "encrypted-payload",
-      name: "AHMAD ALI",
-      icNumber: "901212101234",
+      name: "LUCAS DENG",
+      icNumber: "820508105871",
       token: sessionToken,
     });
   });
 
-  it("marks session failed when userVerificationSuccess is false", async () => {
+  it("marks session failed with a neutral retry message when userVerificationSuccess is false", async () => {
     mockFindUnique.mockResolvedValue(pendingRecord);
     mockSubmitSigningCloudEkycResult.mockResolvedValue({
       userVerificationSuccess: false,
@@ -97,12 +200,16 @@ describe("EkycService.completeSession", () => {
     const result = await ekycService.completeSession(sessionToken, sdkResult);
 
     expect(result.status).toBe("failed");
-    expect(result.error).toContain("could not verify");
+    expect(result.error).toContain("capture a clear photo");
+    expect(result.error).toContain("Contact support");
     expect(result.completedAt).toBeNull();
   });
 
-  it("uses confirmed identity instead of org resolver when provided", async () => {
-    mockFindUnique.mockResolvedValue(pendingRecord);
+  it("uses stored confirmed name with org IC when submitting", async () => {
+    mockFindUnique.mockResolvedValue({
+      ...pendingRecord,
+      confirmed_name: "LUCAS BIN DENG",
+    });
     mockSubmitSigningCloudEkycResult.mockResolvedValue({
       userVerificationSuccess: true,
       ekycData: {},
@@ -110,38 +217,14 @@ describe("EkycService.completeSession", () => {
       raw: {},
     });
 
-    const result = await ekycService.completeSession(sessionToken, sdkResult, {
-      confirmedName: "Lucas Deng",
-      confirmedIcNumber: "820508105871",
-    });
+    await ekycService.completeSession(sessionToken, sdkResult);
 
-    expect(result.status).toBe("verified");
-    expect(mockResolveIssuerEkycIdentityForOrganization).not.toHaveBeenCalled();
-    expect(mockSubmitSigningCloudEkycResult).toHaveBeenCalledWith({
-      email: "signer@example.com",
-      ekycResult: "encrypted-payload",
-      name: "LUCAS DENG",
-      icNumber: "820508105871",
-      token: sessionToken,
-    });
-  });
-
-  it("returns name/IC mismatch message when confirmed identity fails verification", async () => {
-    mockFindUnique.mockResolvedValue(pendingRecord);
-    mockSubmitSigningCloudEkycResult.mockResolvedValue({
-      userVerificationSuccess: false,
-      ekycData: {},
-      message: "Success",
-      raw: {},
-    });
-
-    const result = await ekycService.completeSession(sessionToken, sdkResult, {
-      confirmedName: "Lucas Deng",
-      confirmedIcNumber: "820508105871",
-    });
-
-    expect(result.status).toBe("failed");
-    expect(result.error).toContain("full name matches your MyKad");
+    expect(mockSubmitSigningCloudEkycResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "LUCAS BIN DENG",
+        icNumber: "820508105871",
+      })
+    );
   });
 
   it("rejects complete when session has no bound issuer organization", async () => {
@@ -161,6 +244,19 @@ describe("EkycService.completeSession", () => {
         status: SigningCloudEkycStatus.error,
       }),
     });
+  });
+
+  it("rejects complete when session has no bound confirmed name", async () => {
+    mockFindUnique.mockResolvedValue({
+      ...pendingRecord,
+      confirmed_name: null,
+    });
+
+    await expect(ekycService.completeSession(sessionToken, sdkResult)).rejects.toMatchObject({
+      code: "EKYC_SESSION_IDENTITY_MISSING",
+    });
+
+    expect(mockSubmitSigningCloudEkycResult).not.toHaveBeenCalled();
   });
 
   it("marks session error when submitResult throws", async () => {

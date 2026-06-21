@@ -16,7 +16,6 @@ type GenerateSessionOptions = {
 
 export type EkycConfirmedIdentity = {
   name: string;
-  icNumber: string;
 };
 
 type UseEkycFlowResult = {
@@ -102,7 +101,7 @@ export function useEkycFlow({
   const requiresSupport = errorCode === EKYC_PROVIDER_UNAVAILABLE_CODE;
 
   const captureUrl = React.useMemo(() => {
-    if (!token || !endpoint || !confirmedIdentity || typeof window === "undefined") {
+    if (!token || !endpoint || typeof window === "undefined") {
       return null;
     }
 
@@ -110,12 +109,10 @@ export function useEkycFlow({
       token,
       endpoint,
       api: apiBaseUrl,
-      confirmedName: confirmedIdentity.name,
-      confirmedIcNumber: confirmedIdentity.icNumber,
     });
 
     return `${window.location.origin}/ekyc/capture.html?${captureParams.toString()}`;
-  }, [apiBaseUrl, confirmedIdentity, endpoint, token]);
+  }, [apiBaseUrl, endpoint, token]);
 
   React.useEffect(() => {
     if (status !== "pending" || pendingSince === null) {
@@ -152,7 +149,6 @@ export function useEkycFlow({
   const setConfirmedIdentity = React.useCallback((identity: EkycConfirmedIdentity) => {
     setConfirmedIdentityState({
       name: identity.name.trim(),
-      icNumber: identity.icNumber.replace(/\D/g, ""),
     });
     reset();
   }, [reset]);
@@ -210,7 +206,11 @@ export function useEkycFlow({
       setErrorCode(null);
 
       try {
-        const response = await apiClient.createEkycSession({ issuerOrganizationId, force });
+        const response = await apiClient.createEkycSession({
+          issuerOrganizationId,
+          force,
+          confirmedName: confirmedIdentity.name,
+        });
         if (!response.success) {
           setStatus("error");
           setErrorCode(getErrorCode(response));

@@ -1,41 +1,17 @@
-import { AppError } from "../../lib/http/error-handler";
-import {
-  maskMalaysianIcNumber,
-  parseConfirmedEkycIdentity,
-} from "./confirmed-identity";
+import { maskMalaysianIcNumber, parseConfirmedEkycName } from "./confirmed-identity";
 
-describe("parseConfirmedEkycIdentity", () => {
-  it("returns null when both fields are omitted", () => {
-    expect(parseConfirmedEkycIdentity({})).toBeNull();
+describe("parseConfirmedEkycName", () => {
+  it("returns null when name is omitted", () => {
+    expect(parseConfirmedEkycName()).toBeNull();
+    expect(parseConfirmedEkycName("")).toBeNull();
   });
 
-  it("normalizes confirmed name and IC number", () => {
-    expect(
-      parseConfirmedEkycIdentity({
-        confirmedName: "  lucas   deng  ",
-        confirmedIcNumber: "820508-10-5871",
-      })
-    ).toEqual({
-      name: "LUCAS DENG",
-      icNumber: "820508105871",
-    });
+  it("normalizes confirmed name", () => {
+    expect(parseConfirmedEkycName("  lucas   deng  ")).toBe("LUCAS DENG");
   });
 
-  it("rejects partial confirmed identity", () => {
-    expect(() =>
-      parseConfirmedEkycIdentity({
-        confirmedName: "LUCAS DENG",
-      })
-    ).toThrow(AppError);
-  });
-
-  it("rejects invalid IC numbers", () => {
-    expect(() =>
-      parseConfirmedEkycIdentity({
-        confirmedName: "LUCAS DENG",
-        confirmedIcNumber: "123",
-      })
-    ).toThrow(AppError);
+  it("returns null for whitespace-only names", () => {
+    expect(parseConfirmedEkycName("   ")).toBeNull();
   });
 });
 

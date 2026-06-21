@@ -57,8 +57,13 @@ router.get(
 
 router.post("/session", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { issuerOrganizationId, force } = sessionBodySchema.parse(req.body);
-    const data = await ekycService.createSession(getUserId(req), issuerOrganizationId, { force });
+    const { issuerOrganizationId, force, confirmedName } = sessionBodySchema.parse(req.body);
+    const data = await ekycService.createSession(
+      getUserId(req),
+      issuerOrganizationId,
+      confirmedName,
+      { force }
+    );
     res.json({
       success: true,
       data,
@@ -108,11 +113,8 @@ router.post("/fail", async (req: Request, res: Response, next: NextFunction) => 
 
 router.post("/complete", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { token, result, confirmedName, confirmedIcNumber } = completeBodySchema.parse(req.body);
-    const data = await ekycService.completeSession(token, result, {
-      confirmedName,
-      confirmedIcNumber,
-    });
+    const { token, result } = completeBodySchema.parse(req.body);
+    const data = await ekycService.completeSession(token, result);
     res.json({
       success: true,
       data,

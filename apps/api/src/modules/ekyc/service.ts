@@ -5,8 +5,7 @@ import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
 import {
   maskMalaysianIcNumber,
-  parseConfirmedEkycIdentity,
-  type EkycConfirmedIdentityInput,
+  parseConfirmedEkycName,
 } from "./confirmed-identity";
 import {
   resolveIssuerEkycIdentityForOrganization,
@@ -23,13 +22,13 @@ const EKYC_DOC_TYPE = "mykad";
 const EKYC_SESSION_TTL_MS = 25 * 60 * 1000;
 
 const EKYC_VERIFICATION_FAILED_MESSAGE =
-  "We could not verify your identity. Ensure your full name matches your MyKad exactly, then try again with a clear photo of your IC.";
-
-const EKYC_VERIFICATION_NAME_IC_MISMATCH_MESSAGE =
-  "We could not verify your identity. Ensure your full name matches your MyKad exactly, edit your details on your computer, and scan again.";
+  "We could not verify your identity. Check that your full name matches your MyKad exactly, capture a clear photo of your IC, and scan again. Contact support if your IC number on file is incorrect.";
 
 const EKYC_SESSION_ORG_MISSING_MESSAGE =
   "This verification session is invalid. Generate a new QR code on your computer and try again.";
+
+const EKYC_SESSION_IDENTITY_MISSING_MESSAGE =
+  "This verification session is invalid. Confirm your MyKad details on your computer and generate a new QR code.";
 
 function isPendingSessionFresh(updatedAt: Date): boolean {
   return Date.now() - updatedAt.getTime() < EKYC_SESSION_TTL_MS;
@@ -117,6 +116,10 @@ function extractEkycResult(result: unknown): string {
   throw new AppError(400, "INVALID_EKYC_RESULT", "SDK result did not include capture data");
 }
 
+function boundNameMatches(storedName: string | null, confirmedName: string): boolean {
+  return storedName === confirmedName;
+}
+
 class EkycService {
   async getIdentityPreview(
     userId: string,
@@ -158,9 +161,15 @@ class EkycService {
   async createSession(
     userId: string,
     issuerOrganizationId: string,
+    confirmedNameInput: string,
     options?: { force?: boolean }
   ): Promise<EkycSession> {
     const force = options?.force === true;
+    const confirmedName = parseConfirmedEkycName(confirmedNameInput);
+    if (!confirmedName) {
+      throw new AppError(400, "VALIDATION_ERROR", "Full name is required when confirming identity");
+    }
+
     const user = await prisma.user.findUnique({
       where: { user_id: userId },
       select: { email: true },
@@ -170,7 +179,11 @@ class EkycService {
     }
 
     const email = user.email.trim();
-    await resolveIssuerEkycIdentityForOrganization(userId, issuerOrganizationId, email);
+    const orgIdentity = await resolveIssuerEkycIdentityForOrganization(
+      userId,
+      issuerOrganizationId,
+      email
+    );
 
     const existing = await prisma.signingCloudEkyc.findUnique({
       where: { user_id: userId },
@@ -178,6 +191,8 @@ class EkycService {
         status: true,
         session_token: true,
         sdk_endpoint: true,
+        confirmed_name: true,
+        issuer_organization_id: true,
         updated_at: true,
       },
     });
@@ -190,11 +205,17 @@ class EkycService {
       existing?.status === SigningCloudEkycStatus.pending &&
       existing.session_token &&
       existing.sdk_endpoint &&
+      existing.issuer_organization_id === issuerOrganizationId &&
+      boundNameMatches(existing.confirmed_name, confirmedName) &&
       isPendingSessionFresh(existing.updated_at)
     ) {
       await prisma.signingCloudEkyc.update({
         where: { user_id: userId },
-        data: { issuer_organization_id: issuerOrganizationId },
+        data: {
+          issuer_organization_id: issuerOrganizationId,
+          confirmed_name: confirmedName,
+          confirmed_ic_number: orgIdentity.icNumber,
+        },
       });
 
       return {
@@ -210,6 +231,8 @@ class EkycService {
       create: {
         user_id: userId,
         issuer_organization_id: issuerOrganizationId,
+        confirmed_name: confirmedName,
+        confirmed_ic_number: orgIdentity.icNumber,
         doc_type: EKYC_DOC_TYPE,
         session_token: token,
         sdk_endpoint: url,
@@ -219,6 +242,8 @@ class EkycService {
       },
       update: {
         issuer_organization_id: issuerOrganizationId,
+        confirmed_name: confirmedName,
+        confirmed_ic_number: orgIdentity.icNumber,
         doc_type: EKYC_DOC_TYPE,
         session_token: token,
         sdk_endpoint: url,
@@ -294,16 +319,13 @@ class EkycService {
     };
   }
 
-  async completeSession(
-    token: string,
-    result: unknown,
-    confirmed?: EkycConfirmedIdentityInput
-  ): Promise<EkycSessionStatus> {
+  async completeSession(token: string, result: unknown): Promise<EkycSessionStatus> {
     const record = await prisma.signingCloudEkyc.findUnique({
       where: { session_token: token },
       select: {
         user_id: true,
         issuer_organization_id: true,
+        confirmed_name: true,
         status: true,
         completed_at: true,
         user: { select: { email: true } },
@@ -333,41 +355,38 @@ class EkycService {
         throw new AppError(400, "EKYC_SESSION_ORG_MISSING", EKYC_SESSION_ORG_MISSING_MESSAGE);
       }
 
-      const confirmedIdentity = parseConfirmedEkycIdentity(confirmed ?? {});
-      const identity =
-        confirmedIdentity ??
-        (await resolveIssuerEkycIdentityForOrganization(
-          record.user_id,
-          record.issuer_organization_id,
-          accountEmail
-        ));
+      if (!record.confirmed_name?.trim()) {
+        throw new AppError(400, "EKYC_SESSION_IDENTITY_MISSING", EKYC_SESSION_IDENTITY_MISSING_MESSAGE);
+      }
+
+      const orgIdentity = await resolveIssuerEkycIdentityForOrganization(
+        record.user_id,
+        record.issuer_organization_id,
+        accountEmail
+      );
 
       const ekycResult = extractEkycResult(result);
       const submitResult = await submitSigningCloudEkycResult({
         email: accountEmail,
         ekycResult,
-        name: identity.name,
-        icNumber: identity.icNumber,
+        name: record.confirmed_name,
+        icNumber: orgIdentity.icNumber,
         token,
       });
 
       if (!submitResult.userVerificationSuccess) {
-        const failureMessage = confirmedIdentity
-          ? EKYC_VERIFICATION_NAME_IC_MISMATCH_MESSAGE
-          : EKYC_VERIFICATION_FAILED_MESSAGE;
-
         await prisma.signingCloudEkyc.update({
           where: { user_id: record.user_id },
           data: {
             status: SigningCloudEkycStatus.failed,
-            last_error: failureMessage,
+            last_error: EKYC_VERIFICATION_FAILED_MESSAGE,
             completed_at: null,
           },
         });
 
         return {
           status: "failed" as const,
-          error: failureMessage,
+          error: EKYC_VERIFICATION_FAILED_MESSAGE,
           completedAt: null,
         };
       }

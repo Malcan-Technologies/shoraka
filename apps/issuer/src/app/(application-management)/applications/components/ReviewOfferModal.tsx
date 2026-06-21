@@ -493,7 +493,7 @@ export function ReviewOfferModal({
       return;
     }
 
-    ekyc.setConfirmedIdentity({ name, icNumber });
+    ekyc.setConfirmedIdentity({ name });
     setModalStep("ekyc");
   };
 
@@ -640,13 +640,13 @@ export function ReviewOfferModal({
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="ekyc-confirmed-ic">IC number</Label>
-                      <p
-                        id="ekyc-confirmed-ic"
-                        className="rounded-xl border border-border bg-muted px-3 py-2 text-sm text-muted-foreground tabular-nums"
+                      <Label>IC number</Label>
+                      <div
+                        aria-label="IC number on file"
+                        className="flex h-11 w-full items-center rounded-xl border border-input bg-muted px-3 text-sm text-muted-foreground tabular-nums select-none cursor-default pointer-events-none"
                       >
                         {ekyc.identityPreview?.icNumber ?? "—"}
-                      </p>
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         From your company registration. Contact support if this is incorrect.
                       </p>
@@ -684,8 +684,9 @@ export function ReviewOfferModal({
                     </p>
                   ) : ekyc.status === "failed" ? (
                     <p className="text-sm text-muted-foreground">
-                      We could not verify your identity. Ensure your full name matches your MyKad
-                      exactly, then edit your details and scan again.
+                      We could not verify your identity. Check that your full name matches your MyKad
+                      exactly, capture a clear photo of your IC, and scan again. Contact support if your
+                      IC number on file is incorrect.
                     </p>
                   ) : (
                     <p className="text-sm text-muted-foreground">
@@ -715,7 +716,7 @@ export function ReviewOfferModal({
                       <XCircleIcon className="h-16 w-16 text-destructive" aria-hidden="true" />
                       <p className="text-sm text-destructive">
                         {ekyc.error ||
-                          "We could not verify your identity. Ensure your full name matches your MyKad exactly."}
+                          "We could not verify your identity. Check that your full name matches your MyKad exactly, capture a clear photo of your IC, and scan again."}
                       </p>
                       <Button
                         type="button"

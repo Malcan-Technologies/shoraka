@@ -235,7 +235,7 @@
       <div class="brand-mark" aria-hidden="true"></div>
       <div class="header-copy">
         <p class="header-title">Identity verification</p>
-        <p class="header-subtitle">Use your camera to capture your ID and selfie.</p>
+        <p class="header-subtitle">Hold your MyKad in the frame — we&apos;ll capture it automatically.</p>
       </div>
     </header>
 
@@ -269,7 +269,7 @@
       <div class="overlay-card">
         <div class="status-icon error" aria-hidden="true">!</div>
         <h2 id="failed-overlay-title">Identity not verified</h2>
-        <p id="failed-overlay-message">We could not verify your identity. Ensure your full name matches your MyKad exactly, then edit your details on your computer and scan again.</p>
+        <p id="failed-overlay-message">We could not verify your identity. Check that your full name matches your MyKad exactly, capture a clear photo of your IC, and scan again. Contact support if your IC number on file is incorrect.</p>
         <button type="button" class="action-button" id="failed-retry-button">Close</button>
       </div>
     </div>
@@ -288,8 +288,6 @@
       const token = params.get("token");
       const endpoint = params.get("endpoint");
       const apiBase = (params.get("api") || "").replace(/\/$/, "");
-      const confirmedName = params.get("confirmedName");
-      const confirmedIcNumber = params.get("confirmedIcNumber");
       const containerId = "ekyc-container";
       const BOOT_TIMEOUT_MS = 45000;
 
@@ -403,10 +401,6 @@
 
       async function submitCompletion(rawResult) {
         const payload = { token: token, result: rawResult };
-        if (confirmedName && confirmedIcNumber) {
-          payload.confirmedName = confirmedName;
-          payload.confirmedIcNumber = confirmedIcNumber;
-        }
 
         const response = await fetch(apiBase + "/v1/ekyc/complete", {
           method: "POST",
@@ -450,7 +444,7 @@
         if (status === "failed") {
           failedOverlayMessage.textContent = resolveOutcomeErrorMessage(
             body,
-            "We could not verify your identity. Ensure your full name matches your MyKad exactly, then edit your details on your computer and scan again."
+            "We could not verify your identity. Check that your full name matches your MyKad exactly, capture a clear photo of your IC, and scan again. Contact support if your IC number on file is incorrect."
           );
           setPageState("failed");
           showOverlay(failedOverlay);
@@ -503,7 +497,7 @@
             containerId,
             {
               docType: "mykad",
-              showActionButtons: true,
+              showActionButtons: false,
               cameraFit: true,
               enableIDFraudDetection: true,
             },
