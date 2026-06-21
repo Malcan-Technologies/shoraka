@@ -20,6 +20,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -40,6 +49,7 @@ import {
   useInvestorWithdrawals,
   useMarkWithdrawalCompleted,
   useMarkWithdrawalSubmitted,
+  useUpdateWithdrawalBeneficiary,
 } from "@/notes/hooks/use-notes";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -75,6 +85,22 @@ function WithdrawalActions({
   const generateLetter = useGenerateWithdrawalLetter();
   const markSubmitted = useMarkWithdrawalSubmitted();
   const markCompleted = useMarkWithdrawalCompleted();
+  const updateBeneficiary = useUpdateWithdrawalBeneficiary();
+  const [editOpen, setEditOpen] = React.useState(false);
+  const snapshot = item.beneficiarySnapshot;
+  const [form, setForm] = React.useState({
+    accountHolder:
+      typeof snapshot.account_holder === "string" ? snapshot.account_holder : "",
+    bankName: typeof snapshot.bank_name === "string" ? snapshot.bank_name : "",
+    accountNumber:
+      typeof snapshot.account_number === "string" ? snapshot.account_number : "",
+    remarks:
+      typeof snapshot.reference_note === "string"
+        ? snapshot.reference_note
+        : typeof snapshot.remarks === "string"
+          ? snapshot.remarks
+          : "",
+  });
 
   // TODO: cancellation/reversal is out of scope; requires a separately designed balance reversal flow with idempotency, audit logging, and clear status handling.
 
@@ -91,6 +117,25 @@ function WithdrawalActions({
           onSuccess: () => toast.success("Trustee letter generated"),
           onError: (error) => toast.error(error.message),
         }),
+    });
+    actions.push({
+      label: "Edit beneficiary",
+      onClick: () => {
+        setForm({
+          accountHolder:
+            typeof snapshot.account_holder === "string" ? snapshot.account_holder : "",
+          bankName: typeof snapshot.bank_name === "string" ? snapshot.bank_name : "",
+          accountNumber:
+            typeof snapshot.account_number === "string" ? snapshot.account_number : "",
+          remarks:
+            typeof snapshot.reference_note === "string"
+              ? snapshot.reference_note
+              : typeof snapshot.remarks === "string"
+                ? snapshot.remarks
+                : "",
+        });
+        setEditOpen(true);
+      },
     });
   }
 
@@ -126,21 +171,112 @@ function WithdrawalActions({
   if (actions.length === 0) return <span className="text-muted-foreground">—</span>;
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-9 w-9 p-0" disabled={pending}>
-          <EllipsisVerticalIcon className="h-4 w-4" />
-          <span className="sr-only">Actions</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {actions.map((action) => (
-          <DropdownMenuItem key={action.label} onClick={action.onClick}>
-            {action.label}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-9 w-9 p-0" disabled={pending}>
+            <EllipsisVerticalIcon className="h-4 w-4" />
+            <span className="sr-only">Actions</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {actions.map((action) => (
+            <DropdownMenuItem key={action.label} onClick={action.onClick}>
+              {action.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="rounded-2xl p-0 sm:max-w-lg">
+          <DialogHeader className="border-b px-6 pb-4 pt-6">
+            <DialogTitle className="text-lg font-semibold">Edit beneficiary</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 px-6 py-6">
+            <div className="space-y-2">
+              <Label htmlFor={`beneficiary-holder-${item.withdrawalId}`}>Payee / Account holder</Label>
+              <Input
+                id={`beneficiary-holder-${item.withdrawalId}`}
+                value={form.accountHolder}
+                className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
+                onChange={(event) => setForm((prev) => ({ ...prev, accountHolder: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`beneficiary-bank-${item.withdrawalId}`}>Bank name</Label>
+              <Input
+                id={`beneficiary-bank-${item.withdrawalId}`}
+                value={form.bankName}
+                className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
+                onChange={(event) => setForm((prev) => ({ ...prev, bankName: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`beneficiary-account-${item.withdrawalId}`}>Account number</Label>
+              <Input
+                id={`beneficiary-account-${item.withdrawalId}`}
+                value={form.accountNumber}
+                className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, accountNumber: event.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`beneficiary-remarks-${item.withdrawalId}`}>Remarks</Label>
+              <Input
+                id={`beneficiary-remarks-${item.withdrawalId}`}
+                value={form.remarks}
+                className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
+                onChange={(event) => setForm((prev) => ({ ...prev, remarks: event.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter className="border-t px-6 py-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEditOpen(false)}
+              disabled={updateBeneficiary.isPending}
+            >
+              Close
+            </Button>
+            <Button
+              type="button"
+              className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
+              disabled={updateBeneficiary.isPending}
+              onClick={() => {
+                updateBeneficiary.mutate(
+                  {
+                    id: item.withdrawalId,
+                    beneficiarySnapshot: {
+                      ...snapshot,
+                      account_holder: form.accountHolder.trim(),
+                      bank_name: form.bankName.trim(),
+                      account_number: form.accountNumber.trim(),
+                      reference_note: form.remarks.trim(),
+                      remarks: form.remarks.trim(),
+                    },
+                  },
+                  {
+                    onSuccess: () => {
+                      toast.success("Beneficiary details updated");
+                      setEditOpen(false);
+                    },
+                    onError: (error) => {
+                      toast.error(error.message);
+                    },
+                  }
+                );
+              }}
+            >
+              {updateBeneficiary.isPending ? "Saving..." : "Save beneficiary"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
