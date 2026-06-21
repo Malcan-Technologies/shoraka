@@ -3,6 +3,11 @@ import {
   GatewayPayment,
   GatewayPaymentPurpose,
   GatewayPaymentStatus,
+  InvestorBalanceTransactionSource,
+  InvestorOrganization,
+  NameCheckResult,
+  NoteLedgerDirection,
+  OrganizationType,
   Prisma,
   PrismaClient,
 } from "@prisma/client";
@@ -10,9 +15,12 @@ import { randomUUID } from "crypto";
 import { getCurlecConfig } from "../../config/curlec";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma as defaultPrisma } from "../../lib/prisma";
+import { creditInvestorBalance } from "../notes/investor-balance";
+import { postLedgerEntry } from "../notes/ledger";
 import { createCurlecClient } from "./curlec-client";
 import { CreateInvestorDepositInput } from "./deposit-schemas";
 import { myrToSen } from "./money";
+import { assertTransition } from "./state";
 
 export type ActorContext = {
   userId: string;
@@ -149,4 +157,81 @@ export async function getInvestorDeposit(
   }
 
   return mapDepositResponse(payment);
+}
+
+export function resolveInvestorExpectedName(org: InvestorOrganization): string | null {
+  if (org.type === OrganizationType.COMPANY) {
+    const data = org.corporate_onboarding_data;
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+      const basicInfo = (data as { basicInfo?: { businessName?: string } }).basicInfo;
+      const businessName = basicInfo?.businessName?.trim();
+      if (businessName) return businessName;
+    }
+  }
+
+  const parts = [org.first_name, org.middle_name, org.last_name]
+    .map((part) => part?.trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts.join(" ") : null;
+}
+
+export async function creditCompletedDeposit(
+  tx: Prisma.TransactionClient,
+  gatewayPayment: GatewayPayment,
+  opts?: { nameCheckResult?: NameCheckResult; actorUserId?: string }
+) {
+  assertTransition(gatewayPayment.status, GatewayPaymentStatus.COMPLETED);
+
+  if (!gatewayPayment.investor_organization_id) {
+    throw new AppError(
+      500,
+      "GATEWAY_PAYMENT_INVALID",
+      "Investor deposit is missing organization"
+    );
+  }
+
+  const amount = decimalToNumber(gatewayPayment.amount);
+  const orgId = gatewayPayment.investor_organization_id;
+
+  await tx.investorOrganization.update({
+    where: { id: orgId },
+    data: { deposit_received: true },
+  });
+
+  const balanceTransaction = await creditInvestorBalance(tx, {
+    investorOrganizationId: orgId,
+    amount,
+    source: InvestorBalanceTransactionSource.GATEWAY_DEPOSIT,
+    idempotencyKey: `gateway-deposit:balance:${gatewayPayment.id}`,
+    metadata: {
+      gatewayPaymentId: gatewayPayment.id,
+      curlecOrderId: gatewayPayment.curlec_order_id,
+      curlecPaymentId: gatewayPayment.curlec_payment_id,
+    },
+  });
+
+  await postLedgerEntry(tx, {
+    accountCode: "INVESTOR_POOL",
+    direction: NoteLedgerDirection.CREDIT,
+    amount,
+    description: "Investor gateway deposit received into investor pool",
+    idempotencyKey: `gateway-deposit:ledger:${gatewayPayment.id}`,
+    gatewayPaymentId: gatewayPayment.id,
+    metadata: {
+      gatewayPaymentId: gatewayPayment.id,
+      investorOrganizationId: orgId,
+      investorBalanceTransactionId: balanceTransaction.id,
+      source: InvestorBalanceTransactionSource.GATEWAY_DEPOSIT,
+      ...(opts?.actorUserId ? { actorUserId: opts.actorUserId } : {}),
+    },
+  });
+
+  await tx.gatewayPayment.update({
+    where: { id: gatewayPayment.id },
+    data: {
+      status: GatewayPaymentStatus.COMPLETED,
+      name_check_result: opts?.nameCheckResult ?? NameCheckResult.PASS,
+      name_check_at: new Date(),
+    },
+  });
 }

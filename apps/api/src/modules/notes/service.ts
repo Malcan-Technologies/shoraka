@@ -51,6 +51,7 @@ import {
   noteAllowsInvoiceResign,
 } from "../signingcloud/offer-signing-admin-view";
 import { creditInvestorBalance, debitInvestorBalanceForCommit } from "./investor-balance";
+import { postLedgerEntry } from "./ledger";
 import {
   buildInvestorBalanceStatement,
   buildStatementFilename,
@@ -3148,21 +3149,18 @@ export class NoteService {
         idempotencyKey: `investor-balance:topup:${input.investorOrganizationId}:${Date.now()}`,
         metadata: { reason: "test_topup" },
       });
-      const investorPoolId = await this.getLedgerAccountId(tx, "INVESTOR_POOL");
-      await tx.noteLedgerEntry.create({
-        data: {
-          account_id: investorPoolId,
-          direction: NoteLedgerDirection.CREDIT,
-          amount: money(input.amount),
-          description: "Investor test top-up received into investor pool",
-          idempotency_key: `investor-balance-topup:${balanceTransaction.id}`,
-          metadata: {
-            actorUserId: actor.userId,
-            actorPortal: actor.portal ?? "INVESTOR",
-            investorOrganizationId: input.investorOrganizationId,
-            investorBalanceTransactionId: balanceTransaction.id,
-            source: "MANUAL_TOPUP",
-          },
+      await postLedgerEntry(tx, {
+        accountCode: "INVESTOR_POOL",
+        direction: NoteLedgerDirection.CREDIT,
+        amount: input.amount,
+        description: "Investor test top-up received into investor pool",
+        idempotencyKey: `investor-balance-topup:${balanceTransaction.id}`,
+        metadata: {
+          actorUserId: actor.userId,
+          actorPortal: actor.portal ?? "INVESTOR",
+          investorOrganizationId: input.investorOrganizationId,
+          investorBalanceTransactionId: balanceTransaction.id,
+          source: "MANUAL_TOPUP",
         },
       });
     });

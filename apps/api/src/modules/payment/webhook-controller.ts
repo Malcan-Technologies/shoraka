@@ -3,7 +3,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
-import { ingestCurlecWebhook } from "./webhook-service";
+import { ingestCurlecWebhook, processStoredCurlecWebhook } from "./webhook-service";
 
 export const curlecWebhookRouter = Router();
 
@@ -46,6 +46,8 @@ curlecWebhookRouter.post(
         signature,
         eventId,
       });
+
+      await processStoredCurlecWebhook(result.eventId);
 
       res.status(200).json({
         success: true,
