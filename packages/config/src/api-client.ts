@@ -83,6 +83,7 @@ import type {
   AdminCtosReportListItem,
   SoukscoreRiskRating,
   EkycMeStatus,
+  EkycIdentityPreview,
   EkycSession,
   EkycSessionStatus,
   CreateNoteFromApplicationInput,
@@ -368,6 +369,13 @@ export class ApiClient {
 
   async getEkycStatus(): Promise<ApiResponse<EkycMeStatus> | ApiError> {
     return this.get<EkycMeStatus>("/v1/ekyc/me");
+  }
+
+  async getEkycIdentityPreview(
+    issuerOrganizationId: string
+  ): Promise<ApiResponse<EkycIdentityPreview> | ApiError> {
+    const query = new URLSearchParams({ issuerOrganizationId });
+    return this.get<EkycIdentityPreview>(`/v1/ekyc/identity-preview?${query.toString()}`);
   }
 
   async createEkycSession(input: {

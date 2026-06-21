@@ -32,7 +32,7 @@ export function normalizeEkycLegalName(value: unknown): string | null {
     return null;
   }
 
-  const name = value.trim().toUpperCase();
+  const name = value.trim().replace(/\s+/g, " ").toUpperCase();
   return name.length > 0 ? name : null;
 }
 

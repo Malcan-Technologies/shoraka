@@ -269,7 +269,7 @@
       <div class="overlay-card">
         <div class="status-icon error" aria-hidden="true">!</div>
         <h2 id="failed-overlay-title">Identity not verified</h2>
-        <p id="failed-overlay-message">We could not verify your identity. Tap New QR on your computer and try again.</p>
+        <p id="failed-overlay-message">We could not verify your identity. Ensure your full name matches your MyKad exactly, then edit your details on your computer and scan again.</p>
         <button type="button" class="action-button" id="failed-retry-button">Close</button>
       </div>
     </div>
@@ -288,6 +288,8 @@
       const token = params.get("token");
       const endpoint = params.get("endpoint");
       const apiBase = (params.get("api") || "").replace(/\/$/, "");
+      const confirmedName = params.get("confirmedName");
+      const confirmedIcNumber = params.get("confirmedIcNumber");
       const containerId = "ekyc-container";
       const BOOT_TIMEOUT_MS = 45000;
 
@@ -400,10 +402,16 @@
       }
 
       async function submitCompletion(rawResult) {
+        const payload = { token: token, result: rawResult };
+        if (confirmedName && confirmedIcNumber) {
+          payload.confirmedName = confirmedName;
+          payload.confirmedIcNumber = confirmedIcNumber;
+        }
+
         const response = await fetch(apiBase + "/v1/ekyc/complete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token: token, result: rawResult }),
+          body: JSON.stringify(payload),
         });
         const body = await response.json();
         if (!response.ok) {
@@ -442,7 +450,7 @@
         if (status === "failed") {
           failedOverlayMessage.textContent = resolveOutcomeErrorMessage(
             body,
-            "We could not verify your identity. Tap New QR on your computer and try again."
+            "We could not verify your identity. Ensure your full name matches your MyKad exactly, then edit your details on your computer and scan again."
           );
           setPageState("failed");
           showOverlay(failedOverlay);

@@ -5,6 +5,7 @@ import { AppError, formatZodMessage } from "../../lib/http/error-handler";
 import {
   completeBodySchema,
   failBodySchema,
+  identityPreviewQuerySchema,
   sessionBodySchema,
   statusQuerySchema,
 } from "./schemas";
@@ -32,6 +33,27 @@ router.get("/me", requireAuth, async (req: Request, res: Response, next: NextFun
     next(error);
   }
 });
+
+router.get(
+  "/identity-preview",
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { issuerOrganizationId } = identityPreviewQuerySchema.parse(req.query);
+      const data = await ekycService.getIdentityPreview(getUserId(req), issuerOrganizationId);
+      res.json({
+        success: true,
+        data,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return next(new AppError(400, "VALIDATION_ERROR", formatZodMessage(error)));
+      }
+      next(error);
+    }
+  }
+);
 
 router.post("/session", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -86,8 +108,11 @@ router.post("/fail", async (req: Request, res: Response, next: NextFunction) => 
 
 router.post("/complete", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { token, result } = completeBodySchema.parse(req.body);
-    const data = await ekycService.completeSession(token, result);
+    const { token, result, confirmedName, confirmedIcNumber } = completeBodySchema.parse(req.body);
+    const data = await ekycService.completeSession(token, result, {
+      confirmedName,
+      confirmedIcNumber,
+    });
     res.json({
       success: true,
       data,

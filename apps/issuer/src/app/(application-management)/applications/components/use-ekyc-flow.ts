@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import type { ApiClient } from "@cashsouk/config";
-import type { ApiError, EkycSessionStatus } from "@cashsouk/types";
+import type { ApiError, EkycIdentityPreview, EkycSessionStatus } from "@cashsouk/types";
 
 type UseEkycFlowOptions = {
   apiClient: ApiClient;
@@ -14,6 +14,11 @@ type GenerateSessionOptions = {
   force?: boolean;
 };
 
+export type EkycConfirmedIdentity = {
+  name: string;
+  icNumber: string;
+};
+
 type UseEkycFlowResult = {
   captureUrl: string | null;
   status: EkycSessionStatus["status"] | null;
@@ -21,6 +26,12 @@ type UseEkycFlowResult = {
   requiresSupport: boolean;
   isGenerating: boolean;
   isPendingStale: boolean;
+  identityPreview: EkycIdentityPreview | null;
+  isLoadingPreview: boolean;
+  previewError: string | null;
+  confirmedIdentity: EkycConfirmedIdentity | null;
+  loadIdentityPreview: () => Promise<boolean>;
+  setConfirmedIdentity: (identity: EkycConfirmedIdentity) => void;
   generateSession: (options?: GenerateSessionOptions) => Promise<boolean>;
   reset: () => void;
 };
@@ -81,11 +92,17 @@ export function useEkycFlow({
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [pendingSince, setPendingSince] = React.useState<number | null>(null);
   const [isPendingStale, setIsPendingStale] = React.useState(false);
+  const [identityPreview, setIdentityPreview] = React.useState<EkycIdentityPreview | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = React.useState(false);
+  const [previewError, setPreviewError] = React.useState<string | null>(null);
+  const [confirmedIdentity, setConfirmedIdentityState] = React.useState<EkycConfirmedIdentity | null>(
+    null
+  );
 
   const requiresSupport = errorCode === EKYC_PROVIDER_UNAVAILABLE_CODE;
 
   const captureUrl = React.useMemo(() => {
-    if (!token || !endpoint || typeof window === "undefined") {
+    if (!token || !endpoint || !confirmedIdentity || typeof window === "undefined") {
       return null;
     }
 
@@ -93,10 +110,12 @@ export function useEkycFlow({
       token,
       endpoint,
       api: apiBaseUrl,
+      confirmedName: confirmedIdentity.name,
+      confirmedIcNumber: confirmedIdentity.icNumber,
     });
 
     return `${window.location.origin}/ekyc/capture.html?${captureParams.toString()}`;
-  }, [apiBaseUrl, endpoint, token]);
+  }, [apiBaseUrl, confirmedIdentity, endpoint, token]);
 
   React.useEffect(() => {
     if (status !== "pending" || pendingSince === null) {
@@ -130,12 +149,57 @@ export function useEkycFlow({
     setIsPendingStale(false);
   }, []);
 
+  const setConfirmedIdentity = React.useCallback((identity: EkycConfirmedIdentity) => {
+    setConfirmedIdentityState({
+      name: identity.name.trim(),
+      icNumber: identity.icNumber.replace(/\D/g, ""),
+    });
+    reset();
+  }, [reset]);
+
+  const loadIdentityPreview = React.useCallback(async () => {
+    if (!issuerOrganizationId) {
+      setPreviewError("Select an organization before starting identity verification.");
+      setIdentityPreview(null);
+      return false;
+    }
+
+    setIsLoadingPreview(true);
+    setPreviewError(null);
+
+    try {
+      const response = await apiClient.getEkycIdentityPreview(issuerOrganizationId);
+      if (!response.success) {
+        setPreviewError(getErrorMessage(response, "Failed to load identity details"));
+        setIdentityPreview(null);
+        return false;
+      }
+
+      setIdentityPreview(response.data);
+      return true;
+    } catch (previewError) {
+      setPreviewError(getErrorMessage(previewError, "Failed to load identity details"));
+      setIdentityPreview(null);
+      return false;
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  }, [apiClient, issuerOrganizationId]);
+
   const generateSession = React.useCallback(
     async (options?: GenerateSessionOptions) => {
       const force = options?.force === true;
       if (!issuerOrganizationId) {
         setStatus("error");
         setError("Select an organization before starting identity verification.");
+        setErrorCode(null);
+        setPendingSince(null);
+        return false;
+      }
+
+      if (!confirmedIdentity) {
+        setStatus("error");
+        setError("Confirm your name and IC number before scanning the QR code.");
         setErrorCode(null);
         setPendingSince(null);
         return false;
@@ -171,7 +235,7 @@ export function useEkycFlow({
         setIsGenerating(false);
       }
     },
-    [apiClient, issuerOrganizationId]
+    [apiClient, confirmedIdentity, issuerOrganizationId]
   );
 
   React.useEffect(() => {
@@ -239,6 +303,12 @@ export function useEkycFlow({
     requiresSupport,
     isGenerating,
     isPendingStale,
+    identityPreview,
+    isLoadingPreview,
+    previewError,
+    confirmedIdentity,
+    loadIdentityPreview,
+    setConfirmedIdentity,
     generateSession,
     reset,
   };

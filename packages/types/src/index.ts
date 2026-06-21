@@ -48,6 +48,13 @@ export interface EkycMeStatus {
   completedAt: string | null;
 }
 
+/** On-file MyKad details for user confirmation before eKYC capture. */
+export interface EkycIdentityPreview {
+  name: string;
+  icNumber: string;
+  icNumberMasked: string;
+}
+
 export interface User {
   id: string;
   user_id?: string | null;
