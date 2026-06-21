@@ -67,11 +67,13 @@ function AccountFields({
   title,
   value,
   onChange,
+  accountNamePlaceholder,
   disabled,
 }: {
   title: string;
   value: TrusteeAccountDetails;
   onChange: (next: TrusteeAccountDetails) => void;
+  accountNamePlaceholder: string;
   disabled?: boolean;
 }) {
   const set = (key: keyof TrusteeAccountDetails, fieldValue: string) =>
@@ -95,6 +97,13 @@ function AccountFields({
             <Input
               value={value[key]}
               disabled={disabled}
+              placeholder={
+                key === "bankName"
+                  ? "e.g. RHB Bank Berhad"
+                  : key === "accountName"
+                    ? accountNamePlaceholder
+                    : "e.g. 1234567890"
+              }
               className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
               onChange={(event) => set(key, event.target.value)}
             />
@@ -139,51 +148,90 @@ export default function PlatformFinanceSettingsPage() {
   const latePaymentFields: Array<{
     key: keyof Omit<typeof latePayment, "platformFeeRateCapPercent">;
     label: string;
+    placeholder: string;
   }> = [
-    { key: "gracePeriodDays", label: "Grace period days" },
-    { key: "arrearsThresholdDays", label: "Arrears threshold days" },
-    { key: "tawidhRateCapPercent", label: "Ta'widh rate cap %" },
-    { key: "defaultTawidhRatePercent", label: "Default Ta'widh rate %" },
-    { key: "gharamahRateCapPercent", label: "Gharamah rate cap %" },
-    { key: "defaultGharamahRatePercent", label: "Default Gharamah rate %" },
+    { key: "gracePeriodDays", label: "Grace period days", placeholder: "e.g. 7" },
+    { key: "arrearsThresholdDays", label: "Arrears threshold days", placeholder: "e.g. 30" },
+    { key: "tawidhRateCapPercent", label: "Ta'widh rate cap %", placeholder: "e.g. 1.00" },
+    {
+      key: "defaultTawidhRatePercent",
+      label: "Default Ta'widh rate %",
+      placeholder: "e.g. 1.00",
+    },
+    { key: "gharamahRateCapPercent", label: "Gharamah rate cap %", placeholder: "e.g. 1.00" },
+    {
+      key: "defaultGharamahRatePercent",
+      label: "Default Gharamah rate %",
+      placeholder: "e.g. 1.00",
+    },
   ];
 
-  const trusteeFields: Array<{ key: keyof TrusteeLetterConfig; label: string }> = [
-    { key: "trusteeName", label: "Trustee name" },
-    { key: "trusteeAddressLine1", label: "Trustee address line 1" },
-    { key: "trusteeAddressLine2", label: "Trustee address line 2" },
-    { key: "trusteeAddressLine3", label: "Trustee address line 3" },
-    { key: "attentionPerson", label: "Attention person" },
-    { key: "defaultContactPerson", label: "Default contact person" },
-    { key: "authorisedSignatoryLabel", label: "Authorised signatory label" },
-    { key: "platformDisplayName", label: "Platform display name" },
-    { key: "defaultValueDateBehavior", label: "Default value date" },
-    { key: "defaultLetterRefPrefix", label: "Default reference prefix" },
+  const trusteeFields: Array<{ key: keyof TrusteeLetterConfig; label: string; placeholder: string }> = [
+    { key: "trusteeName", label: "Trustee name", placeholder: "e.g. RHB Trustees Berhad" },
+    {
+      key: "trusteeAddressLine1",
+      label: "Trustee address line 1",
+      placeholder: "e.g. Level 11 Tower 3 RHB Centre",
+    },
+    {
+      key: "trusteeAddressLine2",
+      label: "Trustee address line 2",
+      placeholder: "e.g. Jalan Tun Razak",
+    },
+    {
+      key: "trusteeAddressLine3",
+      label: "Trustee address line 3",
+      placeholder: "e.g. 50400 Kuala Lumpur",
+    },
+    { key: "attentionPerson", label: "Attention person", placeholder: "e.g. Ms Lim Bee Fang" },
+    {
+      key: "defaultContactPerson",
+      label: "Default contact person",
+      placeholder: "e.g. CashSouk Finance Team",
+    },
+    {
+      key: "authorisedSignatoryLabel",
+      label: "Authorised signatory label",
+      placeholder: "e.g. Authorised Signatories",
+    },
+    {
+      key: "platformDisplayName",
+      label: "Platform display name",
+      placeholder: "e.g. CashSouk Sdn Bhd",
+    },
+    { key: "defaultValueDateBehavior", label: "Default value date", placeholder: "e.g. T+1" },
+    { key: "defaultLetterRefPrefix", label: "Default reference prefix", placeholder: "e.g. CSK" },
   ];
 
   const moneyFlowSections: Array<{
     key: keyof LedgerBucketAccountsConfig;
     title: string;
+    accountNamePlaceholder: string;
   }> = [
     {
       key: "INVESTOR_POOL",
       title: "Investor Pool",
+      accountNamePlaceholder: "e.g. CashSouk Investor Pool Account",
     },
     {
       key: "REPAYMENT_POOL",
       title: "Repayment Pool",
+      accountNamePlaceholder: "e.g. CashSouk Repayment Pool Account",
     },
     {
       key: "OPERATING_ACCOUNT",
       title: "Operating Account",
+      accountNamePlaceholder: "e.g. CashSouk Operating Account",
     },
     {
       key: "TAWIDH_ACCOUNT",
       title: "Ta'widh Account",
+      accountNamePlaceholder: "e.g. CashSouk Ta’widh Account",
     },
     {
       key: "GHARAMAH_ACCOUNT",
       title: "Gharamah Account",
+      accountNamePlaceholder: "e.g. CashSouk Gharamah Account",
     },
   ];
 
@@ -245,13 +293,14 @@ export default function PlatformFinanceSettingsPage() {
                   <CardTitle>Late Payment Settings</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4 px-0 md:grid-cols-2">
-                  {latePaymentFields.map(({ key, label }) => (
+                  {latePaymentFields.map(({ key, label, placeholder }) => (
                     <div key={key} className="space-y-2">
                       <label className="text-sm font-medium">{label}</label>
                       <Input
                         type="number"
                         value={latePayment[key]}
                         disabled={disabled}
+                        placeholder={placeholder}
                         className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
                         onChange={(event) =>
                           setLatePayment((prev) => ({ ...prev, [key]: event.target.value }))
@@ -288,12 +337,13 @@ export default function PlatformFinanceSettingsPage() {
                   <CardTitle>Trustee Letter Details</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4 px-0 md:grid-cols-2">
-                  {trusteeFields.map(({ key, label }) => (
+                  {trusteeFields.map(({ key, label, placeholder }) => (
                     <div key={key} className="space-y-2">
                       <label className="text-sm font-medium">{label}</label>
                       <Input
                         value={trusteeLetter[key] ?? ""}
                         disabled={disabled}
+                        placeholder={placeholder}
                         className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
                         onChange={(event) =>
                           setTrusteeLetter((prev) => ({ ...prev, [key]: event.target.value }))
@@ -313,11 +363,12 @@ export default function PlatformFinanceSettingsPage() {
             </TabsContent>
 
             <TabsContent value="money-flow-accounts" className="space-y-4">
-              {moneyFlowSections.map(({ key, title }) => (
+              {moneyFlowSections.map(({ key, title, accountNamePlaceholder }) => (
                 <AccountFields
                   key={key}
                   title={title}
                   value={bucketAccounts[key]}
+                  accountNamePlaceholder={accountNamePlaceholder}
                   disabled={disabled}
                   onChange={(next) => setBucketAccounts((prev) => ({ ...prev, [key]: next }))}
                 />
