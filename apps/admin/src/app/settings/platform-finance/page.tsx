@@ -89,7 +89,6 @@ function AccountFields({
             ["bankName", "Bank name"],
             ["accountName", "Account name"],
             ["accountNumber", "Account number"],
-            ["remarks", "Remarks"],
           ] as const
         ).map(([key, label]) => (
           <div key={key} className="space-y-2">
@@ -143,6 +142,63 @@ export default function PlatformFinanceSettingsPage() {
     defaultLetterTemplate: "DEFAULT_DEFAULT_LETTER",
   });
 
+  const latePaymentFields: Array<{
+    key: keyof Omit<typeof latePayment, "platformFeeRateCapPercent">;
+    label: string;
+  }> = [
+    { key: "gracePeriodDays", label: "Grace period days" },
+    { key: "arrearsThresholdDays", label: "Arrears threshold days" },
+    { key: "tawidhRateCapPercent", label: "Ta'widh rate cap %" },
+    { key: "defaultTawidhRatePercent", label: "Default Ta'widh rate %" },
+    { key: "gharamahRateCapPercent", label: "Gharamah rate cap %" },
+    { key: "defaultGharamahRatePercent", label: "Default Gharamah rate %" },
+  ];
+
+  const trusteeFields: Array<{ key: keyof TrusteeLetterConfig; label: string }> = [
+    { key: "trusteeName", label: "Trustee name" },
+    { key: "trusteeAddressLine1", label: "Trustee address line 1" },
+    { key: "trusteeAddressLine2", label: "Trustee address line 2" },
+    { key: "trusteeAddressLine3", label: "Trustee address line 3" },
+    { key: "attentionPerson", label: "Attention person" },
+    { key: "defaultContactPerson", label: "Default contact person" },
+    { key: "authorisedSignatoryLabel", label: "Authorised signatory label" },
+    { key: "platformDisplayName", label: "Platform display name" },
+    { key: "defaultValueDateBehavior", label: "Default value date" },
+    { key: "defaultLetterRefPrefix", label: "Default reference prefix" },
+  ];
+
+  const moneyFlowSections: Array<{
+    key: keyof LedgerBucketAccountsConfig;
+    title: string;
+  }> = [
+    {
+      key: "INVESTOR_POOL",
+      title: "Investor Pool",
+    },
+    {
+      key: "REPAYMENT_POOL",
+      title: "Repayment Pool",
+    },
+    {
+      key: "OPERATING_ACCOUNT",
+      title: "Operating Account",
+    },
+    {
+      key: "TAWIDH_ACCOUNT",
+      title: "Ta'widh Account",
+    },
+    {
+      key: "GHARAMAH_ACCOUNT",
+      title: "Gharamah Account",
+    },
+  ];
+
+  const letterTemplateFields: Array<{ key: keyof typeof letterTemplates; label: string }> = [
+    { key: "withdrawalLetterTemplate", label: "Withdrawal letter template" },
+    { key: "arrearsLetterTemplate", label: "Arrears letter template" },
+    { key: "defaultLetterTemplate", label: "Default letter template" },
+  ];
+
   React.useEffect(() => {
     if (!data) return;
     setLatePayment({
@@ -194,11 +250,10 @@ export default function PlatformFinanceSettingsPage() {
 
         <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
           <Tabs defaultValue="late-payment" className="space-y-6">
-            <TabsList className="grid h-auto w-full max-w-[900px] grid-cols-2 gap-2 md:grid-cols-5">
+            <TabsList className="grid h-auto w-full max-w-[760px] grid-cols-2 gap-2 md:grid-cols-4">
               <TabsTrigger value="late-payment">Late Payment</TabsTrigger>
               <TabsTrigger value="trustee-letter">Trustee Letter</TabsTrigger>
-              <TabsTrigger value="platform-accounts">Platform Accounts</TabsTrigger>
-              <TabsTrigger value="ledger-buckets">Ledger Buckets</TabsTrigger>
+              <TabsTrigger value="money-flow-accounts">Money Flow Accounts</TabsTrigger>
               <TabsTrigger value="letter-templates">Letter Templates</TabsTrigger>
             </TabsList>
 
@@ -208,12 +263,12 @@ export default function PlatformFinanceSettingsPage() {
                   <CardTitle>Late Payment Settings</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4 px-0 md:grid-cols-2">
-                  {Object.entries(latePayment).map(([key, value]) => (
+                  {latePaymentFields.map(({ key, label }) => (
                     <div key={key} className="space-y-2">
-                      <label className="text-sm font-medium">{key}</label>
+                      <label className="text-sm font-medium">{label}</label>
                       <Input
                         type="number"
-                        value={value}
+                        value={latePayment[key]}
                         disabled={disabled}
                         className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
                         onChange={(event) =>
@@ -247,10 +302,13 @@ export default function PlatformFinanceSettingsPage() {
 
             <TabsContent value="trustee-letter" className="space-y-4">
               <Card className="rounded-2xl p-6 shadow-sm md:p-8">
+                <CardHeader className="px-0 pt-0">
+                  <CardTitle>Trustee Letter Details</CardTitle>
+                </CardHeader>
                 <CardContent className="grid gap-4 px-0 md:grid-cols-2">
-                  {(Object.keys(trusteeLetter) as Array<keyof TrusteeLetterConfig>).map((key) => (
+                  {trusteeFields.map(({ key, label }) => (
                     <div key={key} className="space-y-2">
-                      <label className="text-sm font-medium">{key}</label>
+                      <label className="text-sm font-medium">{label}</label>
                       <Input
                         value={trusteeLetter[key] ?? ""}
                         disabled={disabled}
@@ -268,49 +326,12 @@ export default function PlatformFinanceSettingsPage() {
                 className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
                 onClick={() => saveMutation.mutate({ trusteeLetterConfig: trusteeLetter })}
               >
-                Save Trustee Letter Defaults
+                Save Trustee Letter
               </Button>
             </TabsContent>
 
-            <TabsContent value="platform-accounts" className="space-y-4">
-              {(
-                [
-                  ["platformOperating", "Platform Operating"],
-                  ["serviceFee", "Service Fee"],
-                  ["platformFee", "Platform Fee"],
-                  ["facilityFee", "Facility Fee"],
-                ] as const
-              ).map(([key, title]) => (
-                <AccountFields
-                  key={key}
-                  title={title}
-                  value={platformAccounts[key]}
-                  disabled={disabled}
-                  onChange={(next) =>
-                    setPlatformAccounts((prev) => ({ ...prev, [key]: next }))
-                  }
-                />
-              ))}
-              <Button
-                disabled={disabled || saveMutation.isPending}
-                className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
-                onClick={() => saveMutation.mutate({ platformAccountsConfig: platformAccounts })}
-              >
-                Save Platform Accounts
-              </Button>
-            </TabsContent>
-
-            <TabsContent value="ledger-buckets" className="space-y-4">
-              {(
-                [
-                  ["INVESTOR_POOL", "Investor Pool"],
-                  ["REPAYMENT_POOL", "Repayment Pool"],
-                  ["OPERATING_ACCOUNT", "Operating Account"],
-                  ["ISSUER_PAYABLE", "Issuer Payable"],
-                  ["TAWIDH_ACCOUNT", "Ta'widh Account"],
-                  ["GHARAMAH_ACCOUNT", "Gharamah Account"],
-                ] as const
-              ).map(([key, title]) => (
+            <TabsContent value="money-flow-accounts" className="space-y-4">
+              {moneyFlowSections.map(({ key, title }) => (
                 <AccountFields
                   key={key}
                   title={title}
@@ -322,20 +343,44 @@ export default function PlatformFinanceSettingsPage() {
               <Button
                 disabled={disabled || saveMutation.isPending}
                 className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
-                onClick={() => saveMutation.mutate({ ledgerBucketAccountsConfig: bucketAccounts })}
+                onClick={() => {
+                  const operating = bucketAccounts.OPERATING_ACCOUNT;
+                  const operatingFields = {
+                    displayName: operating.displayName,
+                    bankName: operating.bankName,
+                    accountName: operating.accountName,
+                    accountNumber: operating.accountNumber,
+                  };
+                  saveMutation.mutate({
+                    ledgerBucketAccountsConfig: bucketAccounts,
+                    platformAccountsConfig: {
+                      ...platformAccounts,
+                      platformOperating: {
+                        ...platformAccounts.platformOperating,
+                        ...operatingFields,
+                      },
+                      serviceFee: { ...platformAccounts.serviceFee, ...operatingFields },
+                      platformFee: { ...platformAccounts.platformFee, ...operatingFields },
+                      facilityFee: { ...platformAccounts.facilityFee, ...operatingFields },
+                    },
+                  });
+                }}
               >
-                Save Ledger Bucket Accounts
+                Save Money Flow Accounts
               </Button>
             </TabsContent>
 
             <TabsContent value="letter-templates">
               <Card className="rounded-2xl p-6 shadow-sm md:p-8">
+                <CardHeader className="px-0 pt-0">
+                  <CardTitle>Letter Templates</CardTitle>
+                </CardHeader>
                 <CardContent className="grid gap-4 px-0">
-                  {Object.entries(letterTemplates).map(([key, value]) => (
+                  {letterTemplateFields.map(({ key, label }) => (
                     <div key={key} className="space-y-2">
-                      <label className="text-sm font-medium">{key}</label>
+                      <label className="text-sm font-medium">{label}</label>
                       <Input
-                        value={value}
+                        value={letterTemplates[key]}
                         disabled={disabled}
                         className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
                         onChange={(event) =>
