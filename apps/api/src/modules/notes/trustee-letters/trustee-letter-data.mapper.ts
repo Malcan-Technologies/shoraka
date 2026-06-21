@@ -352,14 +352,14 @@ export function mapInvestorWithdrawalLetterData(input: {
   const rows: TrusteePaymentRow[] = [
     {
       no: 1,
-      nameOfPayee: "Withdrawal requested by Investor",
-      accountNo: beneficiaryField(snapshot, "account_number"),
-      banker: beneficiaryField(snapshot, "bank_name"),
-      amount: input.amount,
-      remarks:
+      nameOfPayee:
         beneficiaryField(snapshot, "account_holder") ||
         input.investorOrganizationName ||
         "Withdrawal requested by Investor",
+      accountNo: beneficiaryField(snapshot, "account_number"),
+      banker: beneficiaryField(snapshot, "bank_name"),
+      amount: input.amount,
+      remarks: "Withdrawal requested by Investor",
     },
   ];
 

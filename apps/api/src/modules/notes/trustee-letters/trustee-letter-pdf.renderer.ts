@@ -10,6 +10,9 @@ const TABLE_COLUMNS = [
   { key: "amount", label: "Amount (RM)", width: 72 },
   { key: "remarks", label: "Remarks", width: 97 },
 ] as const;
+const TABLE_BORDER_COLOR = "#666";
+const TABLE_HEADER_FILL_COLOR = "#fff";
+const TABLE_BODY_FILL_COLOR = "#fff";
 
 function formatRm(amount: number): string {
   return amount.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -87,7 +90,11 @@ export async function renderTrusteeLetterPdf(data: TrusteeLetterData): Promise<B
   doc.font("Helvetica-Bold").fontSize(9);
   let colX = tableX;
   for (const col of TABLE_COLUMNS) {
-    doc.rect(colX, y, col.width, headerHeight).stroke("#999");
+    doc
+      .save()
+      .rect(colX, y, col.width, headerHeight)
+      .fillAndStroke(TABLE_HEADER_FILL_COLOR, TABLE_BORDER_COLOR)
+      .restore();
     doc.text(col.label, colX + 4, y + 6, { width: col.width - 8, align: col.key === "amount" ? "right" : "left" });
     colX += col.width;
   }
@@ -115,7 +122,11 @@ export async function renderTrusteeLetterPdf(data: TrusteeLetterData): Promise<B
 
     colX = tableX;
     TABLE_COLUMNS.forEach((col, index) => {
-      doc.rect(colX, y, col.width, rowHeight).stroke("#ccc");
+      doc
+        .save()
+        .rect(colX, y, col.width, rowHeight)
+        .fillAndStroke(TABLE_BODY_FILL_COLOR, TABLE_BORDER_COLOR)
+        .restore();
       const value = cellValues[index] ?? "";
       if (col.key === "amount") {
         doc.fontSize(8).fillColor("#111").text(value, colX + 4, y + 4, {
