@@ -80,11 +80,11 @@ function AccountFields({
     onChange({ ...value, [key]: fieldValue });
 
   return (
-    <Card className="rounded-2xl shadow-sm">
-      <CardHeader className="pb-3">
+    <Card className="rounded-2xl p-6 shadow-sm md:p-8">
+      <CardHeader className="px-0 pb-3 pt-0">
         <CardTitle className="text-base font-semibold">{title}</CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-4 md:grid-cols-2">
+      <CardContent className="grid gap-4 px-0 md:grid-cols-2">
         {(
           [
             ["bankName", "Bank name"],
@@ -308,7 +308,7 @@ export default function PlatformFinanceSettingsPage() {
                       />
                     </div>
                   ))}
-                  <div className="md:col-span-2">
+                  <div className="md:col-span-2 flex justify-end">
                     <Button
                       disabled={disabled || saveMutation.isPending}
                       className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
@@ -351,15 +351,17 @@ export default function PlatformFinanceSettingsPage() {
                       />
                     </div>
                   ))}
+                  <div className="md:col-span-2 flex justify-end">
+                    <Button
+                      disabled={disabled || saveMutation.isPending}
+                      className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
+                      onClick={() => saveMutation.mutate({ trusteeLetterConfig: trusteeLetter })}
+                    >
+                      Save Trustee Letter
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
-              <Button
-                disabled={disabled || saveMutation.isPending}
-                className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
-                onClick={() => saveMutation.mutate({ trusteeLetterConfig: trusteeLetter })}
-              >
-                Save Trustee Letter
-              </Button>
             </TabsContent>
 
             <TabsContent value="money-flow-accounts" className="space-y-4">
@@ -373,44 +375,46 @@ export default function PlatformFinanceSettingsPage() {
                   onChange={(next) => setBucketAccounts((prev) => ({ ...prev, [key]: next }))}
                 />
               ))}
-              <Button
-                disabled={disabled || saveMutation.isPending}
-                className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
-                onClick={() => {
-                  const normalizedBucketAccounts = moneyFlowSections.reduce((acc, section) => {
-                    const current = bucketAccounts[section.key];
-                    acc[section.key] = {
-                      ...current,
-                      displayName:
-                        current.displayName.trim() !== "" ? current.displayName : section.title,
-                    };
-                    return acc;
-                  }, { ...bucketAccounts });
+              <div className="flex justify-end">
+                <Button
+                  disabled={disabled || saveMutation.isPending}
+                  className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
+                  onClick={() => {
+                    const normalizedBucketAccounts = moneyFlowSections.reduce((acc, section) => {
+                      const current = bucketAccounts[section.key];
+                      acc[section.key] = {
+                        ...current,
+                        displayName:
+                          current.displayName.trim() !== "" ? current.displayName : section.title,
+                      };
+                      return acc;
+                    }, { ...bucketAccounts });
 
-                  const operating = normalizedBucketAccounts.OPERATING_ACCOUNT;
-                  const operatingFields = {
-                    displayName: operating.displayName,
-                    bankName: operating.bankName,
-                    accountName: operating.accountName,
-                    accountNumber: operating.accountNumber,
-                  };
-                  saveMutation.mutate({
-                    ledgerBucketAccountsConfig: normalizedBucketAccounts,
-                    platformAccountsConfig: {
-                      ...platformAccounts,
-                      platformOperating: {
-                        ...platformAccounts.platformOperating,
-                        ...operatingFields,
+                    const operating = normalizedBucketAccounts.OPERATING_ACCOUNT;
+                    const operatingFields = {
+                      displayName: operating.displayName,
+                      bankName: operating.bankName,
+                      accountName: operating.accountName,
+                      accountNumber: operating.accountNumber,
+                    };
+                    saveMutation.mutate({
+                      ledgerBucketAccountsConfig: normalizedBucketAccounts,
+                      platformAccountsConfig: {
+                        ...platformAccounts,
+                        platformOperating: {
+                          ...platformAccounts.platformOperating,
+                          ...operatingFields,
+                        },
+                        serviceFee: { ...platformAccounts.serviceFee, ...operatingFields },
+                        platformFee: { ...platformAccounts.platformFee, ...operatingFields },
+                        facilityFee: { ...platformAccounts.facilityFee, ...operatingFields },
                       },
-                      serviceFee: { ...platformAccounts.serviceFee, ...operatingFields },
-                      platformFee: { ...platformAccounts.platformFee, ...operatingFields },
-                      facilityFee: { ...platformAccounts.facilityFee, ...operatingFields },
-                    },
-                  });
-                }}
-              >
-                Save Money Flow Accounts
-              </Button>
+                    });
+                  }}
+                >
+                  Save Money Flow Accounts
+                </Button>
+              </div>
             </TabsContent>
 
           </Tabs>
