@@ -93,6 +93,7 @@ export function mapActivitySourceToType(
     if (meta?.releaseReason === "SETTLEMENT_PAYOUT") return "Returns";
     return "Release";
   }
+  if (source === "INVESTOR_WITHDRAWAL_REQUEST") return "Withdrawal";
   return formatEnumLabel(source) as TransactionType;
 }
 
@@ -112,6 +113,10 @@ function buildActivityContext(
     const meta = asRecord(entry.metadata);
     const prefix = meta?.releaseReason === "SETTLEMENT_PAYOUT" ? "Repayment · " : undefined;
     return buildNoteContext(entry.noteId, noteReferenceById, prefix);
+  }
+
+  if (entry.source === "INVESTOR_WITHDRAWAL_REQUEST") {
+    return { kind: "text", text: "Withdrawal request" };
   }
 
   if (entry.noteId) {

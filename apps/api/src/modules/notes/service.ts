@@ -50,7 +50,7 @@ import {
   buildOfferSigningAdminView,
   noteAllowsInvoiceResign,
 } from "../signingcloud/offer-signing-admin-view";
-import { creditInvestorBalance, debitInvestorBalanceForCommit } from "./investor-balance";
+import { creditInvestorBalance, debitInvestorBalanceForCommit, debitInvestorBalanceForWithdrawal } from "./investor-balance";
 import {
   buildInvestorBalanceStatement,
   buildStatementFilename,
@@ -109,7 +109,23 @@ import type {
   updateNoteFeaturedSchema,
   updateNoteDraftSchema,
   updatePlatformFinanceSettingsSchema,
+  createInvestorWithdrawalSchema,
+  getInvestorWithdrawalsQuerySchema,
 } from "./schemas";
+import { loadTrusteeLetterConfig } from "./trustee-letters/trustee-letter-config.loader";
+import {
+  buildRepaymentBorrowerEntries,
+  mapDisbursementLetterData,
+  mapInvestorWithdrawalLetterData,
+  mapRepaymentLetterData,
+} from "./trustee-letters/trustee-letter-data.mapper";
+import { renderTrusteeLetterPdf } from "./trustee-letters/trustee-letter-pdf.renderer";
+import type {
+  LedgerBucketAccountsConfig,
+  PlatformAccountsConfig,
+  TrusteeLetterConfig,
+} from "@cashsouk/types";
+import { randomUUID } from "crypto";
 import type { z } from "zod";
 
 type ActorContext = {
@@ -4077,14 +4093,28 @@ export class NoteService {
         "Service fee trustee letter can only be generated after settlement is posted."
       );
     }
+
+    const investorRepayment =
+      toNumber(settlement.investor_principal) + toNumber(settlement.investor_profit_net);
     const feeAmount = toNumber(settlement.service_fee_amount);
-    if (feeAmount <= 0.005) {
+    const tawidhAmount = toNumber(settlement.tawidh_account_amount);
+    const gharamahAmount = toNumber(settlement.gharamah_amount);
+    const issuerResidual = toNumber(settlement.issuer_residual_amount);
+    const hasTrusteeContent =
+      investorRepayment > 0.005 ||
+      feeAmount > 0.005 ||
+      tawidhAmount > 0.005 ||
+      gharamahAmount > 0.005 ||
+      issuerResidual > 0.005;
+
+    if (!hasTrusteeContent) {
       throw new AppError(
         409,
-        "NO_SERVICE_FEE",
-        "This settlement has no service fee amount to document."
+        "NO_SETTLEMENT_TRUSTEE_CONTENT",
+        "This settlement has no trustee instruction amounts to document."
       );
     }
+
     const wfStatus = settlement.service_fee_trustee_status;
     if (
       wfStatus === ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE ||
@@ -4099,24 +4129,54 @@ export class NoteService {
     const note = await noteRepository.findById(noteId);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
     const listItem = mapNoteListItem(note);
-    const currency = "MYR";
-    const postedAtLabel = settlement.posted_at
-      ? settlement.posted_at.toISOString()
-      : new Date().toISOString();
-    const title = "Trustee Instruction — Service Fee (Internal Pool Transfer)";
-    const buffer = await renderPdfBuffer(title, [
-      ["Note reference", note.note_reference],
-      ["Settlement ID", settlement.id],
-      ["Issuer", listItem.issuerName ?? "—"],
-      ["Paymaster", listItem.paymasterName ?? "—"],
-      [
-        "Movement",
-        `Debit Repayment Pool → Credit Operating Account (service fee allocation for posted settlement)`,
-      ],
-      ["Amount", `${currency} ${feeAmount.toFixed(2)}`],
-      ["Settlement posted at", postedAtLabel],
-      ["Generated at", new Date().toISOString()],
-    ]);
+
+    const payment = settlement.payment_id
+      ? await prisma.notePayment.findFirst({
+          where: { id: settlement.payment_id, note_id: noteId },
+        })
+      : null;
+
+    const payerName =
+      listItem.paymasterName ??
+      listItem.issuerName ??
+      (typeof payment?.reference === "string" ? payment.reference : null);
+
+    const receiptAmount = payment ? toNumber(payment.receipt_amount) : toNumber(settlement.gross_receipt_amount);
+    const receiptDate = payment?.receipt_date ?? settlement.posted_at ?? new Date();
+
+    let borrowerEntries = buildRepaymentBorrowerEntries({
+      payerName,
+      receiptAmount,
+      receiptDate,
+    });
+    if (borrowerEntries.length === 0 && listItem.issuerName) {
+      borrowerEntries = buildRepaymentBorrowerEntries({
+        payerName: listItem.issuerName,
+        receiptAmount,
+        receiptDate,
+      });
+    }
+
+    const settings = await this.getPlatformFinanceSettings();
+    const trusteeConfig = loadTrusteeLetterConfig(settings);
+    const repaymentAccountName =
+      payment?.received_into_account_code?.replace(/_/g, " ") ?? "Repayment Pool";
+
+    const letterData = mapRepaymentLetterData({
+      settlementId: settlement.id,
+      investorPrincipal: toNumber(settlement.investor_principal),
+      investorProfitNet: toNumber(settlement.investor_profit_net),
+      serviceFeeAmount: feeAmount,
+      tawidhAccountAmount: tawidhAmount,
+      gharamahAmount,
+      issuerResidualAmount: issuerResidual,
+      borrowerEntries,
+      repaymentAccountName,
+      config: trusteeConfig,
+      referenceDate: settlement.posted_at ?? new Date(),
+    });
+
+    const buffer = await renderTrusteeLetterPdf(letterData);
     const key = `note-letters/${noteId}/service-fee-trustee/${settlementId}-${Date.now()}.pdf`;
     await putS3ObjectBuffer({ key, body: buffer, contentType: "application/pdf" });
     await prisma.$transaction(async (tx) => {
@@ -4171,8 +4231,20 @@ export class NoteService {
         "Only posted settlements can move the service fee trustee workflow forward."
       );
     }
-    if (toNumber(settlement.service_fee_amount) <= 0.005) {
-      throw new AppError(409, "NO_SERVICE_FEE", "This settlement has no service fee instruction.");
+    const investorRepayment =
+      toNumber(settlement.investor_principal) + toNumber(settlement.investor_profit_net);
+    const hasTrusteeContent =
+      investorRepayment > 0.005 ||
+      toNumber(settlement.service_fee_amount) > 0.005 ||
+      toNumber(settlement.tawidh_account_amount) > 0.005 ||
+      toNumber(settlement.gharamah_amount) > 0.005 ||
+      toNumber(settlement.issuer_residual_amount) > 0.005;
+    if (!hasTrusteeContent) {
+      throw new AppError(
+        409,
+        "NO_SETTLEMENT_TRUSTEE_CONTENT",
+        "This settlement has no trustee instruction to submit."
+      );
     }
     const st = settlement.service_fee_trustee_status;
     if (st !== ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED) {
@@ -4182,6 +4254,8 @@ export class NoteService {
         "Generate the trustee instruction PDF before marking it submitted."
       );
     }
+
+    // TODO: future enhancement — send trustee instruction email with generated PDF attachment before marking as submitted.
 
     await prisma.$transaction(async (tx) => {
       const row = await tx.noteSettlement.updateMany({
@@ -4228,8 +4302,20 @@ export class NoteService {
         "Only posted settlements can complete the service fee trustee workflow."
       );
     }
-    if (toNumber(settlement.service_fee_amount) <= 0.005) {
-      throw new AppError(409, "NO_SERVICE_FEE", "This settlement has no service fee instruction.");
+    const investorRepaymentComplete =
+      toNumber(settlement.investor_principal) + toNumber(settlement.investor_profit_net);
+    const hasTrusteeContentComplete =
+      investorRepaymentComplete > 0.005 ||
+      toNumber(settlement.service_fee_amount) > 0.005 ||
+      toNumber(settlement.tawidh_account_amount) > 0.005 ||
+      toNumber(settlement.gharamah_amount) > 0.005 ||
+      toNumber(settlement.issuer_residual_amount) > 0.005;
+    if (!hasTrusteeContentComplete) {
+      throw new AppError(
+        409,
+        "NO_SETTLEMENT_TRUSTEE_CONTENT",
+        "This settlement has no trustee instruction to complete."
+      );
     }
     if (
       settlement.service_fee_trustee_status !==
@@ -4317,6 +4403,12 @@ export class NoteService {
       withdrawalLetterTemplate: settings.withdrawal_letter_template,
       arrearsLetterTemplate: settings.arrears_letter_template,
       defaultLetterTemplate: settings.default_letter_template,
+      trusteeLetterConfig:
+        (settings.trustee_letter_config as TrusteeLetterConfig | null) ?? null,
+      platformAccountsConfig:
+        (settings.platform_accounts_config as PlatformAccountsConfig | null) ?? null,
+      ledgerBucketAccountsConfig:
+        (settings.ledger_bucket_accounts_config as LedgerBucketAccountsConfig | null) ?? null,
       updatedByUserId: settings.updated_by_user_id,
       updatedAt: settings.updated_at.toISOString(),
     };
@@ -4351,6 +4443,18 @@ export class NoteService {
         withdrawal_letter_template: input.withdrawalLetterTemplate,
         arrears_letter_template: input.arrearsLetterTemplate,
         default_letter_template: input.defaultLetterTemplate,
+        trustee_letter_config:
+          input.trusteeLetterConfig != null
+            ? (input.trusteeLetterConfig as Prisma.InputJsonValue)
+            : undefined,
+        platform_accounts_config:
+          input.platformAccountsConfig != null
+            ? (input.platformAccountsConfig as Prisma.InputJsonValue)
+            : undefined,
+        ledger_bucket_accounts_config:
+          input.ledgerBucketAccountsConfig != null
+            ? (input.ledgerBucketAccountsConfig as Prisma.InputJsonValue)
+            : undefined,
         updated_by_user_id: actor.userId,
       },
       update: {
@@ -4375,6 +4479,18 @@ export class NoteService {
         withdrawal_letter_template: input.withdrawalLetterTemplate,
         arrears_letter_template: input.arrearsLetterTemplate,
         default_letter_template: input.defaultLetterTemplate,
+        trustee_letter_config:
+          input.trusteeLetterConfig != null
+            ? (input.trusteeLetterConfig as Prisma.InputJsonValue)
+            : undefined,
+        platform_accounts_config:
+          input.platformAccountsConfig != null
+            ? (input.platformAccountsConfig as Prisma.InputJsonValue)
+            : undefined,
+        ledger_bucket_accounts_config:
+          input.ledgerBucketAccountsConfig != null
+            ? (input.ledgerBucketAccountsConfig as Prisma.InputJsonValue)
+            : undefined,
         updated_by_user_id: actor.userId,
       },
     });
@@ -4393,6 +4509,135 @@ export class NoteService {
         beneficiary_snapshot: input.beneficiarySnapshot as Prisma.InputJsonValue,
       },
     });
+    return this.mapWithdrawal(withdrawal);
+  }
+
+  async listInvestorWithdrawals(query: z.infer<typeof getInvestorWithdrawalsQuerySchema>) {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 50;
+    const where: Prisma.WithdrawalInstructionWhereInput = {
+      withdrawal_type: WithdrawalType.INVESTOR_WITHDRAWAL,
+    };
+    if (query.status) where.status = query.status as WithdrawalStatus;
+    if (query.investorOrganizationId) {
+      where.investor_organization_id = query.investorOrganizationId;
+    }
+    if (query.dateFrom || query.dateTo) {
+      where.created_at = {};
+      if (query.dateFrom) where.created_at.gte = new Date(query.dateFrom);
+      if (query.dateTo) where.created_at.lte = new Date(query.dateTo);
+    }
+
+    const [withdrawals, count] = await Promise.all([
+      prisma.withdrawalInstruction.findMany({
+        where,
+        orderBy: [{ created_at: "desc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.withdrawalInstruction.count({ where }),
+    ]);
+
+    const orgIds = Array.from(
+      new Set(withdrawals.map((w) => w.investor_organization_id).filter(Boolean) as string[])
+    );
+    const orgs = orgIds.length
+      ? await prisma.investorOrganization.findMany({
+          where: { id: { in: orgIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const orgMap = new Map(orgs.map((org) => [org.id, org]));
+
+    const items = withdrawals.map((withdrawal) => {
+      const org = withdrawal.investor_organization_id
+        ? orgMap.get(withdrawal.investor_organization_id)
+        : undefined;
+      return {
+        withdrawalId: withdrawal.id,
+        investorOrganizationId: withdrawal.investor_organization_id,
+        investorOrganizationName: org?.name ?? null,
+        requestedByUserId: withdrawal.requested_by_user_id,
+        amount: toNumber(withdrawal.amount),
+        currency: withdrawal.currency,
+        status: withdrawal.status,
+        beneficiarySnapshot: asRecord(withdrawal.beneficiary_snapshot) ?? {},
+        letterS3Key: withdrawal.letter_s3_key,
+        generatedAt: withdrawal.generated_at?.toISOString() ?? null,
+        submittedToTrusteeAt: withdrawal.submitted_to_trustee_at?.toISOString() ?? null,
+        completedAt: withdrawal.completed_at?.toISOString() ?? null,
+        createdAt: withdrawal.created_at.toISOString(),
+      };
+    });
+
+    return { count, items };
+  }
+
+  async getInvestorWithdrawal(id: string) {
+    const withdrawal = await prisma.withdrawalInstruction.findUnique({ where: { id } });
+    if (!withdrawal || withdrawal.withdrawal_type !== WithdrawalType.INVESTOR_WITHDRAWAL) {
+      throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal instruction not found");
+    }
+    return this.mapWithdrawal(withdrawal);
+  }
+
+  async createInvestorWithdrawal(
+    input: z.infer<typeof createInvestorWithdrawalSchema>,
+    actor: ActorContext
+  ) {
+    await this.resolveInvestorOrgIds(actor.userId, input.investorOrganizationId);
+
+    const investorOrg = await prisma.investorOrganization.findUnique({
+      where: { id: input.investorOrganizationId },
+      select: { id: true, name: true, bank_account_details: true },
+    });
+    if (!investorOrg) {
+      throw new AppError(404, "INVESTOR_ORG_NOT_FOUND", "Investor organization not found");
+    }
+
+    const beneficiarySnapshot = buildBeneficiarySnapshot({
+      id: investorOrg.id,
+      name: investorOrg.name,
+      bank_account_details: investorOrg.bank_account_details,
+    });
+
+    const hasBankDetails =
+      beneficiarySnapshot.bank_name.trim() !== "" &&
+      beneficiarySnapshot.account_number.trim() !== "";
+    if (!hasBankDetails) {
+      throw new AppError(
+        422,
+        "BENEFICIARY_DETAILS_MISSING",
+        "Bank account details must be set before requesting a withdrawal."
+      );
+    }
+
+    const idempotencyKey = `investor-withdrawal:${input.investorOrganizationId}:${randomUUID()}`;
+
+    const withdrawal = await prisma.$transaction(async (tx) => {
+      await debitInvestorBalanceForWithdrawal(tx, {
+        investorOrganizationId: input.investorOrganizationId,
+        amount: input.amount,
+        idempotencyKey,
+        metadata: { requestedByUserId: actor.userId } as Prisma.InputJsonValue,
+      });
+
+      return tx.withdrawalInstruction.create({
+        data: {
+          investor_organization_id: input.investorOrganizationId,
+          requested_by_user_id: actor.userId,
+          withdrawal_type: WithdrawalType.INVESTOR_WITHDRAWAL,
+          status: WithdrawalStatus.DRAFT,
+          amount: money(input.amount),
+          beneficiary_snapshot: beneficiarySnapshot as Prisma.InputJsonValue,
+          metadata: {
+            source: "INVESTOR_PORTAL",
+            requestedAt: new Date().toISOString(),
+          } as Prisma.InputJsonValue,
+        },
+      });
+    });
+
     return this.mapWithdrawal(withdrawal);
   }
 
@@ -4417,13 +4662,37 @@ export class NoteService {
       }
     }
 
-    const buffer = await renderPdfBuffer("Trustee Withdrawal Instruction", [
-      ["Withdrawal ID", withdrawal.id],
-      ["Type", withdrawal.withdrawal_type],
-      ["Amount", `${withdrawal.currency} ${toNumber(withdrawal.amount).toFixed(2)}`],
-      ["Requested by", withdrawal.requested_by_user_id],
-      ["Generated at", new Date().toISOString()],
-    ]);
+    const settings = await this.getPlatformFinanceSettings();
+    const trusteeConfig = loadTrusteeLetterConfig(settings);
+    const beneficiarySnapshot = asRecord(withdrawal.beneficiary_snapshot) ?? {};
+    const metadata = asRecord(withdrawal.metadata);
+
+    let letterData;
+    if (withdrawal.withdrawal_type === WithdrawalType.INVESTOR_WITHDRAWAL) {
+      const investorOrg = withdrawal.investor_organization_id
+        ? await prisma.investorOrganization.findUnique({
+            where: { id: withdrawal.investor_organization_id },
+            select: { name: true },
+          })
+        : null;
+      letterData = mapInvestorWithdrawalLetterData({
+        withdrawalId: withdrawal.id,
+        amount: toNumber(withdrawal.amount),
+        beneficiarySnapshot,
+        investorOrganizationName: investorOrg?.name ?? null,
+        config: trusteeConfig,
+      });
+    } else {
+      letterData = mapDisbursementLetterData({
+        withdrawalId: withdrawal.id,
+        withdrawalAmount: toNumber(withdrawal.amount),
+        beneficiarySnapshot,
+        metadata,
+        config: trusteeConfig,
+      });
+    }
+
+    const buffer = await renderTrusteeLetterPdf(letterData);
     const key = `withdrawal-letters/${id}/${Date.now()}.pdf`;
     await putS3ObjectBuffer({ key, body: buffer, contentType: "application/pdf" });
     const updated = await prisma.withdrawalInstruction.update({
@@ -4453,6 +4722,15 @@ export class NoteService {
         "Withdrawal can be submitted to trustee only after its instruction letter is generated"
       );
     }
+    if (!existing.letter_s3_key) {
+      throw new AppError(
+        409,
+        "WITHDRAWAL_LETTER_REQUIRED",
+        "Withdrawal can be submitted to trustee only after its instruction letter is generated"
+      );
+    }
+
+    // TODO: future enhancement — send trustee instruction email with generated PDF attachment before marking as submitted.
 
     const withdrawal = await prisma.$transaction(async (tx) => {
       const stateUpdate = await tx.withdrawalInstruction.updateMany({

@@ -4,6 +4,13 @@ import * as React from "react";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type {
+  LedgerBucketAccountsConfig,
+  PlatformAccountsConfig,
+  TrusteeAccountDetails,
+  TrusteeLetterConfig,
+} from "@cashsouk/types";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,12 +22,98 @@ import { usePermissions } from "@/hooks/use-permissions";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+const EMPTY_ACCOUNT: TrusteeAccountDetails = {
+  displayName: "",
+  bankName: "",
+  accountName: "",
+  accountNumber: "",
+  remarks: "",
+};
+
+const DEFAULT_TRUSTEE_LETTER: TrusteeLetterConfig = {
+  trusteeName: "RHB Trustees Berhad",
+  trusteeAddressLine1: "Level 11 Tower 3 RHB Centre",
+  trusteeAddressLine2: "Jalan Tun Razak",
+  trusteeAddressLine3: "50400 Kuala Lumpur",
+  attentionPerson: "Ms Lim Bee Fang",
+  defaultContactPerson: "CashSouk Finance Team",
+  authorisedSignatoryLabel: "Authorised Signatories",
+  platformDisplayName: "CashSouk Sdn Bhd",
+  defaultValueDateBehavior: "T+1",
+  defaultLetterRefPrefix: "CSK",
+};
+
+function emptyPlatformAccounts(): PlatformAccountsConfig {
+  return {
+    platformOperating: { ...EMPTY_ACCOUNT },
+    serviceFee: { ...EMPTY_ACCOUNT },
+    platformFee: { ...EMPTY_ACCOUNT },
+    facilityFee: { ...EMPTY_ACCOUNT },
+  };
+}
+
+function emptyBucketAccounts(): LedgerBucketAccountsConfig {
+  return {
+    INVESTOR_POOL: { ...EMPTY_ACCOUNT },
+    REPAYMENT_POOL: { ...EMPTY_ACCOUNT },
+    OPERATING_ACCOUNT: { ...EMPTY_ACCOUNT },
+    ISSUER_PAYABLE: { ...EMPTY_ACCOUNT },
+    TAWIDH_ACCOUNT: { ...EMPTY_ACCOUNT },
+    GHARAMAH_ACCOUNT: { ...EMPTY_ACCOUNT },
+  };
+}
+
+function AccountFields({
+  title,
+  value,
+  onChange,
+  disabled,
+}: {
+  title: string;
+  value: TrusteeAccountDetails;
+  onChange: (next: TrusteeAccountDetails) => void;
+  disabled?: boolean;
+}) {
+  const set = (key: keyof TrusteeAccountDetails, fieldValue: string) =>
+    onChange({ ...value, [key]: fieldValue });
+
+  return (
+    <Card className="rounded-2xl shadow-sm">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base font-semibold">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4 md:grid-cols-2">
+        {(
+          [
+            ["displayName", "Display name"],
+            ["bankName", "Bank name"],
+            ["accountName", "Account name"],
+            ["accountNumber", "Account number"],
+            ["remarks", "Remarks"],
+          ] as const
+        ).map(([key, label]) => (
+          <div key={key} className="space-y-2">
+            <label className="text-sm font-medium">{label}</label>
+            <Input
+              value={value[key]}
+              disabled={disabled}
+              className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
+              onChange={(event) => set(key, event.target.value)}
+            />
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function PlatformFinanceSettingsPage() {
   const { can } = usePermissions();
   const canManage = can("platform_settings.manage");
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
   const queryClient = useQueryClient();
+
   const { data, isLoading } = useQuery({
     queryKey: ["platform-finance-settings"],
     queryFn: async () => {
@@ -29,7 +122,8 @@ export default function PlatformFinanceSettingsPage() {
       return response.data;
     },
   });
-  const [form, setForm] = React.useState({
+
+  const [latePayment, setLatePayment] = React.useState({
     gracePeriodDays: "7",
     arrearsThresholdDays: "14",
     tawidhRateCapPercent: "1",
@@ -38,10 +132,20 @@ export default function PlatformFinanceSettingsPage() {
     defaultTawidhRatePercent: "0",
     defaultGharamahRatePercent: "0",
   });
+  const [trusteeLetter, setTrusteeLetter] = React.useState<TrusteeLetterConfig>(DEFAULT_TRUSTEE_LETTER);
+  const [platformAccounts, setPlatformAccounts] =
+    React.useState<PlatformAccountsConfig>(emptyPlatformAccounts());
+  const [bucketAccounts, setBucketAccounts] =
+    React.useState<LedgerBucketAccountsConfig>(emptyBucketAccounts());
+  const [letterTemplates, setLetterTemplates] = React.useState({
+    withdrawalLetterTemplate: "DEFAULT_WITHDRAWAL_LETTER",
+    arrearsLetterTemplate: "DEFAULT_ARREARS_LETTER",
+    defaultLetterTemplate: "DEFAULT_DEFAULT_LETTER",
+  });
 
   React.useEffect(() => {
     if (!data) return;
-    setForm({
+    setLatePayment({
       gracePeriodDays: String(data.gracePeriodDays),
       arrearsThresholdDays: String(data.arrearsThresholdDays),
       tawidhRateCapPercent: String(data.tawidhRateCapPercent),
@@ -50,19 +154,19 @@ export default function PlatformFinanceSettingsPage() {
       defaultTawidhRatePercent: String(data.defaultTawidhRatePercent),
       defaultGharamahRatePercent: String(data.defaultGharamahRatePercent),
     });
+    setTrusteeLetter({ ...DEFAULT_TRUSTEE_LETTER, ...(data.trusteeLetterConfig ?? {}) });
+    setPlatformAccounts({ ...emptyPlatformAccounts(), ...(data.platformAccountsConfig ?? {}) });
+    setBucketAccounts({ ...emptyBucketAccounts(), ...(data.ledgerBucketAccountsConfig ?? {}) });
+    setLetterTemplates({
+      withdrawalLetterTemplate: data.withdrawalLetterTemplate,
+      arrearsLetterTemplate: data.arrearsLetterTemplate,
+      defaultLetterTemplate: data.defaultLetterTemplate,
+    });
   }, [data]);
 
-  const updateSettings = useMutation({
-    mutationFn: async () => {
-      const response = await apiClient.updatePlatformFinanceSettings({
-        gracePeriodDays: Number(form.gracePeriodDays),
-        arrearsThresholdDays: Number(form.arrearsThresholdDays),
-        tawidhRateCapPercent: Number(form.tawidhRateCapPercent),
-        gharamahRateCapPercent: Number(form.gharamahRateCapPercent),
-        platformFeeRateCapPercent: Number(form.platformFeeRateCapPercent),
-        defaultTawidhRatePercent: Number(form.defaultTawidhRatePercent),
-        defaultGharamahRatePercent: Number(form.defaultGharamahRatePercent),
-      });
+  const saveMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      const response = await apiClient.updatePlatformFinanceSettings(payload);
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
@@ -70,65 +174,188 @@ export default function PlatformFinanceSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["platform-finance-settings"] });
       toast.success("Platform finance settings updated");
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Failed to update settings"),
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Failed to update settings"),
   });
 
-  const setField = (key: keyof typeof form, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
-  const disabledReason = !canManage ? "You do not have permission to perform this action." : undefined;
-  const fieldLabels: Record<keyof typeof form, string> = {
-    gracePeriodDays: "Grace period days",
-    arrearsThresholdDays: "Arrears threshold days",
-    tawidhRateCapPercent: "Ta'widh rate cap (%)",
-    gharamahRateCapPercent: "Gharamah rate cap (%)",
-    platformFeeRateCapPercent: "Platform fee rate cap (%)",
-    defaultTawidhRatePercent: "Default ta'widh rate (%)",
-    defaultGharamahRatePercent: "Default gharamah rate (%)",
-  };
+  const disabled = isLoading || !canManage;
 
   return (
     <RequirePermission permission="platform_settings.view">
       <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Platform Finance Settings</h1>
-        <div className="ml-auto"><SystemHealthIndicator /></div>
-      </header>
-      <div className="w-full p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Late Payment and Letter Defaults</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            {Object.entries(form).map(([key, value]) => (
-              <div key={key} className="space-y-2">
-                <label className="text-sm font-medium">{fieldLabels[key as keyof typeof form]}</label>
-                <Input
-                  type="number"
-                  min={0}
-                  step={key.endsWith("Days") ? 1 : 0.01}
-                  value={value}
-                  disabled={isLoading || !canManage}
-                  title={!canManage ? disabledReason : undefined}
-                  onChange={(event) => {
-                    if (!canManage) return;
-                    setField(key as keyof typeof form, event.target.value);
-                  }}
-                />
-              </div>
-            ))}
-            <div className="md:col-span-2">
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 h-4" />
+          <h1 className="text-lg font-semibold">Platform Finance Settings</h1>
+          <div className="ml-auto">
+            <SystemHealthIndicator />
+          </div>
+        </header>
+
+        <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
+          <Tabs defaultValue="late-payment" className="space-y-6">
+            <TabsList className="grid h-auto w-full max-w-[900px] grid-cols-2 gap-2 md:grid-cols-5">
+              <TabsTrigger value="late-payment">Late Payment</TabsTrigger>
+              <TabsTrigger value="trustee-letter">Trustee Letter</TabsTrigger>
+              <TabsTrigger value="platform-accounts">Platform Accounts</TabsTrigger>
+              <TabsTrigger value="ledger-buckets">Ledger Buckets</TabsTrigger>
+              <TabsTrigger value="letter-templates">Letter Templates</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="late-payment">
+              <Card className="rounded-2xl p-6 shadow-sm md:p-8">
+                <CardHeader className="px-0 pt-0">
+                  <CardTitle>Late Payment Settings</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 px-0 md:grid-cols-2">
+                  {Object.entries(latePayment).map(([key, value]) => (
+                    <div key={key} className="space-y-2">
+                      <label className="text-sm font-medium">{key}</label>
+                      <Input
+                        type="number"
+                        value={value}
+                        disabled={disabled}
+                        className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
+                        onChange={(event) =>
+                          setLatePayment((prev) => ({ ...prev, [key]: event.target.value }))
+                        }
+                      />
+                    </div>
+                  ))}
+                  <div className="md:col-span-2">
+                    <Button
+                      disabled={disabled || saveMutation.isPending}
+                      className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
+                      onClick={() =>
+                        saveMutation.mutate({
+                          gracePeriodDays: Number(latePayment.gracePeriodDays),
+                          arrearsThresholdDays: Number(latePayment.arrearsThresholdDays),
+                          tawidhRateCapPercent: Number(latePayment.tawidhRateCapPercent),
+                          gharamahRateCapPercent: Number(latePayment.gharamahRateCapPercent),
+                          platformFeeRateCapPercent: Number(latePayment.platformFeeRateCapPercent),
+                          defaultTawidhRatePercent: Number(latePayment.defaultTawidhRatePercent),
+                          defaultGharamahRatePercent: Number(latePayment.defaultGharamahRatePercent),
+                        })
+                      }
+                    >
+                      Save Late Payment
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="trustee-letter" className="space-y-4">
+              <Card className="rounded-2xl p-6 shadow-sm md:p-8">
+                <CardContent className="grid gap-4 px-0 md:grid-cols-2">
+                  {(Object.keys(trusteeLetter) as Array<keyof TrusteeLetterConfig>).map((key) => (
+                    <div key={key} className="space-y-2">
+                      <label className="text-sm font-medium">{key}</label>
+                      <Input
+                        value={trusteeLetter[key] ?? ""}
+                        disabled={disabled}
+                        className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
+                        onChange={(event) =>
+                          setTrusteeLetter((prev) => ({ ...prev, [key]: event.target.value }))
+                        }
+                      />
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
               <Button
-                onClick={() => updateSettings.mutate()}
-                disabled={updateSettings.isPending || !canManage}
-                title={!canManage ? "You do not have permission to perform this action." : undefined}
+                disabled={disabled || saveMutation.isPending}
+                className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
+                onClick={() => saveMutation.mutate({ trusteeLetterConfig: trusteeLetter })}
               >
-                Save Settings
+                Save Trustee Letter Defaults
               </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </TabsContent>
+
+            <TabsContent value="platform-accounts" className="space-y-4">
+              {(
+                [
+                  ["platformOperating", "Platform Operating"],
+                  ["serviceFee", "Service Fee"],
+                  ["platformFee", "Platform Fee"],
+                  ["facilityFee", "Facility Fee"],
+                ] as const
+              ).map(([key, title]) => (
+                <AccountFields
+                  key={key}
+                  title={title}
+                  value={platformAccounts[key]}
+                  disabled={disabled}
+                  onChange={(next) =>
+                    setPlatformAccounts((prev) => ({ ...prev, [key]: next }))
+                  }
+                />
+              ))}
+              <Button
+                disabled={disabled || saveMutation.isPending}
+                className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
+                onClick={() => saveMutation.mutate({ platformAccountsConfig: platformAccounts })}
+              >
+                Save Platform Accounts
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="ledger-buckets" className="space-y-4">
+              {(
+                [
+                  ["INVESTOR_POOL", "Investor Pool"],
+                  ["REPAYMENT_POOL", "Repayment Pool"],
+                  ["OPERATING_ACCOUNT", "Operating Account"],
+                  ["ISSUER_PAYABLE", "Issuer Payable"],
+                  ["TAWIDH_ACCOUNT", "Ta'widh Account"],
+                  ["GHARAMAH_ACCOUNT", "Gharamah Account"],
+                ] as const
+              ).map(([key, title]) => (
+                <AccountFields
+                  key={key}
+                  title={title}
+                  value={bucketAccounts[key]}
+                  disabled={disabled}
+                  onChange={(next) => setBucketAccounts((prev) => ({ ...prev, [key]: next }))}
+                />
+              ))}
+              <Button
+                disabled={disabled || saveMutation.isPending}
+                className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
+                onClick={() => saveMutation.mutate({ ledgerBucketAccountsConfig: bucketAccounts })}
+              >
+                Save Ledger Bucket Accounts
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="letter-templates">
+              <Card className="rounded-2xl p-6 shadow-sm md:p-8">
+                <CardContent className="grid gap-4 px-0">
+                  {Object.entries(letterTemplates).map(([key, value]) => (
+                    <div key={key} className="space-y-2">
+                      <label className="text-sm font-medium">{key}</label>
+                      <Input
+                        value={value}
+                        disabled={disabled}
+                        className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
+                        onChange={(event) =>
+                          setLetterTemplates((prev) => ({ ...prev, [key]: event.target.value }))
+                        }
+                      />
+                    </div>
+                  ))}
+                  <Button
+                    disabled={disabled || saveMutation.isPending}
+                    className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
+                    onClick={() => saveMutation.mutate(letterTemplates)}
+                  >
+                    Save Letter Templates
+                  </Button>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
       </>
     </RequirePermission>
   );

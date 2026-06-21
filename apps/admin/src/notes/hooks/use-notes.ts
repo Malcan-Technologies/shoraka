@@ -135,6 +135,24 @@ export function usePendingIssuerPayouts({ enabled = true }: { enabled?: boolean 
   });
 }
 
+export function useInvestorWithdrawals(params?: {
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  const apiClient = useNotesApiClient();
+  return useQuery({
+    queryKey: [...notesKeys.all, "investor-withdrawals", params],
+    queryFn: async () => {
+      const response = await apiClient.getAdminInvestorWithdrawals(params);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    staleTime: 30000,
+    refetchInterval: 60000,
+  });
+}
+
 export function usePendingServiceFeeTrusteeLetters({
   enabled = true,
 }: {
@@ -490,6 +508,7 @@ function invalidateWithdrawalNote(
   noteId: string | null
 ) {
   invalidateAdminRegistries(queryClient);
+  queryClient.invalidateQueries({ queryKey: [...notesKeys.all, "investor-withdrawals"] });
   if (!noteId) return;
   queryClient.invalidateQueries({ queryKey: notesKeys.detail(noteId) });
   queryClient.invalidateQueries({ queryKey: [...notesKeys.detail(noteId), "ledger"] });

@@ -106,6 +106,68 @@ export async function debitInvestorBalanceForCommit(
   }
 }
 
+export async function debitInvestorBalanceForWithdrawal(
+  tx: Prisma.TransactionClient,
+  input: {
+    investorOrganizationId: string;
+    amount: number;
+    idempotencyKey: string;
+    metadata?: Prisma.InputJsonValue | null;
+    postedAt?: Date;
+  }
+) {
+  const existing = await tx.investorBalanceTransaction.findUnique({
+    where: { idempotency_key: input.idempotencyKey },
+  });
+  if (existing) return existing;
+
+  const amountDecimal = money(input.amount);
+  await ensureInvestorBalanceRow(tx, input.investorOrganizationId);
+
+  const updated = await tx.investorBalance.updateMany({
+    where: {
+      investor_organization_id: input.investorOrganizationId,
+      available_amount: { gte: amountDecimal },
+    },
+    data: { available_amount: { decrement: amountDecimal } },
+  });
+
+  if (updated.count !== 1) {
+    const row = await tx.investorBalance.findUnique({
+      where: { investor_organization_id: input.investorOrganizationId },
+      select: { available_amount: true },
+    });
+    const available = row ? prismaDecimal(row.available_amount) : 0;
+    throw new AppError(
+      422,
+      "INSUFFICIENT_INVESTOR_BALANCE",
+      `Insufficient available balance (available ${available.toFixed(2)}, required ${input.amount.toFixed(2)})`
+    );
+  }
+
+  try {
+    return await tx.investorBalanceTransaction.create({
+      data: {
+        investor_organization_id: input.investorOrganizationId,
+        direction: InvestorBalanceTransactionDirection.OUT,
+        amount: amountDecimal,
+        source: InvestorBalanceTransactionSource.INVESTOR_WITHDRAWAL_REQUEST,
+        idempotency_key: input.idempotencyKey,
+        metadata: input.metadata ?? undefined,
+        posted_at: input.postedAt ?? new Date(),
+      },
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error, "investor_balance_transactions_idempotency_key_key")) {
+      const duplicate = await tx.investorBalanceTransaction.findUnique({
+        where: { idempotency_key: input.idempotencyKey },
+      });
+      if (duplicate) return duplicate;
+    }
+    throw error;
+  }
+}
+
 export async function creditInvestorBalance(
   tx: Prisma.TransactionClient,
   input: {

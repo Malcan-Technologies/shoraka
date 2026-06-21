@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
-import { useOrganization } from "@cashsouk/config";
+import { useMutation } from "@tanstack/react-query";
+import { createApiClient, useOrganization } from "@cashsouk/config";
+import { useAuthToken } from "@cashsouk/config";
 import { Card, CardContent, CardHeader, CardTitle, useHeader } from "@cashsouk/ui";
 import { TransactionsSummaryCards } from "./components/transactions-summary-cards";
 import { TransactionsActions } from "./components/transactions-actions";
@@ -86,7 +88,14 @@ export default function TransactionsPage() {
   const [withdrawAmount, setWithdrawAmount] = React.useState("");
   const [depositError, setDepositError] = React.useState<string | null>(null);
   const [withdrawError, setWithdrawError] = React.useState<string | null>(null);
+  const [withdrawConfirmError, setWithdrawConfirmError] = React.useState<string | null>(null);
   const [confirmedAmount, setConfirmedAmount] = React.useState(0);
+
+  const { getAccessToken } = useAuthToken();
+  const apiClient = React.useMemo(
+    () => createApiClient(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", getAccessToken),
+    [getAccessToken]
+  );
 
   const [statementStartDate, setStatementStartDate] = React.useState("");
   const [statementEndDate, setStatementEndDate] = React.useState("");
@@ -95,6 +104,29 @@ export default function TransactionsPage() {
   const portfolioHistoryQuery = useInvestorPortfolioHistory("1W", orgId);
   const activityQuery = useInvestorBalanceActivityAll(orgId);
   const investmentsQuery = useInvestorInvestments(orgId);
+
+  const requestWithdrawalMutation = useMutation({
+    mutationFn: async () => {
+      if (!orgId) throw new Error("No investor organization selected");
+      const response = await apiClient.requestInvestorWithdrawal({
+        amount: confirmedAmount,
+        investorOrganizationId: orgId,
+      });
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: () => {
+      setWithdrawConfirmOpen(false);
+      setWithdrawSuccessOpen(true);
+      setWithdrawAmount("");
+      setWithdrawConfirmError(null);
+      void portfolioQuery.refetch();
+      void activityQuery.refetch();
+    },
+    onError: (error) => {
+      setWithdrawConfirmError(error instanceof Error ? error.message : "Withdrawal request failed.");
+    },
+  });
 
   const noteReferenceById = React.useMemo(() => {
     const map = new Map<string, string>();
@@ -230,9 +262,8 @@ export default function TransactionsPage() {
   }
 
   function handleWithdrawConfirm() {
-    setWithdrawConfirmOpen(false);
-    setWithdrawSuccessOpen(true);
-    setWithdrawAmount("");
+    setWithdrawConfirmError(null);
+    requestWithdrawalMutation.mutate();
   }
 
   function handleSeeWithdrawalHistory() {
@@ -316,6 +347,8 @@ export default function TransactionsPage() {
         onOpenChange={setWithdrawConfirmOpen}
         amount={confirmedAmount}
         onConfirm={handleWithdrawConfirm}
+        isLoading={requestWithdrawalMutation.isPending}
+        errorMessage={withdrawConfirmError}
       />
 
       <WithdrawSuccessDialog

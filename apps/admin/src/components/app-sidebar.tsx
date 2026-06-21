@@ -143,6 +143,12 @@ const navFinance = [
     icon: ArrowUpTrayIcon,
     badgeKey: "pendingIssuerPayouts" as const,
   },
+  {
+    title: "Investor Withdrawals",
+    url: "/finance/investor-withdrawals",
+    icon: ArrowUpTrayIcon,
+    // badgeKey: "pendingInvestorWithdrawals" as const, // TODO: add when lightweight count endpoint exists
+  },
 ] as const;
 
 const navPlatform = [
@@ -274,7 +280,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       (item.title === "Bucket Balances" && canViewBucketBalances) ||
       (item.title === "Repayments" && canViewRepayments) ||
       (item.title === "Service Fee" && canViewServiceFee) ||
-      (item.title === "Issuer Payouts" && canViewDisbursements)
+      (item.title === "Issuer Payouts" && canViewDisbursements) ||
+      (item.title === "Investor Withdrawals" && canViewDisbursements)
     );
   });
 
@@ -550,7 +557,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       (item.title === "Bucket Balances" && canViewBucketBalances) ||
                       (item.title === "Repayments" && canViewRepayments) ||
                       (item.title === "Service Fee" && canViewServiceFee) ||
-                      (item.title === "Issuer Payouts" && canViewDisbursements);
+                      (item.title === "Issuer Payouts" && canViewDisbursements) ||
+      (item.title === "Investor Withdrawals" && canViewDisbursements);
 
                     if (!canShow) return null;
 
