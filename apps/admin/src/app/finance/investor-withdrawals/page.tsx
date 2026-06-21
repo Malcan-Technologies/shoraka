@@ -2,7 +2,11 @@
 
 import { format } from "date-fns";
 import Link from "next/link";
-import { ArrowPathIcon, ArrowUpTrayIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowPathIcon,
+  ArrowTopRightOnSquareIcon,
+  ArrowUpTrayIcon,
+} from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import type { WithdrawalStatus } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
@@ -143,8 +147,8 @@ export default function InvestorWithdrawalsPage() {
                         <TableHead className="text-sm font-semibold">Bank / Account</TableHead>
                         <TableHead className="text-sm font-semibold">Requested</TableHead>
                         <TableHead className="text-sm font-semibold">Status</TableHead>
-                        <TableHead className="text-sm font-semibold">Letter</TableHead>
-                        <TableHead className="text-sm font-semibold">Actions</TableHead>
+                        <TableHead className="text-sm font-semibold">Submitted</TableHead>
+                        <TableHead className="text-right text-sm font-semibold">Open</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody className="text-[15px]">
@@ -196,16 +200,13 @@ export default function InvestorWithdrawalsPage() {
                                 </Badge>
                               </TableCell>
                               <TableCell>
-                                {item.letterS3Key ? (
-                                  <DocumentTextIcon className="h-5 w-5 text-muted-foreground" />
-                                ) : (
-                                  "—"
-                                )}
+                                {formatDate(item.submittedToTrusteeAt)}
                               </TableCell>
-                              <TableCell>
-                                <Button asChild variant="outline" size="sm">
+                              <TableCell className="text-right">
+                                <Button asChild variant="ghost" size="sm" className="gap-1">
                                   <Link href={`/finance/investor-withdrawals/${item.withdrawalId}`}>
                                     Open
+                                    <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                                   </Link>
                                 </Button>
                               </TableCell>
