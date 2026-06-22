@@ -14,8 +14,6 @@ export const TRUSTEE_LETTER_MOCK_DEFAULTS: TrusteeLetterConfig = {
   platformDisplayName: "CashSouk Sdn Bhd",
   defaultContactPerson: "CashSouk Finance Team",
   authorisedSignatoryLabel: "Authorised Signatories",
-  defaultValueDateBehavior: "T+1",
-  defaultLetterRefPrefix: "CSK",
 };
 
 export const EMPTY_ACCOUNT: TrusteeAccountDetails = {

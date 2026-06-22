@@ -41,8 +41,6 @@ const DEFAULT_TRUSTEE_LETTER: TrusteeLetterConfig = {
   defaultContactPerson: "CashSouk Finance Team",
   authorisedSignatoryLabel: "Authorised Signatories",
   platformDisplayName: "CashSouk Sdn Bhd",
-  defaultValueDateBehavior: "T+1",
-  defaultLetterRefPrefix: "CSK",
 };
 
 const ALLOWED_SIGNATURE_CONTENT_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
@@ -208,8 +206,6 @@ export default function PlatformFinanceSettingsPage() {
       label: "Platform display name",
       placeholder: "e.g. CashSouk Sdn Bhd",
     },
-    { key: "defaultValueDateBehavior", label: "Default value date", placeholder: "e.g. T+1" },
-    { key: "defaultLetterRefPrefix", label: "Default reference prefix", placeholder: "e.g. CSK" },
   ];
 
   const moneyFlowSections: Array<{

@@ -620,8 +620,10 @@ export interface TrusteeLetterConfig {
   authorisedSignatureImageFileName?: string;
   authorisedSignatureImageContentType?: string;
   platformDisplayName: string;
-  defaultValueDateBehavior: string;
-  defaultLetterRefPrefix: string;
+  /** @deprecated Global value-date default is no longer used by trustee PDF generation. */
+  defaultValueDateBehavior?: string;
+  /** @deprecated Global reference prefix is no longer used by trustee PDF generation. */
+  defaultLetterRefPrefix?: string;
 }
 
 export interface TrusteeSignatureUploadUrlRequest {
