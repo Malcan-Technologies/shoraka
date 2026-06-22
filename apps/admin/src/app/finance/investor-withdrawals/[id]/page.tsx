@@ -10,21 +10,11 @@ import {
   ArrowPathIcon,
   ArrowUpTrayIcon,
   DocumentTextIcon,
-  PencilSquareIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,7 +27,6 @@ import {
   useGenerateWithdrawalLetter,
   useMarkWithdrawalCompleted,
   useMarkWithdrawalSubmitted,
-  useUpdateWithdrawalBeneficiary,
 } from "@/notes/hooks/use-notes";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -83,56 +72,12 @@ export default function InvestorWithdrawalDetailPage() {
   const generateLetter = useGenerateWithdrawalLetter();
   const markSubmitted = useMarkWithdrawalSubmitted();
   const markCompleted = useMarkWithdrawalCompleted();
-  const updateBeneficiary = useUpdateWithdrawalBeneficiary();
 
-  const [editOpen, setEditOpen] = React.useState(false);
   const snapshot =
     withdrawal && withdrawal.beneficiarySnapshot && typeof withdrawal.beneficiarySnapshot === "object"
       ? withdrawal.beneficiarySnapshot
       : {};
 
-  const [form, setForm] = React.useState({
-    accountHolder:
-      typeof (snapshot as Record<string, unknown>).account_holder === "string"
-        ? ((snapshot as Record<string, unknown>).account_holder as string)
-        : "",
-    bankName:
-      typeof (snapshot as Record<string, unknown>).bank_name === "string"
-        ? ((snapshot as Record<string, unknown>).bank_name as string)
-        : "",
-    accountNumber:
-      typeof (snapshot as Record<string, unknown>).account_number === "string"
-        ? ((snapshot as Record<string, unknown>).account_number as string)
-        : "",
-    remarks:
-      typeof (snapshot as Record<string, unknown>).reference_note === "string"
-        ? ((snapshot as Record<string, unknown>).reference_note as string)
-        : typeof (snapshot as Record<string, unknown>).remarks === "string"
-          ? ((snapshot as Record<string, unknown>).remarks as string)
-          : "",
-  });
-
-  React.useEffect(() => {
-    if (!withdrawal) return;
-    const nextSnapshot =
-      withdrawal.beneficiarySnapshot && typeof withdrawal.beneficiarySnapshot === "object"
-        ? (withdrawal.beneficiarySnapshot as Record<string, unknown>)
-        : {};
-    setForm({
-      accountHolder: typeof nextSnapshot.account_holder === "string" ? nextSnapshot.account_holder : "",
-      bankName: typeof nextSnapshot.bank_name === "string" ? nextSnapshot.bank_name : "",
-      accountNumber: typeof nextSnapshot.account_number === "string" ? nextSnapshot.account_number : "",
-      remarks:
-        typeof nextSnapshot.reference_note === "string"
-          ? nextSnapshot.reference_note
-          : typeof nextSnapshot.remarks === "string"
-            ? nextSnapshot.remarks
-            : "",
-    });
-  }, [withdrawal]);
-
-  const isDraft = withdrawal?.status === "DRAFT";
-  const canEditBeneficiary = Boolean(withdrawal && canManage && isDraft);
   const canGenerateLetter = Boolean(withdrawal && canManage && withdrawal.status === "DRAFT");
   const canSubmitToTrustee = Boolean(
     withdrawal && canManage && withdrawal.status === "LETTER_GENERATED"
@@ -146,7 +91,6 @@ export default function InvestorWithdrawalDetailPage() {
     generateLetter.isPending ||
     markSubmitted.isPending ||
     markCompleted.isPending ||
-    updateBeneficiary.isPending ||
     viewDocumentPending;
 
   return (
@@ -268,14 +212,8 @@ export default function InvestorWithdrawalDetailPage() {
                     </Card>
 
                     <Card className="rounded-2xl shadow-sm">
-                      <CardHeader className="flex-row items-center justify-between space-y-0">
+                      <CardHeader>
                         <CardTitle>Beneficiary / Bank Details</CardTitle>
-                        {canEditBeneficiary ? (
-                          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-                            <PencilSquareIcon className="h-4 w-4" />
-                            Edit beneficiary
-                          </Button>
-                        ) : null}
                       </CardHeader>
                       <CardContent className="grid gap-4 md:grid-cols-2">
                         <div>
@@ -302,16 +240,6 @@ export default function InvestorWithdrawalDetailPage() {
                                 ? ((snapshot as Record<string, unknown>).account_number as string)
                                 : undefined
                             )}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Remarks</p>
-                          <p>
-                            {typeof (snapshot as Record<string, unknown>).reference_note === "string"
-                              ? ((snapshot as Record<string, unknown>).reference_note as string)
-                              : typeof (snapshot as Record<string, unknown>).remarks === "string"
-                                ? ((snapshot as Record<string, unknown>).remarks as string)
-                                : "—"}
                           </p>
                         </div>
                       </CardContent>
@@ -438,97 +366,6 @@ export default function InvestorWithdrawalDetailPage() {
           </div>
         </div>
 
-        <Dialog open={editOpen} onOpenChange={setEditOpen}>
-          <DialogContent className="rounded-2xl p-0 sm:max-w-lg">
-            <DialogHeader className="border-b px-6 pb-4 pt-6">
-              <DialogTitle className="text-lg font-semibold">Edit beneficiary</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 px-6 py-6">
-              <div className="space-y-2">
-                <Label htmlFor="beneficiary-holder">Payee / Account holder</Label>
-                <Input
-                  id="beneficiary-holder"
-                  value={form.accountHolder}
-                  className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, accountHolder: event.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="beneficiary-bank">Bank name</Label>
-                <Input
-                  id="beneficiary-bank"
-                  value={form.bankName}
-                  className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
-                  onChange={(event) => setForm((prev) => ({ ...prev, bankName: event.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="beneficiary-account">Account number</Label>
-                <Input
-                  id="beneficiary-account"
-                  value={form.accountNumber}
-                  className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, accountNumber: event.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="beneficiary-remarks">Remarks</Label>
-                <Input
-                  id="beneficiary-remarks"
-                  value={form.remarks}
-                  className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
-                  onChange={(event) => setForm((prev) => ({ ...prev, remarks: event.target.value }))}
-                />
-              </div>
-            </div>
-            <DialogFooter className="border-t px-6 py-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setEditOpen(false)}
-                disabled={updateBeneficiary.isPending}
-              >
-                Close
-              </Button>
-              <Button
-                type="button"
-                className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
-                disabled={updateBeneficiary.isPending || !withdrawal}
-                onClick={() => {
-                  if (!withdrawal) return;
-                  updateBeneficiary.mutate(
-                    {
-                      id: withdrawal.id,
-                      beneficiarySnapshot: {
-                        ...(snapshot as Record<string, unknown>),
-                        account_holder: form.accountHolder.trim(),
-                        bank_name: form.bankName.trim(),
-                        account_number: form.accountNumber.trim(),
-                        reference_note: form.remarks.trim(),
-                        remarks: form.remarks.trim(),
-                      },
-                    },
-                    {
-                      onSuccess: () => {
-                        toast.success("Beneficiary details updated");
-                        setEditOpen(false);
-                      },
-                      onError: (mutationError) => {
-                        toast.error(mutationError.message);
-                      },
-                    }
-                  );
-                }}
-              >
-                {updateBeneficiary.isPending ? "Saving..." : "Save beneficiary"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </>
     </RequirePermission>
   );
