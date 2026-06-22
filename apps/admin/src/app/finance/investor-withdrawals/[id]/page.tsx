@@ -141,7 +141,7 @@ export default function InvestorWithdrawalDetailPage() {
                       </div>
                       <div className="space-y-1">
                         <p className="text-sm text-muted-foreground">Reference</p>
-                        <p className="font-mono text-xs">{withdrawal.id}</p>
+                        <p className="break-all text-base font-medium text-foreground">{withdrawal.id}</p>
                       </div>
                       <Badge variant="secondary" className="ml-auto">
                         {STATUS_LABEL[withdrawal.status] ?? withdrawal.status}
@@ -173,7 +173,7 @@ export default function InvestorWithdrawalDetailPage() {
                       <CardContent className="grid gap-4 md:grid-cols-2">
                         <div>
                           <p className="text-sm text-muted-foreground">Reference</p>
-                          <p className="font-mono text-xs">{withdrawal.id}</p>
+                          <p className="break-all text-base font-medium text-foreground">{withdrawal.id}</p>
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Status</p>
@@ -196,15 +196,15 @@ export default function InvestorWithdrawalDetailPage() {
                       </CardHeader>
                       <CardContent className="grid gap-4 md:grid-cols-2">
                         <div>
-                          <p className="text-sm text-muted-foreground">Investor organization</p>
+                          <p className="text-sm text-muted-foreground">Investor account</p>
                           <p>{withdrawal.investorOrganizationId ?? "—"}</p>
                         </div>
                         <div>
-                          <p className="text-sm text-muted-foreground">Requested by user</p>
+                          <p className="text-sm text-muted-foreground">Requested by</p>
                           <p>{withdrawal.requestedByUserId}</p>
                         </div>
                         <div>
-                          <p className="text-sm text-muted-foreground">Submitted by user</p>
+                          <p className="text-sm text-muted-foreground">Submitted by</p>
                           <p>{withdrawal.submittedByUserId ?? "—"}</p>
                         </div>
                       </CardContent>
@@ -260,6 +260,12 @@ export default function InvestorWithdrawalDetailPage() {
                         <p className="text-sm text-muted-foreground">
                           Generated at: {formatDateTime(withdrawal.generatedAt)}
                         </p>
+                        {withdrawal.letterS3Key ? (
+                          <p className="text-xs text-muted-foreground">
+                            This letter was generated previously. Download opens the saved PDF. Regenerate is
+                            required to apply newer template changes.
+                          </p>
+                        ) : null}
 
                         {canDownloadLetter ? (
                           <Button
