@@ -17,30 +17,6 @@ function formatShortDate(date: Date): string {
   return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function addBusinessDays(start: Date, days: number): Date {
-  const result = new Date(start);
-  let added = 0;
-  while (added < days) {
-    result.setDate(result.getDate() + 1);
-    const day = result.getDay();
-    if (day !== 0 && day !== 6) added += 1;
-  }
-  return result;
-}
-
-export function resolveTrusteeValueDate(behavior: string, referenceDate?: Date): string {
-  const base = referenceDate ?? new Date();
-  const normalized = behavior.trim().toLowerCase();
-  if (normalized === "same_day" || normalized === "same day") {
-    return formatLetterDate(base);
-  }
-  return formatLetterDate(addBusinessDays(base, 1));
-}
-
-function buildOurRef(prefix: string, suffix: string): string {
-  return `${prefix}/${suffix}`;
-}
-
 function accountRow(account: TrusteeAccountDetails, amount: number, remarks: string): Omit<TrusteePaymentRow, "no"> {
   return {
     nameOfPayee: account.displayName || account.accountName || remarks,
@@ -140,7 +116,7 @@ export function mapDisbursementLetterData(input: {
 
   const now = input.referenceDate ?? new Date();
   return {
-    ourRef: buildOurRef(letterConfig.defaultLetterRefPrefix, input.withdrawalId.slice(-8).toUpperCase()),
+    ourRef: "",
     date: formatLetterDate(now),
     trusteeName: letterConfig.trusteeName,
     trusteeAddressLines: [
@@ -153,7 +129,7 @@ export function mapDisbursementLetterData(input: {
     instructionTitle: "Instruction of Payment",
     debitAccountNumber: debit.accountNumber,
     debitAccountName: debit.accountName || debit.displayName || "Investor Pool Account",
-    valueDate: resolveTrusteeValueDate(letterConfig.defaultValueDateBehavior, now),
+    valueDate: "",
     purpose: "Disbursement to Borrower and Platform",
     openingParagraph: OPENING_PARAGRAPH,
     paymentRows: rows,
@@ -312,7 +288,7 @@ export function mapRepaymentLetterData(input: {
   });
 
   return {
-    ourRef: buildOurRef(letterConfig.defaultLetterRefPrefix, input.settlementId.slice(-8).toUpperCase()),
+    ourRef: "",
     date: formatLetterDate(now),
     trusteeName: letterConfig.trusteeName,
     trusteeAddressLines: [
@@ -325,7 +301,7 @@ export function mapRepaymentLetterData(input: {
     instructionTitle: "Instruction of Payment",
     debitAccountNumber: debit.accountNumber,
     debitAccountName: debit.accountName || debit.displayName || "Repayment Pool Account",
-    valueDate: resolveTrusteeValueDate(letterConfig.defaultValueDateBehavior, now),
+    valueDate: "",
     purpose: "Repayment to Investors and Platform",
     openingParagraph: OPENING_PARAGRAPH,
     paymentRows: rows,
@@ -364,7 +340,7 @@ export function mapInvestorWithdrawalLetterData(input: {
   ];
 
   return {
-    ourRef: buildOurRef(letterConfig.defaultLetterRefPrefix, input.withdrawalId.slice(-8).toUpperCase()),
+    ourRef: "",
     date: formatLetterDate(now),
     trusteeName: letterConfig.trusteeName,
     trusteeAddressLines: [
@@ -377,7 +353,7 @@ export function mapInvestorWithdrawalLetterData(input: {
     instructionTitle: "Instruction of Payment",
     debitAccountNumber: debit.accountNumber,
     debitAccountName: debit.accountName || debit.displayName || "Investor Pool Account",
-    valueDate: resolveTrusteeValueDate(letterConfig.defaultValueDateBehavior, now),
+    valueDate: "",
     purpose: "Withdrawal by Investors",
     openingParagraph: OPENING_PARAGRAPH,
     paymentRows: rows,

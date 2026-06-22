@@ -41,6 +41,7 @@ import {
   updateWithdrawalBeneficiarySchema,
   createInvestorWithdrawalSchema,
   getInvestorWithdrawalsQuerySchema,
+  requestTrusteeSignatureUploadUrlSchema,
 } from "./schemas";
 
 function getActor(req: Request, res: Response, portal: string) {
@@ -799,6 +800,18 @@ platformFinanceSettingsRouter.patch(
   } catch (error) {
     next(error);
   }
+  }
+);
+platformFinanceSettingsRouter.post(
+  "/trustee-signature/upload-url",
+  requirePermission("platform_settings.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const input = requestTrusteeSignatureUploadUrlSchema.parse(req.body);
+      send(res, await noteService.requestTrusteeSignatureUploadUrl(input));
+    } catch (error) {
+      next(error);
+    }
   }
 );
 

@@ -31,4 +31,5 @@ export interface TrusteeLetterData {
   contactPerson: string;
   enclosingDocuments: boolean;
   authorisedSignatoryLabel: string;
+  authorisedSignatureImage?: Buffer;
 }
