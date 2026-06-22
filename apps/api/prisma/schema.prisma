@@ -959,6 +959,9 @@ model PlatformFinanceSetting {
   default_letter_template       String   @default("DEFAULT_DEFAULT_LETTER")
   updated_by_user_id            String?
   metadata                      Json?
+  trustee_letter_config         Json?
+  platform_accounts_config      Json?
+  ledger_bucket_accounts_config Json?
   created_at                    DateTime @default(now())
   updated_at                    DateTime @updatedAt
 
@@ -1509,6 +1512,7 @@ enum InvestorBalanceTransactionSource {
   MANUAL_TOPUP
   NOTE_INVESTMENT_COMMIT
   NOTE_INVESTMENT_RELEASE
+  INVESTOR_WITHDRAWAL_REQUEST
 }
 
 enum NotePaymentSource {

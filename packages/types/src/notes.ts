@@ -575,6 +575,10 @@ export interface PendingServiceFeeTrusteeLettersResponse {
   items: PendingServiceFeeTrusteeLetterItem[];
 }
 
+export interface PendingInvestorWithdrawalsCountResponse {
+  count: number;
+}
+
 export interface PlatformFinanceSetting {
   id: string;
   key: string;
@@ -588,8 +592,69 @@ export interface PlatformFinanceSetting {
   withdrawalLetterTemplate: string;
   arrearsLetterTemplate: string;
   defaultLetterTemplate: string;
+  trusteeLetterConfig: TrusteeLetterConfig | null;
+  platformAccountsConfig: PlatformAccountsConfig | null;
+  ledgerBucketAccountsConfig: LedgerBucketAccountsConfig | null;
   updatedByUserId: string | null;
   updatedAt: string;
+}
+
+export interface TrusteeAccountDetails {
+  displayName: string;
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  remarks: string;
+}
+
+export interface TrusteeLetterConfig {
+  trusteeName: string;
+  trusteeAddressLine1: string;
+  trusteeAddressLine2: string;
+  trusteeAddressLine3?: string;
+  attentionPerson: string;
+  defaultContactPerson: string;
+  authorisedSignatoryLabel: string;
+  platformDisplayName: string;
+  defaultValueDateBehavior: string;
+  defaultLetterRefPrefix: string;
+}
+
+export interface PlatformAccountsConfig {
+  platformOperating: TrusteeAccountDetails;
+  serviceFee: TrusteeAccountDetails;
+  platformFee: TrusteeAccountDetails;
+  facilityFee: TrusteeAccountDetails;
+}
+
+export interface LedgerBucketAccountsConfig {
+  INVESTOR_POOL: TrusteeAccountDetails;
+  REPAYMENT_POOL: TrusteeAccountDetails;
+  OPERATING_ACCOUNT: TrusteeAccountDetails;
+  ISSUER_PAYABLE: TrusteeAccountDetails;
+  TAWIDH_ACCOUNT: TrusteeAccountDetails;
+  GHARAMAH_ACCOUNT: TrusteeAccountDetails;
+}
+
+export interface InvestorWithdrawalListItem {
+  withdrawalId: string;
+  investorOrganizationId: string | null;
+  investorOrganizationName: string | null;
+  requestedByUserId: string;
+  amount: number;
+  currency: string;
+  status: WithdrawalStatus;
+  beneficiarySnapshot: Record<string, unknown>;
+  letterS3Key: string | null;
+  generatedAt: string | null;
+  submittedToTrusteeAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+export interface InvestorWithdrawalsResponse {
+  count: number;
+  items: InvestorWithdrawalListItem[];
 }
 
 export interface WithdrawalInstruction {

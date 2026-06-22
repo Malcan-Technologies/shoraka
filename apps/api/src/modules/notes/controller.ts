@@ -1,7 +1,13 @@
 import { Request, Response, NextFunction, Router } from "express";
-import { UserRole } from "@prisma/client";
-import { requirePermission, requireAnyPermission, requireRole } from "../../lib/auth/middleware";
+import { UserRole, WithdrawalType } from "@prisma/client";
+import {
+  requirePermission,
+  requireAnyPermission,
+  requireRole,
+  userHasPermission,
+} from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
+import { prisma } from "../../lib/prisma";
 import { noteService } from "./service";
 import { shorakaStpService } from "../shoraka-stp/shoraka-stp-service";
 import {
@@ -33,6 +39,8 @@ import {
   updateNoteDraftSchema,
   updatePlatformFinanceSettingsSchema,
   updateWithdrawalBeneficiarySchema,
+  createInvestorWithdrawalSchema,
+  getInvestorWithdrawalsQuerySchema,
 } from "./schemas";
 
 function getActor(req: Request, res: Response, portal: string) {
@@ -58,6 +66,27 @@ function send(res: Response, data: unknown, status = 200) {
     data,
     correlationId: res.locals.correlationId || "unknown",
   });
+}
+
+async function assertWithdrawalManagePermission(req: Request, withdrawalId: string) {
+  const withdrawal = await prisma.withdrawalInstruction.findUnique({
+    where: { id: withdrawalId },
+    select: { withdrawal_type: true },
+  });
+  if (!withdrawal) {
+    throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal instruction not found");
+  }
+
+  if (withdrawal.withdrawal_type === WithdrawalType.INVESTOR_WITHDRAWAL) {
+    if (!userHasPermission(req, "investor_withdrawals.manage")) {
+      throw new AppError(403, "FORBIDDEN", "Insufficient permissions");
+    }
+    return;
+  }
+
+  if (!userHasPermission(req, "notes.disbursement.manage")) {
+    throw new AppError(403, "FORBIDDEN", "Insufficient permissions");
+  }
 }
 
 export const adminNotesRouter = Router();
@@ -675,6 +704,16 @@ investorNotesRouter.post("/balance/test-topup", async (req: Request, res: Respon
   }
 });
 
+investorNotesRouter.post("/balance/withdraw", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const input = createInvestorWithdrawalSchema.parse(req.body);
+    const actor = getActor(req, res, "INVESTOR");
+    send(res, await noteService.createInvestorWithdrawal(input, actor), 201);
+  } catch (error) {
+    next(error);
+  }
+});
+
 issuerNotesRouter.use(requireRole(UserRole.ISSUER));
 
 issuerNotesRouter.get("/notes", async (req: Request, res: Response, next: NextFunction) => {
@@ -783,6 +822,19 @@ export const withdrawalsRouter = Router();
 withdrawalsRouter.use(requireRole(UserRole.ADMIN));
 
 withdrawalsRouter.get(
+  "/",
+  requirePermission("investor_withdrawals.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const query = getInvestorWithdrawalsQuerySchema.parse(req.query);
+      send(res, await noteService.listInvestorWithdrawals(query));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+withdrawalsRouter.get(
   "/pending-issuer-payouts",
   requirePermission("disbursements.view"),
   async (_req: Request, res: Response, next: NextFunction) => {
@@ -791,6 +843,31 @@ withdrawalsRouter.get(
   } catch (error) {
     next(error);
   }
+  }
+);
+
+withdrawalsRouter.get(
+  "/pending-investor-withdrawals",
+  requirePermission("investor_withdrawals.view"),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      send(res, await noteService.getPendingInvestorWithdrawalsCount());
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+withdrawalsRouter.get(
+  "/:id",
+  requirePermission("investor_withdrawals.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      send(res, await noteService.getInvestorWithdrawal(id));
+    } catch (error) {
+      next(error);
+    }
   }
 );
 
@@ -808,10 +885,10 @@ withdrawalsRouter.post(
 );
 withdrawalsRouter.post(
   "/:id/generate-letter",
-  requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
+    await assertWithdrawalManagePermission(req, id);
     send(res, await noteService.generateWithdrawalLetter(id, getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
@@ -820,10 +897,10 @@ withdrawalsRouter.post(
 );
 withdrawalsRouter.post(
   "/:id/mark-submitted-to-trustee",
-  requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
+    await assertWithdrawalManagePermission(req, id);
     send(res, await noteService.markWithdrawalSubmitted(id, getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
@@ -832,10 +909,10 @@ withdrawalsRouter.post(
 );
 withdrawalsRouter.post(
   "/:id/mark-completed",
-  requirePermission("notes.disbursement.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
+    await assertWithdrawalManagePermission(req, id);
     send(res, await noteService.markWithdrawalCompleted(id, getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
@@ -881,9 +958,10 @@ withdrawalsRouter.get("/:id/shoraka", async (req: Request, res: Response, next: 
     next(error);
   }
 });
-withdrawalsRouter.patch("/:id/beneficiary", requirePermission("notes.disbursement.manage"), async (req: Request, res: Response, next: NextFunction) => {
+withdrawalsRouter.patch("/:id/beneficiary", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
+    await assertWithdrawalManagePermission(req, id);
     const body = updateWithdrawalBeneficiarySchema.parse(req.body);
     send(
       res,

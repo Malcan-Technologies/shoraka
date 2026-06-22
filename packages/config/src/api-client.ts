@@ -98,6 +98,7 @@ import type {
   GetAdminInvestmentsParams,
   GetAdminInvestmentsResponse,
   PendingIssuerPayoutsResponse,
+  PendingInvestorWithdrawalsCountResponse,
   PendingRepaymentsResponse,
   PendingServiceFeeTrusteeLettersResponse,
   NoteEvent,
@@ -666,6 +667,14 @@ export class ApiClient {
     return this.get<PendingIssuerPayoutsResponse>("/v1/admin/withdrawals/pending-issuer-payouts");
   }
 
+  async getAdminPendingInvestorWithdrawals(): Promise<
+    ApiResponse<PendingInvestorWithdrawalsCountResponse> | ApiError
+  > {
+    return this.get<PendingInvestorWithdrawalsCountResponse>(
+      "/v1/admin/withdrawals/pending-investor-withdrawals"
+    );
+  }
+
   async getAdminPendingServiceFeeTrusteeLetters(): Promise<
     ApiResponse<PendingServiceFeeTrusteeLettersResponse> | ApiError
   > {
@@ -816,6 +825,38 @@ export class ApiClient {
     data: Partial<PlatformFinanceSetting>
   ): Promise<ApiResponse<PlatformFinanceSetting> | ApiError> {
     return this.patch<PlatformFinanceSetting>("/v1/admin/platform-finance-settings", data);
+  }
+
+  async getAdminInvestorWithdrawals(params?: {
+    status?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    investorOrganizationId?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<ApiResponse<import("@cashsouk/types").InvestorWithdrawalsResponse> | ApiError> {
+    const search = new URLSearchParams();
+    if (params?.status) search.set("status", params.status);
+    if (params?.dateFrom) search.set("dateFrom", params.dateFrom);
+    if (params?.dateTo) search.set("dateTo", params.dateTo);
+    if (params?.investorOrganizationId) {
+      search.set("investorOrganizationId", params.investorOrganizationId);
+    }
+    if (params?.page) search.set("page", String(params.page));
+    if (params?.pageSize) search.set("pageSize", String(params.pageSize));
+    const qs = search.toString();
+    return this.get(`/v1/admin/withdrawals${qs ? `?${qs}` : ""}`);
+  }
+
+  async getAdminWithdrawal(id: string): Promise<ApiResponse<WithdrawalInstruction> | ApiError> {
+    return this.get<WithdrawalInstruction>(`/v1/admin/withdrawals/${id}`);
+  }
+
+  async requestInvestorWithdrawal(data: {
+    amount: number;
+    investorOrganizationId: string;
+  }): Promise<ApiResponse<WithdrawalInstruction> | ApiError> {
+    return this.post<WithdrawalInstruction>("/v1/investor/balance/withdraw", data);
   }
 
   async getAdminApplicationDetail(

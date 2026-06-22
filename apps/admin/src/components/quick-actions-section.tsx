@@ -23,6 +23,7 @@ import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
 import { useProducts } from "@/hooks/use-products";
 import {
   useNoteActionRequiredCount,
+  usePendingInvestorWithdrawals,
   usePendingRepayments,
   usePendingIssuerPayouts,
   usePendingServiceFeeTrusteeLetters,
@@ -47,12 +48,15 @@ export function QuickActionsSection({
   const canRepayments = can("repayments.view");
   const canServiceFee = can("service_fee.view");
   const canDisbursements = can("disbursements.view");
+  const canViewInvestorWithdrawals = can("investor_withdrawals.view");
 
   const { data: pendingCountData, isLoading: isPendingCountLoading } = usePendingApprovalCount({ enabled: canOnboarding });
   const { data: noteActionCountData, isLoading: isNoteActionCountLoading } = useNoteActionRequiredCount({ enabled: canNotes });
   const { data: pendingRepaymentsData, isLoading: isPendingRepaymentsLoading } = usePendingRepayments({ enabled: canRepayments });
   const { data: pendingIssuerPayoutsData, isLoading: isPendingIssuerPayoutsLoading } =
     usePendingIssuerPayouts({ enabled: canDisbursements });
+  const { data: pendingInvestorWithdrawalsData, isLoading: isPendingInvestorWithdrawalsLoading } =
+    usePendingInvestorWithdrawals({ enabled: canViewInvestorWithdrawals });
   const { data: pendingServiceFeeLettersData, isLoading: isPendingServiceFeeLettersLoading } =
     usePendingServiceFeeTrusteeLetters({ enabled: canServiceFee });
   const { data: applicationsForSidebar = [], isLoading: isApplicationsForSidebarLoading } =
@@ -72,6 +76,7 @@ export function QuickActionsSection({
   const noteActionCount = noteActionCountData?.count ?? 0;
   const pendingRepaymentsCount = pendingRepaymentsData?.count ?? 0;
   const pendingIssuerPayoutsCount = pendingIssuerPayoutsData?.count ?? 0;
+  const pendingInvestorWithdrawalsCount = pendingInvestorWithdrawalsData?.count ?? 0;
   const pendingServiceFeeLettersCount = pendingServiceFeeLettersData?.count ?? 0;
   const activeApplicationProductKeys = React.useMemo(
     () => activeProductBaseKeySet(applicationNavGroups),
@@ -221,7 +226,7 @@ export function QuickActionsSection({
               loading={loading || isPendingServiceFeeLettersLoading}
             />
           )}
-          {canDisbursements && (
+          {canViewInvestorWithdrawals && (
             <QuickActionCard
               title="Issuer Payouts"
               description="Issuer residual refunds in flight — generate letters and mark disbursed"
@@ -237,6 +242,24 @@ export function QuickActionsSection({
                     : "default"
               }
               loading={loading || isPendingIssuerPayoutsLoading}
+            />
+          )}
+          {canDisbursements && (
+            <QuickActionCard
+              title="Investor Withdrawals"
+              description="Review and process investor withdrawal requests."
+              count={pendingInvestorWithdrawalsCount}
+              countLabel="pending"
+              href="/finance/investor-withdrawals"
+              icon={ArrowUpTrayIcon}
+              variant={
+                pendingInvestorWithdrawalsCount > 5
+                  ? "urgent"
+                  : pendingInvestorWithdrawalsCount > 0
+                    ? "warning"
+                    : "default"
+              }
+              loading={loading || isPendingInvestorWithdrawalsLoading}
             />
           )}
         </div>
