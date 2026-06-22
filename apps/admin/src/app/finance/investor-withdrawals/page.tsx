@@ -35,10 +35,9 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELLED: "Cancelled",
 };
 
-function maskAccount(accountNumber: string | undefined) {
+function fullAccount(accountNumber: string | undefined) {
   if (!accountNumber) return "—";
-  if (accountNumber.length <= 4) return accountNumber;
-  return `•••• ${accountNumber.slice(-4)}`;
+  return accountNumber;
 }
 
 function formatDate(value: string | null) {
@@ -191,7 +190,7 @@ export default function InvestorWithdrawalsPage() {
                               <TableCell className="text-right">{formatCurrency(item.amount)}</TableCell>
                               <TableCell>
                                 {bankName ? `${bankName} · ` : ""}
-                                {maskAccount(accountNumber)}
+                                {fullAccount(accountNumber)}
                               </TableCell>
                               <TableCell>{formatDate(item.createdAt)}</TableCell>
                               <TableCell>

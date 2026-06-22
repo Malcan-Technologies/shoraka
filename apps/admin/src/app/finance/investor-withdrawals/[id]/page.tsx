@@ -42,10 +42,9 @@ function formatDateTime(value: string | null) {
   return format(new Date(value), "dd MMM yyyy, h:mm a");
 }
 
-function maskAccount(accountNumber: string | undefined) {
+function fullAccount(accountNumber: string | undefined) {
   if (!accountNumber) return "—";
-  if (accountNumber.length <= 4) return accountNumber;
-  return `•••• ${accountNumber.slice(-4)}`;
+  return accountNumber;
 }
 
 function DetailSkeleton() {
@@ -235,7 +234,7 @@ export default function InvestorWithdrawalDetailPage() {
                         <div>
                           <p className="text-sm text-muted-foreground">Account number</p>
                           <p>
-                            {maskAccount(
+                            {fullAccount(
                               typeof (snapshot as Record<string, unknown>).account_number === "string"
                                 ? ((snapshot as Record<string, unknown>).account_number as string)
                                 : undefined
