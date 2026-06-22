@@ -135,7 +135,7 @@ export function QuickActionsSection({
       {!hasAnyQuickAction ? (
         <p className="text-sm text-muted-foreground">No quick actions available for your role.</p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 [&>*]:min-h-0">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 auto-rows-fr [&>*]:h-full [&>*]:min-h-0">
           {canOnboarding && (
             <QuickActionCard
               title="Onboarding Approval"
