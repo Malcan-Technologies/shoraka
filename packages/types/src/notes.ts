@@ -615,9 +615,25 @@ export interface TrusteeLetterConfig {
   attentionPerson: string;
   defaultContactPerson: string;
   authorisedSignatoryLabel: string;
+  authorisedSignatureImageKey?: string;
+  authorisedSignatureImageUrl?: string;
+  authorisedSignatureImageFileName?: string;
+  authorisedSignatureImageContentType?: string;
   platformDisplayName: string;
   defaultValueDateBehavior: string;
   defaultLetterRefPrefix: string;
+}
+
+export interface TrusteeSignatureUploadUrlRequest {
+  fileName: string;
+  contentType: "image/png" | "image/jpeg" | "image/jpg" | "image/webp";
+  fileSize: number;
+}
+
+export interface TrusteeSignatureUploadUrlResponse {
+  uploadUrl: string;
+  s3Key: string;
+  expiresIn: number;
 }
 
 export interface PlatformAccountsConfig {

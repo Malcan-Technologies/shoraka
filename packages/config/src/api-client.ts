@@ -112,6 +112,8 @@ import type {
   InvestorPortfolioHistoryRange,
   InvestorPortfolioHistoryResponse,
   PlatformFinanceSetting,
+  TrusteeSignatureUploadUrlRequest,
+  TrusteeSignatureUploadUrlResponse,
   RecordNotePaymentInput,
   SettlementPreviewInput,
   UpdateNoteFeaturedInput,
@@ -825,6 +827,15 @@ export class ApiClient {
     data: Partial<PlatformFinanceSetting>
   ): Promise<ApiResponse<PlatformFinanceSetting> | ApiError> {
     return this.patch<PlatformFinanceSetting>("/v1/admin/platform-finance-settings", data);
+  }
+
+  async requestPlatformFinanceTrusteeSignatureUploadUrl(
+    data: TrusteeSignatureUploadUrlRequest
+  ): Promise<ApiResponse<TrusteeSignatureUploadUrlResponse> | ApiError> {
+    return this.post<TrusteeSignatureUploadUrlResponse>(
+      "/v1/admin/platform-finance-settings/trustee-signature/upload-url",
+      data
+    );
   }
 
   async getAdminInvestorWithdrawals(params?: {

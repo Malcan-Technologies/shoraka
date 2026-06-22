@@ -1,5 +1,6 @@
 import PDFDocument from "pdfkit";
 import type { TrusteeLetterData } from "./trustee-letter.types";
+import { logger } from "../../../lib/logger";
 
 const PAGE_MARGIN = 48;
 const TABLE_COLUMNS = [
@@ -13,6 +14,8 @@ const TABLE_COLUMNS = [
 const TABLE_BORDER_COLOR = "#666";
 const TABLE_HEADER_FILL_COLOR = "#fff";
 const TABLE_BODY_FILL_COLOR = "#fff";
+const SIGNATURE_MAX_WIDTH = 200;
+const SIGNATURE_MAX_HEIGHT = 80;
 
 function formatRm(amount: number): string {
   return amount.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -164,9 +167,30 @@ export async function renderTrusteeLetterPdf(data: TrusteeLetterData): Promise<B
   doc.text("Yours faithfully,", PAGE_MARGIN, y);
   y += 16;
   doc.text(`For and on behalf of ${data.platformDisplayName}`, PAGE_MARGIN, y);
-  y += 48;
-  doc.text("_____________________________________", PAGE_MARGIN, y);
-  y += 16;
+  y += 24;
+
+  let drewSignatureImage = false;
+  if (data.authorisedSignatureImage && data.authorisedSignatureImage.length > 0) {
+    try {
+      doc.image(data.authorisedSignatureImage, PAGE_MARGIN, y, {
+        fit: [SIGNATURE_MAX_WIDTH, SIGNATURE_MAX_HEIGHT],
+      });
+      y += SIGNATURE_MAX_HEIGHT + 8;
+      drewSignatureImage = true;
+    } catch (error) {
+      logger.warn(
+        { err: error, bytes: data.authorisedSignatureImage.length },
+        "Failed to render authorised signature image in trustee letter PDF"
+      );
+    }
+  }
+
+  if (!drewSignatureImage) {
+    y += 24;
+    doc.text("_____________________________________", PAGE_MARGIN, y);
+    y += 16;
+  }
+
   doc.text(data.authorisedSignatoryLabel, PAGE_MARGIN, y);
 
   doc.end();

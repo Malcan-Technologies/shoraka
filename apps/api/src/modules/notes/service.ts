@@ -22,7 +22,12 @@ import {
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
-import { generatePresignedViewUrl, putS3ObjectBuffer } from "../../lib/s3/client";
+import {
+  generatePresignedUploadUrl,
+  generatePresignedViewUrl,
+  getS3ObjectBuffer,
+  putS3ObjectBuffer,
+} from "../../lib/s3/client";
 import { resolveApprovedFacilityForRefresh } from "../../lib/contract-facility";
 import { computeProgressiveFacilityFee } from "../../lib/facility-fee";
 import {
@@ -109,6 +114,7 @@ import type {
   updateNoteFeaturedSchema,
   updateNoteDraftSchema,
   updatePlatformFinanceSettingsSchema,
+  requestTrusteeSignatureUploadUrlSchema,
   createInvestorWithdrawalSchema,
   getInvestorWithdrawalsQuerySchema,
 } from "./schemas";
@@ -184,6 +190,14 @@ function toNumber(value: unknown): number {
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
+}
+
+function signatureImageExtensionForContentType(contentType: string): string {
+  const normalized = contentType.trim().toLowerCase();
+  if (normalized === "image/png") return "png";
+  if (normalized === "image/webp") return "webp";
+  if (normalized === "image/jpg" || normalized === "image/jpeg") return "jpg";
+  return "bin";
 }
 
 /**
@@ -1071,6 +1085,22 @@ export class NoteService {
       throw new AppError(403, "INVESTOR_ORG_FORBIDDEN", "Investor organization not accessible");
     }
     return [investorOrganizationId];
+  }
+
+  private async resolveTrusteeSignatureImageBuffer(
+    config: TrusteeLetterConfig | null
+  ): Promise<Buffer | null> {
+    const s3Key = config?.authorisedSignatureImageKey?.trim();
+    if (!s3Key) return null;
+    try {
+      return await getS3ObjectBuffer(s3Key);
+    } catch (error) {
+      logger.warn(
+        { err: error, s3Key },
+        "Unable to load trustee authorised signature image; using text-only signature block"
+      );
+      return null;
+    }
   }
 
   async listAdminNotes(params: z.infer<typeof getNotesQuerySchema>) {
@@ -4182,24 +4212,30 @@ export class NoteService {
 
     const settings = await this.getPlatformFinanceSettings();
     const trusteeConfig = loadTrusteeLetterConfig(settings);
+    const signatureImage = await this.resolveTrusteeSignatureImageBuffer(
+      trusteeConfig.letterConfig
+    );
     const repaymentAccountName =
       payment?.received_into_account_code?.replace(/_/g, " ") ?? "Repayment Pool";
 
-    const letterData = mapRepaymentLetterData({
-      settlementId: settlement.id,
-      investorPrincipal: toNumber(settlement.investor_principal),
-      investorProfitNet: toNumber(settlement.investor_profit_net),
-      serviceFeeAmount: feeAmount,
-      tawidhAccountAmount: tawidhAmount,
-      gharamahAmount,
-      issuerResidualAmount: issuerResidual,
-      issuerBeneficiarySnapshot: issuerOrg ? buildBeneficiarySnapshot(issuerOrg) : null,
-      issuerOrganizationName: issuerOrg?.name ?? null,
-      borrowerEntries,
-      repaymentAccountName,
-      config: trusteeConfig,
-      referenceDate: settlement.posted_at ?? new Date(),
-    });
+    const letterData = {
+      ...mapRepaymentLetterData({
+        settlementId: settlement.id,
+        investorPrincipal: toNumber(settlement.investor_principal),
+        investorProfitNet: toNumber(settlement.investor_profit_net),
+        serviceFeeAmount: feeAmount,
+        tawidhAccountAmount: tawidhAmount,
+        gharamahAmount,
+        issuerResidualAmount: issuerResidual,
+        issuerBeneficiarySnapshot: issuerOrg ? buildBeneficiarySnapshot(issuerOrg) : null,
+        issuerOrganizationName: issuerOrg?.name ?? null,
+        borrowerEntries,
+        repaymentAccountName,
+        config: trusteeConfig,
+        referenceDate: settlement.posted_at ?? new Date(),
+      }),
+      authorisedSignatureImage: signatureImage ?? undefined,
+    };
 
     const buffer = await renderTrusteeLetterPdf(letterData);
     const key = `note-letters/${noteId}/service-fee-trustee/${settlementId}-${Date.now()}.pdf`;
@@ -4522,6 +4558,20 @@ export class NoteService {
     return this.getPlatformFinanceSettings();
   }
 
+  async requestTrusteeSignatureUploadUrl(
+    input: z.infer<typeof requestTrusteeSignatureUploadUrlSchema>
+  ) {
+    const extension = signatureImageExtensionForContentType(input.contentType);
+    const date = new Date().toISOString().split("T")[0];
+    const key = `platform-finance/trustee-signatures/v1-${date}-${randomUUID()}.${extension}`;
+    const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
+      key,
+      contentType: input.contentType,
+      contentLength: input.fileSize,
+    });
+    return { uploadUrl, s3Key, expiresIn };
+  }
+
   async createWithdrawal(input: z.infer<typeof createWithdrawalSchema>, actor: ActorContext) {
     const withdrawal = await prisma.withdrawalInstruction.create({
       data: {
@@ -4689,6 +4739,9 @@ export class NoteService {
 
     const settings = await this.getPlatformFinanceSettings();
     const trusteeConfig = loadTrusteeLetterConfig(settings);
+    const signatureImage = await this.resolveTrusteeSignatureImageBuffer(
+      trusteeConfig.letterConfig
+    );
     const beneficiarySnapshot = asRecord(withdrawal.beneficiary_snapshot) ?? {};
     const metadata = asRecord(withdrawal.metadata);
 
@@ -4700,21 +4753,27 @@ export class NoteService {
             select: { name: true },
           })
         : null;
-      letterData = mapInvestorWithdrawalLetterData({
-        withdrawalId: withdrawal.id,
-        amount: toNumber(withdrawal.amount),
-        beneficiarySnapshot,
-        investorOrganizationName: investorOrg?.name ?? null,
-        config: trusteeConfig,
-      });
+      letterData = {
+        ...mapInvestorWithdrawalLetterData({
+          withdrawalId: withdrawal.id,
+          amount: toNumber(withdrawal.amount),
+          beneficiarySnapshot,
+          investorOrganizationName: investorOrg?.name ?? null,
+          config: trusteeConfig,
+        }),
+        authorisedSignatureImage: signatureImage ?? undefined,
+      };
     } else {
-      letterData = mapDisbursementLetterData({
-        withdrawalId: withdrawal.id,
-        withdrawalAmount: toNumber(withdrawal.amount),
-        beneficiarySnapshot,
-        metadata,
-        config: trusteeConfig,
-      });
+      letterData = {
+        ...mapDisbursementLetterData({
+          withdrawalId: withdrawal.id,
+          withdrawalAmount: toNumber(withdrawal.amount),
+          beneficiarySnapshot,
+          metadata,
+          config: trusteeConfig,
+        }),
+        authorisedSignatureImage: signatureImage ?? undefined,
+      };
     }
 
     const buffer = await renderTrusteeLetterPdf(letterData);

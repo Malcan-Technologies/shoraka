@@ -19,6 +19,8 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useS3ViewUrl } from "@/hooks/use-s3";
+import { uploadFileToS3 } from "@/hooks/use-site-documents";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -42,6 +44,9 @@ const DEFAULT_TRUSTEE_LETTER: TrusteeLetterConfig = {
   defaultValueDateBehavior: "T+1",
   defaultLetterRefPrefix: "CSK",
 };
+
+const ALLOWED_SIGNATURE_CONTENT_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+const MAX_SIGNATURE_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
 function emptyPlatformAccounts(): PlatformAccountsConfig {
   return {
@@ -144,6 +149,10 @@ export default function PlatformFinanceSettingsPage() {
     React.useState<PlatformAccountsConfig>(emptyPlatformAccounts());
   const [bucketAccounts, setBucketAccounts] =
     React.useState<LedgerBucketAccountsConfig>(emptyBucketAccounts());
+  const signatureInputRef = React.useRef<HTMLInputElement | null>(null);
+  const { data: signaturePreviewUrl } = useS3ViewUrl(
+    trusteeLetter.authorisedSignatureImageKey ?? null
+  );
 
   const latePaymentFields: Array<{
     key: keyof Omit<typeof latePayment, "platformFeeRateCapPercent">;
@@ -265,7 +274,54 @@ export default function PlatformFinanceSettingsPage() {
       toast.error(error instanceof Error ? error.message : "Failed to update settings"),
   });
 
+  const signatureUploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const response = await apiClient.requestPlatformFinanceTrusteeSignatureUploadUrl({
+        fileName: file.name,
+        contentType: file.type as "image/png" | "image/jpeg" | "image/jpg" | "image/webp",
+        fileSize: file.size,
+      });
+      if (!response.success) throw new Error(response.error.message);
+      await uploadFileToS3(response.data.uploadUrl, file);
+      return { ...response.data, file };
+    },
+    onSuccess: ({ s3Key, file }) => {
+      setTrusteeLetter((prev) => ({
+        ...prev,
+        authorisedSignatureImageKey: s3Key,
+        authorisedSignatureImageFileName: file.name,
+        authorisedSignatureImageContentType: file.type,
+        authorisedSignatureImageUrl: undefined,
+      }));
+      toast.success("Signature image uploaded");
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Failed to upload signature image"),
+  });
+
   const disabled = isLoading || !canManage;
+
+  const handleSelectSignatureImage = () => {
+    if (!canManage || signatureUploadMutation.isPending) return;
+    signatureInputRef.current?.click();
+  };
+
+  const handleSignatureFileChange = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!ALLOWED_SIGNATURE_CONTENT_TYPES.includes(file.type.toLowerCase())) {
+      toast.error("Only PNG, JPG/JPEG, or WEBP images are allowed.");
+      return;
+    }
+    if (file.size > MAX_SIGNATURE_FILE_SIZE_BYTES) {
+      toast.error("Signature image must be 5MB or less.");
+      return;
+    }
+    await signatureUploadMutation.mutateAsync(file);
+  };
 
   return (
     <RequirePermission permission="platform_settings.view">
@@ -351,9 +407,70 @@ export default function PlatformFinanceSettingsPage() {
                       />
                     </div>
                   ))}
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-sm font-medium">Authorised signature image</label>
+                    <p className="text-xs text-muted-foreground">
+                      Upload the signature image that will appear in newly generated trustee letters.
+                    </p>
+                    <input
+                      ref={signatureInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                      className="hidden"
+                      onChange={(event) => void handleSignatureFileChange(event)}
+                    />
+                    <div className="rounded-xl border p-4">
+                      {signaturePreviewUrl || trusteeLetter.authorisedSignatureImageUrl ? (
+                        <img
+                          src={signaturePreviewUrl ?? trusteeLetter.authorisedSignatureImageUrl ?? ""}
+                          alt="Authorised signature preview"
+                          className="max-h-24 w-auto rounded-md border bg-background p-2"
+                        />
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No signature image uploaded.</p>
+                      )}
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {canManage ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={disabled || signatureUploadMutation.isPending}
+                            onClick={handleSelectSignatureImage}
+                          >
+                            {signatureUploadMutation.isPending ? "Uploading..." : "Upload signature image"}
+                          </Button>
+                        ) : null}
+                        {canManage &&
+                        (trusteeLetter.authorisedSignatureImageKey ||
+                          trusteeLetter.authorisedSignatureImageUrl) ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            disabled={disabled || signatureUploadMutation.isPending}
+                            onClick={() =>
+                              setTrusteeLetter((prev) => ({
+                                ...prev,
+                                authorisedSignatureImageKey: undefined,
+                                authorisedSignatureImageUrl: undefined,
+                                authorisedSignatureImageFileName: undefined,
+                                authorisedSignatureImageContentType: undefined,
+                              }))
+                            }
+                          >
+                            Remove image
+                          </Button>
+                        ) : null}
+                        {trusteeLetter.authorisedSignatureImageFileName ? (
+                          <span className="text-xs text-muted-foreground">
+                            {trusteeLetter.authorisedSignatureImageFileName}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
                   <div className="md:col-span-2 flex justify-end">
                     <Button
-                      disabled={disabled || saveMutation.isPending}
+                      disabled={disabled || saveMutation.isPending || signatureUploadMutation.isPending}
                       className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
                       onClick={() => saveMutation.mutate({ trusteeLetterConfig: trusteeLetter })}
                     >

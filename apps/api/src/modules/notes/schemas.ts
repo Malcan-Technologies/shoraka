@@ -212,6 +212,12 @@ export const updatePlatformFinanceSettingsSchema = z.object({
   ledgerBucketAccountsConfig: z.record(z.unknown()).optional(),
 });
 
+export const requestTrusteeSignatureUploadUrlSchema = z.object({
+  fileName: z.string().min(1),
+  contentType: z.enum(["image/png", "image/jpeg", "image/jpg", "image/webp"]),
+  fileSize: z.number().int().positive().max(5 * 1024 * 1024),
+});
+
 export const createInvestorWithdrawalSchema = z.object({
   amount: z.number().min(100),
   investorOrganizationId: z.string().min(1),
