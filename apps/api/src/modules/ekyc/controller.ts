@@ -5,7 +5,7 @@ import { AppError, formatZodMessage } from "../../lib/http/error-handler";
 import {
   completeBodySchema,
   failBodySchema,
-  identityPreviewQuerySchema,
+  identityPreviewBodySchema,
   sessionBodySchema,
   statusQuerySchema,
 } from "./schemas";
@@ -34,12 +34,12 @@ router.get("/me", requireAuth, async (req: Request, res: Response, next: NextFun
   }
 });
 
-router.get(
+router.post(
   "/identity-preview",
   requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { issuerOrganizationId, icNumber } = identityPreviewQuerySchema.parse(req.query);
+      const { issuerOrganizationId, icNumber } = identityPreviewBodySchema.parse(req.body);
       const data = await ekycService.getIdentityPreview(getUserId(req), issuerOrganizationId, icNumber);
       res.json({
         success: true,

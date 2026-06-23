@@ -17,7 +17,7 @@ export const statusQuerySchema = z.object({
   token: z.string().min(1),
 });
 
-export const identityPreviewQuerySchema = z.object({
+export const identityPreviewBodySchema = z.object({
   issuerOrganizationId: z.string().cuid(),
   icNumber: z.string().min(1).max(32),
 });

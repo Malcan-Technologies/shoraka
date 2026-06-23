@@ -97,6 +97,26 @@ describe("resolveIssuerEkycIdentityForOrganization", () => {
       code: "FORBIDDEN",
     });
   });
+
+  it("rejects personal issuer organizations", async () => {
+    mockIssuerOrgFindUnique.mockResolvedValue({
+      id: issuerOrganizationId,
+      type: OrganizationType.PERSONAL,
+      owner_user_id: "user-1",
+      first_name: "Ahmad",
+      last_name: "Ali",
+      middle_name: null,
+      document_number: "850505105555",
+      corporate_entities: null,
+      members: [{ id: "member-1" }],
+    });
+
+    await expect(
+      resolveIssuerEkycIdentityForOrganization("user-1", issuerOrganizationId, "850505105555")
+    ).rejects.toMatchObject({
+      code: "EKYC_NOT_APPLICABLE",
+    });
+  });
 });
 
 describe("resolveIssuerEkycIdentityForUser", () => {

@@ -177,7 +177,7 @@ export function useEkycFlow({
       setIdentityPreview(null);
 
       try {
-        const response = await apiClient.getEkycIdentityPreview(issuerOrganizationId, normalizedIc);
+        const response = await apiClient.postEkycIdentityPreview(issuerOrganizationId, normalizedIc);
         if (!response.success) {
           setPreviewError(getErrorMessage(response, "Failed to load identity details"));
           setIdentityPreview(null);

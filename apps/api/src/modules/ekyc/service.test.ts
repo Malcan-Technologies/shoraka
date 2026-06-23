@@ -39,7 +39,7 @@ jest.mock("./resolve-issuer-ekyc-identity", () => {
 
 import { SigningCloudEkycStatus } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
-import { ekycService } from "./service";
+import { ekycService, requireCompletedSigningCloudEkycForOrganization } from "./service";
 
 describe("EkycService.createSession", () => {
   const userId = "user-1";
@@ -361,5 +361,81 @@ describe("EkycService.getMeStatus", () => {
       completed: false,
       completedAt: null,
     });
+  });
+});
+
+describe("requireCompletedSigningCloudEkycForOrganization", () => {
+  const userId = "user-1";
+  const issuerOrganizationId = "org-issuer-1";
+  const icNumber = "820508105871";
+  const workEmail = "director@malcan.io";
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("throws EKYC_REQUIRED when the user has no verified IC", async () => {
+    mockFindFirst.mockResolvedValue(null);
+
+    await expect(
+      requireCompletedSigningCloudEkycForOrganization(userId, issuerOrganizationId)
+    ).rejects.toMatchObject({
+      code: "EKYC_REQUIRED",
+    });
+
+    expect(mockResolveIssuerEkycIdentityForOrganization).not.toHaveBeenCalled();
+  });
+
+  it("throws EKYC_REQUIRED when work email is not verified", async () => {
+    mockFindFirst.mockResolvedValue({ confirmed_ic_number: icNumber });
+    mockResolveIssuerEkycIdentityForOrganization.mockResolvedValue({
+      name: "LUCAS DENG",
+      icNumber,
+      email: workEmail,
+    });
+    mockFindUnique.mockResolvedValue({
+      status: SigningCloudEkycStatus.pending,
+    });
+
+    await expect(
+      requireCompletedSigningCloudEkycForOrganization(userId, issuerOrganizationId)
+    ).rejects.toMatchObject({
+      code: "EKYC_REQUIRED",
+    });
+  });
+
+  it("returns work email and IC when verification is complete for the org work email", async () => {
+    mockFindFirst.mockResolvedValue({ confirmed_ic_number: icNumber });
+    mockResolveIssuerEkycIdentityForOrganization.mockResolvedValue({
+      name: "LUCAS DENG",
+      icNumber,
+      email: workEmail,
+    });
+    mockFindUnique.mockResolvedValue({
+      status: SigningCloudEkycStatus.verified,
+    });
+
+    await expect(
+      requireCompletedSigningCloudEkycForOrganization(userId, issuerOrganizationId)
+    ).resolves.toEqual({
+      workEmail,
+      icNumber,
+    });
+
+    expect(mockResolveIssuerEkycIdentityForOrganization).toHaveBeenCalledWith(
+      userId,
+      issuerOrganizationId,
+      icNumber
+    );
+    expect(mockFindUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          user_id_email: {
+            user_id: userId,
+            email: workEmail,
+          },
+        },
+      })
+    );
   });
 });

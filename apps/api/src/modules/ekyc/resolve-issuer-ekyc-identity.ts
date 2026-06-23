@@ -51,17 +51,8 @@ function normalizeWorkEmail(value: unknown): string | null {
   return email.length > 0 ? email : null;
 }
 
-function buildPersonalOrgName(org: IssuerOrgIdentitySource): string | null {
-  const parts = [org.first_name, org.middle_name, org.last_name]
-    .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
-    .map((part) => part.trim());
-
-  if (parts.length === 0) {
-    return null;
-  }
-
-  return normalizeEkycLegalName(parts.join(" "));
-}
+const EKYC_NOT_APPLICABLE_MESSAGE =
+  "Identity verification applies to company issuer organizations only.";
 
 function resolveCorporatePersonalName(personalInfo: Record<string, unknown>): string | null {
   const fullName = normalizeEkycLegalName(personalInfo.fullName);
@@ -135,17 +126,13 @@ function resolveFromIssuerOrganization(
   org: IssuerOrgIdentitySource,
   icNumber: string
 ): IssuerEkycIdentity | null {
-  if (org.type === OrganizationType.PERSONAL) {
-    const name = buildPersonalOrgName(org);
-    const orgIc = normalizeMalaysianIcNumber(org.document_number);
-    if (!name || orgIc !== icNumber) {
-      return null;
-    }
-
-    return null;
-  }
-
   return resolveFromCorporateEntities(org.corporate_entities, icNumber);
+}
+
+function assertCompanyIssuerOrgForEkyc(org: IssuerOrgIdentitySource): void {
+  if (org.type === OrganizationType.PERSONAL) {
+    throw new AppError(400, "EKYC_NOT_APPLICABLE", EKYC_NOT_APPLICABLE_MESSAGE);
+  }
 }
 
 const issuerOrgIdentitySelect = {
@@ -271,6 +258,7 @@ export async function resolveIssuerEkycIdentityForOrganization(
 ): Promise<IssuerEkycIdentity> {
   const icNumber = parseIssuerEkycIcNumber(icNumberInput);
   const organization = await loadIssuerOrganizationForUser(userId, issuerOrganizationId);
+  assertCompanyIssuerOrgForEkyc(organization);
   const resolved = resolveFromIssuerOrganization(organization, icNumber);
   if (resolved) {
     return resolved;
@@ -287,6 +275,10 @@ export async function resolveIssuerEkycIdentityForUser(
   const icNumber = parseIssuerEkycIcNumber(icNumberInput);
   const organizations = await loadIssuerOrganizationsForUser(userId);
   for (const organization of organizations) {
+    if (organization.type === OrganizationType.PERSONAL) {
+      continue;
+    }
+
     const resolved = resolveFromIssuerOrganization(organization, icNumber);
     if (resolved) {
       return resolved;

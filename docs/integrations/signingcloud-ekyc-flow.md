@@ -2,6 +2,8 @@
 
 Identity verification (eKYC) is required before an issuer user can start SigningCloud offer signing. Verification is **per work email** (one row per CashSouk user + org work email), **MyKad-only**, and uses RegTank-backed org data matched by typed IC.
 
+**Scope:** Company issuer organizations only. Personal issuer organizations do not use this flow (they do not require SigningCloud offer signing).
+
 Related docs:
 
 - [Issuer Offer Flow](./issuer-offer-flow.md) — offer accept/reject and signing
@@ -25,7 +27,7 @@ sequenceDiagram
   participant SC as SigningCloud
   participant Mobile as capture.html (phone)
 
-  Desktop->>API: GET /identity-preview?orgId&icNumber
+  Desktop->>API: POST /identity-preview (orgId, icNumber in body)
   API-->>Desktop: matched name
   Desktop->>API: POST /v1/ekyc/session (auth, orgId, icNumber, confirmedName)
   API->>API: resolveIssuerEkycIdentityForOrganization (by IC)
@@ -78,9 +80,10 @@ Static page served from the issuer Next.js app. No auth cookie — identificatio
 
 MyKad **name**, **IC**, and **SigningCloud signer email** come from issuer organization data populated by RegTank onboarding — matched by the user-typed IC, not account email.
 
-| Org type | Name source | IC source | Signer email |
-|----------|-------------|-----------|--------------|
-| Company | `corporate_entities.directors` or `.shareholders` entry whose IC matches the typed IC | `governmentIdNumber` or extracted government ID from `personalInfo` | `personalInfo.email` on the matched entry |
+| Org type | eKYC supported | Name source | IC source | Signer email |
+|----------|----------------|-------------|-----------|--------------|
+| Company | Yes | `corporate_entities.directors` or `.shareholders` entry whose IC matches the typed IC | `governmentIdNumber` or extracted government ID from `personalInfo` | `personalInfo.email` on the matched entry |
+| Personal | No | — | — | — |
 
 Normalization:
 
@@ -92,14 +95,16 @@ Normalization:
 
 | Step | Function | Scope |
 |------|----------|-------|
-| Identity preview (`GET /identity-preview`) | `resolveIssuerEkycIdentityForOrganization` | Active org + typed IC — returns matched name |
-| Session create (`POST /session`) | `resolveIssuerEkycIdentityForOrganization` | Active org + typed IC — stores confirmed name, IC, work email on `signingcloud_ekyc` |
+| Identity preview (`POST /identity-preview`) | `resolveIssuerEkycIdentityForOrganization` | Active company org + typed IC — returns matched name |
+| Session create (`POST /session`) | `resolveIssuerEkycIdentityForOrganization` | Active company org + typed IC — stores confirmed name, IC, work email on `signingcloud_ekyc` |
 | Complete (`POST /complete`) | Session row only | Uses stored `confirmed_name`, `confirmed_ic_number`, and `email` (work email) |
 | Offer signing | `requireCompletedSigningCloudEkycForOrganization` | Re-matches org `corporate_entities` by verified IC; requires verified row for that work email |
 
 The desktop user may edit the **name** before scanning. That edited name is bound to the session at create time. **IC** is typed by the user and must match an on-file director/shareholder entry.
 
 Missing identity → `400 EKYC_IDENTITY_NOT_ON_FILE`: *"We don't have your verified MyKad details on file. Complete identity onboarding before signing."*
+
+Personal org on a company-only endpoint → `400 EKYC_NOT_APPLICABLE`: *"Identity verification applies to company issuer organizations only."*
 
 ## API reference
 
@@ -108,7 +113,7 @@ Base path: `/v1/ekyc` (mounted in `apps/api/src/routes.ts`).
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
 | `GET` | `/me` | Required | User-level completion: `{ completed, completedAt }` (true if any work email verified) |
-| `GET` | `/identity-preview?issuerOrganizationId=&icNumber=` | Required | Matched on-file name for typed IC: `{ name }` |
+| `POST` | `/identity-preview` | Required | Matched on-file name for typed IC; body `{ issuerOrganizationId, icNumber }` |
 | `POST` | `/session` | Required | Start or reuse session; body `{ issuerOrganizationId, icNumber, confirmedName, force? }` |
 | `GET` | `/status?token=` | None | Poll session status (desktop + debugging) |
 | `POST` | `/complete` | None | Submit WiseAI capture result; body `{ token, result }` |
@@ -122,6 +127,7 @@ Shared types: `packages/types` — `EkycSession`, `CreateEkycSessionInput`, `Eky
 |------|------|
 | `409 EKYC_ALREADY_COMPLETED` | Work email already `verified` for this user |
 | `400 EKYC_IDENTITY_NOT_ON_FILE` | Active org has no director/shareholder matching typed IC |
+| `400 EKYC_NOT_APPLICABLE` | Active org is a personal issuer organization |
 | `403 FORBIDDEN` | User not owner/member of org |
 | `404 NOT_FOUND` | Unknown org |
 | `502` / `503` | SigningCloud unavailable (see user messages in `signingcloud-user-messages.ts`) |
@@ -149,6 +155,10 @@ Prisma enum `SigningCloudEkycStatus` on table `signingcloud_ekyc`:
 | `error` | Setup/submit error or client-reported failure via `/fail` |
 
 One row per `(user_id, email)` where `email` is the org work email from `corporate_entities`. Columns: `issuer_organization_id`, `confirmed_name`, `confirmed_ic_number`, `session_token`, `sdk_endpoint`, `doc_type` (always `mykad`), `last_error`, `completed_at`, timestamps.
+
+### Migration note (`ekyc_per_work_email`)
+
+Existing rows were backfilled with `users.email` as the work email key. Users whose director/shareholder work email differs from their login email must complete eKYC again for that work email. This is intentional.
 
 ## SigningCloud integration
 
@@ -194,7 +204,7 @@ All account and submit calls use encrypted `data` + `mac` form bodies per Signin
 
 ## Testing locally
 
-1. Apply pending migration and ensure RegTank onboarding has filled MyKad details for the test user’s issuer org (see [Seeding identity in dev](#seeding-identity-in-dev) if you used `prisma:seed` only).
+1. Apply pending migration and ensure RegTank onboarding has filled MyKad details for the test user's **company** issuer org (see [Seeding identity in dev](#seeding-identity-in-dev) if you used `prisma:seed` only).
 2. Configure `SC_*` env vars on the API.
 3. Open issuer applications → **Review offer** → accept (SigningCloud path).
 4. Confirm MyKad details on desktop, then scan QR with a phone that can reach issuer origin and API URL.
@@ -212,13 +222,11 @@ npx prisma migrate dev --name ekyc_per_work_email
 
 ### Seeding identity in dev
 
-eKYC reads **MyKad name and IC from the issuer organization**, not from the WiseAI SDK. The default `prisma:seed` creates issuer orgs as `COMPLETED` but often **without** `document_number` (personal) or `corporate_entities` (company), which triggers `EKYC_IDENTITY_NOT_ON_FILE`.
+eKYC reads **MyKad name and IC from the issuer organization**, not from the WiseAI SDK. The default `prisma:seed` creates issuer orgs as `COMPLETED` but often **without** `corporate_entities` (company), which triggers `EKYC_IDENTITY_NOT_ON_FILE`.
 
 | Org type | Required fields |
 |----------|-----------------|
-| `PERSONAL` | `first_name`, `last_name` (or `middle_name`), `document_number` — 12-digit IC |
 | `COMPANY` | `corporate_entities.directors` or `.shareholders` entry with matching `governmentIdNumber` (12-digit IC) and `personalInfo.email` |
-
 
 **Manual (Prisma Studio):** `pnpm prisma:studio` → `issuer_organizations` → edit the org tied to your application.
 
@@ -239,8 +247,6 @@ Company org example (`corporate_entities` JSON):
 }
 ```
 
-Personal org example: set `first_name`, `last_name`, `document_number` = `901212101234`.
-
 **Important:** The IC you seed must match the physical MyKad you scan in `capture.html`. If they differ, capture may complete but status becomes `failed` (`userVerificationSuccess: false`).
 
 Unit tests:
@@ -254,7 +260,8 @@ cd apps/api && pnpm test -- ekyc
 | Symptom | Likely cause |
 |---------|----------------|
 | `EKYC_IDENTITY_NOT_ON_FILE` on session create | Org missing IC/name or typed IC not in directors/shareholders |
-| `EKYC_REQUIRED` after verified UI | Different user signed in on desktop vs phone; or DB not updated |
+| `EKYC_NOT_APPLICABLE` | Active org is personal — eKYC is company-only |
+| `EKYC_REQUIRED` after verified UI | Different user signed in on desktop vs phone; work email row missing (e.g. post-migration re-verify); or DB not updated |
 | QR session expired | Pending TTL 25m; use **New QR** (`force: true`) |
 | `failed` after capture | Name/capture did not pass SigningCloud verification (`userVerificationSuccess: false`) |
 | `error` + contact support | `EKYC_PROVIDER_UNAVAILABLE` — SigningCloud config or account issue |
