@@ -45,24 +45,36 @@ describe("resolveIssuerEkycIdentityForOrganization", () => {
     jest.clearAllMocks();
   });
 
-  it("resolves personal issuer org identity from RegTank org fields", async () => {
+  it("resolves company issuer identity from corporate_entities by IC", async () => {
     mockIssuerOrgFindUnique.mockResolvedValue({
       id: issuerOrganizationId,
-      type: OrganizationType.PERSONAL,
+      type: OrganizationType.COMPANY,
       owner_user_id: "user-1",
-      first_name: "Ahmad",
-      last_name: "Ali",
+      first_name: null,
+      last_name: null,
       middle_name: null,
-      document_number: "901212-10-1234",
-      corporate_entities: null,
+      document_number: null,
+      corporate_entities: {
+        directors: [
+          {
+            personalInfo: {
+              email: "director@example.com",
+              fullName: "Director One",
+              governmentIdNumber: "850505-10-5555",
+            },
+          },
+        ],
+        shareholders: [],
+      },
       members: [{ id: "member-1" }],
     });
 
     await expect(
-      resolveIssuerEkycIdentityForOrganization("user-1", issuerOrganizationId, "signer@example.com")
+      resolveIssuerEkycIdentityForOrganization("user-1", issuerOrganizationId, "850505105555")
     ).resolves.toEqual({
-      name: "AHMAD ALI",
-      icNumber: "901212101234",
+      name: "DIRECTOR ONE",
+      icNumber: "850505105555",
+      email: "director@example.com",
     });
   });
 
@@ -80,9 +92,29 @@ describe("resolveIssuerEkycIdentityForOrganization", () => {
     });
 
     await expect(
-      resolveIssuerEkycIdentityForOrganization("user-1", issuerOrganizationId, "signer@example.com")
+      resolveIssuerEkycIdentityForOrganization("user-1", issuerOrganizationId, "850505105555")
     ).rejects.toMatchObject({
       code: "FORBIDDEN",
+    });
+  });
+
+  it("rejects personal issuer organizations", async () => {
+    mockIssuerOrgFindUnique.mockResolvedValue({
+      id: issuerOrganizationId,
+      type: OrganizationType.PERSONAL,
+      owner_user_id: "user-1",
+      first_name: "Ahmad",
+      last_name: "Ali",
+      middle_name: null,
+      document_number: "850505105555",
+      corporate_entities: null,
+      members: [{ id: "member-1" }],
+    });
+
+    await expect(
+      resolveIssuerEkycIdentityForOrganization("user-1", issuerOrganizationId, "850505105555")
+    ).rejects.toMatchObject({
+      code: "EKYC_NOT_APPLICABLE",
     });
   });
 });
@@ -94,7 +126,7 @@ describe("resolveIssuerEkycIdentityForUser", () => {
     mockOrganizationMemberFindMany.mockResolvedValue([]);
   });
 
-  it("resolves company issuer identity from corporate_entities by email", async () => {
+  it("resolves company issuer identity from corporate_entities by IC", async () => {
     mockIssuerOrgFindMany.mockResolvedValue([
       {
         id: "org-company-1",
@@ -118,9 +150,10 @@ describe("resolveIssuerEkycIdentityForUser", () => {
       },
     ]);
 
-    await expect(resolveIssuerEkycIdentityForUser("user-1", "director@example.com")).resolves.toEqual({
+    await expect(resolveIssuerEkycIdentityForUser("user-1", "850505105555")).resolves.toEqual({
       name: "DIRECTOR ONE",
       icNumber: "850505105555",
+      email: "director@example.com",
     });
   });
 
@@ -137,7 +170,7 @@ describe("resolveIssuerEkycIdentityForUser", () => {
       },
     ]);
 
-    await expect(resolveIssuerEkycIdentityForUser("user-1", "missing@example.com")).rejects.toMatchObject({
+    await expect(resolveIssuerEkycIdentityForUser("user-1", "850505105555")).rejects.toMatchObject({
       code: "EKYC_IDENTITY_NOT_ON_FILE",
     });
   });

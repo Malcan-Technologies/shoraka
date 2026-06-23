@@ -43,7 +43,7 @@ model User {
   security_logs                    SecurityLog[]
   notification_preferences         UserNotificationPreference[]
   sessions                         UserSession[]
-  signingcloud_ekyc                SigningCloudEkyc?
+  signingcloud_ekyc                SigningCloudEkyc[]
   authored_review_remarks          ApplicationReviewRemark[]
 
   @@index([cognito_sub])
@@ -51,7 +51,10 @@ model User {
 }
 
 model SigningCloudEkyc {
-  user_id                String                 @id
+  id                     String                 @id @default(cuid())
+  user_id                String
+  /// SigningCloud signer email (work email from matched corporate_entities entry).
+  email                  String
   issuer_organization_id String?
   session_token          String?                @unique
   sdk_endpoint           String?
@@ -66,6 +69,8 @@ model SigningCloudEkyc {
   user                   User                   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
   issuer_organization    IssuerOrganization?    @relation(fields: [issuer_organization_id], references: [id], onDelete: SetNull)
 
+  @@unique([user_id, email])
+  @@index([user_id])
   @@index([status])
   @@index([completed_at])
   @@index([issuer_organization_id])

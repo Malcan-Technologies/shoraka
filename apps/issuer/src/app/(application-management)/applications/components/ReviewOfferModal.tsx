@@ -159,6 +159,7 @@ export function ReviewOfferModal({
   const [isRejectMode, setIsRejectMode] = React.useState(false);
   const [modalStep, setModalStep] = React.useState<"review" | "ekyc-confirm" | "ekyc">("review");
   const [confirmedName, setConfirmedName] = React.useState<string | null>(null);
+  const [icNumberInput, setIcNumberInput] = React.useState("");
   const [isContinuingToSigning, setIsContinuingToSigning] = React.useState(false);
   const isOtherDeclineReason = selectedDeclineReason === OTHER_ISSUER_DECLINE_REASON_VALUE;
   const isSigningOverrideEnabled = process.env.NODE_ENV !== "production";
@@ -431,6 +432,7 @@ export function ReviewOfferModal({
       if (err.code === "EKYC_REQUIRED") {
         ekyc.reset();
         setConfirmedName(null);
+        setIcNumberInput("");
         setModalStep("ekyc-confirm");
         toast.info("Identity verification required", {
           description: "Confirm your MyKad details, then scan the QR code with your phone.",
@@ -462,14 +464,6 @@ export function ReviewOfferModal({
   };
 
   React.useEffect(() => {
-    if (modalStep !== "ekyc-confirm" || !issuerOrganizationId) {
-      return;
-    }
-
-    ekyc.loadIdentityPreview().catch(() => undefined);
-  }, [ekyc.loadIdentityPreview, issuerOrganizationId, modalStep]);
-
-  React.useEffect(() => {
     if (!ekyc.identityPreview || modalStep !== "ekyc-confirm") {
       return;
     }
@@ -479,9 +473,24 @@ export function ReviewOfferModal({
     }
   }, [confirmedName, ekyc.identityPreview, modalStep]);
 
+  const handleLookupEkycIdentity = async () => {
+    const normalizedIc = icNumberInput.replace(/\D/g, "");
+    if (normalizedIc.length !== 12) {
+      toast.error("Enter a valid 12-digit MyKad IC number.");
+      return;
+    }
+
+    const ok = await ekyc.loadIdentityPreview(normalizedIc);
+    if (!ok) {
+      return;
+    }
+
+    setConfirmedName(null);
+  };
+
   const handleConfirmEkycIdentity = () => {
     const name = (confirmedName ?? "").trim();
-    const icNumber = ekyc.identityPreview?.icNumber.replace(/\D/g, "") ?? "";
+    const icNumber = icNumberInput.replace(/\D/g, "");
 
     if (!name) {
       toast.error("Enter your full name exactly as shown on your MyKad.");
@@ -489,11 +498,16 @@ export function ReviewOfferModal({
     }
 
     if (icNumber.length !== 12) {
-      toast.error("Your IC number on file is invalid. Contact support to update it before continuing.");
+      toast.error("Enter a valid 12-digit MyKad IC number.");
       return;
     }
 
-    ekyc.setConfirmedIdentity({ name });
+    if (!ekyc.identityPreview) {
+      toast.error("Look up your IC number before continuing.");
+      return;
+    }
+
+    ekyc.setConfirmedIdentity({ name, icNumber });
     setModalStep("ekyc");
   };
 
@@ -577,7 +591,7 @@ export function ReviewOfferModal({
         </DialogTitle>
         <DialogDescription className="sr-only">
           {modalStep === "ekyc-confirm"
-            ? "Confirm your MyKad name and IC number before scanning the QR code."
+            ? "Enter your MyKad IC number, confirm your name, then scan the QR code."
             : modalStep === "ekyc"
               ? "Scan the QR code on your phone to complete identity verification."
               : "Review the financing offer and accept or decline."}
@@ -604,29 +618,49 @@ export function ReviewOfferModal({
                 <div className="space-y-2">
                   <p className="text-base font-semibold text-foreground">Confirm your identity</p>
                   <p className="text-sm text-muted-foreground">
-                    Enter your full name exactly as shown on your MyKad before scanning the QR code on
-                    your phone.
+                    Enter your MyKad IC number to find your registration details, then confirm your
+                    full name before scanning the QR code on your phone.
                   </p>
                 </div>
 
-                {ekyc.isLoadingPreview ? (
-                  <p className="text-sm text-muted-foreground py-8 text-center">Loading your details...</p>
-                ) : ekyc.previewError ? (
-                  <div className="space-y-4">
-                    <p className="text-sm text-destructive">{ekyc.previewError}</p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full rounded-xl"
-                      onClick={() => {
-                        ekyc.loadIdentityPreview().catch(() => undefined);
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="ekyc-ic-number">IC number</Label>
+                    <Input
+                      id="ekyc-ic-number"
+                      value={icNumberInput}
+                      onChange={(event) => {
+                        setIcNumberInput(event.target.value);
+                        setConfirmedName(null);
+                        ekyc.reset();
                       }}
-                    >
-                      Try again
-                    </Button>
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="901212101234"
+                      className="rounded-xl tabular-nums"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      We match this against directors and shareholders registered for your organization.
+                    </p>
                   </div>
-                ) : (
-                  <div className="space-y-4">
+
+                  {ekyc.previewError ? (
+                    <p className="text-sm text-destructive">{ekyc.previewError}</p>
+                  ) : null}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full rounded-xl"
+                    disabled={ekyc.isLoadingPreview}
+                    onClick={() => {
+                      handleLookupEkycIdentity().catch(() => undefined);
+                    }}
+                  >
+                    {ekyc.isLoadingPreview ? "Looking up..." : "Look up my details"}
+                  </Button>
+
+                  {ekyc.identityPreview ? (
                     <div className="space-y-2">
                       <Label htmlFor="ekyc-confirmed-name">Full name (as on MyKad)</Label>
                       <Input
@@ -638,29 +672,21 @@ export function ReviewOfferModal({
                         autoComplete="name"
                         className="rounded-xl"
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>IC number</Label>
-                      <div
-                        aria-label="IC number on file"
-                        className="flex h-11 w-full items-center rounded-xl border border-input bg-muted px-3 text-sm text-muted-foreground tabular-nums select-none cursor-default pointer-events-none"
-                      >
-                        {ekyc.identityPreview?.icNumber ?? "—"}
-                      </div>
                       <p className="text-xs text-muted-foreground">
-                        IC number on file for verification against your MyKad. Contact support if this is
-                        incorrect.
+                        Edit if needed so it matches your MyKad exactly.
                       </p>
                     </div>
-                    <Button
-                      type="button"
-                      className="w-full rounded-xl"
-                      onClick={handleConfirmEkycIdentity}
-                    >
-                      Continue to QR scan
-                    </Button>
-                  </div>
-                )}
+                  ) : null}
+
+                  <Button
+                    type="button"
+                    className="w-full rounded-xl"
+                    disabled={!ekyc.identityPreview || ekyc.isLoadingPreview}
+                    onClick={handleConfirmEkycIdentity}
+                  >
+                    Continue to QR scan
+                  </Button>
+                </div>
               </div>
             ) : modalStep === "ekyc" ? (
               <div className="space-y-5">

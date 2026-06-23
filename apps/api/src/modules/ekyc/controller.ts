@@ -5,7 +5,7 @@ import { AppError, formatZodMessage } from "../../lib/http/error-handler";
 import {
   completeBodySchema,
   failBodySchema,
-  identityPreviewQuerySchema,
+  identityPreviewBodySchema,
   sessionBodySchema,
   statusQuerySchema,
 } from "./schemas";
@@ -34,13 +34,13 @@ router.get("/me", requireAuth, async (req: Request, res: Response, next: NextFun
   }
 });
 
-router.get(
+router.post(
   "/identity-preview",
   requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { issuerOrganizationId } = identityPreviewQuerySchema.parse(req.query);
-      const data = await ekycService.getIdentityPreview(getUserId(req), issuerOrganizationId);
+      const { issuerOrganizationId, icNumber } = identityPreviewBodySchema.parse(req.body);
+      const data = await ekycService.getIdentityPreview(getUserId(req), issuerOrganizationId, icNumber);
       res.json({
         success: true,
         data,
@@ -57,10 +57,11 @@ router.get(
 
 router.post("/session", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { issuerOrganizationId, force, confirmedName } = sessionBodySchema.parse(req.body);
+    const { issuerOrganizationId, force, confirmedName, icNumber } = sessionBodySchema.parse(req.body);
     const data = await ekycService.createSession(
       getUserId(req),
       issuerOrganizationId,
+      icNumber,
       confirmedName,
       { force }
     );

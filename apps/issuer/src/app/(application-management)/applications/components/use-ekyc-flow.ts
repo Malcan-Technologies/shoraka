@@ -16,6 +16,7 @@ type GenerateSessionOptions = {
 
 export type EkycConfirmedIdentity = {
   name: string;
+  icNumber: string;
 };
 
 type UseEkycFlowResult = {
@@ -29,7 +30,7 @@ type UseEkycFlowResult = {
   isLoadingPreview: boolean;
   previewError: string | null;
   confirmedIdentity: EkycConfirmedIdentity | null;
-  loadIdentityPreview: () => Promise<boolean>;
+  loadIdentityPreview: (icNumber: string) => Promise<boolean>;
   setConfirmedIdentity: (identity: EkycConfirmedIdentity) => void;
   generateSession: (options?: GenerateSessionOptions) => Promise<boolean>;
   reset: () => void;
@@ -144,43 +145,57 @@ export function useEkycFlow({
     setIsGenerating(false);
     setPendingSince(null);
     setIsPendingStale(false);
+    setIdentityPreview(null);
+    setPreviewError(null);
   }, []);
 
   const setConfirmedIdentity = React.useCallback((identity: EkycConfirmedIdentity) => {
     setConfirmedIdentityState({
       name: identity.name.trim(),
+      icNumber: identity.icNumber.replace(/\D/g, ""),
     });
     reset();
   }, [reset]);
 
-  const loadIdentityPreview = React.useCallback(async () => {
-    if (!issuerOrganizationId) {
-      setPreviewError("Select an organization before starting identity verification.");
-      setIdentityPreview(null);
-      return false;
-    }
-
-    setIsLoadingPreview(true);
-    setPreviewError(null);
-
-    try {
-      const response = await apiClient.getEkycIdentityPreview(issuerOrganizationId);
-      if (!response.success) {
-        setPreviewError(getErrorMessage(response, "Failed to load identity details"));
+  const loadIdentityPreview = React.useCallback(
+    async (icNumber: string) => {
+      const normalizedIc = icNumber.replace(/\D/g, "");
+      if (!issuerOrganizationId) {
+        setPreviewError("Select an organization before starting identity verification.");
         setIdentityPreview(null);
         return false;
       }
 
-      setIdentityPreview(response.data);
-      return true;
-    } catch (previewError) {
-      setPreviewError(getErrorMessage(previewError, "Failed to load identity details"));
+      if (normalizedIc.length !== 12) {
+        setPreviewError("Enter a valid 12-digit MyKad IC number.");
+        setIdentityPreview(null);
+        return false;
+      }
+
+      setIsLoadingPreview(true);
+      setPreviewError(null);
       setIdentityPreview(null);
-      return false;
-    } finally {
-      setIsLoadingPreview(false);
-    }
-  }, [apiClient, issuerOrganizationId]);
+
+      try {
+        const response = await apiClient.postEkycIdentityPreview(issuerOrganizationId, normalizedIc);
+        if (!response.success) {
+          setPreviewError(getErrorMessage(response, "Failed to load identity details"));
+          setIdentityPreview(null);
+          return false;
+        }
+
+        setIdentityPreview(response.data);
+        return true;
+      } catch (previewError) {
+        setPreviewError(getErrorMessage(previewError, "Failed to load identity details"));
+        setIdentityPreview(null);
+        return false;
+      } finally {
+        setIsLoadingPreview(false);
+      }
+    },
+    [apiClient, issuerOrganizationId]
+  );
 
   const generateSession = React.useCallback(
     async (options?: GenerateSessionOptions) => {
@@ -208,6 +223,7 @@ export function useEkycFlow({
       try {
         const response = await apiClient.createEkycSession({
           issuerOrganizationId,
+          icNumber: confirmedIdentity.icNumber,
           force,
           confirmedName: confirmedIdentity.name,
         });

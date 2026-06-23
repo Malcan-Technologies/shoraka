@@ -377,11 +377,14 @@ export class ApiClient {
     return this.get<EkycMeStatus>("/v1/ekyc/me");
   }
 
-  async getEkycIdentityPreview(
-    issuerOrganizationId: string
+  async postEkycIdentityPreview(
+    issuerOrganizationId: string,
+    icNumber: string
   ): Promise<ApiResponse<EkycIdentityPreview> | ApiError> {
-    const query = new URLSearchParams({ issuerOrganizationId });
-    return this.get<EkycIdentityPreview>(`/v1/ekyc/identity-preview?${query.toString()}`);
+    return this.post<EkycIdentityPreview>("/v1/ekyc/identity-preview", {
+      issuerOrganizationId,
+      icNumber,
+    });
   }
 
   async createEkycSession(

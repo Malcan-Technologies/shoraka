@@ -39,6 +39,7 @@ export interface EkycSession {
 
 export interface CreateEkycSessionInput {
   issuerOrganizationId: string;
+  icNumber: string;
   confirmedName: string;
   force?: boolean;
 }
@@ -54,10 +55,9 @@ export interface EkycMeStatus {
   completedAt: string | null;
 }
 
-/** On-file MyKad details for user confirmation before eKYC capture (full IC for verification). */
+/** On-file MyKad name for the typed IC before eKYC capture. */
 export interface EkycIdentityPreview {
   name: string;
-  icNumber: string;
 }
 
 export interface User {

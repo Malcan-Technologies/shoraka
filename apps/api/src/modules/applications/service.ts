@@ -21,7 +21,6 @@ import {
   Prisma,
   ApplicationStatus as DbApplicationStatus,
   ProductStatus,
-  SigningCloudEkycStatus,
 } from "@prisma/client";
 import { requestPresignedUploadUrl, deleteDocumentFromS3 } from "./documents/service";
 import { shouldPreserveApplicationDocumentsInS3 } from "./amendment-preserve-s3";
@@ -90,6 +89,7 @@ import {
 } from "../guarantors/utils";
 import { assertIssuerOrgDirectorShareholderOnboardingReady } from "./director-shareholder-onboarding-guard";
 import { buildAdminPeopleList } from "../admin/build-people-list";
+import { requireCompletedSigningCloudEkycForOrganization } from "../ekyc/service";
 
 /**
  * Return URL after manual signing. Prefer SIGNINGCLOUD_ISSUER_RETURN_URL (full URL to applications page);
@@ -482,21 +482,6 @@ export class ApplicationService {
         403,
         "FORBIDDEN",
         "You do not have access to this application. You must be a member or owner of the organization."
-      );
-    }
-  }
-
-  private async requireCompletedSigningCloudEkyc(userId: string): Promise<void> {
-    const record = await prisma.signingCloudEkyc.findUnique({
-      where: { user_id: userId },
-      select: { status: true },
-    });
-
-    if (record?.status !== SigningCloudEkycStatus.verified) {
-      throw new AppError(
-        403,
-        "EKYC_REQUIRED",
-        "Identity verification (eKYC) is required before signing"
       );
     }
   }
@@ -2161,16 +2146,12 @@ export class ApplicationService {
       throw new AppError(400, "ALREADY_RESPONDED", "This offer has already been responded to");
     }
 
-    const user = await prisma.user.findUnique({
-      where: { user_id: userId },
-      select: { email: true },
-    });
-    if (!user?.email?.trim()) {
-      throw new AppError(400, "INVALID_STATE", "Your account must have an email address to sign");
-    }
-    await this.requireCompletedSigningCloudEkyc(userId);
+    const { workEmail: signerEmail } = await requireCompletedSigningCloudEkycForOrganization(
+      userId,
+      application.issuer_organization_id
+    );
 
-    if (canReusePendingOfferSigning(contract.offer_signing, contract.signing_sc_contractnum, user.email)) {
+    if (canReusePendingOfferSigning(contract.offer_signing, contract.signing_sc_contractnum, signerEmail)) {
       const redirectUrl = buildIssuerSigningReturnUrl(applicationId);
       const apiPublic = process.env.API_PUBLIC_URL?.trim().replace(/\/$/, "");
       const callbackUrl =
@@ -2179,7 +2160,7 @@ export class ApplicationService {
       const prev = contract.offer_signing as unknown as OfferSigningRecord;
       const signingUrl = await this.refreshSigningUrlOrCached(cfg, {
         contractnum: contract.signing_sc_contractnum!.trim(),
-        signerEmail: user.email.trim(),
+        signerEmail,
         redirectUrl,
         callbackUrl,
         cachedSigningUrl: prev.signing_url,
@@ -2213,7 +2194,7 @@ export class ApplicationService {
       accessToken,
       pdfBuffer,
       contractName: `Contract offer ${contract.id.slice(-8)}`,
-      signerEmail: user.email.trim(),
+      signerEmail,
     });
 
     const redirectUrl = buildIssuerSigningReturnUrl(applicationId);
@@ -2226,7 +2207,7 @@ export class ApplicationService {
       cfg,
       accessToken,
       contractnum,
-      signerEmail: user.email.trim(),
+      signerEmail,
       redirectUrl,
       callbackUrl,
     });
@@ -2243,7 +2224,7 @@ export class ApplicationService {
       status: "pending",
       initiated_at: now,
       initiated_by_user_id: userId,
-      signer_email: user.email.trim(),
+      signer_email: signerEmail,
       signing_url: signingUrl,
       return_url: redirectUrl ?? undefined,
     };
@@ -2306,16 +2287,12 @@ export class ApplicationService {
       throw new AppError(400, "ALREADY_RESPONDED", "This offer has already been responded to");
     }
 
-    const user = await prisma.user.findUnique({
-      where: { user_id: userId },
-      select: { email: true },
-    });
-    if (!user?.email?.trim()) {
-      throw new AppError(400, "INVALID_STATE", "Your account must have an email address to sign");
-    }
-    await this.requireCompletedSigningCloudEkyc(userId);
+    const { workEmail: signerEmail } = await requireCompletedSigningCloudEkycForOrganization(
+      userId,
+      application.issuer_organization_id
+    );
 
-    if (canReusePendingOfferSigning(dbInvoice.offer_signing, dbInvoice.signing_sc_contractnum, user.email)) {
+    if (canReusePendingOfferSigning(dbInvoice.offer_signing, dbInvoice.signing_sc_contractnum, signerEmail)) {
       const redirectUrl = buildIssuerSigningReturnUrl(applicationId, invoiceId);
       const apiPublic = process.env.API_PUBLIC_URL?.trim().replace(/\/$/, "");
       const callbackUrl =
@@ -2324,7 +2301,7 @@ export class ApplicationService {
       const prev = dbInvoice.offer_signing as unknown as OfferSigningRecord;
       const signingUrl = await this.refreshSigningUrlOrCached(cfg, {
         contractnum: dbInvoice.signing_sc_contractnum!.trim(),
-        signerEmail: user.email.trim(),
+        signerEmail,
         redirectUrl,
         callbackUrl,
         cachedSigningUrl: prev.signing_url,
@@ -2361,7 +2338,7 @@ export class ApplicationService {
       accessToken,
       pdfBuffer,
       contractName: `Invoice offer ${invoiceId.slice(-8)}`,
-      signerEmail: user.email.trim(),
+      signerEmail,
     });
 
     const redirectUrl = buildIssuerSigningReturnUrl(applicationId, invoiceId);
@@ -2374,7 +2351,7 @@ export class ApplicationService {
       cfg,
       accessToken,
       contractnum,
-      signerEmail: user.email.trim(),
+      signerEmail,
       redirectUrl,
       callbackUrl,
     });
@@ -2391,7 +2368,7 @@ export class ApplicationService {
       status: "pending",
       initiated_at: now,
       initiated_by_user_id: userId,
-      signer_email: user.email.trim(),
+      signer_email: signerEmail,
       signing_url: signingUrl,
       return_url: redirectUrl ?? undefined,
     };
