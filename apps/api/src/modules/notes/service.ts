@@ -227,6 +227,12 @@ function hasSettlementTrusteeMovement(settlement: {
   );
 }
 
+function repaymentReceiptSourceLabel(source: string): string {
+  if (source === "PAYMASTER") return "Paymaster";
+  if (source === "ISSUER_ON_BEHALF") return "Issuer on behalf";
+  return "Repayment receipt";
+}
+
 /**
  * Normalises an issuer org's `bank_account_details` (RegTank structured shape:
  * `{ content: [{ fieldName, fieldValue }] }`) into the flat beneficiary snapshot
@@ -4195,19 +4201,26 @@ export class NoteService {
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
     const listItem = mapNoteListItem(note);
 
-    const payment = settlement.payment_id
-      ? await prisma.notePayment.findFirst({
-          where: { id: settlement.payment_id, note_id: noteId },
-        })
-      : null;
-
-    const payerName =
-      listItem.paymasterName ??
-      listItem.issuerName ??
-      (typeof payment?.reference === "string" ? payment.reference : null);
-
-    const receiptAmount = payment ? toNumber(payment.receipt_amount) : toNumber(settlement.gross_receipt_amount);
-    const receiptDate = payment?.receipt_date ?? settlement.posted_at ?? new Date();
+    const previewSnapshot = asRecord(settlement.preview_snapshot);
+    const includedPaymentIdsRaw = Array.isArray(previewSnapshot?.includedPaymentIds)
+      ? previewSnapshot.includedPaymentIds
+      : [];
+    const includedPaymentIds = includedPaymentIdsRaw.filter(
+      (value): value is string => typeof value === "string" && value.trim() !== ""
+    );
+    const settlementPayments =
+      includedPaymentIds.length > 0
+        ? await prisma.notePayment.findMany({
+            where: { note_id: noteId, id: { in: includedPaymentIds } },
+            orderBy: [{ receipt_date: "asc" }, { created_at: "asc" }],
+          })
+        : settlement.payment_id
+          ? await prisma.notePayment.findMany({
+              where: { id: settlement.payment_id, note_id: noteId },
+              orderBy: [{ receipt_date: "asc" }, { created_at: "asc" }],
+            })
+          : [];
+    const primaryPayment = settlementPayments[0] ?? null;
 
     const issuerOrg = note.issuer_organization_id
       ? await prisma.issuerOrganization.findUnique({
@@ -4215,17 +4228,47 @@ export class NoteService {
           select: { id: true, name: true, bank_account_details: true },
         })
       : null;
-
-    let borrowerEntries = buildRepaymentBorrowerEntries({
-      payerName,
-      receiptAmount,
-      receiptDate,
+    const issuerDisbursementWithdrawal = await prisma.withdrawalInstruction.findFirst({
+      where: {
+        note_id: noteId,
+        withdrawal_type: WithdrawalType.ISSUER_DISBURSEMENT,
+        status: { not: WithdrawalStatus.CANCELLED },
+      },
+      orderBy: [{ created_at: "desc" }],
+      select: { beneficiary_snapshot: true },
     });
-    if (borrowerEntries.length === 0 && listItem.issuerName) {
+    const issuerBeneficiarySnapshot =
+      asRecord(issuerDisbursementWithdrawal?.beneficiary_snapshot) ??
+      (issuerOrg ? buildBeneficiarySnapshot(issuerOrg) : null);
+
+    let borrowerEntries =
+      settlementPayments.length > 0
+        ? settlementPayments.map((payment) => {
+            const sourceLabel = repaymentReceiptSourceLabel(payment.source);
+            const partyName =
+              payment.source === "PAYMASTER"
+                ? listItem.paymasterName
+                : payment.source === "ISSUER_ON_BEHALF"
+                  ? listItem.issuerName
+                  : null;
+            const payerName =
+              partyName && partyName.trim() !== ""
+                ? `${sourceLabel} (${partyName.trim()})`
+                : sourceLabel;
+            const entry = buildRepaymentBorrowerEntries({
+              payerName,
+              receiptAmount: toNumber(payment.receipt_amount),
+              receiptDate: payment.receipt_date,
+            })[0];
+            return entry;
+          }).filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+        : [];
+    if (borrowerEntries.length === 0) {
+      const fallbackPayerName = listItem.paymasterName ?? listItem.issuerName ?? "Paymaster";
       borrowerEntries = buildRepaymentBorrowerEntries({
-        payerName: listItem.issuerName,
-        receiptAmount,
-        receiptDate,
+        payerName: fallbackPayerName,
+        receiptAmount: toNumber(settlement.gross_receipt_amount),
+        receiptDate: settlement.posted_at ?? new Date(),
       });
     }
 
@@ -4235,7 +4278,7 @@ export class NoteService {
       trusteeConfig.letterConfig
     );
     const repaymentAccountName =
-      payment?.received_into_account_code?.replace(/_/g, " ") ?? "Repayment Pool";
+      primaryPayment?.received_into_account_code?.replace(/_/g, " ") ?? "Repayment Pool";
 
     const letterData = {
       ...mapRepaymentLetterData({
@@ -4247,7 +4290,7 @@ export class NoteService {
         tawidhAccountAmount: tawidhAmount,
         gharamahAmount,
         issuerResidualAmount: issuerResidual,
-        issuerBeneficiarySnapshot: issuerOrg ? buildBeneficiarySnapshot(issuerOrg) : null,
+        issuerBeneficiarySnapshot: issuerBeneficiarySnapshot,
         issuerOrganizationName: issuerOrg?.name ?? null,
         borrowerEntries,
         repaymentAccountName,

@@ -144,7 +144,7 @@ function extractMetadataDetails(event: NoteEvent): {
 function buildFileName(event: NoteEvent) {
   if (event.eventType === "ARREARS_LETTER_GENERATED") return `arrears-letter-${event.noteId}.pdf`;
   if (event.eventType === "SERVICE_FEE_TRUSTEE_LETTER_GENERATED") {
-    return `service-fee-trustee-letter-${event.noteId}.pdf`;
+    return `settlement-trustee-letter-${event.noteId}.pdf`;
   }
   return `note-letter-${event.noteId}.pdf`;
 }

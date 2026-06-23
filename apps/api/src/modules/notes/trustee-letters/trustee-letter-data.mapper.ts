@@ -151,7 +151,7 @@ function buildRepaymentSupportingParagraph(input: {
 
   if (borrowerEntries.length > 1) {
     const list = borrowerEntries
-      .map((entry) => `${entry.name} of RM${formatRm(entry.amount)} on ${entry.date}`)
+      .map((entry, index) => `${index + 1}. ${entry.name} of RM ${formatRm(entry.amount)} on ${entry.date}`)
       .join("\n");
     return (
       `Please note that there was a repayment made by Borrower(s) as listed below into ${repaymentAccountName} account. ` +
@@ -169,7 +169,7 @@ function buildRepaymentSupportingParagraph(input: {
   }
 
   return (
-    `Please note that there was a repayment made by Borrower(s), ${entry.name} on ${entry.date} for RM${formatRm(entry.amount)} ` +
+    `Please note that there was a repayment made by Borrower(s), ${entry.name} on ${entry.date} for RM ${formatRm(entry.amount)} ` +
     `into ${repaymentAccountName} account. Part of the repayment is now allocated back to Investors (Credit to ${investorPoolAccountName}) ` +
     `and remaining amount to Platform as the Service fee (Credit to Platform account no. ${serviceFeeAccountNumber}).`
   );
@@ -262,21 +262,21 @@ export function mapRepaymentLetterData(input: {
         nameOfPayee:
           issuerAccountHolder ||
           input.issuerOrganizationName ||
-          "Residual refund to Issuer",
+          "Issuer residual refund",
         accountNo: issuerAccountNumber,
         banker: issuerBank,
         amount: input.issuerResidualAmount,
-        remarks: "Residual refund to Issuer",
+        remarks: "Issuer residual refund",
       });
     } else {
       const issuerPayable = bucketAccounts.ISSUER_PAYABLE;
       rows.push({
         no: rowNo++,
-        nameOfPayee: issuerPayable.displayName || "Residual refund to Issuer",
+        nameOfPayee: issuerPayable.displayName || "Issuer residual refund",
         accountNo: issuerPayable.accountNumber,
         banker: issuerPayable.bankName,
         amount: input.issuerResidualAmount,
-        remarks: "Residual refund to Issuer",
+        remarks: "Issuer residual refund",
       });
     }
   }
