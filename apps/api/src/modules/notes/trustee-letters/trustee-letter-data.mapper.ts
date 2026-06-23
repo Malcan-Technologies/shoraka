@@ -253,27 +253,14 @@ export function mapRepaymentLetterData(input: {
     const issuerAccountHolder = issuerSnapshot
       ? beneficiaryField(issuerSnapshot, "account_holder")
       : "";
-
-    if (issuerAccountNumber && issuerBank) {
-      rows.push({
-        no: rowNo++,
-        nameOfPayee: issuerAccountHolder || input.issuerOrganizationName || "—",
-        accountNo: issuerAccountNumber,
-        banker: issuerBank,
-        amount: input.issuerResidualAmount,
-        remarks: "Issuer residual refund",
-      });
-    } else {
-      const issuerPayable = bucketAccounts.ISSUER_PAYABLE;
-      rows.push({
-        no: rowNo++,
-        nameOfPayee: issuerPayable.accountName || issuerPayable.displayName || "—",
-        accountNo: issuerPayable.accountNumber || "—",
-        banker: issuerPayable.bankName || "—",
-        amount: input.issuerResidualAmount,
-        remarks: "Issuer residual refund",
-      });
-    }
+    rows.push({
+      no: rowNo++,
+      nameOfPayee: issuerAccountHolder || input.issuerOrganizationName || "—",
+      accountNo: issuerAccountNumber || "—",
+      banker: issuerBank || "—",
+      amount: input.issuerResidualAmount,
+      remarks: "Issuer residual refund",
+    });
   }
 
   const now = input.referenceDate ?? new Date();
