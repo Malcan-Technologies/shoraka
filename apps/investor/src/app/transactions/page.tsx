@@ -13,10 +13,8 @@ import { WithdrawRequestDialog } from "./components/withdraw-request-dialog";
 import { WithdrawConfirmDialog } from "./components/withdraw-confirm-dialog";
 import { WithdrawSuccessDialog } from "./components/withdraw-success-dialog";
 import { DepositDialog } from "./components/deposit-dialog";
-import { DepositSuccessDialog } from "./components/deposit-success-dialog";
 import { StatementDialog } from "./components/statement-dialog";
 import {
-  MIN_DEPOSIT_AMOUNT,
   MIN_WITHDRAWAL_AMOUNT,
   TRANSACTION_TYPE_FILTER_OPTIONS,
   type Transaction,
@@ -78,7 +76,6 @@ export default function TransactionsPage() {
   });
 
   const [depositOpen, setDepositOpen] = React.useState(false);
-  const [depositSuccessOpen, setDepositSuccessOpen] = React.useState(false);
   const [withdrawRequestOpen, setWithdrawRequestOpen] = React.useState(false);
   const [withdrawConfirmOpen, setWithdrawConfirmOpen] = React.useState(false);
   const [withdrawSuccessOpen, setWithdrawSuccessOpen] = React.useState(false);
@@ -226,16 +223,6 @@ export default function TransactionsPage() {
     setPage(1);
   }, [filters, orgId]);
 
-  function validateDepositAmount(): number | null {
-    const amount = parseMoneyAmount(depositAmount);
-    if (!amount || amount < MIN_DEPOSIT_AMOUNT) {
-      setDepositError(`Minimum deposit is RM ${MIN_DEPOSIT_AMOUNT}`);
-      return null;
-    }
-    setDepositError(null);
-    return amount;
-  }
-
   function validateWithdrawAmount(): number | null {
     const amount = parseMoneyAmount(withdrawAmount);
     if (!amount || amount < MIN_WITHDRAWAL_AMOUNT) {
@@ -244,13 +231,6 @@ export default function TransactionsPage() {
     }
     setWithdrawError(null);
     return amount;
-  }
-
-  function handleDepositSuccess(amount: number) {
-    setConfirmedAmount(amount);
-    setDepositOpen(false);
-    setDepositSuccessOpen(true);
-    setDepositAmount("");
   }
 
   function handleWithdrawSubmit() {
@@ -312,21 +292,6 @@ export default function TransactionsPage() {
         onAmountChange={setDepositAmount}
         validationError={depositError}
         onValidationErrorChange={setDepositError}
-        onBankTransfer={() => {
-          const amount = validateDepositAmount();
-          if (amount !== null) handleDepositSuccess(amount);
-        }}
-        onFpx={() => {
-          const amount = validateDepositAmount();
-          if (amount !== null) handleDepositSuccess(amount);
-        }}
-        onDevTopupSuccess={handleDepositSuccess}
-      />
-
-      <DepositSuccessDialog
-        open={depositSuccessOpen}
-        onOpenChange={setDepositSuccessOpen}
-        amount={confirmedAmount}
       />
 
       <WithdrawRequestDialog

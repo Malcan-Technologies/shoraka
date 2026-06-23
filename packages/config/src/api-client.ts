@@ -89,6 +89,8 @@ import type {
   EkycSessionStatus,
   CreateNoteFromApplicationInput,
   CreateNoteInvestmentInput,
+  CreateInvestorDepositInput,
+  InvestorDepositResponse,
   EligibleNoteInvoicesResponse,
   GetAdminNotesParams,
   MarketplaceNoteDetail,
@@ -2546,6 +2548,16 @@ export class ApiClient {
     }
 
     return response.blob();
+  }
+
+  async createInvestorDeposit(
+    input: CreateInvestorDepositInput
+  ): Promise<ApiResponse<InvestorDepositResponse> | ApiError> {
+    return this.post<InvestorDepositResponse>("/v1/investor/deposits", input);
+  }
+
+  async getInvestorDeposit(id: string): Promise<ApiResponse<InvestorDepositResponse> | ApiError> {
+    return this.get<InvestorDepositResponse>(`/v1/investor/deposits/${id}`);
   }
 
   async postInvestorBalanceTestTopup(input: {

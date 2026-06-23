@@ -302,6 +302,7 @@ model InvestorOrganization {
   ctos_party_supplements        CtosPartySupplement[]
   investor_balance              InvestorBalance?
   investor_balance_transactions InvestorBalanceTransaction[]
+  gateway_payments              GatewayPayment[]
 
   @@index([owner_user_id])
   @@index([owner_user_id, type])
@@ -341,6 +342,7 @@ model IssuerOrganization {
   aml_approved                 Boolean                        @default(false)
   tnc_accepted                 Boolean                        @default(false)
   ssm_checked                  Boolean                        @default(false)
+  onboarding_fee_paid_at       DateTime?
   admin_approved_at            DateTime?
   kyc_response                 Json?
   corporate_entities           Json?
@@ -350,6 +352,7 @@ model IssuerOrganization {
   director_kyc_status          Json?
   business_aml_status          Json?
   applications                 Application[]
+  gateway_payments             GatewayPayment[]
   contracts                    Contract[]
   invitations                  IssuerOrganizationInvitation[]
   owner                        User                           @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
@@ -454,6 +457,7 @@ model Application {
   issuer_organization                 IssuerOrganization        @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
   invoices                            Invoice[]
   application_guarantors              ApplicationGuarantor[]
+  gateway_payments                    GatewayPayment[]
 
   @@map("applications")
 }
@@ -876,28 +880,30 @@ model NoteLedgerAccount {
 }
 
 model NoteLedgerEntry {
-  id              String              @id @default(cuid())
-  note_id         String?
-  account_id      String
-  settlement_id   String?
-  payment_id      String?
-  withdrawal_id   String?
-  direction       NoteLedgerDirection
-  amount          Decimal             @db.Decimal(18, 6)
-  currency        String              @default("MYR")
-  description     String
-  idempotency_key String              @unique
-  metadata        Json?
-  posted_at       DateTime            @default(now())
-  created_at      DateTime            @default(now())
-  note            Note?               @relation(fields: [note_id], references: [id], onDelete: SetNull)
-  account         NoteLedgerAccount   @relation(fields: [account_id], references: [id], onDelete: Restrict)
+  id                 String              @id @default(cuid())
+  note_id            String?
+  account_id         String
+  settlement_id      String?
+  payment_id         String?
+  withdrawal_id      String?
+  gateway_payment_id String?
+  direction          NoteLedgerDirection
+  amount             Decimal             @db.Decimal(18, 6)
+  currency           String              @default("MYR")
+  description        String
+  idempotency_key    String              @unique
+  metadata           Json?
+  posted_at          DateTime            @default(now())
+  created_at         DateTime            @default(now())
+  note               Note?               @relation(fields: [note_id], references: [id], onDelete: SetNull)
+  account            NoteLedgerAccount   @relation(fields: [account_id], references: [id], onDelete: Restrict)
 
   @@index([note_id])
   @@index([account_id])
   @@index([settlement_id])
   @@index([payment_id])
   @@index([withdrawal_id])
+  @@index([gateway_payment_id])
   @@index([posted_at])
   @@map("note_ledger_entries")
 }
@@ -956,16 +962,76 @@ model PlatformFinanceSetting {
   default_gharamah_rate_percent Decimal  @default(0) @db.Decimal(5, 2)
   withdrawal_letter_template    String   @default("DEFAULT_WITHDRAWAL_LETTER")
   arrears_letter_template       String   @default("DEFAULT_ARREARS_LETTER")
-  default_letter_template       String   @default("DEFAULT_DEFAULT_LETTER")
-  updated_by_user_id            String?
-  metadata                      Json?
-  trustee_letter_config         Json?
-  platform_accounts_config      Json?
-  ledger_bucket_accounts_config Json?
-  created_at                    DateTime @default(now())
-  updated_at                    DateTime @updatedAt
+  default_letter_template            String   @default("DEFAULT_DEFAULT_LETTER")
+  issuer_onboarding_fee_amount       Decimal  @default(150) @db.Decimal(18, 6)
+  application_processing_fee_amount  Decimal  @default(50) @db.Decimal(18, 6)
+  investor_min_deposit_amount        Decimal  @default(100) @db.Decimal(18, 6)
+  investor_max_deposit_amount        Decimal  @default(30000) @db.Decimal(18, 6)
+  updated_by_user_id                 String?
+  metadata                           Json?
+  trustee_letter_config              Json?
+  platform_accounts_config           Json?
+  ledger_bucket_accounts_config      Json?
+  created_at                         DateTime @default(now())
+  updated_at                         DateTime @updatedAt
 
   @@map("platform_finance_settings")
+}
+
+/// Curlec/Razorpay money-in payment (deposits and fees).
+model GatewayPayment {
+  id                       String                  @id @default(cuid())
+  purpose                  GatewayPaymentPurpose
+  organization_type        GatewayOrganizationType
+  investor_organization_id String?
+  issuer_organization_id   String?
+  application_id           String?
+  amount                   Decimal                 @db.Decimal(18, 6)
+  currency                 String                  @default("MYR")
+  status                   GatewayPaymentStatus    @default(CREATED)
+  curlec_order_id          String                  @unique
+  curlec_payment_id        String?                 @unique
+  method                   String?
+  bank_code                String?
+  payer_name               String?
+  name_check_result        NameCheckResult?
+  name_check_at            DateTime?
+  name_checked_by_user_id  String?
+  refund_reference         String?
+  refund_initiated_by      String?
+  refunded_at              DateTime?
+  refund_notes             String?
+  settlement_id            String?
+  settled_at               DateTime?
+  gateway_fee_amount       Decimal?                @db.Decimal(18, 6)
+  idempotency_key          String                  @unique
+  metadata                 Json?
+  created_at               DateTime                @default(now())
+  updated_at               DateTime                @updatedAt
+  investor_organization    InvestorOrganization?   @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
+  issuer_organization      IssuerOrganization?     @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+  application              Application?            @relation(fields: [application_id], references: [id], onDelete: Cascade)
+
+  @@index([status, created_at])
+  @@index([purpose])
+  @@index([investor_organization_id])
+  @@index([issuer_organization_id])
+  @@index([application_id])
+  @@map("gateway_payments")
+}
+
+/// Raw Curlec webhook events for dedup and audit (processed in later milestones).
+model GatewayWebhookEvent {
+  id              String    @id @default(cuid())
+  event_id        String    @unique
+  event_type      String
+  payload         Json
+  signature_valid Boolean
+  processed_at    DateTime?
+  error           String?
+  created_at      DateTime  @default(now())
+
+  @@map("gateway_webhook_events")
 }
 
 model WithdrawalInstruction {
@@ -1510,9 +1576,39 @@ enum InvestorBalanceTransactionDirection {
 
 enum InvestorBalanceTransactionSource {
   MANUAL_TOPUP
+  GATEWAY_DEPOSIT
   NOTE_INVESTMENT_COMMIT
   NOTE_INVESTMENT_RELEASE
   INVESTOR_WITHDRAWAL_REQUEST
+}
+
+enum GatewayPaymentPurpose {
+  INVESTOR_DEPOSIT
+  ISSUER_ONBOARDING_FEE
+  APPLICATION_PROCESSING_FEE
+}
+
+enum GatewayOrganizationType {
+  INVESTOR
+  ISSUER
+}
+
+enum GatewayPaymentStatus {
+  CREATED
+  PAID
+  NAME_CHECK_PENDING
+  COMPLETED
+  HELD
+  REFUND_INITIATED
+  REFUNDED
+  FAILED
+  EXPIRED
+}
+
+enum NameCheckResult {
+  PASS
+  FAIL
+  NAME_UNAVAILABLE
 }
 
 enum NotePaymentSource {
