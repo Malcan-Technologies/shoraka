@@ -26,7 +26,7 @@ export class CurlecClient {
     return `Basic ${Buffer.from(`${config.keyId}:${config.keySecret}`).toString("base64")}`;
   }
 
-  private async request<T>(
+  private async request(
     method: HttpMethod,
     apiPath: string,
     body?: Record<string, unknown>

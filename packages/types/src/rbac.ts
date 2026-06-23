@@ -62,6 +62,8 @@ export const ADMIN_PERMISSIONS = [
   "repayments.view",
   "disbursements.view",
   "service_fee.view",
+  "investor_withdrawals.view",
+  "investor_withdrawals.manage",
 
   // Contracts (standalone)
   "contracts.view",
@@ -259,7 +261,9 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
       "bucket_balances.view",
       "repayments.view",
       "disbursements.view",
-      "service_fee.view"
+      "service_fee.view",
+      "investor_withdrawals.view",
+      "investor_withdrawals.manage"
     ),
   },
   {

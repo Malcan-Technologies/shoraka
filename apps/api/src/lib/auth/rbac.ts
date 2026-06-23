@@ -67,9 +67,44 @@ async function syncSuperAdminRole(prisma: PrismaClient): Promise<void> {
   });
 }
 
+async function backfillInvestorWithdrawalPermissions(prisma: PrismaClient): Promise<void> {
+  const roles = await prisma.adminRoleConfig.findMany({
+    select: { id: true, permissions: true },
+  });
+
+  for (const role of roles) {
+    const nextPermissions = new Set(role.permissions ?? []);
+    const hasChanges = (() => {
+      let changed = false;
+      if (nextPermissions.has("disbursements.view")) {
+        if (!nextPermissions.has("investor_withdrawals.view")) {
+          nextPermissions.add("investor_withdrawals.view");
+          changed = true;
+        }
+      }
+      if (nextPermissions.has("notes.disbursement.manage")) {
+        if (!nextPermissions.has("investor_withdrawals.manage")) {
+          nextPermissions.add("investor_withdrawals.manage");
+          changed = true;
+        }
+      }
+      return changed;
+    })();
+
+    if (!hasChanges) continue;
+    await prisma.adminRoleConfig.update({
+      where: { id: role.id },
+      data: { permissions: Array.from(nextPermissions) },
+    });
+  }
+}
+
 export async function ensureAdminRoleCatalog(prisma: PrismaClient): Promise<void> {
   if (!syncPromise) {
-    syncPromise = syncSuperAdminRole(prisma).finally(() => {
+    syncPromise = (async () => {
+      await syncSuperAdminRole(prisma);
+      await backfillInvestorWithdrawalPermissions(prisma);
+    })().finally(() => {
       syncPromise = null;
     });
   }

@@ -52,6 +52,7 @@ import { useProducts } from "@/hooks/use-products";
 import { useAdminApplicationsForSidebar } from "@/hooks/use-admin-applications-for-sidebar";
 import {
   useNoteActionRequiredCount,
+  usePendingInvestorWithdrawals,
   usePendingRepayments,
   usePendingIssuerPayouts,
   usePendingServiceFeeTrusteeLetters,
@@ -143,6 +144,12 @@ const navFinance = [
     icon: ArrowUpTrayIcon,
     badgeKey: "pendingIssuerPayouts" as const,
   },
+  {
+    title: "Investor Withdrawals",
+    url: "/finance/investor-withdrawals",
+    icon: ArrowUpTrayIcon,
+    badgeKey: "pendingInvestorWithdrawals" as const,
+  },
 ] as const;
 
 const navPlatform = [
@@ -202,6 +209,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canViewRepayments = can("repayments.view");
   const canViewServiceFee = can("service_fee.view");
   const canViewDisbursements = can("disbursements.view");
+  const canViewInvestorWithdrawals = can("investor_withdrawals.view");
 
   const canViewUsers = can("users.view");
   const canViewOrganizations = can("organizations.view");
@@ -221,6 +229,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: noteActionCountData } = useNoteActionRequiredCount({ enabled: canViewNotes });
   const { data: pendingRepaymentsData } = usePendingRepayments({ enabled: canViewRepayments });
   const { data: pendingIssuerPayoutsData } = usePendingIssuerPayouts({ enabled: canViewDisbursements });
+  const { data: pendingInvestorWithdrawalsData } = usePendingInvestorWithdrawals({
+    enabled: canViewInvestorWithdrawals,
+  });
   const { data: pendingServiceFeeLettersData } = usePendingServiceFeeTrusteeLetters({
     enabled: canViewServiceFee,
   });
@@ -242,6 +253,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     pendingRepayments: pendingRepaymentsData?.count || 0,
     pendingServiceFeeTrusteeLetters: pendingServiceFeeLettersData?.count || 0,
     pendingIssuerPayouts: pendingIssuerPayoutsData?.count || 0,
+    pendingInvestorWithdrawals: pendingInvestorWithdrawalsData?.count || 0,
   };
 
   const dynamicNavLifecycle = React.useMemo(() => {
@@ -274,7 +286,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       (item.title === "Bucket Balances" && canViewBucketBalances) ||
       (item.title === "Repayments" && canViewRepayments) ||
       (item.title === "Service Fee" && canViewServiceFee) ||
-      (item.title === "Issuer Payouts" && canViewDisbursements)
+      (item.title === "Issuer Payouts" && canViewDisbursements) ||
+      (item.title === "Investor Withdrawals" && canViewInvestorWithdrawals)
     );
   });
 
@@ -550,7 +563,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       (item.title === "Bucket Balances" && canViewBucketBalances) ||
                       (item.title === "Repayments" && canViewRepayments) ||
                       (item.title === "Service Fee" && canViewServiceFee) ||
-                      (item.title === "Issuer Payouts" && canViewDisbursements);
+                      (item.title === "Issuer Payouts" && canViewDisbursements) ||
+      (item.title === "Investor Withdrawals" && canViewInvestorWithdrawals);
 
                     if (!canShow) return null;
 

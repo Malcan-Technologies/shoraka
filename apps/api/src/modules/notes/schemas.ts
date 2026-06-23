@@ -207,6 +207,29 @@ export const updatePlatformFinanceSettingsSchema = z.object({
   withdrawalLetterTemplate: z.string().min(1).optional(),
   arrearsLetterTemplate: z.string().min(1).optional(),
   defaultLetterTemplate: z.string().min(1).optional(),
+  trusteeLetterConfig: z.record(z.unknown()).optional(),
+  platformAccountsConfig: z.record(z.unknown()).optional(),
+  ledgerBucketAccountsConfig: z.record(z.unknown()).optional(),
+});
+
+export const requestTrusteeSignatureUploadUrlSchema = z.object({
+  fileName: z.string().min(1),
+  contentType: z.enum(["image/png", "image/jpeg", "image/jpg", "image/webp"]),
+  fileSize: z.number().int().positive().max(5 * 1024 * 1024),
+});
+
+export const createInvestorWithdrawalSchema = z.object({
+  amount: z.number().min(100),
+  investorOrganizationId: z.string().min(1),
+});
+
+export const getInvestorWithdrawalsQuerySchema = z.object({
+  status: z.string().optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  investorOrganizationId: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).optional(),
 });
 
 export const createWithdrawalSchema = z.object({

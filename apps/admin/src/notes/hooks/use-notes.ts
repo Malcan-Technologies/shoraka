@@ -15,7 +15,7 @@ import { notesKeys } from "../query-keys";
 /**
  * Broad invalidation that refreshes everything driven by a note-side mutation:
  * the sidebar/dashboard counts (action-count, pending-repayments, pending-issuer-payouts,
- * pending-service-fee-trustee-letters),
+ * pending-service-fee-trustee-letters, pending-investor-withdrawals),
  * the bucket balances, the notes list/detail, and the investments registry. Use this from
  * any mutation that could change a count, bucket balance, or investment status.
  */
@@ -132,6 +132,54 @@ export function usePendingIssuerPayouts({ enabled = true }: { enabled?: boolean 
     staleTime: 30000,
     refetchInterval: 60000,
     enabled,
+  });
+}
+
+export function usePendingInvestorWithdrawals({ enabled = true }: { enabled?: boolean } = {}) {
+  const apiClient = useNotesApiClient();
+  return useQuery({
+    queryKey: [...notesKeys.all, "pending-investor-withdrawals"],
+    queryFn: async () => {
+      const response = await apiClient.getAdminPendingInvestorWithdrawals();
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    staleTime: 30000,
+    refetchInterval: 60000,
+    enabled,
+  });
+}
+
+export function useInvestorWithdrawals(params?: {
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  const apiClient = useNotesApiClient();
+  return useQuery({
+    queryKey: [...notesKeys.all, "investor-withdrawals", params],
+    queryFn: async () => {
+      const response = await apiClient.getAdminInvestorWithdrawals(params);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    staleTime: 30000,
+    refetchInterval: 60000,
+  });
+}
+
+export function useAdminWithdrawal(id: string | null, { enabled = true }: { enabled?: boolean } = {}) {
+  const apiClient = useNotesApiClient();
+  return useQuery({
+    queryKey: [...notesKeys.all, "investor-withdrawals-detail", id],
+    queryFn: async () => {
+      if (!id) throw new Error("Withdrawal id is required");
+      const response = await apiClient.getAdminWithdrawal(id);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    enabled: enabled && Boolean(id),
+    staleTime: 30000,
   });
 }
 
@@ -487,9 +535,16 @@ export function useMarkNoteDefault() {
 
 function invalidateWithdrawalNote(
   queryClient: ReturnType<typeof useQueryClient>,
-  noteId: string | null
+  noteId: string | null,
+  withdrawalId?: string
 ) {
   invalidateAdminRegistries(queryClient);
+  queryClient.invalidateQueries({ queryKey: [...notesKeys.all, "investor-withdrawals"] });
+  if (withdrawalId) {
+    queryClient.invalidateQueries({
+      queryKey: [...notesKeys.all, "investor-withdrawals-detail", withdrawalId],
+    });
+  }
   if (!noteId) return;
   queryClient.invalidateQueries({ queryKey: notesKeys.detail(noteId) });
   queryClient.invalidateQueries({ queryKey: [...notesKeys.detail(noteId), "ledger"] });
@@ -505,7 +560,7 @@ export function useGenerateWithdrawalLetter() {
       return response.data;
     },
     onSuccess: (withdrawal) => {
-      invalidateWithdrawalNote(queryClient, withdrawal.noteId);
+      invalidateWithdrawalNote(queryClient, withdrawal.noteId, withdrawal.id);
     },
   });
 }
@@ -520,7 +575,7 @@ export function useMarkWithdrawalSubmitted() {
       return response.data;
     },
     onSuccess: (withdrawal) => {
-      invalidateWithdrawalNote(queryClient, withdrawal.noteId);
+      invalidateWithdrawalNote(queryClient, withdrawal.noteId, withdrawal.id);
     },
   });
 }
@@ -535,7 +590,7 @@ export function useMarkWithdrawalCompleted() {
       return response.data;
     },
     onSuccess: (withdrawal) => {
-      invalidateWithdrawalNote(queryClient, withdrawal.noteId);
+      invalidateWithdrawalNote(queryClient, withdrawal.noteId, withdrawal.id);
     },
   });
 }
@@ -556,7 +611,7 @@ export function useUpdateWithdrawalBeneficiary() {
       return response.data;
     },
     onSuccess: (withdrawal) => {
-      invalidateWithdrawalNote(queryClient, withdrawal.noteId);
+      invalidateWithdrawalNote(queryClient, withdrawal.noteId, withdrawal.id);
     },
   });
 }

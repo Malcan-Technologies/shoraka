@@ -65,7 +65,7 @@ Pending QR reuse: without `force: true`, an existing fresh pending session (upda
 
 Static page served from the issuer Next.js app. No auth cookie — identification is the session `token` only.
 
-1. Loads WiseAI SDK (`WAILib.SDK`) with `docType: "mykad"` and `showActionButtons: false` (IC front/back captured when document quality is detected — no manual shutter).
+1. Loads WiseAI SDK (`WAILib.SDK`) with `docType: "mykad"` and `showActionButtons: true`
 2. On capture success, posts `{ token, result }` to `POST /v1/ekyc/complete` (identity is read from the server-bound session, not from the URL).
 3. Shows outcome from API response:
    - `verified` → success overlay

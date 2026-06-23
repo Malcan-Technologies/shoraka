@@ -15,6 +15,8 @@ interface WithdrawConfirmDialogProps {
   onOpenChange: (open: boolean) => void;
   amount: number;
   onConfirm: () => void;
+  isLoading?: boolean;
+  errorMessage?: string | null;
 }
 
 export function WithdrawConfirmDialog({
@@ -22,6 +24,8 @@ export function WithdrawConfirmDialog({
   onOpenChange,
   amount,
   onConfirm,
+  isLoading = false,
+  errorMessage = null,
 }: WithdrawConfirmDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -33,6 +37,9 @@ export function WithdrawConfirmDialog({
         <div className="space-y-2 px-6 py-8 text-center">
           <p className="text-muted-foreground">You have requested to withdraw</p>
           <p className="text-3xl font-bold text-primary">{formatCurrency(amount)}</p>
+          {errorMessage ? (
+            <p className="text-sm text-destructive">{errorMessage}</p>
+          ) : null}
         </div>
 
         <DialogFooter className="flex-row gap-3 border-t px-6 py-4 sm:justify-between sm:space-x-0">
@@ -41,11 +48,18 @@ export function WithdrawConfirmDialog({
             variant="outline"
             className="h-11 flex-1 rounded-xl"
             onClick={() => onOpenChange(false)}
+            disabled={isLoading}
           >
             Cancel
           </Button>
-          <Button type="button" variant="action" className="h-11 flex-1 rounded-xl" onClick={onConfirm}>
-            Confirm
+          <Button
+            type="button"
+            variant="action"
+            className="h-11 flex-1 rounded-xl"
+            onClick={onConfirm}
+            disabled={isLoading}
+          >
+            {isLoading ? "Submitting…" : "Confirm"}
           </Button>
         </DialogFooter>
 
