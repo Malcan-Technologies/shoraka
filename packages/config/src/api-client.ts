@@ -376,9 +376,10 @@ export class ApiClient {
   }
 
   async getEkycIdentityPreview(
-    issuerOrganizationId: string
+    issuerOrganizationId: string,
+    icNumber: string
   ): Promise<ApiResponse<EkycIdentityPreview> | ApiError> {
-    const query = new URLSearchParams({ issuerOrganizationId });
+    const query = new URLSearchParams({ issuerOrganizationId, icNumber });
     return this.get<EkycIdentityPreview>(`/v1/ekyc/identity-preview?${query.toString()}`);
   }
 

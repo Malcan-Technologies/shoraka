@@ -39,8 +39,8 @@ router.get(
   requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { issuerOrganizationId } = identityPreviewQuerySchema.parse(req.query);
-      const data = await ekycService.getIdentityPreview(getUserId(req), issuerOrganizationId);
+      const { issuerOrganizationId, icNumber } = identityPreviewQuerySchema.parse(req.query);
+      const data = await ekycService.getIdentityPreview(getUserId(req), issuerOrganizationId, icNumber);
       res.json({
         success: true,
         data,
@@ -57,10 +57,11 @@ router.get(
 
 router.post("/session", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { issuerOrganizationId, force, confirmedName } = sessionBodySchema.parse(req.body);
+    const { issuerOrganizationId, force, confirmedName, icNumber } = sessionBodySchema.parse(req.body);
     const data = await ekycService.createSession(
       getUserId(req),
       issuerOrganizationId,
+      icNumber,
       confirmedName,
       { force }
     );

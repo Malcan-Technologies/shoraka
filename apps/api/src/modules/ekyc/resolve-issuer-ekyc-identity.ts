@@ -8,6 +8,12 @@ const MALAYSIAN_IC_DIGITS = 12;
 const EKYC_IDENTITY_NOT_ON_FILE_MESSAGE =
   "We don't have your verified MyKad details on file. Complete identity onboarding before signing.";
 
+export type IssuerEkycIdentity = {
+  name: string;
+  icNumber: string;
+  email: string;
+};
+
 type IssuerOrgIdentitySource = {
   id: string;
   type: OrganizationType;
@@ -34,6 +40,15 @@ export function normalizeEkycLegalName(value: unknown): string | null {
 
   const name = value.trim().replace(/\s+/g, " ").toUpperCase();
   return name.length > 0 ? name : null;
+}
+
+function normalizeWorkEmail(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const email = value.trim().toLowerCase();
+  return email.length > 0 ? email : null;
 }
 
 function buildPersonalOrgName(org: IssuerOrgIdentitySource): string | null {
@@ -74,14 +89,10 @@ function resolveCorporatePersonalIc(personalInfo: Record<string, unknown>): stri
   return normalizeMalaysianIcNumber(fromField);
 }
 
-function emailsMatch(left: string, right: string): boolean {
-  return left.trim().toLowerCase() === right.trim().toLowerCase();
-}
-
 function resolveFromCorporateEntities(
   corporateEntities: unknown,
-  email: string
-): { name: string; icNumber: string } | null {
+  icNumber: string
+): IssuerEkycIdentity | null {
   if (!corporateEntities || typeof corporateEntities !== "object" || Array.isArray(corporateEntities)) {
     return null;
   }
@@ -104,15 +115,15 @@ function resolveFromCorporateEntities(
       }
 
       const personalRecord = personalInfo as Record<string, unknown>;
-      const entryEmail = personalRecord.email;
-      if (typeof entryEmail !== "string" || !emailsMatch(entryEmail, email)) {
+      const entryIc = resolveCorporatePersonalIc(personalRecord);
+      if (entryIc !== icNumber) {
         continue;
       }
 
       const name = resolveCorporatePersonalName(personalRecord);
-      const icNumber = resolveCorporatePersonalIc(personalRecord);
-      if (name && icNumber) {
-        return { name, icNumber };
+      const email = normalizeWorkEmail(personalRecord.email);
+      if (name && email) {
+        return { name, icNumber, email };
       }
     }
   }
@@ -122,15 +133,19 @@ function resolveFromCorporateEntities(
 
 function resolveFromIssuerOrganization(
   org: IssuerOrgIdentitySource,
-  email: string
-): { name: string; icNumber: string } | null {
+  icNumber: string
+): IssuerEkycIdentity | null {
   if (org.type === OrganizationType.PERSONAL) {
     const name = buildPersonalOrgName(org);
-    const icNumber = normalizeMalaysianIcNumber(org.document_number);
-    return name && icNumber ? { name, icNumber } : null;
+    const orgIc = normalizeMalaysianIcNumber(org.document_number);
+    if (!name || orgIc !== icNumber) {
+      return null;
+    }
+
+    return null;
   }
 
-  return resolveFromCorporateEntities(org.corporate_entities, email);
+  return resolveFromCorporateEntities(org.corporate_entities, icNumber);
 }
 
 const issuerOrgIdentitySelect = {
@@ -239,19 +254,24 @@ async function loadIssuerOrganizationsForUser(userId: string): Promise<IssuerOrg
   return organizations;
 }
 
-/** Fail early when the active org does not have verified MyKad details for this user. */
+export function parseIssuerEkycIcNumber(icNumberInput: string): string {
+  const icNumber = normalizeMalaysianIcNumber(icNumberInput);
+  if (!icNumber) {
+    throw new AppError(400, "VALIDATION_ERROR", "Enter a valid 12-digit MyKad IC number");
+  }
+
+  return icNumber;
+}
+
+/** Fail early when the active org does not have a director/shareholder matching the typed IC. */
 export async function resolveIssuerEkycIdentityForOrganization(
   userId: string,
   issuerOrganizationId: string,
-  email: string
-): Promise<{ name: string; icNumber: string }> {
-  const normalizedEmail = email.trim();
-  if (!normalizedEmail) {
-    throw new AppError(400, "INVALID_STATE", "Your account must have an email address to verify identity");
-  }
-
+  icNumberInput: string
+): Promise<IssuerEkycIdentity> {
+  const icNumber = parseIssuerEkycIcNumber(icNumberInput);
   const organization = await loadIssuerOrganizationForUser(userId, issuerOrganizationId);
-  const resolved = resolveFromIssuerOrganization(organization, normalizedEmail);
+  const resolved = resolveFromIssuerOrganization(organization, icNumber);
   if (resolved) {
     return resolved;
   }
@@ -259,19 +279,15 @@ export async function resolveIssuerEkycIdentityForOrganization(
   throw new AppError(400, "EKYC_IDENTITY_NOT_ON_FILE", EKYC_IDENTITY_NOT_ON_FILE_MESSAGE);
 }
 
-/** Resolve MyKad details from any issuer org the user belongs to. Not used on the eKYC complete path. */
+/** Resolve MyKad details from any issuer org the user belongs to (by typed IC). */
 export async function resolveIssuerEkycIdentityForUser(
   userId: string,
-  email: string
-): Promise<{ name: string; icNumber: string }> {
-  const normalizedEmail = email.trim();
-  if (!normalizedEmail) {
-    throw new AppError(400, "INVALID_STATE", "Your account must have an email address to verify identity");
-  }
-
+  icNumberInput: string
+): Promise<IssuerEkycIdentity> {
+  const icNumber = parseIssuerEkycIcNumber(icNumberInput);
   const organizations = await loadIssuerOrganizationsForUser(userId);
   for (const organization of organizations) {
-    const resolved = resolveFromIssuerOrganization(organization, normalizedEmail);
+    const resolved = resolveFromIssuerOrganization(organization, icNumber);
     if (resolved) {
       return resolved;
     }
