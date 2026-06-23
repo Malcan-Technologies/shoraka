@@ -249,19 +249,24 @@ function resolveSettlementSummary(note: NoteWithRelations) {
   if (!settlement) return null;
 
   const operatingAccountAmount = moneyToNumber(settlement.service_fee_amount);
-  const isPostedWithServiceFee =
-    settlement.status === NoteSettlementStatus.POSTED && operatingAccountAmount > 0.005;
+  const investorPoolAmount = roundNoteMoney(
+    decimalToNumber(settlement.investor_principal) +
+      decimalToNumber(settlement.investor_profit_net) +
+      decimalToNumber(settlement.tawidh_investor_amount),
+    2
+  );
+  const hasSettlementTrusteeMovement =
+    investorPoolAmount > 0.005 ||
+    operatingAccountAmount > 0.005 ||
+    moneyToNumber(settlement.tawidh_account_amount) > 0.005 ||
+    moneyToNumber(settlement.gharamah_amount) > 0.005 ||
+    moneyToNumber(settlement.issuer_residual_amount) > 0.005;
 
   return {
     settlementId: settlement.id,
     status: settlement.status,
     grossReceiptAmount: moneyToNumber(settlement.gross_receipt_amount),
-    investorPoolAmount: roundNoteMoney(
-      decimalToNumber(settlement.investor_principal) +
-        decimalToNumber(settlement.investor_profit_net) +
-        decimalToNumber(settlement.tawidh_investor_amount),
-      2
-    ),
+    investorPoolAmount,
     operatingAccountAmount,
     totalTawidhAmount: moneyToNumber(settlement.tawidh_amount),
     tawidhInvestorSharePercent: decimalToNumber(settlement.tawidh_investor_share_percent),
@@ -275,13 +280,13 @@ function resolveSettlementSummary(note: NoteWithRelations) {
     profitDays: settlement.profit_days,
     annualProfitRatePercent: decimalToNumber(settlement.annual_profit_rate_percent),
     postedAt: iso(settlement.posted_at),
-    serviceFeeTrusteeStatus: isPostedWithServiceFee
+    serviceFeeTrusteeStatus: hasSettlementTrusteeMovement
       ? (settlement.service_fee_trustee_status ?? null)
       : null,
-    serviceFeeTrusteeSubmittedAt: isPostedWithServiceFee
+    serviceFeeTrusteeSubmittedAt: hasSettlementTrusteeMovement
       ? iso(settlement.service_fee_trustee_submitted_at)
       : null,
-    serviceFeeTrusteeCompletedAt: isPostedWithServiceFee
+    serviceFeeTrusteeCompletedAt: hasSettlementTrusteeMovement
       ? iso(settlement.service_fee_trustee_completed_at)
       : null,
   };

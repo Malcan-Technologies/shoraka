@@ -179,6 +179,7 @@ export function mapRepaymentLetterData(input: {
   settlementId: string;
   investorPrincipal: number;
   investorProfitNet: number;
+  tawidhInvestorAmount: number;
   serviceFeeAmount: number;
   tawidhAccountAmount: number;
   gharamahAmount: number;
@@ -195,7 +196,8 @@ export function mapRepaymentLetterData(input: {
   const investorPool = bucketAccounts.INVESTOR_POOL;
   const operatingAccount = bucketAccounts.OPERATING_ACCOUNT;
 
-  const investorRepayment = input.investorPrincipal + input.investorProfitNet;
+  const investorRepayment =
+    input.investorPrincipal + input.investorProfitNet + input.tawidhInvestorAmount;
 
   const rows: TrusteePaymentRow[] = [];
   let rowNo = 1;

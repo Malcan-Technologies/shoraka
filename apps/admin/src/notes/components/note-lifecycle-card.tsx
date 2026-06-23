@@ -155,15 +155,26 @@ function buildServiceFeeSubSteps(
 
 function serviceFeeTrusteeHelperText(trusteeStatus: ServiceFeeTrusteeInstructionStatus | null): string {
   if (trusteeStatus === "COMPLETED") {
-    return "Service fee trustee instruction workflow is complete for this settlement.";
+    return "Settlement trustee letter workflow is complete for this settlement.";
   }
   if (trusteeStatus === "SUBMITTED_TO_TRUSTEE") {
-    return "Mark the instruction complete in section 3 of the settlement panel once the trustee has processed the internal pool allocation.";
+    return "Mark the instruction complete in section 3 of the settlement panel once the trustee has processed the settlement instruction.";
   }
   if (trusteeStatus === "LETTER_GENERATED") {
     return "Submit the PDF to the trustee, then mark submitted and complete from the settlement panel below.";
   }
-  return `Generate the PDF from Trustee instruction — service fee (internal pools) in section 3 of the settlement panel below. This documents the Repayment pool to Operating account allocation; it is not an external bank payout.`;
+  return "Generate the Settlement Trustee Letter in section 3 of the settlement panel below.";
+}
+
+function hasSettlementTrusteeMovement(settlement: NoteDetail["settlements"][number]): boolean {
+  return (
+    settlement.investorPrincipal + settlement.investorProfitNet + settlement.tawidhInvestorAmount >
+      0.005 ||
+    settlement.serviceFeeAmount > 0.005 ||
+    settlement.tawidhAccountAmount > 0.005 ||
+    settlement.gharamahAmount > 0.005 ||
+    settlement.issuerResidualAmount > 0.005
+  );
 }
 
 interface ActionConfig {
@@ -360,9 +371,7 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
     !isComplete && !terminalFailure && activeIndex === 2 && pendingDisbursementWithdrawal !== null;
 
   const postedSettlementWithServiceFee =
-    note.settlements.find(
-      (s) => s.status === "POSTED" && s.serviceFeeAmount > 0.005
-    ) ?? null;
+    note.settlements.find((s) => s.status === "POSTED" && hasSettlementTrusteeMovement(s)) ?? null;
   const serviceFeeTrusteeStatus = postedSettlementWithServiceFee?.serviceFeeTrusteeStatus ?? null;
   const serviceFeeWorkflowComplete = serviceFeeTrusteeStatus === "COMPLETED";
   const showServiceFeeSubStepper =
@@ -524,7 +533,7 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
                   serviceFeeWorkflowComplete ? "text-emerald-900" : "text-amber-900"
                 )}
               >
-                Service fee · internal pool instruction
+                Settlement Trustee Letter
               </div>
               <div
                 className={cn(
