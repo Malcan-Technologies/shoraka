@@ -19,18 +19,17 @@ function formatShortDate(date: Date): string {
 
 function accountRow(account: TrusteeAccountDetails, amount: number, remarks: string): Omit<TrusteePaymentRow, "no"> {
   return {
-    nameOfPayee: account.displayName || account.accountName || remarks,
-    accountNo: account.accountNumber,
-    banker: account.bankName,
+    nameOfPayee: account.accountName || account.displayName || "—",
+    accountNo: account.accountNumber || "—",
+    banker: account.bankName || "—",
     amount,
-    remarks: account.remarks || remarks,
+    remarks,
   };
 }
 
 function addPaymentRowIfPositive(input: {
   rows: TrusteePaymentRow[];
   rowNo: number;
-  nameOfPayee: string;
   account: TrusteeAccountDetails;
   amount: number;
   remarks: string;
@@ -39,8 +38,6 @@ function addPaymentRowIfPositive(input: {
   input.rows.push({
     no: input.rowNo,
     ...accountRow(input.account, input.amount, input.remarks),
-    nameOfPayee: input.nameOfPayee,
-    remarks: input.remarks,
   });
   return input.rowNo + 1;
 }
@@ -86,20 +83,23 @@ export function mapDisbursementLetterData(input: {
   let rowNo = 1;
 
   if (netDisbursement > 0.005) {
+    const beneficiaryAccountHolder =
+      beneficiaryField(input.beneficiarySnapshot, "account_holder") ||
+      beneficiaryField(input.beneficiarySnapshot, "account_name") ||
+      "—";
     rows.push({
       no: rowNo++,
-      nameOfPayee: "Disbursement to Borrower",
-      accountNo: beneficiaryField(input.beneficiarySnapshot, "account_number"),
-      banker: beneficiaryField(input.beneficiarySnapshot, "bank_name"),
+      nameOfPayee: beneficiaryAccountHolder,
+      accountNo: beneficiaryField(input.beneficiarySnapshot, "account_number") || "—",
+      banker: beneficiaryField(input.beneficiarySnapshot, "bank_name") || "—",
       amount: netDisbursement,
-      remarks: beneficiaryField(input.beneficiarySnapshot, "account_holder") || "Disbursement to Borrower",
+      remarks: "Disbursement to Borrower",
     });
   }
 
   rowNo = addPaymentRowIfPositive({
     rows,
     rowNo,
-    nameOfPayee: "Platform Fee to Platform",
     account: operatingAccount,
     amount: platformFee,
     remarks: "Platform Fee to Platform",
@@ -108,7 +108,6 @@ export function mapDisbursementLetterData(input: {
   rowNo = addPaymentRowIfPositive({
     rows,
     rowNo,
-    nameOfPayee: "Facility Fee to Platform",
     account: operatingAccount,
     amount: facilityFee,
     remarks: "Facility Fee to Platform",
@@ -205,18 +204,17 @@ export function mapRepaymentLetterData(input: {
   if (investorRepayment > 0.005) {
     rows.push({
       no: rowNo++,
-      nameOfPayee: "Repayment to Investors / Deposit Account",
-      accountNo: investorPool.accountNumber,
-      banker: investorPool.bankName,
+      nameOfPayee: investorPool.accountName || investorPool.displayName || "—",
+      accountNo: investorPool.accountNumber || "—",
+      banker: investorPool.bankName || "—",
       amount: investorRepayment,
-      remarks: investorPool.displayName || "Repayment to Investors / Deposit Account",
+      remarks: "Repayment to Investors / Deposit Account",
     });
   }
 
   rowNo = addPaymentRowIfPositive({
     rows,
     rowNo,
-    nameOfPayee: "Service Fee to Platform",
     account: operatingAccount,
     amount: input.serviceFeeAmount,
     remarks: "Service Fee to Platform",
@@ -226,11 +224,11 @@ export function mapRepaymentLetterData(input: {
     const tawidh = bucketAccounts.TAWIDH_ACCOUNT;
     rows.push({
       no: rowNo++,
-      nameOfPayee: tawidh.displayName || "Ta'widh",
-      accountNo: tawidh.accountNumber,
-      banker: tawidh.bankName,
+      nameOfPayee: tawidh.accountName || tawidh.displayName || "—",
+      accountNo: tawidh.accountNumber || "—",
+      banker: tawidh.bankName || "—",
       amount: input.tawidhAccountAmount,
-      remarks: "Ta'widh / late payment compensation",
+      remarks: "Ta'widh allocation",
     });
   }
 
@@ -238,11 +236,11 @@ export function mapRepaymentLetterData(input: {
     const gharamah = bucketAccounts.GHARAMAH_ACCOUNT;
     rows.push({
       no: rowNo++,
-      nameOfPayee: gharamah.displayName || "Gharamah",
-      accountNo: gharamah.accountNumber,
-      banker: gharamah.bankName,
+      nameOfPayee: gharamah.accountName || gharamah.displayName || "—",
+      accountNo: gharamah.accountNumber || "—",
+      banker: gharamah.bankName || "—",
       amount: input.gharamahAmount,
-      remarks: "Gharamah / penalty charge",
+      remarks: "Gharamah allocation",
     });
   }
 
@@ -259,10 +257,7 @@ export function mapRepaymentLetterData(input: {
     if (issuerAccountNumber && issuerBank) {
       rows.push({
         no: rowNo++,
-        nameOfPayee:
-          issuerAccountHolder ||
-          input.issuerOrganizationName ||
-          "Issuer residual refund",
+        nameOfPayee: issuerAccountHolder || input.issuerOrganizationName || "—",
         accountNo: issuerAccountNumber,
         banker: issuerBank,
         amount: input.issuerResidualAmount,
@@ -272,9 +267,9 @@ export function mapRepaymentLetterData(input: {
       const issuerPayable = bucketAccounts.ISSUER_PAYABLE;
       rows.push({
         no: rowNo++,
-        nameOfPayee: issuerPayable.displayName || "Issuer residual refund",
-        accountNo: issuerPayable.accountNumber,
-        banker: issuerPayable.bankName,
+        nameOfPayee: issuerPayable.accountName || issuerPayable.displayName || "—",
+        accountNo: issuerPayable.accountNumber || "—",
+        banker: issuerPayable.bankName || "—",
         amount: input.issuerResidualAmount,
         remarks: "Issuer residual refund",
       });
@@ -333,9 +328,9 @@ export function mapInvestorWithdrawalLetterData(input: {
       nameOfPayee:
         beneficiaryField(snapshot, "account_holder") ||
         input.investorOrganizationName ||
-        "Withdrawal requested by Investor",
-      accountNo: beneficiaryField(snapshot, "account_number"),
-      banker: beneficiaryField(snapshot, "bank_name"),
+        "—",
+      accountNo: beneficiaryField(snapshot, "account_number") || "—",
+      banker: beneficiaryField(snapshot, "bank_name") || "—",
       amount: input.amount,
       remarks: "Withdrawal requested by Investor",
     },
