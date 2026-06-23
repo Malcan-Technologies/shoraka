@@ -231,6 +231,22 @@
         {
           "name": "CTOS_USER_ID",
           "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CTOS_USER_ID::"
+        },
+        {
+          "name": "CURLEC_KEY_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CURLEC_KEY_ID::"
+        },
+        {
+          "name": "CURLEC_KEY_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CURLEC_KEY_SECRET::"
+        },
+        {
+          "name": "CURLEC_WEBHOOK_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CURLEC_WEBHOOK_SECRET::"
+        },
+        {
+          "name": "CURLEC_API_BASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CURLEC_API_BASE_URL::"
         }
       ]
     }
