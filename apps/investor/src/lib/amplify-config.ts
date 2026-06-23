@@ -9,6 +9,26 @@ const cognitoDomain = process.env.NEXT_PUBLIC_COGNITO_DOMAIN;
 const investorUrl = process.env.NEXT_PUBLIC_INVESTOR_URL || "http://localhost:3002";
 const landingUrl = process.env.NEXT_PUBLIC_LANDING_URL || "http://localhost:3000";
 
+function resolveCurrentInvestorUrl(): string {
+  const configuredUrl = investorUrl.replace(/\/$/, "");
+  const configuredOrigin = new URL(configuredUrl).origin;
+  const configuredHostname = new URL(configuredOrigin).hostname;
+
+  if (configuredHostname === "localhost" || configuredHostname === "127.0.0.1") {
+    return configuredOrigin.replace(/^https:\/\//, "http://");
+  }
+
+  if (configuredUrl) {
+    return configuredOrigin;
+  }
+
+  if (typeof window === "undefined") {
+    return "http://localhost:3002";
+  }
+
+  return new URL(window.location.origin).origin;
+}
+
 // Only configure Amplify if we're in the browser and have all required variables
 // During build/SSR, skip configuration to avoid errors
 if (typeof window !== "undefined") {
@@ -17,6 +37,8 @@ if (typeof window !== "undefined") {
       "Missing required Cognito environment variables: NEXT_PUBLIC_COGNITO_USER_POOL_ID, NEXT_PUBLIC_COGNITO_CLIENT_ID, NEXT_PUBLIC_COGNITO_DOMAIN"
     );
   }
+
+  const currentInvestorUrl = resolveCurrentInvestorUrl();
 
   Amplify.configure(
   {
@@ -28,7 +50,7 @@ if (typeof window !== "undefined") {
           oauth: {
             domain: cognitoDomain,
             scopes: ["email", "openid", "profile", "aws.cognito.signin.user.admin"],
-            redirectSignIn: [`${investorUrl}/callback`, `${landingUrl}/callback`],
+            redirectSignIn: [`${currentInvestorUrl}/callback`, `${landingUrl}/callback`],
             redirectSignOut: [landingUrl],
             responseType: "code",
           },

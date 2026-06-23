@@ -921,6 +921,39 @@ export interface CreateNoteInvestmentInput {
   investorOrganizationId: string;
 }
 
+export type GatewayPaymentStatus =
+  | "CREATED"
+  | "PAID"
+  | "NAME_CHECK_PENDING"
+  | "COMPLETED"
+  | "HELD"
+  | "REFUND_INITIATED"
+  | "REFUNDED"
+  | "FAILED"
+  | "EXPIRED";
+
+export type NameCheckResult = "PASS" | "FAIL" | "NAME_UNAVAILABLE";
+
+export interface CreateInvestorDepositInput {
+  investorOrganizationId: string;
+  amount: number;
+}
+
+export interface InvestorDepositResponse {
+  id: string;
+  status: GatewayPaymentStatus;
+  purpose: string;
+  amount: number;
+  currency: string;
+  curlecOrderId: string;
+  curlecKeyId: string;
+  investorOrganizationId: string | null;
+  nameCheckResult: NameCheckResult | null;
+  payerName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface RecordNotePaymentInput {
   source: NotePaymentSource;
   receiptAmount: number;
