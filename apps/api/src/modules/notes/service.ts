@@ -306,15 +306,6 @@ function buildBeneficiarySnapshot(
   };
 }
 
-function beneficiarySnapshotField(
-  snapshot: Record<string, unknown> | null,
-  field: "bank_name" | "account_number" | "account_holder"
-): string {
-  if (!snapshot) return "";
-  const value = snapshot[field];
-  return typeof value === "string" ? value.trim() : "";
-}
-
 type SettlementAllocation = {
   investmentId: string;
   investorOrganizationId: string;
@@ -4249,32 +4240,6 @@ export class NoteService {
     const issuerBeneficiarySnapshot =
       asRecord(issuerDisbursementWithdrawal?.beneficiary_snapshot) ??
       (issuerOrg ? buildBeneficiarySnapshot(issuerOrg) : null);
-    const issuerBeneficiaryBankName = beneficiarySnapshotField(
-      issuerBeneficiarySnapshot,
-      "bank_name"
-    );
-    const issuerBeneficiaryAccountNumber = beneficiarySnapshotField(
-      issuerBeneficiarySnapshot,
-      "account_number"
-    );
-    const issuerBeneficiaryAccountHolder = beneficiarySnapshotField(
-      issuerBeneficiarySnapshot,
-      "account_holder"
-    );
-    if (issuerResidual > 0.005) {
-      const missingFields: string[] = [];
-      if (!issuerBeneficiaryAccountHolder) missingFields.push("account_holder");
-      if (!issuerBeneficiaryBankName) missingFields.push("bank_name");
-      if (!issuerBeneficiaryAccountNumber) missingFields.push("account_number");
-      if (missingFields.length > 0) {
-        throw new AppError(
-          422,
-          "ISSUER_BENEFICIARY_DETAILS_MISSING",
-          "Issuer beneficiary details are incomplete. Set issuer beneficiary account holder, bank name, and account number before generating settlement trustee letter.",
-          { missingFields }
-        );
-      }
-    }
 
     let borrowerEntries =
       settlementPayments.length > 0

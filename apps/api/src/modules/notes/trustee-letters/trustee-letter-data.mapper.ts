@@ -251,7 +251,8 @@ export function mapRepaymentLetterData(input: {
       : "";
     const issuerBank = issuerSnapshot ? beneficiaryField(issuerSnapshot, "bank_name") : "";
     const issuerAccountHolder = issuerSnapshot
-      ? beneficiaryField(issuerSnapshot, "account_holder")
+      ? beneficiaryField(issuerSnapshot, "account_holder") ||
+        beneficiaryField(issuerSnapshot, "account_name")
       : "";
     rows.push({
       no: rowNo++,
