@@ -226,7 +226,9 @@ function InvestorDashboardContent() {
               {/* Step-specific cards */}
               {needsTncAcceptance && <TermsAcceptanceCard organizationId={activeOrganization.id} />}
 
-              {needsDeposit && <DepositCard organizationId={activeOrganization.id} />}
+              {needsDeposit && (
+                <DepositCard organizationId={activeOrganization.id} />
+              )}
 
               {isAwaitingApproval && (
                 <div className="rounded-xl border bg-card p-6">

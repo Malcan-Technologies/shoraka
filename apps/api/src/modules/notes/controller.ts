@@ -664,6 +664,9 @@ investorNotesRouter.get("/balance/statement", async (req: Request, res: Response
 
 investorNotesRouter.post("/balance/test-topup", async (req: Request, res: Response, next: NextFunction) => {
   try {
+    if (process.env.NODE_ENV === "production") {
+      throw new AppError(403, "FORBIDDEN", "Test top-up is not available in production");
+    }
     const input = testInvestorBalanceTopupSchema.parse(req.body);
     const actor = getActor(req, res, "INVESTOR");
     send(
