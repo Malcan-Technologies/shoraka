@@ -4479,25 +4479,38 @@ export class NoteService {
       }
       if (hasResidualRefund) {
         const issuerPayableId = await this.getLedgerAccountId(tx, "ISSUER_PAYABLE");
-        await tx.noteLedgerEntry.upsert({
-          where: { idempotency_key: `settlement:${settlementId}:issuer-residual-clear` },
-          update: { amount: settlement.issuer_residual_amount },
-          create: {
+        const legacyResidualClearEntry = await tx.noteLedgerEntry.findFirst({
+          where: {
             note_id: noteId,
-            account_id: issuerPayableId,
             settlement_id: settlementId,
-            payment_id: settlement.payment_id,
+            account_id: issuerPayableId,
             direction: NoteLedgerDirection.DEBIT,
-            amount: settlement.issuer_residual_amount,
-            description: "Issuer residual cleared on settlement trustee completion",
-            idempotency_key: `settlement:${settlementId}:issuer-residual-clear`,
-            metadata: {
-              actorUserId: actor.userId,
-              settlementId,
-              source: "SETTLEMENT_TRUSTEE_COMPLETED",
-            } as Prisma.InputJsonValue,
+            idempotency_key: { contains: ":issuer-residual-disbursement" },
           },
+          select: { id: true },
         });
+        const alreadyClearedByLegacyFlow = Boolean(legacyResidualClearEntry);
+        if (!alreadyClearedByLegacyFlow) {
+          await tx.noteLedgerEntry.upsert({
+            where: { idempotency_key: `settlement:${settlementId}:issuer-residual-clear` },
+            update: { amount: settlement.issuer_residual_amount },
+            create: {
+              note_id: noteId,
+              account_id: issuerPayableId,
+              settlement_id: settlementId,
+              payment_id: settlement.payment_id,
+              direction: NoteLedgerDirection.DEBIT,
+              amount: settlement.issuer_residual_amount,
+              description: "Issuer residual cleared on settlement trustee completion",
+              idempotency_key: `settlement:${settlementId}:issuer-residual-clear`,
+              metadata: {
+                actorUserId: actor.userId,
+                settlementId,
+                source: "SETTLEMENT_TRUSTEE_COMPLETED",
+              } as Prisma.InputJsonValue,
+            },
+          });
+        }
         await tx.note.updateMany({
           where: {
             id: noteId,
