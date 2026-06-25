@@ -91,6 +91,8 @@ import type {
   CreateNoteInvestmentInput,
   CreateInvestorDepositInput,
   InvestorDepositResponse,
+  CreateIssuerOnboardingFeeInput,
+  IssuerOnboardingFeeResponse,
   EligibleNoteInvoicesResponse,
   GetAdminNotesParams,
   MarketplaceNoteDetail,
@@ -2668,6 +2670,18 @@ export class ApiClient {
 
   async getInvestorDeposit(id: string): Promise<ApiResponse<InvestorDepositResponse> | ApiError> {
     return this.get<InvestorDepositResponse>(`/v1/investor/deposits/${id}`);
+  }
+
+  async createIssuerOnboardingFee(
+    input: CreateIssuerOnboardingFeeInput
+  ): Promise<ApiResponse<IssuerOnboardingFeeResponse> | ApiError> {
+    return this.post<IssuerOnboardingFeeResponse>("/v1/issuer/onboarding-fee", input);
+  }
+
+  async getIssuerOnboardingFee(
+    id: string
+  ): Promise<ApiResponse<IssuerOnboardingFeeResponse> | ApiError> {
+    return this.get<IssuerOnboardingFeeResponse>(`/v1/issuer/onboarding-fee/${id}`);
   }
 
   async postInvestorBalanceTestTopup(input: {

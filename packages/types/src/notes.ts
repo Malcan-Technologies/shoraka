@@ -592,6 +592,8 @@ export interface PlatformFinanceSetting {
   withdrawalLetterTemplate: string;
   arrearsLetterTemplate: string;
   defaultLetterTemplate: string;
+  issuerOnboardingFeeAmount: number;
+  applicationProcessingFeeAmount: number;
   trusteeLetterConfig: TrusteeLetterConfig | null;
   platformAccountsConfig: PlatformAccountsConfig | null;
   ledgerBucketAccountsConfig: LedgerBucketAccountsConfig | null;
@@ -948,6 +950,26 @@ export interface InvestorDepositResponse {
   curlecOrderId: string;
   curlecKeyId: string;
   investorOrganizationId: string | null;
+  nameCheckResult: NameCheckResult | null;
+  payerName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateIssuerOnboardingFeeInput {
+  issuerOrganizationId: string;
+}
+
+export interface IssuerOnboardingFeeResponse {
+  id: string;
+  status: GatewayPaymentStatus;
+  purpose: string;
+  amount: number;
+  currency: string;
+  curlecOrderId: string;
+  curlecKeyId: string;
+  issuerOrganizationId: string | null;
+  applicationId: string | null;
   nameCheckResult: NameCheckResult | null;
   payerName: string | null;
   createdAt: string;

@@ -57,6 +57,11 @@ function TableSkeleton({ portal }: { portal: PortalType }) {
               </TableCell>
             </>
           )}
+          {portal === "issuer" && (
+            <TableCell>
+              <Skeleton className="h-5 w-16" />
+            </TableCell>
+          )}
           <TableCell>
             <Skeleton className="h-5 w-10" />
           </TableCell>
@@ -90,8 +95,8 @@ export function OrganizationsTable({
 
   const router = useRouter();
 
-  // Investor: 12 columns (risk + sophisticated + deposit + wallet + invested), Issuer: 8 columns
-  const columnCount = portal === "investor" ? 12 : 8;
+  // Investor: 12 columns (risk + sophisticated + deposit + wallet + invested), Issuer: 9 columns
+  const columnCount = portal === "investor" ? 12 : 9;
 
   const handleViewDetails = (org: OrganizationResponse) => {
     router.push(`/organizations/${org.portal}/${org.id}`);
@@ -116,6 +121,9 @@ export function OrganizationsTable({
                     <TableHead className="text-sm font-semibold text-right">Invested</TableHead>
                   </>
                 )}
+                {portal === "issuer" && (
+                  <TableHead className="text-sm font-semibold">Onboarding Fee</TableHead>
+                )}
                 <TableHead className="text-sm font-semibold">Members</TableHead>
                 <TableHead className="text-sm font-semibold">Created</TableHead>
                 <TableHead className="text-sm font-semibold">Updated</TableHead>
@@ -137,6 +145,7 @@ export function OrganizationsTable({
                     key={`${org.portal}-${org.id}`}
                     organization={org}
                     showSophisticated={portal === "investor"}
+                    showOnboardingFee={portal === "issuer"}
                     onViewDetails={handleViewDetails}
                   />
                 ))

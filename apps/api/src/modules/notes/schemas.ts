@@ -207,6 +207,8 @@ export const updatePlatformFinanceSettingsSchema = z.object({
   withdrawalLetterTemplate: z.string().min(1).optional(),
   arrearsLetterTemplate: z.string().min(1).optional(),
   defaultLetterTemplate: z.string().min(1).optional(),
+  issuerOnboardingFeeAmount: z.number().positive().optional(),
+  applicationProcessingFeeAmount: z.number().positive().optional(),
   trusteeLetterConfig: z.record(z.unknown()).optional(),
   platformAccountsConfig: z.record(z.unknown()).optional(),
   ledgerBucketAccountsConfig: z.record(z.unknown()).optional(),

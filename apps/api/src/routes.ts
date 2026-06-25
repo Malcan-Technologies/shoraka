@@ -36,6 +36,7 @@ import {
 import { issuerDashboardRouter } from "./modules/issuer-dashboard/controller";
 import { ekycRouter } from "./modules/ekyc/controller";
 import { investorDepositsRouter } from "./modules/payment/deposit-controller";
+import { issuerOnboardingFeeRouter } from "./modules/payment/onboarding-fee-controller";
 import { gatewayPaymentsAdminRouter } from "./modules/payment/admin-controller";
 export function registerRoutes(app: Application): void {
   // Swagger API documentation (only in development)
@@ -139,12 +140,14 @@ export function registerRoutes(app: Application): void {
   if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {
     v1Router.use("/marketplace", devAuthBypass, marketplaceRouter);
     v1Router.use("/investor/deposits", devAuthBypass, investorDepositsRouter);
+    v1Router.use("/issuer/onboarding-fee", devAuthBypass, issuerOnboardingFeeRouter);
     v1Router.use("/investor", devAuthBypass, investorNotesRouter);
     v1Router.use("/issuer/dashboard", devAuthBypass, issuerDashboardRouter);
     v1Router.use("/issuer", devAuthBypass, issuerNotesRouter);
   } else {
     v1Router.use("/marketplace", requireAuth, marketplaceRouter);
     v1Router.use("/investor/deposits", requireAuth, investorDepositsRouter);
+    v1Router.use("/issuer/onboarding-fee", requireAuth, issuerOnboardingFeeRouter);
     v1Router.use("/investor", requireAuth, investorNotesRouter);
     v1Router.use("/issuer/dashboard", requireAuth, issuerDashboardRouter);
     v1Router.use("/issuer", requireAuth, issuerNotesRouter);

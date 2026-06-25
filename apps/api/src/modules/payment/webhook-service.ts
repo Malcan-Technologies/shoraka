@@ -1,7 +1,9 @@
 import {
+  GatewayPayment,
   GatewayPaymentPurpose,
   GatewayPaymentStatus,
   NameCheckResult,
+  NoteLedgerDirection,
   Prisma,
   PrismaClient,
 } from "@prisma/client";
@@ -10,6 +12,7 @@ import { getCurlecConfig } from "../../config/curlec";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma as defaultPrisma } from "../../lib/prisma";
+import { postLedgerEntry } from "../notes/ledger";
 import {
   creditCompletedDeposit,
   resolveInvestorExpectedName,
@@ -85,7 +88,7 @@ export async function processInvestorDepositCapture(
     include: { investor_organization: true },
   });
 
-  if (!payment || payment.purpose !== GatewayPaymentPurpose.INVESTOR_DEPOSIT) {
+  if (!payment) {
     await markWebhookProcessed(db, input.eventId);
     return;
   }
@@ -221,10 +224,130 @@ export async function processStoredCurlecWebhook(
     paymentId = captured.id;
   }
 
-  await processInvestorDepositCapture(
+  await processGatewayPaymentCapture(
     { orderId: capture.orderId, paymentId, eventId },
     db
   );
+}
+
+async function processGatewayPaymentCapture(
+  input: { orderId: string; paymentId: string; eventId: string },
+  db: PrismaClient
+): Promise<void> {
+  const payment = await db.gatewayPayment.findUnique({
+    where: { curlec_order_id: input.orderId },
+    select: { purpose: true },
+  });
+
+  if (!payment) {
+    await markWebhookProcessed(db, input.eventId, "Gateway payment not found for order");
+    return;
+  }
+
+  switch (payment.purpose) {
+    case GatewayPaymentPurpose.INVESTOR_DEPOSIT:
+      await processInvestorDepositCapture(input, db);
+      return;
+    case GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE:
+      await processOnboardingFeeCapture(input, db);
+      return;
+    default:
+      await markWebhookProcessed(db, input.eventId);
+  }
+}
+
+export async function processOnboardingFeeCapture(
+  input: { orderId: string; paymentId: string; eventId: string },
+  db: PrismaClient = defaultPrisma
+): Promise<void> {
+  const payment = await db.gatewayPayment.findUnique({
+    where: { curlec_order_id: input.orderId },
+  });
+
+  if (!payment) {
+    await markWebhookProcessed(db, input.eventId);
+    return;
+  }
+
+  if (TERMINAL_GATEWAY_STATUSES.has(payment.status)) {
+    await markWebhookProcessed(db, input.eventId);
+    return;
+  }
+
+  const curlecClient = createCurlecClient();
+  const curlecPayment = await curlecClient.fetchPayment(input.paymentId);
+
+  await db.gatewayPayment.update({
+    where: { id: payment.id },
+    data: {
+      curlec_payment_id: curlecPayment.id,
+      method: curlecPayment.method,
+    },
+  });
+
+  await db.$transaction(async (tx) => {
+    const statusAfterClaim = await claimCreatedToPaid(tx, payment.id);
+    if (!statusAfterClaim || statusAfterClaim !== GatewayPaymentStatus.PAID) {
+      return;
+    }
+
+    const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    await completeOnboardingFeePayment(tx, current);
+  });
+
+  await markWebhookProcessed(db, input.eventId);
+
+  logger.info(
+    {
+      eventId: input.eventId,
+      gatewayPaymentId: payment.id,
+      orderId: input.orderId,
+    },
+    "Issuer onboarding fee webhook processed"
+  );
+}
+
+async function completeOnboardingFeePayment(
+  tx: Prisma.TransactionClient,
+  gatewayPayment: GatewayPayment
+) {
+  assertTransition(gatewayPayment.status, GatewayPaymentStatus.COMPLETED);
+
+  if (!gatewayPayment.issuer_organization_id) {
+    throw new AppError(
+      500,
+      "GATEWAY_PAYMENT_INVALID",
+      "Issuer onboarding fee is missing organization"
+    );
+  }
+
+  const amount = gatewayPayment.amount.toNumber();
+  const orgId = gatewayPayment.issuer_organization_id;
+
+  await tx.issuerOrganization.update({
+    where: { id: orgId },
+    data: { onboarding_fee_paid_at: new Date() },
+  });
+
+  await postLedgerEntry(tx, {
+    accountCode: "OPERATING_ACCOUNT",
+    direction: NoteLedgerDirection.CREDIT,
+    amount,
+    description: "Issuer onboarding fee received into operating account",
+    idempotencyKey: `gateway-onboarding-fee:ledger:${gatewayPayment.id}`,
+    gatewayPaymentId: gatewayPayment.id,
+    metadata: {
+      gatewayPaymentId: gatewayPayment.id,
+      issuerOrganizationId: orgId,
+      curlecOrderId: gatewayPayment.curlec_order_id,
+      curlecPaymentId: gatewayPayment.curlec_payment_id,
+    },
+  });
+
+  await tx.gatewayPayment.update({
+    where: { id: gatewayPayment.id },
+    data: { status: GatewayPaymentStatus.COMPLETED },
+  });
 }
 
 /**

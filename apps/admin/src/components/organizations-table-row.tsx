@@ -22,12 +22,14 @@ import { cn } from "@/lib/utils";
 interface OrganizationsTableRowProps {
   organization: OrganizationResponse;
   showSophisticated?: boolean;
+  showOnboardingFee?: boolean;
   onViewDetails?: (organization: OrganizationResponse) => void;
 }
 
 export function OrganizationsTableRow({
   organization,
   showSophisticated = false,
+  showOnboardingFee = false,
   onViewDetails,
 }: OrganizationsTableRowProps) {
   const displayName =
@@ -142,6 +144,22 @@ export function OrganizationsTableRow({
           <span className="text-muted-foreground text-sm">—</span>
         )}
       </TableCell>
+
+      {showOnboardingFee && (
+        <TableCell>
+          {organization.onboardingFeePaid ? (
+            <Badge
+              variant="outline"
+              className="border-emerald-500/30 text-foreground bg-emerald-500/10"
+            >
+              <CheckCircleIcon className="h-3 w-3 mr-1 text-emerald-600" />
+              Paid
+            </Badge>
+          ) : (
+            <span className="text-muted-foreground text-sm">Pending</span>
+          )}
+        </TableCell>
+      )}
 
       {/* Sophisticated Investor Status (only for investor portal) */}
       {showSophisticated && (

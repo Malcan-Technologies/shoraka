@@ -1606,6 +1606,7 @@ export class AdminRepository {
       registration_number: string | null;
       onboarding_status: OnboardingStatus;
       onboarded_at: Date | null;
+      onboarding_fee_paid_at: Date | null;
       kyc_response: unknown;
       created_at: Date;
       updated_at: Date;
@@ -1714,6 +1715,7 @@ export class AdminRepository {
           memberCount: org._count.members,
           isSophisticatedInvestor: org.is_sophisticated_investor,
           depositReceived: org.deposit_received,
+          onboardingFeePaid: false,
           walletBalance: org.investor_balance?.available_amount?.toNumber() ?? 0,
           investedAmount: investedAmountByOrgId.get(org.id) ?? 0,
           riskLevel,
@@ -1750,6 +1752,7 @@ export class AdminRepository {
           memberCount: org._count.members,
           isSophisticatedInvestor: false, // Issuers don't have sophisticated investor status
           depositReceived: false, // Issuers don't have deposit received status
+          onboardingFeePaid: Boolean(org.onboarding_fee_paid_at),
           walletBalance: null, // Issuers don't have an investor wallet
           investedAmount: null, // Issuers don't deploy investments
           riskLevel,

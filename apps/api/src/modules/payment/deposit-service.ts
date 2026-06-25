@@ -11,15 +11,12 @@ import {
   Prisma,
   PrismaClient,
 } from "@prisma/client";
-import { randomUUID } from "crypto";
-import { getCurlecConfig } from "../../config/curlec";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma as defaultPrisma } from "../../lib/prisma";
 import { creditInvestorBalance } from "../notes/investor-balance";
 import { postLedgerEntry } from "../notes/ledger";
-import { createCurlecClient } from "./curlec-client";
 import { CreateInvestorDepositInput } from "./deposit-schemas";
-import { myrToSen } from "./money";
+import { createGatewayOrder, mapGatewayPaymentResponse } from "./gateway-order-service";
 import { assertTransition } from "./state";
 
 export type ActorContext = {
@@ -34,19 +31,20 @@ function decimalToNumber(value: Prisma.Decimal): number {
 }
 
 function mapDepositResponse(payment: GatewayPayment) {
+  const mapped = mapGatewayPaymentResponse(payment);
   return {
-    id: payment.id,
-    status: payment.status,
-    purpose: payment.purpose,
-    amount: decimalToNumber(payment.amount),
-    currency: payment.currency,
-    curlecOrderId: payment.curlec_order_id,
-    curlecKeyId: getCurlecConfig().keyId,
-    investorOrganizationId: payment.investor_organization_id,
-    nameCheckResult: payment.name_check_result,
-    payerName: payment.payer_name,
-    createdAt: payment.created_at.toISOString(),
-    updatedAt: payment.updated_at.toISOString(),
+    id: mapped.id,
+    status: mapped.status,
+    purpose: mapped.purpose,
+    amount: mapped.amount,
+    currency: mapped.currency,
+    curlecOrderId: mapped.curlecOrderId,
+    curlecKeyId: mapped.curlecKeyId,
+    investorOrganizationId: mapped.investorOrganizationId,
+    nameCheckResult: mapped.nameCheckResult,
+    payerName: mapped.payerName,
+    createdAt: mapped.createdAt,
+    updatedAt: mapped.updatedAt,
   };
 }
 
@@ -105,36 +103,20 @@ export async function createInvestorDeposit(
     );
   }
 
-  const receipt = `dep_${randomUUID().replace(/-/g, "").slice(0, 24)}`;
-  const curlecClient = createCurlecClient();
-  const order = await curlecClient.createOrder({
-    amountSen: myrToSen(input.amount),
-    currency: "MYR",
-    receipt,
-    notes: {
+  return createGatewayOrder(
+    actor,
+    {
       purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+      organizationType: GatewayOrganizationType.INVESTOR,
+      amount: input.amount,
+      receiptPrefix: "dep",
+      notes: {
+        investorOrganizationId: input.investorOrganizationId,
+      },
       investorOrganizationId: input.investorOrganizationId,
     },
-  });
-
-  const payment = await db.gatewayPayment.create({
-    data: {
-      purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
-      organization_type: GatewayOrganizationType.INVESTOR,
-      investor_organization_id: input.investorOrganizationId,
-      amount: new Prisma.Decimal(input.amount.toFixed(6)),
-      currency: "MYR",
-      status: GatewayPaymentStatus.CREATED,
-      curlec_order_id: order.id,
-      idempotency_key: `curlec:order:${order.id}`,
-      metadata: {
-        actorUserId: actor.userId,
-        receipt,
-      },
-    },
-  });
-
-  return mapDepositResponse(payment);
+    db
+  );
 }
 
 export async function getInvestorDeposit(

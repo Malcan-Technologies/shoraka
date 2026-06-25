@@ -94,6 +94,7 @@ export function InvestorDepositForm({
         orderId: created.curlecOrderId,
         amountMyr: created.amount,
         callbackUrl,
+        description: "Investor deposit",
         prefillName: checkoutContact.name,
         prefillEmail: checkoutContact.email,
         prefillContact: checkoutContact.contact,

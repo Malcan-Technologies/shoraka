@@ -443,6 +443,7 @@ export interface OrganizationResponse {
   memberCount: number;
   isSophisticatedInvestor: boolean; // Only applicable for investor portal
   depositReceived: boolean; // Only applicable for investor portal
+  onboardingFeePaid: boolean; // Only applicable for issuer portal
   walletBalance: number | null; // Investor portal only — available cash in investor wallet
   investedAmount: number | null; // Investor portal only — total amount currently invested across active notes
   riskLevel: string | null; // From KYC response: "Low Risk", "Medium Risk", "High Risk"

@@ -7,7 +7,7 @@ import {
   RegTankWebhookPayload,
   PortalType,
 } from "./types";
-import { OnboardingStatus, OrganizationType, UserRole, Prisma } from "@prisma/client";
+import { OnboardingStatus, OrganizationType, UserRole, Prisma, IssuerOrganization } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
@@ -554,6 +554,17 @@ export class RegTankService {
         "INVALID_ORGANIZATION_TYPE",
         "Corporate onboarding can only be started for COMPANY organizations"
       );
+    }
+
+    if (portalType === "issuer") {
+      const issuerOrg = organization as IssuerOrganization;
+      if (!issuerOrg.onboarding_fee_paid_at) {
+        throw new AppError(
+          402,
+          "ONBOARDING_FEE_REQUIRED",
+          "Issuer onboarding fee must be paid before starting eKYB"
+        );
+      }
     }
 
     // Check if there's already an active onboarding
