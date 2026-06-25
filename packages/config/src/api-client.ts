@@ -123,6 +123,9 @@ import type {
   WithdrawalInstruction,
   ShorakaWithdrawalState,
   ShorakaSubmitOrderStateResponse,
+  GatewayPaymentDetailDto,
+  GatewayPaymentListResponse,
+  GatewayPaymentPendingCountResponse,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -866,6 +869,110 @@ export class ApiClient {
 
   async getAdminWithdrawal(id: string): Promise<ApiResponse<WithdrawalInstruction> | ApiError> {
     return this.get<WithdrawalInstruction>(`/v1/admin/withdrawals/${id}`);
+  }
+
+  async listAdminGatewayPayments(params?: {
+    page?: number;
+    pageSize?: number;
+    status?: string;
+    purpose?: string;
+    organizationType?: string;
+    queue?: "held";
+    search?: string;
+  }): Promise<ApiResponse<GatewayPaymentListResponse> | ApiError> {
+    const search = new URLSearchParams();
+    if (params?.page) search.set("page", String(params.page));
+    if (params?.pageSize) search.set("pageSize", String(params.pageSize));
+    if (params?.status) search.set("status", params.status);
+    if (params?.purpose) search.set("purpose", params.purpose);
+    if (params?.organizationType) search.set("organizationType", params.organizationType);
+    if (params?.queue) search.set("queue", params.queue);
+    if (params?.search) search.set("search", params.search);
+    const qs = search.toString();
+    return this.get<GatewayPaymentListResponse>(
+      `/v1/admin/gateway-payments${qs ? `?${qs}` : ""}`
+    );
+  }
+
+  async getAdminHeldGatewayPaymentsPendingCount(): Promise<
+    ApiResponse<GatewayPaymentPendingCountResponse> | ApiError
+  > {
+    return this.get<GatewayPaymentPendingCountResponse>(
+      "/v1/admin/gateway-payments/held/pending-count"
+    );
+  }
+
+  async getAdminGatewayPayment(id: string): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
+    return this.get<GatewayPaymentDetailDto>(`/v1/admin/gateway-payments/${id}`);
+  }
+
+  async approveGatewayPaymentNameCheck(
+    id: string,
+    reason: string
+  ): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
+    return this.post<GatewayPaymentDetailDto>(
+      `/v1/admin/gateway-payments/${id}/name-check/approve`,
+      { reason }
+    );
+  }
+
+  async rejectGatewayPaymentNameCheck(
+    id: string,
+    reason: string
+  ): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
+    return this.post<GatewayPaymentDetailDto>(
+      `/v1/admin/gateway-payments/${id}/name-check/reject`,
+      { reason }
+    );
+  }
+
+  async proposeGatewayPaymentOverride(
+    id: string,
+    reason: string
+  ): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
+    return this.post<GatewayPaymentDetailDto>(
+      `/v1/admin/gateway-payments/${id}/override/propose`,
+      { reason }
+    );
+  }
+
+  async approveGatewayPaymentOverride(
+    id: string
+  ): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
+    return this.post<GatewayPaymentDetailDto>(
+      `/v1/admin/gateway-payments/${id}/override/approve`,
+      {}
+    );
+  }
+
+  async rejectGatewayPaymentOverride(
+    id: string,
+    reason: string
+  ): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
+    return this.post<GatewayPaymentDetailDto>(
+      `/v1/admin/gateway-payments/${id}/override/reject`,
+      { reason }
+    );
+  }
+
+  async recordGatewayPaymentRefund(
+    id: string,
+    input: { reference: string; notes?: string }
+  ): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
+    return this.post<GatewayPaymentDetailDto>(
+      `/v1/admin/gateway-payments/${id}/refund/record`,
+      input
+    );
+  }
+
+  async completeGatewayPaymentRefund(
+    id: string,
+    input?: { notes?: string }
+  ): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
+    return this.post<GatewayPaymentDetailDto>(
+      `/v1/admin/gateway-payments/${id}/refund/complete`,
+      input ?? {}
+    );
   }
 
   async requestInvestorWithdrawal(data: {

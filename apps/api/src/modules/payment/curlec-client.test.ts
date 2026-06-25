@@ -122,7 +122,26 @@ describe("Curlec payment field extractors", () => {
     ).toBe("John Doe");
   });
 
-  it("returns null payer name when FPX payload has no holder name (M0 finding)", () => {
+  it("extracts payer name from FPX fpx_buyerName (Razorpay fetch-payment)", () => {
+    expect(
+      extractPayerNameFromPayment({
+        id: "pay_1",
+        amount: 100,
+        currency: "MYR",
+        status: "captured",
+        bank: "HSBC",
+        acquirer_data: {
+          fpx_data: {
+            fpx_buyerName: "Test name",
+            fpx_debitAuthCode: "00",
+            fpx_type: "N",
+          },
+        },
+      })
+    ).toBe("Test name");
+  });
+
+  it("returns null when FPX payload has no buyer name", () => {
     expect(
       extractPayerNameFromPayment({
         id: "pay_1",

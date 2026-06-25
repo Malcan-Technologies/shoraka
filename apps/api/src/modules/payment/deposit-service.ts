@@ -232,6 +232,7 @@ export async function creditCompletedDeposit(
       status: GatewayPaymentStatus.COMPLETED,
       name_check_result: opts?.nameCheckResult ?? NameCheckResult.PASS,
       name_check_at: new Date(),
+      ...(opts?.actorUserId ? { name_checked_by_user_id: opts.actorUserId } : {}),
     },
   });
 }

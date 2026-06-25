@@ -1016,6 +1016,7 @@ model GatewayPayment {
   investor_organization    InvestorOrganization?   @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
   issuer_organization      IssuerOrganization?     @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
   application              Application?            @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  events                   GatewayPaymentEvent[]
 
   @@index([status, created_at])
   @@index([purpose])
@@ -1023,6 +1024,23 @@ model GatewayPayment {
   @@index([issuer_organization_id])
   @@index([application_id])
   @@map("gateway_payments")
+}
+
+/// Admin audit trail for gateway payment status and resolution actions.
+model GatewayPaymentEvent {
+  id                  String                 @id @default(cuid())
+  gateway_payment_id  String
+  type                GatewayPaymentEventType
+  actor_user_id       String?
+  from_status         GatewayPaymentStatus?
+  to_status           GatewayPaymentStatus?
+  reason              String?
+  metadata            Json?
+  created_at          DateTime               @default(now())
+  gateway_payment     GatewayPayment         @relation(fields: [gateway_payment_id], references: [id], onDelete: Cascade)
+
+  @@index([gateway_payment_id, created_at])
+  @@map("gateway_payment_events")
 }
 
 /// Raw Curlec webhook events for dedup and audit (processed in later milestones).
@@ -1614,6 +1632,17 @@ enum NameCheckResult {
   PASS
   FAIL
   NAME_UNAVAILABLE
+}
+
+enum GatewayPaymentEventType {
+  NAME_CHECK
+  NAME_CHECK_APPROVED
+  NAME_CHECK_REJECTED
+  OVERRIDE_PROPOSED
+  OVERRIDE_APPROVED
+  OVERRIDE_REJECTED
+  REFUND_INITIATED
+  REFUNDED
 }
 
 enum NotePaymentSource {

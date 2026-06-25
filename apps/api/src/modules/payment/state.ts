@@ -16,7 +16,10 @@ const ALLOWED_TRANSITIONS: Record<GatewayPaymentStatus, GatewayPaymentStatus[]> 
     GatewayPaymentStatus.COMPLETED,
     GatewayPaymentStatus.HELD,
   ],
-  [GatewayPaymentStatus.HELD]: [GatewayPaymentStatus.REFUND_INITIATED],
+  [GatewayPaymentStatus.HELD]: [
+    GatewayPaymentStatus.COMPLETED,
+    GatewayPaymentStatus.REFUND_INITIATED,
+  ],
   [GatewayPaymentStatus.COMPLETED]: [GatewayPaymentStatus.REFUND_INITIATED],
   [GatewayPaymentStatus.REFUND_INITIATED]: [GatewayPaymentStatus.REFUNDED],
   [GatewayPaymentStatus.REFUNDED]: [],

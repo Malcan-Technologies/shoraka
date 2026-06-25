@@ -437,4 +437,5 @@ export * from "./marketplace-note-dates";
 export * from "./offer-signing";
 export * from "./guarantors";
 export * from "./company-name-normalization";
+export * from "./gateway-payments";
 export * from "./rbac";

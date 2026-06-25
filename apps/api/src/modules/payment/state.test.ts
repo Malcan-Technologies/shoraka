@@ -29,6 +29,10 @@ describe("gateway payment state transitions", () => {
     );
   });
 
+  it("allows HELD → COMPLETED for maker-checker override credit", () => {
+    expect(isTransitionAllowed(GatewayPaymentStatus.HELD, GatewayPaymentStatus.COMPLETED)).toBe(true);
+  });
+
   it("marks post-payment outcomes as terminal for webhook replay", () => {
     expect(TERMINAL_GATEWAY_STATUSES.has(GatewayPaymentStatus.COMPLETED)).toBe(true);
     expect(TERMINAL_GATEWAY_STATUSES.has(GatewayPaymentStatus.HELD)).toBe(true);

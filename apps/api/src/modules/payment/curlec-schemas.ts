@@ -15,6 +15,25 @@ export const curlecOrderSchema = z.object({
 
 export type CurlecOrder = z.infer<typeof curlecOrderSchema>;
 
+const curlecFpxDataSchema = z
+  .object({
+    fpx_buyerName: z.string().nullable().optional(),
+    fpx_debitAuthCode: z.string().nullable().optional(),
+    fpx_type: z.string().nullable().optional(),
+  })
+  .passthrough();
+
+const curlecAcquirerDataSchema = z
+  .object({
+    fpx_data: curlecFpxDataSchema.nullable().optional(),
+    account_holder_name: z.string().nullable().optional(),
+    payer_name: z.string().nullable().optional(),
+    name: z.string().nullable().optional(),
+    buyer_name: z.string().nullable().optional(),
+    bank_code: z.string().nullable().optional(),
+  })
+  .passthrough();
+
 export const curlecPaymentSchema = z.object({
   id: z.string(),
   entity: z.literal("payment").optional(),
@@ -28,7 +47,7 @@ export const curlecPaymentSchema = z.object({
   contact: z.string().nullable().optional(),
   fee: z.number().int().nonnegative().optional(),
   tax: z.number().int().nonnegative().optional(),
-  acquirer_data: z.record(z.unknown()).optional(),
+  acquirer_data: curlecAcquirerDataSchema.nullable().optional(),
   notes: z.record(z.string()).optional(),
   created_at: z.number().optional(),
 });
@@ -70,15 +89,25 @@ export const createCurlecOrderInputSchema = z.object({
 
 export type CreateCurlecOrderInput = z.infer<typeof createCurlecOrderInputSchema>;
 
-/** Best-effort payer display name from payment payload (FPX often has no holder name). */
+/** Payer display name from Curlec fetch-payment (FPX: acquirer_data.fpx_data.fpx_buyerName). */
 export function extractPayerNameFromPayment(payment: CurlecPayment): string | null {
   const acquirer = payment.acquirer_data;
-  if (acquirer && typeof acquirer === "object") {
-    for (const key of ["account_holder_name", "payer_name", "name", "buyer_name"]) {
-      const value = acquirer[key];
-      if (typeof value === "string" && value.trim()) {
-        return value.trim();
-      }
+  if (!acquirer || typeof acquirer !== "object") {
+    return null;
+  }
+
+  const fpxData = acquirer.fpx_data;
+  if (fpxData && typeof fpxData === "object" && !Array.isArray(fpxData)) {
+    const fpxBuyerName = fpxData.fpx_buyerName;
+    if (typeof fpxBuyerName === "string" && fpxBuyerName.trim()) {
+      return fpxBuyerName.trim();
+    }
+  }
+
+  for (const key of ["account_holder_name", "payer_name", "name", "buyer_name"]) {
+    const value = acquirer[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
     }
   }
 

@@ -36,6 +36,7 @@ import {
 import { issuerDashboardRouter } from "./modules/issuer-dashboard/controller";
 import { ekycRouter } from "./modules/ekyc/controller";
 import { investorDepositsRouter } from "./modules/payment/deposit-controller";
+import { gatewayPaymentsAdminRouter } from "./modules/payment/admin-controller";
 export function registerRoutes(app: Application): void {
   // Swagger API documentation (only in development)
   if (process.env.NODE_ENV !== "production") {
@@ -119,6 +120,7 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/admin/investments", devAuthBypass, adminInvestmentsRouter);
     v1Router.use("/admin/platform-finance-settings", devAuthBypass, platformFinanceSettingsRouter);
     v1Router.use("/admin/withdrawals", devAuthBypass, withdrawalsRouter);
+    v1Router.use("/admin/gateway-payments", devAuthBypass, gatewayPaymentsAdminRouter);
     v1Router.use("/admin/site-documents", devAuthBypass, requireRole(UserRole.ADMIN), siteDocumentAdminRouter);
     v1Router.use("/admin/document-logs", devAuthBypass, requireRole(UserRole.ADMIN), documentLogRouter);
     v1Router.use("/admin/product-logs", devAuthBypass, requireRole(UserRole.ADMIN), productLogRouter);
@@ -128,6 +130,7 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/admin/investments", requireAuth, adminInvestmentsRouter);
     v1Router.use("/admin/platform-finance-settings", requireAuth, platformFinanceSettingsRouter);
     v1Router.use("/admin/withdrawals", requireAuth, withdrawalsRouter);
+    v1Router.use("/admin/gateway-payments", requireAuth, gatewayPaymentsAdminRouter);
     v1Router.use("/admin/site-documents", requireAuth, requireRole(UserRole.ADMIN), siteDocumentAdminRouter);
     v1Router.use("/admin/document-logs", requireAuth, requireRole(UserRole.ADMIN), documentLogRouter);
     v1Router.use("/admin/product-logs", requireAuth, requireRole(UserRole.ADMIN), productLogRouter);
