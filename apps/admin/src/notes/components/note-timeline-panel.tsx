@@ -35,9 +35,9 @@ function formatEventLabel(eventType: string) {
     OVERDUE_LATE_CHARGE_CHECKED: "Overdue late charge checked",
     ARREARS_LETTER_GENERATED: "Arrears letter generated",
     DEFAULT_LETTER_GENERATED: "Default letter generated",
-    SERVICE_FEE_TRUSTEE_LETTER_GENERATED: "Service fee trustee letter generated",
-    SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED: "Service fee trustee letter submitted",
-    SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED: "Service fee trustee instruction completed",
+    SERVICE_FEE_TRUSTEE_LETTER_GENERATED: "Settlement trustee letter generated",
+    SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED: "Settlement trustee letter submitted",
+    SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED: "Settlement trustee instruction completed",
     NOTE_DEFAULT_MARKED: "Default marked",
     SHORAKA_ORDER_SUBMITTED: "Tawarruq order submitted",
     SHORAKA_CERTIFICATE_FETCHED: "Tawarruq Certificate fetched",
@@ -144,7 +144,7 @@ function extractMetadataDetails(event: NoteEvent): {
 function buildFileName(event: NoteEvent) {
   if (event.eventType === "ARREARS_LETTER_GENERATED") return `arrears-letter-${event.noteId}.pdf`;
   if (event.eventType === "SERVICE_FEE_TRUSTEE_LETTER_GENERATED") {
-    return `service-fee-trustee-letter-${event.noteId}.pdf`;
+    return `settlement-trustee-letter-${event.noteId}.pdf`;
   }
   return `note-letter-${event.noteId}.pdf`;
 }

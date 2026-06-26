@@ -535,11 +535,13 @@ export interface PendingRepaymentsResponse {
 
 export interface PendingIssuerPayoutItem {
   withdrawalId: string;
+  settlementId: string | null;
   noteId: string;
   noteTitle: string | null;
   noteStatus: string | null;
   issuerOrganizationId: string | null;
   issuerOrganizationName: string | null;
+  rowSource: "WITHDRAWAL" | "SETTLEMENT_RESIDUAL";
   withdrawalType: string;
   amount: number;
   currency: string;
@@ -554,7 +556,7 @@ export interface PendingIssuerPayoutsResponse {
   items: PendingIssuerPayoutItem[];
 }
 
-/** Posted settlements with a positive service fee where the trustee instruction is not fully completed. */
+/** Posted settlements with trustee movements where the settlement trustee instruction is not fully completed. */
 export interface PendingServiceFeeTrusteeLetterItem {
   settlementId: string;
   noteId: string;
@@ -562,6 +564,7 @@ export interface PendingServiceFeeTrusteeLetterItem {
   noteStatus: string | null;
   issuerOrganizationId: string | null;
   issuerOrganizationName: string | null;
+  /** Total settlement trustee instruction amount across all instruction rows. */
   serviceFeeAmount: number;
   currency: string;
   settlementPostedAt: string | null;

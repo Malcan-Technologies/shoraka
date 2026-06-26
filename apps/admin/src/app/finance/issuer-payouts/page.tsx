@@ -234,7 +234,7 @@ export default function PendingIssuerPayoutsPage() {
                               <TableCell className="text-right">
                                 <Button asChild variant="ghost" size="sm" className="gap-1">
                                   <Link href={`/notes/${item.noteId}`}>
-                                    Open
+                                    {item.rowSource === "SETTLEMENT_RESIDUAL" ? "View Settlement" : "Open"}
                                     <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                                   </Link>
                                 </Button>
