@@ -1680,7 +1680,7 @@ export class NoteService {
       status: ServiceFeeTrusteeInstructionStatus | null
     ): string => {
       if (!status || status === ServiceFeeTrusteeInstructionStatus.PENDING_LETTER) {
-        return "PENDING_SETTLEMENT_TRUSTEE_LETTER";
+        return WithdrawalStatus.DRAFT;
       }
       if (status === ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED) {
         return WithdrawalStatus.LETTER_GENERATED;

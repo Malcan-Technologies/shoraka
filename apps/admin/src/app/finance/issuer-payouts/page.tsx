@@ -29,14 +29,12 @@ import { RequirePermission } from "@/components/require-permission";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   DRAFT: "secondary",
-  PENDING_SETTLEMENT_TRUSTEE_LETTER: "secondary",
   LETTER_GENERATED: "outline",
   SUBMITTED_TO_TRUSTEE: "default",
 };
 
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: "Draft",
-  PENDING_SETTLEMENT_TRUSTEE_LETTER: "Pending Settlement Trustee Letter",
   LETTER_GENERATED: "Letter generated",
   SUBMITTED_TO_TRUSTEE: "Submitted to trustee",
   COMPLETED: "Completed",
