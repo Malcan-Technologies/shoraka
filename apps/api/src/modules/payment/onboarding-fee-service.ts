@@ -10,6 +10,7 @@ import { prisma as defaultPrisma } from "../../lib/prisma";
 import type { ActorContext } from "./deposit-service";
 import { CreateIssuerOnboardingFeeInput } from "./onboarding-fee-schemas";
 import { createGatewayOrder, mapGatewayPaymentResponse } from "./gateway-order-service";
+import { syncGatewayPaymentFromCurlec } from "./webhook-service";
 
 function decimalToNumber(value: Prisma.Decimal): number {
   return value.toNumber();
@@ -64,6 +65,14 @@ export async function createIssuerOnboardingFee(
   db: PrismaClient = defaultPrisma
 ) {
   const issuerOrg = await assertIssuerOrgAccess(db, actor, input.issuerOrganizationId);
+
+  if (!issuerOrg.tnc_accepted) {
+    throw new AppError(
+      402,
+      "TNC_REQUIRED",
+      "Terms and Conditions must be accepted before paying the onboarding fee"
+    );
+  }
 
   if (issuerOrg.onboarding_fee_paid_at) {
     const completed = await db.gatewayPayment.findFirst({
@@ -122,5 +131,6 @@ export async function getIssuerOnboardingFee(
     throw new AppError(404, "ONBOARDING_FEE_NOT_FOUND", "Onboarding fee payment not found");
   }
 
-  return mapGatewayPaymentResponse(payment);
+  const synced = await syncGatewayPaymentFromCurlec(payment, db);
+  return mapGatewayPaymentResponse(synced);
 }

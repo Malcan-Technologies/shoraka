@@ -28,6 +28,7 @@ import { assertTransition, TERMINAL_GATEWAY_STATUSES } from "./state";
 import {
   curlecWebhookPayloadSchema,
   extractDepositCaptureRefs,
+  extractPaymentFailedRefs,
   type CurlecWebhookPayload,
 } from "./webhook-schemas";
 
@@ -50,6 +51,11 @@ async function markWebhookProcessed(
   eventId: string,
   error?: string | null
 ) {
+  // Sync-from-Curlec paths do not ingest a webhook row first.
+  if (eventId.startsWith("sync:")) {
+    return;
+  }
+
   await db.gatewayWebhookEvent.update({
     where: { event_id: eventId },
     data: {
@@ -201,6 +207,23 @@ export async function processStoredCurlecWebhook(
   }
 
   if (!DEPOSIT_CAPTURE_EVENTS.has(payload.event)) {
+    if (payload.event === "payment.failed") {
+      const failed = extractPaymentFailedRefs(payload);
+      if (failed) {
+        await markGatewayPaymentFailedByOrderId(
+          db,
+          failed.orderId,
+          failed.paymentId
+        );
+      }
+      await markWebhookProcessed(
+        db,
+        eventId,
+        failed ? null : "Missing payment references"
+      );
+      return;
+    }
+
     await markWebhookProcessed(db, eventId);
     return;
   }
@@ -305,6 +328,97 @@ export async function processOnboardingFeeCapture(
     },
     "Issuer onboarding fee webhook processed"
   );
+}
+
+async function markGatewayPaymentFailedByOrderId(
+  db: PrismaClient,
+  orderId: string,
+  curlecPaymentId?: string,
+  method?: string | null
+): Promise<GatewayPayment | null> {
+  const payment = await db.gatewayPayment.findUnique({
+    where: { curlec_order_id: orderId },
+  });
+
+  if (!payment || TERMINAL_GATEWAY_STATUSES.has(payment.status)) {
+    return payment;
+  }
+
+  if (payment.status !== GatewayPaymentStatus.CREATED) {
+    return payment;
+  }
+
+  assertTransition(payment.status, GatewayPaymentStatus.FAILED);
+
+  return db.gatewayPayment.update({
+    where: { id: payment.id },
+    data: {
+      status: GatewayPaymentStatus.FAILED,
+      curlec_payment_id: curlecPaymentId ?? payment.curlec_payment_id,
+      method: method ?? payment.method,
+    },
+  });
+}
+
+/**
+ * Reconcile a non-terminal gateway payment with Curlec order payments.
+ * Used when the user returns from FPX before webhooks arrive.
+ */
+export async function syncGatewayPaymentFromCurlec(
+  payment: GatewayPayment,
+  db: PrismaClient = defaultPrisma
+): Promise<GatewayPayment> {
+  if (TERMINAL_GATEWAY_STATUSES.has(payment.status)) {
+    return payment;
+  }
+
+  const curlecClient = createCurlecClient();
+  let orderPayments;
+  try {
+    orderPayments = await curlecClient.fetchOrderPayments(payment.curlec_order_id);
+  } catch (error) {
+    logger.warn(
+      {
+        gatewayPaymentId: payment.id,
+        orderId: payment.curlec_order_id,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "Curlec order payments sync failed"
+    );
+    return payment;
+  }
+
+  if (orderPayments.length === 0) {
+    return payment;
+  }
+
+  const latest = [...orderPayments].sort(
+    (a, b) => (b.created_at ?? 0) - (a.created_at ?? 0)
+  )[0];
+
+  if (latest.status === "failed") {
+    const updated = await markGatewayPaymentFailedByOrderId(
+      db,
+      payment.curlec_order_id,
+      latest.id,
+      latest.method
+    );
+    return updated ?? payment;
+  }
+
+  if (latest.status === "captured") {
+    await processGatewayPaymentCapture(
+      {
+        orderId: payment.curlec_order_id,
+        paymentId: latest.id,
+        eventId: `sync:${payment.id}:${latest.id}`,
+      },
+      db
+    );
+    return db.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+  }
+
+  return payment;
 }
 
 async function completeOnboardingFeePayment(

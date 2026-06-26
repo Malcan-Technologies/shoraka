@@ -42,7 +42,6 @@ export function TermsAcceptanceCard({ organizationId, onAccepted }: TermsAccepta
     }
   };
 
-  // Format the last updated date
   const formattedDate = TNC_LAST_UPDATED.toLocaleDateString("en-MY", {
     year: "numeric",
     month: "long",
@@ -92,4 +91,3 @@ export function TermsAcceptanceCard({ organizationId, onAccepted }: TermsAccepta
     </Card>
   );
 }
-

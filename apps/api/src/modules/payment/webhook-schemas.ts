@@ -46,3 +46,21 @@ export function extractDepositCaptureRefs(
 
   return null;
 }
+
+/** Extract order/payment ids from payment.failed webhooks. */
+export function extractPaymentFailedRefs(
+  payload: CurlecWebhookPayload
+): { orderId: string; paymentId: string } | null {
+  if (payload.event !== "payment.failed") {
+    return null;
+  }
+
+  const entity = readNestedEntity(payload.payload?.payment);
+  const orderId = entity?.order_id;
+  const paymentId = entity?.id;
+  if (typeof orderId === "string" && typeof paymentId === "string") {
+    return { orderId, paymentId };
+  }
+
+  return null;
+}

@@ -36,6 +36,7 @@ jest.mock("./curlec-client", () => {
         method: "fpx",
         order_id: "order_test_m8_1",
       })),
+      fetchOrderPayments: jest.fn(async () => []),
     })),
   };
 });
@@ -109,6 +110,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
         owner_user_id: userId,
         type: OrganizationType.COMPANY,
         name: "Acme Corp",
+        tnc_accepted: true,
       },
     });
     orgId = org.id;
@@ -190,6 +192,39 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       },
     });
     expect(count).toBe(1);
+  });
+
+  it("blocks fee create when TNC not accepted", async () => {
+    if (!migrated) return;
+
+    const suffix = `${Date.now()}`.slice(-4);
+    const tncUser = await prisma.user.create({
+      data: {
+        user_id: `T${suffix}`.slice(0, 5),
+        email: `tnc-fee-${Date.now()}@example.com`,
+        cognito_sub: `sub-tnc-${Date.now()}`,
+        cognito_username: `tnc-${Date.now()}`,
+        first_name: "Tnc",
+        last_name: "Gate",
+        roles: [UserRole.ISSUER],
+        issuer_account: ["COMPANY"],
+      },
+    });
+    createdUserIds.push(tncUser.user_id);
+
+    const tncOrg = await prisma.issuerOrganization.create({
+      data: {
+        owner_user_id: tncUser.user_id,
+        type: OrganizationType.COMPANY,
+        name: "TNC Gate Corp",
+        tnc_accepted: false,
+      },
+    });
+    createdOrgIds.push(tncOrg.id);
+
+    await expect(
+      createIssuerOnboardingFee({ userId: tncUser.user_id }, { issuerOrganizationId: tncOrg.id }, prisma)
+    ).rejects.toMatchObject({ code: "TNC_REQUIRED" });
   });
 
   it("blocks IDOR on fee lookup", async () => {

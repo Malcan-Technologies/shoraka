@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Suspense } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Button,
@@ -22,6 +22,7 @@ import { AccountTypeSelector } from "../../components/account-type-selector";
 import { useHeader } from "@cashsouk/ui";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
+import { needsOnboardingStartFee } from "@/lib/issuer-onboarding-flow";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const INVESTOR_URL = process.env.NEXT_PUBLIC_INVESTOR_URL || "http://localhost:3002";
@@ -36,14 +37,38 @@ function OnboardingStartPageContent() {
   }, [setTitle]);
 
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const continueFee = searchParams.get("continue") === "fee";
+  const { isLoading: orgLoading, activeOrganization, organizations } = useOrganization();
   const { getAccessToken } = useAuthToken();
-  const { isLoading: orgLoading } = useOrganization();
   const [user, setUser] = useState<{ firstName: string; lastName: string } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [step, setStep] = useState<OnboardingStep>("welcome");
+  const [step, setStep] = useState<OnboardingStep>(continueFee ? "account-type" : "welcome");
   const [nameForm, setNameForm] = useState({ firstName: "", lastName: "" });
   const [savingName, setSavingName] = useState(false);
-  const [onboardingStarted, setOnboardingStarted] = useState(false);
+  const [onboardingStarted, setOnboardingStarted] = useState(continueFee);
+
+  // After T&C on the dashboard, skip welcome and resume the fee step.
+  useEffect(() => {
+    if (!continueFee) return;
+
+    setOnboardingStarted(true);
+    setStep("account-type");
+  }, [continueFee]);
+
+  useEffect(() => {
+    if (orgLoading || !continueFee) return;
+
+    const feeOrg =
+      activeOrganization && needsOnboardingStartFee(activeOrganization)
+        ? activeOrganization
+        : organizations.find((org) => org.isOwner && needsOnboardingStartFee(org));
+
+    if (feeOrg) {
+      setOnboardingStarted(true);
+      setStep("account-type");
+    }
+  }, [continueFee, orgLoading, activeOrganization, organizations]);
 
   // Note: We do NOT redirect users away from this page based on active organization status.
   // This page is for adding NEW organizations, so users should be able to access it
@@ -200,8 +225,8 @@ function OnboardingStartPageContent() {
     window.location.href = INVESTOR_URL;
   };
 
-  // Show loading state while fetching user data
-  if (loading || orgLoading) {
+  // Keep fee UI mounted during org refresh (switchOrganization triggers isLoading).
+  if (loading || (orgLoading && step !== "account-type")) {
     return (
       <>
         <div className="flex flex-1 flex-col items-center justify-center bg-muted/30 p-4">
@@ -379,6 +404,8 @@ function OnboardingStartPageContent() {
           {step === "account-type" && (
             <AccountTypeSelector
               onBack={handleBackToWelcome}
+              resumeFeePayment={continueFee}
+              suppressResumeWhileFeeReturn={Boolean(searchParams.get("onboardingFeeReturn"))}
             />
           )}
         </div>

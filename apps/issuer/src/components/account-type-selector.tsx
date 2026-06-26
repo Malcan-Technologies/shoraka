@@ -32,15 +32,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import {
+  isAwaitingCompanyTnc,
+  isReadyForIssuerEkyc,
+  needsOnboardingStartFee,
+} from "@/lib/issuer-onboarding-flow";
+import { ISSUER_ONBOARDING_FEE_RETURN_TO } from "@/lib/issuer-onboarding-fee-routes";
+import {
   storeIssuerPendingOnboarding,
   useCreateIssuerOnboardingFeeMutation,
   useIssuerOnboardingFeeQuery,
 } from "@/hooks/use-issuer-onboarding-fee";
+import type { IssuerOnboardingFeeResponse } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 interface AccountTypeSelectorProps {
   onBack: () => void;
+  /** Set when arriving from dashboard after T&C — auto-open the fee step. */
+  resumeFeePayment?: boolean;
+  /** FPX return dialog owns post-payment flow — avoid competing resume logic. */
+  suppressResumeWhileFeeReturn?: boolean;
 }
 
 type Step = "select-type" | "completing" | "pay-fee";
@@ -70,10 +81,14 @@ function resolveCheckoutContact(
   };
 }
 
-export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
+export function AccountTypeSelector({
+  onBack,
+  resumeFeePayment = false,
+  suppressResumeWhileFeeReturn = false,
+}: AccountTypeSelectorProps) {
   const router = useRouter();
   const { getAccessToken } = useAuthToken();
-  const { activeOrganization, createOrganization, startCorporateOnboarding, switchOrganization } =
+  const { activeOrganization, createOrganization, startCorporateOnboarding, switchOrganization, organizations } =
     useOrganization();
   const createFee = useCreateIssuerOnboardingFeeMutation();
   const [step, setStep] = React.useState<Step>("select-type");
@@ -84,10 +99,109 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
   const [confirmedCompanyName, setConfirmedCompanyName] = React.useState("");
   const [formErrors, setFormErrors] = React.useState<{ companyName?: string }>({});
   const [createdOrgId, setCreatedOrgId] = React.useState<string | null>(null);
+  const [confirmedFee, setConfirmedFee] = React.useState<IssuerOnboardingFeeResponse | null>(null);
   const [feePaymentId, setFeePaymentId] = React.useState<string | null>(null);
   const [isOpeningCheckout, setIsOpeningCheckout] = React.useState(false);
+  const feeBootstrappedRef = React.useRef(false);
 
   const feeQuery = useIssuerOnboardingFeeQuery(feePaymentId ?? undefined);
+  const resolvedFee = feeQuery.data ?? confirmedFee ?? createFee.data ?? null;
+
+  const proceedToRegTank = async (orgId: string, companyNameValue: string) => {
+    const { verifyLink } = await startCorporateOnboarding(orgId, companyNameValue);
+    switchOrganization(orgId);
+    window.open(verifyLink, "_blank");
+    router.push("/");
+  };
+
+  const findOrgNeedingFee = React.useCallback(() => {
+    if (activeOrganization && needsOnboardingStartFee(activeOrganization)) {
+      return activeOrganization;
+    }
+    return organizations.find((org) => org.isOwner && needsOnboardingStartFee(org));
+  }, [activeOrganization, organizations]);
+
+  const findOrgReadyForEkyc = React.useCallback(() => {
+    if (activeOrganization && isReadyForIssuerEkyc(activeOrganization)) {
+      return activeOrganization;
+    }
+    return organizations.find((org) => org.isOwner && isReadyForIssuerEkyc(org));
+  }, [activeOrganization, organizations]);
+
+  const resumeFeePaymentFlow = React.useCallback(async () => {
+    if (feeBootstrappedRef.current && confirmedFee) return true;
+
+    const incomplete = findOrgNeedingFee();
+    if (!incomplete) return false;
+
+    if (isAwaitingCompanyTnc(incomplete)) {
+      router.replace("/");
+      return true;
+    }
+
+    setCreatedOrgId(incomplete.id);
+    setConfirmedCompanyName(incomplete.name?.trim() ?? "");
+    switchOrganization(incomplete.id);
+    storeIssuerPendingOnboarding({
+      orgId: incomplete.id,
+      companyName: incomplete.name?.trim() ?? "",
+    });
+
+    try {
+      const fee = await createFee.mutateAsync({ issuerOrganizationId: incomplete.id });
+      feeBootstrappedRef.current = true;
+      setConfirmedFee(fee);
+      setFeePaymentId(fee.id);
+      if (fee.status === "COMPLETED") {
+        await proceedToRegTank(incomplete.id, incomplete.name?.trim() ?? "");
+        return true;
+      }
+      setStep("pay-fee");
+      return true;
+    } catch (err) {
+      console.error("[AccountTypeSelector] Failed to resume onboarding fee:", err);
+      setError(err instanceof Error ? err.message : "Could not load onboarding fee");
+      return false;
+    }
+  }, [confirmedFee, createFee, findOrgNeedingFee, router, startCorporateOnboarding, switchOrganization]);
+
+  const resumeInFlightRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (suppressResumeWhileFeeReturn) return;
+    if (confirmedFee && step === "pay-fee") return;
+    if (createdOrgId && confirmedFee) return;
+    if (!resumeFeePayment && step !== "select-type") return;
+    if (resumeInFlightRef.current) return;
+
+    resumeInFlightRef.current = true;
+    void resumeFeePaymentFlow()
+      .then(async (resumed) => {
+        if (!resumeFeePayment || resumed) return;
+
+        const ekycReady = findOrgReadyForEkyc();
+        if (ekycReady) {
+          await proceedToRegTank(ekycReady.id, ekycReady.name?.trim() ?? "");
+          return;
+        }
+
+        setError("Could not continue onboarding. Please try again from your dashboard.");
+        setStep("pay-fee");
+      })
+      .finally(() => {
+        resumeInFlightRef.current = false;
+      });
+  }, [
+    activeOrganization,
+    confirmedFee,
+    createdOrgId,
+    findOrgReadyForEkyc,
+    organizations,
+    resumeFeePayment,
+    resumeFeePaymentFlow,
+    step,
+    suppressResumeWhileFeeReturn,
+  ]);
 
   const handleCompanyFormSubmit = () => {
     const errors: { companyName?: string } = {};
@@ -102,13 +216,6 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
 
     setFormErrors({});
     void handleConfirmCompany(companyName.trim());
-  };
-
-  const proceedToRegTank = async (orgId: string, companyNameValue: string) => {
-    const { verifyLink } = await startCorporateOnboarding(orgId, companyNameValue);
-    switchOrganization(orgId);
-    window.open(verifyLink, "_blank");
-    router.push("/");
   };
 
   const handleConfirmCompany = async (companyNameValue: string) => {
@@ -131,18 +238,8 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
         name: companyNameValue,
       };
       const org = await createOrganization(input);
-      setCreatedOrgId(org.id);
-
-      const fee = await createFee.mutateAsync({ issuerOrganizationId: org.id });
-      setFeePaymentId(fee.id);
-
-      if (fee.status === "COMPLETED") {
-        await proceedToRegTank(org.id, companyNameValue);
-        return;
-      }
-
-      setStep("pay-fee");
-      setIsSubmitting(false);
+      switchOrganization(org.id);
+      router.push("/");
     } catch (err) {
       console.error("[AccountTypeSelector] Failed to create company account:", err);
       setError(err instanceof Error ? err.message : "Failed to create company account");
@@ -186,8 +283,11 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
       setError(null);
 
       const fee =
-        feeQuery.data ??
+        resolvedFee ??
         (await createFee.mutateAsync({ issuerOrganizationId: createdOrgId }));
+
+      setConfirmedFee(fee);
+      setFeePaymentId(fee.id);
 
       if (fee.status === "COMPLETED") {
         await proceedToRegTank(createdOrgId, companyNameValue);
@@ -196,7 +296,10 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
 
       storeIssuerPendingOnboarding({ orgId: createdOrgId, companyName: companyNameValue });
 
-      const callbackUrl = buildIssuerOnboardingFeeCallbackUrl(fee.id, "/onboarding-start");
+      const callbackUrl = buildIssuerOnboardingFeeCallbackUrl(
+        fee.id,
+        ISSUER_ONBOARDING_FEE_RETURN_TO
+      );
 
       await openCurlecFpxCheckout({
         keyId: fee.curlecKeyId,
@@ -213,6 +316,9 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
       const message = err instanceof Error ? err.message : "Could not start payment";
       if (message.includes("ONBOARDING_FEE_REQUIRED")) {
         setError("Please complete the onboarding fee before continuing.");
+      } else if (message.includes("TNC_REQUIRED")) {
+        setError("Please accept the Terms and Conditions on your dashboard before paying.");
+        router.push("/");
       } else {
         setError(message);
       }
@@ -241,14 +347,15 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
   }
 
   if (step === "pay-fee") {
-    const feeAmount = feeQuery.data?.amount ?? createFee.data?.amount;
+    const feeAmount = resolvedFee?.amount;
 
     return (
       <div className="w-full max-w-xl space-y-6">
         <div className="text-center space-y-2">
           <h2 className="text-xl font-semibold">Pay onboarding fee</h2>
           <p className="text-[15px] text-muted-foreground">
-            A one-time fee is required before starting company verification (eKYB).
+            A one-time fee is required after accepting the user agreement to start company
+            verification (eKYB).
           </p>
         </div>
 
@@ -279,10 +386,14 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
               type="button"
               variant="action"
               className="h-11 w-full rounded-xl"
-              disabled={isOpeningCheckout || createFee.isPending || feeAmount == null}
+              disabled={isOpeningCheckout || !resolvedFee || feeQuery.isLoading}
               onClick={() => void handlePayFee()}
             >
-              {isOpeningCheckout ? "Opening checkout..." : "Pay with FPX"}
+              {isOpeningCheckout
+                ? "Opening checkout..."
+                : feeQuery.isLoading && !resolvedFee
+                  ? "Loading..."
+                  : "Pay with FPX"}
             </Button>
             <p className="text-center text-xs text-muted-foreground">
               This fee is non-refundable and unlocks eKYB verification for your company account.

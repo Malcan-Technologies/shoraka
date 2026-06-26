@@ -46,6 +46,8 @@ export function useCreateIssuerOnboardingFeeMutation() {
   });
 }
 
+const PAYMENT_RETURN_POLL_INTERVAL_MS = 1_000;
+
 export function useIssuerOnboardingFeeQuery(
   feeId?: string,
   options?: { pollUntilTerminal?: boolean }
@@ -64,8 +66,10 @@ export function useIssuerOnboardingFeeQuery(
       if (!options?.pollUntilTerminal) return false;
       const status = query.state.data?.status;
       if (status && isTerminalOnboardingFeeStatus(status)) return false;
-      return 2000;
+      return PAYMENT_RETURN_POLL_INTERVAL_MS;
     },
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
 

@@ -29,55 +29,80 @@ interface OnboardingStatusCardProps {
 }
 
 /**
- * Determine the current onboarding step based on organization status
- * Steps for Issuer Portal (no Deposit step):
- * 1. Onboarding - Complete when organization exists (user has submitted onboarding), or Rejected if status is REJECTED
- * 2. Accepting User Agreement - Complete when tncAccepted === true
- * 3. Account Approval - Complete when onboardingStatus === 'COMPLETED' (admin approved)
+ * Issuer onboarding steps (post org creation):
+ * 1. User Agreement — tncAccepted
+ * 2. Onboarding fee — onboardingFeePaidAt (company accounts)
+ * 3. Onboarding (eKYB) — RegTank submitted (status past PENDING)
+ * 4. Approval — onboardingStatus === COMPLETED
  */
 function getOnboardingSteps(organization: Organization): OnboardingStep[] {
   const isRejected = organization.onboardingStatus === "REJECTED";
+  const isCompany = organization.type === "COMPANY";
 
-  // Onboarding is complete once the organization exists (user submitted their KYC form)
-  // If we're showing this component, the organization exists, so onboarding is always complete
-  // UNLESS it was rejected
-  const onboardingComplete = !isRejected;
   const tncComplete = !isRejected && organization.tncAccepted === true;
+  const feeComplete =
+    !isRejected &&
+    (!isCompany || Boolean(organization.onboardingFeePaidAt));
+  const postRegTankStatuses = new Set([
+    "PENDING_APPROVAL",
+    "PENDING_AML",
+    "PENDING_AMENDMENT",
+    "PENDING_SSM_REVIEW",
+    "PENDING_FINAL_APPROVAL",
+    "COMPLETED",
+  ]);
+  const onboardingComplete =
+    !isRejected && postRegTankStatuses.has(organization.onboardingStatus);
   const accountApprovalComplete = organization.onboardingStatus === "COMPLETED";
 
-  // Determine current step (first incomplete step)
   let currentStepId = "";
   if (isRejected) {
-    // If rejected, no current step - we show the rejection state
     currentStepId = "";
   } else if (!tncComplete) {
     currentStepId = "tnc";
+  } else if (!feeComplete) {
+    currentStepId = "fee";
+  } else if (!onboardingComplete) {
+    currentStepId = "onboarding";
   } else if (!accountApprovalComplete) {
     currentStepId = "approval";
   }
-  // If all complete, currentStepId remains ""
 
-  return [
-    {
-      id: "onboarding",
-      label: "Onboarding",
-      isCompleted: onboardingComplete,
-      isCurrent: false, // Never current since it's always complete when org exists (or rejected)
-      isRejected,
-    },
+  const steps: OnboardingStep[] = [
     {
       id: "tnc",
       label: "User Agreement",
       isCompleted: tncComplete,
       isCurrent: currentStepId === "tnc",
     },
+  ];
+
+  if (isCompany) {
+    steps.push({
+      id: "fee",
+      label: "Onboarding Fee",
+      isCompleted: feeComplete,
+      isCurrent: currentStepId === "fee",
+    });
+  }
+
+  steps.push(
+    {
+      id: "onboarding",
+      label: "Onboarding",
+      isCompleted: onboardingComplete,
+      isCurrent: currentStepId === "onboarding",
+      isRejected,
+    },
     {
       id: "approval",
       label: "Approval",
       isCompleted: accountApprovalComplete,
       isCurrent: currentStepId === "approval",
-    },
-  ];
+    }
+  );
+
+  return steps;
 }
 
 type OrganizationWithPeople = Organization & {

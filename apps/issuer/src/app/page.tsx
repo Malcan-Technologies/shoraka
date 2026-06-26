@@ -21,6 +21,7 @@ import { RecentNotesCard } from "../components/dashboard/recent-notes-card";
 import { useHeader } from "@cashsouk/ui";
 import { useIssuerDashboard } from "../hooks/use-issuer-dashboard";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
+import { isAwaitingCompanyTnc } from "@/lib/issuer-onboarding-flow";
 import { cn } from "@/lib/utils";
 
 function IssuerDashboardContent() {
@@ -70,20 +71,21 @@ function IssuerDashboardContent() {
     if (!isAuthenticated || isOrgLoading) return false;
     if (organizations.length === 0) return false;
     if (!activeOrganization) {
-      // No active org selected yet — check if any org qualifies
       return organizations.some(
         (org) =>
           org.onboardingStatus === "COMPLETED" ||
           org.onboardingStatus === "PENDING_APPROVAL" ||
           org.onboardingStatus === "PENDING_AMENDMENT" ||
           org.onboardingStatus === "PENDING_AML" ||
-          org.onboardingStatus === "REJECTED"
+          org.onboardingStatus === "REJECTED" ||
+          isAwaitingCompanyTnc(org)
       );
     }
     return (
       isOnboarded ||
       isPendingApproval ||
-      activeOrganization.onboardingStatus === "REJECTED"
+      activeOrganization.onboardingStatus === "REJECTED" ||
+      isAwaitingCompanyTnc(activeOrganization)
     );
   }, [isAuthenticated, isOrgLoading, organizations, activeOrganization, isOnboarded, isPendingApproval]);
 
@@ -118,6 +120,10 @@ function IssuerDashboardContent() {
     }
 
     if (activeOrganization && !isOnboarded && !isPendingApproval) {
+      if (isAwaitingCompanyTnc(activeOrganization)) {
+        hasRedirected.current = false;
+        return;
+      }
       if (!hasRedirected.current) {
         hasRedirected.current = true;
         router.push("/onboarding-start");
@@ -131,7 +137,8 @@ function IssuerDashboardContent() {
           org.onboardingStatus === "COMPLETED" ||
           org.onboardingStatus === "PENDING_APPROVAL" ||
           org.onboardingStatus === "PENDING_AML" ||
-          org.onboardingStatus === "REJECTED"
+          org.onboardingStatus === "REJECTED" ||
+          isAwaitingCompanyTnc(org)
       );
       if (!anyQualified && !hasRedirected.current) {
         hasRedirected.current = true;
@@ -201,7 +208,12 @@ function IssuerDashboardContent() {
               />
 
               {/* Step-specific cards */}
-              {needsTncAcceptance && <TermsAcceptanceCard organizationId={activeOrganization.id} />}
+              {needsTncAcceptance && (
+                <TermsAcceptanceCard
+                  organizationId={activeOrganization.id}
+                  onAccepted={() => router.push("/onboarding-start?continue=fee")}
+                />
+              )}
 
               {isAwaitingApproval && (
                 <div className="rounded-xl border bg-card p-6">

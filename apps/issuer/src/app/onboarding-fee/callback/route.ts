@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 function resolveReturnTo(value: string | null): string {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return "/onboarding-start";
+    return "/onboarding-start?continue=fee";
   }
   return value;
 }
