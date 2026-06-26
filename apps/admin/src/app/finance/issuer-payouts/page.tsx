@@ -29,12 +29,14 @@ import { RequirePermission } from "@/components/require-permission";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   DRAFT: "secondary",
+  PENDING_SETTLEMENT_TRUSTEE_LETTER: "secondary",
   LETTER_GENERATED: "outline",
   SUBMITTED_TO_TRUSTEE: "default",
 };
 
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: "Draft",
+  PENDING_SETTLEMENT_TRUSTEE_LETTER: "Pending Settlement Trustee Letter",
   LETTER_GENERATED: "Letter generated",
   SUBMITTED_TO_TRUSTEE: "Submitted to trustee",
   COMPLETED: "Completed",
@@ -234,7 +236,7 @@ export default function PendingIssuerPayoutsPage() {
                               <TableCell className="text-right">
                                 <Button asChild variant="ghost" size="sm" className="gap-1">
                                   <Link href={`/notes/${item.noteId}`}>
-                                    Open
+                                    {item.rowSource === "SETTLEMENT_RESIDUAL" ? "View Settlement" : "Open"}
                                     <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                                   </Link>
                                 </Button>

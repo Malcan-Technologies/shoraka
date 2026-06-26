@@ -535,11 +535,13 @@ export interface PendingRepaymentsResponse {
 
 export interface PendingIssuerPayoutItem {
   withdrawalId: string;
+  settlementId: string | null;
   noteId: string;
   noteTitle: string | null;
   noteStatus: string | null;
   issuerOrganizationId: string | null;
   issuerOrganizationName: string | null;
+  rowSource: "WITHDRAWAL" | "SETTLEMENT_RESIDUAL";
   withdrawalType: string;
   amount: number;
   currency: string;

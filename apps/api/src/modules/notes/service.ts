@@ -1622,20 +1622,40 @@ export class NoteService {
       orderBy: [{ created_at: "asc" }],
     });
 
-    if (withdrawals.length === 0) return { count: 0, items: [] };
+    const settlementsWithResidual = await prisma.noteSettlement.findMany({
+      where: {
+        status: NoteSettlementStatus.POSTED,
+        issuer_residual_amount: { gt: money(0.005) },
+      },
+      orderBy: [{ posted_at: "asc" }, { created_at: "asc" }],
+      select: {
+        id: true,
+        note_id: true,
+        issuer_residual_amount: true,
+        posted_at: true,
+        created_at: true,
+        service_fee_trustee_status: true,
+        service_fee_trustee_submitted_at: true,
+      },
+    });
+
+    if (withdrawals.length === 0 && settlementsWithResidual.length === 0) return { count: 0, items: [] };
 
     const noteIds = Array.from(
-      new Set(withdrawals.map((w) => w.note_id).filter(Boolean) as string[])
-    );
-    const issuerIds = Array.from(
-      new Set(withdrawals.map((w) => w.issuer_organization_id).filter(Boolean) as string[])
+      new Set([
+        ...withdrawals.map((w) => w.note_id).filter(Boolean),
+        ...settlementsWithResidual.map((s) => s.note_id),
+      ] as string[])
     );
     const notes = noteIds.length
       ? await prisma.note.findMany({
           where: { id: { in: noteIds } },
-          select: { id: true, title: true, status: true },
+          select: { id: true, title: true, status: true, issuer_organization_id: true },
         })
       : [];
+    const issuerIds = Array.from(
+      new Set(notes.map((note) => note.issuer_organization_id).filter(Boolean) as string[])
+    );
     const issuers = issuerIds.length
       ? await prisma.issuerOrganization.findMany({
           where: { id: { in: issuerIds } },
@@ -1645,18 +1665,46 @@ export class NoteService {
     const noteMap = new Map(notes.map((n) => [n.id, n]));
     const issuerMap = new Map(issuers.map((i) => [i.id, i]));
 
-    const items = withdrawals.map((withdrawal) => {
+    const allLegacyResidualSettlements = new Set(
+      (await prisma.withdrawalInstruction.findMany({
+        where: {
+          withdrawal_type: WithdrawalType.ISSUER_RESIDUAL_RETURN,
+          settlement_id: { not: null },
+        },
+        select: { settlement_id: true },
+      }))
+        .map((row) => row.settlement_id)
+        .filter((value): value is string => typeof value === "string" && value.trim() !== "")
+    );
+    const settlementStatusToPayoutStatus = (
+      status: ServiceFeeTrusteeInstructionStatus | null
+    ): string => {
+      if (!status || status === ServiceFeeTrusteeInstructionStatus.PENDING_LETTER) {
+        return "PENDING_SETTLEMENT_TRUSTEE_LETTER";
+      }
+      if (status === ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED) {
+        return WithdrawalStatus.LETTER_GENERATED;
+      }
+      if (status === ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE) {
+        return WithdrawalStatus.SUBMITTED_TO_TRUSTEE;
+      }
+      return WithdrawalStatus.COMPLETED;
+    };
+
+    const withdrawalItems = withdrawals.map((withdrawal) => {
       const note = withdrawal.note_id ? noteMap.get(withdrawal.note_id) : undefined;
       const issuer = withdrawal.issuer_organization_id
         ? issuerMap.get(withdrawal.issuer_organization_id)
         : undefined;
       return {
         withdrawalId: withdrawal.id,
+        settlementId: withdrawal.settlement_id,
         noteId: withdrawal.note_id ?? "",
         noteTitle: note?.title ?? null,
         noteStatus: note?.status ?? null,
         issuerOrganizationId: issuer?.id ?? null,
         issuerOrganizationName: issuer?.name ?? null,
+        rowSource: "WITHDRAWAL" as const,
         withdrawalType: withdrawal.withdrawal_type,
         amount: toNumber(withdrawal.amount),
         currency: withdrawal.currency,
@@ -1666,6 +1714,41 @@ export class NoteService {
         createdAt: withdrawal.created_at.toISOString(),
       };
     });
+    const settlementItems = settlementsWithResidual
+      .filter((settlement) => !allLegacyResidualSettlements.has(settlement.id))
+      .map((settlement) => {
+        const note = noteMap.get(settlement.note_id);
+        const issuer = note?.issuer_organization_id
+          ? issuerMap.get(note.issuer_organization_id)
+          : undefined;
+        return {
+          withdrawalId: `settlement-residual:${settlement.id}`,
+          settlementId: settlement.id,
+          noteId: settlement.note_id,
+          noteTitle: note?.title ?? null,
+          noteStatus: note?.status ?? null,
+          issuerOrganizationId: issuer?.id ?? null,
+          issuerOrganizationName: issuer?.name ?? null,
+          rowSource: "SETTLEMENT_RESIDUAL" as const,
+          withdrawalType: WithdrawalType.ISSUER_RESIDUAL_RETURN,
+          amount: toNumber(settlement.issuer_residual_amount),
+          currency: "MYR",
+          status: settlementStatusToPayoutStatus(settlement.service_fee_trustee_status),
+          generatedAt:
+            settlement.service_fee_trustee_status === ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED ||
+            settlement.service_fee_trustee_status ===
+              ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE ||
+            settlement.service_fee_trustee_status === ServiceFeeTrusteeInstructionStatus.COMPLETED
+              ? settlement.created_at.toISOString()
+              : null,
+          submittedToTrusteeAt: settlement.service_fee_trustee_submitted_at?.toISOString() ?? null,
+          createdAt: (settlement.posted_at ?? settlement.created_at).toISOString(),
+        };
+      });
+
+    const items = [...withdrawalItems, ...settlementItems].sort(
+      (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
+    );
 
     return {
       count: items.length,
