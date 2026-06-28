@@ -186,7 +186,7 @@ const noteActionCopy: Record<
 };
 
 export default function NoteDetailPage() {
-  type WorkflowTabId = "disbursement" | "servicing-settlement" | "ledger";
+  type WorkflowTabId = "disbursement" | "servicing-settlement";
   const { can } = usePermissions();
   const canManage = can("notes.manage");
   const canDisbursement = can("notes.disbursement.manage");
@@ -252,7 +252,6 @@ export default function NoteDetailPage() {
 
     return "needs-action";
   }, [note]);
-  const ledgerTabStatus: SimpleTabStatus = "view-only";
 
   const runConfirmedAction = async () => {
     if (!note || !pendingAction) return;
@@ -568,25 +567,6 @@ export default function NoteDetailPage() {
                           Status: {TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].label}
                         </span>
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setActiveWorkflowTab("ledger")}
-                        className={
-                          activeWorkflowTab === "ledger"
-                            ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm sm:px-4"
-                            : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
-                        }
-                      >
-                        <span
-                          aria-hidden
-                          className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[ledgerTabStatus].dotClass}`}
-                        />
-                        <span className="truncate">Ledger</span>
-                        <span className="sr-only">
-                          Status: {TAB_STATUS_BADGE_COPY[ledgerTabStatus].label}
-                        </span>
-                      </Button>
                     </div>
                   </div>
 
@@ -642,11 +622,9 @@ export default function NoteDetailPage() {
                     <SettlementPanel note={note} />
                   </div>
 
-                  <div className={activeWorkflowTab === "ledger" ? "space-y-6" : "hidden space-y-6"}>
-                    <LedgerPanel note={note} />
-                  </div>
                 </div>
                 <div className="min-w-0 space-y-6">
+                  <SourceApplicationPanel note={note} />
                   <Card className="rounded-2xl">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">Workflow Status</CardTitle>
@@ -678,26 +656,13 @@ export default function NoteDetailPage() {
                           {TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].label}
                         </Badge>
                       </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <span>Ledger</span>
-                        <Badge
-                          variant="outline"
-                          className={`inline-flex items-center gap-1 ${TAB_STATUS_BADGE_COPY[ledgerTabStatus].className}`}
-                        >
-                          <span
-                            aria-hidden
-                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[ledgerTabStatus].dotClass}`}
-                          />
-                          {TAB_STATUS_BADGE_COPY[ledgerTabStatus].label}
-                        </Badge>
-                      </div>
                     </CardContent>
                   </Card>
-                  <SourceApplicationPanel note={note} />
                   <NoteTimelinePanel note={note} />
                 </div>
               </div>
 
+              <LedgerPanel note={note} />
               <NoteInvestorsPanel note={note} />
             </div>
           ) : null}
