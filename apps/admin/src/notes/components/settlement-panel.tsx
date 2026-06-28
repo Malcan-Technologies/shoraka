@@ -1342,7 +1342,8 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                   size="sm"
                   className="gap-1.5 rounded-xl"
                   onClick={handleOpenRecordPaymentDialog}
-                  disabled={!canRecordMoreReceipts}
+                  disabled={!canRecordMoreReceipts || !canRepayment}
+                  title={!canRepayment ? "You do not have permission to perform this action." : undefined}
                 >
                   <PlusIcon className="h-4 w-4" />
                   Record first receipt
@@ -1656,8 +1657,10 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                         checkOverdueLateCharge.isPending ||
                         !noteIsOverdue ||
                         !servicingOpen ||
-                        lateFeesBlockedByZeroHeadroom
+                        lateFeesBlockedByZeroHeadroom ||
+                        !canDefault
                       }
+                      title={!canDefault ? "You do not have permission to perform this action." : undefined}
                     >
                       {checkOverdueLateCharge.isPending ? "Checking…" : "Apply suggested fees"}
                     </Button>
@@ -1665,8 +1668,9 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                       variant="outline"
                       onClick={handleOpenOverdueFeeDialog}
                       disabled={
-                        checkOverdueLateCharge.isPending || !noteIsOverdue || !servicingOpen
+                        checkOverdueLateCharge.isPending || !noteIsOverdue || !servicingOpen || !canDefault
                       }
+                      title={!canDefault ? "You do not have permission to perform this action." : undefined}
                     >
                       Custom amounts
                     </Button>
