@@ -3,7 +3,11 @@
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeftIcon, ArrowPathIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowLeftIcon,
+  ArrowPathIcon,
+  DocumentTextIcon,
+} from "@heroicons/react/24/outline";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -524,71 +528,67 @@ export default function NoteDetailPage() {
 
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)]">
                 <div className="min-w-0 space-y-4">
-                  <Card className="rounded-2xl">
-                    <CardContent className="p-3">
-                      <div className="w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-xl bg-muted p-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/30">
-                        <div className="flex h-auto min-h-11 w-max min-w-full flex-nowrap justify-center gap-2 text-muted-foreground">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setActiveWorkflowTab("disbursement")}
-                          className={
-                            activeWorkflowTab === "disbursement"
-                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm sm:px-4"
-                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
-                          }
-                        >
-                          <span
-                            aria-hidden
-                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[disbursementTabStatus].dotClass}`}
-                          />
-                          <span className="truncate">Disbursement</span>
-                          <span className="sr-only">
-                            Status: {TAB_STATUS_BADGE_COPY[disbursementTabStatus].label}
-                          </span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setActiveWorkflowTab("servicing-settlement")}
-                          className={
-                            activeWorkflowTab === "servicing-settlement"
-                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm sm:px-4"
-                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
-                          }
-                        >
-                          <span
-                            aria-hidden
-                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].dotClass}`}
-                          />
-                          <span className="truncate">Servicing &amp; Settlement</span>
-                          <span className="sr-only">
-                            Status: {TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].label}
-                          </span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setActiveWorkflowTab("ledger")}
-                          className={
-                            activeWorkflowTab === "ledger"
-                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm sm:px-4"
-                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
-                          }
-                        >
-                          <span
-                            aria-hidden
-                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[ledgerTabStatus].dotClass}`}
-                          />
-                          <span className="truncate">Ledger</span>
-                          <span className="sr-only">
-                            Status: {TAB_STATUS_BADGE_COPY[ledgerTabStatus].label}
-                          </span>
-                        </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <div className="w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-xl bg-muted p-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/30">
+                    <div className="flex h-auto min-h-11 w-max min-w-full flex-nowrap items-center justify-center gap-2 text-muted-foreground">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setActiveWorkflowTab("disbursement")}
+                        className={
+                          activeWorkflowTab === "disbursement"
+                            ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm sm:px-4"
+                            : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
+                        }
+                      >
+                        <span
+                          aria-hidden
+                          className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[disbursementTabStatus].dotClass}`}
+                        />
+                        <span className="truncate">Disbursement</span>
+                        <span className="sr-only">
+                          Status: {TAB_STATUS_BADGE_COPY[disbursementTabStatus].label}
+                        </span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setActiveWorkflowTab("servicing-settlement")}
+                        className={
+                          activeWorkflowTab === "servicing-settlement"
+                            ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm sm:px-4"
+                            : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
+                        }
+                      >
+                        <span
+                          aria-hidden
+                          className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].dotClass}`}
+                        />
+                        <span className="truncate">Servicing &amp; Settlement</span>
+                        <span className="sr-only">
+                          Status: {TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].label}
+                        </span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setActiveWorkflowTab("ledger")}
+                        className={
+                          activeWorkflowTab === "ledger"
+                            ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm sm:px-4"
+                            : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
+                        }
+                      >
+                        <span
+                          aria-hidden
+                          className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[ledgerTabStatus].dotClass}`}
+                        />
+                        <span className="truncate">Ledger</span>
+                        <span className="sr-only">
+                          Status: {TAB_STATUS_BADGE_COPY[ledgerTabStatus].label}
+                        </span>
+                      </Button>
+                    </div>
+                  </div>
 
                   <div className={activeWorkflowTab === "disbursement" ? "space-y-6" : "hidden space-y-6"}>
                     <Card className="rounded-2xl">
@@ -656,8 +656,12 @@ export default function NoteDetailPage() {
                         <span>Disbursement</span>
                         <Badge
                           variant="outline"
-                          className={TAB_STATUS_BADGE_COPY[disbursementTabStatus].className}
+                          className={`inline-flex items-center gap-1 ${TAB_STATUS_BADGE_COPY[disbursementTabStatus].className}`}
                         >
+                          <span
+                            aria-hidden
+                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[disbursementTabStatus].dotClass}`}
+                          />
                           {TAB_STATUS_BADGE_COPY[disbursementTabStatus].label}
                         </Badge>
                       </div>
@@ -665,14 +669,25 @@ export default function NoteDetailPage() {
                         <span>Servicing &amp; Settlement</span>
                         <Badge
                           variant="outline"
-                          className={TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].className}
+                          className={`inline-flex items-center gap-1 ${TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].className}`}
                         >
+                          <span
+                            aria-hidden
+                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].dotClass}`}
+                          />
                           {TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].label}
                         </Badge>
                       </div>
                       <div className="flex items-center justify-between gap-3">
                         <span>Ledger</span>
-                        <Badge variant="outline" className={TAB_STATUS_BADGE_COPY[ledgerTabStatus].className}>
+                        <Badge
+                          variant="outline"
+                          className={`inline-flex items-center gap-1 ${TAB_STATUS_BADGE_COPY[ledgerTabStatus].className}`}
+                        >
+                          <span
+                            aria-hidden
+                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[ledgerTabStatus].dotClass}`}
+                          />
                           {TAB_STATUS_BADGE_COPY[ledgerTabStatus].label}
                         </Badge>
                       </div>
