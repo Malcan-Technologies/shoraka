@@ -121,7 +121,7 @@ const TAB_STATUS_BADGE_COPY: Record<
       "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300",
   },
   "needs-action": {
-    label: "Needs action",
+    label: "In progress",
     className: "border-transparent bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
   },
   "not-started": {
