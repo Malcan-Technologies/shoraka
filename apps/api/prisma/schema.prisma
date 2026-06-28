@@ -810,6 +810,7 @@ model NotePayment {
   receipt_date               DateTime
   received_into_account_code String            @default("REPAYMENT_POOL")
   evidence_s3_key            String?
+  evidence_files             Json?
   reference                  String?
   recorded_by_user_id        String?
   reconciled_by_user_id      String?

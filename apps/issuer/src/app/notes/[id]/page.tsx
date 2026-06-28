@@ -32,6 +32,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  useIssuerPaymentEvidenceUploadUrl,
   useIssuerNote,
   useIssuerNotePaymentInstructions,
   useSubmitIssuerPayment,
@@ -62,6 +70,9 @@ import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/iss
 import { cn } from "@/lib/utils";
 
 const MONEY_TOLERANCE = 0.005;
+const PAYMENT_ADVICE_ALLOWED_CONTENT_TYPES = ["application/pdf", "image/jpeg", "image/png"] as const;
+const PAYMENT_ADVICE_MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const PAYMENT_ADVICE_MAX_FILES = 5;
 
 const RISK_TOOLTIP_TEXT = "SoukScore grade for this invoice note";
 
@@ -129,6 +140,12 @@ function isTwoDecimalMoneyInput(value: string) {
 
 function roundMoneyTwo(value: number) {
   return Math.round(value * 100) / 100;
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -271,9 +288,14 @@ export default function IssuerNoteDetailPage() {
   const { data: note, isLoading, error } = useIssuerNote(noteId);
   const { data: instructions } = useIssuerNotePaymentInstructions(noteId);
   const submitPayment = useSubmitIssuerPayment(noteId);
+  const uploadEvidenceUrl = useIssuerPaymentEvidenceUploadUrl(noteId);
   const viewShorakaCertificate = useViewIssuerShorakaCertificate(noteId);
   const [reference, setReference] = React.useState("");
+  const [paymentSource, setPaymentSource] = React.useState<NotePaymentSource>(
+    NotePaymentSource.ISSUER_ON_BEHALF
+  );
   const [paymentAmountInput, setPaymentAmountInput] = React.useState("");
+  const [evidenceFiles, setEvidenceFiles] = React.useState<File[]>([]);
   const [paymentDialogOpen, setPaymentDialogOpen] = React.useState(false);
   const [paymentConfirmed, setPaymentConfirmed] = React.useState(false);
 
@@ -316,20 +338,87 @@ export default function IssuerNoteDetailPage() {
       );
       return;
     }
+    if (!reference.trim()) {
+      toast.error("Payment reference is required");
+      return;
+    }
+    if (!paymentSource) {
+      toast.error("Payment source is required");
+      return;
+    }
+    if (evidenceFiles.length < 1) {
+      toast.error("Upload at least one payment advice proof file");
+      return;
+    }
+    if (evidenceFiles.length > PAYMENT_ADVICE_MAX_FILES) {
+      toast.error(`You can upload up to ${PAYMENT_ADVICE_MAX_FILES} files`);
+      return;
+    }
+    const invalidFile = evidenceFiles.find((file) => {
+      return (
+        !PAYMENT_ADVICE_ALLOWED_CONTENT_TYPES.includes(
+          file.type as (typeof PAYMENT_ADVICE_ALLOWED_CONTENT_TYPES)[number]
+        ) || file.size > PAYMENT_ADVICE_MAX_FILE_SIZE_BYTES
+      );
+    });
+    if (invalidFile) {
+      toast.error(
+        "Only PDF, JPEG, or PNG up to 5MB per file is allowed for payment advice proof"
+      );
+      return;
+    }
+
     try {
+      const uploadedEvidenceFiles: Array<{
+        s3Key: string;
+        fileName: string;
+        contentType: string;
+        fileSize: number;
+        uploadedAt: string;
+      }> = [];
+
+      for (const file of evidenceFiles) {
+        const uploadMeta = await uploadEvidenceUrl.mutateAsync({
+          fileName: file.name,
+          contentType: file.type as "application/pdf" | "image/jpeg" | "image/png",
+          fileSize: file.size,
+        });
+        const uploadResponse = await fetch(uploadMeta.uploadUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": file.type,
+          },
+          body: file,
+        });
+        if (!uploadResponse.ok) {
+          throw new Error(`Failed to upload proof file: ${file.name}`);
+        }
+        uploadedEvidenceFiles.push({
+          s3Key: uploadMeta.s3Key,
+          fileName: file.name,
+          contentType: file.type,
+          fileSize: file.size,
+          uploadedAt: new Date().toISOString(),
+        });
+      }
+
       await submitPayment.mutateAsync({
+        source: paymentSource,
         receiptAmount,
         receiptDate: new Date().toISOString(),
-        reference: reference || null,
+        reference: reference.trim(),
+        evidenceFiles: uploadedEvidenceFiles,
         metadata: { paymentPurpose: "SETTLEMENT" },
       });
       setReference("");
+      setPaymentSource(NotePaymentSource.ISSUER_ON_BEHALF);
       setPaymentAmountInput("");
+      setEvidenceFiles([]);
       setPaymentConfirmed(false);
       setPaymentDialogOpen(false);
-      toast.success("Payment confirmation submitted for admin reconciliation");
+      toast.success("Payment advice submitted for admin review");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to submit payment");
+      toast.error(err instanceof Error ? err.message : "Failed to submit payment advice");
     }
   };
 
@@ -553,7 +642,7 @@ export default function IssuerNoteDetailPage() {
                 noReceiptCapacityReason != null
               }
             >
-              {isSettled ? "Payment Settled" : "Make Payment"}
+              {isSettled ? "Payment Settled" : "Submit Payment Advice"}
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -607,8 +696,8 @@ export default function IssuerNoteDetailPage() {
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              Open the payment instructions, transfer the amount you are confirming on behalf of
-              the paymaster, then submit the reference for admin reconciliation.
+              Use this to notify admin that repayment has been made by either issuer on behalf or
+              paymaster, then submit payment advice and proof for review.
             </p>
             {paymentBlockedReason ? (
               <div
@@ -837,18 +926,24 @@ export default function IssuerNoteDetailPage() {
               remaining > MONEY_TOLERANCE ? roundMoneyTwo(remaining).toFixed(2) : ""
             );
             setPaymentConfirmed(false);
+            setPaymentSource(NotePaymentSource.ISSUER_ON_BEHALF);
+            setReference("");
+            setEvidenceFiles([]);
           } else if (!open) {
             setPaymentConfirmed(false);
+            setPaymentSource(NotePaymentSource.ISSUER_ON_BEHALF);
+            setReference("");
+            setEvidenceFiles([]);
           }
         }}
       >
         <DialogContent className="rounded-2xl sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Confirm repayment (on behalf of paymaster)</DialogTitle>
+            <DialogTitle>Submit Payment Advice</DialogTitle>
             <DialogDescription className="text-[15px] leading-7">
-              Use the instructions below to make the repayment transfer. Submit this confirmation
-              only after the transfer for the amount you enter has been made. Admin will reconcile
-              before settlement is posted.
+              Notify admin that repayment has been made and attach payment advice/proof files.
+              Submit only after the transfer for this amount is completed. Admin reviews this
+              advice before settlement is posted.
             </DialogDescription>
           </DialogHeader>
 
@@ -938,6 +1033,31 @@ export default function IssuerNoteDetailPage() {
             </div>
 
             <div className="space-y-2">
+              <label className="text-sm font-medium">Payment source</label>
+              <Select
+                value={paymentSource}
+                onValueChange={(value) => {
+                  if (
+                    value === NotePaymentSource.ISSUER_ON_BEHALF ||
+                    value === NotePaymentSource.PAYMASTER
+                  ) {
+                    setPaymentSource(value);
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select payment source" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NotePaymentSource.ISSUER_ON_BEHALF}>
+                    Issuer paid on behalf
+                  </SelectItem>
+                  <SelectItem value={NotePaymentSource.PAYMASTER}>Paymaster paid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <label className="text-sm font-medium" htmlFor="payment-reference">
                 Payment reference
               </label>
@@ -947,6 +1067,67 @@ export default function IssuerNoteDetailPage() {
                 onChange={(event) => setReference(event.target.value)}
                 placeholder="Bank transfer reference or receipt number"
               />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="payment-advice-proof">
+                Payment Advice / Proof
+              </label>
+              <Input
+                id="payment-advice-proof"
+                type="file"
+                multiple
+                accept="application/pdf,image/jpeg,image/png"
+                onChange={(event) => {
+                  const selected = Array.from(event.target.files ?? []);
+                  if (selected.length === 0) return;
+                  const merged = [...evidenceFiles, ...selected];
+                  if (merged.length > PAYMENT_ADVICE_MAX_FILES) {
+                    toast.error(`You can upload up to ${PAYMENT_ADVICE_MAX_FILES} files`);
+                    event.currentTarget.value = "";
+                    return;
+                  }
+                  const invalid = merged.find(
+                    (file) =>
+                      !PAYMENT_ADVICE_ALLOWED_CONTENT_TYPES.includes(
+                        file.type as (typeof PAYMENT_ADVICE_ALLOWED_CONTENT_TYPES)[number]
+                      ) || file.size > PAYMENT_ADVICE_MAX_FILE_SIZE_BYTES
+                  );
+                  if (invalid) {
+                    toast.error("Only PDF, JPEG, or PNG up to 5MB per file is allowed");
+                    event.currentTarget.value = "";
+                    return;
+                  }
+                  setEvidenceFiles(merged);
+                  event.currentTarget.value = "";
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Required. PDF, JPEG, or PNG only. Max {PAYMENT_ADVICE_MAX_FILES} files, 5MB each.
+              </p>
+              {evidenceFiles.length > 0 ? (
+                <div className="space-y-2 rounded-xl border bg-muted/30 p-3">
+                  {evidenceFiles.map((file, index) => (
+                    <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-2">
+                      <span className="truncate text-xs text-foreground">
+                        {file.name} ({formatFileSize(file.size)})
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          setEvidenceFiles((previous) =>
+                            previous.filter((_, currentIndex) => currentIndex !== index)
+                          )
+                        }
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
             <label className="flex items-start gap-3 rounded-2xl border p-4 text-sm">
@@ -983,12 +1164,17 @@ export default function IssuerNoteDetailPage() {
                 !paymentConfirmed ||
                 !paymentAmountAcceptable ||
                 submitPayment.isPending ||
+                uploadEvidenceUrl.isPending ||
                 settlementAmount <= 0 ||
                 paymentBlockedReason != null ||
-                noReceiptCapacityReason != null
+                noReceiptCapacityReason != null ||
+                !reference.trim() ||
+                evidenceFiles.length < 1
               }
             >
-              {submitPayment.isPending ? "Submitting..." : "Submit Payment Confirmation"}
+              {submitPayment.isPending || uploadEvidenceUrl.isPending
+                ? "Submitting..."
+                : "Submit Payment Advice"}
             </Button>
           </DialogFooter>
         </DialogContent>

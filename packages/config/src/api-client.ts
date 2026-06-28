@@ -120,6 +120,8 @@ import type {
   PlatformFinanceSetting,
   TrusteeSignatureUploadUrlRequest,
   TrusteeSignatureUploadUrlResponse,
+  IssuerPaymentEvidenceUploadUrlRequest,
+  IssuerPaymentEvidenceUploadUrlResponse,
   RecordNotePaymentInput,
   SettlementPreviewInput,
   UpdateNoteFeaturedInput,
@@ -2781,6 +2783,16 @@ export class ApiClient {
     data: RecordNotePaymentInput
   ): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.post<NoteDetail>(`/v1/issuer/notes/${id}/payments/on-behalf-of-paymaster`, data);
+  }
+
+  async requestIssuerPaymentEvidenceUploadUrl(
+    id: string,
+    data: IssuerPaymentEvidenceUploadUrlRequest
+  ): Promise<ApiResponse<IssuerPaymentEvidenceUploadUrlResponse> | ApiError> {
+    return this.post<IssuerPaymentEvidenceUploadUrlResponse>(
+      `/v1/issuer/notes/${id}/payments/evidence/upload-url`,
+      data
+    );
   }
 
   async createWithdrawalInstruction(

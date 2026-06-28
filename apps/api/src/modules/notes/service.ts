@@ -120,6 +120,7 @@ import type {
   updateNoteDraftSchema,
   updatePlatformFinanceSettingsSchema,
   requestTrusteeSignatureUploadUrlSchema,
+  requestIssuerPaymentEvidenceUploadUrlSchema,
   createInvestorWithdrawalSchema,
   getInvestorWithdrawalsQuerySchema,
 } from "./schemas";
@@ -202,6 +203,14 @@ function signatureImageExtensionForContentType(contentType: string): string {
   if (normalized === "image/png") return "png";
   if (normalized === "image/webp") return "webp";
   if (normalized === "image/jpg" || normalized === "image/jpeg") return "jpg";
+  return "bin";
+}
+
+function paymentEvidenceExtensionForContentType(contentType: string): string {
+  const normalized = contentType.trim().toLowerCase();
+  if (normalized === "application/pdf") return "pdf";
+  if (normalized === "image/png") return "png";
+  if (normalized === "image/jpeg" || normalized === "image/jpg") return "jpg";
   return "bin";
 }
 
@@ -3498,7 +3507,7 @@ export class NoteService {
       .filter((payment) => OPEN_PAYMENT_STATUSES.includes(payment.status))
       .reduce((sum, payment) => sum + toNumber(payment.receipt_amount), 0);
     assertReceiptAmountWithinSettlementLimit(note, openReceiptAmount + input.receiptAmount);
-    const requiresAdminReview = input.source === "ISSUER_ON_BEHALF" && actor.portal === "ISSUER";
+    const requiresAdminReview = actor.portal === "ISSUER";
     const paymentPurpose = resolveIssuerPaymentPurpose(input);
     if (requiresAdminReview) {
       if (paymentPurpose === "LATE_FEES") {
@@ -3531,7 +3540,11 @@ export class NoteService {
           status,
           receipt_amount: money(input.receiptAmount),
           receipt_date: new Date(input.receiptDate),
-          evidence_s3_key: input.evidenceS3Key ?? null,
+          evidence_s3_key:
+            actor.portal === "ISSUER" ? null : (input.evidenceS3Key ?? null),
+          evidence_files: input.evidenceFiles
+            ? (input.evidenceFiles as Prisma.InputJsonValue)
+            : undefined,
           reference: input.reference ?? null,
           recorded_by_user_id: actor.userId,
           metadata: json(paymentMetadata),
@@ -4814,6 +4827,23 @@ export class NoteService {
     const extension = signatureImageExtensionForContentType(input.contentType);
     const date = new Date().toISOString().split("T")[0];
     const key = `platform-finance/trustee-signatures/v1-${date}-${randomUUID()}.${extension}`;
+    const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
+      key,
+      contentType: input.contentType,
+      contentLength: input.fileSize,
+    });
+    return { uploadUrl, s3Key, expiresIn };
+  }
+
+  async requestIssuerPaymentEvidenceUploadUrl(
+    noteId: string,
+    input: z.infer<typeof requestIssuerPaymentEvidenceUploadUrlSchema>,
+    userId: string
+  ) {
+    await this.getIssuerNote(noteId, userId);
+    const extension = paymentEvidenceExtensionForContentType(input.contentType);
+    const date = new Date().toISOString().split("T")[0];
+    const key = `notes/${noteId}/payment-advice/v1-${date}-${randomUUID()}.${extension}`;
     const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
       key,
       contentType: input.contentType,

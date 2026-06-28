@@ -147,6 +147,14 @@ export const createInvestmentSchema = z.object({
   investorOrganizationId: z.string().min(1),
 });
 
+const paymentEvidenceFileSchema = z.object({
+  s3Key: z.string().min(1).max(500),
+  fileName: z.string().min(1).max(255),
+  contentType: z.enum(["application/pdf", "image/jpeg", "image/png"]),
+  fileSize: z.number().int().positive().max(5 * 1024 * 1024),
+  uploadedAt: z.string().datetime(),
+});
+
 export const testInvestorBalanceTopupSchema = z.object({
   investorOrganizationId: z.string().min(1),
   amount: z.number().positive(),
@@ -158,8 +166,17 @@ export const recordPaymentSchema = z.object({
   receiptDate: z.string().datetime(),
   reference: z.string().max(120).nullable().optional(),
   evidenceS3Key: z.string().max(500).nullable().optional(),
+  evidenceFiles: z.array(paymentEvidenceFileSchema).max(5).nullable().optional(),
   scheduleId: z.string().nullable().optional(),
   metadata: z.record(z.unknown()).nullable().optional(),
+});
+
+export const issuerPaymentAdviceSchema = recordPaymentSchema.omit({
+  evidenceS3Key: true,
+}).extend({
+  source: z.enum(["ISSUER_ON_BEHALF", "PAYMASTER"]),
+  reference: z.string().trim().min(1).max(120),
+  evidenceFiles: z.array(paymentEvidenceFileSchema).min(1).max(5),
 });
 
 export const paymentReviewSchema = z.object({
@@ -219,6 +236,12 @@ export const updatePlatformFinanceSettingsSchema = z.object({
 export const requestTrusteeSignatureUploadUrlSchema = z.object({
   fileName: z.string().min(1),
   contentType: z.enum(["image/png", "image/jpeg", "image/jpg", "image/webp"]),
+  fileSize: z.number().int().positive().max(5 * 1024 * 1024),
+});
+
+export const requestIssuerPaymentEvidenceUploadUrlSchema = z.object({
+  fileName: z.string().min(1).max(255),
+  contentType: z.enum(["application/pdf", "image/jpeg", "image/png"]),
   fileSize: z.number().int().positive().max(5 * 1024 * 1024),
 });
 

@@ -201,6 +201,19 @@ function getPaymentMetadata(payment: NotePayment) {
   return extended.metadata;
 }
 
+function getPaymentEvidenceFiles(payment: NotePayment) {
+  const extended = payment as NotePayment & {
+    evidenceFiles?: Array<{
+      s3Key: string;
+      fileName: string;
+      contentType: string;
+      fileSize: number;
+      uploadedAt: string;
+    }> | null;
+  };
+  return Array.isArray(extended.evidenceFiles) ? extended.evidenceFiles : [];
+}
+
 function getSettlementValue(settlement: Record<string, unknown>, key: string) {
   const value = settlement[key];
   if (typeof value === "string" || typeof value === "number" || value == null) {
@@ -1354,6 +1367,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                 {sortedPayments.map((payment) => {
                   const isIncluded = includedPaymentIds.has(payment.id);
                   const isPending = payment.status === "PENDING";
+                  const evidenceFiles = getPaymentEvidenceFiles(payment);
                   return (
                     <div
                       key={payment.id}
@@ -1382,6 +1396,44 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                           <div className="mt-1 text-xs text-muted-foreground">
                             Received into {payment.receivedIntoAccountCode}
                           </div>
+                          {evidenceFiles.length > 0 ? (
+                            <div className="mt-2 rounded-md border bg-background p-2">
+                              <div className="text-xs font-medium text-foreground">
+                                Payment Advice / Proof ({evidenceFiles.length})
+                              </div>
+                              <div className="mt-1 flex flex-wrap items-center gap-2">
+                                {evidenceFiles.map((file) => (
+                                  <div key={file.s3Key} className="flex items-center gap-1.5 text-xs">
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 px-2"
+                                      onClick={() => handleViewDocument(file.s3Key)}
+                                      disabled={viewDocumentPending}
+                                    >
+                                      View
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 px-2"
+                                      onClick={() =>
+                                        handleDownloadDocument(file.s3Key, file.fileName || "proof-file")
+                                      }
+                                      disabled={viewDocumentPending}
+                                    >
+                                      Download
+                                    </Button>
+                                    <span className="max-w-[220px] truncate text-muted-foreground">
+                                      {file.fileName}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
                         <div className="flex flex-wrap items-center justify-end gap-2">
                           {isIncluded ? (

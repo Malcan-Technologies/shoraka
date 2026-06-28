@@ -320,11 +320,20 @@ export interface NotePayment {
   receiptDate: string;
   receivedIntoAccountCode: string;
   evidenceS3Key: string | null;
+  evidenceFiles?: PaymentEvidenceFile[] | null;
   reference: string | null;
   recordedByUserId: string | null;
   reconciledByUserId: string | null;
   reconciledAt: string | null;
   metadata: Record<string, unknown> | null;
+}
+
+export interface PaymentEvidenceFile {
+  s3Key: string;
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+  uploadedAt: string;
 }
 
 export interface NoteSettlement {
@@ -640,6 +649,18 @@ export interface TrusteeSignatureUploadUrlRequest {
 }
 
 export interface TrusteeSignatureUploadUrlResponse {
+  uploadUrl: string;
+  s3Key: string;
+  expiresIn: number;
+}
+
+export interface IssuerPaymentEvidenceUploadUrlRequest {
+  fileName: string;
+  contentType: "application/pdf" | "image/jpeg" | "image/png";
+  fileSize: number;
+}
+
+export interface IssuerPaymentEvidenceUploadUrlResponse {
   uploadUrl: string;
   s3Key: string;
   expiresIn: number;
@@ -998,6 +1019,7 @@ export interface RecordNotePaymentInput {
   receiptDate: string;
   reference?: string | null;
   evidenceS3Key?: string | null;
+  evidenceFiles?: PaymentEvidenceFile[] | null;
   scheduleId?: string | null;
   metadata?: Record<string, unknown> | null;
 }

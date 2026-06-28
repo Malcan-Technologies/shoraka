@@ -138,6 +138,30 @@ function asRecord(value: Prisma.JsonValue | null | undefined): Record<string, un
     : null;
 }
 
+function asPaymentEvidenceFiles(value: Prisma.JsonValue | null | undefined) {
+  if (!Array.isArray(value)) return null;
+  const files = value
+    .map((item) => {
+      const entry = asRecord(item as Prisma.JsonValue);
+      if (!entry) return null;
+      const s3Key = typeof entry.s3Key === "string" ? entry.s3Key : "";
+      const fileName = typeof entry.fileName === "string" ? entry.fileName : "";
+      const contentType = typeof entry.contentType === "string" ? entry.contentType : "";
+      const fileSize = numberFromUnknownOrUndefined(entry.fileSize);
+      const uploadedAt = typeof entry.uploadedAt === "string" ? entry.uploadedAt : "";
+      if (!s3Key || !fileName || !contentType || !fileSize || !uploadedAt) return null;
+      return { s3Key, fileName, contentType, fileSize, uploadedAt };
+    })
+    .filter((item): item is {
+      s3Key: string;
+      fileName: string;
+      contentType: string;
+      fileSize: number;
+      uploadedAt: string;
+    } => item !== null);
+  return files.length > 0 ? files : null;
+}
+
 function numberFromUnknown(value: unknown): number {
   if (value instanceof Prisma.Decimal) return value.toNumber();
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -483,6 +507,7 @@ export function mapNoteDetail(
       receiptDate: payment.receipt_date.toISOString(),
       receivedIntoAccountCode: payment.received_into_account_code,
       evidenceS3Key: payment.evidence_s3_key,
+      evidenceFiles: asPaymentEvidenceFiles(payment.evidence_files),
       reference: payment.reference,
       recordedByUserId: payment.recorded_by_user_id,
       reconciledByUserId: payment.reconciled_by_user_id,
