@@ -151,7 +151,7 @@ const noteActionCopy: Record<
 };
 
 export default function NoteDetailPage() {
-  type WorkflowTabId = "overview" | "disbursement" | "servicing-settlement" | "ledger";
+  type WorkflowTabId = "disbursement" | "servicing-settlement" | "ledger";
   const { can } = usePermissions();
   const canManage = can("notes.manage");
   const canDisbursement = can("notes.disbursement.manage");
@@ -167,7 +167,7 @@ export default function NoteDetailPage() {
   const updateNoteFeatured = useUpdateNoteFeatured();
   const [pendingAction, setPendingAction] = React.useState<NoteLifecycleAction | null>(null);
   const [featuredEnabled, setFeaturedEnabled] = React.useState(false);
-  const [activeWorkflowTab, setActiveWorkflowTab] = React.useState<WorkflowTabId>("overview");
+  const [activeWorkflowTab, setActiveWorkflowTab] = React.useState<WorkflowTabId>("disbursement");
 
   const lifecyclePending = React.useMemo(
     () => ({
@@ -436,18 +436,31 @@ export default function NoteDetailPage() {
                 canManage={canManage}
               />
 
+              <div className="space-y-6">
+                <NoteTermsPanel note={note} />
+                {note.sourceInvoiceOfferSigning ? (
+                  <OfferSigningPanel
+                    title="Signed invoice offer"
+                    description="Review the active signed invoice offer letter from the source application. Request re-sign when the wrong person signed."
+                    signing={note.sourceInvoiceOfferSigning}
+                    onResign={
+                      note.sourceInvoiceOfferSigning.canResign
+                        ? async () => {
+                            await resignInvoiceOffer.mutateAsync();
+                          }
+                        : undefined
+                    }
+                    resignPending={resignInvoiceOffer.isPending}
+                    canManage={canManage}
+                  />
+                ) : null}
+              </div>
+
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)]">
                 <div className="min-w-0 space-y-4">
                   <Card className="rounded-2xl">
                     <CardContent className="p-3">
                       <div className="flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          variant={activeWorkflowTab === "overview" ? "default" : "outline"}
-                          onClick={() => setActiveWorkflowTab("overview")}
-                        >
-                          Overview
-                        </Button>
                         <Button
                           size="sm"
                           variant={activeWorkflowTab === "disbursement" ? "default" : "outline"}
@@ -473,32 +486,12 @@ export default function NoteDetailPage() {
                     </CardContent>
                   </Card>
 
-                  <div className={activeWorkflowTab === "overview" ? "space-y-6" : "hidden space-y-6"}>
-                    <NoteTermsPanel note={note} />
-                    {note.sourceInvoiceOfferSigning ? (
-                      <OfferSigningPanel
-                        title="Signed invoice offer"
-                        description="Review the active signed invoice offer letter from the source application. Request re-sign when the wrong person signed."
-                        signing={note.sourceInvoiceOfferSigning}
-                        onResign={
-                          note.sourceInvoiceOfferSigning.canResign
-                            ? async () => {
-                                await resignInvoiceOffer.mutateAsync();
-                              }
-                            : undefined
-                        }
-                        resignPending={resignInvoiceOffer.isPending}
-                        canManage={canManage}
-                      />
-                    ) : null}
-                  </div>
-
                   <div className={activeWorkflowTab === "disbursement" ? "space-y-6" : "hidden space-y-6"}>
                     <Card className="rounded-2xl">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-base">Funding &amp; Issuer Disbursement</CardTitle>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          Manage funding close payout, Tawarruq Transaction, trustee submission, and issuer disbursement before servicing begins.
+                          Manage Tawarruq/Shoraka execution, trustee submission, and issuer disbursement in one workflow before servicing begins.
                         </p>
                       </CardHeader>
                       <CardContent className="space-y-6">
