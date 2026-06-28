@@ -526,52 +526,66 @@ export default function NoteDetailPage() {
                 <div className="min-w-0 space-y-4">
                   <Card className="rounded-2xl">
                     <CardContent className="p-3">
-                      <div className="flex flex-wrap gap-2">
+                      <div className="w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-xl bg-muted p-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/30">
+                        <div className="flex h-auto min-h-11 w-max min-w-full flex-nowrap justify-center gap-2 text-muted-foreground">
                         <Button
                           size="sm"
-                          variant={activeWorkflowTab === "disbursement" ? "default" : "outline"}
+                          variant="ghost"
                           onClick={() => setActiveWorkflowTab("disbursement")}
-                          className="gap-2"
+                          className={
+                            activeWorkflowTab === "disbursement"
+                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm sm:px-4"
+                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
+                          }
                         >
-                          <span>Disbursement</span>
                           <span
                             aria-hidden
                             className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[disbursementTabStatus].dotClass}`}
                           />
+                          <span className="truncate">Disbursement</span>
                           <span className="sr-only">
                             Status: {TAB_STATUS_BADGE_COPY[disbursementTabStatus].label}
                           </span>
                         </Button>
                         <Button
                           size="sm"
-                          variant={activeWorkflowTab === "servicing-settlement" ? "default" : "outline"}
+                          variant="ghost"
                           onClick={() => setActiveWorkflowTab("servicing-settlement")}
-                          className="gap-2"
+                          className={
+                            activeWorkflowTab === "servicing-settlement"
+                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm sm:px-4"
+                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
+                          }
                         >
-                          <span>Servicing &amp; Settlement</span>
                           <span
                             aria-hidden
                             className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].dotClass}`}
                           />
+                          <span className="truncate">Servicing &amp; Settlement</span>
                           <span className="sr-only">
                             Status: {TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].label}
                           </span>
                         </Button>
                         <Button
                           size="sm"
-                          variant={activeWorkflowTab === "ledger" ? "default" : "outline"}
+                          variant="ghost"
                           onClick={() => setActiveWorkflowTab("ledger")}
-                          className="gap-2"
+                          className={
+                            activeWorkflowTab === "ledger"
+                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm sm:px-4"
+                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
+                          }
                         >
-                          <span>Ledger</span>
                           <span
                             aria-hidden
                             className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[ledgerTabStatus].dotClass}`}
                           />
+                          <span className="truncate">Ledger</span>
                           <span className="sr-only">
                             Status: {TAB_STATUS_BADGE_COPY[ledgerTabStatus].label}
                           </span>
                         </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
