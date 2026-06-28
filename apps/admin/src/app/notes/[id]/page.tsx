@@ -151,6 +151,7 @@ const noteActionCopy: Record<
 };
 
 export default function NoteDetailPage() {
+  type WorkflowTabId = "overview" | "disbursement" | "servicing-settlement" | "ledger";
   const { can } = usePermissions();
   const canManage = can("notes.manage");
   const canDisbursement = can("notes.disbursement.manage");
@@ -166,6 +167,7 @@ export default function NoteDetailPage() {
   const updateNoteFeatured = useUpdateNoteFeatured();
   const [pendingAction, setPendingAction] = React.useState<NoteLifecycleAction | null>(null);
   const [featuredEnabled, setFeaturedEnabled] = React.useState(false);
+  const [activeWorkflowTab, setActiveWorkflowTab] = React.useState<WorkflowTabId>("overview");
 
   const lifecyclePending = React.useMemo(
     () => ({
@@ -434,47 +436,94 @@ export default function NoteDetailPage() {
                 canManage={canManage}
               />
 
-              {note.sourceInvoiceOfferSigning ? (
-                <OfferSigningPanel
-                  title="Signed invoice offer"
-                  description="Review the active signed invoice offer letter from the source application. Request re-sign when the wrong person signed."
-                  signing={note.sourceInvoiceOfferSigning}
-                  onResign={
-                    note.sourceInvoiceOfferSigning.canResign
-                      ? async () => {
-                          await resignInvoiceOffer.mutateAsync();
-                        }
-                      : undefined
-                  }
-                  resignPending={resignInvoiceOffer.isPending}
-                  canManage={canManage}
-                />
-              ) : null}
-
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)]">
-                <div className="min-w-0 space-y-6">
-                  <NoteTermsPanel note={note} />
+                <div className="min-w-0 space-y-4">
                   <Card className="rounded-2xl">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Funding &amp; Issuer Disbursement</CardTitle>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Manage funding close payout, Tawarruq Transaction, trustee submission, and issuer disbursement before servicing begins.
-                      </p>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      {disbursementWithdrawal && disbursementWithdrawal.status !== "CANCELLED" ? (
-                        disbursementWithdrawal.status !== "COMPLETED" ? (
-                          <div
-                            className={`rounded-xl border border-amber-200 p-4 border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]`}
-                          >
-                            <div className="mb-2 text-xs font-medium uppercase tracking-wider text-amber-900">
-                              Awaiting issuer disbursement
+                    <CardContent className="p-3">
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant={activeWorkflowTab === "overview" ? "default" : "outline"}
+                          onClick={() => setActiveWorkflowTab("overview")}
+                        >
+                          Overview
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={activeWorkflowTab === "disbursement" ? "default" : "outline"}
+                          onClick={() => setActiveWorkflowTab("disbursement")}
+                        >
+                          Disbursement
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={activeWorkflowTab === "servicing-settlement" ? "default" : "outline"}
+                          onClick={() => setActiveWorkflowTab("servicing-settlement")}
+                        >
+                          Servicing &amp; Settlement
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={activeWorkflowTab === "ledger" ? "default" : "outline"}
+                          onClick={() => setActiveWorkflowTab("ledger")}
+                        >
+                          Ledger
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <div className={activeWorkflowTab === "overview" ? "space-y-6" : "hidden space-y-6"}>
+                    <NoteTermsPanel note={note} />
+                    {note.sourceInvoiceOfferSigning ? (
+                      <OfferSigningPanel
+                        title="Signed invoice offer"
+                        description="Review the active signed invoice offer letter from the source application. Request re-sign when the wrong person signed."
+                        signing={note.sourceInvoiceOfferSigning}
+                        onResign={
+                          note.sourceInvoiceOfferSigning.canResign
+                            ? async () => {
+                                await resignInvoiceOffer.mutateAsync();
+                              }
+                            : undefined
+                        }
+                        resignPending={resignInvoiceOffer.isPending}
+                        canManage={canManage}
+                      />
+                    ) : null}
+                  </div>
+
+                  <div className={activeWorkflowTab === "disbursement" ? "space-y-6" : "hidden space-y-6"}>
+                    <Card className="rounded-2xl">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Funding &amp; Issuer Disbursement</CardTitle>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Manage funding close payout, Tawarruq Transaction, trustee submission, and issuer disbursement before servicing begins.
+                        </p>
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        {disbursementWithdrawal && disbursementWithdrawal.status !== "CANCELLED" ? (
+                          disbursementWithdrawal.status !== "COMPLETED" ? (
+                            <div
+                              className={`rounded-xl border border-amber-200 p-4 border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]`}
+                            >
+                              <div className="mb-2 text-xs font-medium uppercase tracking-wider text-amber-900">
+                                Awaiting issuer disbursement
+                              </div>
+                              <p className="text-xs text-amber-900/80">
+                                Funding has closed. The net amount below must be paid out to the issuer via
+                                the trustee before servicing begins. Once the disbursement is marked complete, the
+                                note will move to ACTIVE and repayment receipts can be recorded.
+                              </p>
+                              <IssuerPayoutCard
+                                note={note}
+                                withdrawal={disbursementWithdrawal}
+                                kind="DISBURSEMENT"
+                                servicingBlockedReason={null}
+                                canManage={canDisbursement}
+                              />
                             </div>
-                            <p className="text-xs text-amber-900/80">
-                              Funding has closed. The net amount below must be paid out to the issuer via
-                              the trustee before servicing begins. Once the disbursement is marked complete, the
-                              note will move to ACTIVE and repayment receipts can be recorded.
-                            </p>
+                          ) : (
                             <IssuerPayoutCard
                               note={note}
                               withdrawal={disbursementWithdrawal}
@@ -482,21 +531,23 @@ export default function NoteDetailPage() {
                               servicingBlockedReason={null}
                               canManage={canDisbursement}
                             />
-                          </div>
-                        ) : (
-                          <IssuerPayoutCard
-                            note={note}
-                            withdrawal={disbursementWithdrawal}
-                            kind="DISBURSEMENT"
-                            servicingBlockedReason={null}
-                            canManage={canDisbursement}
-                          />
-                        )
-                      ) : null}
-                    </CardContent>
-                  </Card>
-                  <SettlementPanel note={note} />
-                  <LedgerPanel note={note} />
+                          )
+                        ) : null}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div
+                    className={
+                      activeWorkflowTab === "servicing-settlement" ? "space-y-6" : "hidden space-y-6"
+                    }
+                  >
+                    <SettlementPanel note={note} />
+                  </div>
+
+                  <div className={activeWorkflowTab === "ledger" ? "space-y-6" : "hidden space-y-6"}>
+                    <LedgerPanel note={note} />
+                  </div>
                 </div>
                 <div className="min-w-0 space-y-6">
                   <SourceApplicationPanel note={note} />
