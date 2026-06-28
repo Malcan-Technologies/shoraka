@@ -113,26 +113,30 @@ type SimpleTabStatus = "done" | "needs-action" | "not-started" | "view-only";
 
 const TAB_STATUS_BADGE_COPY: Record<
   SimpleTabStatus,
-  { label: string; className: string }
+  { label: string; className: string; dotClass: string }
 > = {
   done: {
     label: "Done",
     className:
       "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300",
+    dotClass: "bg-status-success-text dark:bg-emerald-300",
   },
   "needs-action": {
     label: "In progress",
     className: "border-transparent bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
+    dotClass: "bg-amber-500 dark:bg-amber-300",
   },
   "not-started": {
     label: "Not started",
     className:
       "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300",
+    dotClass: "bg-status-neutral-text dark:bg-slate-300",
   },
   "view-only": {
     label: "View only",
     className:
       "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300",
+    dotClass: "bg-status-neutral-text dark:bg-slate-300",
   },
 };
 
@@ -530,9 +534,13 @@ export default function NoteDetailPage() {
                           className="gap-2"
                         >
                           <span>Disbursement</span>
-                          <Badge variant="outline" className={TAB_STATUS_BADGE_COPY[disbursementTabStatus].className}>
-                            {TAB_STATUS_BADGE_COPY[disbursementTabStatus].label}
-                          </Badge>
+                          <span
+                            aria-hidden
+                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[disbursementTabStatus].dotClass}`}
+                          />
+                          <span className="sr-only">
+                            Status: {TAB_STATUS_BADGE_COPY[disbursementTabStatus].label}
+                          </span>
                         </Button>
                         <Button
                           size="sm"
@@ -541,12 +549,13 @@ export default function NoteDetailPage() {
                           className="gap-2"
                         >
                           <span>Servicing &amp; Settlement</span>
-                          <Badge
-                            variant="outline"
-                            className={TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].className}
-                          >
-                            {TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].label}
-                          </Badge>
+                          <span
+                            aria-hidden
+                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].dotClass}`}
+                          />
+                          <span className="sr-only">
+                            Status: {TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].label}
+                          </span>
                         </Button>
                         <Button
                           size="sm"
@@ -555,9 +564,13 @@ export default function NoteDetailPage() {
                           className="gap-2"
                         >
                           <span>Ledger</span>
-                          <Badge variant="outline" className={TAB_STATUS_BADGE_COPY[ledgerTabStatus].className}>
-                            {TAB_STATUS_BADGE_COPY[ledgerTabStatus].label}
-                          </Badge>
+                          <span
+                            aria-hidden
+                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[ledgerTabStatus].dotClass}`}
+                          />
+                          <span className="sr-only">
+                            Status: {TAB_STATUS_BADGE_COPY[ledgerTabStatus].label}
+                          </span>
                         </Button>
                       </div>
                     </CardContent>
@@ -620,6 +633,37 @@ export default function NoteDetailPage() {
                   </div>
                 </div>
                 <div className="min-w-0 space-y-6">
+                  <Card className="rounded-2xl">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Workflow Status</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <span>Disbursement</span>
+                        <Badge
+                          variant="outline"
+                          className={TAB_STATUS_BADGE_COPY[disbursementTabStatus].className}
+                        >
+                          {TAB_STATUS_BADGE_COPY[disbursementTabStatus].label}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span>Servicing &amp; Settlement</span>
+                        <Badge
+                          variant="outline"
+                          className={TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].className}
+                        >
+                          {TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].label}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span>Ledger</span>
+                        <Badge variant="outline" className={TAB_STATUS_BADGE_COPY[ledgerTabStatus].className}>
+                          {TAB_STATUS_BADGE_COPY[ledgerTabStatus].label}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
                   <SourceApplicationPanel note={note} />
                   <NoteTimelinePanel note={note} />
                 </div>
