@@ -129,6 +129,11 @@ import type {
   GatewayPaymentDetailDto,
   GatewayPaymentListResponse,
   GatewayPaymentPendingCountResponse,
+  GatewayReconExceptionDto,
+  GatewayReconExceptionListResponse,
+  GatewayReconPendingCountResponse,
+  GatewayReconRunDetailDto,
+  GatewayReconRunListResponse,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -976,6 +981,66 @@ export class ApiClient {
     return this.post<GatewayPaymentDetailDto>(
       `/v1/admin/gateway-payments/${id}/refund/complete`,
       input ?? {}
+    );
+  }
+
+  async listAdminGatewayReconRuns(params?: {
+    page?: number;
+    pageSize?: number;
+  }): Promise<ApiResponse<GatewayReconRunListResponse> | ApiError> {
+    const search = new URLSearchParams();
+    if (params?.page) search.set("page", String(params.page));
+    if (params?.pageSize) search.set("pageSize", String(params.pageSize));
+    const qs = search.toString();
+    return this.get<GatewayReconRunListResponse>(
+      `/v1/admin/gateway-recon/runs${qs ? `?${qs}` : ""}`
+    );
+  }
+
+  async getAdminGatewayReconRun(id: string): Promise<ApiResponse<GatewayReconRunDetailDto> | ApiError> {
+    return this.get<GatewayReconRunDetailDto>(`/v1/admin/gateway-recon/runs/${id}`);
+  }
+
+  async listAdminGatewayReconExceptions(params?: {
+    page?: number;
+    pageSize?: number;
+    resolved?: boolean;
+    runId?: string;
+    type?: string;
+  }): Promise<ApiResponse<GatewayReconExceptionListResponse> | ApiError> {
+    const search = new URLSearchParams();
+    if (params?.page) search.set("page", String(params.page));
+    if (params?.pageSize) search.set("pageSize", String(params.pageSize));
+    if (params?.resolved !== undefined) search.set("resolved", String(params.resolved));
+    if (params?.runId) search.set("runId", params.runId);
+    if (params?.type) search.set("type", params.type);
+    const qs = search.toString();
+    return this.get<GatewayReconExceptionListResponse>(
+      `/v1/admin/gateway-recon/exceptions${qs ? `?${qs}` : ""}`
+    );
+  }
+
+  async getAdminGatewayReconPendingCount(): Promise<
+    ApiResponse<GatewayReconPendingCountResponse> | ApiError
+  > {
+    return this.get<GatewayReconPendingCountResponse>(
+      "/v1/admin/gateway-recon/exceptions/pending-count"
+    );
+  }
+
+  async triggerAdminGatewayReconRun(input?: {
+    runDate?: string;
+  }): Promise<ApiResponse<GatewayReconRunDetailDto> | ApiError> {
+    return this.post<GatewayReconRunDetailDto>("/v1/admin/gateway-recon/run", input ?? {});
+  }
+
+  async resolveAdminGatewayReconException(
+    id: string,
+    reason: string
+  ): Promise<ApiResponse<GatewayReconExceptionDto> | ApiError> {
+    return this.post<GatewayReconExceptionDto>(
+      `/v1/admin/gateway-recon/exceptions/${id}/resolve`,
+      { reason }
     );
   }
 

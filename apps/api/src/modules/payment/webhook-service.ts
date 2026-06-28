@@ -442,11 +442,13 @@ export async function syncGatewayPaymentFromCurlec(
     return payment;
   }
 
-  if (orderPayments.length === 0) {
+  const payments = Array.isArray(orderPayments) ? orderPayments : [];
+
+  if (payments.length === 0) {
     return payment;
   }
 
-  const latest = [...orderPayments].sort(
+  const latest = [...payments].sort(
     (a, b) => (b.created_at ?? 0) - (a.created_at ?? 0)
   )[0];
 

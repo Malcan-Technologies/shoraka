@@ -49,6 +49,7 @@ import {
 import { ChevronRight } from "lucide-react";
 import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
 import { useHeldGatewayPaymentsPendingCount } from "@/hooks/use-gateway-payments";
+import { useGatewayReconPendingCount } from "@/hooks/use-gateway-recon";
 import { useProducts } from "@/hooks/use-products";
 import { useAdminApplicationsForSidebar } from "@/hooks/use-admin-applications-for-sidebar";
 import {
@@ -162,6 +163,12 @@ const navFinance = [
     icon: ShieldCheckIcon,
     badgeKey: "heldGatewayPayments" as const,
   },
+  {
+    title: "Reconciliation",
+    url: "/finance/reconciliation",
+    icon: ArrowsRightLeftIcon,
+    badgeKey: "gatewayReconExceptions" as const,
+  },
 ] as const;
 
 const navPlatform = [
@@ -248,6 +255,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: heldGatewayPaymentsData } = useHeldGatewayPaymentsPendingCount({
     enabled: canViewGatewayPayments,
   });
+  const { data: gatewayReconData } = useGatewayReconPendingCount({
+    enabled: canViewGatewayPayments,
+  });
   const { data: pendingServiceFeeLettersData } = usePendingServiceFeeTrusteeLetters({
     enabled: canViewServiceFee,
   });
@@ -271,6 +281,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     pendingIssuerPayouts: pendingIssuerPayoutsData?.count || 0,
     pendingInvestorWithdrawals: pendingInvestorWithdrawalsData?.count || 0,
     heldGatewayPayments: heldGatewayPaymentsData?.count || 0,
+    gatewayReconExceptions: gatewayReconData?.count || 0,
   };
 
   const dynamicNavLifecycle = React.useMemo(() => {
@@ -306,7 +317,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       (item.title === "Issuer Payouts" && canViewDisbursements) ||
       (item.title === "Investor Withdrawals" && canViewInvestorWithdrawals) ||
       (item.title === "Gateway Payments" && canViewGatewayPayments) ||
-      (item.title === "Held Deposits" && canViewGatewayPayments)
+      (item.title === "Held Deposits" && canViewGatewayPayments) ||
+      (item.title === "Reconciliation" && canViewGatewayPayments)
     );
   });
 
@@ -585,7 +597,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       (item.title === "Issuer Payouts" && canViewDisbursements) ||
       (item.title === "Investor Withdrawals" && canViewInvestorWithdrawals) ||
       (item.title === "Gateway Payments" && canViewGatewayPayments) ||
-      (item.title === "Held Deposits" && canViewGatewayPayments);
+      (item.title === "Held Deposits" && canViewGatewayPayments) ||
+      (item.title === "Reconciliation" && canViewGatewayPayments);
 
                     if (!canShow) return null;
 

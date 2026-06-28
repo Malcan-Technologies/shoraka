@@ -80,6 +80,33 @@ export const curlecSettlementListSchema = z.object({
 
 export type CurlecSettlementList = z.infer<typeof curlecSettlementListSchema>;
 
+export const curlecSettlementReconItemSchema = z.object({
+  entity_id: z.string().optional(),
+  type: z.string().optional(),
+  entity_type: z.string().optional(),
+  debit: z.number().int().optional(),
+  credit: z.number().int().optional(),
+  amount: z.number().int(),
+  currency: z.string().optional(),
+  fee: z.number().int().optional(),
+  tax: z.number().int().optional(),
+  settled: z.boolean().optional(),
+  settlement_id: z.string().nullable().optional(),
+  payment_id: z.string().nullable().optional(),
+  order_id: z.string().nullable().optional(),
+  created_at: z.number().optional(),
+});
+
+export type CurlecSettlementReconItem = z.infer<typeof curlecSettlementReconItemSchema>;
+
+export const curlecSettlementReconListSchema = z.object({
+  entity: z.literal("collection").optional(),
+  count: z.number().optional(),
+  items: z.array(curlecSettlementReconItemSchema),
+});
+
+export type CurlecSettlementReconList = z.infer<typeof curlecSettlementReconListSchema>;
+
 export const createCurlecOrderInputSchema = z.object({
   amountSen: z.number().int().positive(),
   currency: z.literal("MYR").default("MYR"),

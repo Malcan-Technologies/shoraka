@@ -13,7 +13,8 @@ export type GatewayPaymentEventType =
   | "OVERRIDE_APPROVED"
   | "OVERRIDE_REJECTED"
   | "REFUND_INITIATED"
-  | "REFUNDED";
+  | "REFUNDED"
+  | "EXPIRED";
 
 export interface GatewayPaymentEventDto {
   id: string;

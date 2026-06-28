@@ -95,6 +95,37 @@ describe("CurlecClient", () => {
       client.fetchPayment("pay_bad")
     ).rejects.toMatchObject({ code: "CURLEC_API_ERROR", statusCode: 502 });
   });
+
+  it("fetches settlement recon combined report", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          count: 1,
+          items: [
+            {
+              entity_type: "payment",
+              amount: 10_000,
+              fee: 50,
+              tax: 0,
+              settled: true,
+              settlement_id: "setl_1",
+              payment_id: "pay_1",
+            },
+          ],
+        }),
+    });
+
+    const client = new CurlecClient(testConfig);
+    const report = await client.fetchSettlementRecon({ year: 2026, month: 6, day: 28 });
+    expect(report.items).toHaveLength(1);
+    expect(report.items[0]?.payment_id).toBe("pay_1");
+    expect(global.fetch).toHaveBeenCalledWith(
+      "https://api.razorpay.com/v1/settlements/recon/combined?year=2026&month=6&day=28",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
 });
 
 describe("Curlec payment field extractors", () => {

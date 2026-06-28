@@ -7,10 +7,12 @@ import {
   curlecOrderSchema,
   curlecPaymentSchema,
   curlecSettlementListSchema,
+  curlecSettlementReconListSchema,
   type CreateCurlecOrderInput,
   type CurlecOrder,
   type CurlecPayment,
   type CurlecSettlementList,
+  type CurlecSettlementReconList,
 } from "./curlec-schemas";
 
 type HttpMethod = "GET" | "POST";
@@ -118,6 +120,24 @@ export class CurlecClient {
     const path = query ? `/v1/settlements?${query}` : "/v1/settlements";
     const raw = await this.request("GET", path);
     return curlecSettlementListSchema.parse(raw);
+  }
+
+  async fetchSettlementRecon(params: {
+    year: number;
+    month: number;
+    day?: number;
+    count?: number;
+    skip?: number;
+  }): Promise<CurlecSettlementReconList> {
+    const search = new URLSearchParams();
+    search.set("year", String(params.year));
+    search.set("month", String(params.month));
+    if (params.day !== undefined) search.set("day", String(params.day));
+    if (params.count !== undefined) search.set("count", String(params.count));
+    if (params.skip !== undefined) search.set("skip", String(params.skip));
+
+    const raw = await this.request("GET", `/v1/settlements/recon/combined?${search.toString()}`);
+    return curlecSettlementReconListSchema.parse(raw);
   }
 }
 
