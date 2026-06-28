@@ -274,6 +274,9 @@ async function processGatewayPaymentCapture(
     case GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE:
       await processOnboardingFeeCapture(input, db);
       return;
+    case GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE:
+      await processProcessingFeeCapture(input, db);
+      return;
     default:
       await markWebhookProcessed(db, input.eventId);
   }
@@ -327,6 +330,57 @@ export async function processOnboardingFeeCapture(
       orderId: input.orderId,
     },
     "Issuer onboarding fee webhook processed"
+  );
+}
+
+export async function processProcessingFeeCapture(
+  input: { orderId: string; paymentId: string; eventId: string },
+  db: PrismaClient = defaultPrisma
+): Promise<void> {
+  const payment = await db.gatewayPayment.findUnique({
+    where: { curlec_order_id: input.orderId },
+  });
+
+  if (!payment) {
+    await markWebhookProcessed(db, input.eventId);
+    return;
+  }
+
+  if (TERMINAL_GATEWAY_STATUSES.has(payment.status)) {
+    await markWebhookProcessed(db, input.eventId);
+    return;
+  }
+
+  const curlecClient = createCurlecClient();
+  const curlecPayment = await curlecClient.fetchPayment(input.paymentId);
+
+  await db.gatewayPayment.update({
+    where: { id: payment.id },
+    data: {
+      curlec_payment_id: curlecPayment.id,
+      method: curlecPayment.method,
+    },
+  });
+
+  await db.$transaction(async (tx) => {
+    const statusAfterClaim = await claimCreatedToPaid(tx, payment.id);
+    if (!statusAfterClaim || statusAfterClaim !== GatewayPaymentStatus.PAID) {
+      return;
+    }
+
+    const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    await completeProcessingFeePayment(tx, current);
+  });
+
+  await markWebhookProcessed(db, input.eventId);
+
+  logger.info(
+    {
+      eventId: input.eventId,
+      gatewayPaymentId: payment.id,
+      orderId: input.orderId,
+    },
+    "Application processing fee webhook processed"
   );
 }
 
@@ -453,6 +507,44 @@ async function completeOnboardingFeePayment(
     metadata: {
       gatewayPaymentId: gatewayPayment.id,
       issuerOrganizationId: orgId,
+      curlecOrderId: gatewayPayment.curlec_order_id,
+      curlecPaymentId: gatewayPayment.curlec_payment_id,
+    },
+  });
+
+  await tx.gatewayPayment.update({
+    where: { id: gatewayPayment.id },
+    data: { status: GatewayPaymentStatus.COMPLETED },
+  });
+}
+
+async function completeProcessingFeePayment(
+  tx: Prisma.TransactionClient,
+  gatewayPayment: GatewayPayment
+) {
+  assertTransition(gatewayPayment.status, GatewayPaymentStatus.COMPLETED);
+
+  if (!gatewayPayment.application_id) {
+    throw new AppError(
+      500,
+      "GATEWAY_PAYMENT_INVALID",
+      "Application processing fee is missing application"
+    );
+  }
+
+  const amount = gatewayPayment.amount.toNumber();
+
+  await postLedgerEntry(tx, {
+    accountCode: "OPERATING_ACCOUNT",
+    direction: NoteLedgerDirection.CREDIT,
+    amount,
+    description: "Application processing fee received into operating account",
+    idempotencyKey: `gateway-processing-fee:ledger:${gatewayPayment.id}`,
+    gatewayPaymentId: gatewayPayment.id,
+    metadata: {
+      gatewayPaymentId: gatewayPayment.id,
+      applicationId: gatewayPayment.application_id,
+      issuerOrganizationId: gatewayPayment.issuer_organization_id,
       curlecOrderId: gatewayPayment.curlec_order_id,
       curlecPaymentId: gatewayPayment.curlec_payment_id,
     },

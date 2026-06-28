@@ -976,6 +976,12 @@ export interface IssuerOnboardingFeeResponse {
   updatedAt: string;
 }
 
+export interface CreateApplicationProcessingFeeInput {
+  applicationId: string;
+}
+
+export type ApplicationProcessingFeeResponse = IssuerOnboardingFeeResponse;
+
 export interface RecordNotePaymentInput {
   source: NotePaymentSource;
   receiptAmount: number;

@@ -729,6 +729,15 @@ export default function DynamicApplicationDetailPage() {
                     </div>
                   </div>
                   <ApplicationStatusBadge status={app.status} size="lg" />
+                  {app.processingFeePaid ? (
+                    <span className="shrink-0 inline-flex items-center rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-900 dark:text-emerald-100">
+                      Processing fee paid
+                    </span>
+                  ) : app.status === "DRAFT" ? (
+                    <span className="shrink-0 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:text-amber-100">
+                      Processing fee unpaid
+                    </span>
+                  ) : null}
                   {!isFinalApplicationForAmlGate &&
                   computeHasPendingDirectorShareholder(applicationPeople) ? (
                     <span

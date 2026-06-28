@@ -63,6 +63,42 @@ export function OnboardingFeeStartingEkycView() {
   );
 }
 
+export function ApplicationSubmittingView() {
+  return (
+    <Card className="mx-auto w-full max-w-md rounded-2xl border bg-card shadow-sm">
+      <CardContent className="px-6 py-10 text-center">
+        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <h2 className="mt-6 text-lg font-semibold">Submitting your application</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Your payment was received. We&apos;re submitting your application for review.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function ApplicationSubmittedSuccessView({ onContinue }: { onContinue?: () => void }) {
+  return (
+    <Card className="mx-auto w-full max-w-md rounded-2xl border bg-card shadow-sm">
+      <CardContent className="px-6 py-10 text-center">
+        <StatusIcon icon={CheckIcon} className="bg-emerald-600" />
+        <div className="mt-6 space-y-2">
+          <h2 className="text-lg font-semibold">Application submitted</h2>
+          <p className="text-sm text-muted-foreground">
+            Your application has been sent for review. You can track its status from your
+            applications list.
+          </p>
+        </div>
+        {onContinue ? (
+          <Button type="button" variant="action" className="mt-8 h-11 w-full rounded-xl" onClick={onContinue}>
+            View applications
+          </Button>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function OnboardingFeeSuccessView({ amount }: { amount: number }) {
   return (
     <Card className="mx-auto w-full max-w-md rounded-2xl border bg-card shadow-sm">
@@ -116,13 +152,17 @@ export function OnboardingFeeFailureView({
   status,
   amount,
   onTryAgain,
+  title,
+  description,
 }: {
   reason: FailureReason;
   status?: GatewayPaymentStatus;
   amount?: number;
   onTryAgain: () => void;
+  title?: string;
+  description?: string;
 }) {
-  const copy = failureCopy(reason, status);
+  const copy = title && description ? { title, description } : failureCopy(reason, status);
 
   return (
     <Card className="mx-auto w-full max-w-md rounded-2xl border bg-card shadow-sm">

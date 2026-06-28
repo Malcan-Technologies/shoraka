@@ -37,6 +37,7 @@ import { issuerDashboardRouter } from "./modules/issuer-dashboard/controller";
 import { ekycRouter } from "./modules/ekyc/controller";
 import { investorDepositsRouter } from "./modules/payment/deposit-controller";
 import { issuerOnboardingFeeRouter } from "./modules/payment/onboarding-fee-controller";
+import { applicationProcessingFeeRouter } from "./modules/payment/processing-fee-controller";
 import { gatewayPaymentsAdminRouter } from "./modules/payment/admin-controller";
 export function registerRoutes(app: Application): void {
   // Swagger API documentation (only in development)
@@ -95,6 +96,11 @@ export function registerRoutes(app: Application): void {
   v1Router.use("/organizations", createOrganizationRouter());
 
   v1Router.use("/applications", createApplicationRouter());
+  v1Router.use(
+    "/applications/:applicationId/processing-fee",
+    requireAuth,
+    applicationProcessingFeeRouter
+  );
   // Public issuer catalog (active products + live-check); no auth — same JSON shape as before.
   v1Router.use("/issuer/products", issuerCatalogRouter);
   v1Router.use("/contracts", createContractRouter());

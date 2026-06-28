@@ -93,6 +93,7 @@ import type {
   InvestorDepositResponse,
   CreateIssuerOnboardingFeeInput,
   IssuerOnboardingFeeResponse,
+  ApplicationProcessingFeeResponse,
   EligibleNoteInvoicesResponse,
   GetAdminNotesParams,
   MarketplaceNoteDetail,
@@ -157,6 +158,7 @@ type OverdueLateChargeResult = {
 
 type AdminApplicationDetail = Application &
   Record<string, unknown> & {
+    processingFeePaid?: boolean;
     invoices?: Array<{
       id: string;
       application_id?: string;
@@ -2682,6 +2684,24 @@ export class ApiClient {
     id: string
   ): Promise<ApiResponse<IssuerOnboardingFeeResponse> | ApiError> {
     return this.get<IssuerOnboardingFeeResponse>(`/v1/issuer/onboarding-fee/${id}`);
+  }
+
+  async createApplicationProcessingFee(
+    applicationId: string
+  ): Promise<ApiResponse<ApplicationProcessingFeeResponse> | ApiError> {
+    return this.post<ApplicationProcessingFeeResponse>(
+      `/v1/applications/${encodeURIComponent(applicationId)}/processing-fee`,
+      {}
+    );
+  }
+
+  async getApplicationProcessingFee(
+    applicationId: string,
+    feePaymentId: string
+  ): Promise<ApiResponse<ApplicationProcessingFeeResponse> | ApiError> {
+    return this.get<ApplicationProcessingFeeResponse>(
+      `/v1/applications/${encodeURIComponent(applicationId)}/processing-fee/${encodeURIComponent(feePaymentId)}`
+    );
   }
 
   async postInvestorBalanceTestTopup(input: {

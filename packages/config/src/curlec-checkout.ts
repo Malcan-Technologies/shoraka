@@ -261,3 +261,21 @@ export function buildIssuerOnboardingFeeCallbackUrl(
     returnTo,
   });
 }
+
+export function buildApplicationProcessingFeeCallbackUrl(
+  feePaymentId: string,
+  returnTo?: string,
+  portalOrigin?: string
+): string {
+  const origin =
+    portalOrigin ??
+    resolvePortalOrigin(process.env.NEXT_PUBLIC_ISSUER_URL?.trim());
+
+  return buildGatewayCallbackUrl({
+    portalOrigin: origin,
+    callbackPath: "/applications/processing-fee/callback",
+    paymentId: feePaymentId,
+    paymentIdParam: "processingFeeId",
+    returnTo,
+  });
+}
