@@ -109,6 +109,33 @@ function BucketPayoutCard({ label, value }: { label: string; value: number }) {
   );
 }
 
+type SimpleTabStatus = "done" | "needs-action" | "not-started" | "view-only";
+
+const TAB_STATUS_BADGE_COPY: Record<
+  SimpleTabStatus,
+  { label: string; className: string }
+> = {
+  done: {
+    label: "Done",
+    className:
+      "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300",
+  },
+  "needs-action": {
+    label: "Needs action",
+    className: "border-transparent bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
+  },
+  "not-started": {
+    label: "Not started",
+    className:
+      "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300",
+  },
+  "view-only": {
+    label: "View only",
+    className:
+      "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300",
+  },
+};
+
 const noteActionCopy: Record<
   NoteLifecycleAction,
   {
@@ -183,6 +210,41 @@ export default function NoteDetailPage() {
     const withdrawals = note?.withdrawals ?? [];
     return withdrawals.find((w) => w.withdrawalType === "ISSUER_DISBURSEMENT") ?? null;
   }, [note]);
+  const disbursementTabStatus = React.useMemo<SimpleTabStatus>(() => {
+    if (!disbursementWithdrawal) return "not-started";
+    if (disbursementWithdrawal.status === "COMPLETED") return "done";
+    return "needs-action";
+  }, [disbursementWithdrawal]);
+  const servicingSettlementTabStatus = React.useMemo<SimpleTabStatus>(() => {
+    if (!note) return "not-started";
+
+    const isDone = note.status === "REPAID" || note.servicingStatus === "SETTLED";
+    if (isDone) return "done";
+
+    const hasPendingPayments = note.payments.some((payment) => payment.status === "PENDING");
+    const hasUnpostedSettlement = note.settlements.some(
+      (settlement) => settlement.status !== "POSTED" && settlement.status !== "VOID"
+    );
+    const isArrearsOrDefault =
+      note.status === "ARREARS" ||
+      note.status === "DEFAULTED" ||
+      note.servicingStatus === "ARREARS" ||
+      note.servicingStatus === "DEFAULTED";
+    if (hasPendingPayments || hasUnpostedSettlement || isArrearsOrDefault) {
+      return "needs-action";
+    }
+
+    const servicingNotStarted =
+      note.servicingStatus === "NOT_STARTED" ||
+      (note.status !== "ACTIVE" &&
+        note.status !== "ARREARS" &&
+        note.status !== "DEFAULTED" &&
+        note.status !== "REPAID");
+    if (servicingNotStarted) return "not-started";
+
+    return "needs-action";
+  }, [note]);
+  const ledgerTabStatus: SimpleTabStatus = "view-only";
 
   const runConfirmedAction = async () => {
     if (!note || !pendingAction) return;
@@ -465,22 +527,37 @@ export default function NoteDetailPage() {
                           size="sm"
                           variant={activeWorkflowTab === "disbursement" ? "default" : "outline"}
                           onClick={() => setActiveWorkflowTab("disbursement")}
+                          className="gap-2"
                         >
-                          Disbursement
+                          <span>Disbursement</span>
+                          <Badge variant="outline" className={TAB_STATUS_BADGE_COPY[disbursementTabStatus].className}>
+                            {TAB_STATUS_BADGE_COPY[disbursementTabStatus].label}
+                          </Badge>
                         </Button>
                         <Button
                           size="sm"
                           variant={activeWorkflowTab === "servicing-settlement" ? "default" : "outline"}
                           onClick={() => setActiveWorkflowTab("servicing-settlement")}
+                          className="gap-2"
                         >
-                          Servicing &amp; Settlement
+                          <span>Servicing &amp; Settlement</span>
+                          <Badge
+                            variant="outline"
+                            className={TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].className}
+                          >
+                            {TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].label}
+                          </Badge>
                         </Button>
                         <Button
                           size="sm"
                           variant={activeWorkflowTab === "ledger" ? "default" : "outline"}
                           onClick={() => setActiveWorkflowTab("ledger")}
+                          className="gap-2"
                         >
-                          Ledger
+                          <span>Ledger</span>
+                          <Badge variant="outline" className={TAB_STATUS_BADGE_COPY[ledgerTabStatus].className}>
+                            {TAB_STATUS_BADGE_COPY[ledgerTabStatus].label}
+                          </Badge>
                         </Button>
                       </div>
                     </CardContent>
