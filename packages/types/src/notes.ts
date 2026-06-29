@@ -534,6 +534,7 @@ export interface PendingRepaymentItem {
   actionNeeded: PendingRepaymentAction;
   issuerOrganizationId: string | null;
   issuerOrganizationName: string | null;
+  evidenceFiles?: PaymentEvidenceFile[] | null;
   createdAt: string;
 }
 

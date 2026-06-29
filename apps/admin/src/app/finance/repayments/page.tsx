@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
+import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import {
   Table,
   TableBody,
@@ -64,6 +65,8 @@ function formatAge(value: string | null) {
 
 export default function PendingRepaymentsPage() {
   const { data, isLoading, error, refetch, isFetching } = usePendingRepayments();
+  const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
+    useAdminS3DocumentViewDownload();
   const items = data?.items ?? [];
 
   const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
@@ -162,6 +165,7 @@ export default function PendingRepaymentsPage() {
                       <TableHead>Issuer</TableHead>
                       <TableHead>Source</TableHead>
                       <TableHead>Reference</TableHead>
+                      <TableHead>Proof</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                       <TableHead>Received</TableHead>
                       <TableHead>Age</TableHead>
@@ -174,7 +178,7 @@ export default function PendingRepaymentsPage() {
                     {isLoading
                       ? Array.from({ length: 4 }).map((_, idx) => (
                           <TableRow key={idx}>
-                            {Array.from({ length: 10 }).map((__, jdx) => (
+                            {Array.from({ length: 11 }).map((__, jdx) => (
                               <TableCell key={jdx}>
                                 <Skeleton className="h-5 w-full" />
                               </TableCell>
@@ -184,7 +188,7 @@ export default function PendingRepaymentsPage() {
                       : items.length === 0
                         ? (
                             <TableRow>
-                              <TableCell colSpan={10} className="py-10 text-center text-sm text-muted-foreground">
+                              <TableCell colSpan={11} className="py-10 text-center text-sm text-muted-foreground">
                                 No pending repayments. New receipts will appear here as they are recorded.
                               </TableCell>
                             </TableRow>
@@ -200,6 +204,39 @@ export default function PendingRepaymentsPage() {
                               </TableCell>
                               <TableCell className="text-muted-foreground">
                                 {item.reference ?? "—"}
+                              </TableCell>
+                              <TableCell>
+                                {item.evidenceFiles?.length ? (
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 px-2"
+                                      onClick={() => handleViewDocument(item.evidenceFiles![0].s3Key)}
+                                      disabled={viewDocumentPending}
+                                    >
+                                      View proof ({item.evidenceFiles.length})
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 px-2"
+                                      onClick={() =>
+                                        handleDownloadDocument(
+                                          item.evidenceFiles![0].s3Key,
+                                          item.evidenceFiles![0].fileName || "proof-file"
+                                        )
+                                      }
+                                      disabled={viewDocumentPending}
+                                    >
+                                      Download
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
                               </TableCell>
                               <TableCell className="text-right tabular-nums">
                                 {formatCurrency(item.amount)}

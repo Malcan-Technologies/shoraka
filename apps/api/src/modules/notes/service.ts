@@ -214,6 +214,30 @@ function paymentEvidenceExtensionForContentType(contentType: string): string {
   return "bin";
 }
 
+function asPaymentEvidenceFiles(value: Prisma.JsonValue | null | undefined) {
+  if (!Array.isArray(value)) return null;
+  const files = value
+    .map((item) => {
+      const entry = asRecord(item);
+      if (!entry) return null;
+      const s3Key = typeof entry.s3Key === "string" ? entry.s3Key : "";
+      const fileName = typeof entry.fileName === "string" ? entry.fileName : "";
+      const contentType = typeof entry.contentType === "string" ? entry.contentType : "";
+      const fileSize = toNumber(entry.fileSize);
+      const uploadedAt = typeof entry.uploadedAt === "string" ? entry.uploadedAt : "";
+      if (!s3Key || !fileName || !contentType || fileSize <= 0 || !uploadedAt) return null;
+      return { s3Key, fileName, contentType, fileSize, uploadedAt };
+    })
+    .filter((item): item is {
+      s3Key: string;
+      fileName: string;
+      contentType: string;
+      fileSize: number;
+      uploadedAt: string;
+    } => item !== null);
+  return files.length > 0 ? files : null;
+}
+
 function hasSettlementTrusteeMovement(settlement: {
   investor_principal: Prisma.Decimal;
   investor_profit_net: Prisma.Decimal;
@@ -1608,6 +1632,7 @@ export class NoteService {
         actionNeeded,
         issuerOrganizationId: issuer?.id ?? null,
         issuerOrganizationName: issuer?.name ?? null,
+        evidenceFiles: asPaymentEvidenceFiles(payment.evidence_files),
         createdAt: payment.created_at.toISOString(),
       };
     });
