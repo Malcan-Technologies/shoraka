@@ -528,15 +528,15 @@ export default function NoteDetailPage() {
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)]">
                 <div className="min-w-0 space-y-4">
                   <div className="w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-xl bg-muted p-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/30">
-                    <div className="flex h-auto min-h-11 w-max min-w-full flex-nowrap items-center justify-center gap-2 text-muted-foreground">
+                    <div className="flex h-10 w-max min-w-full flex-nowrap items-center gap-1 px-0.5 text-muted-foreground">
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => setActiveNoteTab("disbursement")}
                         className={
                           activeNoteTab === "disbursement"
-                            ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm sm:px-4"
-                            : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
+                            ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
+                            : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
                         }
                       >
                         <span
@@ -554,8 +554,8 @@ export default function NoteDetailPage() {
                         onClick={() => setActiveNoteTab("servicing-settlement")}
                         className={
                           activeNoteTab === "servicing-settlement"
-                            ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm sm:px-4"
-                            : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
+                            ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
+                            : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
                         }
                       >
                         <span
@@ -568,10 +568,13 @@ export default function NoteDetailPage() {
                         </span>
                       </Button>
                       <span
-                        className="mx-1 hidden h-5 w-px shrink-0 bg-border sm:inline-block"
+                        className="mx-1 h-4 w-px shrink-0 bg-border/80"
                         aria-hidden
                       />
-                      <span className="hidden shrink-0 px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:inline">
+                      <span
+                        className="shrink-0 select-none px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70"
+                        aria-hidden
+                      >
                         Reference
                       </span>
                       <Button
@@ -580,8 +583,8 @@ export default function NoteDetailPage() {
                         onClick={() => setActiveNoteTab("ledger")}
                         className={
                           activeNoteTab === "ledger"
-                            ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm sm:px-4"
-                            : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
+                            ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
+                            : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
                         }
                       >
                         <span className="truncate">Ledger</span>
@@ -593,8 +596,8 @@ export default function NoteDetailPage() {
                         onClick={() => setActiveNoteTab("investors")}
                         className={
                           activeNoteTab === "investors"
-                            ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm sm:px-4"
-                            : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
+                            ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
+                            : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
                         }
                       >
                         <span className="truncate">Investors</span>

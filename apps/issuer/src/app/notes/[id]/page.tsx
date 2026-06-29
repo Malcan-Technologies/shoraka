@@ -77,15 +77,15 @@ type PaymentAdviceStep = "source" | "details";
 const PAYMENT_SOURCE_OPTIONS = [
   {
     value: NotePaymentSource.ISSUER_ON_BEHALF,
-    label: "Our company paid directly",
+    label: "Direct transfer",
     helper:
-      "Use this if your company transferred the repayment directly to the repayment account.",
+      "Use this if your company transferred the repayment to the repayment account.",
   },
   {
     value: NotePaymentSource.PAYMASTER,
-    label: "Paymaster paid",
+    label: "Paymaster payment",
     helper:
-      "Use this if the paymaster has made the repayment and you are reporting it for admin verification.",
+      "Use this if the paymaster made the repayment and you are reporting it for admin verification.",
   },
 ] as const;
 
@@ -949,21 +949,23 @@ export default function IssuerNoteDetailPage() {
           }
         }}
       >
-        <DialogContent className="rounded-2xl sm:max-w-lg">
-          <DialogHeader>
+        <DialogContent className="gap-3 rounded-2xl p-5 sm:max-w-lg">
+          <DialogHeader className="space-y-1">
             <DialogTitle>
               {paymentAdviceStep === "source"
                 ? "How was the payment made?"
                 : "Report Payment"}
             </DialogTitle>
-            <DialogDescription className="text-sm leading-6">
-              Report a repayment that has already been made. Admin will verify the receipt before
-              settlement is posted.
-            </DialogDescription>
+            {paymentAdviceStep === "source" ? (
+              <DialogDescription className="text-sm leading-5">
+                Report a repayment that has already been made. Admin will verify the receipt before
+                settlement is posted.
+              </DialogDescription>
+            ) : null}
           </DialogHeader>
 
           {paymentAdviceStep === "source" ? (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {PAYMENT_SOURCE_OPTIONS.map((option) => {
                 const selected = paymentSource === option.value;
                 return (
@@ -972,21 +974,21 @@ export default function IssuerNoteDetailPage() {
                     type="button"
                     onClick={() => setPaymentSource(option.value)}
                     className={cn(
-                      "w-full rounded-xl border p-3 text-left transition-colors",
+                      "w-full rounded-lg border p-2.5 text-left transition-colors",
                       selected
                         ? "border-primary bg-primary/5"
                         : "border-border bg-card hover:bg-muted/40"
                     )}
                   >
                     <div className="text-sm font-semibold text-foreground">{option.label}</div>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{option.helper}</p>
+                    <p className="mt-0.5 text-xs leading-4 text-muted-foreground">{option.helper}</p>
                   </button>
                 );
               })}
             </div>
           ) : (
-            <div className="space-y-4">
-              <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+            <div className="space-y-3">
+              <div className="text-sm">
                 <span className="text-muted-foreground">Source: </span>
                 <span className="font-medium text-foreground">
                   {
@@ -996,40 +998,31 @@ export default function IssuerNoteDetailPage() {
                 </span>
               </div>
 
-              <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border bg-muted/30 px-3 py-2.5">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                   <div>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <span>Repayments received</span>
-                      <InfoTooltip
-                        content={REPAYMENT_POOL_RECEIVED_TOOLTIP}
-                        iconClassName="h-3.5 w-3.5 shrink-0"
-                      />
+                    <div className="text-xs text-muted-foreground">Received</div>
+                    <div className="text-sm font-semibold tabular-nums">
+                      {formatCurrency(openReceiptsTotal)}
                     </div>
-                    <RepaymentPoolReceivedBreakdown
-                      note={note}
-                      total={openReceiptsTotal}
-                      hasPending={hasPendingReceiptReview}
-                      totalClassName="text-base font-semibold text-foreground"
-                    />
                   </div>
                   <div>
-                    <div className="text-xs text-muted-foreground">Remaining settlement</div>
-                    <div className="mt-1 text-base font-semibold text-foreground">
+                    <div className="text-xs text-muted-foreground">Remaining</div>
+                    <div className="text-sm font-semibold tabular-nums">
                       {formatCurrency(remainingCapacity)}
                     </div>
                   </div>
                 </div>
-                <div className="space-y-1.5">
-                  <div className="flex flex-wrap items-end justify-between gap-2">
+                <div className="mt-2 space-y-1 border-t border-border/60 pt-2">
+                  <div className="flex items-center justify-between gap-2">
                     <label className="text-sm font-medium" htmlFor="issuer-payment-amount">
                       Amount
                     </label>
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
-                      className="h-8 rounded-lg text-xs"
+                      className="h-7 px-2 text-xs"
                       disabled={remainingCapacity <= MONEY_TOLERANCE}
                       onClick={() =>
                         setPaymentAmountInput(roundMoneyTwo(remainingCapacity).toFixed(2))
@@ -1040,6 +1033,7 @@ export default function IssuerNoteDetailPage() {
                   </div>
                   <Input
                     id="issuer-payment-amount"
+                    className="h-9"
                     inputMode="decimal"
                     value={paymentAmountInput}
                     onChange={(event) => {
@@ -1055,20 +1049,20 @@ export default function IssuerNoteDetailPage() {
                     placeholder="0.00"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Must not exceed remaining settlement above.
+                    Must not exceed remaining settlement.
                   </p>
                 </div>
               </div>
 
               {paymentSource === NotePaymentSource.ISSUER_ON_BEHALF ? (
-                <Collapsible defaultOpen className="group">
-                  <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm font-medium hover:bg-muted/40">
+                <Collapsible className="group">
+                  <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border px-2.5 py-1.5 text-left text-sm font-medium hover:bg-muted/40">
                     <span>Repayment instructions</span>
                     <ChevronDownIcon className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
                   </CollapsibleTrigger>
-                  <CollapsibleContent className="pt-2">
+                  <CollapsibleContent className="pt-1.5">
                     {instructionEntries.length ? (
-                      <div className="grid gap-2 rounded-lg border bg-muted/20 p-3 text-sm sm:grid-cols-2">
+                      <div className="grid gap-1.5 rounded-lg border bg-muted/20 p-2.5 text-sm sm:grid-cols-2">
                         {instructionEntries.map(([key, value]) => (
                           <div key={key}>
                             <div className="text-xs text-muted-foreground">
@@ -1088,25 +1082,27 @@ export default function IssuerNoteDetailPage() {
                 </Collapsible>
               ) : null}
 
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label className="text-sm font-medium" htmlFor="payment-reference">
                   Payment reference
                 </label>
                 <Input
                   id="payment-reference"
+                  className="h-9"
                   value={reference}
                   onChange={(event) => setReference(event.target.value)}
                   placeholder="Bank transfer reference or receipt number"
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <label className="text-sm font-medium" htmlFor="payment-advice-proof">
                   Payment proof
                 </label>
                 <Input
                   id="payment-advice-proof"
                   type="file"
+                  className="h-9 py-1"
                   accept="application/pdf,image/jpeg,image/png"
                   onChange={(event) => {
                     const selected = event.target.files?.[0];
@@ -1131,7 +1127,7 @@ export default function IssuerNoteDetailPage() {
                   Required. PDF, JPEG, or PNG only. Max 1 file, 5MB.
                 </p>
                 {evidenceFiles.length > 0 ? (
-                  <div className="flex items-center justify-between gap-2 rounded-lg border bg-muted/30 p-2.5">
+                  <div className="flex items-center justify-between gap-2 rounded-lg border bg-muted/30 px-2.5 py-1.5">
                     <div className="flex min-w-0 items-center gap-2">
                       <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <span className="truncate text-sm text-foreground">
@@ -1142,7 +1138,7 @@ export default function IssuerNoteDetailPage() {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-8"
+                      className="h-7 px-2"
                       onClick={() => setEvidenceFiles([])}
                     >
                       Remove
@@ -1151,7 +1147,7 @@ export default function IssuerNoteDetailPage() {
                 ) : null}
               </div>
 
-              <label className="flex items-start gap-2.5 rounded-lg border p-3 text-sm">
+              <label className="flex items-start gap-2 rounded-lg border px-2.5 py-2 text-xs leading-5">
                 <Checkbox
                   checked={paymentConfirmed}
                   onCheckedChange={(checked) => setPaymentConfirmed(checked === true)}
@@ -1160,7 +1156,7 @@ export default function IssuerNoteDetailPage() {
                 <span>
                   {paymentSource === NotePaymentSource.PAYMASTER
                     ? "I confirm that the paymaster has made this repayment and understand that admin will verify it before settlement is posted."
-                    : "I confirm that our company has transferred this repayment and understand that admin will verify the receipt before settlement is posted."}
+                    : "I confirm that the repayment has been transferred to the repayment account and understand that admin will verify the receipt before settlement is posted."}
                 </span>
               </label>
             </div>
