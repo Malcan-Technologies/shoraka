@@ -7,6 +7,7 @@ import {
   ArrowDownTrayIcon,
   ArrowTopRightOnSquareIcon,
   CheckCircleIcon,
+  ChevronDownIcon,
   DocumentTextIcon,
   PlusIcon,
 } from "@heroicons/react/24/outline";
@@ -44,6 +45,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -51,7 +57,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
-import { SUPPORTING_DOC_ACTION_BTN_BASE_CLASS } from "@/components/application-review/document-list";
 import {
   useApproveNotePayment,
   useApproveNoteSettlement,
@@ -94,7 +99,7 @@ function formatStatus(value: string) {
 function sourceLabel(source: NotePaymentSource) {
   const labels: Record<NotePaymentSource, string> = {
     PAYMASTER: "Paymaster",
-    ISSUER_ON_BEHALF: "Issuer on behalf",
+    ISSUER_ON_BEHALF: "Issuer reported",
     ADMIN_ADJUSTMENT: "Admin adjustment",
   };
   return labels[source] ?? source;
@@ -216,7 +221,7 @@ function getPaymentEvidenceFiles(payment: NotePayment) {
   return Array.isArray(extended.evidenceFiles) ? extended.evidenceFiles : [];
 }
 
-function PaymentAdviceProofBlock({
+function PaymentAdviceProofCompact({
   files,
   onView,
   onDownload,
@@ -229,46 +234,46 @@ function PaymentAdviceProofBlock({
 }) {
   if (files.length === 0) return null;
 
+  const primary = files[0];
+  const extraCount = files.length - 1;
+
   return (
-    <div className="mt-2 space-y-2">
-      <div className="text-xs font-medium text-foreground">Payment advice received</div>
-      <div className="space-y-2">
-        {files.map((file) => (
-          <div key={file.s3Key} className="rounded-lg border bg-card p-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2">
-                <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="truncate text-sm text-foreground">
-                  {file.fileName || "Payment advice"}
-                </span>
-              </div>
-              <div className="flex shrink-0 flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className={SUPPORTING_DOC_ACTION_BTN_BASE_CLASS}
-                  onClick={() => onView(file.s3Key)}
-                  disabled={viewPending}
-                >
-                  <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" />
-                  View
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className={SUPPORTING_DOC_ACTION_BTN_BASE_CLASS}
-                  onClick={() => onDownload(file.s3Key, file.fileName || "payment-advice")}
-                  disabled={viewPending}
-                >
-                  <ArrowDownTrayIcon className="h-4 w-4 shrink-0" />
-                  Download
-                </Button>
-              </div>
-            </div>
-          </div>
-        ))}
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        Payment advice
+      </span>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 rounded-md border bg-background px-2 py-1">
+        <DocumentTextIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <span className="max-w-[12rem] truncate text-xs text-foreground">
+          {primary.fileName || "Payment advice"}
+        </span>
+        {extraCount > 0 ? (
+          <span className="text-xs text-muted-foreground">+{extraCount} more</span>
+        ) : null}
+        <div className="ml-auto flex shrink-0 gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 gap-1 rounded-md px-2 text-xs"
+            onClick={() => onView(primary.s3Key)}
+            disabled={viewPending}
+          >
+            <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+            View
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 gap-1 rounded-md px-2 text-xs"
+            onClick={() => onDownload(primary.s3Key, primary.fileName || "payment-advice")}
+            disabled={viewPending}
+          >
+            <ArrowDownTrayIcon className="h-3.5 w-3.5" />
+            Download
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -430,6 +435,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
   const [overdueTawidhPercentInput, setOverdueTawidhPercentInput] = React.useState("0.00");
   const [overdueGharamahPercentInput, setOverdueGharamahPercentInput] = React.useState("0.00");
   const [rejectionReasons, setRejectionReasons] = React.useState<Record<string, string>>({});
+  const [rejectingPaymentId, setRejectingPaymentId] = React.useState<string | null>(null);
   const [serviceFeeTrusteeConfirm, setServiceFeeTrusteeConfirm] = React.useState<
     "submit" | "complete" | null
   >(null);
@@ -885,6 +891,22 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
     });
   }, [note.payments]);
 
+  const pendingReviewPayments = React.useMemo(
+    () => sortedPayments.filter((payment) => payment.status === "PENDING"),
+    [sortedPayments]
+  );
+
+  const recordedReceiptPayments = React.useMemo(
+    () =>
+      [...note.payments]
+        .filter((payment) => payment.status !== "PENDING" && payment.status !== "VOID")
+        .sort(
+          (left, right) =>
+            new Date(right.receiptDate).getTime() - new Date(left.receiptDate).getTime()
+        ),
+    [note.payments]
+  );
+
   const handleConfirmRecordPayment = async () => {
     if (servicingBlockedReason) {
       toast.info(servicingBlockedReason);
@@ -956,10 +978,16 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
         reason: rejectionReasons[payment.id]?.trim() || null,
       });
       setRejectionReasons((previous) => ({ ...previous, [payment.id]: "" }));
+      setRejectingPaymentId(null);
       toast.success("Issuer payment rejected");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to reject payment");
     }
+  };
+
+  const handleCancelRejectPayment = (paymentId: string) => {
+    setRejectingPaymentId(null);
+    setRejectionReasons((previous) => ({ ...previous, [paymentId]: "" }));
   };
 
   const runOverdueLateChargeCheck = async () => {
@@ -1395,9 +1423,9 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
 
             {pendingPayments.length > 0 ? (
               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-900">
-                {pendingPayments.length} issuer payment
-                {pendingPayments.length === 1 ? "" : "s"} awaiting approval before you can preview
-                settlement.
+                {pendingPayments.length} issuer-submitted payment
+                {pendingPayments.length === 1 ? " is" : "s are"} awaiting approval before settlement
+                preview is available.
               </div>
             ) : null}
 
@@ -1423,98 +1451,190 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                 </Button>
               </div>
             ) : (
-              <div className="mt-4 space-y-3">
-                {sortedPayments.map((payment) => {
-                  const isIncluded = includedPaymentIds.has(payment.id);
-                  const isPending = payment.status === "PENDING";
-                  const evidenceFiles = getPaymentEvidenceFiles(payment);
-                  return (
-                    <div
-                      key={payment.id}
-                      className={cn(
-                        "rounded-lg border p-3",
-                        isPending && "border-amber-200 bg-amber-50/40",
-                        !isPending && isIncluded && "border-border bg-muted/50",
-                        !isPending && !isIncluded && "bg-card"
-                      )}
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-medium">
-                              {formatCurrency(payment.receiptAmount)}
-                            </span>
-                            <Badge variant={statusVariant(payment.status)}>
-                              {formatStatus(payment.status)}
-                            </Badge>
-                            <Badge variant="outline">{sourceLabel(payment.source)}</Badge>
-                          </div>
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {format(new Date(payment.receiptDate), "dd MMM yyyy, h:mm a")}
-                            {payment.reference ? ` · ${payment.reference}` : ""}
-                          </div>
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            Received into {payment.receivedIntoAccountCode}
-                          </div>
-                          {evidenceFiles.length > 0 ? (
-                            <PaymentAdviceProofBlock
-                              files={evidenceFiles}
-                              onView={handleViewDocument}
-                              onDownload={handleDownloadDocument}
-                              viewPending={viewDocumentPending}
-                            />
-                          ) : null}
-                        </div>
-                        <div className="flex flex-wrap items-center justify-end gap-2">
-                          {isIncluded ? (
-                            <Badge
-                              variant="secondary"
-                              className="gap-1 border-transparent bg-foreground px-2 py-1 text-background hover:bg-foreground/90"
-                            >
-                              <CheckCircleIcon className="h-3.5 w-3.5" />
-                              Counts toward settlement
-                            </Badge>
-                          ) : null}
-                          {isPending ? (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-destructive hover:text-destructive"
-                                onClick={() => handleRejectPayment(payment)}
-                                disabled={rejectPayment.isPending || !canRepayment}
-                                title={!canRepayment ? "You do not have permission to perform this action." : undefined}
-                              >
-                                Reject
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={() => handleApprovePayment(payment)}
-                                disabled={approvePayment.isPending || !paymentActionsOpen || !canRepayment}
-                                title={!canRepayment ? "You do not have permission to perform this action." : undefined}
-                              >
-                                Approve
-                              </Button>
-                            </>
-                          ) : null}
-                        </div>
-                      </div>
-                      {isPending ? (
-                        <Input
-                          className="mt-3"
-                          value={rejectionReasons[payment.id] ?? ""}
-                          onChange={(event) =>
-                            setRejectionReasons((previous) => ({
-                              ...previous,
-                              [payment.id]: event.target.value,
-                            }))
-                          }
-                          placeholder="Optional rejection reason"
-                        />
-                      ) : null}
+              <div className="mt-4 space-y-4">
+                {pendingReviewPayments.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-amber-900">
+                      Needs approval ({pendingReviewPayments.length})
                     </div>
-                  );
-                })}
+                    <div className="space-y-2">
+                      {pendingReviewPayments.map((payment) => {
+                        const evidenceFiles = getPaymentEvidenceFiles(payment);
+                        const isRejecting = rejectingPaymentId === payment.id;
+                        return (
+                          <div
+                            key={payment.id}
+                            className="rounded-lg border border-amber-200 bg-amber-50/50 p-3"
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1 space-y-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-sm font-semibold tabular-nums">
+                                    {formatCurrency(payment.receiptAmount)}
+                                  </span>
+                                  <Badge variant={statusVariant(payment.status)}>
+                                    {formatStatus(payment.status)}
+                                  </Badge>
+                                  <Badge variant="outline">{sourceLabel(payment.source)}</Badge>
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {format(new Date(payment.receiptDate), "dd MMM yyyy, h:mm a")}
+                                  {payment.reference ? ` · Ref: ${payment.reference}` : ""}
+                                </div>
+                                {evidenceFiles.length > 0 ? (
+                                  <PaymentAdviceProofCompact
+                                    files={evidenceFiles}
+                                    onView={handleViewDocument}
+                                    onDownload={handleDownloadDocument}
+                                    viewPending={viewDocumentPending}
+                                  />
+                                ) : null}
+                              </div>
+                              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => setRejectingPaymentId(payment.id)}
+                                  disabled={
+                                    rejectPayment.isPending || !canRepayment || isRejecting
+                                  }
+                                  title={
+                                    !canRepayment
+                                      ? "You do not have permission to perform this action."
+                                      : undefined
+                                  }
+                                >
+                                  Reject
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleApprovePayment(payment)}
+                                  disabled={
+                                    approvePayment.isPending ||
+                                    !paymentActionsOpen ||
+                                    !canRepayment ||
+                                    isRejecting
+                                  }
+                                  title={
+                                    !canRepayment
+                                      ? "You do not have permission to perform this action."
+                                      : undefined
+                                  }
+                                >
+                                  Approve
+                                </Button>
+                              </div>
+                            </div>
+                            {isRejecting ? (
+                              <div className="mt-3 space-y-2 rounded-md border border-border/60 bg-background p-3">
+                                <label
+                                  className="text-xs font-medium text-foreground"
+                                  htmlFor={`reject-reason-${payment.id}`}
+                                >
+                                  Reject reason (optional)
+                                </label>
+                                <Input
+                                  id={`reject-reason-${payment.id}`}
+                                  className="h-9"
+                                  value={rejectionReasons[payment.id] ?? ""}
+                                  onChange={(event) =>
+                                    setRejectionReasons((previous) => ({
+                                      ...previous,
+                                      [payment.id]: event.target.value,
+                                    }))
+                                  }
+                                  placeholder="Optional rejection reason"
+                                />
+                                <div className="flex justify-end gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleCancelRejectPayment(payment.id)}
+                                    disabled={rejectPayment.isPending}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => void handleRejectPayment(payment)}
+                                    disabled={rejectPayment.isPending || !canRepayment}
+                                  >
+                                    {rejectPayment.isPending ? "Rejecting..." : "Confirm reject"}
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
+                {recordedReceiptPayments.length > 0 ? (
+                  <Collapsible
+                    defaultOpen={recordedReceiptPayments.length <= 2}
+                    className="group"
+                  >
+                    <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg py-1 text-left">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Recorded receipts ({recordedReceiptPayments.length})
+                      </span>
+                      <ChevronDownIcon className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-2">
+                      <div className="space-y-2">
+                        {recordedReceiptPayments.map((payment) => {
+                          const isIncluded = includedPaymentIds.has(payment.id);
+                          const evidenceFiles = getPaymentEvidenceFiles(payment);
+                          return (
+                            <div
+                              key={payment.id}
+                              className="rounded-lg border border-border bg-card p-3"
+                            >
+                              <div className="space-y-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-sm font-semibold tabular-nums">
+                                    {formatCurrency(payment.receiptAmount)}
+                                  </span>
+                                  <Badge variant={statusVariant(payment.status)}>
+                                    {formatStatus(payment.status)}
+                                  </Badge>
+                                  <Badge variant="outline">{sourceLabel(payment.source)}</Badge>
+                                  {isIncluded ? (
+                                    <Badge
+                                      variant="secondary"
+                                      className="gap-1 border-transparent bg-muted px-2 py-0.5 text-xs text-foreground"
+                                    >
+                                      <CheckCircleIcon className="h-3.5 w-3.5" />
+                                      Counts toward settlement
+                                    </Badge>
+                                  ) : null}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {format(new Date(payment.receiptDate), "dd MMM yyyy, h:mm a")}
+                                  {payment.reference ? ` · Ref: ${payment.reference}` : ""}
+                                </div>
+                                {evidenceFiles.length > 0 ? (
+                                  <PaymentAdviceProofCompact
+                                    files={evidenceFiles}
+                                    onView={handleViewDocument}
+                                    onDownload={handleDownloadDocument}
+                                    viewPending={viewDocumentPending}
+                                  />
+                                ) : null}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                ) : null}
               </div>
             )}
           </div>
