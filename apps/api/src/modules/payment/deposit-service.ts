@@ -80,6 +80,10 @@ async function getDepositLimits(db: PrismaClient) {
   };
 }
 
+export async function getInvestorDepositLimits(db: PrismaClient = defaultPrisma) {
+  return getDepositLimits(db);
+}
+
 async function syncDepositFromCurlec(payment: GatewayPayment, db: PrismaClient) {
   // Lazy import avoids initializing a cycle: webhook-service imports deposit credit helpers.
   const { syncGatewayPaymentFromCurlec } = await import("./webhook-service");

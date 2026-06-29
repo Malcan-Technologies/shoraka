@@ -145,6 +145,8 @@ export default function PlatformFinanceSettingsPage() {
   const [gatewayFees, setGatewayFees] = React.useState({
     issuerOnboardingFeeAmount: "150",
     applicationProcessingFeeAmount: "50",
+    investorMinDepositAmount: "100",
+    investorMaxDepositAmount: "30000",
   });
   const [trusteeLetter, setTrusteeLetter] = React.useState<TrusteeLetterConfig>(DEFAULT_TRUSTEE_LETTER);
   const [platformAccounts, setPlatformAccounts] =
@@ -191,6 +193,16 @@ export default function PlatformFinanceSettingsPage() {
       key: "applicationProcessingFeeAmount",
       label: "Application processing fee (MYR)",
       placeholder: "e.g. 50",
+    },
+    {
+      key: "investorMinDepositAmount",
+      label: "Minimum investor deposit (MYR)",
+      placeholder: "e.g. 100",
+    },
+    {
+      key: "investorMaxDepositAmount",
+      label: "Maximum investor deposit (MYR)",
+      placeholder: "e.g. 30000",
     },
   ];
 
@@ -275,6 +287,8 @@ export default function PlatformFinanceSettingsPage() {
     setGatewayFees({
       issuerOnboardingFeeAmount: String(data.issuerOnboardingFeeAmount),
       applicationProcessingFeeAmount: String(data.applicationProcessingFeeAmount),
+      investorMinDepositAmount: String(data.investorMinDepositAmount),
+      investorMaxDepositAmount: String(data.investorMaxDepositAmount),
     });
     setTrusteeLetter({ ...DEFAULT_TRUSTEE_LETTER, ...(data.trusteeLetterConfig ?? {}) });
     setPlatformAccounts({ ...emptyPlatformAccounts(), ...(data.platformAccountsConfig ?? {}) });
@@ -436,14 +450,26 @@ export default function PlatformFinanceSettingsPage() {
                     <Button
                       disabled={disabled || saveMutation.isPending}
                       className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
-                      onClick={() =>
+                      onClick={() => {
+                        const investorMinDepositAmount = Number(
+                          gatewayFees.investorMinDepositAmount
+                        );
+                        const investorMaxDepositAmount = Number(
+                          gatewayFees.investorMaxDepositAmount
+                        );
+                        if (investorMinDepositAmount > investorMaxDepositAmount) {
+                          toast.error("Minimum deposit cannot exceed maximum deposit");
+                          return;
+                        }
                         saveMutation.mutate({
                           issuerOnboardingFeeAmount: Number(gatewayFees.issuerOnboardingFeeAmount),
                           applicationProcessingFeeAmount: Number(
                             gatewayFees.applicationProcessingFeeAmount
                           ),
-                        })
-                      }
+                          investorMinDepositAmount,
+                          investorMaxDepositAmount,
+                        });
+                      }}
                     >
                       Save Gateway Fees
                     </Button>

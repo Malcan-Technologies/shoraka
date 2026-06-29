@@ -4472,6 +4472,8 @@ export class NoteService {
       defaultLetterTemplate: settings.default_letter_template,
       issuerOnboardingFeeAmount: toNumber(settings.issuer_onboarding_fee_amount),
       applicationProcessingFeeAmount: toNumber(settings.application_processing_fee_amount),
+      investorMinDepositAmount: toNumber(settings.investor_min_deposit_amount),
+      investorMaxDepositAmount: toNumber(settings.investor_max_deposit_amount),
       trusteeLetterConfig:
         (settings.trustee_letter_config as TrusteeLetterConfig | null) ?? null,
       platformAccountsConfig:
@@ -4520,6 +4522,14 @@ export class NoteService {
           input.applicationProcessingFeeAmount != null
             ? money(input.applicationProcessingFeeAmount)
             : undefined,
+        investor_min_deposit_amount:
+          input.investorMinDepositAmount != null
+            ? money(input.investorMinDepositAmount)
+            : undefined,
+        investor_max_deposit_amount:
+          input.investorMaxDepositAmount != null
+            ? money(input.investorMaxDepositAmount)
+            : undefined,
         trustee_letter_config:
           input.trusteeLetterConfig != null
             ? (input.trusteeLetterConfig as Prisma.InputJsonValue)
@@ -4563,6 +4573,14 @@ export class NoteService {
         application_processing_fee_amount:
           input.applicationProcessingFeeAmount != null
             ? money(input.applicationProcessingFeeAmount)
+            : undefined,
+        investor_min_deposit_amount:
+          input.investorMinDepositAmount != null
+            ? money(input.investorMinDepositAmount)
+            : undefined,
+        investor_max_deposit_amount:
+          input.investorMaxDepositAmount != null
+            ? money(input.investorMaxDepositAmount)
             : undefined,
         trustee_letter_config:
           input.trusteeLetterConfig != null

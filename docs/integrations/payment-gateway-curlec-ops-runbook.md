@@ -8,7 +8,7 @@ This runbook covers go-live checks and day-to-day handling for Curlec money-in p
 - Curlec webhook points to `https://api.<domain>/v1/webhooks/curlec` and uses the same webhook secret configured for the API.
 - Production API credentials are configured outside the repository: `CURLEC_KEY_ID`, `CURLEC_KEY_SECRET`, `CURLEC_WEBHOOK_SECRET`, and `CURLEC_API_BASE_URL`.
 - Curlec confirms the production API base URL for the Malaysia account.
-- Curlec confirms FPX per-transaction limits; admin finance settings reflect the accepted investor deposit maximum.
+- Curlec confirms FPX per-transaction limits; admin finance settings reflect the accepted investor deposit minimum and maximum under Settings -> Platform Finance -> Gateway Fees.
 - Finance confirms the current MDR treatment: gateway fee amounts are tracked on gateway payments during reconciliation and are not posted to the note ledger yet.
 - Ops confirms the held-deposit refund owner, checker, and expected turnaround time.
 - Run one test-mode FPX pass for each path before live cutover: investor deposit success, investor deposit held/name-check path, issuer onboarding fee, and application processing fee.

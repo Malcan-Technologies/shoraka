@@ -42,5 +42,4 @@ export const TRANSACTION_TYPE_FILTER_OPTIONS = [
   "Release",
 ] as const satisfies readonly TransactionType[];
 
-export const MIN_DEPOSIT_AMOUNT = 100;
 export const MIN_WITHDRAWAL_AMOUNT = 100;

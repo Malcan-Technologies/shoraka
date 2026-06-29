@@ -5,12 +5,14 @@ import { toast } from "sonner";
 import { Label, MoneyInput } from "@cashsouk/ui";
 import { useOrganization, type Organization } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
-import { useCreateInvestorDepositMutation } from "@/hooks/use-investor-deposit";
+import {
+  useCreateInvestorDepositMutation,
+  useInvestorDepositLimitsQuery,
+} from "@/hooks/use-investor-deposit";
 import {
   buildDepositCallbackUrl,
   openCurlecFpxCheckout,
 } from "@/lib/curlec-checkout";
-import { MIN_DEPOSIT_AMOUNT } from "@/app/transactions/components/transactions.types";
 import { parseMoneyAmount } from "@/app/transactions/components/transaction-utils";
 
 interface InvestorDepositFormProps {
@@ -22,6 +24,10 @@ interface InvestorDepositFormProps {
   returnTo?: string;
   disabled?: boolean;
   onStarted?: () => void;
+}
+
+function formatDepositLimit(amount: number) {
+  return Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
 }
 
 function resolveCheckoutContact(activeOrganization: Organization | null) {
@@ -57,12 +63,26 @@ export function InvestorDepositForm({
 }: InvestorDepositFormProps) {
   const { activeOrganization } = useOrganization();
   const createDeposit = useCreateInvestorDepositMutation();
+  const depositLimitsQuery = useInvestorDepositLimitsQuery();
   const [isOpeningCheckout, setIsOpeningCheckout] = React.useState(false);
+
+  const minAmount = depositLimitsQuery.data?.minAmount;
+  const maxAmount = depositLimitsQuery.data?.maxAmount;
 
   async function handleContinue() {
     const parsed = parseMoneyAmount(amount);
-    if (!parsed || parsed < MIN_DEPOSIT_AMOUNT) {
-      onValidationErrorChange(`Minimum deposit is RM ${MIN_DEPOSIT_AMOUNT}`);
+    if (minAmount == null || maxAmount == null) {
+      toast.error("Deposit limits are still loading. Please try again.");
+      return;
+    }
+
+    if (!parsed || parsed < minAmount) {
+      onValidationErrorChange(`Minimum deposit is RM ${formatDepositLimit(minAmount)}`);
+      return;
+    }
+
+    if (parsed > maxAmount) {
+      onValidationErrorChange(`Maximum deposit is RM ${formatDepositLimit(maxAmount)}`);
       return;
     }
 
@@ -107,6 +127,7 @@ export function InvestorDepositForm({
   }
 
   const isBusy = createDeposit.isPending || isOpeningCheckout;
+  const limitsReady = minAmount != null && maxAmount != null;
 
   return (
     <div className="space-y-4">
@@ -121,14 +142,18 @@ export function InvestorDepositForm({
           prefix="RM"
           placeholder="0.00"
           inputClassName="h-11 rounded-xl"
-          disabled={disabled || isBusy}
+          disabled={disabled || isBusy || !limitsReady}
         />
         {validationError ? (
           <p className="text-right text-xs text-destructive">{validationError}</p>
-        ) : (
+        ) : depositLimitsQuery.isLoading ? (
+          <p className="text-right text-xs text-muted-foreground">Loading deposit limits...</p>
+        ) : limitsReady ? (
           <p className="text-right text-xs text-muted-foreground">
-            Min. amount - RM {MIN_DEPOSIT_AMOUNT}
+            Min. amount - RM {formatDepositLimit(minAmount)} · Max. RM {formatDepositLimit(maxAmount)}
           </p>
+        ) : (
+          <p className="text-right text-xs text-destructive">Could not load deposit limits</p>
         )}
       </div>
 
@@ -136,7 +161,7 @@ export function InvestorDepositForm({
         type="button"
         variant="action"
         className="h-11 w-full rounded-xl"
-        disabled={disabled || isBusy || !investorOrganizationId}
+        disabled={disabled || isBusy || !investorOrganizationId || !limitsReady}
         onClick={() => void handleContinue()}
       >
         {createDeposit.isPending

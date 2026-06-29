@@ -594,6 +594,8 @@ export interface PlatformFinanceSetting {
   defaultLetterTemplate: string;
   issuerOnboardingFeeAmount: number;
   applicationProcessingFeeAmount: number;
+  investorMinDepositAmount: number;
+  investorMaxDepositAmount: number;
   trusteeLetterConfig: TrusteeLetterConfig | null;
   platformAccountsConfig: PlatformAccountsConfig | null;
   ledgerBucketAccountsConfig: LedgerBucketAccountsConfig | null;
@@ -935,6 +937,11 @@ export type GatewayPaymentStatus =
   | "EXPIRED";
 
 export type NameCheckResult = "PASS" | "FAIL" | "NAME_UNAVAILABLE";
+
+export interface InvestorDepositLimits {
+  minAmount: number;
+  maxAmount: number;
+}
 
 export interface CreateInvestorDepositInput {
   investorOrganizationId: string;

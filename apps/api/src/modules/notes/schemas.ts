@@ -209,6 +209,8 @@ export const updatePlatformFinanceSettingsSchema = z.object({
   defaultLetterTemplate: z.string().min(1).optional(),
   issuerOnboardingFeeAmount: z.number().positive().optional(),
   applicationProcessingFeeAmount: z.number().positive().optional(),
+  investorMinDepositAmount: z.number().positive().optional(),
+  investorMaxDepositAmount: z.number().positive().optional(),
   trusteeLetterConfig: z.record(z.unknown()).optional(),
   platformAccountsConfig: z.record(z.unknown()).optional(),
   ledgerBucketAccountsConfig: z.record(z.unknown()).optional(),

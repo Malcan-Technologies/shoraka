@@ -90,6 +90,7 @@ import type {
   CreateNoteFromApplicationInput,
   CreateNoteInvestmentInput,
   CreateInvestorDepositInput,
+  InvestorDepositLimits,
   InvestorDepositResponse,
   CreateIssuerOnboardingFeeInput,
   IssuerOnboardingFeeResponse,
@@ -2733,6 +2734,10 @@ export class ApiClient {
     input: CreateInvestorDepositInput
   ): Promise<ApiResponse<InvestorDepositResponse> | ApiError> {
     return this.post<InvestorDepositResponse>("/v1/investor/deposits", input);
+  }
+
+  async getInvestorDepositLimits(): Promise<ApiResponse<InvestorDepositLimits> | ApiError> {
+    return this.get<InvestorDepositLimits>("/v1/investor/deposits/limits");
   }
 
   async getInvestorDeposit(id: string): Promise<ApiResponse<InvestorDepositResponse> | ApiError> {
