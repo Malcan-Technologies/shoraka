@@ -584,10 +584,6 @@ export default function NoteDetailPage() {
                             : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
                         }
                       >
-                        <span
-                          aria-hidden
-                          className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY["view-only"].dotClass}`}
-                        />
                         <span className="truncate">Ledger</span>
                         <span className="sr-only">Read-only reference</span>
                       </Button>
@@ -601,10 +597,6 @@ export default function NoteDetailPage() {
                             : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
                         }
                       >
-                        <span
-                          aria-hidden
-                          className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY["view-only"].dotClass}`}
-                        />
                         <span className="truncate">Investors</span>
                         <span className="sr-only">Read-only reference</span>
                       </Button>

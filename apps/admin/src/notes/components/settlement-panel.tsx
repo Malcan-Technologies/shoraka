@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import {
   ArrowDownTrayIcon,
+  ArrowTopRightOnSquareIcon,
   CheckCircleIcon,
   DocumentTextIcon,
   PlusIcon,
@@ -50,6 +51,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
+import { SUPPORTING_DOC_ACTION_BTN_BASE_CLASS } from "@/components/application-review/document-list";
 import {
   useApproveNotePayment,
   useApproveNoteSettlement,
@@ -217,10 +219,12 @@ function getPaymentEvidenceFiles(payment: NotePayment) {
 function PaymentAdviceProofBlock({
   files,
   onView,
+  onDownload,
   viewPending,
 }: {
   files: Array<{ s3Key: string; fileName: string }>;
   onView: (s3Key: string) => void;
+  onDownload: (s3Key: string, fileName?: string) => void;
   viewPending: boolean;
 }) {
   if (files.length === 0) return null;
@@ -238,17 +242,30 @@ function PaymentAdviceProofBlock({
                   {file.fileName || "Payment advice"}
                 </span>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5"
-                onClick={() => onView(file.s3Key)}
-                disabled={viewPending}
-              >
-                <DocumentTextIcon className="h-3.5 w-3.5" />
-                View
-              </Button>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={SUPPORTING_DOC_ACTION_BTN_BASE_CLASS}
+                  onClick={() => onView(file.s3Key)}
+                  disabled={viewPending}
+                >
+                  <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" />
+                  View
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className={SUPPORTING_DOC_ACTION_BTN_BASE_CLASS}
+                  onClick={() => onDownload(file.s3Key, file.fileName || "payment-advice")}
+                  disabled={viewPending}
+                >
+                  <ArrowDownTrayIcon className="h-4 w-4 shrink-0" />
+                  Download
+                </Button>
+              </div>
             </div>
           </div>
         ))}
@@ -1443,6 +1460,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                             <PaymentAdviceProofBlock
                               files={evidenceFiles}
                               onView={handleViewDocument}
+                              onDownload={handleDownloadDocument}
                               viewPending={viewDocumentPending}
                             />
                           ) : null}
@@ -1461,20 +1479,21 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                             <>
                               <Button
                                 size="sm"
-                                onClick={() => handleApprovePayment(payment)}
-                                disabled={approvePayment.isPending || !paymentActionsOpen || !canRepayment}
-                                title={!canRepayment ? "You do not have permission to perform this action." : undefined}
-                              >
-                                Approve
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
+                                variant="outline"
+                                className="text-destructive hover:text-destructive"
                                 onClick={() => handleRejectPayment(payment)}
                                 disabled={rejectPayment.isPending || !canRepayment}
                                 title={!canRepayment ? "You do not have permission to perform this action." : undefined}
                               >
                                 Reject
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => handleApprovePayment(payment)}
+                                disabled={approvePayment.isPending || !paymentActionsOpen || !canRepayment}
+                                title={!canRepayment ? "You do not have permission to perform this action." : undefined}
+                              >
+                                Approve
                               </Button>
                             </>
                           ) : null}

@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronRightIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
+import { ChevronDownIcon, ChevronRightIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import {
   useHeader,
@@ -31,6 +31,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   useIssuerPaymentEvidenceUploadUrl,
   useIssuerNote,
@@ -72,15 +77,15 @@ type PaymentAdviceStep = "source" | "details";
 const PAYMENT_SOURCE_OPTIONS = [
   {
     value: NotePaymentSource.ISSUER_ON_BEHALF,
-    label: "We made the payment",
+    label: "Our company paid directly",
     helper:
       "Use this if your company transferred the repayment directly to the repayment account.",
   },
   {
     value: NotePaymentSource.PAYMASTER,
-    label: "Paymaster made the payment",
+    label: "Paymaster paid",
     helper:
-      "Use this if the paymaster has made the repayment and you are notifying admin to verify it.",
+      "Use this if the paymaster has made the repayment and you are reporting it for admin verification.",
   },
 ] as const;
 
@@ -150,12 +155,6 @@ function isTwoDecimalMoneyInput(value: string) {
 
 function roundMoneyTwo(value: number) {
   return Math.round(value * 100) / 100;
-}
-
-function formatFileSize(bytes: number) {
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${bytes} B`;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -653,7 +652,7 @@ export default function IssuerNoteDetailPage() {
                 noReceiptCapacityReason != null
               }
             >
-              {isSettled ? "Payment Settled" : "Submit Payment Advice"}
+              {isSettled ? "Payment Settled" : "Report Payment"}
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -707,8 +706,8 @@ export default function IssuerNoteDetailPage() {
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              Use this to notify admin that repayment has been made by either issuer on behalf or
-              paymaster, then submit payment advice and proof for review.
+              Report a repayment that has already been made. Attach proof so admin can verify it
+              before settlement is posted.
             </p>
             {paymentBlockedReason ? (
               <div
@@ -950,21 +949,21 @@ export default function IssuerNoteDetailPage() {
           }
         }}
       >
-        <DialogContent className="rounded-2xl sm:max-w-2xl">
+        <DialogContent className="rounded-2xl sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {paymentAdviceStep === "source"
-                ? "How was the repayment made?"
-                : "Submit payment details"}
+                ? "How was the payment made?"
+                : "Report Payment"}
             </DialogTitle>
-            <DialogDescription className="text-[15px] leading-7">
-              Notify admin that repayment has been made. Admin will verify the receipt before
+            <DialogDescription className="text-sm leading-6">
+              Report a repayment that has already been made. Admin will verify the receipt before
               settlement is posted.
             </DialogDescription>
           </DialogHeader>
 
           {paymentAdviceStep === "source" ? (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {PAYMENT_SOURCE_OPTIONS.map((option) => {
                 const selected = paymentSource === option.value;
                 return (
@@ -973,22 +972,22 @@ export default function IssuerNoteDetailPage() {
                     type="button"
                     onClick={() => setPaymentSource(option.value)}
                     className={cn(
-                      "w-full rounded-2xl border p-4 text-left transition-colors",
+                      "w-full rounded-xl border p-3 text-left transition-colors",
                       selected
                         ? "border-primary bg-primary/5"
                         : "border-border bg-card hover:bg-muted/40"
                     )}
                   >
                     <div className="text-sm font-semibold text-foreground">{option.label}</div>
-                    <p className="mt-1 text-sm text-muted-foreground">{option.helper}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{option.helper}</p>
                   </button>
                 );
               })}
             </div>
           ) : (
-            <div className="space-y-5">
-              <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm">
-                <span className="text-muted-foreground">Payment source: </span>
+            <div className="space-y-4">
+              <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+                <span className="text-muted-foreground">Source: </span>
                 <span className="font-medium text-foreground">
                   {
                     PAYMENT_SOURCE_OPTIONS.find((option) => option.value === paymentSource)
@@ -997,46 +996,46 @@ export default function IssuerNoteDetailPage() {
                 </span>
               </div>
 
-              <div className="rounded-2xl border border-border bg-muted p-5 space-y-3">
-                <div className="space-y-2">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <span>Repayments received</span>
-                        <InfoTooltip
-                          content={REPAYMENT_POOL_RECEIVED_TOOLTIP}
-                          iconClassName="h-3.5 w-3.5 shrink-0"
-                        />
-                      </div>
-                      <RepaymentPoolReceivedBreakdown
-                        note={note}
-                        total={openReceiptsTotal}
-                        hasPending={hasPendingReceiptReview}
-                        totalClassName="text-lg font-semibold text-foreground"
+              <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <span>Repayments received</span>
+                      <InfoTooltip
+                        content={REPAYMENT_POOL_RECEIVED_TOOLTIP}
+                        iconClassName="h-3.5 w-3.5 shrink-0"
                       />
                     </div>
-                    <div>
-                      <div className="text-sm text-muted-foreground">Remaining settlement</div>
-                      <div className="mt-1 text-lg font-semibold text-foreground">
-                        {formatCurrency(remainingCapacity)}
-                      </div>
+                    <RepaymentPoolReceivedBreakdown
+                      note={note}
+                      total={openReceiptsTotal}
+                      hasPending={hasPendingReceiptReview}
+                      totalClassName="text-base font-semibold text-foreground"
+                    />
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Remaining settlement</div>
+                    <div className="mt-1 text-base font-semibold text-foreground">
+                      {formatCurrency(remainingCapacity)}
                     </div>
                   </div>
+                </div>
+                <div className="space-y-1.5">
                   <div className="flex flex-wrap items-end justify-between gap-2">
                     <label className="text-sm font-medium" htmlFor="issuer-payment-amount">
-                      Amount you are confirming
+                      Amount
                     </label>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="rounded-lg"
+                      className="h-8 rounded-lg text-xs"
                       disabled={remainingCapacity <= MONEY_TOLERANCE}
                       onClick={() =>
                         setPaymentAmountInput(roundMoneyTwo(remainingCapacity).toFixed(2))
                       }
                     >
-                      Use full remaining settlement
+                      Use full remaining
                     </Button>
                   </div>
                   <Input
@@ -1056,41 +1055,40 @@ export default function IssuerNoteDetailPage() {
                     placeholder="0.00"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Must be greater than zero and must not exceed the remaining settlement shown
-                    above, including amounts already pending or received.
+                    Must not exceed remaining settlement above.
                   </p>
                 </div>
               </div>
 
               {paymentSource === NotePaymentSource.ISSUER_ON_BEHALF ? (
-                <div className="rounded-2xl border p-4">
-                  <div className="mb-3 font-semibold">Repayment Instructions</div>
-                  {instructionEntries.length ? (
-                    <div className="grid gap-3 text-sm md:grid-cols-2">
-                      {instructionEntries.map(([key, value]) => (
-                        <div key={key}>
-                          <div className="text-muted-foreground">
-                            {key.replace(/([A-Z])/g, " $1")}
+                <Collapsible defaultOpen className="group">
+                  <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-sm font-medium hover:bg-muted/40">
+                    <span>Repayment instructions</span>
+                    <ChevronDownIcon className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-2">
+                    {instructionEntries.length ? (
+                      <div className="grid gap-2 rounded-lg border bg-muted/20 p-3 text-sm sm:grid-cols-2">
+                        {instructionEntries.map(([key, value]) => (
+                          <div key={key}>
+                            <div className="text-xs text-muted-foreground">
+                              {key.replace(/([A-Z])/g, " $1")}
+                            </div>
+                            <div className="font-medium">{String(value)}</div>
                           </div>
-                          <div className="font-medium">{String(value)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Repayment instructions are not available yet. Contact support before making
-                      payment.
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Admin will verify this paymaster repayment against bank and payment records before
-                  settlement is posted.
-                </p>
-              )}
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Repayment instructions are not available yet. Contact support before
+                        paying.
+                      </p>
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
+              ) : null}
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label className="text-sm font-medium" htmlFor="payment-reference">
                   Payment reference
                 </label>
@@ -1102,9 +1100,9 @@ export default function IssuerNoteDetailPage() {
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label className="text-sm font-medium" htmlFor="payment-advice-proof">
-                  Payment advice / proof
+                  Payment proof
                 </label>
                 <Input
                   id="payment-advice-proof"
@@ -1133,17 +1131,18 @@ export default function IssuerNoteDetailPage() {
                   Required. PDF, JPEG, or PNG only. Max 1 file, 5MB.
                 </p>
                 {evidenceFiles.length > 0 ? (
-                  <div className="flex items-center justify-between gap-2 rounded-xl border bg-muted/30 p-3">
+                  <div className="flex items-center justify-between gap-2 rounded-lg border bg-muted/30 p-2.5">
                     <div className="flex min-w-0 items-center gap-2">
                       <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <span className="truncate text-sm text-foreground">
-                        {evidenceFiles[0].name} ({formatFileSize(evidenceFiles[0].size)})
+                        {evidenceFiles[0].name}
                       </span>
                     </div>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
+                      className="h-8"
                       onClick={() => setEvidenceFiles([])}
                     >
                       Remove
@@ -1152,16 +1151,16 @@ export default function IssuerNoteDetailPage() {
                 ) : null}
               </div>
 
-              <label className="flex items-start gap-3 rounded-2xl border p-4 text-sm">
+              <label className="flex items-start gap-2.5 rounded-lg border p-3 text-sm">
                 <Checkbox
                   checked={paymentConfirmed}
                   onCheckedChange={(checked) => setPaymentConfirmed(checked === true)}
-                  className="mt-1"
+                  className="mt-0.5"
                 />
                 <span>
                   {paymentSource === NotePaymentSource.PAYMASTER
-                    ? "I confirm that the paymaster has made this repayment and understand that admin will verify it against bank records before settlement is posted."
-                    : "I confirm that I have transferred the amount entered above to the repayment account and understand that admin will reconcile the receipt before settlement is posted."}
+                    ? "I confirm that the paymaster has made this repayment and understand that admin will verify it before settlement is posted."
+                    : "I confirm that our company has transferred this repayment and understand that admin will verify the receipt before settlement is posted."}
                 </span>
               </label>
             </div>
@@ -1218,7 +1217,7 @@ export default function IssuerNoteDetailPage() {
                 >
                   {submitPayment.isPending || uploadEvidenceUrl.isPending
                     ? "Submitting..."
-                    : "Submit Payment Advice"}
+                    : "Report Payment"}
                 </Button>
               </>
             )}
