@@ -80,15 +80,27 @@ const PAYMENT_SOURCE_OPTIONS = [
     value: NotePaymentSource.ISSUER_ON_BEHALF,
     label: "Direct transfer",
     helper:
-      "Use this if your company transferred the repayment to the repayment account.",
+      "View repayment instructions, then submit the payment reference and proof after transfer.",
   },
   {
     value: NotePaymentSource.PAYMASTER,
     label: "Paymaster payment",
-    helper:
-      "Use this if the paymaster made the repayment and you are reporting it for admin verification.",
+    helper: "Report that the paymaster has made the repayment for admin verification.",
   },
 ] as const;
+
+const PAYMENT_DETAILS_STEP_COPY = {
+  [NotePaymentSource.ISSUER_ON_BEHALF]: {
+    title: "Direct Transfer",
+    description:
+      "Use the repayment instructions below to make the transfer. After payment is completed, enter the reference and upload proof.",
+  },
+  [NotePaymentSource.PAYMASTER]: {
+    title: "Paymaster Payment",
+    description:
+      "Enter the payment reference and upload proof so admin can verify the paymaster payment.",
+  },
+} as const;
 
 const RISK_TOOLTIP_TEXT = "SoukScore grade for this invoice note";
 
@@ -653,7 +665,7 @@ export default function IssuerNoteDetailPage() {
                 noReceiptCapacityReason != null
               }
             >
-              {isSettled ? "Payment Settled" : "Report Payment"}
+              {isSettled ? "Payment Settled" : "Make / Report Payment"}
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -954,15 +966,14 @@ export default function IssuerNoteDetailPage() {
           <DialogHeader className="space-y-1">
             <DialogTitle>
               {paymentAdviceStep === "source"
-                ? "How was the payment made?"
-                : "Report Payment"}
+                ? "How will this repayment be handled?"
+                : PAYMENT_DETAILS_STEP_COPY[paymentSource].title}
             </DialogTitle>
-            {paymentAdviceStep === "source" ? (
-              <DialogDescription className="text-sm leading-5">
-                Report a repayment that has already been made. Admin will verify the receipt before
-                settlement is posted.
-              </DialogDescription>
-            ) : null}
+            <DialogDescription className="text-sm leading-5">
+              {paymentAdviceStep === "source"
+                ? "Choose whether to make a direct transfer or report a paymaster payment."
+                : PAYMENT_DETAILS_STEP_COPY[paymentSource].description}
+            </DialogDescription>
           </DialogHeader>
 
           {paymentAdviceStep === "source" ? (
@@ -990,7 +1001,7 @@ export default function IssuerNoteDetailPage() {
           ) : (
             <div className="space-y-2.5">
               <div className="text-sm">
-                <span className="text-muted-foreground">Source: </span>
+                <span className="text-muted-foreground">Selected option: </span>
                 <span className="font-medium text-foreground">
                   {
                     PAYMENT_SOURCE_OPTIONS.find((option) => option.value === paymentSource)
@@ -1224,7 +1235,7 @@ export default function IssuerNoteDetailPage() {
                 >
                   {submitPayment.isPending || uploadEvidenceUrl.isPending
                     ? "Submitting..."
-                    : "Report Payment"}
+                    : "Submit for Review"}
                 </Button>
               </>
             )}
