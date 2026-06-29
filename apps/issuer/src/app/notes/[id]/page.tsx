@@ -987,7 +987,7 @@ export default function IssuerNoteDetailPage() {
               })}
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               <div className="text-sm">
                 <span className="text-muted-foreground">Source: </span>
                 <span className="font-medium text-foreground">
@@ -1020,9 +1020,9 @@ export default function IssuerNoteDetailPage() {
                     </label>
                     <Button
                       type="button"
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      className="h-7 px-2 text-xs"
+                      className="h-7 rounded-md px-2.5 text-xs"
                       disabled={remainingCapacity <= MONEY_TOLERANCE}
                       onClick={() =>
                         setPaymentAmountInput(roundMoneyTwo(remainingCapacity).toFixed(2))
@@ -1055,29 +1055,33 @@ export default function IssuerNoteDetailPage() {
               </div>
 
               {paymentSource === NotePaymentSource.ISSUER_ON_BEHALF ? (
-                <Collapsible className="group">
-                  <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border px-2.5 py-1.5 text-left text-sm font-medium hover:bg-muted/40">
+                <Collapsible className="group overflow-hidden rounded-lg border">
+                  <CollapsibleTrigger className="flex w-full items-center justify-between px-2.5 py-1.5 text-left text-sm font-medium hover:bg-muted/40">
                     <span>Repayment instructions</span>
                     <ChevronDownIcon className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
                   </CollapsibleTrigger>
-                  <CollapsibleContent className="pt-1.5">
-                    {instructionEntries.length ? (
-                      <div className="grid gap-1.5 rounded-lg border bg-muted/20 p-2.5 text-sm sm:grid-cols-2">
-                        {instructionEntries.map(([key, value]) => (
-                          <div key={key}>
-                            <div className="text-xs text-muted-foreground">
-                              {key.replace(/([A-Z])/g, " $1")}
+                  <CollapsibleContent>
+                    <div className="border-t border-border/60 px-2.5 py-2">
+                      {instructionEntries.length ? (
+                        <div className="grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
+                          {instructionEntries.map(([key, value]) => (
+                            <div key={key} className="min-w-0">
+                              <div className="text-[11px] leading-4 text-muted-foreground">
+                                {key.replace(/([A-Z])/g, " $1")}
+                              </div>
+                              <div className="text-xs font-medium leading-5 text-foreground break-words">
+                                {String(value)}
+                              </div>
                             </div>
-                            <div className="font-medium">{String(value)}</div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">
-                        Repayment instructions are not available yet. Contact support before
-                        paying.
-                      </p>
-                    )}
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs leading-5 text-muted-foreground">
+                          Repayment instructions are not available yet. Contact support before
+                          paying.
+                        </p>
+                      )}
+                    </div>
                   </CollapsibleContent>
                 </Collapsible>
               ) : null}
@@ -1095,7 +1099,7 @@ export default function IssuerNoteDetailPage() {
                 />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <label className="text-sm font-medium" htmlFor="payment-advice-proof">
                   Payment proof
                 </label>
@@ -1162,7 +1166,7 @@ export default function IssuerNoteDetailPage() {
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 pt-1 sm:justify-end">
             {paymentAdviceStep === "source" ? (
               <>
                 <Button
