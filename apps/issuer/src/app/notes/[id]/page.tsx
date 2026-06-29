@@ -64,6 +64,7 @@ import {
   type NoteDetail,
   type NoteSettlementPoolSummary,
 } from "@cashsouk/types";
+import { issuerFieldChromeClassName } from "@/lib/issuer-input-chrome";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
 
@@ -1028,7 +1029,7 @@ export default function IssuerNoteDetailPage() {
                         setPaymentAmountInput(roundMoneyTwo(remainingCapacity).toFixed(2))
                       }
                     >
-                      Use full remaining
+                      Fill remaining
                     </Button>
                   </div>
                   <Input
@@ -1103,35 +1104,13 @@ export default function IssuerNoteDetailPage() {
                 <label className="text-sm font-medium" htmlFor="payment-advice-proof">
                   Payment proof
                 </label>
-                <Input
-                  id="payment-advice-proof"
-                  type="file"
-                  className="h-9 py-1"
-                  accept="application/pdf,image/jpeg,image/png"
-                  onChange={(event) => {
-                    const selected = event.target.files?.[0];
-                    event.currentTarget.value = "";
-                    if (!selected) {
-                      setEvidenceFiles([]);
-                      return;
-                    }
-                    if (
-                      !PAYMENT_ADVICE_ALLOWED_CONTENT_TYPES.includes(
-                        selected.type as (typeof PAYMENT_ADVICE_ALLOWED_CONTENT_TYPES)[number]
-                      ) ||
-                      selected.size > PAYMENT_ADVICE_MAX_FILE_SIZE_BYTES
-                    ) {
-                      toast.error("Only PDF, JPEG, or PNG up to 5MB is allowed");
-                      return;
-                    }
-                    setEvidenceFiles([selected]);
-                  }}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Required. PDF, JPEG, or PNG only. Max 1 file, 5MB.
-                </p>
                 {evidenceFiles.length > 0 ? (
-                  <div className="flex items-center justify-between gap-2 rounded-lg border bg-muted/30 px-2.5 py-1.5">
+                  <div
+                    className={cn(
+                      "flex h-9 items-center justify-between gap-2 px-3",
+                      issuerFieldChromeClassName
+                    )}
+                  >
                     <div className="flex min-w-0 items-center gap-2">
                       <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <span className="truncate text-sm text-foreground">
@@ -1142,13 +1121,41 @@ export default function IssuerNoteDetailPage() {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-7 px-2"
+                      className="h-7 shrink-0 px-2"
                       onClick={() => setEvidenceFiles([])}
                     >
                       Remove
                     </Button>
                   </div>
-                ) : null}
+                ) : (
+                  <Input
+                    id="payment-advice-proof"
+                    type="file"
+                    className="h-9 items-center py-0 leading-9 file:leading-9"
+                    accept="application/pdf,image/jpeg,image/png"
+                    onChange={(event) => {
+                      const selected = event.target.files?.[0];
+                      event.currentTarget.value = "";
+                      if (!selected) {
+                        setEvidenceFiles([]);
+                        return;
+                      }
+                      if (
+                        !PAYMENT_ADVICE_ALLOWED_CONTENT_TYPES.includes(
+                          selected.type as (typeof PAYMENT_ADVICE_ALLOWED_CONTENT_TYPES)[number]
+                        ) ||
+                        selected.size > PAYMENT_ADVICE_MAX_FILE_SIZE_BYTES
+                      ) {
+                        toast.error("Only PDF, JPEG, or PNG up to 5MB is allowed");
+                        return;
+                      }
+                      setEvidenceFiles([selected]);
+                    }}
+                  />
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Required. PDF, JPEG, or PNG only. Max 1 file, 5MB.
+                </p>
               </div>
 
               <label className="flex items-start gap-2 rounded-lg border px-2.5 py-2 text-xs leading-5">
