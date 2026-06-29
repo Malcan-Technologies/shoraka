@@ -234,46 +234,53 @@ function PaymentAdviceProofCompact({
 }) {
   if (files.length === 0) return null;
 
-  const primary = files[0];
-  const extraCount = files.length - 1;
+  const visibleFiles = files.slice(0, 2);
+  const hiddenCount = files.length - visibleFiles.length;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        Payment advice
-      </span>
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 rounded-md border bg-background px-2 py-1">
-        <DocumentTextIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        <span className="max-w-[12rem] truncate text-xs text-foreground">
-          {primary.fileName || "Payment advice"}
-        </span>
-        {extraCount > 0 ? (
-          <span className="text-xs text-muted-foreground">+{extraCount} more</span>
+    <div className="space-y-1">
+      <div className="text-xs text-muted-foreground">Payment advice</div>
+      <div className="flex flex-col items-start gap-1.5">
+        {visibleFiles.map((file) => (
+          <div
+            key={file.s3Key}
+            className="inline-flex w-fit max-w-full items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 shadow-sm"
+          >
+            <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="max-w-[10rem] truncate text-sm text-foreground sm:max-w-[14rem]">
+              {file.fileName || "Payment advice"}
+            </span>
+            <div className="flex shrink-0 items-center gap-1 border-l border-border/60 pl-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 rounded-md px-2 text-xs"
+                onClick={() => onView(file.s3Key)}
+                disabled={viewPending}
+              >
+                <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                View
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 rounded-md px-2 text-xs"
+                onClick={() => onDownload(file.s3Key, file.fileName || "payment-advice")}
+                disabled={viewPending}
+              >
+                <ArrowDownTrayIcon className="h-3.5 w-3.5" />
+                Download
+              </Button>
+            </div>
+          </div>
+        ))}
+        {hiddenCount > 0 ? (
+          <span className="text-xs text-muted-foreground">
+            +{hiddenCount} more file{hiddenCount === 1 ? "" : "s"}
+          </span>
         ) : null}
-        <div className="ml-auto flex shrink-0 gap-1">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-7 gap-1 rounded-md px-2 text-xs"
-            onClick={() => onView(primary.s3Key)}
-            disabled={viewPending}
-          >
-            <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
-            View
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-7 gap-1 rounded-md px-2 text-xs"
-            onClick={() => onDownload(primary.s3Key, primary.fileName || "payment-advice")}
-            disabled={viewPending}
-          >
-            <ArrowDownTrayIcon className="h-3.5 w-3.5" />
-            Download
-          </Button>
-        </div>
       </div>
     </div>
   );
@@ -1527,7 +1534,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                               </div>
                             </div>
                             {isRejecting ? (
-                              <div className="mt-3 space-y-2 rounded-md border border-border/60 bg-background p-3">
+                              <div className="mt-2 space-y-1.5 border-t border-border/50 pt-2.5">
                                 <label
                                   className="text-xs font-medium text-foreground"
                                   htmlFor={`reject-reason-${payment.id}`}
@@ -1546,7 +1553,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                                   }
                                   placeholder="Optional rejection reason"
                                 />
-                                <div className="flex justify-end gap-2">
+                                <div className="flex justify-end gap-2 pt-0.5">
                                   <Button
                                     type="button"
                                     size="sm"
