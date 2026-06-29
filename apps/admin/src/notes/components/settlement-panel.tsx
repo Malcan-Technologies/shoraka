@@ -214,6 +214,49 @@ function getPaymentEvidenceFiles(payment: NotePayment) {
   return Array.isArray(extended.evidenceFiles) ? extended.evidenceFiles : [];
 }
 
+function PaymentAdviceProofBlock({
+  files,
+  onView,
+  viewPending,
+}: {
+  files: Array<{ s3Key: string; fileName: string }>;
+  onView: (s3Key: string) => void;
+  viewPending: boolean;
+}) {
+  if (files.length === 0) return null;
+
+  return (
+    <div className="mt-2 space-y-2">
+      <div className="text-xs font-medium text-foreground">Payment advice received</div>
+      <div className="space-y-2">
+        {files.map((file) => (
+          <div key={file.s3Key} className="rounded-lg border bg-card p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="truncate text-sm text-foreground">
+                  {file.fileName || "Payment advice"}
+                </span>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5"
+                onClick={() => onView(file.s3Key)}
+                disabled={viewPending}
+              >
+                <DocumentTextIcon className="h-3.5 w-3.5" />
+                View
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function getSettlementValue(settlement: Record<string, unknown>, key: string) {
   const value = settlement[key];
   if (typeof value === "string" || typeof value === "number" || value == null) {
@@ -1397,42 +1440,11 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                             Received into {payment.receivedIntoAccountCode}
                           </div>
                           {evidenceFiles.length > 0 ? (
-                            <div className="mt-2 rounded-md border bg-background p-2">
-                              <div className="text-xs font-medium text-foreground">
-                                Payment Advice / Proof ({evidenceFiles.length})
-                              </div>
-                              <div className="mt-1 flex flex-wrap items-center gap-2">
-                                {evidenceFiles.map((file) => (
-                                  <div key={file.s3Key} className="flex items-center gap-1.5 text-xs">
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 px-2"
-                                      onClick={() => handleViewDocument(file.s3Key)}
-                                      disabled={viewDocumentPending}
-                                    >
-                                      View
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 px-2"
-                                      onClick={() =>
-                                        handleDownloadDocument(file.s3Key, file.fileName || "proof-file")
-                                      }
-                                      disabled={viewDocumentPending}
-                                    >
-                                      Download
-                                    </Button>
-                                    <span className="max-w-[220px] truncate text-muted-foreground">
-                                      {file.fileName}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
+                            <PaymentAdviceProofBlock
+                              files={evidenceFiles}
+                              onView={handleViewDocument}
+                              viewPending={viewDocumentPending}
+                            />
                           ) : null}
                         </div>
                         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -2303,10 +2315,8 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                   <SelectValue placeholder="Select payment source" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="PAYMASTER">Paymaster</SelectItem>
-                  <SelectItem value="ISSUER_ON_BEHALF">
-                    Issuer on behalf (requires approval in list)
-                  </SelectItem>
+                  <SelectItem value="PAYMASTER">Paymaster payment</SelectItem>
+                  <SelectItem value="ISSUER_ON_BEHALF">Issuer-reported payment</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -2322,11 +2332,11 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                 placeholder="Bank transfer reference or receipt number"
               />
             </div>
-            {recordPaymentSource === "ISSUER_ON_BEHALF" ? (
-              <p className="text-xs text-muted-foreground">
-                Issuer receipts stay pending until you approve them in the receipt list.
-              </p>
-            ) : null}
+            <p className="text-xs text-muted-foreground">
+              Issuer-submitted Payment Advice from the issuer portal enters pending review. Use
+              this form to record a verified receipt directly when you have already confirmed the
+              payment (for example, proof received by email).
+            </p>
           </div>
           <DialogFooter>
             <Button

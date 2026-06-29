@@ -12,7 +12,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
-import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
+import { usePendingRepayments } from "@/notes/hooks/use-notes";
+import { RequirePermission } from "@/components/require-permission";
 import {
   Table,
   TableBody,
@@ -21,8 +22,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { usePendingRepayments } from "@/notes/hooks/use-notes";
-import { RequirePermission } from "@/components/require-permission";
 
 const SOURCE_LABEL: Record<string, string> = {
   PAYMASTER: "Paymaster",
@@ -65,8 +64,6 @@ function formatAge(value: string | null) {
 
 export default function PendingRepaymentsPage() {
   const { data, isLoading, error, refetch, isFetching } = usePendingRepayments();
-  const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
-    useAdminS3DocumentViewDownload();
   const items = data?.items ?? [];
 
   const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
@@ -207,33 +204,7 @@ export default function PendingRepaymentsPage() {
                               </TableCell>
                               <TableCell>
                                 {item.evidenceFiles?.length ? (
-                                  <div className="flex items-center gap-1">
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 px-2"
-                                      onClick={() => handleViewDocument(item.evidenceFiles![0].s3Key)}
-                                      disabled={viewDocumentPending}
-                                    >
-                                      View proof ({item.evidenceFiles.length})
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 px-2"
-                                      onClick={() =>
-                                        handleDownloadDocument(
-                                          item.evidenceFiles![0].s3Key,
-                                          item.evidenceFiles![0].fileName || "proof-file"
-                                        )
-                                      }
-                                      disabled={viewDocumentPending}
-                                    >
-                                      Download
-                                    </Button>
-                                  </div>
+                                  <span className="text-sm text-foreground">Proof received</span>
                                 ) : (
                                   <span className="text-muted-foreground">—</span>
                                 )}

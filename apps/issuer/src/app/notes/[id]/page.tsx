@@ -32,13 +32,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   useIssuerPaymentEvidenceUploadUrl,
   useIssuerNote,
   useIssuerNotePaymentInstructions,
@@ -72,7 +65,24 @@ import { cn } from "@/lib/utils";
 const MONEY_TOLERANCE = 0.005;
 const PAYMENT_ADVICE_ALLOWED_CONTENT_TYPES = ["application/pdf", "image/jpeg", "image/png"] as const;
 const PAYMENT_ADVICE_MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
-const PAYMENT_ADVICE_MAX_FILES = 5;
+const PAYMENT_ADVICE_MAX_FILES = 1;
+
+type PaymentAdviceStep = "source" | "details";
+
+const PAYMENT_SOURCE_OPTIONS = [
+  {
+    value: NotePaymentSource.ISSUER_ON_BEHALF,
+    label: "We made the payment",
+    helper:
+      "Use this if your company transferred the repayment directly to the repayment account.",
+  },
+  {
+    value: NotePaymentSource.PAYMASTER,
+    label: "Paymaster made the payment",
+    helper:
+      "Use this if the paymaster has made the repayment and you are notifying admin to verify it.",
+  },
+] as const;
 
 const RISK_TOOLTIP_TEXT = "SoukScore grade for this invoice note";
 
@@ -297,6 +307,7 @@ export default function IssuerNoteDetailPage() {
   const [paymentAmountInput, setPaymentAmountInput] = React.useState("");
   const [evidenceFiles, setEvidenceFiles] = React.useState<File[]>([]);
   const [paymentDialogOpen, setPaymentDialogOpen] = React.useState(false);
+  const [paymentAdviceStep, setPaymentAdviceStep] = React.useState<PaymentAdviceStep>("source");
   const [paymentConfirmed, setPaymentConfirmed] = React.useState(false);
 
   React.useEffect(() => {
@@ -927,11 +938,13 @@ export default function IssuerNoteDetailPage() {
             );
             setPaymentConfirmed(false);
             setPaymentSource(NotePaymentSource.ISSUER_ON_BEHALF);
+            setPaymentAdviceStep("source");
             setReference("");
             setEvidenceFiles([]);
           } else if (!open) {
             setPaymentConfirmed(false);
             setPaymentSource(NotePaymentSource.ISSUER_ON_BEHALF);
+            setPaymentAdviceStep("source");
             setReference("");
             setEvidenceFiles([]);
           }
@@ -939,243 +952,276 @@ export default function IssuerNoteDetailPage() {
       >
         <DialogContent className="rounded-2xl sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Submit Payment Advice</DialogTitle>
+            <DialogTitle>
+              {paymentAdviceStep === "source"
+                ? "How was the repayment made?"
+                : "Submit payment details"}
+            </DialogTitle>
             <DialogDescription className="text-[15px] leading-7">
-              Notify admin that repayment has been made and attach payment advice/proof files.
-              Submit only after the transfer for this amount is completed. Admin reviews this
-              advice before settlement is posted.
+              Notify admin that repayment has been made. Admin will verify the receipt before
+              settlement is posted.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-5">
-            <div className="rounded-2xl border border-border bg-muted p-5 space-y-3">
-              <div className="space-y-2">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <span>Repayments received</span>
-                      <InfoTooltip
-                        content={REPAYMENT_POOL_RECEIVED_TOOLTIP}
-                        iconClassName="h-3.5 w-3.5 shrink-0"
+          {paymentAdviceStep === "source" ? (
+            <div className="space-y-3">
+              {PAYMENT_SOURCE_OPTIONS.map((option) => {
+                const selected = paymentSource === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setPaymentSource(option.value)}
+                    className={cn(
+                      "w-full rounded-2xl border p-4 text-left transition-colors",
+                      selected
+                        ? "border-primary bg-primary/5"
+                        : "border-border bg-card hover:bg-muted/40"
+                    )}
+                  >
+                    <div className="text-sm font-semibold text-foreground">{option.label}</div>
+                    <p className="mt-1 text-sm text-muted-foreground">{option.helper}</p>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm">
+                <span className="text-muted-foreground">Payment source: </span>
+                <span className="font-medium text-foreground">
+                  {
+                    PAYMENT_SOURCE_OPTIONS.find((option) => option.value === paymentSource)
+                      ?.label
+                  }
+                </span>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-muted p-5 space-y-3">
+                <div className="space-y-2">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <span>Repayments received</span>
+                        <InfoTooltip
+                          content={REPAYMENT_POOL_RECEIVED_TOOLTIP}
+                          iconClassName="h-3.5 w-3.5 shrink-0"
+                        />
+                      </div>
+                      <RepaymentPoolReceivedBreakdown
+                        note={note}
+                        total={openReceiptsTotal}
+                        hasPending={hasPendingReceiptReview}
+                        totalClassName="text-lg font-semibold text-foreground"
                       />
                     </div>
-                    <RepaymentPoolReceivedBreakdown
-                      note={note}
-                      total={openReceiptsTotal}
-                      hasPending={hasPendingReceiptReview}
-                      totalClassName="text-lg font-semibold text-foreground"
-                    />
-                  </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground">Remaining settlement</div>
-                    <div className="mt-1 text-lg font-semibold text-foreground">
-                      {formatCurrency(remainingCapacity)}
+                    <div>
+                      <div className="text-sm text-muted-foreground">Remaining settlement</div>
+                      <div className="mt-1 text-lg font-semibold text-foreground">
+                        {formatCurrency(remainingCapacity)}
+                      </div>
                     </div>
                   </div>
+                  <div className="flex flex-wrap items-end justify-between gap-2">
+                    <label className="text-sm font-medium" htmlFor="issuer-payment-amount">
+                      Amount you are confirming
+                    </label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-lg"
+                      disabled={remainingCapacity <= MONEY_TOLERANCE}
+                      onClick={() =>
+                        setPaymentAmountInput(roundMoneyTwo(remainingCapacity).toFixed(2))
+                      }
+                    >
+                      Use full remaining settlement
+                    </Button>
+                  </div>
+                  <Input
+                    id="issuer-payment-amount"
+                    inputMode="decimal"
+                    value={paymentAmountInput}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      if (isTwoDecimalMoneyInput(next)) setPaymentAmountInput(next);
+                    }}
+                    onBlur={() => {
+                      const v = parseMoney(paymentAmountInput);
+                      if (Number.isFinite(v) && v > 0) {
+                        setPaymentAmountInput(roundMoneyTwo(v).toFixed(2));
+                      }
+                    }}
+                    placeholder="0.00"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Must be greater than zero and must not exceed the remaining settlement shown
+                    above, including amounts already pending or received.
+                  </p>
                 </div>
-                <div className="flex flex-wrap items-end justify-between gap-2">
-                  <label className="text-sm font-medium" htmlFor="issuer-payment-amount">
-                    Amount you are confirming
-                  </label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="rounded-lg"
-                    disabled={remainingCapacity <= MONEY_TOLERANCE}
-                    onClick={() =>
-                      setPaymentAmountInput(roundMoneyTwo(remainingCapacity).toFixed(2))
-                    }
-                  >
-                    Use full remaining settlement
-                  </Button>
-                </div>
-                <Input
-                  id="issuer-payment-amount"
-                  inputMode="decimal"
-                  value={paymentAmountInput}
-                  onChange={(event) => {
-                    const next = event.target.value;
-                    if (isTwoDecimalMoneyInput(next)) setPaymentAmountInput(next);
-                  }}
-                  onBlur={() => {
-                    const v = parseMoney(paymentAmountInput);
-                    if (Number.isFinite(v) && v > 0) {
-                      setPaymentAmountInput(roundMoneyTwo(v).toFixed(2));
-                    }
-                  }}
-                  placeholder="0.00"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Must be greater than zero and must not exceed the remaining settlement shown
-                  above, including amounts already pending or received.
-                </p>
               </div>
-            </div>
 
-            <div className="rounded-2xl border p-4">
-              <div className="mb-3 font-semibold">Repayment Instructions</div>
-              {instructionEntries.length ? (
-                <div className="grid gap-3 text-sm md:grid-cols-2">
-                  {instructionEntries.map(([key, value]) => (
-                    <div key={key}>
-                      <div className="text-muted-foreground">{key.replace(/([A-Z])/g, " $1")}</div>
-                      <div className="font-medium">{String(value)}</div>
+              {paymentSource === NotePaymentSource.ISSUER_ON_BEHALF ? (
+                <div className="rounded-2xl border p-4">
+                  <div className="mb-3 font-semibold">Repayment Instructions</div>
+                  {instructionEntries.length ? (
+                    <div className="grid gap-3 text-sm md:grid-cols-2">
+                      {instructionEntries.map(([key, value]) => (
+                        <div key={key}>
+                          <div className="text-muted-foreground">
+                            {key.replace(/([A-Z])/g, " $1")}
+                          </div>
+                          <div className="font-medium">{String(value)}</div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Repayment instructions are not available yet. Contact support before making
+                      payment.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  Repayment instructions are not available yet. Contact support before making
-                  payment.
+                  Admin will verify this paymaster repayment against bank and payment records before
+                  settlement is posted.
                 </p>
               )}
-            </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Payment source</label>
-              <Select
-                value={paymentSource}
-                onValueChange={(value) => {
-                  if (
-                    value === NotePaymentSource.ISSUER_ON_BEHALF ||
-                    value === NotePaymentSource.PAYMASTER
-                  ) {
-                    setPaymentSource(value);
-                  }
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select payment source" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NotePaymentSource.ISSUER_ON_BEHALF}>
-                    Issuer paid on behalf
-                  </SelectItem>
-                  <SelectItem value={NotePaymentSource.PAYMASTER}>Paymaster paid</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="payment-reference">
+                  Payment reference
+                </label>
+                <Input
+                  id="payment-reference"
+                  value={reference}
+                  onChange={(event) => setReference(event.target.value)}
+                  placeholder="Bank transfer reference or receipt number"
+                />
+              </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="payment-reference">
-                Payment reference
-              </label>
-              <Input
-                id="payment-reference"
-                value={reference}
-                onChange={(event) => setReference(event.target.value)}
-                placeholder="Bank transfer reference or receipt number"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="payment-advice-proof">
-                Payment Advice / Proof
-              </label>
-              <Input
-                id="payment-advice-proof"
-                type="file"
-                multiple
-                accept="application/pdf,image/jpeg,image/png"
-                onChange={(event) => {
-                  const selected = Array.from(event.target.files ?? []);
-                  if (selected.length === 0) return;
-                  const merged = [...evidenceFiles, ...selected];
-                  if (merged.length > PAYMENT_ADVICE_MAX_FILES) {
-                    toast.error(`You can upload up to ${PAYMENT_ADVICE_MAX_FILES} files`);
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="payment-advice-proof">
+                  Payment advice / proof
+                </label>
+                <Input
+                  id="payment-advice-proof"
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png"
+                  onChange={(event) => {
+                    const selected = event.target.files?.[0];
                     event.currentTarget.value = "";
-                    return;
-                  }
-                  const invalid = merged.find(
-                    (file) =>
+                    if (!selected) {
+                      setEvidenceFiles([]);
+                      return;
+                    }
+                    if (
                       !PAYMENT_ADVICE_ALLOWED_CONTENT_TYPES.includes(
-                        file.type as (typeof PAYMENT_ADVICE_ALLOWED_CONTENT_TYPES)[number]
-                      ) || file.size > PAYMENT_ADVICE_MAX_FILE_SIZE_BYTES
-                  );
-                  if (invalid) {
-                    toast.error("Only PDF, JPEG, or PNG up to 5MB per file is allowed");
-                    event.currentTarget.value = "";
-                    return;
-                  }
-                  setEvidenceFiles(merged);
-                  event.currentTarget.value = "";
-                }}
-              />
-              <p className="text-xs text-muted-foreground">
-                Required. PDF, JPEG, or PNG only. Max {PAYMENT_ADVICE_MAX_FILES} files, 5MB each.
-              </p>
-              {evidenceFiles.length > 0 ? (
-                <div className="space-y-2 rounded-xl border bg-muted/30 p-3">
-                  {evidenceFiles.map((file, index) => (
-                    <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-2">
-                      <span className="truncate text-xs text-foreground">
-                        {file.name} ({formatFileSize(file.size)})
+                        selected.type as (typeof PAYMENT_ADVICE_ALLOWED_CONTENT_TYPES)[number]
+                      ) ||
+                      selected.size > PAYMENT_ADVICE_MAX_FILE_SIZE_BYTES
+                    ) {
+                      toast.error("Only PDF, JPEG, or PNG up to 5MB is allowed");
+                      return;
+                    }
+                    setEvidenceFiles([selected]);
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Required. PDF, JPEG, or PNG only. Max 1 file, 5MB.
+                </p>
+                {evidenceFiles.length > 0 ? (
+                  <div className="flex items-center justify-between gap-2 rounded-xl border bg-muted/30 p-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate text-sm text-foreground">
+                        {evidenceFiles[0].name} ({formatFileSize(evidenceFiles[0].size)})
                       </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setEvidenceFiles((previous) =>
-                            previous.filter((_, currentIndex) => currentIndex !== index)
-                          )
-                        }
-                      >
-                        Remove
-                      </Button>
                     </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEvidenceFiles([])}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
 
-            <label className="flex items-start gap-3 rounded-2xl border p-4 text-sm">
-              <Checkbox
-                checked={paymentConfirmed}
-                onCheckedChange={(checked) => setPaymentConfirmed(checked === true)}
-                className="mt-1"
-              />
-              <span>
-                I confirm that I have transferred the amount entered above to the repayment account
-                and understand that admin will reconcile the receipt before settlement is posted.
-              </span>
-            </label>
-          </div>
+              <label className="flex items-start gap-3 rounded-2xl border p-4 text-sm">
+                <Checkbox
+                  checked={paymentConfirmed}
+                  onCheckedChange={(checked) => setPaymentConfirmed(checked === true)}
+                  className="mt-1"
+                />
+                <span>
+                  {paymentSource === NotePaymentSource.PAYMASTER
+                    ? "I confirm that the paymaster has made this repayment and understand that admin will verify it against bank records before settlement is posted."
+                    : "I confirm that I have transferred the amount entered above to the repayment account and understand that admin will reconcile the receipt before settlement is posted."}
+                </span>
+              </label>
+            </div>
+          )}
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-xl"
-              onClick={() => {
-                setPaymentDialogOpen(false);
-                setPaymentConfirmed(false);
-              }}
-              disabled={submitPayment.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              className="rounded-xl"
-              onClick={handleSubmitPayment}
-              disabled={
-                !paymentConfirmed ||
-                !paymentAmountAcceptable ||
-                submitPayment.isPending ||
-                uploadEvidenceUrl.isPending ||
-                settlementAmount <= 0 ||
-                paymentBlockedReason != null ||
-                noReceiptCapacityReason != null ||
-                !reference.trim() ||
-                evidenceFiles.length < 1
-              }
-            >
-              {submitPayment.isPending || uploadEvidenceUrl.isPending
-                ? "Submitting..."
-                : "Submit Payment Advice"}
-            </Button>
+            {paymentAdviceStep === "source" ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-xl"
+                  onClick={() => setPaymentDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="rounded-xl"
+                  onClick={() => setPaymentAdviceStep("details")}
+                >
+                  Continue
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-xl"
+                  onClick={() => {
+                    setPaymentAdviceStep("source");
+                    setPaymentConfirmed(false);
+                  }}
+                  disabled={submitPayment.isPending}
+                >
+                  Back
+                </Button>
+                <Button
+                  type="button"
+                  className="rounded-xl"
+                  onClick={handleSubmitPayment}
+                  disabled={
+                    !paymentConfirmed ||
+                    !paymentAmountAcceptable ||
+                    submitPayment.isPending ||
+                    uploadEvidenceUrl.isPending ||
+                    settlementAmount <= 0 ||
+                    paymentBlockedReason != null ||
+                    noReceiptCapacityReason != null ||
+                    !reference.trim() ||
+                    evidenceFiles.length < 1
+                  }
+                >
+                  {submitPayment.isPending || uploadEvidenceUrl.isPending
+                    ? "Submitting..."
+                    : "Submit Payment Advice"}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

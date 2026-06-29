@@ -176,7 +176,7 @@ export const issuerPaymentAdviceSchema = recordPaymentSchema.omit({
 }).extend({
   source: z.enum(["ISSUER_ON_BEHALF", "PAYMASTER"]),
   reference: z.string().trim().min(1).max(120),
-  evidenceFiles: z.array(paymentEvidenceFileSchema).min(1).max(5),
+  evidenceFiles: z.array(paymentEvidenceFileSchema).min(1).max(1),
 });
 
 export const paymentReviewSchema = z.object({

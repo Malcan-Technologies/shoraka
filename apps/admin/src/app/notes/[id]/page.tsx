@@ -186,7 +186,7 @@ const noteActionCopy: Record<
 };
 
 export default function NoteDetailPage() {
-  type WorkflowTabId = "disbursement" | "servicing-settlement";
+  type NoteDetailTabId = "disbursement" | "servicing-settlement" | "ledger" | "investors";
   const { can } = usePermissions();
   const canManage = can("notes.manage");
   const canDisbursement = can("notes.disbursement.manage");
@@ -202,7 +202,7 @@ export default function NoteDetailPage() {
   const updateNoteFeatured = useUpdateNoteFeatured();
   const [pendingAction, setPendingAction] = React.useState<NoteLifecycleAction | null>(null);
   const [featuredEnabled, setFeaturedEnabled] = React.useState(false);
-  const [activeWorkflowTab, setActiveWorkflowTab] = React.useState<WorkflowTabId>("disbursement");
+  const [activeNoteTab, setActiveNoteTab] = React.useState<NoteDetailTabId>("disbursement");
 
   const lifecyclePending = React.useMemo(
     () => ({
@@ -532,9 +532,9 @@ export default function NoteDetailPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => setActiveWorkflowTab("disbursement")}
+                        onClick={() => setActiveNoteTab("disbursement")}
                         className={
-                          activeWorkflowTab === "disbursement"
+                          activeNoteTab === "disbursement"
                             ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm sm:px-4"
                             : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
                         }
@@ -551,9 +551,9 @@ export default function NoteDetailPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => setActiveWorkflowTab("servicing-settlement")}
+                        onClick={() => setActiveNoteTab("servicing-settlement")}
                         className={
-                          activeWorkflowTab === "servicing-settlement"
+                          activeNoteTab === "servicing-settlement"
                             ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm sm:px-4"
                             : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
                         }
@@ -567,10 +567,51 @@ export default function NoteDetailPage() {
                           Status: {TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].label}
                         </span>
                       </Button>
+                      <span
+                        className="mx-1 hidden h-5 w-px shrink-0 bg-border sm:inline-block"
+                        aria-hidden
+                      />
+                      <span className="hidden shrink-0 px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:inline">
+                        Reference
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setActiveNoteTab("ledger")}
+                        className={
+                          activeNoteTab === "ledger"
+                            ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm sm:px-4"
+                            : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
+                        }
+                      >
+                        <span
+                          aria-hidden
+                          className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY["view-only"].dotClass}`}
+                        />
+                        <span className="truncate">Ledger</span>
+                        <span className="sr-only">Read-only reference</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setActiveNoteTab("investors")}
+                        className={
+                          activeNoteTab === "investors"
+                            ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm sm:px-4"
+                            : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground sm:px-4"
+                        }
+                      >
+                        <span
+                          aria-hidden
+                          className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY["view-only"].dotClass}`}
+                        />
+                        <span className="truncate">Investors</span>
+                        <span className="sr-only">Read-only reference</span>
+                      </Button>
                     </div>
                   </div>
 
-                  <div className={activeWorkflowTab === "disbursement" ? "space-y-6" : "hidden space-y-6"}>
+                  <div className={activeNoteTab === "disbursement" ? "space-y-6" : "hidden space-y-6"}>
                     <Card className="rounded-2xl">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-base">Funding &amp; Issuer Disbursement</CardTitle>
@@ -616,10 +657,25 @@ export default function NoteDetailPage() {
 
                   <div
                     className={
-                      activeWorkflowTab === "servicing-settlement" ? "space-y-6" : "hidden space-y-6"
+                      activeNoteTab === "servicing-settlement" ? "space-y-6" : "hidden space-y-6"
                     }
                   >
                     <SettlementPanel note={note} />
+                  </div>
+
+                  <div className={activeNoteTab === "ledger" ? "space-y-6" : "hidden space-y-6"}>
+                    <p className="text-xs text-muted-foreground">
+                      Read-only accounting ledger for this note. Export is available from the panel
+                      below.
+                    </p>
+                    <LedgerPanel note={note} />
+                  </div>
+
+                  <div className={activeNoteTab === "investors" ? "space-y-6" : "hidden space-y-6"}>
+                    <p className="text-xs text-muted-foreground">
+                      Read-only investor allocations and commitment history for this note.
+                    </p>
+                    <NoteInvestorsPanel note={note} />
                   </div>
 
                 </div>
@@ -661,9 +717,6 @@ export default function NoteDetailPage() {
                   <NoteTimelinePanel note={note} />
                 </div>
               </div>
-
-              <LedgerPanel note={note} />
-              <NoteInvestorsPanel note={note} />
             </div>
           ) : null}
         </div>
