@@ -12,6 +12,7 @@ import {
 import {
   approveHeldDepositOverride,
   approveNameCheckPendingDeposit,
+  getGatewayPaymentDetail,
   proposeHeldDepositOverride,
   recordGatewayRefundInitiated,
   rejectHeldDepositOverride,
@@ -228,6 +229,28 @@ describeIntegration("admin gateway payments (M7)", () => {
 
     expect(detail.status).toBe(GatewayPaymentStatus.REFUND_INITIATED);
     expect(detail.refundReference).toBe("REF-12345");
+  });
+
+  it("loads detail for non-deposit gateway payments", async () => {
+    if (!migrated) return;
+
+    const payment = await prisma.gatewayPayment.create({
+      data: {
+        purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
+        organization_type: GatewayOrganizationType.ISSUER,
+        amount: new Prisma.Decimal("50.000000"),
+        currency: "MYR",
+        status: GatewayPaymentStatus.COMPLETED,
+        curlec_order_id: `order_admin_fee_${Date.now()}`,
+        curlec_payment_id: `pay_admin_fee_${Date.now()}`,
+        idempotency_key: `m7-fee-detail:${Date.now()}`,
+      },
+    });
+    createdPaymentIds.push(payment.id);
+
+    const detail = await getGatewayPaymentDetail(payment.id, prisma);
+    expect(detail.purpose).toBe(GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE);
+    expect(detail.expectedPayerName).toBeNull();
   });
 
   it("rejects an open override proposal without changing payment status", async () => {

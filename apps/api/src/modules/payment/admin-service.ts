@@ -93,6 +93,25 @@ async function getInvestorDepositOrThrow(
   return payment;
 }
 
+async function getGatewayPaymentOrThrow(
+  db: PrismaClient,
+  gatewayPaymentId: string
+) {
+  const payment = await db.gatewayPayment.findFirst({
+    where: { id: gatewayPaymentId },
+    include: {
+      investor_organization: true,
+      events: { orderBy: { created_at: "asc" } },
+    },
+  });
+
+  if (!payment) {
+    throw new AppError(404, "GATEWAY_PAYMENT_NOT_FOUND", "Gateway payment not found");
+  }
+
+  return payment;
+}
+
 export async function listGatewayPayments(
   query: ListGatewayPaymentsQuery,
   db: PrismaClient = defaultPrisma
@@ -153,7 +172,7 @@ export async function getGatewayPaymentDetail(
   gatewayPaymentId: string,
   db: PrismaClient = defaultPrisma
 ) {
-  const payment = await getInvestorDepositOrThrow(db, gatewayPaymentId);
+  const payment = await getGatewayPaymentOrThrow(db, gatewayPaymentId);
   const openOverride = await getOpenOverrideProposal(db, payment.id);
 
   return {

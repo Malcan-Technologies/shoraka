@@ -2,6 +2,8 @@
 
 High-level implementation plan for collecting funds via Razorpay Curlec (Malaysia). Covers investor deposits (min RM100 onboarding + wallet top-ups), issuer onboarding fee, and application processing fee — plus AML name checks, manual refunds, ledger posting, and reconciliation. Money **out** (disbursement, fund movement between accounts, repayment collection by paymaster) will be done via the RHB bank API in a later phase; this plan only lays hooks for it.
 
+For production operations, see the Curlec ops runbook: `docs/integrations/payment-gateway-curlec-ops-runbook.md`.
+
 ## 1. Confirmed Decisions
 
 | Decision | Choice |

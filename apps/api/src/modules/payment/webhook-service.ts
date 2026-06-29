@@ -22,7 +22,9 @@ import { createCurlecClient } from "./curlec-client";
 import {
   extractBankCodeFromPayment,
   extractPayerNameFromPayment,
+  type CurlecPayment,
 } from "./curlec-schemas";
+import { myrDecimalToSen } from "./money";
 import { runNameCheck } from "./name-check";
 import { assertTransition, TERMINAL_GATEWAY_STATUSES } from "./state";
 import {
@@ -45,6 +47,38 @@ export type IngestCurlecWebhookResult = {
 };
 
 const DEPOSIT_CAPTURE_EVENTS = new Set(["payment.captured", "order.paid"]);
+const AMOUNT_MISMATCH_ERROR = "Curlec captured amount does not match internal payment amount";
+
+function getAmountMismatch(
+  payment: Pick<GatewayPayment, "amount">,
+  curlecPayment: Pick<CurlecPayment, "amount">
+) {
+  const expectedSen = myrDecimalToSen(payment.amount);
+  const actualSen = curlecPayment.amount;
+  if (expectedSen === actualSen) return null;
+  return { expectedSen, actualSen };
+}
+
+function withAmountMismatchMetadata(
+  payment: Pick<GatewayPayment, "metadata">,
+  mismatch: { expectedSen: number; actualSen: number },
+  curlecPayment: Pick<CurlecPayment, "id">
+): Prisma.InputJsonValue {
+  const base =
+    payment.metadata && typeof payment.metadata === "object" && !Array.isArray(payment.metadata)
+      ? payment.metadata
+      : {};
+
+  return {
+    ...base,
+    amountMismatch: {
+      expectedSen: mismatch.expectedSen,
+      actualSen: mismatch.actualSen,
+      curlecPaymentId: curlecPayment.id,
+      detectedAt: new Date().toISOString(),
+    },
+  } as Prisma.InputJsonValue;
+}
 
 async function markWebhookProcessed(
   db: PrismaClient,
@@ -108,6 +142,7 @@ export async function processInvestorDepositCapture(
   const curlecPayment = await curlecClient.fetchPayment(input.paymentId);
   const payerName = extractPayerNameFromPayment(curlecPayment);
   const bankCode = extractBankCodeFromPayment(curlecPayment);
+  const amountMismatch = getAmountMismatch(payment, curlecPayment);
 
   await db.gatewayPayment.update({
     where: { id: payment.id },
@@ -118,6 +153,40 @@ export async function processInvestorDepositCapture(
       payer_name: payerName,
     },
   });
+
+  if (amountMismatch) {
+    await db.$transaction(async (tx) => {
+      const statusAfterClaim = await claimCreatedToPaid(tx, payment.id);
+      if (!statusAfterClaim || TERMINAL_GATEWAY_STATUSES.has(statusAfterClaim)) {
+        return;
+      }
+      if (statusAfterClaim !== GatewayPaymentStatus.PAID) {
+        return;
+      }
+
+      assertTransition(GatewayPaymentStatus.PAID, GatewayPaymentStatus.HELD);
+      await tx.gatewayPayment.update({
+        where: { id: payment.id },
+        data: {
+          status: GatewayPaymentStatus.HELD,
+          metadata: withAmountMismatchMetadata(payment, amountMismatch, curlecPayment),
+        },
+      });
+    });
+
+    await markWebhookProcessed(db, input.eventId, AMOUNT_MISMATCH_ERROR);
+    logger.warn(
+      {
+        eventId: input.eventId,
+        gatewayPaymentId: payment.id,
+        orderId: input.orderId,
+        expectedSen: amountMismatch.expectedSen,
+        actualSen: amountMismatch.actualSen,
+      },
+      "Investor deposit held due to Curlec amount mismatch"
+    );
+    return;
+  }
 
   const expectedName = payment.investor_organization
     ? resolveInvestorExpectedName(payment.investor_organization)
@@ -302,6 +371,7 @@ export async function processOnboardingFeeCapture(
 
   const curlecClient = createCurlecClient();
   const curlecPayment = await curlecClient.fetchPayment(input.paymentId);
+  const amountMismatch = getAmountMismatch(payment, curlecPayment);
 
   await db.gatewayPayment.update({
     where: { id: payment.id },
@@ -310,6 +380,29 @@ export async function processOnboardingFeeCapture(
       method: curlecPayment.method,
     },
   });
+
+  if (amountMismatch) {
+    assertTransition(GatewayPaymentStatus.CREATED, GatewayPaymentStatus.FAILED);
+    await db.gatewayPayment.updateMany({
+      where: { id: payment.id, status: GatewayPaymentStatus.CREATED },
+      data: {
+        status: GatewayPaymentStatus.FAILED,
+        metadata: withAmountMismatchMetadata(payment, amountMismatch, curlecPayment),
+      },
+    });
+    await markWebhookProcessed(db, input.eventId, AMOUNT_MISMATCH_ERROR);
+    logger.warn(
+      {
+        eventId: input.eventId,
+        gatewayPaymentId: payment.id,
+        orderId: input.orderId,
+        expectedSen: amountMismatch.expectedSen,
+        actualSen: amountMismatch.actualSen,
+      },
+      "Issuer onboarding fee rejected due to Curlec amount mismatch"
+    );
+    return;
+  }
 
   await db.$transaction(async (tx) => {
     const statusAfterClaim = await claimCreatedToPaid(tx, payment.id);
@@ -353,6 +446,7 @@ export async function processProcessingFeeCapture(
 
   const curlecClient = createCurlecClient();
   const curlecPayment = await curlecClient.fetchPayment(input.paymentId);
+  const amountMismatch = getAmountMismatch(payment, curlecPayment);
 
   await db.gatewayPayment.update({
     where: { id: payment.id },
@@ -361,6 +455,29 @@ export async function processProcessingFeeCapture(
       method: curlecPayment.method,
     },
   });
+
+  if (amountMismatch) {
+    assertTransition(GatewayPaymentStatus.CREATED, GatewayPaymentStatus.FAILED);
+    await db.gatewayPayment.updateMany({
+      where: { id: payment.id, status: GatewayPaymentStatus.CREATED },
+      data: {
+        status: GatewayPaymentStatus.FAILED,
+        metadata: withAmountMismatchMetadata(payment, amountMismatch, curlecPayment),
+      },
+    });
+    await markWebhookProcessed(db, input.eventId, AMOUNT_MISMATCH_ERROR);
+    logger.warn(
+      {
+        eventId: input.eventId,
+        gatewayPaymentId: payment.id,
+        orderId: input.orderId,
+        expectedSen: amountMismatch.expectedSen,
+        actualSen: amountMismatch.actualSen,
+      },
+      "Application processing fee rejected due to Curlec amount mismatch"
+    );
+    return;
+  }
 
   await db.$transaction(async (tx) => {
     const statusAfterClaim = await claimCreatedToPaid(tx, payment.id);

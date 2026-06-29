@@ -41,6 +41,7 @@ import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useApplication,
+  getApiMutationErrorCode,
   useUpdateApplicationStep,
   useUpdateApplicationStatus,
   useResubmitApplication,
@@ -1171,7 +1172,7 @@ function EditApplicationPageBody() {
 
   /** After FPX return: declarations already saved; only flip status to SUBMITTED. */
   const submitApplicationAfterPaidFee = React.useCallback(
-    async (_applicationId: string) => {
+    async () => {
       isSubmittingRef.current = true;
       setIsSubmittingApplication(true);
       setPostSubmitNavigationPending(true);
@@ -1320,8 +1321,13 @@ function EditApplicationPageBody() {
     setIsSubmittingApplication(true);
     try {
       await finalizeApplicationSubmit(false);
-    } catch {
-      toast.error("Failed to submit application");
+    } catch (error) {
+      if (getApiMutationErrorCode(error) === "PROCESSING_FEE_REQUIRED") {
+        toast.info("We are still confirming your payment. Please wait a moment and try again.");
+        setShowProcessingFeeStep(true);
+      } else {
+        toast.error("Failed to submit application");
+      }
       isSubmittingRef.current = false;
       setIsSubmittingApplication(false);
     }

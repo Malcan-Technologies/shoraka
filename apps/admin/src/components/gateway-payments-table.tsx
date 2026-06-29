@@ -34,6 +34,12 @@ const STATUS_LABEL: Record<string, string> = {
   EXPIRED: "Expired",
 };
 
+const PURPOSE_LABEL: Record<string, string> = {
+  INVESTOR_DEPOSIT: "Investor deposit",
+  ISSUER_ONBOARDING_FEE: "Issuer onboarding fee",
+  APPLICATION_PROCESSING_FEE: "Processing fee",
+};
+
 function statusVariant(status: string) {
   if (status === "COMPLETED") return "default" as const;
   if (status === "HELD" || status === "NAME_CHECK_PENDING") return "destructive" as const;
@@ -101,6 +107,7 @@ export function GatewayPaymentsTable({ queue, title, description }: GatewayPayme
                     <TableHeader>
                       <TableRow>
                         <TableHead>Created</TableHead>
+                        <TableHead>Purpose</TableHead>
                         <TableHead>Investor</TableHead>
                         <TableHead>Payer name</TableHead>
                         <TableHead>Amount</TableHead>
@@ -112,6 +119,7 @@ export function GatewayPaymentsTable({ queue, title, description }: GatewayPayme
                       {items.map((item) => (
                         <TableRow key={item.id}>
                           <TableCell>{formatDate(item.createdAt)}</TableCell>
+                          <TableCell>{PURPOSE_LABEL[item.purpose] ?? item.purpose}</TableCell>
                           <TableCell>{item.investorOrganizationName ?? "—"}</TableCell>
                           <TableCell>{item.payerName ?? "—"}</TableCell>
                           <TableCell>{formatCurrency(item.amount)}</TableCell>
@@ -142,4 +150,4 @@ export function GatewayPaymentsTable({ queue, title, description }: GatewayPayme
   );
 }
 
-export { STATUS_LABEL, statusVariant, formatDate };
+export { STATUS_LABEL, PURPOSE_LABEL, statusVariant, formatDate };

@@ -14,6 +14,20 @@ import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+export class ApiMutationError extends Error {
+  constructor(
+    message: string,
+    readonly code?: string
+  ) {
+    super(message);
+    this.name = "ApiMutationError";
+  }
+}
+
+export function getApiMutationErrorCode(error: unknown): string | null {
+  return error instanceof ApiMutationError ? error.code ?? null : null;
+}
+
 export function useApplication(id: string) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
@@ -94,7 +108,7 @@ export function useUpdateApplicationStatus() {
     mutationFn: async ({ id, status }: { id: string; status: ApplicationStatus }) => {
       const response = await apiClient.updateApplicationStatus(id, status);
       if (!response.success) {
-        throw new Error(response.error.message);
+        throw new ApiMutationError(response.error.message, response.error.code);
       }
       return response.data;
     },

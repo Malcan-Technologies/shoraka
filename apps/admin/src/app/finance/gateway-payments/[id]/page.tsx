@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { ArrowLeftIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { ApplicationReviewRemarkDialog } from "@/components/application-review-remark-dialog";
-import { formatDate, STATUS_LABEL, statusVariant } from "@/components/gateway-payments-table";
+import { formatDate, PURPOSE_LABEL, STATUS_LABEL, statusVariant } from "@/components/gateway-payments-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -240,7 +240,7 @@ export default function GatewayPaymentDetailPage() {
                     <div>
                       <CardTitle>{formatCurrency(payment.amount)}</CardTitle>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {payment.investorOrganizationName ?? "Investor deposit"}
+                        {payment.investorOrganizationName ?? PURPOSE_LABEL[payment.purpose] ?? payment.purpose}
                       </p>
                     </div>
                     <Badge variant={statusVariant(payment.status)}>

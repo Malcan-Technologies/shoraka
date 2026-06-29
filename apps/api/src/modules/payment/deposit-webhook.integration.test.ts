@@ -333,6 +333,49 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
     expect(org.deposit_received).toBe(false);
   });
 
+  it("holds deposit on Curlec amount mismatch without crediting", async () => {
+    if (!migrated) return;
+
+    const eventId = `evt_m5_amount_mismatch_${Date.now()}`;
+    mockFetchPayment.mockResolvedValue({
+      id: paymentId,
+      amount: 24999,
+      currency: "MYR",
+      status: "captured",
+      method: "fpx",
+      order_id: orderId,
+      acquirer_data: { account_holder_name: "Jane Doe" },
+    });
+    createdEventIds.push(eventId);
+
+    const app = buildTestApp();
+    const response = await signedWebhookRequest(app, {
+      eventId,
+      rawBody: buildCapturePayload(orderId, paymentId),
+    });
+    expect(response.status).toBe(200);
+
+    const payment = await prisma.gatewayPayment.findUniqueOrThrow({
+      where: { id: gatewayPaymentId },
+    });
+    expect(payment.status).toBe(GatewayPaymentStatus.HELD);
+    expect(payment.metadata).toMatchObject({
+      amountMismatch: {
+        expectedSen: 25000,
+        actualSen: 24999,
+        curlecPaymentId: paymentId,
+      },
+    });
+
+    const balanceTxCount = await prisma.investorBalanceTransaction.count({
+      where: { investor_organization_id: orgId },
+    });
+    expect(balanceTxCount).toBe(0);
+
+    const org = await prisma.investorOrganization.findUniqueOrThrow({ where: { id: orgId } });
+    expect(org.deposit_received).toBe(false);
+  });
+
   it("routes FPX-without-name deposits to NAME_CHECK_PENDING", async () => {
     if (!migrated) return;
 

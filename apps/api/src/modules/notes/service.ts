@@ -3194,6 +3194,10 @@ export class NoteService {
     actor: ActorContext,
     input: { investorOrganizationId: string; amount: number }
   ) {
+    if (process.env.NODE_ENV === "production") {
+      throw new AppError(403, "FORBIDDEN", "Test top-up is not available in production");
+    }
+
     const investorOrg = await prisma.investorOrganization.findFirst({
       where: {
         id: input.investorOrganizationId,

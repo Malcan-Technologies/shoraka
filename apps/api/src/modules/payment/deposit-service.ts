@@ -80,6 +80,12 @@ async function getDepositLimits(db: PrismaClient) {
   };
 }
 
+async function syncDepositFromCurlec(payment: GatewayPayment, db: PrismaClient) {
+  // Lazy import avoids initializing a cycle: webhook-service imports deposit credit helpers.
+  const { syncGatewayPaymentFromCurlec } = await import("./webhook-service");
+  return syncGatewayPaymentFromCurlec(payment, db);
+}
+
 export async function createInvestorDeposit(
   actor: ActorContext,
   input: CreateInvestorDepositInput,
@@ -138,7 +144,8 @@ export async function getInvestorDeposit(
     throw new AppError(404, "DEPOSIT_NOT_FOUND", "Deposit not found");
   }
 
-  return mapDepositResponse(payment);
+  const synced = await syncDepositFromCurlec(payment, db);
+  return mapDepositResponse(synced);
 }
 
 export function resolveInvestorExpectedName(org: InvestorOrganization): string | null {

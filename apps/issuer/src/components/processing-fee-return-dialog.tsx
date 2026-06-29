@@ -13,6 +13,7 @@ import {
   isTerminalProcessingFeeStatus,
   useApplicationProcessingFeeQuery,
 } from "@/hooks/use-application-processing-fee";
+import { getApiMutationErrorCode } from "@/hooks/use-applications";
 import {
   ApplicationSubmittedSuccessView,
   ApplicationSubmittingView,
@@ -50,6 +51,7 @@ export function ProcessingFeeReturnDialog({
     pollUntilTerminal: open && phase === "confirming",
   });
   const fee = feeQuery.data;
+  const refetchFee = feeQuery.refetch;
 
   const hasDefinitiveSuccess = fee?.status === "COMPLETED";
   const hasDefinitiveFailure =
@@ -81,14 +83,20 @@ export function ProcessingFeeReturnDialog({
     }
 
     submitStartedRef.current = true;
-    clearIssuerPendingSubmitAfterFee();
     setPhase("submitting");
 
     void (async () => {
       try {
         await onSubmitAfterPayment();
+        clearIssuerPendingSubmitAfterFee();
         setPhase("submitted");
       } catch (error) {
+        if (getApiMutationErrorCode(error) === "PROCESSING_FEE_REQUIRED") {
+          submitStartedRef.current = false;
+          setPhase("confirming");
+          void refetchFee();
+          return;
+        }
         const message = error instanceof Error ? error.message : "Failed to submit application";
         toast.error(message);
         setSubmitFailed(true);
@@ -96,7 +104,7 @@ export function ProcessingFeeReturnDialog({
         submitStartedRef.current = false;
       }
     })();
-  }, [hasDefinitiveSuccess, onSubmitAfterPayment, open, phase]);
+  }, [hasDefinitiveSuccess, onSubmitAfterPayment, open, phase, refetchFee]);
 
   React.useEffect(() => {
     if (!open || phase !== "submitted") return;
