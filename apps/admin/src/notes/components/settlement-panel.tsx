@@ -1534,7 +1534,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                               </div>
                             </div>
                             {isRejecting ? (
-                              <div className="mt-2 space-y-1.5 border-t border-border/50 pt-2.5">
+                              <div className="mt-2 space-y-1.5 rounded-md border border-border bg-background p-2.5 shadow-sm">
                                 <label
                                   className="text-xs font-medium text-foreground"
                                   htmlFor={`reject-reason-${payment.id}`}
@@ -1543,7 +1543,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                                 </label>
                                 <Input
                                   id={`reject-reason-${payment.id}`}
-                                  className="h-9"
+                                  className="h-9 border-input bg-background shadow-sm"
                                   value={rejectionReasons[payment.id] ?? ""}
                                   onChange={(event) =>
                                     setRejectionReasons((previous) => ({
