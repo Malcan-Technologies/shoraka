@@ -548,6 +548,11 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
   const settlementLocked = persistedPostedSettlement ?? persistedApprovedSettlement;
   const baseServicingOpen =
     note.fundingStatus === "FUNDED" && note.servicingStatus !== "NOT_STARTED";
+  const servicingWorkflowAvailable = baseServicingOpen;
+  const servicingNotStartedDescription =
+    note.fundingStatus !== "FUNDED"
+      ? "Repayment receipts, settlement, arrears, and default actions will be available after funding is closed and the note enters servicing."
+      : "Repayment receipts, settlement, arrears, and default actions will be available after issuer disbursement is completed and the note enters servicing.";
   const servicingOpen = baseServicingOpen && !persistedPostedSettlement;
   const servicingBlockedReason = !baseServicingOpen
     ? note.fundingStatus !== "FUNDED"
@@ -904,7 +909,9 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
         : repaymentReceiptsThresholdMet
           ? 2
           : 1;
-  const servicingStageLabel = persistedPostedSettlement
+  const servicingStageLabel = !servicingWorkflowAvailable
+    ? "Waiting for servicing"
+    : persistedPostedSettlement
     ? "Settlement posted"
     : repaymentReceiptsThresholdMet && pendingPayments.length === 0
       ? "Settlement preparation"
@@ -1613,6 +1620,8 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
             </div>
           </div>
 
+          {servicingWorkflowAvailable ? (
+            <>
           <div
             className={cn(
               "rounded-xl border p-4",
@@ -2719,6 +2728,15 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
               </Button>
             </div>
           </div>
+            </>
+          ) : (
+            <div className="rounded-xl border border-border bg-muted/20 p-4">
+              <div className="text-sm font-medium">Waiting for servicing</div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {servicingNotStartedDescription}
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
       <AlertDialog
