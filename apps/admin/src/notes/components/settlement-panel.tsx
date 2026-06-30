@@ -119,11 +119,22 @@ function statusVariant(status: string) {
   return "outline" as const;
 }
 
-function MoneyMetric({ label, value }: { label: string; value: number }) {
+function MoneyMetric({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: number;
+  helper?: string;
+}) {
   return (
     <div className="rounded-lg border bg-card p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 font-semibold">{formatCurrency(value)}</div>
+      <div className="mt-1 font-semibold tabular-nums">{formatCurrency(value)}</div>
+      {helper ? (
+        <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{helper}</p>
+      ) : null}
     </div>
   );
 }
@@ -893,6 +904,11 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
         : repaymentReceiptsThresholdMet
           ? 2
           : 1;
+  const servicingStageLabel = persistedPostedSettlement
+    ? "Settlement posted"
+    : repaymentReceiptsThresholdMet && pendingPayments.length === 0
+      ? "Settlement preparation"
+      : "Repayment collection";
   const settlementStatusDisplay = persistedPostedSettlement
     ? {
         title: "Settlement posted",
@@ -915,28 +931,27 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
         : canPreviewSettlement
           ? {
               title: "Ready for settlement preview",
-              description: "Receipts have reached the invoice settlement amount.",
+              description: "Receipts have reached the required settlement amount.",
               tone: "ready" as const,
             }
-          : pendingPayments.length > 0
+          : pendingPayments.length > 0 ||
+              !settlementIsComplete(eligibleReceiptTotal, settlementAmount)
             ? {
                 title: "Settlement not ready",
                 description:
-                  "Approve or reject all pending payments before previewing settlement.",
+                  pendingPayments.length > 0 &&
+                  !settlementIsComplete(eligibleReceiptTotal, settlementAmount)
+                    ? "Approve or reject pending payment advice and collect the remaining amount before previewing settlement."
+                    : pendingPayments.length > 0
+                      ? "Approve or reject pending payment advice before previewing settlement."
+                      : "Record or approve more receipts until the required settlement amount is reached.",
                 tone: "blocked" as const,
               }
-            : !settlementIsComplete(eligibleReceiptTotal, settlementAmount)
-              ? {
-                  title: "Settlement amount not reached",
-                  description:
-                    "Record or approve more receipts before previewing settlement.",
-                  tone: "blocked" as const,
-                }
-              : {
-                  title: "Settlement not ready",
-                  description: "Complete receipt approvals to continue.",
-                  tone: "neutral" as const,
-                };
+            : {
+                title: "Settlement not ready",
+                description: "Complete receipt approvals to continue.",
+                tone: "neutral" as const,
+              };
   const settlementBlockerDisplay =
     persistedPostedSettlement || !settlementActionBlockedReason
       ? null
@@ -981,24 +996,21 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
             ? "Approve the preview, then post to the ledger."
             : canPreviewSettlement
               ? "Run preview settlement to review the waterfall allocation."
-              : settlementStatusDisplay.tone === "blocked"
-                ? "Resolve the status above to continue."
-                : "Generate a preview after receipts reach the invoice settlement amount.";
+              : pendingPayments.length > 0 && !repaymentReceiptsThresholdMet
+                ? "Complete repayment collection before previewing settlement."
+                : pendingPayments.length > 0
+                  ? "Approve or reject pending payment advice."
+                  : !repaymentReceiptsThresholdMet
+                    ? "Record or approve more receipts until the required settlement amount is reached."
+                    : "Generate a preview after receipts reach the required settlement amount.";
   const showSettlementReadyBanner =
     Boolean(settlementReadyMessage) &&
     !persistedPostedSettlement &&
     settlementStatusDisplay.tone !== "ready";
   const showSettlementBlockerBanner =
     settlementBlockerDisplay != null &&
-    !(
-      settlementStatusDisplay.tone === "blocked" &&
-      pendingPayments.length > 0
-    ) &&
-    !(
-      settlementStatusDisplay.tone === "blocked" &&
-      settlementBlockerDisplay.title === "Settlement amount not reached" &&
-      !settlementBlockerDisplay.message.startsWith("Recorded receipt")
-    );
+    (Boolean(servicingBlockedReason) ||
+      settlementBlockerDisplay.message.startsWith("Recorded receipt"));
   const overdueActionAvailable = servicingOpen && noteIsOverdue;
   const canMarkDefault = note.servicingStatus === "ARREARS";
   const documentActionAvailable = servicingOpen && (noteIsOverdue || canMarkDefault);
@@ -1525,9 +1537,14 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                 and default actions.
               </p>
             </div>
-            {pendingPayments.length > 0 ? (
-              <Badge variant="secondary">{pendingPayments.length} pending review</Badge>
-            ) : null}
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="text-xs font-normal">
+                Stage: {servicingStageLabel}
+              </Badge>
+              {pendingPayments.length > 0 ? (
+                <Badge variant="secondary">{pendingPayments.length} pending review</Badge>
+              ) : null}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -1597,8 +1614,9 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
               <div>
                 <div className="text-sm font-medium">1. Repayment receipts</div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Record paymaster or issuer receipts, approve issuer submissions, then preview
-                  settlement when open receipts reach the invoice amount.
+                  Record paymaster or issuer receipts and approve issuer payment advice. Once
+                  approved receipts reach the required settlement amount, continue to settlement
+                  below.
                 </p>
               </div>
               <Button
@@ -1618,15 +1636,19 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
             paymentActionsOpen &&
             settlementAmount > 0.005 ? (
               <p className="mt-2 text-xs text-muted-foreground">
-                Open receipts already reach the invoice settlement amount. Record receipt is
+                Approved receipts already reach the required settlement amount. Record receipt is
                 disabled until receipts are reduced or the settlement amount changes.
               </p>
             ) : null}
 
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <MoneyMetric label="Open receipts" value={openReceiptTotal} />
-              <MoneyMetric label="Invoice settlement" value={settlementAmount} />
-              <MoneyMetric label="Remaining to record" value={receiptRemainingAmount} />
+              <MoneyMetric
+                label="Approved receipts"
+                value={openReceiptTotal}
+                helper="Received or approved receipts in the repayment pool."
+              />
+              <MoneyMetric label="Required settlement amount" value={settlementAmount} />
+              <MoneyMetric label="Amount still needed" value={receiptRemainingAmount} />
             </div>
 
             {pendingPayments.length > 0 ? (
@@ -1860,9 +1882,10 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
               {!persistedPostedSettlement ? (
                 <>
                   <p className="mt-0.5 text-xs text-muted-foreground">
+                    Use approved receipts to preview the waterfall, then approve and post settlement.
                     {showOverdueFeesSection
-                      ? "Late fees book to the ledger on post. Preview to review the waterfall."
-                      : "Preview settlement, then approve and post."}
+                      ? " Late fees book to the ledger on post."
+                      : null}
                   </p>
                   <SettlementFlowGuide currentStep={settlementFlowStep} />
                 </>
@@ -1929,7 +1952,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Receipts included in settlement
+                      Receipts ready for settlement
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       {eligibleReceiptTotal + 0.005 >= activeSettlementRequiredAmount ? (
@@ -1942,7 +1965,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                           {formatCurrency(
                             Math.max(0, activeSettlementRequiredAmount - eligibleReceiptTotal)
                           )}{" "}
-                          remaining
+                          still needed
                         </Badge>
                       )}
                     </div>
@@ -1952,9 +1975,9 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                       {formatCurrency(eligibleReceiptTotal)}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {settlementEligiblePayments.length} receipt
-                      {settlementEligiblePayments.length === 1 ? "" : "s"} · requires{" "}
-                      {formatCurrency(activeSettlementRequiredAmount)}
+                      {settlementEligiblePayments.length} approved receipt
+                      {settlementEligiblePayments.length === 1 ? "" : "s"} counted toward the
+                      settlement waterfall
                     </div>
                   </div>
                   <div className="mt-3 overflow-hidden rounded-md border">
@@ -1988,7 +2011,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed px-3 py-2.5 text-sm text-muted-foreground">
-                  No approved receipts included yet.
+                  No approved receipts ready for settlement yet.
                 </div>
               )}
             </div>
@@ -2355,16 +2378,34 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                       ) : null}
                     </div>
                     {waterfallIssuerResidual > 0.005 ? (
-                      <div className="mt-2 rounded-md bg-muted/30 px-2.5 py-1.5 text-[11px] text-muted-foreground">
-                        <span className="font-medium text-foreground">Issuer residual refund</span>
-                        {" · "}
-                        {formatCurrency(waterfallIssuerResidual)}
-                        {" · "}
-                        {issuerResidualBeneficiary.accountHolder || "—"}
-                        {" · "}
-                        {issuerResidualBeneficiary.bankName || "—"}
-                        {" · "}
-                        {issuerResidualBeneficiary.accountNumber || "—"}
+                      <div className="mt-2 rounded-md border bg-muted/30 px-2.5 py-2 text-xs">
+                        <div className="font-medium">Issuer residual refund</div>
+                        <div className="mt-1.5 grid gap-1 text-muted-foreground sm:grid-cols-2">
+                          <div>
+                            Amount:{" "}
+                            <span className="font-medium text-foreground">
+                              {formatCurrency(waterfallIssuerResidual)}
+                            </span>
+                          </div>
+                          <div>
+                            Payee / account holder:{" "}
+                            <span className="font-medium text-foreground">
+                              {issuerResidualBeneficiary.accountHolder || "—"}
+                            </span>
+                          </div>
+                          <div>
+                            Bank name:{" "}
+                            <span className="font-medium text-foreground">
+                              {issuerResidualBeneficiary.bankName || "—"}
+                            </span>
+                          </div>
+                          <div>
+                            Account number:{" "}
+                            <span className="font-medium text-foreground">
+                              {issuerResidualBeneficiary.accountNumber || "—"}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     ) : null}
                     {serviceFeeTrusteeNeedsPdf ? (
