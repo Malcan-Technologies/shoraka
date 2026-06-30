@@ -138,10 +138,14 @@ function PoolSummaryCard({
   description: string;
 }) {
   return (
-    <div className="rounded-lg border bg-muted/20 p-2.5">
-      <div className="text-[11px] font-medium text-muted-foreground">{label}</div>
-      <div className="mt-0.5 text-base font-semibold tabular-nums">{formatCurrency(value)}</div>
-      <div className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{description}</div>
+    <div className="rounded-md border border-border/50 bg-muted/10 px-2 py-1.5">
+      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-0.5 text-sm font-semibold tabular-nums">{formatCurrency(value)}</div>
+      <div className="mt-0.5 line-clamp-2 text-[10px] leading-3 text-muted-foreground">
+        {description}
+      </div>
     </div>
   );
 }
@@ -154,82 +158,24 @@ function SettlementFlowGuide({ currentStep }: { currentStep: 1 | 2 | 3 }) {
   ];
 
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
-      <span className="font-medium text-muted-foreground">Settlement flow</span>
+    <div className="mt-1.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[11px] text-muted-foreground/80">
+      <span>Flow</span>
       {steps.map((step, index) => (
         <React.Fragment key={step.n}>
           {index > 0 ? (
-            <span className="text-muted-foreground/60" aria-hidden>
+            <span className="text-muted-foreground/50" aria-hidden>
               →
             </span>
           ) : null}
           <span
             className={cn(
-              currentStep === step.n
-                ? "font-semibold text-foreground"
-                : step.n < currentStep
-                  ? "text-foreground"
-                  : "text-muted-foreground"
+              currentStep === step.n ? "font-medium text-foreground/80" : undefined
             )}
           >
             {step.label}
           </span>
         </React.Fragment>
       ))}
-    </div>
-  );
-}
-
-function SettlementTrusteeDocumentCompact({
-  fileName,
-  createdAt,
-  s3Key,
-  onView,
-  onDownload,
-  viewPending,
-}: {
-  fileName: string;
-  createdAt: string;
-  s3Key: string;
-  onView: (key: string) => void;
-  onDownload: (key: string, name?: string) => void;
-  viewPending: boolean;
-}) {
-  return (
-    <div className="inline-flex w-fit max-w-full flex-col gap-1">
-      <div className="inline-flex w-fit max-w-full items-center gap-2 rounded-lg border bg-card px-2.5 py-1.5 shadow-sm">
-        <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <span className="max-w-[12rem] truncate text-sm text-foreground sm:max-w-[16rem]">
-          {fileName}
-        </span>
-        <div className="flex shrink-0 items-center gap-1 border-l border-border/60 pl-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-7 gap-1 rounded-md px-2 text-xs"
-            onClick={() => onView(s3Key)}
-            disabled={viewPending}
-          >
-            <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
-            View
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-7 gap-1 rounded-md px-2 text-xs"
-            onClick={() => onDownload(s3Key, fileName)}
-            disabled={viewPending}
-          >
-            <ArrowDownTrayIcon className="h-3.5 w-3.5" />
-            Download
-          </Button>
-        </div>
-      </div>
-      <span className="text-[11px] text-muted-foreground">
-        Generated {format(new Date(createdAt), "dd MMM yyyy, h:mm a")}
-      </span>
     </div>
   );
 }
@@ -935,12 +881,6 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
     !pendingLateFeesExceedHeadroom;
   const repaymentReceiptsNeedAttention =
     paymentActionsOpen && (pendingPayments.length > 0 || canRecordMoreReceipts);
-  const settlementReceiptsComplete = repaymentReceiptsThresholdMet;
-  const settlementSectionNeedAttention =
-    servicingOpen &&
-    !persistedPostedSettlement &&
-    settlementReceiptsComplete &&
-    (canPreviewSettlement || canApproveSettlement || canPostSettlement || feesNeedPreview);
   const repaymentReceiptsSectionComplete =
     repaymentReceiptsThresholdMet || persistedPostedSettlement != null;
   const settlementWaterfallSectionComplete = persistedPostedSettlement != null;
@@ -1030,7 +970,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                   message: settlementActionBlockedReason,
                 };
   const settlementActionMessage = persistedPostedSettlement
-    ? "Settlement has been posted to the ledger."
+    ? null
     : feesNeedPreview
       ? "Preview saves queued late fees into the settlement row and opens the waterfall."
       : canPostSettlement
@@ -1038,15 +978,27 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
         : canApproveSettlement
           ? (settlementReadyMessage ?? "Approve the preview before posting.")
           : previewSettlementCandidate
-            ? "Preview is saved. Approve when receipts cover the invoice settlement amount, then post."
+            ? "Approve the preview, then post to the ledger."
             : canPreviewSettlement
               ? "Run preview settlement to review the waterfall allocation."
-              : (settlementBlockerDisplay?.message ??
-                "Generate a preview after receipts reach the invoice settlement amount.");
+              : settlementStatusDisplay.tone === "blocked"
+                ? "Resolve the status above to continue."
+                : "Generate a preview after receipts reach the invoice settlement amount.";
   const showSettlementReadyBanner =
     Boolean(settlementReadyMessage) &&
     !persistedPostedSettlement &&
     settlementStatusDisplay.tone !== "ready";
+  const showSettlementBlockerBanner =
+    settlementBlockerDisplay != null &&
+    !(
+      settlementStatusDisplay.tone === "blocked" &&
+      pendingPayments.length > 0
+    ) &&
+    !(
+      settlementStatusDisplay.tone === "blocked" &&
+      settlementBlockerDisplay.title === "Settlement amount not reached" &&
+      !settlementBlockerDisplay.message.startsWith("Recorded receipt")
+    );
   const overdueActionAvailable = servicingOpen && noteIsOverdue;
   const canMarkDefault = note.servicingStatus === "ARREARS";
   const documentActionAvailable = servicingOpen && (noteIsOverdue || canMarkDefault);
@@ -1471,6 +1423,11 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
     generateServiceFeeTrusteeLetter.isPending ||
     markServiceFeeTrusteeSubmitted.isPending ||
     markServiceFeeTrusteeCompleted.isPending;
+  const latestTrusteeLetter =
+    [...serviceFeeTrusteeLetters].reverse().find((letter) => letter.s3Key) ?? null;
+  const trusteeDownloadFileName = persistedPostedSettlement
+    ? `service-fee-trustee-${note.noteReference}-${persistedPostedSettlement.id}.pdf`
+    : "settlement-trustee-instruction.pdf";
 
   const confirmServiceFeeTrusteeCopy =
     serviceFeeTrusteeConfirm === "submit"
@@ -1510,6 +1467,51 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
       toast.error(err instanceof Error ? err.message : "Action failed");
     }
   };
+
+  const settlementActionBarNode = !persistedPostedSettlement ? (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/15 px-3 py-2.5">
+      {settlementActionMessage ? (
+        <div className="min-w-0 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">Next: </span>
+          {settlementActionMessage}
+        </div>
+      ) : (
+        <div />
+      )}
+      <div className="flex shrink-0 flex-wrap justify-end gap-2">
+        <Button
+          variant={feesNeedPreview ? "default" : "outline"}
+          onClick={handlePreview}
+          disabled={!canPreviewSettlement || !canSettlement}
+          title={!canSettlement ? "You do not have permission to perform this action." : undefined}
+        >
+          {previewButtonLabel}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={requestApproveSettlement}
+          disabled={
+            !canApproveSettlement ||
+            approveSettlement.isPending ||
+            !servicingOpen ||
+            !canSettlement
+          }
+          title={!canSettlement ? "You do not have permission to perform this action." : undefined}
+        >
+          Approve
+        </Button>
+        <Button
+          onClick={requestPostSettlement}
+          disabled={
+            !canPostSettlement || postSettlement.isPending || !servicingOpen || !canSettlement
+          }
+          title={!canSettlement ? "You do not have permission to perform this action." : undefined}
+        >
+          Post
+        </Button>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <>
@@ -1850,36 +1852,35 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
               "rounded-xl border p-4",
               settlementWaterfallSectionComplete
                 ? SECTION_COMPLETE_CLASS
-                : settlementSectionNeedAttention
-                  ? ACTION_CARD_CLASS
-                  : "bg-muted/20"
+                : "border-border bg-card"
             )}
           >
-            {settlementWaterfallSectionComplete ? (
-              <div className={SECTION_COMPLETE_HEADER_CLASS}>Settlement posted</div>
-            ) : null}
             <div>
               <div className="text-sm font-medium">2. Settlement &amp; waterfall</div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {persistedPostedSettlement
-                  ? "Final waterfall and trustee submission for this settlement."
-                  : showOverdueFeesSection
-                    ? "Late fees are only booked to the ledger when settlement is posted. Until then they live in a preview (or are queued locally before you preview)."
-                    : "Preview settlement to calculate the waterfall, then approve and post."}
-              </p>
               {!persistedPostedSettlement ? (
-                <SettlementFlowGuide currentStep={settlementFlowStep} />
-              ) : null}
+                <>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {showOverdueFeesSection
+                      ? "Late fees book to the ledger on post. Preview to review the waterfall."
+                      : "Preview settlement, then approve and post."}
+                  </p>
+                  <SettlementFlowGuide currentStep={settlementFlowStep} />
+                </>
+              ) : (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Final waterfall and trustee submission for this settlement.
+                </p>
+              )}
             </div>
 
             <div
               className={cn(
-                "mt-4 rounded-lg border px-3 py-2.5",
+                "mt-3 rounded-lg border px-3 py-2",
                 settlementStatusDisplay.tone === "success" &&
                   "border-emerald-200 bg-emerald-50/80",
-                settlementStatusDisplay.tone === "ready" && "border-primary/30 bg-primary/5",
                 settlementStatusDisplay.tone === "blocked" && "border-amber-300 bg-amber-50",
-                settlementStatusDisplay.tone === "neutral" && "border-border bg-muted/30"
+                settlementStatusDisplay.tone === "ready" && "border-border bg-muted/20",
+                settlementStatusDisplay.tone === "neutral" && "border-border bg-muted/20"
               )}
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -1918,9 +1919,14 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
               </div>
             </div>
 
-            <div className="mt-4">
+            <div className="mt-3">
               {settlementEligiblePayments.length > 0 ? (
-                <div className="rounded-lg border bg-card p-3">
+                <div
+                  className={cn(
+                    "rounded-lg border bg-card p-3",
+                    !displayedSettlement && "border-border shadow-sm"
+                  )}
+                >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Receipts included in settlement
@@ -1987,12 +1993,14 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
               )}
             </div>
 
-            {settlementBlockerDisplay ? (
-              <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5">
+            {showSettlementBlockerBanner ? (
+              <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
                 <div className="text-xs font-semibold text-amber-950">
-                  {settlementBlockerDisplay.title}
+                  {settlementBlockerDisplay!.title}
                 </div>
-                <p className="mt-0.5 text-xs text-amber-900">{settlementBlockerDisplay.message}</p>
+                <p className="mt-0.5 text-xs text-amber-900">
+                  {settlementBlockerDisplay!.message}
+                </p>
               </div>
             ) : showSettlementReadyBanner && settlementReadyMessage ? (
               <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900">
@@ -2155,90 +2163,48 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
               </div>
             )}
 
-            <div
-              className={cn(
-                "mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3",
-                persistedPostedSettlement
-                  ? "border-emerald-200/60 bg-muted/15 opacity-75"
-                  : "bg-muted/20"
-              )}
-            >
-              <div
-                className={cn(
-                  "min-w-0 text-xs",
-                  persistedPostedSettlement ? "text-muted-foreground" : "text-foreground"
-                )}
-              >
-                <span className="font-medium">Next: </span>
-                {settlementActionMessage}
-              </div>
-              <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                <Button
-                  variant={feesNeedPreview ? "default" : "outline"}
-                  size={persistedPostedSettlement ? "sm" : "default"}
-                  onClick={handlePreview}
-                  disabled={!canPreviewSettlement || !canSettlement}
-                  title={!canSettlement ? "You do not have permission to perform this action." : undefined}
-                >
-                  {previewButtonLabel}
-                </Button>
-                <Button
-                  variant="outline"
-                  size={persistedPostedSettlement ? "sm" : "default"}
-                  onClick={requestApproveSettlement}
-                  disabled={!canApproveSettlement || approveSettlement.isPending || !servicingOpen || !canSettlement}
-                  title={!canSettlement ? "You do not have permission to perform this action." : undefined}
-                >
-                  Approve
-                </Button>
-                <Button
-                  size={persistedPostedSettlement ? "sm" : "default"}
-                  onClick={requestPostSettlement}
-                  disabled={!canPostSettlement || postSettlement.isPending || !servicingOpen || !canSettlement}
-                  title={!canSettlement ? "You do not have permission to perform this action." : undefined}
-                >
-                  Post
-                </Button>
-              </div>
-            </div>
+            {!persistedPostedSettlement && !displayedSettlement ? (
+              <div className="mt-3">{settlementActionBarNode}</div>
+            ) : null}
 
             {displayedSettlement ? (
-              <div className="mt-4 space-y-4">
+              <div className="mt-3 space-y-3">
                 <div
                   className={cn(
-                    "rounded-xl border p-4",
-                    settlementWaterfallSectionComplete ? SECTION_COMPLETE_CLASS : "bg-card"
+                    "rounded-lg border p-3",
+                    settlementWaterfallSectionComplete
+                      ? "border-border bg-card"
+                      : "border-border bg-card shadow-sm"
                   )}
                 >
                   {settlementWaterfallSectionComplete ? (
-                    <div className={SECTION_COMPLETE_HEADER_CLASS}>
-                      Settlement waterfall complete
+                    <div className="mb-2 text-xs font-medium text-emerald-800">
+                      Waterfall complete
                     </div>
                   ) : null}
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-medium">Waterfall allocation</div>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Gross receipt allocated across pools until the remaining balance is known.
-                        Profit locked {formatMaturityDate(waterfallProfitStartDate)}–
-                        {formatMaturityDate(waterfallProfitMaturityDate)} ({waterfallProfitDays} days,{" "}
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold">Waterfall allocation</div>
+                      <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                        Gross receipt allocated across pools. Profit{" "}
+                        {formatMaturityDate(waterfallProfitStartDate)}–
+                        {formatMaturityDate(waterfallProfitMaturityDate)} ({waterfallProfitDays}d,{" "}
                         {waterfallAnnualProfitRatePercent}% p.a.).
                       </p>
                       {waterfallInvestorProfitGross > 0.005 ? (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Gross profit {formatCurrency(waterfallInvestorProfitGross)} split:{" "}
-                          {formatCurrency(waterfallInvestorProfitNet)} to investors,{" "}
-                          {formatCurrency(waterfallServiceFee)} platform fee (
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          Profit split: {formatCurrency(waterfallInvestorProfitNet)} investors ·{" "}
+                          {formatCurrency(waterfallServiceFee)} platform (
                           {waterfallServiceFeeRatePercent}%).
                         </p>
                       ) : null}
                     </div>
-                    <Badge variant="outline">
-                      Settlement due {formatCurrency(settlementAmount)}
+                    <Badge variant="outline" className="shrink-0">
+                      Due {formatCurrency(settlementAmount)}
                     </Badge>
                   </div>
-                  <div className="mt-4 overflow-hidden rounded-lg border">
-                    <div className="grid grid-cols-[1fr_9rem_9rem_9rem] gap-3 bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground">
+                  <div className="mt-3 overflow-hidden rounded-md border">
+                    <div className="grid grid-cols-[minmax(0,1fr)_7rem_7rem_7rem] gap-2 bg-muted/30 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground sm:grid-cols-[minmax(0,1fr)_9rem_9rem_9rem] sm:gap-3 sm:px-3 sm:py-2">
                       <div>Calculation</div>
                       <div className="text-right">Destination</div>
                       <div className="text-right">Amount</div>
@@ -2248,15 +2214,15 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                       <div
                         key={row.label}
                         className={cn(
-                          "grid grid-cols-[1fr_9rem_9rem_9rem] gap-3 border-t px-3 py-2.5 text-sm",
-                          index === 0 && "bg-muted/20 font-medium",
-                          index >= 1 && index <= 3 && "border-l-2 border-l-primary/15 pl-4",
-                          index >= 4 && index <= 6 && "border-l-2 border-l-muted-foreground/15 pl-4",
-                          index === waterfallRows.length - 1 && "bg-muted/10"
+                          "grid grid-cols-[minmax(0,1fr)_7rem_7rem_7rem] gap-2 border-t px-2.5 py-2 text-xs sm:grid-cols-[minmax(0,1fr)_9rem_9rem_9rem] sm:gap-3 sm:px-3 sm:py-2",
+                          index === 0 && "bg-muted/15 font-medium",
+                          index >= 1 && index <= 3 && "pl-5 sm:pl-6",
+                          index >= 4 && index <= 6 && "pl-5 sm:pl-6",
+                          index === waterfallRows.length - 1 && "bg-muted/5"
                         )}
                       >
-                        <div>
-                          <div>
+                        <div className="min-w-0">
+                          <div className="truncate">
                             <span
                               className={
                                 row.sign === "+" ? "text-emerald-700" : "text-muted-foreground"
@@ -2267,10 +2233,12 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                             {row.label}
                           </div>
                           {"detail" in row && row.detail ? (
-                            <p className="mt-0.5 text-xs text-muted-foreground">{row.detail}</p>
+                            <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">
+                              {row.detail}
+                            </p>
                           ) : null}
                         </div>
-                        <div className="text-right text-xs text-muted-foreground">
+                        <div className="truncate text-right text-[11px] text-muted-foreground">
                           {row.destination}
                         </div>
                         <div className="text-right font-medium tabular-nums">
@@ -2281,9 +2249,9 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                         </div>
                       </div>
                     ))}
-                    <div className="grid grid-cols-[1fr_9rem_9rem_9rem] gap-3 border-t bg-muted/40 px-3 py-2.5 text-sm font-semibold">
+                    <div className="grid grid-cols-[minmax(0,1fr)_7rem_7rem_7rem] gap-2 border-t-2 border-border bg-muted/25 px-2.5 py-2 text-xs font-semibold sm:grid-cols-[minmax(0,1fr)_9rem_9rem_9rem] sm:gap-3 sm:px-3 sm:py-2.5">
                       <div>Remaining in Repayment Pool</div>
-                      <div className="text-right text-xs font-normal text-muted-foreground">
+                      <div className="text-right text-[11px] font-normal text-muted-foreground">
                         Unapplied
                       </div>
                       <div className="text-right tabular-nums">{formatCurrency(waterfallUnapplied)}</div>
@@ -2292,7 +2260,9 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                   </div>
                 </div>
 
-                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+                {!persistedPostedSettlement ? settlementActionBarNode : null}
+
+                <div className="grid gap-1.5 md:grid-cols-2 xl:grid-cols-5">
                   <PoolSummaryCard
                     label="Repayment Pool"
                     value={waterfallGrossReceipt}
@@ -2322,159 +2292,173 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                 {persistedPostedSettlement && showSettlementTrusteeWorkflow ? (
                   <div
                     className={cn(
-                      "mt-3 rounded-lg border p-3",
-                      serviceFeeTrusteeNeedsPdf
-                        ? "border-destructive/40 bg-destructive/5 shadow-[0_0_0_1px_hsl(var(--destructive)/0.12),0_0_24px_hsl(var(--destructive)/0.14)]"
-                        : !serviceFeeTrusteeWorkflowComplete
-                          ? cn("border-amber-200 bg-amber-50/50", ACTION_CARD_CLASS)
-                          : SECTION_COMPLETE_CLASS
+                      "rounded-lg border bg-card p-3",
+                      serviceFeeTrusteeNeedsPdf && "border-destructive/30",
+                      serviceFeeTrusteeWorkflowComplete && "border-emerald-200/60"
                     )}
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="text-sm font-medium">Trustee submission</div>
-                          <Badge
-                            variant={
-                              serviceFeeTrusteeWorkflowComplete
-                                ? "secondary"
-                                : serviceFeeTrusteeNeedsPdf
-                                  ? "destructive"
-                                  : "outline"
-                            }
-                          >
-                            {serviceFeeTrusteeStatusLabel(serviceFeeTrusteeStatus)}
-                          </Badge>
-                        </div>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {serviceFeeTrusteeStatus === "LETTER_GENERATED"
-                            ? "Letter generated — submit to trustee"
-                            : serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE"
-                              ? "Submitted to trustee — mark complete when confirmed"
-                              : serviceFeeTrusteeWorkflowComplete
-                                ? "Trustee submission complete"
-                                : "Next step after settlement is posted. Generate the instruction letter for the trustee."}
-                        </p>
-                        {persistedPostedSettlement.serviceFeeTrusteeSubmittedAt ? (
-                          <p className="mt-1 text-[11px] text-muted-foreground">
-                            Submitted{" "}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-sm font-medium">Trustee submission</div>
+                        <Badge
+                          variant={
+                            serviceFeeTrusteeWorkflowComplete
+                              ? "secondary"
+                              : serviceFeeTrusteeNeedsPdf
+                                ? "destructive"
+                                : "outline"
+                          }
+                        >
+                          {serviceFeeTrusteeNeedsPdf
+                            ? "Not generated"
+                            : serviceFeeTrusteeStatusLabel(serviceFeeTrusteeStatus)}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {serviceFeeTrusteeStatus === "LETTER_GENERATED"
+                          ? "Submit the instruction letter to the trustee."
+                          : serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE"
+                            ? "Mark complete once the trustee confirms processing."
+                            : serviceFeeTrusteeWorkflowComplete
+                              ? "Trustee submission complete."
+                              : "Generate the instruction letter after settlement is posted."}
+                      </p>
+                      {latestTrusteeLetter ? (
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                          <DocumentTextIcon className="h-3.5 w-3.5 shrink-0" />
+                          <span className="font-medium text-foreground">
+                            Settlement trustee instruction
+                          </span>
+                          <span aria-hidden>·</span>
+                          <span>
                             {format(
-                              new Date(persistedPostedSettlement.serviceFeeTrusteeSubmittedAt),
+                              new Date(latestTrusteeLetter.createdAt),
                               "dd MMM yyyy, h:mm a"
                             )}
-                            {persistedPostedSettlement.serviceFeeTrusteeCompletedAt
-                              ? ` · Completed ${format(
-                                  new Date(persistedPostedSettlement.serviceFeeTrusteeCompletedAt),
-                                  "dd MMM yyyy, h:mm a"
-                                )}`
-                              : ""}
-                          </p>
-                        ) : null}
-                      </div>
-                      <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                        <Button
-                          type="button"
-                          variant={serviceFeeTrusteeNeedsPdf ? "destructive" : "outline"}
-                          size="sm"
-                          onClick={() => void handleServiceFeeTrusteeLetter()}
-                          disabled={serviceFeeTrusteeLetterLocked || serviceFeeTrusteePendingAny || !canDisbursement}
-                          title={!canDisbursement ? "You do not have permission to perform this action." : undefined}
-                        >
-                          Generate Letter
-                        </Button>
-                        {serviceFeeTrusteeStatus === "LETTER_GENERATED" ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="gap-1.5"
-                            onClick={() => setServiceFeeTrusteeConfirm("submit")}
-                            disabled={serviceFeeTrusteePendingAny || !canDisbursement}
-                            title={!canDisbursement ? "You do not have permission to perform this action." : undefined}
-                          >
-                            Mark submitted to trustee
-                          </Button>
-                        ) : null}
-                        {serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE" ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="gap-1.5"
-                            onClick={() => setServiceFeeTrusteeConfirm("complete")}
-                            disabled={serviceFeeTrusteePendingAny || !canDisbursement}
-                            title={!canDisbursement ? "You do not have permission to perform this action." : undefined}
-                          >
-                            Mark completed
-                          </Button>
-                        ) : null}
-                      </div>
-                    </div>
-                    {waterfallIssuerResidual > 0.005 ? (
-                      <div className="mt-3 rounded-md border bg-muted/30 px-2.5 py-2 text-xs">
-                        <div className="font-medium">Issuer residual refund</div>
-                        <div className="mt-1 grid gap-0.5 text-muted-foreground sm:grid-cols-2">
-                          <span>
-                            Amount:{" "}
-                            <span className="font-medium text-foreground">
-                              {formatCurrency(waterfallIssuerResidual)}
-                            </span>
-                          </span>
-                          <span>
-                            Payee:{" "}
-                            <span className="font-medium text-foreground">
-                              {issuerResidualBeneficiary.accountHolder || "—"}
-                            </span>
-                          </span>
-                          <span>
-                            Bank:{" "}
-                            <span className="font-medium text-foreground">
-                              {issuerResidualBeneficiary.bankName || "—"}
-                            </span>
-                          </span>
-                          <span>
-                            Account:{" "}
-                            <span className="font-medium text-foreground">
-                              {issuerResidualBeneficiary.accountNumber || "—"}
-                            </span>
                           </span>
                         </div>
+                      ) : null}
+                      {persistedPostedSettlement.serviceFeeTrusteeSubmittedAt ? (
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          Submitted{" "}
+                          {format(
+                            new Date(persistedPostedSettlement.serviceFeeTrusteeSubmittedAt),
+                            "dd MMM yyyy, h:mm a"
+                          )}
+                          {persistedPostedSettlement.serviceFeeTrusteeCompletedAt
+                            ? ` · Completed ${format(
+                                new Date(persistedPostedSettlement.serviceFeeTrusteeCompletedAt),
+                                "dd MMM yyyy, h:mm a"
+                              )}`
+                            : ""}
+                        </p>
+                      ) : null}
+                    </div>
+                    {waterfallIssuerResidual > 0.005 ? (
+                      <div className="mt-2 rounded-md bg-muted/30 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+                        <span className="font-medium text-foreground">Issuer residual refund</span>
+                        {" · "}
+                        {formatCurrency(waterfallIssuerResidual)}
+                        {" · "}
+                        {issuerResidualBeneficiary.accountHolder || "—"}
+                        {" · "}
+                        {issuerResidualBeneficiary.bankName || "—"}
+                        {" · "}
+                        {issuerResidualBeneficiary.accountNumber || "—"}
                       </div>
                     ) : null}
                     {serviceFeeTrusteeNeedsPdf ? (
-                      <div className="mt-2 text-xs text-destructive">
+                      <p className="mt-2 text-xs text-destructive">
                         Generate the settlement trustee instruction before marking submitted or
                         complete.
-                      </div>
+                      </p>
                     ) : null}
-                    {serviceFeeTrusteeLetters.length > 0 ? (
-                      <div className="mt-3 space-y-2">
-                        {serviceFeeTrusteeLetters.map((letter) =>
-                          letter.s3Key ? (
-                            <SettlementTrusteeDocumentCompact
-                              key={letter.id}
-                              fileName="Settlement trustee instruction"
-                              createdAt={letter.createdAt}
-                              s3Key={letter.s3Key}
-                              onView={handleViewDocument}
-                              onDownload={(key, name) =>
-                                handleDownloadDocument(
-                                  key,
-                                  name ??
-                                    `service-fee-trustee-${note.noteReference}-${persistedPostedSettlement.id}.pdf`
-                                )
-                              }
-                              viewPending={viewDocumentPending}
-                            />
-                          ) : null
-                        )}
-                      </div>
-                    ) : !serviceFeeTrusteeNeedsPdf ? (
-                      <div className="mt-2 text-xs text-muted-foreground">
-                        Letter events will appear here after you generate the PDF.
-                      </div>
-                    ) : null}
-                    {serviceFeeTrusteePendingAny ? (
-                      <div className="mt-2 text-xs text-muted-foreground">Working…</div>
-                    ) : null}
+                    <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-border/60 pt-3">
+                      {latestTrusteeLetter?.s3Key ? (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 gap-1.5"
+                            disabled={viewDocumentPending}
+                            onClick={() => handleViewDocument(latestTrusteeLetter.s3Key!)}
+                          >
+                            <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                            View
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 gap-1.5"
+                            disabled={viewDocumentPending}
+                            onClick={() =>
+                              handleDownloadDocument(
+                                latestTrusteeLetter.s3Key!,
+                                trusteeDownloadFileName
+                              )
+                            }
+                          >
+                            <ArrowDownTrayIcon className="h-3.5 w-3.5" />
+                            Download
+                          </Button>
+                        </>
+                      ) : null}
+                      {serviceFeeTrusteeNeedsPdf ? (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => void handleServiceFeeTrusteeLetter()}
+                          disabled={
+                            serviceFeeTrusteeLetterLocked ||
+                            serviceFeeTrusteePendingAny ||
+                            !canDisbursement
+                          }
+                          title={
+                            !canDisbursement
+                              ? "You do not have permission to perform this action."
+                              : undefined
+                          }
+                        >
+                          Generate Letter
+                        </Button>
+                      ) : null}
+                      {serviceFeeTrusteeStatus === "LETTER_GENERATED" ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => setServiceFeeTrusteeConfirm("submit")}
+                          disabled={serviceFeeTrusteePendingAny || !canDisbursement}
+                          title={
+                            !canDisbursement
+                              ? "You do not have permission to perform this action."
+                              : undefined
+                          }
+                        >
+                          Mark submitted to trustee
+                        </Button>
+                      ) : null}
+                      {serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE" ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => setServiceFeeTrusteeConfirm("complete")}
+                          disabled={serviceFeeTrusteePendingAny || !canDisbursement}
+                          title={
+                            !canDisbursement
+                              ? "You do not have permission to perform this action."
+                              : undefined
+                          }
+                        >
+                          Mark completed
+                        </Button>
+                      ) : null}
+                      {serviceFeeTrusteePendingAny ? (
+                        <span className="text-xs text-muted-foreground">Working…</span>
+                      ) : null}
+                    </div>
                   </div>
                 ) : null}
               </div>
