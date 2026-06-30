@@ -100,6 +100,14 @@ export class RegTankService {
       throw new AppError(400, "ALREADY_COMPLETED", "Onboarding is already completed");
     }
 
+    if (portalType === "investor" && !organization.tnc_accepted) {
+      throw new AppError(
+        402,
+        "TNC_REQUIRED",
+        "Terms and Conditions must be accepted before starting identity verification"
+      );
+    }
+
     // For personal accounts, ensure organization status is IN_PROGRESS when starting/resuming onboarding
     // This allows users to resume onboarding if it was restarted by admin
     const previousOrgStatus = organization.onboarding_status;
@@ -565,6 +573,14 @@ export class RegTankService {
           "Issuer onboarding fee must be paid before starting eKYB"
         );
       }
+    }
+
+    if (portalType === "investor" && !organization.tnc_accepted) {
+      throw new AppError(
+        402,
+        "TNC_REQUIRED",
+        "Terms and Conditions must be accepted before starting identity verification"
+      );
     }
 
     // Check if there's already an active onboarding

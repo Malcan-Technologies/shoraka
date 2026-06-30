@@ -203,7 +203,7 @@ function NoOrganizationState({ showOnboardingPrompt = true }: { showOnboardingPr
               Create or select a profile to view profile details and members.
             </p>
             {showOnboardingPrompt && (
-              <Button variant="outline" onClick={() => router.push("/onboarding-start")}>
+              <Button variant="outline" onClick={() => router.push("/onboarding/account")}>
                 Create Profile
               </Button>
             )}

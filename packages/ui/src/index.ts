@@ -171,3 +171,10 @@ export type {
   UnifiedKycAmlReadonlyRowsProps,
   UnifiedKycAmlDisplayRow,
 } from "./components/unified-kyc-aml-readonly-rows";
+export {
+  OnboardingStepper,
+  TermsAcceptanceCard,
+  IdentityVerifyStep,
+  OnboardingLayout,
+} from "./onboarding";
+export type { OnboardingStepperStep } from "./onboarding";

@@ -843,7 +843,7 @@ enum OnboardingStatus {
 **Status Flow:**
 - `PENDING` - Initial status for company accounts
 - `IN_PROGRESS` - Initial status for personal accounts (when user clicks "Yes, create Personal Account")
-- `PENDING_APPROVAL` - Set when liveness test completes (`LIVENESS_PASSED` or `WAIT_FOR_APPROVAL` webhook received). Users can access dashboard with limited functionality (overlay shown).
+- `PENDING_APPROVAL` - Set when liveness test completes (`LIVENESS_PASSED` or `WAIT_FOR_APPROVAL` webhook received). Investor/issuer portals show the dashboard **stepper and awaiting-approval message only** until admin final approval sets `COMPLETED` (no account overview or portfolio widgets).
 - `PENDING_AML` - Set when admin approves onboarding on RegTank portal and `APPROVED` webhook is received. System fetches full user details from RegTank API and extracts data to organization. Users can access everything but cannot apply for loans (future reference).
 - `COMPLETED` - Set after AML check completes (via separate process/endpoint)
 
@@ -944,7 +944,7 @@ Configuration is loaded once at startup and cached. Missing required variables c
    ├─> Navbar shows status badge based on regtank_onboarding status
    ├─> If in-progress status, clicking account redirects to verify_link
    ├─> If EXPIRED, auto-restarts onboarding
-   └─> If PENDING_APPROVAL or REJECTED, dashboard shows overlay with limited access
+   └─> If PENDING_APPROVAL or REJECTED, dashboard shows onboarding stepper (awaiting approval or rejected); investor portfolio widgets appear only after `COMPLETED`
 ```
 
 ---

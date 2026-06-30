@@ -5,14 +5,17 @@ import { useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../lib/auth";
-import { useOrganization } from "@cashsouk/config";
+import {
+  useOrganization,
+  getOnboardingStep,
+  getOnboardingStepRoute,
+} from "@cashsouk/config";
 import { checkAndRedirectForPendingInvitation } from "../lib/invitation-redirect";
 import { Button } from "../components/ui/button";
 import { PlusIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { DirectorShareholderAlertCard } from "../components/director-shareholder-alert-card";
 import { OnboardingStatusCard, getOnboardingSteps } from "../components/onboarding-status-card";
-import { TermsAcceptanceCard } from "../components/terms-acceptance-card";
 import { AccountOverviewCard } from "../components/account-overview-card";
 import { RepaymentPerformanceCard } from "../components/repayment-performance-card";
 import { RecentApplicationsCard } from "../components/dashboard/recent-applications-card";
@@ -21,7 +24,6 @@ import { RecentNotesCard } from "../components/dashboard/recent-notes-card";
 import { useHeader } from "@cashsouk/ui";
 import { useIssuerDashboard } from "../hooks/use-issuer-dashboard";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
-import { isAwaitingCompanyTnc } from "@/lib/issuer-onboarding-flow";
 import { cn } from "@/lib/utils";
 
 function IssuerDashboardContent() {
@@ -37,8 +39,6 @@ function IssuerDashboardContent() {
   const {
     activeOrganization,
     isLoading: isOrgLoading,
-    isOnboarded,
-    isPendingApproval,
     organizations,
   } = useOrganization();
   const hasRedirected = useRef(false);
@@ -71,23 +71,14 @@ function IssuerDashboardContent() {
     if (!isAuthenticated || isOrgLoading) return false;
     if (organizations.length === 0) return false;
     if (!activeOrganization) {
-      return organizations.some(
-        (org) =>
-          org.onboardingStatus === "COMPLETED" ||
-          org.onboardingStatus === "PENDING_APPROVAL" ||
-          org.onboardingStatus === "PENDING_AMENDMENT" ||
-          org.onboardingStatus === "PENDING_AML" ||
-          org.onboardingStatus === "REJECTED" ||
-          isAwaitingCompanyTnc(org)
-      );
+      return organizations.some((org) => {
+        const step = getOnboardingStep(org, "issuer");
+        return ["approval", "deposit", "completed", "rejected"].includes(step);
+      });
     }
-    return (
-      isOnboarded ||
-      isPendingApproval ||
-      activeOrganization.onboardingStatus === "REJECTED" ||
-      isAwaitingCompanyTnc(activeOrganization)
-    );
-  }, [isAuthenticated, isOrgLoading, organizations, activeOrganization, isOnboarded, isPendingApproval]);
+    const step = getOnboardingStep(activeOrganization, "issuer");
+    return ["approval", "deposit", "completed", "rejected"].includes(step);
+  }, [isAuthenticated, isOrgLoading, organizations, activeOrganization]);
 
   // Side-effect only: redirects that need router.push
   useEffect(() => {
@@ -99,61 +90,24 @@ function IssuerDashboardContent() {
     if (organizations.length === 0) {
       if (!hasRedirected.current) {
         hasRedirected.current = true;
-        router.push("/onboarding-start");
+        router.push("/onboarding/account");
       }
       return;
     }
 
-    if (activeOrganization && isOnboarded) {
-      hasRedirected.current = false;
-      return;
-    }
-
-    if (activeOrganization && isPendingApproval) {
-      hasRedirected.current = false;
-      return;
-    }
-
-    if (activeOrganization && activeOrganization.onboardingStatus === "REJECTED") {
-      hasRedirected.current = false;
-      return;
-    }
-
-    if (activeOrganization && !isOnboarded && !isPendingApproval) {
-      if (isAwaitingCompanyTnc(activeOrganization)) {
-        hasRedirected.current = false;
+    if (activeOrganization) {
+      const flowStep = getOnboardingStep(activeOrganization, "issuer");
+      if (flowStep === "terms" || flowStep === "fee" || flowStep === "verify") {
+        if (!hasRedirected.current) {
+          hasRedirected.current = true;
+          router.replace(getOnboardingStepRoute(flowStep));
+        }
         return;
       }
-      if (!hasRedirected.current) {
-        hasRedirected.current = true;
-        router.push("/onboarding-start");
-      }
-      return;
     }
 
-    if (!activeOrganization && organizations.length > 0) {
-      const anyQualified = organizations.some(
-        (org) =>
-          org.onboardingStatus === "COMPLETED" ||
-          org.onboardingStatus === "PENDING_APPROVAL" ||
-          org.onboardingStatus === "PENDING_AML" ||
-          org.onboardingStatus === "REJECTED" ||
-          isAwaitingCompanyTnc(org)
-      );
-      if (!anyQualified && !hasRedirected.current) {
-        hasRedirected.current = true;
-        router.push("/onboarding-start");
-      }
-    }
-  }, [
-    isAuthenticated,
-    isOrgLoading,
-    activeOrganization,
-    isOnboarded,
-    isPendingApproval,
-    organizations,
-    router,
-  ]);
+    hasRedirected.current = false;
+  }, [isAuthenticated, isOrgLoading, activeOrganization, organizations, router]);
 
   // Show loading while checking auth or onboarding
   if (isAuthenticated === null || isOrgLoading || !canShowDashboard) {
@@ -178,7 +132,6 @@ function IssuerDashboardContent() {
   const currentStep = steps.find((step) => step.isCurrent);
 
   // Check if user needs to complete specific steps
-  const needsTncAcceptance = currentStep?.id === "tnc";
   const isAwaitingApproval = currentStep?.id === "approval";
   const isRejected = activeOrganization?.onboardingStatus === "REJECTED";
   const isAccountEnabled = activeOrganization?.onboardingStatus === "COMPLETED";
@@ -208,12 +161,6 @@ function IssuerDashboardContent() {
               />
 
               {/* Step-specific cards */}
-              {needsTncAcceptance && (
-                <TermsAcceptanceCard
-                  organizationId={activeOrganization.id}
-                  onAccepted={() => router.push("/onboarding-start?continue=fee")}
-                />
-              )}
 
               {isAwaitingApproval && (
                 <div className="rounded-xl border bg-card p-6">

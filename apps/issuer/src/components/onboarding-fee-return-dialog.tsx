@@ -42,8 +42,7 @@ export function OnboardingFeeReturnDialog({
   onOpenChange,
 }: OnboardingFeeReturnDialogProps) {
   const router = useRouter();
-  const { startCorporateOnboarding, switchOrganization, refreshOrganizations, organizations } =
-    useOrganization();
+  const { refreshOrganizations, organizations } = useOrganization();
   const [pollTimedOut, setPollTimedOut] = React.useState(false);
   const [isStartingEkyc, setIsStartingEkyc] = React.useState(false);
   const ekycStartedRef = React.useRef(false);
@@ -149,20 +148,12 @@ export function OnboardingFeeReturnDialog({
     void (async () => {
       try {
         await refreshOrganizations();
-        const { verifyLink } = await startCorporateOnboarding(pending.orgId, pending.companyName);
-        switchOrganization(pending.orgId);
         clearIssuerPendingOnboarding();
-        window.open(verifyLink, "_blank");
         onOpenChange(false);
-        router.push("/");
+        router.push("/onboarding/verify");
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to start eKYB";
-        if (message.includes("ONBOARDING_FEE_REQUIRED")) {
-          toast.error("Onboarding fee is still pending. Please complete payment first.");
-          handleTryAgain();
-        } else {
-          toast.error(message);
-        }
+        const message = error instanceof Error ? error.message : "Failed to continue onboarding";
+        toast.error(message);
         ekycStartedRef.current = false;
       } finally {
         setIsStartingEkyc(false);
@@ -177,8 +168,6 @@ export function OnboardingFeeReturnDialog({
     refreshOrganizations,
     resolvePendingOnboarding,
     router,
-    startCorporateOnboarding,
-    switchOrganization,
   ]);
 
   const dialogTitle =

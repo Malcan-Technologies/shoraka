@@ -193,7 +193,7 @@ export class AuthService {
 
     return {
       completed,
-      redirectTo: completed ? undefined : "/onboarding-start",
+      redirectTo: completed ? undefined : "/onboarding/account",
     };
   }
 
