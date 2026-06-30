@@ -156,11 +156,15 @@ function PoolSummaryCard({
         {label}
       </div>
       <div className="mt-0.5 text-sm font-semibold tabular-nums">{formatCurrency(value)}</div>
-      <div className="mt-0.5 line-clamp-2 text-[10px] leading-3 text-muted-foreground">
+      <div className="mt-0.5 line-clamp-3 text-[10px] leading-3 text-muted-foreground">
         {description}
       </div>
     </div>
   );
+}
+
+function poolAllocationDescription(value: number, description: string) {
+  return value <= 0.005 ? "No allocation for this settlement." : description;
 }
 
 function SettlementFlowGuide({ currentStep }: { currentStep: 1 | 2 | 3 }) {
@@ -722,14 +726,8 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
   const waterfallServiceFee = displayedSettlementRecord
     ? getSettlementValue(displayedSettlementRecord, "serviceFeeAmount")
     : 0;
-  const waterfallTotalTawidh = displayedSettlementRecord
-    ? getSettlementValue(displayedSettlementRecord, "tawidhAmount")
-    : 0;
   const waterfallTawidh = displayedSettlementRecord
     ? getSettlementValue(displayedSettlementRecord, "tawidhAccountAmount")
-    : 0;
-  const waterfallTawidhInvestorSharePercent = displayedSettlementRecord
-    ? getSettlementValue(displayedSettlementRecord, "tawidhInvestorSharePercent")
     : 0;
   const waterfallGharamah = displayedSettlementRecord
     ? getSettlementValue(displayedSettlementRecord, "gharamahAmount")
@@ -2344,31 +2342,53 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
 
                 {!persistedPostedSettlement ? settlementActionBarNode : null}
 
-                <div className="grid gap-1.5 md:grid-cols-2 xl:grid-cols-5">
+                <div>
+                  <div className="text-xs font-medium text-muted-foreground">Allocation summary</div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Final amounts allocated by the waterfall preview.
+                  </p>
+                </div>
+                <div className="mt-1.5 grid gap-1.5 md:grid-cols-2 xl:grid-cols-5">
                   <PoolSummaryCard
                     label="Repayment Pool"
                     value={waterfallGrossReceipt}
-                    description={`Receipt in; ${formatCurrency(waterfallUnapplied)} remains unapplied.`}
+                    description={
+                      waterfallUnapplied > 0.005
+                        ? `Total receipt amount applied to this settlement. ${formatCurrency(waterfallUnapplied)} remains unapplied.`
+                        : "Total receipt amount applied to this settlement."
+                    }
                   />
                   <PoolSummaryCard
                     label="Investor Pool"
                     value={waterfallInvestorPoolTotal}
-                    description="Principal, investors' net profit share, and any investor Ta'widh compensation. Platform service fee is not deducted again here."
+                    description={poolAllocationDescription(
+                      waterfallInvestorPoolTotal,
+                      "Amount allocated to investors. Includes principal, net profit, and investor compensation."
+                    )}
                   />
                   <PoolSummaryCard
                     label="Operating Account"
                     value={waterfallServiceFee}
-                    description={`Platform share of gross contractual profit (${waterfallServiceFeeRatePercent}% of ${formatCurrency(waterfallInvestorProfitGross)}).`}
+                    description={poolAllocationDescription(
+                      waterfallServiceFee,
+                      `Platform service fee allocation. ${waterfallServiceFeeRatePercent}% of gross contractual profit.`
+                    )}
                   />
                   <PoolSummaryCard
                     label="Ta'widh Account"
                     value={waterfallTawidh}
-                    description={`${formatCurrency(waterfallTotalTawidh)} total Ta'widh; ${waterfallTawidhInvestorSharePercent}% shared with investors.`}
+                    description={poolAllocationDescription(
+                      waterfallTawidh,
+                      "Ta'widh allocation, if applicable."
+                    )}
                   />
                   <PoolSummaryCard
                     label="Gharamah Account"
                     value={waterfallGharamah}
-                    description="Charity/penalty portion of late charges."
+                    description={poolAllocationDescription(
+                      waterfallGharamah,
+                      "Gharamah allocation, if applicable."
+                    )}
                   />
                 </div>
                 {persistedPostedSettlement && showSettlementTrusteeWorkflow ? (
@@ -2398,12 +2418,12 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {serviceFeeTrusteeStatus === "LETTER_GENERATED"
-                          ? "Submit the instruction letter to the trustee."
+                          ? "Submit the trustee instruction letter for the posted settlement waterfall."
                           : serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE"
-                            ? "Mark complete once the trustee confirms processing."
+                            ? "Trustee instruction submitted. Mark complete once confirmed."
                             : serviceFeeTrusteeWorkflowComplete
                               ? "Trustee submission complete."
-                              : "Generate the instruction letter after settlement is posted."}
+                              : "Generate the trustee instruction letter for the posted settlement waterfall."}
                       </p>
                       {latestTrusteeLetter ? (
                         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
@@ -2438,33 +2458,27 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                     </div>
                     {waterfallIssuerResidual > 0.005 ? (
                       <div className="mt-2 rounded-md border bg-muted/30 px-2.5 py-2 text-xs">
-                        <div className="font-medium">Issuer residual refund</div>
-                        <div className="mt-1.5 grid gap-1 text-muted-foreground sm:grid-cols-2">
-                          <div>
-                            Amount:{" "}
-                            <span className="font-medium text-foreground">
-                              {formatCurrency(waterfallIssuerResidual)}
-                            </span>
-                          </div>
-                          <div>
-                            Payee / account holder:{" "}
-                            <span className="font-medium text-foreground">
+                        <div className="font-medium">Beneficiary details</div>
+                        <dl className="mt-1.5 space-y-1 text-muted-foreground">
+                          <div className="grid grid-cols-[minmax(0,9rem)_1fr] gap-x-3 gap-y-0.5">
+                            <dt>Payee / account holder</dt>
+                            <dd className="font-medium text-foreground">
                               {issuerResidualBeneficiary.accountHolder || "—"}
-                            </span>
+                            </dd>
                           </div>
-                          <div>
-                            Bank name:{" "}
-                            <span className="font-medium text-foreground">
+                          <div className="grid grid-cols-[minmax(0,9rem)_1fr] gap-x-3 gap-y-0.5">
+                            <dt>Bank name</dt>
+                            <dd className="font-medium text-foreground">
                               {issuerResidualBeneficiary.bankName || "—"}
-                            </span>
+                            </dd>
                           </div>
-                          <div>
-                            Account number:{" "}
-                            <span className="font-medium text-foreground">
+                          <div className="grid grid-cols-[minmax(0,9rem)_1fr] gap-x-3 gap-y-0.5">
+                            <dt>Account number</dt>
+                            <dd className="font-medium text-foreground">
                               {issuerResidualBeneficiary.accountNumber || "—"}
-                            </span>
+                            </dd>
                           </div>
-                        </div>
+                        </dl>
                       </div>
                     ) : null}
                     {serviceFeeTrusteeNeedsPdf ? (
