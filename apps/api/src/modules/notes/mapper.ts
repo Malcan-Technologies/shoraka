@@ -307,6 +307,12 @@ function resolveSettlementSummary(note: NoteWithRelations) {
     serviceFeeTrusteeStatus: hasSettlementTrusteeMovement
       ? (settlement.service_fee_trustee_status ?? null)
       : null,
+    serviceFeeTrusteeCreatedAt: hasSettlementTrusteeMovement
+      ? iso(settlement.service_fee_trustee_created_at)
+      : null,
+    serviceFeeTrusteeLetterGeneratedAt: hasSettlementTrusteeMovement
+      ? iso(settlement.service_fee_trustee_letter_generated_at)
+      : null,
     serviceFeeTrusteeSubmittedAt: hasSettlementTrusteeMovement
       ? iso(settlement.service_fee_trustee_submitted_at)
       : null,
@@ -540,6 +546,8 @@ export function mapNoteDetail(
       approvedAt: iso(settlement.approved_at),
       postedAt: iso(settlement.posted_at),
       serviceFeeTrusteeStatus: settlement.service_fee_trustee_status ?? null,
+      serviceFeeTrusteeCreatedAt: iso(settlement.service_fee_trustee_created_at),
+      serviceFeeTrusteeLetterGeneratedAt: iso(settlement.service_fee_trustee_letter_generated_at),
       serviceFeeTrusteeSubmittedAt: iso(settlement.service_fee_trustee_submitted_at),
       serviceFeeTrusteeCompletedAt: iso(settlement.service_fee_trustee_completed_at),
     })),

@@ -3981,15 +3981,19 @@ export class NoteService {
       );
 
       await this.postSettlementLedger(tx, settlement, actor);
+      const postedAt = new Date();
       await tx.noteSettlement.update({
         where: { id: settlementId },
         data: {
           status: NoteSettlementStatus.POSTED,
-          posted_at: new Date(),
+          posted_at: postedAt,
           idempotency_key: `settlement:${settlementId}`,
           preview_snapshot: json(postedSnapshot),
           ...(hasSettlementTrusteeMovement(settlement)
-            ? { service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.PENDING_LETTER }
+            ? {
+                service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.PENDING_LETTER,
+                service_fee_trustee_created_at: postedAt,
+              }
             : {}),
         },
       });
@@ -4445,7 +4449,10 @@ export class NoteService {
             },
           ],
         },
-        data: { service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED },
+        data: {
+          service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED,
+          service_fee_trustee_letter_generated_at: new Date(),
+        },
       });
       if (row.count !== 1) {
         throw new AppError(
@@ -4517,7 +4524,8 @@ export class NoteService {
         },
         data: {
           service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
-          service_fee_trustee_submitted_at: new Date(),
+          service_fee_trustee_submitted_at:
+            settlement.service_fee_trustee_submitted_at ?? new Date(),
         },
       });
       if (row.count !== 1) {
@@ -4592,7 +4600,8 @@ export class NoteService {
         },
         data: {
           service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.COMPLETED,
-          service_fee_trustee_completed_at: completedAt,
+          service_fee_trustee_completed_at:
+            settlement.service_fee_trustee_completed_at ?? completedAt,
         },
       });
       if (row.count !== 1) {

@@ -856,6 +856,8 @@ model NoteSettlement {
   posted_at                        DateTime?
   idempotency_key                  String?                             @unique
   service_fee_trustee_status       ServiceFeeTrusteeInstructionStatus?
+  service_fee_trustee_created_at   DateTime?
+  service_fee_trustee_letter_generated_at DateTime?
   service_fee_trustee_submitted_at DateTime?
   service_fee_trustee_completed_at DateTime?
   created_at                       DateTime                            @default(now())

@@ -616,35 +616,13 @@ export default function NoteDetailPage() {
                       </CardHeader>
                       <CardContent className="space-y-6">
                         {disbursementWithdrawal && disbursementWithdrawal.status !== "CANCELLED" ? (
-                          disbursementWithdrawal.status !== "COMPLETED" ? (
-                            <div
-                              className={`rounded-xl border border-amber-200 p-4 border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]`}
-                            >
-                              <div className="mb-2 text-xs font-medium uppercase tracking-wider text-amber-900">
-                                Awaiting issuer disbursement
-                              </div>
-                              <p className="text-xs text-amber-900/80">
-                                Funding has closed. The net amount below must be paid out to the issuer via
-                                the trustee before servicing begins. Once the disbursement is marked complete, the
-                                note will move to ACTIVE and repayment receipts can be recorded.
-                              </p>
-                              <IssuerPayoutCard
-                                note={note}
-                                withdrawal={disbursementWithdrawal}
-                                kind="DISBURSEMENT"
-                                servicingBlockedReason={null}
-                                canManage={canDisbursement}
-                              />
-                            </div>
-                          ) : (
-                            <IssuerPayoutCard
-                              note={note}
-                              withdrawal={disbursementWithdrawal}
-                              kind="DISBURSEMENT"
-                              servicingBlockedReason={null}
-                              canManage={canDisbursement}
-                            />
-                          )
+                          <IssuerPayoutCard
+                            note={note}
+                            withdrawal={disbursementWithdrawal}
+                            kind="DISBURSEMENT"
+                            servicingBlockedReason={null}
+                            canManage={canDisbursement}
+                          />
                         ) : null}
                       </CardContent>
                     </Card>

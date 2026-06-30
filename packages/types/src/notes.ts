@@ -153,6 +153,8 @@ export interface NoteSettlementPoolSummary {
   postedAt: string | null;
   /** Posted settlement with platform service fee: trustee instruction workflow (pools). */
   serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus | null;
+  serviceFeeTrusteeCreatedAt: string | null;
+  serviceFeeTrusteeLetterGeneratedAt: string | null;
   serviceFeeTrusteeSubmittedAt: string | null;
   serviceFeeTrusteeCompletedAt: string | null;
 }
@@ -362,6 +364,8 @@ export interface NoteSettlement {
   approvedAt: string | null;
   postedAt: string | null;
   serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus | null;
+  serviceFeeTrusteeCreatedAt: string | null;
+  serviceFeeTrusteeLetterGeneratedAt: string | null;
   serviceFeeTrusteeSubmittedAt: string | null;
   serviceFeeTrusteeCompletedAt: string | null;
 }
@@ -1047,6 +1051,8 @@ export function mapNoteSettlementToPoolSummary(
     | "postedAt"
     | "serviceFeeAmount"
     | "serviceFeeTrusteeStatus"
+    | "serviceFeeTrusteeCreatedAt"
+    | "serviceFeeTrusteeLetterGeneratedAt"
     | "serviceFeeTrusteeSubmittedAt"
     | "serviceFeeTrusteeCompletedAt"
   >
@@ -1073,6 +1079,8 @@ export function mapNoteSettlementToPoolSummary(
     annualProfitRatePercent: settlement.annualProfitRatePercent,
     postedAt: settlement.postedAt,
     serviceFeeTrusteeStatus: settlement.serviceFeeTrusteeStatus,
+    serviceFeeTrusteeCreatedAt: settlement.serviceFeeTrusteeCreatedAt,
+    serviceFeeTrusteeLetterGeneratedAt: settlement.serviceFeeTrusteeLetterGeneratedAt,
     serviceFeeTrusteeSubmittedAt: settlement.serviceFeeTrusteeSubmittedAt,
     serviceFeeTrusteeCompletedAt: settlement.serviceFeeTrusteeCompletedAt,
   };

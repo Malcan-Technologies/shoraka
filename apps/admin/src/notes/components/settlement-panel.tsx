@@ -81,6 +81,11 @@ import {
   useMarkServiceFeeTrusteeInstructionCompleted,
 } from "../hooks/use-notes";
 import { cn } from "@/lib/utils";
+import {
+  BeneficiaryDetailsBlock,
+  CollapsibleDetailTimeline,
+  PoolSummaryCard,
+} from "@/notes/components/note-detail-ui-blocks";
 
 type RecordPaymentSource = "PAYMASTER" | "ISSUER_ON_BEHALF";
 type OverdueFeeInputMode = "AMOUNT" | "PERCENTAGE";
@@ -137,28 +142,6 @@ function MoneyMetric({
       {helper ? (
         <p className="mt-1 text-[11px] leading-4 text-muted-foreground">{helper}</p>
       ) : null}
-    </div>
-  );
-}
-
-function PoolSummaryCard({
-  label,
-  value,
-  description,
-}: {
-  label: string;
-  value: number;
-  description: string;
-}) {
-  return (
-    <div className="rounded-md border border-border/50 bg-muted/10 px-2 py-1.5">
-      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </div>
-      <div className="mt-0.5 text-sm font-semibold tabular-nums">{formatCurrency(value)}</div>
-      <div className="mt-0.5 line-clamp-3 text-[10px] leading-3 text-muted-foreground">
-        {description}
-      </div>
     </div>
   );
 }
@@ -2459,47 +2442,70 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                           </span>
                         </div>
                       ) : null}
-                      {persistedPostedSettlement.serviceFeeTrusteeSubmittedAt ? (
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          Submitted{" "}
-                          {format(
-                            new Date(persistedPostedSettlement.serviceFeeTrusteeSubmittedAt),
-                            "dd MMM yyyy, h:mm a"
-                          )}
-                          {persistedPostedSettlement.serviceFeeTrusteeCompletedAt
-                            ? ` · Completed ${format(
-                                new Date(persistedPostedSettlement.serviceFeeTrusteeCompletedAt),
-                                "dd MMM yyyy, h:mm a"
-                              )}`
-                            : ""}
-                        </p>
-                      ) : null}
                     </div>
                     {waterfallIssuerResidual > 0.005 ? (
-                      <div className="mt-2 rounded-md border bg-muted/30 px-2.5 py-2 text-xs">
-                        <div className="font-medium">Beneficiary details</div>
-                        <dl className="mt-1.5 space-y-1 text-muted-foreground">
-                          <div className="grid grid-cols-[minmax(0,9rem)_1fr] gap-x-3 gap-y-0.5">
-                            <dt>Payee / account holder</dt>
-                            <dd className="font-medium text-foreground">
-                              {issuerResidualBeneficiary.accountHolder || "—"}
-                            </dd>
-                          </div>
-                          <div className="grid grid-cols-[minmax(0,9rem)_1fr] gap-x-3 gap-y-0.5">
-                            <dt>Bank name</dt>
-                            <dd className="font-medium text-foreground">
-                              {issuerResidualBeneficiary.bankName || "—"}
-                            </dd>
-                          </div>
-                          <div className="grid grid-cols-[minmax(0,9rem)_1fr] gap-x-3 gap-y-0.5">
-                            <dt>Account number</dt>
-                            <dd className="font-medium text-foreground">
-                              {issuerResidualBeneficiary.accountNumber || "—"}
-                            </dd>
-                          </div>
-                        </dl>
-                      </div>
+                      <BeneficiaryDetailsBlock
+                        accountHolder={issuerResidualBeneficiary.accountHolder || "—"}
+                        bankName={issuerResidualBeneficiary.bankName || "—"}
+                        accountNumber={issuerResidualBeneficiary.accountNumber || "—"}
+                      />
                     ) : null}
+                    <CollapsibleDetailTimeline
+                      rows={[
+                        ...(persistedPostedSettlement.serviceFeeTrusteeCreatedAt ??
+                        persistedPostedSettlement.postedAt
+                          ? [
+                              {
+                                label: "Created",
+                                value: format(
+                                  new Date(
+                                    persistedPostedSettlement.serviceFeeTrusteeCreatedAt ??
+                                      persistedPostedSettlement.postedAt!
+                                  ),
+                                  "dd MMM yyyy, h:mm a"
+                                ),
+                              },
+                            ]
+                          : []),
+                        ...(persistedPostedSettlement.serviceFeeTrusteeLetterGeneratedAt ??
+                        latestTrusteeLetter?.createdAt
+                          ? [
+                              {
+                                label: "Letter generated",
+                                value: format(
+                                  new Date(
+                                    persistedPostedSettlement.serviceFeeTrusteeLetterGeneratedAt ??
+                                      latestTrusteeLetter!.createdAt
+                                  ),
+                                  "dd MMM yyyy, h:mm a"
+                                ),
+                              },
+                            ]
+                          : []),
+                        ...(persistedPostedSettlement.serviceFeeTrusteeSubmittedAt
+                          ? [
+                              {
+                                label: "Submitted to trustee",
+                                value: format(
+                                  new Date(persistedPostedSettlement.serviceFeeTrusteeSubmittedAt),
+                                  "dd MMM yyyy, h:mm a"
+                                ),
+                              },
+                            ]
+                          : []),
+                        ...(persistedPostedSettlement.serviceFeeTrusteeCompletedAt
+                          ? [
+                              {
+                                label: "Completed",
+                                value: format(
+                                  new Date(persistedPostedSettlement.serviceFeeTrusteeCompletedAt),
+                                  "dd MMM yyyy, h:mm a"
+                                ),
+                              },
+                            ]
+                          : []),
+                      ]}
+                    />
                     {serviceFeeTrusteeNeedsPdf ? (
                       <p className="mt-2 text-xs text-destructive">
                         Generate the settlement trustee instruction before marking submitted or
