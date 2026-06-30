@@ -87,6 +87,8 @@ type OverdueFeeInputMode = "AMOUNT" | "PERCENTAGE";
 
 const ACTION_CARD_CLASS =
   "border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]";
+const SETTLEMENT_ACTIVE_STEP_CLASS =
+  "border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08)]";
 const SECTION_COMPLETE_CLASS = "border-emerald-200 bg-emerald-50/40";
 const SECTION_COMPLETE_HEADER_CLASS =
   "mb-2 text-xs font-medium uppercase tracking-wider text-emerald-900";
@@ -163,7 +165,7 @@ function PoolSummaryCard({
 
 function SettlementFlowGuide({ currentStep }: { currentStep: 1 | 2 | 3 }) {
   const steps = [
-    { n: 1 as const, label: "Receipts approved" },
+    { n: 1 as const, label: "Receipts counted" },
     { n: 2 as const, label: "Preview waterfall" },
     { n: 3 as const, label: "Approve & post" },
   ];
@@ -909,6 +911,20 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
     : repaymentReceiptsThresholdMet && pendingPayments.length === 0
       ? "Settlement preparation"
       : "Repayment collection";
+  const settlementNotReadyForPreview =
+    !persistedPostedSettlement &&
+    (pendingPayments.length > 0 || !settlementIsComplete(eligibleReceiptTotal, settlementAmount));
+  const settlementAwaitingPreview =
+    canPreviewSettlement &&
+    !previewSettlementCandidate &&
+    !postSettlementCandidate &&
+    !persistedPostedSettlement;
+  const settlementReceiptBreakdownDefaultOpen =
+    persistedPostedSettlement != null ||
+    previewSettlementCandidate != null ||
+    postSettlementCandidate != null ||
+    canPreviewSettlement ||
+    repaymentReceiptsThresholdMet;
   const settlementStatusDisplay = persistedPostedSettlement
     ? {
         title: "Settlement posted",
@@ -919,39 +935,40 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
     : canPostSettlement
       ? {
           title: "Settlement approved",
-          description: "Posting will create ledger entries.",
-          tone: "ready" as const,
+          description: "Post the settlement to create ledger entries.",
+          tone: "active" as const,
         }
       : canApproveSettlement || previewSettlementCandidate
         ? {
             title: "Settlement preview generated",
             description: "Review the waterfall allocation, then approve and post.",
-            tone: "ready" as const,
+            tone: "active" as const,
           }
         : canPreviewSettlement
           ? {
               title: "Ready for settlement preview",
-              description: "Receipts have reached the required settlement amount.",
-              tone: "ready" as const,
+              description:
+                "Receipts have reached the required settlement amount. Run preview to review the waterfall allocation.",
+              tone: "active" as const,
             }
           : pendingPayments.length > 0 ||
               !settlementIsComplete(eligibleReceiptTotal, settlementAmount)
             ? {
                 title: "Settlement not ready",
                 description:
-                  pendingPayments.length > 0 &&
-                  !settlementIsComplete(eligibleReceiptTotal, settlementAmount)
-                    ? "Approve or reject pending payment advice and collect the remaining amount before previewing settlement."
-                    : pendingPayments.length > 0
-                      ? "Approve or reject pending payment advice before previewing settlement."
-                      : "Record or approve more receipts until the required settlement amount is reached.",
+                  "Complete repayment collection before previewing settlement.",
                 tone: "blocked" as const,
               }
             : {
                 title: "Settlement not ready",
                 description: "Complete receipt approvals to continue.",
-                tone: "neutral" as const,
+                tone: "blocked" as const,
               };
+  const settlementSectionSurfaceClass = persistedPostedSettlement
+    ? SECTION_COMPLETE_CLASS
+    : settlementStatusDisplay.tone === "blocked"
+      ? "border-amber-300 bg-amber-50/30"
+      : SETTLEMENT_ACTIVE_STEP_CLASS;
   const settlementBlockerDisplay =
     persistedPostedSettlement || !settlementActionBlockedReason
       ? null
@@ -994,8 +1011,10 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
           ? (settlementReadyMessage ?? "Approve the preview before posting.")
           : previewSettlementCandidate
             ? "Approve the preview, then post to the ledger."
-            : canPreviewSettlement
-              ? "Run preview settlement to review the waterfall allocation."
+            : settlementAwaitingPreview
+              ? null
+              : canPreviewSettlement
+                ? "Run preview settlement to review the waterfall allocation."
               : pendingPayments.length > 0 && !repaymentReceiptsThresholdMet
                 ? "Complete repayment collection before previewing settlement."
                 : pendingPayments.length > 0
@@ -1003,10 +1022,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                   : !repaymentReceiptsThresholdMet
                     ? "Record or approve more receipts until the required settlement amount is reached."
                     : "Generate a preview after receipts reach the required settlement amount.";
-  const showSettlementReadyBanner =
-    Boolean(settlementReadyMessage) &&
-    !persistedPostedSettlement &&
-    settlementStatusDisplay.tone !== "ready";
+  const showSettlementReadyBanner = false;
   const showSettlementBlockerBanner =
     settlementBlockerDisplay != null &&
     (Boolean(servicingBlockedReason) ||
@@ -1491,14 +1507,16 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
         <div />
       )}
       <div className="flex shrink-0 flex-wrap justify-end gap-2">
-        <Button
-          variant={feesNeedPreview ? "default" : "outline"}
-          onClick={handlePreview}
-          disabled={!canPreviewSettlement || !canSettlement}
-          title={!canSettlement ? "You do not have permission to perform this action." : undefined}
-        >
-          {previewButtonLabel}
-        </Button>
+        {!(settlementAwaitingPreview && !feesNeedPreview) ? (
+          <Button
+            variant={feesNeedPreview ? "default" : "outline"}
+            onClick={handlePreview}
+            disabled={!canPreviewSettlement || !canSettlement}
+            title={!canSettlement ? "You do not have permission to perform this action." : undefined}
+          >
+            {previewButtonLabel}
+          </Button>
+        ) : null}
         <Button
           variant="outline"
           onClick={requestApproveSettlement}
@@ -1615,7 +1633,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                 <div className="text-sm font-medium">1. Repayment receipts</div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Record paymaster or issuer receipts and approve issuer payment advice. Once
-                  approved receipts reach the required settlement amount, continue to settlement
+                  receipts counted reach the required settlement amount, continue to settlement
                   below.
                 </p>
               </div>
@@ -1636,16 +1654,16 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
             paymentActionsOpen &&
             settlementAmount > 0.005 ? (
               <p className="mt-2 text-xs text-muted-foreground">
-                Approved receipts already reach the required settlement amount. Record receipt is
+                Receipts counted already reach the required settlement amount. Record receipt is
                 disabled until receipts are reduced or the settlement amount changes.
               </p>
             ) : null}
 
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <MoneyMetric
-                label="Approved receipts"
+                label="Receipts counted"
                 value={openReceiptTotal}
-                helper="Received or approved receipts in the repayment pool."
+                helper="Receipts currently counted toward settlement."
               />
               <MoneyMetric label="Required settlement amount" value={settlementAmount} />
               <MoneyMetric label="Amount still needed" value={receiptRemainingAmount} />
@@ -1869,20 +1887,29 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
             )}
           </div>
 
-          <div
-            className={cn(
-              "rounded-xl border p-4",
-              settlementWaterfallSectionComplete
-                ? SECTION_COMPLETE_CLASS
-                : "border-border bg-card"
-            )}
-          >
+          <div className={cn("rounded-xl border p-4", settlementSectionSurfaceClass)}>
             <div>
-              <div className="text-sm font-medium">2. Settlement &amp; waterfall</div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="text-sm font-medium">2. Settlement &amp; waterfall</div>
+                {!persistedPostedSettlement ? (
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-xs font-normal",
+                      settlementStatusDisplay.tone === "blocked"
+                        ? "border-amber-300 bg-amber-50/80 text-amber-900"
+                        : "border-primary/30 bg-background text-foreground"
+                    )}
+                  >
+                    {settlementStatusDisplay.tone === "blocked" ? "Action required" : "Current step"}
+                  </Badge>
+                ) : null}
+              </div>
               {!persistedPostedSettlement ? (
                 <>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Use approved receipts to preview the waterfall, then approve and post settlement.
+                    Use receipts counted above to preview the waterfall, then approve and post
+                    settlement.
                     {showOverdueFeesSection
                       ? " Late fees book to the ledger on post."
                       : null}
@@ -1898,21 +1925,22 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
 
             <div
               className={cn(
-                "mt-3 rounded-lg border px-3 py-2",
+                "mt-3 rounded-lg border px-3 py-2.5",
                 settlementStatusDisplay.tone === "success" &&
                   "border-emerald-200 bg-emerald-50/80",
                 settlementStatusDisplay.tone === "blocked" && "border-amber-300 bg-amber-50",
-                settlementStatusDisplay.tone === "ready" && "border-border bg-muted/20",
-                settlementStatusDisplay.tone === "neutral" && "border-border bg-muted/20"
+                settlementStatusDisplay.tone === "active" &&
+                  "border-primary/35 bg-primary/5"
               )}
             >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
                   <div
                     className={cn(
                       "text-sm font-semibold",
                       settlementStatusDisplay.tone === "success" && "text-emerald-900",
-                      settlementStatusDisplay.tone === "blocked" && "text-amber-900"
+                      settlementStatusDisplay.tone === "blocked" && "text-amber-900",
+                      settlementStatusDisplay.tone === "active" && "text-foreground"
                     )}
                   >
                     {settlementStatusDisplay.title}
@@ -1930,7 +1958,18 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                     {settlementStatusDisplay.description}
                   </p>
                 </div>
-                {persistedPostedSettlement ? (
+                {settlementAwaitingPreview ? (
+                  <Button
+                    className="shrink-0"
+                    onClick={handlePreview}
+                    disabled={!canPreviewSettlement || !canSettlement}
+                    title={
+                      !canSettlement ? "You do not have permission to perform this action." : undefined
+                    }
+                  >
+                    {previewButtonLabel}
+                  </Button>
+                ) : persistedPostedSettlement ? (
                   <Badge
                     variant="outline"
                     className="shrink-0 gap-1 border-emerald-200 bg-emerald-50/80 text-emerald-900"
@@ -1946,13 +1985,15 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
               {settlementEligiblePayments.length > 0 ? (
                 <div
                   className={cn(
-                    "rounded-lg border bg-card p-3",
-                    !displayedSettlement && "border-border shadow-sm"
+                    "rounded-lg border p-3",
+                    settlementNotReadyForPreview
+                      ? "border-dashed bg-muted/15"
+                      : "border-border bg-card shadow-sm"
                   )}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Receipts ready for settlement
+                      Receipts counted for waterfall
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       {eligibleReceiptTotal + 0.005 >= activeSettlementRequiredAmount ? (
@@ -1971,47 +2012,65 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                     </div>
                   </div>
                   <div className="mt-1 flex flex-wrap items-baseline justify-between gap-2">
-                    <div className="text-2xl font-semibold tabular-nums text-primary">
+                    <div
+                      className={cn(
+                        "font-semibold tabular-nums text-primary",
+                        settlementNotReadyForPreview ? "text-xl" : "text-2xl"
+                      )}
+                    >
                       {formatCurrency(eligibleReceiptTotal)}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {settlementEligiblePayments.length} approved receipt
-                      {settlementEligiblePayments.length === 1 ? "" : "s"} counted toward the
-                      settlement waterfall
+                      {settlementEligiblePayments.length} receipt
+                      {settlementEligiblePayments.length === 1 ? "" : "s"} currently counted
+                      toward the settlement waterfall
                     </div>
                   </div>
-                  <div className="mt-3 overflow-hidden rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="hover:bg-transparent">
-                          <TableHead className="h-8 text-xs">Date</TableHead>
-                          <TableHead className="h-8 text-xs">Source</TableHead>
-                          <TableHead className="h-8 text-xs">Reference</TableHead>
-                          <TableHead className="h-8 text-right text-xs">Amount</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {settlementEligiblePayments.map((payment) => (
-                          <TableRow key={payment.id} className="text-xs">
-                            <TableCell className="py-2">
-                              {format(new Date(payment.receiptDate), "dd MMM yyyy")}
-                            </TableCell>
-                            <TableCell className="py-2">{sourceLabel(payment.source)}</TableCell>
-                            <TableCell className="max-w-[8rem] truncate py-2 text-muted-foreground">
-                              {payment.reference || "—"}
-                            </TableCell>
-                            <TableCell className="py-2 text-right font-medium tabular-nums">
-                              {formatCurrency(payment.receiptAmount)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+                  <Collapsible
+                    defaultOpen={settlementReceiptBreakdownDefaultOpen}
+                    className="group mt-2"
+                  >
+                    <CollapsibleTrigger className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+                      <ChevronDownIcon className="h-3.5 w-3.5 transition-transform group-data-[state=closed]:-rotate-90" />
+                      Receipt breakdown
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-2">
+                      <div className="overflow-hidden rounded-md border bg-background">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="hover:bg-transparent">
+                              <TableHead className="h-8 text-xs">Date</TableHead>
+                              <TableHead className="h-8 text-xs">Source</TableHead>
+                              <TableHead className="h-8 text-xs">Reference</TableHead>
+                              <TableHead className="h-8 text-right text-xs">Amount</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {settlementEligiblePayments.map((payment) => (
+                              <TableRow key={payment.id} className="text-xs">
+                                <TableCell className="py-2">
+                                  {format(new Date(payment.receiptDate), "dd MMM yyyy")}
+                                </TableCell>
+                                <TableCell className="py-2">
+                                  {sourceLabel(payment.source)}
+                                </TableCell>
+                                <TableCell className="max-w-[8rem] truncate py-2 text-muted-foreground">
+                                  {payment.reference || "—"}
+                                </TableCell>
+                                <TableCell className="py-2 text-right font-medium tabular-nums">
+                                  {formatCurrency(payment.receiptAmount)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed px-3 py-2.5 text-sm text-muted-foreground">
-                  No approved receipts ready for settlement yet.
+                  No receipts counted for waterfall yet.
                 </div>
               )}
             </div>
@@ -2503,8 +2562,16 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                   </div>
                 ) : null}
               </div>
+            ) : settlementNotReadyForPreview ? (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Settlement preview will appear here once repayment collection is complete.
+              </p>
+            ) : settlementAwaitingPreview ? (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Settlement preview will appear here after you run preview.
+              </p>
             ) : (
-              <div className="mt-4 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              <div className="mt-3 rounded-lg border border-dashed px-3 py-2.5 text-sm text-muted-foreground">
                 No settlement preview generated yet.
               </div>
             )}
