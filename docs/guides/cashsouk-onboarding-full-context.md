@@ -420,7 +420,7 @@ Stepper verify step label: **Onboarding** (not “Identity Verification”).
 
 | Portal | File | During admin-wait (`approval` step) | After `COMPLETED` |
 |--------|------|-------------------------------------|-------------------|
-| Investor | `apps/investor/src/app/page.tsx` | Stepper + “Awaiting Approval” only; **no** account overview / portfolio / investments | Full dashboard; deposit card if `deposit_received` is false |
+| Investor | `apps/investor/src/app/page.tsx` | Stepper + “Awaiting Approval”; **Account Overview** shown as disabled sneak peek (`isDisabled`); portfolio/investments hidden | Full dashboard; deposit card if `deposit_received` is false |
 | Issuer | `apps/issuer/src/app/page.tsx` | Stepper + awaiting/rejected blocks; director alert when applicable | Full dashboard |
 
 Incomplete onboarding steps (`terms`, `fee`, `verify`) redirect off `/` to the matching `/onboarding/*` route.

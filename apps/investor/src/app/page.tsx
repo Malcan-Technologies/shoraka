@@ -212,9 +212,10 @@ function InvestorDashboardContent() {
             </section>
           )}
 
+          <AccountOverviewCard isDisabled={!isAccountEnabled} />
+
           {isAccountEnabled && (
             <>
-              <AccountOverviewCard />
               <PortfolioOverviewCard />
               <DashboardInvestmentsSection />
             </>

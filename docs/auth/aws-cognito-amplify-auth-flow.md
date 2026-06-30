@@ -327,7 +327,7 @@ Email change is a **two-step process** for security:
 1. Sign up as new user
 2. **Expected**: Redirected to `/onboarding/account`
 3. Complete onboarding steps (account → terms → verify; issuer company also fee)
-4. **Expected**: Redirected to dashboard with stepper until admin approval; investor portfolio widgets only after `COMPLETED`
+4. **Expected**: Redirected to dashboard with stepper until admin approval; investor Account Overview sneak peek (disabled) visible during admin-wait
 
 ### Test 10: Session Persistence
 

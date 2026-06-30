@@ -977,7 +977,7 @@ Shared layout and step components live in **`packages/ui/src/onboarding/`**. Ste
 **File:** `apps/investor/src/app/page.tsx`
 
 - Redirects incomplete steps (`terms`, `verify`) to `/onboarding/*`.
-- During admin-wait (`PENDING_APPROVAL`, `PENDING_AML`, etc.): shows `OnboardingStatusCard` + “Awaiting Approval”; **hides** `AccountOverviewCard`, portfolio, and investments until `onboarding_status === COMPLETED`.
+- During admin-wait (`PENDING_APPROVAL`, `PENDING_AML`, etc.): shows `OnboardingStatusCard` + “Awaiting Approval”; **Account Overview** rendered as a disabled sneak peek; portfolio and investments remain hidden until `onboarding_status === COMPLETED`.
 - After `COMPLETED`: full dashboard; `DepositCard` when `deposit_received` is false (post-approval activation — not required for admin onboarding completion).
 
 ### 9.3 Issuer dashboard
