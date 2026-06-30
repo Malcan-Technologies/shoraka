@@ -95,11 +95,11 @@ const SECTION_COMPLETE_HEADER_CLASS =
 const OPEN_PAYMENT_STATUSES = ["PENDING", "PARTIAL", "RECEIVED", "RECONCILED"];
 
 function serviceFeeTrusteeStatusLabel(status: ServiceFeeTrusteeInstructionStatus | null) {
-  if (status === "PENDING_LETTER") return "Awaiting PDF";
-  if (status === "LETTER_GENERATED") return "Letter generated — submit to trustee";
-  if (status === "SUBMITTED_TO_TRUSTEE") return "Submitted — confirm complete";
-  if (status === "COMPLETED") return "Complete";
-  return "Awaiting PDF";
+  if (status === "PENDING_LETTER") return "Not generated";
+  if (status === "LETTER_GENERATED") return "Pending trustee submission";
+  if (status === "SUBMITTED_TO_TRUSTEE") return "Submitted to trustee";
+  if (status === "COMPLETED") return "Completed";
+  return "Not generated";
 }
 
 function formatStatus(value: string) {
@@ -1979,16 +1979,17 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
               </div>
             </div>
 
-            <div className="mt-3">
-              {settlementEligiblePayments.length > 0 ? (
-                <div
-                  className={cn(
-                    "rounded-lg border p-3",
-                    settlementNotReadyForPreview
-                      ? "border-dashed bg-muted/15"
-                      : "border-border bg-card shadow-sm"
-                  )}
-                >
+            {!persistedPostedSettlement ? (
+              <div className="mt-3">
+                {settlementEligiblePayments.length > 0 ? (
+                  <div
+                    className={cn(
+                      "rounded-lg border p-3",
+                      settlementNotReadyForPreview
+                        ? "border-dashed bg-muted/15"
+                        : "border-border bg-card shadow-sm"
+                    )}
+                  >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       Receipts counted for waterfall
@@ -2071,7 +2072,8 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                   No receipts counted for waterfall yet.
                 </div>
               )}
-            </div>
+              </div>
+            ) : null}
 
             {showSettlementBlockerBanner ? (
               <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
@@ -2348,7 +2350,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                     Final amounts allocated by the waterfall preview.
                   </p>
                 </div>
-                <div className="mt-1.5 grid gap-1.5 md:grid-cols-2 xl:grid-cols-5">
+                <div className="mt-1.5 grid gap-1.5 md:grid-cols-2 xl:grid-cols-3">
                   <PoolSummaryCard
                     label="Repayment Pool"
                     value={waterfallGrossReceipt}
@@ -2390,6 +2392,14 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                       "Gharamah allocation, if applicable."
                     )}
                   />
+                  <PoolSummaryCard
+                    label="Issuer Refund"
+                    value={waterfallIssuerResidual}
+                    description={poolAllocationDescription(
+                      waterfallIssuerResidual,
+                      "Residual amount returned to issuer."
+                    )}
+                  />
                 </div>
                 {persistedPostedSettlement && showSettlementTrusteeWorkflow ? (
                   <div
@@ -2418,11 +2428,11 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {serviceFeeTrusteeStatus === "LETTER_GENERATED"
-                          ? "Submit the trustee instruction letter for the posted settlement waterfall."
+                          ? "Trustee instruction letter has been generated. Submit it to the trustee, then mark it as submitted."
                           : serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE"
-                            ? "Trustee instruction submitted. Mark complete once confirmed."
+                            ? "Trustee instruction has been submitted. Mark complete once trustee confirmation is received."
                             : serviceFeeTrusteeWorkflowComplete
-                              ? "Trustee submission complete."
+                              ? "Trustee submission is complete."
                               : "Generate the trustee instruction letter for the posted settlement waterfall."}
                       </p>
                       {latestTrusteeLetter ? (
