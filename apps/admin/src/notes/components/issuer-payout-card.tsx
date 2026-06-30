@@ -138,6 +138,118 @@ function DetailRow({
   );
 }
 
+type ShorakaOperationalStep = {
+  status: string;
+  nextAction: string;
+};
+
+function resolveShorakaOperationalStep(
+  providerStatus: string,
+  hasCertificate: boolean
+): ShorakaOperationalStep {
+  if (providerStatus === "Active") {
+    return { status: "Matching in progress", nextAction: "Query status again later" };
+  }
+  if (providerStatus === "Pending Sell") {
+    return {
+      status: "Pending sell",
+      nextAction: "Query status again later; contact operations if stuck",
+    };
+  }
+  if (providerStatus === "Completed" && !hasCertificate) {
+    return { status: "Completed", nextAction: "Fetch certificate" };
+  }
+  if (providerStatus === "Completed" && hasCertificate) {
+    return {
+      status: "Certificate ready",
+      nextAction: "You may proceed with disbursement",
+    };
+  }
+  return {
+    status: "Manual review required",
+    nextAction: "Check with Tawarruq operations",
+  };
+}
+
+function tawarruqNextActionCallout(input: {
+  isPending: boolean;
+  hasStoredCertificate: boolean;
+  data:
+    | {
+        tradeOrder: { certificate_s3_key?: string | null };
+        operationalStatus: { providerStatus: string; canFetchCertificate?: boolean };
+      }
+    | null
+    | undefined;
+}): { title: string; description: string } | null {
+  if (input.isPending || input.hasStoredCertificate) return null;
+
+  if (input.data == null) {
+    return {
+      title: "Next: Submit Tawarruq Order",
+      description: "Submit the Tawarruq order before the certificate can be fetched.",
+    };
+  }
+
+  const hasCertificate = Boolean(input.data.tradeOrder.certificate_s3_key);
+  const step = resolveShorakaOperationalStep(
+    input.data.operationalStatus.providerStatus,
+    hasCertificate
+  );
+
+  if (step.nextAction === "You may proceed with disbursement") {
+    return null;
+  }
+
+  if (
+    input.data.operationalStatus.canFetchCertificate ||
+    step.nextAction === "Fetch certificate"
+  ) {
+    return {
+      title: "Next: Fetch Tawarruq Certificate",
+      description:
+        "The Tawarruq order is completed. Fetch the certificate before generating the trustee letter.",
+    };
+  }
+
+  if (
+    input.data.operationalStatus.providerStatus === "Active" ||
+    input.data.operationalStatus.providerStatus === "Pending Sell"
+  ) {
+    return {
+      title: "Next: Query Tawarruq status",
+      description: step.nextAction,
+    };
+  }
+
+  if (step.nextAction === "Check with Tawarruq operations") {
+    return {
+      title: "Next: Check with Tawarruq operations",
+      description: step.nextAction,
+    };
+  }
+
+  return {
+    title: `Next: ${step.nextAction}`,
+    description: step.nextAction,
+  };
+}
+
+function TawarruqNextActionCallout({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="mt-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2">
+      <div className="text-xs font-semibold text-foreground">{title}</div>
+      <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
 const ACTION_CARD_CLASS =
   "border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]";
 const SECTION_COMPLETE_CLASS = "border-emerald-200 bg-emerald-50/40";
@@ -214,6 +326,17 @@ export function IssuerPayoutCard({
 
   const shorakaTradeOrder = shorakaStateQuery.data?.tradeOrder ?? null;
   const hasShorakaCertificate = Boolean(shorakaTradeOrder?.certificate_s3_key);
+  const shorakaOperationalStep = shorakaStateQuery.data
+    ? resolveShorakaOperationalStep(
+        shorakaStateQuery.data.operationalStatus.providerStatus,
+        Boolean(shorakaStateQuery.data.tradeOrder.certificate_s3_key)
+      )
+    : null;
+  const tawarruqNextAction = tawarruqNextActionCallout({
+    isPending: shorakaStateQuery.isPending,
+    hasStoredCertificate: hasShorakaCertificate,
+    data: shorakaStateQuery.data,
+  });
   const shouldGateMarkDisbursed =
     withdrawal.withdrawalType === WithdrawalType.ISSUER_DISBURSEMENT;
 
@@ -273,11 +396,17 @@ export function IssuerPayoutCard({
   const beneficiaryComplete =
     currentFields.bank_name.trim() !== "" && currentFields.account_number.trim() !== "";
   const payoutComplete = status === "COMPLETED";
-  const actionAvailable =
-    !payoutComplete &&
-    (status === "LETTER_GENERATED" ||
-      status === "SUBMITTED_TO_TRUSTEE" ||
-      (status === "DRAFT" && beneficiaryComplete));
+  const disbursementFlowStep: "tawarruq" | "trustee" | "disbursed" | null =
+    kind === "DISBURSEMENT" &&
+    withdrawal.withdrawalType === WithdrawalType.ISSUER_DISBURSEMENT &&
+    !payoutComplete
+      ? status === "SUBMITTED_TO_TRUSTEE"
+        ? "disbursed"
+        : hasShorakaCertificate
+          ? "trustee"
+          : "tawarruq"
+      : null;
+  const workflowInProgress = !payoutComplete && status !== "CANCELLED";
   const guardedAction = (run: () => void) => {
     if (servicingBlockedReason) {
       toast.info(servicingBlockedReason);
@@ -384,7 +513,7 @@ export function IssuerPayoutCard({
 
   const surfaceClass = payoutComplete
     ? SECTION_COMPLETE_CLASS
-    : actionAvailable
+    : workflowInProgress
       ? ACTION_CARD_CLASS
       : "border-border bg-card";
 
@@ -395,7 +524,7 @@ export function IssuerPayoutCard({
           "rounded-lg border px-3 py-2.5",
           payoutComplete
             ? "border-emerald-200 bg-emerald-50/80"
-            : actionAvailable
+            : workflowInProgress
               ? "border-primary/35 bg-primary/5"
               : "border-border bg-muted/20"
         )}
@@ -436,6 +565,30 @@ export function IssuerPayoutCard({
             >
               {statusPanelDescription}
             </p>
+            {disbursementFlowStep ? (
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                Flow:{" "}
+                <span
+                  className={cn(disbursementFlowStep === "tawarruq" && "font-medium text-foreground")}
+                >
+                  Tawarruq certificate
+                </span>
+                {" → "}
+                <span
+                  className={cn(disbursementFlowStep === "trustee" && "font-medium text-foreground")}
+                >
+                  Trustee instruction
+                </span>
+                {" → "}
+                <span
+                  className={cn(
+                    disbursementFlowStep === "disbursed" && "font-medium text-foreground"
+                  )}
+                >
+                  Mark disbursed
+                </span>
+              </p>
+            ) : null}
           </div>
           <div className="shrink-0 text-right">
             <div className="text-[11px] text-muted-foreground">
@@ -505,6 +658,13 @@ export function IssuerPayoutCard({
             </p>
           ) : null}
 
+          {tawarruqNextAction ? (
+            <TawarruqNextActionCallout
+              title={tawarruqNextAction.title}
+              description={tawarruqNextAction.description}
+            />
+          ) : null}
+
           {shorakaStateQuery.isPending ? (
             <p className="mt-2 text-xs text-muted-foreground">
               Checking Tawarruq certificate status…
@@ -512,114 +672,113 @@ export function IssuerPayoutCard({
           ) : shorakaStateQuery.data == null ? (
             <dl className="mt-2 space-y-1">
               <DetailRow label="Status" value="Not submitted" valueClassName="font-medium" />
-              <DetailRow label="Next action" value="Submit Tawarruq order" />
             </dl>
-          ) : (
-            (() => {
-              const state = shorakaStateQuery.data;
-              const tradeOrder = state.tradeOrder;
-              const parsed = state.parsed;
-              const operational = state.operationalStatus;
-              const hasCertificate = Boolean(tradeOrder.certificate_s3_key);
+          ) : shorakaOperationalStep && shorakaStateQuery.data ? (
+            <>
+              {(() => {
+                const state = shorakaStateQuery.data;
+                const tradeOrder = state.tradeOrder;
+                const parsed = state.parsed;
+                const step = shorakaOperationalStep;
 
-              const step =
-                operational.providerStatus === "Active"
-                  ? { status: "Matching in progress", nextAction: "Query status again later" }
-                  : operational.providerStatus === "Pending Sell"
-                    ? {
-                        status: "Pending sell",
-                        nextAction: "Query status again later; contact operations if stuck",
-                      }
-                    : operational.providerStatus === "Completed" && !hasCertificate
-                      ? { status: "Completed", nextAction: "Fetch certificate" }
-                      : operational.providerStatus === "Completed" && hasCertificate
-                        ? {
-                            status: "Certificate ready",
-                            nextAction: "You may proceed with disbursement",
-                          }
-                        : {
-                            status: "Manual review required",
-                            nextAction: "Check with Tawarruq operations",
-                          };
+                const callbackReceivedAt = tradeOrder.callback_received_at
+                  ? new Date(tradeOrder.callback_received_at)
+                  : null;
+                const statusLastCheckedAt = tradeOrder.status_last_checked_at
+                  ? new Date(tradeOrder.status_last_checked_at)
+                  : null;
 
-              const callbackReceivedAt = tradeOrder.callback_received_at
-                ? new Date(tradeOrder.callback_received_at)
-                : null;
-              const statusLastCheckedAt = tradeOrder.status_last_checked_at
-                ? new Date(tradeOrder.status_last_checked_at)
-                : null;
+                const statusSource = callbackReceivedAt
+                  ? statusLastCheckedAt &&
+                      callbackReceivedAt.getTime() < statusLastCheckedAt.getTime()
+                    ? "Updated by status query"
+                    : "Updated by callback"
+                  : null;
 
-              const statusSource = callbackReceivedAt
-                ? statusLastCheckedAt &&
-                    callbackReceivedAt.getTime() < statusLastCheckedAt.getTime()
-                  ? "Updated by status query"
-                  : "Updated by callback"
-                : null;
-
-              return (
-                <>
-                  <div className="mt-2 text-xs font-medium text-muted-foreground">Order details</div>
-                  <dl className="mt-1 space-y-1">
-                    <DetailRow label="Status" value={step.status} valueClassName="font-medium" />
-                    <DetailRow label="Next action" value={step.nextAction} />
-                    {tradeOrder.provider_order_id ? (
-                      <DetailRow label="Order ID" value={tradeOrder.provider_order_id} valueClassName="font-medium" />
+                return (
+                  <>
+                    <div className="mt-2 text-xs font-medium text-muted-foreground">Order details</div>
+                    <dl className="mt-1 space-y-1">
+                      <DetailRow label="Status" value={step.status} valueClassName="font-medium" />
+                      {tradeOrder.provider_order_id ? (
+                        <DetailRow
+                          label="Order ID"
+                          value={tradeOrder.provider_order_id}
+                          valueClassName="font-medium"
+                        />
+                      ) : null}
+                      {parsed.orderDate ? (
+                        <DetailRow
+                          label="Order date"
+                          value={parsed.orderDate}
+                          valueClassName="font-medium"
+                        />
+                      ) : null}
+                      {parsed.valueDate ? (
+                        <DetailRow
+                          label="Value date"
+                          value={parsed.valueDate}
+                          valueClassName="font-medium"
+                        />
+                      ) : null}
+                      {parsed.orderAmount ? (
+                        <DetailRow
+                          label="Order amount"
+                          value={parsed.orderAmount}
+                          valueClassName="font-medium"
+                        />
+                      ) : null}
+                      {parsed.murabahaAmount ? (
+                        <DetailRow
+                          label="Murabaha amount"
+                          value={parsed.murabahaAmount}
+                          valueClassName="font-medium"
+                        />
+                      ) : null}
+                      {statusSource ? (
+                        <DetailRow
+                          label="Status source"
+                          value={statusSource}
+                          valueClassName="font-medium"
+                        />
+                      ) : null}
+                      {tradeOrder.callback_received_at ? (
+                        <DetailRow
+                          label="Callback received"
+                          value={format(
+                            new Date(tradeOrder.callback_received_at),
+                            "dd MMM yyyy, h:mm a"
+                          )}
+                          valueClassName="font-medium"
+                        />
+                      ) : null}
+                      {tradeOrder.status_last_checked_at ? (
+                        <DetailRow
+                          label="Last checked"
+                          value={format(
+                            new Date(tradeOrder.status_last_checked_at),
+                            "dd MMM yyyy, h:mm a"
+                          )}
+                          valueClassName="font-medium"
+                        />
+                      ) : null}
+                    </dl>
+                    {parsed.orderDate || parsed.valueDate ? (
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Order date = Tawarruq trade submission date. Value date = intended
+                        disbursement date.
+                      </p>
                     ) : null}
-                    {parsed.orderDate ? (
-                      <DetailRow label="Order date" value={parsed.orderDate} valueClassName="font-medium" />
+                    {state.cutoffWarning ? (
+                      <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
+                        {state.cutoffWarning}
+                      </div>
                     ) : null}
-                    {parsed.valueDate ? (
-                      <DetailRow label="Value date" value={parsed.valueDate} valueClassName="font-medium" />
-                    ) : null}
-                    {parsed.orderAmount ? (
-                      <DetailRow label="Order amount" value={parsed.orderAmount} valueClassName="font-medium" />
-                    ) : null}
-                    {parsed.murabahaAmount ? (
-                      <DetailRow
-                        label="Murabaha amount"
-                        value={parsed.murabahaAmount}
-                        valueClassName="font-medium"
-                      />
-                    ) : null}
-                    {statusSource ? (
-                      <DetailRow label="Status source" value={statusSource} valueClassName="font-medium" />
-                    ) : null}
-                    {tradeOrder.callback_received_at ? (
-                      <DetailRow
-                        label="Callback received"
-                        value={format(
-                          new Date(tradeOrder.callback_received_at),
-                          "dd MMM yyyy, h:mm a"
-                        )}
-                        valueClassName="font-medium"
-                      />
-                    ) : null}
-                    {tradeOrder.status_last_checked_at ? (
-                      <DetailRow
-                        label="Last checked"
-                        value={format(
-                          new Date(tradeOrder.status_last_checked_at),
-                          "dd MMM yyyy, h:mm a"
-                        )}
-                        valueClassName="font-medium"
-                      />
-                    ) : null}
-                  </dl>
-                  {parsed.orderDate || parsed.valueDate ? (
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      Order date = Tawarruq trade submission date. Value date = intended disbursement
-                      date.
-                    </p>
-                  ) : null}
-                  {state.cutoffWarning ? (
-                    <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
-                      {state.cutoffWarning}
-                    </div>
-                  ) : null}
-                </>
-              );
-            })()
-          )}
+                  </>
+                );
+              })()}
+            </>
+          ) : null}
 
           {isMalaysiaUnsafeShorakaSubmitWindow && shorakaStateQuery.data == null ? (
             <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">

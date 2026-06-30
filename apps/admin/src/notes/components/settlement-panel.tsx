@@ -882,6 +882,12 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
     paymentActionsOpen && (pendingPayments.length > 0 || canRecordMoreReceipts);
   const repaymentReceiptsSectionComplete =
     repaymentReceiptsThresholdMet || persistedPostedSettlement != null;
+  const repaymentCollectionIncomplete =
+    !persistedPostedSettlement &&
+    (pendingPayments.length > 0 || !repaymentReceiptsThresholdMet);
+  const repaymentIsCurrentStep = repaymentCollectionIncomplete;
+  const settlementIsCurrentStep =
+    !persistedPostedSettlement && !repaymentCollectionIncomplete;
   const settlementWaterfallSectionComplete = persistedPostedSettlement != null;
   const settlementFlowStep: 1 | 2 | 3 = persistedPostedSettlement
     ? 3
@@ -954,9 +960,9 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
               };
   const settlementSectionSurfaceClass = persistedPostedSettlement
     ? SECTION_COMPLETE_CLASS
-    : settlementStatusDisplay.tone === "blocked"
-      ? "border-amber-300 bg-amber-50/30"
-      : SETTLEMENT_ACTIVE_STEP_CLASS;
+    : settlementIsCurrentStep
+      ? SETTLEMENT_ACTIVE_STEP_CLASS
+      : "border-border bg-muted/20";
   const settlementBlockerDisplay =
     persistedPostedSettlement || !settlementActionBlockedReason
       ? null
@@ -1610,9 +1616,9 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
               "rounded-xl border p-4",
               repaymentReceiptsSectionComplete
                 ? SECTION_COMPLETE_CLASS
-                : repaymentReceiptsNeedAttention
-                  ? ACTION_CARD_CLASS
-                  : "bg-muted/20"
+                : repaymentIsCurrentStep
+                  ? SETTLEMENT_ACTIVE_STEP_CLASS
+                  : "border-border bg-muted/20"
             )}
           >
             {repaymentReceiptsSectionComplete ? (
@@ -1881,17 +1887,12 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <div className="text-sm font-medium">2. Settlement &amp; waterfall</div>
-                {!persistedPostedSettlement ? (
+                {!persistedPostedSettlement && settlementIsCurrentStep ? (
                   <Badge
                     variant="outline"
-                    className={cn(
-                      "text-xs font-normal",
-                      settlementStatusDisplay.tone === "blocked"
-                        ? "border-amber-300 bg-amber-50/80 text-amber-900"
-                        : "border-primary/30 bg-background text-foreground"
-                    )}
+                    className="border-primary/30 bg-background text-xs font-normal text-foreground"
                   >
-                    {settlementStatusDisplay.tone === "blocked" ? "Action required" : "Current step"}
+                    Current step
                   </Badge>
                 ) : null}
               </div>
@@ -1916,11 +1917,11 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
             <div
               className={cn(
                 "mt-3 rounded-lg border px-3 py-2.5",
-                settlementStatusDisplay.tone === "success" &&
-                  "border-emerald-200 bg-emerald-50/80",
-                settlementStatusDisplay.tone === "blocked" && "border-amber-300 bg-amber-50",
-                settlementStatusDisplay.tone === "active" &&
-                  "border-primary/35 bg-primary/5"
+                settlementStatusDisplay.tone === "success"
+                  ? "border-emerald-200 bg-emerald-50/80"
+                  : settlementIsCurrentStep
+                    ? "border-primary/35 bg-primary/5"
+                    : "border-border bg-muted/20"
               )}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1928,9 +1929,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                   <div
                     className={cn(
                       "text-sm font-semibold",
-                      settlementStatusDisplay.tone === "success" && "text-emerald-900",
-                      settlementStatusDisplay.tone === "blocked" && "text-amber-900",
-                      settlementStatusDisplay.tone === "active" && "text-foreground"
+                      settlementStatusDisplay.tone === "success" && "text-emerald-900"
                     )}
                   >
                     {settlementStatusDisplay.title}
@@ -1940,9 +1939,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                       "mt-0.5 text-xs",
                       settlementStatusDisplay.tone === "success"
                         ? "text-emerald-800"
-                        : settlementStatusDisplay.tone === "blocked"
-                          ? "text-amber-900"
-                          : "text-muted-foreground"
+                        : "text-muted-foreground"
                     )}
                   >
                     {settlementStatusDisplay.description}

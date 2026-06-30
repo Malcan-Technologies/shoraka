@@ -528,81 +528,81 @@ export default function NoteDetailPage() {
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)]">
                 <div className="min-w-0 space-y-4">
                   <div className="w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-xl bg-muted p-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/30">
-                    <div className="flex h-10 w-max min-w-full flex-nowrap items-center gap-1 px-0.5 text-muted-foreground">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setActiveNoteTab("disbursement")}
-                        className={
-                          activeNoteTab === "disbursement"
-                            ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
-                            : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
-                        }
-                      >
+                    <div className="flex h-10 w-full min-w-max items-center justify-between gap-4 px-0.5 text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setActiveNoteTab("disbursement")}
+                          className={
+                            activeNoteTab === "disbursement"
+                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
+                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                          }
+                        >
+                          <span
+                            aria-hidden
+                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[disbursementTabStatus].dotClass}`}
+                          />
+                          <span className="truncate">Disbursement</span>
+                          <span className="sr-only">
+                            Status: {TAB_STATUS_BADGE_COPY[disbursementTabStatus].label}
+                          </span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setActiveNoteTab("servicing-settlement")}
+                          className={
+                            activeNoteTab === "servicing-settlement"
+                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
+                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                          }
+                        >
+                          <span
+                            aria-hidden
+                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].dotClass}`}
+                          />
+                          <span className="truncate">Servicing &amp; Settlement</span>
+                          <span className="sr-only">
+                            Status: {TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].label}
+                          </span>
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-1">
                         <span
+                          className="shrink-0 select-none px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70"
                           aria-hidden
-                          className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[disbursementTabStatus].dotClass}`}
-                        />
-                        <span className="truncate">Disbursement</span>
-                        <span className="sr-only">
-                          Status: {TAB_STATUS_BADGE_COPY[disbursementTabStatus].label}
+                        >
+                          Reference
                         </span>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setActiveNoteTab("servicing-settlement")}
-                        className={
-                          activeNoteTab === "servicing-settlement"
-                            ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
-                            : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
-                        }
-                      >
-                        <span
-                          aria-hidden
-                          className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].dotClass}`}
-                        />
-                        <span className="truncate">Servicing &amp; Settlement</span>
-                        <span className="sr-only">
-                          Status: {TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].label}
-                        </span>
-                      </Button>
-                      <span
-                        className="mx-1 h-4 w-px shrink-0 bg-border/80"
-                        aria-hidden
-                      />
-                      <span
-                        className="shrink-0 select-none px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70"
-                        aria-hidden
-                      >
-                        Reference
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setActiveNoteTab("ledger")}
-                        className={
-                          activeNoteTab === "ledger"
-                            ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
-                            : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
-                        }
-                      >
-                        <span className="truncate">Ledger</span>
-                        <span className="sr-only">Read-only reference</span>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setActiveNoteTab("investors")}
-                        className={
-                          activeNoteTab === "investors"
-                            ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
-                            : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
-                        }
-                      >
-                        <span className="truncate">Investors</span>
-                        <span className="sr-only">Read-only reference</span>
-                      </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setActiveNoteTab("ledger")}
+                          className={
+                            activeNoteTab === "ledger"
+                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
+                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                          }
+                        >
+                          <span className="truncate">Ledger</span>
+                          <span className="sr-only">Read-only reference</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setActiveNoteTab("investors")}
+                          className={
+                            activeNoteTab === "investors"
+                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
+                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                          }
+                        >
+                          <span className="truncate">Investors</span>
+                          <span className="sr-only">Read-only reference</span>
+                        </Button>
+                      </div>
                     </div>
                   </div>
 
