@@ -66,6 +66,17 @@ function gatewayFeeSen(item: CurlecSettlementReconItem): number {
   return (item.fee ?? 0) + (item.tax ?? 0);
 }
 
+/**
+ * Fetches the settled recon line items for a MYT calendar date.
+ * Injectable so dev tooling and tests can supply canned data (Curlec test mode
+ * never produces real settlements). Production always uses the default.
+ */
+export type ReconItemsFetcher = (
+  year: number,
+  month: number,
+  day: number
+) => Promise<CurlecSettlementReconItem[]>;
+
 async function fetchAllReconItemsForDate(
   year: number,
   month: number,
@@ -95,7 +106,8 @@ async function fetchAllReconItemsForDate(
 
 export async function runGatewaySettlementReconJob(
   input: { runDate?: Date; triggeredBy?: string } = {},
-  db: PrismaClient = defaultPrisma
+  db: PrismaClient = defaultPrisma,
+  fetchReconItems: ReconItemsFetcher = fetchAllReconItemsForDate
 ): Promise<GatewaySettlementReconResult> {
   const runDate = input.runDate ?? getYesterdayMytDateOnly();
   const triggeredBy = input.triggeredBy ?? "CRON";
@@ -130,7 +142,7 @@ export async function runGatewaySettlementReconJob(
   let exceptionsCount = 0;
 
   try {
-    const allItems = await fetchAllReconItemsForDate(year, month, day);
+    const allItems = await fetchReconItems(year, month, day);
     const paymentLines = allItems.filter(isSettledPaymentLine);
     settlementsScanned = paymentLines.length;
 
