@@ -1,9 +1,11 @@
-import type {
-  GatewayOrganizationType,
-  GatewayPaymentPurpose,
-  GatewayPaymentStatus,
-  NameCheckResult,
-} from "@prisma/client";
+import type { GatewayPaymentStatus, NameCheckResult } from "./notes";
+
+export type GatewayPaymentPurpose =
+  | "INVESTOR_DEPOSIT"
+  | "ISSUER_ONBOARDING_FEE"
+  | "APPLICATION_PROCESSING_FEE";
+
+export type GatewayOrganizationType = "INVESTOR" | "ISSUER";
 
 export type GatewayPaymentEventType =
   | "NAME_CHECK"

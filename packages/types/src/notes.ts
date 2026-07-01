@@ -939,7 +939,7 @@ export type GatewayPaymentStatus =
   | "FAILED"
   | "EXPIRED";
 
-export type NameCheckResult = "PASS" | "FAIL" | "NAME_UNAVAILABLE";
+export type NameCheckResult = "PASS" | "REVIEW" | "FAIL" | "NAME_UNAVAILABLE";
 
 export interface InvestorDepositLimits {
   minAmount: number;
