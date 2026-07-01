@@ -363,24 +363,6 @@ function calculateCalendarDayCount(startDate: Date, endDate: Date) {
   );
 }
 
-function getOverdueSnapshot(note: NoteDetail) {
-  const dueDateValue = resolvePaymentDueDate(note);
-  if (!dueDateValue) {
-    return { daysPastMaturity: 0, daysOverdue: 0, label: "No payment due date set" };
-  }
-  const dueDate = new Date(dueDateValue);
-  const today = new Date();
-  const daysPastMaturity = calculateCalendarDayCount(dueDate, today);
-  const daysOverdue = Math.max(0, daysPastMaturity - note.gracePeriodDays);
-  const label =
-    daysOverdue > 0
-      ? `${daysOverdue} day${daysOverdue === 1 ? "" : "s"} overdue`
-      : daysPastMaturity > 0
-        ? `Within grace period (${Math.max(0, note.gracePeriodDays - daysPastMaturity)} days left)`
-        : "Not overdue";
-  return { daysPastMaturity, daysOverdue, label };
-}
-
 function readHeadroomFromPreviewSnapshot(snapshot: Record<string, unknown> | undefined) {
   const value = snapshot?.availableLateFeeHeadroomAmount;
   return typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -448,24 +430,6 @@ function getLateFeeLedgerSummary(note: NoteDetail) {
 
 function formatMaturityDate(value: string | null) {
   return value ? format(new Date(value), "dd MMM yyyy") : "Not set";
-}
-
-function formatMaturityTiming(value: string | null) {
-  if (!value) return "No maturity date set";
-  const maturityDate = new Date(value);
-  const today = new Date();
-  const maturityStart = new Date(
-    maturityDate.getFullYear(),
-    maturityDate.getMonth(),
-    maturityDate.getDate()
-  );
-  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const days = Math.round((maturityStart.getTime() - todayStart.getTime()) / 86_400_000);
-  const absoluteDays = Math.abs(days);
-  const dayLabel = `${absoluteDays} day${absoluteDays === 1 ? "" : "s"}`;
-
-  if (days === 0) return "Due today";
-  return days > 0 ? `${dayLabel} remaining` : `${dayLabel} overdue`;
 }
 
 export type SettlementPanelSection = "settlement" | "late-payment";
@@ -657,8 +621,16 @@ export function SettlementPanel({
   const paymentDueDateValue = resolvePaymentDueDate(note);
   const maturityDateLabel = formatMaturityDate(note.maturityDate);
   const paymentDueDateLabel = formatMaturityDate(paymentDueDateValue);
-  const maturityTimingLabel = formatMaturityTiming(paymentDueDateValue ?? note.maturityDate);
-  const overdueSnapshot = getOverdueSnapshot(note);
+  const latePaymentTimeline = React.useMemo(() => resolveLatePaymentTimeline(note), [note]);
+  const maturityTimingLabel = latePaymentTimeline.timingLabel;
+  const overdueSnapshot = React.useMemo(
+    () => ({
+      daysPastMaturity: latePaymentTimeline.daysPastMaturity,
+      daysOverdue: latePaymentTimeline.daysOverdue,
+      label: latePaymentTimeline.lateFeeStatusLabel,
+    }),
+    [latePaymentTimeline]
+  );
   const noteIsOverdue = overdueSnapshot.daysOverdue > 0;
   const profitMaturityDateValue = resolveProfitMaturityDate(note);
   const profitMaturityDateLabel = formatMaturityDate(profitMaturityDateValue);
@@ -1036,7 +1008,6 @@ export function SettlementPanel({
       settlementBlockerDisplay.message.startsWith("Recorded receipt"));
   const overdueActionAvailable = servicingOpen && noteIsOverdue;
   const canMarkDefault = note.servicingStatus === "ARREARS";
-  const latePaymentTimeline = React.useMemo(() => resolveLatePaymentTimeline(note), [note]);
   const latePaymentActionGates = React.useMemo(
     () =>
       resolveLatePaymentActionGates({
@@ -1595,7 +1566,8 @@ export function SettlementPanel({
                   {note.gracePeriodDays} + {note.arrearsThresholdDays} days
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">
-                  Grace period plus arrears threshold
+                  {note.gracePeriodDays}-day grace, then {note.arrearsThresholdDays}-day arrears
+                  threshold before default actions
                 </div>
               </div>
               <div className="rounded-xl border bg-card p-4">
@@ -1633,7 +1605,7 @@ export function SettlementPanel({
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    <Badge variant="secondary">{latePaymentTimeline.overdueLabel}</Badge>
+                    <Badge variant="secondary">{latePaymentTimeline.lateFeeStatusLabel}</Badge>
                     {pendingLateFeeTotal > 0.005 ? (
                       <div className="flex flex-wrap justify-end gap-1.5">
                         <Badge variant="outline">
@@ -1751,7 +1723,7 @@ export function SettlementPanel({
                 <div className="min-w-0">
                   <div className="text-xs font-medium text-muted-foreground">Late fees</div>
                   <p className="text-[11px] text-muted-foreground">
-                    No charges · {latePaymentTimeline.overdueLabel.toLowerCase()}
+                    No charges · {latePaymentTimeline.lateFeeStatusLabel}
                     {paymentDueDateLabel ? ` (due ${paymentDueDateLabel})` : ""}
                   </p>
                 </div>
