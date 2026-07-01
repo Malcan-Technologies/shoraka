@@ -180,30 +180,6 @@ function buildDisbursementSubSteps(withdrawal: WithdrawalInstruction | null): {
   return { steps, tone };
 }
 
-type PayoutSubStep = {
-  id: "INITIATED" | "LETTER" | "SUBMITTED" | "DISBURSED";
-  label: string;
-  status: "done" | "current" | "pending";
-};
-
-function buildPayoutSubSteps(withdrawalStatus: string, initiatedLabel: string): PayoutSubStep[] {
-  const completedThrough =
-    withdrawalStatus === "COMPLETED"
-      ? 3
-      : withdrawalStatus === "SUBMITTED_TO_TRUSTEE"
-        ? 2
-        : withdrawalStatus === "LETTER_GENERATED"
-          ? 1
-          : 0;
-  const labels = [initiatedLabel, "Letter generated", "Submitted to trustee", "Disbursed"];
-  const ids: Array<PayoutSubStep["id"]> = ["INITIATED", "LETTER", "SUBMITTED", "DISBURSED"];
-  return labels.map((label, idx) => ({
-    id: ids[idx],
-    label,
-    status: idx <= completedThrough ? "done" : idx === completedThrough + 1 ? "current" : "pending",
-  }));
-}
-
 type ServiceFeeSubStep = {
   id: "POSTED" | "LETTER" | "SUBMITTED" | "COMPLETED";
   label: string;
@@ -533,18 +509,11 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
   const currentStage = STAGES[activeIndex];
   const autoClose = isFundingOpen ? getAutoCloseInfo(note) : null;
   const latePaymentTimeline = React.useMemo(() => resolveLatePaymentTimeline(note), [note]);
-  const pendingResidualWithdrawal =
-    (note.withdrawals ?? []).find(
-      (w) =>
-        w.withdrawalType === "ISSUER_RESIDUAL_RETURN" &&
-        w.status !== "COMPLETED" &&
-        w.status !== "CANCELLED"
-    ) ?? null;
   const disbursementWithdrawal = findIssuerDisbursementWithdrawal(note);
   const disbursementComplete = isDisbursementComplete(disbursementWithdrawal);
   const hasPostedSettlement = note.settlements.some((s) => s.status === "POSTED");
-  const awaitingResidual = !isComplete && hasPostedSettlement && pendingResidualWithdrawal !== null;
-  const terminalFailure = awaitingResidual ? null : getTerminalFailure(note, activeIndex);
+  const settlementInProgress = !isComplete && hasPostedSettlement;
+  const terminalFailure = getTerminalFailure(note, activeIndex);
   const showDisbursementStrip =
     !isComplete &&
     !terminalFailure &&
@@ -568,11 +537,6 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
     ? buildDisbursementSubSteps(disbursementWithdrawal)
     : null;
 
-  const residualSubSteps =
-    awaitingResidual && pendingResidualWithdrawal
-      ? buildPayoutSubSteps(pendingResidualWithdrawal.status, "Waterfall posted")
-      : null;
-
   const showLatePaymentStrip =
     !terminalFailure &&
     !isComplete &&
@@ -591,23 +555,23 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
     ? "Note fully repaid"
     : terminalFailure
       ? terminalFailure.label
-      : awaitingResidual
-        ? "Repayment in progress"
+      : settlementInProgress
+        ? "Completing settlement"
         : awaitingDisbursement
           ? "Awaiting issuer disbursement"
           : `Currently ${currentStage.label}`;
   const headerDescription = isComplete
-    ? "All investor obligations satisfied and issuer residual disbursed. The note lifecycle is complete."
+    ? "All settlement allocations are complete. The note lifecycle is complete."
     : terminalFailure
       ? terminalFailure.description
-      : awaitingResidual
-        ? "Settlement waterfall posted. Investors have been paid. The issuer residual refund must be disbursed to close the lifecycle."
+      : settlementInProgress
+        ? "Settlement has been posted to the ledger. Finish the settlement trustee instruction — including any issuer refund allocation — from the Servicing & Settlement tab."
         : awaitingDisbursement
           ? "Funding has closed. Complete issuer disbursement (Tawarruq, certificate, trustee instruction) before servicing begins."
           : null;
 
   const contextLines: string[] = [];
-  if (!terminalFailure && !isComplete && !awaitingDisbursement && !awaitingResidual) {
+  if (!terminalFailure && !isComplete && !awaitingDisbursement && !settlementInProgress) {
     if (isFundingOpen) {
       contextLines.push(
         `${note.fundingPercent.toFixed(1)}% of ${formatCurrency(note.targetAmount)} funded`
@@ -647,9 +611,9 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
                 <Badge variant="secondary" className="uppercase">
                   Pending Disbursement
                 </Badge>
-              ) : awaitingResidual ? (
+              ) : settlementInProgress ? (
                 <Badge variant="secondary" className="uppercase">
-                  Pending Refund
+                  Settlement in progress
                 </Badge>
               ) : null}
             </div>
@@ -727,21 +691,6 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
             steps={disbursementSubFlow.steps}
             tone={disbursementSubFlow.tone}
             helperText="Continue this from the Disbursement tab below."
-          />
-        ) : null}
-
-        {residualSubSteps ? (
-          <WorkflowSubFlowStrip
-            title="Issuer residual refund"
-            steps={residualSubSteps}
-            tone={
-              pendingResidualWithdrawal?.status === "COMPLETED"
-                ? "success"
-                : pendingResidualWithdrawal?.status === "SUBMITTED_TO_TRUSTEE"
-                  ? "warning"
-                  : "active"
-            }
-            helperText="Progress this from the Servicing & Settlement tab below."
           />
         ) : null}
 

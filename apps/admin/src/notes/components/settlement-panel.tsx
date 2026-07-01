@@ -858,7 +858,7 @@ export function SettlementPanel({
       sign: "-",
     },
     {
-      label: "Return residual to issuer",
+      label: "Issuer refund allocation",
       destination: "Issuer refund",
       amount: waterfallIssuerResidual,
       runningBalance: waterfallUnapplied,
@@ -2570,7 +2570,7 @@ export function SettlementPanel({
                     value={waterfallIssuerResidual}
                     description={poolAllocationDescription(
                       waterfallIssuerResidual,
-                      "Residual amount returned to issuer."
+                      "Issuer refund allocation from the repayment pool."
                     )}
                   />
                 </div>
@@ -3123,11 +3123,11 @@ export function SettlementPanel({
             <AlertDialogDescription>
               {settlementConfirm === "post" ? (
                 <>
-                  Posting credits the repayment pool and releases{" "}
-                  {formatCurrency(waterfallGrossReceipt)} across investor payouts, service fee, and
-                  issuer residual. If a residual payout is due, the note closes to further payment
-                  actions while the trustee disbursement is completed. This action writes ledger
-                  entries and cannot be undone.
+                  Posting credits the repayment pool and allocates{" "}
+                  {formatCurrency(waterfallGrossReceipt)} across investor payouts, platform service
+                  fee, late-fee accounts, and any issuer refund in the settlement waterfall. The
+                  note closes to further payment actions while the settlement trustee instruction is
+                  completed. This action writes ledger entries and cannot be undone.
                 </>
               ) : (
                 <>
