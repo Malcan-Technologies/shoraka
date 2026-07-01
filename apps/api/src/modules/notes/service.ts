@@ -205,6 +205,34 @@ function signatureImageExtensionForContentType(contentType: string): string {
   return "bin";
 }
 
+function hasSettlementTrusteeMovement(settlement: {
+  investor_principal: Prisma.Decimal;
+  investor_profit_net: Prisma.Decimal;
+  tawidh_investor_amount: Prisma.Decimal;
+  service_fee_amount: Prisma.Decimal;
+  tawidh_account_amount: Prisma.Decimal;
+  gharamah_amount: Prisma.Decimal;
+  issuer_residual_amount: Prisma.Decimal;
+}): boolean {
+  const investorPoolAmount =
+    toNumber(settlement.investor_principal) +
+    toNumber(settlement.investor_profit_net) +
+    toNumber(settlement.tawidh_investor_amount);
+  return (
+    investorPoolAmount > 0.005 ||
+    toNumber(settlement.service_fee_amount) > 0.005 ||
+    toNumber(settlement.tawidh_account_amount) > 0.005 ||
+    toNumber(settlement.gharamah_amount) > 0.005 ||
+    toNumber(settlement.issuer_residual_amount) > 0.005
+  );
+}
+
+function repaymentReceiptSourceLabel(source: string): string {
+  if (source === "PAYMASTER") return "Paymaster";
+  if (source === "ISSUER_ON_BEHALF") return "Issuer on behalf";
+  return "Repayment receipt";
+}
+
 /**
  * Normalises an issuer org's `bank_account_details` (RegTank structured shape:
  * `{ content: [{ fieldName, fieldValue }] }`) into the flat beneficiary snapshot
@@ -1594,20 +1622,40 @@ export class NoteService {
       orderBy: [{ created_at: "asc" }],
     });
 
-    if (withdrawals.length === 0) return { count: 0, items: [] };
+    const settlementsWithResidual = await prisma.noteSettlement.findMany({
+      where: {
+        status: NoteSettlementStatus.POSTED,
+        issuer_residual_amount: { gt: money(0.005) },
+      },
+      orderBy: [{ posted_at: "asc" }, { created_at: "asc" }],
+      select: {
+        id: true,
+        note_id: true,
+        issuer_residual_amount: true,
+        posted_at: true,
+        created_at: true,
+        service_fee_trustee_status: true,
+        service_fee_trustee_submitted_at: true,
+      },
+    });
+
+    if (withdrawals.length === 0 && settlementsWithResidual.length === 0) return { count: 0, items: [] };
 
     const noteIds = Array.from(
-      new Set(withdrawals.map((w) => w.note_id).filter(Boolean) as string[])
-    );
-    const issuerIds = Array.from(
-      new Set(withdrawals.map((w) => w.issuer_organization_id).filter(Boolean) as string[])
+      new Set([
+        ...withdrawals.map((w) => w.note_id).filter(Boolean),
+        ...settlementsWithResidual.map((s) => s.note_id),
+      ] as string[])
     );
     const notes = noteIds.length
       ? await prisma.note.findMany({
           where: { id: { in: noteIds } },
-          select: { id: true, title: true, status: true },
+          select: { id: true, title: true, status: true, issuer_organization_id: true },
         })
       : [];
+    const issuerIds = Array.from(
+      new Set(notes.map((note) => note.issuer_organization_id).filter(Boolean) as string[])
+    );
     const issuers = issuerIds.length
       ? await prisma.issuerOrganization.findMany({
           where: { id: { in: issuerIds } },
@@ -1617,18 +1665,46 @@ export class NoteService {
     const noteMap = new Map(notes.map((n) => [n.id, n]));
     const issuerMap = new Map(issuers.map((i) => [i.id, i]));
 
-    const items = withdrawals.map((withdrawal) => {
+    const allLegacyResidualSettlements = new Set(
+      (await prisma.withdrawalInstruction.findMany({
+        where: {
+          withdrawal_type: WithdrawalType.ISSUER_RESIDUAL_RETURN,
+          settlement_id: { not: null },
+        },
+        select: { settlement_id: true },
+      }))
+        .map((row) => row.settlement_id)
+        .filter((value): value is string => typeof value === "string" && value.trim() !== "")
+    );
+    const settlementStatusToPayoutStatus = (
+      status: ServiceFeeTrusteeInstructionStatus | null
+    ): string => {
+      if (!status || status === ServiceFeeTrusteeInstructionStatus.PENDING_LETTER) {
+        return WithdrawalStatus.DRAFT;
+      }
+      if (status === ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED) {
+        return WithdrawalStatus.LETTER_GENERATED;
+      }
+      if (status === ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE) {
+        return WithdrawalStatus.SUBMITTED_TO_TRUSTEE;
+      }
+      return WithdrawalStatus.COMPLETED;
+    };
+
+    const withdrawalItems = withdrawals.map((withdrawal) => {
       const note = withdrawal.note_id ? noteMap.get(withdrawal.note_id) : undefined;
       const issuer = withdrawal.issuer_organization_id
         ? issuerMap.get(withdrawal.issuer_organization_id)
         : undefined;
       return {
         withdrawalId: withdrawal.id,
+        settlementId: withdrawal.settlement_id,
         noteId: withdrawal.note_id ?? "",
         noteTitle: note?.title ?? null,
         noteStatus: note?.status ?? null,
         issuerOrganizationId: issuer?.id ?? null,
         issuerOrganizationName: issuer?.name ?? null,
+        rowSource: "WITHDRAWAL" as const,
         withdrawalType: withdrawal.withdrawal_type,
         amount: toNumber(withdrawal.amount),
         currency: withdrawal.currency,
@@ -1638,6 +1714,41 @@ export class NoteService {
         createdAt: withdrawal.created_at.toISOString(),
       };
     });
+    const settlementItems = settlementsWithResidual
+      .filter((settlement) => !allLegacyResidualSettlements.has(settlement.id))
+      .map((settlement) => {
+        const note = noteMap.get(settlement.note_id);
+        const issuer = note?.issuer_organization_id
+          ? issuerMap.get(note.issuer_organization_id)
+          : undefined;
+        return {
+          withdrawalId: `settlement-residual:${settlement.id}`,
+          settlementId: settlement.id,
+          noteId: settlement.note_id,
+          noteTitle: note?.title ?? null,
+          noteStatus: note?.status ?? null,
+          issuerOrganizationId: issuer?.id ?? null,
+          issuerOrganizationName: issuer?.name ?? null,
+          rowSource: "SETTLEMENT_RESIDUAL" as const,
+          withdrawalType: WithdrawalType.ISSUER_RESIDUAL_RETURN,
+          amount: toNumber(settlement.issuer_residual_amount),
+          currency: "MYR",
+          status: settlementStatusToPayoutStatus(settlement.service_fee_trustee_status),
+          generatedAt:
+            settlement.service_fee_trustee_status === ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED ||
+            settlement.service_fee_trustee_status ===
+              ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE ||
+            settlement.service_fee_trustee_status === ServiceFeeTrusteeInstructionStatus.COMPLETED
+              ? settlement.created_at.toISOString()
+              : null,
+          submittedToTrusteeAt: settlement.service_fee_trustee_submitted_at?.toISOString() ?? null,
+          createdAt: (settlement.posted_at ?? settlement.created_at).toISOString(),
+        };
+      });
+
+    const items = [...withdrawalItems, ...settlementItems].sort(
+      (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
+    );
 
     return {
       count: items.length,
@@ -1665,13 +1776,27 @@ export class NoteService {
     const settlements = await prisma.noteSettlement.findMany({
       where: {
         status: NoteSettlementStatus.POSTED,
-        service_fee_amount: { gt: money(0.005) },
-        OR: [
-          { service_fee_trustee_status: null },
+        AND: [
           {
-            service_fee_trustee_status: {
-              not: ServiceFeeTrusteeInstructionStatus.COMPLETED,
-            },
+            OR: [
+              { investor_principal: { gt: money(0.005) } },
+              { investor_profit_net: { gt: money(0.005) } },
+              { tawidh_investor_amount: { gt: money(0.005) } },
+              { service_fee_amount: { gt: money(0.005) } },
+              { tawidh_account_amount: { gt: money(0.005) } },
+              { gharamah_amount: { gt: money(0.005) } },
+              { issuer_residual_amount: { gt: money(0.005) } },
+            ],
+          },
+          {
+            OR: [
+              { service_fee_trustee_status: null },
+              {
+                service_fee_trustee_status: {
+                  not: ServiceFeeTrusteeInstructionStatus.COMPLETED,
+                },
+              },
+            ],
           },
         ],
       },
@@ -1679,7 +1804,13 @@ export class NoteService {
       select: {
         id: true,
         note_id: true,
+        investor_principal: true,
+        investor_profit_net: true,
+        tawidh_investor_amount: true,
         service_fee_amount: true,
+        tawidh_account_amount: true,
+        gharamah_amount: true,
+        issuer_residual_amount: true,
         posted_at: true,
         service_fee_trustee_status: true,
         service_fee_trustee_submitted_at: true,
@@ -1710,6 +1841,14 @@ export class NoteService {
     const items = settlements.map((s) => {
       const note = noteMap.get(s.note_id);
       const issuer = note ? issuerMap.get(note.issuer_organization_id) : undefined;
+      const settlementTrusteeAmount =
+        toNumber(s.investor_principal) +
+        toNumber(s.investor_profit_net) +
+        toNumber(s.tawidh_investor_amount) +
+        toNumber(s.service_fee_amount) +
+        toNumber(s.tawidh_account_amount) +
+        toNumber(s.gharamah_amount) +
+        toNumber(s.issuer_residual_amount);
       return {
         settlementId: s.id,
         noteId: s.note_id,
@@ -1717,7 +1856,7 @@ export class NoteService {
         noteStatus: note?.status ?? null,
         issuerOrganizationId: issuer?.id ?? null,
         issuerOrganizationName: issuer?.name ?? null,
-        serviceFeeAmount: toNumber(s.service_fee_amount),
+        serviceFeeAmount: settlementTrusteeAmount,
         currency: "MYR",
         settlementPostedAt: s.posted_at?.toISOString() ?? null,
         trusteeInstructionStatus: s.service_fee_trustee_status,
@@ -3780,12 +3919,6 @@ export class NoteService {
 
     const residualAmount = toNumber(settlement.issuer_residual_amount);
     const hasResidual = residualAmount > 0.005;
-    const issuerOrg = hasResidual
-      ? await prisma.issuerOrganization.findUnique({
-          where: { id: settlement.note.issuer_organization_id },
-          select: { id: true, name: true, bank_account_details: true },
-        })
-      : null;
 
     const repaidInvestorSnapshot = await prisma.noteInvestment.findMany({
       where: { note_id: id, status: NoteInvestmentStatus.CONFIRMED },
@@ -3817,7 +3950,7 @@ export class NoteService {
           posted_at: new Date(),
           idempotency_key: `settlement:${settlementId}`,
           preview_snapshot: json(postedSnapshot),
-          ...(toNumber(settlement.service_fee_amount) > 0.005
+          ...(hasSettlementTrusteeMovement(settlement)
             ? { service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.PENDING_LETTER }
             : {}),
         },
@@ -3864,35 +3997,6 @@ export class NoteService {
       });
 
       if (hasResidual) {
-        const existingResidualWithdrawal = await tx.withdrawalInstruction.findFirst({
-          where: {
-            settlement_id: settlementId,
-            withdrawal_type: WithdrawalType.ISSUER_RESIDUAL_RETURN,
-          },
-        });
-        if (!existingResidualWithdrawal) {
-          await tx.withdrawalInstruction.create({
-            data: {
-              note_id: id,
-              settlement_id: settlementId,
-              issuer_organization_id: settlement.note.issuer_organization_id,
-              requested_by_user_id: actor.userId,
-              withdrawal_type: WithdrawalType.ISSUER_RESIDUAL_RETURN,
-              amount: money(residualAmount),
-              beneficiary_snapshot: buildBeneficiarySnapshot(issuerOrg) as Prisma.InputJsonValue,
-              metadata: {
-                autoCreatedAt: new Date().toISOString(),
-                autoCreatedBy: actor.userId,
-                issuerOrganizationName: issuerOrg?.name ?? null,
-                source: "POST_SETTLEMENT",
-              } as Prisma.InputJsonValue,
-            },
-          });
-          await this.logEvent(tx, id, "ISSUER_RESIDUAL_WITHDRAWAL_CREATED", actor, {
-            settlementId,
-            amount: residualAmount,
-          });
-        }
         await tx.note.update({
           where: { id },
           data: {
@@ -3914,7 +4018,7 @@ export class NoteService {
         settlementId,
         investorPayoutCount: settlementAllocations.length,
         residualAmount,
-        residualWithdrawalCreated: hasResidual,
+        residualWithdrawalCreated: false,
       });
     });
     await notifyNoteSettlementPosted({
@@ -4142,12 +4246,14 @@ export class NoteService {
       throw new AppError(
         409,
         "SETTLEMENT_NOT_POSTED",
-        "Service fee trustee letter can only be generated after settlement is posted."
+        "Settlement trustee letter can only be generated after settlement is posted."
       );
     }
 
     const investorRepayment =
-      toNumber(settlement.investor_principal) + toNumber(settlement.investor_profit_net);
+      toNumber(settlement.investor_principal) +
+      toNumber(settlement.investor_profit_net) +
+      toNumber(settlement.tawidh_investor_amount);
     const feeAmount = toNumber(settlement.service_fee_amount);
     const tawidhAmount = toNumber(settlement.tawidh_account_amount);
     const gharamahAmount = toNumber(settlement.gharamah_amount);
@@ -4182,19 +4288,26 @@ export class NoteService {
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
     const listItem = mapNoteListItem(note);
 
-    const payment = settlement.payment_id
-      ? await prisma.notePayment.findFirst({
-          where: { id: settlement.payment_id, note_id: noteId },
-        })
-      : null;
-
-    const payerName =
-      listItem.paymasterName ??
-      listItem.issuerName ??
-      (typeof payment?.reference === "string" ? payment.reference : null);
-
-    const receiptAmount = payment ? toNumber(payment.receipt_amount) : toNumber(settlement.gross_receipt_amount);
-    const receiptDate = payment?.receipt_date ?? settlement.posted_at ?? new Date();
+    const previewSnapshot = asRecord(settlement.preview_snapshot);
+    const includedPaymentIdsRaw = Array.isArray(previewSnapshot?.includedPaymentIds)
+      ? previewSnapshot.includedPaymentIds
+      : [];
+    const includedPaymentIds = includedPaymentIdsRaw.filter(
+      (value): value is string => typeof value === "string" && value.trim() !== ""
+    );
+    const settlementPayments =
+      includedPaymentIds.length > 0
+        ? await prisma.notePayment.findMany({
+            where: { note_id: noteId, id: { in: includedPaymentIds } },
+            orderBy: [{ receipt_date: "asc" }, { created_at: "asc" }],
+          })
+        : settlement.payment_id
+          ? await prisma.notePayment.findMany({
+              where: { id: settlement.payment_id, note_id: noteId },
+              orderBy: [{ receipt_date: "asc" }, { created_at: "asc" }],
+            })
+          : [];
+    const primaryPayment = settlementPayments[0] ?? null;
 
     const issuerOrg = note.issuer_organization_id
       ? await prisma.issuerOrganization.findUnique({
@@ -4202,17 +4315,47 @@ export class NoteService {
           select: { id: true, name: true, bank_account_details: true },
         })
       : null;
-
-    let borrowerEntries = buildRepaymentBorrowerEntries({
-      payerName,
-      receiptAmount,
-      receiptDate,
+    const issuerDisbursementWithdrawal = await prisma.withdrawalInstruction.findFirst({
+      where: {
+        note_id: noteId,
+        withdrawal_type: WithdrawalType.ISSUER_DISBURSEMENT,
+        status: { not: WithdrawalStatus.CANCELLED },
+      },
+      orderBy: [{ created_at: "desc" }],
+      select: { beneficiary_snapshot: true },
     });
-    if (borrowerEntries.length === 0 && listItem.issuerName) {
+    const issuerBeneficiarySnapshot =
+      asRecord(issuerDisbursementWithdrawal?.beneficiary_snapshot) ??
+      (issuerOrg ? buildBeneficiarySnapshot(issuerOrg) : null);
+
+    let borrowerEntries =
+      settlementPayments.length > 0
+        ? settlementPayments.map((payment) => {
+            const sourceLabel = repaymentReceiptSourceLabel(payment.source);
+            const partyName =
+              payment.source === "PAYMASTER"
+                ? listItem.paymasterName
+                : payment.source === "ISSUER_ON_BEHALF"
+                  ? listItem.issuerName
+                  : null;
+            const payerName =
+              partyName && partyName.trim() !== ""
+                ? `${sourceLabel} (${partyName.trim()})`
+                : sourceLabel;
+            const entry = buildRepaymentBorrowerEntries({
+              payerName,
+              receiptAmount: toNumber(payment.receipt_amount),
+              receiptDate: payment.receipt_date,
+            })[0];
+            return entry;
+          }).filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+        : [];
+    if (borrowerEntries.length === 0) {
+      const fallbackPayerName = listItem.paymasterName ?? listItem.issuerName ?? "Paymaster";
       borrowerEntries = buildRepaymentBorrowerEntries({
-        payerName: listItem.issuerName,
-        receiptAmount,
-        receiptDate,
+        payerName: fallbackPayerName,
+        receiptAmount: toNumber(settlement.gross_receipt_amount),
+        receiptDate: settlement.posted_at ?? new Date(),
       });
     }
 
@@ -4222,18 +4365,19 @@ export class NoteService {
       trusteeConfig.letterConfig
     );
     const repaymentAccountName =
-      payment?.received_into_account_code?.replace(/_/g, " ") ?? "Repayment Pool";
+      primaryPayment?.received_into_account_code?.replace(/_/g, " ") ?? "Repayment Pool";
 
     const letterData = {
       ...mapRepaymentLetterData({
         settlementId: settlement.id,
         investorPrincipal: toNumber(settlement.investor_principal),
         investorProfitNet: toNumber(settlement.investor_profit_net),
+        tawidhInvestorAmount: toNumber(settlement.tawidh_investor_amount),
         serviceFeeAmount: feeAmount,
         tawidhAccountAmount: tawidhAmount,
         gharamahAmount,
         issuerResidualAmount: issuerResidual,
-        issuerBeneficiarySnapshot: issuerOrg ? buildBeneficiarySnapshot(issuerOrg) : null,
+        issuerBeneficiarySnapshot: issuerBeneficiarySnapshot,
         issuerOrganizationName: issuerOrg?.name ?? null,
         borrowerEntries,
         repaymentAccountName,
@@ -4295,11 +4439,13 @@ export class NoteService {
       throw new AppError(
         409,
         "SETTLEMENT_NOT_POSTED",
-        "Only posted settlements can move the service fee trustee workflow forward."
+        "Only posted settlements can move the settlement trustee workflow forward."
       );
     }
     const investorRepayment =
-      toNumber(settlement.investor_principal) + toNumber(settlement.investor_profit_net);
+      toNumber(settlement.investor_principal) +
+      toNumber(settlement.investor_profit_net) +
+      toNumber(settlement.tawidh_investor_amount);
     const hasTrusteeContent =
       investorRepayment > 0.005 ||
       toNumber(settlement.service_fee_amount) > 0.005 ||
@@ -4366,11 +4512,13 @@ export class NoteService {
       throw new AppError(
         409,
         "SETTLEMENT_NOT_POSTED",
-        "Only posted settlements can complete the service fee trustee workflow."
+        "Only posted settlements can complete the settlement trustee workflow."
       );
     }
     const investorRepaymentComplete =
-      toNumber(settlement.investor_principal) + toNumber(settlement.investor_profit_net);
+      toNumber(settlement.investor_principal) +
+      toNumber(settlement.investor_profit_net) +
+      toNumber(settlement.tawidh_investor_amount);
     const hasTrusteeContentComplete =
       investorRepaymentComplete > 0.005 ||
       toNumber(settlement.service_fee_amount) > 0.005 ||
@@ -4396,6 +4544,7 @@ export class NoteService {
     }
 
     const completedAt = new Date();
+    const hasResidualRefund = toNumber(settlement.issuer_residual_amount) > 0.005;
     await prisma.$transaction(async (tx) => {
       const row = await tx.noteSettlement.updateMany({
         where: {
@@ -4414,6 +4563,65 @@ export class NoteService {
           "SERVICE_FEE_TRUSTEE_NOT_SUBMITTED",
           "Mark the instruction submitted to the trustee before completing it."
         );
+      }
+      if (hasResidualRefund) {
+        const issuerPayableId = await this.getLedgerAccountId(tx, "ISSUER_PAYABLE");
+        const legacyResidualClearEntry = await tx.noteLedgerEntry.findFirst({
+          where: {
+            note_id: noteId,
+            settlement_id: settlementId,
+            account_id: issuerPayableId,
+            direction: NoteLedgerDirection.DEBIT,
+            idempotency_key: { contains: ":issuer-residual-disbursement" },
+          },
+          select: { id: true },
+        });
+        const alreadyClearedByLegacyFlow = Boolean(legacyResidualClearEntry);
+        if (!alreadyClearedByLegacyFlow) {
+          await tx.noteLedgerEntry.upsert({
+            where: { idempotency_key: `settlement:${settlementId}:issuer-residual-clear` },
+            update: { amount: settlement.issuer_residual_amount },
+            create: {
+              note_id: noteId,
+              account_id: issuerPayableId,
+              settlement_id: settlementId,
+              payment_id: settlement.payment_id,
+              direction: NoteLedgerDirection.DEBIT,
+              amount: settlement.issuer_residual_amount,
+              description: "Issuer residual cleared on settlement trustee completion",
+              idempotency_key: `settlement:${settlementId}:issuer-residual-clear`,
+              metadata: {
+                actorUserId: actor.userId,
+                settlementId,
+                source: "SETTLEMENT_TRUSTEE_COMPLETED",
+              } as Prisma.InputJsonValue,
+            },
+          });
+        }
+        await tx.note.updateMany({
+          where: {
+            id: noteId,
+            status: { in: [NoteStatus.ACTIVE, NoteStatus.ARREARS, NoteStatus.DEFAULTED] },
+          },
+          data: {
+            status: NoteStatus.REPAID,
+            servicing_status: NoteServicingStatus.SETTLED,
+            repaid_at: completedAt,
+          },
+        });
+        await tx.withdrawalInstruction.updateMany({
+          where: {
+            note_id: noteId,
+            settlement_id: settlementId,
+            withdrawal_type: WithdrawalType.ISSUER_RESIDUAL_RETURN,
+            status: {
+              notIn: [WithdrawalStatus.COMPLETED, WithdrawalStatus.CANCELLED],
+            },
+          },
+          data: {
+            status: WithdrawalStatus.CANCELLED,
+          },
+        });
       }
       await this.logEvent(tx, noteId, "SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED", actor, {
         settlementId,

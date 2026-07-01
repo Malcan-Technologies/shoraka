@@ -59,7 +59,7 @@ export default function ServiceFeeTrusteeLettersPage() {
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Service Fee Instructions</h1>
+        <h1 className="text-lg font-semibold">Settlement Trustee Letters</h1>
         <div className="ml-auto flex items-center gap-2">
           <Button
             variant="ghost"
@@ -82,11 +82,11 @@ export default function ServiceFeeTrusteeLettersPage() {
                 <ArrowsRightLeftIcon className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold">Trustee instructions — service fee (pools)</h2>
+                <h2 className="text-lg font-semibold">Settlement Trustee Letters</h2>
                 <p className="text-sm text-muted-foreground">
-                  Posted settlements with a platform service fee stay here until the trustee
-                  instruction is marked complete (PDF, submitted, and closed out). Use section 3 on
-                  each note&apos;s settlement panel to run the workflow.
+                  Posted settlements stay here until the settlement trustee instruction is marked
+                  complete (PDF, submitted, and closed out). Use section 3 on each note&apos;s
+                  settlement panel to run the workflow.
                 </p>
               </div>
             </div>
@@ -110,7 +110,9 @@ export default function ServiceFeeTrusteeLettersPage() {
               </Card>
               <Card className="rounded-2xl">
                 <CardHeader>
-                  <CardTitle className="text-sm text-muted-foreground">Total service fee</CardTitle>
+                  <CardTitle className="text-sm text-muted-foreground">
+                    Total settlement trustee amount
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="text-2xl font-semibold">
                   {isLoading ? <Skeleton className="h-8 w-32" /> : formatCurrency(totalFee)}
@@ -134,7 +136,7 @@ export default function ServiceFeeTrusteeLettersPage() {
                       <TableHead>Note</TableHead>
                       <TableHead>Issuer</TableHead>
                       <TableHead>Settlement</TableHead>
-                      <TableHead className="text-right">Service fee</TableHead>
+                      <TableHead className="text-right">Trustee amount</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Settlement posted</TableHead>
                       <TableHead>Age (since post)</TableHead>
@@ -159,8 +161,8 @@ export default function ServiceFeeTrusteeLettersPage() {
                                 colSpan={8}
                                 className="py-10 text-center text-sm text-muted-foreground"
                               >
-                                No pending service fee trustee work. Every posted settlement with a
-                                fee has completed the trustee instruction checklist, or there are no
+                                No pending settlement trustee work. Every posted settlement has
+                                completed the trustee instruction checklist, or there are no
                                 qualifying settlements.
                               </TableCell>
                             </TableRow>

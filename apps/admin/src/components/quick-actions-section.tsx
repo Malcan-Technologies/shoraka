@@ -210,8 +210,8 @@ export function QuickActionsSection({
           )}
           {canServiceFee && (
             <QuickActionCard
-              title="Service Fee Instructions"
-              description="Posted settlements with a service fee still in the trustee instruction workflow"
+              title="Settlement Trustee Letters"
+              description="Posted settlements still in the settlement trustee instruction workflow"
               count={pendingServiceFeeLettersCount}
               countLabel="pending"
               href="/finance/service-fee-trustee-letters"

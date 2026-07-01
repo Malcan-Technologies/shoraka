@@ -22,6 +22,7 @@
     "seed-application-new-contract": "tsx scripts/seed-application-new-contract.ts",
     "seed-application-invoice-only": "tsx scripts/seed-application-invoice-only.ts",
     "seed-application-existing-contract": "tsx scripts/seed-application-existing-contract.ts",
+    "seed-approved-invoices-for-notes": "tsx scripts/seed-approved-invoices-for-notes.ts",
     "seed-note-scenarios": "tsx scripts/seed-note-scenarios.ts",
     "seed-prefunding-test-notes": "tsx scripts/seed-prefunding-test-notes.ts",
     "run-offer-expiry": "tsx scripts/run-offer-expiry.ts",

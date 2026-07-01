@@ -135,7 +135,7 @@ const navFinance = [
     badgeKey: "pendingRepayments" as const,
   },
   {
-    title: "Service Fee",
+    title: "Settlement Trustee",
     url: "/finance/service-fee-trustee-letters",
     icon: ArrowsRightLeftIcon,
     badgeKey: "pendingServiceFeeTrusteeLetters" as const,
@@ -308,7 +308,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return (
       (item.title === "Bucket Balances" && canViewBucketBalances) ||
       (item.title === "Repayments" && canViewRepayments) ||
-      (item.title === "Service Fee" && canViewServiceFee) ||
+      (item.title === "Settlement Trustee" && canViewServiceFee) ||
       (item.title === "Issuer Payouts" && canViewDisbursements) ||
       (item.title === "Investor Withdrawals" && canViewInvestorWithdrawals) ||
       (item.title === "Gateway Payments" && canViewGatewayPayments) ||
@@ -588,7 +588,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     const canShow =
                       (item.title === "Bucket Balances" && canViewBucketBalances) ||
                       (item.title === "Repayments" && canViewRepayments) ||
-                      (item.title === "Service Fee" && canViewServiceFee) ||
+                      (item.title === "Settlement Trustee" && canViewServiceFee) ||
                       (item.title === "Issuer Payouts" && canViewDisbursements) ||
       (item.title === "Investor Withdrawals" && canViewInvestorWithdrawals) ||
       (item.title === "Gateway Payments" && canViewGatewayPayments) ||

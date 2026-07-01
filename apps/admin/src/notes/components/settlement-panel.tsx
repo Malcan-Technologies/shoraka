@@ -50,7 +50,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
-import { IssuerPayoutCard } from "./issuer-payout-card";
 import {
   useApproveNotePayment,
   useApproveNoteSettlement,
@@ -139,6 +138,35 @@ function getSettlementAmount(note: NoteDetail) {
 
 function settlementIsComplete(grossReceiptAmount: number, settlementAmount: number) {
   return settlementAmount > 0 && grossReceiptAmount + 0.005 >= settlementAmount;
+}
+
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function beneficiaryFieldsFromSnapshot(snapshot: Record<string, unknown> | null | undefined) {
+  const src = snapshot ?? {};
+  return {
+    accountHolder: asString(src.account_holder ?? src.accountHolder ?? src.beneficiary_name),
+    bankName: asString(src.bank_name ?? src.bankName),
+    accountNumber: asString(src.account_number ?? src.accountNumber),
+  };
+}
+
+function hasSettlementTrusteeMovement(input: {
+  investorPoolAmount: number;
+  operatingAccountAmount: number;
+  tawidhAccountAmount: number;
+  gharamahAmount: number;
+  issuerResidualAmount: number;
+}) {
+  return (
+    input.investorPoolAmount > 0.005 ||
+    input.operatingAccountAmount > 0.005 ||
+    input.tawidhAccountAmount > 0.005 ||
+    input.gharamahAmount > 0.005 ||
+    input.issuerResidualAmount > 0.005
+  );
 }
 
 function roundToTwoDecimals(value: number) {
@@ -534,18 +562,6 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
   const displayedSettlement =
     persistedPostedSettlement ?? postSettlementCandidate ?? preview ?? persistedPreviewSettlement;
   const displayedSettlementRecord = displayedSettlement as Record<string, unknown> | null;
-  const displayedSettlementId = displayedSettlementRecord
-    ? ((displayedSettlementRecord["id"] as string | undefined) ?? null)
-    : null;
-  const residualWithdrawal = (() => {
-    const list = note.withdrawals ?? [];
-    const issuerResiduals = list.filter((w) => w.withdrawalType === "ISSUER_RESIDUAL_RETURN");
-    if (issuerResiduals.length === 0) return null;
-    const forSettlement = displayedSettlementId
-      ? issuerResiduals.find((w) => w.settlementId === displayedSettlementId)
-      : null;
-    return forSettlement ?? issuerResiduals[0] ?? null;
-  })();
   const waterfallGrossReceipt = displayedSettlementRecord
     ? getSettlementValue(displayedSettlementRecord, "grossReceiptAmount")
     : 0;
@@ -599,6 +615,29 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
       : null;
   const waterfallInvestorPoolTotal =
     waterfallInvestorPrincipal + waterfallInvestorProfitNet + waterfallTawidhInvestor;
+  const showSettlementTrusteeWorkflow = hasSettlementTrusteeMovement({
+    investorPoolAmount: waterfallInvestorPoolTotal,
+    operatingAccountAmount: waterfallServiceFee,
+    tawidhAccountAmount: waterfallTawidh,
+    gharamahAmount: waterfallGharamah,
+    issuerResidualAmount: waterfallIssuerResidual,
+  });
+  const issuerDisbursementWithdrawal =
+    note.withdrawals.find(
+      (withdrawal) =>
+        withdrawal.withdrawalType === "ISSUER_DISBURSEMENT" &&
+        withdrawal.status !== "CANCELLED"
+    ) ?? null;
+  const issuerResidualWithdrawal =
+    note.withdrawals.find(
+      (withdrawal) =>
+        withdrawal.withdrawalType === "ISSUER_RESIDUAL_RETURN" &&
+        withdrawal.status !== "CANCELLED"
+    ) ?? null;
+  const issuerResidualBeneficiary = beneficiaryFieldsFromSnapshot(
+    (issuerDisbursementWithdrawal?.beneficiarySnapshot as Record<string, unknown> | null | undefined) ??
+      (issuerResidualWithdrawal?.beneficiarySnapshot as Record<string, unknown> | null | undefined)
+  );
   const waterfallRows = [
     {
       label: "Gross receipt from paymaster or issuer",
@@ -1094,7 +1133,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
         noteId: note.id,
         settlementId: persistedPostedSettlement.id,
       });
-      toast.success(`Service fee trustee letter generated: ${result.s3Key}`);
+      toast.success(`Settlement trustee letter generated: ${result.s3Key}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate letter");
     }
@@ -1131,15 +1170,15 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
       ? {
           title: "Submit to trustee?",
           description:
-            "Confirm the service fee pool instruction has been sent to the trustee. Mark it complete once they have processed the internal pool allocation.",
+            "Confirm the settlement trustee instruction has been sent to the trustee. Mark it complete once the settlement allocations have been processed.",
           confirmLabel: "Mark submitted",
         }
       : serviceFeeTrusteeConfirm === "complete"
         ? {
-            title: "Mark instruction complete?",
+            title: "Mark instruction completed?",
             description:
-              "Confirm the trustee has processed this internal Repayment pool → Operating account allocation. This closes the admin checklist for this settlement.",
-            confirmLabel: "Mark complete",
+              "Confirm the trustee has processed this settlement instruction. This closes the settlement trustee checklist.",
+            confirmLabel: "Mark completed",
           }
         : null;
 
@@ -1157,7 +1196,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
           noteId: note.id,
           settlementId: persistedPostedSettlement.id,
         });
-        toast.success("Service fee trustee instruction marked complete");
+        toast.success("Settlement trustee instruction marked complete");
       }
       setServiceFeeTrusteeConfirm(null);
     } catch (err) {
@@ -1804,7 +1843,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                     description="Charity/penalty portion of late charges."
                   />
                 </div>
-                {persistedPostedSettlement && persistedPostedSettlement.serviceFeeAmount > 0.005 ? (
+                {persistedPostedSettlement && showSettlementTrusteeWorkflow ? (
                   <div
                     className={cn(
                       "mt-4 rounded-xl border p-4",
@@ -1817,7 +1856,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                   >
                     {serviceFeeTrusteeNeedsPdf ? (
                       <div className="mb-2 text-xs font-medium uppercase tracking-wider text-destructive">
-                        Action required — trustee instruction PDF not generated
+                        Action required — settlement trustee letter not generated
                       </div>
                     ) : !serviceFeeTrusteeWorkflowComplete ? (
                       <div className="mb-2 text-xs font-medium uppercase tracking-wider text-amber-900">
@@ -1825,18 +1864,18 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                       </div>
                     ) : (
                       <div className="mb-2 text-xs font-medium uppercase tracking-wider text-emerald-900">
-                        Service fee trustee instruction complete
+                        Settlement trustee instruction complete
                       </div>
                     )}
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <div className="text-sm font-medium">
-                          Trustee instruction — service fee (internal pools)
+                          Settlement Trustee Letter
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          Documents allocation of the service fee from the Repayment pool to the
-                          Operating account for the posted settlement. This is not a bank payout;
-                          ledger entries were created when settlement was posted.
+                          Documents the full posted settlement waterfall from Repayment Pool to
+                          Investor Pool, Operating Account, Ta&apos;widh Account, Gharamah Account,
+                          and issuer residual refund (if any).
                         </p>
                         <div className="mt-2 text-xs text-muted-foreground">
                           Status:{" "}
@@ -1873,7 +1912,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                           disabled={serviceFeeTrusteeLetterLocked || serviceFeeTrusteePendingAny || !canDisbursement}
                           title={!canDisbursement ? "You do not have permission to perform this action." : undefined}
                         >
-                          Generate PDF
+                          Generate Letter
                         </Button>
                         {serviceFeeTrusteeStatus === "LETTER_GENERATED" ? (
                           <Button
@@ -1896,15 +1935,45 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                             disabled={serviceFeeTrusteePendingAny || !canDisbursement}
                             title={!canDisbursement ? "You do not have permission to perform this action." : undefined}
                           >
-                            Mark complete
+                            Mark completed
                           </Button>
                         ) : null}
                       </div>
                     </div>
+                    {waterfallIssuerResidual > 0.005 ? (
+                      <div className="mt-3 rounded-lg border bg-muted/30 p-3">
+                        <div className="text-sm font-medium">Issuer residual refund</div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Amount:{" "}
+                          <span className="font-medium text-foreground">
+                            {formatCurrency(waterfallIssuerResidual)}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Payee / Account holder:{" "}
+                          <span className="font-medium text-foreground">
+                            {issuerResidualBeneficiary.accountHolder || "—"}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Bank name:{" "}
+                          <span className="font-medium text-foreground">
+                            {issuerResidualBeneficiary.bankName || "—"}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Account number:{" "}
+                          <span className="font-medium text-foreground">
+                            {issuerResidualBeneficiary.accountNumber || "—"}
+                          </span>
+                        </div>
+                      </div>
+                    ) : null}
                     {serviceFeeTrusteeNeedsPdf ? (
                       <div className="mt-3 text-sm text-destructive">
-                        No PDF generated for this settlement yet. Generate the instruction for the
-                        trustee before marking the workflow submitted or complete.
+                        No settlement trustee letter generated for this settlement yet. Generate the
+                        instruction for the trustee before marking the workflow submitted or
+                        complete.
                       </div>
                     ) : null}
                     {serviceFeeTrusteeLetters.length > 0 ? (
@@ -1916,17 +1985,12 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                                 <div className="flex items-center gap-2">
                                   <DocumentTextIcon className="h-4 w-4 text-muted-foreground" />
                                   <span className="text-sm font-medium">
-                                    Service fee pool transfer
+                                    Settlement trustee instruction
                                   </span>
                                 </div>
                                 <div className="mt-1 text-xs text-muted-foreground">
                                   {format(new Date(letter.createdAt), "dd MMM yyyy, h:mm a")}
                                 </div>
-                                {letter.s3Key ? (
-                                  <div className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
-                                    {letter.s3Key}
-                                  </div>
-                                ) : null}
                               </div>
                               {letter.s3Key ? (
                                 <div className="flex shrink-0 flex-wrap gap-2">
@@ -1969,21 +2033,6 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                     {serviceFeeTrusteePendingAny ? (
                       <div className="mt-2 text-xs text-muted-foreground">Working…</div>
                     ) : null}
-                  </div>
-                ) : null}
-                {residualWithdrawal ? (
-                  <IssuerPayoutCard
-                    note={note}
-                    withdrawal={residualWithdrawal}
-                    kind="RESIDUAL"
-                    servicingBlockedReason={null}
-                  />
-                ) : waterfallIssuerResidual > 0.005 ? (
-                  <div className="rounded-xl border border-dashed bg-muted/20 p-3 text-sm">
-                    <span className="font-medium">Issuer residual refund:</span>{" "}
-                    {formatCurrency(waterfallIssuerResidual)} will be returned to the issuer after
-                    Post. A trustee withdrawal letter will be auto-prepared once settlement is
-                    posted.
                   </div>
                 ) : null}
               </div>

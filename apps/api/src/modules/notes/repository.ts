@@ -103,13 +103,27 @@ export class NoteRepository {
     if (excludeFullySettledRegistryNotes) {
       const serviceFeeTrusteeIncomplete: Prisma.NoteSettlementWhereInput = {
         status: NoteSettlementStatus.POSTED,
-        service_fee_amount: { gt: new Prisma.Decimal("0.005") },
-        OR: [
-          { service_fee_trustee_status: null },
+        AND: [
           {
-            service_fee_trustee_status: {
-              not: ServiceFeeTrusteeInstructionStatus.COMPLETED,
-            },
+            OR: [
+              { investor_principal: { gt: new Prisma.Decimal("0.005") } },
+              { investor_profit_net: { gt: new Prisma.Decimal("0.005") } },
+              { tawidh_investor_amount: { gt: new Prisma.Decimal("0.005") } },
+              { service_fee_amount: { gt: new Prisma.Decimal("0.005") } },
+              { tawidh_account_amount: { gt: new Prisma.Decimal("0.005") } },
+              { gharamah_amount: { gt: new Prisma.Decimal("0.005") } },
+              { issuer_residual_amount: { gt: new Prisma.Decimal("0.005") } },
+            ],
+          },
+          {
+            OR: [
+              { service_fee_trustee_status: null },
+              {
+                service_fee_trustee_status: {
+                  not: ServiceFeeTrusteeInstructionStatus.COMPLETED,
+                },
+              },
+            ],
           },
         ],
       };
