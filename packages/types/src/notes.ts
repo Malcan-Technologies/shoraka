@@ -321,7 +321,6 @@ export interface NotePayment {
   receiptAmount: number;
   receiptDate: string;
   receivedIntoAccountCode: string;
-  evidenceS3Key: string | null;
   evidenceFiles?: PaymentEvidenceFile[] | null;
   reference: string | null;
   recordedByUserId: string | null;
@@ -1023,7 +1022,6 @@ export interface RecordNotePaymentInput {
   receiptAmount: number;
   receiptDate: string;
   reference?: string | null;
-  evidenceS3Key?: string | null;
   evidenceFiles?: PaymentEvidenceFile[] | null;
   scheduleId?: string | null;
   metadata?: Record<string, unknown> | null;

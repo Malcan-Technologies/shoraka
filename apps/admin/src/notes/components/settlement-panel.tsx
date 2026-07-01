@@ -264,20 +264,7 @@ function getPaymentMetadata(payment: NotePayment) {
 }
 
 function getPaymentEvidenceFiles(payment: NotePayment) {
-  if (Array.isArray(payment.evidenceFiles) && payment.evidenceFiles.length > 0) {
-    return payment.evidenceFiles;
-  }
-  const legacyKey = payment.evidenceS3Key?.trim();
-  if (!legacyKey) return [];
-  return [
-    {
-      s3Key: legacyKey,
-      fileName: legacyKey.split("/").pop() || "Payment proof",
-      contentType: "application/octet-stream",
-      fileSize: 0,
-      uploadedAt: payment.receiptDate,
-    },
-  ];
+  return Array.isArray(payment.evidenceFiles) ? payment.evidenceFiles : [];
 }
 
 function PaymentAdviceProofCompact({

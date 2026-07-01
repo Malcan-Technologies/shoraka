@@ -165,15 +165,12 @@ export const recordPaymentSchema = z.object({
   receiptAmount: z.number().positive(),
   receiptDate: z.string().datetime(),
   reference: z.string().max(120).nullable().optional(),
-  evidenceS3Key: z.string().max(500).nullable().optional(),
   evidenceFiles: z.array(paymentEvidenceFileSchema).max(5).nullable().optional(),
   scheduleId: z.string().nullable().optional(),
   metadata: z.record(z.unknown()).nullable().optional(),
 });
 
-export const issuerPaymentAdviceSchema = recordPaymentSchema.omit({
-  evidenceS3Key: true,
-}).extend({
+export const issuerPaymentAdviceSchema = recordPaymentSchema.extend({
   source: z.enum(["ISSUER_ON_BEHALF", "PAYMASTER"]),
   reference: z.string().trim().min(1).max(120),
   evidenceFiles: z.array(paymentEvidenceFileSchema).min(1).max(1),

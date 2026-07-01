@@ -440,7 +440,7 @@ NotePayment
   status
   receipt_amount
   receipt_date
-  evidence_s3_key
+  evidence_files
   reference
   received_into_account_code
 - Expected:
@@ -2814,7 +2814,7 @@ select
   receipt_amount,
   receipt_date,
   received_into_account_code,
-  evidence_s3_key,
+  evidence_files,
   reference,
   recorded_by_user_id,
   reconciled_by_user_id,

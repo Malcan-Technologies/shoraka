@@ -512,7 +512,6 @@ export function mapNoteDetail(
       receiptAmount: moneyToNumber(payment.receipt_amount),
       receiptDate: payment.receipt_date.toISOString(),
       receivedIntoAccountCode: payment.received_into_account_code,
-      evidenceS3Key: payment.evidence_s3_key,
       evidenceFiles: asPaymentEvidenceFiles(payment.evidence_files),
       reference: payment.reference,
       recordedByUserId: payment.recorded_by_user_id,

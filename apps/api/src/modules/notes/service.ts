@@ -238,26 +238,6 @@ function asPaymentEvidenceFiles(value: Prisma.JsonValue | null | undefined) {
   return files.length > 0 ? files : null;
 }
 
-function resolvePaymentEvidenceForDisplay(
-  evidenceFiles: Prisma.JsonValue | null | undefined,
-  evidenceS3Key: string | null | undefined,
-  fallbackUploadedAt?: string | null
-) {
-  const parsed = asPaymentEvidenceFiles(evidenceFiles);
-  if (parsed && parsed.length > 0) return parsed;
-  const legacyKey = evidenceS3Key?.trim();
-  if (!legacyKey) return null;
-  return [
-    {
-      s3Key: legacyKey,
-      fileName: legacyKey.split("/").pop() || "Payment proof",
-      contentType: "application/octet-stream",
-      fileSize: 0,
-      uploadedAt: fallbackUploadedAt ?? new Date().toISOString(),
-    },
-  ];
-}
-
 function hasSettlementTrusteeMovement(settlement: {
   investor_principal: Prisma.Decimal;
   investor_profit_net: Prisma.Decimal;
@@ -1652,11 +1632,7 @@ export class NoteService {
         actionNeeded,
         issuerOrganizationId: issuer?.id ?? null,
         issuerOrganizationName: issuer?.name ?? null,
-        evidenceFiles: resolvePaymentEvidenceForDisplay(
-          payment.evidence_files,
-          payment.evidence_s3_key,
-          payment.receipt_date?.toISOString()
-        ),
+        evidenceFiles: asPaymentEvidenceFiles(payment.evidence_files),
         createdAt: payment.created_at.toISOString(),
       };
     });
@@ -3589,8 +3565,6 @@ export class NoteService {
           status,
           receipt_amount: money(input.receiptAmount),
           receipt_date: new Date(input.receiptDate),
-          evidence_s3_key:
-            actor.portal === "ISSUER" ? null : (input.evidenceS3Key ?? null),
           evidence_files: input.evidenceFiles
             ? (input.evidenceFiles as Prisma.InputJsonValue)
             : undefined,
