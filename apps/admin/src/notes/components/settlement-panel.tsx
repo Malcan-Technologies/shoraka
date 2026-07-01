@@ -264,16 +264,20 @@ function getPaymentMetadata(payment: NotePayment) {
 }
 
 function getPaymentEvidenceFiles(payment: NotePayment) {
-  const extended = payment as NotePayment & {
-    evidenceFiles?: Array<{
-      s3Key: string;
-      fileName: string;
-      contentType: string;
-      fileSize: number;
-      uploadedAt: string;
-    }> | null;
-  };
-  return Array.isArray(extended.evidenceFiles) ? extended.evidenceFiles : [];
+  if (Array.isArray(payment.evidenceFiles) && payment.evidenceFiles.length > 0) {
+    return payment.evidenceFiles;
+  }
+  const legacyKey = payment.evidenceS3Key?.trim();
+  if (!legacyKey) return [];
+  return [
+    {
+      s3Key: legacyKey,
+      fileName: legacyKey.split("/").pop() || "Payment proof",
+      contentType: "application/octet-stream",
+      fileSize: 0,
+      uploadedAt: payment.receiptDate,
+    },
+  ];
 }
 
 function PaymentAdviceProofCompact({
