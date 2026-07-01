@@ -1,7 +1,10 @@
 import {
+  GatewayPayment,
   GatewayPaymentPurpose,
   GatewayPaymentStatus,
   NameCheckResult,
+  NoteLedgerDirection,
+  OrganizationType,
   Prisma,
   PrismaClient,
 } from "@prisma/client";
@@ -10,21 +13,32 @@ import { getCurlecConfig } from "../../config/curlec";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma as defaultPrisma } from "../../lib/prisma";
+import { postLedgerEntry } from "../notes/ledger";
 import {
   creditCompletedDeposit,
-  resolveInvestorExpectedName,
+  pendNameCheckReview,
+  resolveInvestorExpectedNameVariants,
 } from "./deposit-service";
 import { verifyCurlecWebhookSignature } from "./curlec-signature";
 import { createCurlecClient } from "./curlec-client";
 import {
   extractBankCodeFromPayment,
   extractPayerNameFromPayment,
+  type CurlecPayment,
 } from "./curlec-schemas";
+import { myrDecimalToSen } from "./money";
 import { runNameCheck } from "./name-check";
+import {
+  completeInvestorDepositRefund,
+  failInvestorDepositRefund,
+  initiateInvestorDepositRefund,
+} from "./refund-service";
 import { assertTransition, TERMINAL_GATEWAY_STATUSES } from "./state";
 import {
   curlecWebhookPayloadSchema,
   extractDepositCaptureRefs,
+  extractPaymentFailedRefs,
+  extractRefundRefs,
   type CurlecWebhookPayload,
 } from "./webhook-schemas";
 
@@ -41,12 +55,49 @@ export type IngestCurlecWebhookResult = {
 };
 
 const DEPOSIT_CAPTURE_EVENTS = new Set(["payment.captured", "order.paid"]);
+const AMOUNT_MISMATCH_ERROR = "Curlec captured amount does not match internal payment amount";
+
+function getAmountMismatch(
+  payment: Pick<GatewayPayment, "amount">,
+  curlecPayment: Pick<CurlecPayment, "amount">
+) {
+  const expectedSen = myrDecimalToSen(payment.amount);
+  const actualSen = curlecPayment.amount;
+  if (expectedSen === actualSen) return null;
+  return { expectedSen, actualSen };
+}
+
+function withAmountMismatchMetadata(
+  payment: Pick<GatewayPayment, "metadata">,
+  mismatch: { expectedSen: number; actualSen: number },
+  curlecPayment: Pick<CurlecPayment, "id">
+): Prisma.InputJsonValue {
+  const base =
+    payment.metadata && typeof payment.metadata === "object" && !Array.isArray(payment.metadata)
+      ? payment.metadata
+      : {};
+
+  return {
+    ...base,
+    amountMismatch: {
+      expectedSen: mismatch.expectedSen,
+      actualSen: mismatch.actualSen,
+      curlecPaymentId: curlecPayment.id,
+      detectedAt: new Date().toISOString(),
+    },
+  } as Prisma.InputJsonValue;
+}
 
 async function markWebhookProcessed(
   db: PrismaClient,
   eventId: string,
   error?: string | null
 ) {
+  // Sync-from-Curlec paths do not ingest a webhook row first.
+  if (eventId.startsWith("sync:")) {
+    return;
+  }
+
   await db.gatewayWebhookEvent.update({
     where: { event_id: eventId },
     data: {
@@ -85,7 +136,7 @@ export async function processInvestorDepositCapture(
     include: { investor_organization: true },
   });
 
-  if (!payment || payment.purpose !== GatewayPaymentPurpose.INVESTOR_DEPOSIT) {
+  if (!payment) {
     await markWebhookProcessed(db, input.eventId);
     return;
   }
@@ -99,6 +150,7 @@ export async function processInvestorDepositCapture(
   const curlecPayment = await curlecClient.fetchPayment(input.paymentId);
   const payerName = extractPayerNameFromPayment(curlecPayment);
   const bankCode = extractBankCodeFromPayment(curlecPayment);
+  const amountMismatch = getAmountMismatch(payment, curlecPayment);
 
   await db.gatewayPayment.update({
     where: { id: payment.id },
@@ -110,55 +162,111 @@ export async function processInvestorDepositCapture(
     },
   });
 
-  const expectedName = payment.investor_organization
-    ? resolveInvestorExpectedName(payment.investor_organization)
-    : null;
-  const nameCheckResult = runNameCheck({ expectedName, payerName });
+  if (amountMismatch) {
+    await db.$transaction(async (tx) => {
+      const statusAfterClaim = await claimCreatedToPaid(tx, payment.id);
+      if (!statusAfterClaim || TERMINAL_GATEWAY_STATUSES.has(statusAfterClaim)) {
+        return;
+      }
+      if (statusAfterClaim !== GatewayPaymentStatus.PAID) {
+        return;
+      }
+    });
 
-  await db.$transaction(async (tx) => {
-    const statusAfterClaim = await claimCreatedToPaid(tx, payment.id);
-    if (!statusAfterClaim) {
-      return;
-    }
-
-    if (TERMINAL_GATEWAY_STATUSES.has(statusAfterClaim)) {
-      return;
-    }
-
-    if (statusAfterClaim !== GatewayPaymentStatus.PAID) {
-      return;
-    }
-
-    const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-
-    if (nameCheckResult === NameCheckResult.PASS) {
-      await creditCompletedDeposit(tx, current, { nameCheckResult: NameCheckResult.PASS });
-      return;
-    }
-
-    if (nameCheckResult === NameCheckResult.FAIL) {
-      assertTransition(GatewayPaymentStatus.PAID, GatewayPaymentStatus.HELD);
-      await tx.gatewayPayment.update({
+    const refreshed = await db.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    if (refreshed.status === GatewayPaymentStatus.PAID) {
+      await db.gatewayPayment.update({
         where: { id: payment.id },
         data: {
-          status: GatewayPaymentStatus.HELD,
-          name_check_result: NameCheckResult.FAIL,
-          name_check_at: new Date(),
+          metadata: withAmountMismatchMetadata(payment, amountMismatch, curlecPayment),
         },
       });
-      return;
+
+      await initiateInvestorDepositRefund(
+        refreshed,
+        {
+          reason: "AMOUNT_MISMATCH",
+          curlecPaymentId: curlecPayment.id,
+        },
+        db
+      );
     }
 
-    assertTransition(GatewayPaymentStatus.PAID, GatewayPaymentStatus.NAME_CHECK_PENDING);
-    await tx.gatewayPayment.update({
-      where: { id: payment.id },
-      data: {
-        status: GatewayPaymentStatus.NAME_CHECK_PENDING,
-        name_check_result: NameCheckResult.NAME_UNAVAILABLE,
-        name_check_at: new Date(),
+    await markWebhookProcessed(db, input.eventId, AMOUNT_MISMATCH_ERROR);
+    logger.warn(
+      {
+        eventId: input.eventId,
+        gatewayPaymentId: payment.id,
+        orderId: input.orderId,
+        expectedSen: amountMismatch.expectedSen,
+        actualSen: amountMismatch.actualSen,
       },
-    });
+      "Investor deposit auto-refund triggered due to Curlec amount mismatch"
+    );
+    return;
+  }
+
+  const org = payment.investor_organization;
+  const expectedVariants = org ? resolveInvestorExpectedNameVariants(org) : [];
+  const nameCheck = runNameCheck({
+    expectedVariants,
+    payerName,
+    isCompany: org?.type === OrganizationType.COMPANY,
   });
+  const nameCheckResult = nameCheck.decision;
+
+  if (nameCheckResult === NameCheckResult.PASS) {
+    await db.$transaction(async (tx) => {
+      const statusAfterClaim = await claimCreatedToPaid(tx, payment.id);
+      if (!statusAfterClaim) {
+        return;
+      }
+
+      if (TERMINAL_GATEWAY_STATUSES.has(statusAfterClaim)) {
+        return;
+      }
+
+      if (statusAfterClaim !== GatewayPaymentStatus.PAID) {
+        return;
+      }
+
+      const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+      await creditCompletedDeposit(tx, current, { nameCheckResult: NameCheckResult.PASS });
+    });
+  } else if (nameCheckResult === NameCheckResult.FAIL) {
+    await db.$transaction(async (tx) => {
+      await claimCreatedToPaid(tx, payment.id);
+    });
+
+    const refreshed = await db.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    if (refreshed.status === GatewayPaymentStatus.PAID) {
+      await initiateInvestorDepositRefund(
+        refreshed,
+        {
+          reason: "NAME_MISMATCH",
+          curlecPaymentId: curlecPayment.id,
+          nameCheckResult,
+        },
+        db
+      );
+    }
+  } else {
+    await db.$transaction(async (tx) => {
+      const statusAfterClaim = await claimCreatedToPaid(tx, payment.id);
+      if (!statusAfterClaim || TERMINAL_GATEWAY_STATUSES.has(statusAfterClaim)) {
+        return;
+      }
+      if (statusAfterClaim !== GatewayPaymentStatus.PAID) {
+        return;
+      }
+
+      const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+      await pendNameCheckReview(tx, current, nameCheckResult, {
+        score: nameCheck.score,
+        matchedVariant: nameCheck.matchedVariant,
+      });
+    });
+  }
 
   await markWebhookProcessed(db, input.eventId);
 
@@ -167,6 +275,8 @@ export async function processInvestorDepositCapture(
       eventId: input.eventId,
       gatewayPaymentId: payment.id,
       nameCheckResult,
+      nameCheckScore: nameCheck.score,
+      matchedVariant: nameCheck.matchedVariant,
       orderId: input.orderId,
     },
     "Investor deposit webhook processed"
@@ -197,7 +307,52 @@ export async function processStoredCurlecWebhook(
     throw error;
   }
 
+  if (payload.event === "refund.processed" || payload.event === "refund.failed") {
+    const refund = extractRefundRefs(payload);
+    if (!refund) {
+      await markWebhookProcessed(db, eventId, "Missing refund references");
+      return;
+    }
+
+    const payment = await db.gatewayPayment.findFirst({
+      where: { curlec_payment_id: refund.paymentId },
+    });
+
+    if (!payment) {
+      await markWebhookProcessed(db, eventId, "Gateway payment not found for refund");
+      return;
+    }
+
+    if (payment.purpose === GatewayPaymentPurpose.INVESTOR_DEPOSIT) {
+      if (payload.event === "refund.processed") {
+        await completeInvestorDepositRefund(payment, { refundId: refund.refundId }, db);
+      } else {
+        await failInvestorDepositRefund(payment, { refundId: refund.refundId }, db);
+      }
+    }
+
+    await markWebhookProcessed(db, eventId);
+    return;
+  }
+
   if (!DEPOSIT_CAPTURE_EVENTS.has(payload.event)) {
+    if (payload.event === "payment.failed") {
+      const failed = extractPaymentFailedRefs(payload);
+      if (failed) {
+        await markGatewayPaymentFailedByOrderId(
+          db,
+          failed.orderId,
+          failed.paymentId
+        );
+      }
+      await markWebhookProcessed(
+        db,
+        eventId,
+        failed ? null : "Missing payment references"
+      );
+      return;
+    }
+
     await markWebhookProcessed(db, eventId);
     return;
   }
@@ -221,10 +376,363 @@ export async function processStoredCurlecWebhook(
     paymentId = captured.id;
   }
 
-  await processInvestorDepositCapture(
+  await processGatewayPaymentCapture(
     { orderId: capture.orderId, paymentId, eventId },
     db
   );
+}
+
+async function processGatewayPaymentCapture(
+  input: { orderId: string; paymentId: string; eventId: string },
+  db: PrismaClient
+): Promise<void> {
+  const payment = await db.gatewayPayment.findUnique({
+    where: { curlec_order_id: input.orderId },
+    select: { purpose: true },
+  });
+
+  if (!payment) {
+    await markWebhookProcessed(db, input.eventId, "Gateway payment not found for order");
+    return;
+  }
+
+  switch (payment.purpose) {
+    case GatewayPaymentPurpose.INVESTOR_DEPOSIT:
+      await processInvestorDepositCapture(input, db);
+      return;
+    case GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE:
+      await processOnboardingFeeCapture(input, db);
+      return;
+    case GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE:
+      await processProcessingFeeCapture(input, db);
+      return;
+    default:
+      await markWebhookProcessed(db, input.eventId);
+  }
+}
+
+export async function processOnboardingFeeCapture(
+  input: { orderId: string; paymentId: string; eventId: string },
+  db: PrismaClient = defaultPrisma
+): Promise<void> {
+  const payment = await db.gatewayPayment.findUnique({
+    where: { curlec_order_id: input.orderId },
+  });
+
+  if (!payment) {
+    await markWebhookProcessed(db, input.eventId);
+    return;
+  }
+
+  if (TERMINAL_GATEWAY_STATUSES.has(payment.status)) {
+    await markWebhookProcessed(db, input.eventId);
+    return;
+  }
+
+  const curlecClient = createCurlecClient();
+  const curlecPayment = await curlecClient.fetchPayment(input.paymentId);
+  const amountMismatch = getAmountMismatch(payment, curlecPayment);
+
+  await db.gatewayPayment.update({
+    where: { id: payment.id },
+    data: {
+      curlec_payment_id: curlecPayment.id,
+      method: curlecPayment.method,
+    },
+  });
+
+  if (amountMismatch) {
+    assertTransition(GatewayPaymentStatus.CREATED, GatewayPaymentStatus.FAILED);
+    await db.gatewayPayment.updateMany({
+      where: { id: payment.id, status: GatewayPaymentStatus.CREATED },
+      data: {
+        status: GatewayPaymentStatus.FAILED,
+        metadata: withAmountMismatchMetadata(payment, amountMismatch, curlecPayment),
+      },
+    });
+    await markWebhookProcessed(db, input.eventId, AMOUNT_MISMATCH_ERROR);
+    logger.warn(
+      {
+        eventId: input.eventId,
+        gatewayPaymentId: payment.id,
+        orderId: input.orderId,
+        expectedSen: amountMismatch.expectedSen,
+        actualSen: amountMismatch.actualSen,
+      },
+      "Issuer onboarding fee rejected due to Curlec amount mismatch"
+    );
+    return;
+  }
+
+  await db.$transaction(async (tx) => {
+    const statusAfterClaim = await claimCreatedToPaid(tx, payment.id);
+    if (!statusAfterClaim || statusAfterClaim !== GatewayPaymentStatus.PAID) {
+      return;
+    }
+
+    const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    await completeOnboardingFeePayment(tx, current);
+  });
+
+  await markWebhookProcessed(db, input.eventId);
+
+  logger.info(
+    {
+      eventId: input.eventId,
+      gatewayPaymentId: payment.id,
+      orderId: input.orderId,
+    },
+    "Issuer onboarding fee webhook processed"
+  );
+}
+
+export async function processProcessingFeeCapture(
+  input: { orderId: string; paymentId: string; eventId: string },
+  db: PrismaClient = defaultPrisma
+): Promise<void> {
+  const payment = await db.gatewayPayment.findUnique({
+    where: { curlec_order_id: input.orderId },
+  });
+
+  if (!payment) {
+    await markWebhookProcessed(db, input.eventId);
+    return;
+  }
+
+  if (TERMINAL_GATEWAY_STATUSES.has(payment.status)) {
+    await markWebhookProcessed(db, input.eventId);
+    return;
+  }
+
+  const curlecClient = createCurlecClient();
+  const curlecPayment = await curlecClient.fetchPayment(input.paymentId);
+  const amountMismatch = getAmountMismatch(payment, curlecPayment);
+
+  await db.gatewayPayment.update({
+    where: { id: payment.id },
+    data: {
+      curlec_payment_id: curlecPayment.id,
+      method: curlecPayment.method,
+    },
+  });
+
+  if (amountMismatch) {
+    assertTransition(GatewayPaymentStatus.CREATED, GatewayPaymentStatus.FAILED);
+    await db.gatewayPayment.updateMany({
+      where: { id: payment.id, status: GatewayPaymentStatus.CREATED },
+      data: {
+        status: GatewayPaymentStatus.FAILED,
+        metadata: withAmountMismatchMetadata(payment, amountMismatch, curlecPayment),
+      },
+    });
+    await markWebhookProcessed(db, input.eventId, AMOUNT_MISMATCH_ERROR);
+    logger.warn(
+      {
+        eventId: input.eventId,
+        gatewayPaymentId: payment.id,
+        orderId: input.orderId,
+        expectedSen: amountMismatch.expectedSen,
+        actualSen: amountMismatch.actualSen,
+      },
+      "Application processing fee rejected due to Curlec amount mismatch"
+    );
+    return;
+  }
+
+  await db.$transaction(async (tx) => {
+    const statusAfterClaim = await claimCreatedToPaid(tx, payment.id);
+    if (!statusAfterClaim || statusAfterClaim !== GatewayPaymentStatus.PAID) {
+      return;
+    }
+
+    const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    await completeProcessingFeePayment(tx, current);
+  });
+
+  await markWebhookProcessed(db, input.eventId);
+
+  logger.info(
+    {
+      eventId: input.eventId,
+      gatewayPaymentId: payment.id,
+      orderId: input.orderId,
+    },
+    "Application processing fee webhook processed"
+  );
+}
+
+async function markGatewayPaymentFailedByOrderId(
+  db: PrismaClient,
+  orderId: string,
+  curlecPaymentId?: string,
+  method?: string | null
+): Promise<GatewayPayment | null> {
+  const payment = await db.gatewayPayment.findUnique({
+    where: { curlec_order_id: orderId },
+  });
+
+  if (!payment || TERMINAL_GATEWAY_STATUSES.has(payment.status)) {
+    return payment;
+  }
+
+  if (payment.status !== GatewayPaymentStatus.CREATED) {
+    return payment;
+  }
+
+  assertTransition(payment.status, GatewayPaymentStatus.FAILED);
+
+  return db.gatewayPayment.update({
+    where: { id: payment.id },
+    data: {
+      status: GatewayPaymentStatus.FAILED,
+      curlec_payment_id: curlecPaymentId ?? payment.curlec_payment_id,
+      method: method ?? payment.method,
+    },
+  });
+}
+
+/**
+ * Reconcile a non-terminal gateway payment with Curlec order payments.
+ * Used when the user returns from FPX before webhooks arrive.
+ */
+export async function syncGatewayPaymentFromCurlec(
+  payment: GatewayPayment,
+  db: PrismaClient = defaultPrisma
+): Promise<GatewayPayment> {
+  if (TERMINAL_GATEWAY_STATUSES.has(payment.status)) {
+    return payment;
+  }
+
+  const curlecClient = createCurlecClient();
+  let orderPayments;
+  try {
+    orderPayments = await curlecClient.fetchOrderPayments(payment.curlec_order_id);
+  } catch (error) {
+    logger.warn(
+      {
+        gatewayPaymentId: payment.id,
+        orderId: payment.curlec_order_id,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "Curlec order payments sync failed"
+    );
+    return payment;
+  }
+
+  const payments = Array.isArray(orderPayments) ? orderPayments : [];
+
+  if (payments.length === 0) {
+    return payment;
+  }
+
+  const latest = [...payments].sort(
+    (a, b) => (b.created_at ?? 0) - (a.created_at ?? 0)
+  )[0];
+
+  if (latest.status === "failed") {
+    const updated = await markGatewayPaymentFailedByOrderId(
+      db,
+      payment.curlec_order_id,
+      latest.id,
+      latest.method
+    );
+    return updated ?? payment;
+  }
+
+  if (latest.status === "captured") {
+    await processGatewayPaymentCapture(
+      {
+        orderId: payment.curlec_order_id,
+        paymentId: latest.id,
+        eventId: `sync:${payment.id}:${latest.id}`,
+      },
+      db
+    );
+    return db.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+  }
+
+  return payment;
+}
+
+async function completeOnboardingFeePayment(
+  tx: Prisma.TransactionClient,
+  gatewayPayment: GatewayPayment
+) {
+  assertTransition(gatewayPayment.status, GatewayPaymentStatus.COMPLETED);
+
+  if (!gatewayPayment.issuer_organization_id) {
+    throw new AppError(
+      500,
+      "GATEWAY_PAYMENT_INVALID",
+      "Issuer onboarding fee is missing organization"
+    );
+  }
+
+  const amount = gatewayPayment.amount.toNumber();
+  const orgId = gatewayPayment.issuer_organization_id;
+
+  await tx.issuerOrganization.update({
+    where: { id: orgId },
+    data: { onboarding_fee_paid_at: new Date() },
+  });
+
+  await postLedgerEntry(tx, {
+    accountCode: "OPERATING_ACCOUNT",
+    direction: NoteLedgerDirection.CREDIT,
+    amount,
+    description: "Issuer onboarding fee received into operating account",
+    idempotencyKey: `gateway-onboarding-fee:ledger:${gatewayPayment.id}`,
+    gatewayPaymentId: gatewayPayment.id,
+    metadata: {
+      gatewayPaymentId: gatewayPayment.id,
+      issuerOrganizationId: orgId,
+      curlecOrderId: gatewayPayment.curlec_order_id,
+      curlecPaymentId: gatewayPayment.curlec_payment_id,
+    },
+  });
+
+  await tx.gatewayPayment.update({
+    where: { id: gatewayPayment.id },
+    data: { status: GatewayPaymentStatus.COMPLETED },
+  });
+}
+
+async function completeProcessingFeePayment(
+  tx: Prisma.TransactionClient,
+  gatewayPayment: GatewayPayment
+) {
+  assertTransition(gatewayPayment.status, GatewayPaymentStatus.COMPLETED);
+
+  if (!gatewayPayment.application_id) {
+    throw new AppError(
+      500,
+      "GATEWAY_PAYMENT_INVALID",
+      "Application processing fee is missing application"
+    );
+  }
+
+  const amount = gatewayPayment.amount.toNumber();
+
+  await postLedgerEntry(tx, {
+    accountCode: "OPERATING_ACCOUNT",
+    direction: NoteLedgerDirection.CREDIT,
+    amount,
+    description: "Application processing fee received into operating account",
+    idempotencyKey: `gateway-processing-fee:ledger:${gatewayPayment.id}`,
+    gatewayPaymentId: gatewayPayment.id,
+    metadata: {
+      gatewayPaymentId: gatewayPayment.id,
+      applicationId: gatewayPayment.application_id,
+      issuerOrganizationId: gatewayPayment.issuer_organization_id,
+      curlecOrderId: gatewayPayment.curlec_order_id,
+      curlecPaymentId: gatewayPayment.curlec_payment_id,
+    },
+  });
+
+  await tx.gatewayPayment.update({
+    where: { id: gatewayPayment.id },
+    data: { status: GatewayPaymentStatus.COMPLETED },
+  });
 }
 
 /**

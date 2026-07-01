@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@cashsouk/ui";
-import { useOrganization } from "@cashsouk/config";
+import { useOrganization, isAddingNewOrganizationRoute } from "@cashsouk/config";
 import {
   HomeIcon,
   UserCircleIcon,
@@ -52,7 +52,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { isOnboarded, isPendingApproval, activeOrganization } = useOrganization();
   const pendingOfferReviewCount = useIssuerPendingOfferReviewCount(activeOrganization?.id);
-  const isOnboardingPage = pathname === "/onboarding-start";
+  const isOnboardingPage = isAddingNewOrganizationRoute(pathname);
 
   // Check if organization has a status that allows Account/Profile access
   const allowsAccountAccess = useMemo(() => {

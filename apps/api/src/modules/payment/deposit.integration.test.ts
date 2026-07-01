@@ -7,7 +7,7 @@ import {
   PrismaClient,
   UserRole,
 } from "@prisma/client";
-import { createInvestorDeposit, getInvestorDeposit } from "./deposit-service";
+import { createInvestorDeposit, getInvestorDeposit, getInvestorDepositLimits } from "./deposit-service";
 
 jest.mock("./curlec-client", () => {
   let orderCounter = 0;
@@ -117,6 +117,15 @@ describeIntegration("investor deposit service", () => {
     await expect(
       createInvestorDeposit({ userId }, { investorOrganizationId: orgId, amount: 50 }, prisma)
     ).rejects.toMatchObject({ code: "DEPOSIT_BELOW_MINIMUM" });
+  });
+
+  it("returns configured deposit limits", async () => {
+    if (!migrated) return;
+
+    await expect(getInvestorDepositLimits(prisma)).resolves.toEqual({
+      minAmount: 100,
+      maxAmount: 30000,
+    });
   });
 
   it("rejects deposits above platform maximum", async () => {

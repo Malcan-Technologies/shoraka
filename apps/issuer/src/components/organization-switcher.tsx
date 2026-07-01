@@ -20,7 +20,7 @@ import {
   useSidebar,
 } from "@cashsouk/ui";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useOrganization, type Organization, type OnboardingStatus, createApiClient } from "@cashsouk/config";
+import { useOrganization, type Organization, type OnboardingStatus, createApiClient, getOnboardingRouteForOrg, isAddingNewOrganizationRoute, isOrganizationActionRequired, isOrganizationInYourOrganizationsSection, sortYourOrganizations } from "@cashsouk/config";
 import { useAuthToken } from "@cashsouk/config";
 
 function getOrgDisplayName(org: Organization): string {
@@ -43,6 +43,29 @@ function getOrgIcon(org: Organization) {
     return <UserIcon className="h-4 w-4" />;
   }
   return <BuildingOffice2Icon className="h-4 w-4" />;
+}
+
+function getActionRequiredIconClass(org: Organization): string {
+  const status = org.onboardingStatus;
+  const regtankStatus = String(org.regtankOnboardingStatus ?? "").toUpperCase();
+
+  if (regtankStatus === "EXPIRED" || regtankStatus === "REJECTED" || status === "REJECTED") {
+    return "bg-red-100 text-red-700";
+  }
+  if (
+    status === "PENDING_AML" ||
+    status === "PENDING_FINAL_APPROVAL" ||
+    status === "IN_PROGRESS"
+  ) {
+    return "bg-blue-100 text-blue-700";
+  }
+  if (status === "PENDING_AMENDMENT") {
+    return "bg-amber-100 text-amber-700";
+  }
+  if (regtankStatus === "PENDING_APPROVAL" || status === "PENDING_APPROVAL") {
+    return "bg-purple-100 text-purple-700";
+  }
+  return "bg-amber-100 text-amber-700";
 }
 
 function OnboardingStatusBadge({ 
@@ -164,7 +187,7 @@ export function OrganizationSwitcher() {
     portalType,
   } = useOrganization();
 
-  const isOnboardingPage = pathname === "/onboarding-start";
+  const isOnboardingPage = isAddingNewOrganizationRoute(pathname);
 
   // Hide corporate accounts with Expired status (regtank_onboarding.status = EXPIRED)
   const isExpired = (org: Organization) =>
@@ -173,9 +196,6 @@ export function OrganizationSwitcher() {
     if (org.type === "PERSONAL") return true;
     return !isExpired(org);
   });
-
-  // Sort organizations with personal account first
-  const sortedOrganizations = sortOrganizations(visibleOrganizations);
 
   // If current org is an expired corporate account, switch to first non-expired so user never sees "Expired" in sidebar
   React.useEffect(() => {
@@ -189,144 +209,125 @@ export function OrganizationSwitcher() {
     }
   }, [activeOrganization, visibleOrganizations, switchOrganization]);
 
-  // Get onboarded organizations for showing in switcher (also sorted)
-  const onboardedOrganizations = sortOrganizations(
-    organizations.filter((org) => org.onboardingStatus === "COMPLETED")
+  const yourOrganizations = sortYourOrganizations(
+    visibleOrganizations.filter(isOrganizationInYourOrganizationsSection)
   );
-  
-  // Check if there are any onboarded organizations to go back to
-  const hasOnboardedOrganizations = onboardedOrganizations.length > 0;
+  const hasYourOrganizations = yourOrganizations.length > 0;
 
-  // Get pending organizations (only PENDING status, not admin-handled statuses) for Current Action section
-  const pendingOrganizations = sortOrganizations(
-    organizations.filter((org) => {
-      // Only show PENDING status - other pending statuses are handled by admin
-      const isPending = org.onboardingStatus === "PENDING" ||
-        org.regtankOnboardingStatus === "PENDING";
-      // Only include if it has a verifyLink
-      return isPending && org.regtankVerifyLink;
-    })
+  const actionRequiredOrganizations = sortOrganizations(
+    visibleOrganizations.filter(isOrganizationActionRequired)
   );
-  
-  // Check if there are any pending organizations
-  const hasPendingOrganizations = pendingOrganizations.length > 0;
-
-  // Get organizations in admin-handled pending states (for showing in dropdown when on onboarding page)
-  const adminPendingOrganizations = sortOrganizations(
-    organizations.filter((org) => {
-      const adminHandledStatuses = [
-        "PENDING_APPROVAL",
-        "PENDING_AML",
-        "PENDING_SSM_REVIEW",
-        "PENDING_AMENDMENT",
-        "PENDING_FINAL_APPROVAL",
-      ];
-      return adminHandledStatuses.includes(org.onboardingStatus) ||
-        (org.regtankOnboardingStatus && adminHandledStatuses.includes(org.regtankOnboardingStatus));
-    })
-  );
-  
-  // Check if there are any admin-pending organizations
-  const hasAdminPendingOrganizations = adminPendingOrganizations.length > 0;
+  const hasActionRequiredOrganizations = actionRequiredOrganizations.length > 0;
 
   const handleAddOrganization = () => {
-    router.push("/onboarding-start");
+    router.push("/onboarding/account");
   };
 
   const handleSelectOrganization = async (org: Organization) => {
-    // Check if this org has an in-progress regtank onboarding — open RegTank in new window (like investor corporate onboarding)
-    const inProgressStatuses = ["IN_PROGRESS", "FORM_FILLING", "LIVENESS_STARTED"];
-    if (org.regtankOnboardingStatus && inProgressStatuses.includes(org.regtankOnboardingStatus) && org.regtankVerifyLink) {
-      window.open(org.regtankVerifyLink, "_blank");
-      return;
-    }
-    
-    // If status is PENDING, open RegTank portal in new window
-    if ((org.onboardingStatus === "PENDING" || org.regtankOnboardingStatus === "PENDING") && org.regtankVerifyLink) {
-      window.open(org.regtankVerifyLink, "_blank");
-      return;
-    }
-    
-    // If status is admin-handled pending statuses, redirect to dashboard (for terms & conditions)
-    const adminHandledStatuses = [
-      "PENDING_APPROVAL",
-      "PENDING_AML",
-      "PENDING_SSM_REVIEW",
-      "PENDING_AMENDMENT",
-      "PENDING_FINAL_APPROVAL",
-    ];
-    const hasAdminHandledStatus = adminHandledStatuses.includes(org.onboardingStatus) ||
-      (org.regtankOnboardingStatus && adminHandledStatuses.includes(org.regtankOnboardingStatus));
-    
-    if (hasAdminHandledStatus) {
-      switchOrganization(org.id);
-      setTimeout(() => {
-        router.replace("/");
-      }, 50);
-      return;
-    }
-    
-    // If status is REJECTED, redirect to dashboard (will show rejection message)
-    if (org.onboardingStatus === "REJECTED" || org.regtankOnboardingStatus === "REJECTED") {
-      switchOrganization(org.id);
-      setTimeout(() => {
-        router.replace("/");
-      }, 50);
-      return;
-    }
-    
-    // Check if status is EXPIRED and auto-restart
     if (org.regtankOnboardingStatus === "EXPIRED") {
       try {
         const apiClient = createApiClient(
           process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000",
           getAccessToken
         );
-        const result = await apiClient.post<{
-          verifyLink: string;
-          requestId: string;
-          expiresIn: number;
-        }>(`/v1/regtank/retry/${org.id}?portalType=${portalType}`);
-        
-        if (result.success && result.data?.verifyLink) {
-          window.open(result.data.verifyLink, "_blank");
-          return;
-        }
+        await apiClient.post(`/v1/regtank/retry/${org.id}?portalType=${portalType}`);
       } catch (error) {
         console.error("[OrganizationSwitcher] Failed to restart expired onboarding:", error);
       }
     }
-    
-    // If we're on onboarding page or current org is pending, and switching to a different org, cancel onboarding
-    const currentOrgPending = activeOrganization?.onboardingStatus === "PENDING";
-    const switchingToDifferentOrg = org.id !== activeOrganization?.id;
-    
-    if ((isOnboardingPage || currentOrgPending) && switchingToDifferentOrg) {
-      try {
-        const apiClient = createApiClient(
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000",
-          getAccessToken
-        );
-        const role = portalType === "issuer" ? "INVESTOR" : "ISSUER";
-        await apiClient.post("/v1/auth/cancel-onboarding", {
-          role,
-          reason: "User switched to a different organization during onboarding",
-        });
-      } catch (error) {
-        // Log error but don't block the organization switch
-        console.error("[OrganizationSwitcher] Failed to cancel onboarding:", error);
-      }
-    }
 
     switchOrganization(org.id);
-    
-    // Redirect to dashboard for COMPLETED status
-    if (org.onboardingStatus === "COMPLETED") {
-      setTimeout(() => {
-        router.replace("/");
-      }, 50);
+    const destination = getOnboardingRouteForOrg(org, portalType);
+    if (destination === "/") {
+      router.replace("/");
+    } else {
+      router.push(destination);
     }
   };
+
+  const renderSwitcherDropdownContent = (showAddOrganization: boolean) => (
+    <>
+      <div className="max-h-96 overflow-y-auto -mx-1 px-1">
+        {hasYourOrganizations && (
+          <>
+            <DropdownMenuLabel className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Your Organizations
+            </DropdownMenuLabel>
+            {yourOrganizations.map((org) => (
+              <DropdownMenuItem
+                key={org.id}
+                onClick={() => void handleSelectOrganization(org)}
+                className="flex items-center gap-3 rounded-lg p-2.5 cursor-pointer focus:bg-accent/10"
+              >
+                <div className="flex size-8 items-center justify-center rounded-lg bg-muted text-foreground">
+                  {getOrgIcon(org)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="truncate text-sm font-medium text-foreground">
+                    {getOrgDisplayName(org)}
+                  </div>
+                  <OnboardingStatusBadge
+                    status={org.onboardingStatus}
+                    regtankStatus={org.regtankOnboardingStatus || undefined}
+                    size="sm"
+                  />
+                </div>
+                {activeOrganization?.id === org.id && (
+                  <Check className="size-4 text-primary shrink-0" />
+                )}
+              </DropdownMenuItem>
+            ))}
+          </>
+        )}
+        {hasActionRequiredOrganizations && (
+          <>
+            {hasYourOrganizations && <DropdownMenuSeparator className="my-2" />}
+            <DropdownMenuLabel className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Needs Attention
+            </DropdownMenuLabel>
+            {actionRequiredOrganizations.map((org) => (
+              <DropdownMenuItem
+                key={org.id}
+                onClick={() => void handleSelectOrganization(org)}
+                className="flex items-center gap-3 rounded-lg p-2.5 cursor-pointer focus:bg-accent/10"
+              >
+                <div className={`flex size-8 items-center justify-center rounded-lg ${getActionRequiredIconClass(org)}`}>
+                  {getOrgIcon(org)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="truncate text-sm font-medium text-foreground">
+                    {getOrgDisplayName(org)}
+                  </div>
+                  <OnboardingStatusBadge
+                    status={org.onboardingStatus}
+                    regtankStatus={org.regtankOnboardingStatus || undefined}
+                    size="sm"
+                  />
+                </div>
+                {activeOrganization?.id === org.id && (
+                  <Check className="size-4 text-primary shrink-0" />
+                )}
+              </DropdownMenuItem>
+            ))}
+          </>
+        )}
+      </div>
+      {showAddOrganization && (
+        <>
+          <DropdownMenuSeparator className="my-2" />
+          <DropdownMenuItem
+            onClick={handleAddOrganization}
+            className="flex items-center gap-3 rounded-lg p-2.5 cursor-pointer focus:bg-accent/10"
+          >
+            <div className="flex size-8 items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-background">
+              <Plus className="size-4 text-muted-foreground" />
+            </div>
+            <span className="text-sm font-medium text-muted-foreground">Add Organization</span>
+          </DropdownMenuItem>
+        </>
+      )}
+    </>
+  );
 
   if (isLoading) {
     return (
@@ -376,111 +377,7 @@ export function OrganizationSwitcher() {
               align="start"
               sideOffset={4}
             >
-              {(hasOnboardedOrganizations || hasAdminPendingOrganizations) && (
-                <>
-                  <DropdownMenuLabel className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Switch to Existing Account
-                  </DropdownMenuLabel>
-                  {onboardedOrganizations.map((org) => (
-                    <DropdownMenuItem
-                      key={org.id}
-                      onClick={() => handleSelectOrganization(org)}
-                      className="flex items-center gap-3 rounded-lg p-2.5 cursor-pointer focus:bg-accent/10"
-                    >
-                      <div className="flex size-8 items-center justify-center rounded-lg bg-muted text-foreground">
-                        {getOrgIcon(org)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="truncate text-sm font-medium text-foreground">
-                          {getOrgDisplayName(org)}
-                        </div>
-                        <OnboardingStatusBadge 
-                          status={org.onboardingStatus} 
-                          regtankStatus={org.regtankOnboardingStatus || undefined}
-                          size="sm" 
-                        />
-                      </div>
-                    </DropdownMenuItem>
-                  ))}
-                  {adminPendingOrganizations.map((org) => (
-                    <DropdownMenuItem
-                      key={org.id}
-                      onClick={() => handleSelectOrganization(org)}
-                      className="flex items-center gap-3 rounded-lg p-2.5 cursor-pointer focus:bg-accent/10"
-                    >
-                      <div className="flex size-8 items-center justify-center rounded-lg bg-muted text-foreground">
-                        {getOrgIcon(org)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="truncate text-sm font-medium text-foreground">
-                          {getOrgDisplayName(org)}
-                        </div>
-                        <OnboardingStatusBadge 
-                          status={org.onboardingStatus} 
-                          regtankStatus={org.regtankOnboardingStatus || undefined}
-                          size="sm" 
-                        />
-                      </div>
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator className="my-2" />
-                </>
-              )}
-              {/* Show Current Action section with pending accounts */}
-              {hasPendingOrganizations && (
-                <>
-                  <DropdownMenuLabel className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Current Action
-                  </DropdownMenuLabel>
-                  {pendingOrganizations.map((org) => {
-                    // Check for admin-handled statuses (including PENDING_APPROVAL) first
-                    const adminHandledStatuses = [
-                      "PENDING_APPROVAL",
-                      "PENDING_AML",
-                      "PENDING_SSM_REVIEW",
-                      "PENDING_AMENDMENT",
-                      "PENDING_FINAL_APPROVAL",
-                    ];
-                    const hasAdminHandledStatus = adminHandledStatuses.includes(org.onboardingStatus) ||
-                      (org.regtankOnboardingStatus && adminHandledStatuses.includes(org.regtankOnboardingStatus));
-                    
-                    return (
-                      <DropdownMenuItem
-                        key={org.id}
-                        onClick={() => {
-                          if (hasAdminHandledStatus) {
-                            // For admin-handled statuses, just switch and redirect to dashboard
-                            switchOrganization(org.id);
-                            setTimeout(() => {
-                              router.replace("/");
-                            }, 50);
-                            return;
-                          }
-                          
-                          if (org.regtankVerifyLink) {
-                            window.open(org.regtankVerifyLink, "_blank");
-                          }
-                        }}
-                      className="flex items-center gap-3 rounded-lg p-2.5 bg-primary/5 border border-primary/20 cursor-pointer hover:bg-accent/10"
-                    >
-                      <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                        {getOrgIcon(org)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="truncate text-sm font-medium text-foreground">
-                          {getOrgDisplayName(org)}
-                        </div>
-                        <OnboardingStatusBadge 
-                          status={org.onboardingStatus} 
-                          regtankStatus={org.regtankOnboardingStatus || undefined}
-                          size="sm" 
-                        />
-                      </div>
-                    </DropdownMenuItem>
-                    );
-                  })}
-                </>
-              )}
+              {renderSwitcherDropdownContent(false)}
             </DropdownMenuContent>
           </DropdownMenu>
         </SidebarMenuItem>
@@ -549,43 +446,7 @@ export function OrganizationSwitcher() {
             align="start"
             sideOffset={4}
           >
-            <DropdownMenuLabel className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Your Accounts
-            </DropdownMenuLabel>
-            {sortedOrganizations.map((org) => (
-              <DropdownMenuItem
-                key={org.id}
-                onClick={() => handleSelectOrganization(org)}
-                className="flex items-center gap-3 rounded-lg p-2.5 cursor-pointer focus:bg-accent/10"
-              >
-                <div className="flex size-8 items-center justify-center rounded-lg bg-muted text-foreground">
-                  {getOrgIcon(org)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="truncate text-sm font-medium text-foreground">
-                    {getOrgDisplayName(org)}
-                  </div>
-                  <OnboardingStatusBadge 
-                    status={org.onboardingStatus} 
-                    regtankStatus={org.regtankOnboardingStatus || undefined}
-                    size="sm" 
-                  />
-                </div>
-                {activeOrganization?.id === org.id && (
-                  <Check className="size-4 text-primary shrink-0" />
-                )}
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator className="my-2" />
-            <DropdownMenuItem
-              onClick={handleAddOrganization}
-              className="flex items-center gap-3 rounded-lg p-2.5 cursor-pointer focus:bg-accent/10"
-            >
-              <div className="flex size-8 items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-background">
-                <Plus className="size-4 text-muted-foreground" />
-              </div>
-              <span className="text-sm font-medium text-muted-foreground">Add Organization</span>
-            </DropdownMenuItem>
+            {renderSwitcherDropdownContent(true)}
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

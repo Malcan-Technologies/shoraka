@@ -44,6 +44,7 @@ import {
 import { prisma } from "../../lib/prisma";
 import { logApplicationActivity } from "./logs/service";
 import { ActivityPortal } from "./logs/types";
+import { assertApplicationProcessingFeePaid } from "../payment/processing-fee-service";
 import {
   generateContractOfferLetterStream,
   generateInvoiceOfferLetterStream,
@@ -1271,6 +1272,8 @@ export class ApplicationService {
 
     // Create revision on initial submit (DRAFT -> SUBMITTED)
     if (status === "SUBMITTED" && currentStatus === "DRAFT") {
+      await assertApplicationProcessingFeePaid(id);
+
       const financingTypeSubmit = application.financing_type as { product_id?: string } | null | undefined;
       const submitProductId = financingTypeSubmit?.product_id;
       let submitProductWorkflow: Prisma.JsonValue | undefined;

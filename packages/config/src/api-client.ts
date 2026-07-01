@@ -90,7 +90,11 @@ import type {
   CreateNoteFromApplicationInput,
   CreateNoteInvestmentInput,
   CreateInvestorDepositInput,
+  InvestorDepositLimits,
   InvestorDepositResponse,
+  CreateIssuerOnboardingFeeInput,
+  IssuerOnboardingFeeResponse,
+  ApplicationProcessingFeeResponse,
   EligibleNoteInvoicesResponse,
   GetAdminNotesParams,
   MarketplaceNoteDetail,
@@ -123,6 +127,14 @@ import type {
   WithdrawalInstruction,
   ShorakaWithdrawalState,
   ShorakaSubmitOrderStateResponse,
+  GatewayPaymentDetailDto,
+  GatewayPaymentListResponse,
+  GatewayPaymentPendingCountResponse,
+  GatewayReconExceptionDto,
+  GatewayReconExceptionListResponse,
+  GatewayReconPendingCountResponse,
+  GatewayReconRunDetailDto,
+  GatewayReconRunListResponse,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -152,6 +164,7 @@ type OverdueLateChargeResult = {
 
 type AdminApplicationDetail = Application &
   Record<string, unknown> & {
+    processingFeePaid?: boolean;
     invoices?: Array<{
       id: string;
       application_id?: string;
@@ -866,6 +879,138 @@ export class ApiClient {
 
   async getAdminWithdrawal(id: string): Promise<ApiResponse<WithdrawalInstruction> | ApiError> {
     return this.get<WithdrawalInstruction>(`/v1/admin/withdrawals/${id}`);
+  }
+
+  async listAdminGatewayPayments(params?: {
+    page?: number;
+    pageSize?: number;
+    status?: string;
+    purpose?: string;
+    organizationType?: string;
+    filter?: "needs_attention" | "review" | "refunding" | "refunded" | "completed";
+    search?: string;
+  }): Promise<ApiResponse<GatewayPaymentListResponse> | ApiError> {
+    const search = new URLSearchParams();
+    if (params?.page) search.set("page", String(params.page));
+    if (params?.pageSize) search.set("pageSize", String(params.pageSize));
+    if (params?.status) search.set("status", params.status);
+    if (params?.purpose) search.set("purpose", params.purpose);
+    if (params?.organizationType) search.set("organizationType", params.organizationType);
+    if (params?.filter) search.set("filter", params.filter);
+    if (params?.search) search.set("search", params.search);
+    const qs = search.toString();
+    return this.get<GatewayPaymentListResponse>(
+      `/v1/admin/gateway-payments${qs ? `?${qs}` : ""}`
+    );
+  }
+
+  async getAdminGatewayPaymentsExceptionCount(): Promise<
+    ApiResponse<GatewayPaymentPendingCountResponse> | ApiError
+  > {
+    return this.get<GatewayPaymentPendingCountResponse>(
+      "/v1/admin/gateway-payments/exceptions/pending-count"
+    );
+  }
+
+  async getAdminGatewayPayment(id: string): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
+    return this.get<GatewayPaymentDetailDto>(`/v1/admin/gateway-payments/${id}`);
+  }
+
+  async retryAdminGatewayPaymentRefund(
+    id: string
+  ): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
+    return this.post<GatewayPaymentDetailDto>(
+      `/v1/admin/gateway-payments/${id}/retry-refund`,
+      {}
+    );
+  }
+
+  async initiateAdminGatewayPaymentRefund(
+    id: string,
+    reason: string
+  ): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
+    return this.post<GatewayPaymentDetailDto>(
+      `/v1/admin/gateway-payments/${id}/refund`,
+      { reason }
+    );
+  }
+
+  async approveAdminGatewayNameCheck(
+    id: string
+  ): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
+    return this.post<GatewayPaymentDetailDto>(
+      `/v1/admin/gateway-payments/${id}/name-check/approve`,
+      {}
+    );
+  }
+
+  async rejectAdminGatewayNameCheck(
+    id: string
+  ): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
+    return this.post<GatewayPaymentDetailDto>(
+      `/v1/admin/gateway-payments/${id}/name-check/reject`,
+      {}
+    );
+  }
+
+  async listAdminGatewayReconRuns(params?: {
+    page?: number;
+    pageSize?: number;
+  }): Promise<ApiResponse<GatewayReconRunListResponse> | ApiError> {
+    const search = new URLSearchParams();
+    if (params?.page) search.set("page", String(params.page));
+    if (params?.pageSize) search.set("pageSize", String(params.pageSize));
+    const qs = search.toString();
+    return this.get<GatewayReconRunListResponse>(
+      `/v1/admin/gateway-recon/runs${qs ? `?${qs}` : ""}`
+    );
+  }
+
+  async getAdminGatewayReconRun(id: string): Promise<ApiResponse<GatewayReconRunDetailDto> | ApiError> {
+    return this.get<GatewayReconRunDetailDto>(`/v1/admin/gateway-recon/runs/${id}`);
+  }
+
+  async listAdminGatewayReconExceptions(params?: {
+    page?: number;
+    pageSize?: number;
+    resolved?: boolean;
+    runId?: string;
+    type?: string;
+  }): Promise<ApiResponse<GatewayReconExceptionListResponse> | ApiError> {
+    const search = new URLSearchParams();
+    if (params?.page) search.set("page", String(params.page));
+    if (params?.pageSize) search.set("pageSize", String(params.pageSize));
+    if (params?.resolved !== undefined) search.set("resolved", String(params.resolved));
+    if (params?.runId) search.set("runId", params.runId);
+    if (params?.type) search.set("type", params.type);
+    const qs = search.toString();
+    return this.get<GatewayReconExceptionListResponse>(
+      `/v1/admin/gateway-recon/exceptions${qs ? `?${qs}` : ""}`
+    );
+  }
+
+  async getAdminGatewayReconPendingCount(): Promise<
+    ApiResponse<GatewayReconPendingCountResponse> | ApiError
+  > {
+    return this.get<GatewayReconPendingCountResponse>(
+      "/v1/admin/gateway-recon/exceptions/pending-count"
+    );
+  }
+
+  async triggerAdminGatewayReconRun(input?: {
+    runDate?: string;
+  }): Promise<ApiResponse<GatewayReconRunDetailDto> | ApiError> {
+    return this.post<GatewayReconRunDetailDto>("/v1/admin/gateway-recon/run", input ?? {});
+  }
+
+  async resolveAdminGatewayReconException(
+    id: string,
+    reason: string
+  ): Promise<ApiResponse<GatewayReconExceptionDto> | ApiError> {
+    return this.post<GatewayReconExceptionDto>(
+      `/v1/admin/gateway-recon/exceptions/${id}/resolve`,
+      { reason }
+    );
   }
 
   async requestInvestorWithdrawal(data: {
@@ -2559,8 +2704,42 @@ export class ApiClient {
     return this.post<InvestorDepositResponse>("/v1/investor/deposits", input);
   }
 
+  async getInvestorDepositLimits(): Promise<ApiResponse<InvestorDepositLimits> | ApiError> {
+    return this.get<InvestorDepositLimits>("/v1/investor/deposits/limits");
+  }
+
   async getInvestorDeposit(id: string): Promise<ApiResponse<InvestorDepositResponse> | ApiError> {
     return this.get<InvestorDepositResponse>(`/v1/investor/deposits/${id}`);
+  }
+
+  async createIssuerOnboardingFee(
+    input: CreateIssuerOnboardingFeeInput
+  ): Promise<ApiResponse<IssuerOnboardingFeeResponse> | ApiError> {
+    return this.post<IssuerOnboardingFeeResponse>("/v1/issuer/onboarding-fee", input);
+  }
+
+  async getIssuerOnboardingFee(
+    id: string
+  ): Promise<ApiResponse<IssuerOnboardingFeeResponse> | ApiError> {
+    return this.get<IssuerOnboardingFeeResponse>(`/v1/issuer/onboarding-fee/${id}`);
+  }
+
+  async createApplicationProcessingFee(
+    applicationId: string
+  ): Promise<ApiResponse<ApplicationProcessingFeeResponse> | ApiError> {
+    return this.post<ApplicationProcessingFeeResponse>(
+      `/v1/applications/${encodeURIComponent(applicationId)}/processing-fee`,
+      {}
+    );
+  }
+
+  async getApplicationProcessingFee(
+    applicationId: string,
+    feePaymentId: string
+  ): Promise<ApiResponse<ApplicationProcessingFeeResponse> | ApiError> {
+    return this.get<ApplicationProcessingFeeResponse>(
+      `/v1/applications/${encodeURIComponent(applicationId)}/processing-fee/${encodeURIComponent(feePaymentId)}`
+    );
   }
 
   async postInvestorBalanceTestTopup(input: {

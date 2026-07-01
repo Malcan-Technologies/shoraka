@@ -1,6 +1,7 @@
 import {
   GatewayOrganizationType,
   GatewayPayment,
+  GatewayPaymentEventType,
   GatewayPaymentPurpose,
   GatewayPaymentStatus,
   InvestorBalanceTransactionSource,
@@ -11,15 +12,13 @@ import {
   Prisma,
   PrismaClient,
 } from "@prisma/client";
-import { randomUUID } from "crypto";
-import { getCurlecConfig } from "../../config/curlec";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma as defaultPrisma } from "../../lib/prisma";
 import { creditInvestorBalance } from "../notes/investor-balance";
 import { postLedgerEntry } from "../notes/ledger";
-import { createCurlecClient } from "./curlec-client";
 import { CreateInvestorDepositInput } from "./deposit-schemas";
-import { myrToSen } from "./money";
+import { createGatewayOrder, mapGatewayPaymentResponse } from "./gateway-order-service";
+import { recordGatewayPaymentEvent } from "./gateway-events";
 import { assertTransition } from "./state";
 
 export type ActorContext = {
@@ -34,19 +33,20 @@ function decimalToNumber(value: Prisma.Decimal): number {
 }
 
 function mapDepositResponse(payment: GatewayPayment) {
+  const mapped = mapGatewayPaymentResponse(payment);
   return {
-    id: payment.id,
-    status: payment.status,
-    purpose: payment.purpose,
-    amount: decimalToNumber(payment.amount),
-    currency: payment.currency,
-    curlecOrderId: payment.curlec_order_id,
-    curlecKeyId: getCurlecConfig().keyId,
-    investorOrganizationId: payment.investor_organization_id,
-    nameCheckResult: payment.name_check_result,
-    payerName: payment.payer_name,
-    createdAt: payment.created_at.toISOString(),
-    updatedAt: payment.updated_at.toISOString(),
+    id: mapped.id,
+    status: mapped.status,
+    purpose: mapped.purpose,
+    amount: mapped.amount,
+    currency: mapped.currency,
+    curlecOrderId: mapped.curlecOrderId,
+    curlecKeyId: mapped.curlecKeyId,
+    investorOrganizationId: mapped.investorOrganizationId,
+    nameCheckResult: mapped.nameCheckResult,
+    payerName: mapped.payerName,
+    createdAt: mapped.createdAt,
+    updatedAt: mapped.updatedAt,
   };
 }
 
@@ -82,6 +82,16 @@ async function getDepositLimits(db: PrismaClient) {
   };
 }
 
+export async function getInvestorDepositLimits(db: PrismaClient = defaultPrisma) {
+  return getDepositLimits(db);
+}
+
+async function syncDepositFromCurlec(payment: GatewayPayment, db: PrismaClient) {
+  // Lazy import avoids initializing a cycle: webhook-service imports deposit credit helpers.
+  const { syncGatewayPaymentFromCurlec } = await import("./webhook-service");
+  return syncGatewayPaymentFromCurlec(payment, db);
+}
+
 export async function createInvestorDeposit(
   actor: ActorContext,
   input: CreateInvestorDepositInput,
@@ -105,36 +115,20 @@ export async function createInvestorDeposit(
     );
   }
 
-  const receipt = `dep_${randomUUID().replace(/-/g, "").slice(0, 24)}`;
-  const curlecClient = createCurlecClient();
-  const order = await curlecClient.createOrder({
-    amountSen: myrToSen(input.amount),
-    currency: "MYR",
-    receipt,
-    notes: {
+  return createGatewayOrder(
+    actor,
+    {
       purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+      organizationType: GatewayOrganizationType.INVESTOR,
+      amount: input.amount,
+      receiptPrefix: "dep",
+      notes: {
+        investorOrganizationId: input.investorOrganizationId,
+      },
       investorOrganizationId: input.investorOrganizationId,
     },
-  });
-
-  const payment = await db.gatewayPayment.create({
-    data: {
-      purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
-      organization_type: GatewayOrganizationType.INVESTOR,
-      investor_organization_id: input.investorOrganizationId,
-      amount: new Prisma.Decimal(input.amount.toFixed(6)),
-      currency: "MYR",
-      status: GatewayPaymentStatus.CREATED,
-      curlec_order_id: order.id,
-      idempotency_key: `curlec:order:${order.id}`,
-      metadata: {
-        actorUserId: actor.userId,
-        receipt,
-      },
-    },
-  });
-
-  return mapDepositResponse(payment);
+    db
+  );
 }
 
 export async function getInvestorDeposit(
@@ -156,23 +150,60 @@ export async function getInvestorDeposit(
     throw new AppError(404, "DEPOSIT_NOT_FOUND", "Deposit not found");
   }
 
-  return mapDepositResponse(payment);
+  const synced = await syncDepositFromCurlec(payment, db);
+  return mapDepositResponse(synced);
 }
 
-export function resolveInvestorExpectedName(org: InvestorOrganization): string | null {
+function resolveCompanyExpectedName(org: InvestorOrganization): string | null {
+  const data = org.corporate_onboarding_data;
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const businessName = (data as { basicInfo?: { businessName?: string } }).basicInfo
+      ?.businessName?.trim();
+    if (businessName) return businessName;
+  }
+  return null;
+}
+
+function dedupeVariants(variants: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const variant of variants) {
+    const key = variant.trim().toUpperCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(variant.trim());
+  }
+  return result;
+}
+
+export function resolveInvestorExpectedNameVariants(org: InvestorOrganization): string[] {
   if (org.type === OrganizationType.COMPANY) {
-    const data = org.corporate_onboarding_data;
-    if (data && typeof data === "object" && !Array.isArray(data)) {
-      const basicInfo = (data as { basicInfo?: { businessName?: string } }).basicInfo;
-      const businessName = basicInfo?.businessName?.trim();
-      if (businessName) return businessName;
-    }
+    const businessName = resolveCompanyExpectedName(org);
+    return businessName ? [businessName] : [];
+  }
+
+  const variants: string[] = [];
+  if (org.legal_name_on_id?.trim()) {
+    variants.push(org.legal_name_on_id.trim());
   }
 
   const parts = [org.first_name, org.middle_name, org.last_name]
     .map((part) => part?.trim())
     .filter(Boolean);
-  return parts.length > 0 ? parts.join(" ") : null;
+  if (parts.length > 0) {
+    variants.push(parts.join(" "));
+  }
+
+  if (org.name?.trim()) {
+    variants.push(org.name.trim());
+  }
+
+  return dedupeVariants(variants);
+}
+
+export function resolveInvestorExpectedName(org: InvestorOrganization): string | null {
+  const variants = resolveInvestorExpectedNameVariants(org);
+  return variants[0] ?? null;
 }
 
 export async function creditCompletedDeposit(
@@ -232,6 +263,45 @@ export async function creditCompletedDeposit(
       status: GatewayPaymentStatus.COMPLETED,
       name_check_result: opts?.nameCheckResult ?? NameCheckResult.PASS,
       name_check_at: new Date(),
+      ...(opts?.actorUserId ? { name_checked_by_user_id: opts.actorUserId } : {}),
     },
+  });
+}
+
+export async function pendNameCheckReview(
+  tx: Prisma.TransactionClient,
+  gatewayPayment: GatewayPayment,
+  nameCheckResult: NameCheckResult,
+  opts?: { score?: number; matchedVariant?: string | null }
+) {
+  assertTransition(gatewayPayment.status, GatewayPaymentStatus.NAME_CHECK_PENDING);
+
+  await tx.gatewayPayment.update({
+    where: { id: gatewayPayment.id },
+    data: {
+      status: GatewayPaymentStatus.NAME_CHECK_PENDING,
+      name_check_result: nameCheckResult,
+      name_check_at: new Date(),
+    },
+  });
+
+  const reason =
+    nameCheckResult === NameCheckResult.REVIEW
+      ? "Payer name requires manual review"
+      : "Payer name unavailable — pending manual review";
+
+  await recordGatewayPaymentEvent(tx, {
+    gatewayPaymentId: gatewayPayment.id,
+    type: GatewayPaymentEventType.NAME_CHECK,
+    fromStatus: gatewayPayment.status,
+    toStatus: GatewayPaymentStatus.NAME_CHECK_PENDING,
+    reason,
+    metadata:
+      opts?.score !== undefined
+        ? ({
+            score: opts.score,
+            matchedVariant: opts.matchedVariant ?? null,
+          } as Prisma.InputJsonValue)
+        : undefined,
   });
 }

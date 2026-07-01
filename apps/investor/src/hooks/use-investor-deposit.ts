@@ -23,6 +23,7 @@ export function isTerminalDepositStatus(status: GatewayPaymentStatus): boolean {
 export const investorDepositKeys = {
   all: ["investor-deposit"] as const,
   detail: (depositId?: string) => [...investorDepositKeys.all, depositId] as const,
+  limits: () => [...investorDepositKeys.all, "limits"] as const,
 };
 
 function useInvestorDepositApiClient() {
@@ -38,6 +39,19 @@ export function useCreateInvestorDepositMutation() {
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
+  });
+}
+
+export function useInvestorDepositLimitsQuery() {
+  const apiClient = useInvestorDepositApiClient();
+  return useQuery({
+    queryKey: investorDepositKeys.limits(),
+    queryFn: async () => {
+      const response = await apiClient.getInvestorDepositLimits();
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    staleTime: 5 * 60 * 1000,
   });
 }
 

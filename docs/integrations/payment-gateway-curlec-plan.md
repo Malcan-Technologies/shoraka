@@ -2,6 +2,8 @@
 
 High-level implementation plan for collecting funds via Razorpay Curlec (Malaysia). Covers investor deposits (min RM100 onboarding + wallet top-ups), issuer onboarding fee, and application processing fee — plus AML name checks, manual refunds, ledger posting, and reconciliation. Money **out** (disbursement, fund movement between accounts, repayment collection by paymaster) will be done via the RHB bank API in a later phase; this plan only lays hooks for it.
 
+For production operations, see the Curlec ops runbook: `docs/integrations/payment-gateway-curlec-ops-runbook.md`.
+
 ## 1. Confirmed Decisions
 
 | Decision | Choice |
@@ -28,8 +30,8 @@ There is **no payment gateway code today**. Key existing pieces the integration 
 | Platform ledger | `NoteLedgerAccount` / `NoteLedgerEntry` with buckets `INVESTOR_POOL`, `REPAYMENT_POOL`, `OPERATING_ACCOUNT`, `TAWIDH_ACCOUNT`, `GHARAMAH_ACCOUNT`, `ISSUER_PAYABLE`; all postings idempotent via `idempotency_key`; admin view at `apps/admin/src/app/finance/buckets/page.tsx` |
 | Fee settings pattern | `PlatformFinanceSetting` model + admin page `apps/admin/src/app/settings/platform-finance/page.tsx` |
 | Investor deposit UI (placeholders) | `apps/investor/src/components/deposit-card.tsx` (onboarding, disabled "Coming Soon"), `apps/investor/src/app/transactions/page.tsx` + `transactions/components/deposit-dialog.tsx` (Bank Transfer/FPX buttons fake success) |
-| Investor onboarding steps | `apps/investor/src/components/onboarding-status-card.tsx` — step 4 "Deposit" keyed off `depositReceived`. Deposit is a post-`COMPLETED` activation step, not part of the admin onboarding state machine |
-| Issuer onboarding entry | `apps/issuer/src/app/onboarding-start/page.tsx` → `AccountTypeSelector` → RegTank eKYB start endpoints |
+| Investor onboarding steps | `getOnboardingStepperSteps` in `packages/config/src/onboarding-flow.ts`; dashboard card in `apps/investor/src/components/onboarding-status-card.tsx` — step 5 "Deposit" keyed off `depositReceived`. Deposit is a post-`COMPLETED` activation step, not part of the admin onboarding state machine |
+| Issuer onboarding entry | `/onboarding/account` → route steps (`/onboarding/terms`, `/onboarding/fee`, `/onboarding/verify`); legacy `/onboarding-start` redirects to account step |
 | Application submit | `PATCH /v1/applications/:id/status` → `ApplicationService.updateApplicationStatus` (`apps/api/src/modules/applications/service.ts`), `DRAFT → SUBMITTED`; issuer UI submit at `apps/issuer/src/app/(application-flow)/applications/edit/[id]/page.tsx` |
 | Webhook pattern to copy | RegTank webhooks (`apps/api/src/modules/regtank/webhooks/`) and Shoraka STP webhook controller |
 | Background jobs | `node-cron` only (`apps/api/src/lib/jobs/index.ts`) — recon jobs follow this pattern |
@@ -65,7 +67,7 @@ Same flow for both; the first successful deposit also sets `deposit_received = t
 
 ### 3.2 Issuer onboarding fee (before eKYB)
 
-1. New gate: after issuer signs up, `/onboarding-start` shows a "Pay onboarding fee" step before `AccountTypeSelector`. API-side, the RegTank onboarding start endpoints reject if the fee isn't paid.
+1. New gate: after issuer signs up, `/onboarding/fee` (company orgs) shows onboarding fee before RegTank verify. API-side, RegTank start endpoints reject if the fee isn't paid.
 2. `POST /v1/issuer/onboarding-fee` → Curlec order → checkout → webhook `payment.captured` → mark `COMPLETED`, set `onboarding_fee_paid_at` on the issuer org, post `OPERATING_ACCOUNT` ledger credit.
 3. Non-refundable, including on onboarding rejection. No name check.
 
@@ -166,7 +168,7 @@ Goal: every Curlec payment is matched to a `GatewayPayment` and ledger entry; ev
 - Onboarding step 4 completes when the first deposit reaches `COMPLETED`.
 
 **Issuer portal** (`apps/issuer`)
-- Onboarding fee payment step gating `onboarding-start` (paid state persists across sessions via `onboarding_fee_paid_at`).
+- Onboarding fee payment step gating `/onboarding/fee` (paid state persists across sessions via `onboarding_fee_paid_at`).
 - Application submit step: pay processing fee → then submit; show paid state if fee already completed (e.g. retry after a failed submit).
 
 **Admin portal** (`apps/admin`)

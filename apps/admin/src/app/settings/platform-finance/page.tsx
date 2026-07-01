@@ -142,6 +142,12 @@ export default function PlatformFinanceSettingsPage() {
     defaultTawidhRatePercent: "0",
     defaultGharamahRatePercent: "0",
   });
+  const [gatewayFees, setGatewayFees] = React.useState({
+    issuerOnboardingFeeAmount: "150",
+    applicationProcessingFeeAmount: "50",
+    investorMinDepositAmount: "100",
+    investorMaxDepositAmount: "30000",
+  });
   const [trusteeLetter, setTrusteeLetter] = React.useState<TrusteeLetterConfig>(DEFAULT_TRUSTEE_LETTER);
   const [platformAccounts, setPlatformAccounts] =
     React.useState<PlatformAccountsConfig>(emptyPlatformAccounts());
@@ -170,6 +176,33 @@ export default function PlatformFinanceSettingsPage() {
       key: "defaultGharamahRatePercent",
       label: "Default Gharamah rate %",
       placeholder: "e.g. 1.00",
+    },
+  ];
+
+  const gatewayFeeFields: Array<{
+    key: keyof typeof gatewayFees;
+    label: string;
+    placeholder: string;
+  }> = [
+    {
+      key: "issuerOnboardingFeeAmount",
+      label: "Issuer onboarding fee (MYR)",
+      placeholder: "e.g. 150",
+    },
+    {
+      key: "applicationProcessingFeeAmount",
+      label: "Application processing fee (MYR)",
+      placeholder: "e.g. 50",
+    },
+    {
+      key: "investorMinDepositAmount",
+      label: "Minimum investor deposit (MYR)",
+      placeholder: "e.g. 100",
+    },
+    {
+      key: "investorMaxDepositAmount",
+      label: "Maximum investor deposit (MYR)",
+      placeholder: "e.g. 30000",
     },
   ];
 
@@ -250,6 +283,12 @@ export default function PlatformFinanceSettingsPage() {
       platformFeeRateCapPercent: String(data.platformFeeRateCapPercent),
       defaultTawidhRatePercent: String(data.defaultTawidhRatePercent),
       defaultGharamahRatePercent: String(data.defaultGharamahRatePercent),
+    });
+    setGatewayFees({
+      issuerOnboardingFeeAmount: String(data.issuerOnboardingFeeAmount),
+      applicationProcessingFeeAmount: String(data.applicationProcessingFeeAmount),
+      investorMinDepositAmount: String(data.investorMinDepositAmount),
+      investorMaxDepositAmount: String(data.investorMaxDepositAmount),
     });
     setTrusteeLetter({ ...DEFAULT_TRUSTEE_LETTER, ...(data.trusteeLetterConfig ?? {}) });
     setPlatformAccounts({ ...emptyPlatformAccounts(), ...(data.platformAccountsConfig ?? {}) });
@@ -333,8 +372,9 @@ export default function PlatformFinanceSettingsPage() {
 
         <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
           <Tabs defaultValue="late-payment" className="space-y-6">
-            <TabsList className="grid h-auto w-full max-w-[760px] grid-cols-1 gap-2 md:grid-cols-3">
+            <TabsList className="grid h-auto w-full max-w-[760px] grid-cols-1 gap-2 md:grid-cols-4">
               <TabsTrigger value="late-payment">Late Payment</TabsTrigger>
+              <TabsTrigger value="gateway-fees">Gateway Fees</TabsTrigger>
               <TabsTrigger value="trustee-letter">Trustee Letter</TabsTrigger>
               <TabsTrigger value="money-flow-accounts">Money Flow Accounts</TabsTrigger>
             </TabsList>
@@ -377,6 +417,61 @@ export default function PlatformFinanceSettingsPage() {
                       }
                     >
                       Save Late Payment
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="gateway-fees">
+              <Card className="rounded-2xl p-6 shadow-sm md:p-8">
+                <CardHeader className="px-0 pt-0">
+                  <CardTitle>Gateway Fees</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 px-0 md:grid-cols-2">
+                  {gatewayFeeFields.map(({ key, label, placeholder }) => (
+                    <div key={key} className="space-y-2">
+                      <label className="text-sm font-medium">{label}</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={gatewayFees[key]}
+                        disabled={disabled}
+                        placeholder={placeholder}
+                        className="h-11 rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
+                        onChange={(event) =>
+                          setGatewayFees((prev) => ({ ...prev, [key]: event.target.value }))
+                        }
+                      />
+                    </div>
+                  ))}
+                  <div className="md:col-span-2 flex justify-end">
+                    <Button
+                      disabled={disabled || saveMutation.isPending}
+                      className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
+                      onClick={() => {
+                        const investorMinDepositAmount = Number(
+                          gatewayFees.investorMinDepositAmount
+                        );
+                        const investorMaxDepositAmount = Number(
+                          gatewayFees.investorMaxDepositAmount
+                        );
+                        if (investorMinDepositAmount > investorMaxDepositAmount) {
+                          toast.error("Minimum deposit cannot exceed maximum deposit");
+                          return;
+                        }
+                        saveMutation.mutate({
+                          issuerOnboardingFeeAmount: Number(gatewayFees.issuerOnboardingFeeAmount),
+                          applicationProcessingFeeAmount: Number(
+                            gatewayFees.applicationProcessingFeeAmount
+                          ),
+                          investorMinDepositAmount,
+                          investorMaxDepositAmount,
+                        });
+                      }}
+                    >
+                      Save Gateway Fees
                     </Button>
                   </div>
                 </CardContent>

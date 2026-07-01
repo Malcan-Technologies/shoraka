@@ -27,7 +27,7 @@
 
 import * as React from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
-import { useAuthToken, useOrganization } from "@cashsouk/config";
+import { formatCurrency, useAuthToken, useOrganization } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -41,6 +41,7 @@ import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useApplication,
+  getApiMutationErrorCode,
   useUpdateApplicationStep,
   useUpdateApplicationStatus,
   useResubmitApplication,
@@ -57,6 +58,7 @@ import {
   type ApplicationStepKey,
   ApplicationStatus,
   type Product,
+  type ApplicationProcessingFeeResponse,
 } from "@cashsouk/types";
 import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
 import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
@@ -89,6 +91,15 @@ import { useIssuerUnsavedNavigation } from "@/contexts/issuer-unsaved-navigation
 import { DevToolsProvider, useDevTools } from "../../components/dev-tools-context";
 import { DevToolsPanel } from "../../components/dev-tools-panel";
 import "../../components/dev-tools-registry";
+import { ApplicationProcessingFeeStep } from "@/components/application-processing-fee-step";
+import { ProcessingFeeReturnListener } from "@/components/processing-fee-return-listener";
+import { buildEditApplicationStepUrl } from "@/lib/application-processing-fee-routes";
+import {
+  issuerProcessingFeeSubmitRef,
+  normalizeProcessingFeeAmount,
+  useApplicationProcessingFeeOrder,
+  useCreateApplicationProcessingFeeMutation,
+} from "@/hooks/use-application-processing-fee";
 
 /** Post-submit / post-resubmit list route (toast + navigation run back-to-back after mutations). */
 const SUBMIT_SUCCESS_REDIRECT = "/applications";
@@ -164,6 +175,10 @@ function EditApplicationPageBody() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
+  const isPostFeeReturnFlow = Boolean(searchParams.get("processingFeeReturn"));
+  const isProcessingFeeFlow =
+    isPostFeeReturnFlow || searchParams.get("continue") === "processingFee";
+  const [postSubmitNavigationPending, setPostSubmitNavigationPending] = React.useState(false);
 
   /* ================================================================
      DATA LOADING
@@ -250,14 +265,6 @@ function EditApplicationPageBody() {
     application &&
     application.status !== "DRAFT" &&
     application.status !== "AMENDMENT_REQUESTED";
-
-  React.useEffect(() => {
-    if (!application) return;
-    if (isSubmittingRef.current) return;
-    if (application.status !== "DRAFT" && application.status !== "AMENDMENT_REQUESTED") {
-      router.replace("/applications");
-    }
-  }, [application, router]);
 
   /* ================================================================
      AMENDMENT CONTEXT LOADING (when application is in AMENDMENT_REQUESTED)
@@ -652,6 +659,22 @@ function EditApplicationPageBody() {
 
   const isRealAmendmentMode = application?.status === ApplicationStatus.AMENDMENT_REQUESTED;
   const isAmendmentModeEffective = isRealAmendmentMode || devPreviewAmendment;
+  const requiresProcessingFee =
+    application?.status === ApplicationStatus.DRAFT && !isAmendmentModeEffective;
+
+  const processingFeeOrderQuery = useApplicationProcessingFeeOrder(
+    applicationId,
+    requiresProcessingFee && isDeclarationsFinalStep
+  );
+  const processingFeeAmount = normalizeProcessingFeeAmount(processingFeeOrderQuery.data?.amount);
+  const processingFeeAlreadyPaid = processingFeeOrderQuery.data?.status === "COMPLETED";
+  const showProcessingFeeInConfirm = requiresProcessingFee && !processingFeeAlreadyPaid;
+
+  React.useEffect(() => {
+    if (searchParams.get("continue") === "processingFee" && requiresProcessingFee) {
+      setShowProcessingFeeStep(true);
+    }
+  }, [requiresProcessingFee, searchParams]);
 
   /* ================================================================
      STEP DATA STORAGE (REF)
@@ -667,6 +690,21 @@ function EditApplicationPageBody() {
   /** UI state for Submit / Resubmit: covers version check + mutations (ref alone does not re-render). */
   const [isSubmittingApplication, setIsSubmittingApplication] = React.useState(false);
   const [submitConfirmOpen, setSubmitConfirmOpen] = React.useState(false);
+  const [showProcessingFeeStep, setShowProcessingFeeStep] = React.useState(false);
+  const [pendingProcessingFee, setPendingProcessingFee] =
+    React.useState<ApplicationProcessingFeeResponse | null>(null);
+  const submitAfterPaymentRef = React.useRef<(applicationId: string) => Promise<void>>(
+    async () => {}
+  );
+
+  React.useEffect(() => {
+    if (!application) return;
+    if (isSubmittingRef.current) return;
+    if (isPostFeeReturnFlow || postSubmitNavigationPending) return;
+    if (application.status !== "DRAFT" && application.status !== "AMENDMENT_REQUESTED") {
+      router.replace("/applications");
+    }
+  }, [application, isPostFeeReturnFlow, postSubmitNavigationPending, router]);
 
   /* ================================================================
      MUTATIONS
@@ -675,6 +713,7 @@ function EditApplicationPageBody() {
   const updateStepMutation = useUpdateApplicationStep();
   const updateStatusMutation = useUpdateApplicationStatus();
   const resubmitMutation = useResubmitApplication();
+  const createProcessingFeeMutation = useCreateApplicationProcessingFeeMutation();
 
 
   /* ================================================================
@@ -783,6 +822,7 @@ function EditApplicationPageBody() {
   /** When URL has no step param: amendment mode → first amended step that is not yet acknowledged; normal flow → max allowed step. */
   React.useEffect(() => {
     if (isSubmittingRef.current) return;
+    if (isPostFeeReturnFlow || searchParams.get("continue") === "processingFee") return;
     if (!application || isLoadingApp || wizardState === null) return;
 
     if (!searchParams.get("step")) {
@@ -822,7 +862,7 @@ function EditApplicationPageBody() {
         targetStep = wizardState.allowedMaxStep;
       }
       void navigateWithVersionCheck(
-        `/applications/edit/${applicationId}?step=${targetStep}`,
+        buildEditApplicationStepUrl(applicationId, targetStep, searchParams),
         "replace"
       );
     }
@@ -839,6 +879,7 @@ function EditApplicationPageBody() {
     acknowledgedWorkflowIds,
     effectiveWorkflow,
     isStructureResolved,
+    isPostFeeReturnFlow,
     navigateWithVersionCheck,
   ]);
 
@@ -852,6 +893,7 @@ function EditApplicationPageBody() {
    */
   React.useEffect(() => {
     if (isSubmittingRef.current) return;
+    if (isPostFeeReturnFlow || searchParams.get("continue") === "processingFee") return;
     if (!application || isLoadingApp || isLoadingProducts) return;
     const versionMismatchBlocksStepGating =
       isMismatch &&
@@ -867,13 +909,19 @@ function EditApplicationPageBody() {
 
     // NaN guard: parseInt("abc") returns NaN; NaN < 1 is false, so explicit check required
     if (!Number.isFinite(stepFromUrl)) {
-      void navigateWithVersionCheck(`/applications/edit/${applicationId}?step=1`, "replace");
+      void navigateWithVersionCheck(
+        buildEditApplicationStepUrl(applicationId, 1, searchParams),
+        "replace"
+      );
       return;
     }
 
     // Lower bound: requestedStep < 1 → redirect to step 1
     if (stepFromUrl < 1) {
-      void navigateWithVersionCheck(`/applications/edit/${applicationId}?step=1`, "replace");
+      void navigateWithVersionCheck(
+        buildEditApplicationStepUrl(applicationId, 1, searchParams),
+        "replace"
+      );
       return;
     }
 
@@ -883,7 +931,7 @@ function EditApplicationPageBody() {
       toast.error("Please complete steps in order");
       const targetStep = maxStepInWorkflow > 0 ? Math.min(maxAllowed, maxStepInWorkflow) : maxAllowed;
       void navigateWithVersionCheck(
-        `/applications/edit/${applicationId}?step=${targetStep}`,
+        buildEditApplicationStepUrl(applicationId, targetStep, searchParams),
         "replace"
       );
       return;
@@ -895,7 +943,7 @@ function EditApplicationPageBody() {
         ? maxStepInWorkflow
         : Math.min(maxAllowed, maxStepInWorkflow);
       void navigateWithVersionCheck(
-        `/applications/edit/${applicationId}?step=${targetStep}`,
+        buildEditApplicationStepUrl(applicationId, targetStep, searchParams),
         "replace"
       );
       return;
@@ -912,6 +960,7 @@ function EditApplicationPageBody() {
     searchParams,
     wizardState,
     devPreviewAmendment,
+    isPostFeeReturnFlow,
     navigateWithVersionCheck,
   ]);
 
@@ -959,7 +1008,11 @@ function EditApplicationPageBody() {
 
   const stepReadOnly = isAmendmentModeEffective && !isStepFlagged;
 
-  const holdWizardDuringSubmit = isSubmittingApplication || isSubmittingRef.current;
+  const holdWizardDuringSubmit =
+    isSubmittingApplication ||
+    isSubmittingRef.current ||
+    isProcessingFeeFlow ||
+    postSubmitNavigationPending;
 
   const renderStepComponent = () => {
     const financingType = application?.financing_type as Record<string, unknown>;
@@ -1075,6 +1128,75 @@ function EditApplicationPageBody() {
      EVENT HANDLERS
      ================================================================ */
 
+  /** Validates declaration checkboxes from the in-memory step ref (must run before confirm/fee). */
+  const readValidatedDeclarations = () => {
+    const rawData = stepDataRef.current;
+    if (!rawData || stepDataStepKeyRef.current !== "declarations") {
+      toast.error("Please wait for the form to load before submitting");
+      return null;
+    }
+    const declarationsPayload = rawData.declarations as unknown[] | undefined;
+    const allChecked = Boolean((rawData as { areAllDeclarationsChecked?: boolean }).areAllDeclarationsChecked);
+    if (!Array.isArray(declarationsPayload) || !allChecked) {
+      toast.error("Please check all declarations before submitting");
+      return null;
+    }
+    return declarationsPayload;
+  };
+
+  const persistDeclarationsStep = async (declarationsPayload: unknown[]) => {
+    const finalStepNumber = effectiveWorkflow.length;
+    await updateStepMutation.mutateAsync({
+      id: applicationId,
+      stepData: {
+        stepId: currentStepId,
+        stepNumber: finalStepNumber,
+        data: { declarations: declarationsPayload },
+      },
+    });
+  };
+
+  const finalizeApplicationSubmit = React.useCallback(async (wasAmendmentResubmit: boolean) => {
+    if (wasAmendmentResubmit) {
+      await resubmitMutation.mutateAsync(applicationId);
+      toast.success("Application resubmitted successfully");
+    } else {
+      await updateStatusMutation.mutateAsync({
+        id: applicationId,
+        status: ApplicationStatus.SUBMITTED,
+      });
+      toast.success("Application submitted successfully");
+    }
+    await router.replace(SUBMIT_SUCCESS_REDIRECT);
+  }, [applicationId, resubmitMutation, router, updateStatusMutation]);
+
+  /** After FPX return: declarations already saved; only flip status to SUBMITTED. */
+  const submitApplicationAfterPaidFee = React.useCallback(
+    async () => {
+      isSubmittingRef.current = true;
+      setIsSubmittingApplication(true);
+      setPostSubmitNavigationPending(true);
+      try {
+        if (await versionBlocksNavigation()) {
+          throw new Error("This application must be updated before it can be submitted");
+        }
+        await updateStatusMutation.mutateAsync({
+          id: applicationId,
+          status: ApplicationStatus.SUBMITTED,
+        });
+      } catch (error) {
+        isSubmittingRef.current = false;
+        setIsSubmittingApplication(false);
+        setPostSubmitNavigationPending(false);
+        throw error;
+      }
+    },
+    [applicationId, updateStatusMutation, versionBlocksNavigation]
+  );
+
+  submitAfterPaymentRef.current = submitApplicationAfterPaidFee;
+  issuerProcessingFeeSubmitRef.current = submitApplicationAfterPaidFee;
+
   /** Saves declaration checkboxes then submits (new) or resubmits (amendment). Called after confirm modal. */
   const executeSubmitOrResubmit = async () => {
     if (isSubmittingRef.current) return;
@@ -1087,29 +1209,18 @@ function EditApplicationPageBody() {
     }
     if (!applicationId) return;
 
-    const rawData = stepDataRef.current;
-    if (!rawData || stepDataStepKeyRef.current !== "declarations") {
-      toast.error("Please wait for the form to load before submitting");
-      return;
-    }
-    const declarationsPayload = rawData.declarations as unknown[] | undefined;
-    const allChecked = Boolean((rawData as { areAllDeclarationsChecked?: boolean }).areAllDeclarationsChecked);
-    if (!Array.isArray(declarationsPayload) || !allChecked) {
-      toast.error("Please check all declarations before submitting");
-      return;
-    }
+    const declarationsPayload = readValidatedDeclarations();
+    if (!declarationsPayload) return;
+
     if (application?.status === "AMENDMENT_REQUESTED" && !devPreviewAmendment && !allAmendmentStepsAcknowledged) {
       toast.error("Please complete all required amendment updates first");
       return;
     }
     if (!devPreviewAmendment && !directorPartySubmitReady) {
       toast.error(directorPartySubmitBlockedMessage);
-      isSubmittingRef.current = false;
-      setIsSubmittingApplication(false);
       return;
     }
 
-    /** Before any await: keeps edit layout on screen while React Query refetches (avoid wizard/step skeleton). */
     isSubmittingRef.current = true;
     setIsSubmittingApplication(true);
     let successPendingNav = false;
@@ -1117,57 +1228,110 @@ function EditApplicationPageBody() {
 
     try {
       if (await versionBlocksNavigation()) {
-        isSubmittingRef.current = false;
-        setIsSubmittingApplication(false);
         return;
       }
 
-      const finalStepNumber = effectiveWorkflow.length;
-      await updateStepMutation.mutateAsync({
-        id: applicationId,
-        stepData: {
-          stepId: currentStepId,
-          stepNumber: finalStepNumber,
-          data: { declarations: declarationsPayload },
-        },
-      });
-
-      if (wasAmendmentResubmit) {
-        await resubmitMutation.mutateAsync(applicationId);
-        successPendingNav = true;
-      } else {
-        await updateStatusMutation.mutateAsync({
-          id: applicationId,
-          status: ApplicationStatus.SUBMITTED,
-        });
-        successPendingNav = true;
-      }
-
-      if (successPendingNav) {
-        toast.success(
-          wasAmendmentResubmit
-            ? "Application resubmitted successfully"
-            : "Application submitted successfully"
-        );
-        try {
-          await router.replace(SUBMIT_SUCCESS_REDIRECT);
-        } catch {
-          isSubmittingRef.current = false;
-          setIsSubmittingApplication(false);
-        }
-      }
+      await persistDeclarationsStep(declarationsPayload);
+      await finalizeApplicationSubmit(wasAmendmentResubmit);
+      successPendingNav = true;
     } catch {
       toast.error(
         wasAmendmentResubmit ? "Failed to resubmit application" : "Failed to submit application"
       );
     } finally {
-      /** Do not clear on successful submit: status is already non-draft, and clearing here runs as soon as `router.replace` resolves—often before unmount—so the next paint would hit `isEditBlocked` and `return null` (white flash). */
       if (!successPendingNav) {
         isSubmittingRef.current = false;
         setIsSubmittingApplication(false);
       }
     }
   };
+
+  const handleConfirmSubmit = async () => {
+    if (isSubmittingRef.current) return;
+    if (!applicationId) return;
+
+    const declarationsPayload = readValidatedDeclarations();
+    if (!declarationsPayload) return;
+
+    if (application?.status === "AMENDMENT_REQUESTED" && !devPreviewAmendment && !allAmendmentStepsAcknowledged) {
+      toast.error("Please complete all required amendment updates first");
+      return;
+    }
+    if (!devPreviewAmendment && !directorPartySubmitReady) {
+      toast.error(directorPartySubmitBlockedMessage);
+      return;
+    }
+
+    isSubmittingRef.current = true;
+    setIsSubmittingApplication(true);
+    let holdSubmitting = false;
+
+    try {
+      if (await versionBlocksNavigation()) {
+        return;
+      }
+
+      await persistDeclarationsStep(declarationsPayload);
+
+      if (requiresProcessingFee) {
+        const fee = await createProcessingFeeMutation.mutateAsync(applicationId);
+        if (fee.status === "COMPLETED") {
+          await finalizeApplicationSubmit(false);
+          holdSubmitting = true;
+          return;
+        }
+        setPendingProcessingFee(fee);
+        setShowProcessingFeeStep(true);
+        return;
+      }
+
+      await finalizeApplicationSubmit(application?.status === "AMENDMENT_REQUESTED");
+      holdSubmitting = true;
+    } catch {
+      toast.error("Failed to prepare submission");
+    } finally {
+      if (!holdSubmitting) {
+        isSubmittingRef.current = false;
+        setIsSubmittingApplication(false);
+      }
+    }
+  };
+
+  const handleBeginSubmit = () => {
+    if (devPreviewAmendment) {
+      setSubmitConfirmOpen(true);
+      return;
+    }
+    if (!readValidatedDeclarations()) return;
+    if (application?.status === "AMENDMENT_REQUESTED" && !allAmendmentStepsAcknowledged) {
+      toast.error("Please complete all required amendment updates first");
+      return;
+    }
+    if (!directorPartySubmitReady) {
+      toast.error(directorPartySubmitBlockedMessage);
+      return;
+    }
+    setSubmitConfirmOpen(true);
+  };
+
+  const handleFeeAlreadyPaid = React.useCallback(async () => {
+    setShowProcessingFeeStep(false);
+    setPendingProcessingFee(null);
+    isSubmittingRef.current = true;
+    setIsSubmittingApplication(true);
+    try {
+      await finalizeApplicationSubmit(false);
+    } catch (error) {
+      if (getApiMutationErrorCode(error) === "PROCESSING_FEE_REQUIRED") {
+        toast.info("We are still confirming your payment. Please wait a moment and try again.");
+        setShowProcessingFeeStep(true);
+      } else {
+        toast.error("Failed to submit application");
+      }
+      isSubmittingRef.current = false;
+      setIsSubmittingApplication(false);
+    }
+  }, [finalizeApplicationSubmit]);
 
 
 
@@ -1604,8 +1768,8 @@ function EditApplicationPageBody() {
   /** Keep footer visible during loading/block shell; buttons stay disabled so layout does not jump. */
   const footerActionsLocked = useWizardContentShell;
 
-  /** After resubmit/submit, status leaves DRAFT/AMENDMENT_REQUESTED — stay on this page until navigation finishes so the footer can show Submitting… */
-  if (isEditBlocked && !isSubmittingApplication && !isSubmittingRef.current) {
+  /** After resubmit/submit, status leaves DRAFT/AMENDMENT_REQUESTED — stay mounted until navigation finishes. */
+  if (isEditBlocked) {
     return null;
   }
 
@@ -1658,7 +1822,7 @@ function EditApplicationPageBody() {
             </ApplicationFlowBlockedBackdrop>
           ) : (
             <>
-              {application ? (
+              {application && !showProcessingFeeStep && !isProcessingFeeFlow ? (
                 <div className="mb-4 sm:mb-6">
                   <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
                     {currentStepInfo.title}
@@ -1705,6 +1869,8 @@ function EditApplicationPageBody() {
         <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 pt-4 sm:pt-6 relative">
           {useWizardContentShell ? (
             <ApplicationFlowBlockedStepSkeleton />
+          ) : isProcessingFeeFlow ? (
+            <ApplicationFlowBlockedStepSkeleton />
           ) : (
             <>
               {isAmendmentModeEffective && !isStepFlagged && !isDeclarationsFinalStep ? (
@@ -1717,14 +1883,26 @@ function EditApplicationPageBody() {
                   <AmendmentRemarkCard remarks={currentStepRemarks} showDefaultIntro={false} />
                 </div>
               ) : null}
-              {renderStepComponent()}
+              {showProcessingFeeStep ? (
+                <ApplicationProcessingFeeStep
+                  applicationId={applicationId}
+                  initialFee={pendingProcessingFee}
+                  onBack={() => {
+                    setShowProcessingFeeStep(false);
+                    setPendingProcessingFee(null);
+                  }}
+                  onFeeAlreadyPaid={() => void handleFeeAlreadyPaid()}
+                />
+              ) : (
+                renderStepComponent()
+              )}
             </>
           )}
         </div>
       </main>
 
       {/* Bottom buttons — visible during shell; disabled until route is interactive */}
-      {application ? (
+      {application && !showProcessingFeeStep && !isProcessingFeeFlow ? (
         <footer className="sticky bottom-0 border-t bg-background">
           <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 py-3 sm:py-4 flex flex-col sm:flex-row gap-3 sm:gap-0 sm:justify-between">
             <Button
@@ -1745,7 +1923,7 @@ function EditApplicationPageBody() {
 
             <div className="order-1 sm:order-2 flex flex-col items-end gap-1">
             <Button
-              onClick={isDeclarationsFinalStep ? () => setSubmitConfirmOpen(true) : handleSaveAndContinue}
+              onClick={isDeclarationsFinalStep ? () => void handleBeginSubmit() : handleSaveAndContinue}
               disabled={
                 footerActionsLocked ||
                 (isDeclarationsFinalStep
@@ -1810,6 +1988,19 @@ function EditApplicationPageBody() {
                     ? "When you resubmit, our team will review your updated application."
                     : "After you submit, you will not be able to edit this application unless we request changes."}
                 </p>
+                {showProcessingFeeInConfirm ? (
+                  <p>
+                    Before your application is sent for review, you will need to pay a one-time
+                    application processing fee
+                    {processingFeeAmount != null
+                      ? ` of ${formatCurrency(processingFeeAmount)}`
+                      : processingFeeOrderQuery.isLoading
+                        ? " (loading amount…)"
+                        : ""}{" "}
+                    via FPX. This fee is non-refundable. If we request changes later, resubmitting
+                    does not require another payment.
+                  </p>
+                ) : null}
               </div>
             </DialogDescription>
           </DialogHeader>
@@ -1821,10 +2012,18 @@ function EditApplicationPageBody() {
               type="button"
               onClick={() => {
                 setSubmitConfirmOpen(false);
-                void executeSubmitOrResubmit();
+                if (devPreviewAmendment) {
+                  void executeSubmitOrResubmit();
+                } else {
+                  void handleConfirmSubmit();
+                }
               }}
             >
-              {isAmendmentModeEffective ? "Resubmit" : "Submit application"}
+              {isAmendmentModeEffective
+                ? "Resubmit"
+                : showProcessingFeeInConfirm
+                  ? "Continue to payment"
+                  : "Submit application"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1865,6 +2064,9 @@ function EditApplicationPageBody() {
 function EditApplicationPageInner() {
   return (
     <DevToolsProvider>
+      <ProcessingFeeReturnListener
+        onSubmitAfterPayment={async (id) => issuerProcessingFeeSubmitRef.current(id)}
+      />
       <EditApplicationPageBody />
     </DevToolsProvider>
   );

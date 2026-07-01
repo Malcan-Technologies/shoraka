@@ -957,33 +957,53 @@ Key actions:
 - “Approve”:
   - UI requires the confirmation switch and then calls `onApprove` callback
 
-## 9. Issuer UI flow
+## 9. Portal UI flows (investor & issuer)
 
-Issuer dashboard and status cards:
+### 9.1 Route-based onboarding
 
-- `apps/issuer/src/app/page.tsx` shows:
-  - `OnboardingStatusCard` when onboarding steps are not complete
-  - “Awaiting Approval” and “Onboarding Rejected” blocks
-  - director/shareholder alert card for company:
-    - `DirectorShareholderAlertCard`
+Onboarding is split across dedicated routes (see **`packages/config/src/onboarding-flow.ts`**). `/onboarding-start` redirects to `/onboarding/account`.
 
-Onboarding steps:
+| Step | Route |
+|------|-------|
+| Account type | `/onboarding/account` |
+| Terms | `/onboarding/terms` |
+| Issuer fee (company) | `/onboarding/fee` |
+| RegTank verify | `/onboarding/verify` |
 
-- `apps/issuer/src/components/onboarding-status-card.tsx`
-  - computes steps:
-    - `Onboarding` (completed unless rejected)
-    - `User Agreement` (completed when `tncAccepted === true`)
-    - `Approval` (completed when `organization.onboardingStatus === "COMPLETED"`)
-  - shows corporate director/shareholder unified KYC/AML table when:
-    - org `type === "COMPANY"`
-    - and org `onboardingStatus` is `PENDING_APPROVAL` or `PENDING_AML`
+Shared layout and step components live in **`packages/ui/src/onboarding/`**. Stepper verify label: **Onboarding**.
 
-Corporate onboarding modal:
+### 9.2 Investor dashboard
 
-- `apps/issuer/src/components/corporate-onboarding-modal.tsx`
-  - shows “Open RegTank Portal” when `regtankVerifyLink` exists
-  - “Refresh Status” button calls `refreshOrganizations()`
-  - displays message based on `onboardingStatus` (COMPLETED/PENDING_APPROVAL/PENDING_AML/…)
+**File:** `apps/investor/src/app/page.tsx`
+
+- Redirects incomplete steps (`terms`, `verify`) to `/onboarding/*`.
+- During admin-wait (`PENDING_APPROVAL`, `PENDING_AML`, etc.): shows `OnboardingStatusCard` + “Awaiting Approval”; **Account Overview** rendered as a disabled sneak peek; portfolio and investments remain hidden until `onboarding_status === COMPLETED`.
+- After `COMPLETED`: full dashboard; `DepositCard` when `deposit_received` is false (post-approval activation — not required for admin onboarding completion).
+
+### 9.3 Issuer dashboard
+
+**File:** `apps/issuer/src/app/page.tsx`
+
+- Same route redirects for incomplete steps.
+- Shows `OnboardingStatusCard` when steps incomplete; “Awaiting Approval” / “Onboarding Rejected” blocks; `DirectorShareholderAlertCard` for company orgs when applicable.
+
+Onboarding steps (via `getOnboardingStepperSteps` in **`apps/issuer/src/components/onboarding-status-card.tsx`**):
+
+- `User Agreement` → `tncAccepted`
+- `Onboarding Fee` (company) → `onboardingFeePaidAt`
+- `Onboarding` (RegTank verify)
+- `Approval` → `onboardingStatus === COMPLETED`
+
+Corporate director/shareholder unified KYC/AML table when org `type === COMPANY` and status is `PENDING_APPROVAL` or `PENDING_AML`.
+
+### 9.4 Organization switcher
+
+**Files:** `apps/investor/src/components/organization-switcher.tsx`, `apps/issuer/src/components/organization-switcher.tsx`
+
+- **Your Organizations:** `COMPLETED` + admin-wait statuses (`PENDING_APPROVAL`, `PENDING_AML`, `PENDING_FINAL_APPROVAL`, `PENDING_SSM_REVIEW`); **COMPLETED listed first**.
+- **Needs Attention:** user must act (incomplete onboarding, RegTank in progress, `PENDING_AMENDMENT`, `REJECTED`, expired, etc.).
+
+Removed legacy components: `corporate-onboarding-modal.tsx`, portal-local `terms-acceptance-card.tsx` (replaced by shared `packages/ui` + route pages).
 
 Director/shareholder onboarding links:
 

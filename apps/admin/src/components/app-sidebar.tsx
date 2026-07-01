@@ -48,6 +48,8 @@ import {
 } from "@/components/ui/sidebar";
 import { ChevronRight } from "lucide-react";
 import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
+import { useGatewayPaymentsExceptionCount } from "@/hooks/use-gateway-payments";
+import { useGatewayReconPendingCount } from "@/hooks/use-gateway-recon";
 import { useProducts } from "@/hooks/use-products";
 import { useAdminApplicationsForSidebar } from "@/hooks/use-admin-applications-for-sidebar";
 import {
@@ -150,6 +152,18 @@ const navFinance = [
     icon: ArrowUpTrayIcon,
     badgeKey: "pendingInvestorWithdrawals" as const,
   },
+  {
+    title: "Gateway Payments",
+    url: "/finance/gateway-payments",
+    icon: BanknotesIcon,
+    badgeKey: "gatewayPaymentExceptions" as const,
+  },
+  {
+    title: "Reconciliation",
+    url: "/finance/reconciliation",
+    icon: ArrowsRightLeftIcon,
+    badgeKey: "gatewayReconExceptions" as const,
+  },
 ] as const;
 
 const navPlatform = [
@@ -210,6 +224,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canViewServiceFee = can("service_fee.view");
   const canViewDisbursements = can("disbursements.view");
   const canViewInvestorWithdrawals = can("investor_withdrawals.view");
+  const canViewGatewayPayments = can("gateway_payments.view");
 
   const canViewUsers = can("users.view");
   const canViewOrganizations = can("organizations.view");
@@ -231,6 +246,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: pendingIssuerPayoutsData } = usePendingIssuerPayouts({ enabled: canViewDisbursements });
   const { data: pendingInvestorWithdrawalsData } = usePendingInvestorWithdrawals({
     enabled: canViewInvestorWithdrawals,
+  });
+  const { data: gatewayPaymentExceptionsData } = useGatewayPaymentsExceptionCount({
+    enabled: canViewGatewayPayments,
+  });
+  const { data: gatewayReconData } = useGatewayReconPendingCount({
+    enabled: canViewGatewayPayments,
   });
   const { data: pendingServiceFeeLettersData } = usePendingServiceFeeTrusteeLetters({
     enabled: canViewServiceFee,
@@ -254,6 +275,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     pendingServiceFeeTrusteeLetters: pendingServiceFeeLettersData?.count || 0,
     pendingIssuerPayouts: pendingIssuerPayoutsData?.count || 0,
     pendingInvestorWithdrawals: pendingInvestorWithdrawalsData?.count || 0,
+    gatewayPaymentExceptions: gatewayPaymentExceptionsData?.count || 0,
+    gatewayReconExceptions: gatewayReconData?.count || 0,
   };
 
   const dynamicNavLifecycle = React.useMemo(() => {
@@ -287,7 +310,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       (item.title === "Repayments" && canViewRepayments) ||
       (item.title === "Settlement Trustee" && canViewServiceFee) ||
       (item.title === "Issuer Payouts" && canViewDisbursements) ||
-      (item.title === "Investor Withdrawals" && canViewInvestorWithdrawals)
+      (item.title === "Investor Withdrawals" && canViewInvestorWithdrawals) ||
+      (item.title === "Gateway Payments" && canViewGatewayPayments) ||
+      (item.title === "Gateway Payments" && canViewGatewayPayments) ||
+      (item.title === "Reconciliation" && canViewGatewayPayments)
     );
   });
 
@@ -564,7 +590,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       (item.title === "Repayments" && canViewRepayments) ||
                       (item.title === "Settlement Trustee" && canViewServiceFee) ||
                       (item.title === "Issuer Payouts" && canViewDisbursements) ||
-      (item.title === "Investor Withdrawals" && canViewInvestorWithdrawals);
+      (item.title === "Investor Withdrawals" && canViewInvestorWithdrawals) ||
+      (item.title === "Gateway Payments" && canViewGatewayPayments) ||
+      (item.title === "Gateway Payments" && canViewGatewayPayments) ||
+      (item.title === "Reconciliation" && canViewGatewayPayments);
 
                     if (!canShow) return null;
 

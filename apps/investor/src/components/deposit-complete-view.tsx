@@ -28,17 +28,34 @@ function statusContent(status: GatewayPaymentStatus, amount: number) {
           </>
         ),
       };
-    case "HELD":
+    case "REFUND_INITIATED":
+    case "REFUNDED":
       return {
-        icon: ExclamationTriangleIcon,
-        iconClassName: "bg-amber-600",
-        title: "Deposit under review",
+        icon: ClockIcon,
+        iconClassName: "bg-slate-700",
+        title: status === "REFUNDED" ? "Deposit refunded" : "Refund in progress",
         body: (
           <>
             <p className="text-3xl font-bold text-primary">{formatCurrency(amount)}</p>
             <p className="text-sm text-muted-foreground">
-              The payer name did not match your account. Our team will review this deposit before
-              crediting your balance.
+              {status === "REFUNDED"
+                ? "This deposit has been refunded to your bank account."
+                : "Your deposit could not be verified and is being refunded automatically. This usually takes 5–7 working days."}
+            </p>
+          </>
+        ),
+      };
+    case "HELD":
+      return {
+        icon: ExclamationTriangleIcon,
+        iconClassName: "bg-amber-600",
+        title: "Deposit could not be processed",
+        body: (
+          <>
+            <p className="text-3xl font-bold text-primary">{formatCurrency(amount)}</p>
+            <p className="text-sm text-muted-foreground">
+              We could not complete the automatic refund for this deposit. Our team has been
+              notified and will follow up with you.
             </p>
           </>
         ),
@@ -47,13 +64,13 @@ function statusContent(status: GatewayPaymentStatus, amount: number) {
       return {
         icon: ClockIcon,
         iconClassName: "bg-slate-700",
-        title: "Deposit pending verification",
+        title: "Deposit received",
         body: (
           <>
             <p className="text-3xl font-bold text-primary">{formatCurrency(amount)}</p>
             <p className="text-sm text-muted-foreground">
-              Your payment was received. We could not verify the payer name automatically, so our
-              team will confirm it shortly.
+              Your payment was received and name verification is in progress. This usually
+              completes within one business day.
             </p>
           </>
         ),

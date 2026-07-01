@@ -595,6 +595,10 @@ export interface PlatformFinanceSetting {
   withdrawalLetterTemplate: string;
   arrearsLetterTemplate: string;
   defaultLetterTemplate: string;
+  issuerOnboardingFeeAmount: number;
+  applicationProcessingFeeAmount: number;
+  investorMinDepositAmount: number;
+  investorMaxDepositAmount: number;
   trusteeLetterConfig: TrusteeLetterConfig | null;
   platformAccountsConfig: PlatformAccountsConfig | null;
   ledgerBucketAccountsConfig: LedgerBucketAccountsConfig | null;
@@ -937,6 +941,11 @@ export type GatewayPaymentStatus =
 
 export type NameCheckResult = "PASS" | "FAIL" | "NAME_UNAVAILABLE";
 
+export interface InvestorDepositLimits {
+  minAmount: number;
+  maxAmount: number;
+}
+
 export interface CreateInvestorDepositInput {
   investorOrganizationId: string;
   amount: number;
@@ -956,6 +965,32 @@ export interface InvestorDepositResponse {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface CreateIssuerOnboardingFeeInput {
+  issuerOrganizationId: string;
+}
+
+export interface IssuerOnboardingFeeResponse {
+  id: string;
+  status: GatewayPaymentStatus;
+  purpose: string;
+  amount: number;
+  currency: string;
+  curlecOrderId: string;
+  curlecKeyId: string;
+  issuerOrganizationId: string | null;
+  applicationId: string | null;
+  nameCheckResult: NameCheckResult | null;
+  payerName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateApplicationProcessingFeeInput {
+  applicationId: string;
+}
+
+export type ApplicationProcessingFeeResponse = IssuerOnboardingFeeResponse;
 
 export interface RecordNotePaymentInput {
   source: NotePaymentSource;

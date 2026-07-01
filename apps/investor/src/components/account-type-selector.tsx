@@ -19,7 +19,12 @@ import {
 } from "@cashsouk/ui";
 import { UserIcon, BuildingOffice2Icon, ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { CheckCircleIcon, ExclamationCircleIcon } from "@heroicons/react/24/solid";
-import { useOrganization, type CreateOrganizationInput, createApiClient, useAuthToken } from "@cashsouk/config";
+import {
+  useOrganization,
+  type CreateOrganizationInput,
+  createApiClient,
+  useAuthToken,
+} from "@cashsouk/config";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
@@ -28,54 +33,63 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 interface AccountTypeSelectorProps {
   onBack: () => void;
-  onCorporateOnboardingStart?: (organizationId: string) => void;
 }
 
 type Step = "select-type" | "completing";
 type ConfirmationType = "personal" | "company" | null;
 
-export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: AccountTypeSelectorProps) {
+export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
   const router = useRouter();
   const { getAccessToken } = useAuthToken();
-  const { hasPersonalOrganization, organizations, createOrganization, startRegTankOnboarding, startIndividualOnboarding, startCorporateOnboarding, switchOrganization, refreshOrganizations } = useOrganization();
+  const { hasPersonalOrganization, organizations, createOrganization, switchOrganization } =
+    useOrganization();
   const [step, setStep] = React.useState<Step>("select-type");
   const [error, setError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [confirmationType, setConfirmationType] = React.useState<ConfirmationType>(null);
-
-  // Corporate onboarding form state
   const [companyName, setCompanyName] = React.useState("");
   const [formErrors, setFormErrors] = React.useState<{ companyName?: string }>({});
 
-  // Find personal organization to check if onboarding can be resumed
-  const personalOrganization = React.useMemo(() => {
-    return organizations.find(org => org.type === "PERSONAL");
-  }, [organizations]);
+  const personalOrganization = React.useMemo(
+    () => organizations.find((org) => org.type === "PERSONAL"),
+    [organizations]
+  );
 
-  // Allow restarting/resuming if status is PENDING or IN_PROGRESS
-  // PENDING: admin requested redo via restart
-  // IN_PROGRESS: onboarding is in progress and can be resumed
-  const canRestartPersonalOnboarding = React.useMemo(() => {
-    return personalOrganization?.onboardingStatus === "PENDING" || personalOrganization?.onboardingStatus === "IN_PROGRESS";
-  }, [personalOrganization]);
+  const canRestartPersonalOnboarding = React.useMemo(
+    () =>
+      personalOrganization?.onboardingStatus === "PENDING" ||
+      personalOrganization?.onboardingStatus === "IN_PROGRESS",
+    [personalOrganization]
+  );
 
-  // Check if we should show "Resume onboarding" vs "Restart required"
-  const shouldResumeOnboarding = React.useMemo(() => {
-    return personalOrganization?.onboardingStatus === "IN_PROGRESS";
-  }, [personalOrganization]);
+  const shouldResumeOnboarding = React.useMemo(
+    () => personalOrganization?.onboardingStatus === "IN_PROGRESS",
+    [personalOrganization]
+  );
 
-  // Personal account button should be disabled if:
-  // - Personal org exists AND status is PENDING_APPROVAL or later (cannot restart/resume)
-  // - OR if currently submitting
-  // Allow if: no org exists, or status is PENDING/IN_PROGRESS (user can click to resume)
   const isPersonalAccountDisabled = React.useMemo(() => {
     if (isSubmitting) return true;
     if (!hasPersonalOrganization) return false;
     const status = personalOrganization?.onboardingStatus;
-    // Disable if status is PENDING_APPROVAL, PENDING_AML, PENDING_SSM_REVIEW, PENDING_FINAL_APPROVAL, COMPLETED, or REJECTED
-    const disabledStatuses = ["PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_FINAL_APPROVAL", "COMPLETED", "REJECTED"];
+    const disabledStatuses = [
+      "PENDING_APPROVAL",
+      "PENDING_AML",
+      "PENDING_SSM_REVIEW",
+      "PENDING_FINAL_APPROVAL",
+      "COMPLETED",
+      "REJECTED",
+    ];
     return disabledStatuses.includes(status || "");
   }, [hasPersonalOrganization, personalOrganization?.onboardingStatus, isSubmitting]);
+
+  const logOnboardingStart = async () => {
+    try {
+      const apiClient = createApiClient(API_URL, getAccessToken);
+      await apiClient.post("/v1/auth/start-onboarding", { role: "INVESTOR" });
+    } catch (logError) {
+      console.error("[AccountTypeSelector] Failed to log onboarding start:", logError);
+    }
+  };
 
   const handleConfirmPersonal = async () => {
     setConfirmationType(null);
@@ -84,63 +98,19 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
     setStep("completing");
 
     try {
-      // Log ONBOARDING_STARTED when user confirms personal account creation
-      try {
-        const apiClient = createApiClient(API_URL, getAccessToken);
-        await apiClient.post("/v1/auth/start-onboarding", {
-          role: "INVESTOR",
-        });
-      } catch (logError) {
-        // Log error but don't block the flow
-        console.error("[AccountTypeSelector] Failed to log onboarding start:", logError);
-      }
+      await logOnboardingStart();
 
-      // Check if personal organization already exists
-      const existingPersonalOrg = organizations.find(org => org.type === "PERSONAL");
-      
+      const existingPersonalOrg = organizations.find((org) => org.type === "PERSONAL");
       let org;
       if (existingPersonalOrg) {
-        // Use existing personal organization
         org = existingPersonalOrg;
       } else {
-        // Create new personal organization
         const input: CreateOrganizationInput = { type: "PERSONAL" };
         org = await createOrganization(input);
       }
-      
-      // Start RegTank individual onboarding for the organization
-      // Backend will check for existing active onboarding and resume if found
-      // Backend will also set organization status to IN_PROGRESS
-      try {
-        const { verifyLink } = startIndividualOnboarding 
-          ? await startIndividualOnboarding(org.id)
-          : await startRegTankOnboarding(org.id);
-        
-        // Refresh organizations to get updated status (this will update the UI)
-        await refreshOrganizations();
-        
-        // Small delay to ensure state updates are reflected before redirect
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Redirect to RegTank portal
-        window.location.href = verifyLink;
-      } catch (regTankError) {
-        // Log full error for debugging
-        console.error("[AccountTypeSelector] RegTank onboarding failed:", regTankError);
-        
-        // Extract error message
-        let errorMessage = "Failed to start identity verification";
-        if (regTankError instanceof Error) {
-          errorMessage = regTankError.message;
-        } else if (typeof regTankError === "object" && regTankError !== null) {
-          const err = regTankError as { message?: string; error?: { message?: string } };
-          errorMessage = err.message || err.error?.message || errorMessage;
-        }
-        
-        setError(errorMessage);
-        setStep("select-type");
-        setIsSubmitting(false);
-      }
+
+      switchOrganization(org.id);
+      router.push("/onboarding/terms");
     } catch (err) {
       console.error("[AccountTypeSelector] Failed to create personal account:", err);
       setError(err instanceof Error ? err.message : "Failed to create personal account");
@@ -150,19 +120,16 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
   };
 
   const handleCompanyFormSubmit = () => {
-    // Validate form
     const errors: { companyName?: string } = {};
     if (!companyName.trim()) {
       errors.companyName = "Company name is required";
     }
-    
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
       return;
     }
-    
     setFormErrors({});
-    handleConfirmCompany(companyName.trim());
+    void handleConfirmCompany(companyName.trim());
   };
 
   const handleConfirmCompany = async (companyNameValue: string) => {
@@ -172,60 +139,15 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
     setStep("completing");
 
     try {
-      // Log ONBOARDING_STARTED when user confirms company account creation
-      try {
-        const apiClient = createApiClient(API_URL, getAccessToken);
-        await apiClient.post("/v1/auth/start-onboarding", {
-          role: "INVESTOR",
-        });
-      } catch (logError) {
-        // Log error but don't block the flow
-        console.error("[AccountTypeSelector] Failed to log onboarding start:", logError);
-      }
+      await logOnboardingStart();
 
       const input: CreateOrganizationInput = {
         type: "COMPANY",
         name: companyNameValue,
       };
       const org = await createOrganization(input);
-      
-      // Start RegTank corporate onboarding for the new organization
-      try {
-        const { verifyLink } = startCorporateOnboarding 
-          ? await startCorporateOnboarding(org.id, companyNameValue)
-          : await startRegTankOnboarding(org.id);
-        
-        // Switch to the new organization
-        switchOrganization(org.id);
-        
-        // Open RegTank portal in popup window
-        window.open(verifyLink, "_blank");
-        
-        // Redirect to dashboard to show onboarding progress
-        router.push("/");
-        
-        // Notify parent component
-        if (onCorporateOnboardingStart) {
-          onCorporateOnboardingStart(org.id);
-        }
-      } catch (regTankError) {
-        // Log full error for debugging
-        console.error("[AccountTypeSelector] RegTank corporate onboarding failed:", regTankError);
-        
-        // Extract error message
-        let errorMessage = "Failed to start identity verification";
-        if (regTankError instanceof Error) {
-          errorMessage = regTankError.message;
-        } else if (typeof regTankError === "object" && regTankError !== null) {
-          const err = regTankError as { message?: string; error?: { message?: string } };
-          errorMessage = err.message || err.error?.message || errorMessage;
-        }
-        
-        setError(errorMessage);
-        setStep("select-type");
-        setIsSubmitting(false);
-        setStep("select-type");
-      }
+      switchOrganization(org.id);
+      router.push("/onboarding/terms");
     } catch (err) {
       console.error("[AccountTypeSelector] Failed to create company account:", err);
       setError(err instanceof Error ? err.message : "Failed to create company account");
@@ -245,11 +167,9 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
           </div>
           <div className="space-y-2">
             <h2 className="text-xl font-semibold">Setting up your account...</h2>
-            <p className="text-[15px] text-muted-foreground">
-              This will only take a moment
-            </p>
+            <p className="text-[15px] text-muted-foreground">This will only take a moment</p>
           </div>
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
         </div>
       </div>
     );
@@ -257,63 +177,51 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
 
   return (
     <>
-      {/* Personal Account Confirmation Dialog */}
-      <AlertDialog open={confirmationType === "personal"} onOpenChange={(open) => !open && setConfirmationType(null)}>
+      <AlertDialog
+        open={confirmationType === "personal"}
+        onOpenChange={(open) => !open && setConfirmationType(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {shouldResumeOnboarding ? "Resume Onboarding?" : canRestartPersonalOnboarding ? "Restart Onboarding?" : "Create Personal Account?"}
+              {shouldResumeOnboarding
+                ? "Resume Onboarding?"
+                : canRestartPersonalOnboarding
+                  ? "Restart Onboarding?"
+                  : "Create Personal Account?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {shouldResumeOnboarding ? (
-                <>
-                  Your onboarding is in progress.
-                  <br /><br />
-                  Clicking continue will resume your identity verification process for your <strong>Personal Account</strong>.
-                  <br /><br />
-                  Do you want to continue?
-                </>
-              ) : canRestartPersonalOnboarding ? (
-                <>
-                  Your previous onboarding was reset by an administrator.
-                  <br /><br />
-                  Clicking continue will start a fresh identity verification process for your <strong>Personal Account</strong>.
-                  <br /><br />
-                  Do you want to continue?
-                </>
-              ) : (
-                <>
-                  You are about to create a <strong>Personal Account</strong> for investing on CashSouk.
-                  <br /><br />
-                  This account type is for individuals who want to invest as themselves. You can only have one personal account.
-                  <br /><br />
-                  Are you sure you want to continue?
-                </>
-              )}
+              {shouldResumeOnboarding
+                ? "Your onboarding is in progress. You will continue from where you left off."
+                : canRestartPersonalOnboarding
+                  ? "Your previous onboarding was reset. You will start fresh with the user agreement."
+                  : "You are about to create a Personal Account for investing on CashSouk."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmPersonal}>
-              {shouldResumeOnboarding ? "Yes, Resume Onboarding" : canRestartPersonalOnboarding ? "Yes, Restart Onboarding" : "Yes, Create Personal Account"}
+            <AlertDialogAction onClick={() => void handleConfirmPersonal()}>
+              Continue
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Company Account Form Dialog */}
-      <AlertDialog open={confirmationType === "company"} onOpenChange={(open) => {
-        if (!open) {
-          setConfirmationType(null);
-          setCompanyName("");
-          setFormErrors({});
-        }
-      }}>
+      <AlertDialog
+        open={confirmationType === "company"}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmationType(null);
+            setCompanyName("");
+            setFormErrors({});
+          }
+        }}
+      >
         <AlertDialogContent className="sm:max-w-[500px]">
           <AlertDialogHeader>
             <AlertDialogTitle>Create Company Account</AlertDialogTitle>
             <AlertDialogDescription>
-              Please provide the following information to start your company onboarding process.
+              Please provide your company name to start onboarding.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-4 py-4">
@@ -334,9 +242,9 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
                 disabled={isSubmitting}
                 className={formErrors.companyName ? "border-destructive" : ""}
               />
-              {formErrors.companyName && (
+              {formErrors.companyName ? (
                 <p className="text-sm text-destructive">{formErrors.companyName}</p>
-              )}
+              ) : null}
             </div>
           </div>
           <AlertDialogFooter>
@@ -356,17 +264,18 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
           </p>
         </div>
 
-        {error && (
+        {error ? (
           <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
             <div className="flex items-start gap-3">
               <ExclamationCircleIcon className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
               <p className="text-sm text-destructive">{error}</p>
             </div>
           </div>
-        )}
+        ) : null}
 
         <div className="grid gap-4">
           <button
+            type="button"
             onClick={() => setConfirmationType("personal")}
             disabled={isPersonalAccountDisabled}
             className="block text-left disabled:cursor-not-allowed"
@@ -385,42 +294,15 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
                   </div>
                   <div className="flex-1">
                     <CardTitle className="text-lg">Personal Account</CardTitle>
-                    <CardDescription className="text-sm">
-                      {shouldResumeOnboarding 
-                        ? "Resume your onboarding" 
-                        : canRestartPersonalOnboarding 
-                        ? "Restart your onboarding" 
-                        : "Invest as an individual"}
-                    </CardDescription>
+                    <CardDescription className="text-sm">Invest as an individual</CardDescription>
                   </div>
-                  {hasPersonalOrganization && (
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      canRestartPersonalOnboarding
-                        ? "bg-primary/10 text-primary"
-                        : "bg-muted text-muted-foreground"
-                    }`}>
-                      {shouldResumeOnboarding 
-                        ? "Resume onboarding" 
-                        : canRestartPersonalOnboarding 
-                        ? "Restart required" 
-                        : "Already created"}
-                    </span>
-                  )}
                 </div>
               </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  {shouldResumeOnboarding
-                    ? "Your onboarding is in progress. Click to continue with identity verification."
-                    : canRestartPersonalOnboarding
-                    ? "Your previous onboarding was reset. Click to start fresh with identity verification."
-                    : "Perfect for individual investors. You can only have one personal account."}
-                </p>
-              </CardContent>
             </Card>
           </button>
 
           <button
+            type="button"
             onClick={() => setConfirmationType("company")}
             disabled={isSubmitting}
             className="block text-left"
@@ -433,15 +315,13 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
                   </div>
                   <div>
                     <CardTitle className="text-lg">Company Account</CardTitle>
-                    <CardDescription className="text-sm">
-                      Invest as a business entity
-                    </CardDescription>
+                    <CardDescription className="text-sm">Invest as a business entity</CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  For companies, partnerships, or other business entities. You can create multiple company accounts.
+                  For companies, partnerships, or other business entities.
                 </p>
               </CardContent>
             </Card>
@@ -449,12 +329,7 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
         </div>
 
         <div className="text-center">
-          <Button
-            variant="ghost"
-            onClick={onBack}
-            disabled={isSubmitting}
-            className="text-muted-foreground hover:text-foreground"
-          >
+          <Button variant="ghost" onClick={onBack} disabled={isSubmitting}>
             <ArrowLeftIcon className="h-4 w-4 mr-2" />
             Back
           </Button>

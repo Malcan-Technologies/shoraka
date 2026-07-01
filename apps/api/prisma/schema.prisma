@@ -268,6 +268,7 @@ model InvestorOrganization {
   first_name                    String?
   last_name                     String?
   middle_name                   String?
+  legal_name_on_id              String?
   nationality                   String?
   country                       String?
   id_issuing_country            String?
@@ -1016,6 +1017,8 @@ model GatewayPayment {
   investor_organization    InvestorOrganization?   @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
   issuer_organization      IssuerOrganization?     @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
   application              Application?            @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  events                   GatewayPaymentEvent[]
+  recon_exceptions         GatewayReconException[]
 
   @@index([status, created_at])
   @@index([purpose])
@@ -1023,6 +1026,23 @@ model GatewayPayment {
   @@index([issuer_organization_id])
   @@index([application_id])
   @@map("gateway_payments")
+}
+
+/// Admin audit trail for gateway payment status and resolution actions.
+model GatewayPaymentEvent {
+  id                  String                 @id @default(cuid())
+  gateway_payment_id  String
+  type                GatewayPaymentEventType
+  actor_user_id       String?
+  from_status         GatewayPaymentStatus?
+  to_status           GatewayPaymentStatus?
+  reason              String?
+  metadata            Json?
+  created_at          DateTime               @default(now())
+  gateway_payment     GatewayPayment         @relation(fields: [gateway_payment_id], references: [id], onDelete: Cascade)
+
+  @@index([gateway_payment_id, created_at])
+  @@map("gateway_payment_events")
 }
 
 /// Raw Curlec webhook events for dedup and audit (processed in later milestones).
@@ -1037,6 +1057,49 @@ model GatewayWebhookEvent {
   created_at      DateTime  @default(now())
 
   @@map("gateway_webhook_events")
+}
+
+/// Daily Curlec settlement reconciliation run (one row per calendar date).
+model GatewayReconRun {
+  id                  String                  @id @default(cuid())
+  run_date            DateTime                @db.Date
+  status              GatewayReconRunStatus   @default(RUNNING)
+  triggered_by        String
+  settlements_scanned Int                     @default(0)
+  payments_matched    Int                     @default(0)
+  payments_stamped    Int                     @default(0)
+  exceptions_count    Int                     @default(0)
+  started_at          DateTime                @default(now())
+  completed_at        DateTime?
+  error               String?
+  created_at          DateTime                @default(now())
+  exceptions          GatewayReconException[]
+
+  @@unique([run_date])
+  @@map("gateway_recon_runs")
+}
+
+/// Orphan or amount-mismatch flagged during a settlement recon run.
+model GatewayReconException {
+  id                  String                    @id @default(cuid())
+  recon_run_id        String
+  type                GatewayReconExceptionType
+  gateway_payment_id  String?
+  curlec_payment_id   String?
+  curlec_settlement_id String?
+  expected_amount     Decimal?                  @db.Decimal(18, 6)
+  actual_amount       Decimal?                  @db.Decimal(18, 6)
+  detail              String?
+  resolved_at         DateTime?
+  resolved_by_user_id String?
+  resolve_reason      String?
+  created_at          DateTime                  @default(now())
+  recon_run           GatewayReconRun           @relation(fields: [recon_run_id], references: [id], onDelete: Cascade)
+  gateway_payment     GatewayPayment?           @relation(fields: [gateway_payment_id], references: [id], onDelete: SetNull)
+
+  @@index([recon_run_id])
+  @@index([type, resolved_at])
+  @@map("gateway_recon_exceptions")
 }
 
 model WithdrawalInstruction {
@@ -1612,8 +1675,32 @@ enum GatewayPaymentStatus {
 
 enum NameCheckResult {
   PASS
+  REVIEW
   FAIL
   NAME_UNAVAILABLE
+}
+
+enum GatewayPaymentEventType {
+  NAME_CHECK
+  NAME_CHECK_APPROVED
+  NAME_CHECK_REJECTED
+  OVERRIDE_PROPOSED
+  OVERRIDE_APPROVED
+  OVERRIDE_REJECTED
+  REFUND_INITIATED
+  REFUNDED
+  EXPIRED
+}
+
+enum GatewayReconRunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum GatewayReconExceptionType {
+  ORPHAN_CURLEC_PAYMENT
+  AMOUNT_MISMATCH
 }
 
 enum NotePaymentSource {

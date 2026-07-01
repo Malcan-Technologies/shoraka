@@ -129,7 +129,7 @@ Any value that ends up in `screening.status` / `onboarding.status` is still norm
 | Issuer unified director/shareholders | `apps/issuer/src/components/director-shareholders-unified-section.tsx` |
 | Issuer company application step | `apps/issuer/src/app/(application-flow)/applications/steps/company-details-step.tsx` |
 | Admin onboarding review people cards | `apps/admin/src/components/onboarding-review-dialog.tsx` |
-| Issuer / investor onboarding dashboard (company, pending approval or AML) | `apps/issuer/src/components/onboarding-status-card.tsx`, `apps/investor/src/components/onboarding-status-card.tsx` via **`UnifiedKycAmlReadonlyRows`** (`packages/ui`) |
+| Issuer / investor onboarding dashboard (company, pending approval or AML) | `apps/issuer/src/components/onboarding-status-card.tsx`, `apps/investor/src/components/onboarding-status-card.tsx` via **`getOnboardingStepperSteps`** (`packages/config/src/onboarding-flow.ts`) and **`UnifiedKycAmlReadonlyRows`** (`packages/ui`) |
 | Investor profile directors and shareholders | `apps/investor/src/components/directors-shareholders-card.tsx` |
 
 All import **`getFinalStatusLabel`** / **`getFinalStatusBadgeClassName`** from **`@cashsouk/types`** (or the UI wrapper that calls them).

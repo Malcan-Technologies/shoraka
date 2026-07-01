@@ -134,6 +134,9 @@ async function listOrganizations(
           // Issuer-specific flags
           ...(portalType === "issuer" && {
             ssmChecked: (org as { ssm_checked?: boolean }).ssm_checked ?? false,
+            onboardingFeePaidAt:
+              (org as { onboarding_fee_paid_at?: Date | null }).onboarding_fee_paid_at?.toISOString() ??
+              null,
             directorShareholderSubmitReady:
               org.type !== "COMPANY"
                 ? true
@@ -313,6 +316,7 @@ async function getOrganization(
       deposit_received?: boolean;
       ssm_approved?: boolean;
       ssm_checked?: boolean;
+      onboarding_fee_paid_at?: Date | null;
       is_sophisticated_investor?: boolean;
       director_kyc_status?: unknown;
       director_aml_status?: unknown;
@@ -399,6 +403,7 @@ async function getOrganization(
         // Issuer-specific flags
         ...(portalType === "issuer" && {
           ssmChecked: org.ssm_checked ?? false,
+          onboardingFeePaidAt: org.onboarding_fee_paid_at?.toISOString() ?? null,
           directorShareholderSubmitReady: !issuerDsPending,
           directorShareholderSubmitBlockedMessage: issuerDsPending
             ? "Please complete AML for all directors/shareholders before submitting."

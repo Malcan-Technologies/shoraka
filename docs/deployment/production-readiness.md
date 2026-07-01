@@ -250,7 +250,7 @@ This document outlines all steps required to prepare the CashSouk platform for p
 - `AWS_REGION`
 - `S3_BUCKET`
 - `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`
-- `PAYMENT_GATEWAY_API_KEY`, `PAYMENT_GATEWAY_SECRET`
+- `CURLEC_KEY_ID`, `CURLEC_KEY_SECRET`, `CURLEC_WEBHOOK_SECRET` (Curlec FPX payment gateway — see `docs/integrations/payment-gateway-curlec-ops-runbook.md`)
 
 ### Frontend Services (`apps/*/.env.prod`)
 - `NEXT_PUBLIC_API_URL` (production API URL)

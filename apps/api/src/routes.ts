@@ -36,6 +36,10 @@ import {
 import { issuerDashboardRouter } from "./modules/issuer-dashboard/controller";
 import { ekycRouter } from "./modules/ekyc/controller";
 import { investorDepositsRouter } from "./modules/payment/deposit-controller";
+import { issuerOnboardingFeeRouter } from "./modules/payment/onboarding-fee-controller";
+import { applicationProcessingFeeRouter } from "./modules/payment/processing-fee-controller";
+import { gatewayPaymentsAdminRouter } from "./modules/payment/admin-controller";
+import { gatewayReconAdminRouter } from "./modules/payment/recon-controller";
 export function registerRoutes(app: Application): void {
   // Swagger API documentation (only in development)
   if (process.env.NODE_ENV !== "production") {
@@ -93,6 +97,11 @@ export function registerRoutes(app: Application): void {
   v1Router.use("/organizations", createOrganizationRouter());
 
   v1Router.use("/applications", createApplicationRouter());
+  v1Router.use(
+    "/applications/:applicationId/processing-fee",
+    requireAuth,
+    applicationProcessingFeeRouter
+  );
   // Public issuer catalog (active products + live-check); no auth — same JSON shape as before.
   v1Router.use("/issuer/products", issuerCatalogRouter);
   v1Router.use("/contracts", createContractRouter());
@@ -119,6 +128,8 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/admin/investments", devAuthBypass, adminInvestmentsRouter);
     v1Router.use("/admin/platform-finance-settings", devAuthBypass, platformFinanceSettingsRouter);
     v1Router.use("/admin/withdrawals", devAuthBypass, withdrawalsRouter);
+    v1Router.use("/admin/gateway-payments", devAuthBypass, gatewayPaymentsAdminRouter);
+    v1Router.use("/admin/gateway-recon", devAuthBypass, gatewayReconAdminRouter);
     v1Router.use("/admin/site-documents", devAuthBypass, requireRole(UserRole.ADMIN), siteDocumentAdminRouter);
     v1Router.use("/admin/document-logs", devAuthBypass, requireRole(UserRole.ADMIN), documentLogRouter);
     v1Router.use("/admin/product-logs", devAuthBypass, requireRole(UserRole.ADMIN), productLogRouter);
@@ -128,6 +139,8 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/admin/investments", requireAuth, adminInvestmentsRouter);
     v1Router.use("/admin/platform-finance-settings", requireAuth, platformFinanceSettingsRouter);
     v1Router.use("/admin/withdrawals", requireAuth, withdrawalsRouter);
+    v1Router.use("/admin/gateway-payments", requireAuth, gatewayPaymentsAdminRouter);
+    v1Router.use("/admin/gateway-recon", requireAuth, gatewayReconAdminRouter);
     v1Router.use("/admin/site-documents", requireAuth, requireRole(UserRole.ADMIN), siteDocumentAdminRouter);
     v1Router.use("/admin/document-logs", requireAuth, requireRole(UserRole.ADMIN), documentLogRouter);
     v1Router.use("/admin/product-logs", requireAuth, requireRole(UserRole.ADMIN), productLogRouter);
@@ -136,12 +149,14 @@ export function registerRoutes(app: Application): void {
   if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {
     v1Router.use("/marketplace", devAuthBypass, marketplaceRouter);
     v1Router.use("/investor/deposits", devAuthBypass, investorDepositsRouter);
+    v1Router.use("/issuer/onboarding-fee", devAuthBypass, issuerOnboardingFeeRouter);
     v1Router.use("/investor", devAuthBypass, investorNotesRouter);
     v1Router.use("/issuer/dashboard", devAuthBypass, issuerDashboardRouter);
     v1Router.use("/issuer", devAuthBypass, issuerNotesRouter);
   } else {
     v1Router.use("/marketplace", requireAuth, marketplaceRouter);
     v1Router.use("/investor/deposits", requireAuth, investorDepositsRouter);
+    v1Router.use("/issuer/onboarding-fee", requireAuth, issuerOnboardingFeeRouter);
     v1Router.use("/investor", requireAuth, investorNotesRouter);
     v1Router.use("/issuer/dashboard", requireAuth, issuerDashboardRouter);
     v1Router.use("/issuer", requireAuth, issuerNotesRouter);

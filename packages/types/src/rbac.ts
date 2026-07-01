@@ -64,6 +64,8 @@ export const ADMIN_PERMISSIONS = [
   "service_fee.view",
   "investor_withdrawals.view",
   "investor_withdrawals.manage",
+  "gateway_payments.view",
+  "gateway_payments.manage",
 
   // Contracts (standalone)
   "contracts.view",
@@ -263,7 +265,9 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
       "disbursements.view",
       "service_fee.view",
       "investor_withdrawals.view",
-      "investor_withdrawals.manage"
+      "investor_withdrawals.manage",
+      "gateway_payments.view",
+      "gateway_payments.manage"
     ),
   },
   {

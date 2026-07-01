@@ -24,7 +24,7 @@ import {
 } from "@cashsouk/ui";
 import { Skeleton } from "@/components/ui/skeleton";
 import { logout } from "../lib/auth";
-import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
+import { createApiClient, useAuthToken, useOrganization, isOnboardingAppRoute } from "@cashsouk/config";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const INVESTOR_URL = process.env.NEXT_PUBLIC_INVESTOR_URL || "http://localhost:3002";
@@ -57,7 +57,8 @@ export function NavUser() {
   }, [activeOrganization]);
 
   // Profile should be disabled if status doesn't allow access OR if on onboarding page AND status doesn't allow access
-  const isProfileDisabled = !allowsProfileAccess || (pathname === "/onboarding-start" && !allowsProfileAccess);
+  const isProfileDisabled =
+    !allowsProfileAccess || (isOnboardingAppRoute(pathname) && !allowsProfileAccess);
 
   const { data: userData, isLoading } = useQuery({
     queryKey: ["auth", "me"],

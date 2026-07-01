@@ -6,7 +6,11 @@ import {
   createInvestorDepositSchema,
   investorDepositIdParamSchema,
 } from "./deposit-schemas";
-import { createInvestorDeposit, getInvestorDeposit } from "./deposit-service";
+import {
+  createInvestorDeposit,
+  getInvestorDeposit,
+  getInvestorDepositLimits,
+} from "./deposit-service";
 
 function getActor(req: Request, res: Response) {
   if (!req.user?.user_id) {
@@ -37,6 +41,14 @@ investorDepositsRouter.post("/", async (req: Request, res: Response, next: NextF
   try {
     const input = createInvestorDepositSchema.parse(req.body);
     send(res, await createInvestorDeposit(getActor(req, res), input), 201);
+  } catch (error) {
+    next(error);
+  }
+});
+
+investorDepositsRouter.get("/limits", async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    send(res, await getInvestorDepositLimits());
   } catch (error) {
     next(error);
   }

@@ -370,14 +370,71 @@ Admin UI consumes organization + application payloads built in **`AdminService`*
 
 ## 14. Portal UI wiring (reference only)
 
+### 14.1 Shared onboarding flow (`packages/config/src/onboarding-flow.ts`)
+
+Single source of truth for portal onboarding **routing**, **stepper labels**, and **org-switcher bucketing**:
+
+| Export | Purpose |
+|--------|---------|
+| `getOnboardingStep(org, portalType)` | Maps org state → flow step: `account` \| `terms` \| `fee` \| `verify` \| `approval` \| `deposit` \| `completed` \| `rejected` |
+| `getOnboardingStepRoute(step)` | Maps step → route (`/onboarding/account`, `/terms`, `/fee`, `/verify`; approval/deposit/completed/rejected → `/`) |
+| `getOnboardingRouteForOrg` | Convenience: step + route for guards and switcher navigation |
+| `getOnboardingStepperSteps` | Stepper used on route pages and dashboard status card |
+| `isAddingNewOrganizationRoute(pathname)` | `true` only for `/onboarding/account` (sidebar shows “Adding New Organization”) |
+| `isOrganizationInYourOrganizationsSection` | Org belongs in switcher **Your Organizations** bucket |
+| `isOrganizationActionRequired` | Org belongs in switcher **Needs Attention** bucket |
+| `sortYourOrganizations` | **COMPLETED** orgs first, then admin-wait; personal before company within each tier |
+
+**Investor-only:** after admin final approval (`onboarding_status = COMPLETED`), flow step is `deposit` until `deposit_received` is true, then `completed`. Deposit is a **post-approval activation** step (marketplace gate), not part of the admin onboarding state machine.
+
+**Admin-wait statuses** (user finished RegTank; awaiting CashSouk admin): `PENDING_APPROVAL`, `PENDING_AML`, `PENDING_FINAL_APPROVAL`, `PENDING_SSM_REVIEW`. These appear under **Your Organizations** in the switcher, not **Needs Attention**.
+
+**User-action statuses** (incomplete onboarding, RegTank in progress, `PENDING_AMENDMENT`, `REJECTED`, expired RegTank, etc.) appear under **Needs Attention**.
+
+### 14.2 Route-based onboarding pages
+
+Legacy monolithic `/onboarding-start` redirects to `/onboarding/account`. Each step is its own route:
+
+| Step | Route | Layout variant (`packages/ui/src/onboarding/onboarding-layout.tsx`) |
+|------|-------|----------------------------------------------------------------------|
+| Account type / welcome | `/onboarding/account` | `centered` |
+| Terms | `/onboarding/terms` | `page` (full-width stepper + content) |
+| Issuer fee (company only) | `/onboarding/fee` | `step-centered` (stepper + compact payment card) |
+| RegTank verify | `/onboarding/verify` | `step-centered` |
+
+Shared UI: `packages/ui/src/onboarding/` — `OnboardingLayout`, `OnboardingStepper`, `TermsAcceptanceCard`, `IdentityVerifyStep`.
+
+Route guards: `apps/*/src/components/onboarding-route-guard.tsx` (redirect if wrong step).
+
+Stepper verify step label: **Onboarding** (not “Identity Verification”).
+
+### 14.3 Organization switcher
+
+`apps/investor/src/components/organization-switcher.tsx`, `apps/issuer/src/components/organization-switcher.tsx`
+
+- **Your Organizations:** `COMPLETED` + admin-wait statuses; neutral icon styling; **COMPLETED sorted to top**.
+- **Needs Attention:** everything requiring user action; status-colored icon backgrounds.
+- On `/onboarding/account` only: trigger shows “Adding New Organization”; nav disabled via `app-sidebar.tsx` + `isAddingNewOrganizationRoute`.
+
+### 14.4 Dashboard behaviour
+
+| Portal | File | During admin-wait (`approval` step) | After `COMPLETED` |
+|--------|------|-------------------------------------|-------------------|
+| Investor | `apps/investor/src/app/page.tsx` | Stepper + “Awaiting Approval”; **Account Overview** shown as disabled sneak peek (`isDisabled`); portfolio/investments hidden | Full dashboard; deposit card if `deposit_received` is false |
+| Issuer | `apps/issuer/src/app/page.tsx` | Stepper + awaiting/rejected blocks; director alert when applicable | Full dashboard |
+
+Incomplete onboarding steps (`terms`, `fee`, `verify`) redirect off `/` to the matching `/onboarding/*` route.
+
+### 14.5 Other portal references
+
 | Concern | Location |
-|---------|-----------|
+|---------|----------|
 | Org list + `onboardingStatus` | `packages/config/src/organization-context.tsx` (`isOnboarded`, `isPendingApproval`) |
-| Investor/Issuer dashboard redirect | `apps/investor/src/app/page.tsx`, `apps/issuer/src/app/page.tsx` |
-| Stepper | `apps/*/src/components/onboarding-status-card.tsx` (`getOnboardingSteps`) |
+| Dashboard status card / stepper | `apps/*/src/components/onboarding-status-card.tsx` (uses `getOnboardingStepperSteps`) |
 | Issuer directors CTOS UI | `apps/issuer/src/components/director-shareholders-unified-section.tsx` |
 | Profile corporate entities | `apps/issuer/src/app/profile/page.tsx`, `apps/investor/src/app/profile/page.tsx` |
 | Admin onboarding dialog | `apps/admin/src/components/onboarding-review-dialog.tsx` |
+| E2E org switcher | `apps/investor/e2e/organization.spec.ts`, `apps/issuer/e2e/organization.spec.ts` |
 
 ---
 

@@ -113,7 +113,7 @@ function CallbackPageContent() {
         if (targetPortal === "investor") {
           // If a specific redirect destination is provided, use it (e.g., invitation link)
           // Otherwise, redirect based on onboarding status
-          const investorDestination = redirectToParam || (onboarding ? "/onboarding-start" : "/");
+          const investorDestination = redirectToParam || (onboarding ? "/onboarding/account" : "/");
           console.info("[Landing Callback] Redirecting to investor portal:", investorDestination);
           window.location.replace(`${INVESTOR_URL}${investorDestination}`);
           return;
@@ -122,7 +122,7 @@ function CallbackPageContent() {
         if (targetPortal === "issuer") {
           // If a specific redirect destination is provided, use it (e.g., invitation link)
           // Otherwise, redirect based on onboarding status
-          const issuerDestination = redirectToParam || (onboarding ? "/onboarding-start" : "/");
+          const issuerDestination = redirectToParam || (onboarding ? "/onboarding/account" : "/");
           console.info("[Landing Callback] Redirecting to issuer portal:", issuerDestination);
           window.location.replace(`${ISSUER_URL}${issuerDestination}`);
           return;

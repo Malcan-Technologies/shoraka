@@ -95,6 +95,7 @@ export interface Organization {
   isSophisticatedInvestor?: boolean;
   // Issuer-specific flags
   ssmChecked?: boolean;
+  onboardingFeePaidAt?: string | null;
   /** Company org: false when any director/shareholder AML screening is not Approved. */
   directorShareholderSubmitReady?: boolean;
   directorShareholderSubmitBlockedMessage?: string;

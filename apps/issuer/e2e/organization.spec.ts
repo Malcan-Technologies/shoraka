@@ -34,7 +34,7 @@ test.describe("Issuer Organization Onboarding Flow", () => {
   });
 
   test("should display onboarding start page for new user", async ({ page }) => {
-    await page.goto("/onboarding-start");
+    await page.goto("/onboarding/account");
     
     // Check for welcome message
     await expect(page.getByRole("heading", { name: /welcome/i })).toBeVisible();
@@ -44,7 +44,7 @@ test.describe("Issuer Organization Onboarding Flow", () => {
   });
 
   test("should show account type selector after clicking start", async ({ page }) => {
-    await page.goto("/onboarding-start");
+    await page.goto("/onboarding/account");
     
     // Click start onboarding
     await page.getByRole("button", { name: /start.*onboarding/i }).click();
@@ -55,7 +55,7 @@ test.describe("Issuer Organization Onboarding Flow", () => {
   });
 
   test("should create personal organization and complete onboarding", async ({ page }) => {
-    await page.goto("/onboarding-start");
+    await page.goto("/onboarding/account");
     
     // Start onboarding
     await page.getByRole("button", { name: /start.*onboarding/i }).click();
@@ -68,7 +68,7 @@ test.describe("Issuer Organization Onboarding Flow", () => {
   });
 
   test("should create company organization and complete onboarding", async ({ page }) => {
-    await page.goto("/onboarding-start");
+    await page.goto("/onboarding/account");
     
     // Start onboarding
     await page.getByRole("button", { name: /start.*onboarding/i }).click();
@@ -145,7 +145,7 @@ test.describe("Issuer Sidebar Onboarding State", () => {
 
   test("should enable sidebar items for onboarded organization", async ({ page }) => {
     // First ensure we have an onboarded org
-    await page.goto("/onboarding-start");
+    await page.goto("/onboarding/account");
     
     // Complete onboarding if needed
     const startButton = page.getByRole("button", { name: /start.*onboarding/i });
@@ -169,7 +169,7 @@ test.describe("Issuer Database Verification", () => {
     await login(page);
     
     // Create a new organization via the onboarding flow
-    await page.goto("/onboarding-start");
+    await page.goto("/onboarding/account");
     await page.getByRole("button", { name: /start.*onboarding/i }).click();
     await page.getByRole("button", { name: /personal account/i }).first().click();
     

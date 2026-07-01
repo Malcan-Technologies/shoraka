@@ -5436,6 +5436,16 @@ export class AdminService {
       issuerOrganizationPayload !== issuerOrg
         ? { ...application, issuer_organization: issuerOrganizationPayload }
         : application;
+    const processingFeePaid = Boolean(
+      await prisma.gatewayPayment.findFirst({
+        where: {
+          application_id: id,
+          purpose: "APPLICATION_PROCESSING_FEE",
+          status: "COMPLETED",
+        },
+        select: { id: true },
+      })
+    );
     const sectionPolicy = await this.getReviewSectionPolicy(application);
     const orderedRequiredSections = REVIEW_SECTION_ORDER.filter((section) =>
       sectionPolicy.requiredSections.has(section)
@@ -5459,6 +5469,7 @@ export class AdminService {
     });
     return {
       ...applicationWithIssuerExtras,
+      processingFeePaid,
       people,
       linked_notes: await prisma.note.findMany({
         where: { source_application_id: id },

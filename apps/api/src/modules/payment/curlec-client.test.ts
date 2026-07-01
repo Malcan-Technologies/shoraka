@@ -83,6 +83,45 @@ describe("CurlecClient", () => {
     expect(payment.bank).toBe("MB2U");
   });
 
+  it("refunds a payment with idempotency header", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          id: "rfnd_test123",
+          amount: 10_000,
+          payment_id: "pay_test123",
+          status: "processed",
+        }),
+    });
+
+    const client = new CurlecClient(testConfig);
+    const refund = await client.refundPayment("pay_test123", {
+      amountSen: 10_000,
+      idempotencyKey: "gp_123",
+      notes: "Name mismatch",
+    });
+
+    expect(refund.id).toBe("rfnd_test123");
+    expect(global.fetch).toHaveBeenCalledWith(
+      "https://api.razorpay.com/v1/payments/pay_test123/refund",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: expect.stringMatching(/^Basic /),
+          "Content-Type": "application/json",
+          "X-Refund-Idempotency": "gp_123",
+        }),
+        body: JSON.stringify({
+          amount: 10_000,
+          speed: "normal",
+          notes: { reason: "Name mismatch" },
+        }),
+      })
+    );
+  });
+
   it("throws AppError when Curlec returns non-2xx", async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,
@@ -94,6 +133,37 @@ describe("CurlecClient", () => {
     await expect(
       client.fetchPayment("pay_bad")
     ).rejects.toMatchObject({ code: "CURLEC_API_ERROR", statusCode: 502 });
+  });
+
+  it("fetches settlement recon combined report", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          count: 1,
+          items: [
+            {
+              entity_type: "payment",
+              amount: 10_000,
+              fee: 50,
+              tax: 0,
+              settled: true,
+              settlement_id: "setl_1",
+              payment_id: "pay_1",
+            },
+          ],
+        }),
+    });
+
+    const client = new CurlecClient(testConfig);
+    const report = await client.fetchSettlementRecon({ year: 2026, month: 6, day: 28 });
+    expect(report.items).toHaveLength(1);
+    expect(report.items[0]?.payment_id).toBe("pay_1");
+    expect(global.fetch).toHaveBeenCalledWith(
+      "https://api.razorpay.com/v1/settlements/recon/combined?year=2026&month=6&day=28",
+      expect.objectContaining({ method: "GET" })
+    );
   });
 });
 
@@ -122,7 +192,26 @@ describe("Curlec payment field extractors", () => {
     ).toBe("John Doe");
   });
 
-  it("returns null payer name when FPX payload has no holder name (M0 finding)", () => {
+  it("extracts payer name from FPX fpx_buyerName (Razorpay fetch-payment)", () => {
+    expect(
+      extractPayerNameFromPayment({
+        id: "pay_1",
+        amount: 100,
+        currency: "MYR",
+        status: "captured",
+        bank: "HSBC",
+        acquirer_data: {
+          fpx_data: {
+            fpx_buyerName: "Test name",
+            fpx_debitAuthCode: "00",
+            fpx_type: "N",
+          },
+        },
+      })
+    ).toBe("Test name");
+  });
+
+  it("returns null when FPX payload has no buyer name", () => {
     expect(
       extractPayerNameFromPayment({
         id: "pay_1",
