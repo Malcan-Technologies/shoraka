@@ -47,10 +47,12 @@ import { NoteTimelinePanel } from "@/notes/components/note-timeline-panel";
 import { SettlementPanel } from "@/notes/components/settlement-panel";
 import { SourceApplicationPanel } from "@/notes/components/source-application-panel";
 import { IssuerPayoutCard } from "@/notes/components/issuer-payout-card";
+import { NoteWorkflowTabHeader } from "@/notes/components/note-workflow-tab-header";
 import {
   LATE_PAYMENT_WORKFLOW_BADGE,
   resolveLatePaymentTimeline,
 } from "@/notes/utils/late-payment-workflow";
+import { NOTE_WORKFLOW_TAB_BADGE, type SimpleTabStatus } from "@/notes/utils/workflow-status-tokens";
 import { OfferSigningPanel } from "@/components/offer-signing-panel";
 import { useResignNoteInvoiceOffer } from "@/notes/hooks/use-resign-invoice-offer";
 import { RequirePermission } from "@/components/require-permission";
@@ -95,36 +97,7 @@ function getRiskRating(note: NoteDetail) {
   return isSoukscoreRiskRating(riskRating) ? riskRating : "—";
 }
 
-type SimpleTabStatus = "done" | "needs-action" | "not-started" | "view-only";
-
-const TAB_STATUS_BADGE_COPY: Record<
-  SimpleTabStatus,
-  { label: string; className: string; dotClass: string }
-> = {
-  done: {
-    label: "Done",
-    className:
-      "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300",
-    dotClass: "bg-status-success-text dark:bg-emerald-300",
-  },
-  "needs-action": {
-    label: "In progress",
-    className: "border-transparent bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
-    dotClass: "bg-amber-500 dark:bg-amber-300",
-  },
-  "not-started": {
-    label: "Not started",
-    className:
-      "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300",
-    dotClass: "bg-status-neutral-text dark:bg-slate-300",
-  },
-  "view-only": {
-    label: "View only",
-    className:
-      "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300",
-    dotClass: "bg-status-neutral-text dark:bg-slate-300",
-  },
-};
+const TAB_STATUS_BADGE_COPY = NOTE_WORKFLOW_TAB_BADGE;
 
 const noteActionCopy: Record<
   NoteLifecycleAction,
@@ -485,8 +458,21 @@ export default function NoteDetailPage() {
                               : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
                           }
                         >
+                          <span
+                            aria-hidden
+                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${
+                              latePaymentTimeline
+                                ? LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].dotClass
+                                : TAB_STATUS_BADGE_COPY["not-started"].dotClass
+                            }`}
+                          />
                           <span className="truncate">Late Payment</span>
-                          <span className="sr-only">Late payment workflow</span>
+                          <span className="sr-only">
+                            Status:{" "}
+                            {latePaymentTimeline
+                              ? LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].label
+                              : "Not available"}
+                          </span>
                         </Button>
                       </div>
                       <div className="flex items-center gap-1">
@@ -528,13 +514,12 @@ export default function NoteDetailPage() {
 
                   <div className={activeNoteTab === "disbursement" ? "space-y-6" : "hidden space-y-6"}>
                     <Card className="rounded-2xl">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-base">Funding &amp; Issuer Disbursement</CardTitle>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Manage Tawarruq/Shoraka execution, trustee submission, and issuer disbursement in one workflow before servicing begins.
-                        </p>
-                      </CardHeader>
-                      <CardContent className="space-y-6">
+                      <NoteWorkflowTabHeader
+                        asCardHeader
+                        title="Disbursement"
+                        description="Manage Tawarruq execution, trustee submission, and issuer payout before servicing begins."
+                      />
+                      <CardContent className="space-y-6 pt-0">
                         {disbursementWithdrawal && disbursementWithdrawal.status !== "CANCELLED" ? (
                           <IssuerPayoutCard
                             note={note}
@@ -543,7 +528,15 @@ export default function NoteDetailPage() {
                             servicingBlockedReason={null}
                             canManage={canDisbursement}
                           />
-                        ) : null}
+                        ) : (
+                          <div className="rounded-xl border border-dashed bg-muted/20 p-4">
+                            <p className="text-sm font-medium">Disbursement not started</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Close funding on this note to create the issuer disbursement workflow.
+                              Check the lifecycle card above for the next funding action.
+                            </p>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   </div>
@@ -562,17 +555,18 @@ export default function NoteDetailPage() {
                   </div>
 
                   <div className={activeNoteTab === "ledger" ? "space-y-6" : "hidden space-y-6"}>
-                    <p className="text-xs text-muted-foreground">
-                      Read-only accounting ledger for this note. Export is available from the panel
-                      below.
-                    </p>
+                    <NoteWorkflowTabHeader
+                      title="Ledger"
+                      description="Read-only accounting ledger for this note. Export is available from the panel below."
+                    />
                     <LedgerPanel note={note} />
                   </div>
 
                   <div className={activeNoteTab === "investors" ? "space-y-6" : "hidden space-y-6"}>
-                    <p className="text-xs text-muted-foreground">
-                      Read-only investor allocations and commitment history for this note.
-                    </p>
+                    <NoteWorkflowTabHeader
+                      title="Investors"
+                      description="Read-only investor allocations and commitment history for this note."
+                    />
                     <NoteInvestorsPanel note={note} />
                   </div>
 
@@ -588,7 +582,7 @@ export default function NoteDetailPage() {
                         <span>Disbursement</span>
                         <Badge
                           variant="outline"
-                          className={`inline-flex items-center gap-1 ${TAB_STATUS_BADGE_COPY[disbursementTabStatus].className}`}
+                          className={`inline-flex items-center gap-1 ${TAB_STATUS_BADGE_COPY[disbursementTabStatus].badgeClass}`}
                         >
                           <span
                             aria-hidden
@@ -601,7 +595,7 @@ export default function NoteDetailPage() {
                         <span>Servicing &amp; Settlement</span>
                         <Badge
                           variant="outline"
-                          className={`inline-flex items-center gap-1 ${TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].className}`}
+                          className={`inline-flex items-center gap-1 ${TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].badgeClass}`}
                         >
                           <span
                             aria-hidden

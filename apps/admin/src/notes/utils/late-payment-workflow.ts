@@ -1,4 +1,8 @@
 import type { NoteDetail } from "@cashsouk/types";
+import {
+  latePaymentPhaseTone,
+  WORKFLOW_STATUS_BADGE,
+} from "@/notes/utils/workflow-status-tokens";
 
 export type LatePaymentWorkflowPhase =
   | "not-available"
@@ -23,7 +27,7 @@ export type LatePaymentTimeline = {
   servicingTimingLabel: string;
   /** Primary timing line on the Late Payment tab. */
   latePaymentTimingLabel: string;
-  /** Secondary timing detail on the Late Payment tab (e.g. grace ended). */
+  /** Secondary timing detail on the Late Payment tab (unused; timing is single-line only). */
   latePaymentTimingDetail: string | null;
   /** Late fees section status badge on the Late Payment tab. */
   lateFeeStatusLabel: string;
@@ -31,46 +35,21 @@ export type LatePaymentTimeline = {
   overdueLabel: string;
 };
 
+function latePaymentWorkflowBadge(phase: LatePaymentWorkflowPhase, label: string) {
+  const tokens = WORKFLOW_STATUS_BADGE[latePaymentPhaseTone(phase)];
+  return { label, className: tokens.badgeClass, dotClass: tokens.dotClass };
+}
+
 export const LATE_PAYMENT_WORKFLOW_BADGE: Record<
   LatePaymentWorkflowPhase,
   { label: string; className: string; dotClass: string }
 > = {
-  "not-available": {
-    label: "Not available",
-    className:
-      "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300",
-    dotClass: "bg-status-neutral-text dark:bg-slate-300",
-  },
-  "not-needed": {
-    label: "Not needed",
-    className:
-      "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300",
-    dotClass: "bg-status-success-text dark:bg-emerald-300",
-  },
-  "in-grace": {
-    label: "In grace",
-    className:
-      "border-transparent bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
-    dotClass: "bg-amber-500 dark:bg-amber-300",
-  },
-  arrears: {
-    label: "Arrears",
-    className:
-      "border-transparent bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
-    dotClass: "bg-amber-500 dark:bg-amber-300",
-  },
-  "default-eligible": {
-    label: "Default eligible",
-    className:
-      "border-transparent bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
-    dotClass: "bg-amber-500 dark:bg-amber-300",
-  },
-  defaulted: {
-    label: "Defaulted",
-    className:
-      "border-transparent bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive",
-    dotClass: "bg-destructive",
-  },
+  "not-available": latePaymentWorkflowBadge("not-available", "Not available"),
+  "not-needed": latePaymentWorkflowBadge("not-needed", "Not needed"),
+  "in-grace": latePaymentWorkflowBadge("in-grace", "In grace"),
+  arrears: latePaymentWorkflowBadge("arrears", "Arrears"),
+  "default-eligible": latePaymentWorkflowBadge("default-eligible", "Default eligible"),
+  defaulted: latePaymentWorkflowBadge("defaulted", "Defaulted"),
 };
 
 function resolvePaymentDueDate(note: NoteDetail): string | null {
@@ -98,39 +77,31 @@ function formatDueInLabel(daysUntilDue: number) {
   return daysUntilDue === 0 ? "Due today" : `Due in ${dayCountLabel(daysUntilDue, "day")}`;
 }
 
-function formatGraceRemainingLabel(graceDaysLeft: number) {
-  return `${dayCountLabel(graceDaysLeft, "day")} of grace left`;
+function formatOverdueByLabel(daysPastMaturity: number) {
+  return `Overdue by ${dayCountLabel(daysPastMaturity, "day")}`;
 }
 
-function formatGraceEndedDetail(daysAfterGrace: number) {
-  return `Grace period ended ${dayCountLabel(daysAfterGrace, "day")} ago`;
-}
-
-const PAYMENT_OVERDUE = "Payment overdue";
-
-function buildInGraceLabels(graceDaysLeft: number) {
-  const graceRemaining = formatGraceRemainingLabel(graceDaysLeft);
+function buildInGraceLabels(daysPastMaturity: number) {
+  const timing = formatOverdueByLabel(daysPastMaturity);
   return {
     workflowLabel: "In grace",
-    servicingTimingLabel: "Past due · within grace period",
-    latePaymentTimingLabel: `Past due · ${graceRemaining}`,
+    servicingTimingLabel: timing,
+    latePaymentTimingLabel: timing,
     latePaymentTimingDetail: null,
-    lateFeeStatusLabel: `Past due · ${graceRemaining}`,
-    overdueLabel: `Past due · ${graceRemaining}`,
+    lateFeeStatusLabel: timing,
+    overdueLabel: timing,
   };
 }
 
-function buildPastGraceLabels(daysAfterGrace: number, phase: "arrears" | "default-eligible") {
-  const graceEndedDetail = formatGraceEndedDetail(daysAfterGrace);
-  const latePaymentTimingLabel =
-    phase === "default-eligible" ? "Default threshold reached" : PAYMENT_OVERDUE;
+function buildPastGraceLabels(daysPastMaturity: number, phase: "arrears" | "default-eligible") {
+  const timing = formatOverdueByLabel(daysPastMaturity);
   return {
     workflowLabel: phase === "default-eligible" ? "Default eligible" : "Arrears",
-    servicingTimingLabel: PAYMENT_OVERDUE,
-    latePaymentTimingLabel,
-    latePaymentTimingDetail: graceEndedDetail,
-    lateFeeStatusLabel: latePaymentTimingLabel,
-    overdueLabel: graceEndedDetail,
+    servicingTimingLabel: timing,
+    latePaymentTimingLabel: timing,
+    latePaymentTimingDetail: null,
+    lateFeeStatusLabel: timing,
+    overdueLabel: timing,
   };
 }
 
@@ -261,7 +232,7 @@ export function resolveLatePaymentTimeline(note: NoteDetail): LatePaymentTimelin
   }
 
   if (daysOverdue <= 0) {
-    const inGrace = buildInGraceLabels(graceDaysLeft);
+    const inGrace = buildInGraceLabels(daysPastMaturity);
     return {
       phase: "in-grace",
       dueDate,
@@ -275,7 +246,7 @@ export function resolveLatePaymentTimeline(note: NoteDetail): LatePaymentTimelin
   }
 
   if (daysAfterGrace < note.arrearsThresholdDays) {
-    const pastGrace = buildPastGraceLabels(daysAfterGrace, "arrears");
+    const pastGrace = buildPastGraceLabels(daysPastMaturity, "arrears");
     return {
       phase: "arrears",
       dueDate,
@@ -288,7 +259,7 @@ export function resolveLatePaymentTimeline(note: NoteDetail): LatePaymentTimelin
     };
   }
 
-  const defaultEligible = buildPastGraceLabels(daysAfterGrace, "default-eligible");
+  const defaultEligible = buildPastGraceLabels(daysPastMaturity, "default-eligible");
   return {
     phase: "default-eligible",
     dueDate,

@@ -55,6 +55,13 @@ import {
   CollapsibleDetailTimeline,
   PoolSummaryCard,
 } from "@/notes/components/note-detail-ui-blocks";
+import {
+  WORKFLOW_CARD,
+  WORKFLOW_SUCCESS_COPY,
+  tawarruqWorkflowTone,
+  withdrawalWorkflowTone,
+  workflowBadgeClassName,
+} from "@/notes/utils/workflow-status-tokens";
 
 type BeneficiaryFields = {
   bank_name: string;
@@ -92,13 +99,13 @@ function snapshotToFields(snapshot: Record<string, unknown> | null | undefined):
 
 const STATUS_COPY: Record<
   WithdrawalInstruction["status"],
-  { label: string; tone: "draft" | "progress" | "complete" | "cancelled" }
+  { label: string; tone: ReturnType<typeof withdrawalWorkflowTone> }
 > = {
-  DRAFT: { label: "Not generated", tone: "draft" },
-  LETTER_GENERATED: { label: "Pending trustee submission", tone: "progress" },
-  SUBMITTED_TO_TRUSTEE: { label: "Submitted to trustee", tone: "progress" },
-  COMPLETED: { label: "Disbursed", tone: "complete" },
-  CANCELLED: { label: "Cancelled", tone: "cancelled" },
+  DRAFT: { label: "Not generated", tone: "neutral" },
+  LETTER_GENERATED: { label: "Pending trustee submission", tone: "active" },
+  SUBMITTED_TO_TRUSTEE: { label: "Submitted to trustee", tone: "warning" },
+  COMPLETED: { label: "Disbursed", tone: "success" },
+  CANCELLED: { label: "Cancelled", tone: "neutral" },
 };
 
 function withdrawalTrusteeDescription(
@@ -250,9 +257,8 @@ function TawarruqNextActionCallout({
   );
 }
 
-const ACTION_CARD_CLASS =
-  "border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]";
-const SECTION_COMPLETE_CLASS = "border-emerald-200 bg-emerald-50/40";
+const ACTION_CARD_CLASS = WORKFLOW_CARD.activeSection;
+const SECTION_COMPLETE_CLASS = WORKFLOW_CARD.successSection;
 
 type IssuerPayoutKind = "DISBURSEMENT" | "RESIDUAL";
 
@@ -392,6 +398,7 @@ export function IssuerPayoutCard({
 
   const status = withdrawal.status;
   const statusCopy = STATUS_COPY[status] ?? STATUS_COPY.DRAFT;
+  const trusteeBadgeTone = withdrawalWorkflowTone(status);
   const currentFields = snapshotToFields(withdrawal.beneficiarySnapshot);
   const beneficiaryComplete =
     currentFields.bank_name.trim() !== "" && currentFields.account_number.trim() !== "";
@@ -523,10 +530,10 @@ export function IssuerPayoutCard({
         className={cn(
           "rounded-lg border px-3 py-2.5",
           payoutComplete
-            ? "border-emerald-200 bg-emerald-50/80"
+            ? WORKFLOW_CARD.successPanel
             : workflowInProgress
-              ? "border-primary/35 bg-primary/5"
-              : "border-border bg-muted/20"
+              ? WORKFLOW_CARD.activeStep
+              : WORKFLOW_CARD.neutralSection
         )}
       >
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -535,32 +542,16 @@ export function IssuerPayoutCard({
               <div
                 className={cn(
                   "text-sm font-semibold",
-                  payoutComplete && "text-emerald-900"
+                  payoutComplete && WORKFLOW_SUCCESS_COPY.title
                 )}
               >
                 {statusPanelTitle}
               </div>
-              <Badge
-                variant={
-                  statusCopy.tone === "complete"
-                    ? "outline"
-                    : statusCopy.tone === "cancelled"
-                      ? "destructive"
-                      : "outline"
-                }
-                className={
-                  statusCopy.tone === "complete"
-                    ? "border-emerald-200 bg-emerald-50/80 text-emerald-900"
-                    : undefined
-                }
-              >
-                {statusCopy.label}
-              </Badge>
             </div>
             <p
               className={cn(
                 "mt-0.5 text-xs",
-                payoutComplete ? "text-emerald-800" : "text-muted-foreground"
+                payoutComplete ? WORKFLOW_SUCCESS_COPY.body : "text-muted-foreground"
               )}
             >
               {statusPanelDescription}
@@ -643,13 +634,27 @@ export function IssuerPayoutCard({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-sm font-medium">Tawarruq transaction</div>
             {shorakaStateQuery.isPending ? (
-              <Badge variant="outline">Checking…</Badge>
+              <Badge variant="outline" className={workflowBadgeClassName("neutral")}>
+                Checking…
+              </Badge>
             ) : shorakaStateQuery.data == null ? (
-              <Badge variant="outline">Not submitted</Badge>
+              <Badge variant="outline" className={workflowBadgeClassName("neutral")}>
+                Not submitted
+              </Badge>
             ) : hasShorakaCertificate ? (
-              <Badge variant="secondary">Certificate ready</Badge>
+              <Badge
+                variant="outline"
+                className={workflowBadgeClassName(tawarruqWorkflowTone("certificate-ready"))}
+              >
+                Certificate ready
+              </Badge>
             ) : (
-              <Badge variant="outline">In progress</Badge>
+              <Badge
+                variant="outline"
+                className={workflowBadgeClassName(tawarruqWorkflowTone("in-progress"))}
+              >
+                In progress
+              </Badge>
             )}
           </div>
           {hasShorakaCertificate ? (
@@ -888,15 +893,7 @@ export function IssuerPayoutCard({
       >
         <div className="flex flex-wrap items-center gap-2">
           <div className="text-sm font-medium">Trustee submission</div>
-          <Badge
-            variant={
-              status === "COMPLETED"
-                ? "secondary"
-                : status === "DRAFT"
-                  ? "destructive"
-                  : "outline"
-            }
-          >
+          <Badge variant="outline" className={workflowBadgeClassName(trusteeBadgeTone)}>
             {status === "DRAFT" ? "Not generated" : statusCopy.label}
           </Badge>
         </div>

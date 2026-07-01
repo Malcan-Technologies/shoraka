@@ -23,7 +23,7 @@ import type {
 } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { usePermissions } from "@/hooks/use-permissions";
 import {
   Dialog,
@@ -86,22 +86,26 @@ import {
   CollapsibleDetailTimeline,
   PoolSummaryCard,
 } from "@/notes/components/note-detail-ui-blocks";
+import { NoteWorkflowTabHeader } from "@/notes/components/note-workflow-tab-header";
 import {
-  LATE_PAYMENT_WORKFLOW_BADGE,
   resolveLatePaymentActionGates,
   resolveLatePaymentTimeline,
 } from "@/notes/utils/late-payment-workflow";
+import {
+  WORKFLOW_CARD,
+  WORKFLOW_SUCCESS_COPY,
+  paymentReceiptTone,
+  trusteeWorkflowTone,
+  workflowBadgeClassName,
+} from "@/notes/utils/workflow-status-tokens";
 
 type RecordPaymentSource = "PAYMASTER" | "ISSUER_ON_BEHALF";
 type OverdueFeeInputMode = "AMOUNT" | "PERCENTAGE";
 
-const ACTION_CARD_CLASS =
-  "border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]";
-const SETTLEMENT_ACTIVE_STEP_CLASS =
-  "border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08)]";
-const SECTION_COMPLETE_CLASS = "border-emerald-200 bg-emerald-50/40";
-const SECTION_COMPLETE_HEADER_CLASS =
-  "mb-2 text-xs font-medium uppercase tracking-wider text-emerald-900";
+const ACTION_CARD_CLASS = WORKFLOW_CARD.activeSection;
+const SETTLEMENT_ACTIVE_STEP_CLASS = WORKFLOW_CARD.activeStep;
+const SECTION_COMPLETE_CLASS = WORKFLOW_CARD.successSection;
+const SECTION_COMPLETE_HEADER_CLASS = WORKFLOW_SUCCESS_COPY.sectionHeader;
 const OPEN_PAYMENT_STATUSES = ["PENDING", "PARTIAL", "RECEIVED", "RECONCILED"];
 
 function serviceFeeTrusteeStatusLabel(status: ServiceFeeTrusteeInstructionStatus | null) {
@@ -126,9 +130,13 @@ function sourceLabel(source: NotePaymentSource) {
 }
 
 function statusVariant(status: string) {
-  if (status === "PENDING") return "secondary" as const;
-  if (status === "VOID") return "destructive" as const;
+  const tone = paymentReceiptTone(status);
+  if (tone === "danger") return "destructive" as const;
   return "outline" as const;
+}
+
+function paymentStatusBadgeClass(status: string) {
+  return workflowBadgeClassName(paymentReceiptTone(status));
 }
 
 function MoneyMetric({
@@ -622,7 +630,8 @@ export function SettlementPanel({
   const maturityDateLabel = formatMaturityDate(note.maturityDate);
   const paymentDueDateLabel = formatMaturityDate(paymentDueDateValue);
   const latePaymentTimeline = React.useMemo(() => resolveLatePaymentTimeline(note), [note]);
-  const maturityTimingLabel = latePaymentTimeline.servicingTimingLabel;
+  const paymentDueTimingLabel = latePaymentTimeline.servicingTimingLabel;
+  const maturityTimingLabel = paymentDueTimingLabel;
   const overdueSnapshot = React.useMemo(
     () => ({
       daysPastMaturity: latePaymentTimeline.daysPastMaturity,
@@ -652,6 +661,37 @@ export function SettlementPanel({
     lateFeeLedger.issuerLateFeePaymentsSubmitted > 0.005;
   const showOverdueFeesSection = noteIsOverdue || hasLateFeeActivity;
   const feesNeedPreview = settlementInputsDirty;
+  const lateFeesQueuedLocally = pendingLateFeeTotal > 0.005 && feesNeedPreview;
+  const lateFeesInSavedPreview =
+    (pendingLateFeeTotal > 0.005 && !feesNeedPreview) || savedPreviewLateFeeTotal > 0.005;
+  const lateFeesPostedFinal = lateFeeLedger.postedToLedger > 0.005;
+  const lateFeesApplyActionRequired =
+    servicingOpen &&
+    noteIsOverdue &&
+    !lateFeesBlockedByZeroHeadroom &&
+    pendingLateFeeTotal <= 0.005 &&
+    savedPreviewLateFeeTotal <= 0.005 &&
+    !lateFeesPostedFinal;
+  const lateFeesSectionSurfaceClass = lateFeesPostedFinal
+    ? SECTION_COMPLETE_CLASS
+    : lateFeesApplyActionRequired
+      ? ACTION_CARD_CLASS
+      : lateFeesQueuedLocally
+        ? WORKFLOW_CARD.warningSection
+        : lateFeesInSavedPreview
+          ? WORKFLOW_CARD.neutralCard
+          : "border-border bg-card";
+  const lateFeesStatusHelperText = lateFeesBlockedByZeroHeadroom
+    ? "No late fees can be charged: settlement headroom is fully used by investor principal and contractual profit."
+    : pendingLateFeesExceedHeadroom
+      ? `Queued fees exceed the available settlement headroom of ${formatCurrency(availableLateFeeHeadroom ?? 0)}. Reduce Ta'widh or Gharamah before preview.`
+      : lateFeesPostedFinal
+        ? "Late fees have been posted to the ledger."
+        : lateFeesQueuedLocally
+          ? `${formatCurrency(pendingLateFeeTotal)} queued locally — preview settlement on the Servicing & Settlement tab to save fees to the waterfall.`
+          : lateFeesInSavedPreview
+            ? "Fees are included in the current settlement preview. Approve and post when receipts are complete."
+            : "Apply system-suggested caps, or open custom amounts if you need to adjust.";
   const previewButtonLabel = settlementInputsDirty
     ? "Preview settlement (update inputs)"
     : pendingLateFeeTotal > 0.005
@@ -883,13 +923,6 @@ export function SettlementPanel({
         : repaymentReceiptsThresholdMet
           ? 2
           : 1;
-  const servicingStageLabel = !servicingWorkflowAvailable
-    ? "Waiting for servicing"
-    : persistedPostedSettlement
-    ? "Settlement posted"
-    : repaymentReceiptsThresholdMet && pendingPayments.length === 0
-      ? "Settlement preparation"
-      : "Repayment collection";
   const settlementNotReadyForPreview =
     !persistedPostedSettlement &&
     (pendingPayments.length > 0 || !settlementIsComplete(eligibleReceiptTotal, settlementAmount));
@@ -1006,7 +1039,6 @@ export function SettlementPanel({
     settlementBlockerDisplay != null &&
     (Boolean(servicingBlockedReason) ||
       settlementBlockerDisplay.message.startsWith("Recorded receipt"));
-  const overdueActionAvailable = servicingOpen && noteIsOverdue;
   const canMarkDefault = note.servicingStatus === "ARREARS";
   const latePaymentActionGates = React.useMemo(
     () =>
@@ -1438,6 +1470,9 @@ export function SettlementPanel({
   const serviceFeeTrusteeNeedsPdf =
     !serviceFeeTrusteeWorkflowComplete &&
     (serviceFeeTrusteeStatus === null || serviceFeeTrusteeStatus === "PENDING_LETTER");
+  const settlementTrusteeTone = trusteeWorkflowTone(serviceFeeTrusteeStatus, {
+    needsGeneration: serviceFeeTrusteeNeedsPdf,
+  });
   const serviceFeeTrusteeLetterLocked =
     serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE" || serviceFeeTrusteeStatus === "COMPLETED";
   const serviceFeeTrusteePendingAny =
@@ -1538,39 +1573,19 @@ export function SettlementPanel({
 
   const latePaymentPanel = (
     <Card className="rounded-2xl">
-      <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <CardTitle className="text-base">Late Payment</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Manage late fees, arrears letters, default letters, and default actions.
-            </p>
-          </div>
-          {servicingWorkflowAvailable ? (
-            <Badge
-              variant="outline"
-              className={`text-xs font-normal ${LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].className}`}
-            >
-              {LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].label}
-            </Badge>
-          ) : null}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
+      <NoteWorkflowTabHeader
+        asCardHeader
+        title="Late Payment"
+        description="Manage late fees, arrears letters, default letters, and default actions."
+      />
+      <CardContent className="space-y-6 pt-0">
         {servicingWorkflowAvailable ? (
           <>
             <div className="grid gap-3 md:grid-cols-2">
               <div className="rounded-xl border bg-card p-4 md:col-span-2">
                 <div className="text-xs text-muted-foreground">Payment due / maturity</div>
                 <div className="mt-1 text-lg font-semibold">{paymentDueDateLabel}</div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {latePaymentTimeline.latePaymentTimingLabel}
-                </div>
-                {latePaymentTimeline.latePaymentTimingDetail ? (
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {latePaymentTimeline.latePaymentTimingDetail}
-                  </div>
-                ) : null}
+                <div className="mt-1 text-xs text-muted-foreground">{paymentDueTimingLabel}</div>
               </div>
               <div className="rounded-xl border bg-card p-4">
                 <div className="text-xs text-muted-foreground">Grace and Arrears</div>
@@ -1594,14 +1609,7 @@ export function SettlementPanel({
             </div>
 
             {showOverdueFeesSection ? (
-              <div
-                className={cn(
-                  "rounded-lg border",
-                  pendingLateFeeTotal > 0.005 || feesNeedPreview
-                    ? cn("bg-card p-4", (overdueActionAvailable || pendingLateFeeTotal > 0.005) && ACTION_CARD_CLASS)
-                    : "border-dashed bg-muted/20 p-3"
-                )}
-              >
+              <div className={cn("rounded-lg border p-4", lateFeesSectionSurfaceClass)}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium">Late fees</div>
@@ -1616,32 +1624,22 @@ export function SettlementPanel({
                         : " Available late-fee headroom will be confirmed during preview."}
                     </p>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <Badge variant="secondary">{latePaymentTimeline.lateFeeStatusLabel}</Badge>
-                    {pendingLateFeeTotal > 0.005 ? (
-                      <div className="flex flex-wrap justify-end gap-1.5">
-                        <Badge variant="outline">
-                          Ta&apos;widh {formatCurrency(Number(tawidhAmount) || 0)}
-                        </Badge>
-                        <Badge variant="outline">
-                          Gharamah {formatCurrency(Number(gharamahAmount) || 0)}
-                        </Badge>
-                        {feesNeedPreview ? (
-                          <Badge variant="secondary">Queued for preview</Badge>
-                        ) : (
-                          <Badge
-                            variant="outline"
-                            className="border-emerald-200 bg-emerald-50/80 text-emerald-900"
-                          >
-                            In preview
-                          </Badge>
-                        )}
-                        {pendingLateFeesExceedHeadroom ? (
-                          <Badge variant="destructive">Exceeds headroom</Badge>
-                        ) : null}
+                  {pendingLateFeeTotal > 0.005 ? (
+                    <div className="flex flex-col items-end gap-1.5 text-right text-xs text-muted-foreground">
+                      <div className="tabular-nums">
+                        Ta&apos;widh {formatCurrency(Number(tawidhAmount) || 0)} · Gharamah{" "}
+                        {formatCurrency(Number(gharamahAmount) || 0)}
                       </div>
-                    ) : null}
-                  </div>
+                      {feesNeedPreview ? (
+                        <span className="text-amber-900">Queued for preview</span>
+                      ) : (
+                        <span className="text-muted-foreground">In preview</span>
+                      )}
+                      {pendingLateFeesExceedHeadroom ? (
+                        <Badge variant="destructive">Exceeds headroom</Badge>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="mt-3 rounded-lg border bg-card p-3">
                   <div className="grid gap-3 md:grid-cols-[1fr_10rem] md:items-end">
@@ -1692,17 +1690,7 @@ export function SettlementPanel({
                   </div>
                 </div>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-                  <p className="max-w-md text-xs text-muted-foreground">
-                    {lateFeesBlockedByZeroHeadroom
-                      ? "No late fees can be charged: settlement headroom is fully used by investor principal and contractual profit."
-                      : pendingLateFeesExceedHeadroom
-                        ? `Queued fees exceed the available settlement headroom of ${formatCurrency(availableLateFeeHeadroom ?? 0)}. Reduce Ta'widh or Gharamah before preview.`
-                        : feesNeedPreview && pendingLateFeeTotal > 0.005
-                          ? `${formatCurrency(pendingLateFeeTotal)} queued locally — use Preview settlement below.`
-                          : pendingLateFeeTotal > 0.005
-                            ? "Fees are in the saved preview. Approve and post when receipts are complete."
-                            : "Apply system-suggested caps, or open custom amounts if you need to adjust."}
-                  </p>
+                  <p className="max-w-md text-xs text-muted-foreground">{lateFeesStatusHelperText}</p>
                   <div className="flex flex-wrap justify-end gap-2">
                     <Button
                       onClick={handleApplySuggestedLateFees}
@@ -1735,22 +1723,13 @@ export function SettlementPanel({
                 <div className="min-w-0">
                   <div className="text-xs font-medium text-muted-foreground">Late fees</div>
                   <p className="text-[11px] text-muted-foreground">
-                    No charges · {latePaymentTimeline.latePaymentTimingLabel}
+                    No charges · {paymentDueTimingLabel}
                     {paymentDueDateLabel ? ` (due ${paymentDueDateLabel})` : ""}
                   </p>
-                  {latePaymentTimeline.latePaymentTimingDetail ? (
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {latePaymentTimeline.latePaymentTimingDetail}
-                    </p>
-                  ) : null}
                 </div>
-                <Badge
-                  variant="outline"
-                  className="shrink-0 gap-1 border-emerald-200 bg-emerald-50/80 text-emerald-900"
-                >
-                  <CheckCircleIcon className="h-3 w-3" />
+                <div className="shrink-0 text-right text-xs tabular-nums text-muted-foreground">
                   RM 0.00
-                </Badge>
+                </div>
               </div>
             )}
 
@@ -1824,9 +1803,9 @@ export function SettlementPanel({
                     </div>
                   </div>
                   {generatedLetters.length > 0 ? (
-                    <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                      {generatedLetters.length}
-                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {generatedLetters.length} generated
+                    </span>
                   ) : null}
                 </div>
                 {generatedLetters.length === 0 ? (
@@ -1942,25 +1921,12 @@ export function SettlementPanel({
         latePaymentPanel
       ) : (
       <Card className="rounded-2xl">
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle className="text-base">Servicing Lifecycle</CardTitle>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Manage repayment receipts, settlement preview, posting, and trustee submission.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="text-xs font-normal">
-                Stage: {servicingStageLabel}
-              </Badge>
-              {pendingPayments.length > 0 ? (
-                <Badge variant="secondary">{pendingPayments.length} pending review</Badge>
-              ) : null}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
+        <NoteWorkflowTabHeader
+          asCardHeader
+          title="Servicing & Settlement"
+          description="Manage repayment receipts, settlement preview, posting, and trustee submission."
+        />
+        <CardContent className="space-y-6 pt-0">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <div
               className={cn(
@@ -2099,7 +2065,15 @@ export function SettlementPanel({
                                   <span className="text-sm font-semibold tabular-nums">
                                     {formatCurrency(payment.receiptAmount)}
                                   </span>
-                                  <Badge variant={statusVariant(payment.status)}>
+
+                                  <Badge
+                                    variant={statusVariant(payment.status)}
+                                    className={
+                                      paymentReceiptTone(payment.status) === "danger"
+                                        ? undefined
+                                        : paymentStatusBadgeClass(payment.status)
+                                    }
+                                  >
                                     {formatStatus(payment.status)}
                                   </Badge>
                                   <Badge variant="outline">{sourceLabel(payment.source)}</Badge>
@@ -2228,7 +2202,15 @@ export function SettlementPanel({
                                   <span className="text-sm font-semibold tabular-nums">
                                     {formatCurrency(payment.receiptAmount)}
                                   </span>
-                                  <Badge variant={statusVariant(payment.status)}>
+
+                                  <Badge
+                                    variant={statusVariant(payment.status)}
+                                    className={
+                                      paymentReceiptTone(payment.status) === "danger"
+                                        ? undefined
+                                        : paymentStatusBadgeClass(payment.status)
+                                    }
+                                  >
                                     {formatStatus(payment.status)}
                                   </Badge>
                                   <Badge variant="outline">{sourceLabel(payment.source)}</Badge>
@@ -2268,17 +2250,7 @@ export function SettlementPanel({
 
           <div className={cn("rounded-xl border p-4", settlementSectionSurfaceClass)}>
             <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="text-sm font-medium">2. Settlement &amp; waterfall</div>
-                {!persistedPostedSettlement && settlementIsCurrentStep ? (
-                  <Badge
-                    variant="outline"
-                    className="border-primary/30 bg-background text-xs font-normal text-foreground"
-                  >
-                    Current step
-                  </Badge>
-                ) : null}
-              </div>
+              <div className="text-sm font-medium">2. Settlement &amp; waterfall</div>
               {!persistedPostedSettlement ? (
                 <>
                   <p className="mt-0.5 text-xs text-muted-foreground">
@@ -2301,10 +2273,10 @@ export function SettlementPanel({
               className={cn(
                 "mt-3 rounded-lg border px-3 py-2.5",
                 settlementStatusDisplay.tone === "success"
-                  ? "border-emerald-200 bg-emerald-50/80"
-                  : settlementIsCurrentStep
-                    ? "border-primary/35 bg-primary/5"
-                    : "border-border bg-muted/20"
+                  ? WORKFLOW_CARD.successPanel
+                  : settlementIsCurrentStep && settlementStatusDisplay.tone === "active"
+                    ? WORKFLOW_CARD.activeStep
+                    : WORKFLOW_CARD.neutralSection
               )}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2312,7 +2284,7 @@ export function SettlementPanel({
                   <div
                     className={cn(
                       "text-sm font-semibold",
-                      settlementStatusDisplay.tone === "success" && "text-emerald-900"
+                      settlementStatusDisplay.tone === "success" && WORKFLOW_SUCCESS_COPY.title
                     )}
                   >
                     {settlementStatusDisplay.title}
@@ -2321,7 +2293,7 @@ export function SettlementPanel({
                     className={cn(
                       "mt-0.5 text-xs",
                       settlementStatusDisplay.tone === "success"
-                        ? "text-emerald-800"
+                        ? WORKFLOW_SUCCESS_COPY.body
                         : "text-muted-foreground"
                     )}
                   >
@@ -2339,14 +2311,6 @@ export function SettlementPanel({
                   >
                     {previewButtonLabel}
                   </Button>
-                ) : persistedPostedSettlement ? (
-                  <Badge
-                    variant="outline"
-                    className="shrink-0 gap-1 border-emerald-200 bg-emerald-50/80 text-emerald-900"
-                  >
-                    <CheckCircleIcon className="h-3.5 w-3.5" />
-                    Posted
-                  </Badge>
                 ) : null}
               </div>
             </div>
@@ -2368,17 +2332,17 @@ export function SettlementPanel({
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       {eligibleReceiptTotal + 0.005 >= activeSettlementRequiredAmount ? (
-                        <Badge variant="secondary" className="gap-1">
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-800">
                           <CheckCircleIcon className="h-3.5 w-3.5" />
                           Fully covered
-                        </Badge>
+                        </span>
                       ) : (
-                        <Badge variant="outline">
+                        <span className="text-xs text-amber-900 tabular-nums">
                           {formatCurrency(
                             Math.max(0, activeSettlementRequiredAmount - eligibleReceiptTotal)
                           )}{" "}
                           still needed
-                        </Badge>
+                        </span>
                       )}
                     </div>
                   </div>
@@ -2622,22 +2586,15 @@ export function SettlementPanel({
                   <div
                     className={cn(
                       "rounded-lg border bg-card p-3",
-                      serviceFeeTrusteeNeedsPdf && "border-destructive/30",
-                      serviceFeeTrusteeWorkflowComplete && "border-emerald-200/60"
+                      settlementTrusteeTone === "success" && "border-emerald-200/60",
+                      settlementTrusteeTone === "active" && "border-primary/30",
+                      settlementTrusteeTone === "warning" && "border-amber-200/80"
                     )}
                   >
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="text-sm font-medium">Trustee submission</div>
-                        <Badge
-                          variant={
-                            serviceFeeTrusteeWorkflowComplete
-                              ? "secondary"
-                              : serviceFeeTrusteeNeedsPdf
-                                ? "destructive"
-                                : "outline"
-                          }
-                        >
+                        <Badge variant="outline" className={workflowBadgeClassName(settlementTrusteeTone)}>
                           {serviceFeeTrusteeNeedsPdf
                             ? "Not generated"
                             : serviceFeeTrusteeStatusLabel(serviceFeeTrusteeStatus)}
