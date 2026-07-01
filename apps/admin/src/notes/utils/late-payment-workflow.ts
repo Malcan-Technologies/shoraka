@@ -19,11 +19,15 @@ export type LatePaymentTimeline = {
   daysAfterGrace: number;
   /** Workflow Status badge and tab header. */
   workflowLabel: string;
-  /** Payment due / maturity subtitle (Servicing & Late Payment overview). */
-  timingLabel: string;
-  /** Late fees section status badge — never uses "0 days overdue". */
+  /** Payment due / maturity subtitle on Servicing & Settlement. */
+  servicingTimingLabel: string;
+  /** Primary timing line on the Late Payment tab. */
+  latePaymentTimingLabel: string;
+  /** Secondary timing detail on the Late Payment tab (e.g. grace ended). */
+  latePaymentTimingDetail: string | null;
+  /** Late fees section status badge on the Late Payment tab. */
   lateFeeStatusLabel: string;
-  /** @deprecated Use workflowLabel, timingLabel, or lateFeeStatusLabel. */
+  /** @deprecated Use context-specific label fields. */
   overdueLabel: string;
 };
 
@@ -90,31 +94,60 @@ function dayCountLabel(count: number, unit: string) {
   return `${count} ${unit}${count === 1 ? "" : "s"}`;
 }
 
+function formatDueInLabel(daysUntilDue: number) {
+  return daysUntilDue === 0 ? "Due today" : `Due in ${dayCountLabel(daysUntilDue, "day")}`;
+}
+
 function formatGraceRemainingLabel(graceDaysLeft: number) {
   return `${dayCountLabel(graceDaysLeft, "day")} of grace left`;
 }
 
-function formatPastGraceLabel(daysAfterGrace: number) {
-  return `${dayCountLabel(daysAfterGrace, "day")} past grace`;
+function formatGraceEndedDetail(daysAfterGrace: number) {
+  return `Grace period ended ${dayCountLabel(daysAfterGrace, "day")} ago`;
 }
 
-function formatInGraceLabels(graceDaysLeft: number) {
+const PAYMENT_OVERDUE = "Payment overdue";
+
+function buildInGraceLabels(graceDaysLeft: number) {
   const graceRemaining = formatGraceRemainingLabel(graceDaysLeft);
   return {
     workflowLabel: "In grace",
-    timingLabel: `Past due · ${graceRemaining}`,
+    servicingTimingLabel: "Past due · within grace period",
+    latePaymentTimingLabel: `Past due · ${graceRemaining}`,
+    latePaymentTimingDetail: null,
     lateFeeStatusLabel: `Past due · ${graceRemaining}`,
-    overdueLabel: `Within grace period (${graceRemaining})`,
+    overdueLabel: `Past due · ${graceRemaining}`,
   };
 }
 
-function formatPastGraceLabels(daysPastMaturity: number, daysAfterGrace: number) {
-  const pastGrace = formatPastGraceLabel(daysAfterGrace);
-  const timingLabel = `${dayCountLabel(daysPastMaturity, "day")} past due · ${pastGrace}`;
+function buildPastGraceLabels(daysAfterGrace: number, phase: "arrears" | "default-eligible") {
+  const graceEndedDetail = formatGraceEndedDetail(daysAfterGrace);
+  const latePaymentTimingLabel =
+    phase === "default-eligible" ? "Default threshold reached" : PAYMENT_OVERDUE;
   return {
-    timingLabel,
-    lateFeeStatusLabel: pastGrace,
-    overdueLabel: pastGrace,
+    workflowLabel: phase === "default-eligible" ? "Default eligible" : "Arrears",
+    servicingTimingLabel: PAYMENT_OVERDUE,
+    latePaymentTimingLabel,
+    latePaymentTimingDetail: graceEndedDetail,
+    lateFeeStatusLabel: latePaymentTimingLabel,
+    overdueLabel: graceEndedDetail,
+  };
+}
+
+function buildTimelineLabels(input: {
+  workflowLabel: string;
+  servicingTimingLabel: string;
+  latePaymentTimingLabel: string;
+  latePaymentTimingDetail?: string | null;
+  lateFeeStatusLabel: string;
+}) {
+  return {
+    workflowLabel: input.workflowLabel,
+    servicingTimingLabel: input.servicingTimingLabel,
+    latePaymentTimingLabel: input.latePaymentTimingLabel,
+    latePaymentTimingDetail: input.latePaymentTimingDetail ?? null,
+    lateFeeStatusLabel: input.lateFeeStatusLabel,
+    overdueLabel: input.lateFeeStatusLabel,
   };
 }
 
@@ -133,10 +166,12 @@ export function resolveLatePaymentTimeline(note: NoteDetail): LatePaymentTimelin
       daysOverdue: 0,
       graceDaysLeft: 0,
       daysAfterGrace: 0,
-      workflowLabel: "Defaulted",
-      timingLabel: "Defaulted",
-      lateFeeStatusLabel: "Defaulted",
-      overdueLabel: "Defaulted",
+      ...buildTimelineLabels({
+        workflowLabel: "Defaulted",
+        servicingTimingLabel: "Defaulted",
+        latePaymentTimingLabel: "Defaulted",
+        lateFeeStatusLabel: "Defaulted",
+      }),
     };
   }
 
@@ -151,10 +186,12 @@ export function resolveLatePaymentTimeline(note: NoteDetail): LatePaymentTimelin
       daysOverdue: 0,
       graceDaysLeft: 0,
       daysAfterGrace: 0,
-      workflowLabel: "Not available",
-      timingLabel: "Servicing not started",
-      lateFeeStatusLabel: "Not available yet",
-      overdueLabel: "Not available yet",
+      ...buildTimelineLabels({
+        workflowLabel: "Not available",
+        servicingTimingLabel: "Servicing not started",
+        latePaymentTimingLabel: "Not available yet",
+        lateFeeStatusLabel: "Not available yet",
+      }),
     };
   }
 
@@ -169,10 +206,12 @@ export function resolveLatePaymentTimeline(note: NoteDetail): LatePaymentTimelin
       daysOverdue: 0,
       graceDaysLeft: 0,
       daysAfterGrace: 0,
-      workflowLabel: "Not needed",
-      timingLabel: "Settled or repaid",
-      lateFeeStatusLabel: "Not needed",
-      overdueLabel: "Not needed",
+      ...buildTimelineLabels({
+        workflowLabel: "Not needed",
+        servicingTimingLabel: "Settled or repaid",
+        latePaymentTimingLabel: "Settled or repaid",
+        lateFeeStatusLabel: "Not needed",
+      }),
     };
   }
 
@@ -185,10 +224,12 @@ export function resolveLatePaymentTimeline(note: NoteDetail): LatePaymentTimelin
       daysOverdue: 0,
       graceDaysLeft: 0,
       daysAfterGrace: 0,
-      workflowLabel: "Not needed",
-      timingLabel: "No payment due date set",
-      lateFeeStatusLabel: "No payment due date set",
-      overdueLabel: "No payment due date set",
+      ...buildTimelineLabels({
+        workflowLabel: "Not needed",
+        servicingTimingLabel: "No payment due date set",
+        latePaymentTimingLabel: "No payment due date set",
+        lateFeeStatusLabel: "No payment due date set",
+      }),
     };
   }
 
@@ -201,10 +242,7 @@ export function resolveLatePaymentTimeline(note: NoteDetail): LatePaymentTimelin
   const daysAfterGrace = daysOverdue;
 
   if (daysPastMaturity <= 0) {
-    const timingLabel =
-      daysUntilDue === 0
-        ? "Due today"
-        : `${dayCountLabel(daysUntilDue, "day")} until due`;
+    const dueLabel = formatDueInLabel(daysUntilDue);
     return {
       phase: "not-needed",
       dueDate,
@@ -213,15 +251,17 @@ export function resolveLatePaymentTimeline(note: NoteDetail): LatePaymentTimelin
       daysOverdue,
       graceDaysLeft,
       daysAfterGrace,
-      workflowLabel: "Not needed",
-      timingLabel,
-      lateFeeStatusLabel: "Not overdue",
-      overdueLabel: "Not overdue",
+      ...buildTimelineLabels({
+        workflowLabel: "Not needed",
+        servicingTimingLabel: dueLabel,
+        latePaymentTimingLabel: dueLabel,
+        lateFeeStatusLabel: "Not overdue",
+      }),
     };
   }
 
   if (daysOverdue <= 0) {
-    const inGrace = formatInGraceLabels(graceDaysLeft);
+    const inGrace = buildInGraceLabels(graceDaysLeft);
     return {
       phase: "in-grace",
       dueDate,
@@ -230,16 +270,12 @@ export function resolveLatePaymentTimeline(note: NoteDetail): LatePaymentTimelin
       daysOverdue,
       graceDaysLeft,
       daysAfterGrace,
-      workflowLabel: inGrace.workflowLabel,
-      timingLabel: inGrace.timingLabel,
-      lateFeeStatusLabel: inGrace.lateFeeStatusLabel,
-      overdueLabel: inGrace.overdueLabel,
+      ...inGrace,
     };
   }
 
-  const pastGrace = formatPastGraceLabels(daysPastMaturity, daysAfterGrace);
-
   if (daysAfterGrace < note.arrearsThresholdDays) {
+    const pastGrace = buildPastGraceLabels(daysAfterGrace, "arrears");
     return {
       phase: "arrears",
       dueDate,
@@ -248,13 +284,11 @@ export function resolveLatePaymentTimeline(note: NoteDetail): LatePaymentTimelin
       daysOverdue,
       graceDaysLeft,
       daysAfterGrace,
-      workflowLabel: "Arrears",
-      timingLabel: pastGrace.timingLabel,
-      lateFeeStatusLabel: pastGrace.lateFeeStatusLabel,
-      overdueLabel: pastGrace.overdueLabel,
+      ...pastGrace,
     };
   }
 
+  const defaultEligible = buildPastGraceLabels(daysAfterGrace, "default-eligible");
   return {
     phase: "default-eligible",
     dueDate,
@@ -263,10 +297,7 @@ export function resolveLatePaymentTimeline(note: NoteDetail): LatePaymentTimelin
     daysOverdue,
     graceDaysLeft,
     daysAfterGrace,
-    workflowLabel: "Default eligible",
-    timingLabel: pastGrace.timingLabel,
-    lateFeeStatusLabel: pastGrace.lateFeeStatusLabel,
-    overdueLabel: pastGrace.overdueLabel,
+    ...defaultEligible,
   };
 }
 

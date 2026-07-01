@@ -622,7 +622,7 @@ export function SettlementPanel({
   const maturityDateLabel = formatMaturityDate(note.maturityDate);
   const paymentDueDateLabel = formatMaturityDate(paymentDueDateValue);
   const latePaymentTimeline = React.useMemo(() => resolveLatePaymentTimeline(note), [note]);
-  const maturityTimingLabel = latePaymentTimeline.timingLabel;
+  const maturityTimingLabel = latePaymentTimeline.servicingTimingLabel;
   const overdueSnapshot = React.useMemo(
     () => ({
       daysPastMaturity: latePaymentTimeline.daysPastMaturity,
@@ -1560,6 +1560,18 @@ export function SettlementPanel({
         {servicingWorkflowAvailable ? (
           <>
             <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border bg-card p-4 md:col-span-2">
+                <div className="text-xs text-muted-foreground">Payment due / maturity</div>
+                <div className="mt-1 text-lg font-semibold">{paymentDueDateLabel}</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {latePaymentTimeline.latePaymentTimingLabel}
+                </div>
+                {latePaymentTimeline.latePaymentTimingDetail ? (
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {latePaymentTimeline.latePaymentTimingDetail}
+                  </div>
+                ) : null}
+              </div>
               <div className="rounded-xl border bg-card p-4">
                 <div className="text-xs text-muted-foreground">Grace and Arrears</div>
                 <div className="mt-1 text-lg font-semibold">
@@ -1723,9 +1735,14 @@ export function SettlementPanel({
                 <div className="min-w-0">
                   <div className="text-xs font-medium text-muted-foreground">Late fees</div>
                   <p className="text-[11px] text-muted-foreground">
-                    No charges · {latePaymentTimeline.lateFeeStatusLabel}
+                    No charges · {latePaymentTimeline.latePaymentTimingLabel}
                     {paymentDueDateLabel ? ` (due ${paymentDueDateLabel})` : ""}
                   </p>
+                  {latePaymentTimeline.latePaymentTimingDetail ? (
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {latePaymentTimeline.latePaymentTimingDetail}
+                    </p>
+                  ) : null}
                 </div>
                 <Badge
                   variant="outline"
