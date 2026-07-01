@@ -4,9 +4,13 @@
  *
  * Usage (repo root):
  *   pnpm --filter @cashsouk/api seed-late-payment
- *
- * Idempotent: only touches notes whose note_reference starts with LATE_TEST_.
+ *     → fresh note references each run (default), e.g.
+ *       LATE_TEST_20260701_153012_AB12_TAWIDH
+ *   pnpm --filter @cashsouk/api seed-late-payment -- --fixed
+ *     → idempotent LATE_TEST_* references; resets children on re-run
+ *   SEED_LATE_PAYMENT_FIXED=1 pnpm --filter @cashsouk/api seed-late-payment
  */
+import { randomBytes } from "node:crypto";
 import {
   NoteFundingStatus,
   NoteInvestmentStatus,
@@ -23,10 +27,7 @@ import {
   WithdrawalStatus,
   WithdrawalType,
 } from "@prisma/client";
-import {
-  calculateLateCharge,
-  calculateSettlementWaterfall,
-} from "../src/modules/notes/calculators";
+import { calculateSettlementWaterfall } from "../src/modules/notes/calculators";
 
 const prisma = new PrismaClient();
 
@@ -37,10 +38,17 @@ const ARREARS_THRESHOLD_DAYS = 14;
 const TAWIDH_CAP_PERCENT = 1;
 const GHARAMAH_CAP_PERCENT = 9;
 
+/** Obvious amounts for manual UI verification (Late Payment + settlement waterfall). */
+const SEED_TAWIDH_AMOUNT = 123.45;
+const SEED_GHARAMAH_AMOUNT = 67.89;
+
+type LateFeeMode = "none" | "tawidh-only" | "gharamah-only" | "both";
+
 type ScenarioKey =
   | "NORMAL_SERVICING"
   | "GRACE_PERIOD"
   | "TAWIDH"
+  | "GHARAMAH_ONLY"
   | "TAWIDH_GHARAMAH"
   | "ARREARS_LETTER"
   | "DEFAULT_LETTER"
@@ -59,7 +67,7 @@ type ScenarioConfig = {
   defaultReason: string | null;
   defaultMarkedAt: Date | null;
   repaidAt: Date | null;
-  previewLateFees: "none" | "tawidh-only" | "both";
+  previewLateFees: LateFeeMode;
   settlementStatus: NoteSettlementStatus | null;
   arrearsLetter: boolean;
   defaultLetter: boolean;
@@ -81,6 +89,41 @@ function addDays(date: Date, days: number): Date {
 
 function formatDateOnly(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+function pad2(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function createRunSuffix(now: Date): string {
+  const date = `${now.getUTCFullYear()}${pad2(now.getUTCMonth() + 1)}${pad2(now.getUTCDate())}`;
+  const time = `${pad2(now.getUTCHours())}${pad2(now.getUTCMinutes())}${pad2(now.getUTCSeconds())}`;
+  const rand = randomBytes(2).toString("hex").toUpperCase();
+  return `${date}_${time}_${rand}`;
+}
+
+function scenarioReference(runSuffix: string | null, key: ScenarioKey): string {
+  return runSuffix
+    ? `${TEST_REFERENCE_PREFIX}${runSuffix}_${key}`
+    : `${TEST_REFERENCE_PREFIX}${key}`;
+}
+
+function resolveFixedSeedMode(): boolean {
+  if (process.env.SEED_LATE_PAYMENT_FIXED === "1") return true;
+  return process.argv.includes("--fixed");
+}
+
+function resolveSeedLateFees(mode: LateFeeMode): { tawidhAmount: number; gharamahAmount: number } {
+  switch (mode) {
+    case "none":
+      return { tawidhAmount: 0, gharamahAmount: 0 };
+    case "tawidh-only":
+      return { tawidhAmount: SEED_TAWIDH_AMOUNT, gharamahAmount: 0 };
+    case "gharamah-only":
+      return { tawidhAmount: 0, gharamahAmount: SEED_GHARAMAH_AMOUNT };
+    case "both":
+      return { tawidhAmount: SEED_TAWIDH_AMOUNT, gharamahAmount: SEED_GHARAMAH_AMOUNT };
+  }
 }
 
 function resolveServicingFromOverdue(daysPastDue: number): {
@@ -110,7 +153,8 @@ function resolveServicingFromOverdue(daysPastDue: number): {
   };
 }
 
-function buildScenarios(now: Date): ScenarioConfig[] {
+function buildScenarios(now: Date, runSuffix: string | null): ScenarioConfig[] {
+  const ref = (key: ScenarioKey) => scenarioReference(runSuffix, key);
   const overdue20 = resolveServicingFromOverdue(20);
   const overdue45 = resolveServicingFromOverdue(45);
   const overdue25 = resolveServicingFromOverdue(25);
@@ -118,7 +162,7 @@ function buildScenarios(now: Date): ScenarioConfig[] {
   return [
     {
       key: "NORMAL_SERVICING",
-      reference: `${TEST_REFERENCE_PREFIX}NORMAL_SERVICING`,
+      reference: ref("NORMAL_SERVICING"),
       label: "Normal servicing (not late)",
       daysUntilDue: 60,
       noteStatus: NoteStatus.ACTIVE,
@@ -134,7 +178,7 @@ function buildScenarios(now: Date): ScenarioConfig[] {
     },
     {
       key: "GRACE_PERIOD",
-      reference: `${TEST_REFERENCE_PREFIX}GRACE_PERIOD`,
+      reference: ref("GRACE_PERIOD"),
       label: "Overdue inside grace period",
       daysUntilDue: -3,
       noteStatus: NoteStatus.ACTIVE,
@@ -150,8 +194,8 @@ function buildScenarios(now: Date): ScenarioConfig[] {
     },
     {
       key: "TAWIDH",
-      reference: `${TEST_REFERENCE_PREFIX}TAWIDH`,
-      label: "Overdue with Ta'widh path",
+      reference: ref("TAWIDH"),
+      label: "Overdue — Ta'widh only (RM 123.45)",
       daysUntilDue: -20,
       noteStatus: overdue20.noteStatus,
       servicingStatus: overdue20.servicingStatus,
@@ -165,9 +209,25 @@ function buildScenarios(now: Date): ScenarioConfig[] {
       defaultLetter: false,
     },
     {
+      key: "GHARAMAH_ONLY",
+      reference: ref("GHARAMAH_ONLY"),
+      label: "Overdue — Gharamah only (RM 67.89)",
+      daysUntilDue: -45,
+      noteStatus: overdue45.noteStatus,
+      servicingStatus: overdue45.servicingStatus,
+      arrearsStartedAt: overdue45.arrearsStartedAt,
+      defaultReason: null,
+      defaultMarkedAt: null,
+      repaidAt: null,
+      previewLateFees: "gharamah-only",
+      settlementStatus: null,
+      arrearsLetter: false,
+      defaultLetter: false,
+    },
+    {
       key: "TAWIDH_GHARAMAH",
-      reference: `${TEST_REFERENCE_PREFIX}TAWIDH_GHARAMAH`,
-      label: "Overdue with Ta'widh and Gharamah",
+      reference: ref("TAWIDH_GHARAMAH"),
+      label: "Overdue — Ta'widh + Gharamah (RM 123.45 + RM 67.89)",
       daysUntilDue: -45,
       noteStatus: overdue45.noteStatus,
       servicingStatus: overdue45.servicingStatus,
@@ -182,7 +242,7 @@ function buildScenarios(now: Date): ScenarioConfig[] {
     },
     {
       key: "ARREARS_LETTER",
-      reference: `${TEST_REFERENCE_PREFIX}ARREARS_LETTER`,
+      reference: ref("ARREARS_LETTER"),
       label: "Arrears letter generated",
       daysUntilDue: -25,
       noteStatus: overdue25.noteStatus,
@@ -198,7 +258,7 @@ function buildScenarios(now: Date): ScenarioConfig[] {
     },
     {
       key: "DEFAULT_LETTER",
-      reference: `${TEST_REFERENCE_PREFIX}DEFAULT_LETTER`,
+      reference: ref("DEFAULT_LETTER"),
       label: "Default letter generated",
       daysUntilDue: -30,
       noteStatus: NoteStatus.ARREARS,
@@ -214,7 +274,7 @@ function buildScenarios(now: Date): ScenarioConfig[] {
     },
     {
       key: "DEFAULTED",
-      reference: `${TEST_REFERENCE_PREFIX}DEFAULTED`,
+      reference: ref("DEFAULTED"),
       label: "Marked default",
       daysUntilDue: -35,
       noteStatus: NoteStatus.DEFAULTED,
@@ -230,8 +290,8 @@ function buildScenarios(now: Date): ScenarioConfig[] {
     },
     {
       key: "LATE_SETTLEMENT_READY",
-      reference: `${TEST_REFERENCE_PREFIX}LATE_SETTLEMENT_READY`,
-      label: "Late fees ready for settlement preview",
+      reference: ref("LATE_SETTLEMENT_READY"),
+      label: "Late settlement preview ready (both fees)",
       daysUntilDue: -40,
       noteStatus: NoteStatus.ARREARS,
       servicingStatus: NoteServicingStatus.ARREARS,
@@ -246,8 +306,8 @@ function buildScenarios(now: Date): ScenarioConfig[] {
     },
     {
       key: "LATE_SETTLEMENT_POSTED",
-      reference: `${TEST_REFERENCE_PREFIX}LATE_SETTLEMENT_POSTED`,
-      label: "Posted settlement with late fees",
+      reference: ref("LATE_SETTLEMENT_POSTED"),
+      label: "Posted settlement with both late fees",
       daysUntilDue: -50,
       noteStatus: NoteStatus.REPAID,
       servicingStatus: NoteServicingStatus.SETTLED,
@@ -261,17 +321,6 @@ function buildScenarios(now: Date): ScenarioConfig[] {
       defaultLetter: false,
     },
   ];
-}
-
-function suggestLateFees(dueDate: Date, receiptDate: Date) {
-  return calculateLateCharge({
-    dueDate,
-    receiptDate,
-    gracePeriodDays: GRACE_DAYS,
-    receiptAmount: INVOICE_VALUE,
-    tawidhRateCapPercent: TAWIDH_CAP_PERCENT,
-    gharamahRateCapPercent: GHARAMAH_CAP_PERCENT,
-  });
 }
 
 function buildWaterfall(input: {
@@ -297,6 +346,14 @@ function buildWaterfall(input: {
   });
 }
 
+function shouldCreatePreviewSettlement(previewLateFees: LateFeeMode): boolean {
+  return (
+    previewLateFees === "tawidh-only" ||
+    previewLateFees === "gharamah-only" ||
+    previewLateFees === "both"
+  );
+}
+
 async function resetScenarioChildren(tx: Prisma.TransactionClient, noteId: string) {
   await tx.notePayment.deleteMany({ where: { note_id: noteId } });
   await tx.noteSettlement.deleteMany({ where: { note_id: noteId } });
@@ -304,11 +361,68 @@ async function resetScenarioChildren(tx: Prisma.TransactionClient, noteId: strin
   await tx.withdrawalInstruction.deleteMany({ where: { note_id: noteId } });
 }
 
+async function createSettlementRecord(
+  tx: Prisma.TransactionClient,
+  input: {
+    noteId: string;
+    paymentId: string | null;
+    status: NoteSettlementStatus;
+    waterfall: ReturnType<typeof buildWaterfall>;
+    tawidhAmount: number;
+    gharamahAmount: number;
+    adminUserId: string;
+    approvedAt: Date | null;
+    postedAt: Date | null;
+    includedPaymentIds: string[];
+  }
+) {
+  const snapshot = {
+    ...input.waterfall,
+    profitStartDate: input.waterfall.profitStartDate.toISOString(),
+    profitMaturityDate: input.waterfall.profitMaturityDate.toISOString(),
+    includedPaymentIds: input.includedPaymentIds,
+    allocations: [],
+  };
+
+  await tx.noteSettlement.create({
+    data: {
+      note_id: input.noteId,
+      payment_id: input.paymentId,
+      status: input.status,
+      settlement_type:
+        input.tawidhAmount > 0 || input.gharamahAmount > 0
+          ? NoteSettlementType.LATE
+          : NoteSettlementType.STANDARD,
+      gross_receipt_amount: money(input.waterfall.grossReceiptAmount),
+      investor_principal: money(input.waterfall.investorPrincipal),
+      profit_start_date: input.waterfall.profitStartDate,
+      profit_maturity_date: input.waterfall.profitMaturityDate,
+      profit_days: input.waterfall.profitDays,
+      annual_profit_rate_percent: money(input.waterfall.annualProfitRatePercent),
+      investor_profit_gross: money(input.waterfall.investorProfitGross),
+      service_fee_amount: money(input.waterfall.serviceFeeAmount),
+      investor_profit_net: money(input.waterfall.investorProfitNet),
+      tawidh_amount: money(input.waterfall.tawidhAmount),
+      tawidh_investor_share_percent: money(input.waterfall.tawidhInvestorSharePercent),
+      tawidh_investor_amount: money(input.waterfall.tawidhInvestorAmount),
+      tawidh_account_amount: money(input.waterfall.tawidhAccountAmount),
+      gharamah_amount: money(input.waterfall.gharamahAmount),
+      issuer_residual_amount: money(input.waterfall.issuerResidualAmount),
+      unapplied_amount: money(input.waterfall.unappliedAmount),
+      preview_snapshot: snapshot,
+      approved_by_user_id: input.approvedAt || input.postedAt ? input.adminUserId : null,
+      approved_at: input.approvedAt,
+      posted_at: input.postedAt,
+    },
+  });
+}
+
 async function main() {
   if (process.env.NODE_ENV === "production") {
     throw new Error("Refusing to run late-payment seed in production.");
   }
 
+  const fixedMode = resolveFixedSeedMode();
   const adminUser = await prisma.user.findFirst({
     where: { roles: { has: UserRole.ADMIN } },
     select: { user_id: true },
@@ -348,8 +462,21 @@ async function main() {
   const serviceFeeRatePercent = template.service_fee_rate_percent.toNumber();
   const targetAmount = template.target_amount.toNumber();
   const now = utcStartOfDay(new Date());
-  const scenarios = buildScenarios(now);
-  const created: Array<{ reference: string; id: string }> = [];
+  const runSuffix = fixedMode ? null : createRunSuffix(now);
+  const scenarios = buildScenarios(now, runSuffix);
+
+  console.log(
+    fixedMode
+      ? "Late payment seed (fixed references — idempotent reset on re-run)\n"
+      : `Late payment seed (fresh run suffix: ${runSuffix})\n`
+  );
+
+  const created: Array<{
+    reference: string;
+    id: string;
+    tawidhAmount: number;
+    gharamahAmount: number;
+  }> = [];
 
   for (const scenario of scenarios) {
     const dueDate = addDays(now, scenario.daysUntilDue);
@@ -365,6 +492,8 @@ async function main() {
     invoiceDetails.value = INVOICE_VALUE;
     invoiceDetails.due_date = formatDateOnly(dueDate);
     invoiceDetails.maturity_date = formatDateOnly(maturityDate);
+
+    const { tawidhAmount, gharamahAmount } = resolveSeedLateFees(scenario.previewLateFees);
 
     const noteId = await prisma.$transaction(async (tx) => {
       const existing = await tx.note.findUnique({
@@ -485,16 +614,6 @@ async function main() {
         },
       });
 
-      const lateFees = suggestLateFees(dueDate, now);
-      const tawidhAmount =
-        scenario.previewLateFees === "none"
-          ? 0
-          : scenario.previewLateFees === "tawidh-only"
-            ? lateFees.tawidhAmount
-            : lateFees.tawidhAmount;
-      const gharamahAmount =
-        scenario.previewLateFees === "both" ? lateFees.gharamahAmount : 0;
-
       let paymentId: string | null = null;
       if (scenario.settlementStatus != null) {
         const payment = await tx.notePayment.create({
@@ -515,24 +634,19 @@ async function main() {
         paymentId = payment.id;
       }
 
+      const waterfallInput = {
+        grossReceiptAmount: INVOICE_VALUE,
+        fundedPrincipal: fundedAmount,
+        profitRatePercent,
+        activatedAt,
+        maturityDate,
+        serviceFeeRatePercent,
+        tawidhAmount,
+        gharamahAmount,
+      };
+      const waterfall = buildWaterfall(waterfallInput);
+
       if (scenario.settlementStatus != null) {
-        const waterfall = buildWaterfall({
-          grossReceiptAmount: INVOICE_VALUE,
-          fundedPrincipal: fundedAmount,
-          profitRatePercent,
-          activatedAt,
-          maturityDate,
-          serviceFeeRatePercent,
-          tawidhAmount,
-          gharamahAmount,
-        });
-        const snapshot = {
-          ...waterfall,
-          profitStartDate: waterfall.profitStartDate.toISOString(),
-          profitMaturityDate: waterfall.profitMaturityDate.toISOString(),
-          includedPaymentIds: paymentId ? [paymentId] : [],
-          allocations: [],
-        };
         const approvedAt =
           scenario.settlementStatus === NoteSettlementStatus.APPROVED ||
           scenario.settlementStatus === NoteSettlementStatus.POSTED
@@ -541,82 +655,30 @@ async function main() {
         const postedAt =
           scenario.settlementStatus === NoteSettlementStatus.POSTED ? addDays(now, -1) : null;
 
-        await tx.noteSettlement.create({
-          data: {
-            note_id: noteId,
-            payment_id: paymentId,
-            status: scenario.settlementStatus,
-            settlement_type:
-              tawidhAmount > 0 || gharamahAmount > 0
-                ? NoteSettlementType.LATE
-                : NoteSettlementType.STANDARD,
-            gross_receipt_amount: money(waterfall.grossReceiptAmount),
-            investor_principal: money(waterfall.investorPrincipal),
-            profit_start_date: waterfall.profitStartDate,
-            profit_maturity_date: waterfall.profitMaturityDate,
-            profit_days: waterfall.profitDays,
-            annual_profit_rate_percent: money(waterfall.annualProfitRatePercent),
-            investor_profit_gross: money(waterfall.investorProfitGross),
-            service_fee_amount: money(waterfall.serviceFeeAmount),
-            investor_profit_net: money(waterfall.investorProfitNet),
-            tawidh_amount: money(waterfall.tawidhAmount),
-            tawidh_investor_share_percent: money(waterfall.tawidhInvestorSharePercent),
-            tawidh_investor_amount: money(waterfall.tawidhInvestorAmount),
-            tawidh_account_amount: money(waterfall.tawidhAccountAmount),
-            gharamah_amount: money(waterfall.gharamahAmount),
-            issuer_residual_amount: money(waterfall.issuerResidualAmount),
-            unapplied_amount: money(waterfall.unappliedAmount),
-            preview_snapshot: snapshot,
-            approved_by_user_id:
-              approvedAt || postedAt ? adminUser.user_id : null,
-            approved_at: approvedAt,
-            posted_at: postedAt,
-          },
-        });
-      } else if (
-        scenario.previewLateFees === "tawidh-only" ||
-        scenario.previewLateFees === "both"
-      ) {
-        const waterfall = buildWaterfall({
-          grossReceiptAmount: INVOICE_VALUE,
-          fundedPrincipal: fundedAmount,
-          profitRatePercent,
-          activatedAt,
-          maturityDate,
-          serviceFeeRatePercent,
+        await createSettlementRecord(tx, {
+          noteId,
+          paymentId,
+          status: scenario.settlementStatus,
+          waterfall,
           tawidhAmount,
           gharamahAmount,
+          adminUserId: adminUser.user_id,
+          approvedAt,
+          postedAt,
+          includedPaymentIds: paymentId ? [paymentId] : [],
         });
-        const snapshot = {
-          ...waterfall,
-          profitStartDate: waterfall.profitStartDate.toISOString(),
-          profitMaturityDate: waterfall.profitMaturityDate.toISOString(),
+      } else if (shouldCreatePreviewSettlement(scenario.previewLateFees)) {
+        await createSettlementRecord(tx, {
+          noteId,
+          paymentId: null,
+          status: NoteSettlementStatus.PREVIEW,
+          waterfall,
+          tawidhAmount,
+          gharamahAmount,
+          adminUserId: adminUser.user_id,
+          approvedAt: null,
+          postedAt: null,
           includedPaymentIds: [],
-          allocations: [],
-        };
-        await tx.noteSettlement.create({
-          data: {
-            note_id: noteId,
-            status: NoteSettlementStatus.PREVIEW,
-            settlement_type: NoteSettlementType.LATE,
-            gross_receipt_amount: money(waterfall.grossReceiptAmount),
-            investor_principal: money(waterfall.investorPrincipal),
-            profit_start_date: waterfall.profitStartDate,
-            profit_maturity_date: waterfall.profitMaturityDate,
-            profit_days: waterfall.profitDays,
-            annual_profit_rate_percent: money(waterfall.annualProfitRatePercent),
-            investor_profit_gross: money(waterfall.investorProfitGross),
-            service_fee_amount: money(waterfall.serviceFeeAmount),
-            investor_profit_net: money(waterfall.investorProfitNet),
-            tawidh_amount: money(waterfall.tawidhAmount),
-            tawidh_investor_share_percent: money(waterfall.tawidhInvestorSharePercent),
-            tawidh_investor_amount: money(waterfall.tawidhInvestorAmount),
-            tawidh_account_amount: money(waterfall.tawidhAccountAmount),
-            gharamah_amount: money(waterfall.gharamahAmount),
-            issuer_residual_amount: money(waterfall.issuerResidualAmount),
-            unapplied_amount: money(waterfall.unappliedAmount),
-            preview_snapshot: snapshot,
-          },
         });
       }
 
@@ -684,14 +746,19 @@ async function main() {
       return noteId;
     });
 
-    created.push({ reference: scenario.reference, id: noteId });
-    console.log(`  ${scenario.reference} → ${noteId}`);
+    created.push({ reference: scenario.reference, id: noteId, tawidhAmount, gharamahAmount });
+    console.log(
+      `  ${scenario.reference} → ${noteId} (Ta'widh ${tawidhAmount.toFixed(2)}, Gharamah ${gharamahAmount.toFixed(2)})`
+    );
   }
 
   console.log("\nLate payment seed complete.\n");
   console.log("Open Admin → Notes and search:");
   for (const row of created) {
     console.log(`- ${row.reference} (/notes/${row.id})`);
+  }
+  if (!fixedMode) {
+    console.log("\nRe-run without --fixed to create another fresh batch.");
   }
 }
 
