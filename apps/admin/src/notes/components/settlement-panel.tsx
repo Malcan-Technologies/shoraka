@@ -1034,7 +1034,6 @@ export function SettlementPanel({
                   : !repaymentReceiptsThresholdMet
                     ? "Record or approve more receipts until the required settlement amount is reached."
                     : "Generate a preview after receipts reach the required settlement amount.";
-  const showSettlementReadyBanner = false;
   const showSettlementBlockerBanner =
     settlementBlockerDisplay != null &&
     (Boolean(servicingBlockedReason) ||
@@ -2082,6 +2081,9 @@ export function SettlementPanel({
                                   {format(new Date(payment.receiptDate), "dd MMM yyyy, h:mm a")}
                                   {payment.reference ? ` · Ref: ${payment.reference}` : ""}
                                 </div>
+                                <div className="text-xs text-muted-foreground">
+                                  Received into {payment.receivedIntoAccountCode}
+                                </div>
                                 {evidenceFiles.length > 0 ? (
                                   <PaymentAdviceProofCompact
                                     files={evidenceFiles}
@@ -2227,6 +2229,9 @@ export function SettlementPanel({
                                 <div className="text-xs text-muted-foreground">
                                   {format(new Date(payment.receiptDate), "dd MMM yyyy, h:mm a")}
                                   {payment.reference ? ` · Ref: ${payment.reference}` : ""}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  Received into {payment.receivedIntoAccountCode}
                                 </div>
                                 {evidenceFiles.length > 0 ? (
                                   <PaymentAdviceProofCompact
@@ -2419,10 +2424,6 @@ export function SettlementPanel({
                 <p className="mt-0.5 text-xs text-amber-900">
                   {settlementBlockerDisplay!.message}
                 </p>
-              </div>
-            ) : showSettlementReadyBanner && settlementReadyMessage ? (
-              <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900">
-                {settlementReadyMessage}
               </div>
             ) : null}
 
