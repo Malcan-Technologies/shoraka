@@ -86,6 +86,11 @@ import {
   CollapsibleDetailTimeline,
   PoolSummaryCard,
 } from "@/notes/components/note-detail-ui-blocks";
+import {
+  LATE_PAYMENT_WORKFLOW_BADGE,
+  resolveLatePaymentActionGates,
+  resolveLatePaymentTimeline,
+} from "@/notes/utils/late-payment-workflow";
 
 type RecordPaymentSource = "PAYMASTER" | "ISSUER_ON_BEHALF";
 type OverdueFeeInputMode = "AMOUNT" | "PERCENTAGE";
@@ -1031,7 +1036,22 @@ export function SettlementPanel({
       settlementBlockerDisplay.message.startsWith("Recorded receipt"));
   const overdueActionAvailable = servicingOpen && noteIsOverdue;
   const canMarkDefault = note.servicingStatus === "ARREARS";
-  const documentActionAvailable = servicingOpen && (noteIsOverdue || canMarkDefault);
+  const latePaymentTimeline = React.useMemo(() => resolveLatePaymentTimeline(note), [note]);
+  const latePaymentActionGates = React.useMemo(
+    () =>
+      resolveLatePaymentActionGates({
+        timeline: latePaymentTimeline,
+        servicingOpen,
+        canDefaultPermission: canDefault,
+        servicingStatusArrears: canMarkDefault,
+        defaultReason,
+      }),
+    [latePaymentTimeline, servicingOpen, canDefault, canMarkDefault, defaultReason]
+  );
+  const documentActionAvailable =
+    servicingOpen &&
+    (latePaymentTimeline.phase === "arrears" ||
+      latePaymentTimeline.phase === "default-eligible");
 
   const handleUseSettlementAmount = () => {
     if (settlementAmount <= 0) {
@@ -1548,11 +1568,21 @@ export function SettlementPanel({
   const latePaymentPanel = (
     <Card className="rounded-2xl">
       <CardHeader>
-        <div>
-          <CardTitle className="text-base">Late Payment</CardTitle>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Manage late fees, arrears letters, default letters, and default actions.
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-base">Late Payment</CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Manage late fees, arrears letters, default letters, and default actions.
+            </p>
+          </div>
+          {servicingWorkflowAvailable ? (
+            <Badge
+              variant="outline"
+              className={`text-xs font-normal ${LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].className}`}
+            >
+              {LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].label}
+            </Badge>
+          ) : null}
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -1603,7 +1633,7 @@ export function SettlementPanel({
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    <Badge variant="secondary">{overdueSnapshot.label}</Badge>
+                    <Badge variant="secondary">{latePaymentTimeline.overdueLabel}</Badge>
                     {pendingLateFeeTotal > 0.005 ? (
                       <div className="flex flex-wrap justify-end gap-1.5">
                         <Badge variant="outline">
@@ -1721,7 +1751,8 @@ export function SettlementPanel({
                 <div className="min-w-0">
                   <div className="text-xs font-medium text-muted-foreground">Late fees</div>
                   <p className="text-[11px] text-muted-foreground">
-                    No charges · {overdueSnapshot.label.toLowerCase()} (due {paymentDueDateLabel})
+                    No charges · {latePaymentTimeline.overdueLabel.toLowerCase()}
+                    {paymentDueDateLabel ? ` (due ${paymentDueDateLabel})` : ""}
                   </p>
                 </div>
                 <Badge
@@ -1749,21 +1780,51 @@ export function SettlementPanel({
                   <Button
                     variant="outline"
                     onClick={() => handleLetter("arrears")}
-                    disabled={arrearsLetter.isPending || !canDefault}
-                    title={!canDefault ? "You do not have permission to perform this action." : undefined}
+                    disabled={
+                      arrearsLetter.isPending ||
+                      !canDefault ||
+                      !latePaymentActionGates.canGenerateArrearsLetter
+                    }
+                    title={
+                      !canDefault
+                        ? "You do not have permission to perform this action."
+                        : !latePaymentActionGates.canGenerateArrearsLetter
+                          ? (latePaymentActionGates.arrearsHelperText ?? undefined)
+                          : undefined
+                    }
                   >
                     Generate Arrears Letter
                   </Button>
                   <Button
                     variant="outline"
                     onClick={() => handleLetter("default")}
-                    disabled={defaultLetter.isPending || !canDefault}
-                    title={!canDefault ? "You do not have permission to perform this action." : undefined}
+                    disabled={
+                      defaultLetter.isPending ||
+                      !canDefault ||
+                      !latePaymentActionGates.canGenerateDefaultLetter
+                    }
+                    title={
+                      !canDefault
+                        ? "You do not have permission to perform this action."
+                        : !latePaymentActionGates.canGenerateDefaultLetter
+                          ? (latePaymentActionGates.defaultHelperText ?? undefined)
+                          : undefined
+                    }
                   >
                     Generate Default Letter
                   </Button>
                 </div>
               </div>
+              {latePaymentActionGates.arrearsHelperText ? (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  {latePaymentActionGates.arrearsHelperText}
+                </p>
+              ) : null}
+              {latePaymentActionGates.defaultHelperText ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {latePaymentActionGates.defaultHelperText}
+                </p>
+              ) : null}
 
               <div className="mt-4 rounded-xl border bg-muted/20 p-4">
                 <div className="flex items-center justify-between gap-3">
@@ -1836,21 +1897,41 @@ export function SettlementPanel({
                 )}
               </div>
 
-              <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
-                <Input
-                  value={defaultReason}
-                  onChange={(event) => setDefaultReason(event.target.value)}
-                  placeholder="Default reason"
-                />
-                <Button
-                  variant="destructive"
-                  onClick={handleMarkDefault}
-                  disabled={markDefault.isPending || !canMarkDefault || !canDefault}
-                  title={!canDefault ? "You do not have permission to perform this action." : undefined}
-                >
-                  Mark Default
-                </Button>
-              </div>
+              {latePaymentTimeline.phase !== "defaulted" ? (
+                <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+                  <Input
+                    value={defaultReason}
+                    onChange={(event) => setDefaultReason(event.target.value)}
+                    placeholder="Default reason"
+                  />
+                  <Button
+                    variant="destructive"
+                    onClick={handleMarkDefault}
+                    disabled={
+                      markDefault.isPending ||
+                      !canDefault ||
+                      !latePaymentActionGates.canMarkDefault
+                    }
+                    title={
+                      !canDefault
+                        ? "You do not have permission to perform this action."
+                        : !latePaymentActionGates.canMarkDefault
+                          ? (latePaymentActionGates.defaultReasonHelperText ??
+                            latePaymentActionGates.defaultHelperText ??
+                            undefined)
+                          : undefined
+                    }
+                  >
+                    Mark Default
+                  </Button>
+                </div>
+              ) : null}
+              {latePaymentActionGates.defaultReasonHelperText &&
+              latePaymentTimeline.phase !== "defaulted" ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {latePaymentActionGates.defaultReasonHelperText}
+                </p>
+              ) : null}
             </div>
           </>
         ) : (

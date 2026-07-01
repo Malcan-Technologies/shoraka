@@ -47,6 +47,10 @@ import { NoteTimelinePanel } from "@/notes/components/note-timeline-panel";
 import { SettlementPanel } from "@/notes/components/settlement-panel";
 import { SourceApplicationPanel } from "@/notes/components/source-application-panel";
 import { IssuerPayoutCard } from "@/notes/components/issuer-payout-card";
+import {
+  LATE_PAYMENT_WORKFLOW_BADGE,
+  resolveLatePaymentTimeline,
+} from "@/notes/utils/late-payment-workflow";
 import { OfferSigningPanel } from "@/components/offer-signing-panel";
 import { useResignNoteInvoiceOffer } from "@/notes/hooks/use-resign-invoice-offer";
 import { RequirePermission } from "@/components/require-permission";
@@ -235,6 +239,10 @@ export default function NoteDetailPage() {
 
     return "needs-action";
   }, [note]);
+  const latePaymentTimeline = React.useMemo(
+    () => (note ? resolveLatePaymentTimeline(note) : null),
+    [note]
+  );
 
   const runConfirmedAction = async () => {
     if (!note || !pendingAction) return;
@@ -601,6 +609,21 @@ export default function NoteDetailPage() {
                           />
                           {TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].label}
                         </Badge>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span>Late Payment</span>
+                        {latePaymentTimeline ? (
+                          <Badge
+                            variant="outline"
+                            className={`inline-flex items-center gap-1 ${LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].className}`}
+                          >
+                            <span
+                              aria-hidden
+                              className={`inline-block h-2 w-2 shrink-0 rounded-full ${LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].dotClass}`}
+                            />
+                            {LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].label}
+                          </Badge>
+                        ) : null}
                       </div>
                     </CardContent>
                   </Card>
