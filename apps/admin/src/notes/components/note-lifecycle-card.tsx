@@ -21,6 +21,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import { resolveLatePaymentTimeline, LATE_PAYMENT_WORKFLOW_BADGE } from "@/notes/utils/late-payment-workflow";
 import {
+  hasSettlementTrusteeMovement,
+  isNoteLifecycleVisuallyComplete,
+  isSettlementWrappingUp,
+} from "@/notes/utils/settlement-trustee-workflow";
+import {
   trusteeWorkflowTone,
   withdrawalHeaderBadgeTone,
   type WorkflowStatusTone,
@@ -227,17 +232,6 @@ function serviceFeeTrusteeHelperText(trusteeStatus: ServiceFeeTrusteeInstruction
     return "Submit the PDF to the trustee, then mark submitted and complete from the Servicing & Settlement tab.";
   }
   return "Generate the settlement trustee letter from the Servicing & Settlement tab.";
-}
-
-function hasSettlementTrusteeMovement(settlement: NoteDetail["settlements"][number]): boolean {
-  return (
-    settlement.investorPrincipal + settlement.investorProfitNet + settlement.tawidhInvestorAmount >
-      0.005 ||
-    settlement.serviceFeeAmount > 0.005 ||
-    settlement.tawidhAccountAmount > 0.005 ||
-    settlement.gharamahAmount > 0.005 ||
-    settlement.issuerResidualAmount > 0.005
-  );
 }
 
 interface ActionConfig {
@@ -503,7 +497,7 @@ function getAutoCloseInfo(note: NoteDetail) {
 
 export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = true }: NoteLifecycleCardProps) {
   const activeIndex = getActiveStageIndex(note);
-  const isComplete = note.status === "REPAID" || note.servicingStatus === "SETTLED";
+  const isComplete = isNoteLifecycleVisuallyComplete(note);
   const { primary, secondary, contextHelper, isFundingOpen } = buildActionPlan(note);
   const anyPending = Object.values(pending).some(Boolean);
   const currentStage = STAGES[activeIndex];
@@ -511,8 +505,7 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
   const latePaymentTimeline = React.useMemo(() => resolveLatePaymentTimeline(note), [note]);
   const disbursementWithdrawal = findIssuerDisbursementWithdrawal(note);
   const disbursementComplete = isDisbursementComplete(disbursementWithdrawal);
-  const hasPostedSettlement = note.settlements.some((s) => s.status === "POSTED");
-  const settlementInProgress = !isComplete && hasPostedSettlement;
+  const settlementInProgress = isSettlementWrappingUp(note);
   const terminalFailure = getTerminalFailure(note, activeIndex);
   const showDisbursementStrip =
     !isComplete &&

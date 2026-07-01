@@ -3954,7 +3954,7 @@ export class NoteService {
     );
 
     const residualAmount = toNumber(settlement.issuer_residual_amount);
-    const hasResidual = residualAmount > 0.005;
+    const needsTrusteeInstruction = hasSettlementTrusteeMovement(settlement);
 
     const repaidInvestorSnapshot = await prisma.noteInvestment.findMany({
       where: { note_id: id, status: NoteInvestmentStatus.CONFIRMED },
@@ -4036,7 +4036,7 @@ export class NoteService {
         data: { status: NotePaymentStatus.SETTLED },
       });
 
-      if (hasResidual) {
+      if (needsTrusteeInstruction) {
         await tx.note.update({
           where: { id },
           data: {
@@ -4049,7 +4049,7 @@ export class NoteService {
           data: {
             status: NoteStatus.REPAID,
             servicing_status: NoteServicingStatus.SETTLED,
-            repaid_at: new Date(),
+            repaid_at: postedAt,
           },
         });
       }
@@ -4068,7 +4068,7 @@ export class NoteService {
       settlementId,
       investorOrganizationIds: repaidInvestorOrgIds,
     });
-    if (!hasResidual) {
+    if (!needsTrusteeInstruction) {
       await notifyNoteIssuerRepaid({
         notificationService: this.notificationService,
         noteId: id,
@@ -4589,6 +4589,7 @@ export class NoteService {
 
     const completedAt = new Date();
     const hasResidualRefund = toNumber(settlement.issuer_residual_amount) > 0.005;
+    let noteMarkedRepaid = false;
     await prisma.$transaction(async (tx) => {
       const row = await tx.noteSettlement.updateMany({
         where: {
@@ -4643,17 +4644,6 @@ export class NoteService {
             },
           });
         }
-        await tx.note.updateMany({
-          where: {
-            id: noteId,
-            status: { in: [NoteStatus.ACTIVE, NoteStatus.ARREARS, NoteStatus.DEFAULTED] },
-          },
-          data: {
-            status: NoteStatus.REPAID,
-            servicing_status: NoteServicingStatus.SETTLED,
-            repaid_at: completedAt,
-          },
-        });
         await tx.withdrawalInstruction.updateMany({
           where: {
             note_id: noteId,
@@ -4668,11 +4658,42 @@ export class NoteService {
           },
         });
       }
+      const noteUpdate = await tx.note.updateMany({
+        where: {
+          id: noteId,
+          status: { in: [NoteStatus.ACTIVE, NoteStatus.ARREARS, NoteStatus.DEFAULTED] },
+        },
+        data: {
+          status: NoteStatus.REPAID,
+          servicing_status: NoteServicingStatus.SETTLED,
+          repaid_at: completedAt,
+        },
+      });
+      noteMarkedRepaid = noteUpdate.count > 0;
       await this.logEvent(tx, noteId, "SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED", actor, {
         settlementId,
         completedAt: completedAt.toISOString(),
       });
     });
+
+    if (noteMarkedRepaid) {
+      const note = await prisma.note.findUnique({
+        where: { id: noteId },
+        select: {
+          issuer_organization_id: true,
+          title: true,
+          note_reference: true,
+        },
+      });
+      if (note) {
+        await notifyNoteIssuerRepaid({
+          notificationService: this.notificationService,
+          noteId,
+          issuerOrganizationId: note.issuer_organization_id,
+          noteTitle: resolveNoteNotificationTitle(note),
+        });
+      }
+    }
 
     return this.getAdminNoteDetail(noteId);
   }
@@ -5274,7 +5295,6 @@ export class NoteService {
                   note_id: existing.note_id,
                   status: NoteSettlementStatus.POSTED,
                 },
-                select: { id: true },
               })
             : null;
           const pendingResidual = await tx.withdrawalInstruction.count({
@@ -5284,8 +5304,18 @@ export class NoteService {
               status: { notIn: [WithdrawalStatus.COMPLETED, WithdrawalStatus.CANCELLED] },
             },
           });
+          const settlementTrusteeComplete =
+            postedResidualSettlement?.service_fee_trustee_status ===
+            ServiceFeeTrusteeInstructionStatus.COMPLETED;
+          const settlementNeedsTrustee =
+            postedResidualSettlement != null &&
+            hasSettlementTrusteeMovement(postedResidualSettlement);
+          const canFinalizeNoteFromLegacyResidual =
+            postedResidualSettlement != null &&
+            pendingResidual === 0 &&
+            (!settlementNeedsTrustee || settlementTrusteeComplete);
 
-          if (postedResidualSettlement && pendingResidual === 0) {
+          if (canFinalizeNoteFromLegacyResidual) {
             await tx.note.updateMany({
               where: {
                 id: existing.note_id,

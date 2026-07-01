@@ -52,6 +52,7 @@ import {
   LATE_PAYMENT_WORKFLOW_BADGE,
   resolveLatePaymentTimeline,
 } from "@/notes/utils/late-payment-workflow";
+import { isNoteLifecycleVisuallyComplete } from "@/notes/utils/settlement-trustee-workflow";
 import { NOTE_WORKFLOW_TAB_BADGE, type SimpleTabStatus } from "@/notes/utils/workflow-status-tokens";
 import { OfferSigningPanel } from "@/components/offer-signing-panel";
 import { useResignNoteInvoiceOffer } from "@/notes/hooks/use-resign-invoice-offer";
@@ -186,7 +187,7 @@ export default function NoteDetailPage() {
   const servicingSettlementTabStatus = React.useMemo<SimpleTabStatus>(() => {
     if (!note) return "not-started";
 
-    const isDone = note.status === "REPAID" || note.servicingStatus === "SETTLED";
+    const isDone = isNoteLifecycleVisuallyComplete(note);
     if (isDone) return "done";
 
     const hasPendingPayments = note.payments.some((payment) => payment.status === "PENDING");
