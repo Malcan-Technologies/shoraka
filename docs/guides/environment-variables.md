@@ -101,14 +101,22 @@ Issuer director CTOS RegTank onboarding: after a successful RegTank create call,
 | `MAX_FILE_SIZE_MB`   | Max upload size    | `10`               |
 | `ALLOWED_FILE_TYPES` | Allowed extensions | `pdf,jpg,jpeg,png` |
 
-### Payment Gateway
+### Payment Gateway (Curlec / Razorpay Malaysia)
 
-| Variable                         | Description            | Notes                     |
-| -------------------------------- | ---------------------- | ------------------------- |
-| `PAYMENT_GATEWAY_API_KEY`        | API key                | From Secrets Manager      |
-| `PAYMENT_GATEWAY_SECRET`         | Secret key             | From Secrets Manager      |
-| `PAYMENT_GATEWAY_WEBHOOK_SECRET` | Webhook signing secret | From Secrets Manager      |
-| `PAYMENT_GATEWAY_MODE`           | Mode                   | `sandbox` or `production` |
+Server-only — never expose `CURLEC_KEY_SECRET` or `CURLEC_WEBHOOK_SECRET` to clients. Loaded by `apps/api/src/config/curlec.ts`.
+
+| Variable | Description | Example (Dev) | Example (Prod) |
+|---|---|---|---|
+| `CURLEC_KEY_ID` | Curlec API key ID | `rzp_test_...` | `rzp_live_...` (Secrets Manager) |
+| `CURLEC_KEY_SECRET` | Curlec API secret | From Curlec dashboard | Secrets Manager |
+| `CURLEC_WEBHOOK_SECRET` | Webhook HMAC signing secret | From Curlec dashboard webhook config | Secrets Manager |
+| `CURLEC_API_BASE_URL` | Curlec REST API base URL | `https://api.razorpay.com` | Confirm Malaysia prod URL with Curlec |
+
+The public key id is returned in order-create API responses — frontends do not need a `NEXT_PUBLIC_CURLEC_*` variable.
+
+See also: `docs/integrations/payment-gateway-curlec-ops-runbook.md`, `docs/integrations/payment-gateway-curlec-plan-as-built.md`.
+
+> **Note:** Legacy `PAYMENT_GATEWAY_*` placeholders in older docs are superseded by `CURLEC_*`.
 
 ## Frontend Environment Variables (Next.js)
 
@@ -234,9 +242,9 @@ export const env = envSchema.parse(process.env);
   │   ├── DATABASE_URL              (SecureString)
   │   ├── JWT_SECRET                (SecureString)
   │   ├── SMTP_PASSWORD             (SecureString)
-  │   ├── PAYMENT_GATEWAY_API_KEY   (SecureString)
-  │   ├── PAYMENT_GATEWAY_SECRET    (SecureString)
-  │   └── PAYMENT_GATEWAY_WEBHOOK_SECRET (SecureString)
+  │   ├── CURLEC_KEY_ID             (SecureString)
+  │   ├── CURLEC_KEY_SECRET         (SecureString)
+  │   └── CURLEC_WEBHOOK_SECRET     (SecureString)
   └── frontend/
       ├── NEXT_PUBLIC_API_URL       (String)
       ├── NEXT_PUBLIC_COGNITO_DOMAIN (String)

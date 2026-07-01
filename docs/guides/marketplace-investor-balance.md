@@ -51,9 +51,19 @@ This guide explains the current marketplace surfaces end to end and how investor
 - `POST /v1/admin/notes/:id/funding/fail` (releases committed capital back to investors)
 - `POST /v1/admin/notes/:id/settlements/:settlementId/post` (releases principal + net profit back to investors)
 
+### Gateway deposit (production path)
+
+- `POST /v1/investor/deposits` — create Curlec FPX order
+- `GET /v1/investor/deposits/:id` — poll status after checkout
+- Webhook `payment.captured` → name check → wallet credit (`GATEWAY_DEPOSIT` source) + `INVESTOR_POOL` ledger
+
+First successful deposit also sets `investor_organizations.deposit_received = true`.
+
+See `docs/integrations/payment-gateway-curlec-plan-business-as-built.md` for the full money-in flow.
+
 ### Dev-only testing endpoint
 
-- `POST /v1/investor/balance/test-topup`
+- `POST /v1/investor/balance/test-topup` — blocked when `NODE_ENV=production`
 
 ## Data model
 
@@ -68,6 +78,16 @@ This guide explains the current marketplace surfaces end to end and how investor
 All money columns use `numeric(18,6)` through Prisma `Decimal`.
 
 ## Balance movement rules
+
+### 0) Gateway deposit (FPX)
+
+- Trigger: Curlec webhook `payment.captured` after investor FPX checkout (`POST /v1/investor/deposits`)
+- Preconditions: name check PASS (or admin approves `NAME_CHECK_PENDING`)
+- Result:
+  - `investor_balances.available_amount` increases
+  - transaction row: `direction = IN`, `source = GATEWAY_DEPOSIT`
+  - `INVESTOR_POOL` ledger credit (gross amount)
+  - first deposit sets `investor_organizations.deposit_received = true`
 
 ### 1) Commit investment
 
@@ -122,6 +142,8 @@ This is what powers the account overview figures in investor UI.
 `GET /v1/investor/balance/activity` returns the investor-facing activity list used in the investment detail page.
 
 ## Dev top-up (non-production only)
+
+`POST /v1/investor/balance/test-topup` returns 403 when `NODE_ENV=production`. For real deposit testing use the Curlec FPX flow (`POST /v1/investor/deposits`).
 
 When this endpoint is used, the API also posts an `INVESTOR_POOL` ledger credit so bucket reporting stays aligned with simulated inflow.
 
