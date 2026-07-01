@@ -4,7 +4,7 @@ export default function GatewayPaymentsPage() {
   return (
     <GatewayPaymentsTable
       title="Gateway Payments"
-      description="All Curlec money-in payments including investor deposits."
+      description="All Curlec money-in payments including investor deposits, with filters for completed, refunding, refunded, and exception states."
     />
   );
 }

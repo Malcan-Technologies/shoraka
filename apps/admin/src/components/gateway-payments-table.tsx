@@ -2,6 +2,7 @@
 
 import { format } from "date-fns";
 import Link from "next/link";
+import { useState } from "react";
 import { ArrowPathIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { Badge } from "@/components/ui/badge";
@@ -27,8 +28,8 @@ const STATUS_LABEL: Record<string, string> = {
   PAID: "Paid",
   NAME_CHECK_PENDING: "Name check pending",
   COMPLETED: "Completed",
-  HELD: "Held",
-  REFUND_INITIATED: "Refund initiated",
+  HELD: "Needs attention",
+  REFUND_INITIATED: "Refunding",
   REFUNDED: "Refunded",
   FAILED: "Failed",
   EXPIRED: "Expired",
@@ -40,9 +41,21 @@ const PURPOSE_LABEL: Record<string, string> = {
   APPLICATION_PROCESSING_FEE: "Processing fee",
 };
 
+const FILTER_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "completed", label: "Completed" },
+  { value: "review", label: "Review" },
+  { value: "refunding", label: "Refunding" },
+  { value: "refunded", label: "Refunded" },
+  { value: "needs_attention", label: "Needs attention" },
+] as const;
+
+type GatewayFilter = (typeof FILTER_OPTIONS)[number]["value"];
+
 function statusVariant(status: string) {
   if (status === "COMPLETED") return "default" as const;
-  if (status === "HELD" || status === "NAME_CHECK_PENDING") return "destructive" as const;
+  if (status === "HELD") return "destructive" as const;
+  if (status === "NAME_CHECK_PENDING") return "secondary" as const;
   if (status === "REFUNDED" || status === "REFUND_INITIATED") return "secondary" as const;
   return "outline" as const;
 }
@@ -52,16 +65,21 @@ function formatDate(value: string) {
 }
 
 type GatewayPaymentsTableProps = {
-  queue?: "held";
   title: string;
   description: string;
+  initialFilter?: GatewayFilter;
 };
 
-export function GatewayPaymentsTable({ queue, title, description }: GatewayPaymentsTableProps) {
+export function GatewayPaymentsTable({
+  title,
+  description,
+  initialFilter = "all",
+}: GatewayPaymentsTableProps) {
+  const [filter, setFilter] = useState<GatewayFilter>(initialFilter);
   const { data, isLoading, error, refetch, isFetching } = useGatewayPayments({
     page: 1,
     pageSize: 50,
-    queue,
+    filter: filter === "all" ? undefined : filter,
   });
 
   const items = data?.items ?? [];
@@ -94,6 +112,18 @@ export function GatewayPaymentsTable({ queue, title, description }: GatewayPayme
               <CardHeader>
                 <CardTitle>{title}</CardTitle>
                 <p className="text-sm text-muted-foreground">{description}</p>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {FILTER_OPTIONS.map((option) => (
+                    <Button
+                      key={option.value}
+                      size="sm"
+                      variant={filter === option.value ? "default" : "outline"}
+                      onClick={() => setFilter(option.value)}
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                </div>
               </CardHeader>
               <CardContent>
                 {isLoading ? (

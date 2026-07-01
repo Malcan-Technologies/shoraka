@@ -1,6 +1,7 @@
 import {
   GatewayOrganizationType,
   GatewayPayment,
+  GatewayPaymentEventType,
   GatewayPaymentPurpose,
   GatewayPaymentStatus,
   InvestorBalanceTransactionSource,
@@ -17,6 +18,7 @@ import { creditInvestorBalance } from "../notes/investor-balance";
 import { postLedgerEntry } from "../notes/ledger";
 import { CreateInvestorDepositInput } from "./deposit-schemas";
 import { createGatewayOrder, mapGatewayPaymentResponse } from "./gateway-order-service";
+import { recordGatewayPaymentEvent } from "./gateway-events";
 import { assertTransition } from "./state";
 
 export type ActorContext = {
@@ -152,20 +154,56 @@ export async function getInvestorDeposit(
   return mapDepositResponse(synced);
 }
 
-export function resolveInvestorExpectedName(org: InvestorOrganization): string | null {
+function resolveCompanyExpectedName(org: InvestorOrganization): string | null {
+  const data = org.corporate_onboarding_data;
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const businessName = (data as { basicInfo?: { businessName?: string } }).basicInfo
+      ?.businessName?.trim();
+    if (businessName) return businessName;
+  }
+  return null;
+}
+
+function dedupeVariants(variants: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const variant of variants) {
+    const key = variant.trim().toUpperCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(variant.trim());
+  }
+  return result;
+}
+
+export function resolveInvestorExpectedNameVariants(org: InvestorOrganization): string[] {
   if (org.type === OrganizationType.COMPANY) {
-    const data = org.corporate_onboarding_data;
-    if (data && typeof data === "object" && !Array.isArray(data)) {
-      const basicInfo = (data as { basicInfo?: { businessName?: string } }).basicInfo;
-      const businessName = basicInfo?.businessName?.trim();
-      if (businessName) return businessName;
-    }
+    const businessName = resolveCompanyExpectedName(org);
+    return businessName ? [businessName] : [];
+  }
+
+  const variants: string[] = [];
+  if (org.legal_name_on_id?.trim()) {
+    variants.push(org.legal_name_on_id.trim());
   }
 
   const parts = [org.first_name, org.middle_name, org.last_name]
     .map((part) => part?.trim())
     .filter(Boolean);
-  return parts.length > 0 ? parts.join(" ") : null;
+  if (parts.length > 0) {
+    variants.push(parts.join(" "));
+  }
+
+  if (org.name?.trim()) {
+    variants.push(org.name.trim());
+  }
+
+  return dedupeVariants(variants);
+}
+
+export function resolveInvestorExpectedName(org: InvestorOrganization): string | null {
+  const variants = resolveInvestorExpectedNameVariants(org);
+  return variants[0] ?? null;
 }
 
 export async function creditCompletedDeposit(
@@ -227,5 +265,43 @@ export async function creditCompletedDeposit(
       name_check_at: new Date(),
       ...(opts?.actorUserId ? { name_checked_by_user_id: opts.actorUserId } : {}),
     },
+  });
+}
+
+export async function pendNameCheckReview(
+  tx: Prisma.TransactionClient,
+  gatewayPayment: GatewayPayment,
+  nameCheckResult: NameCheckResult,
+  opts?: { score?: number; matchedVariant?: string | null }
+) {
+  assertTransition(gatewayPayment.status, GatewayPaymentStatus.NAME_CHECK_PENDING);
+
+  await tx.gatewayPayment.update({
+    where: { id: gatewayPayment.id },
+    data: {
+      status: GatewayPaymentStatus.NAME_CHECK_PENDING,
+      name_check_result: nameCheckResult,
+      name_check_at: new Date(),
+    },
+  });
+
+  const reason =
+    nameCheckResult === NameCheckResult.REVIEW
+      ? "Payer name requires manual review"
+      : "Payer name unavailable — pending manual review";
+
+  await recordGatewayPaymentEvent(tx, {
+    gatewayPaymentId: gatewayPayment.id,
+    type: GatewayPaymentEventType.NAME_CHECK,
+    fromStatus: gatewayPayment.status,
+    toStatus: GatewayPaymentStatus.NAME_CHECK_PENDING,
+    reason,
+    metadata:
+      opts?.score !== undefined
+        ? ({
+            score: opts.score,
+            matchedVariant: opts.matchedVariant ?? null,
+          } as Prisma.InputJsonValue)
+        : undefined,
   });
 }

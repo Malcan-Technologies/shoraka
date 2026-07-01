@@ -22,6 +22,7 @@ const TEST_WEBHOOK_SECRET = "whsec_m5_integration_test";
 
 const mockFetchPayment = jest.fn();
 const mockFetchOrderPayments = jest.fn();
+const mockRefundPayment = jest.fn();
 
 jest.mock("../../config/curlec", () => ({
   getCurlecConfig: jest.fn(() => ({
@@ -38,6 +39,7 @@ jest.mock("./curlec-client", () => ({
     createOrder: jest.fn(),
     fetchPayment: (...args: unknown[]) => mockFetchPayment(...args),
     fetchOrderPayments: (...args: unknown[]) => mockFetchOrderPayments(...args),
+    refundPayment: (...args: unknown[]) => mockRefundPayment(...args),
   })),
 }));
 
@@ -152,6 +154,13 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
   beforeEach(() => {
     mockFetchPayment.mockReset();
     mockFetchOrderPayments.mockReset();
+    mockRefundPayment.mockReset();
+    mockRefundPayment.mockResolvedValue({
+      id: "rfnd_test_auto",
+      amount: 25000,
+      payment_id: paymentId,
+      status: "processed",
+    });
   });
 
   afterEach(async () => {
@@ -183,6 +192,11 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
         payer_name: null,
         name_check_result: null,
         name_check_at: null,
+        refund_reference: null,
+        refund_initiated_by: null,
+        refunded_at: null,
+        refund_notes: null,
+        metadata: Prisma.DbNull,
       },
     });
     await prisma.investorOrganization.update({
@@ -312,7 +326,7 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
     expect(balanceTxCount).toBe(1);
   });
 
-  it("holds deposit on payer name mismatch without crediting", async () => {
+  it("auto-refunds deposit on payer name mismatch without crediting", async () => {
     if (!migrated) return;
 
     const response = await postWebhook(`evt_m5_fail_${Date.now()}`, "Wrong Person");
@@ -321,8 +335,10 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
     const payment = await prisma.gatewayPayment.findUniqueOrThrow({
       where: { id: gatewayPaymentId },
     });
-    expect(payment.status).toBe(GatewayPaymentStatus.HELD);
+    expect(payment.status).toBe(GatewayPaymentStatus.REFUND_INITIATED);
     expect(payment.name_check_result).toBe(NameCheckResult.FAIL);
+    expect(payment.refund_reference).toBe("rfnd_test_auto");
+    expect(mockRefundPayment).toHaveBeenCalledTimes(1);
 
     const balanceTxCount = await prisma.investorBalanceTransaction.count({
       where: { investor_organization_id: orgId },
@@ -333,7 +349,7 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
     expect(org.deposit_received).toBe(false);
   });
 
-  it("holds deposit on Curlec amount mismatch without crediting", async () => {
+  it("auto-refunds deposit on Curlec amount mismatch without crediting", async () => {
     if (!migrated) return;
 
     const eventId = `evt_m5_amount_mismatch_${Date.now()}`;
@@ -358,7 +374,7 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
     const payment = await prisma.gatewayPayment.findUniqueOrThrow({
       where: { id: gatewayPaymentId },
     });
-    expect(payment.status).toBe(GatewayPaymentStatus.HELD);
+    expect(payment.status).toBe(GatewayPaymentStatus.REFUND_INITIATED);
     expect(payment.metadata).toMatchObject({
       amountMismatch: {
         expectedSen: 25000,
@@ -366,6 +382,7 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
         curlecPaymentId: paymentId,
       },
     });
+    expect(mockRefundPayment).toHaveBeenCalledTimes(1);
 
     const balanceTxCount = await prisma.investorBalanceTransaction.count({
       where: { investor_organization_id: orgId },
@@ -376,7 +393,7 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
     expect(org.deposit_received).toBe(false);
   });
 
-  it("routes FPX-without-name deposits to NAME_CHECK_PENDING", async () => {
+  it("routes FPX-without-name deposits to name check review without refunding", async () => {
     if (!migrated) return;
 
     const response = await postWebhook(`evt_m5_unavail_${Date.now()}`, null);
@@ -387,11 +404,51 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
     });
     expect(payment.status).toBe(GatewayPaymentStatus.NAME_CHECK_PENDING);
     expect(payment.name_check_result).toBe(NameCheckResult.NAME_UNAVAILABLE);
+    expect(mockRefundPayment).not.toHaveBeenCalled();
 
     const balanceTxCount = await prisma.investorBalanceTransaction.count({
       where: { investor_organization_id: orgId },
     });
     expect(balanceTxCount).toBe(0);
+  });
+
+  it("routes ambiguous payer names to name check review without refunding", async () => {
+    if (!migrated) return;
+
+    await prisma.investorOrganization.update({
+      where: { id: orgId },
+      data: { first_name: "Jane", middle_name: "Marie", last_name: "Doe" },
+    });
+
+    const response = await postWebhook(`evt_m5_review_${Date.now()}`, "Jane Doe");
+    expect(response.status).toBe(200);
+
+    const payment = await prisma.gatewayPayment.findUniqueOrThrow({
+      where: { id: gatewayPaymentId },
+    });
+    expect(payment.status).toBe(GatewayPaymentStatus.NAME_CHECK_PENDING);
+    expect(payment.name_check_result).toBe(NameCheckResult.REVIEW);
+    expect(mockRefundPayment).not.toHaveBeenCalled();
+
+    await prisma.investorOrganization.update({
+      where: { id: orgId },
+      data: { middle_name: null },
+    });
+  });
+
+  it("falls back to HELD when Curlec refund API fails", async () => {
+    if (!migrated) return;
+
+    mockRefundPayment.mockRejectedValueOnce(new Error("Curlec refund unavailable"));
+
+    const response = await postWebhook(`evt_m5_refund_fail_${Date.now()}`, "Wrong Person");
+    expect(response.status).toBe(200);
+
+    const payment = await prisma.gatewayPayment.findUniqueOrThrow({
+      where: { id: gatewayPaymentId },
+    });
+    expect(payment.status).toBe(GatewayPaymentStatus.HELD);
+    expect(payment.name_check_result).toBe(NameCheckResult.FAIL);
   });
 
   it("credits only once under concurrent processing", async () => {

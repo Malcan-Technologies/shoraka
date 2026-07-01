@@ -11,8 +11,6 @@ import { formatDate, PURPOSE_LABEL, STATUS_LABEL, statusVariant } from "@/compon
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,22 +18,12 @@ import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
 import {
-  useApproveGatewayPaymentNameCheck,
-  useApproveGatewayPaymentOverride,
-  useCompleteGatewayPaymentRefund,
+  useApproveGatewayNameCheck,
   useGatewayPayment,
-  useProposeGatewayPaymentOverride,
-  useRecordGatewayPaymentRefund,
-  useRejectGatewayPaymentNameCheck,
-  useRejectGatewayPaymentOverride,
+  useInitiateGatewayPaymentRefund,
+  useRejectGatewayNameCheck,
+  useRetryGatewayPaymentRefund,
 } from "@/hooks/use-gateway-payments";
-
-type DialogAction =
-  | { kind: "name-check-approve" }
-  | { kind: "name-check-reject" }
-  | { kind: "override-propose" }
-  | { kind: "override-reject" }
-  | { kind: "refund-record" };
 
 function DetailSkeleton() {
   return (
@@ -54,145 +42,66 @@ export default function GatewayPaymentDetailPage() {
   const canManage = can("gateway_payments.manage");
 
   const { data: payment, isLoading, error, refetch, isFetching } = useGatewayPayment(id);
-
-  const approveNameCheck = useApproveGatewayPaymentNameCheck();
-  const rejectNameCheck = useRejectGatewayPaymentNameCheck();
-  const proposeOverride = useProposeGatewayPaymentOverride();
-  const approveOverride = useApproveGatewayPaymentOverride();
-  const rejectOverride = useRejectGatewayPaymentOverride();
-  const recordRefund = useRecordGatewayPaymentRefund();
-  const completeRefund = useCompleteGatewayPaymentRefund();
-
-  const [dialogAction, setDialogAction] = React.useState<DialogAction | null>(null);
-  const [refundReference, setRefundReference] = React.useState("");
+  const retryRefund = useRetryGatewayPaymentRefund();
+  const initiateRefund = useInitiateGatewayPaymentRefund();
+  const approveNameCheck = useApproveGatewayNameCheck();
+  const rejectNameCheck = useRejectGatewayNameCheck();
+  const [showRefundDialog, setShowRefundDialog] = React.useState(false);
 
   const isPending =
+    retryRefund.isPending ||
+    initiateRefund.isPending ||
     approveNameCheck.isPending ||
-    rejectNameCheck.isPending ||
-    proposeOverride.isPending ||
-    approveOverride.isPending ||
-    rejectOverride.isPending ||
-    recordRefund.isPending ||
-    completeRefund.isPending;
+    rejectNameCheck.isPending;
 
-  const canApproveNameCheck = Boolean(
-    payment && canManage && payment.status === "NAME_CHECK_PENDING"
-  );
-  const canRejectNameCheck = canApproveNameCheck;
-  const canProposeOverride = Boolean(
-    payment && canManage && payment.status === "HELD" && !payment.openOverrideProposedBy
-  );
-  const canApproveOverride = Boolean(
-    payment && canManage && payment.status === "HELD" && payment.openOverrideProposedBy
-  );
-  const canRejectOverride = canApproveOverride;
-  const canRecordRefund = Boolean(
-    payment &&
-      canManage &&
-      (payment.status === "HELD" || payment.status === "COMPLETED")
-  );
-  const canCompleteRefund = Boolean(
-    payment && canManage && payment.status === "REFUND_INITIATED"
+  const canRetryRefund = Boolean(canManage && payment?.status === "HELD");
+  const canReviewNameCheck = Boolean(canManage && payment?.status === "NAME_CHECK_PENDING");
+  const canInitiateRefund = Boolean(
+    canManage &&
+      payment?.status === "COMPLETED" &&
+      payment.purpose === "INVESTOR_DEPOSIT"
   );
 
-  const handleRemarkConfirm = async (remark: string) => {
-    if (!id || !dialogAction) return;
-
-    try {
-      if (dialogAction.kind === "name-check-approve") {
-        await approveNameCheck.mutateAsync({ id, reason: remark });
-        toast.success("Deposit credited after name check approval");
-      } else if (dialogAction.kind === "name-check-reject") {
-        await rejectNameCheck.mutateAsync({ id, reason: remark });
-        toast.success("Deposit moved to held");
-      } else if (dialogAction.kind === "override-propose") {
-        await proposeOverride.mutateAsync({ id, reason: remark });
-        toast.success("Override proposed — awaiting checker approval");
-      } else if (dialogAction.kind === "override-reject") {
-        await rejectOverride.mutateAsync({ id, reason: remark });
-        toast.success("Override proposal rejected");
-      } else if (dialogAction.kind === "refund-record") {
-        if (!refundReference.trim()) {
-          toast.error("Refund reference is required");
-          return;
-        }
-        await recordRefund.mutateAsync({
-          id,
-          reference: refundReference.trim(),
-          notes: remark || undefined,
-        });
-        toast.success("Refund recorded — complete in Curlec dashboard first");
-        setRefundReference("");
-      }
-      setDialogAction(null);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Action failed");
-    }
-  };
-
-  const handleApproveOverride = async () => {
+  const handleRetryRefund = async () => {
     if (!id) return;
     try {
-      await approveOverride.mutateAsync(id);
-      toast.success("Override approved — deposit credited");
+      await retryRefund.mutateAsync(id);
+      toast.success("Refund retry submitted to Curlec");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Override approval failed");
+      toast.error(err instanceof Error ? err.message : "Refund retry failed");
     }
   };
 
-  const handleCompleteRefund = async () => {
+  const handleInitiateRefund = async (reason: string) => {
     if (!id) return;
     try {
-      await completeRefund.mutateAsync({ id });
-      toast.success("Refund marked complete");
+      await initiateRefund.mutateAsync({ id, reason });
+      toast.success("Refund initiated via Curlec");
+      setShowRefundDialog(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to complete refund");
+      toast.error(err instanceof Error ? err.message : "Refund initiation failed");
     }
   };
 
-  const dialogCopy = (() => {
-    switch (dialogAction?.kind) {
-      case "name-check-approve":
-        return {
-          title: "Approve name check",
-          description: "Credit this deposit after manual verification of the payer name.",
-          submitLabel: "Approve and credit",
-          variant: "default" as const,
-        };
-      case "name-check-reject":
-        return {
-          title: "Reject name check",
-          description: "Move this deposit to held — no wallet credit.",
-          submitLabel: "Reject",
-          variant: "destructive" as const,
-        };
-      case "override-propose":
-        return {
-          title: "Propose override credit",
-          description:
-            "Propose crediting this held deposit despite the name mismatch. A different admin must approve.",
-          submitLabel: "Propose override",
-          variant: "default" as const,
-        };
-      case "override-reject":
-        return {
-          title: "Reject override proposal",
-          description: "Reject the pending override without crediting the deposit.",
-          submitLabel: "Reject proposal",
-          variant: "destructive" as const,
-        };
-      case "refund-record":
-        return {
-          title: "Record refund initiated",
-          description:
-            "Record that a refund was initiated in the Curlec dashboard. Enter the reference below before confirming.",
-          submitLabel: "Record refund",
-          variant: "destructive" as const,
-        };
-      default:
-        return null;
+  const handleApproveNameCheck = async () => {
+    if (!id) return;
+    try {
+      await approveNameCheck.mutateAsync(id);
+      toast.success("Name check approved — deposit credited");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Name check approval failed");
     }
-  })();
+  };
+
+  const handleRejectNameCheck = async () => {
+    if (!id) return;
+    try {
+      await rejectNameCheck.mutateAsync(id);
+      toast.success("Name check rejected — refund initiated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Name check rejection failed");
+    }
+  };
 
   return (
     <RequirePermission permission="gateway_payments.view">
@@ -240,7 +149,9 @@ export default function GatewayPaymentDetailPage() {
                     <div>
                       <CardTitle>{formatCurrency(payment.amount)}</CardTitle>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {payment.investorOrganizationName ?? PURPOSE_LABEL[payment.purpose] ?? payment.purpose}
+                        {payment.investorOrganizationName ??
+                          PURPOSE_LABEL[payment.purpose] ??
+                          payment.purpose}
                       </p>
                     </div>
                     <Badge variant={statusVariant(payment.status)}>
@@ -269,79 +180,58 @@ export default function GatewayPaymentDetailPage() {
                       <p>{payment.bankCode ?? "—"}</p>
                     </div>
                     <div>
+                      <p className="text-xs text-muted-foreground">Refund reference</p>
+                      <p className="font-mono text-sm">{payment.refundReference ?? "—"}</p>
+                    </div>
+                    <div>
                       <p className="text-xs text-muted-foreground">Created</p>
                       <p>{formatDate(payment.createdAt)}</p>
                     </div>
-                    {payment.openOverrideReason ? (
-                      <div className="md:col-span-2">
-                        <p className="text-xs text-muted-foreground">Pending override</p>
-                        <p>{payment.openOverrideReason}</p>
+                    {payment.refundedAt ? (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Refunded</p>
+                        <p>{formatDate(payment.refundedAt)}</p>
                       </div>
                     ) : null}
                   </CardContent>
                 </Card>
 
-                {canManage ? (
+                {canManage && (canRetryRefund || canInitiateRefund || canReviewNameCheck) ? (
                   <Card className="rounded-2xl">
                     <CardHeader>
                       <CardTitle>Actions</CardTitle>
                     </CardHeader>
                     <CardContent className="flex flex-wrap gap-2">
-                      {canApproveNameCheck ? (
-                        <Button onClick={() => setDialogAction({ kind: "name-check-approve" })}>
-                          Approve name check
-                        </Button>
-                      ) : null}
-                      {canRejectNameCheck ? (
-                        <Button
-                          variant="destructive"
-                          onClick={() => setDialogAction({ kind: "name-check-reject" })}
-                        >
-                          Reject name check
-                        </Button>
-                      ) : null}
-                      {canProposeOverride ? (
-                        <Button onClick={() => setDialogAction({ kind: "override-propose" })}>
-                          Propose override credit
-                        </Button>
-                      ) : null}
-                      {canApproveOverride ? (
-                        <Button onClick={() => void handleApproveOverride()} disabled={isPending}>
-                          Approve override (checker)
-                        </Button>
-                      ) : null}
-                      {canRejectOverride ? (
-                        <Button
-                          variant="outline"
-                          onClick={() => setDialogAction({ kind: "override-reject" })}
-                        >
-                          Reject override
-                        </Button>
-                      ) : null}
-                      {canRecordRefund ? (
+                      {canReviewNameCheck ? (
                         <>
-                          <div className="w-full pt-2">
-                            <Label htmlFor="refund-reference">Refund reference (Curlec dashboard)</Label>
-                            <Input
-                              id="refund-reference"
-                              value={refundReference}
-                              onChange={(event) => setRefundReference(event.target.value)}
-                              placeholder="e.g. REF-12345"
-                              className="mt-1 max-w-sm"
-                            />
-                          </div>
+                          <Button onClick={() => void handleApproveNameCheck()} disabled={isPending}>
+                            Approve name check
+                          </Button>
                           <Button
                             variant="destructive"
-                            onClick={() => setDialogAction({ kind: "refund-record" })}
-                            disabled={!refundReference.trim()}
+                            onClick={() => void handleRejectNameCheck()}
+                            disabled={isPending}
                           >
-                            Record refund initiated
+                            Reject name check
                           </Button>
                         </>
                       ) : null}
-                      {canCompleteRefund ? (
-                        <Button variant="outline" onClick={() => void handleCompleteRefund()}>
-                          Mark refund complete
+                      {canRetryRefund ? (
+                        <Button
+                          variant="destructive"
+                          onClick={() => void handleRetryRefund()}
+                          disabled={isPending}
+                        >
+                          Retry auto-refund
+                        </Button>
+                      ) : null}
+                      {canInitiateRefund ? (
+                        <Button
+                          variant="destructive"
+                          onClick={() => setShowRefundDialog(true)}
+                          disabled={isPending}
+                        >
+                          Initiate refund
                         </Button>
                       ) : null}
                     </CardContent>
@@ -354,7 +244,7 @@ export default function GatewayPaymentDetailPage() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {payment.events.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No admin events recorded yet.</p>
+                      <p className="text-sm text-muted-foreground">No events recorded yet.</p>
                     ) : (
                       payment.events.map((event) => (
                         <div key={event.id} className="border-b pb-3 last:border-0 last:pb-0">
@@ -382,20 +272,16 @@ export default function GatewayPaymentDetailPage() {
           </div>
         </div>
 
-        {dialogCopy ? (
-          <ApplicationReviewRemarkDialog
-            open={dialogAction !== null}
-            onOpenChange={(open) => {
-              if (!open) setDialogAction(null);
-            }}
-            title={dialogCopy.title}
-            description={dialogCopy.description}
-            submitLabel={dialogCopy.submitLabel}
-            variant={dialogCopy.variant}
-            onConfirm={handleRemarkConfirm}
-            isPending={isPending}
-          />
-        ) : null}
+        <ApplicationReviewRemarkDialog
+          open={showRefundDialog}
+          onOpenChange={setShowRefundDialog}
+          title="Initiate refund"
+          description="This will call the Curlec Refund API for a completed investor deposit. Use only for post-credit corrections."
+          submitLabel="Initiate refund"
+          variant="destructive"
+          onConfirm={handleInitiateRefund}
+          isPending={isPending}
+        />
       </>
     </RequirePermission>
   );

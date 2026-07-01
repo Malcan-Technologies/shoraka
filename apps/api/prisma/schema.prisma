@@ -268,6 +268,7 @@ model InvestorOrganization {
   first_name                    String?
   last_name                     String?
   middle_name                   String?
+  legal_name_on_id              String?
   nationality                   String?
   country                       String?
   id_issuing_country            String?
@@ -1674,6 +1675,7 @@ enum GatewayPaymentStatus {
 
 enum NameCheckResult {
   PASS
+  REVIEW
   FAIL
   NAME_UNAVAILABLE
 }

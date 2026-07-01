@@ -18,7 +18,7 @@ export const gatewayPaymentsKeys = {
   list: (params: Record<string, unknown>) =>
     [...gatewayPaymentsRootKey, "list", params] as const,
   detail: (id: string) => [...gatewayPaymentsRootKey, "detail", id] as const,
-  pendingCount: [...gatewayPaymentsRootKey, "held-pending-count"] as const,
+  exceptionCount: [...gatewayPaymentsRootKey, "exception-count"] as const,
 };
 
 function useGatewayPaymentsApiClient() {
@@ -26,12 +26,12 @@ function useGatewayPaymentsApiClient() {
   return createApiClient(API_URL, getAccessToken);
 }
 
-export function useHeldGatewayPaymentsPendingCount({ enabled = true }: { enabled?: boolean } = {}) {
+export function useGatewayPaymentsExceptionCount({ enabled = true }: { enabled?: boolean } = {}) {
   const apiClient = useGatewayPaymentsApiClient();
   return useQuery({
-    queryKey: gatewayPaymentsKeys.pendingCount,
+    queryKey: gatewayPaymentsKeys.exceptionCount,
     queryFn: async () => {
-      const response = await apiClient.getAdminHeldGatewayPaymentsPendingCount();
+      const response = await apiClient.getAdminGatewayPaymentsExceptionCount();
       if (!response.success) throw new Error(response.error.message);
       return response.data as GatewayPaymentPendingCountResponse;
     },
@@ -46,7 +46,7 @@ export function useGatewayPayments(params?: {
   pageSize?: number;
   status?: string;
   purpose?: string;
-  queue?: "held";
+  filter?: "needs_attention" | "review" | "refunding" | "refunded" | "completed";
   search?: string;
 }) {
   const apiClient = useGatewayPaymentsApiClient();
@@ -88,51 +88,12 @@ function useInvalidateGatewayPayments() {
   };
 }
 
-export function useApproveGatewayPaymentNameCheck() {
-  const apiClient = useGatewayPaymentsApiClient();
-  const invalidate = useInvalidateGatewayPayments();
-  return useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const response = await apiClient.approveGatewayPaymentNameCheck(id, reason);
-      if (!response.success) throw new Error(response.error.message);
-      return response.data;
-    },
-    onSuccess: (_data, variables) => void invalidate(variables.id),
-  });
-}
-
-export function useRejectGatewayPaymentNameCheck() {
-  const apiClient = useGatewayPaymentsApiClient();
-  const invalidate = useInvalidateGatewayPayments();
-  return useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const response = await apiClient.rejectGatewayPaymentNameCheck(id, reason);
-      if (!response.success) throw new Error(response.error.message);
-      return response.data;
-    },
-    onSuccess: (_data, variables) => void invalidate(variables.id),
-  });
-}
-
-export function useProposeGatewayPaymentOverride() {
-  const apiClient = useGatewayPaymentsApiClient();
-  const invalidate = useInvalidateGatewayPayments();
-  return useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const response = await apiClient.proposeGatewayPaymentOverride(id, reason);
-      if (!response.success) throw new Error(response.error.message);
-      return response.data;
-    },
-    onSuccess: (_data, variables) => void invalidate(variables.id),
-  });
-}
-
-export function useApproveGatewayPaymentOverride() {
+export function useRetryGatewayPaymentRefund() {
   const apiClient = useGatewayPaymentsApiClient();
   const invalidate = useInvalidateGatewayPayments();
   return useMutation({
     mutationFn: async (id: string) => {
-      const response = await apiClient.approveGatewayPaymentOverride(id);
+      const response = await apiClient.retryAdminGatewayPaymentRefund(id);
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
@@ -140,12 +101,12 @@ export function useApproveGatewayPaymentOverride() {
   });
 }
 
-export function useRejectGatewayPaymentOverride() {
+export function useInitiateGatewayPaymentRefund() {
   const apiClient = useGatewayPaymentsApiClient();
   const invalidate = useInvalidateGatewayPayments();
   return useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const response = await apiClient.rejectGatewayPaymentOverride(id, reason);
+      const response = await apiClient.initiateAdminGatewayPaymentRefund(id, reason);
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
@@ -153,36 +114,28 @@ export function useRejectGatewayPaymentOverride() {
   });
 }
 
-export function useRecordGatewayPaymentRefund() {
+export function useApproveGatewayNameCheck() {
   const apiClient = useGatewayPaymentsApiClient();
   const invalidate = useInvalidateGatewayPayments();
   return useMutation({
-    mutationFn: async ({
-      id,
-      reference,
-      notes,
-    }: {
-      id: string;
-      reference: string;
-      notes?: string;
-    }) => {
-      const response = await apiClient.recordGatewayPaymentRefund(id, { reference, notes });
+    mutationFn: async (id: string) => {
+      const response = await apiClient.approveAdminGatewayNameCheck(id);
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
-    onSuccess: (_data, variables) => void invalidate(variables.id),
+    onSuccess: (_data, id) => void invalidate(id),
   });
 }
 
-export function useCompleteGatewayPaymentRefund() {
+export function useRejectGatewayNameCheck() {
   const apiClient = useGatewayPaymentsApiClient();
   const invalidate = useInvalidateGatewayPayments();
   return useMutation({
-    mutationFn: async ({ id, notes }: { id: string; notes?: string }) => {
-      const response = await apiClient.completeGatewayPaymentRefund(id, { notes });
+    mutationFn: async (id: string) => {
+      const response = await apiClient.rejectAdminGatewayNameCheck(id);
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
-    onSuccess: (_data, variables) => void invalidate(variables.id),
+    onSuccess: (_data, id) => void invalidate(id),
   });
 }

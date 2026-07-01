@@ -6,12 +6,12 @@ describe("gateway payment state transitions", () => {
     expect(isTransitionAllowed(GatewayPaymentStatus.CREATED, GatewayPaymentStatus.PAID)).toBe(true);
   });
 
-  it("allows PAID → COMPLETED | HELD | NAME_CHECK_PENDING", () => {
+  it("allows PAID → COMPLETED | HELD | REFUND_INITIATED", () => {
     expect(isTransitionAllowed(GatewayPaymentStatus.PAID, GatewayPaymentStatus.COMPLETED)).toBe(true);
     expect(isTransitionAllowed(GatewayPaymentStatus.PAID, GatewayPaymentStatus.HELD)).toBe(true);
-    expect(
-      isTransitionAllowed(GatewayPaymentStatus.PAID, GatewayPaymentStatus.NAME_CHECK_PENDING)
-    ).toBe(true);
+    expect(isTransitionAllowed(GatewayPaymentStatus.PAID, GatewayPaymentStatus.REFUND_INITIATED)).toBe(
+      true
+    );
   });
 
   it("rejects CREATED → COMPLETED (must pass through PAID)", () => {
@@ -29,14 +29,25 @@ describe("gateway payment state transitions", () => {
     );
   });
 
-  it("allows HELD → COMPLETED for maker-checker override credit", () => {
-    expect(isTransitionAllowed(GatewayPaymentStatus.HELD, GatewayPaymentStatus.COMPLETED)).toBe(true);
+  it("allows HELD → REFUND_INITIATED for retry refund", () => {
+    expect(isTransitionAllowed(GatewayPaymentStatus.HELD, GatewayPaymentStatus.REFUND_INITIATED)).toBe(
+      true
+    );
+  });
+
+  it("allows REFUND_INITIATED → REFUNDED | HELD", () => {
+    expect(
+      isTransitionAllowed(GatewayPaymentStatus.REFUND_INITIATED, GatewayPaymentStatus.REFUNDED)
+    ).toBe(true);
+    expect(isTransitionAllowed(GatewayPaymentStatus.REFUND_INITIATED, GatewayPaymentStatus.HELD)).toBe(
+      true
+    );
   });
 
   it("marks post-payment outcomes as terminal for webhook replay", () => {
     expect(TERMINAL_GATEWAY_STATUSES.has(GatewayPaymentStatus.COMPLETED)).toBe(true);
     expect(TERMINAL_GATEWAY_STATUSES.has(GatewayPaymentStatus.HELD)).toBe(true);
-    expect(TERMINAL_GATEWAY_STATUSES.has(GatewayPaymentStatus.NAME_CHECK_PENDING)).toBe(true);
+    expect(TERMINAL_GATEWAY_STATUSES.has(GatewayPaymentStatus.REFUNDED)).toBe(true);
     expect(TERMINAL_GATEWAY_STATUSES.has(GatewayPaymentStatus.PAID)).toBe(false);
   });
 });

@@ -4,6 +4,7 @@ import {
   GatewayPaymentStatus,
   NameCheckResult,
   NoteLedgerDirection,
+  OrganizationType,
   Prisma,
   PrismaClient,
 } from "@prisma/client";
@@ -15,7 +16,8 @@ import { prisma as defaultPrisma } from "../../lib/prisma";
 import { postLedgerEntry } from "../notes/ledger";
 import {
   creditCompletedDeposit,
-  resolveInvestorExpectedName,
+  pendNameCheckReview,
+  resolveInvestorExpectedNameVariants,
 } from "./deposit-service";
 import { verifyCurlecWebhookSignature } from "./curlec-signature";
 import { createCurlecClient } from "./curlec-client";
@@ -26,11 +28,17 @@ import {
 } from "./curlec-schemas";
 import { myrDecimalToSen } from "./money";
 import { runNameCheck } from "./name-check";
+import {
+  completeInvestorDepositRefund,
+  failInvestorDepositRefund,
+  initiateInvestorDepositRefund,
+} from "./refund-service";
 import { assertTransition, TERMINAL_GATEWAY_STATUSES } from "./state";
 import {
   curlecWebhookPayloadSchema,
   extractDepositCaptureRefs,
   extractPaymentFailedRefs,
+  extractRefundRefs,
   type CurlecWebhookPayload,
 } from "./webhook-schemas";
 
@@ -163,16 +171,26 @@ export async function processInvestorDepositCapture(
       if (statusAfterClaim !== GatewayPaymentStatus.PAID) {
         return;
       }
+    });
 
-      assertTransition(GatewayPaymentStatus.PAID, GatewayPaymentStatus.HELD);
-      await tx.gatewayPayment.update({
+    const refreshed = await db.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    if (refreshed.status === GatewayPaymentStatus.PAID) {
+      await db.gatewayPayment.update({
         where: { id: payment.id },
         data: {
-          status: GatewayPaymentStatus.HELD,
           metadata: withAmountMismatchMetadata(payment, amountMismatch, curlecPayment),
         },
       });
-    });
+
+      await initiateInvestorDepositRefund(
+        refreshed,
+        {
+          reason: "AMOUNT_MISMATCH",
+          curlecPaymentId: curlecPayment.id,
+        },
+        db
+      );
+    }
 
     await markWebhookProcessed(db, input.eventId, AMOUNT_MISMATCH_ERROR);
     logger.warn(
@@ -183,60 +201,72 @@ export async function processInvestorDepositCapture(
         expectedSen: amountMismatch.expectedSen,
         actualSen: amountMismatch.actualSen,
       },
-      "Investor deposit held due to Curlec amount mismatch"
+      "Investor deposit auto-refund triggered due to Curlec amount mismatch"
     );
     return;
   }
 
-  const expectedName = payment.investor_organization
-    ? resolveInvestorExpectedName(payment.investor_organization)
-    : null;
-  const nameCheckResult = runNameCheck({ expectedName, payerName });
-
-  await db.$transaction(async (tx) => {
-    const statusAfterClaim = await claimCreatedToPaid(tx, payment.id);
-    if (!statusAfterClaim) {
-      return;
-    }
-
-    if (TERMINAL_GATEWAY_STATUSES.has(statusAfterClaim)) {
-      return;
-    }
-
-    if (statusAfterClaim !== GatewayPaymentStatus.PAID) {
-      return;
-    }
-
-    const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-
-    if (nameCheckResult === NameCheckResult.PASS) {
-      await creditCompletedDeposit(tx, current, { nameCheckResult: NameCheckResult.PASS });
-      return;
-    }
-
-    if (nameCheckResult === NameCheckResult.FAIL) {
-      assertTransition(GatewayPaymentStatus.PAID, GatewayPaymentStatus.HELD);
-      await tx.gatewayPayment.update({
-        where: { id: payment.id },
-        data: {
-          status: GatewayPaymentStatus.HELD,
-          name_check_result: NameCheckResult.FAIL,
-          name_check_at: new Date(),
-        },
-      });
-      return;
-    }
-
-    assertTransition(GatewayPaymentStatus.PAID, GatewayPaymentStatus.NAME_CHECK_PENDING);
-    await tx.gatewayPayment.update({
-      where: { id: payment.id },
-      data: {
-        status: GatewayPaymentStatus.NAME_CHECK_PENDING,
-        name_check_result: NameCheckResult.NAME_UNAVAILABLE,
-        name_check_at: new Date(),
-      },
-    });
+  const org = payment.investor_organization;
+  const expectedVariants = org ? resolveInvestorExpectedNameVariants(org) : [];
+  const nameCheck = runNameCheck({
+    expectedVariants,
+    payerName,
+    isCompany: org?.type === OrganizationType.COMPANY,
   });
+  const nameCheckResult = nameCheck.decision;
+
+  if (nameCheckResult === NameCheckResult.PASS) {
+    await db.$transaction(async (tx) => {
+      const statusAfterClaim = await claimCreatedToPaid(tx, payment.id);
+      if (!statusAfterClaim) {
+        return;
+      }
+
+      if (TERMINAL_GATEWAY_STATUSES.has(statusAfterClaim)) {
+        return;
+      }
+
+      if (statusAfterClaim !== GatewayPaymentStatus.PAID) {
+        return;
+      }
+
+      const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+      await creditCompletedDeposit(tx, current, { nameCheckResult: NameCheckResult.PASS });
+    });
+  } else if (nameCheckResult === NameCheckResult.FAIL) {
+    await db.$transaction(async (tx) => {
+      await claimCreatedToPaid(tx, payment.id);
+    });
+
+    const refreshed = await db.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    if (refreshed.status === GatewayPaymentStatus.PAID) {
+      await initiateInvestorDepositRefund(
+        refreshed,
+        {
+          reason: "NAME_MISMATCH",
+          curlecPaymentId: curlecPayment.id,
+          nameCheckResult,
+        },
+        db
+      );
+    }
+  } else {
+    await db.$transaction(async (tx) => {
+      const statusAfterClaim = await claimCreatedToPaid(tx, payment.id);
+      if (!statusAfterClaim || TERMINAL_GATEWAY_STATUSES.has(statusAfterClaim)) {
+        return;
+      }
+      if (statusAfterClaim !== GatewayPaymentStatus.PAID) {
+        return;
+      }
+
+      const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+      await pendNameCheckReview(tx, current, nameCheckResult, {
+        score: nameCheck.score,
+        matchedVariant: nameCheck.matchedVariant,
+      });
+    });
+  }
 
   await markWebhookProcessed(db, input.eventId);
 
@@ -245,6 +275,8 @@ export async function processInvestorDepositCapture(
       eventId: input.eventId,
       gatewayPaymentId: payment.id,
       nameCheckResult,
+      nameCheckScore: nameCheck.score,
+      matchedVariant: nameCheck.matchedVariant,
       orderId: input.orderId,
     },
     "Investor deposit webhook processed"
@@ -273,6 +305,34 @@ export async function processStoredCurlecWebhook(
       return;
     }
     throw error;
+  }
+
+  if (payload.event === "refund.processed" || payload.event === "refund.failed") {
+    const refund = extractRefundRefs(payload);
+    if (!refund) {
+      await markWebhookProcessed(db, eventId, "Missing refund references");
+      return;
+    }
+
+    const payment = await db.gatewayPayment.findFirst({
+      where: { curlec_payment_id: refund.paymentId },
+    });
+
+    if (!payment) {
+      await markWebhookProcessed(db, eventId, "Gateway payment not found for refund");
+      return;
+    }
+
+    if (payment.purpose === GatewayPaymentPurpose.INVESTOR_DEPOSIT) {
+      if (payload.event === "refund.processed") {
+        await completeInvestorDepositRefund(payment, { refundId: refund.refundId }, db);
+      } else {
+        await failInvestorDepositRefund(payment, { refundId: refund.refundId }, db);
+      }
+    }
+
+    await markWebhookProcessed(db, eventId);
+    return;
   }
 
   if (!DEPOSIT_CAPTURE_EVENTS.has(payload.event)) {

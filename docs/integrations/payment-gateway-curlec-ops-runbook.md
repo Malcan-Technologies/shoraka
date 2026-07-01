@@ -11,27 +11,24 @@ This runbook covers go-live checks and day-to-day handling for Curlec money-in p
 - Curlec confirms FPX per-transaction limits; admin finance settings reflect the accepted investor deposit minimum and maximum under Settings -> Platform Finance -> Gateway Fees.
 - Finance confirms the current MDR treatment: gateway fee amounts are tracked on gateway payments during reconciliation and are not posted to the note ledger yet.
 - Ops confirms the held-deposit refund owner, checker, and expected turnaround time.
-- Run one test-mode FPX pass for each path before live cutover: investor deposit success, investor deposit held/name-check path, issuer onboarding fee, and application processing fee.
+- Run one test-mode FPX pass for each path before live cutover: investor deposit success, investor deposit auto-refund path, issuer onboarding fee, and application processing fee.
+- Enable `refund.processed` and `refund.failed` webhook events in the Curlec dashboard.
 
 ## Held Investor Deposits
 
-Investor deposits can enter a held state when the FPX payer name does not match the investor account name, the payer name is unavailable, or the captured amount does not match the internal order amount. Held deposits must not be credited until ops resolves them.
+Investor deposits are **auto-refunded** when the FPX payer name does not match, is unavailable, or the captured amount differs from the order. The wallet is never credited in those cases.
 
-1. Open Admin -> Finance -> Held Deposits.
-2. Review the payment detail: expected payer, FPX payer name, amount, bank, Curlec order, Curlec payment, and event trail.
-3. For `NAME_CHECK_PENDING`, verify the payer name in Curlec or supporting evidence.
-4. If the payer is verified as the investor, approve the name check. The system credits the wallet and posts the investor-pool ledger entry exactly once.
-5. If the payer cannot be verified, initiate the refund in the Curlec dashboard.
-6. Record the refund reference in Admin -> Finance -> Gateway Payments -> payment detail.
-7. After Curlec confirms the refund is complete, mark the refund complete in the same detail page.
+Normal outcomes:
+- Name match → `COMPLETED` (wallet credited)
+- Name mismatch / unavailable / amount mismatch → `REFUND_INITIATED` → `REFUNDED` via Curlec Refund API + webhooks
 
-## Maker-Checker Override
+Exception path only:
+- If the Curlec Refund API or `refund.failed` webhook fails, the payment moves to `HELD`.
+- Open Admin → Finance → Gateway Payments → filter **Needs attention**.
+- Use **Retry auto-refund** on the payment detail page.
 
-Use override credit only when ops has strong evidence that a held deposit belongs to the investor despite the automated mismatch.
-
-1. Maker opens the held payment detail and proposes an override with the evidence summary.
-2. A different admin reviews the evidence and approves or rejects the override.
-3. The system rejects self-approval. Approval credits the investor wallet and posts the investor-pool ledger entry exactly once.
+Manual post-credit correction (rare):
+- For a mistakenly credited `COMPLETED` investor deposit, use **Initiate refund** on the gateway payment detail page.
 
 ## Reconciliation
 

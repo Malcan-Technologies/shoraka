@@ -849,6 +849,22 @@ export class RegTankService {
     return typeof value === "string" ? value : String(value);
   }
 
+  /** Build the IC legal name from RegTank OCR fields (name, fullName, or first/last parts). */
+  private extractOcrLegalName(ocrResults: Record<string, unknown>): string | null {
+    const directName = this.normalizeValue(ocrResults.name ?? ocrResults.fullName);
+    if (directName) {
+      return directName;
+    }
+
+    const parts = [
+      this.normalizeValue(ocrResults.firstName),
+      this.normalizeValue(ocrResults.middleName),
+      this.normalizeValue(ocrResults.lastName),
+    ].filter(Boolean) as string[];
+
+    return parts.length > 0 ? parts.join(" ") : null;
+  }
+
   /**
    * Parse date safely, handling various formats and null values
    */
@@ -1076,8 +1092,9 @@ export class RegTankService {
         }
       }
 
-      // Extract OCR data (idNumber and idType) from Individual Onboarding webhook payloads
+      // Extract OCR data (idNumber, idType, legal name) from Individual Onboarding webhook payloads
       // OCR results are more accurate than userProfile values, so we prioritize them
+      let legalNameOnId: string | null = null;
       if (
         onboardingWithWebhooks?.webhook_payloads &&
         Array.isArray(onboardingWithWebhooks.webhook_payloads)
@@ -1114,10 +1131,31 @@ export class RegTankService {
                   "Extracted document_type from OCR results in Individual Onboarding webhook"
                 );
               }
+              legalNameOnId = this.extractOcrLegalName(ocrResults);
+              if (legalNameOnId) {
+                logger.info(
+                  {
+                    organizationId,
+                    requestId,
+                    legalNameOnId,
+                    source: "ocrResults",
+                  },
+                  "Extracted legal_name_on_id from OCR results in Individual Onboarding webhook"
+                );
+              }
               // Once we find OCR results, we can break (OCR results are typically in the latest Individual Onboarding webhook)
               break;
             }
           }
+        }
+      }
+
+      if (!legalNameOnId) {
+        const profileParts = [firstName, middleName, lastName]
+          .map((part) => part?.trim())
+          .filter(Boolean);
+        if (profileParts.length > 0) {
+          legalNameOnId = profileParts.join(" ");
         }
       }
 
@@ -1216,6 +1254,7 @@ export class RegTankService {
         document_number: documentNumber,
         phone_number: phoneNumber,
         kyc_id: kycId,
+        legal_name_on_id: legalNameOnId,
         bank_account_details: bankAccountDetails,
         wealth_declaration: wealthDeclaration,
         compliance_declaration: complianceDeclaration,

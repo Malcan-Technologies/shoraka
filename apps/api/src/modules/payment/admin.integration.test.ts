@@ -1,6 +1,5 @@
 import {
   GatewayOrganizationType,
-  GatewayPaymentEventType,
   GatewayPaymentPurpose,
   GatewayPaymentStatus,
   NameCheckResult,
@@ -10,16 +9,22 @@ import {
   UserRole,
 } from "@prisma/client";
 import {
-  approveHeldDepositOverride,
-  approveNameCheckPendingDeposit,
+  approveNameCheck,
   getGatewayPaymentDetail,
-  proposeHeldDepositOverride,
-  recordGatewayRefundInitiated,
-  rejectHeldDepositOverride,
+  initiateCompletedDepositRefund,
+  rejectNameCheck,
+  retryHeldDepositRefund,
 } from "./admin-service";
-import { creditCompletedDeposit } from "./deposit-service";
 
 const prisma = new PrismaClient();
+
+const mockRefundPayment = jest.fn();
+
+jest.mock("./curlec-client", () => ({
+  createCurlecClient: jest.fn(() => ({
+    refundPayment: (...args: unknown[]) => mockRefundPayment(...args),
+  })),
+}));
 
 async function gatewayTablesMigrated(): Promise<boolean> {
   try {
@@ -33,11 +38,9 @@ async function gatewayTablesMigrated(): Promise<boolean> {
 
 const describeIntegration = process.env.DATABASE_URL ? describe : describe.skip;
 
-describeIntegration("admin gateway payments (M7)", () => {
+describeIntegration("admin gateway payments refunds", () => {
   let migrated = false;
-  let investorUserId = "";
-  let makerUserId = "";
-  let checkerUserId = "";
+  let adminUserId = "";
   let orgId = "";
   const createdUserIds: string[] = [];
   const createdOrgIds: string[] = [];
@@ -49,7 +52,21 @@ describeIntegration("admin gateway payments (M7)", () => {
 
     const suffix = `${Date.now()}`.slice(-4);
 
-    const investorUser = await prisma.user.create({
+    const admin = await prisma.user.create({
+      data: {
+        user_id: `A${suffix}`.slice(0, 5),
+        email: `gw-admin-${Date.now()}@example.com`,
+        cognito_sub: `sub-gw-admin-${Date.now()}`,
+        cognito_username: `gw-admin-${Date.now()}`,
+        first_name: "Admin",
+        last_name: "User",
+        roles: [UserRole.ADMIN],
+      },
+    });
+    adminUserId = admin.user_id;
+    createdUserIds.push(adminUserId);
+
+    const investor = await prisma.user.create({
       data: {
         user_id: `I${suffix}`.slice(0, 5),
         email: `gw-inv-${Date.now()}@example.com`,
@@ -61,40 +78,11 @@ describeIntegration("admin gateway payments (M7)", () => {
         investor_account: ["PERSONAL"],
       },
     });
-    investorUserId = investorUser.user_id;
-    createdUserIds.push(investorUserId);
-
-    const maker = await prisma.user.create({
-      data: {
-        user_id: `M${suffix}`.slice(0, 5),
-        email: `gw-maker-${Date.now()}@example.com`,
-        cognito_sub: `sub-gw-maker-${Date.now()}`,
-        cognito_username: `gw-maker-${Date.now()}`,
-        first_name: "Maker",
-        last_name: "Admin",
-        roles: [UserRole.ADMIN],
-      },
-    });
-    makerUserId = maker.user_id;
-    createdUserIds.push(makerUserId);
-
-    const checker = await prisma.user.create({
-      data: {
-        user_id: `C${suffix}`.slice(0, 5),
-        email: `gw-check-${Date.now()}@example.com`,
-        cognito_sub: `sub-gw-check-${Date.now()}`,
-        cognito_username: `gw-check-${Date.now()}`,
-        first_name: "Checker",
-        last_name: "Admin",
-        roles: [UserRole.ADMIN],
-      },
-    });
-    checkerUserId = checker.user_id;
-    createdUserIds.push(checkerUserId);
+    createdUserIds.push(investor.user_id);
 
     const org = await prisma.investorOrganization.create({
       data: {
-        owner_user_id: investorUserId,
+        owner_user_id: investor.user_id,
         type: OrganizationType.PERSONAL,
         first_name: "Jane",
         last_name: "Doe",
@@ -104,13 +92,23 @@ describeIntegration("admin gateway payments (M7)", () => {
     createdOrgIds.push(orgId);
   });
 
+  beforeEach(() => {
+    mockRefundPayment.mockReset();
+    mockRefundPayment.mockResolvedValue({
+      id: "rfnd_admin_test",
+      amount: 10000,
+      payment_id: "pay_admin_test",
+      status: "processed",
+    });
+  });
+
   afterAll(async () => {
     if (!migrated) return;
     if (createdPaymentIds.length > 0) {
-      await prisma.gatewayPaymentEvent.deleteMany({
+      await prisma.noteLedgerEntry.deleteMany({
         where: { gateway_payment_id: { in: createdPaymentIds } },
       });
-      await prisma.noteLedgerEntry.deleteMany({
+      await prisma.gatewayPaymentEvent.deleteMany({
         where: { gateway_payment_id: { in: createdPaymentIds } },
       });
       await prisma.gatewayPayment.deleteMany({ where: { id: { in: createdPaymentIds } } });
@@ -130,61 +128,60 @@ describeIntegration("admin gateway payments (M7)", () => {
     await prisma.$disconnect();
   });
 
-  async function createHeldPayment(amount = 100) {
+  async function createHeldPayment() {
     const payment = await prisma.gatewayPayment.create({
       data: {
         purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
         organization_type: GatewayOrganizationType.INVESTOR,
         investor_organization_id: orgId,
-        amount: new Prisma.Decimal(amount.toFixed(6)),
+        amount: new Prisma.Decimal("100.000000"),
         currency: "MYR",
         status: GatewayPaymentStatus.HELD,
-        curlec_order_id: `order_m7_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        curlec_payment_id: `pay_m7_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        curlec_order_id: `order_admin_${Date.now()}`,
+        curlec_payment_id: `pay_admin_${Date.now()}`,
         payer_name: "Wrong Name",
         name_check_result: NameCheckResult.FAIL,
         name_check_at: new Date(),
-        idempotency_key: `m7-test:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`,
+        idempotency_key: `admin-held:${Date.now()}`,
       },
     });
     createdPaymentIds.push(payment.id);
     return payment;
   }
 
-  it("credits a HELD deposit after maker-checker override approval", async () => {
+  async function createNameCheckPendingPayment() {
+    const payment = await prisma.gatewayPayment.create({
+      data: {
+        purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+        organization_type: GatewayOrganizationType.INVESTOR,
+        investor_organization_id: orgId,
+        amount: new Prisma.Decimal("75.000000"),
+        currency: "MYR",
+        status: GatewayPaymentStatus.NAME_CHECK_PENDING,
+        curlec_order_id: `order_review_${Date.now()}`,
+        curlec_payment_id: `pay_review_${Date.now()}`,
+        payer_name: "Jane M Doe",
+        name_check_result: NameCheckResult.REVIEW,
+        name_check_at: new Date(),
+        idempotency_key: `admin-review:${Date.now()}`,
+      },
+    });
+    createdPaymentIds.push(payment.id);
+    return payment;
+  }
+
+  it("retries refund for a HELD investor deposit", async () => {
     if (!migrated) return;
 
-    const payment = await createHeldPayment(250);
+    const payment = await createHeldPayment();
+    const detail = await retryHeldDepositRefund({ userId: adminUserId }, payment.id, prisma);
 
-    await proposeHeldDepositOverride(
-      { userId: makerUserId },
-      payment.id,
-      "Verified with bank statement"
-    );
-
-    await expect(
-      approveHeldDepositOverride({ userId: makerUserId }, payment.id)
-    ).rejects.toMatchObject({ code: "OVERRIDE_SELF_APPROVAL" });
-
-    const detail = await approveHeldDepositOverride({ userId: checkerUserId }, payment.id);
-    expect(detail.status).toBe(GatewayPaymentStatus.COMPLETED);
-
-    const balance = await prisma.investorBalance.findUnique({
-      where: { investor_organization_id: orgId },
-    });
-    expect(balance?.available_balance.toNumber()).toBeGreaterThanOrEqual(250);
-
-    const events = await prisma.gatewayPaymentEvent.findMany({
-      where: { gateway_payment_id: payment.id },
-      orderBy: { created_at: "asc" },
-    });
-    expect(events.map((event) => event.type)).toEqual([
-      GatewayPaymentEventType.OVERRIDE_PROPOSED,
-      GatewayPaymentEventType.OVERRIDE_APPROVED,
-    ]);
+    expect(detail.status).toBe(GatewayPaymentStatus.REFUND_INITIATED);
+    expect(detail.refundReference).toBe("rfnd_admin_test");
+    expect(mockRefundPayment).toHaveBeenCalledTimes(1);
   });
 
-  it("approves NAME_CHECK_PENDING and credits exactly once on replay", async () => {
+  it("initiates refund for a COMPLETED investor deposit", async () => {
     if (!migrated) return;
 
     const payment = await prisma.gatewayPayment.create({
@@ -194,41 +191,23 @@ describeIntegration("admin gateway payments (M7)", () => {
         investor_organization_id: orgId,
         amount: new Prisma.Decimal("50.000000"),
         currency: "MYR",
-        status: GatewayPaymentStatus.NAME_CHECK_PENDING,
-        curlec_order_id: `order_nc_${Date.now()}`,
-        idempotency_key: `m7-nc:${Date.now()}`,
+        status: GatewayPaymentStatus.COMPLETED,
+        curlec_order_id: `order_completed_${Date.now()}`,
+        curlec_payment_id: `pay_completed_${Date.now()}`,
+        idempotency_key: `admin-completed:${Date.now()}`,
       },
     });
     createdPaymentIds.push(payment.id);
 
-    await approveNameCheckPendingDeposit(
-      { userId: checkerUserId },
+    const detail = await initiateCompletedDepositRefund(
+      { userId: adminUserId },
       payment.id,
-      "Manual verification complete"
-    );
-
-    const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-    expect(updated.status).toBe(GatewayPaymentStatus.COMPLETED);
-
-    await expect(
-      prisma.$transaction(async (tx) => {
-        await creditCompletedDeposit(tx, updated, { actorUserId: checkerUserId });
-      })
-    ).rejects.toMatchObject({ code: "INVALID_GATEWAY_TRANSITION" });
-  });
-
-  it("records refund initiation for a HELD payment", async () => {
-    if (!migrated) return;
-
-    const payment = await createHeldPayment(75);
-    const detail = await recordGatewayRefundInitiated(
-      { userId: makerUserId },
-      payment.id,
-      { reference: "REF-12345", notes: "Refund in Curlec dashboard" }
+      "Post-credit correction",
+      prisma
     );
 
     expect(detail.status).toBe(GatewayPaymentStatus.REFUND_INITIATED);
-    expect(detail.refundReference).toBe("REF-12345");
+    expect(mockRefundPayment).toHaveBeenCalledTimes(1);
   });
 
   it("loads detail for non-deposit gateway payments", async () => {
@@ -253,18 +232,26 @@ describeIntegration("admin gateway payments (M7)", () => {
     expect(detail.expectedPayerName).toBeNull();
   });
 
-  it("rejects an open override proposal without changing payment status", async () => {
+  it("approves a pending name check and credits the deposit", async () => {
     if (!migrated) return;
 
-    const payment = await createHeldPayment(30);
-    await proposeHeldDepositOverride({ userId: makerUserId }, payment.id, "Try override");
-    await rejectHeldDepositOverride(
-      { userId: checkerUserId },
-      payment.id,
-      "Insufficient evidence"
-    );
+    const payment = await createNameCheckPendingPayment();
+    const detail = await approveNameCheck({ userId: adminUserId }, payment.id, prisma);
 
-    const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-    expect(updated.status).toBe(GatewayPaymentStatus.HELD);
+    expect(detail.status).toBe(GatewayPaymentStatus.COMPLETED);
+    expect(detail.nameCheckResult).toBe(NameCheckResult.PASS);
+
+    const org = await prisma.investorOrganization.findUniqueOrThrow({ where: { id: orgId } });
+    expect(org.deposit_received).toBe(true);
+  });
+
+  it("rejects a pending name check and initiates refund", async () => {
+    if (!migrated) return;
+
+    const payment = await createNameCheckPendingPayment();
+    const detail = await rejectNameCheck({ userId: adminUserId }, payment.id, prisma);
+
+    expect(detail.status).toBe(GatewayPaymentStatus.REFUND_INITIATED);
+    expect(mockRefundPayment).toHaveBeenCalledTimes(1);
   });
 });

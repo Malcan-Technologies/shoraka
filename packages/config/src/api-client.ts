@@ -887,7 +887,7 @@ export class ApiClient {
     status?: string;
     purpose?: string;
     organizationType?: string;
-    queue?: "held";
+    filter?: "needs_attention" | "review" | "refunding" | "refunded" | "completed";
     search?: string;
   }): Promise<ApiResponse<GatewayPaymentListResponse> | ApiError> {
     const search = new URLSearchParams();
@@ -896,7 +896,7 @@ export class ApiClient {
     if (params?.status) search.set("status", params.status);
     if (params?.purpose) search.set("purpose", params.purpose);
     if (params?.organizationType) search.set("organizationType", params.organizationType);
-    if (params?.queue) search.set("queue", params.queue);
+    if (params?.filter) search.set("filter", params.filter);
     if (params?.search) search.set("search", params.search);
     const qs = search.toString();
     return this.get<GatewayPaymentListResponse>(
@@ -904,11 +904,11 @@ export class ApiClient {
     );
   }
 
-  async getAdminHeldGatewayPaymentsPendingCount(): Promise<
+  async getAdminGatewayPaymentsExceptionCount(): Promise<
     ApiResponse<GatewayPaymentPendingCountResponse> | ApiError
   > {
     return this.get<GatewayPaymentPendingCountResponse>(
-      "/v1/admin/gateway-payments/held/pending-count"
+      "/v1/admin/gateway-payments/exceptions/pending-count"
     );
   }
 
@@ -916,72 +916,40 @@ export class ApiClient {
     return this.get<GatewayPaymentDetailDto>(`/v1/admin/gateway-payments/${id}`);
   }
 
-  async approveGatewayPaymentNameCheck(
-    id: string,
-    reason: string
-  ): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
-    return this.post<GatewayPaymentDetailDto>(
-      `/v1/admin/gateway-payments/${id}/name-check/approve`,
-      { reason }
-    );
-  }
-
-  async rejectGatewayPaymentNameCheck(
-    id: string,
-    reason: string
-  ): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
-    return this.post<GatewayPaymentDetailDto>(
-      `/v1/admin/gateway-payments/${id}/name-check/reject`,
-      { reason }
-    );
-  }
-
-  async proposeGatewayPaymentOverride(
-    id: string,
-    reason: string
-  ): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
-    return this.post<GatewayPaymentDetailDto>(
-      `/v1/admin/gateway-payments/${id}/override/propose`,
-      { reason }
-    );
-  }
-
-  async approveGatewayPaymentOverride(
+  async retryAdminGatewayPaymentRefund(
     id: string
   ): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
     return this.post<GatewayPaymentDetailDto>(
-      `/v1/admin/gateway-payments/${id}/override/approve`,
+      `/v1/admin/gateway-payments/${id}/retry-refund`,
       {}
     );
   }
 
-  async rejectGatewayPaymentOverride(
+  async initiateAdminGatewayPaymentRefund(
     id: string,
     reason: string
   ): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
     return this.post<GatewayPaymentDetailDto>(
-      `/v1/admin/gateway-payments/${id}/override/reject`,
+      `/v1/admin/gateway-payments/${id}/refund`,
       { reason }
     );
   }
 
-  async recordGatewayPaymentRefund(
-    id: string,
-    input: { reference: string; notes?: string }
+  async approveAdminGatewayNameCheck(
+    id: string
   ): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
     return this.post<GatewayPaymentDetailDto>(
-      `/v1/admin/gateway-payments/${id}/refund/record`,
-      input
+      `/v1/admin/gateway-payments/${id}/name-check/approve`,
+      {}
     );
   }
 
-  async completeGatewayPaymentRefund(
-    id: string,
-    input?: { notes?: string }
+  async rejectAdminGatewayNameCheck(
+    id: string
   ): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
     return this.post<GatewayPaymentDetailDto>(
-      `/v1/admin/gateway-payments/${id}/refund/complete`,
-      input ?? {}
+      `/v1/admin/gateway-payments/${id}/name-check/reject`,
+      {}
     );
   }
 

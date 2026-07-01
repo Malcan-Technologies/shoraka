@@ -6,20 +6,15 @@ import {
   gatewayPaymentIdParamSchema,
   gatewayPaymentReasonSchema,
   listGatewayPaymentsQuerySchema,
-  recordRefundCompletedSchema,
-  recordRefundInitiatedSchema,
 } from "./admin-schemas";
 import {
-  approveHeldDepositOverride,
-  approveNameCheckPendingDeposit,
+  approveNameCheck,
   getGatewayPaymentDetail,
-  getHeldGatewayPaymentsPendingCount,
+  getGatewayPaymentsExceptionCount,
+  initiateCompletedDepositRefund,
   listGatewayPayments,
-  proposeHeldDepositOverride,
-  recordGatewayRefundCompleted,
-  recordGatewayRefundInitiated,
-  rejectHeldDepositOverride,
-  rejectNameCheckPendingDeposit,
+  rejectNameCheck,
+  retryHeldDepositRefund,
 } from "./admin-service";
 
 function getActor(req: Request, res: Response) {
@@ -59,11 +54,11 @@ gatewayPaymentsAdminRouter.get(
 );
 
 gatewayPaymentsAdminRouter.get(
-  "/held/pending-count",
+  "/exceptions/pending-count",
   requirePermission("gateway_payments.view"),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
-      send(res, await getHeldGatewayPaymentsPendingCount());
+      send(res, await getGatewayPaymentsExceptionCount());
     } catch (error) {
       next(error);
     }
@@ -84,13 +79,39 @@ gatewayPaymentsAdminRouter.get(
 );
 
 gatewayPaymentsAdminRouter.post(
-  "/:id/name-check/approve",
+  "/:id/retry-refund",
+  requirePermission("gateway_payments.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = gatewayPaymentIdParamSchema.parse(req.params);
+      send(res, await retryHeldDepositRefund(getActor(req, res), id));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+gatewayPaymentsAdminRouter.post(
+  "/:id/refund",
   requirePermission("gateway_payments.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = gatewayPaymentIdParamSchema.parse(req.params);
       const { reason } = gatewayPaymentReasonSchema.parse(req.body);
-      send(res, await approveNameCheckPendingDeposit(getActor(req, res), id, reason));
+      send(res, await initiateCompletedDepositRefund(getActor(req, res), id, reason));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+gatewayPaymentsAdminRouter.post(
+  "/:id/name-check/approve",
+  requirePermission("gateway_payments.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = gatewayPaymentIdParamSchema.parse(req.params);
+      send(res, await approveNameCheck(getActor(req, res), id));
     } catch (error) {
       next(error);
     }
@@ -103,83 +124,7 @@ gatewayPaymentsAdminRouter.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = gatewayPaymentIdParamSchema.parse(req.params);
-      const { reason } = gatewayPaymentReasonSchema.parse(req.body);
-      send(res, await rejectNameCheckPendingDeposit(getActor(req, res), id, reason));
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-gatewayPaymentsAdminRouter.post(
-  "/:id/override/propose",
-  requirePermission("gateway_payments.manage"),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { id } = gatewayPaymentIdParamSchema.parse(req.params);
-      const { reason } = gatewayPaymentReasonSchema.parse(req.body);
-      send(res, await proposeHeldDepositOverride(getActor(req, res), id, reason));
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-gatewayPaymentsAdminRouter.post(
-  "/:id/override/approve",
-  requirePermission("gateway_payments.manage"),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { id } = gatewayPaymentIdParamSchema.parse(req.params);
-      send(res, await approveHeldDepositOverride(getActor(req, res), id));
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-gatewayPaymentsAdminRouter.post(
-  "/:id/override/reject",
-  requirePermission("gateway_payments.manage"),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { id } = gatewayPaymentIdParamSchema.parse(req.params);
-      const { reason } = gatewayPaymentReasonSchema.parse(req.body);
-      send(res, await rejectHeldDepositOverride(getActor(req, res), id, reason));
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-gatewayPaymentsAdminRouter.post(
-  "/:id/refund/record",
-  requirePermission("gateway_payments.manage"),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { id } = gatewayPaymentIdParamSchema.parse(req.params);
-      const body = recordRefundInitiatedSchema.parse(req.body);
-      send(
-        res,
-        await recordGatewayRefundInitiated(getActor(req, res), id, {
-          reference: body.reference,
-          notes: body.notes,
-        })
-      );
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-gatewayPaymentsAdminRouter.post(
-  "/:id/refund/complete",
-  requirePermission("gateway_payments.manage"),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { id } = gatewayPaymentIdParamSchema.parse(req.params);
-      const body = recordRefundCompletedSchema.parse(req.body ?? {});
-      send(res, await recordGatewayRefundCompleted(getActor(req, res), id, { notes: body.notes }));
+      send(res, await rejectNameCheck(getActor(req, res), id));
     } catch (error) {
       next(error);
     }

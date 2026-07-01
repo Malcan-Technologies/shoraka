@@ -8,14 +8,13 @@ import {
 } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma as defaultPrisma } from "../../lib/prisma";
-import { creditCompletedDeposit, resolveInvestorExpectedName } from "./deposit-service";
 import {
-  getOpenOverrideProposal,
-  mapGatewayPaymentEvent,
-  recordGatewayPaymentEvent,
-} from "./gateway-events";
+  creditCompletedDeposit,
+  resolveInvestorExpectedName,
+} from "./deposit-service";
+import { recordGatewayPaymentEvent, mapGatewayPaymentEvent } from "./gateway-events";
 import { ListGatewayPaymentsQuery } from "./admin-schemas";
-import { assertTransition } from "./state";
+import { initiateInvestorDepositRefund } from "./refund-service";
 
 export type AdminActorContext = {
   userId: string;
@@ -71,6 +70,23 @@ function mapListItem(
   };
 }
 
+function resolveFilterStatuses(filter?: ListGatewayPaymentsQuery["filter"]) {
+  switch (filter) {
+    case "needs_attention":
+      return [GatewayPaymentStatus.HELD];
+    case "review":
+      return [GatewayPaymentStatus.NAME_CHECK_PENDING];
+    case "refunding":
+      return [GatewayPaymentStatus.REFUND_INITIATED];
+    case "refunded":
+      return [GatewayPaymentStatus.REFUNDED];
+    case "completed":
+      return [GatewayPaymentStatus.COMPLETED];
+    default:
+      return null;
+  }
+}
+
 async function getInvestorDepositOrThrow(
   db: PrismaClient,
   gatewayPaymentId: string
@@ -117,9 +133,10 @@ export async function listGatewayPayments(
   db: PrismaClient = defaultPrisma
 ) {
   const where: Prisma.GatewayPaymentWhereInput = {};
+  const filterStatuses = resolveFilterStatuses(query.filter);
 
-  if (query.queue === "held") {
-    where.status = { in: [GatewayPaymentStatus.HELD, GatewayPaymentStatus.NAME_CHECK_PENDING] };
+  if (filterStatuses) {
+    where.status = { in: filterStatuses };
   } else if (query.status) {
     where.status = query.status;
   }
@@ -157,11 +174,13 @@ export async function listGatewayPayments(
   };
 }
 
-export async function getHeldGatewayPaymentsPendingCount(db: PrismaClient = defaultPrisma) {
+export async function getGatewayPaymentsExceptionCount(db: PrismaClient = defaultPrisma) {
   const count = await db.gatewayPayment.count({
     where: {
       purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
-      status: { in: [GatewayPaymentStatus.HELD, GatewayPaymentStatus.NAME_CHECK_PENDING] },
+      status: {
+        in: [GatewayPaymentStatus.HELD, GatewayPaymentStatus.NAME_CHECK_PENDING],
+      },
     },
   });
 
@@ -173,7 +192,6 @@ export async function getGatewayPaymentDetail(
   db: PrismaClient = defaultPrisma
 ) {
   const payment = await getGatewayPaymentOrThrow(db, gatewayPaymentId);
-  const openOverride = await getOpenOverrideProposal(db, payment.id);
 
   return {
     ...mapListItem(payment),
@@ -189,16 +207,90 @@ export async function getGatewayPaymentDetail(
     refundInitiatedBy: payment.refund_initiated_by,
     refundedAt: payment.refunded_at?.toISOString() ?? null,
     refundNotes: payment.refund_notes,
-    openOverrideProposedBy: openOverride?.proposedByUserId ?? null,
-    openOverrideReason: openOverride?.reason ?? null,
+    openOverrideProposedBy: null,
+    openOverrideReason: null,
     events: payment.events.map(mapGatewayPaymentEvent),
   };
 }
 
-export async function approveNameCheckPendingDeposit(
+export async function retryHeldDepositRefund(
+  actor: AdminActorContext,
+  gatewayPaymentId: string,
+  db: PrismaClient = defaultPrisma
+) {
+  const payment = await getInvestorDepositOrThrow(db, gatewayPaymentId);
+
+  if (payment.status !== GatewayPaymentStatus.HELD) {
+    throw new AppError(
+      422,
+      "INVALID_GATEWAY_STATUS",
+      "Retry refund is only allowed for HELD payments"
+    );
+  }
+
+  if (!payment.curlec_payment_id) {
+    throw new AppError(
+      422,
+      "GATEWAY_PAYMENT_INVALID",
+      "Held payment is missing Curlec payment id"
+    );
+  }
+
+  await initiateInvestorDepositRefund(
+    payment,
+    {
+      reason: "ADMIN_INITIATED",
+      curlecPaymentId: payment.curlec_payment_id,
+      actorUserId: actor.userId,
+      adminReason: "Admin retry refund for held deposit",
+    },
+    db
+  );
+
+  return getGatewayPaymentDetail(gatewayPaymentId, db);
+}
+
+export async function initiateCompletedDepositRefund(
   actor: AdminActorContext,
   gatewayPaymentId: string,
   reason: string,
+  db: PrismaClient = defaultPrisma
+) {
+  const payment = await getInvestorDepositOrThrow(db, gatewayPaymentId);
+
+  if (payment.status !== GatewayPaymentStatus.COMPLETED) {
+    throw new AppError(
+      422,
+      "INVALID_GATEWAY_STATUS",
+      "Manual refund is only allowed for COMPLETED investor deposits"
+    );
+  }
+
+  if (!payment.curlec_payment_id) {
+    throw new AppError(
+      422,
+      "GATEWAY_PAYMENT_INVALID",
+      "Completed payment is missing Curlec payment id"
+    );
+  }
+
+  await initiateInvestorDepositRefund(
+    payment,
+    {
+      reason: "ADMIN_INITIATED",
+      curlecPaymentId: payment.curlec_payment_id,
+      actorUserId: actor.userId,
+      adminReason: reason,
+    },
+    db
+  );
+
+  return getGatewayPaymentDetail(gatewayPaymentId, db);
+}
+
+export async function approveNameCheck(
+  actor: AdminActorContext,
+  gatewayPaymentId: string,
   db: PrismaClient = defaultPrisma
 ) {
   const payment = await getInvestorDepositOrThrow(db, gatewayPaymentId);
@@ -213,7 +305,6 @@ export async function approveNameCheckPendingDeposit(
 
   await db.$transaction(async (tx) => {
     const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-    assertTransition(current.status, GatewayPaymentStatus.COMPLETED);
     await creditCompletedDeposit(tx, current, {
       nameCheckResult: NameCheckResult.PASS,
       actorUserId: actor.userId,
@@ -224,17 +315,15 @@ export async function approveNameCheckPendingDeposit(
       actorUserId: actor.userId,
       fromStatus: GatewayPaymentStatus.NAME_CHECK_PENDING,
       toStatus: GatewayPaymentStatus.COMPLETED,
-      reason,
     });
   });
 
   return getGatewayPaymentDetail(gatewayPaymentId, db);
 }
 
-export async function rejectNameCheckPendingDeposit(
+export async function rejectNameCheck(
   actor: AdminActorContext,
   gatewayPaymentId: string,
-  reason: string,
   db: PrismaClient = defaultPrisma
 ) {
   const payment = await getInvestorDepositOrThrow(db, gatewayPaymentId);
@@ -247,232 +336,35 @@ export async function rejectNameCheckPendingDeposit(
     );
   }
 
+  if (!payment.curlec_payment_id) {
+    throw new AppError(
+      422,
+      "GATEWAY_PAYMENT_INVALID",
+      "Payment is missing Curlec payment id"
+    );
+  }
+
   await db.$transaction(async (tx) => {
-    const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-    assertTransition(current.status, GatewayPaymentStatus.HELD);
-    await tx.gatewayPayment.update({
-      where: { id: payment.id },
-      data: {
-        status: GatewayPaymentStatus.HELD,
-        name_check_result: NameCheckResult.FAIL,
-        name_check_at: new Date(),
-        name_checked_by_user_id: actor.userId,
-      },
-    });
     await recordGatewayPaymentEvent(tx, {
       gatewayPaymentId: payment.id,
       type: GatewayPaymentEventType.NAME_CHECK_REJECTED,
       actorUserId: actor.userId,
       fromStatus: GatewayPaymentStatus.NAME_CHECK_PENDING,
-      toStatus: GatewayPaymentStatus.HELD,
-      reason,
-    });
-  });
-
-  return getGatewayPaymentDetail(gatewayPaymentId, db);
-}
-
-export async function proposeHeldDepositOverride(
-  actor: AdminActorContext,
-  gatewayPaymentId: string,
-  reason: string,
-  db: PrismaClient = defaultPrisma
-) {
-  const payment = await getInvestorDepositOrThrow(db, gatewayPaymentId);
-
-  if (payment.status !== GatewayPaymentStatus.HELD) {
-    throw new AppError(
-      422,
-      "INVALID_GATEWAY_STATUS",
-      "Override proposal is only allowed for HELD payments"
-    );
-  }
-
-  const openProposal = await getOpenOverrideProposal(db, payment.id);
-  if (openProposal) {
-    throw new AppError(
-      409,
-      "OVERRIDE_PROPOSAL_OPEN",
-      "An override proposal is already pending approval"
-    );
-  }
-
-  await recordGatewayPaymentEvent(db, {
-    gatewayPaymentId: payment.id,
-    type: GatewayPaymentEventType.OVERRIDE_PROPOSED,
-    actorUserId: actor.userId,
-    fromStatus: payment.status,
-    toStatus: null,
-    reason,
-  });
-
-  return getGatewayPaymentDetail(gatewayPaymentId, db);
-}
-
-export async function approveHeldDepositOverride(
-  actor: AdminActorContext,
-  gatewayPaymentId: string,
-  db: PrismaClient = defaultPrisma
-) {
-  const payment = await getInvestorDepositOrThrow(db, gatewayPaymentId);
-
-  if (payment.status !== GatewayPaymentStatus.HELD) {
-    throw new AppError(
-      422,
-      "INVALID_GATEWAY_STATUS",
-      "Override approval is only allowed for HELD payments"
-    );
-  }
-
-  const openProposal = await getOpenOverrideProposal(db, payment.id);
-  if (!openProposal) {
-    throw new AppError(422, "OVERRIDE_PROPOSAL_MISSING", "No open override proposal to approve");
-  }
-
-  if (openProposal.proposedByUserId === actor.userId) {
-    throw new AppError(
-      403,
-      "OVERRIDE_SELF_APPROVAL",
-      "The checker must differ from the maker who proposed the override"
-    );
-  }
-
-  await db.$transaction(async (tx) => {
-    const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-    assertTransition(current.status, GatewayPaymentStatus.COMPLETED);
-    await creditCompletedDeposit(tx, current, {
-      nameCheckResult: NameCheckResult.PASS,
-      actorUserId: actor.userId,
-    });
-    await recordGatewayPaymentEvent(tx, {
-      gatewayPaymentId: payment.id,
-      type: GatewayPaymentEventType.OVERRIDE_APPROVED,
-      actorUserId: actor.userId,
-      fromStatus: GatewayPaymentStatus.HELD,
-      toStatus: GatewayPaymentStatus.COMPLETED,
-      reason: openProposal.reason,
-      metadata: { proposedByUserId: openProposal.proposedByUserId },
-    });
-  });
-
-  return getGatewayPaymentDetail(gatewayPaymentId, db);
-}
-
-export async function rejectHeldDepositOverride(
-  actor: AdminActorContext,
-  gatewayPaymentId: string,
-  reason: string,
-  db: PrismaClient = defaultPrisma
-) {
-  const payment = await getInvestorDepositOrThrow(db, gatewayPaymentId);
-
-  if (payment.status !== GatewayPaymentStatus.HELD) {
-    throw new AppError(
-      422,
-      "INVALID_GATEWAY_STATUS",
-      "Override rejection is only allowed for HELD payments"
-    );
-  }
-
-  const openProposal = await getOpenOverrideProposal(db, payment.id);
-  if (!openProposal) {
-    throw new AppError(422, "OVERRIDE_PROPOSAL_MISSING", "No open override proposal to reject");
-  }
-
-  await recordGatewayPaymentEvent(db, {
-    gatewayPaymentId: payment.id,
-    type: GatewayPaymentEventType.OVERRIDE_REJECTED,
-    actorUserId: actor.userId,
-    fromStatus: payment.status,
-    toStatus: null,
-    reason,
-    metadata: { proposedByUserId: openProposal.proposedByUserId },
-  });
-
-  return getGatewayPaymentDetail(gatewayPaymentId, db);
-}
-
-export async function recordGatewayRefundInitiated(
-  actor: AdminActorContext,
-  gatewayPaymentId: string,
-  input: { reference: string; notes?: string },
-  db: PrismaClient = defaultPrisma
-) {
-  const payment = await getInvestorDepositOrThrow(db, gatewayPaymentId);
-
-  if (
-    payment.status !== GatewayPaymentStatus.HELD &&
-    payment.status !== GatewayPaymentStatus.COMPLETED
-  ) {
-    throw new AppError(
-      422,
-      "INVALID_GATEWAY_STATUS",
-      "Refund recording is only allowed for HELD or COMPLETED payments"
-    );
-  }
-
-  await db.$transaction(async (tx) => {
-    const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-    assertTransition(current.status, GatewayPaymentStatus.REFUND_INITIATED);
-    await tx.gatewayPayment.update({
-      where: { id: payment.id },
-      data: {
-        status: GatewayPaymentStatus.REFUND_INITIATED,
-        refund_reference: input.reference,
-        refund_initiated_by: actor.userId,
-        refund_notes: input.notes ?? null,
-      },
-    });
-    await recordGatewayPaymentEvent(tx, {
-      gatewayPaymentId: payment.id,
-      type: GatewayPaymentEventType.REFUND_INITIATED,
-      actorUserId: actor.userId,
-      fromStatus: current.status,
       toStatus: GatewayPaymentStatus.REFUND_INITIATED,
-      reason: input.notes ?? null,
-      metadata: { reference: input.reference },
+      reason: "Admin rejected name check",
     });
   });
 
-  return getGatewayPaymentDetail(gatewayPaymentId, db);
-}
-
-export async function recordGatewayRefundCompleted(
-  actor: AdminActorContext,
-  gatewayPaymentId: string,
-  input: { notes?: string },
-  db: PrismaClient = defaultPrisma
-) {
-  const payment = await getInvestorDepositOrThrow(db, gatewayPaymentId);
-
-  if (payment.status !== GatewayPaymentStatus.REFUND_INITIATED) {
-    throw new AppError(
-      422,
-      "INVALID_GATEWAY_STATUS",
-      "Refund completion is only allowed for REFUND_INITIATED payments"
-    );
-  }
-
-  await db.$transaction(async (tx) => {
-    const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-    assertTransition(current.status, GatewayPaymentStatus.REFUNDED);
-    await tx.gatewayPayment.update({
-      where: { id: payment.id },
-      data: {
-        status: GatewayPaymentStatus.REFUNDED,
-        refunded_at: new Date(),
-        refund_notes: input.notes ?? current.refund_notes,
-      },
-    });
-    await recordGatewayPaymentEvent(tx, {
-      gatewayPaymentId: payment.id,
-      type: GatewayPaymentEventType.REFUNDED,
+  await initiateInvestorDepositRefund(
+    payment,
+    {
+      reason: "ADMIN_INITIATED",
+      curlecPaymentId: payment.curlec_payment_id,
       actorUserId: actor.userId,
-      fromStatus: GatewayPaymentStatus.REFUND_INITIATED,
-      toStatus: GatewayPaymentStatus.REFUNDED,
-      reason: input.notes ?? null,
-    });
-  });
+      adminReason: "Admin rejected name check",
+    },
+    db
+  );
 
   return getGatewayPaymentDetail(gatewayPaymentId, db);
 }

@@ -80,7 +80,7 @@ function mockPortfolioApis(page: Page) {
   });
 }
 
-function mockDepositApis(page: Page, terminalStatus: "COMPLETED" | "NAME_CHECK_PENDING") {
+function mockDepositApis(page: Page, terminalStatus: "COMPLETED" | "REFUND_INITIATED") {
   let pollCount = 0;
 
   page.route(`${API_URL}/v1/investor/deposits`, async (route) => {
@@ -183,11 +183,11 @@ test.describe("Investor FPX deposit", () => {
     await expect(page.getByText(/Deposit successful/i)).toBeVisible({ timeout: 10000 });
   });
 
-  test("shows pending verification for NAME_CHECK_PENDING", async ({ page }) => {
-    mockDepositApis(page, "NAME_CHECK_PENDING");
+  test("shows refund in progress when deposit cannot be verified", async ({ page }) => {
+    mockDepositApis(page, "REFUND_INITIATED");
     await startDepositFromTransactions(page);
 
     await expect(page).toHaveURL(/depositReturn=dep_e2e_test/);
-    await expect(page.getByText(/Deposit pending verification/i)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/Refund in progress/i)).toBeVisible({ timeout: 10000 });
   });
 });
