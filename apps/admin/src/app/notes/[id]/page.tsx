@@ -54,9 +54,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   isSoukscoreRiskRating,
-  mapNoteSettlementToPoolSummary,
   type NoteDetail,
-  type NoteSettlementPoolSummary,
 } from "@cashsouk/types";
 
 function PageSkeleton() {
@@ -91,26 +89,6 @@ function getRiskRating(note: NoteDetail) {
   const offerDetails = asRecord(note.invoiceSnapshot?.offer_details);
   const riskRating = offerDetails?.risk_rating;
   return isSoukscoreRiskRating(riskRating) ? riskRating : "—";
-}
-
-function getPostedSettlementSummary(note: NoteDetail): NoteSettlementPoolSummary | null {
-  if (note.settlementSummary?.status === "POSTED") return note.settlementSummary;
-  const settlement = note.settlements.find((item) => item.status === "POSTED") ?? null;
-  return settlement ? mapNoteSettlementToPoolSummary(settlement) : null;
-}
-
-function getApprovedSettlementSummary(note: NoteDetail): NoteSettlementPoolSummary | null {
-  const settlement = note.settlements.find((item) => item.status === "APPROVED") ?? null;
-  return settlement ? mapNoteSettlementToPoolSummary(settlement) : null;
-}
-
-function BucketPayoutCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl border bg-card p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 font-semibold">{formatCurrency(value)}</div>
-    </div>
-  );
 }
 
 type SimpleTabStatus = "done" | "needs-action" | "not-started" | "view-only";
@@ -186,7 +164,12 @@ const noteActionCopy: Record<
 };
 
 export default function NoteDetailPage() {
-  type NoteDetailTabId = "disbursement" | "servicing-settlement" | "ledger" | "investors";
+  type NoteDetailTabId =
+    | "disbursement"
+    | "servicing-settlement"
+    | "late-payment"
+    | "ledger"
+    | "investors";
   const { can } = usePermissions();
   const canManage = can("notes.manage");
   const canDisbursement = can("notes.disbursement.manage");
@@ -338,90 +321,6 @@ export default function NoteDetailPage() {
 
           {note ? (
             <div className="space-y-6">
-              {(() => {
-                const postedSummary = getPostedSettlementSummary(note);
-                const approvedSummary = postedSummary ? null : getApprovedSettlementSummary(note);
-                const settlementSummary = postedSummary ?? approvedSummary;
-                if (!settlementSummary) return null;
-                const isPosted = settlementSummary.status === "POSTED";
-                return (
-                  <Card
-                    className={
-                      isPosted
-                        ? "rounded-2xl border-emerald-200 bg-emerald-50/70"
-                        : "rounded-2xl border-amber-200 bg-amber-50/70"
-                    }
-                  >
-                    <CardContent className="space-y-4 p-5">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div
-                            className={
-                              isPosted
-                                ? "text-sm font-medium text-emerald-950"
-                                : "text-sm font-medium text-amber-950"
-                            }
-                          >
-                            {isPosted ? "Settlement Posted" : "Settlement Approved"}
-                          </div>
-                          <p
-                            className={
-                              isPosted
-                                ? "mt-1 text-sm text-emerald-900"
-                                : "mt-1 text-sm text-amber-900"
-                            }
-                          >
-                            {isPosted
-                              ? "This note has been settled and the posted payout has been allocated across the platform buckets."
-                              : "Settlement is approved and awaiting post. Bucket amounts below are not yet final on the ledger."}
-                          </p>
-                        </div>
-                        <Badge
-                          variant="outline"
-                          className={
-                            isPosted
-                              ? "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300"
-                              : "border-transparent bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
-                          }
-                        >
-                          {isPosted ? "Posted" : "Approved"}
-                        </Badge>
-                      </div>
-                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                        <BucketPayoutCard
-                          label="Repayment Pool"
-                          value={settlementSummary.grossReceiptAmount}
-                        />
-                        <BucketPayoutCard
-                          label="Investor Pool"
-                          value={settlementSummary.investorPoolAmount}
-                        />
-                        <BucketPayoutCard
-                          label="Operating Account"
-                          value={settlementSummary.operatingAccountAmount}
-                        />
-                        <BucketPayoutCard
-                          label="Ta'widh Account"
-                          value={settlementSummary.tawidhAccountAmount}
-                        />
-                        <BucketPayoutCard
-                          label="Gharamah Account"
-                          value={settlementSummary.gharamahAccountAmount}
-                        />
-                      </div>
-                      <div
-                        className={
-                          isPosted ? "text-sm text-emerald-950" : "text-sm text-amber-950"
-                        }
-                      >
-                        Issuer residual refund:{" "}
-                        {formatCurrency(settlementSummary.issuerResidualAmount)}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })()}
-
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="flex min-w-0 items-start gap-3">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10">
@@ -568,6 +467,19 @@ export default function NoteDetailPage() {
                             Status: {TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].label}
                           </span>
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setActiveNoteTab("late-payment")}
+                          className={
+                            activeNoteTab === "late-payment"
+                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
+                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                          }
+                        >
+                          <span className="truncate">Late Payment</span>
+                          <span className="sr-only">Late payment workflow</span>
+                        </Button>
                       </div>
                       <div className="flex items-center gap-1">
                         <span
@@ -630,10 +542,15 @@ export default function NoteDetailPage() {
 
                   <div
                     className={
-                      activeNoteTab === "servicing-settlement" ? "space-y-6" : "hidden space-y-6"
+                      activeNoteTab === "servicing-settlement" || activeNoteTab === "late-payment"
+                        ? "space-y-6"
+                        : "hidden space-y-6"
                     }
                   >
-                    <SettlementPanel note={note} />
+                    <SettlementPanel
+                      note={note}
+                      section={activeNoteTab === "late-payment" ? "late-payment" : "settlement"}
+                    />
                   </div>
 
                   <div className={activeNoteTab === "ledger" ? "space-y-6" : "hidden space-y-6"}>

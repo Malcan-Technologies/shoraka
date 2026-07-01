@@ -463,7 +463,15 @@ function formatMaturityTiming(value: string | null) {
   return days > 0 ? `${dayLabel} remaining` : `${dayLabel} overdue`;
 }
 
-export function SettlementPanel({ note }: { note: NoteDetail }) {
+export type SettlementPanelSection = "settlement" | "late-payment";
+
+export function SettlementPanel({
+  note,
+  section = "settlement",
+}: {
+  note: NoteDetail;
+  section?: SettlementPanelSection;
+}) {
   const { can } = usePermissions();
   const canRepayment = can("notes.repayment.manage");
   const canSettlement = can("notes.settlement.manage");
@@ -534,8 +542,8 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
   const servicingWorkflowAvailable = baseServicingOpen;
   const servicingNotStartedDescription =
     note.fundingStatus !== "FUNDED"
-      ? "Repayment receipts, settlement, arrears, and default actions will be available after funding is closed and the note enters servicing."
-      : "Repayment receipts, settlement, arrears, and default actions will be available after issuer disbursement is completed and the note enters servicing.";
+      ? "Repayment receipts and settlement will be available after funding is closed and the note enters servicing."
+      : "Repayment receipts and settlement will be available after issuer disbursement is completed and the note enters servicing.";
   const servicingOpen = baseServicingOpen && !persistedPostedSettlement;
   const servicingBlockedReason = !baseServicingOpen
     ? note.fundingStatus !== "FUNDED"
@@ -1537,16 +1545,339 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
     </div>
   ) : null;
 
+  const latePaymentPanel = (
+    <Card className="rounded-2xl">
+      <CardHeader>
+        <div>
+          <CardTitle className="text-base">Late Payment</CardTitle>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Manage late fees, arrears letters, default letters, and default actions.
+          </p>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {servicingWorkflowAvailable ? (
+          <>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border bg-card p-4">
+                <div className="text-xs text-muted-foreground">Grace and Arrears</div>
+                <div className="mt-1 text-lg font-semibold">
+                  {note.gracePeriodDays} + {note.arrearsThresholdDays} days
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Grace period plus arrears threshold
+                </div>
+              </div>
+              <div className="rounded-xl border bg-card p-4">
+                <div className="text-xs text-muted-foreground">Late Fee Caps</div>
+                <div className="mt-1 text-lg font-semibold">
+                  Ta&apos;widh {note.tawidhRateCapPercent}%
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Gharamah {note.gharamahRateCapPercent}% cap
+                </div>
+              </div>
+            </div>
+
+            {showOverdueFeesSection ? (
+              <div
+                className={cn(
+                  "rounded-lg border",
+                  pendingLateFeeTotal > 0.005 || feesNeedPreview
+                    ? cn("bg-card p-4", (overdueActionAvailable || pendingLateFeeTotal > 0.005) && ACTION_CARD_CLASS)
+                    : "border-dashed bg-muted/20 p-3"
+                )}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium">Late fees</div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Caps from payment due {paymentDueDateLabel} plus {note.gracePeriodDays}-day
+                      grace. Fees come from the settlement receipt pool, not on top of it.
+                      {paymentDueDiffersFromProfitMaturity
+                        ? ` Contractual profit accrues to ${profitMaturityDateLabel}.`
+                        : ""}
+                      {availableLateFeeHeadroom != null
+                        ? ` Available late-fee headroom after investor principal and contractual profit is ${formatCurrency(availableLateFeeHeadroom)}.`
+                        : " Available late-fee headroom will be confirmed during preview."}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <Badge variant="secondary">{overdueSnapshot.label}</Badge>
+                    {pendingLateFeeTotal > 0.005 ? (
+                      <div className="flex flex-wrap justify-end gap-1.5">
+                        <Badge variant="outline">
+                          Ta&apos;widh {formatCurrency(Number(tawidhAmount) || 0)}
+                        </Badge>
+                        <Badge variant="outline">
+                          Gharamah {formatCurrency(Number(gharamahAmount) || 0)}
+                        </Badge>
+                        {feesNeedPreview ? (
+                          <Badge variant="secondary">Queued for preview</Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="border-emerald-200 bg-emerald-50/80 text-emerald-900"
+                          >
+                            In preview
+                          </Badge>
+                        )}
+                        {pendingLateFeesExceedHeadroom ? (
+                          <Badge variant="destructive">Exceeds headroom</Badge>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="mt-3 rounded-lg border bg-card p-3">
+                  <div className="grid gap-3 md:grid-cols-[1fr_10rem] md:items-end">
+                    <div>
+                      <label
+                        className="text-sm font-medium"
+                        htmlFor="tawidh-investor-share-percent"
+                      >
+                        Ta&apos;widh investor share
+                      </label>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Optional percentage of total Ta&apos;widh returned to investors during the
+                        settlement waterfall. The total Ta&apos;widh charge still reduces issuer
+                        residual.
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="relative">
+                        <Input
+                          id="tawidh-investor-share-percent"
+                          className="pr-8"
+                          value={tawidhInvestorSharePercentInput}
+                          onChange={(event) => {
+                            if (isTwoDecimalInput(event.target.value)) {
+                              setTawidhInvestorSharePercentInput(event.target.value);
+                            }
+                          }}
+                          onBlur={() =>
+                            setTawidhInvestorSharePercentInput(
+                              formatPercentInput(tawidhInvestorSharePercent)
+                            )
+                          }
+                          disabled={!servicingOpen || (Number(tawidhAmount) || 0) <= 0}
+                          inputMode="decimal"
+                          placeholder="0.00"
+                        />
+                        <span
+                          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground"
+                          aria-hidden
+                        >
+                          %
+                        </span>
+                      </div>
+                      <div className="text-right text-xs text-muted-foreground">
+                        {formatCurrency(pendingTawidhInvestorAmount)} to investors
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+                  <p className="max-w-md text-xs text-muted-foreground">
+                    {lateFeesBlockedByZeroHeadroom
+                      ? "No late fees can be charged: settlement headroom is fully used by investor principal and contractual profit."
+                      : pendingLateFeesExceedHeadroom
+                        ? `Queued fees exceed the available settlement headroom of ${formatCurrency(availableLateFeeHeadroom ?? 0)}. Reduce Ta'widh or Gharamah before preview.`
+                        : feesNeedPreview && pendingLateFeeTotal > 0.005
+                          ? `${formatCurrency(pendingLateFeeTotal)} queued locally — use Preview settlement below.`
+                          : pendingLateFeeTotal > 0.005
+                            ? "Fees are in the saved preview. Approve and post when receipts are complete."
+                            : "Apply system-suggested caps, or open custom amounts if you need to adjust."}
+                  </p>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button
+                      onClick={handleApplySuggestedLateFees}
+                      disabled={
+                        checkOverdueLateCharge.isPending ||
+                        !noteIsOverdue ||
+                        !servicingOpen ||
+                        lateFeesBlockedByZeroHeadroom ||
+                        !canDefault
+                      }
+                      title={!canDefault ? "You do not have permission to perform this action." : undefined}
+                    >
+                      {checkOverdueLateCharge.isPending ? "Checking…" : "Apply suggested fees"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleOpenOverdueFeeDialog}
+                      disabled={
+                        checkOverdueLateCharge.isPending || !noteIsOverdue || !servicingOpen || !canDefault
+                      }
+                      title={!canDefault ? "You do not have permission to perform this action." : undefined}
+                    >
+                      Custom amounts
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed bg-muted/20 px-3 py-2">
+                <div className="min-w-0">
+                  <div className="text-xs font-medium text-muted-foreground">Late fees</div>
+                  <p className="text-[11px] text-muted-foreground">
+                    No charges · {overdueSnapshot.label.toLowerCase()} (due {paymentDueDateLabel})
+                  </p>
+                </div>
+                <Badge
+                  variant="outline"
+                  className="shrink-0 gap-1 border-emerald-200 bg-emerald-50/80 text-emerald-900"
+                >
+                  <CheckCircleIcon className="h-3 w-3" />
+                  RM 0.00
+                </Badge>
+              </div>
+            )}
+
+            <div
+              className={cn("rounded-xl border p-4", documentActionAvailable && ACTION_CARD_CLASS)}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-medium">Arrears and Default Documents</div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Generate lifecycle letters tied to the maturity, grace, arrears, and default
+                    workflow.
+                  </p>
+                </div>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleLetter("arrears")}
+                    disabled={arrearsLetter.isPending || !canDefault}
+                    title={!canDefault ? "You do not have permission to perform this action." : undefined}
+                  >
+                    Generate Arrears Letter
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleLetter("default")}
+                    disabled={defaultLetter.isPending || !canDefault}
+                    title={!canDefault ? "You do not have permission to perform this action." : undefined}
+                  >
+                    Generate Default Letter
+                  </Button>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-xl border bg-muted/20 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium">Generated Letters</div>
+                    <div className="text-xs text-muted-foreground">
+                      Arrears and default PDFs generated for this note.
+                    </div>
+                  </div>
+                  {generatedLetters.length > 0 ? (
+                    <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                      {generatedLetters.length}
+                    </Badge>
+                  ) : null}
+                </div>
+                {generatedLetters.length === 0 ? (
+                  <div className="mt-3 text-sm text-muted-foreground">No letters generated yet.</div>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    {generatedLetters.map((letter) => (
+                      <div key={letter.id} className="rounded-lg border bg-card p-3">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <DocumentTextIcon className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm font-medium">{letter.type} letter</span>
+                            </div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {format(new Date(letter.createdAt), "dd MMM yyyy, h:mm a")}
+                            </div>
+                            {letter.s3Key ? (
+                              <div className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
+                                {letter.s3Key}
+                              </div>
+                            ) : null}
+                          </div>
+                          {letter.s3Key ? (
+                            <div className="flex shrink-0 flex-wrap gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 gap-1.5"
+                                disabled={viewDocumentPending}
+                                onClick={() => handleViewDocument(letter.s3Key!)}
+                              >
+                                <DocumentTextIcon className="h-3.5 w-3.5" />
+                                View
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 gap-1.5"
+                                disabled={viewDocumentPending}
+                                onClick={() =>
+                                  handleDownloadDocument(
+                                    letter.s3Key!,
+                                    `${letter.type.toLowerCase()}-letter-${note.noteReference}.pdf`
+                                  )
+                                }
+                              >
+                                <ArrowDownTrayIcon className="h-3.5 w-3.5" />
+                                Download
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+                <Input
+                  value={defaultReason}
+                  onChange={(event) => setDefaultReason(event.target.value)}
+                  placeholder="Default reason"
+                />
+                <Button
+                  variant="destructive"
+                  onClick={handleMarkDefault}
+                  disabled={markDefault.isPending || !canMarkDefault || !canDefault}
+                  title={!canDefault ? "You do not have permission to perform this action." : undefined}
+                >
+                  Mark Default
+                </Button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="rounded-xl border border-border bg-muted/20 p-4">
+            <div className="text-sm font-medium">Late payment actions are not available yet.</div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Late fees, arrears, and default actions will be available after the note enters
+              servicing.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
   return (
     <>
+      {section === "late-payment" ? (
+        latePaymentPanel
+      ) : (
       <Card className="rounded-2xl">
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle className="text-base">Servicing Lifecycle</CardTitle>
               <p className="mt-1 text-xs text-muted-foreground">
-                Manage maturity-driven servicing: receipts, late fees, settlement, arrears letters,
-                and default actions.
+                Manage repayment receipts, settlement preview, posting, and trustee submission.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -1588,24 +1919,6 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                   Contractual maturity {maturityDateLabel}
                 </div>
               ) : null}
-            </div>
-            <div className="rounded-xl border bg-card p-4">
-              <div className="text-xs text-muted-foreground">Grace and Arrears</div>
-              <div className="mt-1 text-lg font-semibold">
-                {note.gracePeriodDays} + {note.arrearsThresholdDays} days
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                Grace period plus arrears threshold
-              </div>
-            </div>
-            <div className="rounded-xl border bg-card p-4">
-              <div className="text-xs text-muted-foreground">Late Fee Caps</div>
-              <div className="mt-1 text-lg font-semibold">
-                Ta&apos;widh {note.tawidhRateCapPercent}%
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                Gharamah {note.gharamahRateCapPercent}% cap
-              </div>
             </div>
           </div>
 
@@ -2079,161 +2392,6 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
               </div>
             ) : null}
 
-            {showOverdueFeesSection ? (
-              <div
-                className={cn(
-                  "mt-4 rounded-lg border",
-                  pendingLateFeeTotal > 0.005 || feesNeedPreview
-                    ? cn("bg-card p-4", (overdueActionAvailable || pendingLateFeeTotal > 0.005) && ACTION_CARD_CLASS)
-                    : "border-dashed bg-muted/20 p-3"
-                )}
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium">Late fees</div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Caps from payment due {paymentDueDateLabel} plus {note.gracePeriodDays}-day
-                      grace. Fees come from the settlement receipt pool, not on top of it.
-                      {paymentDueDiffersFromProfitMaturity
-                        ? ` Contractual profit accrues to ${profitMaturityDateLabel}.`
-                        : ""}
-                      {availableLateFeeHeadroom != null
-                        ? ` Available late-fee headroom after investor principal and contractual profit is ${formatCurrency(availableLateFeeHeadroom)}.`
-                        : " Available late-fee headroom will be confirmed during preview."}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <Badge variant="secondary">{overdueSnapshot.label}</Badge>
-                    {pendingLateFeeTotal > 0.005 ? (
-                      <div className="flex flex-wrap justify-end gap-1.5">
-                        <Badge variant="outline">
-                          Ta&apos;widh {formatCurrency(Number(tawidhAmount) || 0)}
-                        </Badge>
-                        <Badge variant="outline">
-                          Gharamah {formatCurrency(Number(gharamahAmount) || 0)}
-                        </Badge>
-                        {feesNeedPreview ? (
-                          <Badge variant="secondary">Queued for preview</Badge>
-                        ) : (
-                          <Badge
-                            variant="outline"
-                            className="border-emerald-200 bg-emerald-50/80 text-emerald-900"
-                          >
-                            In preview
-                          </Badge>
-                        )}
-                        {pendingLateFeesExceedHeadroom ? (
-                          <Badge variant="destructive">Exceeds headroom</Badge>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="mt-3 rounded-lg border bg-card p-3">
-                  <div className="grid gap-3 md:grid-cols-[1fr_10rem] md:items-end">
-                    <div>
-                      <label
-                        className="text-sm font-medium"
-                        htmlFor="tawidh-investor-share-percent"
-                      >
-                        Ta&apos;widh investor share
-                      </label>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Optional percentage of total Ta&apos;widh returned to investors during the
-                        settlement waterfall. The total Ta&apos;widh charge still reduces issuer
-                        residual.
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="relative">
-                        <Input
-                          id="tawidh-investor-share-percent"
-                          className="pr-8"
-                          value={tawidhInvestorSharePercentInput}
-                          onChange={(event) => {
-                            if (isTwoDecimalInput(event.target.value)) {
-                              setTawidhInvestorSharePercentInput(event.target.value);
-                            }
-                          }}
-                          onBlur={() =>
-                            setTawidhInvestorSharePercentInput(
-                              formatPercentInput(tawidhInvestorSharePercent)
-                            )
-                          }
-                          disabled={!servicingOpen || (Number(tawidhAmount) || 0) <= 0}
-                          inputMode="decimal"
-                          placeholder="0.00"
-                        />
-                        <span
-                          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground"
-                          aria-hidden
-                        >
-                          %
-                        </span>
-                      </div>
-                      <div className="text-right text-xs text-muted-foreground">
-                        {formatCurrency(pendingTawidhInvestorAmount)} to investors
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-                  <p className="max-w-md text-xs text-muted-foreground">
-                    {lateFeesBlockedByZeroHeadroom
-                      ? "No late fees can be charged: settlement headroom is fully used by investor principal and contractual profit."
-                      : pendingLateFeesExceedHeadroom
-                        ? `Queued fees exceed the available settlement headroom of ${formatCurrency(availableLateFeeHeadroom ?? 0)}. Reduce Ta'widh or Gharamah before preview.`
-                        : feesNeedPreview && pendingLateFeeTotal > 0.005
-                          ? `${formatCurrency(pendingLateFeeTotal)} queued locally — use Preview settlement below.`
-                          : pendingLateFeeTotal > 0.005
-                            ? "Fees are in the saved preview. Approve and post when receipts are complete."
-                            : "Apply system-suggested caps, or open custom amounts if you need to adjust."}
-                  </p>
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <Button
-                      onClick={handleApplySuggestedLateFees}
-                      disabled={
-                        checkOverdueLateCharge.isPending ||
-                        !noteIsOverdue ||
-                        !servicingOpen ||
-                        lateFeesBlockedByZeroHeadroom ||
-                        !canDefault
-                      }
-                      title={!canDefault ? "You do not have permission to perform this action." : undefined}
-                    >
-                      {checkOverdueLateCharge.isPending ? "Checking…" : "Apply suggested fees"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={handleOpenOverdueFeeDialog}
-                      disabled={
-                        checkOverdueLateCharge.isPending || !noteIsOverdue || !servicingOpen || !canDefault
-                      }
-                      title={!canDefault ? "You do not have permission to perform this action." : undefined}
-                    >
-                      Custom amounts
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed bg-muted/20 px-3 py-2">
-                <div className="min-w-0">
-                  <div className="text-xs font-medium text-muted-foreground">Late fees</div>
-                  <p className="text-[11px] text-muted-foreground">
-                    No charges · {overdueSnapshot.label.toLowerCase()} (due {paymentDueDateLabel})
-                  </p>
-                </div>
-                <Badge
-                  variant="outline"
-                  className="shrink-0 gap-1 border-emerald-200 bg-emerald-50/80 text-emerald-900"
-                >
-                  <CheckCircleIcon className="h-3 w-3" />
-                  RM 0.00
-                </Badge>
-              </div>
-            )}
-
             {!persistedPostedSettlement && !displayedSettlement ? (
               <div className="mt-3">{settlementActionBarNode}</div>
             ) : null}
@@ -2613,124 +2771,6 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
             )}
           </div>
 
-          <div
-            className={cn("rounded-xl border p-4", documentActionAvailable && ACTION_CARD_CLASS)}
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-medium">4. Arrears and Default Documents</div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Generate lifecycle letters tied to the maturity, grace, arrears, and default
-                  workflow.
-                </p>
-              </div>
-              <div className="flex flex-wrap justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => handleLetter("arrears")}
-                  disabled={arrearsLetter.isPending || !canDefault}
-                  title={!canDefault ? "You do not have permission to perform this action." : undefined}
-                >
-                  Generate Arrears Letter
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => handleLetter("default")}
-                  disabled={defaultLetter.isPending || !canDefault}
-                  title={!canDefault ? "You do not have permission to perform this action." : undefined}
-                >
-                  Generate Default Letter
-                </Button>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-xl border bg-muted/20 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-medium">Generated Letters</div>
-                  <div className="text-xs text-muted-foreground">
-                    Arrears and default PDFs generated for this note.
-                  </div>
-                </div>
-                {generatedLetters.length > 0 ? (
-                  <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                    {generatedLetters.length}
-                  </Badge>
-                ) : null}
-              </div>
-              {generatedLetters.length === 0 ? (
-                <div className="mt-3 text-sm text-muted-foreground">No letters generated yet.</div>
-              ) : (
-                <div className="mt-3 space-y-2">
-                  {generatedLetters.map((letter) => (
-                    <div key={letter.id} className="rounded-lg border bg-card p-3">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <DocumentTextIcon className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm font-medium">{letter.type} letter</span>
-                          </div>
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {format(new Date(letter.createdAt), "dd MMM yyyy, h:mm a")}
-                          </div>
-                          {letter.s3Key ? (
-                            <div className="mt-1 break-all font-mono text-[11px] text-muted-foreground">
-                              {letter.s3Key}
-                            </div>
-                          ) : null}
-                        </div>
-                        {letter.s3Key ? (
-                          <div className="flex shrink-0 flex-wrap gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 gap-1.5"
-                              disabled={viewDocumentPending}
-                              onClick={() => handleViewDocument(letter.s3Key!)}
-                            >
-                              <DocumentTextIcon className="h-3.5 w-3.5" />
-                              View
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 gap-1.5"
-                              disabled={viewDocumentPending}
-                              onClick={() =>
-                                handleDownloadDocument(
-                                  letter.s3Key!,
-                                  `${letter.type.toLowerCase()}-letter-${note.noteReference}.pdf`
-                                )
-                              }
-                            >
-                              <ArrowDownTrayIcon className="h-3.5 w-3.5" />
-                              Download
-                            </Button>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
-              <Input
-                value={defaultReason}
-                onChange={(event) => setDefaultReason(event.target.value)}
-                placeholder="Default reason"
-              />
-              <Button
-                variant="destructive"
-                onClick={handleMarkDefault}
-                disabled={markDefault.isPending || !canMarkDefault || !canDefault}
-                title={!canDefault ? "You do not have permission to perform this action." : undefined}
-              >
-                Mark Default
-              </Button>
-            </div>
-          </div>
             </>
           ) : (
             <div className="rounded-xl border border-border bg-muted/20 p-4">
@@ -2742,6 +2782,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
           )}
         </CardContent>
       </Card>
+      )}
       <AlertDialog
         open={serviceFeeTrusteeConfirm !== null}
         onOpenChange={(open) => {
