@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import type { RecordNotePaymentInput } from "@cashsouk/types";
+import type {
+  IssuerPaymentEvidenceUploadUrlRequest,
+  RecordNotePaymentInput,
+} from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-type IssuerNotePaymentInput = Omit<RecordNotePaymentInput, "source"> & {
-  metadata?: Record<string, unknown> | null;
-};
+type IssuerNotePaymentInput = RecordNotePaymentInput;
 
 export const issuerNotesKeys = {
   all: ["issuer-notes"] as const,
@@ -91,10 +92,7 @@ export function useSubmitIssuerPayment(noteId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: IssuerNotePaymentInput) => {
-      const response = await apiClient.submitIssuerPaymentOnBehalfOfPaymaster(noteId, {
-        ...input,
-        source: "ISSUER_ON_BEHALF" as RecordNotePaymentInput["source"],
-      } as RecordNotePaymentInput);
+      const response = await apiClient.submitIssuerPaymentOnBehalfOfPaymaster(noteId, input);
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
@@ -102,6 +100,17 @@ export function useSubmitIssuerPayment(noteId: string) {
       queryClient.invalidateQueries({ queryKey: issuerNotesKeys.all });
       queryClient.invalidateQueries({ queryKey: issuerNotesKeys.detail(noteId) });
       queryClient.invalidateQueries({ queryKey: issuerNotesKeys.ledger(noteId) });
+    },
+  });
+}
+
+export function useIssuerPaymentEvidenceUploadUrl(noteId: string) {
+  const apiClient = useIssuerNotesApiClient();
+  return useMutation({
+    mutationFn: async (input: IssuerPaymentEvidenceUploadUrlRequest) => {
+      const response = await apiClient.requestIssuerPaymentEvidenceUploadUrl(noteId, input);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
     },
   });
 }

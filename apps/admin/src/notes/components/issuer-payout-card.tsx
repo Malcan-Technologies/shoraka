@@ -5,11 +5,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
+  ArrowDownTrayIcon,
   ArrowPathIcon,
   ArrowRightCircleIcon,
+  ArrowTopRightOnSquareIcon,
   CheckCircleIcon,
   DocumentTextIcon,
-  PencilSquareIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import type { NoteDetail, WithdrawalInstruction } from "@cashsouk/types";
@@ -49,6 +50,18 @@ import {
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import { cn } from "@/lib/utils";
 import { notesKeys } from "@/notes/query-keys";
+import {
+  BeneficiaryDetailsBlock,
+  CollapsibleDetailTimeline,
+  PoolSummaryCard,
+} from "@/notes/components/note-detail-ui-blocks";
+import {
+  WORKFLOW_CARD,
+  WORKFLOW_SUCCESS_COPY,
+  tawarruqWorkflowTone,
+  withdrawalWorkflowTone,
+  workflowBadgeClassName,
+} from "@/notes/utils/workflow-status-tokens";
 
 type BeneficiaryFields = {
   bank_name: string;
@@ -86,20 +99,166 @@ function snapshotToFields(snapshot: Record<string, unknown> | null | undefined):
 
 const STATUS_COPY: Record<
   WithdrawalInstruction["status"],
-  { label: string; tone: "draft" | "progress" | "complete" | "cancelled" }
+  { label: string; tone: ReturnType<typeof withdrawalWorkflowTone> }
 > = {
-  DRAFT: { label: "Draft — letter not yet generated", tone: "draft" },
-  LETTER_GENERATED: { label: "Letter generated — awaiting trustee submission", tone: "progress" },
-  SUBMITTED_TO_TRUSTEE: { label: "Submitted to trustee — awaiting confirmation", tone: "progress" },
-  COMPLETED: { label: "Disbursed", tone: "complete" },
-  CANCELLED: { label: "Cancelled", tone: "cancelled" },
+  DRAFT: { label: "Not generated", tone: "neutral" },
+  LETTER_GENERATED: { label: "Pending trustee submission", tone: "active" },
+  SUBMITTED_TO_TRUSTEE: { label: "Submitted to trustee", tone: "warning" },
+  COMPLETED: { label: "Disbursed", tone: "success" },
+  CANCELLED: { label: "Cancelled", tone: "neutral" },
 };
 
-const ACTION_CARD_CLASS =
-  "border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]";
-const SECTION_COMPLETE_CLASS = "border-emerald-200 bg-emerald-50/40";
-const SECTION_COMPLETE_HEADER_CLASS =
-  "mb-2 text-xs font-medium uppercase tracking-wider text-emerald-900";
+function withdrawalTrusteeDescription(
+  status: WithdrawalInstruction["status"],
+  kind: IssuerPayoutKind
+): string {
+  if (status === "LETTER_GENERATED") {
+    return "Trustee instruction letter has been generated. Submit it to the trustee, then mark it as submitted.";
+  }
+  if (status === "SUBMITTED_TO_TRUSTEE") {
+    return kind === "DISBURSEMENT"
+      ? "Trustee instruction has been submitted. Mark disbursed once the trustee confirms payout."
+      : "Trustee instruction has been submitted. Mark complete once the trustee confirms payout.";
+  }
+  if (status === "COMPLETED") {
+    return "Trustee submission is complete.";
+  }
+  return kind === "DISBURSEMENT"
+    ? "Generate the trustee instruction letter for the posted funding disbursement."
+    : "Generate the trustee instruction letter for the issuer residual refund.";
+}
+
+function DetailRow({
+  label,
+  value,
+  valueClassName,
+}: {
+  label: string;
+  value: React.ReactNode;
+  valueClassName?: string;
+}) {
+  return (
+    <div className="grid grid-cols-[minmax(0,9rem)_1fr] gap-x-3 gap-y-0.5 text-xs">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className={cn("text-foreground", valueClassName)}>{value}</dd>
+    </div>
+  );
+}
+
+type ShorakaOperationalStep = {
+  status: string;
+  nextAction: string;
+};
+
+function resolveShorakaOperationalStep(
+  providerStatus: string,
+  hasCertificate: boolean
+): ShorakaOperationalStep {
+  if (providerStatus === "Active") {
+    return { status: "Matching in progress", nextAction: "Query status again later" };
+  }
+  if (providerStatus === "Pending Sell") {
+    return {
+      status: "Pending sell",
+      nextAction: "Query status again later; contact operations if stuck",
+    };
+  }
+  if (providerStatus === "Completed" && !hasCertificate) {
+    return { status: "Completed", nextAction: "Fetch certificate" };
+  }
+  if (providerStatus === "Completed" && hasCertificate) {
+    return {
+      status: "Certificate ready",
+      nextAction: "You may proceed with disbursement",
+    };
+  }
+  return {
+    status: "Manual review required",
+    nextAction: "Check with Tawarruq operations",
+  };
+}
+
+function tawarruqNextActionCallout(input: {
+  isPending: boolean;
+  hasStoredCertificate: boolean;
+  data:
+    | {
+        tradeOrder: { certificate_s3_key?: string | null };
+        operationalStatus: { providerStatus: string; canFetchCertificate?: boolean };
+      }
+    | null
+    | undefined;
+}): { title: string; description: string } | null {
+  if (input.isPending || input.hasStoredCertificate) return null;
+
+  if (input.data == null) {
+    return {
+      title: "Next: Submit Tawarruq Order",
+      description: "Submit the Tawarruq order before the certificate can be fetched.",
+    };
+  }
+
+  const hasCertificate = Boolean(input.data.tradeOrder.certificate_s3_key);
+  const step = resolveShorakaOperationalStep(
+    input.data.operationalStatus.providerStatus,
+    hasCertificate
+  );
+
+  if (step.nextAction === "You may proceed with disbursement") {
+    return null;
+  }
+
+  if (
+    input.data.operationalStatus.canFetchCertificate ||
+    step.nextAction === "Fetch certificate"
+  ) {
+    return {
+      title: "Next: Fetch Tawarruq Certificate",
+      description:
+        "The Tawarruq order is completed. Fetch the certificate before generating the trustee letter.",
+    };
+  }
+
+  if (
+    input.data.operationalStatus.providerStatus === "Active" ||
+    input.data.operationalStatus.providerStatus === "Pending Sell"
+  ) {
+    return {
+      title: "Next: Query Tawarruq status",
+      description: step.nextAction,
+    };
+  }
+
+  if (step.nextAction === "Check with Tawarruq operations") {
+    return {
+      title: "Next: Check with Tawarruq operations",
+      description: step.nextAction,
+    };
+  }
+
+  return {
+    title: `Next: ${step.nextAction}`,
+    description: step.nextAction,
+  };
+}
+
+function TawarruqNextActionCallout({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="mt-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2">
+      <div className="text-xs font-semibold text-foreground">{title}</div>
+      <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
+const ACTION_CARD_CLASS = WORKFLOW_CARD.activeSection;
+const SECTION_COMPLETE_CLASS = WORKFLOW_CARD.successSection;
 
 type IssuerPayoutKind = "DISBURSEMENT" | "RESIDUAL";
 
@@ -148,7 +307,8 @@ export function IssuerPayoutCard({
   const markSubmitted = useMarkWithdrawalSubmitted();
   const markCompleted = useMarkWithdrawalCompleted();
   const updateBeneficiary = useUpdateWithdrawalBeneficiary();
-  const { handleViewDocument, viewDocumentPending } = useAdminS3DocumentViewDownload();
+  const { handleViewDocument, handleDownloadDocument, viewDocumentPending } =
+    useAdminS3DocumentViewDownload();
 
   const shorakaStateQuery = useShorakaWithdrawalState(withdrawal.id);
   const submitShorakaOrder = useSubmitShorakaOrder(withdrawal.id);
@@ -172,6 +332,17 @@ export function IssuerPayoutCard({
 
   const shorakaTradeOrder = shorakaStateQuery.data?.tradeOrder ?? null;
   const hasShorakaCertificate = Boolean(shorakaTradeOrder?.certificate_s3_key);
+  const shorakaOperationalStep = shorakaStateQuery.data
+    ? resolveShorakaOperationalStep(
+        shorakaStateQuery.data.operationalStatus.providerStatus,
+        Boolean(shorakaStateQuery.data.tradeOrder.certificate_s3_key)
+      )
+    : null;
+  const tawarruqNextAction = tawarruqNextActionCallout({
+    isPending: shorakaStateQuery.isPending,
+    hasStoredCertificate: hasShorakaCertificate,
+    data: shorakaStateQuery.data,
+  });
   const shouldGateMarkDisbursed =
     withdrawal.withdrawalType === WithdrawalType.ISSUER_DISBURSEMENT;
 
@@ -227,15 +398,22 @@ export function IssuerPayoutCard({
 
   const status = withdrawal.status;
   const statusCopy = STATUS_COPY[status] ?? STATUS_COPY.DRAFT;
+  const trusteeBadgeTone = withdrawalWorkflowTone(status);
   const currentFields = snapshotToFields(withdrawal.beneficiarySnapshot);
   const beneficiaryComplete =
     currentFields.bank_name.trim() !== "" && currentFields.account_number.trim() !== "";
   const payoutComplete = status === "COMPLETED";
-  const actionAvailable =
-    !payoutComplete &&
-    (status === "LETTER_GENERATED" ||
-      status === "SUBMITTED_TO_TRUSTEE" ||
-      (status === "DRAFT" && beneficiaryComplete));
+  const disbursementFlowStep: "tawarruq" | "trustee" | "disbursed" | null =
+    kind === "DISBURSEMENT" &&
+    withdrawal.withdrawalType === WithdrawalType.ISSUER_DISBURSEMENT &&
+    !payoutComplete
+      ? status === "SUBMITTED_TO_TRUSTEE"
+        ? "disbursed"
+        : hasShorakaCertificate
+          ? "trustee"
+          : "tawarruq"
+      : null;
+  const workflowInProgress = !payoutComplete && status !== "CANCELLED";
   const guardedAction = (run: () => void) => {
     if (servicingBlockedReason) {
       toast.info(servicingBlockedReason);
@@ -290,10 +468,7 @@ export function IssuerPayoutCard({
     }
   };
 
-  const handleDownload = () => {
-    if (!withdrawal.letterS3Key) return;
-    void handleViewDocument(withdrawal.letterS3Key);
-  };
+  const letterDownloadFileName = `issuer-disbursement-trustee-${note.noteReference ?? note.id}-${withdrawal.id}.pdf`;
 
   const pendingAny =
     generateLetter.isPending ||
@@ -327,53 +502,92 @@ export function IssuerPayoutCard({
             }
           : null;
 
+  const statusPanelTitle = payoutComplete
+    ? kind === "DISBURSEMENT"
+      ? "Issuer disbursement complete"
+      : "Issuer residual refund complete"
+    : kind === "DISBURSEMENT"
+      ? "Issuer disbursement"
+      : kindCopy.title;
+
+  const statusPanelDescription = payoutComplete
+    ? kind === "DISBURSEMENT"
+      ? "Net funded proceeds have been disbursed to the issuer."
+      : "Residual refund has been disbursed to the issuer."
+    : kind === "DISBURSEMENT"
+      ? "Funding has closed. Pay out the net amount to the issuer via the trustee before servicing begins."
+      : kindCopy.description;
+
+  const surfaceClass = payoutComplete
+    ? SECTION_COMPLETE_CLASS
+    : workflowInProgress
+      ? ACTION_CARD_CLASS
+      : "border-border bg-card";
+
   return (
-    <div
-      className={cn(
-        "mt-4 rounded-xl border p-4",
-        payoutComplete
-          ? SECTION_COMPLETE_CLASS
-          : actionAvailable
-            ? ACTION_CARD_CLASS
-            : "bg-card"
-      )}
-    >
-      {payoutComplete ? (
-        <div className={SECTION_COMPLETE_HEADER_CLASS}>
-          {kind === "RESIDUAL"
-            ? "Issuer residual refund complete"
-            : "Issuer disbursement complete"}
-        </div>
-      ) : null}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="text-sm font-medium">{kindCopy.title}</div>
-            <Badge
-              variant={
-                statusCopy.tone === "complete"
-                  ? "default"
-                  : statusCopy.tone === "cancelled"
-                    ? "destructive"
-                    : "secondary"
-              }
-              className={
-                statusCopy.tone === "complete"
-                  ? "bg-emerald-500 text-white hover:bg-emerald-500"
-                  : undefined
-              }
+    <div className={cn("rounded-xl border p-4", surfaceClass)}>
+      <div
+        className={cn(
+          "rounded-lg border px-3 py-2.5",
+          payoutComplete
+            ? WORKFLOW_CARD.successPanel
+            : workflowInProgress
+              ? WORKFLOW_CARD.activeStep
+              : WORKFLOW_CARD.neutralSection
+        )}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <div
+                className={cn(
+                  "text-sm font-semibold",
+                  payoutComplete && WORKFLOW_SUCCESS_COPY.title
+                )}
+              >
+                {statusPanelTitle}
+              </div>
+            </div>
+            <p
+              className={cn(
+                "mt-0.5 text-xs",
+                payoutComplete ? WORKFLOW_SUCCESS_COPY.body : "text-muted-foreground"
+              )}
             >
-              {statusCopy.label}
-            </Badge>
+              {statusPanelDescription}
+            </p>
+            {disbursementFlowStep ? (
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                Flow:{" "}
+                <span
+                  className={cn(disbursementFlowStep === "tawarruq" && "font-medium text-foreground")}
+                >
+                  Tawarruq certificate
+                </span>
+                {" → "}
+                <span
+                  className={cn(disbursementFlowStep === "trustee" && "font-medium text-foreground")}
+                >
+                  Trustee instruction
+                </span>
+                {" → "}
+                <span
+                  className={cn(
+                    disbursementFlowStep === "disbursed" && "font-medium text-foreground"
+                  )}
+                >
+                  Mark disbursed
+                </span>
+              </p>
+            ) : null}
           </div>
-          <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-            {formatCurrency(withdrawal.amount)} — {kindCopy.description}
-          </p>
-        </div>
-        <div className="text-right">
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Amount</div>
-          <div className="text-base font-semibold tabular-nums text-primary">
-            {formatCurrency(withdrawal.amount)}
+          <div className="shrink-0 text-right">
+            <div className="text-[11px] text-muted-foreground">
+              {kind === "DISBURSEMENT" ? "Net to issuer" : "Amount"}
+            </div>
+            <div className="text-base font-semibold tabular-nums text-primary">
+              {formatCurrency(withdrawal.amount)}
+            </div>
           </div>
         </div>
       </div>
@@ -382,426 +596,445 @@ export function IssuerPayoutCard({
       withdrawal.grossFundedAmount != null &&
       withdrawal.platformFeeAmount != null &&
       withdrawal.netIssuerDisbursement != null ? (
-        <div className="mt-4 rounded-lg border bg-muted/20 p-3 text-xs">
-          <div className="flex items-center justify-between">
-            <div className="font-medium uppercase tracking-wider text-muted-foreground">
-              Disbursement breakdown
-            </div>
-          </div>
-          <div className="mt-2 space-y-1 text-foreground">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Gross funded</span>
-              <span className="font-medium">{formatCurrency(withdrawal.grossFundedAmount)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Platform fee</span>
-              <span className="font-medium">{formatCurrency(withdrawal.platformFeeAmount)}</span>
-            </div>
+        <div className="mt-3">
+          <div className="text-xs font-medium text-muted-foreground">Disbursement summary</div>
+          <p className="text-[11px] text-muted-foreground">
+            Final amounts used to calculate issuer disbursement.
+          </p>
+          <div className="mt-1.5 grid gap-1.5 md:grid-cols-2 xl:grid-cols-4">
+            <PoolSummaryCard
+              label="Gross funded"
+              value={withdrawal.grossFundedAmount}
+              description="Total funded amount before deductions."
+            />
+            <PoolSummaryCard
+              label="Platform fee"
+              value={withdrawal.platformFeeAmount}
+              description="Platform fee deducted from funded amount."
+            />
             {withdrawal.facilityFeeCharged != null ? (
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground">Facility fee</span>
-                <span className="font-medium">{formatCurrency(withdrawal.facilityFeeCharged)}</span>
-              </div>
+              <PoolSummaryCard
+                label="Facility fee"
+                value={withdrawal.facilityFeeCharged}
+                description="Facility fee deducted from funded amount, if applicable."
+              />
             ) : null}
-            <div className="flex items-center justify-between gap-4 pt-1">
-              <span className="text-muted-foreground">Net to issuer</span>
-              <span className="font-semibold text-primary">
-                {formatCurrency(withdrawal.netIssuerDisbursement)}
-              </span>
-            </div>
+            <PoolSummaryCard
+              label="Net to issuer"
+              value={withdrawal.netIssuerDisbursement}
+              description="Final amount disbursed to issuer."
+              emphasized
+            />
           </div>
         </div>
       ) : null}
 
       {withdrawal.withdrawalType === WithdrawalType.ISSUER_DISBURSEMENT ? (
-        <div className="mt-4 rounded-lg border bg-muted/20 p-3 text-[11px]">
-          <div className="flex items-center justify-between">
-            <div className="font-medium uppercase tracking-wider text-muted-foreground">
-              Tawarruq Transaction
-            </div>
+        <div className="mt-3 rounded-lg border bg-card p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm font-medium">Tawarruq transaction</div>
+            {shorakaStateQuery.isPending ? (
+              <Badge variant="outline" className={workflowBadgeClassName("neutral")}>
+                Checking…
+              </Badge>
+            ) : shorakaStateQuery.data == null ? (
+              <Badge variant="outline" className={workflowBadgeClassName("neutral")}>
+                Not submitted
+              </Badge>
+            ) : hasShorakaCertificate ? (
+              <Badge
+                variant="outline"
+                className={workflowBadgeClassName(tawarruqWorkflowTone("certificate-ready"))}
+              >
+                Certificate ready
+              </Badge>
+            ) : (
+              <Badge
+                variant="outline"
+                className={workflowBadgeClassName(tawarruqWorkflowTone("in-progress"))}
+              >
+                In progress
+              </Badge>
+            )}
           </div>
+          {hasShorakaCertificate ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Tawarruq certificate fetched and stored.
+            </p>
+          ) : null}
 
-          {payoutComplete && hasShorakaCertificate ? (
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3">
-              <div className="min-w-0">
-                <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  Tawarruq Certificate
-                </div>
-                <div className="mt-1 text-[11px] text-muted-foreground">Certificate fetched and stored.</div>
-              </div>
-              <div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={() => {
-                    const key = shorakaTradeOrder?.certificate_s3_key;
-                    if (!key) return;
-                    void handleViewDocument(key);
-                  }}
-                  disabled={viewDocumentPending}
-                >
-                  View Tawarruq Certificate
-                </Button>
-              </div>
-            </div>
+          {tawarruqNextAction ? (
+            <TawarruqNextActionCallout
+              title={tawarruqNextAction.title}
+              description={tawarruqNextAction.description}
+            />
           ) : null}
 
           {shorakaStateQuery.isPending ? (
-            <div className="mt-2 text-muted-foreground">Checking Tawarruq certificate status…</div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Checking Tawarruq certificate status…
+            </p>
           ) : shorakaStateQuery.data == null ? (
-            <div className="mt-2">
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground">Status</span>
-                <span className="font-medium">Not submitted</span>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground">Next action</span>
-                <span className="text-foreground">Submit Tawarruq order</span>
-              </div>
-              <div className="mt-2">
-                <Button
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={async () => {
-                    try {
-                      if (servicingBlockedReason) {
-                        toast.info(servicingBlockedReason);
-                        return;
-                      }
-                      await submitShorakaOrder.mutateAsync();
-                      toast.success("Tawarruq order submitted");
-                      queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
-                    } catch (err) {
-                      toast.error(err instanceof Error ? err.message : "Failed to submit Tawarruq order");
-                    }
-                  }}
-                  disabled={submitShorakaOrder.isPending || isMalaysiaUnsafeShorakaSubmitWindow || !canManage}
-                  title={!canManage ? "You do not have permission to perform this action." : undefined}
-                >
-                  Submit Tawarruq Order
-                </Button>
-              </div>
+            <dl className="mt-2 space-y-1">
+              <DetailRow label="Status" value="Not submitted" valueClassName="font-medium" />
+            </dl>
+          ) : shorakaOperationalStep && shorakaStateQuery.data ? (
+            <>
+              {(() => {
+                const state = shorakaStateQuery.data;
+                const tradeOrder = state.tradeOrder;
+                const parsed = state.parsed;
+                const step = shorakaOperationalStep;
 
-              {isMalaysiaUnsafeShorakaSubmitWindow ? (
-                <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-amber-900">
-                  {shorakaUnsafeSubmitWindowMessage}
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            (() => {
-              const state = shorakaStateQuery.data;
-              const tradeOrder = state.tradeOrder;
-              const parsed = state.parsed;
-              const operational = state.operationalStatus;
-              const hasCertificate = Boolean(tradeOrder.certificate_s3_key);
+                const callbackReceivedAt = tradeOrder.callback_received_at
+                  ? new Date(tradeOrder.callback_received_at)
+                  : null;
+                const statusLastCheckedAt = tradeOrder.status_last_checked_at
+                  ? new Date(tradeOrder.status_last_checked_at)
+                  : null;
 
-              const step =
-                operational.providerStatus === "Active"
-                  ? { status: "Matching in progress", nextAction: "Query status again later" }
-                  : operational.providerStatus === "Pending Sell"
-                    ? {
-                        status: "Pending sell",
-                        nextAction: "Query status again later; contact operations if stuck",
-                      }
-                    : operational.providerStatus === "Completed" && !hasCertificate
-                      ? { status: "Completed", nextAction: "Fetch certificate" }
-                      : operational.providerStatus === "Completed" && hasCertificate
-                        ? { status: "Certificate ready", nextAction: "You may proceed with disbursement" }
-                        : {
-                            status: "Manual review required",
-                        nextAction: "Check with Tawarruq operations",
-                          };
+                const statusSource = callbackReceivedAt
+                  ? statusLastCheckedAt &&
+                      callbackReceivedAt.getTime() < statusLastCheckedAt.getTime()
+                    ? "Updated by status query"
+                    : "Updated by callback"
+                  : null;
 
-              const callbackReceivedAt = tradeOrder.callback_received_at
-                ? new Date(tradeOrder.callback_received_at)
-                : null;
-              const statusLastCheckedAt = tradeOrder.status_last_checked_at
-                ? new Date(tradeOrder.status_last_checked_at)
-                : null;
-
-              const statusSource = callbackReceivedAt
-                ? statusLastCheckedAt && callbackReceivedAt.getTime() < statusLastCheckedAt.getTime()
-                  ? "Updated by status query"
-                  : "Updated by callback"
-                : null;
-
-              return (
-                <>
-                  <div className="mt-2 space-y-1">
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="text-muted-foreground">Status</span>
-                      <span className="font-medium">{step.status}</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="text-muted-foreground">Next action</span>
-                      <span className="text-foreground">{step.nextAction}</span>
-                    </div>
-                    {tradeOrder.provider_order_id ? (
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="text-muted-foreground">Order ID</span>
-                        <span className="font-medium">{tradeOrder.provider_order_id}</span>
-                      </div>
-                    ) : null}
-                    {parsed.orderDate ? (
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="text-muted-foreground">Order date</span>
-                        <span className="font-medium">{parsed.orderDate}</span>
-                      </div>
-                    ) : null}
-                    {parsed.valueDate ? (
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="text-muted-foreground">Value date</span>
-                        <span className="font-medium">{parsed.valueDate}</span>
-                      </div>
-                    ) : null}
+                return (
+                  <>
+                    <div className="mt-2 text-xs font-medium text-muted-foreground">Order details</div>
+                    <dl className="mt-1 space-y-1">
+                      <DetailRow label="Status" value={step.status} valueClassName="font-medium" />
+                      {tradeOrder.provider_order_id ? (
+                        <DetailRow
+                          label="Order ID"
+                          value={tradeOrder.provider_order_id}
+                          valueClassName="font-medium"
+                        />
+                      ) : null}
+                      {parsed.orderDate ? (
+                        <DetailRow
+                          label="Order date"
+                          value={parsed.orderDate}
+                          valueClassName="font-medium"
+                        />
+                      ) : null}
+                      {parsed.valueDate ? (
+                        <DetailRow
+                          label="Value date"
+                          value={parsed.valueDate}
+                          valueClassName="font-medium"
+                        />
+                      ) : null}
+                      {parsed.orderAmount ? (
+                        <DetailRow
+                          label="Order amount"
+                          value={parsed.orderAmount}
+                          valueClassName="font-medium"
+                        />
+                      ) : null}
+                      {parsed.murabahaAmount ? (
+                        <DetailRow
+                          label="Murabaha amount"
+                          value={parsed.murabahaAmount}
+                          valueClassName="font-medium"
+                        />
+                      ) : null}
+                      {statusSource ? (
+                        <DetailRow
+                          label="Status source"
+                          value={statusSource}
+                          valueClassName="font-medium"
+                        />
+                      ) : null}
+                      {tradeOrder.callback_received_at ? (
+                        <DetailRow
+                          label="Callback received"
+                          value={format(
+                            new Date(tradeOrder.callback_received_at),
+                            "dd MMM yyyy, h:mm a"
+                          )}
+                          valueClassName="font-medium"
+                        />
+                      ) : null}
+                      {tradeOrder.status_last_checked_at ? (
+                        <DetailRow
+                          label="Last checked"
+                          value={format(
+                            new Date(tradeOrder.status_last_checked_at),
+                            "dd MMM yyyy, h:mm a"
+                          )}
+                          valueClassName="font-medium"
+                        />
+                      ) : null}
+                    </dl>
                     {parsed.orderDate || parsed.valueDate ? (
-                      <div className="pt-1 text-[11px] text-muted-foreground">
-                        Order date = Tawarruq trade submission date. Value date = intended disbursement date.
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        Order date = Tawarruq trade submission date. Value date = intended
+                        disbursement date.
+                      </p>
+                    ) : null}
+                    {state.cutoffWarning ? (
+                      <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
+                        {state.cutoffWarning}
                       </div>
                     ) : null}
-                    {parsed.orderAmount ? (
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="text-muted-foreground">Order amount</span>
-                        <span className="font-medium">{parsed.orderAmount}</span>
-                      </div>
-                    ) : null}
-                    {parsed.murabahaAmount ? (
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="text-muted-foreground">Murabaha amount</span>
-                        <span className="font-medium">{parsed.murabahaAmount}</span>
-                      </div>
-                    ) : null}
-                    {statusSource ? (
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="text-muted-foreground">Status source</span>
-                        <span className="font-medium">{statusSource}</span>
-                      </div>
-                    ) : null}
-                    {tradeOrder.callback_received_at ? (
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="text-muted-foreground">Callback received</span>
-                        <span className="font-medium">
-                          {format(new Date(tradeOrder.callback_received_at), "dd MMM yyyy, h:mm a")}
-                        </span>
-                      </div>
-                    ) : null}
-                    {tradeOrder.status_last_checked_at ? (
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="text-muted-foreground">Last checked</span>
-                        <span className="font-medium">
-                          {format(new Date(tradeOrder.status_last_checked_at), "dd MMM yyyy, h:mm a")}
-                        </span>
-                      </div>
-                    ) : null}
-                  </div>
+                  </>
+                );
+              })()}
+            </>
+          ) : null}
 
-                  {state.cutoffWarning ? (
-                    <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-amber-900">
-                      {state.cutoffWarning}
-                    </div>
-                  ) : null}
+          {isMalaysiaUnsafeShorakaSubmitWindow && shorakaStateQuery.data == null ? (
+            <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
+              {shorakaUnsafeSubmitWindowMessage}
+            </div>
+          ) : null}
 
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {operational.providerStatus === "Active" || operational.providerStatus === "Pending Sell" ? (
-                      <Button
-                        size="sm"
-                        className="gap-1.5"
-                        onClick={async () => {
-                          try {
-                            if (servicingBlockedReason) {
-                              toast.info(servicingBlockedReason);
-                              return;
-                            }
-                            await queryShorakaStatus.mutateAsync();
-                            toast.success("Tawarruq transaction status queried");
-                          } catch (err) {
-                            toast.error(
-                              err instanceof Error ? err.message : "Failed to query Tawarruq transaction status"
-                            );
-                          }
-                        }}
-                        disabled={queryShorakaStatus.isPending || !canManage}
-                        title={!canManage ? "You do not have permission to perform this action." : undefined}
-                      >
-                        Query Status
-                      </Button>
-                    ) : null}
-
-                    {operational.canFetchCertificate ? (
-                      <Button
-                        size="sm"
-                        className="gap-1.5"
-                        onClick={async () => {
-                          try {
-                            if (servicingBlockedReason) {
-                              toast.info(servicingBlockedReason);
-                              return;
-                            }
-                            await fetchShorakaCertificate.mutateAsync();
-                            toast.success("Tawarruq certificate fetched");
-                            queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
-                          } catch (err) {
-                            toast.error(err instanceof Error ? err.message : "Failed to fetch certificate");
-                          }
-                        }}
-                        disabled={fetchShorakaCertificate.isPending || !canManage}
-                        title={!canManage ? "You do not have permission to perform this action." : undefined}
-                      >
-                        Fetch Tawarruq Certificate
-                      </Button>
-                    ) : null}
-
-                    {tradeOrder.certificate_s3_key && !payoutComplete ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5"
-                        onClick={() => {
-                          const key = tradeOrder.certificate_s3_key;
-                          if (!key) return;
-                          void handleViewDocument(key);
-                        }}
-                        disabled={viewDocumentPending}
-                      >
-                        View Tawarruq Certificate
-                      </Button>
-                    ) : null}
-                  </div>
-                </>
-              );
-            })()
-          )}
+          <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-border/60 pt-3">
+            {shorakaStateQuery.data == null ? (
+              <Button
+                size="sm"
+                onClick={async () => {
+                  try {
+                    if (servicingBlockedReason) {
+                      toast.info(servicingBlockedReason);
+                      return;
+                    }
+                    await submitShorakaOrder.mutateAsync();
+                    toast.success("Tawarruq order submitted");
+                    queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
+                  } catch (err) {
+                    toast.error(
+                      err instanceof Error ? err.message : "Failed to submit Tawarruq order"
+                    );
+                  }
+                }}
+                disabled={
+                  submitShorakaOrder.isPending || isMalaysiaUnsafeShorakaSubmitWindow || !canManage
+                }
+                title={!canManage ? "You do not have permission to perform this action." : undefined}
+              >
+                Submit Tawarruq Order
+              </Button>
+            ) : null}
+            {shorakaStateQuery.data != null &&
+            (shorakaStateQuery.data.operationalStatus.providerStatus === "Active" ||
+              shorakaStateQuery.data.operationalStatus.providerStatus === "Pending Sell") ? (
+              <Button
+                size="sm"
+                onClick={async () => {
+                  try {
+                    if (servicingBlockedReason) {
+                      toast.info(servicingBlockedReason);
+                      return;
+                    }
+                    await queryShorakaStatus.mutateAsync();
+                    toast.success("Tawarruq transaction status queried");
+                  } catch (err) {
+                    toast.error(
+                      err instanceof Error ? err.message : "Failed to query Tawarruq transaction status"
+                    );
+                  }
+                }}
+                disabled={queryShorakaStatus.isPending || !canManage}
+                title={!canManage ? "You do not have permission to perform this action." : undefined}
+              >
+                Query Status
+              </Button>
+            ) : null}
+            {shorakaStateQuery.data?.operationalStatus.canFetchCertificate ? (
+              <Button
+                size="sm"
+                onClick={async () => {
+                  try {
+                    if (servicingBlockedReason) {
+                      toast.info(servicingBlockedReason);
+                      return;
+                    }
+                    await fetchShorakaCertificate.mutateAsync();
+                    toast.success("Tawarruq certificate fetched");
+                    queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : "Failed to fetch certificate");
+                  }
+                }}
+                disabled={fetchShorakaCertificate.isPending || !canManage}
+                title={!canManage ? "You do not have permission to perform this action." : undefined}
+              >
+                Fetch Tawarruq Certificate
+              </Button>
+            ) : null}
+            {shorakaTradeOrder?.certificate_s3_key ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5"
+                onClick={() => {
+                  const key = shorakaTradeOrder.certificate_s3_key;
+                  if (!key) return;
+                  void handleViewDocument(key);
+                }}
+                disabled={viewDocumentPending}
+              >
+                <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                View Tawarruq Certificate
+              </Button>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border bg-muted/20 p-3">
-          <div className="flex items-center justify-between">
-            <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              Beneficiary
-            </div>
-            {status === "DRAFT" && canManage ? (
-              <button
-                type="button"
-                onClick={() => setBeneficiaryDialogOpen(true)}
-                className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-              >
-                <PencilSquareIcon className="h-3.5 w-3.5" />
-                Edit
-              </button>
-            ) : null}
-          </div>
-          <div className="mt-2 space-y-0.5 text-[11px] leading-snug text-foreground">
-            <div>
-              <span className="text-muted-foreground">Bank: </span>
-              {currentFields.bank_name || <span className="text-amber-700">missing</span>}
-            </div>
-            <div>
-              <span className="text-muted-foreground">Account: </span>
-              {currentFields.account_number || <span className="text-amber-700">missing</span>}
-            </div>
-            {currentFields.account_holder ? (
-              <div>
-                <span className="text-muted-foreground">Holder: </span>
-                {currentFields.account_holder}
-              </div>
-            ) : null}
-          </div>
+      <div
+        className={cn(
+          "mt-3 rounded-lg border bg-card p-3",
+          payoutComplete && "border-emerald-200/60"
+        )}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="text-sm font-medium">Trustee submission</div>
+          <Badge variant="outline" className={workflowBadgeClassName(trusteeBadgeTone)}>
+            {status === "DRAFT" ? "Not generated" : statusCopy.label}
+          </Badge>
         </div>
-        <div className="rounded-lg border bg-muted/20 p-3">
-          <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Timeline
+        <p className="mt-1 text-xs text-muted-foreground">
+          {withdrawalTrusteeDescription(status, kind)}
+        </p>
+        {withdrawal.letterS3Key && withdrawal.generatedAt ? (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+            <DocumentTextIcon className="h-3.5 w-3.5 shrink-0" />
+            <span className="font-medium text-foreground">Issuer disbursement instruction</span>
+            <span aria-hidden>·</span>
+            <span>{format(new Date(withdrawal.generatedAt), "dd MMM yyyy, h:mm a")}</span>
           </div>
-          <div className="mt-2 space-y-0.5 text-[11px] leading-snug text-foreground">
-            <div>
-              <span className="text-muted-foreground">Created: </span>
-              {format(new Date(withdrawal.createdAt), "dd MMM yyyy, h:mm a")}
-            </div>
-            {withdrawal.generatedAt ? (
-              <div>
-                <span className="text-muted-foreground">Letter generated: </span>
-                {format(new Date(withdrawal.generatedAt), "dd MMM yyyy, h:mm a")}
-              </div>
-            ) : null}
-            {withdrawal.submittedToTrusteeAt ? (
-              <div>
-                <span className="text-muted-foreground">Submitted to trustee: </span>
-                {format(new Date(withdrawal.submittedToTrusteeAt), "dd MMM yyyy, h:mm a")}
-              </div>
-            ) : null}
-            {withdrawal.completedAt ? (
-              <div>
-                <span className="text-muted-foreground">Completed: </span>
-                {format(new Date(withdrawal.completedAt), "dd MMM yyyy, h:mm a")}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
-        {withdrawal.letterS3Key ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownload}
-            disabled={viewDocumentPending}
-            className="gap-1.5"
-          >
-            <DocumentTextIcon className="h-4 w-4" />
-            {viewDocumentPending ? "Opening…" : "View Letter"}
-          </Button>
-        ) : null}
-        {status === "DRAFT" ? (
-          <Button
-            size="sm"
-            onClick={() => guardedAction(() => setConfirmAction("generate"))}
-            disabled={pendingAny || !beneficiaryComplete || generateLetterDisabledBecauseShoraka || !canManage}
-            title={!canManage ? "You do not have permission to perform this action." : undefined}
-            className="gap-1.5"
-          >
-            <DocumentTextIcon className="h-4 w-4" />
-            Generate Letter
-          </Button>
         ) : null}
         {status === "DRAFT" && generateLetterHelperText ? (
-          <div className="w-full text-right text-xs text-muted-foreground">{generateLetterHelperText}</div>
-        ) : null}
-        {status === "LETTER_GENERATED" ? (
-          <Button
-            size="sm"
-            onClick={() => guardedAction(() => setConfirmAction("submit"))}
-            disabled={pendingAny || !canManage}
-            title={!canManage ? "You do not have permission to perform this action." : undefined}
-            className="gap-1.5"
-          >
-            <ArrowRightCircleIcon className="h-4 w-4" />
-            Mark Submitted to Trustee
-          </Button>
-        ) : null}
-        {status === "SUBMITTED_TO_TRUSTEE" ? (
-          <Button
-            size="sm"
-            onClick={() => guardedAction(() => setConfirmAction("complete"))}
-            disabled={pendingAny || markDisbursedDisabledBecauseShoraka || !canManage}
-            title={!canManage ? "You do not have permission to perform this action." : undefined}
-            className="gap-1.5"
-          >
-            <CheckCircleIcon className="h-4 w-4" />
-            Mark Disbursed
-          </Button>
+          <p className="mt-2 text-xs text-muted-foreground">{generateLetterHelperText}</p>
         ) : null}
         {status === "SUBMITTED_TO_TRUSTEE" && markDisbursedHelperText ? (
-          <div className="w-full text-right text-xs text-muted-foreground">{markDisbursedHelperText}</div>
+          <p className="mt-2 text-xs text-muted-foreground">{markDisbursedHelperText}</p>
         ) : null}
-        {pendingAny ? (
-          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
-            Working…
-          </span>
-        ) : null}
+        <BeneficiaryDetailsBlock
+          accountHolder={
+            currentFields.account_holder || <span className="text-amber-700">missing</span>
+          }
+          bankName={currentFields.bank_name || <span className="text-amber-700">missing</span>}
+          accountNumber={
+            currentFields.account_number || <span className="text-amber-700">missing</span>
+          }
+          showEdit={status === "DRAFT" && canManage}
+          onEdit={() => setBeneficiaryDialogOpen(true)}
+        />
+        <CollapsibleDetailTimeline
+          rows={[
+            {
+              label: "Created",
+              value: format(new Date(withdrawal.createdAt), "dd MMM yyyy, h:mm a"),
+            },
+            ...(withdrawal.generatedAt
+              ? [
+                  {
+                    label: "Letter generated",
+                    value: format(new Date(withdrawal.generatedAt), "dd MMM yyyy, h:mm a"),
+                  },
+                ]
+              : []),
+            ...(withdrawal.submittedToTrusteeAt
+              ? [
+                  {
+                    label: "Submitted to trustee",
+                    value: format(
+                      new Date(withdrawal.submittedToTrusteeAt),
+                      "dd MMM yyyy, h:mm a"
+                    ),
+                  },
+                ]
+              : []),
+            ...(withdrawal.completedAt
+              ? [
+                  {
+                    label: "Completed",
+                    value: format(new Date(withdrawal.completedAt), "dd MMM yyyy, h:mm a"),
+                  },
+                ]
+              : []),
+          ]}
+        />
+        <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-border/60 pt-3">
+          {withdrawal.letterS3Key ? (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5"
+                onClick={() => void handleViewDocument(withdrawal.letterS3Key!)}
+                disabled={viewDocumentPending}
+              >
+                <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                View
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5"
+                onClick={() =>
+                  void handleDownloadDocument(withdrawal.letterS3Key!, letterDownloadFileName)
+                }
+                disabled={viewDocumentPending}
+              >
+                <ArrowDownTrayIcon className="h-3.5 w-3.5" />
+                Download
+              </Button>
+            </>
+          ) : null}
+          {status === "DRAFT" ? (
+            <Button
+              size="sm"
+              variant={status === "DRAFT" && !generateLetterDisabledBecauseShoraka ? "default" : "outline"}
+              onClick={() => guardedAction(() => setConfirmAction("generate"))}
+              disabled={
+                pendingAny || !beneficiaryComplete || generateLetterDisabledBecauseShoraka || !canManage
+              }
+              title={!canManage ? "You do not have permission to perform this action." : undefined}
+              className="gap-1.5"
+            >
+              <DocumentTextIcon className="h-4 w-4" />
+              Generate Letter
+            </Button>
+          ) : null}
+          {status === "LETTER_GENERATED" ? (
+            <Button
+              size="sm"
+              onClick={() => guardedAction(() => setConfirmAction("submit"))}
+              disabled={pendingAny || !canManage}
+              title={!canManage ? "You do not have permission to perform this action." : undefined}
+              className="gap-1.5"
+            >
+              <ArrowRightCircleIcon className="h-4 w-4" />
+              Mark submitted to trustee
+            </Button>
+          ) : null}
+          {status === "SUBMITTED_TO_TRUSTEE" ? (
+            <Button
+              size="sm"
+              onClick={() => guardedAction(() => setConfirmAction("complete"))}
+              disabled={pendingAny || markDisbursedDisabledBecauseShoraka || !canManage}
+              title={!canManage ? "You do not have permission to perform this action." : undefined}
+              className="gap-1.5"
+            >
+              <CheckCircleIcon className="h-4 w-4" />
+              Mark Disbursed
+            </Button>
+          ) : null}
+          {pendingAny ? (
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
+              Working…
+            </span>
+          ) : null}
+        </div>
       </div>
 
       <AlertDialog

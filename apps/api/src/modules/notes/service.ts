@@ -120,6 +120,7 @@ import type {
   updateNoteDraftSchema,
   updatePlatformFinanceSettingsSchema,
   requestTrusteeSignatureUploadUrlSchema,
+  requestIssuerPaymentEvidenceUploadUrlSchema,
   createInvestorWithdrawalSchema,
   getInvestorWithdrawalsQuerySchema,
 } from "./schemas";
@@ -203,6 +204,38 @@ function signatureImageExtensionForContentType(contentType: string): string {
   if (normalized === "image/webp") return "webp";
   if (normalized === "image/jpg" || normalized === "image/jpeg") return "jpg";
   return "bin";
+}
+
+function paymentEvidenceExtensionForContentType(contentType: string): string {
+  const normalized = contentType.trim().toLowerCase();
+  if (normalized === "application/pdf") return "pdf";
+  if (normalized === "image/png") return "png";
+  if (normalized === "image/jpeg" || normalized === "image/jpg") return "jpg";
+  return "bin";
+}
+
+function asPaymentEvidenceFiles(value: Prisma.JsonValue | null | undefined) {
+  if (!Array.isArray(value)) return null;
+  const files = value
+    .map((item) => {
+      const entry = asRecord(item);
+      if (!entry) return null;
+      const s3Key = typeof entry.s3Key === "string" ? entry.s3Key : "";
+      const fileName = typeof entry.fileName === "string" ? entry.fileName : "";
+      const contentType = typeof entry.contentType === "string" ? entry.contentType : "";
+      const fileSize = toNumber(entry.fileSize);
+      const uploadedAt = typeof entry.uploadedAt === "string" ? entry.uploadedAt : "";
+      if (!s3Key || !fileName || !contentType || fileSize <= 0 || !uploadedAt) return null;
+      return { s3Key, fileName, contentType, fileSize, uploadedAt };
+    })
+    .filter((item): item is {
+      s3Key: string;
+      fileName: string;
+      contentType: string;
+      fileSize: number;
+      uploadedAt: string;
+    } => item !== null);
+  return files.length > 0 ? files : null;
 }
 
 function hasSettlementTrusteeMovement(settlement: {
@@ -1599,6 +1632,7 @@ export class NoteService {
         actionNeeded,
         issuerOrganizationId: issuer?.id ?? null,
         issuerOrganizationName: issuer?.name ?? null,
+        evidenceFiles: asPaymentEvidenceFiles(payment.evidence_files),
         createdAt: payment.created_at.toISOString(),
       };
     });
@@ -3498,7 +3532,7 @@ export class NoteService {
       .filter((payment) => OPEN_PAYMENT_STATUSES.includes(payment.status))
       .reduce((sum, payment) => sum + toNumber(payment.receipt_amount), 0);
     assertReceiptAmountWithinSettlementLimit(note, openReceiptAmount + input.receiptAmount);
-    const requiresAdminReview = input.source === "ISSUER_ON_BEHALF" && actor.portal === "ISSUER";
+    const requiresAdminReview = actor.portal === "ISSUER";
     const paymentPurpose = resolveIssuerPaymentPurpose(input);
     if (requiresAdminReview) {
       if (paymentPurpose === "LATE_FEES") {
@@ -3531,7 +3565,11 @@ export class NoteService {
           status,
           receipt_amount: money(input.receiptAmount),
           receipt_date: new Date(input.receiptDate),
-          evidence_s3_key: input.evidenceS3Key ?? null,
+          evidence_s3_key:
+            actor.portal === "ISSUER" ? null : (input.evidenceS3Key ?? null),
+          evidence_files: input.evidenceFiles
+            ? (input.evidenceFiles as Prisma.InputJsonValue)
+            : undefined,
           reference: input.reference ?? null,
           recorded_by_user_id: actor.userId,
           metadata: json(paymentMetadata),
@@ -3943,15 +3981,19 @@ export class NoteService {
       );
 
       await this.postSettlementLedger(tx, settlement, actor);
+      const postedAt = new Date();
       await tx.noteSettlement.update({
         where: { id: settlementId },
         data: {
           status: NoteSettlementStatus.POSTED,
-          posted_at: new Date(),
+          posted_at: postedAt,
           idempotency_key: `settlement:${settlementId}`,
           preview_snapshot: json(postedSnapshot),
           ...(hasSettlementTrusteeMovement(settlement)
-            ? { service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.PENDING_LETTER }
+            ? {
+                service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.PENDING_LETTER,
+                service_fee_trustee_created_at: postedAt,
+              }
             : {}),
         },
       });
@@ -4407,7 +4449,10 @@ export class NoteService {
             },
           ],
         },
-        data: { service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED },
+        data: {
+          service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED,
+          service_fee_trustee_letter_generated_at: new Date(),
+        },
       });
       if (row.count !== 1) {
         throw new AppError(
@@ -4479,7 +4524,8 @@ export class NoteService {
         },
         data: {
           service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
-          service_fee_trustee_submitted_at: new Date(),
+          service_fee_trustee_submitted_at:
+            settlement.service_fee_trustee_submitted_at ?? new Date(),
         },
       });
       if (row.count !== 1) {
@@ -4554,7 +4600,8 @@ export class NoteService {
         },
         data: {
           service_fee_trustee_status: ServiceFeeTrusteeInstructionStatus.COMPLETED,
-          service_fee_trustee_completed_at: completedAt,
+          service_fee_trustee_completed_at:
+            settlement.service_fee_trustee_completed_at ?? completedAt,
         },
       });
       if (row.count !== 1) {
@@ -4814,6 +4861,23 @@ export class NoteService {
     const extension = signatureImageExtensionForContentType(input.contentType);
     const date = new Date().toISOString().split("T")[0];
     const key = `platform-finance/trustee-signatures/v1-${date}-${randomUUID()}.${extension}`;
+    const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
+      key,
+      contentType: input.contentType,
+      contentLength: input.fileSize,
+    });
+    return { uploadUrl, s3Key, expiresIn };
+  }
+
+  async requestIssuerPaymentEvidenceUploadUrl(
+    noteId: string,
+    input: z.infer<typeof requestIssuerPaymentEvidenceUploadUrlSchema>,
+    userId: string
+  ) {
+    await this.getIssuerNote(noteId, userId);
+    const extension = paymentEvidenceExtensionForContentType(input.contentType);
+    const date = new Date().toISOString().split("T")[0];
+    const key = `notes/${noteId}/payment-advice/v1-${date}-${randomUUID()}.${extension}`;
     const { uploadUrl, key: s3Key, expiresIn } = await generatePresignedUploadUrl({
       key,
       contentType: input.contentType,

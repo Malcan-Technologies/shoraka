@@ -153,6 +153,8 @@ export interface NoteSettlementPoolSummary {
   postedAt: string | null;
   /** Posted settlement with platform service fee: trustee instruction workflow (pools). */
   serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus | null;
+  serviceFeeTrusteeCreatedAt: string | null;
+  serviceFeeTrusteeLetterGeneratedAt: string | null;
   serviceFeeTrusteeSubmittedAt: string | null;
   serviceFeeTrusteeCompletedAt: string | null;
 }
@@ -320,11 +322,20 @@ export interface NotePayment {
   receiptDate: string;
   receivedIntoAccountCode: string;
   evidenceS3Key: string | null;
+  evidenceFiles?: PaymentEvidenceFile[] | null;
   reference: string | null;
   recordedByUserId: string | null;
   reconciledByUserId: string | null;
   reconciledAt: string | null;
   metadata: Record<string, unknown> | null;
+}
+
+export interface PaymentEvidenceFile {
+  s3Key: string;
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+  uploadedAt: string;
 }
 
 export interface NoteSettlement {
@@ -353,6 +364,8 @@ export interface NoteSettlement {
   approvedAt: string | null;
   postedAt: string | null;
   serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus | null;
+  serviceFeeTrusteeCreatedAt: string | null;
+  serviceFeeTrusteeLetterGeneratedAt: string | null;
   serviceFeeTrusteeSubmittedAt: string | null;
   serviceFeeTrusteeCompletedAt: string | null;
 }
@@ -525,6 +538,7 @@ export interface PendingRepaymentItem {
   actionNeeded: PendingRepaymentAction;
   issuerOrganizationId: string | null;
   issuerOrganizationName: string | null;
+  evidenceFiles?: PaymentEvidenceFile[] | null;
   createdAt: string;
 }
 
@@ -640,6 +654,18 @@ export interface TrusteeSignatureUploadUrlRequest {
 }
 
 export interface TrusteeSignatureUploadUrlResponse {
+  uploadUrl: string;
+  s3Key: string;
+  expiresIn: number;
+}
+
+export interface IssuerPaymentEvidenceUploadUrlRequest {
+  fileName: string;
+  contentType: "application/pdf" | "image/jpeg" | "image/png";
+  fileSize: number;
+}
+
+export interface IssuerPaymentEvidenceUploadUrlResponse {
   uploadUrl: string;
   s3Key: string;
   expiresIn: number;
@@ -998,6 +1024,7 @@ export interface RecordNotePaymentInput {
   receiptDate: string;
   reference?: string | null;
   evidenceS3Key?: string | null;
+  evidenceFiles?: PaymentEvidenceFile[] | null;
   scheduleId?: string | null;
   metadata?: Record<string, unknown> | null;
 }
@@ -1024,6 +1051,8 @@ export function mapNoteSettlementToPoolSummary(
     | "postedAt"
     | "serviceFeeAmount"
     | "serviceFeeTrusteeStatus"
+    | "serviceFeeTrusteeCreatedAt"
+    | "serviceFeeTrusteeLetterGeneratedAt"
     | "serviceFeeTrusteeSubmittedAt"
     | "serviceFeeTrusteeCompletedAt"
   >
@@ -1050,6 +1079,8 @@ export function mapNoteSettlementToPoolSummary(
     annualProfitRatePercent: settlement.annualProfitRatePercent,
     postedAt: settlement.postedAt,
     serviceFeeTrusteeStatus: settlement.serviceFeeTrusteeStatus,
+    serviceFeeTrusteeCreatedAt: settlement.serviceFeeTrusteeCreatedAt,
+    serviceFeeTrusteeLetterGeneratedAt: settlement.serviceFeeTrusteeLetterGeneratedAt,
     serviceFeeTrusteeSubmittedAt: settlement.serviceFeeTrusteeSubmittedAt,
     serviceFeeTrusteeCompletedAt: settlement.serviceFeeTrusteeCompletedAt,
   };

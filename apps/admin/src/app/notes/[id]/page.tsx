@@ -3,7 +3,11 @@
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeftIcon, ArrowPathIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowLeftIcon,
+  ArrowPathIcon,
+  DocumentTextIcon,
+} from "@heroicons/react/24/outline";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,6 +47,12 @@ import { NoteTimelinePanel } from "@/notes/components/note-timeline-panel";
 import { SettlementPanel } from "@/notes/components/settlement-panel";
 import { SourceApplicationPanel } from "@/notes/components/source-application-panel";
 import { IssuerPayoutCard } from "@/notes/components/issuer-payout-card";
+import { NoteWorkflowTabHeader } from "@/notes/components/note-workflow-tab-header";
+import {
+  LATE_PAYMENT_WORKFLOW_BADGE,
+  resolveLatePaymentTimeline,
+} from "@/notes/utils/late-payment-workflow";
+import { NOTE_WORKFLOW_TAB_BADGE, type SimpleTabStatus } from "@/notes/utils/workflow-status-tokens";
 import { OfferSigningPanel } from "@/components/offer-signing-panel";
 import { useResignNoteInvoiceOffer } from "@/notes/hooks/use-resign-invoice-offer";
 import { RequirePermission } from "@/components/require-permission";
@@ -50,9 +60,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   isSoukscoreRiskRating,
-  mapNoteSettlementToPoolSummary,
   type NoteDetail,
-  type NoteSettlementPoolSummary,
 } from "@cashsouk/types";
 
 function PageSkeleton() {
@@ -89,25 +97,7 @@ function getRiskRating(note: NoteDetail) {
   return isSoukscoreRiskRating(riskRating) ? riskRating : "—";
 }
 
-function getPostedSettlementSummary(note: NoteDetail): NoteSettlementPoolSummary | null {
-  if (note.settlementSummary?.status === "POSTED") return note.settlementSummary;
-  const settlement = note.settlements.find((item) => item.status === "POSTED") ?? null;
-  return settlement ? mapNoteSettlementToPoolSummary(settlement) : null;
-}
-
-function getApprovedSettlementSummary(note: NoteDetail): NoteSettlementPoolSummary | null {
-  const settlement = note.settlements.find((item) => item.status === "APPROVED") ?? null;
-  return settlement ? mapNoteSettlementToPoolSummary(settlement) : null;
-}
-
-function BucketPayoutCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl border bg-card p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 font-semibold">{formatCurrency(value)}</div>
-    </div>
-  );
-}
+const TAB_STATUS_BADGE_COPY = NOTE_WORKFLOW_TAB_BADGE;
 
 const noteActionCopy: Record<
   NoteLifecycleAction,
@@ -151,6 +141,12 @@ const noteActionCopy: Record<
 };
 
 export default function NoteDetailPage() {
+  type NoteDetailTabId =
+    | "disbursement"
+    | "servicing-settlement"
+    | "late-payment"
+    | "ledger"
+    | "investors";
   const { can } = usePermissions();
   const canManage = can("notes.manage");
   const canDisbursement = can("notes.disbursement.manage");
@@ -166,6 +162,7 @@ export default function NoteDetailPage() {
   const updateNoteFeatured = useUpdateNoteFeatured();
   const [pendingAction, setPendingAction] = React.useState<NoteLifecycleAction | null>(null);
   const [featuredEnabled, setFeaturedEnabled] = React.useState(false);
+  const [activeNoteTab, setActiveNoteTab] = React.useState<NoteDetailTabId>("disbursement");
 
   const lifecyclePending = React.useMemo(
     () => ({
@@ -181,6 +178,44 @@ export default function NoteDetailPage() {
     const withdrawals = note?.withdrawals ?? [];
     return withdrawals.find((w) => w.withdrawalType === "ISSUER_DISBURSEMENT") ?? null;
   }, [note]);
+  const disbursementTabStatus = React.useMemo<SimpleTabStatus>(() => {
+    if (!disbursementWithdrawal) return "not-started";
+    if (disbursementWithdrawal.status === "COMPLETED") return "done";
+    return "needs-action";
+  }, [disbursementWithdrawal]);
+  const servicingSettlementTabStatus = React.useMemo<SimpleTabStatus>(() => {
+    if (!note) return "not-started";
+
+    const isDone = note.status === "REPAID" || note.servicingStatus === "SETTLED";
+    if (isDone) return "done";
+
+    const hasPendingPayments = note.payments.some((payment) => payment.status === "PENDING");
+    const hasUnpostedSettlement = note.settlements.some(
+      (settlement) => settlement.status !== "POSTED" && settlement.status !== "VOID"
+    );
+    const isArrearsOrDefault =
+      note.status === "ARREARS" ||
+      note.status === "DEFAULTED" ||
+      note.servicingStatus === "ARREARS" ||
+      note.servicingStatus === "DEFAULTED";
+    if (hasPendingPayments || hasUnpostedSettlement || isArrearsOrDefault) {
+      return "needs-action";
+    }
+
+    const servicingNotStarted =
+      note.servicingStatus === "NOT_STARTED" ||
+      (note.status !== "ACTIVE" &&
+        note.status !== "ARREARS" &&
+        note.status !== "DEFAULTED" &&
+        note.status !== "REPAID");
+    if (servicingNotStarted) return "not-started";
+
+    return "needs-action";
+  }, [note]);
+  const latePaymentTimeline = React.useMemo(
+    () => (note ? resolveLatePaymentTimeline(note) : null),
+    [note]
+  );
 
   const runConfirmedAction = async () => {
     if (!note || !pendingAction) return;
@@ -267,90 +302,6 @@ export default function NoteDetailPage() {
 
           {note ? (
             <div className="space-y-6">
-              {(() => {
-                const postedSummary = getPostedSettlementSummary(note);
-                const approvedSummary = postedSummary ? null : getApprovedSettlementSummary(note);
-                const settlementSummary = postedSummary ?? approvedSummary;
-                if (!settlementSummary) return null;
-                const isPosted = settlementSummary.status === "POSTED";
-                return (
-                  <Card
-                    className={
-                      isPosted
-                        ? "rounded-2xl border-emerald-200 bg-emerald-50/70"
-                        : "rounded-2xl border-amber-200 bg-amber-50/70"
-                    }
-                  >
-                    <CardContent className="space-y-4 p-5">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div
-                            className={
-                              isPosted
-                                ? "text-sm font-medium text-emerald-950"
-                                : "text-sm font-medium text-amber-950"
-                            }
-                          >
-                            {isPosted ? "Settlement Posted" : "Settlement Approved"}
-                          </div>
-                          <p
-                            className={
-                              isPosted
-                                ? "mt-1 text-sm text-emerald-900"
-                                : "mt-1 text-sm text-amber-900"
-                            }
-                          >
-                            {isPosted
-                              ? "This note has been settled and the posted payout has been allocated across the platform buckets."
-                              : "Settlement is approved and awaiting post. Bucket amounts below are not yet final on the ledger."}
-                          </p>
-                        </div>
-                        <Badge
-                          variant="outline"
-                          className={
-                            isPosted
-                              ? "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300"
-                              : "border-transparent bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
-                          }
-                        >
-                          {isPosted ? "Posted" : "Approved"}
-                        </Badge>
-                      </div>
-                      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                        <BucketPayoutCard
-                          label="Repayment Pool"
-                          value={settlementSummary.grossReceiptAmount}
-                        />
-                        <BucketPayoutCard
-                          label="Investor Pool"
-                          value={settlementSummary.investorPoolAmount}
-                        />
-                        <BucketPayoutCard
-                          label="Operating Account"
-                          value={settlementSummary.operatingAccountAmount}
-                        />
-                        <BucketPayoutCard
-                          label="Ta'widh Account"
-                          value={settlementSummary.tawidhAccountAmount}
-                        />
-                        <BucketPayoutCard
-                          label="Gharamah Account"
-                          value={settlementSummary.gharamahAccountAmount}
-                        />
-                      </div>
-                      <div
-                        className={
-                          isPosted ? "text-sm text-emerald-950" : "text-sm text-amber-950"
-                        }
-                      >
-                        Issuer residual refund:{" "}
-                        {formatCurrency(settlementSummary.issuerResidualAmount)}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })()}
-
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="flex min-w-0 items-start gap-3">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10">
@@ -434,56 +385,142 @@ export default function NoteDetailPage() {
                 canManage={canManage}
               />
 
-              {note.sourceInvoiceOfferSigning ? (
-                <OfferSigningPanel
-                  title="Signed invoice offer"
-                  description="Review the active signed invoice offer letter from the source application. Request re-sign when the wrong person signed."
-                  signing={note.sourceInvoiceOfferSigning}
-                  onResign={
-                    note.sourceInvoiceOfferSigning.canResign
-                      ? async () => {
-                          await resignInvoiceOffer.mutateAsync();
-                        }
-                      : undefined
-                  }
-                  resignPending={resignInvoiceOffer.isPending}
-                  canManage={canManage}
-                />
-              ) : null}
+              <div className="space-y-6">
+                <NoteTermsPanel note={note} />
+                {note.sourceInvoiceOfferSigning ? (
+                  <OfferSigningPanel
+                    title="Signed invoice offer"
+                    description="Review the active signed invoice offer letter from the source application. Request re-sign when the wrong person signed."
+                    signing={note.sourceInvoiceOfferSigning}
+                    onResign={
+                      note.sourceInvoiceOfferSigning.canResign
+                        ? async () => {
+                            await resignInvoiceOffer.mutateAsync();
+                          }
+                        : undefined
+                    }
+                    resignPending={resignInvoiceOffer.isPending}
+                    canManage={canManage}
+                  />
+                ) : null}
+              </div>
 
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)]">
-                <div className="min-w-0 space-y-6">
-                  <NoteTermsPanel note={note} />
-                  <Card className="rounded-2xl">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Funding &amp; Issuer Disbursement</CardTitle>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Manage funding close payout, Tawarruq Transaction, trustee submission, and issuer disbursement before servicing begins.
-                      </p>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      {disbursementWithdrawal && disbursementWithdrawal.status !== "CANCELLED" ? (
-                        disbursementWithdrawal.status !== "COMPLETED" ? (
-                          <div
-                            className={`rounded-xl border border-amber-200 p-4 border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]`}
-                          >
-                            <div className="mb-2 text-xs font-medium uppercase tracking-wider text-amber-900">
-                              Awaiting issuer disbursement
-                            </div>
-                            <p className="text-xs text-amber-900/80">
-                              Funding has closed. The net amount below must be paid out to the issuer via
-                              the trustee before servicing begins. Once the disbursement is marked complete, the
-                              note will move to ACTIVE and repayment receipts can be recorded.
-                            </p>
-                            <IssuerPayoutCard
-                              note={note}
-                              withdrawal={disbursementWithdrawal}
-                              kind="DISBURSEMENT"
-                              servicingBlockedReason={null}
-                              canManage={canDisbursement}
-                            />
-                          </div>
-                        ) : (
+                <div className="min-w-0 space-y-4">
+                  <div className="w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-xl bg-muted p-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/30">
+                    <div className="flex h-10 w-full min-w-max items-center justify-between gap-4 px-0.5 text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setActiveNoteTab("disbursement")}
+                          className={
+                            activeNoteTab === "disbursement"
+                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
+                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                          }
+                        >
+                          <span
+                            aria-hidden
+                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[disbursementTabStatus].dotClass}`}
+                          />
+                          <span className="truncate">Disbursement</span>
+                          <span className="sr-only">
+                            Status: {TAB_STATUS_BADGE_COPY[disbursementTabStatus].label}
+                          </span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setActiveNoteTab("servicing-settlement")}
+                          className={
+                            activeNoteTab === "servicing-settlement"
+                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
+                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                          }
+                        >
+                          <span
+                            aria-hidden
+                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].dotClass}`}
+                          />
+                          <span className="truncate">Servicing &amp; Settlement</span>
+                          <span className="sr-only">
+                            Status: {TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].label}
+                          </span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setActiveNoteTab("late-payment")}
+                          className={
+                            activeNoteTab === "late-payment"
+                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
+                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                          }
+                        >
+                          <span
+                            aria-hidden
+                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${
+                              latePaymentTimeline
+                                ? LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].dotClass
+                                : TAB_STATUS_BADGE_COPY["not-started"].dotClass
+                            }`}
+                          />
+                          <span className="truncate">Late Payment</span>
+                          <span className="sr-only">
+                            Status:{" "}
+                            {latePaymentTimeline
+                              ? LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].label
+                              : "Not available"}
+                          </span>
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span
+                          className="shrink-0 select-none px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70"
+                          aria-hidden
+                        >
+                          Reference
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setActiveNoteTab("ledger")}
+                          className={
+                            activeNoteTab === "ledger"
+                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
+                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                          }
+                        >
+                          <span className="truncate">Ledger</span>
+                          <span className="sr-only">Read-only reference</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setActiveNoteTab("investors")}
+                          className={
+                            activeNoteTab === "investors"
+                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
+                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
+                          }
+                        >
+                          <span className="truncate">Investors</span>
+                          <span className="sr-only">Read-only reference</span>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={activeNoteTab === "disbursement" ? "space-y-6" : "hidden space-y-6"}>
+                    <Card className="rounded-2xl">
+                      <NoteWorkflowTabHeader
+                        asCardHeader
+                        title="Disbursement"
+                        description="Manage Tawarruq execution, trustee submission, and issuer payout before servicing begins."
+                      />
+                      <CardContent className="space-y-6 pt-0">
+                        {disbursementWithdrawal && disbursementWithdrawal.status !== "CANCELLED" ? (
                           <IssuerPayoutCard
                             note={note}
                             withdrawal={disbursementWithdrawal}
@@ -491,20 +528,102 @@ export default function NoteDetailPage() {
                             servicingBlockedReason={null}
                             canManage={canDisbursement}
                           />
-                        )
-                      ) : null}
-                    </CardContent>
-                  </Card>
-                  <SettlementPanel note={note} />
-                  <LedgerPanel note={note} />
+                        ) : (
+                          <div className="rounded-xl border border-dashed bg-muted/20 p-4">
+                            <p className="text-sm font-medium">Disbursement not started</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Close funding on this note to create the issuer disbursement workflow.
+                              Check the lifecycle card above for the next funding action.
+                            </p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div
+                    className={
+                      activeNoteTab === "servicing-settlement" || activeNoteTab === "late-payment"
+                        ? "space-y-6"
+                        : "hidden space-y-6"
+                    }
+                  >
+                    <SettlementPanel
+                      note={note}
+                      section={activeNoteTab === "late-payment" ? "late-payment" : "settlement"}
+                    />
+                  </div>
+
+                  <div className={activeNoteTab === "ledger" ? "space-y-6" : "hidden space-y-6"}>
+                    <NoteWorkflowTabHeader
+                      title="Ledger"
+                      description="Read-only accounting ledger for this note. Export is available from the panel below."
+                    />
+                    <LedgerPanel note={note} />
+                  </div>
+
+                  <div className={activeNoteTab === "investors" ? "space-y-6" : "hidden space-y-6"}>
+                    <NoteWorkflowTabHeader
+                      title="Investors"
+                      description="Read-only investor allocations and commitment history for this note."
+                    />
+                    <NoteInvestorsPanel note={note} />
+                  </div>
+
                 </div>
                 <div className="min-w-0 space-y-6">
                   <SourceApplicationPanel note={note} />
+                  <Card className="rounded-2xl">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Workflow Status</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <span>Disbursement</span>
+                        <Badge
+                          variant="outline"
+                          className={`inline-flex items-center gap-1 ${TAB_STATUS_BADGE_COPY[disbursementTabStatus].badgeClass}`}
+                        >
+                          <span
+                            aria-hidden
+                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[disbursementTabStatus].dotClass}`}
+                          />
+                          {TAB_STATUS_BADGE_COPY[disbursementTabStatus].label}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span>Servicing &amp; Settlement</span>
+                        <Badge
+                          variant="outline"
+                          className={`inline-flex items-center gap-1 ${TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].badgeClass}`}
+                        >
+                          <span
+                            aria-hidden
+                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].dotClass}`}
+                          />
+                          {TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].label}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span>Late Payment</span>
+                        {latePaymentTimeline ? (
+                          <Badge
+                            variant="outline"
+                            className={`inline-flex items-center gap-1 ${LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].className}`}
+                          >
+                            <span
+                              aria-hidden
+                              className={`inline-block h-2 w-2 shrink-0 rounded-full ${LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].dotClass}`}
+                            />
+                            {LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].label}
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </CardContent>
+                  </Card>
                   <NoteTimelinePanel note={note} />
                 </div>
               </div>
-
-              <NoteInvestorsPanel note={note} />
             </div>
           ) : null}
         </div>
