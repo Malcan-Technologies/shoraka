@@ -1120,3 +1120,4 @@ export interface OverdueLateChargeResult {
 
 export * from "./note-expected-return";
 export * from "./note-money";
+export * from "./note-settlement-trustee";

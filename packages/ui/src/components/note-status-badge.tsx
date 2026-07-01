@@ -1,6 +1,10 @@
 import * as React from "react";
 import type { NoteDetail, NoteListItem } from "@cashsouk/types";
 import {
+  isSettlementWrappingUpFromSettlements,
+  isSettlementWrappingUpFromSummary,
+} from "@cashsouk/types";
+import {
   ArchiveBoxIcon,
   BanknotesIcon,
   CheckBadgeIcon,
@@ -48,7 +52,7 @@ export interface DerivedNoteStatus {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-/** Issuer sees residual-refund workflow; investor treats that state as settled. */
+/** Issuer sees operational settlement wrap-up; investor sees simplified labels. */
 export type NoteStatusViewer = "issuer" | "investor";
 
 export interface NoteStatusInput {
@@ -58,9 +62,20 @@ export interface NoteStatusInput {
   servicingStatus: string;
   fundingPercent: number;
   minimumFundingPercent: number;
-  hasPostedSettlement: boolean;
-  pendingResidual: boolean;
+  settlementTrusteePending: boolean;
   pendingDisbursement: boolean;
+}
+
+const COMPLETING_SETTLEMENT_LABEL = "Completing settlement";
+const INVESTOR_SETTLEMENT_PROCESSING_LABEL = "Settlement processing";
+
+function completingSettlementStatus(): DerivedNoteStatus {
+  return {
+    label: COMPLETING_SETTLEMENT_LABEL,
+    detail: "Settlement trustee instruction in progress",
+    tone: "progress",
+    icon: TruckIcon,
+  };
 }
 
 export function deriveNoteStatus(input: NoteStatusInput): DerivedNoteStatus {
@@ -70,40 +85,19 @@ export function deriveNoteStatus(input: NoteStatusInput): DerivedNoteStatus {
   if (input.status === "FAILED_FUNDING" || input.fundingStatus === "FAILED") {
     return { label: "Funding failed", tone: "destructive", icon: XCircleIcon };
   }
-  if (input.hasPostedSettlement && input.pendingResidual) {
-    return {
-      label: "Awaiting residual refund",
-      detail: "Settlement posted",
-      tone: "warning",
-      icon: TruckIcon,
-    };
-  }
   if (input.status === "DEFAULTED" || input.servicingStatus === "DEFAULTED") {
     return { label: "Defaulted", tone: "destructive", icon: XCircleIcon };
   }
+  if (input.settlementTrusteePending) {
+    return completingSettlementStatus();
+  }
   if (input.status === "REPAID" || input.servicingStatus === "SETTLED") {
-    if (input.pendingResidual) {
-      return {
-        label: "Awaiting residual refund",
-        detail: "Settlement posted",
-        tone: "warning",
-        icon: TruckIcon,
-      };
-    }
     return { label: "Settled", tone: "success", icon: CheckBadgeIcon };
   }
   if (input.status === "ARREARS" || input.servicingStatus === "ARREARS") {
     return { label: "Arrears", tone: "warning", icon: ExclamationTriangleIcon };
   }
   if (input.status === "ACTIVE") {
-    if (input.hasPostedSettlement && input.pendingResidual) {
-      return {
-        label: "Awaiting residual refund",
-        detail: "Settlement posted",
-        tone: "warning",
-        icon: TruckIcon,
-      };
-    }
     if (input.servicingStatus === "LATE") {
       return { label: "Active · late", tone: "warning", icon: ExclamationTriangleIcon };
     }
@@ -143,14 +137,16 @@ export function deriveNoteStatus(input: NoteStatusInput): DerivedNoteStatus {
   return { label: input.status, tone: "neutral", icon: ArchiveBoxIcon };
 }
 
-const AWAITING_RESIDUAL_REFUND_LABEL = "Awaiting residual refund";
-
 export function presentNoteStatusForViewer(
   derived: DerivedNoteStatus,
   viewer: NoteStatusViewer
 ): DerivedNoteStatus {
-  if (viewer === "investor" && derived.label === AWAITING_RESIDUAL_REFUND_LABEL) {
-    return { label: "Settled", tone: "success", icon: CheckBadgeIcon };
+  if (viewer === "investor" && derived.label === COMPLETING_SETTLEMENT_LABEL) {
+    return {
+      label: INVESTOR_SETTLEMENT_PROCESSING_LABEL,
+      tone: "progress",
+      icon: ClockIcon,
+    };
   }
   return derived;
 }
@@ -169,12 +165,8 @@ function buildInput(note: NoteDetail | NoteListItem): NoteStatusInput {
     minimumFundingPercent: note.minimumFundingPercent,
   };
   if (isNoteDetail(note)) {
-    const hasPostedSettlement = note.settlements.some((s) => s.status === "POSTED");
-    const pendingResidual = (note.withdrawals ?? []).some(
-      (w) =>
-        w.withdrawalType === "ISSUER_RESIDUAL_RETURN" &&
-        w.status !== "COMPLETED" &&
-        w.status !== "CANCELLED"
+    const settlementTrusteePending = isSettlementWrappingUpFromSettlements(
+      note.settlements ?? []
     );
     const pendingDisbursement = (note.withdrawals ?? []).some(
       (w) =>
@@ -182,21 +174,15 @@ function buildInput(note: NoteDetail | NoteListItem): NoteStatusInput {
         w.status !== "COMPLETED" &&
         w.status !== "CANCELLED"
     );
-    return { ...base, hasPostedSettlement, pendingResidual, pendingDisbursement };
+    return { ...base, settlementTrusteePending, pendingDisbursement };
   }
 
-  const hasPostedSettlement = note.settlementSummary != null;
-  const residualInFlight =
-    "issuerResidualPayout" in note &&
-    note.issuerResidualPayout != null &&
-    (note.issuerResidualPayout.kind === "pending" || note.issuerResidualPayout.kind === "awaiting");
-  const pendingResidual =
-    residualInFlight ||
-    (hasPostedSettlement &&
-      (note.status === "ACTIVE" || note.status === "ARREARS" || note.status === "DEFAULTED"));
+  const settlementTrusteePending = isSettlementWrappingUpFromSummary(
+    note.settlementSummary
+  );
   const pendingDisbursement = note.status === "FUNDING";
 
-  return { ...base, hasPostedSettlement, pendingResidual, pendingDisbursement };
+  return { ...base, settlementTrusteePending, pendingDisbursement };
 }
 
 /** True when the note matches the fully settled NoteStatusBadge label ("Settled"). */

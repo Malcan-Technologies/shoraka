@@ -1,18 +1,23 @@
 import type { NoteDetail } from "@cashsouk/types";
+import {
+  areAllPostedSettlementTrusteeInstructionsComplete,
+  hasSettlementTrusteeMovementFromSettlement,
+  isSettlementWrappingUpFromSettlements,
+} from "@cashsouk/types";
+
+export {
+  areAllPostedSettlementTrusteeInstructionsComplete,
+  hasSettlementTrusteeMovementFromPoolSummary,
+  hasSettlementTrusteeMovementFromSettlement,
+  isSettlementSummaryTrusteeInstructionComplete,
+  isSettlementWrappingUpFromSettlements,
+  isSettlementWrappingUpFromSummary,
+} from "@cashsouk/types";
 
 export function hasSettlementTrusteeMovement(
   settlement: NoteDetail["settlements"][number]
 ): boolean {
-  return (
-    settlement.investorPrincipal +
-      settlement.investorProfitNet +
-      settlement.tawidhInvestorAmount >
-      0.005 ||
-    settlement.serviceFeeAmount > 0.005 ||
-    settlement.tawidhAccountAmount > 0.005 ||
-    settlement.gharamahAmount > 0.005 ||
-    settlement.issuerResidualAmount > 0.005
-  );
+  return hasSettlementTrusteeMovementFromSettlement(settlement);
 }
 
 export function postedSettlementsNeedingTrusteeInstruction(note: NoteDetail) {
@@ -23,13 +28,7 @@ export function postedSettlementsNeedingTrusteeInstruction(note: NoteDetail) {
 }
 
 export function isSettlementTrusteeInstructionComplete(note: NoteDetail): boolean {
-  const postedNeedingTrustee = postedSettlementsNeedingTrusteeInstruction(note);
-  if (postedNeedingTrustee.length === 0) {
-    return true;
-  }
-  return postedNeedingTrustee.every(
-    (settlement) => settlement.serviceFeeTrusteeStatus === "COMPLETED"
-  );
+  return areAllPostedSettlementTrusteeInstructionsComplete(note.settlements);
 }
 
 export function isNoteLifecycleVisuallyComplete(note: NoteDetail): boolean {
@@ -40,8 +39,5 @@ export function isNoteLifecycleVisuallyComplete(note: NoteDetail): boolean {
 }
 
 export function isSettlementWrappingUp(note: NoteDetail): boolean {
-  const hasPostedSettlement = note.settlements.some(
-    (settlement) => settlement.status === "POSTED"
-  );
-  return hasPostedSettlement && !isSettlementTrusteeInstructionComplete(note);
+  return isSettlementWrappingUpFromSettlements(note.settlements);
 }
