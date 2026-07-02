@@ -2,45 +2,130 @@
 /**
  * Dev-only seed: create approved invoices that the Admin Notes UI can convert into notes.
  *
- * Eligibility rules:
- * - Admin "source invoices" endpoint only includes invoices where `Invoice.status = APPROVED`.
- * - Note creation from invoice hard-blocks unless `invoice.status === InvoiceStatus.APPROVED`.
+ * Default (fresh) mode — each run creates NEW approved invoices with unique references:
+ *   pnpm --filter @cashsouk/api seed-approved-invoices-for-notes
+ *   pnpm --filter @cashsouk/api seed-approved-invoices-for-notes -- --count 5
  *
- * This script creates:
- * - IssuerOrganization (+ owner User)
- * - Product (minimal workflow so product category parsing works)
- * - Contract (APPROVED)
- * - Application (COMPLETED)
- * - 2-3 Invoices (APPROVED) with positive amounts in `offer_details`/`details`
+ * Fixed (deterministic upsert) mode — stable IDs/references for repeatable local setup:
+ *   pnpm --filter @cashsouk/api seed-approved-invoices-for-notes -- --fixed
  *
- * It is idempotent via deterministic IDs and upsert.
+ * Eligibility (matches NoteService.createFromInvoice / listSourceInvoicesForNotes):
+ * - Invoice.status = APPROVED
+ * - Application.status = COMPLETED
+ * - No existing note.source_invoice_id for the invoice
+ * - Positive offered/applied financing in details + offer_details
  */
 
-import { Prisma, PrismaClient, ApplicationStatus, ContractStatus, InvoiceStatus, OrganizationType, UserRole } from "@prisma/client";
+import {
+  Prisma,
+  PrismaClient,
+  ApplicationStatus,
+  ContractStatus,
+  InvoiceStatus,
+  OrganizationType,
+  UserRole,
+} from "@prisma/client";
 import { generateUniqueUserId } from "../src/lib/user-id-generator";
+import {
+  resolveOfferedAmount,
+  resolveRequestedInvoiceAmount,
+} from "../src/lib/invoice-offer";
 
 const prisma = new PrismaClient();
 
+const SEED_PREFIX = "SEED-INV-NOTE";
 const SEED_ISSUER_ORG_ID = "seed_notes_issuer_org_a";
 const SEED_PRODUCT_ID = "seed_notes_product_invoice_financing";
 const SEED_CONTRACT_ID = "seed_notes_contract_a";
-
 const SEED_APP_INVOICE_ONLY_ID = "seed_notes_app_invoice_only_a";
 const SEED_APP_NEW_CONTRACT_ID = "seed_notes_app_new_contract_b";
-
 const SEED_OWNER_EMAIL = "seed_notes_issuer_owner@example.com";
 const SEED_OWNER_COGNITO_SUB = "seed_notes_issuer_owner_sub_abc";
 
-const SEED_INVOICE_1_ID = "seed_notes_invoice_fee_1_no_fee";
-const SEED_INVOICE_2_ID = "seed_notes_invoice_fee_2_platform_fee_only";
-const SEED_INVOICE_3_ID = "seed_notes_invoice_fee_3_facility_fee_only";
-const SEED_INVOICE_4_ID = "seed_notes_invoice_fee_4_platform_and_facility";
-const SEED_INVOICE_5_ID = "seed_notes_invoice_maturity_today";
+const FIXED_INVOICE_IDS = [
+  "seed_notes_invoice_fee_1_no_fee",
+  "seed_notes_invoice_fee_2_platform_fee_only",
+  "seed_notes_invoice_fee_3_facility_fee_only",
+  "seed_notes_invoice_fee_4_platform_and_facility",
+  "seed_notes_invoice_fee_5_maturity_today",
+] as const;
+
+type SeedInvoiceSpec = {
+  label: string;
+  invoiceNumber: string;
+  maturityDate: string;
+  appliedFinancing: number;
+  offeredAmount: number;
+  offeredProfitRatePercent: number;
+  platformFeeRatePercent: number;
+  applicationId: string;
+  contractId: string | null;
+  fixedId?: string;
+};
+
+type CreatedInvoiceRow = {
+  invoiceId: string;
+  invoiceNumber: string;
+  invoiceAmount: number;
+  offeredAmount: number;
+  maturityDate: string;
+  applicationId: string;
+  contractId: string | null;
+  issuerOrganizationId: string;
+  issuerName: string;
+  noteLinked: boolean;
+  eligible: boolean;
+  eligibilityIssues: string[];
+};
+
+function parseArgs() {
+  const args = process.argv.slice(2).filter((arg) => arg !== "--");
+  let fixed = false;
+  let count = 3;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--fixed") {
+      fixed = true;
+      continue;
+    }
+    if (arg === "--count") {
+      const next = args[i + 1];
+      if (!next || next.startsWith("-")) {
+        throw new Error("--count requires a positive integer, e.g. --count 5");
+      }
+      count = Number.parseInt(next, 10);
+      i++;
+      continue;
+    }
+    if (arg.startsWith("--count=")) {
+      count = Number.parseInt(arg.slice("--count=".length), 10);
+      continue;
+    }
+    throw new Error(`Unknown argument: ${arg}`);
+  }
+
+  if (!Number.isFinite(count) || count < 1) {
+    throw new Error("--count must be a positive integer");
+  }
+
+  return { fixed, count: Math.min(Math.max(count, 1), 20) };
+}
+
+function makeRunId() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  const ss = String(now.getSeconds()).padStart(2, "0");
+  return `${y}${m}${d}-${hh}${mm}${ss}`;
+}
 
 function maturityDateStr(offsetDays: number) {
   const d = new Date();
   d.setDate(d.getDate() + offsetDays);
-  // Note conversion expects YYYY-MM-DD string (it parses as date).
   return d.toISOString().slice(0, 10);
 }
 
@@ -54,30 +139,39 @@ function maturityDateTodayLocalStr() {
 
 function buildInvoiceDetails(args: { number: string; appliedFinancing: number; maturityDate: string }) {
   const { number, appliedFinancing, maturityDate } = args;
-  // NoteService uses `details.applied_financing` (first) and `details.maturity_date` (string) for maturity.
   return {
     number,
     applied_financing: appliedFinancing,
     maturity_date: maturityDate,
     due_date: maturityDate,
-    // Extra fields are harmless but help with any other UI that expects common names.
     value: appliedFinancing,
     financing_ratio_percent: 80,
     invoice_value: appliedFinancing,
   } satisfies Record<string, unknown>;
 }
 
-function buildInvoiceOfferDetails(args: { offeredAmount: number; offeredProfitRatePercent: number; platformFeeRatePercent: number }) {
+function buildInvoiceOfferDetails(args: {
+  offeredAmount: number;
+  offeredProfitRatePercent: number;
+  platformFeeRatePercent: number;
+}) {
   const { offeredAmount, offeredProfitRatePercent, platformFeeRatePercent } = args;
-  // NoteService uses:
-  // - offer_details.offered_amount
-  // - offer_details.offered_profit_rate_percent
-  // - offer_details.platform_fee_rate_percent
   return {
     offered_amount: offeredAmount,
     offered_profit_rate_percent: offeredProfitRatePercent,
     platform_fee_rate_percent: platformFeeRatePercent,
+    risk_rating: "BBB",
   } satisfies Record<string, unknown>;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function formatRm(amount: number) {
+  return `RM ${amount.toLocaleString("en-MY", { maximumFractionDigits: 0 })}`;
 }
 
 async function ensureOwnerUser() {
@@ -108,18 +202,7 @@ async function ensureOwnerUser() {
   return user.user_id;
 }
 
-async function main() {
-  // If notes already exist for these invoices, we don't re-seed them (so the UI stays consistent).
-  const seededInvoiceIds = [SEED_INVOICE_1_ID, SEED_INVOICE_2_ID, SEED_INVOICE_3_ID, SEED_INVOICE_4_ID, SEED_INVOICE_5_ID];
-  const existingNotes = await prisma.note.findMany({
-    where: { source_invoice_id: { in: seededInvoiceIds } },
-    select: { source_invoice_id: true },
-  });
-  const noteSourceInvoiceIds = new Set(existingNotes.map((n) => n.source_invoice_id).filter(Boolean) as string[]);
-
-  const ownerUserId = await ensureOwnerUser();
-
-  // Product: minimal workflow with `financing_type_*` config so note creation can infer product category.
+async function ensureSharedSeedInfrastructure(ownerUserId: string) {
   await prisma.product.upsert({
     where: { id: SEED_PRODUCT_ID },
     update: {
@@ -188,21 +271,19 @@ async function main() {
     },
   });
 
+  return { issuerOrgId: SEED_ISSUER_ORG_ID, issuerOrgName };
+}
+
+async function ensureFixedContractAndApplications() {
   await prisma.contract.upsert({
     where: { id: SEED_CONTRACT_ID },
     update: {
       issuer_organization_id: SEED_ISSUER_ORG_ID,
       status: ContractStatus.APPROVED,
       contract_details: {
-        // Used by computeProgressiveFacilityFee() during note close funding:
-        // - approved_facility => facility cap
-        // - facility_fee_rate_percent => fee rate
-        // - facility_fee_paid_amount => amount already charged (seed starts at 0)
         approved_facility: 100_000,
-        facility_fee_rate_percent: 1.5, // 1.5% => when funded_amount=100_000, facility_fee_charged=1_500
+        facility_fee_rate_percent: 1.5,
         facility_fee_paid_amount: 0,
-
-        // Extra fields used as fallbacks in some UI/resolvers.
         financing: 10_000,
         value: 10_000,
       },
@@ -296,11 +377,68 @@ async function main() {
       review_and_submit: Prisma.JsonNull,
     },
   });
+}
 
-  const invoicesToSeed = [
+function buildFreshInvoiceSpecs(runId: string, count: number): SeedInvoiceSpec[] {
+  const specs: SeedInvoiceSpec[] = [
     {
-      // Case 1: No fee / zero fee (platform=0, facility=0 because contract_id is null)
-      id: SEED_INVOICE_1_ID,
+      label: "normal",
+      invoiceNumber: `${SEED_PREFIX}-${runId}-001`,
+      maturityDate: maturityDateStr(120),
+      appliedFinancing: 80_000,
+      offeredAmount: 80_000,
+      offeredProfitRatePercent: 8,
+      platformFeeRatePercent: 0,
+      applicationId: "",
+      contractId: null,
+    },
+    {
+      label: "larger amount",
+      invoiceNumber: `${SEED_PREFIX}-${runId}-002`,
+      maturityDate: maturityDateStr(150),
+      appliedFinancing: 150_000,
+      offeredAmount: 150_000,
+      offeredProfitRatePercent: 8,
+      platformFeeRatePercent: 1,
+      applicationId: "",
+      contractId: null,
+    },
+    {
+      label: "later maturity",
+      invoiceNumber: `${SEED_PREFIX}-${runId}-003`,
+      maturityDate: maturityDateStr(270),
+      appliedFinancing: 100_000,
+      offeredAmount: 100_000,
+      offeredProfitRatePercent: 8,
+      platformFeeRatePercent: 0,
+      applicationId: "",
+      contractId: null,
+    },
+  ];
+
+  for (let i = specs.length; i < count; i++) {
+    const seq = String(i + 1).padStart(3, "0");
+    specs.push({
+      label: `extra ${i + 1}`,
+      invoiceNumber: `${SEED_PREFIX}-${runId}-${seq}`,
+      maturityDate: maturityDateStr(90 + i * 30),
+      appliedFinancing: 60_000 + i * 10_000,
+      offeredAmount: 60_000 + i * 10_000,
+      offeredProfitRatePercent: 8,
+      platformFeeRatePercent: i % 2,
+      applicationId: "",
+      contractId: null,
+    });
+  }
+
+  return specs.slice(0, count);
+}
+
+function buildFixedInvoiceSpecs(): SeedInvoiceSpec[] {
+  return [
+    {
+      label: "no fee",
+      fixedId: FIXED_INVOICE_IDS[0],
       applicationId: SEED_APP_INVOICE_ONLY_ID,
       contractId: null,
       invoiceNumber: "INV-SEED-NOTES-001",
@@ -311,8 +449,8 @@ async function main() {
       platformFeeRatePercent: 0,
     },
     {
-      // Case 2: Platform Fee only (platform fee computed from note.platform_fee_rate_percent)
-      id: SEED_INVOICE_2_ID,
+      label: "platform fee only",
+      fixedId: FIXED_INVOICE_IDS[1],
       applicationId: SEED_APP_INVOICE_ONLY_ID,
       contractId: null,
       invoiceNumber: "INV-SEED-NOTES-002",
@@ -320,11 +458,11 @@ async function main() {
       appliedFinancing: 100_000,
       offeredAmount: 100_000,
       offeredProfitRatePercent: 8,
-      platformFeeRatePercent: 1, // platformFeeAmount ~= 100_000 * 1% = 1_000
+      platformFeeRatePercent: 1,
     },
     {
-      // Case 3: Facility Fee only (facility fee computed from contract.contract_details facility_fee_rate_percent)
-      id: SEED_INVOICE_3_ID,
+      label: "facility fee only",
+      fixedId: FIXED_INVOICE_IDS[2],
       applicationId: SEED_APP_NEW_CONTRACT_ID,
       contractId: SEED_CONTRACT_ID,
       invoiceNumber: "INV-SEED-NOTES-003",
@@ -335,8 +473,8 @@ async function main() {
       platformFeeRatePercent: 0,
     },
     {
-      // Case 4: Platform Fee + Facility Fee
-      id: SEED_INVOICE_4_ID,
+      label: "platform + facility fee",
+      fixedId: FIXED_INVOICE_IDS[3],
       applicationId: SEED_APP_NEW_CONTRACT_ID,
       contractId: SEED_CONTRACT_ID,
       invoiceNumber: "INV-SEED-NOTES-004",
@@ -344,11 +482,11 @@ async function main() {
       appliedFinancing: 100_000,
       offeredAmount: 100_000,
       offeredProfitRatePercent: 8,
-      platformFeeRatePercent: 1, // platformFeeAmount ~= 1_000
+      platformFeeRatePercent: 1,
     },
     {
-      // Approved Invoice - Maturity Today
-      id: SEED_INVOICE_5_ID,
+      label: "maturity today",
+      fixedId: FIXED_INVOICE_IDS[4],
       applicationId: SEED_APP_INVOICE_ONLY_ID,
       contractId: null,
       invoiceNumber: "INV-SEED-NOTES-005",
@@ -356,53 +494,280 @@ async function main() {
       appliedFinancing: 100_000,
       offeredAmount: 100_000,
       offeredProfitRatePercent: 8,
-      // Explicitly zero so trustee-letter fee rows are not shown for this case.
       platformFeeRatePercent: 0,
     },
   ];
+}
 
-  let createdCount = 0;
-  let skippedCount = 0;
+async function createInvoiceFromSpec(spec: SeedInvoiceSpec) {
+  const details = buildInvoiceDetails({
+    number: spec.invoiceNumber,
+    appliedFinancing: spec.appliedFinancing,
+    maturityDate: spec.maturityDate,
+  });
+  const offerDetails = buildInvoiceOfferDetails({
+    offeredAmount: spec.offeredAmount,
+    offeredProfitRatePercent: spec.offeredProfitRatePercent,
+    platformFeeRatePercent: spec.platformFeeRatePercent,
+  });
 
-  for (const inv of invoicesToSeed) {
-    if (noteSourceInvoiceIds.has(inv.id)) {
-      skippedCount++;
-      continue;
-    }
-
-    await prisma.invoice.upsert({
-      where: { id: inv.id },
+  if (spec.fixedId) {
+    return prisma.invoice.upsert({
+      where: { id: spec.fixedId },
       update: {
-        application_id: inv.applicationId,
-        contract_id: inv.contractId,
+        application_id: spec.applicationId,
+        contract_id: spec.contractId,
         status: InvoiceStatus.APPROVED,
-        details: buildInvoiceDetails({ number: inv.invoiceNumber, appliedFinancing: inv.appliedFinancing, maturityDate: inv.maturityDate }) as Prisma.InputJsonValue,
-        offer_details: buildInvoiceOfferDetails({
-          offeredAmount: inv.offeredAmount,
-          offeredProfitRatePercent: inv.offeredProfitRatePercent,
-          platformFeeRatePercent: inv.platformFeeRatePercent,
-        }) as Prisma.InputJsonValue,
+        details: details as Prisma.InputJsonValue,
+        offer_details: offerDetails as Prisma.InputJsonValue,
       },
       create: {
-        id: inv.id,
-        application_id: inv.applicationId,
-        contract_id: inv.contractId,
+        id: spec.fixedId,
+        application_id: spec.applicationId,
+        contract_id: spec.contractId,
         status: InvoiceStatus.APPROVED,
-        details: buildInvoiceDetails({ number: inv.invoiceNumber, appliedFinancing: inv.appliedFinancing, maturityDate: inv.maturityDate }) as Prisma.InputJsonValue,
-        offer_details: buildInvoiceOfferDetails({
-          offeredAmount: inv.offeredAmount,
-          offeredProfitRatePercent: inv.offeredProfitRatePercent,
-          platformFeeRatePercent: inv.platformFeeRatePercent,
-        }) as Prisma.InputJsonValue,
+        details: details as Prisma.InputJsonValue,
+        offer_details: offerDetails as Prisma.InputJsonValue,
       },
     });
-
-    createdCount++;
   }
 
-  console.log("✅ Seeded approved invoices for note creation");
-  console.log(`   Invoices seeded: ${createdCount}`);
-  console.log(`   Invoices skipped (notes already exist): ${skippedCount}`);
+  return prisma.invoice.create({
+    data: {
+      application_id: spec.applicationId,
+      contract_id: spec.contractId,
+      status: InvoiceStatus.APPROVED,
+      details: details as Prisma.InputJsonValue,
+      offer_details: offerDetails as Prisma.InputJsonValue,
+    },
+  });
+}
+
+async function createFreshApplication(runId: string) {
+  const applicationFinancingType = {
+    product_id: SEED_PRODUCT_ID,
+    product_name: "Account Receivable Financing",
+    category: "invoice_financing",
+  } satisfies Record<string, unknown>;
+
+  return prisma.application.create({
+    data: {
+      issuer_organization_id: SEED_ISSUER_ORG_ID,
+      product_version: 1,
+      status: ApplicationStatus.COMPLETED,
+      last_completed_step: 9,
+      submitted_at: new Date(),
+      financing_type: applicationFinancingType as Prisma.InputJsonValue,
+      financing_structure: {
+        structure_type: "invoice_only",
+        existing_contract_id: null,
+        seed_run_id: runId,
+      } as Prisma.InputJsonValue,
+      contract_id: null,
+      company_details: Prisma.JsonNull,
+      business_details: Prisma.JsonNull,
+      financial_statements: Prisma.JsonNull,
+      supporting_documents: Prisma.JsonNull,
+      declarations: Prisma.JsonNull,
+      review_and_submit: Prisma.JsonNull,
+    },
+    select: { id: true },
+  });
+}
+
+async function verifyInvoices(invoiceIds: string[]): Promise<CreatedInvoiceRow[]> {
+  if (invoiceIds.length === 0) return [];
+
+  const invoices = await prisma.invoice.findMany({
+    where: { id: { in: invoiceIds } },
+    include: {
+      application: {
+        include: {
+          issuer_organization: true,
+          contract: true,
+        },
+      },
+      contract: true,
+    },
+  });
+
+  const notes = await prisma.note.findMany({
+    where: { source_invoice_id: { in: invoiceIds } },
+    select: { id: true, source_invoice_id: true, note_reference: true },
+  });
+  const notesByInvoiceId = new Map(
+    notes.map((note) => [note.source_invoice_id, note] as const)
+  );
+
+  const invoiceById = new Map(invoices.map((invoice) => [invoice.id, invoice]));
+
+  return invoiceIds.flatMap((invoiceId) => {
+    const invoice = invoiceById.get(invoiceId);
+    if (!invoice) return [];
+    const details = asRecord(invoice.details) ?? {};
+    const offer = asRecord(invoice.offer_details) ?? {};
+    const invoiceAmount = resolveRequestedInvoiceAmount(details);
+    const offeredAmount = resolveOfferedAmount(offer);
+    const linkedNote = notesByInvoiceId.get(invoice.id) ?? null;
+    const eligibilityIssues: string[] = [];
+
+    if (invoice.status !== InvoiceStatus.APPROVED) {
+      eligibilityIssues.push(`invoice status is ${invoice.status}, expected APPROVED`);
+    }
+    if (invoice.application.status !== ApplicationStatus.COMPLETED) {
+      eligibilityIssues.push(
+        `application status is ${invoice.application.status}, expected COMPLETED`
+      );
+    }
+    if (linkedNote) {
+      eligibilityIssues.push(`already linked to note ${linkedNote.note_reference ?? linkedNote.id}`);
+    }
+    if (invoiceAmount <= 0) {
+      eligibilityIssues.push("invoice amount could not be resolved from details");
+    }
+    if (offeredAmount <= 0) {
+      eligibilityIssues.push("offered amount missing in offer_details");
+    }
+    if (typeof details.maturity_date !== "string" || details.maturity_date.trim() === "") {
+      eligibilityIssues.push("maturity_date missing in invoice details");
+    }
+    if (!invoice.application.issuer_organization?.name) {
+      eligibilityIssues.push("issuer organization name missing");
+    }
+
+    return {
+      invoiceId: invoice.id,
+      invoiceNumber:
+        typeof details.number === "string" ? details.number : invoice.id.slice(-8),
+      invoiceAmount,
+      offeredAmount,
+      maturityDate:
+        typeof details.maturity_date === "string" ? details.maturity_date : "—",
+      applicationId: invoice.application_id,
+      contractId: invoice.contract_id ?? invoice.application.contract_id,
+      issuerOrganizationId: invoice.application.issuer_organization_id,
+      issuerName: invoice.application.issuer_organization.name ?? "—",
+      noteLinked: linkedNote != null,
+      eligible: eligibilityIssues.length === 0,
+      eligibilityIssues,
+    };
+  });
+}
+
+function printSummary(args: {
+  mode: "fresh" | "fixed";
+  runId?: string;
+  issuerOrgId: string;
+  issuerOrgName: string;
+  rows: CreatedInvoiceRow[];
+}) {
+  const { mode, runId, issuerOrgId, issuerOrgName, rows } = args;
+
+  console.log("");
+  console.log("Created approved invoices for note creation:");
+  console.log(`Mode: ${mode}${runId ? ` (run ${runId})` : ""}`);
+  console.log(`Issuer organization: ${issuerOrgName} (${issuerOrgId})`);
+  console.log("");
+
+  rows.forEach((row, index) => {
+    const statusLabel = row.eligible ? "eligible" : "NOT ELIGIBLE";
+    console.log(
+      `${index + 1}. ${row.invoiceNumber} — ${formatRm(row.offeredAmount)} — APPROVED — noteLinked=${row.noteLinked} — ${statusLabel}`
+    );
+    console.log(`   invoiceId: ${row.invoiceId}`);
+    console.log(`   applicationId: ${row.applicationId}`);
+    if (row.contractId) console.log(`   contractId: ${row.contractId}`);
+    console.log(`   maturityDate: ${row.maturityDate}`);
+    if (!row.eligible) {
+      for (const issue of row.eligibilityIssues) {
+        console.warn(`   ⚠ ${issue}`);
+      }
+    }
+  });
+
+  const searchKeyword = mode === "fresh" && runId ? `${SEED_PREFIX}-${runId}` : SEED_PREFIX;
+  console.log("");
+  console.log("Search in Admin → Notes → Create from invoice using:");
+  console.log(`  ${searchKeyword}`);
+  console.log("");
+  console.log(
+    `Summary: ${rows.length} invoice(s); ${rows.filter((r) => r.eligible).length} eligible; ${rows.filter((r) => r.noteLinked).length} already linked to notes`
+  );
+}
+
+async function seedFreshMode(count: number) {
+  const runId = makeRunId();
+  const ownerUserId = await ensureOwnerUser();
+  const { issuerOrgId, issuerOrgName } = await ensureSharedSeedInfrastructure(ownerUserId);
+  const application = await createFreshApplication(runId);
+
+  const specs = buildFreshInvoiceSpecs(runId, count).map((spec) => ({
+    ...spec,
+    applicationId: application.id,
+  }));
+
+  const createdIds: string[] = [];
+  for (const spec of specs) {
+    const invoice = await createInvoiceFromSpec(spec);
+    createdIds.push(invoice.id);
+  }
+
+  const rows = await verifyInvoices(createdIds);
+  printSummary({ mode: "fresh", runId, issuerOrgId, issuerOrgName, rows });
+
+  const ineligible = rows.filter((row) => !row.eligible);
+  if (ineligible.length > 0) {
+    console.warn(`⚠ ${ineligible.length} seeded invoice(s) failed eligibility checks.`);
+  } else {
+    console.log("✅ All seeded invoices passed eligibility checks.");
+  }
+
+  return { runId, createdIds, rows };
+}
+
+async function seedFixedMode() {
+  const ownerUserId = await ensureOwnerUser();
+  const { issuerOrgId, issuerOrgName } = await ensureSharedSeedInfrastructure(ownerUserId);
+  await ensureFixedContractAndApplications();
+
+  const specs = buildFixedInvoiceSpecs();
+  const createdIds: string[] = [];
+
+  for (const spec of specs) {
+    const invoice = await createInvoiceFromSpec(spec);
+    createdIds.push(invoice.id);
+  }
+
+  const rows = await verifyInvoices(createdIds);
+  printSummary({ mode: "fixed", issuerOrgId, issuerOrgName, rows });
+
+  const linked = rows.filter((row) => row.noteLinked);
+  if (linked.length > 0) {
+    console.warn(
+      `⚠ ${linked.length} fixed seed invoice(s) already have notes and will not appear as ready invoices in Admin.`
+    );
+    console.warn("   Run without --fixed to create fresh invoices, or use a different invoice.");
+  }
+
+  const ineligible = rows.filter((row) => !row.eligible);
+  if (ineligible.length > 0) {
+    console.warn(`⚠ ${ineligible.length} fixed seed invoice(s) failed eligibility checks.`);
+  } else if (linked.length === 0) {
+    console.log("✅ All fixed seed invoices passed eligibility checks.");
+  }
+
+  return { createdIds, rows };
+}
+
+async function main() {
+  const { fixed, count } = parseArgs();
+
+  if (fixed) {
+    await seedFixedMode();
+    return;
+  }
+
+  await seedFreshMode(count);
 }
 
 main()
@@ -413,4 +778,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
