@@ -13,13 +13,14 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
-import type { NoteDetail, WithdrawalInstruction } from "@cashsouk/types";
+import type { NoteDetail, ShorakaWithdrawalState, WithdrawalInstruction } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { resolveLatePaymentTimeline, LATE_PAYMENT_WORKFLOW_BADGE } from "@/notes/utils/late-payment-workflow";
+import { useShorakaWithdrawalState } from "@/notes/hooks/use-notes";
 import {
   areAllPostedSettlementTrusteeInstructionsComplete,
   isNoteLifecycleVisuallyComplete,
@@ -134,7 +135,10 @@ type FlowSubStep = {
   status: "done" | "current" | "pending";
 };
 
-function buildDisbursementSubSteps(withdrawal: WithdrawalInstruction | null): {
+function buildDisbursementSubSteps(
+  withdrawal: WithdrawalInstruction | null,
+  shorakaState: ShorakaWithdrawalState | null | undefined
+): {
   steps: FlowSubStep[];
   tone: WorkflowStatusTone;
 } {
@@ -152,15 +156,19 @@ function buildDisbursementSubSteps(withdrawal: WithdrawalInstruction | null): {
     };
   }
 
-  const hasCertificate = withdrawal.hasShorakaCertificate === true;
-  const completedThrough =
-    withdrawal.status === "COMPLETED"
-      ? 3
-      : withdrawal.status === "SUBMITTED_TO_TRUSTEE"
-        ? 2
-        : withdrawal.status === "LETTER_GENERATED" || hasCertificate
-          ? 1
-          : -1;
+  const tawarruqOrderComplete = shorakaState != null;
+  const hasCertificate = Boolean(
+    shorakaState?.tradeOrder.certificate_s3_key ?? (withdrawal.hasShorakaCertificate ? true : false)
+  );
+
+  let completedThrough = -1;
+  if (withdrawal.status === "COMPLETED") {
+    completedThrough = 3;
+  } else if (hasCertificate) {
+    completedThrough = 1;
+  } else if (tawarruqOrderComplete) {
+    completedThrough = 0;
+  }
 
   const steps = labels.map((label, idx) => ({
     id: ids[idx] ?? `STEP_${idx}`,
@@ -174,12 +182,19 @@ function buildDisbursementSubSteps(withdrawal: WithdrawalInstruction | null): {
   }));
 
   let tone: WorkflowStatusTone = withdrawalHeaderBadgeTone(withdrawal.status);
-  if (
-    withdrawal.status !== "COMPLETED" &&
-    withdrawal.status !== "SUBMITTED_TO_TRUSTEE" &&
-    !hasCertificate
-  ) {
-    tone = "active";
+  if (withdrawal.status !== "COMPLETED") {
+    if (!tawarruqOrderComplete) {
+      tone = "active";
+    } else if (!hasCertificate) {
+      tone = "active";
+    } else if (
+      withdrawal.status === "LETTER_GENERATED" ||
+      withdrawal.status === "SUBMITTED_TO_TRUSTEE"
+    ) {
+      tone = withdrawalHeaderBadgeTone(withdrawal.status);
+    } else {
+      tone = "active";
+    }
   }
 
   return { steps, tone };
@@ -573,6 +588,9 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
   const latePaymentTimeline = React.useMemo(() => resolveLatePaymentTimeline(note), [note]);
   const disbursementWithdrawal = findIssuerDisbursementWithdrawal(note);
   const disbursementComplete = isDisbursementComplete(disbursementWithdrawal);
+  const shorakaStateQuery = useShorakaWithdrawalState(
+    disbursementWithdrawal && !disbursementComplete ? disbursementWithdrawal.id : null
+  );
   const settlementInProgress = isSettlementWrappingUp(note);
   const terminalFailure = getTerminalFailure(note, activeIndex);
   const defaultedWithSettlementTrusteeWork =
@@ -593,7 +611,7 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
   const settlementSubFlow = showSettlementStrip ? buildSettlementSubSteps(note) : null;
 
   const disbursementSubFlow = showDisbursementStrip
-    ? buildDisbursementSubSteps(disbursementWithdrawal)
+    ? buildDisbursementSubSteps(disbursementWithdrawal, shorakaStateQuery.data)
     : null;
 
   const showLatePaymentStrip =
