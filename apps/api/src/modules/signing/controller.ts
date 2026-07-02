@@ -1,0 +1,133 @@
+/**
+ * HTTP layer for signing envelopes.
+ *  - Admin router (createSigningAdminRouter): build / send / void / remind. Mounted under
+ *    the ADMIN-gated block.
+ *  - Authed router (createSigningRouter): reads + per-recipient "sign my part" for issuer
+ *    users. Mounted under requireAuth.
+ * Controllers only validate and orchestrate; all logic lives in the service.
+ */
+import { Request, Response, NextFunction, Router } from "express";
+import { requireAuth } from "../../lib/auth/middleware";
+import { AppError } from "../../lib/http/error-handler";
+import { signingService } from "./service";
+import {
+  createEnvelopeSchema,
+  voidEnvelopeSchema,
+  startSigningSchema,
+} from "./schemas";
+
+function getUserId(req: Request): string {
+  if (!req.user?.user_id) {
+    throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+  }
+  return req.user.user_id;
+}
+
+function ok(res: Response, data: unknown, status = 200): void {
+  res.status(status).json({
+    success: true,
+    data,
+    correlationId: res.locals.correlationId || "unknown",
+  });
+}
+
+async function createEnvelope(req: Request, res: Response, next: NextFunction) {
+  try {
+    const body = createEnvelopeSchema.parse(req.body);
+    const envelope = await signingService.createDraftEnvelope({
+      applicationId: body.applicationId,
+      title: body.title,
+      contractId: body.contractId ?? null,
+      invoiceId: body.invoiceId ?? null,
+      productVersion: body.productVersion ?? null,
+      templateConfig: body.templateConfig,
+      bindings: body.bindings,
+      createdByUserId: getUserId(req),
+      expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
+    });
+    ok(res, envelope, 201);
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function sendEnvelope(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(res, await signingService.sendEnvelope(req.params.id));
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function voidEnvelope(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { reason } = voidEnvelopeSchema.parse(req.body ?? {});
+    ok(res, await signingService.voidEnvelope(req.params.id, reason ?? null));
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function remindRecipient(req: Request, res: Response, next: NextFunction) {
+  try {
+    await signingService.remindRecipient(req.params.id, req.params.recipientId);
+    ok(res, { ok: true });
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function getEnvelope(req: Request, res: Response, next: NextFunction) {
+  try {
+    getUserId(req);
+    ok(res, await signingService.getEnvelope(req.params.id));
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function listEnvelopes(req: Request, res: Response, next: NextFunction) {
+  try {
+    getUserId(req);
+    ok(res, await signingService.listEnvelopesForApplication(req.params.applicationId));
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function startSigning(req: Request, res: Response, next: NextFunction) {
+  try {
+    getUserId(req);
+    const body = startSigningSchema.parse(req.body);
+    const result = await signingService.startRecipientSigning({
+      envelopeId: req.params.id,
+      recipientId: body.recipientId,
+      documentId: body.documentId,
+      redirectUrl: body.redirectUrl ?? null,
+    });
+    ok(res, result);
+  } catch (e) {
+    next(e);
+  }
+}
+
+/** Admin-only lifecycle routes (mount under an ADMIN-gated path). */
+export function createSigningAdminRouter(): Router {
+  const router = Router();
+  router.post("/envelopes", createEnvelope);
+  router.post("/envelopes/:id/send", sendEnvelope);
+  router.post("/envelopes/:id/void", voidEnvelope);
+  router.post("/envelopes/:id/recipients/:recipientId/remind", remindRecipient);
+  router.get("/envelopes/:id", getEnvelope);
+  router.get("/applications/:applicationId/envelopes", listEnvelopes);
+  return router;
+}
+
+/** Authenticated issuer routes: read envelope + sign my part. */
+export function createSigningRouter(): Router {
+  const router = Router();
+  router.get("/envelopes/:id", requireAuth, getEnvelope);
+  router.get("/applications/:applicationId/envelopes", requireAuth, listEnvelopes);
+  router.post("/envelopes/:id/start-signing", requireAuth, startSigning);
+  return router;
+}

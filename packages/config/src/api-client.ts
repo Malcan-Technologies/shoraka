@@ -1,6 +1,8 @@
 import type {
   ApiResponse,
   ApiError,
+  SigningEnvelopeDto,
+  RecipientBinding,
   GetUsersParams,
   UsersResponse,
   UserDetailResponse,
@@ -2128,6 +2130,84 @@ export class ApiClient {
     s3Key: string
   ): Promise<ApiResponse<{ downloadUrl: string; expiresIn: number }> | ApiError> {
     return this.post<{ downloadUrl: string; expiresIn: number }>(`/v1/s3/download-url`, { s3Key });
+  }
+
+  // --- Multi-party signing envelopes ---
+
+  /** Admin: build a draft envelope from a product signing template + bound recipients. */
+  async createSigningEnvelope(input: {
+    applicationId: string;
+    title: string;
+    contractId?: string | null;
+    invoiceId?: string | null;
+    productVersion?: number | null;
+    templateConfig: unknown;
+    bindings: RecipientBinding[];
+    expiresAt?: string | null;
+  }): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
+    return this.post<SigningEnvelopeDto>(`/v1/admin/signing/envelopes`, input);
+  }
+
+  /** Admin: send a draft envelope to all recipients. */
+  async sendSigningEnvelope(
+    envelopeId: string
+  ): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
+    return this.post<SigningEnvelopeDto>(`/v1/admin/signing/envelopes/${envelopeId}/send`, {});
+  }
+
+  /** Admin: void an envelope. */
+  async voidSigningEnvelope(
+    envelopeId: string,
+    reason?: string
+  ): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
+    return this.post<SigningEnvelopeDto>(`/v1/admin/signing/envelopes/${envelopeId}/void`, {
+      reason,
+    });
+  }
+
+  /** Admin: nudge a recipient who has not signed yet. */
+  async remindSigningRecipient(
+    envelopeId: string,
+    recipientId: string
+  ): Promise<ApiResponse<{ ok: boolean }> | ApiError> {
+    return this.post<{ ok: boolean }>(
+      `/v1/admin/signing/envelopes/${envelopeId}/recipients/${recipientId}/remind`,
+      {}
+    );
+  }
+
+  /** Admin: list all envelopes for an application. */
+  async getAdminSigningEnvelopes(
+    applicationId: string
+  ): Promise<ApiResponse<SigningEnvelopeDto[]> | ApiError> {
+    return this.get<SigningEnvelopeDto[]>(
+      `/v1/admin/signing/applications/${applicationId}/envelopes`
+    );
+  }
+
+  /** Issuer/admin: read a single envelope. */
+  async getSigningEnvelope(
+    envelopeId: string
+  ): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
+    return this.get<SigningEnvelopeDto>(`/v1/signing/envelopes/${envelopeId}`);
+  }
+
+  /** Issuer: list envelopes for an application they can access. */
+  async getSigningEnvelopes(
+    applicationId: string
+  ): Promise<ApiResponse<SigningEnvelopeDto[]> | ApiError> {
+    return this.get<SigningEnvelopeDto[]>(`/v1/signing/applications/${applicationId}/envelopes`);
+  }
+
+  /** Issuer: start signing one document as one recipient; returns the hosted signing URL. */
+  async startEnvelopeSigning(
+    envelopeId: string,
+    input: { recipientId: string; documentId: string; redirectUrl?: string }
+  ): Promise<ApiResponse<{ signingUrl: string }> | ApiError> {
+    return this.post<{ signingUrl: string }>(
+      `/v1/signing/envelopes/${envelopeId}/start-signing`,
+      input
+    );
   }
 
   async startContractOfferSigning(

@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import { applicationService } from "../applications/service";
+import { signingService } from "../signing/service";
 import { AppError } from "../../lib/http/error-handler";
 import { readSigningCloudConfigFromEnv } from "./signingcloud-api";
 import {
@@ -117,7 +118,13 @@ async function webhookHandler(req: Request, res: Response, next: NextFunction) {
       throw new AppError(400, "BAD_REQUEST", "contractnum is required");
     }
 
-    await applicationService.processSigningCloudCallback(contractnum);
+    // New relational envelope model first (per-document contract ref). Falls back to the
+    // legacy single-document contract/invoice offer flow when the ref is unknown there.
+    const envelopeResult = await signingService.applyProviderContractSigned(contractnum);
+    if (envelopeResult.skipped) {
+      await applicationService.processSigningCloudCallback(contractnum);
+    }
+
     res.status(200).json({
       success: true,
       data: { ok: true },

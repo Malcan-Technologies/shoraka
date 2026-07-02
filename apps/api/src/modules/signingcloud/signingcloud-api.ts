@@ -46,6 +46,89 @@ function buildSignsetJsonString(): string {
 }
 
 /**
+ * Signature rectangle for signer at `index`, stacked vertically so multiple signers
+ * on the same document do not overlap. Used by the multi-signer upload path until
+ * per-signer coordinates are configured per document.
+ */
+function defaultSignsetForSignerIndex(index: number): string {
+  const verticalGap = SIGNATURE_FIELD.height + 20;
+  return JSON.stringify([
+    {
+      ...SIGNATURE_FIELD,
+      top: SIGNATURE_FIELD.top - index * verticalGap,
+    },
+  ]);
+}
+
+export interface MultiSignerUploadSigner {
+  email: string;
+  /** Pre-serialized SigningCloud signset JSON string; falls back to a stacked default. */
+  signsetJson?: string;
+}
+
+/**
+ * Upload a PDF that requires multiple signers (SigningCloud `signerinfo` array).
+ * Mirrors uploadPdfToSigningCloud but supports 1..N signers, each with their own
+ * signature field. The single-signer helper is preserved for the existing offer flow.
+ */
+export async function uploadPdfToSigningCloudMultiSigner(params: {
+  cfg: SigningCloudEnvConfig;
+  accessToken: string;
+  pdfBuffer: Buffer;
+  contractName: string;
+  signers: MultiSignerUploadSigner[];
+}): Promise<{ contractnum: string; raw: Record<string, unknown> }> {
+  const { cfg, accessToken, pdfBuffer, contractName, signers } = params;
+  if (signers.length === 0) {
+    throw new Error("uploadPdfToSigningCloudMultiSigner requires at least one signer");
+  }
+  const uploadFileHash = crypto.createHash("sha256").update(pdfBuffer).digest("hex");
+
+  const rawPayload = {
+    contractInfo: {
+      contractnum: "",
+      contractname: contractName,
+      signernum: signers.length,
+      signerinfo: signers.map((s, index) => ({
+        email: s.email,
+        authtype: "0",
+        caprovide: "3",
+        signset: s.signsetJson ?? defaultSignsetForSignerIndex(index),
+      })),
+    },
+    uploadFileHash,
+    type: "pdf",
+  };
+
+  const { data, mac } = encryptPayload(JSON.stringify(rawPayload), cfg.apiSecret);
+
+  const formData = new FormData();
+  formData.append("accesstoken", accessToken);
+  formData.append("data", data);
+  formData.append("mac", mac);
+  formData.append("uploadFile", new Blob([pdfBuffer], { type: "application/pdf" }), "document.pdf");
+
+  const res = await fetch(`${cfg.baseUrl}/signserver/v1/contract/file2`, {
+    method: "POST",
+    body: formData,
+  });
+  const body = (await res.json()) as SigningCloudEncryptedResponse & Record<string, unknown>;
+  assertSigningCloudSuccess(body);
+  const decrypted = decryptSigningCloudResponse<Record<string, unknown>>(body, cfg.apiSecret);
+  const contractnum =
+    typeof decrypted.contractnum === "string"
+      ? decrypted.contractnum
+      : typeof (decrypted as { contractnumber?: string }).contractnumber === "string"
+        ? (decrypted as { contractnumber: string }).contractnumber
+        : "";
+  if (!contractnum) {
+    logger.error({ decrypted }, "SigningCloud multi-signer upload response missing contractnum");
+    throw new Error("SigningCloud upload did not return contractnum");
+  }
+  return { contractnum, raw: decrypted };
+}
+
+/**
  * SigningCloud returns "Invalid back URL" for many http URLs (e.g. localhost) in staging/production.
  * Default: only send `backUrl` when the URL is https. Set SIGNINGCLOUD_ALLOW_HTTP_BACK_URL=true to pass
  * http through if your tenant allows it.

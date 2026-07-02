@@ -172,15 +172,15 @@ model AdminRoleConfig {
 }
 
 model Admin {
-  id               String    @id @default(cuid())
-  user_id          String    @unique
+    id               String           @id @default(cuid())
+  user_id          String           @unique
   role_id          String?
   role_description String
-  status           String    @default("ACTIVE")
+  status           String           @default("ACTIVE")
   last_login       DateTime?
-  created_at       DateTime  @default(now())
-  updated_at       DateTime  @updatedAt
-  user             User      @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  created_at       DateTime         @default(now())
+  updated_at       DateTime         @updatedAt
+  user             User             @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
   role             AdminRoleConfig? @relation(fields: [role_id], references: [id], onDelete: SetNull)
 
   @@index([role_id])
@@ -464,6 +464,7 @@ model Application {
   invoices                            Invoice[]
   application_guarantors              ApplicationGuarantor[]
   gateway_payments                    GatewayPayment[]
+  signing_envelopes                   SigningEnvelope[]
 
   @@map("applications")
 }
@@ -604,34 +605,186 @@ model Contract {
   applications           Application[]
   issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
   invoices               Invoice[]
+  signing_envelopes      SigningEnvelope[]
 
   @@index([signing_sc_contractnum])
   @@map("contracts")
 }
 
 model Invoice {
-  id                     String          @id @default(cuid())
+  id                     String            @id @default(cuid())
   contract_id            String?
   application_id         String
   details                Json
   offer_details          Json?
-  created_at             DateTime        @default(now())
-  updated_at             DateTime        @updatedAt
-  status                 InvoiceStatus   @default(DRAFT)
+  created_at             DateTime          @default(now())
+  updated_at             DateTime          @updatedAt
+  status                 InvoiceStatus     @default(DRAFT)
   withdraw_reason        WithdrawReason?
   /// SigningCloud offer-letter workflow (pending/signed metadata; no unsigned PDF stored)
   offer_signing          Json?
   /// Archived signed offer versions superseded by admin re-sign
   offer_signing_history  Json?
   /// SigningCloud contract number for webhook lookup (unique when set)
-  signing_sc_contractnum String?         @unique
-  application            Application     @relation(fields: [application_id], references: [id], onDelete: Cascade)
-  contract               Contract?       @relation(fields: [contract_id], references: [id])
+  signing_sc_contractnum String?           @unique
+  application            Application       @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  contract               Contract?         @relation(fields: [contract_id], references: [id])
+  signing_envelopes      SigningEnvelope[]
 
   @@index([contract_id])
   @@index([application_id])
   @@index([signing_sc_contractnum])
   @@map("invoices")
+}
+
+/// A multi-document signing package for one application/offer. Replaces the single
+/// Contract.offer_signing JSON with a relational model that tracks many documents and
+/// many recipients (internal issuer directors + external KYC-verified parties).
+model SigningEnvelope {
+  id                 String                @id @default(cuid())
+  application_id     String
+  /// Optional links to the offer this envelope finalizes (one of contract/invoice).
+  contract_id        String?
+  invoice_id         String?
+  /// Product version the envelope template was built from (for auditability).
+  product_version    Int?
+  title              String
+  status             SigningEnvelopeStatus @default(DRAFT)
+  routing_mode       SigningRoutingMode    @default(PARALLEL)
+  /// Admin (or system) that created/sent the envelope. Scalar audit reference to users.user_id.
+  created_by_user_id String?               @db.VarChar(5)
+  sent_at            DateTime?
+  completed_at       DateTime?
+  voided_at          DateTime?
+  void_reason        String?
+  expires_at         DateTime?
+  provider           String                @default("signingcloud")
+  /// Provider-level references (e.g. batch id) when the provider groups documents.
+  provider_ref       Json?
+  metadata           Json?
+  created_at         DateTime              @default(now())
+  updated_at         DateTime              @updatedAt
+
+  application Application         @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  contract    Contract?           @relation(fields: [contract_id], references: [id], onDelete: SetNull)
+  invoice     Invoice?            @relation(fields: [invoice_id], references: [id], onDelete: SetNull)
+  documents   SigningDocument[]
+  recipients  SigningRecipient[]
+  assignments SigningAssignment[]
+
+  @@index([application_id])
+  @@index([contract_id])
+  @@index([invoice_id])
+  @@index([status])
+  @@map("signing_envelopes")
+}
+
+/// One agreement/document inside an envelope. Each may require signatures from a
+/// different subset of recipients (via SigningAssignment).
+model SigningDocument {
+  id                    String                @id @default(cuid())
+  envelope_id           String
+  name                  String
+  description           String?
+  source                SigningDocumentSource
+  order                 Int                   @default(0)
+  required              Boolean               @default(true)
+  unsigned_s3_key       String?
+  signed_s3_key         String?
+  signed_file_sha256    String?
+  /// Provider contract number for this document; used for webhook lookup (unique when set).
+  provider_contract_ref String?               @unique
+  status                SigningDocumentStatus @default(DRAFT)
+  /// Optional pointer to the product workflow template row this document came from.
+  template_ref          String?
+  metadata              Json?
+  created_at            DateTime              @default(now())
+  updated_at            DateTime              @updatedAt
+
+  envelope    SigningEnvelope     @relation(fields: [envelope_id], references: [id], onDelete: Cascade)
+  assignments SigningAssignment[]
+
+  @@index([envelope_id])
+  @@index([provider_contract_ref])
+  @@map("signing_documents")
+}
+
+/// A party (person) acting on an envelope. INTERNAL = issuer user with a platform
+/// account; EXTERNAL = emailed party (e.g. guarantor) with a no-auth token link.
+/// eKYC session state is tracked per-recipient so external parties can be verified
+/// without a User row.
+model SigningRecipient {
+  id                       String                 @id @default(cuid())
+  envelope_id              String
+  /// Template role key (e.g. "borrower_director", "guarantor", "platform").
+  role_key                 String
+  role_label               String
+  party_type               SigningPartyType
+  /// Scalar reference to users.user_id for INTERNAL recipients.
+  user_id                  String?                @db.VarChar(5)
+  /// Scalar reference to application_guarantors.id when pre-filled from a guarantor.
+  application_guarantor_id String?
+  name                     String
+  email                    String
+  ic_number                String?
+  routing_order            Int                    @default(0)
+  status                   SigningRecipientStatus @default(PENDING)
+  /// Signed token embedded in the no-auth link emailed to EXTERNAL recipients.
+  access_token             String?                @unique
+  access_token_expires_at  DateTime?
+  kyc_status               SigningKycStatus       @default(PENDING)
+  kyc_session_token        String?                @unique
+  kyc_sdk_endpoint         String?
+  kyc_confirmed_name       String?
+  kyc_confirmed_ic_number  String?
+  kyc_completed_at         DateTime?
+  kyc_last_error           String?
+  sent_at                  DateTime?
+  viewed_at                DateTime?
+  completed_at             DateTime?
+  declined_at              DateTime?
+  decline_reason           String?
+  last_reminder_at         DateTime?
+  metadata                 Json?
+  created_at               DateTime               @default(now())
+  updated_at               DateTime               @updatedAt
+
+  envelope    SigningEnvelope     @relation(fields: [envelope_id], references: [id], onDelete: Cascade)
+  assignments SigningAssignment[]
+
+  @@index([envelope_id])
+  @@index([user_id])
+  @@index([email])
+  @@index([status])
+  @@map("signing_recipients")
+}
+
+/// The document x recipient matrix: who must act on which document, with per-signer
+/// signature-field placement (signset) and independent status.
+model SigningAssignment {
+  id           String                  @id @default(cuid())
+  envelope_id  String
+  document_id  String
+  recipient_id String
+  required     Boolean                 @default(true)
+  action       SigningAction           @default(SIGN)
+  /// Per-signer signature field placement for this document (SigningCloud signset).
+  signset      Json?
+  status       SigningAssignmentStatus @default(PENDING)
+  signed_at    DateTime?
+  declined_at  DateTime?
+  created_at   DateTime                @default(now())
+  updated_at   DateTime                @updatedAt
+
+  envelope  SigningEnvelope  @relation(fields: [envelope_id], references: [id], onDelete: Cascade)
+  document  SigningDocument  @relation(fields: [document_id], references: [id], onDelete: Cascade)
+  recipient SigningRecipient @relation(fields: [recipient_id], references: [id], onDelete: Cascade)
+
+  @@unique([document_id, recipient_id])
+  @@index([envelope_id])
+  @@index([document_id])
+  @@index([recipient_id])
+  @@map("signing_assignments")
 }
 
 model Note {
@@ -957,29 +1110,29 @@ model NoteAdminAction {
 }
 
 model PlatformFinanceSetting {
-  id                            String   @id @default(cuid())
-  key                           String   @unique
-  grace_period_days             Int      @default(7)
-  arrears_threshold_days        Int      @default(14)
-  tawidh_rate_cap_percent       Decimal  @default(1) @db.Decimal(5, 2)
-  gharamah_rate_cap_percent     Decimal  @default(9) @db.Decimal(5, 2)
-  platform_fee_rate_cap_percent Decimal  @default(3) @db.Decimal(5, 2)
-  default_tawidh_rate_percent   Decimal  @default(0) @db.Decimal(5, 2)
-  default_gharamah_rate_percent Decimal  @default(0) @db.Decimal(5, 2)
-  withdrawal_letter_template    String   @default("DEFAULT_WITHDRAWAL_LETTER")
-  arrears_letter_template       String   @default("DEFAULT_ARREARS_LETTER")
-  default_letter_template            String   @default("DEFAULT_DEFAULT_LETTER")
-  issuer_onboarding_fee_amount       Decimal  @default(150) @db.Decimal(18, 6)
-  application_processing_fee_amount  Decimal  @default(50) @db.Decimal(18, 6)
-  investor_min_deposit_amount        Decimal  @default(100) @db.Decimal(18, 6)
-  investor_max_deposit_amount        Decimal  @default(30000) @db.Decimal(18, 6)
-  updated_by_user_id                 String?
-  metadata                           Json?
-  trustee_letter_config              Json?
-  platform_accounts_config           Json?
-  ledger_bucket_accounts_config      Json?
-  created_at                         DateTime @default(now())
-  updated_at                         DateTime @updatedAt
+  id                                String   @id @default(cuid())
+  key                               String   @unique
+  grace_period_days                 Int      @default(7)
+  arrears_threshold_days            Int      @default(14)
+  tawidh_rate_cap_percent           Decimal  @default(1) @db.Decimal(5, 2)
+  gharamah_rate_cap_percent         Decimal  @default(9) @db.Decimal(5, 2)
+  platform_fee_rate_cap_percent     Decimal  @default(3) @db.Decimal(5, 2)
+  default_tawidh_rate_percent       Decimal  @default(0) @db.Decimal(5, 2)
+  default_gharamah_rate_percent     Decimal  @default(0) @db.Decimal(5, 2)
+  withdrawal_letter_template        String   @default("DEFAULT_WITHDRAWAL_LETTER")
+  arrears_letter_template           String   @default("DEFAULT_ARREARS_LETTER")
+  default_letter_template           String   @default("DEFAULT_DEFAULT_LETTER")
+  issuer_onboarding_fee_amount      Decimal  @default(150) @db.Decimal(18, 6)
+  application_processing_fee_amount Decimal  @default(50) @db.Decimal(18, 6)
+  investor_min_deposit_amount       Decimal  @default(100) @db.Decimal(18, 6)
+  investor_max_deposit_amount       Decimal  @default(30000) @db.Decimal(18, 6)
+  updated_by_user_id                String?
+  metadata                          Json?
+  trustee_letter_config             Json?
+  platform_accounts_config          Json?
+  ledger_bucket_accounts_config     Json?
+  created_at                        DateTime @default(now())
+  updated_at                        DateTime @updatedAt
 
   @@map("platform_finance_settings")
 }
@@ -1030,16 +1183,16 @@ model GatewayPayment {
 
 /// Admin audit trail for gateway payment status and resolution actions.
 model GatewayPaymentEvent {
-  id                  String                 @id @default(cuid())
-  gateway_payment_id  String
-  type                GatewayPaymentEventType
-  actor_user_id       String?
-  from_status         GatewayPaymentStatus?
-  to_status           GatewayPaymentStatus?
-  reason              String?
-  metadata            Json?
-  created_at          DateTime               @default(now())
-  gateway_payment     GatewayPayment         @relation(fields: [gateway_payment_id], references: [id], onDelete: Cascade)
+  id                 String                  @id @default(cuid())
+  gateway_payment_id String
+  type               GatewayPaymentEventType
+  actor_user_id      String?
+  from_status        GatewayPaymentStatus?
+  to_status          GatewayPaymentStatus?
+  reason             String?
+  metadata           Json?
+  created_at         DateTime                @default(now())
+  gateway_payment    GatewayPayment          @relation(fields: [gateway_payment_id], references: [id], onDelete: Cascade)
 
   @@index([gateway_payment_id, created_at])
   @@map("gateway_payment_events")
@@ -1081,21 +1234,21 @@ model GatewayReconRun {
 
 /// Orphan or amount-mismatch flagged during a settlement recon run.
 model GatewayReconException {
-  id                  String                    @id @default(cuid())
-  recon_run_id        String
-  type                GatewayReconExceptionType
-  gateway_payment_id  String?
-  curlec_payment_id   String?
+  id                   String                    @id @default(cuid())
+  recon_run_id         String
+  type                 GatewayReconExceptionType
+  gateway_payment_id   String?
+  curlec_payment_id    String?
   curlec_settlement_id String?
-  expected_amount     Decimal?                  @db.Decimal(18, 6)
-  actual_amount       Decimal?                  @db.Decimal(18, 6)
-  detail              String?
-  resolved_at         DateTime?
-  resolved_by_user_id String?
-  resolve_reason      String?
-  created_at          DateTime                  @default(now())
-  recon_run           GatewayReconRun           @relation(fields: [recon_run_id], references: [id], onDelete: Cascade)
-  gateway_payment     GatewayPayment?           @relation(fields: [gateway_payment_id], references: [id], onDelete: SetNull)
+  expected_amount      Decimal?                  @db.Decimal(18, 6)
+  actual_amount        Decimal?                  @db.Decimal(18, 6)
+  detail               String?
+  resolved_at          DateTime?
+  resolved_by_user_id  String?
+  resolve_reason       String?
+  created_at           DateTime                  @default(now())
+  recon_run            GatewayReconRun           @relation(fields: [recon_run_id], references: [id], onDelete: Cascade)
+  gateway_payment      GatewayPayment?           @relation(fields: [gateway_payment_id], references: [id], onDelete: SetNull)
 
   @@index([recon_run_id])
   @@index([type, resolved_at])
@@ -1103,27 +1256,27 @@ model GatewayReconException {
 }
 
 model WithdrawalInstruction {
-  id                       String           @id @default(cuid())
+  id                       String             @id @default(cuid())
   note_id                  String?
   settlement_id            String?
   investor_organization_id String?
   issuer_organization_id   String?
   requested_by_user_id     String
   submitted_by_user_id     String?
-  status                   WithdrawalStatus    @default(DRAFT)
+  status                   WithdrawalStatus   @default(DRAFT)
   withdrawal_type          WithdrawalType
-  amount                   Decimal             @db.Decimal(18, 6)
-  currency                 String              @default("MYR")
+  amount                   Decimal            @db.Decimal(18, 6)
+  currency                 String             @default("MYR")
   beneficiary_snapshot     Json
   letter_s3_key            String?
   generated_at             DateTime?
   submitted_to_trustee_at  DateTime?
   completed_at             DateTime?
   metadata                 Json?
-  created_at               DateTime            @default(now())
-  updated_at               DateTime            @updatedAt
-  settlement               NoteSettlement?     @relation(fields: [settlement_id], references: [id], onDelete: SetNull)
-  shoraka_trade_order     ShorakaTradeOrder?
+  created_at               DateTime           @default(now())
+  updated_at               DateTime           @updatedAt
+  settlement               NoteSettlement?    @relation(fields: [settlement_id], references: [id], onDelete: SetNull)
+  shoraka_trade_order      ShorakaTradeOrder?
 
   @@index([note_id])
   @@index([settlement_id])
@@ -1136,33 +1289,33 @@ model WithdrawalInstruction {
 }
 
 model ShorakaTradeOrder {
-  id                        String                    @id @default(cuid())
-  withdrawal_instruction_id String                   @unique
+  id                        String @id @default(cuid())
+  withdrawal_instruction_id String @unique
   note_id                   String
 
-  provider_order_id         String?                  @unique
-  status                     String                   @default("PENDING_SUBMISSION")
+  provider_order_id String? @unique
+  status            String  @default("PENDING_SUBMISSION")
 
-  idempotency_key           String                   @unique
-  submit_request_payload    Json?
-  submit_response_payload   Json?
-  status_response_payload   Json?
+  idempotency_key         String @unique
+  submit_request_payload  Json?
+  submit_response_payload Json?
+  status_response_payload Json?
 
-  submitted_at               DateTime?
-  status_last_checked_at    DateTime?
+  submitted_at           DateTime?
+  status_last_checked_at DateTime?
 
-  certificate_s3_key        String?
-  certificate_file_sha256  String?
-  provider_certificate_id  String?
-  certificate_uploaded_at   DateTime?
+  certificate_s3_key      String?
+  certificate_file_sha256 String?
+  provider_certificate_id String?
+  certificate_uploaded_at DateTime?
 
-  callback_payload         Json?
-  callback_received_at     DateTime?
+  callback_payload     Json?
+  callback_received_at DateTime?
 
-  created_at                DateTime                 @default(now())
-  updated_at                DateTime                 @updatedAt
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
-  withdrawalInstruction     WithdrawalInstruction    @relation(fields: [withdrawal_instruction_id], references: [id], onDelete: Cascade)
+  withdrawalInstruction WithdrawalInstruction @relation(fields: [withdrawal_instruction_id], references: [id], onDelete: Cascade)
 
   @@index([note_id])
   @@map("shoraka_trade_orders")
@@ -1864,6 +2017,70 @@ enum GuarantorAmlMessage {
   DONE
   PENDING
   ERROR
+}
+
+enum SigningEnvelopeStatus {
+  DRAFT
+  SENT
+  IN_PROGRESS
+  COMPLETED
+  DECLINED
+  VOIDED
+  EXPIRED
+}
+
+enum SigningRoutingMode {
+  SEQUENTIAL
+  PARALLEL
+}
+
+enum SigningDocumentSource {
+  GENERATED_OFFER_LETTER
+  ADMIN_UPLOAD
+  ISSUER_UPLOAD
+  TEMPLATE
+}
+
+enum SigningDocumentStatus {
+  DRAFT
+  PENDING
+  PARTIALLY_SIGNED
+  COMPLETED
+  VOIDED
+}
+
+enum SigningPartyType {
+  INTERNAL
+  EXTERNAL
+}
+
+enum SigningRecipientStatus {
+  PENDING
+  SENT
+  VIEWED
+  SIGNED
+  DECLINED
+}
+
+enum SigningKycStatus {
+  NOT_REQUIRED
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+enum SigningAction {
+  SIGN
+  UPLOAD
+  VIEW
+}
+
+enum SigningAssignmentStatus {
+  PENDING
+  SENT
+  VIEWED
+  SIGNED
+  DECLINED
 }
 
 enum ActivityLevel {

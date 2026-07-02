@@ -435,6 +435,7 @@ export * from "./notes";
 export * from "./investor-return-breakdown";
 export * from "./marketplace-note-dates";
 export * from "./offer-signing";
+export * from "./signing-envelopes";
 export * from "./guarantors";
 export * from "./company-name-normalization";
 export * from "./gateway-payments";

@@ -83,6 +83,7 @@ import {
   ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT,
 } from "@/lib/admin-director-shareholder-review-message";
 import { ApplicationStatusBadge } from "@/components/application-review";
+import { SigningEnvelopePanel } from "@/components/application-review/signing/signing-envelope-panel";
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
 import type { AdminPermission } from "@cashsouk/types";
@@ -993,6 +994,16 @@ export default function DynamicApplicationDetailPage() {
                       })()}
                     </CardContent>
                   </Card>
+
+                  <SigningEnvelopePanel
+                    applicationId={applicationId}
+                    workflow={(currentProduct as { workflow?: unknown } | undefined)?.workflow}
+                    people={(app as { people?: import("@cashsouk/types").ApplicationPersonRow[] }).people ?? []}
+                    guarantors={(app as { application_guarantors?: unknown }).application_guarantors}
+                    contractId={(app.contract as { id?: string } | null | undefined)?.id ?? null}
+                    productVersion={typeof app.product_version === "number" ? app.product_version : null}
+                    canManage={canAppManage}
+                  />
 
                   <ApplicationReviewTabs
                     sections={reviewSections}
