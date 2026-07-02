@@ -1295,20 +1295,33 @@ This is how the UI surfaces connect to the database tables.
 - `apps/admin/src/app/notes/[id]/page.tsx`
 
 **What you see**
-- Publish/unpublish
-- Close funding / fail funding
-- Activate
-- Settlement panel (record payments + settlement waterfall actions)
-- Ledger panel (ledger entries)
-- Timeline panels
+- Header: title, featured toggle, `NoteStatusBadge`
+- `NoteLifecycleCard` (six-stage stepper + workflow sub-strips)
+- **Tab bar:** Disbursement | Servicing & Settlement | Late Payment | Ledger | Investors
+- Right sidebar: Source Application, **Workflow Status** card, Activity Timeline
+- Lifecycle actions: publish, unpublish, close funding, fail funding (confirm dialogs)
+
+**Tabs**
+| Tab | Purpose |
+|-----|---------|
+| Disbursement | Issuer Disbursement card (Tawarruq, certificate, trustee payout) |
+| Servicing & Settlement | Repayment receipts (`evidence_files`), settlement preview/approve/post, settlement trustee instruction |
+| Late Payment | Ta'widh/Gharamah, arrears/default letters, mark default |
+| Ledger | Read-only ledger entries + export |
+| Investors | Read-only investor allocations |
+
+**Status labels (admin)**
+- Trustee pending after post: **Completing settlement**
+- Trustee complete: **Settled** / note fully repaid
+- Defaulted with settlement work pending: **Defaulted** + settlement trustee strip may still show
 
 **Tables**
 | Page section | Table/model | Field(s) | Simple explanation |
 |---|---|---|---|
 | Publish button state | `notes` + `note_listings` | `status`, `funding_status`, `listing_status` | Enables “Publish” only for publishable notes |
 | Funding buttons | `notes` + `note_investments` | `funded_amount`, `minimum_funding_percent` | Determines close/fail eligibility |
-| Settlement panel | `note_payments`, `note_settlements` | payment and settlement statuses | Drives preview/approve/post |
-| Ledger panel | `note_ledger_entries` | direction, account codes | Immutable postings |
+| Servicing & Settlement tab | `note_payments`, `note_settlements` | payment `evidence_files`, settlement statuses, `service_fee_trustee_status` | Drives receipts, preview/approve/post, trustee instruction |
+| Ledger tab | `note_ledger_entries` | direction, account codes | Immutable postings |
 
 ### 6.4 Investor Marketplace
 
