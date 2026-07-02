@@ -490,6 +490,11 @@ export default function ApplicationsPage() {
     []
   );
 
+  const selectedReviewApplication = React.useMemo(
+    () => applications.find((application) => application.id === selectedApplicationId) ?? null,
+    [applications, selectedApplicationId]
+  );
+
   const handleWithdrawApplicationClick = React.useCallback((applicationId: string) => {
     if (withdrawDialogScheduledRef.current) return;
     withdrawDialogScheduledRef.current = true;
@@ -1231,6 +1236,7 @@ export default function ApplicationsPage() {
           type={offerType}
           applicationId={selectedApplicationId}
           issuerOrganizationId={selectedIssuerOrganizationId}
+          productId={selectedReviewApplication?.productId ?? null}
           contractId={selectedContractId ?? undefined}
           invoice={offerType === "invoice" ? selectedInvoice ?? undefined : undefined}
           requiresInvoiceSigning

@@ -245,6 +245,7 @@ export function SupportingDocumentsStep({
   stepConfig,
   onDataChange,
   readOnly = false,
+  timingFilter = "pre_application",
   amendmentRemarks = [],
   flaggedItems,
 }: {
@@ -252,6 +253,7 @@ export function SupportingDocumentsStep({
   stepConfig?: WorkflowSupportingStepConfig;
   onDataChange?: (data: Record<string, unknown>) => void;
   readOnly?: boolean;
+  timingFilter?: "pre_application" | "post_application";
   amendmentRemarks?: AmendmentRemarkItem[];
   isAmendmentMode?: boolean;
   flaggedSections?: Set<string>;
@@ -364,7 +366,10 @@ export function SupportingDocumentsStep({
 
         documents: (docs as RawWorkflowDoc[])
           .map((doc, workflowDocumentIndex) => ({ doc, workflowDocumentIndex }))
-          .filter(({ doc }) => doc?.upload_timing !== "post_application")
+          .filter(({ doc }) => {
+            const timing = doc?.upload_timing === "post_application" ? "post_application" : "pre_application";
+            return timing === timingFilter;
+          })
           .map(({ doc, workflowDocumentIndex }) => ({
             title: doc?.name ?? "—",
             allowMultiple: doc?.allow_multiple === true,
@@ -375,7 +380,7 @@ export function SupportingDocumentsStep({
           })),
       }))
       .filter((category) => category.documents.length > 0);
-  }, [stepConfig]);
+  }, [stepConfig, timingFilter]);
 
 
   const [uploadedFiles, setUploadedFiles] = React.useState<Record<string, UploadRecord[]>>({});

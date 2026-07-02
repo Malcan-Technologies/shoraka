@@ -8,6 +8,7 @@
 
 import * as React from "react";
 import { QRCodeSVG } from "qrcode.react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { TextareaWithCharCount } from "@/components/textarea-with-char-count";
@@ -27,6 +28,8 @@ import {
 import { useContract } from "@/hooks/use-contracts";
 import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import { useAcceptInvoiceOffer, useRejectContractOffer, useRejectInvoiceOffer } from "@/hooks/use-applications";
+import { useProduct } from "@/hooks/use-products";
+import { SupportingDocumentsStep } from "@/app/(application-flow)/applications/steps/supporting-documents-step";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import {
@@ -60,6 +63,7 @@ type ReviewOfferModalProps = {
   applicationId: string;
   /** Application's issuer org — preferred over active org from context for eKYC session create. */
   issuerOrganizationId?: string;
+  productId?: string | null;
   contractId?: string;
   invoice?: NormalizedInvoice | null;
   requiresInvoiceSigning?: boolean;
@@ -68,6 +72,12 @@ type ReviewOfferModalProps = {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const DECLINE_CONTEXT_MAX = 200;
+
+type PostApplicationDocsState = {
+  areAllFilesUploaded: boolean;
+  hasPendingChanges: boolean;
+  saveFunction?: () => Promise<unknown>;
+};
 
 function formatDateOrDash(value: string | null | undefined): string {
   if (!value) return "—";
@@ -111,17 +121,42 @@ function getApiErrorDetails(
   };
 }
 
+function findSupportingDocumentsStepConfig(workflow: unknown): { config?: Record<string, unknown> } | undefined {
+  if (!Array.isArray(workflow)) return undefined;
+  return workflow.find((step) => {
+    const id = String((step as { id?: unknown })?.id ?? "");
+    return id === "supporting_documents" || id.startsWith("supporting_documents_");
+  }) as { config?: Record<string, unknown> } | undefined;
+}
+
+function hasPostApplicationDocuments(stepConfig: { config?: Record<string, unknown> } | undefined): boolean {
+  const config = stepConfig?.config;
+  if (!config || typeof config !== "object") return false;
+  return Object.entries(config).some(([key, value]) => {
+    if (key === "enabled_categories" || !Array.isArray(value)) return false;
+    return value.some((row) => {
+      const timing =
+        row && typeof row === "object"
+          ? (row as Record<string, unknown>).upload_timing
+          : undefined;
+      return timing === "post_application";
+    });
+  });
+}
+
 /** Only mounted when Review Offer is clicked. Renders once, no isOpen toggle to avoid flash. */
 export function ReviewOfferModal({
   type,
   applicationId,
   issuerOrganizationId: issuerOrganizationIdProp,
+  productId,
   contractId,
   invoice,
   requiresInvoiceSigning = true,
   onClose,
 }: ReviewOfferModalProps) {
   const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
   const { activeOrganization } = useOrganization();
   const issuerOrganizationId = issuerOrganizationIdProp ?? activeOrganization?.id;
   const apiClient = React.useMemo(
@@ -133,6 +168,15 @@ export function ReviewOfferModal({
     apiBaseUrl: API_URL,
     issuerOrganizationId,
   });
+  const { data: product, isLoading: isLoadingProduct } = useProduct(productId ?? "");
+  const supportingDocumentsStepConfig = React.useMemo(
+    () => findSupportingDocumentsStepConfig((product as { workflow?: unknown } | null | undefined)?.workflow),
+    [product]
+  );
+  const hasPostDocs = React.useMemo(
+    () => hasPostApplicationDocuments(supportingDocumentsStepConfig),
+    [supportingDocumentsStepConfig]
+  );
 
   const shouldLoadContract = !!contractId;
   const { data: contractRecord, isLoading: isLoadingContract } = useContract(
@@ -158,6 +202,11 @@ export function ReviewOfferModal({
   const [selectedDeclineReason, setSelectedDeclineReason] = React.useState("");
   const [isRejectMode, setIsRejectMode] = React.useState(false);
   const [modalStep, setModalStep] = React.useState<"review" | "ekyc-confirm" | "ekyc">("review");
+  const [postDocsState, setPostDocsState] = React.useState<PostApplicationDocsState>({
+    areAllFilesUploaded: false,
+    hasPendingChanges: false,
+  });
+  const [isSavingPostDocs, setIsSavingPostDocs] = React.useState(false);
   const [confirmedName, setConfirmedName] = React.useState<string | null>(null);
   const [icNumberInput, setIcNumberInput] = React.useState("");
   const [isContinuingToSigning, setIsContinuingToSigning] = React.useState(false);
@@ -409,6 +458,57 @@ export function ReviewOfferModal({
     throw error;
   }, [apiClient, applicationId, invoice?.id, type]);
 
+  const ensurePostApplicationDocumentsSaved = React.useCallback(async (): Promise<boolean> => {
+    if (productId && isLoadingProduct) {
+      toast.info("Loading required documents. Please wait a moment.");
+      return false;
+    }
+    if (!hasPostDocs) return true;
+    if (!postDocsState.hasPendingChanges && !postDocsState.areAllFilesUploaded) {
+      toast.error("Upload required documents before signing");
+      return false;
+    }
+    if (!postDocsState.saveFunction || !postDocsState.hasPendingChanges) {
+      return postDocsState.areAllFilesUploaded;
+    }
+
+    setIsSavingPostDocs(true);
+    try {
+      const saved = await postDocsState.saveFunction();
+      const response = await apiClient.updateApplicationStep(applicationId, {
+        stepId: "supporting_documents",
+        stepNumber: 0,
+        data: saved as Record<string, unknown>,
+      });
+      if (!response.success) {
+        const err = getApiErrorDetails(response, "Could not save required documents");
+        throw new Error(err.message);
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["application", applicationId] }),
+        queryClient.invalidateQueries({ queryKey: ["applications"] }),
+        queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] }),
+      ]);
+      toast.success("Required documents saved");
+      return true;
+    } catch (error) {
+      toast.error("Could not save required documents", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+      return false;
+    } finally {
+      setIsSavingPostDocs(false);
+    }
+  }, [
+    apiClient,
+    applicationId,
+    hasPostDocs,
+    isLoadingProduct,
+    postDocsState,
+    productId,
+    queryClient,
+  ]);
+
   const handleAccept = async () => {
     setAcceptSigningLoading(true);
     try {
@@ -419,11 +519,16 @@ export function ReviewOfferModal({
       }
 
       if (type === "invoice" && !requiresInvoiceSigning) {
+        const docsReady = await ensurePostApplicationDocumentsSaved();
+        if (!docsReady) return;
         await acceptInvoice.mutateAsync({ applicationId, invoiceId: invoiceId! });
         toast.success("Offer accepted");
         onClose();
         return;
       }
+
+      const docsReady = await ensurePostApplicationDocumentsSaved();
+      if (!docsReady) return;
 
       const signingUrl = await startSigningFlow();
       window.location.assign(signingUrl);
@@ -451,6 +556,8 @@ export function ReviewOfferModal({
   const handleContinueToSigning = async () => {
     setIsContinuingToSigning(true);
     try {
+      const docsReady = await ensurePostApplicationDocumentsSaved();
+      if (!docsReady) return;
       const signingUrl = await startSigningFlow();
       window.location.assign(signingUrl);
     } catch (error) {
@@ -571,6 +678,7 @@ export function ReviewOfferModal({
   const isPending =
     acceptSigningLoading ||
     acceptOverrideLoading ||
+    isSavingPostDocs ||
     isContinuingToSigning ||
     acceptInvoice.isPending ||
     rejectContract.isPending ||
@@ -582,10 +690,12 @@ export function ReviewOfferModal({
 
   const canDownload =
     type === "contract" || (type === "invoice" && !!invoice?.id);
+  const isPostDocsConfigLoading = Boolean(productId) && isLoadingProduct;
+  const postDocsReady = !hasPostDocs || postDocsState.areAllFilesUploaded;
 
   return (
     <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[520px] rounded-xl border-border p-6 gap-0">
+      <DialogContent className="max-h-[90vh] overflow-y-auto rounded-xl border-border p-6 gap-0 sm:max-w-[720px]">
         <DialogTitle className="sr-only">
           Financing offer approved — Review and respond
         </DialogTitle>
@@ -958,6 +1068,47 @@ export function ReviewOfferModal({
               </span>
             </button>
 
+            {hasPostDocs ? (
+              <div className="mt-4 rounded-2xl border border-border bg-muted/15 p-4">
+                <div className="space-y-1 pb-3">
+                  <p className="text-base font-semibold text-foreground">
+                    Required documents before signing
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Upload the post-application documents requested for this product before you sign the offer.
+                  </p>
+                </div>
+                {isLoadingProduct ? (
+                  <p className="text-sm text-muted-foreground">Loading required documents...</p>
+                ) : supportingDocumentsStepConfig ? (
+                  <SupportingDocumentsStep
+                    applicationId={applicationId}
+                    stepConfig={supportingDocumentsStepConfig}
+                    timingFilter="post_application"
+                    onDataChange={(data) => {
+                      setPostDocsState({
+                        areAllFilesUploaded: data.areAllFilesUploaded === true,
+                        hasPendingChanges: data.hasPendingChanges === true,
+                        saveFunction:
+                          typeof data.saveFunction === "function"
+                            ? (data.saveFunction as () => Promise<unknown>)
+                            : undefined,
+                      });
+                    }}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No post-application document configuration was found.
+                  </p>
+                )}
+                {!postDocsReady ? (
+                  <p className="mt-3 text-sm font-medium text-destructive">
+                    Upload all required documents before accepting this offer.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="grid grid-cols-2 gap-4 mt-6">
               <Button
                 variant="outline"
@@ -971,7 +1122,7 @@ export function ReviewOfferModal({
                     return !prev;
                   })
                 }
-                disabled={isPending}
+                disabled={isPending || isPostDocsConfigLoading}
                 className={
                   isRejectMode
                     ? "h-12 rounded-xl border-[#f0caca] bg-[#f9e2e2] text-[#CE2922] hover:bg-[#f5d5d5]"
@@ -983,10 +1134,14 @@ export function ReviewOfferModal({
               <Button
                 size="lg"
                 onClick={handleAccept}
-                disabled={isPending}
+                disabled={isPending || isPostDocsConfigLoading}
                 className="h-12 rounded-xl bg-green-600 hover:bg-green-700 text-white shadow-sm"
               >
-                {type === "invoice" && !requiresInvoiceSigning ? "Accept offer" : "Accept and sign offer"}
+                {isSavingPostDocs
+                  ? "Saving documents..."
+                  : type === "invoice" && !requiresInvoiceSigning
+                    ? "Accept offer"
+                    : "Accept and sign offer"}
               </Button>
             </div>
             {isSigningOverrideEnabled && (

@@ -163,6 +163,9 @@ export interface NormalizedApplication {
   contractStatus: string | null;
   /** Issuer organization ID for query invalidation. */
   issuerOrganizationId?: string;
+  /** Product ID selected when the application was created. Used to load workflow config for post-offer tasks. */
+  productId?: string | null;
+  supportingDocuments?: unknown;
   /** Withdraw reason when status is withdrawn. From contract or invoice. */
   withdrawReason?: WithdrawReason;
   /** Offer expiry (contract or invoice). ISO string. Used for expiry indicator and filter. */

@@ -64,6 +64,7 @@ interface ApiReviewRemark {
 interface ApiApplication {
   id: string;
   status?: string;
+  financing_type?: { product_id?: string } | Record<string, unknown> | null;
   financing_structure?: { structure_type?: string } | null;
   created_at?: string;
   updated_at?: string;
@@ -71,6 +72,7 @@ interface ApiApplication {
   contract_id?: string;
   issuer_organization_id?: string;
   company_details?: Record<string, unknown>;
+  supporting_documents?: unknown;
   review_and_submit?: Record<string, unknown>;
   contract?: ApiContract | null;
   invoices?: ApiInvoice[];
@@ -314,6 +316,10 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
 
   const contractId = (contract as ApiContract & { id?: string })?.id ?? api.contract_id ?? null;
   const issuerOrganizationId = api.issuer_organization_id;
+  const productId =
+    api.financing_type && typeof api.financing_type === "object"
+      ? String((api.financing_type as Record<string, unknown>).product_id ?? "") || null
+      : null;
 
   /** Offer expiry: from contract or first invoice with offer. */
   let expiresAt: string | null | undefined;
@@ -355,6 +361,8 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     invoices: invoices.map((inv, idx) => prepareInvoice(inv, contractStatus, structureType, idx, reviewRemarks)),
     contractStatus,
     issuerOrganizationId,
+    productId,
+    supportingDocuments: api.supporting_documents ?? null,
     withdrawReason,
     expiresAt,
     signedContractOfferLetterAvailable,

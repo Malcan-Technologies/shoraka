@@ -25,6 +25,7 @@ import {
 import { requestPresignedUploadUrl, deleteDocumentFromS3 } from "./documents/service";
 import { shouldPreserveApplicationDocumentsInS3 } from "./amendment-preserve-s3";
 import {
+  assertRequiredPostApplicationSupportingDocumentsPresent,
   assertRequiredSupportingDocumentsPresent,
   fileNameToSupportingDocTypeToken,
   getSupportingDocAllowedTypesFromProductWorkflow,
@@ -490,6 +491,14 @@ export class ApplicationService {
       throw new AppError(400, "VALIDATION_ERROR", "Product not found");
     }
     return (product.workflow as unknown[]) ?? [];
+  }
+
+  private async assertPostApplicationSupportingDocumentsReady(application: Application): Promise<void> {
+    const workflow = await this.getProductWorkflowForApplication(application);
+    assertRequiredPostApplicationSupportingDocumentsPresent(
+      workflow,
+      application.supporting_documents
+    );
   }
 
   /**
@@ -2198,6 +2207,7 @@ export class ApplicationService {
     if (offer.responded_at != null && offer.responded_at !== "") {
       throw new AppError(400, "ALREADY_RESPONDED", "This offer has already been responded to");
     }
+    await this.assertPostApplicationSupportingDocumentsReady(application);
 
     const { workEmail: signerEmail } = await requireCompletedSigningCloudEkycForOrganization(
       userId,
@@ -2339,6 +2349,7 @@ export class ApplicationService {
     if (offer.responded_at != null && offer.responded_at !== "") {
       throw new AppError(400, "ALREADY_RESPONDED", "This offer has already been responded to");
     }
+    await this.assertPostApplicationSupportingDocumentsReady(application);
 
     const { workEmail: signerEmail } = await requireCompletedSigningCloudEkycForOrganization(
       userId,
