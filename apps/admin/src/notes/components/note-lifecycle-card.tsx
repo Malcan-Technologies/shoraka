@@ -27,7 +27,6 @@ import {
   isSettlementWrappingUp,
 } from "@/notes/utils/settlement-trustee-workflow";
 import {
-  withdrawalHeaderBadgeTone,
   type WorkflowStatusTone,
   WORKFLOW_CARD,
   workflowBadgeClassName,
@@ -179,21 +178,8 @@ function buildDisbursementSubSteps(
           : ("pending" as const),
   }));
 
-  let tone: WorkflowStatusTone = withdrawalHeaderBadgeTone(withdrawal.status);
-  if (withdrawal.status !== "COMPLETED") {
-    if (!tawarruqOrderComplete) {
-      tone = "active";
-    } else if (!hasCertificate) {
-      tone = "active";
-    } else if (
-      withdrawal.status === "LETTER_GENERATED" ||
-      withdrawal.status === "SUBMITTED_TO_TRUSTEE"
-    ) {
-      tone = withdrawalHeaderBadgeTone(withdrawal.status);
-    } else {
-      tone = "active";
-    }
-  }
+  const tone: WorkflowStatusTone =
+    withdrawal.status === "COMPLETED" ? "success" : "warning";
 
   return { steps, tone };
 }
@@ -446,11 +432,11 @@ function WorkflowSubFlowStrip({
                   step.status === "done"
                     ? "bg-emerald-500 text-white ring-emerald-500"
                     : step.status === "current"
-                      ? tone === "active"
-                        ? "bg-primary text-primary-foreground ring-primary"
-                        : tone === "warning"
-                          ? "bg-amber-500 text-white ring-amber-500"
-                          : "bg-muted-foreground text-background ring-muted-foreground"
+                      ? tone === "danger"
+                        ? "bg-destructive text-destructive-foreground ring-destructive"
+                        : tone === "neutral"
+                          ? "bg-muted-foreground text-background ring-muted-foreground"
+                          : "bg-amber-500 text-white ring-amber-500"
                       : "bg-white text-muted-foreground ring-border"
                 )}
               >
@@ -504,7 +490,7 @@ function StageDot({
           : past
             ? "bg-emerald-500 text-white"
             : active
-              ? "bg-primary text-primary-foreground"
+              ? "bg-amber-500 text-white"
               : "bg-muted text-muted-foreground"
       )}
     >

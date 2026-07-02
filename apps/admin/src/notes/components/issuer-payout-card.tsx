@@ -178,85 +178,6 @@ function resolveShorakaOperationalStep(
   };
 }
 
-function tawarruqNextActionCallout(input: {
-  isPending: boolean;
-  hasStoredCertificate: boolean;
-  data:
-    | {
-        tradeOrder: { certificate_s3_key?: string | null };
-        operationalStatus: { providerStatus: string; canFetchCertificate?: boolean };
-      }
-    | null
-    | undefined;
-}): { title: string; description: string } | null {
-  if (input.isPending || input.hasStoredCertificate) return null;
-
-  if (input.data == null) {
-    return {
-      title: "Next: Submit Tawarruq Order",
-      description: "Submit the Tawarruq order before the certificate can be fetched.",
-    };
-  }
-
-  const hasCertificate = Boolean(input.data.tradeOrder.certificate_s3_key);
-  const step = resolveShorakaOperationalStep(
-    input.data.operationalStatus.providerStatus,
-    hasCertificate
-  );
-
-  if (step.nextAction === "You may proceed with disbursement") {
-    return null;
-  }
-
-  if (
-    input.data.operationalStatus.canFetchCertificate ||
-    step.nextAction === "Fetch certificate"
-  ) {
-    return {
-      title: "Next: Fetch Tawarruq Certificate",
-      description:
-        "The Tawarruq order is completed. Fetch the certificate before generating the trustee letter.",
-    };
-  }
-
-  if (
-    input.data.operationalStatus.providerStatus === "Active" ||
-    input.data.operationalStatus.providerStatus === "Pending Sell"
-  ) {
-    return {
-      title: "Next: Query Tawarruq status",
-      description: step.nextAction,
-    };
-  }
-
-  if (step.nextAction === "Check with Tawarruq operations") {
-    return {
-      title: "Next: Check with Tawarruq operations",
-      description: step.nextAction,
-    };
-  }
-
-  return {
-    title: `Next: ${step.nextAction}`,
-    description: step.nextAction,
-  };
-}
-
-function TawarruqNextActionCallout({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="mt-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-2">
-      <div className="text-xs font-semibold text-foreground">{title}</div>
-      <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
-    </div>
-  );
-}
-
 const ACTION_CARD_CLASS = WORKFLOW_CARD.activeSection;
 const SECTION_COMPLETE_CLASS = WORKFLOW_CARD.successSection;
 
@@ -338,11 +259,6 @@ export function IssuerPayoutCard({
         Boolean(shorakaStateQuery.data.tradeOrder.certificate_s3_key)
       )
     : null;
-  const tawarruqNextAction = tawarruqNextActionCallout({
-    isPending: shorakaStateQuery.isPending,
-    hasStoredCertificate: hasShorakaCertificate,
-    data: shorakaStateQuery.data,
-  });
   const shouldGateMarkDisbursed =
     withdrawal.withdrawalType === WithdrawalType.ISSUER_DISBURSEMENT;
 
@@ -661,13 +577,6 @@ export function IssuerPayoutCard({
             <p className="mt-1 text-xs text-muted-foreground">
               Tawarruq certificate fetched and stored.
             </p>
-          ) : null}
-
-          {tawarruqNextAction ? (
-            <TawarruqNextActionCallout
-              title={tawarruqNextAction.title}
-              description={tawarruqNextAction.description}
-            />
           ) : null}
 
           {shorakaStateQuery.isPending ? (
