@@ -27,6 +27,7 @@ import {
   type UpdateOrganizationProfileInput,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
+import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -41,7 +42,7 @@ import { TransferOwnershipDialog } from "../../components/transfer-ownership-dia
 import { toast } from "sonner";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
-import { useHeader } from "@cashsouk/ui";
+import { useHeader, DirectorShareholderAlertCard, INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY } from "@cashsouk/ui";
 import {
   UserIcon,
   BuildingOffice2Icon,
@@ -385,6 +386,12 @@ export default function ProfilePage() {
     organizations,
     updateOrganizationProfile,
   } = useOrganization();
+
+  const visiblePeopleForDsAlert = React.useMemo(
+    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
+    [activeOrganization?.people]
+  );
+
   const queryClient = useQueryClient();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
@@ -821,6 +828,14 @@ export default function ProfilePage() {
               Refresh
             </Button>
           </div>
+
+          {!isPersonal ? (
+            <DirectorShareholderAlertCard
+              visiblePeople={visiblePeopleForDsAlert}
+              enabled={activeOrganization?.onboardingStatus === "COMPLETED"}
+              copy={INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY}
+            />
+          ) : null}
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

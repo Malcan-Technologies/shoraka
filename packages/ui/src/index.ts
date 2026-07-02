@@ -94,6 +94,15 @@ export {
   type DirectorShareholderCtosEmptyAlertProps,
 } from "./director-shareholder-ctos-empty-alert";
 export {
+  DirectorShareholderAlertCard,
+  type DirectorShareholderAlertCardProps,
+} from "./director-shareholder-alert-card";
+export {
+  ISSUER_DIRECTOR_SHAREHOLDER_ALERT_COPY,
+  INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
+  type DirectorShareholderAlertCopy,
+} from "./director-shareholder-alert-copy";
+export {
   fieldTooltipContentClassName,
   fieldTooltipTriggerClassName,
   fieldTooltipTriggerInputClassName,
