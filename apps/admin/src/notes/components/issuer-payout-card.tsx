@@ -547,7 +547,7 @@ export function IssuerPayoutCard({
 
       {withdrawal.withdrawalType === WithdrawalType.ISSUER_DISBURSEMENT ? (
         <div className="mt-3 rounded-lg border bg-card p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="text-sm font-medium">Tawarruq transaction</div>
             {shorakaStateQuery.isPending ? (
               <Badge variant="outline" className={workflowBadgeClassName("neutral")}>
