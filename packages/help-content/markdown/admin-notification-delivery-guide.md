@@ -81,6 +81,14 @@ Use this guide when checking what end users receive from CashSouk notifications.
 
 ---
 
+## Directors and shareholders (investor company)
+
+| Type ID | Name | Portal scope (seed) | Default channels (seed) | User configurable | Delivery | Sent when | Recipient |
+| ------- | ---- | -------------------- | ------------------------- | ----------------- | -------- | --------- | --------- |
+| `investor_director_shareholder_action_required` | Investor Director/Shareholder Action Required | Investor | Platform + email | No | Automatic | After a new investor company organization CTOS snapshot shows individuals needing onboarding (`runInvestorDirectorShareholderNotificationsAfterOrgCtosReportInsert`). | **Investor organization owner**. |
+
+---
+
 ## Note lifecycle (issuer)
 
 All rows below are sent with **`sendTypedPlatformOnly`**: email is suppressed at send time regardless of user preferences. Seed defaults are platform-only for email as well.

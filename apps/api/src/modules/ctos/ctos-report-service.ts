@@ -27,7 +27,11 @@ import {
   type CtosSubjectKind,
 } from "./resolve-subject-from-org";
 import { OrganizationService } from "../organization/service";
-import { runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert } from "../notification/director-shareholder-notifications";
+import {
+  runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert,
+  runInvestorDirectorShareholderNotificationsAfterOrgCtosReportInsert,
+  shouldNotifyDirectorShareholderAfterAdminOrgCtosInsert,
+} from "../notification/director-shareholder-notifications";
 import { buildAdminPeopleList } from "../admin/build-people-list";
 import { filterVisiblePeopleRows, normalizeRawStatus, type ApplicationPersonRow } from "@cashsouk/types";
 import { logApplicationActivity } from "../applications/logs/service";
@@ -461,20 +465,37 @@ export async function fetchAndInsertCtosReportForAdminOrg(
 
   const fetchedAt = new Date();
 
-  let beforeExtras: Awaited<ReturnType<OrganizationService["getIssuerPartyListExtras"]>> | null = null;
+  let beforeExtras:
+    | Awaited<ReturnType<OrganizationService["getIssuerPartyListExtras"]>>
+    | Awaited<ReturnType<OrganizationService["getInvestorPartyListExtras"]>>
+    | null = null;
   let orgForPeople: {
     owner_user_id: string;
+    type: "PERSONAL" | "COMPANY";
     corporate_entities: Prisma.JsonValue;
     director_kyc_status: Prisma.JsonValue;
     director_aml_status: Prisma.JsonValue;
   } | null = null;
+  const orgSvc = new OrganizationService();
   if (portal === "issuer") {
-    const orgSvc = new OrganizationService();
     beforeExtras = await orgSvc.getIssuerPartyListExtras(organizationId);
     orgForPeople = await prisma.issuerOrganization.findUnique({
       where: { id: organizationId },
       select: {
         owner_user_id: true,
+        type: true,
+        corporate_entities: true,
+        director_kyc_status: true,
+        director_aml_status: true,
+      },
+    });
+  } else if (portal === "investor") {
+    beforeExtras = await orgSvc.getInvestorPartyListExtras(organizationId);
+    orgForPeople = await prisma.investorOrganization.findUnique({
+      where: { id: organizationId },
+      select: {
+        owner_user_id: true,
+        type: true,
         corporate_entities: true,
         director_kyc_status: true,
         director_aml_status: true,
@@ -502,24 +523,36 @@ export async function fetchAndInsertCtosReportForAdminOrg(
     },
   });
 
-  if (
-    portal === "issuer" &&
-    beforeExtras &&
-    orgForPeople?.owner_user_id &&
-    !options?.skipDirectorShareholderNotifications
-  ) {
+  const shouldNotifyDirectorShareholder = shouldNotifyDirectorShareholderAfterAdminOrgCtosInsert({
+    portal,
+    organizationType: orgForPeople?.type ?? "PERSONAL",
+    skipDirectorShareholderNotifications: options?.skipDirectorShareholderNotifications,
+    ownerUserId: orgForPeople?.owner_user_id,
+  });
+
+  if (shouldNotifyDirectorShareholder && beforeExtras && orgForPeople) {
+    const notificationContext = {
+      ownerUserId: orgForPeople.owner_user_id,
+      beforeCompanyJson: beforeExtras.latestOrganizationCtosCompanyJson ?? null,
+      afterCompanyJson: row.company_json,
+      newCtosReportId: row.id,
+      corporateEntities: orgForPeople.corporate_entities ?? null,
+      directorKycStatus: orgForPeople.director_kyc_status ?? null,
+      directorAmlStatus: orgForPeople.director_aml_status ?? null,
+      supplements: beforeExtras.ctosPartySupplements,
+    };
     try {
-      await runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert({
-        issuerOrganizationId: organizationId,
-        ownerUserId: orgForPeople.owner_user_id,
-        beforeCompanyJson: beforeExtras.latestOrganizationCtosCompanyJson ?? null,
-        afterCompanyJson: row.company_json,
-        newCtosReportId: row.id,
-        corporateEntities: orgForPeople.corporate_entities ?? null,
-        directorKycStatus: orgForPeople.director_kyc_status ?? null,
-        directorAmlStatus: orgForPeople.director_aml_status ?? null,
-        supplements: beforeExtras.ctosPartySupplements,
-      });
+      if (portal === "issuer") {
+        await runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert({
+          issuerOrganizationId: organizationId,
+          ...notificationContext,
+        });
+      } else {
+        await runInvestorDirectorShareholderNotificationsAfterOrgCtosReportInsert({
+          investorOrganizationId: organizationId,
+          ...notificationContext,
+        });
+      }
     } catch (e) {
       logger.warn(
         {
@@ -530,9 +563,9 @@ export async function fetchAndInsertCtosReportForAdminOrg(
         "Director/shareholder notification hook after admin CTOS org report failed (non-blocking)"
       );
     }
-  } else if (portal === "issuer" && options?.skipDirectorShareholderNotifications) {
+  } else if (options?.skipDirectorShareholderNotifications) {
     logger.info(
-      { organizationId, correlationId },
+      { organizationId, portal, correlationId },
       "CTOS org report inserted from admin; skipped director/shareholder notifications (requested)"
     );
   }

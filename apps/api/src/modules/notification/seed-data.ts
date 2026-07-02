@@ -241,6 +241,18 @@ export const initialNotificationTypes = [
     enabled_email: true,
   },
   {
+    id: "investor_director_shareholder_action_required",
+    name: "Investor Director/Shareholder Action Required",
+    description:
+      "Sent to the investor organization owner when a CTOS pull finds new directors or shareholders on an investor company profile who need onboarding action.",
+    category: NotificationCategory.SYSTEM,
+    portal_targets: INVESTOR_ONLY,
+    default_priority: NotificationPriority.WARNING,
+    user_configurable: false,
+    enabled_platform: true,
+    enabled_email: true,
+  },
+  {
     id: "note_published",
     name: "Note published",
     description: "Your note was published to the marketplace for funding.",

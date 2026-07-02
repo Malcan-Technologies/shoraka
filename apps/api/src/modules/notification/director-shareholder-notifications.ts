@@ -1,7 +1,7 @@
 /**
- * SECTION: Issuer director/shareholder notifications
- * WHY: Alert issuer org owner when CTOS shows new directors/shareholders needing onboarding.
- * WHERE USED: After issuer org CTOS report insert; manual admin notify API.
+ * SECTION: Director/shareholder action-required notifications (issuer + investor company)
+ * WHY: Alert org owner when CTOS shows new directors/shareholders needing onboarding.
+ * WHERE USED: After admin org CTOS report insert; manual issuer admin notify API.
  */
 
 import {
@@ -14,9 +14,20 @@ import { buildAdminPeopleList } from "../admin/build-people-list";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { NotificationService } from "./service";
-import { NotificationTypeIds } from "./registry";
+import { NotificationTypeIds, type NotificationTypeId } from "./registry";
 
 type SupplementRow = { party_key: string; onboarding_json: unknown };
+
+type OrgCtosPeopleContext = {
+  ownerUserId: string;
+  beforeCompanyJson: unknown | null;
+  afterCompanyJson: unknown | null;
+  newCtosReportId: string;
+  corporateEntities: unknown;
+  directorKycStatus: unknown;
+  directorAmlStatus: unknown;
+  supplements: { partyKey: string; onboardingJson: unknown }[];
+};
 
 function buildPeopleListParams(params: {
   ctos: unknown;
@@ -49,22 +60,31 @@ function computeVisiblePeopleState(input: PeopleListInput): {
   return { people, visible };
 }
 
-/**
- * After a new issuer org CTOS company snapshot row exists: send action-required notifications for new parties.
- */
-export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert(params: {
-  issuerOrganizationId: string;
-  ownerUserId: string;
-  beforeCompanyJson: unknown | null;
-  afterCompanyJson: unknown | null;
-  newCtosReportId: string;
-  corporateEntities: unknown;
-  directorKycStatus: unknown;
-  directorAmlStatus: unknown;
-  supplements: { partyKey: string; onboardingJson: unknown }[];
+/** Gate for admin org-level CTOS insert notification hooks. */
+export function shouldNotifyDirectorShareholderAfterAdminOrgCtosInsert(params: {
+  portal: "issuer" | "investor";
+  organizationType: "PERSONAL" | "COMPANY";
+  skipDirectorShareholderNotifications?: boolean;
+  ownerUserId?: string | null;
+}): boolean {
+  if (params.skipDirectorShareholderNotifications) return false;
+  if (!params.ownerUserId?.trim()) return false;
+  if (params.portal === "issuer") return true;
+  return params.portal === "investor" && params.organizationType === "COMPANY";
+}
+
+async function sendDirectorShareholderActionRequiredAfterOrgCtosReportInsert(params: {
+  context: OrgCtosPeopleContext;
+  organizationId: string;
+  portal: "issuer" | "investor";
+  notificationTypeId: NotificationTypeId;
+  idempotencyKeyForParty: (partyKey: string) => string;
+  buildSendPayload: (partyKey: string, personName?: string) => Record<string, unknown>;
+  createdLogMessage: string;
 }): Promise<void> {
+  const { context, organizationId, portal, notificationTypeId, idempotencyKeyForParty, buildSendPayload, createdLogMessage } =
+    params;
   const {
-    issuerOrganizationId,
     ownerUserId,
     beforeCompanyJson,
     afterCompanyJson,
@@ -73,10 +93,10 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
     directorKycStatus,
     directorAmlStatus,
     supplements,
-  } = params;
+  } = context;
 
   if (!ownerUserId?.trim()) {
-    logger.warn({ issuerOrganizationId }, "DS notifications: missing owner_user_id, skip");
+    logger.warn({ organizationId, portal }, "DS notifications: missing owner_user_id, skip");
     return;
   }
 
@@ -109,7 +129,8 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
 
   logger.debug(
     {
-      issuerOrganizationId,
+      organizationId,
+      portal,
       ownerUserId,
       newCtosReportId,
       beforeVisibleCount: beforeVisible.length,
@@ -123,7 +144,8 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
   if (!shouldTriggerNotification) {
     logger.debug(
       {
-        issuerOrganizationId,
+        organizationId,
+        portal,
         afterVisibleCount: afterVisible.length,
         newPeopleWithoutOnboardingCount: newPeopleWithoutOnboarding.length,
       },
@@ -136,28 +158,73 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
   for (const person of newPeopleWithoutOnboarding) {
     const partyKey = normalizeDirectorShareholderIdKey(person.matchKey);
     if (!partyKey) continue;
-    const idempotencyKey = `ds_action_required:${issuerOrganizationId}:${newCtosReportId}:${partyKey}`;
+    const idempotencyKey = idempotencyKeyForParty(partyKey);
     const dupKey = await prisma.notification.findUnique({
       where: { idempotency_key: idempotencyKey },
     });
     if (dupKey) {
       logger.debug(
-        { issuerOrganizationId, newCtosReportId, partyKey, idempotencyKey },
+        { organizationId, portal, newCtosReportId, partyKey, idempotencyKey },
         "DS action-required skipped: duplicate idempotency key"
       );
       continue;
     }
     await notificationService.sendTyped(
       ownerUserId,
-      NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED,
-      { issuerOrganizationId, partyKey, personName: person.name ?? undefined, link: "/profile" },
+      notificationTypeId,
+      buildSendPayload(partyKey, person.name ?? undefined) as never,
       idempotencyKey
     );
-    logger.info(
-      { issuerOrganizationId, newCtosReportId, ownerUserId, partyKey },
-      "Created director_shareholder_action_required notification"
-    );
+    logger.info({ organizationId, portal, newCtosReportId, ownerUserId, partyKey }, createdLogMessage);
   }
+}
+
+/**
+ * After a new issuer org CTOS company snapshot row exists: send action-required notifications for new parties.
+ */
+export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert(
+  params: OrgCtosPeopleContext & { issuerOrganizationId: string }
+): Promise<void> {
+  const { issuerOrganizationId, ...context } = params;
+  await sendDirectorShareholderActionRequiredAfterOrgCtosReportInsert({
+    context,
+    organizationId: issuerOrganizationId,
+    portal: "issuer",
+    notificationTypeId: NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED,
+    idempotencyKeyForParty: (partyKey) =>
+      `ds_action_required:${issuerOrganizationId}:${context.newCtosReportId}:${partyKey}`,
+    buildSendPayload: (partyKey, personName) => ({
+      issuerOrganizationId,
+      partyKey,
+      personName,
+      link: "/profile",
+    }),
+    createdLogMessage: "Created director_shareholder_action_required notification",
+  });
+}
+
+/**
+ * After a new investor company org CTOS company snapshot row exists: send action-required notifications.
+ */
+export async function runInvestorDirectorShareholderNotificationsAfterOrgCtosReportInsert(
+  params: OrgCtosPeopleContext & { investorOrganizationId: string }
+): Promise<void> {
+  const { investorOrganizationId, ...context } = params;
+  await sendDirectorShareholderActionRequiredAfterOrgCtosReportInsert({
+    context,
+    organizationId: investorOrganizationId,
+    portal: "investor",
+    notificationTypeId: NotificationTypeIds.INVESTOR_DIRECTOR_SHAREHOLDER_ACTION_REQUIRED,
+    idempotencyKeyForParty: (partyKey) =>
+      `ds_action_required:investor:${investorOrganizationId}:${context.newCtosReportId}:${partyKey}`,
+    buildSendPayload: (partyKey, personName) => ({
+      investorOrganizationId,
+      partyKey,
+      personName,
+      link: "/profile",
+    }),
+    createdLogMessage: "Created investor_director_shareholder_action_required notification",
+  });
 }
 
 export async function notifyIssuerDirectorShareholderActionRequired(params: {

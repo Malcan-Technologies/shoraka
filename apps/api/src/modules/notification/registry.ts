@@ -35,6 +35,8 @@ export const NotificationTypeIds = {
 
   /** Issuer: CTOS or admin requests onboarding action for a director/shareholder party. */
   DIRECTOR_SHAREHOLDER_ACTION_REQUIRED: 'director_shareholder_action_required',
+  /** Investor company: CTOS finds new directors/shareholders needing onboarding. */
+  INVESTOR_DIRECTOR_SHAREHOLDER_ACTION_REQUIRED: 'investor_director_shareholder_action_required',
 
   // Note lifecycle
   NOTE_PUBLISHED: "note_published",
@@ -142,6 +144,12 @@ export interface NotificationPayloads {
   };
   [NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED]: {
     issuerOrganizationId: string;
+    partyKey: string;
+    personName?: string;
+    link: string;
+  };
+  [NotificationTypeIds.INVESTOR_DIRECTOR_SHAREHOLDER_ACTION_REQUIRED]: {
+    investorOrganizationId: string;
     partyKey: string;
     personName?: string;
     link: string;
@@ -356,6 +364,15 @@ export const NOTIFICATION_TEMPLATES: {
     },
     linkPath: (data) => data.link || '/profile',
     portal: 'issuer',
+  },
+  [NotificationTypeIds.INVESTOR_DIRECTOR_SHAREHOLDER_ACTION_REQUIRED]: {
+    title: 'Action Required: Complete Director/Shareholder Onboarding',
+    message: (data) => {
+      const who = data.personName?.trim() ? ` for ${data.personName.trim()}` : "";
+      return `Please complete onboarding${who}.`;
+    },
+    linkPath: (data) => data.link || '/profile',
+    portal: 'investor',
   },
   [NotificationTypeIds.NOTE_PUBLISHED]: {
     title: "Note published",
