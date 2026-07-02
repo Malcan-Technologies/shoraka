@@ -765,7 +765,7 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
 
         {showLatePaymentStrip ? (
           <div className={cn("rounded-xl border p-3", workflowStripSurfaceClass(latePaymentStripTone))}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <div
                 className={cn(
                   "text-xs font-medium uppercase tracking-wider",
