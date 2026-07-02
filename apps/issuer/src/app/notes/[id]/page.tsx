@@ -100,6 +100,10 @@ const PAYMENT_DETAILS_STEP_COPY = {
     description:
       "Enter the payment reference and upload proof so admin can verify the paymaster payment.",
   },
+  [NotePaymentSource.ADMIN_ADJUSTMENT]: {
+    title: "Admin adjustment",
+    description: "This repayment was recorded by admin as an adjustment.",
+  },
 } as const;
 
 const RISK_TOOLTIP_TEXT = "SoukScore grade for this invoice note";

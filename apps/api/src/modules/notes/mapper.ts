@@ -346,10 +346,7 @@ export function resolveIssuerResidualPayoutListStatus(
     return { kind: "paid" };
   }
 
-  if (
-    hasSettlementTrusteeMovementFromPoolSummary(settlementSummary) &&
-    settlementSummary.serviceFeeTrusteeStatus !== "COMPLETED"
-  ) {
+  if (hasSettlementTrusteeMovementFromPoolSummary(settlementSummary)) {
     return {
       kind: "pending",
       withTrustee: settlementSummary.serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE",
