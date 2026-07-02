@@ -211,12 +211,12 @@ function buildInput(note: NoteDetail | NoteListItem): NoteStatusInput {
   }
 
   const hasPostedSettlement = note.settlementSummary != null;
-  const residualInFlight =
-    "issuerResidualPayout" in note &&
-    note.issuerResidualPayout != null &&
-    (note.issuerResidualPayout.kind === "pending" || note.issuerResidualPayout.kind === "awaiting");
-  const pendingResidual = residualInFlight;
   const settlementTrusteePending = isSettlementWrappingUpFromSummary(note.settlementSummary);
+  const issuerResidualPayout =
+    "issuerResidualPayout" in note ? note.issuerResidualPayout : undefined;
+  const pendingResidual =
+    issuerResidualPayout?.kind === "awaiting" ||
+    (issuerResidualPayout?.kind === "pending" && !settlementTrusteePending);
   const pendingDisbursement = note.status === "FUNDING";
 
   return {
