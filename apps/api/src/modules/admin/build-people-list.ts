@@ -4,8 +4,11 @@ import {
   parseCtosPartySupplement,
   extractBusinessNumber,
   extractGovernmentId,
+  filterVisiblePeopleRows,
+  CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING,
   type ApplicationPersonRow,
   type CtosPartySupplement,
+  type DirectorShareholderListSource,
 } from "@cashsouk/types";
 import { getDirectorShareholderDisplayRows } from "@cashsouk/types";
 import { extractCtosIndividuals } from "../regtank/helpers/detect-director-gaps";
@@ -580,7 +583,7 @@ function buildPeopleFromUserDeclaredData(params: {
   return finalPeople;
 }
 
-export function buildUnifiedPeople(params: {
+export type BuildDirectorShareholderPeopleParams = {
   ctos: unknown;
   issuerDirectorKycStatus: unknown;
   issuerDirectorAmlStatus: unknown;
@@ -588,32 +591,31 @@ export function buildUnifiedPeople(params: {
   supplement?: unknown | null;
   ctosPartySupplements?: SupplementInput[] | null;
   corporateEntities: unknown;
-}): ApplicationPersonRow[] {
-  const ctos = params.ctos;
-  const ctosSafe =
-    ctos && typeof ctos === "object"
-      ? {
-          ...(ctos as Record<string, unknown>),
-          directors: Array.isArray((ctos as { directors?: unknown }).directors)
-            ? (ctos as { directors?: unknown[] }).directors
-            : [],
-          shareholders: Array.isArray((ctos as { shareholders?: unknown }).shareholders)
-            ? (ctos as { shareholders?: unknown[] }).shareholders
-            : [],
-        }
-      : null;
+};
 
-  if (!ctosSafe) {
-    const organization = {
-      corporateEntities: params.corporateEntities,
-      issuerDirectorKycStatus: params.issuerDirectorKycStatus,
-      issuerDirectorAmlStatus: params.issuerDirectorAmlStatus,
-      ctosPartySupplements: params.ctosPartySupplements ?? null,
-    };
+export type DirectorShareholderPeopleBuildResult = {
+  people: ApplicationPersonRow[];
+  listSource: DirectorShareholderListSource;
+  ctosDirectorShareholderWarning: string | null;
+};
 
-    return buildPeopleFromUserDeclaredData(organization);
-  }
+function normalizeCtosCompanyJson(ctos: unknown): Record<string, unknown> | null {
+  if (!ctos || typeof ctos !== "object" || Array.isArray(ctos)) return null;
+  return {
+    ...(ctos as Record<string, unknown>),
+    directors: Array.isArray((ctos as { directors?: unknown }).directors)
+      ? (ctos as { directors?: unknown[] }).directors
+      : [],
+    shareholders: Array.isArray((ctos as { shareholders?: unknown }).shareholders)
+      ? (ctos as { shareholders?: unknown[] }).shareholders
+      : [],
+  };
+}
 
+function buildPeopleFromCtosCompanyJson(
+  params: BuildDirectorShareholderPeopleParams,
+  ctosSafe: Record<string, unknown>
+): ApplicationPersonRow[] {
   const supplements: SupplementInput[] =
     Array.isArray(params.ctosPartySupplements) && params.ctosPartySupplements.length > 0
       ? params.ctosPartySupplements
@@ -812,13 +814,45 @@ export function buildUnifiedPeople(params: {
   return normalizeUnifiedPeopleRows(rawRows);
 }
 
-export function buildAdminPeopleList(params: {
-  ctos: unknown;
-  issuerDirectorKycStatus: unknown;
-  issuerDirectorAmlStatus: unknown;
-  supplement?: unknown | null;
-  ctosPartySupplements?: SupplementInput[] | null;
-  corporateEntities: unknown;
-}): ApplicationPersonRow[] {
-  return buildUnifiedPeople(params);
+export function buildDirectorShareholderPeopleList(
+  params: BuildDirectorShareholderPeopleParams
+): DirectorShareholderPeopleBuildResult {
+  const ctosSafe = normalizeCtosCompanyJson(params.ctos);
+
+  if (!ctosSafe) {
+    return {
+      people: buildPeopleFromUserDeclaredData({
+        corporateEntities: params.corporateEntities,
+        issuerDirectorKycStatus: params.issuerDirectorKycStatus,
+        issuerDirectorAmlStatus: params.issuerDirectorAmlStatus,
+        ctosPartySupplements: params.ctosPartySupplements ?? null,
+      }),
+      listSource: "ONBOARDING",
+      ctosDirectorShareholderWarning: null,
+    };
+  }
+
+  const people = buildPeopleFromCtosCompanyJson(params, ctosSafe);
+  const visible = filterVisiblePeopleRows(people);
+  if (visible.length === 0) {
+    return {
+      people: [],
+      listSource: "CTOS_EMPTY",
+      ctosDirectorShareholderWarning: CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING,
+    };
+  }
+
+  return {
+    people,
+    listSource: "CTOS",
+    ctosDirectorShareholderWarning: null,
+  };
+}
+
+export function buildUnifiedPeople(params: BuildDirectorShareholderPeopleParams): ApplicationPersonRow[] {
+  return buildDirectorShareholderPeopleList(params).people;
+}
+
+export function buildAdminPeopleList(params: BuildDirectorShareholderPeopleParams): ApplicationPersonRow[] {
+  return buildDirectorShareholderPeopleList(params).people;
 }

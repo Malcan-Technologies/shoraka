@@ -16,6 +16,28 @@ import {
 import { getCtosPartySupplementFlatRead } from "./ctos-party-supplement-json";
 import { normalizeRawStatus } from "./status-normalization";
 import { isReadyOnboardingStatus } from "./onboarding-readiness";
+
+/** How issuer/investor director-shareholder `people[]` was built (org list + detail APIs). */
+export type DirectorShareholderListSource = "ONBOARDING" | "CTOS" | "CTOS_EMPTY";
+
+export const CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING =
+  "CTOS returned no director/shareholder data." as const;
+
+export function resolveDirectorShareholderCtosEmptyWarning(input: {
+  directorShareholderListSource?: DirectorShareholderListSource | null;
+  ctosDirectorShareholderWarning?: string | null;
+}): string | null {
+  const explicit =
+    typeof input.ctosDirectorShareholderWarning === "string"
+      ? input.ctosDirectorShareholderWarning.trim()
+      : "";
+  if (explicit) return explicit;
+  if (input.directorShareholderListSource === "CTOS_EMPTY") {
+    return CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING;
+  }
+  return null;
+}
+
 export type ApplicationPersonRow = {
   /**
    * SOURCE OF TRUTH (CRITICAL)

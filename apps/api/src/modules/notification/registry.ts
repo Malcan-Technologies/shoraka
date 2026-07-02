@@ -33,10 +33,10 @@ export const NotificationTypeIds = {
   APPLICATION_WITHDRAWN_CONFIRMATION: 'application_withdrawn_confirmation',
   APPLICATION_COMPLETED: 'application_completed',
 
-  /** Issuer: CTOS/AML snapshot shows director/shareholder verification needed (event only). */
-  DIRECTOR_SHAREHOLDER_MISMATCH: 'director_shareholder_mismatch',
-  /** Issuer: admin requests onboarding action for one eligible party. */
+  /** Issuer: CTOS or admin requests onboarding action for a director/shareholder party. */
   DIRECTOR_SHAREHOLDER_ACTION_REQUIRED: 'director_shareholder_action_required',
+  /** Investor company: CTOS finds new directors/shareholders needing onboarding. */
+  INVESTOR_DIRECTOR_SHAREHOLDER_ACTION_REQUIRED: 'investor_director_shareholder_action_required',
 
   // Note lifecycle
   NOTE_PUBLISHED: "note_published",
@@ -142,11 +142,14 @@ export interface NotificationPayloads {
   [NotificationTypeIds.APPLICATION_COMPLETED]: {
     applicationId: string;
   };
-  [NotificationTypeIds.DIRECTOR_SHAREHOLDER_MISMATCH]: {
-    issuerOrganizationId: string;
-  };
   [NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED]: {
     issuerOrganizationId: string;
+    partyKey: string;
+    personName?: string;
+    link: string;
+  };
+  [NotificationTypeIds.INVESTOR_DIRECTOR_SHAREHOLDER_ACTION_REQUIRED]: {
+    investorOrganizationId: string;
     partyKey: string;
     personName?: string;
     link: string;
@@ -353,13 +356,6 @@ export const NOTIFICATION_TEMPLATES: {
     linkPath: (data) => `/applications/${data.applicationId}`,
     portal: 'issuer',
   },
-  [NotificationTypeIds.DIRECTOR_SHAREHOLDER_MISMATCH]: {
-    title: 'Directors/Shareholders Update Required',
-    message: () =>
-      'Director/Shareholder information updated. Please review. Complete verification on your company profile.',
-    linkPath: () => '/profile',
-    portal: 'issuer',
-  },
   [NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED]: {
     title: 'Action Required: Complete Director/Shareholder Onboarding',
     message: (data) => {
@@ -368,6 +364,15 @@ export const NOTIFICATION_TEMPLATES: {
     },
     linkPath: (data) => data.link || '/profile',
     portal: 'issuer',
+  },
+  [NotificationTypeIds.INVESTOR_DIRECTOR_SHAREHOLDER_ACTION_REQUIRED]: {
+    title: 'Action Required: Complete Director/Shareholder Onboarding',
+    message: (data) => {
+      const who = data.personName?.trim() ? ` for ${data.personName.trim()}` : "";
+      return `Please complete onboarding${who}.`;
+    },
+    linkPath: (data) => data.link || '/profile',
+    portal: 'investor',
   },
   [NotificationTypeIds.NOTE_PUBLISHED]: {
     title: "Note published",

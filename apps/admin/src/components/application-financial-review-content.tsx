@@ -236,6 +236,8 @@ interface ApplicationFinancialReviewContentProps {
   issuerOrganizationId: string | null;
   app: {
     people?: ApplicationPersonRow[];
+    directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource;
+    ctosDirectorShareholderWarning?: string | null;
     issuer_organization?: {
       latest_organization_ctos_company_json?: unknown | null;
       latest_organization_ctos_financials_json?: unknown | null;
@@ -768,6 +770,8 @@ export function ApplicationFinancialReviewContent({
         ) : null}
         <DirectorShareholderTable
           people={app.people ?? []}
+          directorShareholderListSource={app.directorShareholderListSource ?? null}
+          ctosDirectorShareholderWarning={app.ctosDirectorShareholderWarning ?? null}
           portal="issuer"
           organizationId={issuerOrgId}
           subjectCtosReports={app.issuer_organization?.latest_organization_ctos_subject_reports ?? null}

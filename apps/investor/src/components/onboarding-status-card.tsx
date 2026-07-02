@@ -4,13 +4,13 @@ import * as React from "react";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import type { Organization } from "@cashsouk/config";
 import { getOnboardingStepperSteps, useOrganization } from "@cashsouk/config";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, OnboardingStepper } from "@cashsouk/ui";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, OnboardingStepper, DirectorShareholderCtosEmptyAlert, UnifiedKycAmlReadonlyRows } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
   filterVisiblePeopleRows,
+  resolveDirectorShareholderCtosEmptyWarning,
 } from "@cashsouk/types";
-import { UnifiedKycAmlReadonlyRows } from "@cashsouk/ui";
 import { toast } from "sonner";
 
 interface OnboardingStatusCardProps {
@@ -21,6 +21,8 @@ interface OnboardingStatusCardProps {
 
 type OrganizationWithPeople = Organization & {
   people?: import("@cashsouk/types").ApplicationPersonRow[];
+  directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource;
+  ctosDirectorShareholderWarning?: string | null;
 };
 
 export function OnboardingStatusCard({
@@ -43,11 +45,21 @@ export function OnboardingStatusCard({
     }));
   }, [organization, orgWithPeople.people]);
 
+  const resolvedCtosEmptyWarning = React.useMemo(
+    () =>
+      resolveDirectorShareholderCtosEmptyWarning({
+        directorShareholderListSource: orgWithPeople.directorShareholderListSource ?? null,
+        ctosDirectorShareholderWarning: orgWithPeople.ctosDirectorShareholderWarning ?? null,
+      }),
+    [orgWithPeople.directorShareholderListSource, orgWithPeople.ctosDirectorShareholderWarning]
+  );
+
   const showCorporatePeopleStatus =
     organization.type === "COMPANY" &&
     (organization.onboardingStatus === "PENDING_APPROVAL" ||
-      organization.onboardingStatus === "PENDING_AML") &&
-    corporateUnifiedRows.length > 0;
+      organization.onboardingStatus === "PENDING_AML" ||
+      organization.onboardingStatus === "PENDING_AMENDMENT") &&
+    (corporateUnifiedRows.length > 0 || Boolean(resolvedCtosEmptyWarning));
 
   const handleRefreshAml = async () => {
     if (!organization.id) return;
@@ -117,10 +129,19 @@ export function OnboardingStatusCard({
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <UnifiedKycAmlReadonlyRows
-              rows={corporateUnifiedRows}
-              isRefreshing={organization.onboardingStatus === "PENDING_AML" && isRefreshing}
-            />
+            {resolvedCtosEmptyWarning ? (
+              <DirectorShareholderCtosEmptyAlert message={resolvedCtosEmptyWarning} />
+            ) : null}
+            {corporateUnifiedRows.length > 0 ? (
+              <UnifiedKycAmlReadonlyRows
+                rows={corporateUnifiedRows}
+                isRefreshing={organization.onboardingStatus === "PENDING_AML" && isRefreshing}
+              />
+            ) : resolvedCtosEmptyWarning ? (
+              <p className="text-sm text-muted-foreground">
+                No directors or shareholders are available from CTOS.
+              </p>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

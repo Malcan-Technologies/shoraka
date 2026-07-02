@@ -6,7 +6,8 @@
  * WHERE USED: Admin/Issuer/Investor director-shareholder rendering
  */
 
-import { buildUnifiedPeople } from "./build-people-list";
+import { buildUnifiedPeople, buildDirectorShareholderPeopleList } from "./build-people-list";
+import { CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING } from "@cashsouk/types";
 
 describe("buildUnifiedPeople", () => {
   it("merges director + shareholder into one person row", () => {
@@ -441,5 +442,96 @@ describe("buildUnifiedPeople", () => {
     });
 
     expect(rows.filter((r) => r.entityType === "CORPORATE")).toHaveLength(0);
+  });
+
+  it("uses onboarding corporate_entities when no CTOS company_json exists", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: { directors: [] },
+      issuerDirectorAmlStatus: { directors: [], businessShareholders: [] },
+      ctosPartySupplements: null,
+      corporateEntities: {
+        directors: [
+          {
+            eodRequestId: "EOD1",
+            personalInfo: {
+              fullName: "Onboarding Director",
+              formContent: {
+                content: [{ fieldName: "Government ID Number", fieldValue: "050616101789" }],
+              },
+            },
+          },
+        ],
+        shareholders: [],
+        corporateShareholders: [],
+      },
+    });
+
+    expect(result.listSource).toBe("ONBOARDING");
+    expect(result.ctosDirectorShareholderWarning).toBeNull();
+    expect(result.people.some((r) => r.matchKey === "050616101789")).toBe(true);
+  });
+
+  it("uses CTOS people when company_json has directors", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: {
+        directors: [
+          {
+            party_type: "I",
+            nic_brno: "900101-10-1111",
+            name: "CTOS Director",
+            position: "DO",
+          },
+        ],
+        shareholders: [],
+      },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: null,
+      corporateEntities: {
+        directors: [
+          {
+            personalInfo: {
+              fullName: "Should Not Appear",
+              formContent: {
+                content: [{ fieldName: "Government ID Number", fieldValue: "111111111111" }],
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    expect(result.listSource).toBe("CTOS");
+    expect(result.ctosDirectorShareholderWarning).toBeNull();
+    expect(result.people).toHaveLength(1);
+    expect(result.people[0]?.name).toBe("CTOS Director");
+  });
+
+  it("returns empty people and warning when CTOS report exists but has no usable directors/shareholders", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: { directors: [], shareholders: [] },
+      issuerDirectorKycStatus: null,
+      issuerDirectorAmlStatus: null,
+      ctosPartySupplements: null,
+      corporateEntities: {
+        directors: [
+          {
+            personalInfo: {
+              fullName: "Onboarding Only",
+              formContent: {
+                content: [{ fieldName: "Government ID Number", fieldValue: "050616101789" }],
+              },
+            },
+          },
+        ],
+        shareholders: [],
+        corporateShareholders: [],
+      },
+    });
+
+    expect(result.listSource).toBe("CTOS_EMPTY");
+    expect(result.people).toEqual([]);
+    expect(result.ctosDirectorShareholderWarning).toBe(CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING);
   });
 });

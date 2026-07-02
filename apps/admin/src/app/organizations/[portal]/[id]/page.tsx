@@ -1390,6 +1390,8 @@ export default function OrganizationDetailPage() {
                     <CardContent>
                       <DirectorShareholderTable
                         people={org.people ?? []}
+                        directorShareholderListSource={org.directorShareholderListSource ?? null}
+                        ctosDirectorShareholderWarning={org.ctosDirectorShareholderWarning ?? null}
                         portal={portal === "investor" ? "investor" : "issuer"}
                         organizationId={organizationId}
                         subjectCtosReports={org.latestOrganizationCtosSubjectReports ?? null}

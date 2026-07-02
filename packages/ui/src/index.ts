@@ -90,6 +90,19 @@ export {
 export type { ChartConfig } from "./components/chart";
 export { cn } from "./lib/utils";
 export {
+  DirectorShareholderCtosEmptyAlert,
+  type DirectorShareholderCtosEmptyAlertProps,
+} from "./director-shareholder-ctos-empty-alert";
+export {
+  DirectorShareholderAlertCard,
+  type DirectorShareholderAlertCardProps,
+} from "./director-shareholder-alert-card";
+export {
+  ISSUER_DIRECTOR_SHAREHOLDER_ALERT_COPY,
+  INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
+  type DirectorShareholderAlertCopy,
+} from "./director-shareholder-alert-copy";
+export {
   fieldTooltipContentClassName,
   fieldTooltipTriggerClassName,
   fieldTooltipTriggerInputClassName,
@@ -178,3 +191,11 @@ export {
   OnboardingLayout,
 } from "./onboarding";
 export type { OnboardingStepperStep } from "./onboarding";
+export {
+  DirectorShareholdersUnifiedSection,
+  directorShareholderOrgApiBase,
+} from "./director-shareholders-unified-section";
+export type {
+  DirectorShareholdersUnifiedSectionProps,
+  DirectorShareholderPortal,
+} from "./director-shareholders-unified-section";

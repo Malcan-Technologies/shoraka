@@ -78,7 +78,14 @@ Use this guide when checking what end users receive from CashSouk notifications.
 | Type ID | Name | Portal scope (seed) | Default channels (seed) | User configurable | Delivery | Sent when | Recipient |
 | ------- | ---- | -------------------- | ------------------------- | ----------------- | -------- | --------- | --------- |
 | `director_shareholder_action_required` | Director/Shareholder Action Required | Issuer | Platform + email | No | Automatic | After a new issuer organization CTOS snapshot shows individuals needing onboarding; also via `notifyIssuerDirectorShareholderActionRequired` (`director-shareholder-notifications`). | **Organization owner** (current senders). |
-| `director_shareholder_mismatch` | Directors/Shareholders Update Required | Issuer | Platform + email | No | Registered only | Type and resolution hooks exist (`director-shareholder-notifications` resolves stale rows); **no current create/send path**. | N/a for new sends. |
+
+---
+
+## Directors and shareholders (investor company)
+
+| Type ID | Name | Portal scope (seed) | Default channels (seed) | User configurable | Delivery | Sent when | Recipient |
+| ------- | ---- | -------------------- | ------------------------- | ----------------- | -------- | --------- | --------- |
+| `investor_director_shareholder_action_required` | Investor Director/Shareholder Action Required | Investor | Platform + email | No | Automatic | After a new investor company organization CTOS snapshot shows individuals needing onboarding (`runInvestorDirectorShareholderNotificationsAfterOrgCtosReportInsert`). | **Investor organization owner**. |
 
 ---
 
