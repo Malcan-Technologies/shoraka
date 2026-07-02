@@ -22,10 +22,14 @@ export type WorkflowDocumentRowShape = {
   allow_multiple?: boolean;
   /** Omitted or true → required (backward compatible); false → optional */
   required?: boolean;
+  /** Omitted means pre-application, which preserves existing application-flow behavior. */
+  upload_timing?: WorkflowDocumentUploadTiming;
   /** One entry: ["pdf"] or ["excel"]. Omitted or empty → treat as ["pdf"] at runtime */
   allowed_types?: string[];
   template?: { s3_key: string; file_name: string; file_size?: number };
 };
+
+export type WorkflowDocumentUploadTiming = "pre_application" | "post_application";
 
 export const MAX_WORKFLOW_DOCUMENT_TEMPLATE_BYTES = 5 * 1024 * 1024;
 
@@ -34,6 +38,12 @@ export const ADMIN_OPTIONAL_TEMPLATE_ACCEPT = ".pdf,.xlsx,.xls";
 
 export function resolveWorkflowDocumentRowRequired(row: { required?: boolean }): boolean {
   return row.required !== false;
+}
+
+export function resolveWorkflowDocumentUploadTiming(row: {
+  upload_timing?: unknown;
+}): WorkflowDocumentUploadTiming {
+  return row.upload_timing === "post_application" ? "post_application" : "pre_application";
 }
 
 export function formatWorkflowDocumentFileSize(bytes: number): string {
@@ -82,6 +92,7 @@ export function parseWorkflowDocumentRowFromUnknown(raw: unknown): WorkflowDocum
     name: (row?.name as string) ?? "",
     allow_multiple: row?.allow_multiple === true,
     ...(typeof rq === "boolean" ? { required: rq } : {}),
+    upload_timing: resolveWorkflowDocumentUploadTiming(row ?? {}),
     ...(allowed_types !== undefined && allowed_types.length > 0 ? { allowed_types } : {}),
     template:
       template?.s3_key != null
@@ -118,6 +129,7 @@ export interface WorkflowDocumentRowEditorProps {
   onTemplateRemove: () => void;
   isUploadingTemplate?: boolean;
   showRemove?: boolean;
+  showUploadTiming?: boolean;
 }
 
 export function WorkflowDocumentRowEditor({
@@ -130,6 +142,7 @@ export function WorkflowDocumentRowEditor({
   onTemplateRemove,
   isUploadingTemplate = false,
   showRemove = true,
+  showUploadTiming = true,
 }: WorkflowDocumentRowEditorProps) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const issuerTypeIsExcel = resolveWorkflowDocumentAllowedTypes(item).includes("excel");
@@ -219,6 +232,30 @@ export function WorkflowDocumentRowEditor({
               Required to upload
             </label>
           </fieldset>
+
+          {showUploadTiming ? (
+            <fieldset className="m-0 min-w-0 flex-none border-0 p-0 sm:border-l sm:border-border sm:pl-8">
+              <legend className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                Upload timing
+              </legend>
+              <Select
+                value={resolveWorkflowDocumentUploadTiming(item)}
+                onValueChange={(value) =>
+                  onUpdate({
+                    upload_timing: value === "post_application" ? "post_application" : "pre_application",
+                  })
+                }
+              >
+                <SelectTrigger className={cn(SELECT_TRIGGER_CLASS, "h-8 w-[190px] shrink-0")}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pre_application">Pre-application</SelectItem>
+                  <SelectItem value="post_application">Post-application</SelectItem>
+                </SelectContent>
+              </Select>
+            </fieldset>
+          ) : null}
         </div>
 
         <div className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1 text-sm leading-6 text-muted-foreground">

@@ -167,10 +167,17 @@ function supportingDocRowHasValidAllowedTypes(row: unknown): boolean {
   return true;
 }
 
+function supportingDocRowHasValidUploadTiming(row: unknown): boolean {
+  if (!row || typeof row !== "object") return true;
+  const timing = (row as Record<string, unknown>).upload_timing;
+  return timing === undefined || timing === "pre_application" || timing === "post_application";
+}
+
 /**
- * Each supporting-doc row may omit allowed_types (pdf at runtime) or set exactly one of pdf | excel.
+ * Each supporting-doc row may omit allowed_types (pdf at runtime), set exactly one
+ * of pdf | excel, and optionally choose pre_application | post_application timing.
  */
-export function validateSupportingDocumentsAllowedTypes(workflow: unknown[]): void {
+export function validateSupportingDocumentsConfig(workflow: unknown[]): void {
   if (!Array.isArray(workflow) || workflow.length === 0) return;
   for (const step of workflow) {
     const sid = (step as { id?: string })?.id ?? "";
@@ -181,11 +188,19 @@ export function validateSupportingDocumentsAllowedTypes(workflow: unknown[]): vo
       if (key === "enabled_categories") continue;
       if (!Array.isArray(value)) continue;
       for (let i = 0; i < value.length; i++) {
-        if (!supportingDocRowHasValidAllowedTypes(value[i])) {
+        const row = value[i];
+        if (!supportingDocRowHasValidAllowedTypes(row)) {
           throw new AppError(
             400,
             "VALIDATION_ERROR",
             `Supporting documents (${key}, row ${i + 1}): choose exactly one file type (PDF or Excel), not both.`
+          );
+        }
+        if (!supportingDocRowHasValidUploadTiming(row)) {
+          throw new AppError(
+            400,
+            "VALIDATION_ERROR",
+            `Supporting documents (${key}, row ${i + 1}): upload timing must be pre-application or post-application.`
           );
         }
       }
@@ -193,6 +208,8 @@ export function validateSupportingDocumentsAllowedTypes(workflow: unknown[]): vo
     return;
   }
 }
+
+export const validateSupportingDocumentsAllowedTypes = validateSupportingDocumentsConfig;
 
 export function validateBusinessDetailsGuarantorAgreement(workflow: unknown[]): void {
   if (!Array.isArray(workflow) || workflow.length === 0) return;
@@ -225,7 +242,7 @@ export function validateFinancialConfig(params: {
   if (params.workflow && params.workflow.length > 0) {
     validateMandatoryWorkflowStepSet(params.workflow);
     validateWorkflowFinancialConfig(params.workflow);
-    validateSupportingDocumentsAllowedTypes(params.workflow);
+    validateSupportingDocumentsConfig(params.workflow);
     validateBusinessDetailsGuarantorAgreement(params.workflow);
   }
 }

@@ -124,7 +124,17 @@ export function SupportingDocumentsConfig({
   const addCategory = (key: CategoryKey) => {
     if (enabledCategories.includes(key)) return;
     const nextEnabled = ensureOthersLast([...enabledCategories, key]);
-    const nextLists = { ...lists, [key]: [{ name: "", allow_multiple: false, allowed_types: ["pdf"] }] };
+    const nextLists = {
+      ...lists,
+      [key]: [
+        {
+          name: "",
+          allow_multiple: false,
+          allowed_types: ["pdf"],
+          upload_timing: "pre_application" as const,
+        },
+      ],
+    };
     setLists(nextLists);
     setEnabledCategories(nextEnabled);
     persist(nextLists, nextEnabled);
@@ -139,7 +149,15 @@ export function SupportingDocumentsConfig({
   };
 
   const addDoc = (key: CategoryKey) => {
-    updateCategory(key, [...lists[key], { name: "", allow_multiple: false, allowed_types: ["pdf"] }]);
+    updateCategory(key, [
+      ...lists[key],
+      {
+        name: "",
+        allow_multiple: false,
+        allowed_types: ["pdf"],
+        upload_timing: "pre_application",
+      },
+    ]);
   };
 
   const updateDoc = (key: CategoryKey, index: number, updates: Partial<SupportingDocItemShape>) => {

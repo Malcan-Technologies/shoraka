@@ -181,6 +181,7 @@ type RawWorkflowDoc = {
   template?: { s3_key?: string };
   allowed_types?: unknown;
   required?: boolean;
+  upload_timing?: unknown;
 };
 
 export type SupportingCategoryDocument = {
@@ -189,6 +190,7 @@ export type SupportingCategoryDocument = {
   template?: { s3_key?: string };
   allowedTypes: string[];
   required: boolean;
+  workflowDocumentIndex: number;
 };
 
 export type SupportingCategory = {
@@ -359,14 +361,19 @@ export function SupportingDocumentsStep({
           .replace(/_/g, " ")
           .replace(/\b\w/g, (c) => c.toUpperCase()),
 
-        documents: (docs as RawWorkflowDoc[]).map((doc) => ({
-          title: doc?.name ?? "—",
-          allowMultiple: doc?.allow_multiple === true,
-          template: doc?.template,
-          allowedTypes: resolveIssuerAllowedTypes(doc ?? {}),
-          required: doc?.required !== false,
-        })),
-      }));
+        documents: (docs as RawWorkflowDoc[])
+          .map((doc, workflowDocumentIndex) => ({ doc, workflowDocumentIndex }))
+          .filter(({ doc }) => doc?.upload_timing !== "post_application")
+          .map(({ doc, workflowDocumentIndex }) => ({
+            title: doc?.name ?? "—",
+            allowMultiple: doc?.allow_multiple === true,
+            template: doc?.template,
+            allowedTypes: resolveIssuerAllowedTypes(doc ?? {}),
+            required: doc?.required !== false,
+            workflowDocumentIndex,
+          })),
+      }))
+      .filter((category) => category.documents.length > 0);
   }, [stepConfig]);
 
 
@@ -611,6 +618,10 @@ export function SupportingDocumentsStep({
         if (!slotCategory) {
           throw new Error("Invalid category for upload");
         }
+        const slotDocument = slotCategory.documents[slot.documentIndex];
+        if (!slotDocument) {
+          throw new Error("Invalid document for upload");
+        }
 
         for (const pending of pendingUploads) {
           const typedFile = pending.file;
@@ -625,7 +636,7 @@ export function SupportingDocumentsStep({
               contentType: typedFile.type || "application/octet-stream",
               fileSize: typedFile.size,
               supportingDocCategoryKey: slotCategory.groupKey,
-              supportingDocIndex: slot.documentIndex,
+              supportingDocIndex: slotDocument.workflowDocumentIndex,
             }),
           });
 
@@ -911,14 +922,15 @@ export function SupportingDocumentsStep({
                           .replace(/[^a-z0-9]/gi, "_")
                           .slice(0, 32) || "doc";
                       const acceptAttr = buildAcceptAttr(document.allowedTypes ?? ["pdf"]);
-                      const rawKey = `supporting_documents:${groupKey}:${documentIndex}:${slug}`;
-                      const rawKeyWithDoc = `supporting_documents:doc:${groupKey}:${documentIndex}:${slug}`;
+                      const workflowDocumentIndex = document.workflowDocumentIndex;
+                      const rawKey = `supporting_documents:${groupKey}:${workflowDocumentIndex}:${slug}`;
+                      const rawKeyWithDoc = `supporting_documents:doc:${groupKey}:${workflowDocumentIndex}:${slug}`;
                       const isItemFlagged = [...supportingDocItemSet].some((key) =>
-                        supportingDocScopeKeyMatchesRow(key, groupKey, documentIndex, slug)
+                        supportingDocScopeKeyMatchesRow(key, groupKey, workflowDocumentIndex, slug)
                       );
                       const itemRemark =
                         [...flaggedDocRemarks.entries()].find(([k]) =>
-                          supportingDocScopeKeyMatchesRow(k, groupKey, documentIndex, slug)
+                          supportingDocScopeKeyMatchesRow(k, groupKey, workflowDocumentIndex, slug)
                         )?.[1] ??
                         flaggedDocRemarks.get(rawKey) ??
                         flaggedDocRemarks.get(rawKeyWithDoc);

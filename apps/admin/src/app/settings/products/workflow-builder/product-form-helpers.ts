@@ -444,8 +444,9 @@ function runStepValidation(steps: unknown[]): { errors: string[]; stepIdsWithErr
         stepIdsWithErrors.add(stepId);
       }
       let badAllowedTypes = 0;
+      let badUploadTiming = 0;
       for (const key of SUPPORTING_DOC_CATEGORY_KEYS) {
-        const list = config[key] as Array<{ allowed_types?: unknown }> | undefined;
+        const list = config[key] as Array<{ allowed_types?: unknown; upload_timing?: unknown }> | undefined;
         if (!Array.isArray(list)) continue;
         for (const item of list) {
           const at = item?.allowed_types;
@@ -459,10 +460,23 @@ function runStepValidation(steps: unknown[]): { errors: string[]; stepIdsWithErr
             .filter((t) => t === "pdf" || t === "excel");
           const unique = [...new Set(tokens)];
           if (unique.length !== 1) badAllowedTypes++;
+
+          const timing = item?.upload_timing;
+          if (
+            timing !== undefined &&
+            timing !== "pre_application" &&
+            timing !== "post_application"
+          ) {
+            badUploadTiming++;
+          }
         }
       }
       if (badAllowedTypes > 0) {
         errors.push(`${stepLabel}: each document allows only one file type (PDF or Excel)`);
+        stepIdsWithErrors.add(stepId);
+      }
+      if (badUploadTiming > 0) {
+        errors.push(`${stepLabel}: each document must be pre-application or post-application`);
         stepIdsWithErrors.add(stepId);
       }
     }

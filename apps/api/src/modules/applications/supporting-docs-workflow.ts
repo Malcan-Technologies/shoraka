@@ -33,6 +33,13 @@ export function resolveAllowedTypesFromWorkflowRow(row: unknown): string[] {
   return first === "excel" ? ["excel"] : ["pdf"];
 }
 
+export function resolveUploadTimingFromWorkflowRow(row: unknown): "pre_application" | "post_application" {
+  if (!row || typeof row !== "object") return "pre_application";
+  return (row as Record<string, unknown>).upload_timing === "post_application"
+    ? "post_application"
+    : "pre_application";
+}
+
 export function getSupportingDocAllowedTypesFromProductWorkflow(
   workflow: unknown,
   categoryKey: string,
@@ -87,7 +94,7 @@ function unwrapSupportingDocumentCategoriesFromApplication(data: unknown): unkno
 }
 
 /**
- * On submit/resubmit: each workflow row with required !== false must have at least one uploaded file (s3_key).
+ * On submit/resubmit: each required pre-application workflow row must have at least one uploaded file (s3_key).
  * Category order matches issuer: Object.entries(config), skipping enabled_categories and non-arrays.
  */
 export function assertRequiredSupportingDocumentsPresent(
@@ -118,6 +125,7 @@ export function assertRequiredSupportingDocumentsPresent(
     const appDocs = appCat?.documents;
     for (let docIndex = 0; docIndex < rows.length; docIndex++) {
       const row = rows[docIndex];
+      if (resolveUploadTimingFromWorkflowRow(row) === "post_application") continue;
       const required = !row || typeof row !== "object" || (row as Record<string, unknown>).required !== false;
       if (!required) continue;
       const nameRaw =
