@@ -1,4 +1,9 @@
-import { isSoukscoreRiskRating, roundNoteMoney, type IssuerResidualPayoutListStatus } from "@cashsouk/types";
+import {
+  hasSettlementTrusteeMovementFromPoolSummary,
+  isSoukscoreRiskRating,
+  roundNoteMoney,
+  type IssuerResidualPayoutListStatus,
+} from "@cashsouk/types";
 import { NoteSettlementStatus, Prisma, WithdrawalStatus, WithdrawalType } from "@prisma/client";
 import { sortAdminNoteEvents } from "./admin-note-events-sorting";
 
@@ -335,6 +340,20 @@ export function resolveIssuerResidualPayoutListStatus(
   const { settlementId, issuerResidualAmount: residualAmount } = settlementSummary;
   if (residualAmount <= ISSUER_RESIDUAL_AMOUNT_TOLERANCE) {
     return { kind: "none" };
+  }
+
+  if (settlementSummary.serviceFeeTrusteeStatus === "COMPLETED") {
+    return { kind: "paid" };
+  }
+
+  if (
+    hasSettlementTrusteeMovementFromPoolSummary(settlementSummary) &&
+    settlementSummary.serviceFeeTrusteeStatus !== "COMPLETED"
+  ) {
+    return {
+      kind: "pending",
+      withTrustee: settlementSummary.serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE",
+    };
   }
 
   const strictRows = withdrawals.filter(

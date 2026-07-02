@@ -507,6 +507,8 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
   const disbursementComplete = isDisbursementComplete(disbursementWithdrawal);
   const settlementInProgress = isSettlementWrappingUp(note);
   const terminalFailure = getTerminalFailure(note, activeIndex);
+  const defaultedWithSettlementTrusteeWork =
+    terminalFailure?.label === "Defaulted" && settlementInProgress;
   const showDisbursementStrip =
     !isComplete &&
     !terminalFailure &&
@@ -521,7 +523,8 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
     needsGeneration: serviceFeeTrusteeStatus === "PENDING_LETTER" || serviceFeeTrusteeStatus === null,
   });
   const showServiceFeeSubStepper =
-    postedSettlementWithServiceFee !== null && !terminalFailure;
+    postedSettlementWithServiceFee !== null &&
+    (!terminalFailure || defaultedWithSettlementTrusteeWork);
   const serviceFeeSubSteps = showServiceFeeSubStepper
     ? buildServiceFeeSubSteps(serviceFeeTrusteeStatus)
     : null;
@@ -556,7 +559,9 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
   const headerDescription = isComplete
     ? "All settlement allocations are complete. The note lifecycle is complete."
     : terminalFailure
-      ? terminalFailure.description
+      ? defaultedWithSettlementTrusteeWork
+        ? "The note has defaulted. Settlement has been posted and recovery is in progress. Complete the settlement trustee instruction — including any issuer refund allocation — from the Servicing & Settlement tab."
+        : terminalFailure.description
       : settlementInProgress
         ? "Settlement has been posted to the ledger. Finish the settlement trustee instruction — including any issuer refund allocation — from the Servicing & Settlement tab."
         : awaitingDisbursement
@@ -597,9 +602,16 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
                   Complete
                 </Badge>
               ) : terminalFailure ? (
-                <Badge variant="destructive" className="uppercase">
-                  Terminal
-                </Badge>
+                <>
+                  <Badge variant="destructive" className="uppercase">
+                    Terminal
+                  </Badge>
+                  {defaultedWithSettlementTrusteeWork ? (
+                    <Badge variant="secondary" className="uppercase">
+                      Settlement in progress
+                    </Badge>
+                  ) : null}
+                </>
               ) : awaitingDisbursement ? (
                 <Badge variant="secondary" className="uppercase">
                   Pending Disbursement
