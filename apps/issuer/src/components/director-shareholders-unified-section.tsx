@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { UserGroupIcon, UserIcon, BuildingOffice2Icon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { UserGroupIcon, UserIcon, BuildingOffice2Icon } from "@heroicons/react/24/outline";
+import { DirectorShareholderCtosEmptyAlert } from "@cashsouk/ui";
 import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
   canManageDirectorShareholder,
@@ -12,6 +13,7 @@ import {
   getFinalStatusLabel,
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
+  resolveDirectorShareholderCtosEmptyWarning,
   type ApplicationPersonRow,
   type DirectorShareholderDisplayRow,
 } from "@cashsouk/types";
@@ -20,7 +22,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 // import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useQueryClient } from "@tanstack/react-query";
@@ -32,6 +33,7 @@ export interface DirectorShareholdersUnifiedSectionProps {
   organizationId?: string;
   organizationOnboardingStatus?: string | null;
   people: ApplicationPersonRow[];
+  directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource | null;
   ctosDirectorShareholderWarning?: string | null;
   className?: string;
   highlightActionRequiredRows?: boolean;
@@ -55,6 +57,7 @@ export function DirectorShareholdersUnifiedSection({
   organizationId,
   organizationOnboardingStatus = null,
   people,
+  directorShareholderListSource = null,
   ctosDirectorShareholderWarning = null,
   className,
   highlightActionRequiredRows = true,
@@ -67,6 +70,15 @@ export function DirectorShareholdersUnifiedSection({
   const [draftEmails, setDraftEmails] = React.useState<Record<string, string>>({});
   const [confirmRow, setConfirmRow] = React.useState<AugmentedRow | null>(null);
   const [savePending, setSavePending] = React.useState(false);
+
+  const resolvedCtosEmptyWarning = React.useMemo(
+    () =>
+      resolveDirectorShareholderCtosEmptyWarning({
+        directorShareholderListSource,
+        ctosDirectorShareholderWarning,
+      }),
+    [directorShareholderListSource, ctosDirectorShareholderWarning]
+  );
 
   const blockPartyOnboarding = Boolean(organizationId) && organizationOnboardingStatus !== "COMPLETED";
 
@@ -243,15 +255,12 @@ export function DirectorShareholdersUnifiedSection({
         </div>
       </div>
       <div className="p-6 space-y-6">
-        {ctosDirectorShareholderWarning ? (
-          <Alert className="border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
-            <ExclamationTriangleIcon className="h-4 w-4" />
-            <AlertDescription>{ctosDirectorShareholderWarning}</AlertDescription>
-          </Alert>
+        {resolvedCtosEmptyWarning ? (
+          <DirectorShareholderCtosEmptyAlert message={resolvedCtosEmptyWarning} />
         ) : null}
         {emptyAll ? (
           <p className="text-sm text-muted-foreground text-center py-8">
-            {ctosDirectorShareholderWarning
+            {resolvedCtosEmptyWarning
               ? "No directors or shareholders are available from CTOS."
               : "No directors or shareholders listed."}
           </p>

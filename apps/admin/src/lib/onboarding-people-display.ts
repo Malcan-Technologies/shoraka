@@ -17,6 +17,8 @@ export {
   isDirectorShareholderAmlScreeningApproved,
   shouldShowPeopleSendEmailButton,
   isFinancialReviewKycReadyForApprove,
+  resolveDirectorShareholderCtosEmptyWarning,
   type ApplicationPersonRow,
+  type DirectorShareholderListSource,
   type PeopleRolesRowInput,
 } from "@cashsouk/types";

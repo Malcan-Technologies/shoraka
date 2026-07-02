@@ -1350,6 +1350,7 @@ export default function ProfilePage() {
                     organizationId={activeOrganization.id}
                     organizationOnboardingStatus={orgData.onboardingStatus}
                     people={orgData.people ?? []}
+                    directorShareholderListSource={orgData.directorShareholderListSource ?? null}
                     ctosDirectorShareholderWarning={orgData.ctosDirectorShareholderWarning ?? null}
                     highlightActionRequiredRows
                     autoFocusFirstEmptyEmail={focusDirectors}

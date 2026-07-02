@@ -82,7 +82,7 @@ import { AMLFetcherService } from "../regtank/aml-fetcher";
 import type { PortalType } from "../regtank/types";
 import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-entities";
 import { extractGovernmentIdFromCorporateUserInfo } from "../regtank/helpers/extract-government-id";
-import { buildAdminPeopleList } from "./build-people-list";
+import { buildAdminPeopleList, buildDirectorShareholderPeopleList } from "./build-people-list";
 import { notifyIssuerDirectorShareholderActionRequired } from "../notification/director-shareholder-notifications";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal } from "../applications/logs/types";
@@ -2644,9 +2644,9 @@ export class AdminService {
       directorAmlStatus: org.type === "COMPANY" ? (org.director_aml_status as Record<string, unknown> | null) : undefined,
       directorKycStatus: org.type === "COMPANY" ? (org.director_kyc_status as Record<string, unknown> | null) : undefined,
       businessAmlStatus: org.type === "COMPANY" ? (org.business_aml_status as Record<string, unknown> | null) : undefined,
-      people:
-        org.type === "COMPANY"
-          ? buildAdminPeopleList({
+      ...(org.type === "COMPANY"
+        ? (() => {
+            const partyBuild = buildDirectorShareholderPeopleList({
               ctos:
                 portal === "issuer"
                   ? (latestOrganizationCtosCompanyJson ?? null)
@@ -2658,8 +2658,14 @@ export class AdminService {
                   ? (ctosPartySupplements ?? null)
                   : (investorCtosPartySupplements ?? null),
               corporateEntities: org.corporate_entities ?? null,
-            })
-          : undefined,
+            });
+            return {
+              people: partyBuild.people,
+              directorShareholderListSource: partyBuild.listSource,
+              ctosDirectorShareholderWarning: partyBuild.ctosDirectorShareholderWarning,
+            };
+          })()
+        : {}),
       members: org.members.map((m) => ({
         id: m.id,
         userId: m.user_id,
@@ -3074,7 +3080,7 @@ export class AdminService {
       return null;
     }
     const existingResponse = this.mapToOnboardingApplicationResponse(refreshed);
-    const mergedPeople = buildAdminPeopleList({
+    const partyBuild = buildDirectorShareholderPeopleList({
       ctos: existingResponse.latestOrganizationCtosCompanyJson,
       issuerDirectorKycStatus: refreshed.issuer_organization?.director_kyc_status ?? null,
       issuerDirectorAmlStatus: refreshed.issuer_organization?.director_aml_status ?? null,
@@ -3084,7 +3090,9 @@ export class AdminService {
 
     return {
       ...existingResponse,
-      people: mergedPeople,
+      people: partyBuild.people,
+      directorShareholderListSource: partyBuild.listSource,
+      ctosDirectorShareholderWarning: partyBuild.ctosDirectorShareholderWarning,
     };
   }
 
@@ -5458,7 +5466,7 @@ export class AdminService {
     )
       ? (applicationWithIssuerExtras.issuer_organization as Record<string, unknown>)
       : null;
-    const people = buildAdminPeopleList({
+    const partyBuild = buildDirectorShareholderPeopleList({
       ctos: issuerOrgForPeople?.latest_organization_ctos_company_json ?? null,
       issuerDirectorKycStatus: issuerOrgForPeople?.director_kyc_status ?? null,
       issuerDirectorAmlStatus: issuerOrgForPeople?.director_aml_status ?? null,
@@ -5470,7 +5478,9 @@ export class AdminService {
     return {
       ...applicationWithIssuerExtras,
       processingFeePaid,
-      people,
+      people: partyBuild.people,
+      directorShareholderListSource: partyBuild.listSource,
+      ctosDirectorShareholderWarning: partyBuild.ctosDirectorShareholderWarning,
       linked_notes: await prisma.note.findMany({
         where: { source_application_id: id },
         orderBy: { created_at: "desc" },

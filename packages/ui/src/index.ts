@@ -90,6 +90,10 @@ export {
 export type { ChartConfig } from "./components/chart";
 export { cn } from "./lib/utils";
 export {
+  DirectorShareholderCtosEmptyAlert,
+  type DirectorShareholderCtosEmptyAlertProps,
+} from "./director-shareholder-ctos-empty-alert";
+export {
   fieldTooltipContentClassName,
   fieldTooltipTriggerClassName,
   fieldTooltipTriggerInputClassName,

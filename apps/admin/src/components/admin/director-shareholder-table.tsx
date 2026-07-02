@@ -34,9 +34,12 @@ import {
   getFinalStatusLabel,
   getRegtankLink,
   normalizeDirectorShareholderIdKey,
+  resolveDirectorShareholderCtosEmptyWarning,
   type ApplicationPersonRow,
+  type DirectorShareholderListSource,
 } from "@cashsouk/types";
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
+import { DirectorShareholderCtosEmptyAlert } from "@cashsouk/ui";
 import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -64,6 +67,8 @@ type PendingCtosSubjectFetch = {
  */
 export function DirectorShareholderTable({
   people,
+  directorShareholderListSource = null,
+  ctosDirectorShareholderWarning = null,
   portal,
   organizationId,
   ctosFetchPendingKey,
@@ -72,6 +77,8 @@ export function DirectorShareholderTable({
   onFetchSubjectCtos,
 }: {
   people: ApplicationPersonRow[];
+  directorShareholderListSource?: DirectorShareholderListSource | null;
+  ctosDirectorShareholderWarning?: string | null;
   portal: "issuer" | "investor";
   organizationId: string;
   ctosFetchPendingKey?: string | null;
@@ -83,6 +90,14 @@ export function DirectorShareholderTable({
   const { getAccessToken } = useAuthToken();
   const [pendingCtosSubjectFetch, setPendingCtosSubjectFetch] = React.useState<PendingCtosSubjectFetch | null>(null);
   const rows = React.useMemo(() => mergePeopleRowsByMatchKey(filterVisiblePeopleRows(people ?? [])), [people]);
+  const resolvedCtosEmptyWarning = React.useMemo(
+    () =>
+      resolveDirectorShareholderCtosEmptyWarning({
+        directorShareholderListSource,
+        ctosDirectorShareholderWarning,
+      }),
+    [directorShareholderListSource, ctosDirectorShareholderWarning]
+  );
 
   /** Same flow as {@link OrganizationIssuerCtosReportsCard}: fetch HTML first, then `window.open("", "_blank")` (no `noopener`) + `document.write`. */
   const openSubjectReportHtml = React.useCallback(
@@ -115,7 +130,18 @@ export function DirectorShareholderTable({
   );
 
   if (rows.length === 0) {
-    return <p className="text-sm text-muted-foreground py-4 text-center">No director or shareholder data.</p>;
+    return (
+      <div className="space-y-3">
+        {resolvedCtosEmptyWarning ? (
+          <DirectorShareholderCtosEmptyAlert message={resolvedCtosEmptyWarning} />
+        ) : null}
+        <p className="text-sm text-muted-foreground py-4 text-center">
+          {resolvedCtosEmptyWarning
+            ? "No director or shareholder data is available from CTOS."
+            : "No director or shareholder data."}
+        </p>
+      </div>
+    );
   }
 
   return (

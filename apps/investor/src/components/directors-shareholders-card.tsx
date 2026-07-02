@@ -9,14 +9,18 @@ import {
   formatPeopleRolesLineTitleCase,
   getFinalStatusBadgeClassName,
   getFinalStatusLabel,
+  resolveDirectorShareholderCtosEmptyWarning,
   type ApplicationPersonRow,
   type DirectorShareholderDisplayRow,
 } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
+import { DirectorShareholderCtosEmptyAlert } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
 
 export interface DirectorsShareholdersCardProps {
   people: ApplicationPersonRow[];
+  directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource | null;
+  ctosDirectorShareholderWarning?: string | null;
 }
 
 function isDirectorLikeRow(r: DirectorShareholderDisplayRow): boolean {
@@ -63,7 +67,20 @@ function renderRow(row: DirectorShareholderDisplayRow & { __person: ApplicationP
   );
 }
 
-export function DirectorsShareholdersCard({ people }: DirectorsShareholdersCardProps) {
+export function DirectorsShareholdersCard({
+  people,
+  directorShareholderListSource = null,
+  ctosDirectorShareholderWarning = null,
+}: DirectorsShareholdersCardProps) {
+  const resolvedCtosEmptyWarning = React.useMemo(
+    () =>
+      resolveDirectorShareholderCtosEmptyWarning({
+        directorShareholderListSource,
+        ctosDirectorShareholderWarning,
+      }),
+    [directorShareholderListSource, ctosDirectorShareholderWarning]
+  );
+
   const rows = React.useMemo(
     () =>
       filterVisiblePeopleRows(people).map((p) => ({
@@ -87,6 +104,9 @@ export function DirectorsShareholdersCard({ people }: DirectorsShareholdersCardP
         </div>
       </div>
       <div className="p-6 space-y-6">
+        {resolvedCtosEmptyWarning ? (
+          <DirectorShareholderCtosEmptyAlert message={resolvedCtosEmptyWarning} />
+        ) : null}
         {directorLikeRows.length > 0 ? (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
@@ -119,7 +139,11 @@ export function DirectorsShareholdersCard({ people }: DirectorsShareholdersCardP
 
         {emptyAll ? (
           <div className="text-center py-8 text-muted-foreground">
-            <p>No directors or shareholders information available.</p>
+            <p>
+              {resolvedCtosEmptyWarning
+                ? "No directors or shareholders are available from CTOS."
+                : "No directors or shareholders information available."}
+            </p>
           </div>
         ) : null}
       </div>

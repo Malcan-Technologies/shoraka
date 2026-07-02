@@ -38,6 +38,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export type FinancialSectionAppSlice = {
   people?: ApplicationPersonRow[];
+  directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource;
+  ctosDirectorShareholderWarning?: string | null;
   issuer_organization?: {
     id?: string;
     corporate_entities?: unknown;

@@ -70,6 +70,8 @@ import {
   formatPeopleRolesLine,
   type PeopleRolesRowInput,
 } from "@/lib/onboarding-people-display";
+import { resolveDirectorShareholderCtosEmptyWarning } from "@cashsouk/types";
+import { DirectorShareholderCtosEmptyAlert } from "@cashsouk/ui";
 
 type OnboardingPersonRow = PeopleRolesRowInput & {
   matchKey: string;
@@ -185,6 +187,16 @@ export function OnboardingReviewDialog({
   const isCompany = application?.type === "COMPANY";
   const peopleRows = React.useMemo(() => application?.people ?? [], [application]);
   const visiblePeopleRows = React.useMemo(() => filterVisiblePeopleRows(peopleRows), [peopleRows]);
+  const resolvedCtosEmptyWarning = React.useMemo(
+    () =>
+      application
+        ? resolveDirectorShareholderCtosEmptyWarning({
+            directorShareholderListSource: application.directorShareholderListSource ?? null,
+            ctosDirectorShareholderWarning: application.ctosDirectorShareholderWarning ?? null,
+          })
+        : null,
+    [application]
+  );
 
   const steps = React.useMemo(() => {
     if (!application) return [];
@@ -448,6 +460,13 @@ export function OnboardingReviewDialog({
                 Open Onboarding Review
               </Button>
 
+              {isCompany && resolvedCtosEmptyWarning ? (
+                <>
+                  <Separator />
+                  <DirectorShareholderCtosEmptyAlert message={resolvedCtosEmptyWarning} />
+                </>
+              ) : null}
+
               {/* Director / shareholder list from backend people[] */}
               {isCompany && visiblePeopleRows.length > 0 && (
                 <>
@@ -579,6 +598,13 @@ export function OnboardingReviewDialog({
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                 {isCompany ? "Open KYB/AML Review" : "Open KYC/AML Review"}
               </Button>
+
+              {isCompany && resolvedCtosEmptyWarning ? (
+                <>
+                  <Separator />
+                  <DirectorShareholderCtosEmptyAlert message={resolvedCtosEmptyWarning} />
+                </>
+              ) : null}
               
               {/* Director / shareholder list from backend people[] */}
               {isCompany && visiblePeopleRows.length > 0 && (

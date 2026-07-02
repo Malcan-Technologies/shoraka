@@ -20,7 +20,9 @@ import {
   formatShareOwnershipCell,
   getFinalStatusBadgeClassName,
   getFinalStatusLabel,
+  resolveDirectorShareholderCtosEmptyWarning,
 } from "@cashsouk/types";
+import { DirectorShareholderCtosEmptyAlert } from "@cashsouk/ui";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { useApplication } from "@/hooks/use-applications";
@@ -248,6 +250,14 @@ export function CompanyDetailsStep({
   const visiblePeopleRows = React.useMemo(
     () => filterVisiblePeopleRows(entitiesData?.people ?? []),
     [entitiesData?.people]
+  );
+  const resolvedCtosEmptyWarning = React.useMemo(
+    () =>
+      resolveDirectorShareholderCtosEmptyWarning({
+        directorShareholderListSource: entitiesData?.directorShareholderListSource ?? null,
+        ctosDirectorShareholderWarning: entitiesData?.ctosDirectorShareholderWarning ?? null,
+      }),
+    [entitiesData?.directorShareholderListSource, entitiesData?.ctosDirectorShareholderWarning]
   );
 
   /* ================================================================
@@ -745,9 +755,16 @@ export function CompanyDetailsStep({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
+            {resolvedCtosEmptyWarning ? (
+              <div className="col-span-2">
+                <DirectorShareholderCtosEmptyAlert message={resolvedCtosEmptyWarning} />
+              </div>
+            ) : null}
             {visiblePeopleRows.length === 0 ? (
               <p className="text-[17px] leading-7 text-muted-foreground col-span-2">
-                No directors or shareholders found
+                {resolvedCtosEmptyWarning
+                  ? "No directors or shareholders are available from CTOS."
+                  : "No directors or shareholders found"}
               </p>
             ) : (
               visiblePeopleRows.map((p) => {

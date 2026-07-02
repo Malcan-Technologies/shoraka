@@ -553,6 +553,8 @@ export default function ProfilePage() {
           corporateShareholders?: Array<Record<string, unknown>>;
         };
         people?: ApplicationPersonRow[];
+        directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource;
+        ctosDirectorShareholderWarning?: string | null;
       }>(`/v1/organizations/investor/${activeOrganization.id}`);
       if (!result.success) {
         throw new Error(result.error.message);
@@ -1411,6 +1413,8 @@ export default function ProfilePage() {
               {!isPersonal && activeOrganization?.id && orgData?.type === "COMPANY" && (
                 <DirectorsShareholdersCard
                   people={orgData.people ?? []}
+                  directorShareholderListSource={orgData.directorShareholderListSource ?? null}
+                  ctosDirectorShareholderWarning={orgData.ctosDirectorShareholderWarning ?? null}
                 />
               )}
 
