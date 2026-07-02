@@ -310,7 +310,20 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         if (bdIdx >= 0) {
           const step = nextSteps[bdIdx] as Record<string, unknown>;
           const config = { ...((step.config ?? {}) as Record<string, unknown>) };
-          config.guarantor_agreement_template = { s3_key: s3Key, file_name: file.name, file_size: file.size };
+          const existing =
+            config.guarantor_agreement && typeof config.guarantor_agreement === "object"
+              ? ({ ...(config.guarantor_agreement as Record<string, unknown>) } as Record<string, unknown>)
+              : {
+                  name: "Guarantor agreement",
+                  allow_multiple: false,
+                  allowed_types: ["pdf"],
+                  required: false,
+                };
+          delete config.guarantor_agreement_template;
+          config.guarantor_agreement = {
+            ...existing,
+            template: { s3_key: s3Key, file_name: file.name, file_size: file.size },
+          };
           step.config = config;
         }
         continue;
@@ -406,6 +419,10 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       await uploadTemplatesAndMerge(productId, nextSteps, onS3KeyUploaded);
 
       const payload = buildPayloadFromSteps(nextSteps);
+      setSteps(payload);
+      if (isEdit) {
+        initialWorkflowRef.current = normalizeWorkflow(payload);
+      }
       const offerExpiryNum =
         offerExpiryDays.trim() !== ""
           ? (() => {
@@ -770,7 +787,17 @@ const hasChanges = !isEdit
                                             }
                                           : stepKey === SUPPORTING_DOCS_STEP_KEY ||
                                               stepKey === BUSINESS_DETAILS_STEP_KEY
-                                            ? { onPendingTemplateChange: handlePendingSupportingDocTemplate }
+                                            ? {
+                                                onPendingTemplateChange: handlePendingSupportingDocTemplate,
+                                                ...(stepKey === BUSINESS_DETAILS_STEP_KEY
+                                                  ? {
+                                                      pendingTemplateFile:
+                                                        pendingSupportingDocTemplates[
+                                                          "guarantor_agreement_0"
+                                                        ] ?? null,
+                                                    }
+                                                  : {}),
+                                              }
                                             : undefined
                                       }
                                     />

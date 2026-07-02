@@ -150,7 +150,7 @@ interface GuarantorIndividualRow {
   email: string;
   relationship: GuarantorIndividualRelationship | "";
   relationshipOther: string;
-  guarantorAgreement?: GuarantorAgreementFile;
+  guarantorAgreements: GuarantorAgreementFile[];
 }
 
 interface GuarantorCompanyRow {
@@ -160,7 +160,7 @@ interface GuarantorCompanyRow {
   ssmNumber: string;
   email: string;
   relationship: GuarantorCompanyRelationship | "";
-  guarantorAgreement?: GuarantorAgreementFile;
+  guarantorAgreements: GuarantorAgreementFile[];
 }
 
 type GuarantorFormRow = GuarantorIndividualRow | GuarantorCompanyRow;
@@ -188,6 +188,7 @@ function emptyIndividualGuarantor(): GuarantorIndividualRow {
     email: "",
     relationship: "",
     relationshipOther: "",
+    guarantorAgreements: [],
   };
 }
 
@@ -199,6 +200,7 @@ function emptyCompanyGuarantor(): GuarantorCompanyRow {
     ssmNumber: "",
     email: "",
     relationship: "",
+    guarantorAgreements: [],
   };
 }
 
@@ -243,12 +245,19 @@ interface BusinessDetailsSnake {
         name: string;
         ic_number: string;
         nationality: string;
-        guarantor_agreement?: {
-          file_name: string;
-          file_size: number;
-          s3_key: string;
-          uploaded_at?: string;
-        };
+        guarantor_agreement?:
+          | {
+              file_name: string;
+              file_size: number;
+              s3_key: string;
+              uploaded_at?: string;
+            }
+          | Array<{
+              file_name: string;
+              file_size: number;
+              s3_key: string;
+              uploaded_at?: string;
+            }>;
       }
     | {
         reference_id: string;
@@ -256,12 +265,19 @@ interface BusinessDetailsSnake {
         email: string;
         business_name: string;
         ssm_number: string;
-        guarantor_agreement?: {
-          file_name: string;
-          file_size: number;
-          s3_key: string;
-          uploaded_at?: string;
-        };
+        guarantor_agreement?:
+          | {
+              file_name: string;
+              file_size: number;
+              s3_key: string;
+              uploaded_at?: string;
+            }
+          | Array<{
+              file_name: string;
+              file_size: number;
+              s3_key: string;
+              uploaded_at?: string;
+            }>;
       }
   >;
 }
@@ -345,6 +361,54 @@ function parseGuarantorAgreementFromUnknown(raw: unknown): GuarantorAgreementFil
   };
 }
 
+function parseGuarantorAgreementsFromUnknown(raw: unknown): GuarantorAgreementFile[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => parseGuarantorAgreementFromUnknown(item))
+      .filter((item): item is GuarantorAgreementFile => item != null);
+  }
+  const single = parseGuarantorAgreementFromUnknown(raw);
+  return single ? [single] : [];
+}
+
+function serializeGuarantorAgreementsForSnake(
+  files: GuarantorAgreementFile[]
+):
+  | {
+      file_name: string;
+      file_size: number;
+      s3_key: string;
+      uploaded_at?: string;
+    }
+  | Array<{
+      file_name: string;
+      file_size: number;
+      s3_key: string;
+      uploaded_at?: string;
+    }>
+  | undefined {
+  const saved = files
+    .filter((f) => typeof f.s3_key === "string" && f.s3_key.trim() !== "")
+    .map((f) => ({
+      file_name: f.file_name,
+      file_size: f.file_size ?? 0,
+      s3_key: f.s3_key!.trim(),
+      ...(f.uploaded_at ? { uploaded_at: f.uploaded_at } : {}),
+    }));
+  if (saved.length === 0) return undefined;
+  if (saved.length === 1) return saved[0];
+  return saved;
+}
+
+function guarantorRowHasAgreementFile(row: GuarantorFormRow): boolean {
+  return row.guarantorAgreements.some((f) => Boolean(f.s3_key?.trim() || f.client_id));
+}
+
+function agreementFileKey(f: GuarantorAgreementFile): string {
+  return f.client_id ?? f.s3_key?.trim() ?? f.file_name;
+}
+
 function normalizeGuarantorNationalityCode(raw: unknown): string {
   const c = String(raw ?? "")
     .trim()
@@ -372,8 +436,9 @@ function applicationGuarantorRowToFormRow(row: Record<string, unknown>): Guarant
   const gt = row.guarantor_type === "company" || src.guarantor_type === "company" ? "company" : "individual";
   const pos = typeof row.position === "number" ? row.position : 0;
   const agreement =
-    parseGuarantorAgreementFromUnknown(src.guarantor_agreement ?? src.guarantorAgreement) ??
-    parseGuarantorAgreementFromUnknown(row.guarantor_agreement);
+    parseGuarantorAgreementsFromUnknown(src.guarantor_agreement ?? src.guarantorAgreement).length > 0
+      ? parseGuarantorAgreementsFromUnknown(src.guarantor_agreement ?? src.guarantorAgreement)
+      : parseGuarantorAgreementsFromUnknown(row.guarantor_agreement);
 
   if (gt === "company") {
     const ssm = String(row.ssm_number ?? src.ssm_number ?? src.ssmNumber ?? "").trim();
@@ -393,7 +458,7 @@ function applicationGuarantorRowToFormRow(row: Record<string, unknown>): Guarant
       ssmNumber: ssm,
       email,
       relationship,
-      ...(agreement ? { guarantorAgreement: agreement } : {}),
+      guarantorAgreements: agreement,
     };
   }
 
@@ -421,7 +486,7 @@ function applicationGuarantorRowToFormRow(row: Record<string, unknown>): Guarant
     email,
     relationship,
     relationshipOther,
-    ...(agreement ? { guarantorAgreement: agreement } : {}),
+    guarantorAgreements: agreement,
   };
 }
 
@@ -462,19 +527,7 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
     },
     declaration_confirmed: p.declarationConfirmed,
     guarantors: p.guarantors.map((g) => {
-      const agreementSnake =
-        g.guarantorAgreement &&
-        typeof g.guarantorAgreement.s3_key === "string" &&
-        g.guarantorAgreement.s3_key.trim() !== ""
-          ? {
-              file_name: g.guarantorAgreement.file_name,
-              file_size: g.guarantorAgreement.file_size ?? 0,
-              s3_key: g.guarantorAgreement.s3_key.trim(),
-              ...(g.guarantorAgreement.uploaded_at
-                ? { uploaded_at: g.guarantorAgreement.uploaded_at }
-                : {}),
-            }
-          : undefined;
+      const agreementSnake = serializeGuarantorAgreementsForSnake(g.guarantorAgreements);
       if (g.guarantorType === "individual") {
         return {
           reference_id: g.referenceId,
@@ -594,7 +647,7 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
       const govRaw = String(
         o.ic_number ?? o.icNumber ?? o.government_id_number ?? o.governmentIdNumber ?? ""
       );
-      const agreement = parseGuarantorAgreementFromUnknown(o.guarantor_agreement ?? o.guarantorAgreement);
+      const agreements = parseGuarantorAgreementsFromUnknown(o.guarantor_agreement ?? o.guarantorAgreement);
       const nationality = normalizeGuarantorNationalityCode(o.nationality ?? o.nationality_code);
       const rawRel = String(o.relationship ?? o.relationship_rel ?? o.relationshipRel ?? "").trim();
       const relationship = GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(rawRel as GuarantorIndividualRelationship)
@@ -613,11 +666,11 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
         nationality,
         relationship,
         relationshipOther,
-        ...(agreement ? { guarantorAgreement: agreement } : {}),
+        guarantorAgreements: agreements,
       });
     } else if (gt === "company") {
       const bizId = String(o.ssm_number ?? o.ssmNumber ?? o.business_id_number ?? o.businessIdNumber ?? "");
-      const agreement = parseGuarantorAgreementFromUnknown(o.guarantor_agreement ?? o.guarantorAgreement);
+      const agreements = parseGuarantorAgreementsFromUnknown(o.guarantor_agreement ?? o.guarantorAgreement);
       out.push({
         referenceId:
           ref ||
@@ -634,7 +687,7 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
             ? (rawRel as GuarantorCompanyRelationship)
             : "";
         })(),
-        ...(agreement ? { guarantorAgreement: agreement } : {}),
+        guarantorAgreements: agreements,
       });
     }
   }
@@ -681,6 +734,98 @@ const supportingDocTemplateOn =
   "text-muted-foreground hover:text-foreground cursor-pointer";
 const supportingDocUploadOn = "text-primary hover:opacity-80 cursor-pointer";
 const supportingDocActionOff = "text-muted-foreground cursor-not-allowed select-none";
+
+function resolveIssuerAllowedTypes(doc: { allowed_types?: unknown }): string[] {
+  const raw = doc?.allowed_types;
+  if (!Array.isArray(raw) || raw.length === 0) return ["pdf"];
+  const filtered = raw
+    .filter((x): x is string => typeof x === "string")
+    .filter((t) => t === "pdf" || t === "excel");
+  if (filtered.length === 0) return ["pdf"];
+  const first = filtered[0];
+  return first === "excel" ? ["excel"] : ["pdf"];
+}
+
+function buildAcceptAttr(types: string[]): string {
+  const parts: string[] = [];
+  if (types.includes("pdf")) parts.push("application/pdf", ".pdf");
+  if (types.includes("excel")) {
+    parts.push(".xlsx", ".xls");
+  }
+  return parts.join(",");
+}
+
+function issuerFileMatchesAllowedTypes(file: File, types: string[]): boolean {
+  const lower = file.name.toLowerCase();
+  const dot = lower.lastIndexOf(".");
+  const ext = dot >= 0 ? lower.slice(dot + 1) : "";
+  if (types.includes("pdf") && ext === "pdf") return true;
+  if (types.includes("excel") && (ext === "xlsx" || ext === "xls")) return true;
+  return false;
+}
+
+type GuarantorAgreementWorkflowConfig = {
+  title: string;
+  allowMultiple: boolean;
+  allowedTypes: string[];
+  required: boolean;
+  template?: { s3_key?: string };
+};
+
+function parseGuarantorAgreementWorkflowConfig(
+  stepConfig?: Record<string, unknown>
+): GuarantorAgreementWorkflowConfig {
+  const defaults: GuarantorAgreementWorkflowConfig = {
+    title: "Guarantor agreement",
+    allowMultiple: false,
+    allowedTypes: ["pdf"],
+    required: false,
+  };
+  if (!stepConfig) return defaults;
+
+  const legacyTemplate = stepConfig.guarantor_agreement_template as
+    | { s3_key?: string; file_name?: string; file_size?: number }
+    | undefined;
+  const legacyKey = legacyTemplate?.s3_key?.trim();
+
+  const row = stepConfig.guarantor_agreement;
+  if (row && typeof row === "object") {
+    const parsed = row as Record<string, unknown>;
+    const rowTemplate = parsed.template as
+      | { s3_key?: string; file_name?: string; file_size?: number }
+      | undefined;
+    const templateKey = rowTemplate?.s3_key?.trim() || legacyKey;
+    const template =
+      templateKey != null && templateKey !== ""
+        ? {
+            s3_key: templateKey,
+            ...(rowTemplate?.file_name || legacyTemplate?.file_name
+              ? { file_name: rowTemplate?.file_name ?? legacyTemplate?.file_name }
+              : {}),
+            ...(typeof (rowTemplate?.file_size ?? legacyTemplate?.file_size) === "number"
+              ? { file_size: rowTemplate?.file_size ?? legacyTemplate?.file_size }
+              : {}),
+          }
+        : undefined;
+    return {
+      title: String(parsed.name ?? defaults.title).trim() || defaults.title,
+      allowMultiple: parsed.allow_multiple === true,
+      allowedTypes: resolveIssuerAllowedTypes(parsed),
+      required: parsed.required !== false,
+      ...(template ? { template } : {}),
+    };
+  }
+
+  if (legacyKey) {
+    return {
+      ...defaults,
+      required: true,
+      template: legacyTemplate,
+    };
+  }
+
+  return defaults;
+}
 
 
 /** Helpers
@@ -863,11 +1008,14 @@ interface GuarantorCardFieldsProps {
   hasAttemptedSave: boolean;
   replaceGuarantorRow: (index: number, next: GuarantorRowUpdater) => void;
   setGuarantorTypeAt: (index: number, type: "individual" | "company") => void;
+  agreementDocumentTitle: string;
+  agreementAllowMultiple: boolean;
+  agreementAccept: string;
   agreementTemplateS3Key?: string;
   agreementRequired: boolean;
   onDownloadAgreementTemplate: () => void | Promise<void>;
-  onSelectGuarantorAgreementFile: (file: File) => void;
-  onClearGuarantorAgreement: () => void;
+  onSelectGuarantorAgreementFiles: (files: File[]) => void;
+  onClearGuarantorAgreementFile: (clientId: string) => void;
 }
 
 function GuarantorCardFields({
@@ -877,16 +1025,20 @@ function GuarantorCardFields({
   hasAttemptedSave,
   replaceGuarantorRow,
   setGuarantorTypeAt,
+  agreementDocumentTitle,
+  agreementAllowMultiple,
+  agreementAccept,
   agreementTemplateS3Key,
   agreementRequired,
   onDownloadAgreementTemplate,
-  onSelectGuarantorAgreementFile,
-  onClearGuarantorAgreement,
+  onSelectGuarantorAgreementFiles,
+  onClearGuarantorAgreementFile,
 }: GuarantorCardFieldsProps) {
   const inputClassName = formInputClassName;
-  const agreement = row.guarantorAgreement;
-  const hasAgreementFile = Boolean(agreement?.s3_key?.trim() || agreement?.client_id);
+  const agreements = row.guarantorAgreements;
+  const hasAgreementFiles = agreements.length > 0;
   const agreementInputId = `g-${index}-guarantor-agreement`;
+  const agreementAddInputId = `g-${index}-guarantor-agreement-add`;
   const handleNationalityChange = React.useCallback(
     (v: string) => {
       replaceGuarantorRow(index, (prev) => ({ ...prev, nationality: v }));
@@ -1187,7 +1339,7 @@ function GuarantorCardFields({
           <div className="min-w-0 space-y-1.5">
             <div>
               <h3 className={cn(applicationFlowSectionTitleClassName, "leading-snug")}>
-                Guarantor Agreement
+                {agreementDocumentTitle}
                 {agreementRequired ? (
                   <>
                     <span className="text-primary font-semibold" aria-hidden="true">
@@ -1199,38 +1351,41 @@ function GuarantorCardFields({
               </h3>
               <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                 <DocumentIcon className="h-3 w-3 shrink-0 opacity-80" aria-hidden />
-                <span>One file only</span>
+                <span>{agreementAllowMultiple ? "Multiple files allowed" : "One file only"}</span>
               </p>
             </div>
           </div>
 
           <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:gap-3 lg:items-start">
             <div className="min-w-0 flex-1 flex flex-col gap-2 max-w-[min(100%,26rem)] lg:max-w-[min(100%,28rem)]">
-              {hasAgreementFile ? (
-                <FileDisplayBadge
-                  fileName={agreement?.file_name ?? "document.pdf"}
-                  truncate
-                  inlineChip
-                  size="sm"
-                  locked={readOnly}
-                  className="min-h-9 w-full"
-                  trailing={
-                    <button
-                      type="button"
-                      disabled={readOnly}
-                      onClick={onClearGuarantorAgreement}
-                      className={cn(
-                        "shrink-0 p-0.5",
-                        readOnly
-                          ? "text-muted-foreground opacity-50 cursor-not-allowed"
-                          : "text-muted-foreground hover:text-foreground cursor-pointer"
-                      )}
-                      aria-label={`Remove ${agreement?.file_name ?? "file"}`}
-                    >
-                      <XMarkIcon className="h-3 w-3" />
-                    </button>
-                  }
-                />
+              {hasAgreementFiles ? (
+                agreements.map((file) => (
+                  <FileDisplayBadge
+                    key={agreementFileKey(file)}
+                    fileName={file.file_name ?? "document.pdf"}
+                    truncate
+                    inlineChip
+                    size="sm"
+                    locked={readOnly}
+                    className="min-h-9 w-full"
+                    trailing={
+                      <button
+                        type="button"
+                        disabled={readOnly}
+                        onClick={() => onClearGuarantorAgreementFile(agreementFileKey(file))}
+                        className={cn(
+                          "shrink-0 p-0.5",
+                          readOnly
+                            ? "text-muted-foreground opacity-50 cursor-not-allowed"
+                            : "text-muted-foreground hover:text-foreground cursor-pointer"
+                        )}
+                        aria-label={`Remove ${file.file_name ?? "file"}`}
+                      >
+                        <XMarkIcon className="h-3 w-3" />
+                      </button>
+                    }
+                  />
+                ))
               ) : readOnly ? (
                 <span className="text-sm text-muted-foreground">—</span>
               ) : (
@@ -1256,38 +1411,68 @@ function GuarantorCardFields({
                 </button>
               ) : null}
 
-              {!hasAgreementFile ? (
+              {!hasAgreementFiles ? (
                 !readOnly ? (
                   <label
                     htmlFor={agreementInputId}
                     className={cn(supportingDocActionLink, supportingDocUploadOn)}
                   >
                     <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
-                    Upload file
+                    {agreementAllowMultiple ? "Upload files" : "Upload file"}
                     <Input
                       id={agreementInputId}
                       type="file"
-                      accept="application/pdf,.pdf"
+                      accept={agreementAccept}
+                      multiple={agreementAllowMultiple}
                       className="hidden"
                       onChange={(e) => {
-                        const file = e.target.files?.[0];
+                        const files = Array.from(e.target.files ?? []);
                         e.currentTarget.value = "";
-                        if (file) onSelectGuarantorAgreementFile(file);
+                        if (files.length > 0) onSelectGuarantorAgreementFiles(files);
                       }}
                     />
                   </label>
                 ) : (
                   <span className={cn(supportingDocActionLink, supportingDocActionOff)}>
                     <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
-                    Upload file
+                    {agreementAllowMultiple ? "Upload files" : "Upload file"}
+                  </span>
+                )
+              ) : null}
+
+              {agreementAllowMultiple && hasAgreementFiles ? (
+                !readOnly ? (
+                  <label
+                    htmlFor={agreementAddInputId}
+                    className={cn(supportingDocActionLink, supportingDocUploadOn)}
+                  >
+                    <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
+                    Add files
+                    <Input
+                      id={agreementAddInputId}
+                      type="file"
+                      accept={agreementAccept}
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files ?? []);
+                        e.currentTarget.value = "";
+                        if (files.length > 0) onSelectGuarantorAgreementFiles(files);
+                      }}
+                    />
+                  </label>
+                ) : (
+                  <span className={cn(supportingDocActionLink, supportingDocActionOff)}>
+                    <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
+                    Add files
                   </span>
                 )
               ) : null}
             </div>
           </div>
         </div>
-        {hasAttemptedSave && agreementRequired && !hasAgreementFile ? (
-          <p className="text-xs text-destructive mt-2">Upload the guarantor agreement</p>
+        {hasAttemptedSave && agreementRequired && !hasAgreementFiles ? (
+          <p className="text-xs text-destructive mt-2">Upload {agreementDocumentTitle.toLowerCase()}</p>
         ) : null}
         </div>
       </div>
@@ -1357,13 +1542,12 @@ export function BusinessDetailsStep({
    * presence: required inputs have a value — only used to enable Save and Continue (not format rules).
    * strict: full validation when the user clicks Save (email shape, 12-digit IC, same-invoice block, etc.).
    */
-  const productGuarantorAgreementTemplate = React.useMemo(() => {
-    const t = stepConfig?.guarantor_agreement_template as { s3_key?: string } | undefined;
-    const key = t?.s3_key?.trim();
-    return key ? t : undefined;
-  }, [stepConfig]);
+  const productGuarantorAgreementConfig = React.useMemo(
+    () => parseGuarantorAgreementWorkflowConfig(stepConfig),
+    [stepConfig]
+  );
 
-  const requiresGuarantorAgreementUpload = Boolean(productGuarantorAgreementTemplate?.s3_key?.trim());
+  const requiresGuarantorAgreementUpload = productGuarantorAgreementConfig.required;
 
   const evaluateBusinessDetails = React.useCallback(
     (mode: "presence" | "strict") => {
@@ -1450,7 +1634,7 @@ export function BusinessDetailsStep({
         }
         if (requiresGuarantorAgreementUpload) {
           const hasAgreement =
-            Boolean(g.guarantorAgreement?.s3_key?.trim()) ||
+            guarantorRowHasAgreementFile(g) ||
             pendingGuarantorAgreements.some((p) => p.index === gi);
           if (!hasAgreement) return false;
         }
@@ -1480,7 +1664,7 @@ export function BusinessDetailsStep({
   );
 
   const downloadGuarantorAgreementTemplate = React.useCallback(async () => {
-    const key = productGuarantorAgreementTemplate?.s3_key?.trim();
+    const key = productGuarantorAgreementConfig.template?.s3_key?.trim();
     if (!key) return;
     const token = await getAccessToken();
     if (!token) {
@@ -1501,51 +1685,71 @@ export function BusinessDetailsStep({
     } else {
       toast.error("Could not download template");
     }
-  }, [getAccessToken, productGuarantorAgreementTemplate]);
+  }, [getAccessToken, productGuarantorAgreementConfig]);
 
-  const handleGuarantorAgreementFileAt = React.useCallback((index: number, file: File) => {
-    if (file.type !== "application/pdf") {
-      toast.error("Please select a PDF file");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File is too large (max 5MB)");
-      return;
-    }
-    const client_id = makeClientId();
-    setPendingGuarantorAgreements((prev) => [
-      ...prev.filter((p) => p.index !== index),
-      { index, file, client_id },
-    ]);
+  const handleGuarantorAgreementFilesAt = React.useCallback(
+    (index: number, files: File[]) => {
+      if (files.length === 0) return;
+      const allowMultiple = productGuarantorAgreementConfig.allowMultiple;
+      const validFiles: Array<{ file: File; client_id: string }> = [];
+      for (const file of files) {
+        if (!issuerFileMatchesAllowedTypes(file, productGuarantorAgreementConfig.allowedTypes)) {
+          const label = productGuarantorAgreementConfig.allowedTypes.includes("excel")
+            ? "Excel"
+            : "PDF";
+          toast.error(`Please select a ${label} file`);
+          return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          toast.error("File is too large (max 5MB)");
+          return;
+        }
+        validFiles.push({ file, client_id: makeClientId() });
+      }
+
+      const nextPending = allowMultiple
+        ? validFiles.map(({ file, client_id }) => ({ index, file, client_id }))
+        : validFiles.slice(0, 1).map(({ file, client_id }) => ({ index, file, client_id }));
+
+      setPendingGuarantorAgreements((prev) => [
+        ...prev.filter((p) => !(p.index === index && !allowMultiple)),
+        ...nextPending,
+      ]);
+
+      setGuarantors((prev) =>
+        prev.map((row, i) => {
+          if (i !== index) return row;
+          const nextFiles = nextPending.map(({ file, client_id }) => ({
+            file_name: file.name,
+            file_size: file.size,
+            client_id,
+            uploaded_at: new Date().toISOString(),
+          }));
+          return {
+            ...row,
+            guarantorAgreements: allowMultiple
+              ? [...row.guarantorAgreements, ...nextFiles]
+              : nextFiles,
+          };
+        })
+      );
+    },
+    [productGuarantorAgreementConfig.allowMultiple, productGuarantorAgreementConfig.allowedTypes]
+  );
+
+  const clearGuarantorAgreementFileAt = React.useCallback((index: number, fileKey: string) => {
+    setPendingGuarantorAgreements((prev) =>
+      prev.filter((p) => !(p.index === index && p.client_id === fileKey))
+    );
     setGuarantors((prev) =>
       prev.map((row, i) => {
         if (i !== index) return row;
         return {
           ...row,
-          guarantorAgreement: {
-            file_name: file.name,
-            file_size: file.size,
-            client_id,
-            uploaded_at: new Date().toISOString(),
-          },
+          guarantorAgreements: row.guarantorAgreements.filter(
+            (f) => agreementFileKey(f) !== fileKey
+          ),
         };
-      })
-    );
-  }, []);
-
-  const clearGuarantorAgreementAt = React.useCallback((index: number) => {
-    setPendingGuarantorAgreements((prev) => prev.filter((p) => p.index !== index));
-    setGuarantors((prev) =>
-      prev.map((row, i) => {
-        if (i !== index) return row;
-        if (row.guarantorType === "individual") {
-          const { guarantorAgreement, ...rest } = row;
-          void guarantorAgreement;
-          return rest as GuarantorIndividualRow;
-        }
-        const { guarantorAgreement, ...rest } = row;
-        void guarantorAgreement;
-        return rest as GuarantorCompanyRow;
       })
     );
   }, []);
@@ -1635,11 +1839,13 @@ export function BusinessDetailsStep({
   const hasRemovedGuarantorAgreements = React.useMemo(() => {
     const initialKeys = new Set(
       initialGuarantorRowsForAgreementCleanup.current
-        .map((g) => g.guarantorAgreement?.s3_key?.trim())
+        .flatMap((g) => g.guarantorAgreements.map((f) => f.s3_key?.trim()))
         .filter((key): key is string => Boolean(key))
     );
     const currentKeys = new Set(
-      guarantors.map((g) => g.guarantorAgreement?.s3_key?.trim()).filter((key): key is string => Boolean(key))
+      guarantors
+        .flatMap((g) => g.guarantorAgreements.map((f) => f.s3_key?.trim()))
+        .filter((key): key is string => Boolean(key))
     );
     for (const key of initialKeys) {
       if (!currentKeys.has(key)) return true;
@@ -1725,25 +1931,33 @@ export function BusinessDetailsStep({
       if (!uploaded) continue;
       next = next.map((row, idx) => {
         if (idx !== pending.index) return row;
+        const withoutPending = row.guarantorAgreements.filter(
+          (f) => f.client_id !== pending.client_id
+        );
         return {
           ...row,
-          guarantorAgreement: {
-            file_name: uploaded.file_name,
-            file_size: uploaded.file_size,
-            s3_key: uploaded.s3_key,
-            uploaded_at: uploaded.uploaded_at,
-          },
+          guarantorAgreements: [
+            ...withoutPending,
+            {
+              file_name: uploaded.file_name,
+              file_size: uploaded.file_size,
+              s3_key: uploaded.s3_key,
+              uploaded_at: uploaded.uploaded_at,
+            },
+          ],
         };
       });
     }
 
     const initialKeys = new Set(
       initialGuarantorRowsForAgreementCleanup.current
-        .map((g) => g.guarantorAgreement?.s3_key?.trim())
+        .flatMap((g) => g.guarantorAgreements.map((f) => f.s3_key?.trim()))
         .filter((key): key is string => Boolean(key))
     );
     const nextKeys = new Set(
-      next.map((g) => g.guarantorAgreement?.s3_key?.trim()).filter((key): key is string => Boolean(key))
+      next
+        .flatMap((g) => g.guarantorAgreements.map((f) => f.s3_key?.trim()))
+        .filter((key): key is string => Boolean(key))
     );
     for (const s3Key of Array.from(initialKeys).filter((key) => !nextKeys.has(key))) {
       const deleteRes = await fetch(`${API_URL}/v1/applications/${applicationId}/document`, {
@@ -2047,19 +2261,19 @@ export function BusinessDetailsStep({
   const setGuarantorTypeAt = (index: number, type: "individual" | "company") => {
     const current = guarantors[index];
     const ref = current?.referenceId ?? makeClientId();
-    const keepAgreement = current?.guarantorAgreement;
+    const keepAgreements = current?.guarantorAgreements ?? [];
     replaceGuarantorRow(
       index,
       type === "individual"
         ? {
             ...emptyIndividualGuarantor(),
             referenceId: ref,
-            ...(keepAgreement ? { guarantorAgreement: keepAgreement } : {}),
+            guarantorAgreements: keepAgreements,
           }
         : {
             ...emptyCompanyGuarantor(),
             referenceId: ref,
-            ...(keepAgreement ? { guarantorAgreement: keepAgreement } : {}),
+            guarantorAgreements: keepAgreements,
           }
     );
   };
@@ -2531,11 +2745,18 @@ export function BusinessDetailsStep({
                 hasAttemptedSave={hasAttemptedSave}
                 replaceGuarantorRow={replaceGuarantorRow}
                 setGuarantorTypeAt={setGuarantorTypeAt}
-                agreementTemplateS3Key={productGuarantorAgreementTemplate?.s3_key}
+                agreementDocumentTitle={productGuarantorAgreementConfig.title}
+                agreementAllowMultiple={productGuarantorAgreementConfig.allowMultiple}
+                agreementAccept={buildAcceptAttr(productGuarantorAgreementConfig.allowedTypes)}
+                agreementTemplateS3Key={productGuarantorAgreementConfig.template?.s3_key}
                 agreementRequired={requiresGuarantorAgreementUpload}
                 onDownloadAgreementTemplate={downloadGuarantorAgreementTemplate}
-                onSelectGuarantorAgreementFile={(file) => handleGuarantorAgreementFileAt(index, file)}
-                onClearGuarantorAgreement={() => clearGuarantorAgreementAt(index)}
+                onSelectGuarantorAgreementFiles={(files) =>
+                  handleGuarantorAgreementFilesAt(index, files)
+                }
+                onClearGuarantorAgreementFile={(fileKey) =>
+                  clearGuarantorAgreementFileAt(index, fileKey)
+                }
               />
             );
 

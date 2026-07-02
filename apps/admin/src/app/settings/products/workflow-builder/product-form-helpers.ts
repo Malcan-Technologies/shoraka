@@ -95,6 +95,33 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
       };
     }
 
+    if (stepKey === BUSINESS_DETAILS_STEP_KEY) {
+      const legacyTemplate = config.guarantor_agreement_template;
+      if (legacyTemplate && typeof legacyTemplate === "object" && !config.guarantor_agreement) {
+        const legacy = legacyTemplate as Record<string, unknown>;
+        const s3 = typeof legacy.s3_key === "string" ? legacy.s3_key.trim() : "";
+        config = {
+          ...config,
+          guarantor_agreement: {
+            name: "Guarantor agreement",
+            allow_multiple: false,
+            allowed_types: ["pdf"],
+            required: Boolean(s3),
+            ...(s3
+              ? {
+                  template: {
+                    s3_key: s3,
+                    file_name: String(legacy.file_name ?? legacy.filename ?? "template.pdf"),
+                    ...(typeof legacy.file_size === "number" ? { file_size: legacy.file_size } : {}),
+                  },
+                }
+              : {}),
+          },
+        };
+      }
+      delete (config as Record<string, unknown>).guarantor_agreement_template;
+    }
+
     if (stepKey === "contract_details") {
       const raw = config.min_contract_months;
 
@@ -357,6 +384,32 @@ function runStepValidation(steps: unknown[]): { errors: string[]; stepIdsWithErr
       if (value != null && value > 120) {
         errors.push(`${stepLabel}: minimum contract months cannot exceed 120`);
         stepIdsWithErrors.add(stepId);
+      }
+    }
+
+    if (stepKey === BUSINESS_DETAILS_STEP_KEY) {
+      const row = config.guarantor_agreement as { name?: string; allowed_types?: unknown } | undefined;
+      if (row && typeof row === "object") {
+        if (!String(row.name ?? "").trim()) {
+          errors.push(`${stepLabel}: enter guarantor agreement document name`);
+          stepIdsWithErrors.add(stepId);
+        }
+        const at = row.allowed_types;
+        if (at !== undefined) {
+          if (!Array.isArray(at) || at.length === 0) {
+            errors.push(`${stepLabel}: guarantor agreement allows only one file type (PDF or Excel)`);
+            stepIdsWithErrors.add(stepId);
+          } else {
+            const tokens = at
+              .filter((x): x is string => typeof x === "string")
+              .filter((t) => t === "pdf" || t === "excel");
+            const unique = [...new Set(tokens)];
+            if (unique.length !== 1) {
+              errors.push(`${stepLabel}: guarantor agreement allows only one file type (PDF or Excel)`);
+              stepIdsWithErrors.add(stepId);
+            }
+          }
+        }
       }
     }
 

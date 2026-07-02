@@ -194,6 +194,26 @@ export function validateSupportingDocumentsAllowedTypes(workflow: unknown[]): vo
   }
 }
 
+export function validateBusinessDetailsGuarantorAgreement(workflow: unknown[]): void {
+  if (!Array.isArray(workflow) || workflow.length === 0) return;
+  for (const step of workflow) {
+    const sid = (step as { id?: string })?.id ?? "";
+    if (getStepKeyFromStepId(sid) !== "business_details") continue;
+    const config = (step as { config?: Record<string, unknown> }).config;
+    if (!config || typeof config !== "object") return;
+    const row = config.guarantor_agreement ?? config.guarantor_agreement_template;
+    if (!row || typeof row !== "object") return;
+    if (config.guarantor_agreement && !supportingDocRowHasValidAllowedTypes(config.guarantor_agreement)) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "Guarantor agreement: choose exactly one file type (PDF or Excel), not both."
+      );
+    }
+    return;
+  }
+}
+
 /**
  * Full validation before product create/update.
  */
@@ -206,6 +226,7 @@ export function validateFinancialConfig(params: {
     validateMandatoryWorkflowStepSet(params.workflow);
     validateWorkflowFinancialConfig(params.workflow);
     validateSupportingDocumentsAllowedTypes(params.workflow);
+    validateBusinessDetailsGuarantorAgreement(params.workflow);
   }
 }
 
