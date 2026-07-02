@@ -65,6 +65,31 @@ export function getSupportingDocAllowedTypesFromProductWorkflow(
   throw new AppError(400, "VALIDATION_ERROR", "Supporting documents are not configured for this product");
 }
 
+export function getSupportingDocUploadTimingFromProductWorkflow(
+  workflow: unknown,
+  categoryKey: string,
+  documentIndex: number
+): "pre_application" | "post_application" {
+  if (!Array.isArray(workflow)) {
+    throw new AppError(400, "VALIDATION_ERROR", "Invalid product workflow");
+  }
+  for (const step of workflow) {
+    const sid = (step as { id?: string })?.id ?? "";
+    if (getStepKeyFromStepId(sid) !== "supporting_documents") continue;
+    const config = (step as { config?: Record<string, unknown> }).config;
+    if (!config || typeof config !== "object") break;
+    const list = config[categoryKey];
+    if (!Array.isArray(list)) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid document category");
+    }
+    if (!Number.isInteger(documentIndex) || documentIndex < 0 || documentIndex >= list.length) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid document slot");
+    }
+    return resolveUploadTimingFromWorkflowRow(list[documentIndex]);
+  }
+  throw new AppError(400, "VALIDATION_ERROR", "Supporting documents are not configured for this product");
+}
+
 function supportingDocumentRowHasUploadedFile(doc: unknown): boolean {
   if (!doc || typeof doc !== "object") return false;
   const o = doc as Record<string, unknown>;
@@ -93,13 +118,26 @@ function unwrapSupportingDocumentCategoriesFromApplication(data: unknown): unkno
   return Array.isArray(categories) ? categories : [];
 }
 
+function getWorkflowDocumentIndex(doc: unknown): number | null {
+  if (!doc || typeof doc !== "object") return null;
+  const raw = (doc as Record<string, unknown>).workflow_document_index;
+  return typeof raw === "number" && Number.isInteger(raw) && raw >= 0 ? raw : null;
+}
+
+function findApplicationSupportingDocument(appDocs: unknown, workflowDocumentIndex: number): unknown {
+  if (!Array.isArray(appDocs)) return undefined;
+  const indexed = appDocs.find((doc) => getWorkflowDocumentIndex(doc) === workflowDocumentIndex);
+  return indexed ?? appDocs[workflowDocumentIndex];
+}
+
 /**
  * On submit/resubmit: each required pre-application workflow row must have at least one uploaded file (s3_key).
  * Category order matches issuer: Object.entries(config), skipping enabled_categories and non-arrays.
  */
-export function assertRequiredSupportingDocumentsPresent(
+export function assertRequiredSupportingDocumentsPresentForTiming(
   workflow: unknown,
-  applicationSupportingDocuments: unknown
+  applicationSupportingDocuments: unknown,
+  uploadTiming: "pre_application" | "post_application"
 ): void {
   if (!Array.isArray(workflow) || workflow.length === 0) return;
 
@@ -125,7 +163,7 @@ export function assertRequiredSupportingDocumentsPresent(
     const appDocs = appCat?.documents;
     for (let docIndex = 0; docIndex < rows.length; docIndex++) {
       const row = rows[docIndex];
-      if (resolveUploadTimingFromWorkflowRow(row) === "post_application") continue;
+      if (resolveUploadTimingFromWorkflowRow(row) !== uploadTiming) continue;
       const required = !row || typeof row !== "object" || (row as Record<string, unknown>).required !== false;
       if (!required) continue;
       const nameRaw =
@@ -133,10 +171,32 @@ export function assertRequiredSupportingDocumentsPresent(
           ? String((row as Record<string, unknown>).name).trim()
           : "";
       const name = nameRaw || "Document";
-      const appDoc = Array.isArray(appDocs) ? appDocs[docIndex] : undefined;
+      const appDoc = findApplicationSupportingDocument(appDocs, docIndex);
       if (!supportingDocumentRowHasUploadedFile(appDoc)) {
         throw new AppError(400, "VALIDATION_ERROR", `This document is required: ${name}`);
       }
     }
   }
+}
+
+export function assertRequiredSupportingDocumentsPresent(
+  workflow: unknown,
+  applicationSupportingDocuments: unknown
+): void {
+  assertRequiredSupportingDocumentsPresentForTiming(
+    workflow,
+    applicationSupportingDocuments,
+    "pre_application"
+  );
+}
+
+export function assertRequiredPostApplicationSupportingDocumentsPresent(
+  workflow: unknown,
+  applicationSupportingDocuments: unknown
+): void {
+  assertRequiredSupportingDocumentsPresentForTiming(
+    workflow,
+    applicationSupportingDocuments,
+    "post_application"
+  );
 }

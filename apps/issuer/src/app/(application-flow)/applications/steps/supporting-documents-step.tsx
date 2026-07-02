@@ -209,6 +209,7 @@ type SavedFileRef = {
 type SavedSupportingDocument = {
   files?: SavedFileRef[];
   file?: SavedFileRef;
+  workflow_document_index?: number;
 };
 
 type SavedSupportingCategory = {
@@ -440,6 +441,7 @@ export function SupportingDocumentsStep({
 
           const base = {
             title: document.title,
+            workflow_document_index: document.workflowDocumentIndex,
           } as Record<string, unknown>;
 
           if (normalized.length === 0) {

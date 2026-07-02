@@ -28,6 +28,7 @@ import {
   assertRequiredSupportingDocumentsPresent,
   fileNameToSupportingDocTypeToken,
   getSupportingDocAllowedTypesFromProductWorkflow,
+  getSupportingDocUploadTimingFromProductWorkflow,
 } from "./supporting-docs-workflow";
 import { buildApplicationRevisionSnapshot } from "./revision-snapshot";
 import {
@@ -445,6 +446,52 @@ export class ApplicationService {
     }
   }
 
+  private hasOfferBeenSent(application: Application | null): boolean {
+    if (!application) return false;
+    const status = (application as { status?: string }).status;
+    if (
+      status === ApplicationStatus.CONTRACT_SENT ||
+      status === ApplicationStatus.INVOICES_SENT ||
+      status === ApplicationStatus.CONTRACT_ACCEPTED ||
+      status === ApplicationStatus.APPROVED
+    ) {
+      return true;
+    }
+    const contract = (application as { contract?: { status?: string } | null }).contract;
+    if (contract?.status === ContractStatus.OFFER_SENT) return true;
+    const invoices = (application as { invoices?: Array<{ status?: string }> }).invoices ?? [];
+    return invoices.some((invoice) => invoice.status === InvoiceStatus.OFFER_SENT);
+  }
+
+  private verifyPostApplicationSupportingDocumentsEditable(application: Application | null): void {
+    if (!this.hasOfferBeenSent(application)) {
+      throw new AppError(403, "EDIT_NOT_ALLOWED", "Post-application documents can be uploaded after an offer is sent");
+    }
+  }
+
+  private verifyApplicationStepEditable(application: Application | null, fieldName: string | null): void {
+    if (!application) return;
+    const status = (application as { status?: string }).status;
+    if (status === ApplicationStatus.DRAFT || status === ApplicationStatus.AMENDMENT_REQUESTED) return;
+    if (fieldName === "supporting_documents") {
+      this.verifyPostApplicationSupportingDocumentsEditable(application);
+      return;
+    }
+    throw new AppError(403, "EDIT_NOT_ALLOWED", "Application cannot be edited in its current status");
+  }
+
+  private async getProductWorkflowForApplication(application: Application | null): Promise<unknown[]> {
+    const productId = (application?.financing_type as { product_id?: string } | null | undefined)?.product_id;
+    if (!productId || typeof productId !== "string") {
+      throw new AppError(400, "VALIDATION_ERROR", "Application has no product for document upload");
+    }
+    const product = await this.productRepository.findById(productId);
+    if (!product) {
+      throw new AppError(400, "VALIDATION_ERROR", "Product not found");
+    }
+    return (product.workflow as unknown[]) ?? [];
+  }
+
   /**
    * Verify that user has access to an application
    * User must be either the owner or a member of the organization that owns the application
@@ -722,9 +769,9 @@ export class ApplicationService {
     if (!application) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
-    this.verifyApplicationEditable(application);
 
     const fieldName = this.getFieldNameForStepId(input.stepId);
+    this.verifyApplicationStepEditable(application, fieldName);
     if (!fieldName) {
       // For steps like contract_details and invoice_details that manage their own saves,
       // just update the last_completed_step without saving data to Application
@@ -1152,13 +1199,28 @@ export class ApplicationService {
   }): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number }> {
     await this.verifyApplicationAccess(params.applicationId, params.userId);
     const application = await this.repository.findById(params.applicationId);
-    this.verifyApplicationEditable(application);
+    const isSupportingDocsWorkflowUpload =
+      params.supportingDocCategoryKey !== undefined &&
+      params.supportingDocIndex !== undefined;
+    let workflow: unknown[] | null = null;
+    if (isSupportingDocsWorkflowUpload) {
+      workflow = await this.getProductWorkflowForApplication(application);
+      const uploadTiming = getSupportingDocUploadTimingFromProductWorkflow(
+        workflow,
+        params.supportingDocCategoryKey!,
+        params.supportingDocIndex!
+      );
+      if (uploadTiming === "post_application") {
+        this.verifyPostApplicationSupportingDocumentsEditable(application);
+      } else {
+        this.verifyApplicationEditable(application);
+      }
+    } else {
+      this.verifyApplicationEditable(application);
+    }
 
     if ((application as any).status === "AMENDMENT_REQUESTED") {
       const { allowedSections } = await getAmendmentAllowedSections(params.applicationId);
-      const isSupportingDocsWorkflowUpload =
-        params.supportingDocCategoryKey !== undefined &&
-        params.supportingDocIndex !== undefined;
       if (isSupportingDocsWorkflowUpload) {
         if (!allowedSections.has("supporting_documents")) {
           throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
@@ -1174,23 +1236,11 @@ export class ApplicationService {
     }
 
     let allowedTypes: string[];
-    if (
-      params.supportingDocCategoryKey !== undefined &&
-      params.supportingDocIndex !== undefined
-    ) {
-      const ft = application?.financing_type as { product_id?: string } | null | undefined;
-      const productId = ft?.product_id;
-      if (!productId || typeof productId !== "string") {
-        throw new AppError(400, "VALIDATION_ERROR", "Application has no product for document upload");
-      }
-      const product = await this.productRepository.findById(productId);
-      if (!product) {
-        throw new AppError(400, "VALIDATION_ERROR", "Product not found");
-      }
+    if (isSupportingDocsWorkflowUpload) {
       allowedTypes = getSupportingDocAllowedTypesFromProductWorkflow(
-        product.workflow as unknown[],
-        params.supportingDocCategoryKey,
-        params.supportingDocIndex
+        workflow ?? [],
+        params.supportingDocCategoryKey!,
+        params.supportingDocIndex!
       );
     } else {
       allowedTypes = ["pdf"];
