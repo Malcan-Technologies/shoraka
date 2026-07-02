@@ -1,18 +1,16 @@
 /**
- * SECTION: Issuer director/shareholder notifications (Option A)
- * WHY: Alert issuer on AML-driven mismatch transitions — no workflow state.
- * WHERE USED: After issuer org CTOS report insert; AML/supplement updates.
+ * SECTION: Issuer director/shareholder notifications
+ * WHY: Alert issuer org owner when CTOS shows new directors/shareholders needing onboarding.
+ * WHERE USED: After issuer org CTOS report insert; manual admin notify API.
  */
 
 import {
   computeNewIssuerDirectorShareholderIndividualsAfterCtosVisibleDiff,
   filterVisiblePeopleRows,
-  isReadyOnboardingStatus,
   normalizeDirectorShareholderIdKey,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 import { buildAdminPeopleList } from "../admin/build-people-list";
-import { OrganizationService } from "../organization/service";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { NotificationService } from "./service";
@@ -52,7 +50,7 @@ function computeVisiblePeopleState(input: PeopleListInput): {
 }
 
 /**
- * After a new issuer org CTOS company snapshot row exists: optional mismatch create + resolve if cleared.
+ * After a new issuer org CTOS company snapshot row exists: send action-required notifications for new parties.
  */
 export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert(params: {
   issuerOrganizationId: string;
@@ -119,113 +117,47 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
       newPeopleWithoutOnboardingCount: newPeopleWithoutOnboarding.length,
       shouldTriggerNotification,
     },
-    "DS mismatch check"
+    "DS action-required check after CTOS org report"
   );
 
-  await resolveIssuerDirectorShareholderNotificationsIfCleared({
-    issuerOrganizationId,
-    ownerUserId,
-    visible: afterVisible,
-  });
-
-  if (shouldTriggerNotification) {
-    const notificationService = new NotificationService();
-    for (const person of newPeopleWithoutOnboarding) {
-      const partyKey = normalizeDirectorShareholderIdKey(person.matchKey);
-      if (!partyKey) continue;
-      const idempotencyKey = `ds_action_required:${issuerOrganizationId}:${newCtosReportId}:${partyKey}`;
-      const dupKey = await prisma.notification.findUnique({
-        where: { idempotency_key: idempotencyKey },
-      });
-      if (dupKey) {
-        logger.debug(
-          { issuerOrganizationId, newCtosReportId, partyKey, idempotencyKey },
-          "DS action-required skipped: duplicate idempotency key"
-        );
-        continue;
-      }
-      await notificationService.sendTyped(
-        ownerUserId,
-        NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED,
-        { issuerOrganizationId, partyKey, personName: person.name ?? undefined, link: "/profile" },
-        idempotencyKey
-      );
-      logger.info(
-        { issuerOrganizationId, newCtosReportId, ownerUserId, partyKey },
-        "Created director_shareholder_action_required notification"
-      );
-    }
-  } else {
+  if (!shouldTriggerNotification) {
     logger.debug(
       {
         issuerOrganizationId,
         afterVisibleCount: afterVisible.length,
         newPeopleWithoutOnboardingCount: newPeopleWithoutOnboarding.length,
       },
-      "DS mismatch skipped: no new person needing onboarding notification"
+      "DS action-required skipped: no new person needing onboarding notification"
     );
-  }
-}
-
-/**
- * Recompute from DB and resolve mismatch notifications when AML and onboarding are fully clear for visible people.
- */
-export async function runIssuerDirectorShareholderNotificationResolutionFromDb(
-  issuerOrganizationId: string
-): Promise<void> {
-  const org = await prisma.issuerOrganization.findUnique({
-    where: { id: issuerOrganizationId },
-    select: {
-      owner_user_id: true,
-      corporate_entities: true,
-      director_kyc_status: true,
-      director_aml_status: true,
-    },
-  });
-  if (!org?.owner_user_id) return;
-
-  const orgService = new OrganizationService();
-  const extras = await orgService.getIssuerPartyListExtras(issuerOrganizationId);
-  const listInput = buildPeopleListParams({
-    ctos: extras.latestOrganizationCtosCompanyJson ?? null,
-    corporateEntities: org.corporate_entities ?? null,
-    directorKycStatus: org.director_kyc_status ?? null,
-    directorAmlStatus: org.director_aml_status ?? null,
-    supplements: extras.ctosPartySupplements,
-  });
-  const { visible } = computeVisiblePeopleState(listInput);
-
-  await resolveIssuerDirectorShareholderNotificationsIfCleared({
-    issuerOrganizationId,
-    ownerUserId: org.owner_user_id,
-    visible,
-  });
-}
-
-async function resolveIssuerDirectorShareholderNotificationsIfCleared(params: {
-  issuerOrganizationId: string;
-  ownerUserId: string;
-  visible: ApplicationPersonRow[];
-}): Promise<void> {
-  const { issuerOrganizationId, ownerUserId, visible } = params;
-  const noOneNeedsOnboarding = visible.every((p) => isReadyOnboardingStatus(p.onboarding?.status));
-  const shouldResolve = visible.length > 0 && noOneNeedsOnboarding;
-  if (!shouldResolve) {
     return;
   }
 
-  await prisma.notification.updateMany({
-    where: {
-      user_id: ownerUserId,
-      notification_type_id: NotificationTypeIds.DIRECTOR_SHAREHOLDER_MISMATCH,
-      resolved_at: null,
-      metadata: {
-        path: ["issuerOrganizationId"],
-        equals: issuerOrganizationId,
-      },
-    },
-    data: { resolved_at: new Date() },
-  });
+  const notificationService = new NotificationService();
+  for (const person of newPeopleWithoutOnboarding) {
+    const partyKey = normalizeDirectorShareholderIdKey(person.matchKey);
+    if (!partyKey) continue;
+    const idempotencyKey = `ds_action_required:${issuerOrganizationId}:${newCtosReportId}:${partyKey}`;
+    const dupKey = await prisma.notification.findUnique({
+      where: { idempotency_key: idempotencyKey },
+    });
+    if (dupKey) {
+      logger.debug(
+        { issuerOrganizationId, newCtosReportId, partyKey, idempotencyKey },
+        "DS action-required skipped: duplicate idempotency key"
+      );
+      continue;
+    }
+    await notificationService.sendTyped(
+      ownerUserId,
+      NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED,
+      { issuerOrganizationId, partyKey, personName: person.name ?? undefined, link: "/profile" },
+      idempotencyKey
+    );
+    logger.info(
+      { issuerOrganizationId, newCtosReportId, ownerUserId, partyKey },
+      "Created director_shareholder_action_required notification"
+    );
+  }
 }
 
 export async function notifyIssuerDirectorShareholderActionRequired(params: {

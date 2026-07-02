@@ -3,11 +3,6 @@ import { NotificationTypeIds } from "./registry";
 jest.mock("../../lib/prisma", () => ({
   prisma: {
     notification: {
-      findFirst: jest.fn(),
-      findUnique: jest.fn(),
-      updateMany: jest.fn(),
-    },
-    issuerOrganization: {
       findUnique: jest.fn(),
     },
   },
@@ -21,32 +16,8 @@ jest.mock("./service", () => ({
   })),
 }));
 
-const getIssuerPartyListExtras = jest.fn();
-
-jest.mock("../organization/service", () => ({
-  OrganizationService: jest.fn().mockImplementation(() => ({
-    getIssuerPartyListExtras,
-  })),
-}));
-
 import { prisma } from "../../lib/prisma";
-import {
-  runIssuerDirectorShareholderNotificationResolutionFromDb,
-  runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert,
-} from "./director-shareholder-notifications";
-
-const CTOS_ONE_DIRECTOR = {
-  directors: [
-    {
-      party_type: "I",
-      position: "DO",
-      nic_brno: "901234567890",
-      name: "Test Director",
-      equity_percentage: null,
-    },
-  ],
-  shareholders: [],
-};
+import { runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert } from "./director-shareholder-notifications";
 
 /** One director on file — AML can be cleared via supplement. */
 const CTOS_DIRECTOR_A_ONLY = {
@@ -93,11 +64,9 @@ describe("director-shareholder-notifications", () => {
   });
 
   it("sends action-required only once for the same CTOS report id + party key", async () => {
-    (prisma.notification.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.notification.findUnique as jest.Mock)
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({ id: "existing-by-key" });
-    (prisma.notification.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
 
     const payload = {
       issuerOrganizationId: "org-1",
@@ -129,9 +98,7 @@ describe("director-shareholder-notifications", () => {
   });
 
   it("creates action-required notification on CTOS new person transition", async () => {
-    (prisma.notification.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.notification.findUnique as jest.Mock).mockResolvedValue(null);
-    (prisma.notification.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
 
     await runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert({
       issuerOrganizationId: "org-1",
@@ -157,46 +124,5 @@ describe("director-shareholder-notifications", () => {
       },
       "ds_action_required:org-1:rep-new:801234567890"
     );
-  });
-
-  it("does not resolve notifications when there are no visible director/shareholder rows", async () => {
-    (prisma.issuerOrganization.findUnique as jest.Mock).mockResolvedValue({
-      owner_user_id: "user-1",
-      corporate_entities: null,
-      director_kyc_status: null,
-      director_aml_status: null,
-    });
-    getIssuerPartyListExtras.mockResolvedValue({
-      latestOrganizationCtosCompanyJson: null,
-      ctosPartySupplements: [],
-    });
-    (prisma.notification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
-
-    await runIssuerDirectorShareholderNotificationResolutionFromDb("org-1");
-
-    expect(prisma.notification.updateMany).not.toHaveBeenCalled();
-  });
-
-  it("does not resolve notifications when onboarding is not yet ready", async () => {
-    (prisma.issuerOrganization.findUnique as jest.Mock).mockResolvedValue({
-      owner_user_id: "user-1",
-      corporate_entities: null,
-      director_kyc_status: null,
-      director_aml_status: null,
-    });
-    getIssuerPartyListExtras.mockResolvedValue({
-      latestOrganizationCtosCompanyJson: CTOS_ONE_DIRECTOR,
-      ctosPartySupplements: [
-        {
-          partyKey: "901234567890",
-          onboardingJson: { screening: { status: "APPROVED" } },
-        },
-      ],
-    });
-    (prisma.notification.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
-
-    await runIssuerDirectorShareholderNotificationResolutionFromDb("org-1");
-
-    expect(prisma.notification.updateMany).not.toHaveBeenCalled();
   });
 });

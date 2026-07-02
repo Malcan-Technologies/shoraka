@@ -33,9 +33,7 @@ export const NotificationTypeIds = {
   APPLICATION_WITHDRAWN_CONFIRMATION: 'application_withdrawn_confirmation',
   APPLICATION_COMPLETED: 'application_completed',
 
-  /** Issuer: CTOS/AML snapshot shows director/shareholder verification needed (event only). */
-  DIRECTOR_SHAREHOLDER_MISMATCH: 'director_shareholder_mismatch',
-  /** Issuer: admin requests onboarding action for one eligible party. */
+  /** Issuer: CTOS or admin requests onboarding action for a director/shareholder party. */
   DIRECTOR_SHAREHOLDER_ACTION_REQUIRED: 'director_shareholder_action_required',
 
   // Note lifecycle
@@ -141,9 +139,6 @@ export interface NotificationPayloads {
   };
   [NotificationTypeIds.APPLICATION_COMPLETED]: {
     applicationId: string;
-  };
-  [NotificationTypeIds.DIRECTOR_SHAREHOLDER_MISMATCH]: {
-    issuerOrganizationId: string;
   };
   [NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED]: {
     issuerOrganizationId: string;
@@ -351,13 +346,6 @@ export const NOTIFICATION_TEMPLATES: {
     title: 'Application Completed',
     message: (data) => `Your application ${getShortApplicationRef(data.applicationId)} has been completed successfully.`,
     linkPath: (data) => `/applications/${data.applicationId}`,
-    portal: 'issuer',
-  },
-  [NotificationTypeIds.DIRECTOR_SHAREHOLDER_MISMATCH]: {
-    title: 'Directors/Shareholders Update Required',
-    message: () =>
-      'Director/Shareholder information updated. Please review. Complete verification on your company profile.',
-    linkPath: () => '/profile',
     portal: 'issuer',
   },
   [NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED]: {
