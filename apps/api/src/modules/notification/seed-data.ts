@@ -232,7 +232,8 @@ export const initialNotificationTypes = [
   {
     id: "director_shareholder_action_required",
     name: "Director/Shareholder Action Required",
-    description: "Sent when admin requests onboarding action for a specific director/shareholder.",
+    description:
+      "Sent to the issuer organization owner when a CTOS pull finds new directors or shareholders who need onboarding action.",
     category: NotificationCategory.SYSTEM,
     portal_targets: ISSUER_ONLY,
     default_priority: NotificationPriority.WARNING,
@@ -244,7 +245,7 @@ export const initialNotificationTypes = [
     id: "investor_director_shareholder_action_required",
     name: "Investor Director/Shareholder Action Required",
     description:
-      "Sent to the investor organization owner when a CTOS pull finds new directors or shareholders on an investor company profile who need onboarding action.",
+      "Sent to the investor organization owner when a CTOS pull finds new directors or shareholders who need onboarding action.",
     category: NotificationCategory.SYSTEM,
     portal_targets: INVESTOR_ONLY,
     default_priority: NotificationPriority.WARNING,
