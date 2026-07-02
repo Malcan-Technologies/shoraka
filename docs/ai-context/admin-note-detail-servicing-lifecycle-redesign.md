@@ -34,6 +34,12 @@ The redesign described below is **implemented** on branch `no_fix_34`. Use this 
 
 Repayment payment evidence uses `evidence_files` (JSON array on `note_payments`). Legacy `evidence_s3_key` removed.
 
+### Tawarruq certificate vs callback
+
+- Shoraka webhook callback updates `shoraka_trade_orders.status` only (not `certificate_s3_key`).
+- Disbursement lifecycle **Certificate** step and **Certificate ready** UI require **Fetch Tawarruq Certificate** after the order is completed.
+- Open Note Detail does not live-update from callback alone; admin may use **Query Status**, **Fetch Tawarruq Certificate**, or reload to refresh state.
+
 ---
 
 ## Purpose (historical)

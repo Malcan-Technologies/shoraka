@@ -8,7 +8,7 @@ tags:
   - trustee
   - finance
 order: 22
-updated: 2026-06-29
+updated: 2026-06-30
 ---
 
 ## What these letters are
@@ -37,7 +37,7 @@ The **Activity timeline** on the right records when letters were generated and l
 
 **Flow:**
 
-1. Complete **Tawarruq transaction / certificate** steps when shown on the card.
+1. Complete **Tawarruq transaction / certificate** steps when shown on the card. Callbacks may update Tawarruq order status, but the certificate step completes only after **Fetch Tawarruq Certificate** stores the PDF (use **Query Status**, fetch, or reload on an open page).
 2. Confirm **beneficiary details** are complete (snapshotted onto the letter).
 3. **Generate** the trustee letter (PDF).
 4. Mark **submitted to trustee** when the trustee has received it.

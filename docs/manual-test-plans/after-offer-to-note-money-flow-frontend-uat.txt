@@ -886,7 +886,7 @@ Status meaning:
 - Cancelled: manual review; no disbursement.
 - Take Delivery: special/manual state; no automatic disbursement.
 - Unknown: unsafe/manual review.
-- Callback Completed: may update status, but must not auto-disburse.
+- Callback Completed: may update status, but must not auto-fetch certificate, auto-disburse, or complete the disbursement lifecycle Certificate step until **Fetch Tawarruq Certificate** stores the PDF (open page may need Query Status, fetch, or reload).
 
 What should NOT happen:
 [ ] Wrong button: Fetch Certificate should not appear before Completed
@@ -900,6 +900,7 @@ STOP AND INVESTIGATE if:
 [ ] Shoraka uses net amount RM96,000.
 [ ] Mark Disbursed is enabled before certificate exists.
 [ ] Callback auto-marks issuer disbursed.
+[ ] Callback auto-completes lifecycle Certificate step before certificate fetch.
 [ ] Cancelled/Take Delivery/Unknown allows payout without manual review.
 
 Notes:

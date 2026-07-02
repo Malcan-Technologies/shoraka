@@ -7,7 +7,7 @@ tags:
   - notes
   - finance
 order: 20
-updated: 2026-06-29
+updated: 2026-06-30
 ---
 
 ## Overview
@@ -33,9 +33,11 @@ A note is created from one approved invoice. If a contract has multiple approved
 - Use the **Dashboard** Quick Actions and Bucket Balances overview cards for an at-a-glance snapshot of what needs attention.
 - Use **Platform Finance Settings** to manage the default grace period, arrears threshold, Ta'widh cap, Gharamah cap, default listing duration, and letter templates.
 
-### Live counters
+### Workflow progress and counters
 
-The sidebar badges, dashboard quick-action counts, and queue summaries update **immediately** when you complete an action (record a payment, generate a letter, mark submitted/disbursed, post a settlement, complete settlement trustee instruction, etc.). You do not need to refresh the browser. If two admins work simultaneously, the counters also refetch in the background once per minute so the active tab stays consistent.
+Sidebar badges, dashboard quick-action counts, queue summaries, and most Note Detail workflow steps update after you complete an in-portal action (record a payment, generate a letter, mark submitted/disbursed, post a settlement, complete settlement trustee instruction, etc.). You usually do not need to refresh the browser. If two admins work simultaneously, the active tab also refetches in the background about once per minute.
+
+**Tawarruq certificate exception:** Lifecycle counters and the disbursement strip reflect the latest Tawarruq, trustee, and settlement state once that state is **fetched and stored** in the portal. A Shoraka callback may update the Tawarruq order status in the database, but it does **not** store the certificate file. The **Certificate** step on the disbursement lifecycle strip completes only after the Tawarruq certificate PDF has been fetched and stored. On Note Detail, click **Query Status** or **Fetch Tawarruq Certificate**, or reload the page, to see the latest certificate state if the page was already open.
 
 ## The Six Buckets
 
@@ -75,7 +77,7 @@ Terminal failure states (Failed Funding, Defaulted, Cancelled) are shown in the 
 
 ### Sub-steppers on the lifecycle card
 
-- **Disbursement** (Funded stage): Tawarruq order → Certificate → Trustee instruction → Disbursed. Continue from the **Disbursement** tab.
+- **Disbursement** (Funded stage): Tawarruq order → Certificate → Trustee instruction → Disbursed. The **Certificate** step completes once the Tawarruq certificate has been fetched and stored (callbacks may update order status, but not the stored certificate). Continue from the **Disbursement** tab.
 - **Settlement trustee instruction** (after settlement is posted): Settlement posted → Trustee letter generated → Submitted to trustee → Instruction completed. Continue from the **Servicing & Settlement** tab. This single workflow covers investor pool movements, service fee, Ta'widh/Gharamah account allocations, and **issuer refund allocation** when present — there is no separate issuer-residual lifecycle strip on Note Detail.
 
 ## Note Money Flow
@@ -169,7 +171,8 @@ When shown on the Issuer Disbursement card:
 
 - The **Tawarruq transaction** confirms the financing amount went through a Shariah-compliant commodity trade process.
 - CashSouk stores the **Tawarruq certificate** PDF as proof for the final payout step.
-- Typical flow: **Submit Tawarruq Order** → **Query Status** until completed → **Fetch Certificate** → then generate trustee letter and mark disbursed when allowed.
+- Typical flow: **Submit Tawarruq Order** → **Query Status** until completed → **Fetch Tawarruq Certificate** → then generate trustee letter and mark disbursed when allowed.
+- Callbacks may update Tawarruq order status, but the **Certificate** step and **Certificate ready** badge complete only after the certificate is fetched and stored. Use **Query Status**, **Fetch Tawarruq Certificate**, or reload if Note Detail was already open.
 - **Mark Disbursed** may remain disabled until the certificate is fetched when Tawarruq gating applies.
 
 Cutoff reminder (MYT): between **11:30 PM and 12:30 AM**, you cannot submit a Tawarruq order. Query status, fetch certificate, and view certificate still work.

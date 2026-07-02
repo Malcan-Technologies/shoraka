@@ -1097,6 +1097,7 @@ Expected DB result:
 Expected UI result:
 - UI may show "Updated by callback".
 - Fetch Certificate becomes available.
+- Disbursement lifecycle Certificate step stays current until certificate is fetched and stored; an open Note Detail page may need Query Status, Fetch, or reload to reflect callback status.
 
 Manual calculation:
 - Callback updates status only.

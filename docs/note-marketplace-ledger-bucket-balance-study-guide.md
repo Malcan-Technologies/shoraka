@@ -1304,7 +1304,7 @@ This is how the UI surfaces connect to the database tables.
 **Tabs**
 | Tab | Purpose |
 |-----|---------|
-| Disbursement | Issuer Disbursement card (Tawarruq, certificate, trustee payout) |
+| Disbursement | Issuer Disbursement card (Tawarruq, certificate, trustee payout). Lifecycle **Certificate** step completes only after **Fetch Tawarruq Certificate**; callbacks update order status but do not store the certificate PDF. |
 | Servicing & Settlement | Repayment receipts (`evidence_files`), settlement preview/approve/post, settlement trustee instruction |
 | Late Payment | Ta'widh/Gharamah, arrears/default letters, mark default |
 | Ledger | Read-only ledger entries + export |
