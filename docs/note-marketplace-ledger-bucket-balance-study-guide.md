@@ -1311,7 +1311,7 @@ This is how the UI surfaces connect to the database tables.
 | Investors | Read-only investor allocations |
 
 **Status labels (admin)**
-- Trustee pending after post: **Completing settlement**
+- Trustee pending after post: **Active · servicing** (badge) / **Currently Active** (lifecycle)
 - Trustee complete: **Settled** / note fully repaid
 - Defaulted with settlement work pending: **Defaulted** + settlement trustee strip may still show
 

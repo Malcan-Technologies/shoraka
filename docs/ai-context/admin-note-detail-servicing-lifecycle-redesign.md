@@ -8,7 +8,7 @@ The redesign described below is **implemented** on branch `no_fix_34`. Use this 
 
 **File:** `apps/admin/src/app/notes/[id]/page.tsx`
 
-- Header + Featured toggle + `NoteStatusBadge` (`Completing settlement` / `Settled` / etc.)
+- Header + Featured toggle + `NoteStatusBadge` (`Active · servicing` / `Settled` / etc.)
 - `NoteLifecycleCard` — **six stages:** Draft → Published → Funded → Disbursement → Active → Repaid
 - Sub-strips: disbursement (Disbursement tab), settlement trustee instruction (Servicing & Settlement tab), late payment (Late Payment tab)
 - **Defaulted + settlement trustee pending:** Defaulted remains primary; settlement trustee strip still shown
@@ -27,7 +27,7 @@ The redesign described below is **implemented** on branch `no_fix_34`. Use this 
 
 | Audience | Trustee pending | Complete |
 |----------|-----------------|----------|
-| Admin / issuer | Completing settlement | Settled |
+| Admin / issuer | Active · servicing | Settled |
 | Investor | Settlement processing | Settled |
 
 ### Evidence

@@ -1606,7 +1606,7 @@ Who is involved:
 Where to check:
 Admin:
 [ ] Note detail → **Servicing & Settlement** tab → posted waterfall → Trustee submission
-[ ] Lifecycle card → settlement trustee sub-stepper (**Completing settlement** until complete)
+[ ] Lifecycle card → settlement strip: **Trustee instruction** current (**Active · servicing** until complete)
 [ ] Finance → Service Fee queue
 [ ] Finance → Buckets
 [ ] Note timeline/activity if visible
@@ -1618,7 +1618,7 @@ Investor:
 [ ] Investor sees **Settlement processing** until trustee complete, then **Settled**
 
 What should be shown before action:
-[ ] Status: settlement Posted, **Completing settlement**
+[ ] Status: settlement Posted, badge **Active · servicing**, lifecycle **Currently Active**
 [ ] Amount: RM2,000 issuer refund in RM112,000 scenario (waterfall line)
 [ ] Button: Generate settlement trustee instruction letter
 [ ] Warning/helper text: no Tawarruq on Servicing & Settlement for issuer refund
@@ -1630,7 +1630,7 @@ What to click:
 [ ] Mark instruction completed
 
 What should be shown after action:
-[ ] New status: Completing settlement → Settled / note fully repaid
+[ ] New status: **Active · servicing** → **Settled** / note fully repaid
 [ ] Lifecycle settlement trustee sub-stepper completes
 [ ] Registry settlement column: Settled
 [ ] New amount: RM2,000 issuer refund cleared from Issuer Payable after instruction completed
@@ -2193,7 +2193,7 @@ What this page is for:
 What should show:
 [ ] Six-stage lifecycle stepper (Draft → Published → Funded → Disbursement → Active → Repaid)
 [ ] Workflow Status sidebar (Disbursement / Servicing & Settlement / Late Payment dots)
-[ ] Header NoteStatusBadge (e.g. Completing settlement, Settled, Defaulted)
+[ ] Header NoteStatusBadge (e.g. Active · servicing, Settled, Defaulted)
 [ ] **Disbursement** tab: Issuer Disbursement card, Tawarruq transaction/certificate when required
 [ ] **Servicing & Settlement** tab: repayment receipts (evidence_files), settlement waterfall, trustee submission
 [ ] **Late Payment** tab: late fees, arrears/default documents

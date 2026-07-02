@@ -67,7 +67,7 @@ Terminal failure states (Failed Funding, Defaulted, Cancelled) are shown in the 
 
 | Situation | Lifecycle card / registry |
 |-----------|---------------------------|
-| Settlement posted, trustee instruction pending | **Completing settlement** |
+| Settlement posted, trustee instruction pending | **Active · servicing** (badge) / **Currently Active** (lifecycle) |
 | Settlement trustee instruction completed | **Settled** / note fully repaid |
 | Defaulted with settlement work still pending | **Defaulted** (main risk status) + settlement trustee strip may still show |
 
@@ -212,7 +212,7 @@ After post, when the waterfall includes trustee movements (investor pool, servic
 2. **Mark submitted to trustee** after the trustee has received it.
 3. **Mark instruction completed** when the trustee confirms processing.
 
-Until instruction completed, admin status shows **Completing settlement**. The lifecycle card shows the four-step settlement trustee sub-stepper. Use **Finance → Service Fee** for the platform-wide queue.
+Until instruction completed, the status badge shows **Active · servicing**, the lifecycle header **Currently Active**, and the settlement strip shows **Trustee instruction** as the current step. Use **Finance → Service Fee** for the platform-wide queue.
 
 **Issuer refund allocation** is part of this settlement trustee instruction — not a separate Note Detail lifecycle workflow. The waterfall shows an **Issuer Refund** pool line when the amount is greater than zero.
 

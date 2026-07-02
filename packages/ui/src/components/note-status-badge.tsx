@@ -97,6 +97,9 @@ export function deriveNoteStatus(input: NoteStatusInput): DerivedNoteStatus {
     if (input.pendingResidual) {
       return awaitingResidualRefundStatus();
     }
+    if (input.settlementTrusteePending) {
+      return { label: "Active · servicing", tone: "info", icon: CheckCircleIcon };
+    }
     return { label: "Settled", tone: "success", icon: CheckBadgeIcon };
   }
   if (input.status === "ARREARS" || input.servicingStatus === "ARREARS") {
@@ -212,10 +215,7 @@ function buildInput(note: NoteDetail | NoteListItem): NoteStatusInput {
     "issuerResidualPayout" in note &&
     note.issuerResidualPayout != null &&
     (note.issuerResidualPayout.kind === "pending" || note.issuerResidualPayout.kind === "awaiting");
-  const pendingResidual =
-    residualInFlight ||
-    (hasPostedSettlement &&
-      (note.status === "ACTIVE" || note.status === "ARREARS" || note.status === "DEFAULTED"));
+  const pendingResidual = residualInFlight;
   const settlementTrusteePending = isSettlementWrappingUpFromSummary(note.settlementSummary);
   const pendingDisbursement = note.status === "FUNDING";
 

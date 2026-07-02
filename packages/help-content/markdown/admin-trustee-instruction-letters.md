@@ -56,7 +56,7 @@ The **Activity timeline** on the right records when letters were generated and l
 1. **Settlement posted** — automatic when you post the waterfall.
 2. **Generate** the settlement trustee instruction PDF (required before submit).
 3. Mark **submitted to trustee** after the trustee has received the signed instruction.
-4. Mark **instruction completed** when the trustee confirms processing. Until then, admin status shows **Completing settlement**.
+4. Mark **instruction completed** when the trustee confirms processing. Until then, the status badge shows **Active · servicing** and the settlement strip shows **Trustee instruction** as the current step.
 
 **Issuer refund allocation** is included in this instruction when the waterfall has a positive issuer refund amount. It is **not** a separate Note Detail card or lifecycle workflow.
 

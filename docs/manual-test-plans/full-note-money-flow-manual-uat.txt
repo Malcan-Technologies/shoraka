@@ -1414,12 +1414,12 @@ UI action:
 1. Open Admin Note Detail after posting settlement with issuer refund allocation.
 2. Open **Servicing & Settlement** tab.
 3. Confirm **Trustee submission** block appears in the posted settlement waterfall.
-4. Confirm lifecycle card shows **Completing settlement** and settlement trustee sub-stepper.
+4. Confirm lifecycle card shows **Currently Active**, status badge **Active · servicing**, and settlement strip with **Trustee instruction** current.
 5. Confirm there is **no** separate Issuer Residual Refund card on Note Detail.
 
 Expected UI result:
 - Waterfall shows **Issuer Refund** allocation line (RM2,000).
-- Status **Completing settlement** until trustee instruction completed.
+- Status **Active · servicing** until trustee instruction completed.
 - No Tawarruq section on this tab for issuer refund.
 
 Expected DB result:
