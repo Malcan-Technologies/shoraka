@@ -13,7 +13,7 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
-import type { NoteDetail, ServiceFeeTrusteeInstructionStatus, WithdrawalInstruction } from "@cashsouk/types";
+import type { NoteDetail, WithdrawalInstruction } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,7 +21,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import { resolveLatePaymentTimeline, LATE_PAYMENT_WORKFLOW_BADGE } from "@/notes/utils/late-payment-workflow";
 import {
-  hasSettlementTrusteeMovement,
+  areAllPostedSettlementTrusteeInstructionsComplete,
   isNoteLifecycleVisuallyComplete,
   isSettlementWrappingUp,
 } from "@/notes/utils/settlement-trustee-workflow";
@@ -185,53 +185,112 @@ function buildDisbursementSubSteps(withdrawal: WithdrawalInstruction | null): {
   return { steps, tone };
 }
 
-type ServiceFeeSubStep = {
-  id: "POSTED" | "LETTER" | "SUBMITTED" | "COMPLETED";
-  label: string;
-  status: "done" | "current" | "pending";
-};
+function getSettlementAmount(note: NoteDetail): number {
+  const extended = note as NoteDetail & { settlementAmount?: number; invoiceAmount?: number };
+  return extended.settlementAmount ?? extended.invoiceAmount ?? note.requestedAmount;
+}
 
-function buildServiceFeeSubSteps(
-  trusteeStatus: ServiceFeeTrusteeInstructionStatus | null
-): ServiceFeeSubStep[] {
-  const completedThrough =
-    trusteeStatus === "COMPLETED"
-      ? 3
-      : trusteeStatus === "SUBMITTED_TO_TRUSTEE"
-        ? 2
-        : trusteeStatus === "LETTER_GENERATED"
-          ? 1
-          : 0;
+function settlementReceiptThresholdMet(note: NoteDetail): boolean {
+  const settlementAmount = getSettlementAmount(note);
+  if (settlementAmount <= 0.005) {
+    return false;
+  }
+  if (note.payments.some((payment) => payment.status === "PENDING")) {
+    return false;
+  }
+  const eligibleReceiptTotal = note.payments
+    .filter((payment) =>
+      ["RECEIVED", "RECONCILED", "PARTIAL", "SETTLED"].includes(payment.status)
+    )
+    .reduce((sum, payment) => sum + payment.receiptAmount, 0);
+  const settledReceiptTotal = note.payments
+    .filter((payment) => payment.status === "SETTLED")
+    .reduce((sum, payment) => sum + payment.receiptAmount, 0);
+  return (
+    eligibleReceiptTotal + 0.005 >= settlementAmount ||
+    settledReceiptTotal + 0.005 >= settlementAmount
+  );
+}
+
+function buildSettlementSubSteps(note: NoteDetail): {
+  steps: FlowSubStep[];
+  tone: WorkflowStatusTone;
+} {
+  const receiptsComplete = settlementReceiptThresholdMet(note);
+  const postedSettlement =
+    note.settlements.find((settlement) => settlement.status === "POSTED") ?? null;
+  const postedComplete = postedSettlement != null;
+  const trusteeComplete =
+    postedComplete && areAllPostedSettlementTrusteeInstructionsComplete(note.settlements);
+  const settledComplete = isNoteLifecycleVisuallyComplete(note);
+
   const labels = [
+    "Receipts collected",
     "Settlement posted",
-    "Trustee letter generated",
-    "Submitted to trustee",
-    "Instruction completed",
+    "Trustee instruction",
+    "Settled",
   ];
-  const ids: ServiceFeeSubStep["id"][] = ["POSTED", "LETTER", "SUBMITTED", "COMPLETED"];
-  return labels.map((label, idx) => ({
-    id: ids[idx],
+  const ids = ["RECEIPTS", "POSTED", "TRUSTEE", "SETTLED"];
+
+  let completedThrough = -1;
+  if (settledComplete) {
+    completedThrough = 3;
+  } else if (trusteeComplete && postedComplete) {
+    completedThrough = 2;
+  } else if (postedComplete) {
+    completedThrough = 1;
+  } else if (receiptsComplete) {
+    completedThrough = 0;
+  }
+
+  const steps = labels.map((label, idx) => ({
+    id: ids[idx] ?? `STEP_${idx}`,
     label,
     status:
       idx <= completedThrough
-        ? "done"
+        ? ("done" as const)
         : idx === completedThrough + 1
-          ? "current"
-          : "pending",
+          ? ("current" as const)
+          : ("pending" as const),
   }));
+
+  let tone: WorkflowStatusTone = "warning";
+  if (settledComplete) {
+    tone = "success";
+  } else if (postedComplete && !trusteeComplete) {
+    tone = trusteeWorkflowTone(postedSettlement?.serviceFeeTrusteeStatus ?? null, {
+      needsGeneration:
+        postedSettlement?.serviceFeeTrusteeStatus === "PENDING_LETTER" ||
+        postedSettlement?.serviceFeeTrusteeStatus === null,
+    });
+  } else if (receiptsComplete && !postedComplete) {
+    tone = "active";
+  }
+
+  return { steps, tone };
 }
 
-function serviceFeeTrusteeHelperText(trusteeStatus: ServiceFeeTrusteeInstructionStatus | null): string {
-  if (trusteeStatus === "COMPLETED") {
-    return "Settlement trustee instruction is complete.";
+function settlementStripHelperText(note: NoteDetail): string {
+  const receiptsComplete = settlementReceiptThresholdMet(note);
+  const postedSettlement =
+    note.settlements.find((settlement) => settlement.status === "POSTED") ?? null;
+  const trusteeComplete =
+    postedSettlement != null &&
+    areAllPostedSettlementTrusteeInstructionsComplete(note.settlements);
+
+  if (isNoteLifecycleVisuallyComplete(note)) {
+    return "Settlement is complete.";
   }
-  if (trusteeStatus === "SUBMITTED_TO_TRUSTEE") {
-    return "Waiting on trustee confirmation. Mark instruction complete from the Servicing & Settlement tab when processed.";
+  if (postedSettlement && !trusteeComplete) {
+    return "Settlement is posted. Complete the settlement trustee instruction — including any issuer refund allocation — from the Servicing & Settlement tab.";
   }
-  if (trusteeStatus === "LETTER_GENERATED") {
-    return "Submit the PDF to the trustee, then mark submitted and complete from the Servicing & Settlement tab.";
+  if (postedSettlement && trusteeComplete) {
+    return "Settlement allocations are finishing on the ledger.";
   }
-  return "Generate the settlement trustee letter from the Servicing & Settlement tab.";
+  if (receiptsComplete) {
+    return "Receipts meet the settlement amount. Preview, approve, and post from the Servicing & Settlement tab.";
+  }
+  return "Record and reconcile repayment receipts from the Servicing & Settlement tab.";
 }
 
 interface ActionConfig {
@@ -495,6 +554,15 @@ function getAutoCloseInfo(note: NoteDetail) {
   };
 }
 
+function hasActiveSettlementWork(note: NoteDetail): boolean {
+  return note.settlements.some(
+    (settlement) =>
+      settlement.status === "PREVIEW" ||
+      settlement.status === "APPROVED" ||
+      settlement.status === "POSTED"
+  );
+}
+
 export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = true }: NoteLifecycleCardProps) {
   const activeIndex = getActiveStageIndex(note);
   const isComplete = isNoteLifecycleVisuallyComplete(note);
@@ -515,19 +583,14 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
     note.fundingStatus === "FUNDED" &&
     !disbursementComplete;
   const awaitingDisbursement = showDisbursementStrip;
-
-  const postedSettlementWithServiceFee =
-    note.settlements.find((s) => s.status === "POSTED" && hasSettlementTrusteeMovement(s)) ?? null;
-  const serviceFeeTrusteeStatus = postedSettlementWithServiceFee?.serviceFeeTrusteeStatus ?? null;
-  const serviceFeeStripTone = trusteeWorkflowTone(serviceFeeTrusteeStatus, {
-    needsGeneration: serviceFeeTrusteeStatus === "PENDING_LETTER" || serviceFeeTrusteeStatus === null,
-  });
-  const showServiceFeeSubStepper =
-    postedSettlementWithServiceFee !== null &&
-    (!terminalFailure || defaultedWithSettlementTrusteeWork);
-  const serviceFeeSubSteps = showServiceFeeSubStepper
-    ? buildServiceFeeSubSteps(serviceFeeTrusteeStatus)
-    : null;
+  const servicingStarted = note.servicingStatus !== "NOT_STARTED";
+  const settlementWorkExists = hasActiveSettlementWork(note) || settlementInProgress;
+  const showSettlementStrip =
+    !isComplete &&
+    !awaitingDisbursement &&
+    (terminalFailure == null || terminalFailure.label === "Defaulted") &&
+    (servicingStarted || settlementWorkExists);
+  const settlementSubFlow = showSettlementStrip ? buildSettlementSubSteps(note) : null;
 
   const disbursementSubFlow = showDisbursementStrip
     ? buildDisbursementSubSteps(disbursementWithdrawal)
@@ -681,12 +744,12 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
           })}
         </div>
 
-        {serviceFeeSubSteps ? (
+        {settlementSubFlow ? (
           <WorkflowSubFlowStrip
-            title="Settlement trustee instruction"
-            steps={serviceFeeSubSteps}
-            tone={serviceFeeStripTone}
-            helperText={serviceFeeTrusteeHelperText(serviceFeeTrusteeStatus)}
+            title="Settlement"
+            steps={settlementSubFlow.steps}
+            tone={settlementSubFlow.tone}
+            helperText={settlementStripHelperText(note)}
           />
         ) : null}
 
