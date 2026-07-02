@@ -1,6 +1,48 @@
 # Admin Note Detail Servicing Lifecycle Redesign Context
 
-## Purpose
+## As-built (current — 2026-06-29)
+
+The redesign described below is **implemented** on branch `no_fix_34`. Use this section as the operational source of truth; sections marked *historical inventory* describe the pre-redesign layout for reference only.
+
+### Current Note Detail layout
+
+**File:** `apps/admin/src/app/notes/[id]/page.tsx`
+
+- Header + Featured toggle + `NoteStatusBadge` (`Active · servicing` / `Settled` / etc.)
+- `NoteLifecycleCard` — **six stages:** Draft → Published → Funded → Disbursement → Active → Repaid
+- Sub-strips: disbursement (Disbursement tab), settlement trustee instruction (Servicing & Settlement tab), late payment (Late Payment tab)
+- **Defaulted + settlement trustee pending:** Defaulted remains primary; settlement trustee strip still shown
+- **Tab bar:** Disbursement | Servicing & Settlement | Late Payment | Ledger | Investors
+- Right sidebar: Source Application, **Workflow Status** card, Activity Timeline
+
+### Settlement completion model
+
+1. Settlement posted to ledger  
+2. Settlement trustee instruction (PDF → submitted → instruction completed)  
+3. Note `REPAID` / servicing `SETTLED`
+
+**Issuer refund allocation** is part of the settlement waterfall and settlement trustee instruction — **not** a separate lifecycle strip or Note Detail card.
+
+### Status wording
+
+| Audience | Trustee pending | Complete |
+|----------|-----------------|----------|
+| Admin / issuer | Active · servicing | Settled |
+| Investor | Settlement processing | Settled |
+
+### Evidence
+
+Repayment payment evidence uses `evidence_files` (JSON array on `note_payments`). Legacy `evidence_s3_key` removed.
+
+### Tawarruq certificate vs callback
+
+- Shoraka webhook callback updates `shoraka_trade_orders.status` only (not `certificate_s3_key`).
+- Disbursement lifecycle **Certificate** step and **Certificate ready** UI require **Fetch Tawarruq Certificate** after the order is completed.
+- Open Note Detail does not live-update from callback alone; admin may use **Query Status**, **Fetch Tawarruq Certificate**, or reload to refresh state.
+
+---
+
+## Purpose (historical)
 This file records all current Admin Note Detail servicing/disbursement/settlement UI before redesign so we can restructure the layout later without accidentally removing any admin-visible field/action/status/message that currently exists (including anything that only appears under specific conditions).
 
 ## Hard rules

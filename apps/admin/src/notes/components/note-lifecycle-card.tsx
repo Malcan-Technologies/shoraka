@@ -13,16 +13,28 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
-import type { NoteDetail, ServiceFeeTrusteeInstructionStatus } from "@cashsouk/types";
+import type { NoteDetail, ShorakaWithdrawalState, WithdrawalInstruction } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { resolveLatePaymentTimeline, LATE_PAYMENT_WORKFLOW_BADGE } from "@/notes/utils/late-payment-workflow";
+import { useShorakaWithdrawalState } from "@/notes/hooks/use-notes";
+import {
+  areAllPostedSettlementTrusteeInstructionsComplete,
+  isNoteLifecycleVisuallyComplete,
+  isSettlementWrappingUp,
+} from "@/notes/utils/settlement-trustee-workflow";
+import {
+  type WorkflowStatusTone,
+  WORKFLOW_CARD,
+  workflowBadgeClassName,
+} from "@/notes/utils/workflow-status-tokens";
 
 export type NoteLifecycleAction = "publish" | "unpublish" | "closeFunding" | "failFunding";
 
-type StageId = "DRAFT" | "PUBLISHED" | "FUNDED" | "ACTIVE" | "REPAID";
+type StageId = "DRAFT" | "PUBLISHED" | "FUNDED" | "DISBURSEMENT" | "ACTIVE" | "REPAID";
 
 interface LifecycleStage {
   id: StageId;
@@ -33,6 +45,7 @@ const STAGES: LifecycleStage[] = [
   { id: "DRAFT", label: "Draft" },
   { id: "PUBLISHED", label: "Published" },
   { id: "FUNDED", label: "Funded" },
+  { id: "DISBURSEMENT", label: "Disbursement" },
   { id: "ACTIVE", label: "Active" },
   { id: "REPAID", label: "Repaid" },
 ];
@@ -67,114 +80,212 @@ function getTerminalFailure(note: NoteDetail, activeIndex: number): TerminalFail
       label: "Defaulted",
       description:
         "Servicing has reached default. Settle outstanding obligations via the servicing panel.",
-      stageIndex: 3,
+      stageIndex: 4,
     };
   }
   return null;
 }
 
+function findIssuerDisbursementWithdrawal(note: NoteDetail): WithdrawalInstruction | null {
+  return (
+    (note.withdrawals ?? []).find(
+      (withdrawal) =>
+        withdrawal.withdrawalType === "ISSUER_DISBURSEMENT" && withdrawal.status !== "CANCELLED"
+    ) ?? null
+  );
+}
+
+function isDisbursementComplete(withdrawal: WithdrawalInstruction | null): boolean {
+  return withdrawal?.status === "COMPLETED";
+}
+
 function getActiveStageIndex(note: NoteDetail): number {
-  const hasPostedSettlement = note.settlements.some((s) => s.status === "POSTED");
-  if (note.status === "REPAID" || note.servicingStatus === "SETTLED" || hasPostedSettlement) {
-    return 4;
+  if (isNoteLifecycleVisuallyComplete(note)) {
+    return 5;
   }
-  if (
+  const servicingActive =
     note.status === "ACTIVE" ||
     note.status === "ARREARS" ||
     note.status === "DEFAULTED" ||
-    note.servicingStatus === "CURRENT"
-  ) {
-    return 3;
+    note.servicingStatus === "CURRENT" ||
+    note.servicingStatus === "LATE" ||
+    note.servicingStatus === "ARREARS" ||
+    note.servicingStatus === "DEFAULTED";
+  if (servicingActive) {
+    return 4;
   }
-  if (note.status === "FUNDING" || note.fundingStatus === "FUNDED") {
+  if (note.fundingStatus === "FUNDED") {
+    return isDisbursementComplete(findIssuerDisbursementWithdrawal(note)) ? 4 : 3;
+  }
+  if (note.status === "FUNDING") {
     return 2;
   }
-  if (note.status === "PUBLISHED") return 1;
+  if (note.status === "PUBLISHED") {
+    return 1;
+  }
   return 0;
 }
 
-type PayoutSubStep = {
-  id: "INITIATED" | "LETTER" | "SUBMITTED" | "DISBURSED";
+type FlowSubStep = {
+  id: string;
   label: string;
   status: "done" | "current" | "pending";
 };
 
-function buildPayoutSubSteps(withdrawalStatus: string, initiatedLabel: string): PayoutSubStep[] {
-  const completedThrough =
-    withdrawalStatus === "COMPLETED"
-      ? 3
-      : withdrawalStatus === "SUBMITTED_TO_TRUSTEE"
-        ? 2
-        : withdrawalStatus === "LETTER_GENERATED"
-          ? 1
-          : 0;
-  const labels = [initiatedLabel, "Letter generated", "Submitted to trustee", "Disbursed"];
-  const ids: Array<PayoutSubStep["id"]> = ["INITIATED", "LETTER", "SUBMITTED", "DISBURSED"];
-  return labels.map((label, idx) => ({
-    id: ids[idx],
-    label,
-    status: idx <= completedThrough ? "done" : idx === completedThrough + 1 ? "current" : "pending",
-  }));
-}
+function buildDisbursementSubSteps(
+  withdrawal: WithdrawalInstruction | null,
+  shorakaState: ShorakaWithdrawalState | null | undefined
+): {
+  steps: FlowSubStep[];
+  tone: WorkflowStatusTone;
+} {
+  const labels = ["Tawarruq order", "Certificate", "Trustee instruction", "Disbursed"];
+  const ids = ["TAWARRUQ", "CERTIFICATE", "TRUSTEE", "DISBURSED"];
 
-type ServiceFeeSubStep = {
-  id: "POSTED" | "LETTER" | "SUBMITTED" | "COMPLETED";
-  label: string;
-  status: "done" | "current" | "pending";
-};
+  if (!withdrawal) {
+    return {
+      steps: labels.map((label, idx) => ({
+        id: ids[idx] ?? `STEP_${idx}`,
+        label,
+        status: idx === 0 ? "current" : "pending",
+      })),
+      tone: "neutral",
+    };
+  }
 
-function buildServiceFeeSubSteps(
-  trusteeStatus: ServiceFeeTrusteeInstructionStatus | null
-): ServiceFeeSubStep[] {
-  const completedThrough =
-    trusteeStatus === "COMPLETED"
-      ? 3
-      : trusteeStatus === "SUBMITTED_TO_TRUSTEE"
-        ? 2
-        : trusteeStatus === "LETTER_GENERATED"
-          ? 1
-          : 0;
-  const labels = [
-    "Settlement posted",
-    "Trustee letter generated",
-    "Submitted to trustee",
-    "Instruction completed",
-  ];
-  const ids: ServiceFeeSubStep["id"][] = ["POSTED", "LETTER", "SUBMITTED", "COMPLETED"];
-  return labels.map((label, idx) => ({
-    id: ids[idx],
+  const tawarruqOrderComplete = shorakaState != null;
+  const hasCertificate = Boolean(
+    shorakaState?.tradeOrder.certificate_s3_key ?? (withdrawal.hasShorakaCertificate ? true : false)
+  );
+
+  let completedThrough = -1;
+  if (withdrawal.status === "COMPLETED") {
+    completedThrough = 3;
+  } else if (hasCertificate) {
+    completedThrough = 1;
+  } else if (tawarruqOrderComplete) {
+    completedThrough = 0;
+  }
+
+  const steps = labels.map((label, idx) => ({
+    id: ids[idx] ?? `STEP_${idx}`,
     label,
     status:
       idx <= completedThrough
-        ? "done"
+        ? ("done" as const)
         : idx === completedThrough + 1
-          ? "current"
-          : "pending",
+          ? ("current" as const)
+          : ("pending" as const),
   }));
+
+  const tone: WorkflowStatusTone =
+    withdrawal.status === "COMPLETED" ? "success" : "warning";
+
+  return { steps, tone };
 }
 
-function serviceFeeTrusteeHelperText(trusteeStatus: ServiceFeeTrusteeInstructionStatus | null): string {
-  if (trusteeStatus === "COMPLETED") {
-    return "Settlement trustee letter workflow is complete for this settlement.";
-  }
-  if (trusteeStatus === "SUBMITTED_TO_TRUSTEE") {
-    return "Mark the instruction complete in section 3 of the settlement panel once the trustee has processed the settlement instruction.";
-  }
-  if (trusteeStatus === "LETTER_GENERATED") {
-    return "Submit the PDF to the trustee, then mark submitted and complete from the settlement panel below.";
-  }
-  return "Generate the Settlement Trustee Letter in section 3 of the settlement panel below.";
+function getSettlementAmount(note: NoteDetail): number {
+  const extended = note as NoteDetail & { settlementAmount?: number; invoiceAmount?: number };
+  return extended.settlementAmount ?? extended.invoiceAmount ?? note.requestedAmount;
 }
 
-function hasSettlementTrusteeMovement(settlement: NoteDetail["settlements"][number]): boolean {
+function settlementReceiptThresholdMet(note: NoteDetail): boolean {
+  const settlementAmount = getSettlementAmount(note);
+  if (settlementAmount <= 0.005) {
+    return false;
+  }
+  if (note.payments.some((payment) => payment.status === "PENDING")) {
+    return false;
+  }
+  const eligibleReceiptTotal = note.payments
+    .filter((payment) =>
+      ["RECEIVED", "RECONCILED", "PARTIAL", "SETTLED"].includes(payment.status)
+    )
+    .reduce((sum, payment) => sum + payment.receiptAmount, 0);
+  const settledReceiptTotal = note.payments
+    .filter((payment) => payment.status === "SETTLED")
+    .reduce((sum, payment) => sum + payment.receiptAmount, 0);
   return (
-    settlement.investorPrincipal + settlement.investorProfitNet + settlement.tawidhInvestorAmount >
-      0.005 ||
-    settlement.serviceFeeAmount > 0.005 ||
-    settlement.tawidhAccountAmount > 0.005 ||
-    settlement.gharamahAmount > 0.005 ||
-    settlement.issuerResidualAmount > 0.005
+    eligibleReceiptTotal + 0.005 >= settlementAmount ||
+    settledReceiptTotal + 0.005 >= settlementAmount
   );
+}
+
+function buildSettlementSubSteps(note: NoteDetail): {
+  steps: FlowSubStep[];
+  tone: WorkflowStatusTone;
+} {
+  const receiptsComplete = settlementReceiptThresholdMet(note);
+  const postedSettlement =
+    note.settlements.find((settlement) => settlement.status === "POSTED") ?? null;
+  const postedComplete = postedSettlement != null;
+  const trusteeComplete =
+    postedComplete && areAllPostedSettlementTrusteeInstructionsComplete(note.settlements);
+  const settledComplete = isNoteLifecycleVisuallyComplete(note);
+
+  const labels = [
+    "Receipts collected",
+    "Settlement posted",
+    "Trustee instruction",
+    "Settled",
+  ];
+  const ids = ["RECEIPTS", "POSTED", "TRUSTEE", "SETTLED"];
+
+  let completedThrough = -1;
+  if (settledComplete) {
+    completedThrough = 3;
+  } else if (trusteeComplete && postedComplete) {
+    completedThrough = 2;
+  } else if (postedComplete) {
+    completedThrough = 1;
+  } else if (receiptsComplete) {
+    completedThrough = 0;
+  }
+
+  const steps = labels.map((label, idx) => ({
+    id: ids[idx] ?? `STEP_${idx}`,
+    label,
+    status:
+      idx <= completedThrough
+        ? ("done" as const)
+        : idx === completedThrough + 1
+          ? ("current" as const)
+          : ("pending" as const),
+  }));
+
+  let tone: WorkflowStatusTone = "warning";
+  if (settledComplete) {
+    tone = "success";
+  } else if (postedComplete && !trusteeComplete) {
+    tone = "warning";
+  } else if (receiptsComplete && !postedComplete) {
+    tone = "active";
+  }
+
+  return { steps, tone };
+}
+
+function settlementStripHelperText(note: NoteDetail): string {
+  const receiptsComplete = settlementReceiptThresholdMet(note);
+  const postedSettlement =
+    note.settlements.find((settlement) => settlement.status === "POSTED") ?? null;
+  const trusteeComplete =
+    postedSettlement != null &&
+    areAllPostedSettlementTrusteeInstructionsComplete(note.settlements);
+
+  if (isNoteLifecycleVisuallyComplete(note)) {
+    return "Settlement is complete.";
+  }
+  if (postedSettlement && !trusteeComplete) {
+    return "Settlement is posted. Complete the settlement trustee instruction — including any issuer refund allocation — from the Servicing & Settlement tab.";
+  }
+  if (postedSettlement && trusteeComplete) {
+    return "Settlement allocations are finishing on the ledger.";
+  }
+  if (receiptsComplete) {
+    return "Receipts meet the settlement amount. Preview, approve, and post from the Servicing & Settlement tab.";
+  }
+  return "Record and reconcile repayment receipts from the Servicing & Settlement tab.";
 }
 
 interface ActionConfig {
@@ -246,7 +357,7 @@ function buildActionPlan(note: NoteDetail) {
       });
     }
   } else if (note.status === "ACTIVE" || note.servicingStatus !== "NOT_STARTED") {
-    contextHelper = "Servicing is active. Manage receipts and settlement in the panels below.";
+    contextHelper = "Servicing is active. Manage receipts and settlement in the Servicing & Settlement tab.";
   } else if (note.status === "PUBLISHED" || note.status === "FUNDING") {
     contextHelper = isFundingOpen
       ? `Awaiting commitments — ${note.fundingPercent.toFixed(1)}% of target funded.`
@@ -262,6 +373,101 @@ function buildActionPlan(note: NoteDetail) {
   }
 
   return { primary, secondary, contextHelper, meetsMinimumFunding, isFundingOpen };
+}
+
+function workflowStripSurfaceClass(tone: WorkflowStatusTone) {
+  if (tone === "success") return WORKFLOW_CARD.successPanel;
+  if (tone === "warning") return WORKFLOW_CARD.warningPanel;
+  if (tone === "danger") return "border-destructive/30 bg-destructive/5";
+  if (tone === "active") return WORKFLOW_CARD.warningPanel;
+  return WORKFLOW_CARD.neutralSection;
+}
+
+function workflowStripTitleClass(tone: WorkflowStatusTone) {
+  if (tone === "success") return "text-emerald-900";
+  if (tone === "danger") return "text-destructive";
+  if (tone === "warning") return "text-amber-900";
+  if (tone === "active") return "text-amber-900";
+  return "text-muted-foreground";
+}
+
+function workflowStripBodyClass(tone: WorkflowStatusTone) {
+  if (tone === "success") return "text-emerald-900/80";
+  if (tone === "danger") return "text-destructive/80";
+  if (tone === "warning" || tone === "active") return "text-amber-900/80";
+  return "text-muted-foreground";
+}
+
+function WorkflowSubFlowStrip({
+  title,
+  steps,
+  tone,
+  helperText,
+}: {
+  title: string;
+  steps: FlowSubStep[];
+  tone: WorkflowStatusTone;
+  helperText: string;
+}) {
+  const doneCount = steps.filter((step) => step.status === "done").length;
+  return (
+    <div className={cn("rounded-xl border p-3", workflowStripSurfaceClass(tone))}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div
+          className={cn("text-xs font-medium uppercase tracking-wider", workflowStripTitleClass(tone))}
+        >
+          {title}
+        </div>
+        <div className={cn("text-xs", workflowStripBodyClass(tone))}>
+          {doneCount} of {steps.length} steps complete
+        </div>
+      </div>
+      <ol className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+        {steps.map((step, idx) => (
+          <React.Fragment key={step.id}>
+            <li className="flex items-center gap-1.5">
+              <span
+                className={cn(
+                  "flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold ring-1",
+                  step.status === "done"
+                    ? "bg-emerald-500 text-white ring-emerald-500"
+                    : step.status === "current"
+                      ? tone === "danger"
+                        ? "bg-destructive text-destructive-foreground ring-destructive"
+                        : tone === "neutral"
+                          ? "bg-muted-foreground text-background ring-muted-foreground"
+                          : "bg-amber-500 text-white ring-amber-500"
+                      : "bg-white text-muted-foreground ring-border"
+                )}
+              >
+                {step.status === "done" ? <CheckIcon className="h-3 w-3" /> : idx + 1}
+              </span>
+              <span
+                className={cn(
+                  step.status === "pending"
+                    ? "text-muted-foreground"
+                    : tone === "success"
+                      ? "font-medium text-emerald-950"
+                      : "font-medium text-foreground"
+                )}
+              >
+                {step.label}
+              </span>
+            </li>
+            {idx < steps.length - 1 ? (
+              <span
+                className={cn(
+                  "h-px w-4",
+                  step.status === "done" ? "bg-emerald-500" : "bg-border"
+                )}
+              />
+            ) : null}
+          </React.Fragment>
+        ))}
+      </ol>
+      <p className={cn("mt-2 text-xs", workflowStripBodyClass(tone))}>{helperText}</p>
+    </div>
+  );
 }
 
 function StageDot({
@@ -284,7 +490,7 @@ function StageDot({
           : past
             ? "bg-emerald-500 text-white"
             : active
-              ? "bg-primary text-primary-foreground"
+              ? "bg-amber-500 text-white"
               : "bg-muted text-muted-foreground"
       )}
     >
@@ -343,54 +549,74 @@ function getAutoCloseInfo(note: NoteDetail) {
   };
 }
 
+function hasActiveSettlementWork(note: NoteDetail): boolean {
+  return note.settlements.some(
+    (settlement) =>
+      settlement.status === "PREVIEW" ||
+      settlement.status === "APPROVED" ||
+      settlement.status === "POSTED"
+  );
+}
+
 export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = true }: NoteLifecycleCardProps) {
   const activeIndex = getActiveStageIndex(note);
-  const isComplete = note.status === "REPAID" || note.servicingStatus === "SETTLED";
+  const isComplete = isNoteLifecycleVisuallyComplete(note);
   const { primary, secondary, contextHelper, isFundingOpen } = buildActionPlan(note);
   const anyPending = Object.values(pending).some(Boolean);
   const currentStage = STAGES[activeIndex];
   const autoClose = isFundingOpen ? getAutoCloseInfo(note) : null;
+  const latePaymentTimeline = React.useMemo(() => resolveLatePaymentTimeline(note), [note]);
+  const disbursementWithdrawal = findIssuerDisbursementWithdrawal(note);
+  const disbursementComplete = isDisbursementComplete(disbursementWithdrawal);
+  const shorakaStateQuery = useShorakaWithdrawalState(
+    disbursementWithdrawal && !disbursementComplete ? disbursementWithdrawal.id : null
+  );
+  const settlementInProgress = isSettlementWrappingUp(note);
+  const hasPostedSettlement = note.settlements.some((settlement) => settlement.status === "POSTED");
   const pendingResidualWithdrawal =
     (note.withdrawals ?? []).find(
-      (w) =>
-        w.withdrawalType === "ISSUER_RESIDUAL_RETURN" &&
-        w.status !== "COMPLETED" &&
-        w.status !== "CANCELLED"
+      (withdrawal) =>
+        withdrawal.withdrawalType === "ISSUER_RESIDUAL_RETURN" &&
+        withdrawal.status !== "COMPLETED" &&
+        withdrawal.status !== "CANCELLED"
     ) ?? null;
-  const pendingDisbursementWithdrawal =
-    (note.withdrawals ?? []).find(
-      (w) =>
-        w.withdrawalType === "ISSUER_DISBURSEMENT" &&
-        w.status !== "COMPLETED" &&
-        w.status !== "CANCELLED"
-    ) ?? null;
-  const hasPostedSettlement = note.settlements.some((s) => s.status === "POSTED");
-  const awaitingResidual = !isComplete && hasPostedSettlement && pendingResidualWithdrawal !== null;
-  const terminalFailure = awaitingResidual ? null : getTerminalFailure(note, activeIndex);
-  const awaitingDisbursement =
-    !isComplete && !terminalFailure && activeIndex === 2 && pendingDisbursementWithdrawal !== null;
+  const awaitingResidual =
+    !isComplete && hasPostedSettlement && pendingResidualWithdrawal !== null;
+  const terminalFailure = getTerminalFailure(note, activeIndex);
+  const defaultedWithSettlementTrusteeWork =
+    terminalFailure?.label === "Defaulted" && settlementInProgress;
+  const showDisbursementStrip =
+    !isComplete &&
+    !terminalFailure &&
+    note.fundingStatus === "FUNDED" &&
+    !disbursementComplete;
+  const awaitingDisbursement = showDisbursementStrip;
+  const servicingStarted = note.servicingStatus !== "NOT_STARTED";
+  const settlementWorkExists = hasActiveSettlementWork(note) || settlementInProgress;
+  const showSettlementStrip =
+    !isComplete &&
+    !awaitingDisbursement &&
+    (terminalFailure == null || terminalFailure.label === "Defaulted") &&
+    (servicingStarted || settlementWorkExists);
+  const settlementSubFlow = showSettlementStrip ? buildSettlementSubSteps(note) : null;
 
-  const postedSettlementWithServiceFee =
-    note.settlements.find((s) => s.status === "POSTED" && hasSettlementTrusteeMovement(s)) ?? null;
-  const serviceFeeTrusteeStatus = postedSettlementWithServiceFee?.serviceFeeTrusteeStatus ?? null;
-  const serviceFeeWorkflowComplete = serviceFeeTrusteeStatus === "COMPLETED";
-  const showServiceFeeSubStepper =
-    postedSettlementWithServiceFee !== null && !terminalFailure;
-  const serviceFeeSubSteps = showServiceFeeSubStepper
-    ? buildServiceFeeSubSteps(serviceFeeTrusteeStatus)
+  const disbursementSubFlow = showDisbursementStrip
+    ? buildDisbursementSubSteps(disbursementWithdrawal, shorakaStateQuery.data)
     : null;
 
-  const payoutSubSteps =
-    awaitingResidual && pendingResidualWithdrawal
-      ? buildPayoutSubSteps(pendingResidualWithdrawal.status, "Waterfall posted")
-      : awaitingDisbursement && pendingDisbursementWithdrawal
-        ? buildPayoutSubSteps(pendingDisbursementWithdrawal.status, "Funding closed")
-        : null;
-  const payoutLabel = awaitingResidual
-    ? "Issuer residual refund · awaiting disbursement"
-    : awaitingDisbursement
-      ? "Issuer disbursement · awaiting payout to start servicing"
-      : null;
+  const showLatePaymentStrip =
+    !terminalFailure &&
+    !isComplete &&
+    (latePaymentTimeline.phase === "in-grace" ||
+      latePaymentTimeline.phase === "arrears" ||
+      latePaymentTimeline.phase === "default-eligible" ||
+      latePaymentTimeline.phase === "defaulted");
+  const latePaymentStripTone =
+    latePaymentTimeline.phase === "defaulted"
+      ? "danger"
+      : latePaymentTimeline.phase === "default-eligible"
+        ? "active"
+        : "warning";
 
   const headerTitle = isComplete
     ? "Note fully repaid"
@@ -402,13 +628,15 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
           ? "Awaiting issuer disbursement"
           : `Currently ${currentStage.label}`;
   const headerDescription = isComplete
-    ? "All investor obligations satisfied and issuer residual disbursed. The note lifecycle is complete."
+    ? "All settlement allocations are complete. The note lifecycle is complete."
     : terminalFailure
-      ? terminalFailure.description
+      ? defaultedWithSettlementTrusteeWork
+        ? "The note has defaulted. Settlement has been posted and recovery is in progress. Complete the settlement trustee instruction — including any issuer refund allocation — from the Servicing & Settlement tab."
+        : terminalFailure.description
       : awaitingResidual
         ? "Settlement waterfall posted. Investors have been paid. The issuer residual refund must be disbursed to close the lifecycle."
         : awaitingDisbursement
-          ? "Funding has closed and investor commitments are confirmed. The net disbursement to the issuer must be paid out before servicing begins."
+          ? "Funding has closed. Complete issuer disbursement (Tawarruq, certificate, trustee instruction) before servicing begins."
           : null;
 
   const contextLines: string[] = [];
@@ -421,7 +649,7 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
         `${note.investments.length} commitment${note.investments.length === 1 ? "" : "s"}`
       );
       contextLines.push(`Minimum ${note.minimumFundingPercent}% to close`);
-    } else if (activeIndex === 3) {
+    } else if (activeIndex >= 4) {
       contextLines.push(`${formatCurrency(note.fundedAmount)} disbursed`);
       contextLines.push(
         `${note.investments.length} investor${note.investments.length === 1 ? "" : "s"}`
@@ -517,138 +745,44 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
           })}
         </div>
 
-        {serviceFeeSubSteps ? (
-          <div
-            className={cn(
-              "rounded-xl border p-3",
-              serviceFeeWorkflowComplete
-                ? "border-emerald-200 bg-emerald-50/60"
-                : "border-amber-200 bg-amber-50/60"
-            )}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
+        {settlementSubFlow ? (
+          <WorkflowSubFlowStrip
+            title="Settlement"
+            steps={settlementSubFlow.steps}
+            tone={settlementSubFlow.tone}
+            helperText={settlementStripHelperText(note)}
+          />
+        ) : null}
+
+        {disbursementSubFlow ? (
+          <WorkflowSubFlowStrip
+            title="Issuer disbursement"
+            steps={disbursementSubFlow.steps}
+            tone={disbursementSubFlow.tone}
+            helperText="Continue this from the Disbursement tab below."
+          />
+        ) : null}
+
+        {showLatePaymentStrip ? (
+          <div className={cn("rounded-xl border p-3", workflowStripSurfaceClass(latePaymentStripTone))}>
+            <div className="flex flex-wrap items-center gap-2">
               <div
                 className={cn(
                   "text-xs font-medium uppercase tracking-wider",
-                  serviceFeeWorkflowComplete ? "text-emerald-900" : "text-amber-900"
+                  workflowStripTitleClass(latePaymentStripTone)
                 )}
               >
-                Settlement Trustee Letter
+                Late payment
               </div>
-              <div
-                className={cn(
-                  "text-xs",
-                  serviceFeeWorkflowComplete ? "text-emerald-900/80" : "text-amber-900/80"
-                )}
+              <Badge
+                variant="outline"
+                className={workflowBadgeClassName(latePaymentStripTone)}
               >
-                {serviceFeeSubSteps.filter((step) => step.status === "done").length} of{" "}
-                {serviceFeeSubSteps.length} steps complete
-              </div>
+                {LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].label}
+              </Badge>
             </div>
-            <ol className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
-              {serviceFeeSubSteps.map((step, idx) => (
-                <React.Fragment key={step.id}>
-                  <li className="flex items-center gap-1.5">
-                    <span
-                      className={cn(
-                        "flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold ring-1",
-                        step.status === "done"
-                          ? "bg-emerald-500 text-white ring-emerald-500"
-                          : step.status === "current"
-                            ? "bg-amber-500 text-white ring-amber-500"
-                            : "bg-white text-amber-700 ring-amber-200"
-                      )}
-                    >
-                      {step.status === "done" ? <CheckIcon className="h-3 w-3" /> : idx + 1}
-                    </span>
-                    <span
-                      className={cn(
-                        step.status === "pending"
-                          ? "text-amber-700/70"
-                          : serviceFeeWorkflowComplete
-                            ? "font-medium text-emerald-950"
-                            : "font-medium text-amber-950"
-                      )}
-                    >
-                      {step.label}
-                    </span>
-                  </li>
-                  {idx < serviceFeeSubSteps.length - 1 ? (
-                    <span
-                      className={cn(
-                        "h-px w-4",
-                        step.status === "done" ? "bg-emerald-500" : "bg-amber-200"
-                      )}
-                    />
-                  ) : null}
-                </React.Fragment>
-              ))}
-            </ol>
-            <p
-              className={cn(
-                "mt-2 text-xs",
-                serviceFeeWorkflowComplete ? "text-emerald-900/80" : "text-amber-900/80"
-              )}
-            >
-              {serviceFeeTrusteeHelperText(serviceFeeTrusteeStatus)}
-            </p>
-          </div>
-        ) : null}
-
-        {payoutSubSteps ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-xs font-medium uppercase tracking-wider text-amber-900">
-                {payoutLabel}
-              </div>
-              <div className="text-xs text-amber-900/80">
-                {payoutSubSteps.filter((step) => step.status === "done").length} of{" "}
-                {payoutSubSteps.length} steps complete
-              </div>
-            </div>
-            <ol className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
-              {payoutSubSteps.map((step, idx) => (
-                <React.Fragment key={step.id}>
-                  <li className="flex items-center gap-1.5">
-                    <span
-                      className={cn(
-                        "flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold ring-1",
-                        step.status === "done"
-                          ? "bg-emerald-500 text-white ring-emerald-500"
-                          : step.status === "current"
-                            ? "bg-amber-500 text-white ring-amber-500"
-                            : "bg-white text-amber-700 ring-amber-200"
-                      )}
-                    >
-                      {step.status === "done" ? <CheckIcon className="h-3 w-3" /> : idx + 1}
-                    </span>
-                    <span
-                      className={cn(
-                        step.status === "pending"
-                          ? "text-amber-700/70"
-                          : "font-medium text-amber-950"
-                      )}
-                    >
-                      {step.label}
-                    </span>
-                  </li>
-                  {idx < payoutSubSteps.length - 1 ? (
-                    <span
-                      className={cn(
-                        "h-px w-4",
-                        step.status === "done" ? "bg-emerald-500" : "bg-amber-200"
-                      )}
-                    />
-                  ) : null}
-                </React.Fragment>
-              ))}
-            </ol>
-            <p className="mt-2 text-xs text-amber-900/80">
-              Progress this from the{" "}
-              <span className="font-medium">
-                {awaitingDisbursement ? "Issuer Disbursement" : "Issuer Residual Refund"}
-              </span>{" "}
-              card in the settlement panel below.
+            <p className={cn("mt-2 text-xs", workflowStripBodyClass(latePaymentStripTone))}>
+              Manage this from the Late Payment tab below.
             </p>
           </div>
         ) : null}

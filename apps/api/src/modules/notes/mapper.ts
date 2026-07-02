@@ -1,4 +1,9 @@
-import { isSoukscoreRiskRating, roundNoteMoney, type IssuerResidualPayoutListStatus } from "@cashsouk/types";
+import {
+  hasSettlementTrusteeMovementFromPoolSummary,
+  isSoukscoreRiskRating,
+  roundNoteMoney,
+  type IssuerResidualPayoutListStatus,
+} from "@cashsouk/types";
 import { NoteSettlementStatus, Prisma, WithdrawalStatus, WithdrawalType } from "@prisma/client";
 import { sortAdminNoteEvents } from "./admin-note-events-sorting";
 
@@ -136,6 +141,30 @@ function asRecord(value: Prisma.JsonValue | null | undefined): Record<string, un
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function asPaymentEvidenceFiles(value: Prisma.JsonValue | null | undefined) {
+  if (!Array.isArray(value)) return null;
+  const files = value
+    .map((item) => {
+      const entry = asRecord(item as Prisma.JsonValue);
+      if (!entry) return null;
+      const s3Key = typeof entry.s3Key === "string" ? entry.s3Key : "";
+      const fileName = typeof entry.fileName === "string" ? entry.fileName : "";
+      const contentType = typeof entry.contentType === "string" ? entry.contentType : "";
+      const fileSize = numberFromUnknownOrUndefined(entry.fileSize);
+      const uploadedAt = typeof entry.uploadedAt === "string" ? entry.uploadedAt : "";
+      if (!s3Key || !fileName || !contentType || !fileSize || !uploadedAt) return null;
+      return { s3Key, fileName, contentType, fileSize, uploadedAt };
+    })
+    .filter((item): item is {
+      s3Key: string;
+      fileName: string;
+      contentType: string;
+      fileSize: number;
+      uploadedAt: string;
+    } => item !== null);
+  return files.length > 0 ? files : null;
 }
 
 function numberFromUnknown(value: unknown): number {
@@ -283,6 +312,12 @@ function resolveSettlementSummary(note: NoteWithRelations) {
     serviceFeeTrusteeStatus: hasSettlementTrusteeMovement
       ? (settlement.service_fee_trustee_status ?? null)
       : null,
+    serviceFeeTrusteeCreatedAt: hasSettlementTrusteeMovement
+      ? iso(settlement.service_fee_trustee_created_at)
+      : null,
+    serviceFeeTrusteeLetterGeneratedAt: hasSettlementTrusteeMovement
+      ? iso(settlement.service_fee_trustee_letter_generated_at)
+      : null,
     serviceFeeTrusteeSubmittedAt: hasSettlementTrusteeMovement
       ? iso(settlement.service_fee_trustee_submitted_at)
       : null,
@@ -305,6 +340,17 @@ export function resolveIssuerResidualPayoutListStatus(
   const { settlementId, issuerResidualAmount: residualAmount } = settlementSummary;
   if (residualAmount <= ISSUER_RESIDUAL_AMOUNT_TOLERANCE) {
     return { kind: "none" };
+  }
+
+  if (settlementSummary.serviceFeeTrusteeStatus === "COMPLETED") {
+    return { kind: "paid" };
+  }
+
+  if (hasSettlementTrusteeMovementFromPoolSummary(settlementSummary)) {
+    return {
+      kind: "pending",
+      withTrustee: settlementSummary.serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE",
+    };
   }
 
   const strictRows = withdrawals.filter(
@@ -482,7 +528,7 @@ export function mapNoteDetail(
       receiptAmount: moneyToNumber(payment.receipt_amount),
       receiptDate: payment.receipt_date.toISOString(),
       receivedIntoAccountCode: payment.received_into_account_code,
-      evidenceS3Key: payment.evidence_s3_key,
+      evidenceFiles: asPaymentEvidenceFiles(payment.evidence_files),
       reference: payment.reference,
       recordedByUserId: payment.recorded_by_user_id,
       reconciledByUserId: payment.reconciled_by_user_id,
@@ -515,6 +561,8 @@ export function mapNoteDetail(
       approvedAt: iso(settlement.approved_at),
       postedAt: iso(settlement.posted_at),
       serviceFeeTrusteeStatus: settlement.service_fee_trustee_status ?? null,
+      serviceFeeTrusteeCreatedAt: iso(settlement.service_fee_trustee_created_at),
+      serviceFeeTrusteeLetterGeneratedAt: iso(settlement.service_fee_trustee_letter_generated_at),
       serviceFeeTrusteeSubmittedAt: iso(settlement.service_fee_trustee_submitted_at),
       serviceFeeTrusteeCompletedAt: iso(settlement.service_fee_trustee_completed_at),
     })),

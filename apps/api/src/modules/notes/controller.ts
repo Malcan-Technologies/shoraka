@@ -27,6 +27,7 @@ import {
   overdueLateChargeSchema,
   paymentReviewSchema,
   recordPaymentSchema,
+  issuerPaymentAdviceSchema,
   settlementActionSchema,
   settlementPreviewSchema,
   investorBalanceActivityQuerySchema,
@@ -42,6 +43,7 @@ import {
   createInvestorWithdrawalSchema,
   getInvestorWithdrawalsQuerySchema,
   requestTrusteeSignatureUploadUrlSchema,
+  requestIssuerPaymentEvidenceUploadUrlSchema,
 } from "./schemas";
 
 function getActor(req: Request, res: Response, portal: string) {
@@ -772,9 +774,22 @@ issuerNotesRouter.post("/notes/:id/shoraka-certificate/view-url", async (req: Re
 issuerNotesRouter.post("/notes/:id/payments/on-behalf-of-paymaster", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
-    await noteService.getIssuerNote(id, getActor(req, res, "ISSUER").userId);
-    const input = recordPaymentSchema.parse({ ...req.body, source: "ISSUER_ON_BEHALF" });
-    send(res, await noteService.recordPayment(id, input, getActor(req, res, "ISSUER")), 201);
+    const actor = getActor(req, res, "ISSUER");
+    await noteService.getIssuerNote(id, actor.userId);
+    const input = issuerPaymentAdviceSchema.parse(req.body);
+    send(res, await noteService.recordPayment(id, input, actor), 201);
+  } catch (error) {
+    next(error);
+  }
+});
+
+issuerNotesRouter.post("/notes/:id/payments/evidence/upload-url", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    const actor = getActor(req, res, "ISSUER");
+    await noteService.getIssuerNote(id, actor.userId);
+    const input = requestIssuerPaymentEvidenceUploadUrlSchema.parse(req.body);
+    send(res, await noteService.requestIssuerPaymentEvidenceUploadUrl(id, input, actor.userId));
   } catch (error) {
     next(error);
   }

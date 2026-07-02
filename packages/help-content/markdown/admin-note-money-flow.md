@@ -1,13 +1,13 @@
 ---
 title: Note Money Flow and Servicing Guide
-description: Admin guide for note funding, settlement, residual refunds, late charges, withdrawals, and bucket activity.
+description: Admin guide for note funding, settlement trustee workflow, late charges, withdrawals, and bucket activity on the redesigned Note Detail page.
 category: Note Operations
 tags:
   - admin
   - notes
   - finance
 order: 20
-updated: 2026-05-21
+updated: 2026-06-30
 ---
 
 ## Overview
@@ -19,17 +19,25 @@ A note is created from one approved invoice. If a contract has multiple approved
 ## Where To Work
 
 - Use **Notes** to create notes from approved invoices, publish notes, close funding, record repayments, settle notes, disburse issuer payouts, generate letters, and review the note timeline.
+- On **Note Detail**, use the tab bar for workflow work:
+  - **Disbursement** — issuer disbursement (Tawarruq, certificate, trustee payout) before servicing begins.
+  - **Servicing & Settlement** — repayment receipts, settlement preview/approve/post, settlement waterfall, and **settlement trustee instruction** (including issuer refund allocation when applicable).
+  - **Late Payment** — Ta'widh/Gharamah fees, arrears/default letters, and mark default.
+  - **Ledger** and **Investors** — read-only reference.
+- The right sidebar shows **Workflow Status** (tab dots), **Source Application**, and **Activity Timeline**.
 - Use **Investments** to browse the investments registry — every investor commitment across all notes with its status, amount, and allocation %.
 - Use **Finance → Repayments** to see every paymaster/issuer payment that is awaiting admin review and reconciliation.
-- Use **Finance → Issuer Payouts** to see every payment owed to issuers in flight (both initial disbursements and residual refunds), filtered by status.
-- Use **Finance → Service Fee** to see notes whose **service fee trustee instruction** still needs a PDF, trustee submission, or “instruction completed” after settlement is posted.
+- Use **Finance → Issuer Payouts** to see issuer disbursement withdrawals still in flight (legacy residual withdrawal rows may still appear for older notes).
+- Use **Finance → Service Fee** to see notes whose **settlement trustee instruction** still needs a PDF, trustee submission, or **instruction completed** after settlement is posted.
 - Use **Finance → Buckets** to view the six platform money buckets and inspect activity logs for each bucket.
 - Use the **Dashboard** Quick Actions and Bucket Balances overview cards for an at-a-glance snapshot of what needs attention.
 - Use **Platform Finance Settings** to manage the default grace period, arrears threshold, Ta'widh cap, Gharamah cap, default listing duration, and letter templates.
 
-### Live counters
+### Workflow progress and counters
 
-The sidebar badges, dashboard quick-action counts, and queue summaries update **immediately** when you complete an action (record a payment, generate a letter, mark submitted/disbursed, post a settlement, etc.). You do not need to refresh the browser. If two admins work simultaneously, the counters also refetch in the background once per minute so the active tab stays consistent.
+Sidebar badges, dashboard quick-action counts, queue summaries, and most Note Detail workflow steps update after you complete an in-portal action (record a payment, generate a letter, mark submitted/disbursed, post a settlement, complete settlement trustee instruction, etc.). You usually do not need to refresh the browser. If two admins work simultaneously, the active tab also refetches in the background about once per minute.
+
+**Tawarruq certificate exception:** Lifecycle counters and the disbursement strip reflect the latest Tawarruq, trustee, and settlement state once that state is **fetched and stored** in the portal. A Shoraka callback may update the Tawarruq order status in the database, but it does **not** store the certificate file. The **Certificate** step on the disbursement lifecycle strip completes only after the Tawarruq certificate PDF has been fetched and stored. On Note Detail, click **Query Status** or **Fetch Tawarruq Certificate**, or reload the page, to see the latest certificate state if the page was already open.
 
 ## The Six Buckets
 
@@ -40,27 +48,37 @@ CashSouk tracks note money through six operational buckets:
 - **Operating Account** receives application fees, platform fees, and service fees.
 - **Ta'widh Account** receives the compensation portion of approved late-payment charges.
 - **Gharamah Account** receives the charity or penalty portion of approved late-payment charges.
-- **Issuer Payable** is a liability bucket. It receives the net disbursement amount when funding is closed, and the issuer residual amount when settlement is posted. It is cleared as each issuer withdrawal is marked disbursed. While the bucket has a positive balance, the platform owes money to one or more issuers.
+- **Issuer Payable** is a liability bucket. It receives the net disbursement amount when funding is closed, and the issuer refund allocation when settlement is posted. It is cleared when settlement trustee instruction completes (or via legacy residual withdrawal flows on older notes).
 
 The bucket balances page is based on posted ledger activity. Credits increase a bucket, debits reduce a bucket, and the activity log shows the transactions behind each balance. The total balance across all six buckets is always zero by design — every cent in flight is accounted for.
 
 ## Note Lifecycle Stepper
 
-The note detail page shows a five-stage stepper:
+The note detail page shows a **six-stage** stepper:
 
 1. **Draft** — note created from an approved invoice but not yet listed.
 2. **Published** — listed in the investor marketplace and accepting commitments.
-3. **Funded** — funding closed (manually or automatically). Investor commitments are confirmed, the disbursement ledger has been posted, and the Issuer Payable bucket holds the net amount owed to the issuer. A draft Issuer Disbursement withdrawal has been auto-created and is awaiting admin action.
-4. **Active** — the trustee has paid the disbursement out to the issuer, the Issuer Payable obligation is cleared, and servicing has started.
-5. **Repaid** — settlement waterfall posted. Note remains in this stage while the issuer residual refund is being processed; once the residual withdrawal is marked disbursed, the note becomes fully repaid.
+3. **Funded** — funding closed (manually or automatically). Investor commitments are confirmed and the disbursement ledger has been posted.
+4. **Disbursement** — issuer disbursement (Tawarruq, certificate, trustee instruction) is in progress before servicing begins.
+5. **Active** — the trustee has paid the disbursement to the issuer and servicing has started.
+6. **Repaid** — settlement is posted and all settlement allocations (including settlement trustee instruction) are complete.
 
 Terminal failure states (Failed Funding, Defaulted, Cancelled) are shown in the stepper with a destructive marker on the relevant stage.
 
-Up to three amber sub-steppers surface in-flight admin work:
+### Status labels (admin)
 
-- When the note is in the **Funded** stage, a sub-stepper shows the issuer disbursement progress: Funding Closed → Letter Generated → Submitted to Trustee → Disbursed. Progress this from the **Issuer Disbursement** card at the top of the settlement panel.
-- When the note is in the **Repaid** stage but the issuer residual refund is still in flight, a sub-stepper shows: Waterfall Posted → Letter Generated → Submitted to Trustee → Disbursed. Progress this from the **Issuer Residual Refund** card inside the settlement panel.
-- When the note is in the **Repaid** stage, settlement is posted, and the posted service fee is above the portal threshold, a sub-stepper shows: **Settlement posted → Trustee letter generated → Submitted to trustee → Instruction completed**. Progress this from **Trustee instruction — service fee (internal pools)** in section 3 of the settlement panel, or pick the note from **Finance → Service Fee**.
+| Situation | Lifecycle card / registry |
+|-----------|---------------------------|
+| Settlement posted, trustee instruction pending | **Active · servicing** (badge) / **Currently Active** (lifecycle) |
+| Settlement trustee instruction completed | **Settled** / note fully repaid |
+| Defaulted with settlement work still pending | **Defaulted** (main risk status) + settlement trustee strip may still show |
+
+**Defaulted notes can still proceed through recovery settlement.** Defaulted remains the primary risk status; settlement trustee progress is shown as operational work when applicable.
+
+### Sub-steppers on the lifecycle card
+
+- **Disbursement** (Funded stage): Tawarruq order → Certificate → Trustee instruction → Disbursed. The **Certificate** step completes once the Tawarruq certificate has been fetched and stored (callbacks may update order status, but not the stored certificate). Continue from the **Disbursement** tab.
+- **Settlement trustee instruction** (after settlement is posted): Settlement posted → Trustee letter generated → Submitted to trustee → Instruction completed. Continue from the **Servicing & Settlement** tab. This single workflow covers investor pool movements, service fee, Ta'widh/Gharamah account allocations, and **issuer refund allocation** when present — there is no separate issuer-residual lifecycle strip on Note Detail.
 
 ## Note Money Flow
 
@@ -75,8 +93,8 @@ flowchart TD
   issuer -->|"Repayment on behalf of paymaster"| repaymentPool
   repaymentPool -->|"Investor principal plus net profit / return"| investorPool
   repaymentPool -->|"Service fee from profit, up to 15%"| operating
-  repaymentPool -->|"Issuer residual liability"| issuerPayable
-  issuerPayable -->|"Residual refund via trustee letter"| issuer
+  repaymentPool -->|"Issuer refund allocation"| issuerPayable
+  issuerPayable -->|"Cleared on settlement trustee completion"| issuer
   repaymentPool -->|"Ta'widh allocation"| tawidh["Ta'widh Account"]
   repaymentPool -->|"Gharamah allocation"| gharamah["Gharamah Account"]
   investorPool -->|"Withdrawal request"| withdrawalLetter["Withdrawal PDF letter"]
@@ -111,7 +129,7 @@ When a note is published, it becomes available in the investor marketplace. Inve
 
 - **Publish** makes a reviewed note available to investors. On publish the listing is given a `closes_at` timestamp based on the product&apos;s `marketplace_listing_duration_days` (default 14 days).
 - **Unpublish** removes a note from the marketplace before investor commitments exist.
-- **Close Funding** ends funding for a successfully funded note. Investments are confirmed, the disbursement ledger is posted, and a draft Issuer Disbursement withdrawal is created. The note moves to the Funded stage and waits for the trustee to actually pay the issuer.
+- **Close Funding** ends funding for a successfully funded note. Investments are confirmed, the disbursement ledger is posted, and a draft Issuer Disbursement withdrawal is created. The note moves to the Funded stage and waits for disbursement on the **Disbursement** tab.
 - **Fail Funding** closes an open note that did not meet the minimum funding threshold.
 
 ### Auto-close rules
@@ -121,9 +139,11 @@ Two automatic triggers can close funding without admin intervention:
 - **Fully funded**: as soon as commitments reach 100% of the target amount, the note is auto-closed inline on the same investor request (the hourly cron is a safety net).
 - **Listing expired (marketplace listing duration)**: an hourly cron picks up any published note whose `closes_at` has elapsed. If the note has reached the minimum funding threshold, it is auto-closed. Otherwise it is auto-failed and investor commitments are released.
 
-Closing funding (manual or automatic) never auto-activates the note. The note stays in the Funded stage until the disbursement to the issuer is paid out and marked complete. The lifecycle card on the note page displays a countdown banner so admins can see how much time is left in the funding window. Admins can still close or fail funding manually before the deadline. The listing duration is controlled per product via `marketplace_listing_duration_days` (default 14 days).
+Closing funding (manual or automatic) never auto-activates the note. The note stays in the Funded/Disbursement stages until the disbursement to the issuer is paid out and marked complete. The lifecycle card on the note page displays a countdown banner so admins can see how much time is left in the funding window.
 
 ## Issuer Disbursement
+
+**Tab:** **Disbursement** on Note Detail.
 
 The platform fee is deducted at disbursement. It is set per note and capped by Platform Finance Settings.
 
@@ -135,171 +155,104 @@ When funding closes (manually or automatically), the operation:
 - credits Issuer Payable with the net funded proceeds owed to the issuer,
 - auto-creates a draft `WithdrawalInstruction` of type `ISSUER_DISBURSEMENT` with the issuer's bank details prefilled from the issuer organisation profile.
 
-The note moves to the **Funded** stage. An **Issuer Disbursement** card appears at the top of the settlement panel with the same four-step workflow used for residual refunds:
+The **Issuer Disbursement** card on the Disbursement tab follows this workflow:
 
-1. **Draft** — beneficiary details can still be edited.
-2. **Letter Generated** — admin generates the trustee letter; the PDF is stored in S3.
-3. **Submitted to Trustee** — admin records that the signed letter has been handed to the trustee.
-4. **Disbursed** — admin marks the withdrawal complete once the trustee confirms payout. This debits Issuer Payable (clearing the obligation), flips the note to **Active**, and starts servicing.
+1. **Tawarruq order** (when required) — submit and query until the commodity trade is complete.
+2. **Tawarruq certificate** — fetch the certificate PDF as proof before marking disbursed (when required).
+3. **Trustee letter** — generate the disbursement instruction PDF.
+4. **Submitted to trustee** — record that the signed letter was handed to the trustee.
+5. **Disbursed** — mark complete once the trustee confirms payout. This clears Issuer Payable, flips the note to **Active**, and starts servicing.
 
-While any disbursement withdrawal is open, the lifecycle card shows a `Pending Disbursement` badge and the four-step sub-stepper. The Finance → Issuer Payouts queue lists every disbursement and residual refund in flight in one place, with a Type column to tell them apart.
+While disbursement is in flight, the lifecycle card shows **Awaiting issuer disbursement** and the disbursement sub-stepper.
 
-### Shoraka STP (issuer disbursement proof)
-For some issuer disbursement withdrawals, you will also see a **Shoraka STP** box inside the **Issuer Disbursement** card.
+### Tawarruq transaction (issuer disbursement proof)
 
-What it is:
-- Shoraka STP helps Cashsouk confirm the financing amount went through a Shariah-compliant commodity trade process.
-- Cashsouk saves the Shoraka certificate PDF as proof for the final payout step.
+When shown on the Issuer Disbursement card:
 
-How to use it (typical flow):
-- Submit Shoraka Order → Query Status until the trade shows `Completed`
-- When it shows `Completed`, click **Fetch Certificate** (this stores the PDF in S3)
-- **Mark Disbursed** only becomes available after the certificate is fetched
+- The **Tawarruq transaction** confirms the financing amount went through a Shariah-compliant commodity trade process.
+- CashSouk stores the **Tawarruq certificate** PDF as proof for the final payout step.
+- Typical flow: **Submit Tawarruq Order** → **Query Status** until completed → **Fetch Tawarruq Certificate** → then generate trustee letter and mark disbursed when allowed.
+- Callbacks may update Tawarruq order status, but the **Certificate** step and **Certificate ready** badge complete only after the certificate is fetched and stored. Use **Query Status**, **Fetch Tawarruq Certificate**, or reload if Note Detail was already open.
+- **Mark Disbursed** may remain disabled until the certificate is fetched when Tawarruq gating applies.
 
-Cutoff reminder (MYT):
-- During **11:30 PM to 12:30 AM**, you cannot submit a Shoraka order.
-- Query Status, Fetch Certificate, and View Certificate still work during this time.
+Cutoff reminder (MYT): between **11:30 PM and 12:30 AM**, you cannot submit a Tawarruq order. Query status, fetch certificate, and view certificate still work.
 
 ## Repayment And Settlement
+
+**Tab:** **Servicing & Settlement** on Note Detail.
 
 The repayment amount is based on the invoice face value. It is not the same as the funded amount or the disbursed amount.
 
 Repayment is usually paid by the paymaster into the Repayment Pool. The issuer may also pay the settlement amount on behalf of the paymaster through the issuer portal. When that happens, the admin should review the submitted payment, approve or reject it, and preserve the payment source in the audit trail.
 
-### Repayment receipts and settlement
+### Repayment receipts
 
-Record each tranche with **Record receipt** in the settlement panel. Open receipts must reach the **invoice settlement amount** (invoice face value) before you can preview settlement. The waterfall **automatically aggregates** all eligible payments (`RECEIVED`, `RECONCILED`, `PARTIAL`) — you do not pick a single payment row.
-
-The panel shows open receipt totals, remaining capacity, and which receipts count toward settlement. Use **Fill remaining** in the record dialog to pre-fill the shortfall.
+Record each tranche with **Record receipt** on the Servicing & Settlement tab. Payment evidence is stored in **`evidence_files`** on the payment record (not a single legacy evidence key). Open receipts must reach the **invoice settlement amount** (invoice face value) before you can preview settlement.
 
 When open receipts cover the invoice amount and any issuer submissions are approved, preview the waterfall, then approve and post.
 
 ### Approve and post confirmation
 
-The **Approve** and **Post** buttons in the settlement waterfall each open a confirmation modal that restates the gross receipt and the allocation totals. This guards against accidental posting and gives the admin one last chance to cancel.
+The **Approve** and **Post** buttons each open a confirmation modal that restates the gross receipt and allocation totals.
 
-### Allocation
+### Allocation when settlement is posted
 
 When settlement is posted, the Repayment Pool is allocated across the relevant buckets:
 
 - investors receive principal and net profit according to their allocation,
 - the Operating Account receives the service fee (up to 15% of investor profit),
-- approved Ta'widh can be split by admin so a percentage is returned to investors while the balance remains in the Ta'widh Account,
+- approved Ta'widh can be split so a percentage is returned to investors while the balance remains in the Ta'widh Account,
 - Gharamah is posted to the Gharamah Account if approved late charges apply,
-- any issuer residual is credited to the Issuer Payable bucket (not paid out yet — see the next section).
+- any **issuer refund allocation** is credited to Issuer Payable as part of the same posted waterfall.
 
-After settlement is posted, further payment actions on this note are disabled.
+After settlement is posted, further receipt/settlement posting actions on this note are disabled. Investor balances are credited at post. The note becomes **REPAID** / **SETTLED** only after the **settlement trustee instruction** is marked **instruction completed** (unless the posted settlement had no trustee movements).
 
-## Issuer Residual Refund
+### Settlement trustee instruction
 
-The issuer residual is the leftover amount owed to the issuer after investor principal, investor profit, service fee, and full approved late charges have been applied. Splitting Ta'widh between investors and the Ta'widh Account does not change the total late charge used to calculate residual. It exists when a note is not 100% funded by investors.
+After post, when the waterfall includes trustee movements (investor pool, service fee, Ta'widh account, Gharamah account, and/or issuer refund allocation), complete:
 
-The residual workflow has four steps, tracked by a `WithdrawalInstruction` of type `ISSUER_RESIDUAL_RETURN`:
+1. **Generate** the settlement trustee instruction PDF.
+2. **Mark submitted to trustee** after the trustee has received it.
+3. **Mark instruction completed** when the trustee confirms processing.
 
-1. **Draft** — auto-created the moment settlement is posted. Beneficiary details are pre-filled from the issuer organisation's bank profile and can be edited from the Issuer Residual Refund card. While in Draft the residual sits as a credit balance on Issuer Payable.
-2. **Letter Generated** — admin generates the trustee letter from the card. The letter PDF is stored in S3 and can be viewed or downloaded.
-3. **Submitted to Trustee** — admin records that the signed letter has been handed to the trustee for disbursement.
-4. **Disbursed** — admin marks the withdrawal complete once the trustee confirms payout. This writes the offsetting debit to Issuer Payable (zeroing out the obligation) and transitions the note from Active to fully Repaid.
+Until instruction completed, the status badge shows **Active · servicing**, the lifecycle header **Currently Active**, and the settlement strip shows **Trustee instruction** as the current step. Use **Finance → Service Fee** for the platform-wide queue.
 
-While any residual withdrawal is open, the note lifecycle card displays a `Pending Refund` badge and the four-step sub-stepper. The platform-wide Issuer Payable bucket balance gives a single number for how much residual money is currently in flight across all notes.
-
-## Settlement Example
-
-```mermaid
-flowchart TD
-  funded["Note funded 60% (funding close)"] --> investorPool["Investor Pool debit"]
-  investorPool --> platformFee["Deduct platform fee at funding close, capped by settings"]
-  platformFee --> operating["Operating Account"]
-  investorPool --> issuerPayableInit["Net disbursement to Issuer Payable"]
-  issuerPayableInit --> disburseLetter["Issuer Disbursement letter (4-step workflow)"]
-  disburseLetter --> issuer1["Issuer receives initial disbursement → note goes ACTIVE"]
-  paymaster["Paymaster repays 100% at maturity"] --> repaymentPool["Repayment Pool"]
-  repaymentPool --> investorPrincipal["60% funded principal"]
-  repaymentPool --> investorProfit["Investor profit on funded portion"]
-  investorProfit --> serviceFee["Deduct service fee up to 15% of profit"]
-  serviceFee --> operating
-  investorPrincipal --> investorRatio["Split by investor allocation ratio"]
-  investorProfit --> investorRatio
-  investorRatio --> investors["Investors receive principal plus net profit"]
-  repaymentPool --> lateFees["Issuer-borne late charges if any"]
-  lateFees --> tawidh["Ta'widh"]
-  lateFees --> gharamah["Gharamah"]
-  repaymentPool --> issuerPayableResid["Issuer residual to Issuer Payable"]
-  issuerPayableResid --> residualLetter["Issuer Residual Refund letter (4-step workflow)"]
-  residualLetter --> issuer2["Issuer receives residual → note goes REPAID"]
-
-  class repaymentPool,investorPool,issuerPayableInit,issuerPayableResid pool
-  class platformFee,serviceFee,operating fee
-  class tawidh,gharamah syariahAccount
-  class investorPrincipal,investorProfit,investorRatio,investors investorStep
-  class disburseLetter,residualLetter,issuer1,issuer2 issuerStep
-
-  classDef pool fill:#dbeafe,stroke:#2563eb,color:#0f172a
-  classDef fee fill:#fee2e2,stroke:#dc2626,color:#0f172a
-  classDef syariahAccount fill:#dcfce7,stroke:#16a34a,color:#0f172a
-  classDef investorStep fill:#fef3c7,stroke:#d97706,color:#0f172a
-  classDef issuerStep fill:#ede9fe,stroke:#7c3aed,color:#0f172a
-```
-
-Example: if a note is 60% funded and the paymaster repays 100% of the invoice, the platform fee is deducted at funding close and the net disbursement to the issuer is parked on Issuer Payable until the trustee pays it out (this flips the note to ACTIVE). At maturity, investors receive the funded 60% principal plus net profit pro rata. The residual is parked on Issuer Payable at settlement post and is paid out to the issuer once the four-step withdrawal workflow is completed (this flips the note to REPAID).
+**Issuer refund allocation** is part of this settlement trustee instruction — not a separate Note Detail lifecycle workflow. The waterfall shows an **Issuer Refund** pool line when the amount is greater than zero.
 
 ## Late Payments
 
-Late charges are handled manually when repayment funds are received. They are not posted automatically by a daily system job.
+**Tab:** **Late Payment** on Note Detail.
 
-Before applying late charges, use **Apply suggested fees** or **Custom amounts** in the settlement panel. Suggested amounts respect both Syariah caps (1% / 9% p.a. after grace) and **settlement headroom**: the invoice settlement pool minus investor principal and **full contractual gross profit** (locked to activation through contractual maturity, even if repayment is early).
+Late charges are handled manually when repayment funds are received.
 
-Late charges are borne by the issuer and are **not added on top** of the invoice settlement amount — they are allocated from the same repayment pool in the waterfall. If headroom is zero (for example a fully funded note where profit consumes the spread), no late fees can be charged even when Syariah caps would allow more.
+Before applying late charges, use **Apply suggested fees** or **Custom amounts** on the Late Payment tab. Suggested amounts respect Syariah caps and **settlement headroom**.
 
-- **Grace period** is configurable. The standard default is 7 days.
-- **Payment due** for overdue timing uses the first scheduled installment due date when schedules exist; **profit accrual** uses contractual maturity (or the last schedule due date if maturity is unset).
-- **Ta'widh** and **Gharamah** are queued in the panel, then saved when you **Preview settlement**.
-- **Investor Ta'widh share** is optional at preview. The selected percentage is returned to investors according to their allocation; the remaining Ta'widh stays in the Ta'widh Account. Splitting Ta'widh to investors does not change total late charges or issuer residual.
-- **Gharamah** is capped at 9% per annum after grace.
-- **Arrears** starts after the grace period plus the arrears threshold. With a 7-day grace period and 14-day arrears threshold, arrears starts 21 days after the missed payment date.
-- **Default** is never automatic. Admin can mark a note as default only after it is already in arrears.
+- **Grace period** default is 7 days.
+- **Ta'widh** and **Gharamah** are queued, then saved when you **Preview settlement** on the Servicing & Settlement tab.
+- **Arrears** starts after grace plus the arrears threshold (default 21 days after missed payment with standard settings).
+- **Default** is never automatic. Admin can mark default only after the note is in arrears.
 
 ## Arrears And Default Letters
 
-Use generated PDF letters to support arrears and default handling.
+**Tab:** **Late Payment** → **Arrears and Default Documents**.
 
-- Generate an arrears or warning letter once the note enters arrears.
-- Review the letter before external communication.
-- If the note must be marked as default, use the manual default action and generate the default letter.
-- Keep the generated letters attached to the note timeline.
+Generate arrears or default PDF letters, review before external use, and attach to the note timeline. If marking default, record admin, timestamp, and reason.
 
 ## Withdrawals
 
-All trustee-submitted withdrawals — investor withdrawals, issuer residual returns, and admin adjustments — follow the same four-step workflow: **Draft → Letter Generated → Submitted to Trustee → Disbursed**. A letter PDF must be generated before a withdrawal can be marked submitted, and the disbursement timestamp must reflect the actual trustee confirmation.
+Investor withdrawals and admin adjustments follow: **Draft → Letter Generated → Submitted to Trustee → Disbursed**.
 
-**Service fee (internal pools)** does not create a bank-beneficiary withdrawal, but after settlement is posted it still follows **generate PDF → submitted to trustee → instruction completed** on the settlement panel (and in **Finance → Service Fee**) so the trustee can record the Repayment pool to Operating account allocation.
-
-The withdrawal letter should include:
-
-- withdrawal reference,
-- withdrawal type (investor / issuer residual / admin adjustment),
-- source bucket,
-- beneficiary details or masked bank reference,
-- amount and currency,
-- reason,
-- requester and reviewer,
-- related note or investor reference, where applicable,
-- trustee submission status.
+Settlement trustee instruction follows: **Settlement posted → Letter generated → Submitted to trustee → Instruction completed** (no external bank beneficiary when only internal pool movements apply).
 
 ## Audit Trail
 
-Every important money-flow action should be visible in the note timeline or bucket activity log. This includes:
+Every important money-flow action should be visible in the note timeline or bucket activity log, including:
 
-- note creation from approved invoice,
-- publish, unpublish, close funding, fail funding, and auto-close events,
-- issuer disbursement withdrawal creation, letter generation, submission, and disbursement (which flips the note to ACTIVE),
-- paymaster repayment receipts,
-- issuer payments made on behalf of paymaster,
-- settlement preview, approval, and posting,
-- service fee trustee instruction: PDF generation, submission to trustee, and instruction completed (material service fees after settlement post),
-- issuer residual withdrawal creation, letter generation, submission, and disbursement (which flips the note to REPAID),
-- late-fee calculation and allocation,
-- arrears and default letter generation,
+- note creation, publish, funding close/fail,
+- issuer disbursement workflow,
+- paymaster/issuer repayment receipts (`evidence_files` where uploaded),
+- settlement preview, approval, posting,
+- settlement trustee instruction: PDF, submission, instruction completed,
+- issuer refund allocation cleared on trustee completion,
+- late-fee calculation, arrears/default letters,
 - manual overrides and waivers.
-
-When reviewing a note, use the activity timeline together with the ledger and bucket activity logs. The timeline explains who did what. The ledger and bucket logs explain how money moved.

@@ -1,6 +1,6 @@
 ---
 title: Trustee Instruction Letters
-description: When and where to generate PDF instruction letters for the trustee—issuer payouts, service fee pool transfers, arrears, and default.
+description: When and where to generate PDF instruction letters on the redesigned Admin Note Detail page.
 category: Note Operations
 tags:
   - admin
@@ -8,7 +8,7 @@ tags:
   - trustee
   - finance
 order: 22
-updated: 2026-05-18
+updated: 2026-06-30
 ---
 
 ## What these letters are
@@ -17,71 +17,67 @@ Trustee instruction letters are **PDF documents** you generate in the admin port
 
 They are **not** sent automatically to the trustee from the portal. You generate the file, review it, then follow your operating procedure to deliver it and track confirmation.
 
-## Where you work
+## Where you work (Note Detail tabs)
 
-Most letters are created from the **note detail** page, in the **servicing and settlement** area (settlement panel). Open the note from **Notes**, then scroll to the settlement workflow.
+Open the note from **Notes**, then use the tab bar:
 
-The **Activity timeline** on the same note records when letters were generated and links to stored PDFs where applicable.
+| Tab | Trustee letters / actions |
+|-----|---------------------------|
+| **Disbursement** | Issuer disbursement (initial funding payout to issuer bank account) |
+| **Servicing & Settlement** | Settlement trustee instruction after post (pools + issuer refund allocation) |
+| **Late Payment** | Arrears and default correspondence PDFs |
+
+The **Activity timeline** on the right records when letters were generated and links to stored PDFs where applicable. The **Workflow Status** card mirrors tab progress dots.
 
 ## Issuer disbursement (initial funding payout)
 
 **When:** After funding closes and the note is **Funded**, before the note becomes **Active**.
 
-**Where:** At the top of the settlement panel, use the **Issuer Disbursement** card.
+**Where:** **Disbursement** tab → **Issuer Disbursement** card.
 
 **Flow:**
 
-1. Confirm **beneficiary details** (bank name, account number, and any other required fields) are complete. These details are snapshotted onto the letter.
-2. **Generate** the trustee letter (PDF).
-3. When your process allows, mark the instruction **submitted to trustee** after the trustee has received it.
-4. When the trustee confirms the money has left the trust account, mark **disbursed / complete**. Completing this step is what moves the note to **Active** and starts servicing.
+1. Complete **Tawarruq transaction / certificate** steps when shown on the card. Callbacks may update Tawarruq order status, but the certificate step completes only after **Fetch Tawarruq Certificate** stores the PDF (use **Query Status**, fetch, or reload on an open page).
+2. Confirm **beneficiary details** are complete (snapshotted onto the letter).
+3. **Generate** the trustee letter (PDF).
+4. Mark **submitted to trustee** when the trustee has received it.
+5. Mark **disbursed / complete** when the trustee confirms payout. This moves the note to **Active** and starts servicing.
 
-If you need a revised PDF after beneficiary details change, update details while the withdrawal is still in **Draft**, then generate again as needed.
+## Settlement trustee instruction (after settlement post)
 
-## Issuer residual refund (after settlement)
+**When:** Only **after settlement is posted**, when the posted waterfall includes amounts that require trustee instruction (investor pool movements, service fee, Ta'widh/Gharamah account allocations, and/or **issuer refund allocation**).
 
-**When:** After you **post** the settlement waterfall for a repaid note, when there is a **residual amount** owed back to the issuer.
+**Where:** **Servicing & Settlement** tab → settlement waterfall area → **Trustee submission** block. Use **Finance → Service Fee** for the platform-wide queue.
 
-**Where:** In the settlement panel, the **Issuer Residual Refund** card (below the waterfall and pool summaries).
+**What it documents:** The trustee instruction for all posted pool movements from the repayment waterfall — including service fee to Operating account and issuer refund allocation when applicable. Ledger credits/debits were created at post; the PDF is the instruction and audit record for the trustee.
 
-**Flow:** Same pattern as disbursement: beneficiary details → **Generate** letter → **Submitted to trustee** → **Disbursed / complete** when the trustee confirms payment. Completing the residual withdrawal is part of closing out the note as fully repaid.
+**Flow:**
 
-## Service fee — internal pool transfer
+1. **Settlement posted** — automatic when you post the waterfall.
+2. **Generate** the settlement trustee instruction PDF (required before submit).
+3. Mark **submitted to trustee** after the trustee has received the signed instruction.
+4. Mark **instruction completed** when the trustee confirms processing. Until then, the status badge shows **Active · servicing** and the settlement strip shows **Trustee instruction** as the current step.
 
-**When:** Only **after settlement has been posted**, when the posted settlement includes a **service fee** above the portal’s small-amount threshold (the instruction card appears only in that case).
-
-**Where:** In the settlement panel, section **3. Settlement Waterfall**, under the pool summary cards. Look for **Trustee instruction — service fee (internal pools)**. Use **Finance → Service Fee** for the platform-wide queue of notes that still need a PDF, a trustee submission, or marking the instruction complete.
-
-**What it documents:** The allocation of the **service fee** from the **Repayment pool** to the **Operating account**. Credits and debits for that allocation were created when you posted settlement; the PDF is still the **instruction and audit record** you give the trustee so they can process or record the **internal pool** movement. There is **no** payout to an external bank account.
-
-**Flow (mirrors other trustee letters, without a bank beneficiary):**
-
-1. **Settlement posted** — automatic once the waterfall is posted (this step is reflected on the note lifecycle sub-stepper).
-2. **Generate** the trustee letter (PDF). You must generate before you can mark submitted.
-3. When your process allows, mark **submitted to trustee** after the trustee has received the signed instruction.
-4. When the trustee confirms they have processed the internal allocation, mark **instruction completed**. Until this is done, counters and registries may still treat the note as having open service-fee trustee work.
-
-You can **generate** a new PDF if the trustee asks for a revised copy before submission; generations are listed with **View** and **Download**. After you mark **submitted**, **PDF generation is locked**. The note **Activity timeline** records service-fee letter events (generated, submitted, completed).
+**Issuer refund allocation** is included in this instruction when the waterfall has a positive issuer refund amount. It is **not** a separate Note Detail card or lifecycle workflow.
 
 ## Arrears and default letters
 
-**When:** While the note is in servicing and you need formal **arrears** communication, or after the note is in **arrears** and you are handling **default** paperwork.
+**When:** While servicing, for formal **arrears** communication, or when handling **default** paperwork.
 
-**Where:** In the settlement panel, section **4. Arrears and Default Documents**, use **Generate Arrears Letter** or **Generate Default Letter** as appropriate.
+**Where:** **Late Payment** tab → **Arrears and Default Documents**.
 
-These PDFs support your collections and default workflow. Review each letter before external use. Generated copies appear in the **Generated Letters** list on the same section and in the note **Activity timeline**.
+Generate **Arrears Letter** or **Default Letter** as appropriate. Review before external use. Copies appear in the generated letters list and the Activity timeline.
 
 ## Investor and other withdrawals
 
-Investor withdrawal instructions and certain **admin adjustment** withdrawals follow the same high-level idea: a **draft withdrawal**, **PDF letter**, then **submitted** and **completed** states in the withdrawal workflow you use elsewhere in the admin portal (for example, finance queues or note-linked withdrawal detail). Always generate the letter **before** marking submitted, unless your internal policy says otherwise.
+Investor withdrawal instructions and certain **admin adjustment** withdrawals follow the same pattern elsewhere in the admin portal (finance queues or withdrawal detail): draft → PDF → submitted → completed. Generate the letter **before** marking submitted unless policy says otherwise.
 
 ## Quick reference
 
-| Letter type | Typical location on note | Trustee payout to external bank? |
-| ----------- | ------------------------ | -------------------------------- |
-| Issuer disbursement | Issuer Disbursement card | Yes |
-| Issuer residual | Issuer Residual Refund card | Yes |
-| Service fee (pools) | Settlement waterfall / pool summaries area; **Finance → Service Fee** queue | No external bank payout — internal pools; PDF + submitted + instruction completed |
-| Arrears / default | Section 4 of the settlement panel | Usually correspondence; follow your collections process |
+| Letter type | Note Detail tab | Trustee payout to external bank? |
+| ----------- | --------------- | -------------------------------- |
+| Issuer disbursement | Disbursement | Yes (issuer bank account) |
+| Settlement trustee instruction | Servicing & Settlement | Pools + issuer refund via trustee instruction; may include external beneficiary when issuer refund > 0 |
+| Arrears / default | Late Payment | Correspondence; follow collections process |
 
-If you are unsure which letter applies, use the **note timeline** and **Finance → Buckets** activity to see what has already been posted, then match the instruction to the movement you need the trustee to act on.
+If unsure which letter applies, use the **note timeline** and **Finance → Buckets** activity to see what has been posted, then match the instruction to the movement the trustee must act on.

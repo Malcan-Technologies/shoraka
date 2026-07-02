@@ -25,6 +25,7 @@
     "seed-approved-invoices-for-notes": "tsx scripts/seed-approved-invoices-for-notes.ts",
     "seed-note-scenarios": "tsx scripts/seed-note-scenarios.ts",
     "seed-prefunding-test-notes": "tsx scripts/seed-prefunding-test-notes.ts",
+    "seed-late-payment": "tsx scripts/seed-late-payment.ts",
     "run-offer-expiry": "tsx scripts/run-offer-expiry.ts",
     "dev-simulate-gateway-settlement": "tsx scripts/dev-simulate-gateway-settlement.ts",
     "run-note-listing-expiry": "tsx scripts/run-note-listing-expiry.ts",

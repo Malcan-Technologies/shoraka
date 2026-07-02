@@ -19,14 +19,14 @@ This test verifies:
 6. Investor balance debit and credit behavior.
 7. Note ledger bucket movement.
 8. Trustee withdrawal letter generation.
-9. Shoraka STP order creation.
-10. Shoraka certificate gating before disbursement.
+9. Tawarruq transaction (issuer disbursement proof).
+10. Tawarruq certificate gating before disbursement.
 11. Repayment receipt into the repayment pool.
 12. Settlement waterfall calculation.
 13. Investor principal and profit return.
 14. Service fee.
-15. Issuer residual return.
-16. Residual return is not blocked by Shoraka.
+15. Issuer refund allocation (part of settlement trustee instruction).
+16. Issuer refund is not a separate Tawarruq/disbursement workflow on Note Detail.
 17. Failed funding returns investor money.
 18. Negative cases and edge cases.
 
@@ -440,7 +440,7 @@ NotePayment
   status
   receipt_amount
   receipt_date
-  evidence_s3_key
+  evidence_files
   reference
   received_into_account_code
 - Expected:
@@ -926,38 +926,39 @@ What can go wrong:
 - Backend rejects if letter is not generated first.
 
 
-SECTION 9 - Manual test steps: Shoraka STP
+SECTION 9 - Manual test steps: Tawarruq transaction (issuer disbursement)
 ================================================================================
 
-Step 1 - Confirm Shoraka section appears only for issuer disbursement
+Step 1 - Confirm Tawarruq section appears only on Disbursement tab
 
 UI action:
 1. Open Admin Note Detail.
-2. Look at Issuer Disbursement card.
-3. Confirm Shoraka STP section appears.
+2. Open the **Disbursement** tab.
+3. Open the **Issuer Disbursement** card.
+4. Confirm Tawarruq transaction / certificate section appears (when gating applies).
 
 Expected UI result:
-- Shoraka STP section appears for ISSUER_DISBURSEMENT.
+- Tawarruq controls appear for ISSUER_DISBURSEMENT on the Disbursement tab only.
+- Servicing & Settlement and Late Payment tabs do not show Tawarruq for settlement work.
 
 Expected DB result:
 - No shoraka_trade_orders row exists before submit, unless already submitted.
 
 Manual calculation:
-- Shoraka amount should be gross funded amount = RM100,000.
+- Tawarruq order amount should be gross funded amount = RM100,000.
 
 What can go wrong:
-- If Shoraka appears on residual withdrawal, STOP AND INVESTIGATE.
+- If Tawarruq appears on settlement trustee instruction for issuer refund only, STOP AND INVESTIGATE.
 
 Step 2 - Check cutoff window before submit
 
 UI action:
 1. Check Malaysia time.
-2. If current time is between 11:30 PM and 12:30 AM MYT, confirm Submit Shoraka Order is disabled.
+2. If current time is between 11:30 PM and 12:30 AM MYT, confirm Submit Tawarruq Order is disabled.
 3. If outside the window, continue.
 
 Expected UI result:
-- During cutoff, UI shows:
-  "Shoraka orders cannot be submitted between 11:30 PM and 12:30 AM MYT..."
+- During cutoff, UI shows cutoff warning for Tawarruq order submit.
 - Submit button disabled.
 
 Expected backend result:
@@ -973,7 +974,7 @@ What can go wrong:
 - UI and backend cutoff rules must match.
 - STOP AND INVESTIGATE if UI allows submit but backend rejects, or backend allows submit during cutoff.
 
-Step 3 - Submit Shoraka Order
+Step 3 - Submit Tawarruq Order
 
 UI action:
 1. Click Submit Shoraka Order.
@@ -1096,6 +1097,7 @@ Expected DB result:
 Expected UI result:
 - UI may show "Updated by callback".
 - Fetch Certificate becomes available.
+- Disbursement lifecycle Certificate step stays current until certificate is fetched and stored; an open Note Detail page may need Query Status, Fetch, or reload to reflect callback status.
 
 Manual calculation:
 - Callback updates status only.
@@ -1402,82 +1404,69 @@ Expected:
 - Total = 108,500 + 1,500 + 2,000 = RM112,000.
 
 
-SECTION 13 - Manual test steps: issuer residual return
+SECTION 13 - Manual test steps: issuer refund allocation (settlement trustee)
 ================================================================================
 
-Use the residual variant from Section 12.
+Use the residual variant from Section 12 (RM2,000 issuer refund allocation).
 
-Step 1 - Confirm residual withdrawal exists
+Step 1 - Confirm settlement trustee workflow after post
 
 UI action:
-1. Open Admin Note Detail after posting settlement with residual.
-2. Find Issuer Residual Refund card.
+1. Open Admin Note Detail after posting settlement with issuer refund allocation.
+2. Open **Servicing & Settlement** tab.
+3. Confirm **Trustee submission** block appears in the posted settlement waterfall.
+4. Confirm lifecycle card shows **Currently Active**, status badge **Active · servicing**, and settlement strip with **Trustee instruction** current.
+5. Confirm there is **no** separate Issuer Residual Refund card on Note Detail.
 
 Expected UI result:
-- Residual payout card appears.
-- Amount = RM2,000.00.
-- No Shoraka STP section appears.
+- Waterfall shows **Issuer Refund** allocation line (RM2,000).
+- Status **Active · servicing** until trustee instruction completed.
+- No Tawarruq section on this tab for issuer refund.
 
 Expected DB result:
-- withdrawal_instructions row exists:
-  settlement_id = :settlementId
-  withdrawal_type = ISSUER_RESIDUAL_RETURN
-  amount = 2000
-  status = DRAFT
-- shoraka_trade_orders has no row for this residual withdrawal.
+- note_settlements.status = POSTED.
+- service_fee_trustee_status progresses PENDING_LETTER → … → COMPLETED.
+- Unified flow may not create ISSUER_RESIDUAL_RETURN withdrawal at post.
 
 Manual calculation:
-- Residual = receipt - principal - net profit - service fee - late fees.
-- Residual = 112000 - 100000 - 8500 - 1500 = 2000.
+- Issuer refund = receipt - principal - net profit - service fee - late fees.
+- Issuer refund = 112000 - 100000 - 8500 - 1500 = 2000.
 
-Step 2 - Generate residual trustee letter
+Step 2 - Generate settlement trustee instruction letter
 
 UI action:
-1. Generate Letter on residual card.
-2. View Letter.
+1. On Servicing & Settlement tab, generate settlement trustee instruction PDF.
+2. View/download letter.
 
 Expected UI result:
-- Status = LETTER_GENERATED.
-- Letter available.
+- Trustee submission status advances (letter generated).
+- Lifecycle sub-stepper advances.
 
 Expected DB result:
-- letter_s3_key is set.
-- generated_at is set.
+- service_fee_trustee_status = LETTER_GENERATED (or next valid state).
 
 Expected letter:
-- Amount = RM2,000.00.
+- Includes pool movements and issuer refund allocation as applicable.
 
-Step 3 - Submit and complete residual withdrawal
+Step 3 - Submit and complete settlement trustee instruction
 
 UI action:
-1. Mark Submitted to Trustee.
-2. Mark Disbursed / Complete.
+1. Mark submitted to trustee.
+2. Mark instruction completed.
 
 Expected UI result:
-- Residual payout marked complete.
-- Note becomes REPAID/SETTLED after all residual withdrawals are completed.
+- Status moves to **Settled** / note fully repaid.
+- Lifecycle card shows complete.
+- Registry settlement column shows **Settled**.
 
 Expected DB result:
-- withdrawal_instructions.status = COMPLETED.
-- completed_at is set.
-- No Shoraka certificate_s3_key is required.
-- note_ledger_entries has ISSUER_PAYABLE DEBIT 2000.
-- notes.status = REPAID.
-- notes.servicing_status = SETTLED.
-- notes.repaid_at is set.
+- service_fee_trustee_status = COMPLETED.
+- notes.status = REPAID, servicing_status = SETTLED.
+- Issuer Payable cleared for issuer refund allocation (ledger).
 
-Manual calculation:
-- ISSUER_PAYABLE residual credit from settlement = RM2,000.
-- ISSUER_PAYABLE residual debit from completed withdrawal = RM2,000.
-- Net residual issuer payable should be zero.
-
-Important explanation:
-
-Residual is post-settlement leftover money returned to the issuer.
-It is not a new financing disbursement.
-Therefore it should not be blocked by Shoraka.
-
-STOP AND INVESTIGATE if residual Mark Completed requires Shoraka certificate.
+What can go wrong:
+- Note shows Settled before instruction completed — STOP AND INVESTIGATE.
+- Separate residual refund lifecycle strip on Note Detail — STOP AND INVESTIGATE (product change).
 
 
 SECTION 14 - Manual test steps: failed funding
@@ -2814,7 +2803,7 @@ select
   receipt_amount,
   receipt_date,
   received_into_account_code,
-  evidence_s3_key,
+  evidence_files,
   reference,
   recorded_by_user_id,
   reconciled_by_user_id,
@@ -2929,7 +2918,7 @@ SECTION 19 - What to tell boss
 
 I am creating a manual UAT checklist for the full money flow because this affects real funds.
 
-The plan checks application-to-note creation, investor funding, fee calculation, Shoraka STP, trustee disbursement, settlement, investor return, and issuer residual.
+The plan checks application-to-note creation, investor funding, fee calculation, Tawarruq transaction, trustee disbursement, settlement trustee instruction, investor return, and issuer refund allocation.
 
 I will first test with simple numbers and manually reconcile DB values, UI values, ledger buckets, and generated letters before confirming the flow.
 
@@ -2937,11 +2926,11 @@ The key controls are:
 
 1. Investor money must debit and credit correctly.
 2. Platform and facility fees must be deducted correctly.
-3. Shoraka must use gross funded amount.
+3. Tawarruq order must use gross funded amount.
 4. Trustee disbursement must use net issuer amount.
-5. Certificate must exist before issuer disbursement can be marked complete.
-6. Residual return must not be blocked by Shoraka.
-7. Settlement must split repayment correctly between investors, fees, and issuer residual.
+5. Tawarruq certificate must exist before issuer disbursement can be marked complete when gating applies.
+6. Issuer refund allocation completes via settlement trustee instruction (not blocked by Tawarruq).
+7. Settlement must split repayment correctly between investors, fees, and issuer refund allocation.
 
 
 SECTION 20 - Open questions to confirm
