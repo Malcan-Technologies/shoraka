@@ -62,7 +62,12 @@ export const WORKFLOW_SUCCESS_COPY = {
   badge: "border-emerald-200 bg-emerald-50/80 text-emerald-900",
 } as const;
 
-export type SimpleTabStatus = "done" | "needs-action" | "not-started" | "view-only";
+export type SimpleTabStatus =
+  | "done"
+  | "needs-action"
+  | "in-progress"
+  | "not-started"
+  | "view-only";
 
 export const NOTE_WORKFLOW_TAB_BADGE: Record<
   SimpleTabStatus,
@@ -70,6 +75,7 @@ export const NOTE_WORKFLOW_TAB_BADGE: Record<
 > = {
   done: { label: "Done", ...WORKFLOW_STATUS_BADGE.success },
   "needs-action": { label: "In progress", ...WORKFLOW_STATUS_BADGE.active },
+  "in-progress": { label: "In progress", ...WORKFLOW_STATUS_BADGE.warning },
   "not-started": { label: "Not started", ...WORKFLOW_STATUS_BADGE.neutral },
   "view-only": { label: "View only", ...WORKFLOW_STATUS_BADGE.neutral },
 };

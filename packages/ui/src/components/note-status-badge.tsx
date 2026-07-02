@@ -52,7 +52,7 @@ export interface DerivedNoteStatus {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-/** Issuer sees operational settlement wrap-up; investor sees simplified labels. */
+/** Issuer sees residual-refund workflow; investor sees simplified settlement labels. */
 export type NoteStatusViewer = "issuer" | "investor";
 
 export interface NoteStatusInput {
@@ -62,18 +62,20 @@ export interface NoteStatusInput {
   servicingStatus: string;
   fundingPercent: number;
   minimumFundingPercent: number;
+  hasPostedSettlement: boolean;
+  pendingResidual: boolean;
   settlementTrusteePending: boolean;
   pendingDisbursement: boolean;
 }
 
-const COMPLETING_SETTLEMENT_LABEL = "Completing settlement";
+const AWAITING_RESIDUAL_REFUND_LABEL = "Awaiting residual refund";
 const INVESTOR_SETTLEMENT_PROCESSING_LABEL = "Settlement processing";
 
-function completingSettlementStatus(): DerivedNoteStatus {
+function awaitingResidualRefundStatus(): DerivedNoteStatus {
   return {
-    label: COMPLETING_SETTLEMENT_LABEL,
-    detail: "Settlement trustee instruction in progress",
-    tone: "progress",
+    label: AWAITING_RESIDUAL_REFUND_LABEL,
+    detail: "Settlement posted",
+    tone: "warning",
     icon: TruckIcon,
   };
 }
@@ -85,19 +87,25 @@ export function deriveNoteStatus(input: NoteStatusInput): DerivedNoteStatus {
   if (input.status === "FAILED_FUNDING" || input.fundingStatus === "FAILED") {
     return { label: "Funding failed", tone: "destructive", icon: XCircleIcon };
   }
+  if (input.hasPostedSettlement && input.pendingResidual) {
+    return awaitingResidualRefundStatus();
+  }
   if (input.status === "DEFAULTED" || input.servicingStatus === "DEFAULTED") {
     return { label: "Defaulted", tone: "destructive", icon: XCircleIcon };
   }
-  if (input.settlementTrusteePending) {
-    return completingSettlementStatus();
-  }
   if (input.status === "REPAID" || input.servicingStatus === "SETTLED") {
+    if (input.pendingResidual) {
+      return awaitingResidualRefundStatus();
+    }
     return { label: "Settled", tone: "success", icon: CheckBadgeIcon };
   }
   if (input.status === "ARREARS" || input.servicingStatus === "ARREARS") {
     return { label: "Arrears", tone: "warning", icon: ExclamationTriangleIcon };
   }
   if (input.status === "ACTIVE") {
+    if (input.hasPostedSettlement && input.pendingResidual) {
+      return awaitingResidualRefundStatus();
+    }
     if (input.servicingStatus === "LATE") {
       return { label: "Active · late", tone: "warning", icon: ExclamationTriangleIcon };
     }
@@ -139,9 +147,18 @@ export function deriveNoteStatus(input: NoteStatusInput): DerivedNoteStatus {
 
 export function presentNoteStatusForViewer(
   derived: DerivedNoteStatus,
-  viewer: NoteStatusViewer
+  viewer: NoteStatusViewer,
+  input?: NoteStatusInput
 ): DerivedNoteStatus {
-  if (viewer === "investor" && derived.label === COMPLETING_SETTLEMENT_LABEL) {
+  if (viewer === "investor" && derived.label === AWAITING_RESIDUAL_REFUND_LABEL) {
+    return { label: "Settled", tone: "success", icon: CheckBadgeIcon };
+  }
+  if (
+    viewer === "investor" &&
+    input?.settlementTrusteePending &&
+    !input.pendingResidual &&
+    derived.label === "Active · servicing"
+  ) {
     return {
       label: INVESTOR_SETTLEMENT_PROCESSING_LABEL,
       tone: "progress",
@@ -165,6 +182,13 @@ function buildInput(note: NoteDetail | NoteListItem): NoteStatusInput {
     minimumFundingPercent: note.minimumFundingPercent,
   };
   if (isNoteDetail(note)) {
+    const hasPostedSettlement = note.settlements.some((s) => s.status === "POSTED");
+    const pendingResidual = (note.withdrawals ?? []).some(
+      (w) =>
+        w.withdrawalType === "ISSUER_RESIDUAL_RETURN" &&
+        w.status !== "COMPLETED" &&
+        w.status !== "CANCELLED"
+    );
     const settlementTrusteePending = isSettlementWrappingUpFromSettlements(
       note.settlements ?? []
     );
@@ -174,15 +198,34 @@ function buildInput(note: NoteDetail | NoteListItem): NoteStatusInput {
         w.status !== "COMPLETED" &&
         w.status !== "CANCELLED"
     );
-    return { ...base, settlementTrusteePending, pendingDisbursement };
+    return {
+      ...base,
+      hasPostedSettlement,
+      pendingResidual,
+      settlementTrusteePending,
+      pendingDisbursement,
+    };
   }
 
-  const settlementTrusteePending = isSettlementWrappingUpFromSummary(
-    note.settlementSummary
-  );
+  const hasPostedSettlement = note.settlementSummary != null;
+  const residualInFlight =
+    "issuerResidualPayout" in note &&
+    note.issuerResidualPayout != null &&
+    (note.issuerResidualPayout.kind === "pending" || note.issuerResidualPayout.kind === "awaiting");
+  const pendingResidual =
+    residualInFlight ||
+    (hasPostedSettlement &&
+      (note.status === "ACTIVE" || note.status === "ARREARS" || note.status === "DEFAULTED"));
+  const settlementTrusteePending = isSettlementWrappingUpFromSummary(note.settlementSummary);
   const pendingDisbursement = note.status === "FUNDING";
 
-  return { ...base, settlementTrusteePending, pendingDisbursement };
+  return {
+    ...base,
+    hasPostedSettlement,
+    pendingResidual,
+    settlementTrusteePending,
+    pendingDisbursement,
+  };
 }
 
 /** True when the note matches the fully settled NoteStatusBadge label ("Settled"). */
@@ -195,8 +238,9 @@ export function getNoteDerivedStatusLabel(
   note: NoteDetail | NoteListItem,
   options?: { viewer?: NoteStatusViewer }
 ): string {
-  const raw = deriveNoteStatus(buildInput(note));
-  return presentNoteStatusForViewer(raw, options?.viewer ?? "issuer").label;
+  const input = buildInput(note);
+  const raw = deriveNoteStatus(input);
+  return presentNoteStatusForViewer(raw, options?.viewer ?? "issuer", input).label;
 }
 
 export interface NoteStatusBadgeProps {
@@ -213,8 +257,9 @@ export function NoteStatusBadge({
   viewer = "issuer",
 }: NoteStatusBadgeProps) {
   const status = React.useMemo(() => {
-    const raw = deriveNoteStatus(buildInput(note));
-    return presentNoteStatusForViewer(raw, viewer);
+    const input = buildInput(note);
+    const raw = deriveNoteStatus(input);
+    return presentNoteStatusForViewer(raw, viewer, input);
   }, [note, viewer]);
   const Icon = status.icon;
   const badge = (

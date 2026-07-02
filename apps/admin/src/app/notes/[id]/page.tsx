@@ -52,7 +52,10 @@ import {
   LATE_PAYMENT_WORKFLOW_BADGE,
   resolveLatePaymentTimeline,
 } from "@/notes/utils/late-payment-workflow";
-import { isNoteLifecycleVisuallyComplete } from "@/notes/utils/settlement-trustee-workflow";
+import {
+  isNoteLifecycleVisuallyComplete,
+  isSettlementWrappingUp,
+} from "@/notes/utils/settlement-trustee-workflow";
 import { NOTE_WORKFLOW_TAB_BADGE, type SimpleTabStatus } from "@/notes/utils/workflow-status-tokens";
 import { OfferSigningPanel } from "@/components/offer-signing-panel";
 import { useResignNoteInvoiceOffer } from "@/notes/hooks/use-resign-invoice-offer";
@@ -210,6 +213,8 @@ export default function NoteDetailPage() {
         note.status !== "DEFAULTED" &&
         note.status !== "REPAID");
     if (servicingNotStarted) return "not-started";
+
+    if (isSettlementWrappingUp(note)) return "in-progress";
 
     return "needs-action";
   }, [note]);

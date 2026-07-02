@@ -57,15 +57,11 @@ function getFundingProgressClass(note: NoteListItem) {
   return "[&>div]:bg-primary";
 }
 
-function getSettlementRegistryLabel(summary: NoteSettlementPoolSummary): {
-  label: string;
-  toneClass: string;
-} {
+function getSettlementRegistryLabel(
+  summary: NoteSettlementPoolSummary
+): { label: string; toneClass: string } | null {
   if (isSettlementWrappingUpFromSummary(summary)) {
-    return {
-      label: "Completing settlement",
-      toneClass: NOTE_STATUS_BADGE_TONE_CLASS.progress,
-    };
+    return null;
   }
   return {
     label: "Settled",
@@ -78,12 +74,14 @@ function SettlementRegistryCell({ note }: { note: NoteListItem }) {
   if (!summary) {
     return <span className="text-muted-foreground">-</span>;
   }
-  const { label, toneClass } = getSettlementRegistryLabel(summary);
+  const registryLabel = getSettlementRegistryLabel(summary);
   return (
     <div className="min-w-0">
-      <Badge variant="outline" className={cn("max-w-full truncate", toneClass)}>
-        {label}
-      </Badge>
+      {registryLabel ? (
+        <Badge variant="outline" className={cn("max-w-full truncate", registryLabel.toneClass)}>
+          {registryLabel.label}
+        </Badge>
+      ) : null}
       <div className="mt-1 truncate text-xs text-muted-foreground">
         Repayment {formatCurrency(summary.grossReceiptAmount)}
       </div>

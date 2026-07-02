@@ -27,7 +27,6 @@ import {
   isSettlementWrappingUp,
 } from "@/notes/utils/settlement-trustee-workflow";
 import {
-  trusteeWorkflowTone,
   withdrawalHeaderBadgeTone,
   type WorkflowStatusTone,
   WORKFLOW_CARD,
@@ -102,8 +101,7 @@ function isDisbursementComplete(withdrawal: WithdrawalInstruction | null): boole
 }
 
 function getActiveStageIndex(note: NoteDetail): number {
-  const hasPostedSettlement = note.settlements.some((s) => s.status === "POSTED");
-  if (note.status === "REPAID" || note.servicingStatus === "SETTLED" || hasPostedSettlement) {
+  if (isNoteLifecycleVisuallyComplete(note)) {
     return 5;
   }
   const servicingActive =
@@ -273,11 +271,7 @@ function buildSettlementSubSteps(note: NoteDetail): {
   if (settledComplete) {
     tone = "success";
   } else if (postedComplete && !trusteeComplete) {
-    tone = trusteeWorkflowTone(postedSettlement?.serviceFeeTrusteeStatus ?? null, {
-      needsGeneration:
-        postedSettlement?.serviceFeeTrusteeStatus === "PENDING_LETTER" ||
-        postedSettlement?.serviceFeeTrusteeStatus === null,
-    });
+    tone = "warning";
   } else if (receiptsComplete && !postedComplete) {
     tone = "active";
   }
@@ -592,6 +586,16 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
     disbursementWithdrawal && !disbursementComplete ? disbursementWithdrawal.id : null
   );
   const settlementInProgress = isSettlementWrappingUp(note);
+  const hasPostedSettlement = note.settlements.some((settlement) => settlement.status === "POSTED");
+  const pendingResidualWithdrawal =
+    (note.withdrawals ?? []).find(
+      (withdrawal) =>
+        withdrawal.withdrawalType === "ISSUER_RESIDUAL_RETURN" &&
+        withdrawal.status !== "COMPLETED" &&
+        withdrawal.status !== "CANCELLED"
+    ) ?? null;
+  const awaitingResidual =
+    !isComplete && hasPostedSettlement && pendingResidualWithdrawal !== null;
   const terminalFailure = getTerminalFailure(note, activeIndex);
   const defaultedWithSettlementTrusteeWork =
     terminalFailure?.label === "Defaulted" && settlementInProgress;
@@ -632,8 +636,8 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
     ? "Note fully repaid"
     : terminalFailure
       ? terminalFailure.label
-      : settlementInProgress
-        ? "Completing settlement"
+      : awaitingResidual
+        ? "Repayment in progress"
         : awaitingDisbursement
           ? "Awaiting issuer disbursement"
           : `Currently ${currentStage.label}`;
@@ -643,14 +647,14 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
       ? defaultedWithSettlementTrusteeWork
         ? "The note has defaulted. Settlement has been posted and recovery is in progress. Complete the settlement trustee instruction — including any issuer refund allocation — from the Servicing & Settlement tab."
         : terminalFailure.description
-      : settlementInProgress
-        ? "Settlement has been posted to the ledger. Finish the settlement trustee instruction — including any issuer refund allocation — from the Servicing & Settlement tab."
+      : awaitingResidual
+        ? "Settlement waterfall posted. Investors have been paid. The issuer residual refund must be disbursed to close the lifecycle."
         : awaitingDisbursement
           ? "Funding has closed. Complete issuer disbursement (Tawarruq, certificate, trustee instruction) before servicing begins."
           : null;
 
   const contextLines: string[] = [];
-  if (!terminalFailure && !isComplete && !awaitingDisbursement && !settlementInProgress) {
+  if (!terminalFailure && !isComplete && !awaitingDisbursement && !awaitingResidual) {
     if (isFundingOpen) {
       contextLines.push(
         `${note.fundingPercent.toFixed(1)}% of ${formatCurrency(note.targetAmount)} funded`
@@ -683,23 +687,16 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
                   Complete
                 </Badge>
               ) : terminalFailure ? (
-                <>
-                  <Badge variant="destructive" className="uppercase">
-                    Terminal
-                  </Badge>
-                  {defaultedWithSettlementTrusteeWork ? (
-                    <Badge variant="secondary" className="uppercase">
-                      Settlement in progress
-                    </Badge>
-                  ) : null}
-                </>
+                <Badge variant="destructive" className="uppercase">
+                  Terminal
+                </Badge>
               ) : awaitingDisbursement ? (
                 <Badge variant="secondary" className="uppercase">
                   Pending Disbursement
                 </Badge>
-              ) : settlementInProgress ? (
+              ) : awaitingResidual ? (
                 <Badge variant="secondary" className="uppercase">
-                  Settlement in progress
+                  Pending Refund
                 </Badge>
               ) : null}
             </div>
