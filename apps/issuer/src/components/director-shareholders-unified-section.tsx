@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { UserGroupIcon, UserIcon, BuildingOffice2Icon } from "@heroicons/react/24/outline";
+import { UserGroupIcon, UserIcon, BuildingOffice2Icon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
   canManageDirectorShareholder,
@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 // import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useQueryClient } from "@tanstack/react-query";
@@ -31,6 +32,7 @@ export interface DirectorShareholdersUnifiedSectionProps {
   organizationId?: string;
   organizationOnboardingStatus?: string | null;
   people: ApplicationPersonRow[];
+  ctosDirectorShareholderWarning?: string | null;
   className?: string;
   highlightActionRequiredRows?: boolean;
   autoFocusFirstEmptyEmail?: boolean;
@@ -53,6 +55,7 @@ export function DirectorShareholdersUnifiedSection({
   organizationId,
   organizationOnboardingStatus = null,
   people,
+  ctosDirectorShareholderWarning = null,
   className,
   highlightActionRequiredRows = true,
   autoFocusFirstEmptyEmail = false,
@@ -240,8 +243,18 @@ export function DirectorShareholdersUnifiedSection({
         </div>
       </div>
       <div className="p-6 space-y-6">
+        {ctosDirectorShareholderWarning ? (
+          <Alert className="border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+            <ExclamationTriangleIcon className="h-4 w-4" />
+            <AlertDescription>{ctosDirectorShareholderWarning}</AlertDescription>
+          </Alert>
+        ) : null}
         {emptyAll ? (
-          <p className="text-sm text-muted-foreground text-center py-8">No directors or shareholders listed.</p>
+          <p className="text-sm text-muted-foreground text-center py-8">
+            {ctosDirectorShareholderWarning
+              ? "No directors or shareholders are available from CTOS."
+              : "No directors or shareholders listed."}
+          </p>
         ) : (
           <>
             {directorLikeRows.length > 0 ? (

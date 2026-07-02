@@ -568,6 +568,8 @@ export default function ProfilePage() {
           corporateShareholders?: Array<Record<string, unknown>>;
         };
         people?: import("@cashsouk/types").ApplicationPersonRow[];
+        directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource;
+        ctosDirectorShareholderWarning?: string | null;
       }>(`/v1/organizations/issuer/${activeOrganization.id}`);
       if (!result.success) {
         throw new Error(result.error.message);
@@ -1348,6 +1350,7 @@ export default function ProfilePage() {
                     organizationId={activeOrganization.id}
                     organizationOnboardingStatus={orgData.onboardingStatus}
                     people={orgData.people ?? []}
+                    ctosDirectorShareholderWarning={orgData.ctosDirectorShareholderWarning ?? null}
                     highlightActionRequiredRows
                     autoFocusFirstEmptyEmail={focusDirectors}
                     focusedMatchKey={focusedPersonKey}

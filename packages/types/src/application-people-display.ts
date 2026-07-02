@@ -16,6 +16,13 @@ import {
 import { getCtosPartySupplementFlatRead } from "./ctos-party-supplement-json";
 import { normalizeRawStatus } from "./status-normalization";
 import { isReadyOnboardingStatus } from "./onboarding-readiness";
+
+/** How issuer/investor director-shareholder `people[]` was built (org list + detail APIs). */
+export type DirectorShareholderListSource = "ONBOARDING" | "CTOS" | "CTOS_EMPTY";
+
+export const CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING =
+  "CTOS returned no director/shareholder data." as const;
+
 export type ApplicationPersonRow = {
   /**
    * SOURCE OF TRUTH (CRITICAL)

@@ -101,6 +101,10 @@ export interface Organization {
   directorShareholderSubmitBlockedMessage?: string;
   /** CTOS-backed party rows with AML screening (issuer company orgs). */
   people?: ApplicationPersonRow[];
+  /** How `people` was built: onboarding data, CTOS, or CTOS report with no usable rows. */
+  directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource;
+  /** Set when `directorShareholderListSource` is `CTOS_EMPTY`. */
+  ctosDirectorShareholderWarning?: string | null;
   // Corporate director KYC status (only for COMPANY type)
   directorKycStatus?: {
     corpIndvDirectorCount: number;
