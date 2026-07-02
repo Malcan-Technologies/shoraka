@@ -24,6 +24,14 @@ export const createEnvelopeSchema = z.object({
   expiresAt: z.string().datetime().nullish(),
 });
 
+export const createIssuerEnvelopeSchema = z.object({
+  title: z.string().min(1).max(200).nullish(),
+  contractId: z.string().min(1).nullish(),
+  invoiceId: z.string().min(1).nullish(),
+  bindings: z.array(recipientBindingSchema).min(1),
+  expiresAt: z.string().datetime().nullish(),
+});
+
 export const voidEnvelopeSchema = z.object({
   reason: z.string().max(500).nullish(),
 });
@@ -35,4 +43,5 @@ export const startSigningSchema = z.object({
 });
 
 export type CreateEnvelopeBody = z.infer<typeof createEnvelopeSchema>;
+export type CreateIssuerEnvelopeBody = z.infer<typeof createIssuerEnvelopeSchema>;
 export type StartSigningBody = z.infer<typeof startSigningSchema>;

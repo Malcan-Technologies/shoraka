@@ -1,9 +1,8 @@
 /**
  * HTTP layer for signing envelopes.
- *  - Admin router (createSigningAdminRouter): build / send / void / remind. Mounted under
- *    the ADMIN-gated block.
- *  - Authed router (createSigningRouter): reads + per-recipient "sign my part" for issuer
- *    users. Mounted under requireAuth.
+ *  - Admin router (createSigningAdminRouter): read / void / remind. Mounted under the
+ *    ADMIN-gated block.
+ *  - Authed router (createSigningRouter): issuer create / send / read / sign-my-part.
  * Controllers only validate and orchestrate; all logic lives in the service.
  */
 import { Request, Response, NextFunction, Router } from "express";
@@ -11,7 +10,7 @@ import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { signingService } from "./service";
 import {
-  createEnvelopeSchema,
+  createIssuerEnvelopeSchema,
   voidEnvelopeSchema,
   startSigningSchema,
 } from "./schemas";
@@ -31,18 +30,16 @@ function ok(res: Response, data: unknown, status = 200): void {
   });
 }
 
-async function createEnvelope(req: Request, res: Response, next: NextFunction) {
+async function createIssuerEnvelope(req: Request, res: Response, next: NextFunction) {
   try {
-    const body = createEnvelopeSchema.parse(req.body);
-    const envelope = await signingService.createDraftEnvelope({
-      applicationId: body.applicationId,
+    const body = createIssuerEnvelopeSchema.parse(req.body);
+    const envelope = await signingService.createIssuerEnvelope({
+      applicationId: req.params.applicationId,
       title: body.title,
       contractId: body.contractId ?? null,
       invoiceId: body.invoiceId ?? null,
-      productVersion: body.productVersion ?? null,
-      templateConfig: body.templateConfig,
       bindings: body.bindings,
-      createdByUserId: getUserId(req),
+      userId: getUserId(req),
       expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
     });
     ok(res, envelope, 201);
@@ -53,7 +50,7 @@ async function createEnvelope(req: Request, res: Response, next: NextFunction) {
 
 async function sendEnvelope(req: Request, res: Response, next: NextFunction) {
   try {
-    ok(res, await signingService.sendEnvelope(req.params.id));
+    ok(res, await signingService.sendEnvelopeForIssuer(req.params.id, getUserId(req)));
   } catch (e) {
     next(e);
   }
@@ -79,8 +76,7 @@ async function remindRecipient(req: Request, res: Response, next: NextFunction) 
 
 async function getEnvelope(req: Request, res: Response, next: NextFunction) {
   try {
-    getUserId(req);
-    ok(res, await signingService.getEnvelope(req.params.id));
+    ok(res, await signingService.getEnvelopeForIssuer(req.params.id, getUserId(req)));
   } catch (e) {
     next(e);
   }
@@ -88,8 +84,13 @@ async function getEnvelope(req: Request, res: Response, next: NextFunction) {
 
 async function listEnvelopes(req: Request, res: Response, next: NextFunction) {
   try {
-    getUserId(req);
-    ok(res, await signingService.listEnvelopesForApplication(req.params.applicationId));
+    ok(
+      res,
+      await signingService.listEnvelopesForApplicationForIssuer(
+        req.params.applicationId,
+        getUserId(req)
+      )
+    );
   } catch (e) {
     next(e);
   }
@@ -97,12 +98,12 @@ async function listEnvelopes(req: Request, res: Response, next: NextFunction) {
 
 async function startSigning(req: Request, res: Response, next: NextFunction) {
   try {
-    getUserId(req);
     const body = startSigningSchema.parse(req.body);
-    const result = await signingService.startRecipientSigning({
+    const result = await signingService.startRecipientSigningForIssuer({
       envelopeId: req.params.id,
       recipientId: body.recipientId,
       documentId: body.documentId,
+      userId: getUserId(req),
       redirectUrl: body.redirectUrl ?? null,
     });
     ok(res, result);
@@ -114,20 +115,32 @@ async function startSigning(req: Request, res: Response, next: NextFunction) {
 /** Admin-only lifecycle routes (mount under an ADMIN-gated path). */
 export function createSigningAdminRouter(): Router {
   const router = Router();
-  router.post("/envelopes", createEnvelope);
-  router.post("/envelopes/:id/send", sendEnvelope);
   router.post("/envelopes/:id/void", voidEnvelope);
   router.post("/envelopes/:id/recipients/:recipientId/remind", remindRecipient);
-  router.get("/envelopes/:id", getEnvelope);
-  router.get("/applications/:applicationId/envelopes", listEnvelopes);
+  router.get("/envelopes/:id", async (req, res, next) => {
+    try {
+      ok(res, await signingService.getEnvelope(req.params.id));
+    } catch (e) {
+      next(e);
+    }
+  });
+  router.get("/applications/:applicationId/envelopes", async (req, res, next) => {
+    try {
+      ok(res, await signingService.listEnvelopesForApplication(req.params.applicationId));
+    } catch (e) {
+      next(e);
+    }
+  });
   return router;
 }
 
 /** Authenticated issuer routes: read envelope + sign my part. */
 export function createSigningRouter(): Router {
   const router = Router();
+  router.post("/applications/:applicationId/envelopes", requireAuth, createIssuerEnvelope);
   router.get("/envelopes/:id", requireAuth, getEnvelope);
   router.get("/applications/:applicationId/envelopes", requireAuth, listEnvelopes);
+  router.post("/envelopes/:id/send", requireAuth, sendEnvelope);
   router.post("/envelopes/:id/start-signing", requireAuth, startSigning);
   return router;
 }

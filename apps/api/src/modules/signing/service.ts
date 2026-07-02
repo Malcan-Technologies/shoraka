@@ -5,6 +5,7 @@
  */
 import * as crypto from "crypto";
 import {
+  SIGNING_TEMPLATE_WORKFLOW_KEY,
   parseSigningTemplateConfig,
   validateSigningTemplateConfig,
   validateRecipientBindings,
@@ -13,13 +14,26 @@ import {
   rollupRecipientStatus,
   rollupEnvelopeStatus,
   type AssignmentStatusInput,
+  ApplicationStatus,
+  ContractStatus,
+  InvoiceStatus,
   type RecipientBinding,
   type SigningEnvelopeDto,
+  type SigningTemplateConfig,
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { getS3ObjectBuffer, putS3ObjectBuffer } from "../../lib/s3/client";
-import { signingRepository, type SigningRepository } from "./repository";
+import { ProductRepository } from "../products/repository";
+import { OrganizationRepository } from "../organization/repository";
+import { OrganizationService } from "../organization/service";
+import { buildAdminPeopleList } from "../admin/build-people-list";
+import { assertRequiredPostApplicationSupportingDocumentsPresent } from "../applications/supporting-docs-workflow";
+import {
+  signingRepository,
+  type SigningApplicationContext,
+  type SigningRepository,
+} from "./repository";
 import { mapSigningEnvelopeToDto, type SigningEnvelopeWithGraph } from "./mapper";
 import { SigningCloudProvider } from "./provider/signingcloud-adapter";
 import type { SigningProvider } from "./provider/adapter";
@@ -40,11 +54,211 @@ export interface CreateDraftEnvelopeInput {
   expiresAt?: Date | null;
 }
 
+export interface CreateIssuerEnvelopeInput {
+  applicationId: string;
+  userId: string;
+  bindings: RecipientBinding[];
+  title?: string | null;
+  contractId?: string | null;
+  invoiceId?: string | null;
+  expiresAt?: Date | null;
+}
+
 export class SigningService {
   constructor(
     private readonly repo: SigningRepository = signingRepository,
-    private readonly provider: SigningProvider = new SigningCloudProvider()
+    private readonly provider: SigningProvider = new SigningCloudProvider(),
+    private readonly productRepository: ProductRepository = new ProductRepository(),
+    private readonly organizationRepository: OrganizationRepository = new OrganizationRepository(),
+    private readonly organizationService: OrganizationService = new OrganizationService()
   ) {}
+
+  private async requireApplicationContext(
+    applicationId: string
+  ): Promise<SigningApplicationContext> {
+    const application = await this.repo.findApplicationContext(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found.");
+    }
+    return application;
+  }
+
+  private async assertIssuerApplicationAccess(
+    application: SigningApplicationContext,
+    userId: string
+  ): Promise<void> {
+    const organization = application.issuer_organization;
+    if (!organization) {
+      throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found for this application.");
+    }
+    if (organization.owner_user_id === userId) return;
+    const member = await this.organizationRepository.getOrganizationMember(
+      application.issuer_organization_id,
+      userId,
+      "issuer"
+    );
+    if (!member) {
+      throw new AppError(
+        403,
+        "FORBIDDEN",
+        "You do not have access to this application."
+      );
+    }
+  }
+
+  private readSigningTemplateFromWorkflow(workflow: unknown): SigningTemplateConfig {
+    const steps = Array.isArray(workflow) ? workflow : [];
+    for (const step of steps) {
+      const config = (step as { config?: Record<string, unknown> } | null)?.config;
+      if (config && config[SIGNING_TEMPLATE_WORKFLOW_KEY] != null) {
+        return parseSigningTemplateConfig(config[SIGNING_TEMPLATE_WORKFLOW_KEY]);
+      }
+    }
+    return parseSigningTemplateConfig(null);
+  }
+
+  private async getProductWorkflowForApplication(
+    application: SigningApplicationContext
+  ): Promise<unknown[]> {
+    const productId = (application.financing_type as { product_id?: string } | null | undefined)
+      ?.product_id;
+    if (!productId) {
+      throw new AppError(400, "VALIDATION_ERROR", "Application has no product configured.");
+    }
+    const product = await this.productRepository.findById(productId);
+    if (!product) {
+      throw new AppError(400, "VALIDATION_ERROR", "Product not found.");
+    }
+    return (product.workflow as unknown[]) ?? [];
+  }
+
+  private applicationHasOfferSent(application: SigningApplicationContext): boolean {
+    const status = application.status as string;
+    if (
+      status === ApplicationStatus.CONTRACT_SENT ||
+      status === ApplicationStatus.INVOICES_SENT ||
+      status === ApplicationStatus.CONTRACT_ACCEPTED ||
+      status === ApplicationStatus.APPROVED
+    ) {
+      return true;
+    }
+    if (application.contract?.status === ContractStatus.OFFER_SENT) return true;
+    return application.invoices.some((invoice) => invoice.status === InvoiceStatus.OFFER_SENT);
+  }
+
+  private resolveEnvelopeTarget(input: {
+    application: SigningApplicationContext;
+    contractId?: string | null;
+    invoiceId?: string | null;
+  }): { contractId: string | null; invoiceId: string | null } {
+    const { application, contractId, invoiceId } = input;
+    if (contractId && invoiceId) {
+      throw new AppError(400, "VALIDATION_ERROR", "Choose either a contract or invoice offer, not both.");
+    }
+    if (contractId) {
+      if (application.contract_id !== contractId || application.contract?.status !== ContractStatus.OFFER_SENT) {
+        throw new AppError(400, "INVALID_STATE", "Contract offer is not available for signing.");
+      }
+      return { contractId, invoiceId: null };
+    }
+    if (invoiceId) {
+      const invoice = application.invoices.find((item) => item.id === invoiceId);
+      if (!invoice || invoice.status !== InvoiceStatus.OFFER_SENT) {
+        throw new AppError(400, "INVALID_STATE", "Invoice offer is not available for signing.");
+      }
+      return { contractId: null, invoiceId };
+    }
+    if (application.contract?.status === ContractStatus.OFFER_SENT) {
+      return { contractId: application.contract.id, invoiceId: null };
+    }
+    const invoice = application.invoices.find((item) => item.status === InvoiceStatus.OFFER_SENT);
+    if (invoice) return { contractId: null, invoiceId: invoice.id };
+    throw new AppError(400, "INVALID_STATE", "No pending offer is available for signing.");
+  }
+
+  private async validateAndNormalizeIssuerBindings(
+    application: SigningApplicationContext,
+    template: SigningTemplateConfig,
+    bindings: RecipientBinding[]
+  ): Promise<RecipientBinding[]> {
+    const extras = await this.organizationService.getIssuerPartyListExtras(
+      application.issuer_organization_id
+    );
+    const people = buildAdminPeopleList({
+      ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+      issuerDirectorKycStatus: application.issuer_organization.director_kyc_status ?? null,
+      issuerDirectorAmlStatus: application.issuer_organization.director_aml_status ?? null,
+      ctosPartySupplements: extras.ctosPartySupplements.map((row) => ({
+        party_key: row.partyKey,
+        onboarding_json: row.onboardingJson,
+      })),
+      corporateEntities: application.issuer_organization.corporate_entities ?? null,
+    });
+    const directorEmails = new Set(
+      people
+        .filter((person) => person.roles.some((role) => role.toUpperCase() === "DIRECTOR"))
+        .map((person) => String(person.email ?? "").trim().toLowerCase())
+        .filter(Boolean)
+    );
+    const roleByKey = new Map(template.roles.map((role) => [role.key, role]));
+    const applicationGuarantorIds = new Set(application.application_guarantors.map((g) => g.id));
+    const normalized: RecipientBinding[] = [];
+    for (const binding of bindings) {
+      const role = roleByKey.get(binding.role_key);
+      if (!role) {
+        normalized.push(binding);
+        continue;
+      }
+      if (role.source_hint === "issuer_director") {
+        const email = binding.email.trim().toLowerCase();
+        if (!directorEmails.has(email)) {
+          throw new AppError(
+            400,
+            "SIGNING_BINDINGS_INVALID",
+            `Recipient for "${role.label || role.key}" must be one of the application's directors.`
+          );
+        }
+      }
+      if (
+        binding.application_guarantor_id &&
+        !applicationGuarantorIds.has(binding.application_guarantor_id)
+      ) {
+        throw new AppError(
+          400,
+          "SIGNING_BINDINGS_INVALID",
+          "Selected guarantor does not belong to this application."
+        );
+      }
+      if (
+        role.source_hint === "guarantor" &&
+        role.party_type === "EXTERNAL" &&
+        !String(binding.ic_number ?? "").trim()
+      ) {
+        throw new AppError(
+          400,
+          "SIGNING_BINDINGS_INVALID",
+          `Recipient for "${role.label || role.key}" must include an IC number.`
+        );
+      }
+      normalized.push({
+        ...binding,
+        user_id: null,
+        application_guarantor_id: binding.application_guarantor_id ?? null,
+        ic_number: binding.ic_number?.trim() || null,
+      });
+    }
+    return normalized;
+  }
+
+  private async assertPostApplicationDocumentsReady(
+    application: SigningApplicationContext
+  ): Promise<void> {
+    const workflow = await this.getProductWorkflowForApplication(application);
+    assertRequiredPostApplicationSupportingDocumentsPresent(
+      workflow,
+      application.supporting_documents
+    );
+  }
 
   async createDraftEnvelope(input: CreateDraftEnvelopeInput): Promise<SigningEnvelopeDto> {
     const template = parseSigningTemplateConfig(input.templateConfig);
@@ -76,6 +290,41 @@ export class SigningService {
     return mapSigningEnvelopeToDto(envelope);
   }
 
+  async createIssuerEnvelope(input: CreateIssuerEnvelopeInput): Promise<SigningEnvelopeDto> {
+    const application = await this.requireApplicationContext(input.applicationId);
+    await this.assertIssuerApplicationAccess(application, input.userId);
+    if (!this.applicationHasOfferSent(application)) {
+      throw new AppError(400, "INVALID_STATE", "An offer must be sent before creating a signing package.");
+    }
+    const activeEnvelope = await this.repo.findActiveEnvelopeForApplication(input.applicationId);
+    if (activeEnvelope) {
+      throw new AppError(409, "SIGNING_ENVELOPE_EXISTS", "This application already has an active signing package.");
+    }
+    const workflow = await this.getProductWorkflowForApplication(application);
+    const template = this.readSigningTemplateFromWorkflow(workflow);
+    const { contractId, invoiceId } = this.resolveEnvelopeTarget({
+      application,
+      contractId: input.contractId,
+      invoiceId: input.invoiceId,
+    });
+    const bindings = await this.validateAndNormalizeIssuerBindings(
+      application,
+      template,
+      input.bindings
+    );
+    return this.createDraftEnvelope({
+      applicationId: input.applicationId,
+      title: input.title?.trim() || "Signing package",
+      contractId,
+      invoiceId,
+      productVersion: application.product_version ?? null,
+      templateConfig: template,
+      bindings,
+      createdByUserId: input.userId,
+      expiresAt: input.expiresAt ?? null,
+    });
+  }
+
   async getEnvelope(id: string): Promise<SigningEnvelopeDto> {
     return mapSigningEnvelopeToDto(await this.requireEnvelope(id));
   }
@@ -83,6 +332,22 @@ export class SigningService {
   async listEnvelopesForApplication(applicationId: string): Promise<SigningEnvelopeDto[]> {
     const envelopes = await this.repo.findByApplicationId(applicationId);
     return envelopes.map(mapSigningEnvelopeToDto);
+  }
+
+  async getEnvelopeForIssuer(id: string, userId: string): Promise<SigningEnvelopeDto> {
+    const envelope = await this.requireEnvelope(id);
+    const application = await this.requireApplicationContext(envelope.application_id);
+    await this.assertIssuerApplicationAccess(application, userId);
+    return mapSigningEnvelopeToDto(envelope);
+  }
+
+  async listEnvelopesForApplicationForIssuer(
+    applicationId: string,
+    userId: string
+  ): Promise<SigningEnvelopeDto[]> {
+    const application = await this.requireApplicationContext(applicationId);
+    await this.assertIssuerApplicationAccess(application, userId);
+    return this.listEnvelopesForApplication(applicationId);
   }
 
   private async requireEnvelope(id: string): Promise<SigningEnvelopeWithGraph> {
@@ -148,6 +413,14 @@ export class SigningService {
     return this.getEnvelope(id);
   }
 
+  async sendEnvelopeForIssuer(id: string, userId: string): Promise<SigningEnvelopeDto> {
+    const envelope = await this.requireEnvelope(id);
+    const application = await this.requireApplicationContext(envelope.application_id);
+    await this.assertIssuerApplicationAccess(application, userId);
+    await this.assertPostApplicationDocumentsReady(application);
+    return this.sendEnvelope(id);
+  }
+
   /**
    * Hosted signing URL for one recipient's part of one document. Callers must have
    * already authorised the recipient (issuer session or valid external access token).
@@ -174,6 +447,21 @@ export class SigningService {
       redirectUrl: input.redirectUrl ?? null,
       callbackUrl: input.callbackUrl ?? null,
     });
+  }
+
+  async startRecipientSigningForIssuer(input: {
+    envelopeId: string;
+    recipientId: string;
+    documentId: string;
+    userId: string;
+    redirectUrl?: string | null;
+    callbackUrl?: string | null;
+  }): Promise<{ signingUrl: string }> {
+    const envelope = await this.requireEnvelope(input.envelopeId);
+    const application = await this.requireApplicationContext(envelope.application_id);
+    await this.assertIssuerApplicationAccess(application, input.userId);
+    await this.assertPostApplicationDocumentsReady(application);
+    return this.startRecipientSigning(input);
   }
 
   /**

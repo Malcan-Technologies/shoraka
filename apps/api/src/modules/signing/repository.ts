@@ -6,11 +6,17 @@ import { prisma } from "../../lib/prisma";
 import type { EnvelopePlan } from "@cashsouk/types";
 import type { SigningEnvelopeWithGraph } from "./mapper";
 
+const TERMINAL_ENVELOPE_STATUSES = ["DECLINED", "VOIDED", "EXPIRED"] as const;
+
 const GRAPH_INCLUDE = {
   documents: true,
   recipients: true,
   assignments: true,
 } as const;
+
+export type SigningApplicationContext = NonNullable<
+  Awaited<ReturnType<SigningRepository["findApplicationContext"]>>
+>;
 
 export interface CreateEnvelopeInput {
   application_id: string;
@@ -24,6 +30,31 @@ export interface CreateEnvelopeInput {
 }
 
 export class SigningRepository {
+  async findApplicationContext(applicationId: string) {
+    return prisma.application.findUnique({
+      where: { id: applicationId },
+      include: {
+        issuer_organization: true,
+        contract: true,
+        invoices: { orderBy: { created_at: "asc" } },
+        application_guarantors: { orderBy: { position: "asc" } },
+      },
+    });
+  }
+
+  async findActiveEnvelopeForApplication(
+    applicationId: string
+  ): Promise<SigningEnvelopeWithGraph | null> {
+    return prisma.signingEnvelope.findFirst({
+      where: {
+        application_id: applicationId,
+        status: { notIn: [...TERMINAL_ENVELOPE_STATUSES] },
+      },
+      include: GRAPH_INCLUDE,
+      orderBy: { created_at: "desc" },
+    });
+  }
+
   /** Persist an envelope and its full graph from a plan in one transaction. */
   async createFromPlan(input: CreateEnvelopeInput): Promise<SigningEnvelopeWithGraph> {
     const { plan } = input;
