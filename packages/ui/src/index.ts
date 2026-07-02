@@ -191,3 +191,11 @@ export {
   OnboardingLayout,
 } from "./onboarding";
 export type { OnboardingStepperStep } from "./onboarding";
+export {
+  DirectorShareholdersUnifiedSection,
+  directorShareholderOrgApiBase,
+} from "./director-shareholders-unified-section";
+export type {
+  DirectorShareholdersUnifiedSectionProps,
+  DirectorShareholderPortal,
+} from "./director-shareholders-unified-section";

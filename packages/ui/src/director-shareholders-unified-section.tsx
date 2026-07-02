@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { UserGroupIcon, UserIcon, BuildingOffice2Icon } from "@heroicons/react/24/outline";
-import { DirectorShareholderCtosEmptyAlert } from "@cashsouk/ui";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
   canManageDirectorShareholder,
@@ -16,29 +16,42 @@ import {
   resolveDirectorShareholderCtosEmptyWarning,
   type ApplicationPersonRow,
   type DirectorShareholderDisplayRow,
+  type DirectorShareholderListSource,
 } from "@cashsouk/types";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-// import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { DirectorShareholderCtosEmptyAlert } from "./director-shareholder-ctos-empty-alert";
+import { Input } from "./components/input";
+import { Button } from "./components/button";
+import { Badge } from "./components/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "./components/alert-dialog";
+import { cn } from "./lib/utils";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+export type DirectorShareholderPortal = "issuer" | "investor";
+
 export interface DirectorShareholdersUnifiedSectionProps {
+  portal?: DirectorShareholderPortal;
   organizationId?: string;
   organizationOnboardingStatus?: string | null;
   people: ApplicationPersonRow[];
-  directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource | null;
+  directorShareholderListSource?: DirectorShareholderListSource | null;
   ctosDirectorShareholderWarning?: string | null;
   className?: string;
   highlightActionRequiredRows?: boolean;
   autoFocusFirstEmptyEmail?: boolean;
   focusedMatchKey?: string | null;
+  /** Called after email save + onboarding send succeed (e.g. invalidate org queries). */
+  onPartyOnboardingSent?: () => void | Promise<void>;
 }
 
 type AugmentedRow = DirectorShareholderDisplayRow & { __person: ApplicationPersonRow };
@@ -53,7 +66,15 @@ function isIndividualShareholderOnlyRow(r: DirectorShareholderDisplayRow): boole
   return !Boolean(r.isDirector) && Boolean(r.isShareholder);
 }
 
+export function directorShareholderOrgApiBase(
+  portal: DirectorShareholderPortal,
+  organizationId: string
+): string {
+  return `/v1/organizations/${portal}/${organizationId}`;
+}
+
 export function DirectorShareholdersUnifiedSection({
+  portal = "issuer",
   organizationId,
   organizationOnboardingStatus = null,
   people,
@@ -63,9 +84,9 @@ export function DirectorShareholdersUnifiedSection({
   highlightActionRequiredRows = true,
   autoFocusFirstEmptyEmail = false,
   focusedMatchKey = null,
+  onPartyOnboardingSent,
 }: DirectorShareholdersUnifiedSectionProps) {
   const { getAccessToken } = useAuthToken();
-  const queryClient = useQueryClient();
   const apiClient = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
   const [draftEmails, setDraftEmails] = React.useState<Record<string, string>>({});
   const [confirmRow, setConfirmRow] = React.useState<AugmentedRow | null>(null);
@@ -151,24 +172,23 @@ export function DirectorShareholdersUnifiedSection({
     }
     setSavePending(true);
     try {
-      const saveRes = await apiClient.patch<{ success: boolean }>(
-        `/v1/organizations/issuer/${organizationId}/ctos-party-email`,
-        { partyKey, email }
-      );
+      const apiBase = directorShareholderOrgApiBase(portal, organizationId);
+      const saveRes = await apiClient.patch<{ success: boolean }>(`${apiBase}/ctos-party-email`, {
+        partyKey,
+        email,
+      });
       if (!saveRes.success) {
         toast.error(saveRes.error.message);
         return;
       }
-      const sendRes = await apiClient.post<{ requestId: string }>(
-        `/v1/organizations/issuer/${organizationId}/send-director-onboarding`,
-        { partyKey }
-      );
+      const sendRes = await apiClient.post<{ requestId: string }>(`${apiBase}/send-director-onboarding`, {
+        partyKey,
+      });
       if (!sendRes.success) {
         toast.error(sendRes.error.message);
         return;
       }
-      await queryClient.invalidateQueries({ queryKey: ["corporate-entities", organizationId] });
-      await queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
+      await onPartyOnboardingSent?.();
       toast.success("Email saved and onboarding link sent");
       setConfirmRow(null);
     } finally {
@@ -297,24 +317,31 @@ export function DirectorShareholdersUnifiedSection({
         )}
       </div>
 
-      <Dialog open={confirmRow != null} onOpenChange={(open) => !open && setConfirmRow(null)}>
-        <DialogContent className="rounded-xl">
-          <DialogHeader>
-            <DialogTitle>Send onboarding link</DialogTitle>
-            <DialogDescription>
+      <AlertDialog open={confirmRow != null} onOpenChange={(open) => !open && setConfirmRow(null)}>
+        <AlertDialogContent className="rounded-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send onboarding link</AlertDialogTitle>
+            <AlertDialogDescription>
               {confirmRow ? `Save email and send onboarding link to ${confirmRow.name}.` : null}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" className="rounded-lg" disabled={savePending} onClick={() => setConfirmRow(null)}>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-lg" disabled={savePending}>
               Cancel
-            </Button>
-            <Button type="button" className="rounded-lg" onClick={() => void commitSend()} disabled={savePending || !confirmRow}>
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-lg"
+              disabled={savePending || !confirmRow}
+              onClick={(e) => {
+                e.preventDefault();
+                void commitSend();
+              }}
+            >
               {savePending ? "Saving…" : "Confirm"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

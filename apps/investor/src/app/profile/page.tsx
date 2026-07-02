@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Skeleton } from "../../components/ui/skeleton";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -35,14 +35,13 @@ import { useAccountDocuments } from "../../hooks/use-account-documents";
 import { useOrganizationMembers } from "../../hooks/use-organization-members";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
 import { CorporateInfoCard } from "../../components/corporate-info-card";
-import { DirectorsShareholdersCard } from "../../components/directors-shareholders-card";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { TransferOwnershipDialog } from "../../components/transfer-ownership-dialog";
 import { toast } from "sonner";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
-import { useHeader, DirectorShareholderAlertCard, INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY } from "@cashsouk/ui";
+import { useHeader, DirectorShareholderAlertCard, INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY, DirectorShareholdersUnifiedSection } from "@cashsouk/ui";
 import {
   UserIcon,
   BuildingOffice2Icon,
@@ -571,6 +570,28 @@ export default function ProfilePage() {
     enabled: !!activeOrganization?.id,
     staleTime: 1000 * 60 * 5,
   });
+
+  const searchParams = useSearchParams();
+  const focusDirectors = searchParams.get("focus") === "directors";
+  const focusedPersonKey = searchParams.get("person");
+  const directorsSectionRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!focusDirectors) return;
+    const el = directorsSectionRef.current;
+    if (!el) return;
+    const t = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [focusDirectors, orgData, activeOrganization?.id]);
+
+  const handlePartyOnboardingSent = React.useCallback(async () => {
+    if (!activeOrganization?.id) return;
+    await queryClient.invalidateQueries({ queryKey: ["corporate-entities", activeOrganization.id] });
+    await queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization.id] });
+    await refreshOrganizations();
+  }, [activeOrganization?.id, queryClient, refreshOrganizations]);
 
   // Initialize form values when orgData loads
   React.useEffect(() => {
@@ -1426,11 +1447,20 @@ export default function ProfilePage() {
 
               {/* 4. Directors/Shareholders Section - Only for COMPANY accounts */}
               {!isPersonal && activeOrganization?.id && orgData?.type === "COMPANY" && (
-                <DirectorsShareholdersCard
-                  people={orgData.people ?? []}
-                  directorShareholderListSource={orgData.directorShareholderListSource ?? null}
-                  ctosDirectorShareholderWarning={orgData.ctosDirectorShareholderWarning ?? null}
-                />
+                <div ref={directorsSectionRef} className="scroll-mt-24">
+                  <DirectorShareholdersUnifiedSection
+                    portal="investor"
+                    organizationId={activeOrganization.id}
+                    organizationOnboardingStatus={orgData.onboardingStatus}
+                    people={orgData.people ?? []}
+                    directorShareholderListSource={orgData.directorShareholderListSource ?? null}
+                    ctosDirectorShareholderWarning={orgData.ctosDirectorShareholderWarning ?? null}
+                    highlightActionRequiredRows
+                    autoFocusFirstEmptyEmail={focusDirectors}
+                    focusedMatchKey={focusedPersonKey}
+                    onPartyOnboardingSent={handlePartyOnboardingSent}
+                  />
+                </div>
               )}
 
               {/* 5. Members Section */}
