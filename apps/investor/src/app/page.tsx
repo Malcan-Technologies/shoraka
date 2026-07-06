@@ -107,6 +107,11 @@ function InvestorDashboardContent() {
     router,
   ]);
 
+  const visiblePeopleForDsAlert = useMemo(
+    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
+    [activeOrganization?.people]
+  );
+
   if (isAuthenticated === null || checkingOnboarding || isOrgLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -137,11 +142,6 @@ function InvestorDashboardContent() {
   };
 
   const displayName = getDisplayName();
-
-  const visiblePeopleForDsAlert = useMemo(
-    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
-    [activeOrganization?.people]
-  );
 
   const steps = activeOrganization ? getOnboardingSteps(activeOrganization) : [];
   const allStepsComplete = activeOrganization ? steps.every((step) => step.isCompleted) : false;
