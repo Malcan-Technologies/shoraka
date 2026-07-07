@@ -267,6 +267,15 @@ export async function resolveIssuerEkycIdentityForOrganization(
   throw new AppError(400, "EKYC_IDENTITY_NOT_ON_FILE", EKYC_IDENTITY_NOT_ON_FILE_MESSAGE);
 }
 
+/** Ensures the user can start eKYC for this issuer org (owner or member). */
+export async function assertIssuerOrganizationAccessForEkyc(
+  userId: string,
+  issuerOrganizationId: string
+): Promise<void> {
+  const organization = await loadIssuerOrganizationForUser(userId, issuerOrganizationId);
+  assertCompanyIssuerOrgForEkyc(organization);
+}
+
 /** Resolve MyKad details from any issuer org the user belongs to (by typed IC). */
 export async function resolveIssuerEkycIdentityForUser(
   userId: string,

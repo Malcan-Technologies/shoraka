@@ -53,11 +53,14 @@ export interface EkycSessionStatus {
 export interface EkycMeStatus {
   completed: boolean;
   completedAt: string | null;
+  /** Work email with a verified SigningCloud eKYC row, when any. */
+  verifiedEmail: string | null;
 }
 
-/** On-file MyKad name for the typed IC before eKYC capture. */
+/** On-file MyKad name and work email for the typed IC before eKYC capture. */
 export interface EkycIdentityPreview {
   name: string;
+  email: string;
 }
 
 export interface User {

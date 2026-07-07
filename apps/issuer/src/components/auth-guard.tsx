@@ -16,7 +16,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
 
   // OAuth callback must remain reachable without a portal session.
-  const shouldSkipAuthGuard = pathname === "/callback";
+  const shouldSkipAuthGuard = pathname === "/callback" || pathname.startsWith("/signing/external/");
 
   // Skip auth guard for callback page
   if (shouldSkipAuthGuard) {

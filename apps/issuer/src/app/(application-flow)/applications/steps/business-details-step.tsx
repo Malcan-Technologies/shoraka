@@ -764,6 +764,25 @@ function issuerFileMatchesAllowedTypes(file: File, types: string[]): boolean {
   return false;
 }
 
+/** Presigned URL must use a whitelisted MIME type; browsers sometimes omit or misreport type for Excel. */
+function contentTypeForGuarantorAgreementUpload(file: File): string {
+  const t = file.type?.trim();
+  if (
+    t === "application/pdf" ||
+    t === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    t === "application/vnd.ms-excel"
+  ) {
+    return t;
+  }
+  const lower = file.name.toLowerCase();
+  const dot = lower.lastIndexOf(".");
+  const ext = dot >= 0 ? lower.slice(dot + 1) : "";
+  if (ext === "pdf") return "application/pdf";
+  if (ext === "xlsx") return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  if (ext === "xls") return "application/vnd.ms-excel";
+  return "application/pdf";
+}
+
 type GuarantorAgreementWorkflowConfig = {
   title: string;
   allowMultiple: boolean;
@@ -1889,8 +1908,9 @@ export function BusinessDetailsStep({
         },
         body: JSON.stringify({
           fileName: pending.file.name,
-          contentType: pending.file.type || "application/pdf",
+          contentType: contentTypeForGuarantorAgreementUpload(pending.file),
           fileSize: pending.file.size,
+          guarantorAgreementUpload: true,
         }),
       });
 
@@ -1908,7 +1928,7 @@ export function BusinessDetailsStep({
       const putRes = await fetch(uploadUrl, {
         method: "PUT",
         headers: {
-          "Content-Type": pending.file.type || "application/pdf",
+          "Content-Type": contentTypeForGuarantorAgreementUpload(pending.file),
         },
         body: pending.file,
       });

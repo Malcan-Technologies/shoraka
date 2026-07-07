@@ -62,8 +62,10 @@ import { INPUT_CLASS, SELECT_TRIGGER_CLASS, FIELD_GAP } from "./product-form-inp
 import { AlertTriangle } from "lucide-react";
 import { WorkflowStepCard } from "./workflow-step-card";
 import { StepConfigEditor } from "./step-configs/step-config-editor";
+import { SigningPackageConfig } from "./step-configs/signing-package-config";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { SIGNING_TEMPLATE_WORKFLOW_KEY, parseSigningTemplateConfig, type SigningTemplateConfig } from "@cashsouk/types";
 
 export interface ProductFormDialogProps {
   open: boolean;
@@ -252,6 +254,24 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     );
   };
 
+  const getSigningTemplateConfig = useCallback((): SigningTemplateConfig => {
+    const firstStep = steps.find((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY);
+    const config = (firstStep as { config?: Record<string, unknown> } | undefined)?.config ?? {};
+    return parseSigningTemplateConfig(config[SIGNING_TEMPLATE_WORKFLOW_KEY]);
+  }, [steps]);
+
+  const handleSigningTemplateChange = useCallback((template: SigningTemplateConfig) => {
+    setSteps((prev) =>
+      prev.map((s) => {
+        if (getStepKeyFromStepId(getStepId(s)) !== FIRST_STEP_KEY) return s;
+        const step = s as Record<string, unknown>;
+        const config = { ...((step.config as Record<string, unknown> | undefined) ?? {}) };
+        config[SIGNING_TEMPLATE_WORKFLOW_KEY] = template;
+        return { ...step, config };
+      })
+    );
+  }, []);
+
   /** Upload pending image to S3 and write s3Key into the financing type step. Mutates nextSteps. Returns s3Key if uploaded. */
   const uploadImageAndMerge = async (
     productId: string,
@@ -325,6 +345,25 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
             template: { s3_key: s3Key, file_name: file.name, file_size: file.size },
           };
           step.config = config;
+        }
+        continue;
+      }
+      if (categoryKey === "signing_template_document") {
+        const firstIdx = nextSteps.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY);
+        if (firstIdx >= 0) {
+          const step = nextSteps[firstIdx] as Record<string, unknown>;
+          const config = { ...((step.config ?? {}) as Record<string, unknown>) };
+          const template = parseSigningTemplateConfig(config[SIGNING_TEMPLATE_WORKFLOW_KEY]);
+          const documents = [...template.documents];
+          const document = documents[index];
+          if (document) {
+            documents[index] = {
+              ...document,
+              template: { s3_key: s3Key, file_name: file.name, file_size: file.size },
+            };
+            config[SIGNING_TEMPLATE_WORKFLOW_KEY] = { ...template, documents };
+            step.config = config;
+          }
         }
         continue;
       }
@@ -593,8 +632,11 @@ const hasChanges = !isEdit
       initialById.set(getStepId(s), s);
     }
     const hasPendingImage = Boolean(pendingImageFile ?? pendingImageFileRef.current);
+    const pendingSigningTemplates = Object.keys(pendingSupportingDocTemplates).filter((k) =>
+      k.startsWith("signing_template_document_")
+    );
     const pendingSupportingOnly = Object.keys(pendingSupportingDocTemplates).filter(
-      (k) => !k.startsWith("guarantor_agreement_")
+      (k) => !k.startsWith("guarantor_agreement_") && !k.startsWith("signing_template_document_")
     );
     const pendingGuarantorAgreementOnly = Object.keys(pendingSupportingDocTemplates).filter((k) =>
       k.startsWith("guarantor_agreement_")
@@ -604,7 +646,7 @@ const hasChanges = !isEdit
       const step = steps[i];
       const stepId = getStepId(step);
       const stepKey = getStepKeyFromStepId(stepId);
-      if (stepKey === FIRST_STEP_KEY && hasPendingImage) {
+      if (stepKey === FIRST_STEP_KEY && (hasPendingImage || pendingSigningTemplates.length > 0)) {
         edited.add(stepId);
         continue;
       }
@@ -812,6 +854,11 @@ const hasChanges = !isEdit
                   )}
                 </div>
               </div>
+
+              <SigningPackageConfig
+                config={getSigningTemplateConfig()}
+                onChange={handleSigningTemplateChange}
+              />
 
               {/* Offer settings — below workflow steps, card layout to match workflow container */}
               <div

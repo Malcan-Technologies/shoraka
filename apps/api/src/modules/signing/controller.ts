@@ -12,6 +12,7 @@ import { signingService } from "./service";
 import {
   createIssuerEnvelopeSchema,
   voidEnvelopeSchema,
+  startExternalSigningSchema,
   startSigningSchema,
 } from "./schemas";
 
@@ -112,6 +113,30 @@ async function startSigning(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+async function getExternalEnvelope(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(res, await signingService.getEnvelopeForExternalToken(req.params.accessToken));
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function startExternalSigning(req: Request, res: Response, next: NextFunction) {
+  try {
+    const body = startExternalSigningSchema.parse(req.body);
+    ok(
+      res,
+      await signingService.startRecipientSigningForExternalToken({
+        accessToken: req.params.accessToken,
+        documentId: body.documentId,
+        redirectUrl: body.redirectUrl ?? null,
+      })
+    );
+  } catch (e) {
+    next(e);
+  }
+}
+
 /** Admin-only lifecycle routes (mount under an ADMIN-gated path). */
 export function createSigningAdminRouter(): Router {
   const router = Router();
@@ -137,6 +162,8 @@ export function createSigningAdminRouter(): Router {
 /** Authenticated issuer routes: read envelope + sign my part. */
 export function createSigningRouter(): Router {
   const router = Router();
+  router.get("/external/:accessToken", getExternalEnvelope);
+  router.post("/external/:accessToken/start-signing", startExternalSigning);
   router.post("/applications/:applicationId/envelopes", requireAuth, createIssuerEnvelope);
   router.get("/envelopes/:id", requireAuth, getEnvelope);
   router.get("/applications/:applicationId/envelopes", requireAuth, listEnvelopes);

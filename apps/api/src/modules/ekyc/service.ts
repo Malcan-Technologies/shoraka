@@ -6,6 +6,7 @@ import { prisma } from "../../lib/prisma";
 import { parseConfirmedEkycName } from "./confirmed-identity";
 import {
   parseIssuerEkycIcNumber,
+  assertIssuerOrganizationAccessForEkyc,
   resolveIssuerEkycIdentityForOrganization,
 } from "./resolve-issuer-ekyc-identity";
 import {
@@ -123,7 +124,7 @@ class EkycService {
     userId: string,
     issuerOrganizationId: string,
     icNumberInput: string
-  ): Promise<{ name: string }> {
+  ): Promise<{ name: string; email: string }> {
     const identity = await resolveIssuerEkycIdentityForOrganization(
       userId,
       issuerOrganizationId,
@@ -132,6 +133,7 @@ class EkycService {
 
     return {
       name: identity.name,
+      email: identity.email,
     };
   }
 
@@ -142,12 +144,13 @@ class EkycService {
         status: SigningCloudEkycStatus.verified,
       },
       orderBy: { completed_at: "desc" },
-      select: { completed_at: true },
+      select: { completed_at: true, email: true },
     });
 
     return {
       completed: record != null,
       completedAt: record?.completed_at?.toISOString() ?? null,
+      verifiedEmail: record?.email ?? null,
     };
   }
 
@@ -158,19 +161,40 @@ class EkycService {
     confirmedNameInput: string,
     options?: { force?: boolean }
   ): Promise<EkycSession> {
-    const force = options?.force === true;
-    const confirmedName = parseConfirmedEkycName(confirmedNameInput);
-    if (!confirmedName) {
-      throw new AppError(400, "VALIDATION_ERROR", "Full name is required when confirming identity");
-    }
-
     const icNumber = parseIssuerEkycIcNumber(icNumberInput);
     const orgIdentity = await resolveIssuerEkycIdentityForOrganization(
       userId,
       issuerOrganizationId,
       icNumber
     );
-    const workEmail = orgIdentity.email;
+
+    return this.createSessionForWorkEmail(userId, {
+      issuerOrganizationId,
+      workEmail: orgIdentity.email,
+      icNumber,
+      confirmedNameInput,
+      force: options?.force,
+    });
+  }
+
+  private async createSessionForWorkEmail(
+    userId: string,
+    input: {
+      issuerOrganizationId: string;
+      workEmail: string;
+      icNumber: string;
+      confirmedNameInput: string;
+      force?: boolean;
+    }
+  ): Promise<EkycSession> {
+    const force = input.force === true;
+    const confirmedName = parseConfirmedEkycName(input.confirmedNameInput);
+    if (!confirmedName) {
+      throw new AppError(400, "VALIDATION_ERROR", "Full name is required when confirming identity");
+    }
+
+    const workEmail = input.workEmail.trim().toLowerCase();
+    const icNumber = input.icNumber;
 
     const existing = await prisma.signingCloudEkyc.findUnique({
       where: {
@@ -199,7 +223,7 @@ class EkycService {
       existing?.status === SigningCloudEkycStatus.pending &&
       existing.session_token &&
       existing.sdk_endpoint &&
-      existing.issuer_organization_id === issuerOrganizationId &&
+      existing.issuer_organization_id === input.issuerOrganizationId &&
       existing.confirmed_ic_number === icNumber &&
       boundNameMatches(existing.confirmed_name, confirmedName) &&
       isPendingSessionFresh(existing.updated_at)
@@ -207,7 +231,7 @@ class EkycService {
       await prisma.signingCloudEkyc.update({
         where: { id: existing.id },
         data: {
-          issuer_organization_id: issuerOrganizationId,
+          issuer_organization_id: input.issuerOrganizationId,
           confirmed_name: confirmedName,
           confirmed_ic_number: icNumber,
         },
@@ -231,7 +255,7 @@ class EkycService {
       create: {
         user_id: userId,
         email: workEmail,
-        issuer_organization_id: issuerOrganizationId,
+        issuer_organization_id: input.issuerOrganizationId,
         confirmed_name: confirmedName,
         confirmed_ic_number: icNumber,
         doc_type: EKYC_DOC_TYPE,
@@ -242,7 +266,7 @@ class EkycService {
         completed_at: null,
       },
       update: {
-        issuer_organization_id: issuerOrganizationId,
+        issuer_organization_id: input.issuerOrganizationId,
         confirmed_name: confirmedName,
         confirmed_ic_number: icNumber,
         doc_type: EKYC_DOC_TYPE,

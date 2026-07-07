@@ -5,6 +5,7 @@ import { logger } from "../logger";
 export const JOB_LOCK_KEYS = {
   GATEWAY_STUCK_ORDER_POLLER: 9_001_001,
   GATEWAY_SETTLEMENT_RECON: 9_001_002,
+  SIGNING_ENVELOPE_EXPIRY: 9_001_003,
 } as const;
 
 /**

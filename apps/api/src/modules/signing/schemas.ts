@@ -42,6 +42,11 @@ export const startSigningSchema = z.object({
   redirectUrl: z.string().url().nullish(),
 });
 
+export const startExternalSigningSchema = z.object({
+  documentId: z.string().min(1),
+  redirectUrl: z.string().url().nullish(),
+});
+
 export type CreateEnvelopeBody = z.infer<typeof createEnvelopeSchema>;
 export type CreateIssuerEnvelopeBody = z.infer<typeof createIssuerEnvelopeSchema>;
 export type StartSigningBody = z.infer<typeof startSigningSchema>;

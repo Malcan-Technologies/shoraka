@@ -21,8 +21,6 @@ export type SigningEnvelopeStatus =
   | "VOIDED"
   | "EXPIRED";
 
-export type SigningRoutingMode = "SEQUENTIAL" | "PARALLEL";
-
 export type SigningDocumentSource =
   | "GENERATED_OFFER_LETTER"
   | "ADMIN_UPLOAD"
@@ -68,7 +66,7 @@ export interface SigningTemplateRole {
   label: string;
   party_type: SigningPartyType;
   source_hint: SigningRoleSourceHint;
-  /** Lower runs first when routing_mode is SEQUENTIAL. */
+  /** Display order for roles in admin UI (does not gate signing). */
   routing_order: number;
   kyc_required: boolean;
   /** Minimum number of people that must be bound to this role at send time. */
@@ -96,14 +94,12 @@ export interface SigningTemplateDocument {
 
 export interface SigningTemplateConfig {
   enabled: boolean;
-  routing_mode: SigningRoutingMode;
   roles: SigningTemplateRole[];
   documents: SigningTemplateDocument[];
 }
 
 export const DEFAULT_SIGNING_TEMPLATE_CONFIG: SigningTemplateConfig = {
   enabled: false,
-  routing_mode: "PARALLEL",
   roles: [],
   documents: [],
 };
@@ -209,7 +205,6 @@ export function parseSigningTemplateConfig(raw: unknown): SigningTemplateConfig 
   const documents = Array.isArray(r.documents) ? r.documents.map(parseTemplateDocument) : [];
   return {
     enabled: r.enabled === true,
-    routing_mode: r.routing_mode === "SEQUENTIAL" ? "SEQUENTIAL" : "PARALLEL",
     roles,
     documents: [...documents].sort((a, b) => a.order - b.order),
   };
@@ -310,7 +305,6 @@ export interface PlannedAssignment {
 }
 
 export interface EnvelopePlan {
-  routing_mode: SigningRoutingMode;
   documents: PlannedDocument[];
   recipients: PlannedRecipient[];
   assignments: PlannedAssignment[];
@@ -428,7 +422,6 @@ export function buildEnvelopePlanFromTemplate(
   }
 
   return {
-    routing_mode: template.routing_mode,
     documents,
     recipients,
     assignments,
@@ -480,13 +473,64 @@ export interface SigningEnvelopeDto {
   invoice_id: string | null;
   title: string;
   status: SigningEnvelopeStatus;
-  routing_mode: SigningRoutingMode;
   expires_at: string | null;
   sent_at: string | null;
   completed_at: string | null;
   documents: SigningDocumentDto[];
   recipients: SigningRecipientDto[];
   assignments: SigningAssignmentDto[];
+}
+
+export interface ExternalSigningSessionDto {
+  envelope: SigningEnvelopeDto;
+  recipient_id: string;
+}
+
+export function normalizeSigningEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/** True when a recipient slot belongs to the authenticated user. */
+export function signingRecipientEmailMatchesUser(
+  recipientEmail: string,
+  userEmail: string
+): boolean {
+  const normalizedUser = normalizeSigningEmail(userEmail);
+  if (!normalizedUser) return false;
+  return normalizeSigningEmail(recipientEmail) === normalizedUser;
+}
+
+/** Next unsigned assignment for the current user's email (document order, not routing order). */
+export function findUnsignedSigningAssignmentForUser(
+  envelope: Pick<SigningEnvelopeDto, "documents" | "recipients" | "assignments">,
+  userEmail: string
+): { document: SigningDocumentDto; recipient: SigningRecipientDto } | null {
+  const normalizedUser = normalizeSigningEmail(userEmail);
+  if (!normalizedUser) return null;
+
+  const recipientById = new Map(envelope.recipients.map((recipient) => [recipient.id, recipient]));
+  const documentById = new Map(envelope.documents.map((document) => [document.id, document]));
+
+  const pendingAssignments = envelope.assignments
+    .filter((assignment) => {
+      if (assignment.action !== "SIGN" || assignment.status === "SIGNED") return false;
+      const recipient = recipientById.get(assignment.recipient_id);
+      return recipient && normalizeSigningEmail(recipient.email) === normalizedUser;
+    })
+    .sort((left, right) => {
+      const leftOrder = documentById.get(left.document_id)?.order ?? 0;
+      const rightOrder = documentById.get(right.document_id)?.order ?? 0;
+      return leftOrder - rightOrder;
+    });
+
+  const assignment = pendingAssignments[0];
+  if (!assignment) return null;
+
+  const document = documentById.get(assignment.document_id);
+  const recipient = recipientById.get(assignment.recipient_id);
+  if (!document || !recipient) return null;
+
+  return { document, recipient };
 }
 
 // ---------------------------------------------------------------------------

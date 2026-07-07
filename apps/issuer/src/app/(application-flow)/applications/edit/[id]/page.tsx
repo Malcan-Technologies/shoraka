@@ -47,7 +47,7 @@ import {
   useResubmitApplication,
 } from "@/hooks/use-applications";
 import { useApprovedContracts } from "@/hooks/use-contracts";
-import { useProducts } from "@/hooks/use-products";
+import { useIssuerProducts } from "@/hooks/use-products";
 import { toast } from "sonner";
 import {
   filterVisiblePeopleRows,
@@ -198,7 +198,7 @@ function EditApplicationPageBody() {
   } = useApplication(applicationId);
 
   /** Load products to get workflow steps (only on mount, not on every step change) */
-  const { data: productsData, isLoading: isLoadingProducts } = useProducts({
+  const { data: productsData, isLoading: isLoadingProducts } = useIssuerProducts({
     page: 1,
     pageSize: 100,
   });

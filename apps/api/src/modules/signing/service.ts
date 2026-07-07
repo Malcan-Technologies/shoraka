@@ -17,18 +17,28 @@ import {
   ApplicationStatus,
   ContractStatus,
   InvoiceStatus,
+  type ExternalSigningSessionDto,
   type RecipientBinding,
   type SigningEnvelopeDto,
   type SigningTemplateConfig,
+  signingRecipientEmailMatchesUser,
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
+import { sendEmail } from "../../lib/email/ses-client";
 import { getS3ObjectBuffer, putS3ObjectBuffer } from "../../lib/s3/client";
 import { ProductRepository } from "../products/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { OrganizationService } from "../organization/service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
 import { assertRequiredPostApplicationSupportingDocumentsPresent } from "../applications/supporting-docs-workflow";
+import {
+  generateContractOfferLetterBuffer,
+  generateInvoiceOfferLetterBuffer,
+  type OfferLetterSignatory,
+} from "../applications/offer-letter-pdf";
+import { applicationService } from "../applications/service";
+import { requireCompletedSigningCloudEkycForOrganization } from "../ekyc/service";
 import {
   signingRepository,
   type SigningApplicationContext,
@@ -40,6 +50,21 @@ import type { SigningProvider } from "./provider/adapter";
 
 /** How long an external recipient's no-auth signing link stays valid. */
 const EXTERNAL_ACCESS_TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+
+function buildExternalSigningUrl(accessToken: string): string | null {
+  const issuerUrl = process.env.ISSUER_URL?.trim().replace(/\/$/, "");
+  if (!issuerUrl) return null;
+  return `${issuerUrl}/signing/external/${encodeURIComponent(accessToken)}`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 export interface CreateDraftEnvelopeInput {
   applicationId: string;
@@ -350,6 +375,35 @@ export class SigningService {
     return this.listEnvelopesForApplication(applicationId);
   }
 
+  private async requireExternalTokenSession(accessToken: string): Promise<{
+    envelope: SigningEnvelopeWithGraph;
+    recipientId: string;
+  }> {
+    const resolved = await this.repo.findEnvelopeByRecipientAccessToken(accessToken);
+    if (!resolved) {
+      throw new AppError(404, "SIGNING_LINK_NOT_FOUND", "Signing link not found.");
+    }
+    const recipient = resolved.envelope.recipients.find((item) => item.id === resolved.recipientId);
+    if (!recipient || recipient.party_type !== "EXTERNAL") {
+      throw new AppError(403, "SIGNING_LINK_INVALID", "Signing link is not valid for this recipient.");
+    }
+    if (
+      recipient.access_token_expires_at &&
+      recipient.access_token_expires_at.getTime() < Date.now()
+    ) {
+      throw new AppError(410, "SIGNING_LINK_EXPIRED", "This signing link has expired.");
+    }
+    if (["VOIDED", "DECLINED", "EXPIRED", "COMPLETED"].includes(resolved.envelope.status)) {
+      throw new AppError(409, "SIGNING_ENVELOPE_CLOSED", "This signing package is closed.");
+    }
+    return resolved;
+  }
+
+  async getEnvelopeForExternalToken(accessToken: string): Promise<ExternalSigningSessionDto> {
+    const { envelope, recipientId } = await this.requireExternalTokenSession(accessToken);
+    return { envelope: mapSigningEnvelopeToDto(envelope), recipient_id: recipientId };
+  }
+
   private async requireEnvelope(id: string): Promise<SigningEnvelopeWithGraph> {
     const envelope = await this.repo.findById(id);
     if (!envelope) {
@@ -370,24 +424,50 @@ export class SigningService {
     }
 
     const recipientById = new Map(envelope.recipients.map((r) => [r.id, r]));
+    const application = await this.requireApplicationContext(envelope.application_id);
 
     for (const document of [...envelope.documents].sort((a, b) => a.order - b.order)) {
       const docAssignments = envelope.assignments.filter((a) => a.document_id === document.id);
       if (docAssignments.length === 0) continue;
-      if (!document.unsigned_s3_key) {
+
+      let signsetsByAssignmentId = new Map<string, unknown>();
+      let unsignedS3Key = document.unsigned_s3_key;
+
+      if (document.source === "GENERATED_OFFER_LETTER") {
+        const materialized = await this.materializeGeneratedOfferLetter(
+          envelope,
+          document.id,
+          application,
+          docAssignments,
+          recipientById
+        );
+        unsignedS3Key = materialized.s3Key;
+        signsetsByAssignmentId = materialized.signsetsByAssignmentId;
+      } else {
         throw new AppError(
           422,
-          "SIGNING_DOCUMENT_NOT_READY",
-          `Document "${document.name}" has no file to sign. Upload or generate it before sending.`
+          "SIGNING_DOCUMENT_NOT_SUPPORTED",
+          `Document "${document.name}" is not supported yet. Use a generated offer letter template.`
         );
       }
 
-      const pdfBuffer = await getS3ObjectBuffer(document.unsigned_s3_key);
-      const signers = docAssignments
-        .map((a) => recipientById.get(a.recipient_id))
-        .filter((r): r is NonNullable<typeof r> => Boolean(r))
-        .sort((a, b) => a.routing_order - b.routing_order)
-        .map((r) => ({ email: r.email }));
+      if (!unsignedS3Key) {
+        throw new AppError(
+          422,
+          "SIGNING_DOCUMENT_NOT_READY",
+          `Document "${document.name}" has no file to sign.`
+        );
+      }
+
+      const pdfBuffer = await getS3ObjectBuffer(unsignedS3Key);
+      const orderedAssignments = this.orderDocumentAssignments(docAssignments, recipientById);
+      const signers = orderedAssignments.map(({ assignment, recipient }) => ({
+        email: recipient.email,
+        signset:
+          signsetsByAssignmentId.get(assignment.id) ??
+          assignment.signset ??
+          undefined,
+      }));
 
       const { providerRef } = await this.provider.createDocumentContract({
         pdfBuffer,
@@ -401,16 +481,131 @@ export class SigningService {
     const expiresAt = new Date(Date.now() + EXTERNAL_ACCESS_TOKEN_TTL_MS);
     for (const recipient of envelope.recipients) {
       if (recipient.party_type === "EXTERNAL" && !recipient.access_token) {
+        const accessToken = crypto.randomBytes(32).toString("hex");
         await this.repo.setRecipientAccessToken(
           recipient.id,
-          crypto.randomBytes(32).toString("hex"),
+          accessToken,
           expiresAt
         );
+        await this.sendExternalSigningEmail({
+          envelope,
+          recipientEmail: recipient.email,
+          recipientName: recipient.name,
+          accessToken,
+          isReminder: false,
+        });
       }
     }
 
     await this.repo.markEnvelopeSent(id);
     return this.getEnvelope(id);
+  }
+
+  private orderDocumentAssignments(
+    docAssignments: SigningEnvelopeWithGraph["assignments"],
+    recipientById: Map<string, SigningEnvelopeWithGraph["recipients"][number]>
+  ): Array<{
+    assignment: SigningEnvelopeWithGraph["assignments"][number];
+    recipient: SigningEnvelopeWithGraph["recipients"][number];
+  }> {
+    return docAssignments
+      .map((assignment) => {
+        const recipient = recipientById.get(assignment.recipient_id);
+        return recipient ? { assignment, recipient } : null;
+      })
+      .filter(
+        (
+          row
+        ): row is {
+          assignment: SigningEnvelopeWithGraph["assignments"][number];
+          recipient: SigningEnvelopeWithGraph["recipients"][number];
+        } => row != null
+      )
+      .sort((a, b) => {
+        const orderDiff = a.recipient.routing_order - b.recipient.routing_order;
+        if (orderDiff !== 0) return orderDiff;
+        return a.recipient.name.localeCompare(b.recipient.name);
+      });
+  }
+
+  private resolveOfferLetterSignatories(
+    docAssignments: SigningEnvelopeWithGraph["assignments"],
+    recipientById: Map<string, SigningEnvelopeWithGraph["recipients"][number]>
+  ): OfferLetterSignatory[] {
+    return this.orderDocumentAssignments(docAssignments, recipientById).map(({ recipient }) => ({
+      name: recipient.name,
+      email: recipient.email,
+    }));
+  }
+
+  private async materializeGeneratedOfferLetter(
+    envelope: SigningEnvelopeWithGraph,
+    documentId: string,
+    application: SigningApplicationContext,
+    docAssignments: SigningEnvelopeWithGraph["assignments"],
+    recipientById: Map<string, SigningEnvelopeWithGraph["recipients"][number]>
+  ): Promise<{ s3Key: string; signsetsByAssignmentId: Map<string, unknown> }> {
+    const signatories = this.resolveOfferLetterSignatories(docAssignments, recipientById);
+    if (signatories.length === 0) {
+      throw new AppError(
+        422,
+        "SIGNING_DOCUMENT_NOT_READY",
+        "Generated offer letter requires at least one signer."
+      );
+    }
+
+    const orderedAssignments = this.orderDocumentAssignments(docAssignments, recipientById);
+    let generated: Awaited<ReturnType<typeof generateContractOfferLetterBuffer>>;
+
+    if (envelope.invoice_id) {
+      const invoice = application.invoices.find((item) => item.id === envelope.invoice_id);
+      if (!invoice?.offer_details || typeof invoice.offer_details !== "object") {
+        throw new AppError(400, "INVALID_STATE", "Invoice offer details are not available.");
+      }
+      generated = await generateInvoiceOfferLetterBuffer(
+        invoice.id,
+        invoice.offer_details as Record<string, unknown>,
+        signatories
+      );
+    } else if (envelope.contract_id) {
+      const contract = application.contract;
+      if (
+        !contract ||
+        contract.id !== envelope.contract_id ||
+        !contract.offer_details ||
+        typeof contract.offer_details !== "object"
+      ) {
+        throw new AppError(400, "INVALID_STATE", "Contract offer details are not available.");
+      }
+      generated = await generateContractOfferLetterBuffer(
+        contract.id,
+        contract.offer_details as Record<string, unknown>,
+        signatories
+      );
+    } else {
+      throw new AppError(400, "INVALID_STATE", "Generated offer letter needs a contract or invoice target.");
+    }
+
+    if (generated.signsets.length !== orderedAssignments.length) {
+      throw new AppError(
+        500,
+        "SIGNING_LAYOUT_ERROR",
+        "Offer letter signature layout does not match signer count."
+      );
+    }
+
+    const signsetsByAssignmentId = new Map<string, unknown>();
+    for (let index = 0; index < orderedAssignments.length; index += 1) {
+      const signset = generated.signsets[index];
+      const { assignment } = orderedAssignments[index];
+      signsetsByAssignmentId.set(assignment.id, signset);
+      await this.repo.setAssignmentSignset(assignment.id, signset);
+    }
+
+    const s3Key = `applications/${envelope.application_id}/signing/${envelope.id}/unsigned/${documentId}.pdf`;
+    await putS3ObjectBuffer({ key: s3Key, body: generated.pdfBuffer, contentType: "application/pdf" });
+    await this.repo.setDocumentUnsignedS3Key(documentId, s3Key);
+    return { s3Key, signsetsByAssignmentId };
   }
 
   async sendEnvelopeForIssuer(id: string, userId: string): Promise<SigningEnvelopeDto> {
@@ -438,6 +633,18 @@ export class SigningService {
     if (!document || !recipient) {
       throw new AppError(404, "SIGNING_ASSIGNMENT_NOT_FOUND", "Document or recipient not found.");
     }
+    const assignment = envelope.assignments.find(
+      (item) =>
+        item.document_id === document.id &&
+        item.recipient_id === recipient.id &&
+        item.action === "SIGN"
+    );
+    if (!assignment) {
+      throw new AppError(404, "SIGNING_ASSIGNMENT_NOT_FOUND", "This recipient does not sign this document.");
+    }
+    if (assignment.status === "SIGNED") {
+      throw new AppError(409, "SIGNING_ASSIGNMENT_COMPLETE", "This signing step is already complete.");
+    }
     if (!document.provider_contract_ref) {
       throw new AppError(409, "SIGNING_DOCUMENT_NOT_SENT", "This document has not been sent yet.");
     }
@@ -461,7 +668,42 @@ export class SigningService {
     const application = await this.requireApplicationContext(envelope.application_id);
     await this.assertIssuerApplicationAccess(application, input.userId);
     await this.assertPostApplicationDocumentsReady(application);
+    const { workEmail } = await requireCompletedSigningCloudEkycForOrganization(
+      input.userId,
+      application.issuer_organization_id
+    );
+    const recipient = envelope.recipients.find((item) => item.id === input.recipientId);
+    if (recipient?.party_type === "EXTERNAL") {
+      throw new AppError(
+        403,
+        "EXTERNAL_SIGNER_TOKEN_REQUIRED",
+        "External recipients must use their secure signing link."
+      );
+    }
+    if (!recipient || !signingRecipientEmailMatchesUser(recipient.email, workEmail)) {
+      throw new AppError(
+        403,
+        "SIGNING_RECIPIENT_MISMATCH",
+        "This signer slot does not match your verified identity email for this organization."
+      );
+    }
     return this.startRecipientSigning(input);
+  }
+
+  async startRecipientSigningForExternalToken(input: {
+    accessToken: string;
+    documentId: string;
+    redirectUrl?: string | null;
+    callbackUrl?: string | null;
+  }): Promise<{ signingUrl: string }> {
+    const { envelope, recipientId } = await this.requireExternalTokenSession(input.accessToken);
+    return this.startRecipientSigning({
+      envelopeId: envelope.id,
+      recipientId,
+      documentId: input.documentId,
+      redirectUrl: input.redirectUrl ?? null,
+      callbackUrl: input.callbackUrl ?? null,
+    });
   }
 
   /**
@@ -538,7 +780,38 @@ export class SigningService {
         nextEnvelopeStatus,
         nextEnvelopeStatus === "COMPLETED"
       );
+      if (nextEnvelopeStatus === "COMPLETED") {
+        await this.finalizeCompletedEnvelopeOffer(envelope);
+      }
     }
+  }
+
+  private async finalizeCompletedEnvelopeOffer(envelope: SigningEnvelopeWithGraph): Promise<void> {
+    const initiatedByUserId = envelope.created_by_user_id;
+    if (!initiatedByUserId) {
+      logger.warn({ envelopeId: envelope.id }, "Skipping offer finalization for envelope without creator");
+      return;
+    }
+    const signedDocument =
+      envelope.documents.find((document) => document.source === "GENERATED_OFFER_LETTER" && document.signed_s3_key) ??
+      envelope.documents.find((document) => document.signed_s3_key);
+    if (!signedDocument?.signed_s3_key || !signedDocument.signed_file_sha256) {
+      logger.warn({ envelopeId: envelope.id }, "Skipping offer finalization because no signed document is available");
+      return;
+    }
+
+    const result = await applicationService.finalizeOfferAfterEnvelopeCompletion({
+      applicationId: envelope.application_id,
+      contractId: envelope.contract_id,
+      invoiceId: envelope.invoice_id,
+      initiatedByUserId,
+      signedOfferLetterS3Key: signedDocument.signed_s3_key,
+      signedFileSha256: signedDocument.signed_file_sha256,
+    });
+    logger.info(
+      { envelopeId: envelope.id, skipped: result.skipped },
+      "Processed offer finalization after signing envelope completion"
+    );
   }
 
   async voidEnvelope(id: string, reason: string | null): Promise<SigningEnvelopeDto> {
@@ -556,7 +829,63 @@ export class SigningService {
     if (!recipient) {
       throw new AppError(404, "SIGNING_RECIPIENT_NOT_FOUND", "Recipient not found.");
     }
+    if (recipient.party_type === "EXTERNAL") {
+      const accessToken = recipient.access_token ?? crypto.randomBytes(32).toString("hex");
+      if (!recipient.access_token) {
+        await this.repo.setRecipientAccessToken(
+          recipient.id,
+          accessToken,
+          new Date(Date.now() + EXTERNAL_ACCESS_TOKEN_TTL_MS)
+        );
+      }
+      await this.sendExternalSigningEmail({
+        envelope,
+        recipientEmail: recipient.email,
+        recipientName: recipient.name,
+        accessToken,
+        isReminder: true,
+      });
+    }
     await this.repo.touchRecipientReminder(recipientId);
+  }
+
+  private async sendExternalSigningEmail(input: {
+    envelope: SigningEnvelopeWithGraph;
+    recipientEmail: string;
+    recipientName: string;
+    accessToken: string;
+    isReminder: boolean;
+  }): Promise<void> {
+    const signingUrl = buildExternalSigningUrl(input.accessToken);
+    if (!signingUrl) {
+      logger.warn(
+        { envelopeId: input.envelope.id, recipientEmail: input.recipientEmail },
+        "Skipping external signing email because ISSUER_URL is not configured"
+      );
+      return;
+    }
+
+    try {
+      const title = input.envelope.title || "CashSouk signing package";
+      const safeTitle = escapeHtml(title);
+      const safeName = escapeHtml(input.recipientName || "there");
+      await sendEmail({
+        to: input.recipientEmail,
+        subject: input.isReminder ? `Reminder: ${title}` : `Signature requested: ${title}`,
+        html: `
+          <p>Hi ${safeName},</p>
+          <p>You have been asked to sign <strong>${safeTitle}</strong>.</p>
+          <p><a href="${signingUrl}">Open secure signing link</a></p>
+          <p>This link is unique to you. Do not forward it.</p>
+        `,
+        text: `Hi ${input.recipientName || "there"},\n\nYou have been asked to sign ${title}.\n\nOpen your secure signing link: ${signingUrl}\n\nThis link is unique to you. Do not forward it.`,
+      });
+    } catch (error) {
+      logger.error(
+        { error, envelopeId: input.envelope.id, recipientEmail: input.recipientEmail },
+        "Failed to send external signing email"
+      );
+    }
   }
 }
 

@@ -62,7 +62,7 @@ import {
   issuerFieldFocusClassName,
 } from "@/lib/issuer-input-chrome";
 import { useQueryClient } from "@tanstack/react-query";
-import { useProducts } from "@/hooks/use-products";
+import { useIssuerProducts } from "@/hooks/use-products";
 import {
   applicationFlowAmendmentTargetTableRowClassName,
   applicationFlowLockedTableRowClassName,
@@ -315,7 +315,7 @@ export default function InvoiceDetailsStep({
   const [isInitialized, setIsInitialized] = React.useState(false);
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
-  const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
+  const { data: productsData } = useIssuerProducts({ page: 1, pageSize: 100 });
 
   /** Parse remark text: split by /n for bullets, else by newline. Returns trimmed non-empty lines. */
   const parseRemarkBullets = React.useCallback((text: string): string[] => {

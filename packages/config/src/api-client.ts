@@ -2,6 +2,7 @@ import type {
   ApiResponse,
   ApiError,
   SigningEnvelopeDto,
+  ExternalSigningSessionDto,
   RecipientBinding,
   GetUsersParams,
   UsersResponse,
@@ -2009,6 +2010,10 @@ export class ApiClient {
     return this.get<GetProductsResponse>(`/v1/issuer/products?${queryParams.toString()}`);
   }
 
+  async getIssuerProduct(id: string): Promise<ApiResponse<Product> | ApiError> {
+    return this.get<Product>(`/v1/issuer/products/${encodeURIComponent(id)}`);
+  }
+
   async getIssuerProductLiveCheck(
     productId: string
   ): Promise<ApiResponse<IssuerProductLiveCheck> | ApiError> {
@@ -2134,25 +2139,28 @@ export class ApiClient {
 
   // --- Multi-party signing envelopes ---
 
-  /** Admin: build a draft envelope from a product signing template + bound recipients. */
-  async createSigningEnvelope(input: {
-    applicationId: string;
-    title: string;
-    contractId?: string | null;
-    invoiceId?: string | null;
-    productVersion?: number | null;
-    templateConfig: unknown;
-    bindings: RecipientBinding[];
-    expiresAt?: string | null;
-  }): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
-    return this.post<SigningEnvelopeDto>(`/v1/admin/signing/envelopes`, input);
+  /** Issuer: create a draft envelope from the application's product signing template. */
+  async createIssuerSigningEnvelope(
+    applicationId: string,
+    input: {
+      title?: string | null;
+      contractId?: string | null;
+      invoiceId?: string | null;
+      bindings: RecipientBinding[];
+      expiresAt?: string | null;
+    }
+  ): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
+    return this.post<SigningEnvelopeDto>(
+      `/v1/signing/applications/${applicationId}/envelopes`,
+      input
+    );
   }
 
-  /** Admin: send a draft envelope to all recipients. */
-  async sendSigningEnvelope(
+  /** Issuer: send a draft envelope after post-application document gates pass. */
+  async sendIssuerSigningEnvelope(
     envelopeId: string
   ): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
-    return this.post<SigningEnvelopeDto>(`/v1/admin/signing/envelopes/${envelopeId}/send`, {});
+    return this.post<SigningEnvelopeDto>(`/v1/signing/envelopes/${envelopeId}/send`, {});
   }
 
   /** Admin: void an envelope. */
@@ -2206,6 +2214,24 @@ export class ApiClient {
   ): Promise<ApiResponse<{ signingUrl: string }> | ApiError> {
     return this.post<{ signingUrl: string }>(
       `/v1/signing/envelopes/${envelopeId}/start-signing`,
+      input
+    );
+  }
+
+  /** External no-auth recipient: read package by secure token. */
+  async getExternalSigningEnvelope(
+    accessToken: string
+  ): Promise<ApiResponse<ExternalSigningSessionDto> | ApiError> {
+    return this.get<ExternalSigningSessionDto>(`/v1/signing/external/${accessToken}`);
+  }
+
+  /** External no-auth recipient: start their signing session by secure token. */
+  async startExternalEnvelopeSigning(
+    accessToken: string,
+    input: { documentId: string; redirectUrl?: string }
+  ): Promise<ApiResponse<{ signingUrl: string }> | ApiError> {
+    return this.post<{ signingUrl: string }>(
+      `/v1/signing/external/${accessToken}/start-signing`,
       input
     );
   }

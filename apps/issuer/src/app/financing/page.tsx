@@ -21,7 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
 import { useIssuerDashboard } from "@/hooks/use-issuer-dashboard";
-import { useProducts } from "@/hooks/use-products";
+import { useIssuerProducts } from "@/hooks/use-products";
 import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
 import type { IssuerDashboardContract, IssuerDashboardInvoice } from "@/types/issuer-dashboard";
 import { getOfferStatus } from "@/lib/offer-utils";
@@ -114,7 +114,7 @@ function IssuerFinancingPageContent() {
   };
 
   const { data: dashboard, isLoading, isError, error, refetch } = useIssuerDashboard(organizationId);
-  const { data: productsData } = useProducts({ page: 1, pageSize: 100, search: "", activeOnly: true });
+  const { data: productsData } = useIssuerProducts({ page: 1, pageSize: 100, search: "" });
   const products = React.useMemo<Product[]>(() => productsData?.products ?? [], [productsData]);
   const productNameMap = React.useMemo(() => buildProductNameMap(products), [products]);
 
@@ -141,8 +141,15 @@ function IssuerFinancingPageContent() {
   const [reloadSpin, setReloadSpin] = React.useState(false);
 
   type OfferContext =
-    | { type: "contract"; applicationId: string; contractId: string }
-    | { type: "invoice"; applicationId: string; contractId: string | null; invoiceId: string; invoice: NormalizedInvoice };
+    | { type: "contract"; applicationId: string; contractId: string; productId?: string | null }
+    | {
+        type: "invoice";
+        applicationId: string;
+        contractId: string | null;
+        invoiceId: string;
+        invoice: NormalizedInvoice;
+        productId?: string | null;
+      };
   const [offerModalContext, setOfferModalContext] = React.useState<OfferContext | null>(null);
 
   const toNormalizedInvoiceForOfferModal = (inv: Invoice): NormalizedInvoice => {
@@ -245,6 +252,7 @@ function IssuerFinancingPageContent() {
             type={offerModalContext.type}
             applicationId={offerModalContext.applicationId}
             issuerOrganizationId={activeOrganization?.id}
+            productId={offerModalContext.productId ?? null}
             contractId={offerModalContext.contractId ?? undefined}
             invoice={offerModalContext.type === "invoice" ? offerModalContext.invoice : undefined}
             onClose={() => setOfferModalContext(null)}
@@ -334,6 +342,7 @@ function IssuerFinancingPageContent() {
                             type: "contract",
                             applicationId: c.applicationId,
                             contractId: modalContract.id,
+                            productId: c.productId ?? null,
                           })
                         }
                       />
@@ -388,6 +397,7 @@ function IssuerFinancingPageContent() {
                             invoiceId: inv.id,
                             contractId: modalInvoice.contract_id ?? null,
                             invoice: toNormalizedInvoiceForOfferModal(modalInvoice),
+                            productId: inv.productId ?? null,
                           })
                         }
                       />

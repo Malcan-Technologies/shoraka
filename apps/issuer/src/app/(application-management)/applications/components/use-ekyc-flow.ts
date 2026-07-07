@@ -17,6 +17,7 @@ type GenerateSessionOptions = {
 export type EkycConfirmedIdentity = {
   name: string;
   icNumber: string;
+  email?: string;
 };
 
 type UseEkycFlowResult = {
@@ -153,9 +154,10 @@ export function useEkycFlow({
     setConfirmedIdentityState({
       name: identity.name.trim(),
       icNumber: identity.icNumber.replace(/\D/g, ""),
+      email: identity.email?.trim().toLowerCase() ?? identityPreview?.email?.trim().toLowerCase(),
     });
     reset();
-  }, [reset]);
+  }, [identityPreview?.email, reset]);
 
   const loadIdentityPreview = React.useCallback(
     async (icNumber: string) => {

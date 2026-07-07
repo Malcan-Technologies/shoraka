@@ -68,7 +68,6 @@ export function mapSigningEnvelopeToDto(envelope: SigningEnvelopeWithGraph): Sig
     invoice_id: envelope.invoice_id ?? null,
     title: envelope.title,
     status: envelope.status,
-    routing_mode: envelope.routing_mode,
     expires_at: envelope.expires_at ? envelope.expires_at.toISOString() : null,
     sent_at: envelope.sent_at ? envelope.sent_at.toISOString() : null,
     completed_at: envelope.completed_at ? envelope.completed_at.toISOString() : null,

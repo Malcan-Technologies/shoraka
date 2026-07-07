@@ -28,6 +28,7 @@ import {
   assertRequiredPostApplicationSupportingDocumentsPresent,
   assertRequiredSupportingDocumentsPresent,
   fileNameToSupportingDocTypeToken,
+  getGuarantorAgreementAllowedTypesFromProductWorkflow,
   getSupportingDocAllowedTypesFromProductWorkflow,
   getSupportingDocUploadTimingFromProductWorkflow,
 } from "./supporting-docs-workflow";
@@ -1204,6 +1205,7 @@ export class ApplicationService {
     existingS3Key?: string;
     supportingDocCategoryKey?: string;
     supportingDocIndex?: number;
+    guarantorAgreementUpload?: boolean;
     userId: string;
   }): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number }> {
     await this.verifyApplicationAccess(params.applicationId, params.userId);
@@ -1211,6 +1213,7 @@ export class ApplicationService {
     const isSupportingDocsWorkflowUpload =
       params.supportingDocCategoryKey !== undefined &&
       params.supportingDocIndex !== undefined;
+    const isGuarantorAgreementUpload = params.guarantorAgreementUpload === true;
     let workflow: unknown[] | null = null;
     if (isSupportingDocsWorkflowUpload) {
       workflow = await this.getProductWorkflowForApplication(application);
@@ -1224,6 +1227,9 @@ export class ApplicationService {
       } else {
         this.verifyApplicationEditable(application);
       }
+    } else if (isGuarantorAgreementUpload) {
+      workflow = await this.getProductWorkflowForApplication(application);
+      this.verifyApplicationEditable(application);
     } else {
       this.verifyApplicationEditable(application);
     }
@@ -1232,6 +1238,10 @@ export class ApplicationService {
       const { allowedSections } = await getAmendmentAllowedSections(params.applicationId);
       if (isSupportingDocsWorkflowUpload) {
         if (!allowedSections.has("supporting_documents")) {
+          throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
+        }
+      } else if (isGuarantorAgreementUpload) {
+        if (!allowedSections.has("business_details")) {
           throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
         }
       } else {
@@ -1251,6 +1261,8 @@ export class ApplicationService {
         params.supportingDocCategoryKey!,
         params.supportingDocIndex!
       );
+    } else if (isGuarantorAgreementUpload) {
+      allowedTypes = getGuarantorAgreementAllowedTypesFromProductWorkflow(workflow ?? []);
     } else {
       allowedTypes = ["pdf"];
     }
@@ -2697,6 +2709,63 @@ export class ApplicationService {
     }
 
     return { skipped: false };
+  }
+
+  async finalizeOfferAfterEnvelopeCompletion(input: {
+    applicationId: string;
+    contractId?: string | null;
+    invoiceId?: string | null;
+    initiatedByUserId: string;
+    signedOfferLetterS3Key: string;
+    signedFileSha256: string;
+  }): Promise<{ skipped: boolean }> {
+    if (!input.invoiceId && !input.contractId) {
+      throw new AppError(400, "INVALID_STATE", "Signing envelope is not linked to an offer.");
+    }
+
+    try {
+      if (input.invoiceId) {
+        await this.respondToInvoiceOffer(
+          input.applicationId,
+          input.invoiceId,
+          "accept",
+          input.initiatedByUserId,
+          undefined,
+          {
+            signingCompletion: {
+              signedOfferLetterS3Key: input.signedOfferLetterS3Key,
+              signedFileSha256: input.signedFileSha256,
+            },
+          }
+        );
+        return { skipped: false };
+      }
+
+      if (input.contractId) {
+        await this.respondToContractOffer(
+          input.applicationId,
+          "accept",
+          input.initiatedByUserId,
+          undefined,
+          {
+            signingCompletion: {
+              signedOfferLetterS3Key: input.signedOfferLetterS3Key,
+              signedFileSha256: input.signedFileSha256,
+            },
+          }
+        );
+        return { skipped: false };
+      }
+    } catch (e) {
+      if (
+        e instanceof AppError &&
+        (e.code === "ALREADY_RESPONDED" || e.code === "INVALID_STATE")
+      ) {
+        return { skipped: true };
+      }
+      throw e;
+    }
+    throw new AppError(400, "INVALID_STATE", "Signing envelope is not linked to an offer.");
   }
 
   private assertHasSignedOfferLetterPdf(os: Record<string, unknown> | null): string {

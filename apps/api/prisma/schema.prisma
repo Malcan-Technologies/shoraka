@@ -650,7 +650,6 @@ model SigningEnvelope {
   product_version    Int?
   title              String
   status             SigningEnvelopeStatus @default(DRAFT)
-  routing_mode       SigningRoutingMode    @default(PARALLEL)
   /// Admin (or system) that created/sent the envelope. Scalar audit reference to users.user_id.
   created_by_user_id String?               @db.VarChar(5)
   sent_at            DateTime?
@@ -2027,11 +2026,6 @@ enum SigningEnvelopeStatus {
   DECLINED
   VOIDED
   EXPIRED
-}
-
-enum SigningRoutingMode {
-  SEQUENTIAL
-  PARALLEL
 }
 
 enum SigningDocumentSource {

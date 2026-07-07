@@ -336,6 +336,7 @@ describe("EkycService.getIdentityPreview", () => {
       ekycService.getIdentityPreview("user-1", "org-issuer-1", "820508105871")
     ).resolves.toEqual({
       name: "LUCAS DENG",
+      email: "director@malcan.io",
     });
   });
 });
@@ -348,11 +349,13 @@ describe("EkycService.getMeStatus", () => {
   it("reports completed when any verified row exists", async () => {
     mockFindFirst.mockResolvedValue({
       completed_at: new Date("2026-06-16T00:00:00.000Z"),
+      email: "director@company.my",
     });
 
     await expect(ekycService.getMeStatus("user-1")).resolves.toEqual({
       completed: true,
       completedAt: "2026-06-16T00:00:00.000Z",
+      verifiedEmail: "director@company.my",
     });
 
     mockFindFirst.mockResolvedValue(null);
@@ -360,6 +363,7 @@ describe("EkycService.getMeStatus", () => {
     await expect(ekycService.getMeStatus("user-1")).resolves.toEqual({
       completed: false,
       completedAt: null,
+      verifiedEmail: null,
     });
   });
 });

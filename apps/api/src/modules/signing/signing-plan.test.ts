@@ -4,9 +4,12 @@ import {
   validateRecipientBindings,
   buildEnvelopePlanFromTemplate,
   computeSigningEnvelopeProgress,
+  findUnsignedSigningAssignmentForUser,
+  normalizeSigningEmail,
   rollupDocumentStatus,
   rollupRecipientStatus,
   rollupEnvelopeStatus,
+  signingRecipientEmailMatchesUser,
   type SigningTemplateConfig,
   type RecipientBinding,
   type SigningEnvelopeDto,
@@ -14,7 +17,6 @@ import {
 
 const TEMPLATE: SigningTemplateConfig = {
   enabled: true,
-  routing_mode: "SEQUENTIAL",
   roles: [
     {
       key: "borrower_director",
@@ -138,7 +140,6 @@ describe("buildEnvelopePlanFromTemplate", () => {
     ];
     const plan = buildEnvelopePlanFromTemplate(TEMPLATE, bindings);
 
-    expect(plan.routing_mode).toBe("SEQUENTIAL");
     expect(plan.recipients).toHaveLength(2);
     // email is normalized to lowercase
     expect(plan.recipients.find((r) => r.role_key === "guarantor")?.email).toBe("siti@ext.my");
@@ -242,5 +243,89 @@ describe("status roll-up", () => {
       ])
     ).toBe("IN_PROGRESS");
     expect(rollupEnvelopeStatus([{ status: "SENT", required: true }])).toBe("SENT");
+  });
+});
+
+describe("signingRecipientEmailMatchesUser", () => {
+  it("matches case-insensitively with surrounding whitespace", () => {
+    expect(signingRecipientEmailMatchesUser(" Khai.Kit@Truestack.my ", "khai.kit@truestack.my")).toBe(
+      true
+    );
+    expect(signingRecipientEmailMatchesUser("khai.kit@malcan.io", "khai.kit@truestack.my")).toBe(
+      false
+    );
+  });
+});
+
+describe("findUnsignedSigningAssignmentForUser", () => {
+  const envelope: Pick<SigningEnvelopeDto, "documents" | "recipients" | "assignments"> = {
+    documents: [
+      {
+        id: "d1",
+        name: "Offer",
+        description: null,
+        source: "GENERATED_OFFER_LETTER",
+        order: 0,
+        required: true,
+        status: "PENDING",
+        signed_s3_key: null,
+      },
+    ],
+    recipients: [
+      {
+        id: "r1",
+        role_key: "issuer_director",
+        role_label: "Issuer director",
+        party_type: "INTERNAL",
+        name: "Kau Khai Kit",
+        email: "khai.kit@malcan.io",
+        routing_order: 0,
+        status: "PENDING",
+        kyc_status: "VERIFIED",
+        completed_at: null,
+      },
+      {
+        id: "r2",
+        role_key: "issuer_director",
+        role_label: "Issuer director",
+        party_type: "INTERNAL",
+        name: "Kau Khai Kit",
+        email: "khai.kit@truestack.my",
+        routing_order: 1,
+        status: "PENDING",
+        kyc_status: "VERIFIED",
+        completed_at: null,
+      },
+    ],
+    assignments: [
+      {
+        id: "a1",
+        document_id: "d1",
+        recipient_id: "r1",
+        required: true,
+        action: "SIGN",
+        status: "PENDING",
+        signed_at: null,
+      },
+      {
+        id: "a2",
+        document_id: "d1",
+        recipient_id: "r2",
+        required: true,
+        action: "SIGN",
+        status: "PENDING",
+        signed_at: null,
+      },
+    ],
+  };
+
+  it("returns the assignment for the current user email, not routing order", () => {
+    const assignment = findUnsignedSigningAssignmentForUser(envelope, "khai.kit@truestack.my");
+    expect(assignment?.recipient.id).toBe("r2");
+    expect(normalizeSigningEmail(assignment?.recipient.email ?? "")).toBe("khai.kit@truestack.my");
+  });
+
+  it("returns null when the user is not a signer", () => {
+    expect(findUnsignedSigningAssignmentForUser(envelope, "other@example.com")).toBeNull();
   });
 });

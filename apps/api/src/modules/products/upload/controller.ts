@@ -34,6 +34,17 @@ function getExistingTemplateKeyFromWorkflow(
   categoryKey: string,
   templateIndex: number
 ): string | undefined {
+  if (categoryKey === "signing_template_document") {
+    for (const step of workflow) {
+      const config = getConfig(step);
+      const signingTemplate = config.signing_template as
+        | { documents?: Array<{ template?: { s3_key?: string } }> }
+        | undefined;
+      const key = signingTemplate?.documents?.[templateIndex]?.template?.s3_key?.trim();
+      if (key && key.startsWith(PRODUCT_S3_KEY_PREFIX)) return key;
+    }
+    return undefined;
+  }
   if (categoryKey === "guarantor_agreement" && templateIndex === 0) {
     const businessDetails = workflow.find((s) => getStepId(s).startsWith("business_details"));
     if (!businessDetails) return undefined;

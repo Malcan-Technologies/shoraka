@@ -4,6 +4,7 @@ import { logger } from "../logger";
 import { runOfferExpiryJob } from "./offer-expiry";
 import { runCtosKybRetryJob } from "./ctos-kyb-retry";
 import { runNoteListingExpiryJob } from "./note-listing-expiry";
+import { runSigningEnvelopeExpiryJob } from "./signing-envelope-expiry";
 import { runGatewayStuckOrderPollerJob } from "./gateway-stuck-order-poller";
 import { runGatewaySettlementReconJob } from "./gateway-settlement-recon";
 import { JOB_LOCK_KEYS, withAdvisoryLock } from "./with-advisory-lock";
@@ -81,6 +82,24 @@ export function initJobs() {
     } catch (error) {
       logger.error({ error }, "Failed to run note listing expiry job");
     }
+  });
+
+  // Signing envelope expiry: close active envelopes past their explicit expiry timestamp.
+  cron.schedule("0 * * * *", async () => {
+    await withAdvisoryLock(JOB_LOCK_KEYS.SIGNING_ENVELOPE_EXPIRY, async () => {
+      logger.info("Starting signing envelope expiry job...");
+      try {
+        const result = await runSigningEnvelopeExpiryJob();
+        if (result.expiredEnvelopeIds.length > 0) {
+          logger.info(
+            { expiredEnvelopeCount: result.expiredEnvelopeIds.length },
+            "Signing envelope expiry job completed"
+          );
+        }
+      } catch (error) {
+        logger.error({ error }, "Failed to run signing envelope expiry job");
+      }
+    });
   });
 
   // Gateway stuck-order poller: recover missed webhooks or expire abandoned checkouts.

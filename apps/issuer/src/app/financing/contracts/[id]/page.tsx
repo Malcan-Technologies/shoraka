@@ -47,6 +47,7 @@ export default function ContractDetailsPage() {
   const [offerModalContext, setOfferModalContext] = useState<{
     applicationId: string;
     invoice: NormalizedInvoice;
+    productId?: string | null;
   } | null>(null);
   const [invoiceListFilters, setInvoiceListFilters] = useState<InvoiceFinancingListFiltersState>(
     DEFAULT_INVOICE_FINANCING_LIST_FILTERS
@@ -172,6 +173,7 @@ export default function ContractDetailsPage() {
           type="invoice"
           applicationId={offerModalContext.applicationId}
           issuerOrganizationId={activeOrganization?.id}
+          productId={offerModalContext.productId ?? null}
           contractId={contractId}
           invoice={offerModalContext.invoice}
           requiresInvoiceSigning
@@ -345,6 +347,7 @@ export default function ContractDetailsPage() {
                   setOfferModalContext({
                     applicationId: inv.applicationId,
                     invoice: toNormalizedInvoiceForOfferModal(modalInvoice) as unknown as NormalizedInvoice,
+                    productId: inv.productId ?? row.productId ?? null,
                   })
                 }
               />

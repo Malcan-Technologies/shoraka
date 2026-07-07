@@ -66,7 +66,6 @@ export class SigningRepository {
           invoice_id: input.invoice_id ?? null,
           product_version: input.product_version ?? null,
           title: input.title,
-          routing_mode: plan.routing_mode,
           created_by_user_id: input.created_by_user_id ?? null,
           expires_at: input.expires_at ?? null,
           status: "DRAFT",
@@ -188,6 +187,20 @@ export class SigningRepository {
         data: { status: "SENT" },
       }),
     ]);
+  }
+
+  async setDocumentUnsignedS3Key(documentId: string, s3Key: string): Promise<void> {
+    await prisma.signingDocument.update({
+      where: { id: documentId },
+      data: { unsigned_s3_key: s3Key },
+    });
+  }
+
+  async setAssignmentSignset(assignmentId: string, signset: unknown): Promise<void> {
+    await prisma.signingAssignment.update({
+      where: { id: assignmentId },
+      data: { signset: signset as object },
+    });
   }
 
   async setRecipientAccessToken(

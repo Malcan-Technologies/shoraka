@@ -40,6 +40,22 @@ export function resolveUploadTimingFromWorkflowRow(row: unknown): "pre_applicati
     : "pre_application";
 }
 
+/** Allowed upload types for the business-details guarantor agreement row (defaults to PDF). */
+export function getGuarantorAgreementAllowedTypesFromProductWorkflow(workflow: unknown): string[] {
+  if (!Array.isArray(workflow)) {
+    throw new AppError(400, "VALIDATION_ERROR", "Invalid product workflow");
+  }
+  for (const step of workflow) {
+    const sid = (step as { id?: string })?.id ?? "";
+    if (getStepKeyFromStepId(sid) !== "business_details") continue;
+    const config = (step as { config?: Record<string, unknown> }).config;
+    if (!config || typeof config !== "object") break;
+    const row = config.guarantor_agreement ?? config.guarantor_agreement_template;
+    return resolveAllowedTypesFromWorkflowRow(row);
+  }
+  return ["pdf"];
+}
+
 export function getSupportingDocAllowedTypesFromProductWorkflow(
   workflow: unknown,
   categoryKey: string,
