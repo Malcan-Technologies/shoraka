@@ -53,11 +53,6 @@ import {
   parseSigningTemplateConfig,
   roundNoteMoney,
 } from "@cashsouk/types";
-import { adminResignInvoiceOfferFromNote } from "../admin/offer-resign-service";
-import {
-  buildOfferSigningAdminView,
-  noteAllowsInvoiceResign,
-} from "../signingcloud/offer-signing-admin-view";
 import {
   creditInvestorBalance,
   debitInvestorBalanceForCommit,
@@ -1376,43 +1371,7 @@ export class NoteService {
     });
     const mapped = mapNoteDetail(note, { withdrawals });
 
-    let sourceInvoiceOfferSigning = null;
-    if (note.source_invoice_id) {
-      const invoice = await prisma.invoice.findFirst({
-        where: { id: note.source_invoice_id },
-        select: {
-          offer_signing: true,
-          offer_signing_history: true,
-          offer_details: true,
-        },
-      });
-      if (invoice) {
-        sourceInvoiceOfferSigning = buildOfferSigningAdminView({
-          offerSigning: invoice.offer_signing,
-          offerSigningHistory: invoice.offer_signing_history,
-          offerDetails: (invoice.offer_details as Record<string, unknown> | null) ?? null,
-          primaryApplicationId: note.source_application_id,
-          canResign: noteAllowsInvoiceResign(note.status),
-        });
-      }
-    }
-
-    return {
-      ...mapped,
-      sourceInvoiceOfferSigning,
-    };
-  }
-
-  async resignSourceInvoiceOffer(
-    noteId: string,
-    adminUserId: string,
-    logContext?: {
-      ipAddress?: string | null;
-      userAgent?: string | null;
-      deviceInfo?: string | null;
-    }
-  ) {
-    return adminResignInvoiceOfferFromNote({ noteId, adminUserId, logContext });
+    return mapped;
   }
 
   async listSourceInvoicesForNotes() {

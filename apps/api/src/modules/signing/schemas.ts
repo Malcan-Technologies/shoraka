@@ -7,9 +7,8 @@ const recipientBindingSchema = z.object({
   role_key: z.string().min(1),
   name: z.string().min(1),
   email: z.string().email(),
-  user_id: z.string().nullish(),
   application_guarantor_id: z.string().nullish(),
-  ic_number: z.string().nullish(),
+  ic_number: z.string().min(1),
 });
 
 export const createEnvelopeSchema = z.object({
@@ -18,7 +17,6 @@ export const createEnvelopeSchema = z.object({
   contractId: z.string().nullish(),
   invoiceId: z.string().nullish(),
   productVersion: z.number().int().nullish(),
-  /** Raw product signing_template config (validated in the service). */
   templateConfig: z.unknown(),
   bindings: z.array(recipientBindingSchema).min(1),
   expiresAt: z.string().datetime().nullish(),
@@ -36,17 +34,19 @@ export const voidEnvelopeSchema = z.object({
   reason: z.string().max(500).nullish(),
 });
 
-export const startSigningSchema = z.object({
-  recipientId: z.string().min(1),
-  documentId: z.string().min(1),
-  redirectUrl: z.string().url().nullish(),
-});
-
 export const startExternalSigningSchema = z.object({
   documentId: z.string().min(1),
   redirectUrl: z.string().url().nullish(),
 });
 
+export const verifyExternalAccessCodeSchema = z.object({
+  ic_number: z.string().min(1),
+});
+
+export const recipientEkycSessionSchema = z.object({
+  confirmedName: z.string().min(1).max(200).nullish(),
+  force: z.boolean().optional(),
+});
+
 export type CreateEnvelopeBody = z.infer<typeof createEnvelopeSchema>;
 export type CreateIssuerEnvelopeBody = z.infer<typeof createIssuerEnvelopeSchema>;
-export type StartSigningBody = z.infer<typeof startSigningSchema>;

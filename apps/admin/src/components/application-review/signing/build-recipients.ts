@@ -6,6 +6,7 @@
 import {
   SIGNING_TEMPLATE_WORKFLOW_KEY,
   parseSigningTemplateConfig,
+  normalizeSigningIcNumber,
   type RecipientBinding,
   type SigningTemplateConfig,
   type SigningTemplateRole,
@@ -24,10 +25,21 @@ export function readSigningTemplate(workflow: unknown): SigningTemplateConfig {
   return parseSigningTemplateConfig(null);
 }
 
-function directorsFrom(people: ApplicationPersonRow[]): { name: string; email: string }[] {
+function directorsFrom(people: ApplicationPersonRow[]): {
+  name: string;
+  email: string;
+  ic_number: string | null;
+}[] {
   return people
     .filter((p) => p.roles.some((r) => r.toUpperCase() === "DIRECTOR"))
-    .map((p) => ({ name: p.name ?? "", email: p.email ?? "" }));
+    .map((p) => ({
+      name: p.name ?? "",
+      email: p.email ?? "",
+      ic_number: (() => {
+        const normalized = normalizeSigningIcNumber(p.matchKey);
+        return normalized.length === 12 ? normalized : null;
+      })(),
+    }));
 }
 
 interface RawGuarantor {
@@ -70,14 +82,21 @@ export function buildInitialBindings(
 
   for (const role of template.roles) {
     let prefilled: RecipientBinding[] = [];
-    if (role.source_hint === "issuer_director") {
-      prefilled = directors.map((d) => ({ role_key: role.key, name: d.name, email: d.email }));
-    } else if (role.source_hint === "guarantor") {
+    if (role.source_hint === "issuer_director" || role.key === "issuer_director") {
+      prefilled = directors.map((d) => ({
+        role_key: role.key,
+        name: d.name,
+        email: d.email,
+        ic_number: d.ic_number,
+      }));
+    } else if (role.source_hint === "guarantor" || role.key === "guarantor") {
       prefilled = guarantorRows.map((g) => ({
         role_key: role.key,
         name: g.name,
         email: g.email,
-        ic_number: g.ic_number ?? null,
+        ic_number: g.ic_number?.trim()
+          ? normalizeSigningIcNumber(g.ic_number)
+          : null,
         application_guarantor_id: g.application_guarantor_id ?? null,
       }));
     }

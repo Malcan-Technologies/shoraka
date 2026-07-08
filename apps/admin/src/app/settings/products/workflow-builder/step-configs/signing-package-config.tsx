@@ -2,12 +2,16 @@
 
 import * as React from "react";
 import {
+  SIGNING_ROLE_REGISTRY,
+  createDefaultRoleFromRegistry,
   parseSigningTemplateConfig,
+  sanitizeSigningTemplateConfig,
   type SigningDocumentSource,
-  type SigningRoleSourceHint,
+  type SigningRoleKey,
   type SigningTemplateConfig,
   type SigningTemplateDocument,
   type SigningTemplateRole,
+  type SigningTemplateSupportingDocRef,
 } from "@cashsouk/types";
 import { cn } from "@/lib/utils";
 import { Input } from "../../../../../components/ui/input";
@@ -23,14 +27,6 @@ import {
 import { INPUT_CLASS, SELECT_TRIGGER_CLASS, SECTION_GAP } from "../product-form-input-styles";
 import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 
-const ROLE_SOURCE_HINT_LABELS: Record<SigningRoleSourceHint, string> = {
-  issuer_director: "Issuer director",
-  guarantor: "Guarantor",
-  platform: "Platform",
-  custom: "Custom",
-};
-
-/** System templates available to add — Class 1 uses coded PDFs, not uploads. */
 const SYSTEM_SIGNING_TEMPLATES = [
   {
     templateKey: "offer_letter",
@@ -43,26 +39,13 @@ const SYSTEM_SIGNING_TEMPLATES = [
 
 type SystemTemplateKey = (typeof SYSTEM_SIGNING_TEMPLATES)[number]["templateKey"];
 
-function makeKey(prefix: string, label: string, index: number): string {
-  const slug = label
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-  return slug || `${prefix}_${index + 1}`;
-}
+export type PostApplicationDocOption = {
+  step_key: string;
+  label: string;
+};
 
-function defaultRole(roleIndex: number): SigningTemplateRole {
-  return {
-    key: `issuer_director_${roleIndex + 1}`,
-    label: "Issuer director",
-    party_type: "INTERNAL",
-    source_hint: "issuer_director",
-    routing_order: roleIndex,
-    kyc_required: true,
-    min_count: 1,
-    max_count: null,
-  };
+function defaultRole(roleIndex: number, roleKey: SigningRoleKey = "issuer_director"): SigningTemplateRole {
+  return createDefaultRoleFromRegistry(roleKey, roleIndex);
 }
 
 function createDocumentFromSystemTemplate(
@@ -85,16 +68,21 @@ function createDocumentFromSystemTemplate(
 }
 
 function normalizeSigningTemplate(next: SigningTemplateConfig): SigningTemplateConfig {
-  const documents = [...next.documents]
-    .sort((a, b) => a.order - b.order)
-    .map((doc, index) => ({ ...doc, order: index }));
+  const sorted = {
+    ...next,
+    documents: [...next.documents]
+      .sort((a, b) => a.order - b.order)
+      .map((doc, index) => ({ ...doc, order: index })),
+  };
+  return sanitizeSigningTemplateConfig(sorted);
+}
 
-  const usedRoleKeys = new Set(documents.flatMap((doc) => doc.signer_role_keys));
-  const roles = next.roles
-    .filter((role) => usedRoleKeys.has(role.key))
-    .map((role, index) => ({ ...role, routing_order: index }));
-
-  return { ...next, documents, roles };
+function availableSignerRolesForDocument(
+  template: SigningTemplateConfig,
+  document: SigningTemplateDocument
+) {
+  const assignedKeys = new Set(document.signer_role_keys);
+  return SIGNING_ROLE_REGISTRY.filter((role) => !assignedKeys.has(role.key));
 }
 
 function rolesForDocument(template: SigningTemplateConfig, document: SigningTemplateDocument) {
@@ -105,9 +93,12 @@ function rolesForDocument(template: SigningTemplateConfig, document: SigningTemp
 export function SigningPackageConfig({
   config,
   onChange,
+  postApplicationDocs = [],
 }: {
   config: unknown;
   onChange: (config: SigningTemplateConfig) => void;
+  /** Post-application supporting docs from the product workflow (categoryKey:docIndex keys). */
+  postApplicationDocs?: PostApplicationDocOption[];
 }) {
   const template = React.useMemo(() => parseSigningTemplateConfig(config), [config]);
   const [pendingTemplateKey, setPendingTemplateKey] = React.useState<SystemTemplateKey>(
@@ -123,6 +114,10 @@ export function SigningPackageConfig({
 
   const availableTemplates = SYSTEM_SIGNING_TEMPLATES.filter(
     (item) => !template.documents.some((doc) => doc.key === item.templateKey)
+  );
+
+  const availableSupportingDocs = postApplicationDocs.filter(
+    (doc) => !(template.supporting_docs ?? []).some((ref) => ref.step_key === doc.step_key)
   );
 
   React.useEffect(() => {
@@ -151,18 +146,58 @@ export function SigningPackageConfig({
     });
   };
 
+  const addSupportingDoc = (stepKey: string) => {
+    const option = postApplicationDocs.find((doc) => doc.step_key === stepKey);
+    if (!option) return;
+    const initialRole =
+      template.roles[0] ?? defaultRole(template.roles.length, "issuer_director");
+    const ref: SigningTemplateSupportingDocRef = {
+      step_key: option.step_key,
+      label: option.label,
+      required: true,
+      signer_role_keys: [initialRole.key],
+    };
+    persist({
+      ...template,
+      enabled: true,
+      roles: template.roles.some((role) => role.key === initialRole.key)
+        ? template.roles
+        : [...template.roles, initialRole],
+      supporting_docs: [...(template.supporting_docs ?? []), ref],
+    });
+  };
+
+  const removeSupportingDoc = (stepKey: string) => {
+    persist({
+      ...template,
+      supporting_docs: (template.supporting_docs ?? []).filter((ref) => ref.step_key !== stepKey),
+    });
+  };
+
+  const updateSupportingDoc = (
+    stepKey: string,
+    updates: Partial<SigningTemplateSupportingDocRef>
+  ) => {
+    persist({
+      ...template,
+      supporting_docs: (template.supporting_docs ?? []).map((ref) =>
+        ref.step_key === stepKey ? { ...ref, ...updates } : ref
+      ),
+    });
+  };
+
   const removeDocument = (documentKey: string) => {
     const removed = template.documents.find((doc) => doc.key === documentKey);
     if (!removed) return;
     const remainingDocuments = template.documents.filter((doc) => doc.key !== documentKey);
-    const remainingRoleKeys = new Set(remainingDocuments.flatMap((doc) => doc.signer_role_keys));
+    const remainingRoleKeys = new Set([
+      ...remainingDocuments.flatMap((doc) => doc.signer_role_keys),
+      ...(template.supporting_docs ?? []).flatMap((ref) => ref.signer_role_keys),
+    ]);
     persist({
       ...template,
       documents: remainingDocuments,
-      roles: template.roles.filter(
-        (role) =>
-          !removed.signer_role_keys.includes(role.key) || remainingRoleKeys.has(role.key)
-      ),
+      roles: template.roles.filter((role) => remainingRoleKeys.has(role.key)),
     });
   };
 
@@ -176,21 +211,24 @@ export function SigningPackageConfig({
   };
 
   const updateRole = (
-    documentKey: string,
+    _documentKey: string,
     roleKey: string,
     updates: Partial<SigningTemplateRole>
   ) => {
-    const document = template.documents.find((doc) => doc.key === documentKey);
-    if (!document) return;
+    if (
+      updates.key &&
+      updates.key !== roleKey &&
+      template.roles.some((role) => role.key === updates.key)
+    ) {
+      return;
+    }
 
     const roles = template.roles.map((role) => {
       if (role.key !== roleKey) return role;
       const nextRole = { ...role, ...updates };
-      if (updates.source_hint === "issuer_director") {
-        nextRole.party_type = "INTERNAL";
-        nextRole.kyc_required = true;
-        nextRole.min_count = Math.max(1, nextRole.min_count);
-        nextRole.max_count = null;
+      if (updates.key && updates.key !== roleKey) {
+        const def = SIGNING_ROLE_REGISTRY.find((item) => item.key === updates.key);
+        if (def) nextRole.label = def.label;
       }
       return nextRole;
     });
@@ -199,22 +237,36 @@ export function SigningPackageConfig({
     if (updates.key && updates.key !== roleKey) {
       documents = documents.map((doc) => ({
         ...doc,
-        signer_role_keys: doc.signer_role_keys.map((key) =>
-          key === roleKey ? updates.key! : key
-        ),
+        signer_role_keys: doc.signer_role_keys.map((key) => (key === roleKey ? updates.key! : key)),
       }));
     }
 
-    persist({ ...template, roles, documents });
+    persist({
+      ...template,
+      roles,
+      documents,
+      supporting_docs: (template.supporting_docs ?? []).map((ref) => ({
+        ...ref,
+        signer_role_keys: ref.signer_role_keys.map((key) =>
+          key === roleKey && updates.key ? updates.key : key
+        ),
+      })),
+    });
   };
 
   const addRole = (documentKey: string) => {
     const document = template.documents.find((doc) => doc.key === documentKey);
     if (!document) return;
-    const role = defaultRole(template.roles.length);
+
+    const nextRegistryRole = availableSignerRolesForDocument(template, document)[0];
+    if (!nextRegistryRole) return;
+
+    const existingRole = template.roles.find((role) => role.key === nextRegistryRole.key);
+    const role = existingRole ?? defaultRole(template.roles.length, nextRegistryRole.key);
+
     persist({
       ...template,
-      roles: [...template.roles, role],
+      roles: existingRole ? template.roles : [...template.roles, role],
       documents: template.documents.map((doc) =>
         doc.key === documentKey
           ? { ...doc, signer_role_keys: [...doc.signer_role_keys, role.key] }
@@ -234,7 +286,10 @@ export function SigningPackageConfig({
         ? { ...doc, signer_role_keys: doc.signer_role_keys.filter((key) => key !== roleKey) }
         : doc
     );
-    const remainingRoleKeys = new Set(documents.flatMap((doc) => doc.signer_role_keys));
+    const remainingRoleKeys = new Set([
+      ...documents.flatMap((doc) => doc.signer_role_keys),
+      ...(template.supporting_docs ?? []).flatMap((ref) => ref.signer_role_keys),
+    ]);
     persist({
       ...template,
       documents,
@@ -248,8 +303,8 @@ export function SigningPackageConfig({
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-foreground">Signing package</h3>
           <p className="text-sm text-muted-foreground">
-            Add system documents that require signatures and configure who must sign each one.
-            Issuers choose the actual people when they accept an offer.
+            Configure documents and signer roles. Issuers assign people and send signing emails when
+            accepting an offer.
           </p>
         </div>
         <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm">
@@ -293,6 +348,79 @@ export function SigningPackageConfig({
             </div>
           ) : null}
 
+          {postApplicationDocs.length > 0 ? (
+            <div className="grid gap-3 rounded-lg border border-border bg-muted/15 p-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Post-application documents</p>
+                  <p className="text-xs text-muted-foreground">
+                    Issuer-uploaded supporting docs that also require signatures.
+                  </p>
+                </div>
+                {availableSupportingDocs.length > 0 ? (
+                  <Select onValueChange={(value) => addSupportingDoc(value)}>
+                    <SelectTrigger className={cn(SELECT_TRIGGER_CLASS, "w-full sm:w-[240px]")}>
+                      <SelectValue placeholder="Add supporting doc" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableSupportingDocs.map((doc) => (
+                        <SelectItem key={doc.step_key} value={doc.step_key}>
+                          {doc.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : null}
+              </div>
+              {(template.supporting_docs ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">No post-application docs selected yet.</p>
+              ) : (
+                <ul className="grid gap-2">
+                  {(template.supporting_docs ?? []).map((ref) => (
+                    <li
+                      key={ref.step_key}
+                      className="flex flex-col gap-2 rounded-lg bg-background p-3 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <p className="text-sm font-medium">{ref.label}</p>
+                        <p className="text-xs text-muted-foreground">Requires issuer upload at offer time</p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Select
+                          value={ref.signer_role_keys[0] ?? ""}
+                          onValueChange={(value) =>
+                            updateSupportingDoc(ref.step_key, { signer_role_keys: [value] })
+                          }
+                        >
+                          <SelectTrigger className={cn(SELECT_TRIGGER_CLASS, "h-8 w-[160px]")}>
+                            <SelectValue placeholder="Signer role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {template.roles.map((role) => (
+                              <SelectItem key={role.key} value={role.key}>
+                                {role.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => removeSupportingDoc(ref.step_key)}
+                          aria-label={`Remove ${ref.label}`}
+                        >
+                          <TrashIcon className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : null}
+
           {template.documents.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No documents yet. Select a system template above and click Add document.
@@ -304,6 +432,7 @@ export function SigningPackageConfig({
                   (item) => item.templateKey === document.key
                 );
                 const documentRoles = rolesForDocument(template, document);
+                const canAddSignerRole = availableSignerRolesForDocument(template, document).length > 0;
 
                 return (
                   <li
@@ -358,6 +487,7 @@ export function SigningPackageConfig({
                           size="sm"
                           className="gap-1.5"
                           onClick={() => addRole(document.key)}
+                          disabled={!canAddSignerRole}
                         >
                           <PlusIcon className="h-4 w-4" />
                           Add signer
@@ -368,114 +498,89 @@ export function SigningPackageConfig({
                         <p className="text-sm text-muted-foreground">Add at least one signer.</p>
                       ) : (
                         <ul className="grid gap-3">
-                          {documentRoles.map((role) => {
-                            const roleIndex = template.roles.findIndex((item) => item.key === role.key);
-                            return (
-                              <li
-                                key={role.key}
-                                className="grid gap-2 rounded-lg bg-background p-3"
-                              >
-                                <div className="flex flex-wrap items-center gap-2">
+                          {documentRoles.map((role) => (
+                            <li key={role.key} className="grid gap-2 rounded-lg bg-background p-3">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Select
+                                  value={role.key}
+                                  onValueChange={(value) =>
+                                    updateRole(document.key, role.key, {
+                                      key: value as SigningRoleKey,
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger className={cn(SELECT_TRIGGER_CLASS, "h-8 w-[180px]")}>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {SIGNING_ROLE_REGISTRY.map((def) => {
+                                      const takenByOtherRole = template.roles.some(
+                                        (entry) => entry.key === def.key && entry.key !== role.key
+                                      );
+                                      return (
+                                        <SelectItem
+                                          key={def.key}
+                                          value={def.key}
+                                          disabled={takenByOtherRole}
+                                        >
+                                          {def.label}
+                                        </SelectItem>
+                                      );
+                                    })}
+                                  </SelectContent>
+                                </Select>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                  onClick={() => removeRole(document.key, role.key)}
+                                  aria-label="Remove signer"
+                                  disabled={documentRoles.length === 1}
+                                >
+                                  <TrashIcon className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                                <label className="flex items-center gap-1.5">
+                                  Min at offer
                                   <Input
-                                    value={role.label}
-                                    onChange={(event) => {
-                                      const label = event.target.value;
+                                    type="number"
+                                    min={0}
+                                    value={role.min_count}
+                                    onChange={(event) =>
                                       updateRole(document.key, role.key, {
-                                        label,
-                                        key: makeKey("role", label, roleIndex),
+                                        min_count: Math.max(
+                                          0,
+                                          Number.parseInt(event.target.value, 10) || 0
+                                        ),
+                                      })
+                                    }
+                                    className={cn(INPUT_CLASS, "h-8 w-20")}
+                                  />
+                                </label>
+                                <label className="flex items-center gap-1.5">
+                                  Max at offer
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    value={role.max_count ?? ""}
+                                    placeholder="No limit"
+                                    onChange={(event) => {
+                                      const raw = event.target.value.trim();
+                                      updateRole(document.key, role.key, {
+                                        max_count:
+                                          raw === ""
+                                            ? null
+                                            : Math.max(1, Number.parseInt(raw, 10) || 1),
                                       });
                                     }}
-                                    placeholder="Signer label"
-                                    className={cn(INPUT_CLASS, "h-8 min-w-[160px] flex-1")}
+                                    className={cn(INPUT_CLASS, "h-8 w-24")}
                                   />
-                                  <Select
-                                    value={role.source_hint}
-                                    onValueChange={(value) =>
-                                      updateRole(document.key, role.key, {
-                                        source_hint: value as SigningRoleSourceHint,
-                                      })
-                                    }
-                                  >
-                                    <SelectTrigger className={cn(SELECT_TRIGGER_CLASS, "h-8 w-[160px]")}>
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {Object.entries(ROLE_SOURCE_HINT_LABELS).map(([value, label]) => (
-                                        <SelectItem key={value} value={value}>
-                                          {label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                  <Select
-                                    value={role.party_type}
-                                    onValueChange={(value) =>
-                                      updateRole(document.key, role.key, {
-                                        party_type: value === "EXTERNAL" ? "EXTERNAL" : "INTERNAL",
-                                      })
-                                    }
-                                  >
-                                    <SelectTrigger className={cn(SELECT_TRIGGER_CLASS, "h-8 w-[130px]")}>
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="INTERNAL">Internal</SelectItem>
-                                      <SelectItem value="EXTERNAL">External</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                                    onClick={() => removeRole(document.key, role.key)}
-                                    aria-label="Remove signer"
-                                    disabled={documentRoles.length === 1}
-                                  >
-                                    <TrashIcon className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                                <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                                  <label className="flex items-center gap-1.5">
-                                    Min at offer
-                                    <Input
-                                      type="number"
-                                      min={0}
-                                      value={role.min_count}
-                                      onChange={(event) =>
-                                        updateRole(document.key, role.key, {
-                                          min_count: Math.max(
-                                            0,
-                                            Number.parseInt(event.target.value, 10) || 0
-                                          ),
-                                        })
-                                      }
-                                      className={cn(INPUT_CLASS, "h-8 w-20")}
-                                    />
-                                  </label>
-                                  <label className="flex items-center gap-1.5">
-                                    Max at offer
-                                    <Input
-                                      type="number"
-                                      min={1}
-                                      value={role.max_count ?? ""}
-                                      placeholder="No limit"
-                                      onChange={(event) => {
-                                        const raw = event.target.value.trim();
-                                        updateRole(document.key, role.key, {
-                                          max_count:
-                                            raw === ""
-                                              ? null
-                                              : Math.max(1, Number.parseInt(raw, 10) || 1),
-                                        });
-                                      }}
-                                      className={cn(INPUT_CLASS, "h-8 w-24")}
-                                    />
-                                  </label>
-                                </div>
-                              </li>
-                            );
-                          })}
+                                </label>
+                              </div>
+                            </li>
+                          ))}
                         </ul>
                       )}
                     </div>

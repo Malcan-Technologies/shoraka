@@ -172,7 +172,6 @@ function IssuerFinancingPageContent() {
       canReviewOffer: true,
       offer_details: od,
       signedOfferLetterAvailable: false,
-      signedOfferLetterS3Key: null,
       withdrawReason: undefined,
       reasonOrRemarks: undefined,
     };

@@ -12,13 +12,21 @@ import type {
   SigningDocumentDto,
   SigningRecipientDto,
   SigningAssignmentDto,
+  SigningKycStatus,
 } from "@cashsouk/types";
+import { resolveSigningKycStatusMap } from "../ekyc/service";
 
 export type SigningEnvelopeWithGraph = SigningEnvelope & {
   documents: SigningDocument[];
   recipients: SigningRecipient[];
   assignments: SigningAssignment[];
 };
+
+function readSupportingDocStepKey(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const value = (metadata as Record<string, unknown>).supporting_doc_step_key;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
 
 function mapDocument(doc: SigningDocument): SigningDocumentDto {
   return {
@@ -30,20 +38,23 @@ function mapDocument(doc: SigningDocument): SigningDocumentDto {
     required: doc.required,
     status: doc.status,
     signed_s3_key: doc.signed_s3_key ?? null,
+    supporting_doc_step_key: readSupportingDocStepKey(doc.metadata),
   };
 }
 
-function mapRecipient(recipient: SigningRecipient): SigningRecipientDto {
+function mapRecipient(
+  recipient: SigningRecipient,
+  kycStatus: SigningKycStatus = "PENDING"
+): SigningRecipientDto {
   return {
     id: recipient.id,
     role_key: recipient.role_key,
     role_label: recipient.role_label,
-    party_type: recipient.party_type,
     name: recipient.name,
     email: recipient.email,
     routing_order: recipient.routing_order,
     status: recipient.status,
-    kyc_status: recipient.kyc_status,
+    kyc_status: kycStatus,
     completed_at: recipient.completed_at ? recipient.completed_at.toISOString() : null,
   };
 }
@@ -74,7 +85,29 @@ export function mapSigningEnvelopeToDto(envelope: SigningEnvelopeWithGraph): Sig
     documents: [...envelope.documents].sort((a, b) => a.order - b.order).map(mapDocument),
     recipients: [...envelope.recipients]
       .sort((a, b) => a.routing_order - b.routing_order)
-      .map(mapRecipient),
+      .map((recipient) => mapRecipient(recipient)),
+    assignments: envelope.assignments.map(mapAssignment),
+  };
+}
+
+export async function mapSigningEnvelopeToDtoWithEkyc(
+  envelope: SigningEnvelopeWithGraph
+): Promise<SigningEnvelopeDto> {
+  const kycMap = await resolveSigningKycStatusMap(envelope.recipients);
+  return {
+    id: envelope.id,
+    application_id: envelope.application_id,
+    contract_id: envelope.contract_id ?? null,
+    invoice_id: envelope.invoice_id ?? null,
+    title: envelope.title,
+    status: envelope.status,
+    expires_at: envelope.expires_at ? envelope.expires_at.toISOString() : null,
+    sent_at: envelope.sent_at ? envelope.sent_at.toISOString() : null,
+    completed_at: envelope.completed_at ? envelope.completed_at.toISOString() : null,
+    documents: [...envelope.documents].sort((a, b) => a.order - b.order).map(mapDocument),
+    recipients: [...envelope.recipients]
+      .sort((a, b) => a.routing_order - b.routing_order)
+      .map((recipient) => mapRecipient(recipient, kycMap.get(recipient.id) ?? "PENDING")),
     assignments: envelope.assignments.map(mapAssignment),
   };
 }

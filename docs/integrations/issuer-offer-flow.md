@@ -86,14 +86,22 @@ function getOfferStatus(item: {
 - `platform_fee_rate_percent` (optional; percent of funded amount at disbursement, capped 0–3; included on invoice offer letter PDFs)
 - `expires_at`, `sent_at`, `responded_at`, `responded_by_user_id`, `version`
 
-## eKYC before signing
+## External signing (all signers)
 
-When SigningCloud is configured, offer signing requires a one-time MyKad verification per issuer user (`signingcloud_ekyc.status = verified`).
+Every signer is an external party emailed an opaque link. The issuer **Review offer** modal is the signing control centre: bind signers (name, email, IC), attach post-application documents, send the envelope, monitor progress, and re-notify.
 
-- **Review offer modal** (`ReviewOfferModal`) handles this: `start-signing` returning `403 EKYC_REQUIRED` opens a QR step; desktop polls until verified, then redirects to SigningCloud.
-- Session create requires `issuerOrganizationId` (active org) to validate RegTank MyKad details exist; completion resolves identity across all orgs the user belongs to.
+Signers complete the flow at `/signing/external/[token]`:
 
-See **[SigningCloud eKYC Flow](./signingcloud-ekyc-flow.md)** for sequence diagram, API endpoints, identity rules, and status model.
+1. IC access code (must match IC bound at send time)
+2. Per-recipient MyKad eKYC when the role requires it
+3. SigningCloud signing for assigned documents
+
+When the envelope completes, the webhook rolls up document status and the API auto-accepts the offer (`contract` / `invoice` → `APPROVED`). Signed offer letters are stored on the envelope document (`signed_s3_key`) and downloaded via:
+
+- Issuer: `GET /v1/applications/:id/offers/contracts/signed-letter` (or invoice variant)
+- Admin: `GET /v1/admin/applications/:id/offers/contracts/signed-letter` (or invoice variant)
+
+See **[SigningCloud eKYC Flow](./signingcloud-ekyc-flow.md)** for recipient eKYC sequence and API endpoints.
 
 ## Issuer Accept/Reject API
 

@@ -1,10 +1,10 @@
 /**
  * Prisma access for the signing envelope graph (envelope + documents + recipients + assignments).
- * The envelope is created atomically so the document x recipient matrix is always consistent.
  */
 import { prisma } from "../../lib/prisma";
 import type { EnvelopePlan } from "@cashsouk/types";
 import type { SigningEnvelopeWithGraph } from "./mapper";
+import { hashSigningAccessToken } from "./token";
 
 const TERMINAL_ENVELOPE_STATUSES = ["DECLINED", "VOIDED", "EXPIRED"] as const;
 
@@ -55,7 +55,6 @@ export class SigningRepository {
     });
   }
 
-  /** Persist an envelope and its full graph from a plan in one transaction. */
   async createFromPlan(input: CreateEnvelopeInput): Promise<SigningEnvelopeWithGraph> {
     const { plan } = input;
     return prisma.$transaction(async (tx) => {
@@ -72,7 +71,6 @@ export class SigningRepository {
         },
       });
 
-      // Create documents and recipients, keeping plan-ref -> db-id maps for assignments.
       const documentIdByRef = new Map<string, string>();
       for (const doc of plan.documents) {
         const created = await tx.signingDocument.create({
@@ -86,6 +84,9 @@ export class SigningRepository {
             template_ref: doc.key,
             unsigned_s3_key: doc.template?.s3_key ?? null,
             status: "DRAFT",
+            metadata: doc.supporting_doc_step_key
+              ? { supporting_doc_step_key: doc.supporting_doc_step_key }
+              : undefined,
           },
         });
         documentIdByRef.set(doc.ref, created.id);
@@ -98,15 +99,13 @@ export class SigningRepository {
             envelope_id: envelope.id,
             role_key: r.role_key,
             role_label: r.role_label,
-            party_type: r.party_type,
-            user_id: r.user_id,
             application_guarantor_id: r.application_guarantor_id,
             name: r.name,
             email: r.email,
             ic_number: r.ic_number,
             routing_order: r.routing_order,
             status: "PENDING",
-            kyc_status: r.kyc_required ? "PENDING" : "NOT_REQUIRED",
+            kyc_required: r.kyc_required !== false,
           },
         });
         recipientIdByRef.set(r.ref, created.id);
@@ -147,7 +146,6 @@ export class SigningRepository {
     });
   }
 
-  /** Webhook lookup: find the envelope owning a document by its provider contract ref. */
   async findByDocumentProviderRef(providerRef: string): Promise<SigningEnvelopeWithGraph | null> {
     const doc = await prisma.signingDocument.findUnique({
       where: { provider_contract_ref: providerRef },
@@ -161,12 +159,12 @@ export class SigningRepository {
     return prisma.signingRecipient.findUnique({ where: { id: recipientId } });
   }
 
-  /** External no-auth lookup: resolve a recipient (and its envelope) by access token. */
   async findEnvelopeByRecipientAccessToken(
     accessToken: string
   ): Promise<{ recipientId: string; envelope: SigningEnvelopeWithGraph } | null> {
+    const tokenHash = hashSigningAccessToken(accessToken);
     const recipient = await prisma.signingRecipient.findUnique({
-      where: { access_token: accessToken },
+      where: { access_token_hash: tokenHash },
       select: { id: true, envelope_id: true },
     });
     if (!recipient) return null;
@@ -175,7 +173,6 @@ export class SigningRepository {
     return { recipientId: recipient.id, envelope };
   }
 
-  /** Persist a provider contract ref + set the document/its assignments to SENT. */
   async markDocumentSent(documentId: string, providerContractRef: string): Promise<void> {
     await prisma.$transaction([
       prisma.signingDocument.update({
@@ -210,7 +207,27 @@ export class SigningRepository {
   ): Promise<void> {
     await prisma.signingRecipient.update({
       where: { id: recipientId },
-      data: { access_token: accessToken, access_token_expires_at: expiresAt },
+      data: {
+        access_token_hash: hashSigningAccessToken(accessToken),
+        access_token_expires_at: expiresAt,
+      },
+    });
+  }
+
+  async markRecipientAccessCodeVerified(recipientId: string): Promise<void> {
+    await prisma.signingRecipient.update({
+      where: { id: recipientId },
+      data: { access_code_verified_at: new Date() },
+    });
+  }
+
+  async bindRecipientIcAndVerifyAccess(recipientId: string, icNumber: string): Promise<void> {
+    await prisma.signingRecipient.update({
+      where: { id: recipientId },
+      data: {
+        ic_number: icNumber,
+        access_code_verified_at: new Date(),
+      },
     });
   }
 
@@ -227,7 +244,6 @@ export class SigningRepository {
     ]);
   }
 
-  /** Mark a single assignment signed (idempotent) and stamp signed_at. */
   async markAssignmentSigned(assignmentId: string): Promise<void> {
     await prisma.signingAssignment.update({
       where: { id: assignmentId },

@@ -73,7 +73,6 @@ export default function ContractDetailsPage() {
       canReviewOffer: true,
       offer_details: od,
       signedOfferLetterAvailable: false,
-      signedOfferLetterS3Key: null,
       withdrawReason: undefined,
       reasonOrRemarks: undefined,
     };

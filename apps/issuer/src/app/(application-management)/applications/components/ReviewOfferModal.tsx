@@ -7,7 +7,6 @@
  */
 
 import * as React from "react";
-import { QRCodeSVG } from "qrcode.react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -27,24 +26,24 @@ import {
 } from "@/lib/issuer-offer-decline-reasons";
 import { useContract } from "@/hooks/use-contracts";
 import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
-import { useAcceptInvoiceOffer, useRejectContractOffer, useRejectInvoiceOffer } from "@/hooks/use-applications";
+import { useAcceptInvoiceOffer, useRejectContractOffer, useRejectInvoiceOffer, useApplication } from "@/hooks/use-applications";
 import { useIssuerProduct } from "@/hooks/use-products";
 import { SupportingDocumentsStep } from "@/app/(application-flow)/applications/steps/supporting-documents-step";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import {
   ArrowDownTrayIcon,
-  ArrowLeftIcon,
   CheckIcon,
   CheckCircleIcon,
-  XCircleIcon,
 } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
 import type { NormalizedInvoice } from "../status";
 import {
   SIGNING_TEMPLATE_WORKFLOW_KEY,
   parseSigningTemplateConfig,
-  findUnsignedSigningAssignmentForUser,
+  isValidSigningIcNumber,
+  normalizeSigningIcNumber,
+  roleRequiresBindingIcAtOffer,
   type ApiError,
   type ApplicationPersonRow,
   type RecipientBinding,
@@ -55,8 +54,9 @@ import {
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { Input } from "@/components/ui/input";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
-import { useEkycFlow } from "./use-ekyc-flow";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { SigningProgressMatrix } from "@/components/signing/signing-progress-matrix";
+import { cn } from "@/lib/utils";
 
 const PLATFORM_FEE_TOOLTIP =
   "Deducted from disbursement when funding closes, applied as a percentage of the funded amount.";
@@ -73,7 +73,7 @@ const CONTRACT_FACILITY_FEE_CAP_TOOLTIP =
 type ReviewOfferModalProps = {
   type: "contract" | "invoice";
   applicationId: string;
-  /** Application's issuer org — preferred over active org from context for eKYC session create. */
+  /** Application's issuer org — preferred over active org from context. */
   issuerOrganizationId?: string;
   productId?: string | null;
   contractId?: string;
@@ -171,12 +171,54 @@ type IssuerDirectorOption = {
   matchKey: string;
   name: string;
   email: string;
+  ic_number: string | null;
 };
+
+type ApplicationGuarantorRow = {
+  id: string;
+  name?: string | null;
+  business_name?: string | null;
+  email: string;
+  ic_number?: string | null;
+};
+
+function directorIcFromMatchKey(matchKey: string): string | null {
+  const normalized = normalizeSigningIcNumber(matchKey);
+  return normalized.length === 12 ? normalized : null;
+}
+
+function isDirectorRole(role: SigningTemplateRole): boolean {
+  return role.key === "issuer_director" || role.source_hint === "issuer_director";
+}
+
+function isGuarantorRole(role: SigningTemplateRole): boolean {
+  return role.key === "guarantor" || role.source_hint === "guarantor";
+}
+
+function guarantorsFromApplication(rows: unknown): ApplicationGuarantorRow[] {
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map((row) => {
+      if (!row || typeof row !== "object") return null;
+      const guarantor = row as Record<string, unknown>;
+      const id = typeof guarantor.id === "string" ? guarantor.id : "";
+      if (!id) return null;
+      return {
+        id,
+        name: typeof guarantor.name === "string" ? guarantor.name : null,
+        business_name:
+          typeof guarantor.business_name === "string" ? guarantor.business_name : null,
+        email: typeof guarantor.email === "string" ? guarantor.email : "",
+        ic_number: typeof guarantor.ic_number === "string" ? guarantor.ic_number : null,
+      };
+    })
+    .filter((guarantor): guarantor is ApplicationGuarantorRow => guarantor != null);
+}
 
 function dedupeIssuerDirectors(directors: IssuerDirectorOption[]): IssuerDirectorOption[] {
   const seen = new Set<string>();
   return directors.filter((director) => {
-    const key = `${director.name.toLowerCase()}|${director.email.toLowerCase()}`;
+    const key = directorIcFromMatchKey(director.matchKey) ?? director.matchKey.toLowerCase();
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -214,6 +256,7 @@ function issuerDirectorsFromOrganization(activeOrganization: unknown): IssuerDir
       matchKey: person.matchKey,
       name: String(person.name ?? "").trim(),
       email: String(person.email ?? "").trim(),
+      ic_number: directorIcFromMatchKey(person.matchKey),
     }))
     .filter((person) => person.name.length > 0);
   if (fromPeople.length > 0) return dedupeIssuerDirectors(fromPeople);
@@ -227,6 +270,9 @@ function issuerDirectorsFromOrganization(activeOrganization: unknown): IssuerDir
       matchKey: director.kycId ?? director.eodRequestId ?? `director-kyc-${index}`,
       name: String(director.name ?? "").trim(),
       email: String(director.email ?? "").trim(),
+      ic_number: directorIcFromMatchKey(
+        director.kycId ?? director.eodRequestId ?? `director-kyc-${index}`
+      ),
     }))
     .filter((director) => director.name.length > 0);
   if (fromKyc.length > 0) return dedupeIssuerDirectors(fromKyc);
@@ -240,6 +286,7 @@ function issuerDirectorsFromOrganization(activeOrganization: unknown): IssuerDir
       matchKey: director.kycId ?? `director-aml-${index}`,
       name: String(director.name ?? "").trim(),
       email: String(director.email ?? "").trim(),
+      ic_number: directorIcFromMatchKey(director.kycId ?? `director-aml-${index}`),
     }))
     .filter((director) => director.name.length > 0);
 
@@ -269,6 +316,7 @@ function buildFallbackBinding(
       role_key: role.key,
       name: director.name,
       email: director.email,
+      ic_number: director.ic_number,
     };
   }
   const org = activeOrganization as
@@ -291,27 +339,45 @@ function buildFallbackBinding(
     role_key: role.key,
     name: fallbackName,
     email: member?.email ?? "",
+    ic_number: "",
   };
 }
 
 function buildIssuerEnvelopeBindings(
   template: SigningTemplateConfig,
-  activeOrganization: unknown
+  activeOrganization: unknown,
+  applicationGuarantors: ApplicationGuarantorRow[] = []
 ): RecipientBinding[] {
   const directors = issuerDirectorsFromOrganization(activeOrganization);
+  const guarantorRows = guarantorsFromApplication(applicationGuarantors);
   const bindings: RecipientBinding[] = [];
 
   for (const role of template.roles) {
     const preferredCount = Math.max(role.min_count, 1);
-    const roleBindings =
-      role.source_hint === "issuer_director" && directors.length > 0
-        ? directors.slice(0, preferredCount).map((director) => ({
-            role_key: role.key,
-            name: director.name,
-            email: director.email,
-          }))
-        : [buildFallbackBinding(role, activeOrganization, directors)];
-    const limited = role.max_count != null ? roleBindings.slice(0, role.max_count) : roleBindings;
+    let roleBindings: RecipientBinding[];
+    if (isDirectorRole(role) && directors.length > 0) {
+      roleBindings = directors.slice(0, preferredCount).map((director) => ({
+        role_key: role.key,
+        name: director.name,
+        email: director.email,
+        ic_number: director.ic_number,
+      }));
+    } else if (isGuarantorRole(role) && guarantorRows.length > 0) {
+      const maxRows = role.max_count ?? guarantorRows.length;
+      roleBindings = guarantorRows.slice(0, maxRows).map((guarantor) => ({
+        role_key: role.key,
+        name: guarantor.name ?? guarantor.business_name ?? "",
+        email: guarantor.email,
+        ic_number: guarantor.ic_number?.trim()
+          ? normalizeSigningIcNumber(guarantor.ic_number)
+          : null,
+        application_guarantor_id: guarantor.id,
+      }));
+    } else {
+      roleBindings = [buildFallbackBinding(role, activeOrganization, directors)];
+    }
+    const limited: RecipientBinding[] =
+      role.max_count != null ? roleBindings.slice(0, role.max_count) : roleBindings;
     while (limited.length < role.min_count) {
       limited.push(buildFallbackBinding(role, activeOrganization, directors));
     }
@@ -337,8 +403,15 @@ function validateSignerBindings(bindings: RecipientBinding[], template: SigningT
       return "Every signer needs a valid email address.";
     }
     const role = template.roles.find((item) => item.key === binding.role_key);
-    if (role?.party_type === "EXTERNAL" && !String(binding.ic_number ?? "").trim()) {
-      return `${role.label || role.key} needs an IC number.`;
+    if (role && roleRequiresBindingIcAtOffer(role)) {
+      if (!String(binding.ic_number ?? "").trim()) {
+        return `${role.label || role.key} is missing an IC number from company records.`;
+      }
+      if (!isValidSigningIcNumber(binding.ic_number)) {
+        return `${role.label || role.key} must have a valid 12-digit IC number on file.`;
+      }
+    } else if (binding.ic_number?.trim() && !isValidSigningIcNumber(binding.ic_number)) {
+      return "A signer has an invalid IC number.";
     }
   }
   return null;
@@ -395,12 +468,10 @@ function formatSignerNameList(names: string[]): string {
   return `${trimmed.slice(0, -1).join(", ")}, and ${trimmed[trimmed.length - 1]}`;
 }
 
-function buildSigningConfirmDescription(bindings: RecipientBinding[], resume = false): string {
+function buildSigningConfirmDescription(bindings: RecipientBinding[]): string {
   const names = bindings.map((binding) => binding.name);
   const signers = formatSignerNameList(names);
-  return resume
-    ? `Continue signing the offer letter with ${signers}?`
-    : `Send offer letter for signing by ${signers}?`;
+  return `Signing emails will be sent to ${signers}. Each signer will receive a link to review and sign the offer letter.`;
 }
 
 function findActiveSigningEnvelope(
@@ -442,6 +513,36 @@ function bindingsFromEnvelopeRecipients(
   return bindings;
 }
 
+function RecipientReminders({
+  envelope,
+  onRemind,
+  disabled,
+}: {
+  envelope: SigningEnvelopeDto;
+  onRemind: (recipientId: string) => void;
+  disabled: boolean;
+}) {
+  const pending = envelope.recipients.filter((r) => r.status !== "SIGNED");
+  if (pending.length === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+      <span className="text-xs text-muted-foreground">Remind:</span>
+      {pending.map((r) => (
+        <Button
+          key={r.id}
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-xs"
+          onClick={() => onRemind(r.id)}
+          disabled={disabled}
+        >
+          {r.name}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
 /** Only mounted when Review Offer is clicked. Renders once, no isOpen toggle to avoid flash. */
 export function ReviewOfferModal({
   type,
@@ -461,21 +562,6 @@ export function ReviewOfferModal({
     () => createApiClient(API_URL, getAccessToken),
     [getAccessToken]
   );
-  const { data: currentUser } = useQuery({
-    queryKey: ["auth", "me"],
-    queryFn: async () => {
-      const result = await apiClient.get<{ user: { email: string } }>("/v1/auth/me");
-      if (!result.success) {
-        throw new Error(result.error.message);
-      }
-      return result.data.user;
-    },
-  });
-  const ekyc = useEkycFlow({
-    apiClient,
-    apiBaseUrl: API_URL,
-    issuerOrganizationId,
-  });
   const { data: product, isLoading: isLoadingProduct } = useIssuerProduct(productId ?? "");
   const supportingDocumentsStepConfig = React.useMemo(
     () => findSupportingDocumentsStepConfig((product as { workflow?: unknown } | null | undefined)?.workflow),
@@ -507,7 +593,18 @@ export function ReviewOfferModal({
       findActiveSigningEnvelope(signingEnvelopes, type, contractId, envelopeTargetInvoiceId),
     [signingEnvelopes, type, contractId, envelopeTargetInvoiceId]
   );
-  const signersLocked = activeSigningEnvelope != null;
+  const signersLocked =
+    activeSigningEnvelope != null && activeSigningEnvelope.status !== "DRAFT";
+  const showSigningProgress =
+    signersLocked &&
+    activeSigningEnvelope != null &&
+    (activeSigningEnvelope.status === "SENT" ||
+      activeSigningEnvelope.status === "IN_PROGRESS" ||
+      activeSigningEnvelope.status === "COMPLETED");
+  const canRemindSigners =
+    activeSigningEnvelope != null &&
+    (activeSigningEnvelope.status === "SENT" || activeSigningEnvelope.status === "IN_PROGRESS");
+  const { data: applicationRecord } = useApplication(useEnvelopeSigning ? applicationId : "");
   const { data: corporateEntities } = useCorporateEntities(
     useEnvelopeSigning ? issuerOrganizationId : undefined
   );
@@ -545,17 +642,14 @@ export function ReviewOfferModal({
   const [rejectionReason, setRejectionReason] = React.useState("");
   const [selectedDeclineReason, setSelectedDeclineReason] = React.useState("");
   const [isRejectMode, setIsRejectMode] = React.useState(false);
-  const [modalStep, setModalStep] = React.useState<"review" | "ekyc-confirm" | "ekyc">("review");
   const [postDocsState, setPostDocsState] = React.useState<PostApplicationDocsState>({
     areAllFilesUploaded: false,
     hasPendingChanges: false,
   });
   const [isSavingPostDocs, setIsSavingPostDocs] = React.useState(false);
-  const [confirmedName, setConfirmedName] = React.useState<string | null>(null);
-  const [icNumberInput, setIcNumberInput] = React.useState("");
-  const [isContinuingToSigning, setIsContinuingToSigning] = React.useState(false);
   const [signerBindings, setSignerBindings] = React.useState<RecipientBinding[]>([]);
   const [signerConfirmOpen, setSignerConfirmOpen] = React.useState(false);
+  const [remindLoading, setRemindLoading] = React.useState(false);
   const isOtherDeclineReason = selectedDeclineReason === OTHER_ISSUER_DECLINE_REASON_VALUE;
   const isSigningOverrideEnabled = process.env.NODE_ENV !== "production";
 
@@ -569,9 +663,16 @@ export function ReviewOfferModal({
       setSignerBindings(bindingsFromEnvelopeRecipients(activeSigningEnvelope, signingTemplate));
       return;
     }
-    setSignerBindings(buildIssuerEnvelopeBindings(signingTemplate, directorSourceOrganization));
+    setSignerBindings(
+      buildIssuerEnvelopeBindings(
+        signingTemplate,
+        directorSourceOrganization,
+        applicationRecord?.application_guarantors
+      )
+    );
   }, [
     activeSigningEnvelope,
+    applicationRecord?.application_guarantors,
     directorSourceOrganization,
     isLoadingSigningEnvelopes,
     signingTemplate,
@@ -794,154 +895,76 @@ export function ReviewOfferModal({
     }
   };
 
-  const startSigningFlow = React.useCallback(async (): Promise<string> => {
+  const sendSigningPackage = React.useCallback(async (): Promise<void> => {
     if (productId && isLoadingProduct) {
       throw new Error("Loading signing configuration. Please wait a moment.");
     }
 
-    if (useEnvelopeSigning) {
-      const invoiceId = type === "invoice" ? invoice?.id : null;
-      if (type === "invoice" && !invoiceId) {
-        throw new Error("Invoice ID is missing. Please refresh and try again.");
-      }
-
-      const existingResponse = await apiClient.getSigningEnvelopes(applicationId);
-      if (!existingResponse.success) {
-        const err = getApiErrorDetails(existingResponse, "Failed to load signing package");
-        throw new Error(err.message);
-      }
-      const targetEnvelope = findActiveSigningEnvelope(
-        existingResponse.data,
-        type,
-        contractId,
-        invoiceId
-      );
-
-      let envelope = targetEnvelope;
-      if (envelope && !envelopeMatchesSignerBindings(envelope, signerBindings)) {
-        throw new Error(
-          "Signing was already started with different signers. Contact CashSouk support to reset the signing package."
-        );
-      }
-
-      if (!envelope) {
-        const createResponse = await apiClient.createIssuerSigningEnvelope(applicationId, {
-          title: type === "contract" ? "Contract offer signing package" : "Invoice offer signing package",
-          contractId: type === "contract" ? contractId ?? null : null,
-          invoiceId,
-          bindings: signerBindings,
-        });
-        if (!createResponse.success) {
-          const err = getApiErrorDetails(createResponse, "Failed to create signing package");
-          throw new Error(err.message);
-        }
-        envelope = createResponse.data;
-      }
-
-      if (envelope.status === "DRAFT") {
-        const sendResponse = await apiClient.sendIssuerSigningEnvelope(envelope.id);
-        if (!sendResponse.success) {
-          const err = getApiErrorDetails(sendResponse, "Failed to send signing package");
-          throw new Error(err.message);
-        }
-        envelope = sendResponse.data;
-      }
-
-      const ekycMeResponse = await apiClient.getEkycStatus();
-      const verifiedWorkEmail =
-        ekycMeResponse.success && ekycMeResponse.data.verifiedEmail
-          ? ekycMeResponse.data.verifiedEmail.trim()
-          : ekyc.confirmedIdentity?.email?.trim() ??
-            ekyc.identityPreview?.email?.trim() ??
-            "";
-
-      const signerLookupEmail = verifiedWorkEmail || currentUser?.email?.trim() || "";
-      if (!signerLookupEmail) {
-        throw new Error("Could not determine your signing email. Please refresh and try again.");
-      }
-
-      const userAssignment = findUnsignedSigningAssignmentForUser(envelope, signerLookupEmail);
-      if (!userAssignment) {
-        throw new Error(
-          `Your verified signing email (${signerLookupEmail}) is not assigned to sign this offer.`
-        );
-      }
-      const startResponse = await apiClient.startEnvelopeSigning(envelope.id, {
-        recipientId: userAssignment.recipient.id,
-        documentId: userAssignment.document.id,
-        redirectUrl: window.location.href,
-      });
-      if (startResponse.success && startResponse.data?.signingUrl) {
-        return startResponse.data.signingUrl;
-      }
-      const err = getApiErrorDetails(startResponse, "Failed to start signing");
-      const error = new Error(err.message) as Error & { code?: string | null };
-      error.code = err.code;
-      throw error;
+    if (!useEnvelopeSigning) {
+      throw new Error("Signing package is not configured for this product.");
     }
 
-    if (type === "contract") {
-      const res = await apiClient.startContractOfferSigning(applicationId);
-      if (res.success && res.data?.signingUrl) {
-        return res.data.signingUrl;
-      }
-
-      const err = getApiErrorDetails(res, "Failed to start signing");
-      const error = new Error(err.message) as Error & { code?: string | null };
-      error.code = err.code;
-      throw error;
-    }
-
-    if (!invoice?.id) {
+    const invoiceId = type === "invoice" ? invoice?.id : null;
+    if (type === "invoice" && !invoiceId) {
       throw new Error("Invoice ID is missing. Please refresh and try again.");
     }
 
-    const res = await apiClient.startInvoiceOfferSigning(applicationId, invoice.id);
-    if (res.success && res.data?.signingUrl) {
-      return res.data.signingUrl;
+    const existingResponse = await apiClient.getSigningEnvelopes(applicationId);
+    if (!existingResponse.success) {
+      const err = getApiErrorDetails(existingResponse, "Failed to load signing package");
+      throw new Error(err.message);
+    }
+    const targetEnvelope = findActiveSigningEnvelope(
+      existingResponse.data,
+      type,
+      contractId,
+      invoiceId
+    );
+
+    let envelope = targetEnvelope;
+    if (envelope && !envelopeMatchesSignerBindings(envelope, signerBindings)) {
+      throw new Error(
+        "Signing was already started with different signers. Contact CashSouk support to reset the signing package."
+      );
     }
 
-    const err = getApiErrorDetails(res, "Failed to start signing");
-    const error = new Error(err.message) as Error & { code?: string | null };
-    error.code = err.code;
-    throw error;
+    if (!envelope) {
+      const createResponse = await apiClient.createIssuerSigningEnvelope(applicationId, {
+        title: type === "contract" ? "Contract offer signing package" : "Invoice offer signing package",
+        contractId: type === "contract" ? contractId ?? null : null,
+        invoiceId,
+        bindings: signerBindings,
+      });
+      if (!createResponse.success) {
+        const err = getApiErrorDetails(createResponse, "Failed to create signing package");
+        throw new Error(err.message);
+      }
+      envelope = createResponse.data;
+    }
+
+    if (envelope.status === "DRAFT") {
+      const sendResponse = await apiClient.sendIssuerSigningEnvelope(envelope.id);
+      if (!sendResponse.success) {
+        const err = getApiErrorDetails(sendResponse, "Failed to send signing package");
+        throw new Error(err.message);
+      }
+      envelope = sendResponse.data;
+    }
+
+    await queryClient.invalidateQueries({ queryKey: ["signing-envelopes", applicationId] });
+    toast.success("Signing emails sent to all signers");
   }, [
-    activeOrganization,
     apiClient,
     applicationId,
     contractId,
-    currentUser?.email,
-    ekyc.confirmedIdentity?.email,
-    ekyc.identityPreview?.email,
     invoice?.id,
     isLoadingProduct,
     productId,
-    signingTemplate,
+    queryClient,
     signerBindings,
     type,
     useEnvelopeSigning,
   ]);
-
-  const handleSigningStartError = React.useCallback(
-    (e: unknown, fallbackTitle: string) => {
-      const err = getApiErrorDetails(e, fallbackTitle);
-      if (err.code === "EKYC_REQUIRED") {
-        ekyc.reset();
-        setConfirmedName(null);
-        setIcNumberInput("");
-        setModalStep("ekyc-confirm");
-        toast.info("Identity verification required", {
-          description: "Confirm your MyKad details, then scan the QR code with your phone.",
-        });
-        return;
-      }
-
-      toast.error(fallbackTitle, {
-        description: err.message,
-      });
-    },
-    [ekyc]
-  );
 
   const ensurePostApplicationDocumentsSaved = React.useCallback(async (): Promise<boolean> => {
     if (productId && isLoadingProduct) {
@@ -998,8 +1021,8 @@ export function ReviewOfferModal({
     useEnvelopeSigning && !(type === "invoice" && !requiresInvoiceSigning);
 
   const signingConfirmDescription = React.useMemo(
-    () => buildSigningConfirmDescription(signerBindings, signersLocked),
-    [signerBindings, signersLocked]
+    () => buildSigningConfirmDescription(signerBindings),
+    [signerBindings]
   );
 
   const prepareAccept = async (): Promise<boolean> => {
@@ -1042,10 +1065,12 @@ export function ReviewOfferModal({
   const executeAccept = async () => {
     setAcceptSigningLoading(true);
     try {
-      const signingUrl = await startSigningFlow();
-      window.location.assign(signingUrl);
+      await sendSigningPackage();
     } catch (e) {
-      handleSigningStartError(e, "Could not start signing");
+      const err = getApiErrorDetails(e, "Could not send signing package");
+      toast.error("Could not send signing package", {
+        description: err.message,
+      });
     } finally {
       setAcceptSigningLoading(false);
     }
@@ -1068,93 +1093,62 @@ export function ReviewOfferModal({
     await executeAccept();
   };
 
-  const handleContinueToSigning = async () => {
-    setIsContinuingToSigning(true);
+  const handleResendReminders = async () => {
+    if (!activeSigningEnvelope || !canRemindSigners) return;
+    const unsigned = activeSigningEnvelope.recipients.filter((r) => r.status !== "SIGNED");
+    if (unsigned.length === 0) {
+      toast.info("All signers have already signed.");
+      return;
+    }
+
+    setRemindLoading(true);
     try {
-      const docsReady = await ensurePostApplicationDocumentsSaved();
-      if (!docsReady) return;
-      const signingUrl = await startSigningFlow();
-      window.location.assign(signingUrl);
-    } catch (error) {
-      handleSigningStartError(error, "Could not continue to signing");
+      for (const recipient of unsigned) {
+        const response = await apiClient.remindIssuerSigningRecipient(
+          activeSigningEnvelope.id,
+          recipient.id
+        );
+        if (!response.success) {
+          const err = getApiErrorDetails(response, "Failed to send reminder");
+          throw new Error(err.message);
+        }
+      }
+      toast.success(
+        unsigned.length === 1
+          ? `Reminder sent to ${unsigned[0].name}`
+          : `Reminders sent to ${unsigned.length} signers`
+      );
+    } catch (e) {
+      toast.error("Could not send reminders", {
+        description: e instanceof Error ? e.message : "Unknown error",
+      });
     } finally {
-      setIsContinuingToSigning(false);
+      setRemindLoading(false);
     }
   };
 
-  React.useEffect(() => {
-    if (!ekyc.identityPreview || modalStep !== "ekyc-confirm") {
-      return;
+  const handleRemindRecipient = async (recipientId: string) => {
+    if (!activeSigningEnvelope || !canRemindSigners) return;
+    setRemindLoading(true);
+    try {
+      const response = await apiClient.remindIssuerSigningRecipient(
+        activeSigningEnvelope.id,
+        recipientId
+      );
+      if (!response.success) {
+        const err = getApiErrorDetails(response, "Failed to send reminder");
+        throw new Error(err.message);
+      }
+      const recipient = activeSigningEnvelope.recipients.find((r) => r.id === recipientId);
+      toast.success(recipient ? `Reminder sent to ${recipient.name}` : "Reminder sent");
+    } catch (e) {
+      toast.error("Could not send reminder", {
+        description: e instanceof Error ? e.message : "Unknown error",
+      });
+    } finally {
+      setRemindLoading(false);
     }
-
-    if (confirmedName === null) {
-      setConfirmedName(ekyc.identityPreview.name);
-    }
-  }, [confirmedName, ekyc.identityPreview, modalStep]);
-
-  const handleLookupEkycIdentity = async () => {
-    const normalizedIc = icNumberInput.replace(/\D/g, "");
-    if (normalizedIc.length !== 12) {
-      toast.error("Enter a valid 12-digit MyKad IC number.");
-      return;
-    }
-
-    const ok = await ekyc.loadIdentityPreview(normalizedIc);
-    if (!ok) {
-      return;
-    }
-
-    setConfirmedName(null);
   };
-
-  const handleConfirmEkycIdentity = () => {
-    const name = (confirmedName ?? "").trim();
-    const icNumber = icNumberInput.replace(/\D/g, "");
-
-    if (!name) {
-      toast.error("Enter your full name exactly as shown on your MyKad.");
-      return;
-    }
-
-    if (icNumber.length !== 12) {
-      toast.error("Enter a valid 12-digit MyKad IC number.");
-      return;
-    }
-
-    if (!ekyc.identityPreview) {
-      toast.error("Look up your IC number before continuing.");
-      return;
-    }
-
-    ekyc.setConfirmedIdentity({ name, icNumber, email: ekyc.identityPreview.email });
-    setModalStep("ekyc");
-  };
-
-  React.useEffect(() => {
-    // Auto-create once per eKYC step visit; do not retry in a loop after failure.
-    if (
-      modalStep !== "ekyc" ||
-      !issuerOrganizationId ||
-      !ekyc.confirmedIdentity ||
-      ekyc.captureUrl ||
-      ekyc.isGenerating ||
-      ekyc.status === "error" ||
-      ekyc.status === "failed" ||
-      ekyc.status === "verified"
-    ) {
-      return;
-    }
-
-    ekyc.generateSession().catch(() => undefined);
-  }, [
-    ekyc.captureUrl,
-    ekyc.confirmedIdentity,
-    ekyc.generateSession,
-    ekyc.isGenerating,
-    ekyc.status,
-    issuerOrganizationId,
-    modalStep,
-  ]);
 
   const handleAcceptOverride = async () => {
     setAcceptOverrideLoading(true);
@@ -1191,7 +1185,7 @@ export function ReviewOfferModal({
     acceptSigningLoading ||
     acceptOverrideLoading ||
     isSavingPostDocs ||
-    isContinuingToSigning ||
+    remindLoading ||
     acceptInvoice.isPending ||
     rejectContract.isPending ||
     rejectInvoice.isPending;
@@ -1227,7 +1221,7 @@ export function ReviewOfferModal({
           role_key: role.key,
           name: nextDirector?.name ?? "",
           email: nextDirector?.email ?? "",
-          ...(role.party_type === "EXTERNAL" ? { ic_number: "" } : {}),
+          ic_number: nextDirector?.ic_number ?? null,
         },
       ];
     });
@@ -1240,232 +1234,12 @@ export function ReviewOfferModal({
           Financing offer approved — Review and respond
         </DialogTitle>
         <DialogDescription className="sr-only">
-          {modalStep === "ekyc-confirm"
-            ? "Enter your MyKad IC number, confirm your name, then scan the QR code."
-            : modalStep === "ekyc"
-              ? "Scan the QR code on your phone to complete identity verification."
-              : "Review the financing offer and accept or decline."}
+          Review the financing offer and accept or decline.
         </DialogDescription>
         {isLoading ? (
           <p className="text-sm text-muted-foreground py-8">Loading offer...</p>
         ) : (
           <>
-            {modalStep === "ekyc-confirm" ? (
-              <div className="space-y-5">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setModalStep("review");
-                  }}
-                  className="h-auto w-fit px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
-                >
-                  <ArrowLeftIcon className="mr-2 h-4 w-4" />
-                  Back to offer
-                </Button>
-
-                <div className="space-y-2">
-                  <p className="text-base font-semibold text-foreground">Confirm your identity</p>
-                  <p className="text-sm text-muted-foreground">
-                    Enter your MyKad IC number to find your registration details, then confirm your
-                    full name before scanning the QR code on your phone.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="ekyc-ic-number">IC number</Label>
-                    <Input
-                      id="ekyc-ic-number"
-                      value={icNumberInput}
-                      onChange={(event) => {
-                        setIcNumberInput(event.target.value);
-                        setConfirmedName(null);
-                        ekyc.reset();
-                      }}
-                      inputMode="numeric"
-                      autoComplete="off"
-                      placeholder="901212101234"
-                      className="rounded-xl tabular-nums"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      We match this against directors and shareholders registered for your organization.
-                    </p>
-                  </div>
-
-                  {ekyc.previewError ? (
-                    <p className="text-sm text-destructive">{ekyc.previewError}</p>
-                  ) : null}
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full rounded-xl"
-                    disabled={ekyc.isLoadingPreview}
-                    onClick={() => {
-                      handleLookupEkycIdentity().catch(() => undefined);
-                    }}
-                  >
-                    {ekyc.isLoadingPreview ? "Looking up..." : "Look up my details"}
-                  </Button>
-
-                  {ekyc.identityPreview ? (
-                    <div className="space-y-2">
-                      <Label htmlFor="ekyc-confirmed-name">Full name (as on MyKad)</Label>
-                      <Input
-                        id="ekyc-confirmed-name"
-                        value={confirmedName ?? ""}
-                        onChange={(event) => {
-                          setConfirmedName(event.target.value);
-                        }}
-                        autoComplete="name"
-                        className="rounded-xl"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Edit if needed so it matches your MyKad exactly.
-                      </p>
-                    </div>
-                  ) : null}
-
-                  <Button
-                    type="button"
-                    className="w-full rounded-xl"
-                    disabled={!ekyc.identityPreview || ekyc.isLoadingPreview}
-                    onClick={handleConfirmEkycIdentity}
-                  >
-                    Continue to QR scan
-                  </Button>
-                </div>
-              </div>
-            ) : modalStep === "ekyc" ? (
-              <div className="space-y-5">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setModalStep("ekyc-confirm");
-                  }}
-                  className="h-auto w-fit px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
-                >
-                  <ArrowLeftIcon className="mr-2 h-4 w-4" />
-                  Edit MyKad details
-                </Button>
-
-                <div className="text-center space-y-2">
-                  <p className="text-base font-semibold text-foreground">Identity verification</p>
-                  {ekyc.status === "verified" ? (
-                    <p className="text-sm text-muted-foreground">
-                      Your identity has been verified. Continue to signing when you are ready.
-                    </p>
-                  ) : ekyc.status === "failed" ? (
-                    <p className="text-sm text-muted-foreground">
-                      We could not verify your identity. Check that your full name matches your MyKad
-                      exactly, capture a clear photo of your IC, and scan again. Contact support if your
-                      IC number on file is incorrect.
-                    </p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Scan with your phone to verify your identity before signing.
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex flex-col items-center gap-4 py-2">
-                  {ekyc.status === "verified" ? (
-                    <div className="flex w-full max-w-xs flex-col items-center gap-4 text-center">
-                      <CheckCircleIcon className="h-16 w-16 text-primary" aria-hidden="true" />
-                      <p className="text-sm font-medium text-foreground">Identity verified</p>
-                      <Button
-                        type="button"
-                        className="w-full rounded-xl"
-                        onClick={() => {
-                          handleContinueToSigning().catch(() => undefined);
-                        }}
-                        disabled={isContinuingToSigning}
-                      >
-                        {isContinuingToSigning ? "Opening signing..." : "Continue to signing"}
-                      </Button>
-                    </div>
-                  ) : ekyc.status === "failed" ? (
-                    <div className="flex w-full max-w-xs flex-col items-center gap-4 text-center">
-                      <XCircleIcon className="h-16 w-16 text-destructive" aria-hidden="true" />
-                      <p className="text-sm text-destructive">
-                        {ekyc.error ||
-                          "We could not verify your identity. Check that your full name matches your MyKad exactly, capture a clear photo of your IC, and scan again."}
-                      </p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          ekyc.reset();
-                          setModalStep("ekyc-confirm");
-                        }}
-                        disabled={ekyc.isGenerating}
-                        className="w-full max-w-xs rounded-xl"
-                      >
-                        Edit details and try again
-                      </Button>
-                    </div>
-                  ) : (
-                    <>
-                  {ekyc.captureUrl && ekyc.status !== "error" ? (
-                    <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
-                      <QRCodeSVG value={ekyc.captureUrl} size={220} />
-                    </div>
-                  ) : ekyc.status === "error" ? null : (
-                    <div className="flex h-[252px] w-[252px] items-center justify-center">
-                      <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    </div>
-                  )}
-
-                  {ekyc.status === "error" ? (
-                    <div className="flex w-full max-w-xs flex-col items-center gap-2 text-center">
-                      <p className="text-sm text-destructive">
-                        {ekyc.error || "Identity verification failed."}
-                      </p>
-                      {ekyc.requiresSupport ? (
-                        <p className="text-sm text-muted-foreground">
-                          Email{" "}
-                          <a
-                            href="mailto:support@cashsouk.my"
-                            className="font-medium text-foreground underline underline-offset-2"
-                          >
-                            support@cashsouk.my
-                          </a>{" "}
-                          and we&apos;ll help you continue.
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  {ekyc.isPendingStale && ekyc.status === "pending" ? (
-                    <p className="text-center text-sm text-muted-foreground max-w-xs">
-                      Still waiting on your phone. Complete verification on your phone, or go back and
-                      try accepting the offer again if it is stuck.
-                    </p>
-                  ) : null}
-
-                  {ekyc.status === "error" && !isContinuingToSigning && !ekyc.requiresSupport ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        ekyc.generateSession({ force: true }).catch(() => undefined);
-                      }}
-                      disabled={ekyc.isGenerating}
-                      className="w-full max-w-xs rounded-xl"
-                    >
-                      {ekyc.isGenerating ? "Generating..." : "New QR"}
-                    </Button>
-                  ) : null}
-                    </>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <>
             <div className="flex flex-col items-center text-center mb-6">
               <div
                 className="w-[74px] h-[74px] rounded-full flex items-center justify-center mb-4 shadow-none"
@@ -1652,151 +1426,165 @@ export function ReviewOfferModal({
             {useEnvelopeSigning ? (
               <div className="mt-4 rounded-2xl border border-border bg-muted/15 p-4">
                 <div className="space-y-1 pb-3">
-                  <p className="text-base font-semibold text-foreground">Signing package signers</p>
+                  <p className="text-base font-semibold text-foreground">
+                    {showSigningProgress ? "Signing progress" : "Signing package signers"}
+                  </p>
                   <p className="text-sm text-muted-foreground">
-                    {signersLocked
-                      ? "This signing package has already been sent. Signers cannot be changed here."
-                      : "Review who will sign each configured role before the package is sent."}
+                    {showSigningProgress
+                      ? "Track who has signed each document. Reminders can be sent to signers who have not completed signing yet."
+                      : signersLocked
+                        ? "This signing package has already been sent. Signers cannot be changed here."
+                        : "Review who will sign each configured role. Signing emails will be sent to every signer."}
                   </p>
                 </div>
-                <div className="space-y-4">
-                  {signingTemplate.roles.map((role) => {
-                    const roleBindings = signerBindings
-                      .map((binding, index) => ({ binding, index }))
-                      .filter(({ binding }) => binding.role_key === role.key);
-                    const canAdd =
-                      !signersLocked &&
-                      (role.max_count == null || roleBindings.length < role.max_count);
-                    return (
-                      <div key={role.key} className="space-y-2 rounded-xl border border-border bg-background p-3">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <div>
-                            <p className="text-sm font-semibold text-foreground">{role.label || role.key}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {role.party_type === "EXTERNAL" ? "External signer" : "Issuer signer"}
-                              {role.min_count > 0 ? ` · minimum ${role.min_count}` : ""}
-                              {role.max_count != null ? ` · maximum ${role.max_count}` : ""}
-                            </p>
-                          </div>
-                          {canAdd ? (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="rounded-xl"
-                              onClick={() => addSignerBinding(role)}
-                            >
-                              Add signer
-                            </Button>
-                          ) : null}
-                        </div>
-                        {roleBindings.length === 0 ? (
-                          <p className="text-sm text-destructive">Add at least one signer for this role.</p>
-                        ) : (
-                          <div className="space-y-2">
-                            {roleBindings.map(({ binding, index }) => {
-                              const selectedDirectorKey = resolveBindingDirectorKey(
-                                issuerDirectors,
-                                binding
-                              );
-                              const usedDirectorKeys = new Set(
-                                roleBindings
-                                  .filter(({ index: rowIndex }) => rowIndex !== index)
-                                  .map(({ binding: rowBinding }) =>
-                                    resolveBindingDirectorKey(issuerDirectors, rowBinding)
-                                  )
-                                  .filter(Boolean)
-                              );
-                              const selectableDirectors = issuerDirectors.filter(
-                                (director) =>
-                                  director.matchKey === selectedDirectorKey ||
-                                  !usedDirectorKeys.has(director.matchKey)
-                              );
-                              const useDirectorDropdown =
-                                role.party_type !== "EXTERNAL" && issuerDirectors.length > 0;
 
-                              return (
-                              <div key={`${role.key}-${index}`} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-                                {useDirectorDropdown ? (
-                                  <Select
-                                    value={selectedDirectorKey || undefined}
-                                    disabled={signersLocked}
-                                    onValueChange={(matchKey) => {
-                                      const director = issuerDirectors.find(
-                                        (item) => item.matchKey === matchKey
-                                      );
-                                      if (!director) return;
-                                      updateSignerBinding(index, {
-                                        name: director.name,
-                                        email: director.email,
-                                      });
-                                    }}
-                                  >
-                                    <SelectTrigger className="rounded-xl">
-                                      <SelectValue placeholder="Select director" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {selectableDirectors.map((director) => (
-                                        <SelectItem key={director.matchKey} value={director.matchKey}>
-                                          {director.name}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                ) : (
-                                  <Input
-                                    value={binding.name}
-                                    onChange={(event) =>
-                                      updateSignerBinding(index, { name: event.target.value })
-                                    }
-                                    placeholder="Full name"
-                                    disabled={signersLocked}
-                                    className="rounded-xl"
-                                  />
-                                )}
-                                <Input
-                                  value={binding.email}
-                                  onChange={(event) =>
-                                    updateSignerBinding(index, { email: event.target.value })
-                                  }
-                                  placeholder="Email"
-                                  type="email"
-                                  readOnly={useDirectorDropdown || signersLocked}
-                                  disabled={signersLocked && !useDirectorDropdown}
-                                  className="rounded-xl"
-                                />
-                                {!signersLocked ? (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="rounded-xl text-muted-foreground hover:text-destructive"
-                                  onClick={() => removeSignerBinding(index)}
-                                >
-                                  Remove
-                                </Button>
-                                ) : null}
-                                {role.party_type === "EXTERNAL" ? (
-                                  <Input
-                                    value={binding.ic_number ?? ""}
-                                    onChange={(event) =>
-                                      updateSignerBinding(index, { ic_number: event.target.value })
-                                    }
-                                    placeholder="IC number"
-                                    inputMode="numeric"
-                                    disabled={signersLocked}
-                                    className="rounded-xl sm:col-span-2"
-                                  />
-                                ) : null}
-                              </div>
-                              );
-                            })}
+                {showSigningProgress && activeSigningEnvelope ? (
+                  <div className="space-y-4">
+                    <SigningProgressMatrix envelope={activeSigningEnvelope} />
+                    {canRemindSigners ? (
+                      <RecipientReminders
+                        envelope={activeSigningEnvelope}
+                        onRemind={handleRemindRecipient}
+                        disabled={remindLoading}
+                      />
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {signingTemplate.roles.map((role) => {
+                      const roleBindings = signerBindings
+                        .map((binding, index) => ({ binding, index }))
+                        .filter(({ binding }) => binding.role_key === role.key);
+                      const canAdd =
+                        !signersLocked &&
+                        (role.max_count == null || roleBindings.length < role.max_count);
+                      const useDirectorDropdown =
+                        isDirectorRole(role) && issuerDirectors.length > 0;
+
+                      return (
+                        <div key={role.key} className="space-y-2 rounded-xl border border-border bg-background p-3">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-foreground">{role.label || role.key}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {useDirectorDropdown ? "Issuer director" : "Signer"}
+                                {role.min_count > 0 ? ` · minimum ${role.min_count}` : ""}
+                                {role.max_count != null ? ` · maximum ${role.max_count}` : ""}
+                              </p>
+                            </div>
+                            {canAdd ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="rounded-xl"
+                                onClick={() => addSignerBinding(role)}
+                              >
+                                Add signer
+                              </Button>
+                            ) : null}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                          {roleBindings.length === 0 ? (
+                            <p className="text-sm text-destructive">Add at least one signer for this role.</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {roleBindings.map(({ binding, index }) => {
+                                const selectedDirectorKey = resolveBindingDirectorKey(
+                                  issuerDirectors,
+                                  binding
+                                );
+                                const usedDirectorKeys = new Set(
+                                  roleBindings
+                                    .filter(({ index: rowIndex }) => rowIndex !== index)
+                                    .map(({ binding: rowBinding }) =>
+                                      resolveBindingDirectorKey(issuerDirectors, rowBinding)
+                                    )
+                                    .filter(Boolean)
+                                );
+                                const selectableDirectors = issuerDirectors.filter(
+                                  (director) =>
+                                    director.matchKey === selectedDirectorKey ||
+                                    !usedDirectorKeys.has(director.matchKey)
+                                );
+
+                                return (
+                                  <div key={`${role.key}-${index}`}>
+                                    <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                                      {useDirectorDropdown ? (
+                                        <Select
+                                          value={selectedDirectorKey || undefined}
+                                          disabled={signersLocked}
+                                          onValueChange={(matchKey) => {
+                                            const director = issuerDirectors.find(
+                                              (item) => item.matchKey === matchKey
+                                            );
+                                            if (!director) return;
+                                            updateSignerBinding(index, {
+                                              name: director.name,
+                                              email: director.email,
+                                              ic_number: director.ic_number,
+                                            });
+                                          }}
+                                        >
+                                          <SelectTrigger className="rounded-xl">
+                                            <SelectValue placeholder="Select director" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {selectableDirectors.map((director) => (
+                                              <SelectItem key={director.matchKey} value={director.matchKey}>
+                                                {director.name}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      ) : (
+                                        <Input
+                                          value={binding.name}
+                                          onChange={(event) =>
+                                            updateSignerBinding(index, { name: event.target.value })
+                                          }
+                                          placeholder="Full name"
+                                          disabled={signersLocked}
+                                          className="rounded-xl"
+                                        />
+                                      )}
+                                      <Input
+                                        value={binding.email}
+                                        onChange={(event) =>
+                                          updateSignerBinding(index, { email: event.target.value })
+                                        }
+                                        placeholder="Email"
+                                        type="email"
+                                        readOnly={useDirectorDropdown || signersLocked}
+                                        disabled={useDirectorDropdown || signersLocked}
+                                        tabIndex={useDirectorDropdown ? -1 : undefined}
+                                        className={cn(
+                                          "rounded-xl",
+                                          useDirectorDropdown && "bg-muted select-none"
+                                        )}
+                                      />
+                                      {!signersLocked ? (
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="rounded-xl text-muted-foreground hover:text-destructive"
+                                          onClick={() => removeSignerBinding(index)}
+                                        >
+                                          Remove
+                                        </Button>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ) : null}
 
@@ -1824,17 +1612,21 @@ export function ReviewOfferModal({
               </Button>
               <Button
                 size="lg"
-                onClick={handleAccept}
+                onClick={signersLocked ? handleResendReminders : handleAccept}
                 disabled={isPending || isPostDocsConfigLoading}
                 className="h-12 rounded-xl bg-green-600 hover:bg-green-700 text-white shadow-sm"
               >
                 {isSavingPostDocs
                   ? "Saving documents..."
-                  : type === "invoice" && !requiresInvoiceSigning
-                    ? "Accept offer"
-                    : signersLocked
-                      ? "Continue signing"
-                      : "Accept and sign offer"}
+                  : remindLoading
+                    ? "Sending reminders..."
+                    : acceptSigningLoading
+                      ? "Sending signing emails..."
+                      : type === "invoice" && !requiresInvoiceSigning
+                        ? "Accept offer"
+                        : signersLocked
+                          ? "Resend reminders"
+                          : "Accept and send for signing"}
               </Button>
             </div>
             {isSigningOverrideEnabled && (
@@ -1938,17 +1730,15 @@ export function ReviewOfferModal({
                 </Button>
               )}
             </div>
-              </>
-            )}
           </>
         )}
       </DialogContent>
       <ConfirmDialog
         open={signerConfirmOpen}
         onOpenChange={setSignerConfirmOpen}
-        title={signersLocked ? "Continue signing" : "Confirm signers"}
+        title="Confirm signers"
         description={signingConfirmDescription}
-        confirmText={signersLocked ? "Continue signing" : "Send for signing"}
+        confirmText="Accept and send for signing"
         cancelText="Go back"
         onConfirm={handleConfirmSignersAccept}
         isLoading={acceptSigningLoading}

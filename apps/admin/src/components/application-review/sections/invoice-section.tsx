@@ -58,7 +58,7 @@ export interface InvoiceSectionProps {
   isSendInvoiceOfferPending?: boolean;
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;
-  onViewSignedInvoiceOffer?: (signedOfferLetterS3Key: string) => void | Promise<void>;
+  onViewSignedInvoiceOffer?: (invoiceId: string) => void | Promise<void>;
   sectionComparison?: {
     beforeInvoices: InvoiceSectionProps["invoices"];
     afterInvoices: InvoiceSectionProps["invoices"];

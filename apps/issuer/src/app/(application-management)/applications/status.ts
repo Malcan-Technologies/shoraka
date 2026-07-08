@@ -120,10 +120,8 @@ export interface NormalizedInvoice {
   canReviewOffer: boolean;
   /** Raw offer details from API for modal display. */
   offer_details?: Record<string, unknown> | null;
-  /** True when SigningCloud signed PDF is stored (offer_signing.status === signed). */
+  /** True when invoice offer was accepted after signing envelope completion. */
   signedOfferLetterAvailable: boolean;
-  /** S3 key for signed offer letter when available. */
-  signedOfferLetterS3Key: string | null;
   /** When status is WITHDRAWN: distinguishes user decline vs withdraw vs expiry (issuer UI). */
   withdrawReason?: WithdrawReason;
   /**
@@ -170,10 +168,8 @@ export interface NormalizedApplication {
   withdrawReason?: WithdrawReason;
   /** Offer expiry (contract or invoice). ISO string. Used for expiry indicator and filter. */
   expiresAt?: string | null;
-  /** True when contract has a stored signed offer letter PDF. */
+  /** True when contract offer was accepted after signing envelope completion. */
   signedContractOfferLetterAvailable: boolean;
-  /** S3 key for contract signed offer letter when available. */
-  signedContractOfferLetterS3Key: string | null;
 }
 
 /* =============================================================================

@@ -107,7 +107,7 @@ interface InvoiceReviewListProps {
   }) => Promise<void>;
   isSendInvoiceOfferPending?: boolean;
   /** Opens signed offer document using the same document view-url flow. */
-  onViewSignedInvoiceOffer?: (signedOfferLetterS3Key: string) => void | Promise<void>;
+  onViewSignedInvoiceOffer?: (invoiceId: string) => void | Promise<void>;
 }
 
 interface InvoiceDetails {
@@ -441,15 +441,7 @@ export function InvoiceList({
             const isRowReadOnly = readOnlyInvoiceIds?.has(inv.id) ?? false;
             const isTabLocked = !!isActionLocked || !isReviewable;
             const isInvoiceFinalizedByIssuer = reviewItemStatus === "APPROVED";
-            const signedOfferAvailable = isSignedOfferLetterAvailable(inv.offer_signing);
-            const signedOfferS3Key =
-              signedOfferAvailable &&
-              inv.offer_signing &&
-              typeof (inv.offer_signing as { signed_offer_letter_s3_key?: unknown })
-                .signed_offer_letter_s3_key === "string"
-                ? (inv.offer_signing as { signed_offer_letter_s3_key: string })
-                    .signed_offer_letter_s3_key
-                : null;
+            const signedOfferAvailable = isSignedOfferLetterAvailable(inv.status);
             const isRowGreyedOut =
               isRowReadOnly ||
               isTabLocked ||
@@ -458,7 +450,7 @@ export function InvoiceList({
             const showFullActionMenu = isReviewable && !isRowGreyedOut;
             const showSignedOfferOnlyMenu =
               !!onViewSignedInvoiceOffer &&
-              !!signedOfferS3Key &&
+              signedOfferAvailable &&
               !showFullActionMenu;
             const isExpanded = Boolean(expandedById[inv.id]);
             const invoiceValue = toNumber(details?.value);
@@ -535,8 +527,8 @@ export function InvoiceList({
                         onResetToPending={onResetItemToPending}
                         showApprove={false}
                         onViewSignedOffer={
-                          signedOfferS3Key && onViewSignedInvoiceOffer
-                            ? () => void onViewSignedInvoiceOffer(signedOfferS3Key)
+                          signedOfferAvailable && onViewSignedInvoiceOffer
+                            ? () => void onViewSignedInvoiceOffer(inv.id)
                             : undefined
                         }
                       />
@@ -547,8 +539,8 @@ export function InvoiceList({
                         isPending={isItemActionPending}
                         viewSignedOfferOnly
                         onViewSignedOffer={() => {
-                          if (onViewSignedInvoiceOffer && signedOfferS3Key) {
-                            void onViewSignedInvoiceOffer(signedOfferS3Key);
+                          if (onViewSignedInvoiceOffer && signedOfferAvailable) {
+                            void onViewSignedInvoiceOffer(inv.id);
                           }
                         }}
                       />

@@ -34,8 +34,6 @@ export type SigningDocumentStatus =
   | "COMPLETED"
   | "VOIDED";
 
-export type SigningPartyType = "INTERNAL" | "EXTERNAL";
-
 export type SigningRecipientStatus = "PENDING" | "SENT" | "VIEWED" | "SIGNED" | "DECLINED";
 
 export type SigningKycStatus = "NOT_REQUIRED" | "PENDING" | "VERIFIED" | "FAILED";
@@ -46,11 +44,48 @@ export type SigningAssignmentStatus = "PENDING" | "SENT" | "VIEWED" | "SIGNED" |
 
 export type SigningDocumentFileType = "pdf" | "excel";
 
-/**
- * Hint for the admin binding UI: where a role's real person is usually sourced from.
- * "custom" = admin types the person in manually.
- */
-export type SigningRoleSourceHint = "issuer_director" | "guarantor" | "platform" | "custom";
+/** Stable role keys used in signing templates. Extend this registry to add new roles. */
+export type SigningRoleKey = "issuer_director" | "guarantor";
+
+/** @deprecated Use SigningRoleKey. Kept for parsing legacy template JSON. */
+export type SigningRoleSourceHint = SigningRoleKey | "platform" | "custom";
+
+export interface SigningRoleDefinition {
+  key: SigningRoleKey;
+  label: string;
+  /** Default KYC requirement for this role. */
+  kyc_required: boolean;
+  /** Default min recipients at offer bind time. */
+  min_count: number;
+  /** Default max recipients (null = unbounded). */
+  max_count: number | null;
+}
+
+/** Extensible registry of predefined signer roles. Add entries here to support new roles. */
+export const SIGNING_ROLE_REGISTRY: readonly SigningRoleDefinition[] = [
+  {
+    key: "issuer_director",
+    label: "Issuer director",
+    kyc_required: true,
+    min_count: 1,
+    max_count: null,
+  },
+  {
+    key: "guarantor",
+    label: "Guarantor",
+    kyc_required: true,
+    min_count: 1,
+    max_count: null,
+  },
+] as const;
+
+export function getSigningRoleDefinition(key: string): SigningRoleDefinition | undefined {
+  return SIGNING_ROLE_REGISTRY.find((role) => role.key === key);
+}
+
+export function isSigningRoleKey(value: string): value is SigningRoleKey {
+  return SIGNING_ROLE_REGISTRY.some((role) => role.key === value);
+}
 
 // ---------------------------------------------------------------------------
 // Template config (product-level)
@@ -59,13 +94,25 @@ export type SigningRoleSourceHint = "issuer_director" | "guarantor" | "platform"
 /** Key under which the signing template is stored inside Product.workflow config. */
 export const SIGNING_TEMPLATE_WORKFLOW_KEY = "signing_template";
 
-export interface SigningTemplateRole {
-  /** Stable machine key, e.g. "borrower_director". */
-  key: string;
-  /** Human label, e.g. "Borrower Director". */
+/** Links a product post_application supporting doc step to the signing package. */
+export interface SigningTemplateSupportingDocRef {
+  /** Workflow step key from the product supporting_documents config. */
+  step_key: string;
+  /** Human label shown in admin/issuer UI. */
   label: string;
-  party_type: SigningPartyType;
-  source_hint: SigningRoleSourceHint;
+  /** Whether this document must be attached before the envelope can be sent. */
+  required: boolean;
+  /** Role keys whose bound people must sign this document. */
+  signer_role_keys: string[];
+}
+
+export interface SigningTemplateRole {
+  /** Stable machine key — must match a SigningRoleKey. */
+  key: string;
+  /** Human label derived from the role registry. */
+  label: string;
+  /** Legacy field parsed from old templates; mapped to key when present. */
+  source_hint?: SigningRoleSourceHint;
   /** Display order for roles in admin UI (does not gate signing). */
   routing_order: number;
   kyc_required: boolean;
@@ -90,18 +137,23 @@ export interface SigningTemplateDocument {
   template?: { s3_key: string; file_name: string; file_size?: number };
   /** Role keys whose bound people must sign this document. */
   signer_role_keys: string[];
+  /** When source is ISSUER_UPLOAD, links to a product post_application supporting doc step. */
+  supporting_doc_step_key?: string;
 }
 
 export interface SigningTemplateConfig {
   enabled: boolean;
   roles: SigningTemplateRole[];
   documents: SigningTemplateDocument[];
+  /** Post-application supporting docs that require signature in the envelope. */
+  supporting_docs?: SigningTemplateSupportingDocRef[];
 }
 
 export const DEFAULT_SIGNING_TEMPLATE_CONFIG: SigningTemplateConfig = {
   enabled: false,
   roles: [],
   documents: [],
+  supporting_docs: [],
 };
 
 const DOCUMENT_SOURCES: readonly SigningDocumentSource[] = [
@@ -109,15 +161,6 @@ const DOCUMENT_SOURCES: readonly SigningDocumentSource[] = [
   "ADMIN_UPLOAD",
   "ISSUER_UPLOAD",
   "TEMPLATE",
-];
-
-const PARTY_TYPES: readonly SigningPartyType[] = ["INTERNAL", "EXTERNAL"];
-
-const ROLE_SOURCE_HINTS: readonly SigningRoleSourceHint[] = [
-  "issuer_director",
-  "guarantor",
-  "platform",
-  "custom",
 ];
 
 const FILE_TYPES: readonly SigningDocumentFileType[] = ["pdf", "excel"];
@@ -141,24 +184,57 @@ function asInt(value: unknown, fallback: number): number {
   return fallback;
 }
 
+/** Map legacy per-instance keys (e.g. issuer_director_1) to registry role keys. */
+export function canonicalSigningRoleKey(key: string): SigningRoleKey | null {
+  const trimmed = key.trim();
+  if (isSigningRoleKey(trimmed)) return trimmed;
+  if (/^issuer_director(_\d+)?$/i.test(trimmed)) return "issuer_director";
+  if (/^guarantor(_\d+)?$/i.test(trimmed)) return "guarantor";
+  return null;
+}
+
+function normalizeRoleKey(raw: Record<string, unknown>, index: number): string {
+  const key = asString(raw.key).trim();
+  const fromKey = canonicalSigningRoleKey(key);
+  if (fromKey) return fromKey;
+  const hint = asString(raw.source_hint).trim();
+  const fromHint = canonicalSigningRoleKey(hint);
+  if (fromHint) return fromHint;
+  if (hint === "issuer_director" || hint === "guarantor") return hint;
+  return index === 0 ? "issuer_director" : "guarantor";
+}
+
 function parseTemplateRole(raw: unknown, index: number): SigningTemplateRole {
   const r = asRecord(raw);
-  const party_type = PARTY_TYPES.includes(r.party_type as SigningPartyType)
-    ? (r.party_type as SigningPartyType)
-    : "INTERNAL";
-  const source_hint = ROLE_SOURCE_HINTS.includes(r.source_hint as SigningRoleSourceHint)
-    ? (r.source_hint as SigningRoleSourceHint)
-    : "custom";
+  const key = normalizeRoleKey(r, index);
+  const registry = getSigningRoleDefinition(key);
+  const legacyHint = asString(r.source_hint).trim();
   return {
-    key: asString(r.key).trim() || `role_${index + 1}`,
-    label: asString(r.label).trim(),
-    party_type,
-    source_hint,
+    key,
+    label: asString(r.label).trim() || registry?.label || key,
+    source_hint: legacyHint ? (legacyHint as SigningRoleSourceHint) : undefined,
     routing_order: asInt(r.routing_order, index),
-    kyc_required: r.kyc_required !== false, // default true; KYC is required unless explicitly disabled
-    min_count: Math.max(0, asInt(r.min_count, 1)),
+    kyc_required: r.kyc_required !== false,
+    min_count: Math.max(0, asInt(r.min_count, registry?.min_count ?? 1)),
     max_count:
-      r.max_count === null || r.max_count === undefined ? null : Math.max(1, asInt(r.max_count, 1)),
+      r.max_count === null || r.max_count === undefined
+        ? (registry?.max_count ?? null)
+        : Math.max(1, asInt(r.max_count, 1)),
+  };
+}
+
+function parseSupportingDocRef(raw: unknown): SigningTemplateSupportingDocRef | null {
+  const r = asRecord(raw);
+  const stepKey = asString(r.step_key).trim();
+  if (!stepKey) return null;
+  const signerRoleKeys = Array.isArray(r.signer_role_keys)
+    ? r.signer_role_keys.filter((k): k is string => typeof k === "string" && k.trim() !== "")
+    : [];
+  return {
+    step_key: stepKey,
+    label: asString(r.label).trim() || stepKey,
+    required: r.required !== false,
+    signer_role_keys: signerRoleKeys,
   };
 }
 
@@ -176,6 +252,7 @@ function parseTemplateDocument(raw: unknown, index: number): SigningTemplateDocu
   const signerRoleKeys = Array.isArray(r.signer_role_keys)
     ? r.signer_role_keys.filter((k): k is string => typeof k === "string" && k.trim() !== "")
     : [];
+  const supportingDocStepKey = asString(r.supporting_doc_step_key).trim();
   return {
     key: asString(r.key).trim() || `document_${index + 1}`,
     name: asString(r.name).trim(),
@@ -194,6 +271,7 @@ function parseTemplateDocument(raw: unknown, index: number): SigningTemplateDocu
         }
       : undefined,
     signer_role_keys: signerRoleKeys,
+    supporting_doc_step_key: supportingDocStepKey || undefined,
   };
 }
 
@@ -203,10 +281,89 @@ export function parseSigningTemplateConfig(raw: unknown): SigningTemplateConfig 
   const r = asRecord(raw);
   const roles = Array.isArray(r.roles) ? r.roles.map(parseTemplateRole) : [];
   const documents = Array.isArray(r.documents) ? r.documents.map(parseTemplateDocument) : [];
-  return {
+  const supporting_docs = Array.isArray(r.supporting_docs)
+    ? r.supporting_docs
+        .map(parseSupportingDocRef)
+        .filter((item): item is SigningTemplateSupportingDocRef => item != null)
+    : [];
+  return sanitizeSigningTemplateConfig({
     enabled: r.enabled === true,
     roles,
     documents: [...documents].sort((a, b) => a.order - b.order),
+    supporting_docs,
+  });
+}
+
+function mergeRoleMaxCount(a: number | null, b: number | null): number | null {
+  if (a == null || b == null) return null;
+  return Math.max(a, b);
+}
+
+/** Normalize legacy duplicate role keys so documents and roles stay in sync. */
+export function sanitizeSigningTemplateConfig(config: SigningTemplateConfig): SigningTemplateConfig {
+  const remapRoleKeys = (keys: string[]): SigningRoleKey[] => [
+    ...new Set(
+      keys
+        .map((key) => canonicalSigningRoleKey(key))
+        .filter((key): key is SigningRoleKey => key != null)
+    ),
+  ];
+
+  const documents = config.documents.map((doc) => ({
+    ...doc,
+    signer_role_keys: remapRoleKeys(doc.signer_role_keys),
+  }));
+
+  const supporting_docs = (config.supporting_docs ?? []).map((ref) => ({
+    ...ref,
+    signer_role_keys: remapRoleKeys(ref.signer_role_keys),
+  }));
+
+  const usedRoleKeys = new Set<SigningRoleKey>([
+    ...documents.flatMap((doc) => doc.signer_role_keys),
+    ...supporting_docs.flatMap((ref) => ref.signer_role_keys),
+  ]);
+
+  const mergedRoles = new Map<SigningRoleKey, SigningTemplateRole>();
+  for (const role of config.roles) {
+    const canonical = canonicalSigningRoleKey(role.key);
+    if (!canonical) continue;
+    const registry = getSigningRoleDefinition(canonical)!;
+    const existing = mergedRoles.get(canonical);
+    if (!existing) {
+      mergedRoles.set(canonical, {
+        ...role,
+        key: canonical,
+        label: registry.label,
+        source_hint: role.source_hint ?? canonical,
+        kyc_required: role.kyc_required !== false,
+      });
+      continue;
+    }
+    mergedRoles.set(canonical, {
+      ...existing,
+      min_count: Math.max(existing.min_count, role.min_count),
+      max_count: mergeRoleMaxCount(existing.max_count, role.max_count),
+      kyc_required: existing.kyc_required && role.kyc_required !== false,
+    });
+  }
+
+  for (const key of usedRoleKeys) {
+    if (!mergedRoles.has(key)) {
+      mergedRoles.set(key, createDefaultRoleFromRegistry(key, mergedRoles.size));
+    }
+  }
+
+  const roles = [...mergedRoles.values()]
+    .filter((role) => usedRoleKeys.has(role.key as SigningRoleKey))
+    .sort((a, b) => a.routing_order - b.routing_order)
+    .map((role, index) => ({ ...role, routing_order: index }));
+
+  return {
+    ...config,
+    documents,
+    supporting_docs,
+    roles,
   };
 }
 
@@ -219,10 +376,15 @@ export function validateSigningTemplateConfig(config: SigningTemplateConfig): st
   if (!config.enabled) return errors;
 
   if (config.roles.length === 0) errors.push("Signing: add at least one signer role.");
-  if (config.documents.length === 0) errors.push("Signing: add at least one document.");
+  if (config.documents.length === 0 && (config.supporting_docs?.length ?? 0) === 0) {
+    errors.push("Signing: add at least one document or post-application supporting doc.");
+  }
 
   const roleKeys = new Set<string>();
   for (const role of config.roles) {
+    if (!isSigningRoleKey(role.key)) {
+      errors.push(`Signing: role "${role.key}" is not a supported role.`);
+    }
     if (!role.label.trim()) errors.push("Signing: every signer role needs a label.");
     if (roleKeys.has(role.key)) errors.push(`Signing: duplicate role key "${role.key}".`);
     roleKeys.add(role.key);
@@ -239,10 +401,30 @@ export function validateSigningTemplateConfig(config: SigningTemplateConfig): st
     if (doc.signer_role_keys.length === 0) {
       errors.push(`Signing: document "${doc.name || doc.key}" has no assigned signer role.`);
     }
+    const docSignerRoleKeys = new Set<string>();
     for (const roleKey of doc.signer_role_keys) {
       if (!roleKeys.has(roleKey)) {
         errors.push(
           `Signing: document "${doc.name || doc.key}" references unknown role "${roleKey}".`
+        );
+      }
+      if (docSignerRoleKeys.has(roleKey)) {
+        errors.push(
+          `Signing: document "${doc.name || doc.key}" assigns signer role "${roleKey}" more than once.`
+        );
+      }
+      docSignerRoleKeys.add(roleKey);
+    }
+  }
+
+  for (const ref of config.supporting_docs ?? []) {
+    if (ref.signer_role_keys.length === 0) {
+      errors.push(`Signing: supporting doc "${ref.label}" has no assigned signer role.`);
+    }
+    for (const roleKey of ref.signer_role_keys) {
+      if (!roleKeys.has(roleKey)) {
+        errors.push(
+          `Signing: supporting doc "${ref.label}" references unknown role "${roleKey}".`
         );
       }
     }
@@ -251,35 +433,41 @@ export function validateSigningTemplateConfig(config: SigningTemplateConfig): st
   return errors;
 }
 
+export function createDefaultRoleFromRegistry(
+  roleKey: SigningRoleKey,
+  roleIndex: number
+): SigningTemplateRole {
+  const def = getSigningRoleDefinition(roleKey)!;
+  return {
+    key: roleKey,
+    label: def.label,
+    routing_order: roleIndex,
+    kyc_required: def.kyc_required,
+    min_count: def.min_count,
+    max_count: def.max_count,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Envelope planning (template + bound people -> envelope graph spec)
-//
-// Pure, provider- and DB-agnostic. The API persists the returned plan and the
-// provider adapter sends it. Kept here so the admin UI can preview the exact
-// envelope before it is created.
 // ---------------------------------------------------------------------------
 
-/** A real person the admin binds to a template role at send time. */
+/** A real person the issuer binds to a template role at send time. */
 export interface RecipientBinding {
   role_key: string;
   name: string;
   email: string;
-  /** INTERNAL issuer user id (when the person has a platform account). */
-  user_id?: string | null;
   /** application_guarantors.id when pre-filled from a guarantor. */
   application_guarantor_id?: string | null;
   ic_number?: string | null;
 }
 
 export interface PlannedRecipient {
-  /** Temporary reference used to wire assignments before DB ids exist. */
   ref: string;
   role_key: string;
   role_label: string;
-  party_type: SigningPartyType;
   name: string;
   email: string;
-  user_id: string | null;
   application_guarantor_id: string | null;
   ic_number: string | null;
   routing_order: number;
@@ -295,6 +483,7 @@ export interface PlannedDocument {
   required: boolean;
   order: number;
   template?: { s3_key: string; file_name: string; file_size?: number };
+  supporting_doc_step_key?: string;
 }
 
 export interface PlannedAssignment {
@@ -312,10 +501,26 @@ export interface EnvelopePlan {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/**
- * Validate that the admin's role bindings satisfy the template (counts, known roles,
- * required contact fields). Empty array = valid. Only meaningful when template.enabled.
- */
+/** Normalize Malaysian IC to digits only for comparison. */
+export function normalizeSigningIcNumber(ic: string): string {
+  return ic.replace(/\D/g, "");
+}
+
+export function isValidSigningIcNumber(ic: string | null | undefined): boolean {
+  return normalizeSigningIcNumber(String(ic ?? "")).length === 12;
+}
+
+/** Issuer directors must have IC bound at offer time; third parties can declare IC when opening the link. */
+export function roleRequiresBindingIcAtOffer(
+  role: Pick<SigningTemplateRole, "key" | "source_hint">
+): boolean {
+  const canonical = canonicalSigningRoleKey(role.key);
+  return (
+    canonical === "issuer_director" ||
+    role.source_hint === "issuer_director"
+  );
+}
+
 export function validateRecipientBindings(
   template: SigningTemplateConfig,
   bindings: RecipientBinding[]
@@ -332,6 +537,16 @@ export function validateRecipientBindings(
     if (!b.name.trim()) errors.push(`A ${b.role_key} recipient is missing a name.`);
     if (!EMAIL_RE.test(b.email.trim())) {
       errors.push(`A ${b.role_key} recipient has an invalid email.`);
+    }
+    const role = roleByKey.get(b.role_key)!;
+    if (roleRequiresBindingIcAtOffer(role)) {
+      if (!String(b.ic_number ?? "").trim()) {
+        errors.push(`Recipient for "${role.label || role.key}" must include an IC number.`);
+      } else if (!isValidSigningIcNumber(b.ic_number)) {
+        errors.push(`Recipient for "${role.label || role.key}" must have a valid 12-digit IC number.`);
+      }
+    } else if (b.ic_number?.trim() && !isValidSigningIcNumber(b.ic_number)) {
+      errors.push(`Recipient for "${role.label || role.key}" has an invalid IC number.`);
     }
     const list = byRole.get(b.role_key) ?? [];
     list.push(b);
@@ -355,13 +570,10 @@ export function validateRecipientBindings(
   return errors;
 }
 
-/**
- * Build the envelope graph spec from a template and the admin's bindings.
- * Assumes bindings already passed `validateRecipientBindings`.
- */
 export function buildEnvelopePlanFromTemplate(
   template: SigningTemplateConfig,
-  bindings: RecipientBinding[]
+  bindings: RecipientBinding[],
+  options?: { issuerUploadS3Keys?: Map<string, string> }
 ): EnvelopePlan {
   const roleByKey = new Map(template.roles.map((r) => [r.key, r]));
   const perRoleIndex = new Map<string, number>();
@@ -376,12 +588,10 @@ export function buildEnvelopePlanFromTemplate(
         ref: `${b.role_key}#${idx}`,
         role_key: role.key,
         role_label: role.label,
-        party_type: role.party_type,
         name: b.name.trim(),
         email: b.email.trim().toLowerCase(),
-        user_id: b.user_id ?? null,
         application_guarantor_id: b.application_guarantor_id ?? null,
-        ic_number: b.ic_number ?? null,
+        ic_number: b.ic_number?.trim() || null,
         routing_order: role.routing_order,
         kyc_required: role.kyc_required,
       };
@@ -394,7 +604,7 @@ export function buildEnvelopePlanFromTemplate(
     recipientsByRole.set(r.role_key, list);
   }
 
-  const documents: PlannedDocument[] = [...template.documents]
+  const templateDocuments: PlannedDocument[] = [...template.documents]
     .sort((a, b) => a.order - b.order)
     .map((doc, index) => ({
       ref: doc.key,
@@ -405,7 +615,26 @@ export function buildEnvelopePlanFromTemplate(
       required: doc.required,
       order: index,
       template: doc.template,
+      supporting_doc_step_key: doc.supporting_doc_step_key,
     }));
+
+  const supportingDocDocuments: PlannedDocument[] = (template.supporting_docs ?? []).map(
+    (ref, index) => {
+      const s3Key = options?.issuerUploadS3Keys?.get(ref.step_key);
+      return {
+        ref: `supporting_${ref.step_key}`,
+        key: `supporting_${ref.step_key}`,
+        name: ref.label,
+        source: "ISSUER_UPLOAD" as const,
+        required: ref.required,
+        order: templateDocuments.length + index,
+        template: s3Key ? { s3_key: s3Key, file_name: `${ref.label}.pdf` } : undefined,
+        supporting_doc_step_key: ref.step_key,
+      };
+    }
+  );
+
+  const documents = [...templateDocuments, ...supportingDocDocuments];
 
   const assignments: PlannedAssignment[] = [];
   for (const doc of template.documents) {
@@ -420,12 +649,20 @@ export function buildEnvelopePlanFromTemplate(
       }
     }
   }
+  for (const ref of template.supporting_docs ?? []) {
+    for (const roleKey of ref.signer_role_keys) {
+      for (const recipient of recipientsByRole.get(roleKey) ?? []) {
+        assignments.push({
+          document_ref: `supporting_${ref.step_key}`,
+          recipient_ref: recipient.ref,
+          required: ref.required,
+          action: "SIGN",
+        });
+      }
+    }
+  }
 
-  return {
-    documents,
-    recipients,
-    assignments,
-  };
+  return { documents, recipients, assignments };
 }
 
 // ---------------------------------------------------------------------------
@@ -451,13 +688,13 @@ export interface SigningDocumentDto {
   required: boolean;
   status: SigningDocumentStatus;
   signed_s3_key: string | null;
+  supporting_doc_step_key?: string | null;
 }
 
 export interface SigningRecipientDto {
   id: string;
   role_key: string;
   role_label: string;
-  party_type: SigningPartyType;
   name: string;
   email: string;
   routing_order: number;
@@ -484,38 +721,46 @@ export interface SigningEnvelopeDto {
 export interface ExternalSigningSessionDto {
   envelope: SigningEnvelopeDto;
   recipient_id: string;
+  /** True after the signer passes the IC access-code gate. */
+  access_verified: boolean;
+  /** True when this recipient must complete MyKad eKYC before signing. */
+  kyc_required: boolean;
+  kyc_status: SigningKycStatus;
+}
+
+export interface VerifyExternalAccessCodeInput {
+  ic_number: string;
+}
+
+export interface RecipientEkycSession {
+  url: string;
+  token: string;
+  sdk_endpoint: string;
+}
+
+export interface RecipientEkycSessionStatus {
+  status: "pending" | "verified" | "failed" | "error";
+  last_error?: string | null;
 }
 
 export function normalizeSigningEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-/** True when a recipient slot belongs to the authenticated user. */
-export function signingRecipientEmailMatchesUser(
-  recipientEmail: string,
-  userEmail: string
-): boolean {
-  const normalizedUser = normalizeSigningEmail(userEmail);
-  if (!normalizedUser) return false;
-  return normalizeSigningEmail(recipientEmail) === normalizedUser;
-}
-
-/** Next unsigned assignment for the current user's email (document order, not routing order). */
-export function findUnsignedSigningAssignmentForUser(
+/** Next unsigned assignment for a recipient (document order, not routing order). */
+export function findUnsignedSigningAssignmentForRecipient(
   envelope: Pick<SigningEnvelopeDto, "documents" | "recipients" | "assignments">,
-  userEmail: string
+  recipientId: string
 ): { document: SigningDocumentDto; recipient: SigningRecipientDto } | null {
-  const normalizedUser = normalizeSigningEmail(userEmail);
-  if (!normalizedUser) return null;
+  const recipient = envelope.recipients.find((item) => item.id === recipientId);
+  if (!recipient) return null;
 
-  const recipientById = new Map(envelope.recipients.map((recipient) => [recipient.id, recipient]));
   const documentById = new Map(envelope.documents.map((document) => [document.id, document]));
 
   const pendingAssignments = envelope.assignments
     .filter((assignment) => {
       if (assignment.action !== "SIGN" || assignment.status === "SIGNED") return false;
-      const recipient = recipientById.get(assignment.recipient_id);
-      return recipient && normalizeSigningEmail(recipient.email) === normalizedUser;
+      return assignment.recipient_id === recipientId;
     })
     .sort((left, right) => {
       const leftOrder = documentById.get(left.document_id)?.order ?? 0;
@@ -527,14 +772,13 @@ export function findUnsignedSigningAssignmentForUser(
   if (!assignment) return null;
 
   const document = documentById.get(assignment.document_id);
-  const recipient = recipientById.get(assignment.recipient_id);
-  if (!document || !recipient) return null;
+  if (!document) return null;
 
   return { document, recipient };
 }
 
 // ---------------------------------------------------------------------------
-// Progress computation (pure — drives the progress bar / matrix UI)
+// Progress computation
 // ---------------------------------------------------------------------------
 
 export interface SigningProgressGroup {
@@ -547,16 +791,11 @@ export interface SigningProgressGroup {
 export interface SigningEnvelopeProgress {
   total_required: number;
   signed: number;
-  /** 0–100, rounded. 100 only when every required assignment is signed. */
   percent: number;
   by_recipient: SigningProgressGroup[];
   by_document: SigningProgressGroup[];
 }
 
-/**
- * Compute progress across the document x recipient matrix. Only `required` assignments
- * count toward completion; optional ones are tracked but do not gate the percentage.
- */
 export function computeSigningEnvelopeProgress(
   envelope: Pick<SigningEnvelopeDto, "documents" | "recipients" | "assignments">
 ): SigningEnvelopeProgress {
@@ -594,18 +833,11 @@ export function computeSigningEnvelopeProgress(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Status roll-up (pure) — turn per-assignment statuses into document / recipient
-// / envelope statuses. Used by the webhook handler and the send flow so the whole
-// graph stays consistent from a single source of truth.
-// ---------------------------------------------------------------------------
-
 export interface AssignmentStatusInput {
   status: SigningAssignmentStatus;
   required: boolean;
 }
 
-/** Roll a document's assignment statuses up to a document status. */
 export function rollupDocumentStatus(
   assignments: AssignmentStatusInput[]
 ): SigningDocumentStatus {
@@ -617,7 +849,6 @@ export function rollupDocumentStatus(
   return "PENDING";
 }
 
-/** Roll a recipient's assignment statuses up to a recipient status. */
 export function rollupRecipientStatus(
   statuses: SigningAssignmentStatus[]
 ): SigningRecipientStatus {
@@ -629,10 +860,6 @@ export function rollupRecipientStatus(
   return "PENDING";
 }
 
-/**
- * Roll all assignment statuses up to an envelope status. DRAFT / VOIDED / EXPIRED are
- * driven by explicit transitions (send / void / expiry job), not by this function.
- */
 export function rollupEnvelopeStatus(
   assignments: AssignmentStatusInput[]
 ): Extract<SigningEnvelopeStatus, "SENT" | "IN_PROGRESS" | "COMPLETED" | "DECLINED"> {

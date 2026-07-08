@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuthToken } from "@cashsouk/config";
+import { isPublicIssuerPath } from "./public-routes";
 
 const LANDING_URL =
   process.env.NODE_ENV === "development"
@@ -144,8 +145,8 @@ export function useAuth() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // Don't run auth check on callback page
-    if (typeof window !== "undefined" && window.location.pathname === "/callback") {
+    if (typeof window !== "undefined" && isPublicIssuerPath(window.location.pathname)) {
+      setIsAuthenticated(true);
       return;
     }
 

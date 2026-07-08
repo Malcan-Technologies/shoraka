@@ -354,64 +354,6 @@ export function createApplicationRouter(): Router {
     requestUploadUrl
   );
   router.post(
-    "/:id/offers/contracts/start-signing",
-    requireAuth,
-    async (req, res, next) => {
-      try {
-        const { id } = applicationIdParamSchema.parse(req.params);
-        const userId = getUserId(req);
-        const data = await applicationService.startContractOfferSigning(id, userId);
-        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
-      } catch (e) {
-        next(e);
-      }
-    }
-  );
-  router.post(
-    "/:id/offers/invoices/:invoiceId/start-signing",
-    requireAuth,
-    async (req, res, next) => {
-      try {
-        const { id } = applicationIdParamSchema.parse(req.params);
-        const invoiceId = z.string().cuid().parse(req.params.invoiceId);
-        const userId = getUserId(req);
-        const data = await applicationService.startInvoiceOfferSigning(id, invoiceId, userId);
-        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
-      } catch (e) {
-        next(e);
-      }
-    }
-  );
-  router.post(
-    "/:id/offers/contracts/finalize-signing",
-    requireAuth,
-    async (req, res, next) => {
-      try {
-        const { id } = applicationIdParamSchema.parse(req.params);
-        const userId = getUserId(req);
-        const data = await applicationService.syncContractOfferSigningAfterReturn(id, userId);
-        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
-      } catch (e) {
-        next(e);
-      }
-    }
-  );
-  router.post(
-    "/:id/offers/invoices/:invoiceId/finalize-signing",
-    requireAuth,
-    async (req, res, next) => {
-      try {
-        const { id } = applicationIdParamSchema.parse(req.params);
-        const invoiceId = z.string().cuid().parse(req.params.invoiceId);
-        const userId = getUserId(req);
-        const data = await applicationService.syncInvoiceOfferSigningAfterReturn(id, invoiceId, userId);
-        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
-      } catch (e) {
-        next(e);
-      }
-    }
-  );
-  router.post(
     "/:id/offers/contracts/accept",
     requireAuth,
     async (req, res, next) => {
@@ -424,7 +366,7 @@ export function createApplicationRouter(): Router {
           throw new AppError(
             400,
             "USE_SIGNING_FLOW",
-            "Use POST /v1/applications/:id/offers/contracts/start-signing to accept this offer."
+            "Complete signing via the signing envelope before accepting this offer."
           );
         }
         const data = await applicationService.respondToContractOffer(id, "accept", userId);
@@ -463,7 +405,7 @@ export function createApplicationRouter(): Router {
           throw new AppError(
             400,
             "USE_SIGNING_FLOW",
-            "Use POST /v1/applications/:id/offers/invoices/:invoiceId/start-signing to accept this offer."
+            "Complete signing via the signing envelope before accepting this offer."
           );
         }
         const data = await applicationService.respondToInvoiceOffer(id, invoiceId, "accept", userId);

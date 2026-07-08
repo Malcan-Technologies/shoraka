@@ -1,9 +1,5 @@
 /**
  * HTTP layer for signing envelopes.
- *  - Admin router (createSigningAdminRouter): read / void / remind. Mounted under the
- *    ADMIN-gated block.
- *  - Authed router (createSigningRouter): issuer create / send / read / sign-my-part.
- * Controllers only validate and orchestrate; all logic lives in the service.
  */
 import { Request, Response, NextFunction, Router } from "express";
 import { requireAuth } from "../../lib/auth/middleware";
@@ -13,7 +9,8 @@ import {
   createIssuerEnvelopeSchema,
   voidEnvelopeSchema,
   startExternalSigningSchema,
-  startSigningSchema,
+  verifyExternalAccessCodeSchema,
+  recipientEkycSessionSchema,
 } from "./schemas";
 
 function getUserId(req: Request): string {
@@ -75,6 +72,19 @@ async function remindRecipient(req: Request, res: Response, next: NextFunction) 
   }
 }
 
+async function remindRecipientForIssuer(req: Request, res: Response, next: NextFunction) {
+  try {
+    await signingService.remindRecipientForIssuer(
+      req.params.id,
+      req.params.recipientId,
+      getUserId(req)
+    );
+    ok(res, { ok: true });
+  } catch (e) {
+    next(e);
+  }
+}
+
 async function getEnvelope(req: Request, res: Response, next: NextFunction) {
   try {
     ok(res, await signingService.getEnvelopeForIssuer(req.params.id, getUserId(req)));
@@ -97,25 +107,37 @@ async function listEnvelopes(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-async function startSigning(req: Request, res: Response, next: NextFunction) {
+async function getExternalEnvelope(req: Request, res: Response, next: NextFunction) {
   try {
-    const body = startSigningSchema.parse(req.body);
-    const result = await signingService.startRecipientSigningForIssuer({
-      envelopeId: req.params.id,
-      recipientId: body.recipientId,
-      documentId: body.documentId,
-      userId: getUserId(req),
-      redirectUrl: body.redirectUrl ?? null,
-    });
-    ok(res, result);
+    ok(res, await signingService.getEnvelopeForExternalToken(req.params.accessToken));
   } catch (e) {
     next(e);
   }
 }
 
-async function getExternalEnvelope(req: Request, res: Response, next: NextFunction) {
+async function verifyExternalAccessCode(req: Request, res: Response, next: NextFunction) {
   try {
-    ok(res, await signingService.getEnvelopeForExternalToken(req.params.accessToken));
+    const body = verifyExternalAccessCodeSchema.parse(req.body);
+    ok(
+      res,
+      await signingService.verifyExternalAccessCode(req.params.accessToken, body.ic_number)
+    );
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function createExternalEkycSession(req: Request, res: Response, next: NextFunction) {
+  try {
+    const body = recipientEkycSessionSchema.parse(req.body ?? {});
+    ok(
+      res,
+      await signingService.createRecipientEkycSession({
+        accessToken: req.params.accessToken,
+        confirmedName: body.confirmedName,
+        force: body.force,
+      })
+    );
   } catch (e) {
     next(e);
   }
@@ -137,7 +159,6 @@ async function startExternalSigning(req: Request, res: Response, next: NextFunct
   }
 }
 
-/** Admin-only lifecycle routes (mount under an ADMIN-gated path). */
 export function createSigningAdminRouter(): Router {
   const router = Router();
   router.post("/envelopes/:id/void", voidEnvelope);
@@ -159,15 +180,20 @@ export function createSigningAdminRouter(): Router {
   return router;
 }
 
-/** Authenticated issuer routes: read envelope + sign my part. */
 export function createSigningRouter(): Router {
   const router = Router();
   router.get("/external/:accessToken", getExternalEnvelope);
+  router.post("/external/:accessToken/verify", verifyExternalAccessCode);
+  router.post("/external/:accessToken/ekyc/session", createExternalEkycSession);
   router.post("/external/:accessToken/start-signing", startExternalSigning);
   router.post("/applications/:applicationId/envelopes", requireAuth, createIssuerEnvelope);
   router.get("/envelopes/:id", requireAuth, getEnvelope);
   router.get("/applications/:applicationId/envelopes", requireAuth, listEnvelopes);
   router.post("/envelopes/:id/send", requireAuth, sendEnvelope);
-  router.post("/envelopes/:id/start-signing", requireAuth, startSigning);
+  router.post(
+    "/envelopes/:id/recipients/:recipientId/remind",
+    requireAuth,
+    remindRecipientForIssuer
+  );
   return router;
 }

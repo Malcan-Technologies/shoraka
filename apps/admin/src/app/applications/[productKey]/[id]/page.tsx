@@ -83,6 +83,7 @@ import {
   ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT,
 } from "@/lib/admin-director-shareholder-review-message";
 import { ApplicationStatusBadge } from "@/components/application-review";
+import { isSignedOfferLetterAvailable } from "@/components/application-review/offer-signing-availability";
 import { SigningEnvelopePanel } from "@/components/application-review/signing/signing-envelope-panel";
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -361,30 +362,42 @@ export default function DynamicApplicationDetailPage() {
   );
 
   const handleViewSignedInvoiceOffer = React.useCallback(
-    async (signedOfferLetterS3Key: string) => {
-      if (!signedOfferLetterS3Key) {
+    async (invoiceId: string) => {
+      if (!applicationId || !invoiceId) {
         toast.error("Signed offer document is unavailable");
         return;
       }
-      await handleViewDocument(signedOfferLetterS3Key);
+      try {
+        const blob = await platformFinanceApiClient.getAdminSignedInvoiceOfferLetterBlob(applicationId, invoiceId);
+        const objectUrl = URL.createObjectURL(blob);
+        window.open(objectUrl, "_blank", "noopener,noreferrer");
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to open signed offer letter");
+      }
     },
-    [handleViewDocument]
+    [platformFinanceApiClient, applicationId]
   );
 
-  const signedContractOfferS3Key = React.useMemo(() => {
-    const signing = (
-      app?.contract as { offer_signing?: { signed_offer_letter_s3_key?: string } } | null | undefined
-    )?.offer_signing;
-    return signing?.signed_offer_letter_s3_key ?? "";
+  const signedContractOfferAvailable = React.useMemo(() => {
+    const status = (app?.contract as { status?: string } | null | undefined)?.status;
+    return isSignedOfferLetterAvailable(status);
   }, [app?.contract]);
 
   const handleViewSignedContractOffer = React.useCallback(async () => {
-    if (!signedContractOfferS3Key) {
+    if (!applicationId || !signedContractOfferAvailable) {
       toast.error("Signed offer document is unavailable");
       return;
     }
-    await handleViewDocument(signedContractOfferS3Key);
-  }, [handleViewDocument, signedContractOfferS3Key]);
+    try {
+      const blob = await platformFinanceApiClient.getAdminSignedContractOfferLetterBlob(applicationId);
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to open signed offer letter");
+    }
+  }, [platformFinanceApiClient, applicationId, signedContractOfferAvailable]);
 
   const visibleReviewSectionsFromApi = React.useMemo(() => {
     const fromApi = (app as { visible_review_sections?: unknown } | undefined)

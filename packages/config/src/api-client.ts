@@ -85,11 +85,8 @@ import type {
   WithdrawReason,
   AdminCtosReportListItem,
   SoukscoreRiskRating,
-  EkycMeStatus,
-  EkycIdentityPreview,
-  EkycSession,
-  CreateEkycSessionInput,
-  EkycSessionStatus,
+  RecipientEkycSession,
+  RecipientEkycSessionStatus,
   CreateNoteFromApplicationInput,
   CreateNoteInvestmentInput,
   CreateInvestorDepositInput,
@@ -174,7 +171,6 @@ type AdminApplicationDetail = Application &
       details?: Record<string, unknown>;
       status?: string;
       offer_details?: unknown;
-      offer_signing?: unknown;
     }>;
     linked_notes?: Array<{
       id: string;
@@ -188,7 +184,6 @@ type AdminApplicationDetail = Application &
       id?: string;
       contract_details?: Record<string, unknown> | null;
       customer_details?: Record<string, unknown> | null;
-      offer_signing?: Record<string, unknown> | null;
       status?: string;
       invoices?: Array<{
         id: string;
@@ -389,29 +384,18 @@ export class ApiClient {
     });
   }
 
-  async getEkycStatus(): Promise<ApiResponse<EkycMeStatus> | ApiError> {
-    return this.get<EkycMeStatus>("/v1/ekyc/me");
-  }
-
-  async postEkycIdentityPreview(
-    issuerOrganizationId: string,
-    icNumber: string
-  ): Promise<ApiResponse<EkycIdentityPreview> | ApiError> {
-    return this.post<EkycIdentityPreview>("/v1/ekyc/identity-preview", {
-      issuerOrganizationId,
-      icNumber,
-    });
-  }
-
-  async createEkycSession(
-    input: CreateEkycSessionInput
-  ): Promise<ApiResponse<EkycSession> | ApiError> {
-    return this.post<EkycSession>("/v1/ekyc/session", input);
-  }
-
-  async getEkycSessionStatus(token: string): Promise<ApiResponse<EkycSessionStatus> | ApiError> {
+  async getRecipientEkycSessionStatus(
+    token: string
+  ): Promise<ApiResponse<RecipientEkycSessionStatus> | ApiError> {
     const query = new URLSearchParams({ token });
-    return this.get<EkycSessionStatus>(`/v1/ekyc/status?${query.toString()}`);
+    return this.get<RecipientEkycSessionStatus>(`/v1/ekyc/status?${query.toString()}`);
+  }
+
+  /** Alias for capture.html polling compatibility. */
+  async getEkycSessionStatus(
+    token: string
+  ): Promise<ApiResponse<RecipientEkycSessionStatus> | ApiError> {
+    return this.getRecipientEkycSessionStatus(token);
   }
 
   // Admin - User Management
@@ -547,24 +531,6 @@ export class ApiClient {
 
   async getAdminContractDetail(id: string): Promise<ApiResponse<AdminContractDetail> | ApiError> {
     return this.get<AdminContractDetail>(`/v1/admin/contracts/${id}`);
-  }
-
-  async resignAdminContractOffer(
-    contractId: string
-  ): Promise<ApiResponse<{ applicationId: string }> | ApiError> {
-    return this.post<{ applicationId: string }>(
-      `/v1/admin/contracts/${encodeURIComponent(contractId)}/offers/resign`,
-      {}
-    );
-  }
-
-  async resignAdminNoteInvoiceOffer(
-    noteId: string
-  ): Promise<ApiResponse<{ applicationId: string; invoiceId: string }> | ApiError> {
-    return this.post<{ applicationId: string; invoiceId: string }>(
-      `/v1/admin/notes/${encodeURIComponent(noteId)}/offers/invoices/resign`,
-      {}
-    );
   }
 
   async getAdminNotes(params: GetAdminNotesParams): Promise<ApiResponse<NotesResponse> | ApiError> {
@@ -2207,14 +2173,14 @@ export class ApiClient {
     return this.get<SigningEnvelopeDto[]>(`/v1/signing/applications/${applicationId}/envelopes`);
   }
 
-  /** Issuer: start signing one document as one recipient; returns the hosted signing URL. */
-  async startEnvelopeSigning(
+  /** Issuer: nudge a recipient who has not signed yet. */
+  async remindIssuerSigningRecipient(
     envelopeId: string,
-    input: { recipientId: string; documentId: string; redirectUrl?: string }
-  ): Promise<ApiResponse<{ signingUrl: string }> | ApiError> {
-    return this.post<{ signingUrl: string }>(
-      `/v1/signing/envelopes/${envelopeId}/start-signing`,
-      input
+    recipientId: string
+  ): Promise<ApiResponse<{ ok: boolean }> | ApiError> {
+    return this.post<{ ok: boolean }>(
+      `/v1/signing/envelopes/${envelopeId}/recipients/${recipientId}/remind`,
+      {}
     );
   }
 
@@ -2225,6 +2191,28 @@ export class ApiClient {
     return this.get<ExternalSigningSessionDto>(`/v1/signing/external/${accessToken}`);
   }
 
+  /** External no-auth recipient: verify IC access code. */
+  async verifyExternalSigningAccessCode(
+    accessToken: string,
+    input: { ic_number: string }
+  ): Promise<ApiResponse<ExternalSigningSessionDto> | ApiError> {
+    return this.post<ExternalSigningSessionDto>(
+      `/v1/signing/external/${accessToken}/verify`,
+      input
+    );
+  }
+
+  /** External no-auth recipient: start MyKad eKYC session. */
+  async createExternalRecipientEkycSession(
+    accessToken: string,
+    input?: { confirmedName?: string; force?: boolean }
+  ): Promise<ApiResponse<RecipientEkycSession> | ApiError> {
+    return this.post<RecipientEkycSession>(
+      `/v1/signing/external/${accessToken}/ekyc/session`,
+      input ?? {}
+    );
+  }
+
   /** External no-auth recipient: start their signing session by secure token. */
   async startExternalEnvelopeSigning(
     accessToken: string,
@@ -2233,45 +2221,6 @@ export class ApiClient {
     return this.post<{ signingUrl: string }>(
       `/v1/signing/external/${accessToken}/start-signing`,
       input
-    );
-  }
-
-  async startContractOfferSigning(
-    applicationId: string
-  ): Promise<ApiResponse<{ signingUrl: string }> | ApiError> {
-    return this.post<{ signingUrl: string }>(
-      `/v1/applications/${applicationId}/offers/contracts/start-signing`,
-      {}
-    );
-  }
-
-  async startInvoiceOfferSigning(
-    applicationId: string,
-    invoiceId: string
-  ): Promise<ApiResponse<{ signingUrl: string }> | ApiError> {
-    return this.post<{ signingUrl: string }>(
-      `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/start-signing`,
-      {}
-    );
-  }
-
-  /** Poll SigningCloud and approve the offer if signing completed (fallback when webhook is unreachable). */
-  async finalizeContractOfferSigningAfterReturn(
-    applicationId: string
-  ): Promise<ApiResponse<{ skipped: boolean }> | ApiError> {
-    return this.post<{ skipped: boolean }>(
-      `/v1/applications/${applicationId}/offers/contracts/finalize-signing`,
-      {}
-    );
-  }
-
-  async finalizeInvoiceOfferSigningAfterReturn(
-    applicationId: string,
-    invoiceId: string
-  ): Promise<ApiResponse<{ skipped: boolean }> | ApiError> {
-    return this.post<{ skipped: boolean }>(
-      `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/finalize-signing`,
-      {}
     );
   }
 

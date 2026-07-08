@@ -80,12 +80,7 @@ describe("EkycService.createSession", () => {
     expect(mockGetSigningCloudEkycSession).toHaveBeenCalledWith(workEmail);
     expect(mockUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
-          user_id_email: {
-            user_id: userId,
-            email: workEmail,
-          },
-        },
+        where: { email: workEmail },
         create: expect.objectContaining({
           email: workEmail,
           confirmed_name: "LUCAS DENG",
@@ -258,23 +253,23 @@ describe("EkycService.completeSession", () => {
     );
   });
 
-  it("rejects complete when session has no bound issuer organization", async () => {
+  it("completes external sessions without issuer_organization_id", async () => {
     mockFindUnique.mockResolvedValue({
       ...pendingRecord,
       issuer_organization_id: null,
+      user_id: null,
+    });
+    mockSubmitSigningCloudEkycResult.mockResolvedValue({
+      userVerificationSuccess: true,
+      ekycData: {},
+      message: "Success",
+      raw: {},
     });
 
-    await expect(ekycService.completeSession(sessionToken, sdkResult)).rejects.toMatchObject({
-      code: "EKYC_SESSION_ORG_MISSING",
-    });
+    const result = await ekycService.completeSession(sessionToken, sdkResult);
 
-    expect(mockSubmitSigningCloudEkycResult).not.toHaveBeenCalled();
-    expect(mockUpdate).toHaveBeenCalledWith({
-      where: { id: pendingRecord.id },
-      data: expect.objectContaining({
-        status: SigningCloudEkycStatus.error,
-      }),
-    });
+    expect(result.status).toBe("verified");
+    expect(mockSubmitSigningCloudEkycResult).toHaveBeenCalled();
   });
 
   it("rejects complete when session has no bound confirmed name", async () => {
@@ -433,12 +428,62 @@ describe("requireCompletedSigningCloudEkycForOrganization", () => {
     );
     expect(mockFindUnique).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
-          user_id_email: {
-            user_id: userId,
-            email: workEmail,
-          },
-        },
+        where: { email: workEmail },
+      })
+    );
+  });
+});
+
+describe("resolveSigningKycStatus", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("returns VERIFIED when shared email row is verified with matching IC", async () => {
+    mockFindUnique.mockResolvedValue({
+      status: SigningCloudEkycStatus.verified,
+      confirmed_ic_number: "820508105871",
+    });
+
+    const { resolveSigningKycStatus } = await import("./service");
+    const status = await resolveSigningKycStatus({
+      kycRequired: true,
+      email: "director@malcan.io",
+      icNumber: "820508105871",
+    });
+
+    expect(status).toBe("VERIFIED");
+  });
+});
+
+describe("EkycService.createExternalSignerSession", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockUpsert.mockResolvedValue({});
+    mockGetSigningCloudEkycSession.mockResolvedValue({
+      url: "https://sdk.example/ekyc",
+      token: "session-token-new",
+    });
+  });
+
+  it("stores external sessions with nullable user_id keyed by email", async () => {
+    mockFindUnique.mockResolvedValue(null);
+
+    const session = await ekycService.createExternalSignerSession({
+      email: "guarantor@example.com",
+      icNumber: "820508105871",
+      confirmedNameInput: "Guarantor Name",
+      issuerOrganizationId: "org-1",
+    });
+
+    expect(session.token).toBe("session-token-new");
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { email: "guarantor@example.com" },
+        create: expect.objectContaining({
+          user_id: null,
+          email: "guarantor@example.com",
+        }),
       })
     );
   });

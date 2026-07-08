@@ -236,8 +236,6 @@ export interface NoteDetail extends NoteListItem {
   paymasterSnapshot: Record<string, unknown> | null;
   contractSnapshot: Record<string, unknown> | null;
   invoiceSnapshot: Record<string, unknown> | null;
-  /** Live source-invoice offer signing (active + archived); not frozen in invoice_snapshot */
-  sourceInvoiceOfferSigning?: import("./offer-signing").OfferSigningAdminView | null;
   serviceFeeCustomerScope: string | null;
   gracePeriodDays: number;
   arrearsThresholdDays: number;

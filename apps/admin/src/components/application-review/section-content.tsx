@@ -163,7 +163,7 @@ export interface SectionContentProps {
   minMonthsReviewToMaturityForOffer?: number | null;
   /** Map of section id to status. Used for contract facility resolution in invoice section. */
   sectionStatusMap?: ReadonlyMap<string, string>;
-  onViewSignedInvoiceOffer?: (signedOfferLetterS3Key: string) => void | Promise<void>;
+  onViewSignedInvoiceOffer?: (invoiceId: string) => void | Promise<void>;
   onViewSignedContractOffer?: () => void | Promise<void>;
   viewSignedOfferLetterPending?: boolean;
   /** When set, sections render read-only before/after comparison grids. */
@@ -431,7 +431,7 @@ export function SectionContent({
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
           onViewSignedContractOffer={onViewSignedContractOffer}
           signedContractOfferLetterAvailable={isSignedOfferLetterAvailable(
-            (app.contract as { offer_signing?: unknown } | null | undefined)?.offer_signing
+            (app.contract as { status?: string } | null | undefined)?.status
           )}
           viewSignedOfferLetterPending={viewSignedOfferLetterPending}
           sectionComparison={

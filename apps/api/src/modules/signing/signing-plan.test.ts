@@ -4,24 +4,24 @@ import {
   validateRecipientBindings,
   buildEnvelopePlanFromTemplate,
   computeSigningEnvelopeProgress,
-  findUnsignedSigningAssignmentForUser,
+  findUnsignedSigningAssignmentForRecipient,
   normalizeSigningEmail,
   rollupDocumentStatus,
   rollupRecipientStatus,
   rollupEnvelopeStatus,
-  signingRecipientEmailMatchesUser,
   type SigningTemplateConfig,
   type RecipientBinding,
   type SigningEnvelopeDto,
 } from "@cashsouk/types";
 
+const SAMPLE_IC = "820508105871";
+
 const TEMPLATE: SigningTemplateConfig = {
   enabled: true,
   roles: [
     {
-      key: "borrower_director",
+      key: "issuer_director",
       label: "Borrower Director",
-      party_type: "INTERNAL",
       source_hint: "issuer_director",
       routing_order: 0,
       kyc_required: true,
@@ -31,7 +31,6 @@ const TEMPLATE: SigningTemplateConfig = {
     {
       key: "guarantor",
       label: "Guarantor",
-      party_type: "EXTERNAL",
       source_hint: "guarantor",
       routing_order: 1,
       kyc_required: true,
@@ -46,7 +45,7 @@ const TEMPLATE: SigningTemplateConfig = {
       source: "GENERATED_OFFER_LETTER",
       required: true,
       order: 0,
-      signer_role_keys: ["borrower_director"],
+      signer_role_keys: ["issuer_director"],
     },
     {
       key: "guarantee",
@@ -54,7 +53,7 @@ const TEMPLATE: SigningTemplateConfig = {
       source: "TEMPLATE",
       required: true,
       order: 1,
-      signer_role_keys: ["borrower_director", "guarantor"],
+      signer_role_keys: ["issuer_director", "guarantor"],
     },
   ],
 };
@@ -71,10 +70,22 @@ describe("parseSigningTemplateConfig", () => {
     const cfg = parseSigningTemplateConfig({
       enabled: true,
       documents: [
-        { key: "b", name: "B", source: "TEMPLATE", order: 2, signer_role_keys: ["r"] },
-        { key: "a", name: "A", source: "TEMPLATE", order: 1, signer_role_keys: ["r"] },
+        {
+          key: "b",
+          name: "B",
+          source: "TEMPLATE",
+          order: 2,
+          signer_role_keys: ["issuer_director"],
+        },
+        {
+          key: "a",
+          name: "A",
+          source: "TEMPLATE",
+          order: 1,
+          signer_role_keys: ["issuer_director"],
+        },
       ],
-      roles: [{ key: "r", label: "R", party_type: "INTERNAL" }],
+      roles: [{ key: "issuer_director", label: "Director" }],
     });
     expect(cfg.documents.map((d) => d.key)).toEqual(["a", "b"]);
     expect(cfg.roles[0].kyc_required).toBe(true);
@@ -99,20 +110,71 @@ describe("validateSigningTemplateConfig", () => {
     };
     expect(validateSigningTemplateConfig(bad).some((e) => e.includes('unknown role "ghost"'))).toBe(true);
   });
+
+  it("sanitizes legacy issuer_director_1 document role keys", () => {
+    const parsed = parseSigningTemplateConfig({
+      enabled: true,
+      roles: [
+        { key: "issuer_director", label: "Director", min_count: 1, max_count: null },
+        { key: "guarantor", label: "Guarantor", min_count: 1, max_count: null },
+      ],
+      documents: [
+        {
+          key: "offer_letter",
+          name: "Offer letter",
+          source: "GENERATED_OFFER_LETTER",
+          required: true,
+          order: 0,
+          signer_role_keys: ["guarantor", "issuer_director_1"],
+        },
+      ],
+    });
+    expect(parsed.documents[0].signer_role_keys).toEqual(["guarantor", "issuer_director"]);
+    expect(validateSigningTemplateConfig(parsed)).toEqual([]);
+  });
+
+  it("flags duplicate signer roles on the same document", () => {
+    const bad: SigningTemplateConfig = {
+      ...TEMPLATE,
+      documents: [
+        {
+          key: "offer_letter",
+          name: "Offer Letter",
+          source: "GENERATED_OFFER_LETTER",
+          required: true,
+          order: 0,
+          signer_role_keys: ["issuer_director", "issuer_director"],
+        },
+      ],
+    };
+    expect(
+      validateSigningTemplateConfig(bad).some((e) => e.includes("assigns signer role"))
+    ).toBe(true);
+  });
 });
 
 describe("validateRecipientBindings", () => {
   it("passes when counts and contacts are satisfied", () => {
     const bindings: RecipientBinding[] = [
-      { role_key: "borrower_director", name: "Ali", email: "ali@co.my" },
+      { role_key: "issuer_director", name: "Ali", email: "ali@co.my", ic_number: SAMPLE_IC },
       { role_key: "guarantor", name: "Siti", email: "siti@ext.my" },
     ];
     expect(validateRecipientBindings(TEMPLATE, bindings)).toEqual([]);
   });
 
+  it("requires IC for issuer directors but not guarantors", () => {
+    const bindings: RecipientBinding[] = [
+      { role_key: "issuer_director", name: "Ali", email: "ali@co.my" },
+      { role_key: "guarantor", name: "Siti", email: "siti@ext.my" },
+    ];
+    const errors = validateRecipientBindings(TEMPLATE, bindings);
+    expect(errors.some((e) => e.toLowerCase().includes("ic"))).toBe(true);
+    expect(errors.filter((e) => e.toLowerCase().includes("guarantor")).length).toBe(0);
+  });
+
   it("flags missing required role and bad email", () => {
     const bindings: RecipientBinding[] = [
-      { role_key: "borrower_director", name: "Ali", email: "not-an-email" },
+      { role_key: "issuer_director", name: "Ali", email: "not-an-email", ic_number: SAMPLE_IC },
     ];
     const errors = validateRecipientBindings(TEMPLATE, bindings);
     expect(errors.some((e) => e.includes("invalid email"))).toBe(true);
@@ -121,10 +183,10 @@ describe("validateRecipientBindings", () => {
 
   it("allows multiple guarantors (max_count null) but caps single-signer roles", () => {
     const bindings: RecipientBinding[] = [
-      { role_key: "borrower_director", name: "A", email: "a@co.my" },
-      { role_key: "borrower_director", name: "B", email: "b@co.my" },
-      { role_key: "guarantor", name: "G1", email: "g1@x.my" },
-      { role_key: "guarantor", name: "G2", email: "g2@x.my" },
+      { role_key: "issuer_director", name: "A", email: "a@co.my", ic_number: "820508105871" },
+      { role_key: "issuer_director", name: "B", email: "b@co.my", ic_number: "820508105872" },
+      { role_key: "guarantor", name: "G1", email: "g1@x.my", ic_number: "900101015432" },
+      { role_key: "guarantor", name: "G2", email: "g2@x.my", ic_number: "900101015433" },
     ];
     const errors = validateRecipientBindings(TEMPLATE, bindings);
     expect(errors.some((e) => e.includes("Borrower Director") && e.includes("at most 1"))).toBe(true);
@@ -135,17 +197,15 @@ describe("validateRecipientBindings", () => {
 describe("buildEnvelopePlanFromTemplate", () => {
   it("wires the document x recipient matrix per signer_role_keys", () => {
     const bindings: RecipientBinding[] = [
-      { role_key: "borrower_director", name: "Ali", email: "ali@co.my", user_id: "AB123" },
-      { role_key: "guarantor", name: "Siti", email: "SITI@ext.my", application_guarantor_id: "g_1" },
+      { role_key: "issuer_director", name: "Ali", email: "ali@co.my", ic_number: SAMPLE_IC },
+      { role_key: "guarantor", name: "Siti", email: "SITI@ext.my", application_guarantor_id: "g_1", ic_number: "900101015432" },
     ];
     const plan = buildEnvelopePlanFromTemplate(TEMPLATE, bindings);
 
     expect(plan.recipients).toHaveLength(2);
-    // email is normalized to lowercase
     expect(plan.recipients.find((r) => r.role_key === "guarantor")?.email).toBe("siti@ext.my");
     expect(plan.documents.map((d) => d.key)).toEqual(["offer_letter", "guarantee"]);
 
-    // offer_letter: director only (1); guarantee: director + guarantor (2) => 3 total
     expect(plan.assignments).toHaveLength(3);
     const offerAssignees = plan.assignments.filter((a) => a.document_ref === "offer_letter");
     expect(offerAssignees).toHaveLength(1);
@@ -155,13 +215,12 @@ describe("buildEnvelopePlanFromTemplate", () => {
 
   it("creates one assignment per guarantor when several are bound", () => {
     const bindings: RecipientBinding[] = [
-      { role_key: "borrower_director", name: "Ali", email: "ali@co.my" },
-      { role_key: "guarantor", name: "G1", email: "g1@x.my" },
-      { role_key: "guarantor", name: "G2", email: "g2@x.my" },
+      { role_key: "issuer_director", name: "Ali", email: "ali@co.my", ic_number: SAMPLE_IC },
+      { role_key: "guarantor", name: "G1", email: "g1@x.my", ic_number: "900101015432" },
+      { role_key: "guarantor", name: "G2", email: "g2@x.my", ic_number: "900101015433" },
     ];
     const plan = buildEnvelopePlanFromTemplate(TEMPLATE, bindings);
     const guaranteeAssignees = plan.assignments.filter((a) => a.document_ref === "guarantee");
-    // director + 2 guarantors
     expect(guaranteeAssignees).toHaveLength(3);
     expect(new Set(plan.recipients.map((r) => r.ref)).size).toBe(3);
   });
@@ -174,8 +233,8 @@ describe("computeSigningEnvelopeProgress", () => {
       { id: "d2", name: "Guarantee", description: null, source: "TEMPLATE", order: 1, required: true, status: "PENDING", signed_s3_key: null },
     ],
     recipients: [
-      { id: "r1", role_key: "borrower_director", role_label: "Director", party_type: "INTERNAL", name: "Ali", email: "a@co.my", routing_order: 0, status: "SIGNED", kyc_status: "VERIFIED", completed_at: null },
-      { id: "r2", role_key: "guarantor", role_label: "Guarantor", party_type: "EXTERNAL", name: "Siti", email: "s@x.my", routing_order: 1, status: "PENDING", kyc_status: "PENDING", completed_at: null },
+      { id: "r1", role_key: "issuer_director", role_label: "Director", name: "Ali", email: "a@co.my", routing_order: 0, status: "SIGNED", kyc_status: "VERIFIED", completed_at: null },
+      { id: "r2", role_key: "guarantor", role_label: "Guarantor", name: "Siti", email: "s@x.my", routing_order: 1, status: "PENDING", kyc_status: "PENDING", completed_at: null },
     ],
     assignments: [
       { id: "a1", document_id: "d1", recipient_id: "r1", required: true, action: "SIGN", status: "SIGNED", signed_at: "2026-01-01T00:00:00Z" },
@@ -211,7 +270,6 @@ describe("status roll-up", () => {
       ])
     ).toBe("PARTIALLY_SIGNED");
     expect(rollupDocumentStatus([{ status: "SENT", required: true }])).toBe("PENDING");
-    // optional-only documents never gate to COMPLETED
     expect(rollupDocumentStatus([{ status: "SIGNED", required: false }])).toBe("PENDING");
   });
 
@@ -246,18 +304,7 @@ describe("status roll-up", () => {
   });
 });
 
-describe("signingRecipientEmailMatchesUser", () => {
-  it("matches case-insensitively with surrounding whitespace", () => {
-    expect(signingRecipientEmailMatchesUser(" Khai.Kit@Truestack.my ", "khai.kit@truestack.my")).toBe(
-      true
-    );
-    expect(signingRecipientEmailMatchesUser("khai.kit@malcan.io", "khai.kit@truestack.my")).toBe(
-      false
-    );
-  });
-});
-
-describe("findUnsignedSigningAssignmentForUser", () => {
+describe("findUnsignedSigningAssignmentForRecipient", () => {
   const envelope: Pick<SigningEnvelopeDto, "documents" | "recipients" | "assignments"> = {
     documents: [
       {
@@ -276,7 +323,6 @@ describe("findUnsignedSigningAssignmentForUser", () => {
         id: "r1",
         role_key: "issuer_director",
         role_label: "Issuer director",
-        party_type: "INTERNAL",
         name: "Kau Khai Kit",
         email: "khai.kit@malcan.io",
         routing_order: 0,
@@ -288,7 +334,6 @@ describe("findUnsignedSigningAssignmentForUser", () => {
         id: "r2",
         role_key: "issuer_director",
         role_label: "Issuer director",
-        party_type: "INTERNAL",
         name: "Kau Khai Kit",
         email: "khai.kit@truestack.my",
         routing_order: 1,
@@ -319,13 +364,13 @@ describe("findUnsignedSigningAssignmentForUser", () => {
     ],
   };
 
-  it("returns the assignment for the current user email, not routing order", () => {
-    const assignment = findUnsignedSigningAssignmentForUser(envelope, "khai.kit@truestack.my");
+  it("returns the next unsigned assignment for the given recipient", () => {
+    const assignment = findUnsignedSigningAssignmentForRecipient(envelope, "r2");
     expect(assignment?.recipient.id).toBe("r2");
     expect(normalizeSigningEmail(assignment?.recipient.email ?? "")).toBe("khai.kit@truestack.my");
   });
 
-  it("returns null when the user is not a signer", () => {
-    expect(findUnsignedSigningAssignmentForUser(envelope, "other@example.com")).toBeNull();
+  it("returns null when the recipient has no pending assignments", () => {
+    expect(findUnsignedSigningAssignmentForRecipient(envelope, "missing")).toBeNull();
   });
 });

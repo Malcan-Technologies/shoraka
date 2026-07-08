@@ -102,14 +102,6 @@ import { computeSupportingDocumentsSectionStatus } from "../applications/support
 import { computeInvoiceDetailsSectionStatus } from "../applications/invoice-details-section-status";
 import { assertMaturityForSendInvoiceOffer } from "../products/validate-financial-config";
 import { extractSubmittedAtFromWebhookPayloads } from "./extract-submitted-at";
-import {
-  adminResignContractOffer,
-  adminResignInvoiceOfferFromNote,
-} from "./offer-resign-service";
-import {
-  buildOfferSigningAdminView,
-  contractResignBlockedByNotes,
-} from "../signingcloud/offer-signing-admin-view";
 import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
 
 const APPLICATION_ACTION_REQUIRED_STATUSES = [
@@ -5240,35 +5232,7 @@ export class AdminService {
     if (!contract) {
       throw new AppError(404, "NOT_FOUND", "Contract not found");
     }
-    const primaryApplicationId = contract.applications[0]?.id ?? null;
-    const offerSigning = buildOfferSigningAdminView({
-      offerSigning: contract.offerSigning,
-      offerSigningHistory: contract.offerSigningHistory,
-      offerDetails: contract.offerDetails,
-      primaryApplicationId,
-      canResign: !contractResignBlockedByNotes(contract.notes),
-    });
-    const { offerSigning: _os, offerSigningHistory: _hist, ...rest } = contract;
-    return {
-      ...rest,
-      offerSigning,
-    };
-  }
-
-  async resignContractOffer(
-    contractId: string,
-    adminUserId: string,
-    logContext?: AdminLogContext
-  ) {
-    return adminResignContractOffer({ contractId, adminUserId, logContext });
-  }
-
-  async resignInvoiceOfferFromNote(
-    noteId: string,
-    adminUserId: string,
-    logContext?: AdminLogContext
-  ) {
-    return adminResignInvoiceOfferFromNote({ noteId, adminUserId, logContext });
+    return contract;
   }
 
   /**
@@ -5584,33 +5548,50 @@ export class AdminService {
     };
   }
 
-  private assertSignedOfferLetterS3KeyFromJson(offerSigning: unknown): string {
-    if (!offerSigning || typeof offerSigning !== "object" || Array.isArray(offerSigning)) {
-      throw new AppError(400, "INVALID_STATE", "No signed offer letter on file");
-    }
-    const os = offerSigning as Record<string, unknown>;
-    if (os.status !== "signed") {
-      throw new AppError(400, "INVALID_STATE", "Offer letter is not signed yet");
-    }
-    const key = os.signed_offer_letter_s3_key;
-    if (typeof key !== "string" || !key.trim()) {
+  private async resolveSignedOfferLetterS3KeyFromEnvelope(params: {
+    applicationId: string;
+    contractId?: string | null;
+    invoiceId?: string | null;
+  }): Promise<string> {
+    const envelope = await prisma.signingEnvelope.findFirst({
+      where: {
+        application_id: params.applicationId,
+        status: "COMPLETED",
+        ...(params.contractId ? { contract_id: params.contractId } : {}),
+        ...(params.invoiceId ? { invoice_id: params.invoiceId } : {}),
+      },
+      include: {
+        documents: {
+          where: { source: "GENERATED_OFFER_LETTER" },
+          orderBy: { order: "asc" },
+        },
+      },
+      orderBy: { completed_at: "desc" },
+    });
+
+    const signedDocument = envelope?.documents.find((document) => document.signed_s3_key?.trim());
+    const key = signedDocument?.signed_s3_key?.trim();
+    if (!key) {
       throw new AppError(400, "INVALID_STATE", "Signed offer letter is not available");
     }
-    return key.trim();
+    return key;
   }
 
   /**
    * Signed invoice offer letter PDF (admin). Does not require issuer org membership.
    */
   async getSignedInvoiceOfferLetterPdfForAdmin(applicationId: string, invoiceId: string) {
+    const s3Key = await this.resolveSignedOfferLetterS3KeyFromEnvelope({
+      applicationId,
+      invoiceId,
+    });
     const invoice = await prisma.invoice.findFirst({
       where: { id: invoiceId, application_id: applicationId },
-      select: { id: true, offer_signing: true },
+      select: { id: true },
     });
     if (!invoice) {
       throw new AppError(404, "NOT_FOUND", "Invoice not found");
     }
-    const s3Key = this.assertSignedOfferLetterS3KeyFromJson(invoice.offer_signing);
     const buffer = await getS3ObjectBuffer(s3Key);
     return { buffer, filename: `signed-invoice-offer-${invoice.id}.pdf` };
   }
@@ -5626,16 +5607,12 @@ export class AdminService {
     if (!application?.contract_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no contract");
     }
-    const contract = await prisma.contract.findUnique({
-      where: { id: application.contract_id },
-      select: { id: true, offer_signing: true },
+    const s3Key = await this.resolveSignedOfferLetterS3KeyFromEnvelope({
+      applicationId,
+      contractId: application.contract_id,
     });
-    if (!contract) {
-      throw new AppError(404, "NOT_FOUND", "Contract not found");
-    }
-    const s3Key = this.assertSignedOfferLetterS3KeyFromJson(contract.offer_signing);
     const buffer = await getS3ObjectBuffer(s3Key);
-    return { buffer, filename: `signed-contract-offer-${contract.id}.pdf` };
+    return { buffer, filename: `signed-contract-offer-${application.contract_id}.pdf` };
   }
 
   /**

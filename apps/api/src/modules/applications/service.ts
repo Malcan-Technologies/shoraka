@@ -25,7 +25,6 @@ import {
 import { requestPresignedUploadUrl, deleteDocumentFromS3 } from "./documents/service";
 import { shouldPreserveApplicationDocumentsInS3 } from "./amendment-preserve-s3";
 import {
-  assertRequiredPostApplicationSupportingDocumentsPresent,
   assertRequiredSupportingDocumentsPresent,
   fileNameToSupportingDocTypeToken,
   getGuarantorAgreementAllowedTypesFromProductWorkflow,
@@ -68,23 +67,7 @@ import {
   hasActionableDirectorShareholder,
 } from "@cashsouk/types";
 import { computeApplicationStatus } from "./lifecycle";
-import * as crypto from "crypto";
-import type { Readable } from "stream";
-import { putS3ObjectBuffer, getS3ObjectBuffer } from "../../lib/s3/client";
-import {
-  readSigningCloudConfigFromEnv,
-  getSigningCloudAccessToken,
-  uploadPdfToSigningCloud,
-  startManualSigning,
-  extractSigningUrlFromManualSigningResponse,
-  getContractFileData,
-  pdfBufferFromStream,
-} from "../signingcloud/signingcloud-api";
-import {
-  MIN_SIGNED_PDF_BYTES,
-  resolveSignedPdfFromContractFileResponse,
-} from "../signingcloud/signed-file";
-import type { OfferSigningRecord } from "../signingcloud/types";
+import { getS3ObjectBuffer } from "../../lib/s3/client";
 import { NotificationService } from "../notification/service";
 import { NotificationTypeIds } from "../notification/registry";
 import { getIssuerRecipientUserIdsForApplication } from "../notification/application-recipients";
@@ -93,67 +76,6 @@ import {
 } from "../guarantors/utils";
 import { assertIssuerOrgDirectorShareholderOnboardingReady } from "./director-shareholder-onboarding-guard";
 import { buildAdminPeopleList } from "../admin/build-people-list";
-import { requireCompletedSigningCloudEkycForOrganization } from "../ekyc/service";
-
-/**
- * Return URL after manual signing. Prefer SIGNINGCLOUD_ISSUER_RETURN_URL (full URL to applications page);
- * otherwise ISSUER_URL/applications. Always appends signing + application (and optional invoice) ids.
- */
-function buildIssuerSigningReturnUrl(applicationId: string, invoiceId?: string): string | null {
-  const explicit = process.env.SIGNINGCLOUD_ISSUER_RETURN_URL?.trim();
-  const issuer = process.env.ISSUER_URL?.trim().replace(/\/$/, "") || "";
-  const baseStr = explicit || (issuer ? `${issuer}/applications` : "");
-  if (!baseStr) return null;
-  try {
-    const url = baseStr.includes("://") ? new URL(baseStr) : new URL(`https://${baseStr}`);
-    url.searchParams.set("signing", "complete");
-    url.searchParams.set("applicationId", applicationId);
-    if (invoiceId) url.searchParams.set("invoiceId", invoiceId);
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
-
-/**
- * When an offer already has a pending SigningCloud session, reuse the same uploaded document
- * (same `contractnum`) and only refresh the manual-signing URL — no second upload.
- */
-function canReusePendingOfferSigning(
-  offerSigning: Prisma.JsonValue | null | undefined,
-  signingContractnum: string | null | undefined,
-  signerEmail: string
-): boolean {
-  const cn = signingContractnum?.trim();
-  if (!cn) return false;
-  const os = offerSigning;
-  if (!os || typeof os !== "object" || Array.isArray(os)) return false;
-  const r = os as unknown as OfferSigningRecord;
-  if (r.provider !== "signingcloud" || r.status !== "pending") return false;
-  const a = r.signer_email?.trim().toLowerCase();
-  const b = signerEmail.trim().toLowerCase();
-  return Boolean(a && b && a === b);
-}
-
-function mergeOfferSigningSigned(
-  existing: Prisma.JsonValue | null | undefined,
-  signedOfferLetterS3Key: string,
-  signedFileSha256: string,
-  nowIso: string
-): Prisma.InputJsonValue {
-  const prev =
-    existing && typeof existing === "object" && !Array.isArray(existing)
-      ? (existing as Record<string, unknown>)
-      : {};
-  return {
-    ...prev,
-    provider: "signingcloud",
-    status: "signed",
-    signed_offer_letter_s3_key: signedOfferLetterS3Key,
-    signed_file_sha256: signedFileSha256,
-    completed_at: nowIso,
-  } as Prisma.InputJsonValue;
-}
 
 function financialToNum(v: unknown): number {
   if (typeof v === "number" && !Number.isNaN(v)) return v;
@@ -283,49 +205,6 @@ export class ApplicationService {
         },
       });
     }
-  }
-
-  /**
-   * Re-fetch manual signing URL for an existing `contractnum`. SigningCloud often rejects a second
-   * `/contract/signature/manual` call while a session is already open; we then fall back to the
-   * last persisted `signing_url` so the issuer can continue with the same document.
-   */
-  private async refreshSigningUrlOrCached(
-    cfg: NonNullable<ReturnType<typeof readSigningCloudConfigFromEnv>>,
-    params: {
-      contractnum: string;
-      signerEmail: string;
-      redirectUrl: string | null;
-      callbackUrl: string | null;
-      cachedSigningUrl?: string | null;
-    }
-  ): Promise<string> {
-    const { contractnum, signerEmail, redirectUrl, callbackUrl, cachedSigningUrl } = params;
-    try {
-      const accessToken = await getSigningCloudAccessToken(cfg);
-      const decryptedManual = await startManualSigning({
-        cfg,
-        accessToken,
-        contractnum,
-        signerEmail,
-        redirectUrl,
-        callbackUrl,
-      });
-      const signingUrl = extractSigningUrlFromManualSigningResponse(decryptedManual);
-      if (signingUrl) {
-        return signingUrl;
-      }
-    } catch (e) {
-      logger.warn(
-        { err: e, contractnumPrefix: contractnum.slice(0, 8) },
-        "SigningCloud manual signing failed on pending-session reuse; will use cached signing_url if available"
-      );
-    }
-    const cached = cachedSigningUrl?.trim();
-    if (cached && /^https?:\/\//i.test(cached)) {
-      return cached;
-    }
-    throw new AppError(502, "SIGNING_PROVIDER_ERROR", "Could not obtain signing URL from provider");
   }
 
   /**
@@ -492,14 +371,6 @@ export class ApplicationService {
       throw new AppError(400, "VALIDATION_ERROR", "Product not found");
     }
     return (product.workflow as unknown[]) ?? [];
-  }
-
-  private async assertPostApplicationSupportingDocumentsReady(application: Application): Promise<void> {
-    const workflow = await this.getProductWorkflowForApplication(application);
-    assertRequiredPostApplicationSupportingDocumentsPresent(
-      workflow,
-      application.supporting_documents
-    );
   }
 
   /**
@@ -1543,7 +1414,7 @@ export class ApplicationService {
     action: "accept" | "reject",
     userId: string,
     rejectionReason?: string,
-    options?: {
+    _options?: {
       signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
     }
   ): Promise<Application> {
@@ -1565,9 +1436,8 @@ export class ApplicationService {
           status: string;
           offer_details: Prisma.JsonValue | null;
           contract_details: Prisma.JsonValue | null;
-          offer_signing: Prisma.JsonValue | null;
         }[]
-      >`SELECT status, offer_details, contract_details, offer_signing FROM contracts WHERE id = ${contractId} FOR UPDATE`;
+      >`SELECT status, offer_details, contract_details FROM contracts WHERE id = ${contractId} FOR UPDATE`;
 
       const contract = lockedContractRows[0];
       if (!contract) {
@@ -1632,25 +1502,12 @@ export class ApplicationService {
           }
           : cd;
 
-      const signingPatch =
-        action === "accept" && options?.signingCompletion
-          ? {
-              offer_signing: mergeOfferSigningSigned(
-                contract.offer_signing,
-                options.signingCompletion.signedOfferLetterS3Key,
-                options.signingCompletion.signedFileSha256,
-                now
-              ),
-            }
-          : {};
-
       await tx.contract.update({
         where: { id: contractId },
         data: {
           status: newStatus,
           offer_details: updatedOffer,
           contract_details: mergedDetails as Prisma.InputJsonValue,
-          ...signingPatch,
           ...(action === "reject" && { withdraw_reason: WithdrawReason.OFFER_REJECTED }),
         },
       });
@@ -1780,7 +1637,7 @@ export class ApplicationService {
     action: "accept" | "reject",
     userId: string,
     rejectionReason?: string,
-    options?: {
+    _options?: {
       signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
     }
   ): Promise<Application> {
@@ -1804,8 +1661,8 @@ export class ApplicationService {
     );
     const responseMeta = await prisma.$transaction(async (tx) => {
       const lockedInvoiceRows = await tx.$queryRaw<
-        { status: string; offer_details: Prisma.JsonValue | null; offer_signing: Prisma.JsonValue | null }[]
-      >`SELECT status, offer_details, offer_signing FROM invoices WHERE id = ${invoiceId} AND application_id = ${applicationId} FOR UPDATE`;
+        { status: string; offer_details: Prisma.JsonValue | null }[]
+      >`SELECT status, offer_details FROM invoices WHERE id = ${invoiceId} AND application_id = ${applicationId} FOR UPDATE`;
 
       const dbInvoice = lockedInvoiceRows[0];
       if (!dbInvoice) {
@@ -1848,24 +1705,11 @@ export class ApplicationService {
           : {}),
       };
 
-      const invoiceSigningPatch =
-        action === "accept" && options?.signingCompletion
-          ? {
-              offer_signing: mergeOfferSigningSigned(
-                dbInvoice.offer_signing,
-                options.signingCompletion.signedOfferLetterS3Key,
-                options.signingCompletion.signedFileSha256,
-                now
-              ),
-            }
-          : {};
-
       await tx.invoice.update({
         where: { id: invoiceId, application_id: applicationId },
         data: {
           status: newStatus,
           offer_details: updatedOffer,
-          ...invoiceSigningPatch,
           ...(action === "reject" && { withdraw_reason: WithdrawReason.OFFER_REJECTED }),
         },
       });
@@ -2182,534 +2026,35 @@ export class ApplicationService {
     return { stream, filename };
   }
 
-  /**
-   * Start SigningCloud manual signing for a contract offer. Persists pending offer_signing + signing_sc_contractnum.
-   */
-  async startContractOfferSigning(applicationId: string, userId: string): Promise<{ signingUrl: string }> {
-    const cfg = readSigningCloudConfigFromEnv();
-    if (!cfg) {
-      throw new AppError(503, "SIGNING_UNAVAILABLE", "Signing service is not configured");
-    }
-
-    await this.verifyApplicationAccess(applicationId, userId);
-
-    const application = await this.repository.findById(applicationId);
-    if (!application?.contract_id) {
-      throw new AppError(400, "INVALID_STATE", "Application has no contract");
-    }
-
-    const contract = await prisma.contract.findUnique({
-      where: { id: application.contract_id },
-      select: {
-        id: true,
-        status: true,
-        offer_details: true,
-        offer_signing: true,
-        signing_sc_contractnum: true,
+  private async resolveSignedOfferLetterS3KeyFromEnvelope(params: {
+    applicationId: string;
+    contractId?: string | null;
+    invoiceId?: string | null;
+  }): Promise<string> {
+    const envelope = await prisma.signingEnvelope.findFirst({
+      where: {
+        application_id: params.applicationId,
+        status: "COMPLETED",
+        ...(params.contractId ? { contract_id: params.contractId } : {}),
+        ...(params.invoiceId ? { invoice_id: params.invoiceId } : {}),
       },
-    });
-    if (!contract || contract.status !== "OFFER_SENT") {
-      throw new AppError(400, "INVALID_STATE", "No pending contract offer to sign");
-    }
-
-    const offer = contract.offer_details as Record<string, unknown> | null;
-    if (!offer || typeof offer !== "object") {
-      throw new AppError(400, "INVALID_STATE", "Contract has no offer details");
-    }
-    if (offer.responded_at != null && offer.responded_at !== "") {
-      throw new AppError(400, "ALREADY_RESPONDED", "This offer has already been responded to");
-    }
-    await this.assertPostApplicationSupportingDocumentsReady(application);
-
-    const { workEmail: signerEmail } = await requireCompletedSigningCloudEkycForOrganization(
-      userId,
-      application.issuer_organization_id
-    );
-
-    if (canReusePendingOfferSigning(contract.offer_signing, contract.signing_sc_contractnum, signerEmail)) {
-      const redirectUrl = buildIssuerSigningReturnUrl(applicationId);
-      const apiPublic = process.env.API_PUBLIC_URL?.trim().replace(/\/$/, "");
-      const callbackUrl =
-        process.env.SIGNINGCLOUD_CALLBACK_URL?.trim() ||
-        (apiPublic ? `${apiPublic}/v1/webhooks/signingcloud/callback` : null);
-      const prev = contract.offer_signing as unknown as OfferSigningRecord;
-      const signingUrl = await this.refreshSigningUrlOrCached(cfg, {
-        contractnum: contract.signing_sc_contractnum!.trim(),
-        signerEmail,
-        redirectUrl,
-        callbackUrl,
-        cachedSigningUrl: prev.signing_url,
-      });
-      const offerSigning: OfferSigningRecord = {
-        ...prev,
-        signing_url: signingUrl,
-        return_url: redirectUrl ?? undefined,
-      };
-      await prisma.contract.update({
-        where: { id: contract.id },
-        data: {
-          offer_signing: offerSigning as unknown as Prisma.InputJsonValue,
+      include: {
+        documents: {
+          where: { source: "GENERATED_OFFER_LETTER" },
+          orderBy: { order: "asc" },
         },
-      });
-      return { signingUrl };
-    }
-
-    const offerDetails: ContractOfferDetails = {
-      requested_facility: Number(offer.requested_facility) || undefined,
-      offered_facility: Number(offer.offered_facility) || undefined,
-      expires_at: typeof offer.expires_at === "string" ? offer.expires_at : undefined,
-    };
-
-    const stream = generateContractOfferLetterStream(contract.id, offerDetails);
-    const pdfBuffer = await pdfBufferFromStream(stream as unknown as Readable);
-
-    const accessToken = await getSigningCloudAccessToken(cfg);
-    const { contractnum } = await uploadPdfToSigningCloud({
-      cfg,
-      accessToken,
-      pdfBuffer,
-      contractName: `Contract offer ${contract.id.slice(-8)}`,
-      signerEmail,
-    });
-
-    const redirectUrl = buildIssuerSigningReturnUrl(applicationId);
-    const apiPublic = process.env.API_PUBLIC_URL?.trim().replace(/\/$/, "");
-    const callbackUrl =
-      process.env.SIGNINGCLOUD_CALLBACK_URL?.trim() ||
-      (apiPublic ? `${apiPublic}/v1/webhooks/signingcloud/callback` : null);
-
-    const decryptedManual = await startManualSigning({
-      cfg,
-      accessToken,
-      contractnum,
-      signerEmail,
-      redirectUrl,
-      callbackUrl,
-    });
-
-    const signingUrl = extractSigningUrlFromManualSigningResponse(decryptedManual);
-    if (!signingUrl) {
-      logger.error({ keys: Object.keys(decryptedManual) }, "SigningCloud manual signing returned no URL");
-      throw new AppError(502, "SIGNING_PROVIDER_ERROR", "Could not obtain signing URL from provider");
-    }
-
-    const now = new Date().toISOString();
-    const offerSigning: OfferSigningRecord = {
-      provider: "signingcloud",
-      status: "pending",
-      initiated_at: now,
-      initiated_by_user_id: userId,
-      signer_email: signerEmail,
-      signing_url: signingUrl,
-      return_url: redirectUrl ?? undefined,
-    };
-
-    await prisma.contract.update({
-      where: { id: contract.id },
-      data: {
-        offer_signing: offerSigning as unknown as Prisma.InputJsonValue,
-        signing_sc_contractnum: contractnum,
       },
+      orderBy: { completed_at: "desc" },
     });
 
-    return { signingUrl };
+    const signedDocument = envelope?.documents.find((document) => document.signed_s3_key?.trim());
+    const key = signedDocument?.signed_s3_key?.trim();
+    if (!key) {
+      throw new AppError(400, "INVALID_STATE", "Signed offer letter is not available");
+    }
+    return key;
   }
 
-  /**
-   * Start SigningCloud manual signing for an invoice offer.
-   */
-  async startInvoiceOfferSigning(
-    applicationId: string,
-    invoiceId: string,
-    userId: string
-  ): Promise<{ signingUrl: string }> {
-    const cfg = readSigningCloudConfigFromEnv();
-    if (!cfg) {
-      throw new AppError(503, "SIGNING_UNAVAILABLE", "Signing service is not configured");
-    }
-
-    await this.verifyApplicationAccess(applicationId, userId);
-
-    const application = await this.repository.findById(applicationId);
-    if (!application) {
-      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
-    }
-
-    const invoices = (application as { invoices?: { id: string }[] }).invoices ?? [];
-    if (!invoices.some((i) => i.id === invoiceId)) {
-      throw new AppError(404, "NOT_FOUND", "Invoice not found in this application");
-    }
-
-    const dbInvoice = await prisma.invoice.findFirst({
-      where: { id: invoiceId, application_id: applicationId },
-      select: {
-        id: true,
-        status: true,
-        offer_details: true,
-        offer_signing: true,
-        signing_sc_contractnum: true,
-      },
-    });
-    if (!dbInvoice || dbInvoice.status !== "OFFER_SENT") {
-      throw new AppError(400, "INVALID_STATE", "No pending invoice offer to sign");
-    }
-
-    const offer = dbInvoice.offer_details as Record<string, unknown> | null;
-    if (!offer || typeof offer !== "object") {
-      throw new AppError(400, "INVALID_STATE", "Invoice has no offer details");
-    }
-    if (offer.responded_at != null && offer.responded_at !== "") {
-      throw new AppError(400, "ALREADY_RESPONDED", "This offer has already been responded to");
-    }
-    await this.assertPostApplicationSupportingDocumentsReady(application);
-
-    const { workEmail: signerEmail } = await requireCompletedSigningCloudEkycForOrganization(
-      userId,
-      application.issuer_organization_id
-    );
-
-    if (canReusePendingOfferSigning(dbInvoice.offer_signing, dbInvoice.signing_sc_contractnum, signerEmail)) {
-      const redirectUrl = buildIssuerSigningReturnUrl(applicationId, invoiceId);
-      const apiPublic = process.env.API_PUBLIC_URL?.trim().replace(/\/$/, "");
-      const callbackUrl =
-        process.env.SIGNINGCLOUD_CALLBACK_URL?.trim() ||
-        (apiPublic ? `${apiPublic}/v1/webhooks/signingcloud/callback` : null);
-      const prev = dbInvoice.offer_signing as unknown as OfferSigningRecord;
-      const signingUrl = await this.refreshSigningUrlOrCached(cfg, {
-        contractnum: dbInvoice.signing_sc_contractnum!.trim(),
-        signerEmail,
-        redirectUrl,
-        callbackUrl,
-        cachedSigningUrl: prev.signing_url,
-      });
-      const offerSigning: OfferSigningRecord = {
-        ...prev,
-        signing_url: signingUrl,
-        return_url: redirectUrl ?? undefined,
-      };
-      await prisma.invoice.update({
-        where: { id: invoiceId, application_id: applicationId },
-        data: {
-          offer_signing: offerSigning as unknown as Prisma.InputJsonValue,
-        },
-      });
-      return { signingUrl };
-    }
-
-    const offerDetails: InvoiceOfferDetails = {
-      requested_amount: Number(offer.requested_amount) || undefined,
-      offered_amount: Number(offer.offered_amount) || undefined,
-      offered_ratio_percent: Number(offer.offered_ratio_percent) || undefined,
-      offered_profit_rate_percent: Number(offer.offered_profit_rate_percent) || undefined,
-      platform_fee_rate_percent: resolveOfferedPlatformFeeRatePercent(offer),
-      expires_at: typeof offer.expires_at === "string" ? offer.expires_at : undefined,
-    };
-
-    const stream = generateInvoiceOfferLetterStream(invoiceId, offerDetails);
-    const pdfBuffer = await pdfBufferFromStream(stream as unknown as Readable);
-
-    const accessToken = await getSigningCloudAccessToken(cfg);
-    const { contractnum } = await uploadPdfToSigningCloud({
-      cfg,
-      accessToken,
-      pdfBuffer,
-      contractName: `Invoice offer ${invoiceId.slice(-8)}`,
-      signerEmail,
-    });
-
-    const redirectUrl = buildIssuerSigningReturnUrl(applicationId, invoiceId);
-    const apiPublic = process.env.API_PUBLIC_URL?.trim().replace(/\/$/, "");
-    const callbackUrl =
-      process.env.SIGNINGCLOUD_CALLBACK_URL?.trim() ||
-      (apiPublic ? `${apiPublic}/v1/webhooks/signingcloud/callback` : null);
-
-    const decryptedManual = await startManualSigning({
-      cfg,
-      accessToken,
-      contractnum,
-      signerEmail,
-      redirectUrl,
-      callbackUrl,
-    });
-
-    const signingUrl = extractSigningUrlFromManualSigningResponse(decryptedManual);
-    if (!signingUrl) {
-      logger.error({ keys: Object.keys(decryptedManual) }, "SigningCloud manual signing returned no URL");
-      throw new AppError(502, "SIGNING_PROVIDER_ERROR", "Could not obtain signing URL from provider");
-    }
-
-    const now = new Date().toISOString();
-    const offerSigning: OfferSigningRecord = {
-      provider: "signingcloud",
-      status: "pending",
-      initiated_at: now,
-      initiated_by_user_id: userId,
-      signer_email: signerEmail,
-      signing_url: signingUrl,
-      return_url: redirectUrl ?? undefined,
-    };
-
-    await prisma.invoice.update({
-      where: { id: invoiceId, application_id: applicationId },
-      data: {
-        offer_signing: offerSigning as unknown as Prisma.InputJsonValue,
-        signing_sc_contractnum: contractnum,
-      },
-    });
-
-    return { signingUrl };
-  }
-
-  /**
-   * Webhook: finalize offer after SigningCloud completes signing (download PDF → S3 → accept offer).
-   */
-  async processSigningCloudCallback(contractnum: string): Promise<{ skipped: boolean }> {
-    const cfg = readSigningCloudConfigFromEnv();
-    if (!cfg) {
-      throw new AppError(503, "SIGNING_UNAVAILABLE", "Signing service is not configured");
-    }
-
-    const contractRow = await prisma.contract.findFirst({
-      where: { signing_sc_contractnum: contractnum },
-      select: { id: true, status: true, offer_signing: true },
-    });
-    if (contractRow) {
-      return this.finalizeContractOfferAfterSigningCloud(contractRow.id, contractnum, cfg);
-    }
-
-    const invoiceRow = await prisma.invoice.findFirst({
-      where: { signing_sc_contractnum: contractnum },
-      select: { id: true, application_id: true, status: true, offer_signing: true },
-    });
-    if (invoiceRow) {
-      return this.finalizeInvoiceOfferAfterSigningCloud(
-        invoiceRow.id,
-        invoiceRow.application_id,
-        contractnum,
-        cfg
-      );
-    }
-
-    throw new AppError(404, "NOT_FOUND", "Unknown signing reference");
-  }
-
-  /**
-   * When the issuer returns from SigningCloud, poll the provider and finalize if the webhook did not run
-   * (e.g. callback URL not reachable from SigningCloud).
-   */
-  async syncContractOfferSigningAfterReturn(applicationId: string, userId: string): Promise<{ skipped: boolean }> {
-    if (!readSigningCloudConfigFromEnv()) {
-      throw new AppError(503, "SIGNING_UNAVAILABLE", "Signing service is not configured");
-    }
-
-    await this.verifyApplicationAccess(applicationId, userId);
-
-    const application = await this.repository.findById(applicationId);
-    if (!application?.contract_id) {
-      throw new AppError(400, "INVALID_STATE", "Application has no contract");
-    }
-
-    const contract = await prisma.contract.findUnique({
-      where: { id: application.contract_id },
-      select: { signing_sc_contractnum: true, status: true, offer_signing: true },
-    });
-
-    if (!contract?.signing_sc_contractnum?.trim()) {
-      throw new AppError(400, "INVALID_STATE", "No contract signing session to finalize");
-    }
-
-    const os = contract.offer_signing as Record<string, unknown> | null;
-    if (
-      contract.status === "APPROVED" &&
-      os &&
-      typeof os === "object" &&
-      os.status === "signed" &&
-      typeof os.signed_offer_letter_s3_key === "string"
-    ) {
-      return { skipped: true };
-    }
-
-    return this.processSigningCloudCallback(contract.signing_sc_contractnum.trim());
-  }
-
-  async syncInvoiceOfferSigningAfterReturn(
-    applicationId: string,
-    invoiceId: string,
-    userId: string
-  ): Promise<{ skipped: boolean }> {
-    if (!readSigningCloudConfigFromEnv()) {
-      throw new AppError(503, "SIGNING_UNAVAILABLE", "Signing service is not configured");
-    }
-
-    await this.verifyApplicationAccess(applicationId, userId);
-
-    const invoice = await prisma.invoice.findFirst({
-      where: { id: invoiceId, application_id: applicationId },
-      select: { signing_sc_contractnum: true, status: true, offer_signing: true },
-    });
-
-    if (!invoice?.signing_sc_contractnum?.trim()) {
-      throw new AppError(400, "INVALID_STATE", "No invoice signing session to finalize");
-    }
-
-    const os = invoice.offer_signing as Record<string, unknown> | null;
-    if (
-      invoice.status === "APPROVED" &&
-      os &&
-      typeof os === "object" &&
-      os.status === "signed" &&
-      typeof os.signed_offer_letter_s3_key === "string"
-    ) {
-      return { skipped: true };
-    }
-
-    return this.processSigningCloudCallback(invoice.signing_sc_contractnum.trim());
-  }
-
-  private async fetchSignedOfferPdfFromSigningCloud(
-    contractnum: string,
-    cfg: NonNullable<ReturnType<typeof readSigningCloudConfigFromEnv>>
-  ): Promise<Buffer> {
-    const maxAttempts = 12;
-    const delayMs = 3000;
-    let lastFileTopKeys: string[] = [];
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      if (attempt > 0) {
-        await new Promise((r) => setTimeout(r, delayMs));
-      }
-      const accessToken = await getSigningCloudAccessToken(cfg);
-      const fileData = await getContractFileData({ cfg, accessToken, contractnum });
-      lastFileTopKeys = Object.keys(fileData);
-      const pdfBuf = await resolveSignedPdfFromContractFileResponse(fileData);
-      if (pdfBuf && pdfBuf.length >= MIN_SIGNED_PDF_BYTES) {
-        return pdfBuf;
-      }
-    }
-    logger.error(
-      { contractnum, fileResponseTopLevelKeys: lastFileTopKeys },
-      "Could not extract signed PDF from SigningCloud after retries"
-    );
-    throw new AppError(502, "SIGNING_PROVIDER_ERROR", "Signed document not available yet");
-  }
-
-  private async finalizeContractOfferAfterSigningCloud(
-    contractId: string,
-    contractnum: string,
-    cfg: NonNullable<ReturnType<typeof readSigningCloudConfigFromEnv>>
-  ): Promise<{ skipped: boolean }> {
-    const contract = await prisma.contract.findUnique({
-      where: { id: contractId },
-      select: { id: true, status: true, offer_signing: true },
-    });
-    if (!contract) {
-      throw new AppError(404, "NOT_FOUND", "Contract not found");
-    }
-
-    const os = contract.offer_signing as Record<string, unknown> | null;
-    if (!os || typeof os !== "object") {
-      throw new AppError(400, "INVALID_STATE", "Contract has no signing metadata");
-    }
-
-    if (
-      contract.status === "APPROVED" &&
-      os.status === "signed" &&
-      typeof os.signed_offer_letter_s3_key === "string"
-    ) {
-      return { skipped: true };
-    }
-
-    if (contract.status !== "OFFER_SENT") {
-      throw new AppError(400, "INVALID_STATE", "Contract offer is not awaiting signing");
-    }
-
-    const initiatedBy = typeof os.initiated_by_user_id === "string" ? os.initiated_by_user_id : null;
-    if (!initiatedBy) {
-      throw new AppError(400, "INVALID_STATE", "Missing initiator for signing session");
-    }
-
-    const application = await prisma.application.findFirst({
-      where: { contract_id: contractId },
-      select: { id: true },
-    });
-    if (!application) {
-      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found for contract");
-    }
-
-    const pdfBuf = await this.fetchSignedOfferPdfFromSigningCloud(contractnum, cfg);
-
-    const sha256 = crypto.createHash("sha256").update(pdfBuf).digest("hex");
-    const s3Key = `applications/${application.id}/offer-letters/contract-${Date.now()}.pdf`;
-    await putS3ObjectBuffer({ key: s3Key, body: pdfBuf, contentType: "application/pdf" });
-
-    try {
-      await this.respondToContractOffer(application.id, "accept", initiatedBy, undefined, {
-        signingCompletion: { signedOfferLetterS3Key: s3Key, signedFileSha256: sha256 },
-      });
-    } catch (e) {
-      if (e instanceof AppError && e.code === "ALREADY_RESPONDED") {
-        return { skipped: true };
-      }
-      throw e;
-    }
-
-    return { skipped: false };
-  }
-
-  private async finalizeInvoiceOfferAfterSigningCloud(
-    invoiceId: string,
-    applicationId: string,
-    contractnum: string,
-    cfg: NonNullable<ReturnType<typeof readSigningCloudConfigFromEnv>>
-  ): Promise<{ skipped: boolean }> {
-    const invoice = await prisma.invoice.findUnique({
-      where: { id: invoiceId },
-      select: { id: true, status: true, offer_signing: true },
-    });
-    if (!invoice) {
-      throw new AppError(404, "NOT_FOUND", "Invoice not found");
-    }
-
-    const os = invoice.offer_signing as Record<string, unknown> | null;
-    if (!os || typeof os !== "object") {
-      throw new AppError(400, "INVALID_STATE", "Invoice has no signing metadata");
-    }
-
-    if (
-      invoice.status === "APPROVED" &&
-      os.status === "signed" &&
-      typeof os.signed_offer_letter_s3_key === "string"
-    ) {
-      return { skipped: true };
-    }
-
-    if (invoice.status !== "OFFER_SENT") {
-      throw new AppError(400, "INVALID_STATE", "Invoice offer is not awaiting signing");
-    }
-
-    const initiatedBy = typeof os.initiated_by_user_id === "string" ? os.initiated_by_user_id : null;
-    if (!initiatedBy) {
-      throw new AppError(400, "INVALID_STATE", "Missing initiator for signing session");
-    }
-
-    const pdfBuf = await this.fetchSignedOfferPdfFromSigningCloud(contractnum, cfg);
-
-    const sha256 = crypto.createHash("sha256").update(pdfBuf).digest("hex");
-    const s3Key = `applications/${applicationId}/offer-letters/invoice-${invoiceId}-${Date.now()}.pdf`;
-    await putS3ObjectBuffer({ key: s3Key, body: pdfBuf, contentType: "application/pdf" });
-
-    try {
-      await this.respondToInvoiceOffer(applicationId, invoiceId, "accept", initiatedBy, undefined, {
-        signingCompletion: { signedOfferLetterS3Key: s3Key, signedFileSha256: sha256 },
-      });
-    } catch (e) {
-      if (e instanceof AppError && e.code === "ALREADY_RESPONDED") {
-        return { skipped: true };
-      }
-      throw e;
-    }
-
-    return { skipped: false };
-  }
 
   async finalizeOfferAfterEnvelopeCompletion(input: {
     applicationId: string;
@@ -2768,20 +2113,6 @@ export class ApplicationService {
     throw new AppError(400, "INVALID_STATE", "Signing envelope is not linked to an offer.");
   }
 
-  private assertHasSignedOfferLetterPdf(os: Record<string, unknown> | null): string {
-    if (!os || typeof os !== "object") {
-      throw new AppError(400, "INVALID_STATE", "No signed offer letter on file");
-    }
-    if (os.status !== "signed") {
-      throw new AppError(400, "INVALID_STATE", "Offer letter is not signed yet");
-    }
-    const key = os.signed_offer_letter_s3_key;
-    if (typeof key !== "string" || !key.trim()) {
-      throw new AppError(400, "INVALID_STATE", "Signed offer letter is not available");
-    }
-    return key.trim();
-  }
-
   /**
    * Signed contract offer letter PDF bytes (from S3). Requires issuer access and completed signing.
    */
@@ -2796,18 +2127,12 @@ export class ApplicationService {
       throw new AppError(400, "INVALID_STATE", "Application has no contract");
     }
 
-    const contract = await prisma.contract.findUnique({
-      where: { id: application.contract_id },
-      select: { id: true, status: true, offer_signing: true },
+    const key = await this.resolveSignedOfferLetterS3KeyFromEnvelope({
+      applicationId,
+      contractId: application.contract_id,
     });
-    if (!contract) {
-      throw new AppError(404, "NOT_FOUND", "Contract not found");
-    }
-
-    const os = contract.offer_signing as Record<string, unknown> | null;
-    const key = this.assertHasSignedOfferLetterPdf(os);
     const buffer = await getS3ObjectBuffer(key);
-    return { buffer, filename: `signed-contract-offer-${contract.id}.pdf` };
+    return { buffer, filename: `signed-contract-offer-${application.contract_id}.pdf` };
   }
 
   /**
@@ -2829,16 +2154,10 @@ export class ApplicationService {
       throw new AppError(404, "NOT_FOUND", "Invoice not found in this application");
     }
 
-    const invoice = await prisma.invoice.findFirst({
-      where: { id: invoiceId, application_id: applicationId },
-      select: { id: true, offer_signing: true },
+    const key = await this.resolveSignedOfferLetterS3KeyFromEnvelope({
+      applicationId,
+      invoiceId,
     });
-    if (!invoice) {
-      throw new AppError(404, "NOT_FOUND", "Invoice not found");
-    }
-
-    const os = invoice.offer_signing as Record<string, unknown> | null;
-    const key = this.assertHasSignedOfferLetterPdf(os);
     const buffer = await getS3ObjectBuffer(key);
     return { buffer, filename: `signed-invoice-offer-${invoiceId}.pdf` };
   }

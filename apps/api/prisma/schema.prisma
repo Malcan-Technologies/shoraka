@@ -43,33 +43,35 @@ model User {
   security_logs                    SecurityLog[]
   notification_preferences         UserNotificationPreference[]
   sessions                         UserSession[]
-  signingcloud_ekyc                SigningCloudEkyc[]
   authored_review_remarks          ApplicationReviewRemark[]
+  signingcloud_ekyc                SigningCloudEkyc[]
 
   @@index([cognito_sub])
   @@map("users")
 }
 
+/// Shared SigningCloud MyKad verification keyed by signer email. Platform users have
+/// `user_id` set; external signers (email link) leave it null. One verified row per email
+/// is reused across issuer orgs and signing envelopes.
 model SigningCloudEkyc {
   id                     String                 @id @default(cuid())
-  user_id                String
-  /// SigningCloud signer email (work email from matched corporate_entities entry).
-  email                  String
+  user_id                String?                @db.VarChar(5)
+  /// SigningCloud signer email (normalized lowercase).
+  email                  String                 @unique
   issuer_organization_id String?
   session_token          String?                @unique
   sdk_endpoint           String?
   confirmed_name         String?
   confirmed_ic_number    String?
-  doc_type               String
+  doc_type               String                 @default("mykad")
   status                 SigningCloudEkycStatus @default(pending)
   last_error             String?
   completed_at           DateTime?
   created_at             DateTime               @default(now())
   updated_at             DateTime               @updatedAt
-  user                   User                   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  user                   User?                  @relation(fields: [user_id], references: [user_id], onDelete: SetNull)
   issuer_organization    IssuerOrganization?    @relation(fields: [issuer_organization_id], references: [id], onDelete: SetNull)
 
-  @@unique([user_id, email])
   @@index([user_id])
   @@index([status])
   @@index([completed_at])
@@ -596,18 +598,11 @@ model Contract {
   issuer_organization_id String
   status                 ContractStatus     @default(DRAFT)
   withdraw_reason        WithdrawReason?
-  /// SigningCloud offer-letter workflow (pending/signed metadata; no unsigned PDF stored)
-  offer_signing          Json?
-  /// Archived signed offer versions superseded by admin re-sign
-  offer_signing_history  Json?
-  /// SigningCloud contract number for webhook lookup (unique when set)
-  signing_sc_contractnum String?            @unique
   applications           Application[]
   issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
   invoices               Invoice[]
   signing_envelopes      SigningEnvelope[]
 
-  @@index([signing_sc_contractnum])
   @@map("contracts")
 }
 
@@ -621,25 +616,17 @@ model Invoice {
   updated_at             DateTime          @updatedAt
   status                 InvoiceStatus     @default(DRAFT)
   withdraw_reason        WithdrawReason?
-  /// SigningCloud offer-letter workflow (pending/signed metadata; no unsigned PDF stored)
-  offer_signing          Json?
-  /// Archived signed offer versions superseded by admin re-sign
-  offer_signing_history  Json?
-  /// SigningCloud contract number for webhook lookup (unique when set)
-  signing_sc_contractnum String?           @unique
   application            Application       @relation(fields: [application_id], references: [id], onDelete: Cascade)
   contract               Contract?         @relation(fields: [contract_id], references: [id])
   signing_envelopes      SigningEnvelope[]
 
   @@index([contract_id])
   @@index([application_id])
-  @@index([signing_sc_contractnum])
   @@map("invoices")
 }
 
-/// A multi-document signing package for one application/offer. Replaces the single
-/// Contract.offer_signing JSON with a relational model that tracks many documents and
-/// many recipients (internal issuer directors + external KYC-verified parties).
+/// A multi-document signing package for one application/offer. All signers are external
+/// parties emailed an opaque link; MyKad eKYC is shared per email via signingcloud_ekyc.
 model SigningEnvelope {
   id                 String                @id @default(cuid())
   application_id     String
@@ -708,36 +695,28 @@ model SigningDocument {
   @@map("signing_documents")
 }
 
-/// A party (person) acting on an envelope. INTERNAL = issuer user with a platform
-/// account; EXTERNAL = emailed party (e.g. guarantor) with a no-auth token link.
-/// eKYC session state is tracked per-recipient so external parties can be verified
-/// without a User row.
+/// A party (person) acting on an envelope. All signers receive an emailed no-auth link.
+/// eKYC session state is tracked per-recipient without a User row.
 model SigningRecipient {
   id                       String                 @id @default(cuid())
   envelope_id              String
-  /// Template role key (e.g. "borrower_director", "guarantor", "platform").
+  /// Template role key (e.g. "issuer_director", "guarantor").
   role_key                 String
   role_label               String
-  party_type               SigningPartyType
-  /// Scalar reference to users.user_id for INTERNAL recipients.
-  user_id                  String?                @db.VarChar(5)
   /// Scalar reference to application_guarantors.id when pre-filled from a guarantor.
   application_guarantor_id String?
   name                     String
   email                    String
   ic_number                String?
   routing_order            Int                    @default(0)
+  /// When false (e.g. some guarantor roles), MyKad eKYC is skipped for this signer.
+  kyc_required             Boolean                @default(true)
   status                   SigningRecipientStatus @default(PENDING)
-  /// Signed token embedded in the no-auth link emailed to EXTERNAL recipients.
-  access_token             String?                @unique
+  /// SHA-256 hash of the opaque token embedded in the no-auth signing link.
+  access_token_hash        String?                @unique
   access_token_expires_at  DateTime?
-  kyc_status               SigningKycStatus       @default(PENDING)
-  kyc_session_token        String?                @unique
-  kyc_sdk_endpoint         String?
-  kyc_confirmed_name       String?
-  kyc_confirmed_ic_number  String?
-  kyc_completed_at         DateTime?
-  kyc_last_error           String?
+  /// Set when the signer passes the IC access-code gate on the external page.
+  access_code_verified_at  DateTime?
   sent_at                  DateTime?
   viewed_at                DateTime?
   completed_at             DateTime?
@@ -752,7 +731,6 @@ model SigningRecipient {
   assignments SigningAssignment[]
 
   @@index([envelope_id])
-  @@index([user_id])
   @@index([email])
   @@index([status])
   @@map("signing_recipients")
@@ -1724,13 +1702,6 @@ enum UserRole {
   ADMIN
 }
 
-enum SigningCloudEkycStatus {
-  pending
-  verified
-  failed
-  error
-}
-
 enum LoanStatus {
   DRAFT
   PENDING_APPROVAL
@@ -2043,11 +2014,6 @@ enum SigningDocumentStatus {
   VOIDED
 }
 
-enum SigningPartyType {
-  INTERNAL
-  EXTERNAL
-}
-
 enum SigningRecipientStatus {
   PENDING
   SENT
@@ -2056,11 +2022,11 @@ enum SigningRecipientStatus {
   DECLINED
 }
 
-enum SigningKycStatus {
-  NOT_REQUIRED
-  PENDING
-  VERIFIED
-  FAILED
+enum SigningCloudEkycStatus {
+  pending
+  verified
+  failed
+  error
 }
 
 enum SigningAction {

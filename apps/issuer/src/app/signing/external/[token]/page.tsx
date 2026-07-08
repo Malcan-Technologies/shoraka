@@ -2,11 +2,21 @@
 
 import * as React from "react";
 import { useParams } from "next/navigation";
+import { QRCodeSVG } from "qrcode.react";
 import { createApiClient } from "@cashsouk/config";
-import type { ExternalSigningSessionDto } from "@cashsouk/types";
+import {
+  findUnsignedSigningAssignmentForRecipient,
+  type ExternalSigningSessionDto,
+} from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const ISSUER_ORIGIN =
+  typeof window !== "undefined" ? window.location.origin : process.env.NEXT_PUBLIC_ISSUER_URL ?? "";
+
+type Step = "access-code" | "ekyc" | "sign";
 
 function getErrorMessage(response: unknown, fallback: string): string {
   if (
@@ -29,52 +39,143 @@ export default function ExternalSigningPage() {
   const token = params.token;
   const apiClient = React.useMemo(() => createApiClient(API_URL), []);
   const [session, setSession] = React.useState<ExternalSigningSessionDto | null>(null);
+  const [step, setStep] = React.useState<Step>("access-code");
+  const [icNumber, setIcNumber] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [isStarting, setIsStarting] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [ekycCaptureUrl, setEkycCaptureUrl] = React.useState<string | null>(null);
+  const [ekycStatus, setEkycStatus] = React.useState<string>("pending");
 
-  React.useEffect(() => {
-    let cancelled = false;
+  const loadSession = React.useCallback(async () => {
     setIsLoading(true);
-    apiClient
-      .getExternalSigningEnvelope(token)
-      .then((response) => {
-        if (cancelled) return;
-        if (response.success) {
-          setSession(response.data);
-          setError(null);
+    try {
+      const response = await apiClient.getExternalSigningEnvelope(token);
+      if (!response.success) {
+        setError(getErrorMessage(response, "This signing link is not available."));
+        setSession(null);
+        return;
+      }
+      setSession(response.data);
+      setError(null);
+      if (response.data.access_verified) {
+        if (
+          response.data.kyc_required &&
+          response.data.kyc_status !== "VERIFIED"
+        ) {
+          setStep("ekyc");
         } else {
-          setError(getErrorMessage(response, "This signing link is not available."));
+          setStep("sign");
         }
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Could not load signing package.");
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+      } else {
+        setStep("access-code");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not load signing package.");
+    } finally {
+      setIsLoading(false);
+    }
   }, [apiClient, token]);
 
-  const recipient = session?.envelope.recipients.find((item) => item.id === session.recipient_id);
-  const documents =
-    session?.envelope.documents.filter((document) =>
-      session.envelope.assignments.some(
-        (assignment) =>
-          assignment.recipient_id === session.recipient_id &&
-          assignment.document_id === document.id &&
-          assignment.action === "SIGN" &&
-          assignment.status !== "SIGNED"
-      )
-    ) ?? [];
+  React.useEffect(() => {
+    loadSession().catch(() => undefined);
+  }, [loadSession]);
 
-  const startSigning = async (documentId: string) => {
-    setIsStarting(true);
+  const recipient = session?.envelope.recipients.find(
+    (item) => item.id === session.recipient_id
+  );
+
+  const pendingAssignment =
+    session && session.recipient_id
+      ? findUnsignedSigningAssignmentForRecipient(session.envelope, session.recipient_id)
+      : null;
+
+  const verifyAccessCode = async () => {
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const response = await apiClient.verifyExternalSigningAccessCode(token, {
+        ic_number: icNumber,
+      });
+      if (!response.success) {
+        setError(getErrorMessage(response, "Could not verify IC number."));
+        return;
+      }
+      setSession(response.data);
+      if (response.data.kyc_required && response.data.kyc_status !== "VERIFIED") {
+        setStep("ekyc");
+      } else {
+        setStep("sign");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not verify IC number.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const startEkyc = async (force = false) => {
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const response = await apiClient.createExternalRecipientEkycSession(token, {
+        confirmedName: recipient?.name,
+        force,
+      });
+      if (!response.success) {
+        setError(getErrorMessage(response, "Could not start identity verification."));
+        return;
+      }
+      const captureUrl = `${ISSUER_ORIGIN}/ekyc/capture.html?token=${encodeURIComponent(response.data.token)}&endpoint=${encodeURIComponent(response.data.sdk_endpoint)}&api=${encodeURIComponent(API_URL)}`;
+      setEkycCaptureUrl(captureUrl);
+      setEkycStatus("pending");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not start identity verification.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (step !== "ekyc" || ekycCaptureUrl || isSubmitting) return;
+    startEkyc().catch(() => undefined);
+  }, [step, ekycCaptureUrl, isSubmitting]);
+
+  React.useEffect(() => {
+    if (step !== "ekyc" || !ekycCaptureUrl) return;
+    const match = ekycCaptureUrl.match(/[?&]token=([^&]+)/);
+    const ekycToken = match?.[1];
+    if (!ekycToken) return;
+
+    const interval = window.setInterval(() => {
+      apiClient
+        .getRecipientEkycSessionStatus(decodeURIComponent(ekycToken))
+        .then((response) => {
+          if (!response.success) return;
+          setEkycStatus(response.data.status);
+          if (response.data.status === "verified") {
+            window.clearInterval(interval);
+            loadSession().catch(() => undefined);
+            setStep("sign");
+          }
+          if (response.data.status === "failed" || response.data.status === "error") {
+            window.clearInterval(interval);
+            setError(response.data.last_error ?? "Identity verification failed.");
+          }
+        })
+        .catch(() => undefined);
+    }, 2500);
+
+    return () => window.clearInterval(interval);
+  }, [apiClient, ekycCaptureUrl, loadSession, step]);
+
+  const startSigning = async () => {
+    if (!pendingAssignment) return;
+    setIsSubmitting(true);
+    setError(null);
     try {
       const response = await apiClient.startExternalEnvelopeSigning(token, {
-        documentId,
+        documentId: pendingAssignment.document.id,
         redirectUrl: window.location.href,
       });
       if (response.success && response.data.signingUrl) {
@@ -85,7 +186,7 @@ export default function ExternalSigningPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not start signing.");
     } finally {
-      setIsStarting(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -102,7 +203,7 @@ export default function ExternalSigningPage() {
           <p className="text-sm text-muted-foreground">
             {recipient
               ? `You are signing as ${recipient.name} (${recipient.email}).`
-              : "Loading your signing package..."}
+              : "Secure signing link"}
           </p>
         </div>
 
@@ -112,33 +213,86 @@ export default function ExternalSigningPage() {
           <div className="mt-6 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
             {error}
           </div>
-        ) : documents.length === 0 ? (
+        ) : step === "access-code" ? (
+          <div className="mt-6 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Enter your MyKad number to verify your identity before signing. This must match the
+              person named on this signing request.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="access-ic">IC number</Label>
+              <Input
+                id="access-ic"
+                value={icNumber}
+                onChange={(event) => setIcNumber(event.target.value)}
+                inputMode="numeric"
+                placeholder="901212101234"
+                className="rounded-xl"
+              />
+            </div>
+            <Button
+              type="button"
+              className="rounded-xl"
+              disabled={isSubmitting || icNumber.replace(/\D/g, "").length !== 12}
+              onClick={() => {
+                verifyAccessCode().catch(() => undefined);
+              }}
+            >
+              {isSubmitting ? "Verifying..." : "Continue"}
+            </Button>
+          </div>
+        ) : step === "ekyc" ? (
+          <div className="mt-6 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Scan this QR code with your phone to complete MyKad identity verification before
+              signing.
+            </p>
+            {ekycCaptureUrl ? (
+              <div className="flex justify-center">
+                <QRCodeSVG value={ekycCaptureUrl} size={220} />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Preparing verification...</p>
+            )}
+            {ekycStatus === "pending" ? (
+              <p className="text-center text-sm text-muted-foreground">Waiting for verification...</p>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl"
+              disabled={isSubmitting}
+              onClick={() => {
+                setEkycCaptureUrl(null);
+                startEkyc(true).catch(() => undefined);
+              }}
+            >
+              New QR
+            </Button>
+          </div>
+        ) : !pendingAssignment ? (
           <div className="mt-6 rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-            There are no pending documents for you to sign. If you just completed signing, you can close this page.
+            There are no pending documents for you to sign. If you just completed signing, you can
+            close this page.
           </div>
         ) : (
           <div className="mt-6 space-y-3">
-            {documents.map((document) => (
-              <div
-                key={document.id}
-                className="flex flex-col gap-3 rounded-xl border border-border bg-background p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <p className="font-medium text-foreground">{document.name}</p>
-                  <p className="text-sm text-muted-foreground">Status: {document.status.replace(/_/g, " ")}</p>
-                </div>
-                <Button
-                  type="button"
-                  className="rounded-xl"
-                  disabled={isStarting}
-                  onClick={() => {
-                    startSigning(document.id).catch(() => undefined);
-                  }}
-                >
-                  {isStarting ? "Opening..." : "Sign document"}
-                </Button>
-              </div>
-            ))}
+            <div className="rounded-xl border border-border bg-background p-4">
+              <p className="font-medium text-foreground">{pendingAssignment.document.name}</p>
+              <p className="text-sm text-muted-foreground">
+                Status: {pendingAssignment.document.status.replace(/_/g, " ")}
+              </p>
+            </div>
+            <Button
+              type="button"
+              className="rounded-xl"
+              disabled={isSubmitting}
+              onClick={() => {
+                startSigning().catch(() => undefined);
+              }}
+            >
+              {isSubmitting ? "Opening..." : "Sign document"}
+            </Button>
           </div>
         )}
       </div>

@@ -4,7 +4,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   PlusIcon,
@@ -60,13 +59,6 @@ import { ScrollableInvoiceTable } from "./components/scrollable-invoice-table";
 import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 const SKELETON_COUNT = 8;
 const MOCK_APPLICATION_COUNT = 10;
@@ -144,8 +136,8 @@ function ApplicationCard({
 }: {
   application: NormalizedApplication;
   onDocumentDownload: (s3Key: string) => Promise<void>;
-  onViewSignedContractOffer?: (signedOfferLetterS3Key: string) => Promise<void>;
-  onViewSignedInvoiceOffer?: (signedOfferLetterS3Key: string) => Promise<void>;
+  onViewSignedContractOffer?: (applicationId: string) => Promise<void>;
+  onViewSignedInvoiceOffer?: (applicationId: string, invoiceId: string) => Promise<void>;
   onReviewContractOffer?: (applicationId: string, contractId: string, issuerOrganizationId?: string) => void;
   onReviewInvoiceOffer?: (
     applicationId: string,
@@ -269,7 +261,6 @@ function ApplicationCard({
                       {(() => {
                         const showViewSignedContract =
                           application.signedContractOfferLetterAvailable &&
-                          !!application.signedContractOfferLetterS3Key &&
                           hasContract &&
                           application.contractId &&
                           onViewSignedContractOffer;
@@ -284,9 +275,7 @@ function ApplicationCard({
                                   className="cursor-pointer"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    void onViewSignedContractOffer!(
-                                      application.signedContractOfferLetterS3Key!
-                                    );
+                                    void onViewSignedContractOffer!(application.id);
                                   }}
                                 >
                                   View Signed Offer
@@ -685,52 +674,10 @@ export default function ApplicationsPage() {
   );
 
   const { getAccessToken } = useAuthToken();
-  const queryClient = useQueryClient();
   const apiClient = React.useMemo(
     () => createApiClient(undefined, getAccessToken),
     [getAccessToken]
   );
-
-  const [signingReturnDialogOpen, setSigningReturnDialogOpen] = React.useState(false);
-
-  React.useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("signing") !== "complete") return;
-
-    const applicationId = params.get("applicationId");
-    const invoiceId = params.get("invoiceId");
-
-    let cancelled = false;
-    const run = async () => {
-      if (applicationId) {
-        try {
-          if (invoiceId) {
-            await apiClient.finalizeInvoiceOfferSigningAfterReturn(applicationId, invoiceId);
-          } else {
-            await apiClient.finalizeContractOfferSigningAfterReturn(applicationId);
-          }
-        } catch {
-          if (!cancelled) {
-            toast.error(
-              "Could not confirm signing with the server. If your offer is still pending, refresh the page or try again shortly."
-            );
-          }
-        }
-      }
-      if (!cancelled) {
-        void queryClient.invalidateQueries({ queryKey: ["applications"] });
-        setSigningReturnDialogOpen(true);
-        const path = window.location.pathname;
-        window.history.replaceState({}, "", path);
-      }
-    };
-
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [queryClient, apiClient]);
 
   /** Document download: fetches presigned URL from API, opens in new tab.
       Errors (network, API failure, missing URL) show toast. */
@@ -747,18 +694,34 @@ export default function ApplicationsPage() {
     }
   }, [apiClient]);
 
+  const openSignedOfferBlob = React.useCallback((blob: Blob) => {
+    const objectUrl = URL.createObjectURL(blob);
+    window.open(objectUrl, "_blank", "noopener,noreferrer");
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  }, []);
+
   const handleViewSignedContractOffer = React.useCallback(
-    async (signedOfferLetterS3Key: string) => {
-      await handleDocumentDownload(signedOfferLetterS3Key);
+    async (applicationId: string) => {
+      try {
+        const blob = await apiClient.getSignedContractOfferLetterBlob(applicationId);
+        openSignedOfferBlob(blob);
+      } catch {
+        toast.error("Could not open signed offer letter");
+      }
     },
-    [handleDocumentDownload]
+    [apiClient, openSignedOfferBlob]
   );
 
   const handleViewSignedInvoiceOffer = React.useCallback(
-    async (signedOfferLetterS3Key: string) => {
-      await handleDocumentDownload(signedOfferLetterS3Key);
+    async (applicationId: string, invoiceId: string) => {
+      try {
+        const blob = await apiClient.getSignedInvoiceOfferLetterBlob(applicationId, invoiceId);
+        openSignedOfferBlob(blob);
+      } catch {
+        toast.error("Could not open signed offer letter");
+      }
     },
-    [handleDocumentDownload]
+    [apiClient, openSignedOfferBlob]
   );
 
   const isDev = process.env.NODE_ENV === "development";
@@ -1243,23 +1206,6 @@ export default function ApplicationsPage() {
           onClose={() => setReviewModalOpen(false)}
         />
       )}
-
-      <Dialog open={signingReturnDialogOpen} onOpenChange={setSigningReturnDialogOpen}>
-        <DialogContent className="sm:max-w-md rounded-xl">
-          <DialogHeader>
-            <DialogTitle>Offer approved</DialogTitle>
-            <DialogDescription className="text-[17px] leading-7 text-muted-foreground">
-              Thank you for completing signing. Your offer will show as approved once processing finishes. You can
-              download the signed offer letter from this page when it becomes available.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end pt-2">
-            <Button type="button" className="rounded-xl" onClick={() => setSigningReturnDialogOpen(false)}>
-              OK
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
       </div>
     </div>
   );
