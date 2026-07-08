@@ -79,6 +79,7 @@ import {
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
+import { applyCorporateAmlMilestoneFromLiveKyb } from "../regtank/webhooks/org-aml-milestone";
 import type { PortalType } from "../regtank/types";
 import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-entities";
 import { extractGovernmentIdFromCorporateUserInfo } from "../regtank/helpers/extract-government-id";
@@ -4993,7 +4994,14 @@ export class AdminService {
     _req: Request,
     onboardingId: string,
     adminUserId: string
-  ): Promise<{ success: true; message: string; directorsUpdated: number }> {
+  ): Promise<{
+    success: true;
+    message: string;
+    directorsUpdated: number;
+    onboardingStatus: OnboardingStatus;
+    amlApproved: boolean;
+    advanced: boolean;
+  }> {
     // Get the onboarding record
     const onboarding = await prisma.regTankOnboarding.findUnique({
       where: { id: onboardingId },
@@ -5040,7 +5048,7 @@ export class AdminService {
         "Refreshing corporate AML statuses using AMLFetcherService"
       );
 
-      // Use AMLFetcherService to fetch all AML statuses
+      // Use AMLFetcherService to fetch all AML statuses (per-director/shareholder display data)
       const amlFetcher = new AMLFetcherService();
       await amlFetcher.fetchAllAMLStatuses(codRequestId, org.id, portalType);
 
@@ -5058,20 +5066,38 @@ export class AdminService {
       const directorAmlStatus = (updatedOrg?.director_aml_status as Record<string, unknown>) || { directors: [] };
       const directorsCount = Array.isArray(directorAmlStatus.directors) ? directorAmlStatus.directors.length : 0;
 
+      // Resolve the org-level AML milestone from the main company's live KYB status.
+      // This is the shared helper used by webhooks — never duplicate its approval logic here.
+      const milestone = await applyCorporateAmlMilestoneFromLiveKyb({
+        organizationId: org.id,
+        portalType,
+        userId: adminUserId,
+        organizationName: org.name,
+        codRequestId,
+        trigger: "ADMIN_MANUAL_AML_REFRESH",
+      });
+
       logger.info(
         {
           onboardingId,
           organizationId: org.id,
           adminUserId,
           directorsUpdated: directorsCount,
+          milestoneAdvanced: milestone.advanced,
+          onboardingStatus: milestone.onboardingStatus,
         },
         "Refreshed corporate AML statuses"
       );
 
       return {
         success: true,
-        message: `Successfully refreshed ${directorsCount} director AML status${directorsCount !== 1 ? "es" : ""}.`,
+        message: milestone.advanced
+          ? "AML screening approved. Onboarding has advanced to Final Approval."
+          : `Successfully refreshed ${directorsCount} director AML status${directorsCount !== 1 ? "es" : ""}. RegTank approval is still pending.`,
         directorsUpdated: directorsCount,
+        onboardingStatus: milestone.onboardingStatus ?? org.onboarding_status,
+        amlApproved: milestone.amlApproved,
+        advanced: milestone.advanced,
       };
     } catch (error) {
       logger.error(

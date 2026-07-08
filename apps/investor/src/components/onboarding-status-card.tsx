@@ -66,9 +66,13 @@ export function OnboardingStatusCard({
 
     setIsRefreshing(true);
     try {
-      await refreshAmlStatus(organization.id);
+      const result = await refreshAmlStatus(organization.id);
       await refreshOrganizations();
-      toast.success("AML status refreshed successfully");
+      if (result.advanced) {
+        toast.success("AML screening approved. Onboarding has advanced to Final Approval.");
+      } else {
+        toast.info("AML status refreshed. RegTank approval is still pending.");
+      }
     } catch (error) {
       toast.error("Failed to refresh AML status", {
         description: error instanceof Error ? error.message : "An unknown error occurred",

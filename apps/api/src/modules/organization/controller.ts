@@ -1046,14 +1046,18 @@ async function refreshOrganizationAML(
 
     // Sync AML status (handles both existing and missing entities)
     const amlSyncService = new AMLSyncService();
-    const amlStatus = await amlSyncService.syncOrganizationAMLStatus(id, portalType);
+    const result = await amlSyncService.syncOrganizationAMLStatus(id, portalType, userId);
 
-    // Return updated organization with fresh AML data
+    // Return updated organization with fresh AML data plus the actual milestone outcome
+    // so the frontend can distinguish "still pending" from "onboarding advanced".
     res.json({
       success: true,
       data: {
-        directorAmlStatus: amlStatus,
+        directorAmlStatus: result.directorAmlStatus,
         lastSyncedAt: new Date().toISOString(),
+        onboardingStatus: result.onboardingStatus,
+        amlApproved: result.amlApproved,
+        advanced: result.advanced,
       },
       correlationId: res.locals.correlationId,
     });

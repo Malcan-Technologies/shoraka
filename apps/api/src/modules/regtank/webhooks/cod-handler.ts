@@ -19,7 +19,11 @@ import { NotificationTypeIds } from "../../notification/registry";
 import { advanceOnboardingStatusFromFlags } from "../../onboarding/utils/advance-onboarding-status";
 import { normalizeRawStatus } from "@cashsouk/types";
 import { isRegtankAmendmentStarted } from "../helpers/is-regtank-amendment-in-progress";
-import { getUrlGeneratedAmendmentUpdate } from "../helpers/cod-amendment-transition";
+import {
+  getUrlGeneratedAmendmentUpdate,
+  getCodWaitForApprovalUpdate,
+  shouldApplyCodApprovedOnboardingFlag,
+} from "../helpers/cod-amendment-transition";
 
 /**
  * COD (Company Onboarding Data) Webhook Handler
@@ -620,12 +624,13 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
           if (org) {
             const previousStatus = org.onboarding_status;
-            const waitForApprovalOrgStatus =
-              previousStatus === OnboardingStatus.PENDING_AMENDMENT
-                ? OnboardingStatus.PENDING_SSM_REVIEW
-                : onboarding.organization_type === OrganizationType.COMPANY
-                  ? OnboardingStatus.PENDING_SSM_REVIEW
-                  : OnboardingStatus.PENDING_APPROVAL;
+            // Duplicate/out-of-order WAIT_FOR_APPROVAL webhooks must not regress an
+            // organization that has already progressed past review (see cod-amendment-transition.ts).
+            const waitForApprovalUpdate = getCodWaitForApprovalUpdate({
+              portalType,
+              orgType: onboarding.organization_type,
+              currentOnboardingStatus: previousStatus,
+            });
             const ssmRegistrationNumber =
               corporateOnboardingData?.basicInfo?.ssmRegistrationNumber ||
               org.registration_number ||
@@ -633,13 +638,12 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             await prisma.investorOrganization.update({
               where: { id: organizationId },
               data: {
-                onboarding_status: waitForApprovalOrgStatus,
-                onboarding_approved: false,
-                ...(waitForApprovalOrgStatus === OnboardingStatus.PENDING_APPROVAL ||
-                waitForApprovalOrgStatus === OnboardingStatus.PENDING_SSM_REVIEW
+                ...(waitForApprovalUpdate
                   ? {
-                  ssm_approved: false,
-                }
+                      onboarding_status: waitForApprovalUpdate.nextStatus,
+                      onboarding_approved: waitForApprovalUpdate.reset.onboarding_approved,
+                      ssm_approved: waitForApprovalUpdate.reset.ssm_approved ?? false,
+                    }
                   : {}),
                 director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
                 bank_account_details: bankingDetails as Prisma.InputJsonValue,
@@ -667,8 +671,9 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   organizationId,
                   requestId,
                   previousStatus,
-                  newStatus: waitForApprovalOrgStatus,
+                  newStatus: waitForApprovalUpdate?.nextStatus ?? previousStatus,
                   directorCount: directors.length,
+                  statusResetApplied: Boolean(waitForApprovalUpdate),
                 },
               });
             } catch (logError) {
@@ -683,20 +688,31 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             }
 
             logger.info(
-              { organizationId, portalType, requestId, directorCount: directors.length, waitForApprovalOrgStatus },
-              "Updated investor organization: stored director KYC status; user milestone onboarding_status (admin gates unchanged)"
+              {
+                organizationId,
+                portalType,
+                requestId,
+                directorCount: directors.length,
+                previousStatus,
+                resultingOnboardingStatus: waitForApprovalUpdate?.nextStatus ?? previousStatus,
+                statusResetApplied: Boolean(waitForApprovalUpdate),
+              },
+              waitForApprovalUpdate
+                ? "Updated investor organization: stored director KYC status; applied WAIT_FOR_APPROVAL review reset"
+                : "Updated investor organization: stored director KYC status; WAIT_FOR_APPROVAL status reset skipped (organization already progressed past review)"
             );
           }
         } else {
           const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
           if (org) {
             const previousStatus = org.onboarding_status;
-            const waitForApprovalOrgStatus =
-              previousStatus === OnboardingStatus.PENDING_AMENDMENT
-                ? OnboardingStatus.PENDING_SSM_REVIEW
-                : onboarding.organization_type === OrganizationType.COMPANY
-                  ? OnboardingStatus.PENDING_SSM_REVIEW
-                  : OnboardingStatus.PENDING_APPROVAL;
+            // Duplicate/out-of-order WAIT_FOR_APPROVAL webhooks must not regress an
+            // organization that has already progressed past review (see cod-amendment-transition.ts).
+            const waitForApprovalUpdate = getCodWaitForApprovalUpdate({
+              portalType,
+              orgType: onboarding.organization_type,
+              currentOnboardingStatus: previousStatus,
+            });
             const ssmRegistrationNumber =
               corporateOnboardingData?.basicInfo?.ssmRegistrationNumber ||
               org.registration_number ||
@@ -704,13 +720,12 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             await prisma.issuerOrganization.update({
               where: { id: organizationId },
               data: {
-                onboarding_status: waitForApprovalOrgStatus,
-                onboarding_approved: false,
-                ...(waitForApprovalOrgStatus === OnboardingStatus.PENDING_APPROVAL ||
-                waitForApprovalOrgStatus === OnboardingStatus.PENDING_SSM_REVIEW
+                ...(waitForApprovalUpdate
                   ? {
-                  ssm_checked: false,
-                }
+                      onboarding_status: waitForApprovalUpdate.nextStatus,
+                      onboarding_approved: waitForApprovalUpdate.reset.onboarding_approved,
+                      ssm_checked: waitForApprovalUpdate.reset.ssm_checked ?? false,
+                    }
                   : {}),
                 director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
                 bank_account_details: bankingDetails as Prisma.InputJsonValue,
@@ -738,8 +753,9 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   organizationId,
                   requestId,
                   previousStatus,
-                  newStatus: waitForApprovalOrgStatus,
+                  newStatus: waitForApprovalUpdate?.nextStatus ?? previousStatus,
                   directorCount: directors.length,
+                  statusResetApplied: Boolean(waitForApprovalUpdate),
                 },
               });
             } catch (logError) {
@@ -754,8 +770,18 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             }
 
             logger.info(
-              { organizationId, portalType, requestId, directorCount: directors.length, waitForApprovalOrgStatus },
-              "Updated issuer organization: stored director KYC status; user milestone onboarding_status (admin gates unchanged)"
+              {
+                organizationId,
+                portalType,
+                requestId,
+                directorCount: directors.length,
+                previousStatus,
+                resultingOnboardingStatus: waitForApprovalUpdate?.nextStatus ?? previousStatus,
+                statusResetApplied: Boolean(waitForApprovalUpdate),
+              },
+              waitForApprovalUpdate
+                ? "Updated issuer organization: stored director KYC status; applied WAIT_FOR_APPROVAL review reset"
+                : "Updated issuer organization: stored director KYC status; WAIT_FOR_APPROVAL status reset skipped (organization already progressed past review)"
             );
           }
         }
@@ -1357,7 +1383,12 @@ export class CODWebhookHandler extends BaseWebhookHandler {
 
           if (!invOrg) {
             logger.warn({ organizationId, requestId }, "[COD Webhook] Organization not found for COD APPROVED org advance");
-          } else if (invOrg.onboarding_status === OnboardingStatus.PENDING_APPROVAL) {
+          } else if (
+            shouldApplyCodApprovedOnboardingFlag({
+              currentOnboardingStatus: invOrg.onboarding_status,
+              onboardingApproved: invOrg.onboarding_approved,
+            })
+          ) {
             if (portalType === "investor") {
               await prisma.investorOrganization.update({
                 where: { id: organizationId },
@@ -1427,8 +1458,9 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 organizationId,
                 portalType,
                 onboardingStatus: invOrg.onboarding_status,
+                onboardingApproved: invOrg.onboarding_approved,
               },
-              "[COD Webhook] COD APPROVED ran advance only (no onboarding_approved write; org not on PENDING_APPROVAL)"
+              "[COD Webhook] COD APPROVED ran advance only (idempotent no-op — org not on PENDING_APPROVAL, or onboarding_approved already set)"
             );
           }
         }

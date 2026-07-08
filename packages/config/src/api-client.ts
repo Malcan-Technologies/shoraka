@@ -1469,6 +1469,9 @@ export class ApiClient {
         success: boolean;
         message: string;
         directorsUpdated: number;
+        onboardingStatus: string;
+        amlApproved: boolean;
+        advanced: boolean;
       }>
     | ApiError
   > {
@@ -1476,6 +1479,9 @@ export class ApiClient {
       success: boolean;
       message: string;
       directorsUpdated: number;
+      onboardingStatus: string;
+      amlApproved: boolean;
+      advanced: boolean;
     }>(`/v1/admin/onboarding-applications/${onboardingId}/refresh-aml-status`, {});
   }
 
