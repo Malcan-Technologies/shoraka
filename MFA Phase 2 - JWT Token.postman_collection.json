@@ -1,0 +1,191 @@
+{
+	"info": {
+		"_postman_id": "585b7c90-51ac-4ec6-874a-4509e6d99d83",
+		"name": "MFA Phase 2 - JWT Token",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "38472059"
+	},
+	"item": [
+		{
+			"name": "Login API",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "text/xml",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "grant_type",
+							"value": "password",
+							"type": "text"
+						},
+						{
+							"key": "client_id",
+							"value": "<your client_id>",
+							"type": "text"
+						},
+						{
+							"key": "grant_type",
+							"value": "password",
+							"type": "text",
+							"disabled": true
+						},
+						{
+							"key": "username",
+							"value": "<your username>",
+							"type": "text"
+						},
+						{
+							"key": "password",
+							"value": "<your password>",
+							"type": "text"
+						},
+						{
+							"key": "client_assertion_type",
+							"value": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+							"type": "text"
+						},
+						{
+							"key": "client_assertion",
+							"value": "<JWT token>",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://uat-sso.ctos.com.my/auth/realms/CTOSNET/protocol/openid-connect/token",
+					"protocol": "https",
+					"host": [
+						"uat-sso",
+						"ctos",
+						"com",
+						"my"
+					],
+					"path": [
+						"auth",
+						"realms",
+						"CTOSNET",
+						"protocol",
+						"openid-connect",
+						"token"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Refresh Token API",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "text/xml",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "grant_type",
+							"value": "refresh_token",
+							"type": "text"
+						},
+						{
+							"key": "client_id",
+							"value": "<your client_id>",
+							"type": "text"
+						},
+						{
+							"key": "refresh_token",
+							"value": "<refresh token from Login API>",
+							"type": "text"
+						},
+						{
+							"key": "client_assertion_type",
+							"value": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+							"type": "text"
+						},
+						{
+							"key": "client_assertion",
+							"value": "<JWT token>",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://uat-sso.ctos.com.my/auth/realms/CTOSNET/protocol/openid-connect/token",
+					"protocol": "https",
+					"host": [
+						"uat-sso",
+						"ctos",
+						"com",
+						"my"
+					],
+					"path": [
+						"auth",
+						"realms",
+						"CTOSNET",
+						"protocol",
+						"openid-connect",
+						"token"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Report API",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "text/xml",
+						"type": "text"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer <authentication token>",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ws=\"http://ws.proxy.xml.ctos.com.my/\">\r\n<soapenv:Header/>\r\n    <soapenv:Body>\r\n        <ws:requestLite>\r\n            <!--Optional:-->\r\n            <input>\r\n\r\n                &lt;batch output=&apos;0&apos; no=&apos;0009&apos; xmlns=&apos;http://ws.cmctos.com.my/ctosnet/request&apos;&gt;\r\n\r\n                &lt;company_code&gt;XXX&lt;/company_code&gt;\r\n\r\n                &lt;account_no&gt;XXX&lt;/account_no&gt;\r\n\r\n                &lt;user_id&gt;XXX&lt;/user_id&gt;\r\n\r\n                &lt;record_total&gt;1&lt;/record_total&gt;\r\n\r\n                &lt;records&gt;\r\n\r\n                    &lt;type code=&quot;11&quot;&gt;I&lt;/type&gt;\r\n\r\n                    &lt;ic_lc&gt;&lt;/ic_lc&gt;\r\n\r\n                    &lt;nic_br&gt;200503152036 &lt;/nic_br&gt;\r\n\r\n                    &lt;name&gt;ABCDE&lt;/name&gt;\r\n\r\n                    &lt;ref_no&gt;12345&lt;/ref_no&gt;\r\n\r\n                    &lt;purpose code=&apos;200&apos;&gt;Credit evaluation/account opening on subject/directors/shareholder with consent /due diligence on AMLA compliance&lt;/purpose&gt;\r\n\r\n                    &lt;include_ctos&gt;1&lt;/include_ctos&gt;\r\n                \r\n                    &lt;include_trex&gt;0&lt;/include_trex&gt;\r\n\r\n                    &lt;include_ssm&gt;0&lt;/include_ssm&gt;\r\n\r\n                    &lt;include_ssm_retention&gt;0&lt;/include_ssm_retention&gt;\r\n\r\n                    &lt;include_ccris sum=&quot;0&quot;&gt;0&lt;/include_ccris&gt;\r\n\r\n                    &lt;include_ccris_supp&gt;0&lt;/include_ccris_supp&gt;\r\n\r\n                    &lt;include_etr_plus&gt;0&lt;/include_etr_plus&gt;\r\n\r\n                    &lt;include_fico&gt;0&lt;/include_fico&gt;\r\n\r\n                    &lt;confirm_entity&gt;&lt;/confirm_entity&gt;\r\n\r\n                &lt;/records&gt;\r\n\r\n                &lt;/batch&gt;\r\n\r\n            </input>\r\n        </ws:requestLite>\r\n    </soapenv:Body>\r\n</soapenv:Envelope>"
+				},
+				"url": {
+					"raw": "https://uat-integration.ctos.com.my/ctos_secure/Proxy",
+					"protocol": "https",
+					"host": [
+						"uat-integration",
+						"ctos",
+						"com",
+						"my"
+					],
+					"path": [
+						"ctos_secure",
+						"Proxy"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

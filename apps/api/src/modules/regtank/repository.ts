@@ -231,6 +231,8 @@ export class RegTankRepository {
       verifyLinkExpiresAt?: Date;
       submittedAt?: Date;
       completedAt?: Date;
+      /** Latest raw RegTank response snapshot (e.g. from a live query/refresh, not a webhook). */
+      regtankResponse?: Prisma.InputJsonValue;
     }
   ): Promise<RegTankOnboarding> {
     return prisma.regTankOnboarding.update({
@@ -242,6 +244,7 @@ export class RegTankRepository {
         verify_link_expires_at: data.verifyLinkExpiresAt,
         submitted_at: data.submittedAt,
         completed_at: data.completedAt,
+        ...(data.regtankResponse !== undefined ? { regtank_response: data.regtankResponse } : {}),
       },
     });
   }

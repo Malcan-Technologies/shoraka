@@ -1485,6 +1485,46 @@ export class ApiClient {
     }>(`/v1/admin/onboarding-applications/${onboardingId}/refresh-aml-status`, {});
   }
 
+  // Refresh onboarding + AML status from RegTank (personal or company)
+  async refreshOnboardingStatus(onboardingId: string): Promise<
+    | ApiResponse<{
+        success: boolean;
+        message: string;
+        organizationId: string;
+        onboardingStatus: string;
+        onboardingApproved: boolean;
+        ssmApproved: boolean;
+        amlApproved: boolean;
+        advanced: boolean;
+        onboardingProviderStatus: string | null;
+        amlProviderStatus: string | null;
+        lastSyncedAt: string | null;
+        directorsUpdated: number;
+        refreshedSources: string[];
+        warnings: string[];
+        partialFailures: string[];
+      }>
+    | ApiError
+  > {
+    return this.post<{
+      success: boolean;
+      message: string;
+      organizationId: string;
+      onboardingStatus: string;
+      onboardingApproved: boolean;
+      ssmApproved: boolean;
+      amlApproved: boolean;
+      advanced: boolean;
+      onboardingProviderStatus: string | null;
+      amlProviderStatus: string | null;
+      lastSyncedAt: string | null;
+      directorsUpdated: number;
+      refreshedSources: string[];
+      warnings: string[];
+      partialFailures: string[];
+    }>(`/v1/admin/onboarding-applications/${onboardingId}/refresh-status`, {});
+  }
+
   async getUser(id: string): Promise<ApiResponse<{ user: UserDetailResponse }> | ApiError> {
     return this.get<{ user: UserDetailResponse }>(`/v1/admin/users/${id}`);
   }

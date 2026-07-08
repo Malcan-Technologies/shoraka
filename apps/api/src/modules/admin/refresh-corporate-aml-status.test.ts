@@ -4,6 +4,8 @@ import { OnboardingStatus } from "@prisma/client";
 jest.mock("./repository", () => ({ AdminRepository: jest.fn().mockImplementation(() => ({})) }));
 jest.mock("../regtank/repository", () => ({ RegTankRepository: jest.fn().mockImplementation(() => ({})) }));
 jest.mock("../regtank/api-client", () => ({ RegTankAPIClient: jest.fn().mockImplementation(() => ({})) }));
+jest.mock("../regtank/service", () => ({ RegTankService: jest.fn().mockImplementation(() => ({})) }));
+jest.mock("../organization/repository", () => ({ OrganizationRepository: jest.fn().mockImplementation(() => ({})) }));
 jest.mock("../notification/service", () => ({ NotificationService: jest.fn().mockImplementation(() => ({})) }));
 jest.mock("../products/repository", () => ({ ProductRepository: jest.fn().mockImplementation(() => ({})) }));
 

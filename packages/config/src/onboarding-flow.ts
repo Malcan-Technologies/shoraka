@@ -1,5 +1,14 @@
 import type { OnboardingStatus, Organization, PortalType } from "./organization-context";
 
+/**
+ * Shared onboarding action labels. Keep button/loading text identical across the admin,
+ * investor, and issuer portals so the same action reads the same way everywhere.
+ */
+export const ONBOARDING_REFRESH_LABEL = "Refresh status";
+export const ONBOARDING_REFRESH_LOADING_LABEL = "Refreshing…";
+export const ONBOARDING_OPEN_REGTANK_REVIEW_LABEL = "Open RegTank Review";
+export const ONBOARDING_RESTART_LABEL = "Restart Onboarding";
+
 /** High-level onboarding destination used for routing and guards. */
 export type OnboardingFlowStep =
   | "account"
