@@ -325,8 +325,17 @@ export function OnboardingReviewDialog({
     });
   };
 
+  // Backend `refreshOnboardingStatus` intentionally skips live RegTank calls once an
+  // organization is COMPLETED/REJECTED (see terminal-state guard) — the button must not
+  // look like a normal live action for these two states.
+  const isTerminalOnboarding = adminPhase === "COMPLETED" || adminPhase === "REJECTED";
+  const terminalRefreshHelperText =
+    adminPhase === "COMPLETED"
+      ? "Onboarding is complete. No further status refresh is required."
+      : "This onboarding was rejected. Restart onboarding to begin a new review.";
+
   const handleCombinedRefresh = async () => {
-    if (!application) return;
+    if (!application || isTerminalOnboarding) return;
     try {
       const result = await refreshStatusMutation.mutateAsync(onboardingId);
       if (result.partialFailures.length > 0) {
@@ -973,21 +982,28 @@ export function OnboardingReviewDialog({
                 )}
               </DialogTitle>
               {application && (
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCombinedRefresh}
-                    disabled={isCombinedRefreshing || !canManage}
-                    aria-busy={isCombinedRefreshing || undefined}
-                    className="gap-1.5"
-                    title={!canManage ? "You do not have permission to perform this action." : undefined}
-                  >
-                    <ArrowPathIcon
-                      className={`h-4 w-4 ${isCombinedRefreshing ? "animate-spin" : ""}`}
-                    />
-                    {isCombinedRefreshing ? ONBOARDING_REFRESH_LOADING_LABEL : ONBOARDING_REFRESH_LABEL}
-                  </Button>
+                <div className="flex items-center gap-2">
+                  {isTerminalOnboarding ? (
+                    <span className="text-xs text-muted-foreground text-right max-w-[220px]">
+                      {terminalRefreshHelperText}
+                    </span>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCombinedRefresh}
+                      disabled={isCombinedRefreshing || !canManage}
+                      aria-busy={isCombinedRefreshing || undefined}
+                      className="gap-1.5"
+                      title={!canManage ? "You do not have permission to perform this action." : undefined}
+                    >
+                      <ArrowPathIcon
+                        className={`h-4 w-4 ${isCombinedRefreshing ? "animate-spin" : ""}`}
+                      />
+                      {isCombinedRefreshing ? ONBOARDING_REFRESH_LOADING_LABEL : ONBOARDING_REFRESH_LABEL}
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
