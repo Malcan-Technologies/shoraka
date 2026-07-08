@@ -2,7 +2,7 @@ import { BaseWebhookHandler } from "./base-webhook-handler";
 import { RegTankService } from "../service";
 import { RegTankIndividualOnboardingWebhook, PortalType } from "../types";
 import { logger } from "../../../lib/logger";
-import { RegTankRepository } from "../repository";
+import { RegTankRepository, RegTankOnboardingWithRelations } from "../repository";
 import { OrganizationRepository } from "../../organization/repository";
 import { AuthRepository } from "../../auth/repository";
 import { OnboardingStatus, Prisma, UserRole } from "@prisma/client";
@@ -14,6 +14,7 @@ import {
   normalizeRawStatus,
 } from "@cashsouk/types";
 import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
+import { getIndividualWaitForApprovalUpdate } from "../helpers/individual-onboarding-transition";
 
 /**
  * Individual Onboarding Webhook Handler
@@ -87,214 +88,34 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
     const portalType = onboarding.portal_type as PortalType;
 
-    // Update organization to LIVENESS_PASSED when liveness test completes
+    // Update organization to PENDING_APPROVAL when liveness test completes.
+    // Duplicate/out-of-order deliveries must not regress an organization that has
+    // already progressed past review (see individual-onboarding-transition.ts).
     if (statusUpper === "LIVENESS_PASSED" && organizationId) {
-      try {
-        if (portalType === "investor") {
-          const orgExists = await this.organizationRepository.findInvestorOrganizationById(organizationId);
-          if (orgExists) {
-            const previousStatus = orgExists.onboarding_status;
-            await this.organizationRepository.updateInvestorOrganizationOnboarding(
-              organizationId,
-              OnboardingStatus.PENDING_APPROVAL,
-              { resetCompanySsmGateFromRegtankWebhook: true }
-            );
-
-            // Create onboarding log - FORM_FILLED when form is completed
-            try {
-              await this.authRepository.createOnboardingLog({
-                userId: onboarding.user_id,
-                role: UserRole.INVESTOR,
-                eventType: "FORM_FILLED",
-                portal: portalType,
-                organizationName: orgExists.name || undefined,
-                investorOrganizationId: organizationId,
-                issuerOrganizationId: undefined,
-                metadata: {
-                  organizationId,
-                  requestId,
-                  previousStatus,
-                  newStatus: OnboardingStatus.PENDING_APPROVAL,
-                  trigger: "LIVENESS_PASSED",
-                },
-              });
-            } catch (logError) {
-              logger.error(
-                {
-                  error: logError instanceof Error ? logError.message : String(logError),
-                  organizationId,
-                  requestId,
-                },
-                "Failed to create onboarding log (non-blocking)"
-              );
-            }
-
-            logger.info(
-              { organizationId, portalType, requestId, status: statusUpper },
-              "Liveness test passed, updated investor organization status to PENDING_APPROVAL"
-            );
-          }
-        } else {
-          const orgExists = await this.organizationRepository.findIssuerOrganizationById(organizationId);
-          if (orgExists) {
-            const previousStatus = orgExists.onboarding_status;
-            await this.organizationRepository.updateIssuerOrganizationOnboarding(
-              organizationId,
-              OnboardingStatus.PENDING_APPROVAL,
-              { resetCompanySsmGateFromRegtankWebhook: true }
-            );
-
-            // Create onboarding status updated log
-            try {
-              await this.authRepository.createOnboardingLog({
-                userId: onboarding.user_id,
-                role: UserRole.ISSUER,
-                eventType: "ONBOARDING_STATUS_UPDATED",
-                portal: portalType,
-                organizationName: orgExists.name || undefined,
-                investorOrganizationId: undefined,
-                issuerOrganizationId: organizationId,
-                metadata: {
-                  organizationId,
-                  requestId,
-                  previousStatus,
-                  newStatus: OnboardingStatus.PENDING_APPROVAL,
-                  trigger: "LIVENESS_PASSED",
-                },
-              });
-            } catch (logError) {
-              logger.error(
-                {
-                  error: logError instanceof Error ? logError.message : String(logError),
-                  organizationId,
-                  requestId,
-                },
-                "Failed to create onboarding status updated log (non-blocking)"
-              );
-            }
-
-            logger.info(
-              { organizationId, portalType, requestId, status: statusUpper },
-              "Liveness test passed, updated issuer organization status to PENDING_APPROVAL"
-            );
-          }
-        }
-      } catch (orgError) {
-        logger.error(
-          {
-            error: orgError instanceof Error ? orgError.message : String(orgError),
-            organizationId,
-            portalType,
-            requestId,
-          },
-          "Failed to update organization status after LIVENESS_PASSED"
-        );
-      }
+      await this.applyWaitForApprovalStyleUpdate({
+        organizationId,
+        portalType,
+        onboarding,
+        requestId,
+        trigger: "LIVENESS_PASSED",
+        eventType: portalType === "investor" ? "FORM_FILLED" : "ONBOARDING_STATUS_UPDATED",
+        failureLogMessage: "Failed to update organization status after LIVENESS_PASSED",
+      });
     }
 
-    // Update organization to PENDING_APPROVAL when WAIT_FOR_APPROVAL
+    // Update organization to PENDING_APPROVAL when WAIT_FOR_APPROVAL.
+    // Duplicate/out-of-order deliveries must not regress an organization that has
+    // already progressed past review (see individual-onboarding-transition.ts).
     if (statusUpper === "WAIT_FOR_APPROVAL" && organizationId) {
-      try {
-        if (portalType === "investor") {
-          const orgExists = await this.organizationRepository.findInvestorOrganizationById(organizationId);
-          if (orgExists) {
-            const previousStatus = orgExists.onboarding_status;
-            await this.organizationRepository.updateInvestorOrganizationOnboarding(
-              organizationId,
-              OnboardingStatus.PENDING_APPROVAL,
-              { resetCompanySsmGateFromRegtankWebhook: true }
-            );
-
-            // Create onboarding status updated log
-            try {
-              await this.authRepository.createOnboardingLog({
-                userId: onboarding.user_id,
-                role: UserRole.INVESTOR,
-                eventType: "ONBOARDING_STATUS_UPDATED",
-                portal: portalType,
-                organizationName: orgExists.name || undefined,
-                investorOrganizationId: organizationId,
-                issuerOrganizationId: undefined,
-                metadata: {
-                  organizationId,
-                  requestId,
-                  previousStatus,
-                  newStatus: OnboardingStatus.PENDING_APPROVAL,
-                  trigger: "WAIT_FOR_APPROVAL",
-                },
-              });
-            } catch (logError) {
-              logger.error(
-                {
-                  error: logError instanceof Error ? logError.message : String(logError),
-                  organizationId,
-                  requestId,
-                },
-                "Failed to create onboarding status updated log (non-blocking)"
-              );
-            }
-
-            logger.info(
-              { organizationId, portalType, requestId },
-              "Updated investor organization status to PENDING_APPROVAL"
-            );
-          }
-        } else {
-          const orgExists = await this.organizationRepository.findIssuerOrganizationById(organizationId);
-          if (orgExists) {
-            const previousStatus = orgExists.onboarding_status;
-            await this.organizationRepository.updateIssuerOrganizationOnboarding(
-              organizationId,
-              OnboardingStatus.PENDING_APPROVAL,
-              { resetCompanySsmGateFromRegtankWebhook: true }
-            );
-
-            // Create onboarding status updated log
-            try {
-              await this.authRepository.createOnboardingLog({
-                userId: onboarding.user_id,
-                role: UserRole.ISSUER,
-                eventType: "ONBOARDING_STATUS_UPDATED",
-                portal: portalType,
-                organizationName: orgExists.name || undefined,
-                investorOrganizationId: undefined,
-                issuerOrganizationId: organizationId,
-                metadata: {
-                  organizationId,
-                  requestId,
-                  previousStatus,
-                  newStatus: OnboardingStatus.PENDING_APPROVAL,
-                  trigger: "WAIT_FOR_APPROVAL",
-                },
-              });
-            } catch (logError) {
-              logger.error(
-                {
-                  error: logError instanceof Error ? logError.message : String(logError),
-                  organizationId,
-                  requestId,
-                },
-                "Failed to create onboarding status updated log (non-blocking)"
-              );
-            }
-
-            logger.info(
-              { organizationId, portalType, requestId },
-              "Updated issuer organization status to PENDING_APPROVAL"
-            );
-          }
-        }
-      } catch (orgError) {
-        logger.error(
-          {
-            error: orgError instanceof Error ? orgError.message : String(orgError),
-            organizationId,
-            portalType,
-            requestId,
-          },
-          "Failed to update organization status to PENDING_APPROVAL"
-        );
-      }
+      await this.applyWaitForApprovalStyleUpdate({
+        organizationId,
+        portalType,
+        onboarding,
+        requestId,
+        trigger: "WAIT_FOR_APPROVAL",
+        eventType: "ONBOARDING_STATUS_UPDATED",
+        failureLogMessage: "Failed to update organization status to PENDING_APPROVAL",
+      });
     }
 
     // If approved, update organization status to COMPLETED
@@ -431,6 +252,105 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
           "Failed to update organization status to REJECTED"
         );
       }
+    }
+  }
+
+  /**
+   * Shared logic for `LIVENESS_PASSED` and `WAIT_FOR_APPROVAL`: land the organization on
+   * `PENDING_APPROVAL`, but only while it is still in a pre-review stage. Duplicate or
+   * out-of-order deliveries must not regress an organization that has already advanced
+   * past review (see `getIndividualWaitForApprovalUpdate`).
+   */
+  private async applyWaitForApprovalStyleUpdate(params: {
+    organizationId: string;
+    portalType: PortalType;
+    onboarding: RegTankOnboardingWithRelations;
+    requestId: string;
+    trigger: "LIVENESS_PASSED" | "WAIT_FOR_APPROVAL";
+    eventType: string;
+    failureLogMessage: string;
+  }): Promise<void> {
+    const { organizationId, portalType, onboarding, requestId, trigger, eventType, failureLogMessage } = params;
+
+    try {
+      const isInvestor = portalType === "investor";
+      const orgExists = isInvestor
+        ? await this.organizationRepository.findInvestorOrganizationById(organizationId)
+        : await this.organizationRepository.findIssuerOrganizationById(organizationId);
+
+      if (!orgExists) return;
+
+      const previousStatus = orgExists.onboarding_status;
+      const update = getIndividualWaitForApprovalUpdate({ currentOnboardingStatus: previousStatus });
+
+      if (update) {
+        if (isInvestor) {
+          await this.organizationRepository.updateInvestorOrganizationOnboarding(
+            organizationId,
+            OnboardingStatus.PENDING_APPROVAL,
+            { resetCompanySsmGateFromRegtankWebhook: true }
+          );
+        } else {
+          await this.organizationRepository.updateIssuerOrganizationOnboarding(
+            organizationId,
+            OnboardingStatus.PENDING_APPROVAL,
+            { resetCompanySsmGateFromRegtankWebhook: true }
+          );
+        }
+      }
+
+      try {
+        await this.authRepository.createOnboardingLog({
+          userId: onboarding.user_id,
+          role: isInvestor ? UserRole.INVESTOR : UserRole.ISSUER,
+          eventType,
+          portal: portalType,
+          organizationName: orgExists.name || undefined,
+          investorOrganizationId: isInvestor ? organizationId : undefined,
+          issuerOrganizationId: isInvestor ? undefined : organizationId,
+          metadata: {
+            organizationId,
+            requestId,
+            previousStatus,
+            newStatus: update ? OnboardingStatus.PENDING_APPROVAL : previousStatus,
+            trigger,
+            statusUpdateApplied: Boolean(update),
+          },
+        });
+      } catch (logError) {
+        logger.error(
+          {
+            error: logError instanceof Error ? logError.message : String(logError),
+            organizationId,
+            requestId,
+          },
+          "Failed to create onboarding status log (non-blocking)"
+        );
+      }
+
+      logger.info(
+        {
+          organizationId,
+          portalType,
+          requestId,
+          previousStatus,
+          resultingOnboardingStatus: update ? OnboardingStatus.PENDING_APPROVAL : previousStatus,
+          statusUpdateApplied: Boolean(update),
+        },
+        update
+          ? `Updated ${portalType} organization status to PENDING_APPROVAL (${trigger})`
+          : `Skipped ${trigger} status update — organization already progressed past review`
+      );
+    } catch (orgError) {
+      logger.error(
+        {
+          error: orgError instanceof Error ? orgError.message : String(orgError),
+          organizationId,
+          portalType,
+          requestId,
+        },
+        failureLogMessage
+      );
     }
   }
 

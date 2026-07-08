@@ -17,6 +17,7 @@ import { AuthRepository } from "../auth/repository";
 import { getRegTankConfig } from "../../config/regtank";
 import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
 import { normalizeRawStatus } from "@cashsouk/types";
+import { decideIndividualApprovedOutcome } from "./helpers/individual-onboarding-transition";
 
 export class RegTankService {
   private repository: RegTankRepository;
@@ -1742,20 +1743,57 @@ export class RegTankService {
                 "Updated investor organization to first admin gate after RegTank onboarding approval"
               );
             } else {
-              if (
-                org.onboarding_status === OnboardingStatus.PENDING_AML &&
-                org.onboarding_approved
-              ) {
-                await advanceOnboardingStatusFromFlags({
+              // Personal investor: decide the safe outcome from current status/flags so
+              // duplicate or out-of-order APPROVED webhooks can never regress an org that
+              // has already progressed past PENDING_APPROVAL (or is terminal).
+              const outcome = decideIndividualApprovedOutcome({
+                currentOnboardingStatus: org.onboarding_status,
+                onboardingApproved: org.onboarding_approved,
+              });
+
+              if (outcome === "heal-to-pending-approval") {
+                // APPROVED arrived before WAIT_FOR_APPROVAL/LIVENESS_PASSED was processed
+                // (org still PENDING/IN_PROGRESS) — safe to land it on PENDING_APPROVAL.
+                const healedOrgStatus = OnboardingStatus.PENDING_APPROVAL;
+                await this.organizationRepository.updateInvestorOrganizationOnboarding(
                   organizationId,
-                  portalType: "investor",
-                  reason: "REGTANK_INDIVIDUAL_APPROVED",
-                });
-                logger.info(
-                  { organizationId, requestId, onboardingStatus: org.onboarding_status },
-                  "Investor personal org at PENDING_AML with onboarding_approved; ran advance for healing"
+                  healedOrgStatus,
+                  { resetCompanySsmGateFromRegtankWebhook: true }
                 );
-              } else if (org.onboarding_status === OnboardingStatus.PENDING_APPROVAL) {
+
+                try {
+                  await this.authRepository.createOnboardingLog({
+                    userId: onboarding.user_id,
+                    role: UserRole.INVESTOR,
+                    eventType: "ONBOARDING_APPROVED",
+                    portal: portalType,
+                    organizationName: org.name || undefined,
+                    investorOrganizationId: organizationId,
+                    issuerOrganizationId: undefined,
+                    metadata: {
+                      organizationId,
+                      requestId,
+                      previousStatus,
+                      newStatus: healedOrgStatus,
+                      trigger: "REGTANK_APPROVED",
+                    },
+                  });
+                } catch (logError) {
+                  logger.error(
+                    {
+                      error: logError instanceof Error ? logError.message : String(logError),
+                      organizationId,
+                      requestId,
+                    },
+                    "Failed to create onboarding log (non-blocking)"
+                  );
+                }
+
+                logger.info(
+                  { organizationId, portalType, orgType: org.type, nextOrgStatus: healedOrgStatus },
+                  "Updated investor organization to first admin gate after RegTank onboarding approval"
+                );
+              } else if (outcome === "set-approved-and-advance") {
                 await prisma.investorOrganization.update({
                   where: { id: organizationId },
                   data: {
@@ -1805,44 +1843,24 @@ export class RegTankService {
                   "Set onboarding_approved and applied advance after RegTank APPROVED (personal investor)"
                 );
               } else {
-                const fallbackOrgStatus = OnboardingStatus.PENDING_APPROVAL;
-                await this.organizationRepository.updateInvestorOrganizationOnboarding(
+                // "advance-only": duplicate/late APPROVED. The org is already approved,
+                // already progressed past PENDING_APPROVAL, or is terminal — only re-run
+                // the shared, idempotent sequencing helper. Never mutate status/flags
+                // directly here (prevents regressing PENDING_AML/PENDING_FINAL_APPROVAL/
+                // COMPLETED/REJECTED back down to PENDING_APPROVAL).
+                await advanceOnboardingStatusFromFlags({
                   organizationId,
-                  fallbackOrgStatus,
-                  { resetCompanySsmGateFromRegtankWebhook: true }
-                );
-
-                try {
-                  await this.authRepository.createOnboardingLog({
-                    userId: onboarding.user_id,
-                    role: UserRole.INVESTOR,
-                    eventType: "ONBOARDING_APPROVED",
-                    portal: portalType,
-                    organizationName: org.name || undefined,
-                    investorOrganizationId: organizationId,
-                    issuerOrganizationId: undefined,
-                    metadata: {
-                      organizationId,
-                      requestId,
-                      previousStatus,
-                      newStatus: fallbackOrgStatus,
-                      trigger: "REGTANK_APPROVED",
-                    },
-                  });
-                } catch (logError) {
-                  logger.error(
-                    {
-                      error: logError instanceof Error ? logError.message : String(logError),
-                      organizationId,
-                      requestId,
-                    },
-                    "Failed to create onboarding log (non-blocking)"
-                  );
-                }
-
+                  portalType: "investor",
+                  reason: "REGTANK_INDIVIDUAL_APPROVED",
+                });
                 logger.info(
-                  { organizationId, portalType, orgType: org.type, nextOrgStatus: fallbackOrgStatus },
-                  "Updated investor organization to first admin gate after RegTank onboarding approval"
+                  {
+                    organizationId,
+                    requestId,
+                    onboardingStatus: org.onboarding_status,
+                    onboardingApproved: org.onboarding_approved,
+                  },
+                  "[Individual APPROVED] Idempotent no-op — ran shared advance only (org already approved, progressed, or terminal)"
                 );
               }
             }
