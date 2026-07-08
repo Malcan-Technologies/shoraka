@@ -132,4 +132,62 @@ describe("KYCWebhookHandler", () => {
     expect(mockInvestorUpdate).not.toHaveBeenCalled();
     expect(mockMaybeAdvance).not.toHaveBeenCalled();
   });
+
+  it("G1: personal investor's own INDIVIDUAL onboarding APPROVED triggers the personal AML milestone", async () => {
+    const onboarding = baseOnboardingRow({
+      status: "WAIT_FOR_APPROVAL",
+      onboarding_type: "INDIVIDUAL",
+      organization_type: OrganizationType.PERSONAL,
+    });
+    mockFindByRequestId.mockResolvedValue(onboarding);
+    const handler = new KYCWebhookHandler("ACURIS");
+
+    await (handler as any).handle({
+      requestId: "KYC001",
+      onboardingId: "LD001-R01",
+      status: "Approved",
+    });
+
+    expect(mockMaybeAdvance).toHaveBeenCalledTimes(1);
+    expect(mockMaybeAdvance).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: "org-1", portalType: "investor" })
+    );
+  });
+
+  it("G2: a director/shareholder KYC resolved against the parent CORPORATE onboarding does NOT trigger the personal AML milestone", async () => {
+    const onboarding = baseOnboardingRow({
+      status: "WAIT_FOR_APPROVAL",
+      request_id: "COD001-R01",
+      onboarding_type: "CORPORATE",
+      organization_type: OrganizationType.COMPANY,
+    });
+    mockFindByRequestId.mockResolvedValue(onboarding);
+    const handler = new KYCWebhookHandler("ACURIS");
+
+    await (handler as any).handle({
+      requestId: "KYC002",
+      onboardingId: "COD001-R01",
+      status: "Approved",
+    });
+
+    expect(mockMaybeAdvance).not.toHaveBeenCalled();
+  });
+
+  it("G3: an INDIVIDUAL onboarding row on a COMPANY-type organization does NOT trigger the personal AML milestone", async () => {
+    const onboarding = baseOnboardingRow({
+      status: "WAIT_FOR_APPROVAL",
+      onboarding_type: "INDIVIDUAL",
+      organization_type: OrganizationType.COMPANY,
+    });
+    mockFindByRequestId.mockResolvedValue(onboarding);
+    const handler = new KYCWebhookHandler("ACURIS");
+
+    await (handler as any).handle({
+      requestId: "KYC003",
+      onboardingId: "LD001-R01",
+      status: "Approved",
+    });
+
+    expect(mockMaybeAdvance).not.toHaveBeenCalled();
+  });
 });

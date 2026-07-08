@@ -5,7 +5,7 @@ import { RegTankRepository } from "../repository";
 import { AmlIdentityRepository } from "../aml-identity-repository";
 import { Prisma } from "@prisma/client";
 import { OrganizationRepository } from "../../organization/repository";
-import { UserRole } from "@prisma/client";
+import { UserRole, OrganizationType } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
 import { syncApplicationGuarantorsFromRegTankAmlWebhook } from "../../admin/guarantor-aml-webhook-sync";
@@ -479,7 +479,11 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
               "[KYC Webhook] Stored kyc_response; org onboarding step unchanged unless personal AML milestone applies"
             );
 
-            if (onboarding.onboarding_type === "PERSONAL" && onboarding.investor_organization_id) {
+            if (
+              onboarding.onboarding_type === "INDIVIDUAL" &&
+              onboarding.organization_type === OrganizationType.PERSONAL &&
+              onboarding.investor_organization_id
+            ) {
               await maybeAdvanceOrgAfterAmlScreeningCleared({
                 organizationId: onboarding.investor_organization_id,
                 portalType: "investor",
@@ -544,7 +548,11 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
               "[KYC Webhook] Stored kyc_response; org onboarding step unchanged unless personal AML milestone applies"
             );
 
-            if (onboarding.onboarding_type === "PERSONAL" && onboarding.issuer_organization_id) {
+            if (
+              onboarding.onboarding_type === "INDIVIDUAL" &&
+              onboarding.organization_type === OrganizationType.PERSONAL &&
+              onboarding.issuer_organization_id
+            ) {
               await maybeAdvanceOrgAfterAmlScreeningCleared({
                 organizationId: onboarding.issuer_organization_id,
                 portalType: "issuer",
