@@ -1470,8 +1470,11 @@ export class RegTankService {
       );
     }
 
-    // Append webhook payload to history
-    await this.repository.appendWebhookPayload(requestId, payload);
+    // Note: raw payload persistence is owned by the caller (the actual webhook intake
+    // handler already appends the full received payload before invoking this method,
+    // and the admin "Refresh status" path is not a webhook and stores its live-query
+    // snapshot separately in `regtank_response`). Appending a synthetic payload here
+    // would duplicate/misrepresent webhook history, so it is intentionally not done.
 
     // Update status
     const statusUpper = status.toUpperCase();

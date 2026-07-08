@@ -3,6 +3,7 @@ import { RegTankKYTWebhook } from "../types";
 import { logger } from "../../../lib/logger";
 import { RegTankRepository } from "../repository";
 import { Prisma } from "@prisma/client";
+import { isCancelledOnboardingRow, logCancelledOnboardingSkip } from "./onboarding-webhook-guards";
 
 /**
  * KYT (Know Your Transaction) Webhook Handler
@@ -69,6 +70,15 @@ export class KYTWebhookHandler extends BaseWebhookHandler {
       onboarding.request_id,
       payload as Prisma.InputJsonValue
     );
+
+    if (isCancelledOnboardingRow(onboarding)) {
+      logCancelledOnboardingSkip({
+        webhookFamily: "kyt",
+        webhookRequestId: requestId,
+        onboarding,
+      });
+      return;
+    }
 
     logger.info(
       {

@@ -4,7 +4,6 @@ import { extractCorporateEntities } from "../helpers/extract-corporate-entities"
 import { extractGovernmentIdFromCorporateUserInfo } from "../helpers/extract-government-id";
 import { syncCorporateShareholderStatusInOrganization } from "../helpers/corporate-shareholder-status-sync";
 import { logger } from "../../../lib/logger";
-import { AppError } from "../../../lib/http/error-handler";
 import { RegTankRepository } from "../repository";
 import { OrganizationRepository } from "../../organization/repository";
 import { AuthRepository } from "../../auth/repository";
@@ -24,6 +23,12 @@ import {
   getCodWaitForApprovalUpdate,
   shouldApplyCodApprovedOnboardingFlag,
 } from "../helpers/cod-amendment-transition";
+import {
+  isCancelledOnboardingRow,
+  logCancelledOnboardingSkip,
+  isCodWebhookFamilyMatch,
+  logWebhookFamilyTypeMismatch,
+} from "./onboarding-webhook-guards";
 
 /**
  * COD (Company Onboarding Data) Webhook Handler
@@ -65,16 +70,40 @@ export class CODWebhookHandler extends BaseWebhookHandler {
     // Find onboarding record
     const onboarding = await this.repository.findByRequestId(requestId);
     if (!onboarding) {
-      logger.warn({ requestId }, "COD webhook received for unknown requestId");
-      throw new AppError(
-        404,
-        "ONBOARDING_NOT_FOUND",
-        `Onboarding not found for requestId: ${requestId}`
+      logger.warn(
+        {
+          event: "REGTANK_WEBHOOK_UNMATCHED",
+          webhookFamily: "codliveness",
+          requestId,
+        },
+        "[COD Webhook] Received for unknown requestId - acknowledging without attaching to another record"
       );
+      return;
+    }
+
+    // Type-family check runs before persistence: a confirmed mismatch must not be
+    // appended to the wrong-type record at all.
+    if (!isCodWebhookFamilyMatch(onboarding)) {
+      logWebhookFamilyTypeMismatch({
+        webhookFamily: "codliveness",
+        webhookRequestId: requestId,
+        onboarding,
+        expected: "onboarding_type CORPORATE and organization_type COMPANY",
+      });
+      return;
     }
 
     // Append to history
     await this.repository.appendWebhookPayload(requestId, payload as Prisma.InputJsonValue);
+
+    if (isCancelledOnboardingRow(onboarding)) {
+      logCancelledOnboardingSkip({
+        webhookFamily: "codliveness",
+        webhookRequestId: requestId,
+        onboarding,
+      });
+      return;
+    }
 
     const statusUpper = status.toUpperCase();
     const persistedRegtankStatus = normalizeRawStatus(status);

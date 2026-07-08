@@ -11,6 +11,12 @@ import type { PortalType } from "../types";
 import { syncApplicationGuarantorsFromRegTankAmlWebhook } from "../../admin/guarantor-aml-webhook-sync";
 import { maybeAdvanceOrgAfterAmlScreeningCleared } from "./org-aml-milestone";
 import { syncCorporateShareholderStatusInOrganization } from "../helpers/corporate-shareholder-status-sync";
+import {
+  isCancelledOnboardingRow,
+  logCancelledOnboardingSkip,
+  isAmlWebhookOnboardingTypeConsistent,
+  logWebhookFamilyTypeMismatch,
+} from "./onboarding-webhook-guards";
 
 /**
  * KYB (Know Your Business) Webhook Handler
@@ -180,6 +186,16 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
         "[KYB Webhook] ⚠ No matching onboarding record found - KYB webhook may be for business shareholder or standalone"
       );
       // Don't return early - continue to process as business shareholder if onboardingId is a COD
+    } else if (!isAmlWebhookOnboardingTypeConsistent(onboarding)) {
+      // Type-family check runs before persistence: a confirmed mismatch must not be
+      // appended to the wrong-type record at all.
+      logWebhookFamilyTypeMismatch({
+        webhookFamily: "kyb",
+        webhookRequestId: requestId,
+        onboarding,
+        expected: "CORPORATE onboarding rows must be organization_type COMPANY",
+      });
+      return;
     } else {
       // Append to history using the onboarding request_id (not the KYB requestId)
       logger.debug(
@@ -196,6 +212,15 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
         onboarding.request_id,
         payload as Prisma.InputJsonValue
       );
+
+      if (isCancelledOnboardingRow(onboarding)) {
+        logCancelledOnboardingSkip({
+          webhookFamily: "kyb",
+          webhookRequestId: requestId,
+          onboarding,
+        });
+        return;
+      }
 
       logger.info(
         {
@@ -214,10 +239,9 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
         "[KYB Webhook] ✓ Successfully processed and linked to onboarding record"
       );
 
-      // Always persist raw status first
-      await this.repository.updateStatus(onboarding.request_id, {
-        status: statusRaw,
-      });
+      // Note: `reg_tank_onboarding.status` represents onboarding lifecycle progress
+      // (individual/COD events), not KYB screening results, so it is not overwritten here.
+      // The raw KYB status is preserved above in webhook_payloads.
 
       // Handle KYB approval side effects — next org status depends on CTOS (SSM) already done
       const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;

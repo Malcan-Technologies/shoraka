@@ -1,0 +1,113 @@
+import { OrganizationType } from "@prisma/client";
+
+const mockFindByRequestId = jest.fn();
+const mockAppendWebhookPayload = jest.fn().mockResolvedValue(undefined);
+const mockUpdateStatus = jest.fn().mockResolvedValue({});
+
+jest.mock("../repository", () => ({
+  RegTankRepository: jest.fn().mockImplementation(() => ({
+    findByRequestId: (...args: unknown[]) => mockFindByRequestId(...args),
+    appendWebhookPayload: (...args: unknown[]) => mockAppendWebhookPayload(...args),
+    updateStatus: (...args: unknown[]) => mockUpdateStatus(...args),
+  })),
+}));
+
+const mockHandleWebhookUpdate = jest.fn().mockResolvedValue(undefined);
+jest.mock("../service", () => ({
+  RegTankService: jest.fn().mockImplementation(() => ({
+    handleWebhookUpdate: (...args: unknown[]) => mockHandleWebhookUpdate(...args),
+  })),
+}));
+
+const mockUpdateInvestorOrganizationOnboarding = jest.fn();
+jest.mock("../../organization/repository", () => ({
+  OrganizationRepository: jest.fn().mockImplementation(() => ({
+    findInvestorOrganizationById: jest.fn(),
+    findIssuerOrganizationById: jest.fn(),
+    updateInvestorOrganizationOnboarding: (...args: unknown[]) => mockUpdateInvestorOrganizationOnboarding(...args),
+    updateIssuerOrganizationOnboarding: jest.fn(),
+  })),
+}));
+
+jest.mock("../../auth/repository", () => ({
+  AuthRepository: jest.fn().mockImplementation(() => ({
+    createOnboardingLog: jest.fn(),
+  })),
+}));
+
+jest.mock("../../notification/service", () => ({
+  NotificationService: jest.fn().mockImplementation(() => ({
+    sendTyped: jest.fn(),
+  })),
+}));
+
+jest.mock("../../../lib/prisma", () => ({
+  prisma: {
+    ctosPartySupplement: { update: jest.fn() },
+  },
+}));
+
+import { IndividualOnboardingWebhookHandler } from "./individual-onboarding-handler";
+
+function baseOnboardingRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "row-1",
+    request_id: "LD001-R01",
+    reference_id: "REF001",
+    status: "IN_PROGRESS",
+    onboarding_type: "INDIVIDUAL",
+    organization_type: OrganizationType.PERSONAL,
+    investor_organization_id: "org-1",
+    issuer_organization_id: null,
+    portal_type: "investor",
+    user_id: "user-1",
+    ...overrides,
+  };
+}
+
+describe("IndividualOnboardingWebhookHandler", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("E8: preserves the payload on a CANCELLED row and does not mutate the organization", async () => {
+    mockFindByRequestId.mockResolvedValue(baseOnboardingRow({ status: "CANCELLED" }));
+    const handler = new IndividualOnboardingWebhookHandler();
+
+    await (handler as any).handle({ requestId: "LD001-R01", status: "APPROVED" });
+
+    expect(mockAppendWebhookPayload).toHaveBeenCalledTimes(1);
+    expect(mockAppendWebhookPayload).toHaveBeenCalledWith("LD001-R01", expect.objectContaining({ status: "APPROVED" }));
+    expect(mockUpdateStatus).not.toHaveBeenCalled();
+    expect(mockUpdateInvestorOrganizationOnboarding).not.toHaveBeenCalled();
+    expect(mockHandleWebhookUpdate).not.toHaveBeenCalled();
+  });
+
+  it("F12: a liveness webhook cannot mutate a resolved CORPORATE onboarding row (and is not appended)", async () => {
+    mockFindByRequestId.mockResolvedValue(
+      baseOnboardingRow({ onboarding_type: "CORPORATE", organization_type: OrganizationType.COMPANY })
+    );
+    const handler = new IndividualOnboardingWebhookHandler();
+
+    await (handler as any).handle({ requestId: "LD001-R01", status: "WAIT_FOR_APPROVAL" });
+
+    expect(mockAppendWebhookPayload).not.toHaveBeenCalled();
+    expect(mockUpdateStatus).not.toHaveBeenCalled();
+    expect(mockUpdateInvestorOrganizationOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("stores exactly one copy of an APPROVED payload (no synthetic duplicate append)", async () => {
+    mockFindByRequestId.mockResolvedValue(baseOnboardingRow());
+    const handler = new IndividualOnboardingWebhookHandler();
+
+    const payload = { requestId: "LD001-R01", status: "APPROVED", referenceId: "REF001" };
+    await (handler as any).handle(payload);
+
+    // The handler appends the one real payload it received; handleWebhookUpdate
+    // (mocked here) is the only other place APPROVED is processed, and per item C
+    // it no longer appends a synthetic copy.
+    expect(mockAppendWebhookPayload).toHaveBeenCalledTimes(1);
+    expect(mockAppendWebhookPayload).toHaveBeenCalledWith("LD001-R01", payload);
+    expect(mockHandleWebhookUpdate).toHaveBeenCalledTimes(1);
+  });
+});

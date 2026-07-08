@@ -15,6 +15,12 @@ import {
 } from "@cashsouk/types";
 import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
 import { getIndividualWaitForApprovalUpdate } from "../helpers/individual-onboarding-transition";
+import {
+  isCancelledOnboardingRow,
+  logCancelledOnboardingSkip,
+  isIndividualWebhookFamilyMatch,
+  logWebhookFamilyTypeMismatch,
+} from "./onboarding-webhook-guards";
 
 /**
  * Individual Onboarding Webhook Handler
@@ -64,8 +70,29 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
       return;
     }
 
+    // Type-family check runs before persistence: a confirmed mismatch must not be
+    // appended to the wrong-type record at all.
+    if (!isIndividualWebhookFamilyMatch(onboarding)) {
+      logWebhookFamilyTypeMismatch({
+        webhookFamily: "liveness",
+        webhookRequestId: requestId,
+        onboarding,
+        expected: "onboarding_type INDIVIDUAL",
+      });
+      return;
+    }
+
     // Append to history
     await this.repository.appendWebhookPayload(requestId, payload as Prisma.InputJsonValue);
+
+    if (isCancelledOnboardingRow(onboarding)) {
+      logCancelledOnboardingSkip({
+        webhookFamily: "liveness",
+        webhookRequestId: requestId,
+        onboarding,
+      });
+      return;
+    }
 
     const statusUpper = status.toUpperCase();
     const persistedRegtankStatus = normalizeRawStatus(status);
