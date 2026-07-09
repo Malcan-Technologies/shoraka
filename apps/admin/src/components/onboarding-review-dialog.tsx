@@ -224,6 +224,7 @@ export function OnboardingReviewDialog({
   }, [application]);
 
   const isCompany = application?.type === "COMPANY";
+  const isPersonal = application?.type === "PERSONAL";
   const peopleRows = React.useMemo(() => application?.people ?? [], [application]);
   const visiblePeopleRows = React.useMemo(() => filterVisiblePeopleRows(peopleRows), [peopleRows]);
   const resolvedCtosEmptyWarning = React.useMemo(
@@ -535,15 +536,19 @@ export function OnboardingReviewDialog({
                 </>
               )}
               
-              <Separator />
-              <RestartOnboardingSecondaryAction
-                onClick={() => setShowRedoConfirm(true)}
-                disabled={restartMutation.isPending || !canManage}
-                disabledReason={
-                  !canManage ? "You do not have permission to perform this action." : undefined
-                }
-                helperText="Need the applicant to redo their onboarding?"
-              />
+              {isPersonal ? (
+                <>
+                  <Separator />
+                  <RestartOnboardingSecondaryAction
+                    onClick={() => setShowRedoConfirm(true)}
+                    disabled={restartMutation.isPending || !canManage}
+                    disabledReason={
+                      !canManage ? "You do not have permission to perform this action." : undefined
+                    }
+                    helperText="Need the applicant to redo their onboarding?"
+                  />
+                </>
+              ) : null}
             </CardContent>
           </Card>
         );
@@ -692,15 +697,19 @@ export function OnboardingReviewDialog({
                 </>
               )}
               
-              <Separator />
-              <RestartOnboardingSecondaryAction
-                onClick={() => setShowRedoConfirm(true)}
-                disabled={restartMutation.isPending || !canManage}
-                disabledReason={
-                  !canManage ? "You do not have permission to perform this action." : undefined
-                }
-                helperText="Need the applicant to redo their onboarding?"
-              />
+              {isPersonal ? (
+                <>
+                  <Separator />
+                  <RestartOnboardingSecondaryAction
+                    onClick={() => setShowRedoConfirm(true)}
+                    disabled={restartMutation.isPending || !canManage}
+                    disabledReason={
+                      !canManage ? "You do not have permission to perform this action." : undefined
+                    }
+                    helperText="Need the applicant to redo their onboarding?"
+                  />
+                </>
+              ) : null}
             </CardContent>
           </Card>
         );
@@ -864,15 +873,19 @@ export function OnboardingReviewDialog({
                 </p>
               )}
 
-              <Separator />
-              <RestartOnboardingSecondaryAction
-                onClick={() => setShowRedoConfirm(true)}
-                disabled={restartMutation.isPending || !canManage}
-                disabledReason={
-                  !canManage ? "You do not have permission to perform this action." : undefined
-                }
-                helperText="Need the applicant to redo their onboarding?"
-              />
+              {isPersonal ? (
+                <>
+                  <Separator />
+                  <RestartOnboardingSecondaryAction
+                    onClick={() => setShowRedoConfirm(true)}
+                    disabled={restartMutation.isPending || !canManage}
+                    disabledReason={
+                      !canManage ? "You do not have permission to perform this action." : undefined
+                    }
+                    helperText="Need the applicant to redo their onboarding?"
+                  />
+                </>
+              ) : null}
             </CardContent>
           </Card>
         );
@@ -892,15 +905,19 @@ export function OnboardingReviewDialog({
                   </p>
                 </div>
               </div>
-              <Separator />
-              <RestartOnboardingSecondaryAction
-                onClick={() => setShowRedoConfirm(true)}
-                disabled={restartMutation.isPending || !canManage}
-                disabledReason={
-                  !canManage ? "You do not have permission to perform this action." : undefined
-                }
-                helperText="Need the applicant to redo their onboarding, even though it's complete?"
-              />
+              {isPersonal ? (
+                <>
+                  <Separator />
+                  <RestartOnboardingSecondaryAction
+                    onClick={() => setShowRedoConfirm(true)}
+                    disabled={restartMutation.isPending || !canManage}
+                    disabledReason={
+                      !canManage ? "You do not have permission to perform this action." : undefined
+                    }
+                    helperText="Need the applicant to redo their onboarding, even though it's complete?"
+                  />
+                </>
+              ) : null}
             </CardContent>
           </Card>
         );
@@ -914,21 +931,24 @@ export function OnboardingReviewDialog({
                 <div>
                   <p className="font-semibold text-lg text-destructive">Onboarding Rejected</p>
                   <p className="text-sm text-muted-foreground">
-                    This application has been rejected. You can request the user to redo their
-                    onboarding.
+                    {isPersonal
+                      ? "This application has been rejected. You can request the user to redo their onboarding."
+                      : "This application has been rejected."}
                   </p>
                 </div>
               </div>
-              <Button
-                onClick={() => setShowRedoConfirm(true)}
-                variant="outline"
-                className="w-full gap-2"
-                disabled={restartMutation.isPending || !canManage}
-                title={!canManage ? "You do not have permission to perform this action." : undefined}
-              >
-                <ArrowPathIcon className="h-4 w-4" />
-                {ONBOARDING_RESTART_LABEL}
-              </Button>
+              {isPersonal ? (
+                <Button
+                  onClick={() => setShowRedoConfirm(true)}
+                  variant="outline"
+                  className="w-full gap-2"
+                  disabled={restartMutation.isPending || !canManage}
+                  title={!canManage ? "You do not have permission to perform this action." : undefined}
+                >
+                  <ArrowPathIcon className="h-4 w-4" />
+                  {ONBOARDING_RESTART_LABEL}
+                </Button>
+              ) : null}
             </CardContent>
           </Card>
         );
@@ -942,21 +962,24 @@ export function OnboardingReviewDialog({
                 <div>
                   <p className="font-semibold text-lg text-muted-foreground">Link Expired</p>
                   <p className="text-sm text-muted-foreground">
-                    The onboarding link has expired. Click below to allow the user to restart the
-                    onboarding process.
+                    {isPersonal
+                      ? "The onboarding link has expired. Click below to allow the user to restart the onboarding process."
+                      : "The onboarding link has expired."}
                   </p>
                 </div>
               </div>
-              <Button
-                onClick={() => setShowRedoConfirm(true)}
-                variant="outline"
-                className="w-full gap-2"
-                disabled={restartMutation.isPending || !canManage}
-                title={!canManage ? "You do not have permission to perform this action." : undefined}
-              >
-                <ArrowPathIcon className="h-4 w-4" />
-                {ONBOARDING_RESTART_LABEL}
-              </Button>
+              {isPersonal ? (
+                <Button
+                  onClick={() => setShowRedoConfirm(true)}
+                  variant="outline"
+                  className="w-full gap-2"
+                  disabled={restartMutation.isPending || !canManage}
+                  title={!canManage ? "You do not have permission to perform this action." : undefined}
+                >
+                  <ArrowPathIcon className="h-4 w-4" />
+                  {ONBOARDING_RESTART_LABEL}
+                </Button>
+              ) : null}
             </CardContent>
           </Card>
         );
@@ -1117,32 +1140,34 @@ export function OnboardingReviewDialog({
 
         {application && (
           <>
-            <AlertDialog open={showRedoConfirm} onOpenChange={setShowRedoConfirm}>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{ONBOARDING_RESTART_LABEL}?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will call the RegTank restart API to create a new onboarding request. The
-                    current onboarding will be cancelled and {application.userName} will receive a
-                    new verification link. Personal information from the previous submission will be
-                    inherited. This cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel disabled={restartMutation.isPending}>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleRequestRedo}
-                    disabled={restartMutation.isPending}
-                    className={cn(buttonVariants({ variant: "destructive" }), "gap-2")}
-                  >
-                    {restartMutation.isPending && (
-                      <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                    )}
-                    {ONBOARDING_RESTART_LABEL}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            {isPersonal ? (
+              <AlertDialog open={showRedoConfirm} onOpenChange={setShowRedoConfirm}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{ONBOARDING_RESTART_LABEL}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will call the RegTank restart API to create a new onboarding request. The
+                      current onboarding will be cancelled and {application.userName} will receive a
+                      new verification link. Personal information from the previous submission will be
+                      inherited. This cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={restartMutation.isPending}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleRequestRedo}
+                      disabled={restartMutation.isPending}
+                      className={cn(buttonVariants({ variant: "destructive" }), "gap-2")}
+                    >
+                      {restartMutation.isPending && (
+                        <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                      )}
+                      {ONBOARDING_RESTART_LABEL}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : null}
 
             <AlertDialog open={showFinalApprovalConfirm} onOpenChange={setShowFinalApprovalConfirm}>
               <AlertDialogContent>
