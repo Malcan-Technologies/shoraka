@@ -128,4 +128,56 @@ describe("CODWebhookHandler", () => {
     expect(mockInvestorUpdate).not.toHaveBeenCalled();
     expect(mockUpdateInvestorOrganizationOnboarding).not.toHaveBeenCalled();
   });
+
+  it("EXPIRED COD webhook updates the exact matching COD row to EXPIRED", async () => {
+    mockFindByRequestId.mockResolvedValue(baseOnboardingRow({ request_id: "COD-A", status: "IN_PROGRESS" }));
+    const handler = new CODWebhookHandler();
+
+    await (handler as any).handle(minimalCodPayload({ requestId: "COD-A", status: "EXPIRED" }));
+
+    expect(mockAppendWebhookPayload).toHaveBeenCalledWith(
+      "COD-A",
+      expect.objectContaining({ requestId: "COD-A", status: "EXPIRED" })
+    );
+    expect(mockUpdateStatus).toHaveBeenCalledWith(
+      "COD-A",
+      expect.objectContaining({ status: "EXPIRED" })
+    );
+  });
+
+  it("COD-A webhook updates only COD-A row", async () => {
+    mockFindByRequestId.mockImplementation(async (requestId: string) =>
+      requestId === "COD-A" ? baseOnboardingRow({ request_id: "COD-A" }) : null
+    );
+    const handler = new CODWebhookHandler();
+
+    await (handler as any).handle(minimalCodPayload({ requestId: "COD-A", status: "PROCESSING" }));
+
+    expect(mockUpdateStatus).toHaveBeenCalledWith(
+      "COD-A",
+      expect.objectContaining({ status: "PROCESSING" })
+    );
+    expect(mockUpdateStatus).not.toHaveBeenCalledWith(
+      "COD-B",
+      expect.anything()
+    );
+  });
+
+  it("COD-B webhook updates only COD-B row", async () => {
+    mockFindByRequestId.mockImplementation(async (requestId: string) =>
+      requestId === "COD-B" ? baseOnboardingRow({ request_id: "COD-B" }) : null
+    );
+    const handler = new CODWebhookHandler();
+
+    await (handler as any).handle(minimalCodPayload({ requestId: "COD-B", status: "PROCESSING" }));
+
+    expect(mockUpdateStatus).toHaveBeenCalledWith(
+      "COD-B",
+      expect.objectContaining({ status: "PROCESSING" })
+    );
+    expect(mockUpdateStatus).not.toHaveBeenCalledWith(
+      "COD-A",
+      expect.anything()
+    );
+  });
 });

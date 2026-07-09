@@ -39,6 +39,12 @@ type ResolvedRestartResponse = {
   expiredIn: number;
 };
 
+type ResolvedCompanyOnboardingResponse = {
+  requestId: string;
+  verifyLink: string;
+  expiredIn: number;
+};
+
 const REUSABLE_PERSONAL_ONBOARDING_STATUSES = new Set<string>([
   "URL_GENERATED",
   "IN_PROGRESS",
@@ -235,6 +241,82 @@ export class RegTankService {
         503,
         "REGTANK_RESTART_RESPONSE_MISMATCH",
         "We could not verify your onboarding restart response from RegTank. Please try again shortly."
+      );
+    }
+
+    const expiredIn = typeof response.expiredIn === "number" && Number.isFinite(response.expiredIn)
+      ? response.expiredIn
+      : 86400;
+
+    return {
+      requestId: responseRequestId,
+      verifyLink,
+      expiredIn,
+    };
+  }
+
+  private resolveCompanyOnboardingResponse(params: {
+    response: { requestId?: unknown; verifyLink?: unknown; expiredIn?: unknown };
+    organizationId: string;
+    previousRequestId?: string;
+    portalType: PortalType;
+    source:
+      | "start-corporate-new"
+      | "start-corporate-regenerate"
+      | "retry-company"
+      | "admin-restart-company";
+  }): ResolvedCompanyOnboardingResponse {
+    const { response, organizationId, previousRequestId, portalType, source } = params;
+    const responseRequestId =
+      typeof response.requestId === "string" && response.requestId.trim().length > 0
+        ? response.requestId.trim()
+        : "";
+    const verifyLink =
+      typeof response.verifyLink === "string" && response.verifyLink.trim().length > 0
+        ? response.verifyLink
+        : "";
+    const parsedVerifyLinkRequestId = verifyLink
+      ? this.extractRequestIdFromVerifyLink(verifyLink)
+      : null;
+
+    if (!responseRequestId || !verifyLink || !parsedVerifyLinkRequestId) {
+      logger.error(
+        {
+          organizationId,
+          portalType,
+          previousRequestId: previousRequestId || null,
+          source,
+          responseRequestId: responseRequestId || null,
+          parsedVerifyLinkRequestId,
+          hasVerifyLink: Boolean(verifyLink),
+          reason: "missing requestId/verifyLink or verifyLink requestId",
+        },
+        "Invalid company onboarding response from RegTank"
+      );
+      throw new AppError(
+        503,
+        "REGTANK_CORPORATE_RESPONSE_INVALID",
+        "We could not verify your company onboarding response from RegTank. Please try again shortly."
+      );
+    }
+
+    if (parsedVerifyLinkRequestId !== responseRequestId) {
+      logger.error(
+        {
+          organizationId,
+          portalType,
+          previousRequestId: previousRequestId || null,
+          source,
+          responseRequestId,
+          parsedVerifyLinkRequestId,
+          reason: "requestId mismatch between response and verifyLink",
+        },
+        "RegTank company onboarding response requestId mismatch"
+      );
+      throw new AppError(
+        503,
+        "REGTANK_CORPORATE_RESPONSE_MISMATCH",
+        "We could not verify your company onboarding response from RegTank. Please try again shortly."
       );
     }
 
@@ -547,8 +629,31 @@ export class RegTankService {
     };
 
     const regTankResponse = await this.apiClient.createCorporateOnboarding(onboardingRequest);
-    const expiresIn = regTankResponse.expiredIn || 86400;
+    const resolvedResponse = this.resolveCompanyOnboardingResponse({
+      response: regTankResponse as { requestId?: unknown; verifyLink?: unknown; expiredIn?: unknown },
+      organizationId,
+      previousRequestId: existingOnboarding.request_id,
+      portalType,
+      source: "start-corporate-regenerate",
+    });
+    const expiresIn = resolvedResponse.expiredIn;
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+    if (resolvedResponse.requestId === existingOnboarding.request_id) {
+      await this.repository.updateStatus(existingOnboarding.request_id, {
+        status: "PENDING",
+        verifyLink: resolvedResponse.verifyLink,
+        verifyLinkExpiresAt: expiresAt,
+        regtankResponse: regTankResponse as Prisma.InputJsonValue,
+      });
+
+      return {
+        verifyLink: resolvedResponse.verifyLink,
+        requestId: resolvedResponse.requestId,
+        expiresIn,
+        organizationType,
+      };
+    }
 
     try {
       await prisma.$transaction(async (tx) => {
@@ -556,7 +661,7 @@ export class RegTankService {
           where: { id: existingOnboarding.id },
           data: {
             status: "CANCELLED",
-            substatus: `Auto-regenerated company onboarding link. New requestId: ${regTankResponse.requestId}`,
+            substatus: `Auto-regenerated company onboarding link. New requestId: ${resolvedResponse.requestId}`,
           },
         });
 
@@ -567,10 +672,10 @@ export class RegTankService {
             issuer_organization_id: portalType === "issuer" ? organizationId : null,
             organization_type: organizationType,
             portal_type: portalType,
-            request_id: regTankResponse.requestId,
+            request_id: resolvedResponse.requestId,
             reference_id: `${organizationId}-corp-regenerated-${Date.now()}`,
             onboarding_type: "CORPORATE",
-            verify_link: regTankResponse.verifyLink,
+            verify_link: resolvedResponse.verifyLink,
             verify_link_expires_at: expiresAt,
             status: "PENDING",
             regtank_response: regTankResponse as Prisma.InputJsonValue,
@@ -582,7 +687,7 @@ export class RegTankService {
         {
           organizationId,
           oldRequestId: existingOnboarding.request_id,
-          newRequestId: regTankResponse.requestId,
+          newRequestId: resolvedResponse.requestId,
           error: error instanceof Error ? error.message : String(error),
         },
         "RegTank company link regeneration succeeded upstream but failed local persistence"
@@ -606,7 +711,7 @@ export class RegTankService {
         metadata: {
           organizationId,
           previousRequestId: existingOnboarding.request_id,
-          newRequestId: regTankResponse.requestId,
+          newRequestId: resolvedResponse.requestId,
           onboardingType: "CORPORATE",
           trigger: "AUTO_REGENERATE_EXPIRED_COMPANY_LINK",
         },
@@ -617,14 +722,14 @@ export class RegTankService {
       {
         organizationId,
         previousRequestId: existingOnboarding.request_id,
-        newRequestId: regTankResponse.requestId,
+        newRequestId: resolvedResponse.requestId,
       },
       "Auto-regenerated company onboarding link"
     );
 
     return {
-      verifyLink: regTankResponse.verifyLink,
-      requestId: regTankResponse.requestId,
+      verifyLink: resolvedResponse.verifyLink,
+      requestId: resolvedResponse.requestId,
       expiresIn,
       organizationType,
     };
@@ -1622,8 +1727,15 @@ export class RegTankService {
           );
         }
 
+        const resolvedResponse = this.resolveCompanyOnboardingResponse({
+          response: regTankResponse as { requestId?: unknown; verifyLink?: unknown; expiredIn?: unknown },
+          organizationId,
+          portalType,
+          source: "start-corporate-new",
+        });
+
         // Calculate expiration time (24 hours default)
-        const expiresIn = regTankResponse.expiredIn || 86400;
+        const expiresIn = resolvedResponse.expiredIn;
         const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
         // Corporate onboarding starts with PENDING status
@@ -1635,10 +1747,10 @@ export class RegTankService {
           organizationId,
           organizationType: organization.type,
           portalType,
-          requestId: regTankResponse.requestId,
+          requestId: resolvedResponse.requestId,
           referenceId,
           onboardingType: "CORPORATE",
-          verifyLink: regTankResponse.verifyLink,
+          verifyLink: resolvedResponse.verifyLink,
           verifyLinkExpiresAt: expiresAt,
           status: initialStatus,
           regtankResponse: regTankResponse as Prisma.InputJsonValue,
@@ -1663,7 +1775,7 @@ export class RegTankService {
             issuer_organization_id: portalType === "issuer" ? organizationId : null,
             metadata: {
               organizationId,
-              requestId: regTankResponse.requestId,
+              requestId: resolvedResponse.requestId,
               onboardingType: "CORPORATE",
             },
           },
@@ -1671,15 +1783,15 @@ export class RegTankService {
 
         logger.info(
           {
-            requestId: regTankResponse.requestId,
+            requestId: resolvedResponse.requestId,
             organizationId,
           },
           "RegTank corporate onboarding started successfully"
         );
 
         return {
-          verifyLink: regTankResponse.verifyLink,
-          requestId: regTankResponse.requestId,
+          verifyLink: resolvedResponse.verifyLink,
+          requestId: resolvedResponse.requestId,
           expiresIn,
           organizationType: organization.type,
         };
@@ -3273,9 +3385,23 @@ export class RegTankService {
         source: "retry-personal",
       })
       : null;
+    const isCompanyRetry = organization.type === OrganizationType.COMPANY;
+    const resolvedCompanyRetry = isCompanyRetry
+      ? this.resolveCompanyOnboardingResponse({
+        response: regTankResponse as { requestId?: unknown; verifyLink?: unknown; expiredIn?: unknown },
+        organizationId,
+        previousRequestId: existingOnboarding.request_id,
+        portalType,
+        source: "retry-company",
+      })
+      : null;
 
     // Update onboarding record with new verifyLink
-    const expiresIn = resolvedRestart ? resolvedRestart.expiredIn : (regTankResponse.expiredIn || 86400);
+    const expiresIn = resolvedRestart
+      ? resolvedRestart.expiredIn
+      : resolvedCompanyRetry
+        ? resolvedCompanyRetry.expiredIn
+        : (regTankResponse.expiredIn || 86400);
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
     if (isPersonalRetry && resolvedRestart) {
@@ -3299,27 +3425,70 @@ export class RegTankService {
         status: "IN_PROGRESS",
         regtankResponse: regTankResponse as Prisma.InputJsonValue,
       });
-    } else {
-      // For company accounts, set to PENDING
-      await this.repository.updateStatus(existingOnboarding.request_id, {
-        status: "PENDING",
-        verifyLink: regTankResponse.verifyLink,
-        verifyLinkExpiresAt: expiresAt,
-      });
+    } else if (isCompanyRetry && resolvedCompanyRetry) {
+      if (resolvedCompanyRetry.requestId === existingOnboarding.request_id) {
+        await this.repository.updateStatus(existingOnboarding.request_id, {
+          status: "PENDING",
+          verifyLink: resolvedCompanyRetry.verifyLink,
+          verifyLinkExpiresAt: expiresAt,
+          regtankResponse: regTankResponse as Prisma.InputJsonValue,
+        });
+      } else {
+        if (existingOnboarding.status !== "CANCELLED") {
+          await this.repository.cancelOnboarding(
+            existingOnboarding.id,
+            `Retried company onboarding via request regeneration. New requestId: ${resolvedCompanyRetry.requestId}`
+          );
+        }
+
+        await this.repository.createOnboarding({
+          userId,
+          organizationId,
+          organizationType: organization.type,
+          portalType,
+          requestId: resolvedCompanyRetry.requestId,
+          referenceId: `${organizationId}-retry-${Date.now()}`,
+          onboardingType: "CORPORATE",
+          verifyLink: resolvedCompanyRetry.verifyLink,
+          verifyLinkExpiresAt: expiresAt,
+          status: "PENDING",
+          regtankResponse: regTankResponse as Prisma.InputJsonValue,
+        });
+      }
     }
 
     logger.info(
       {
-        requestId: isPersonalRetry && resolvedRestart ? resolvedRestart.requestId : existingOnboarding.request_id,
+        requestId:
+          isPersonalRetry && resolvedRestart
+            ? resolvedRestart.requestId
+            : isCompanyRetry && resolvedCompanyRetry
+              ? resolvedCompanyRetry.requestId
+              : existingOnboarding.request_id,
         organizationId,
-        newVerifyLink: isPersonalRetry && resolvedRestart ? resolvedRestart.verifyLink : regTankResponse.verifyLink,
+        newVerifyLink:
+          isPersonalRetry && resolvedRestart
+            ? resolvedRestart.verifyLink
+            : isCompanyRetry && resolvedCompanyRetry
+              ? resolvedCompanyRetry.verifyLink
+              : regTankResponse.verifyLink,
       },
       "RegTank onboarding restarted"
     );
 
     return {
-      verifyLink: isPersonalRetry && resolvedRestart ? resolvedRestart.verifyLink : regTankResponse.verifyLink,
-      requestId: isPersonalRetry && resolvedRestart ? resolvedRestart.requestId : existingOnboarding.request_id,
+      verifyLink:
+        isPersonalRetry && resolvedRestart
+          ? resolvedRestart.verifyLink
+          : isCompanyRetry && resolvedCompanyRetry
+            ? resolvedCompanyRetry.verifyLink
+            : regTankResponse.verifyLink,
+      requestId:
+        isPersonalRetry && resolvedRestart
+          ? resolvedRestart.requestId
+          : isCompanyRetry && resolvedCompanyRetry
+            ? resolvedCompanyRetry.requestId
+            : existingOnboarding.request_id,
       expiresIn,
       organizationType: organization.type,
     };

@@ -179,6 +179,85 @@ export class AdminService {
     this.productRepository = new ProductRepository();
   }
 
+  private extractRequestIdFromVerifyLink(verifyLink: string): string | null {
+    try {
+      const parsed = new URL(verifyLink);
+      const requestId = parsed.searchParams.get("requestId");
+      return typeof requestId === "string" && requestId.trim().length > 0 ? requestId.trim() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private resolveCompanyRestartResponse(params: {
+    response: { requestId?: unknown; verifyLink?: unknown; expiredIn?: unknown };
+    organizationId: string | null;
+    previousRequestId: string;
+    portalType: string;
+  }): { requestId: string; verifyLink: string; expiredIn: number } {
+    const { response, organizationId, previousRequestId, portalType } = params;
+    const responseRequestId =
+      typeof response.requestId === "string" && response.requestId.trim().length > 0
+        ? response.requestId.trim()
+        : "";
+    const verifyLink =
+      typeof response.verifyLink === "string" && response.verifyLink.trim().length > 0
+        ? response.verifyLink
+        : "";
+    const parsedVerifyLinkRequestId = verifyLink
+      ? this.extractRequestIdFromVerifyLink(verifyLink)
+      : null;
+
+    if (!responseRequestId || !verifyLink || !parsedVerifyLinkRequestId) {
+      logger.error(
+        {
+          organizationId,
+          portalType,
+          previousRequestId,
+          responseRequestId: responseRequestId || null,
+          parsedVerifyLinkRequestId,
+          hasVerifyLink: Boolean(verifyLink),
+          reason: "missing requestId/verifyLink or verifyLink requestId",
+        },
+        "Invalid admin company restart response from RegTank"
+      );
+      throw new AppError(
+        503,
+        "REGTANK_CORPORATE_RESPONSE_INVALID",
+        "We could not verify your company onboarding response from RegTank. Please try again shortly."
+      );
+    }
+
+    if (parsedVerifyLinkRequestId !== responseRequestId) {
+      logger.error(
+        {
+          organizationId,
+          portalType,
+          previousRequestId,
+          responseRequestId,
+          parsedVerifyLinkRequestId,
+          reason: "requestId mismatch between response and verifyLink",
+        },
+        "RegTank admin company restart response requestId mismatch"
+      );
+      throw new AppError(
+        503,
+        "REGTANK_CORPORATE_RESPONSE_MISMATCH",
+        "We could not verify your company onboarding response from RegTank. Please try again shortly."
+      );
+    }
+
+    const expiredIn = typeof response.expiredIn === "number" && Number.isFinite(response.expiredIn)
+      ? response.expiredIn
+      : 86400;
+
+    return {
+      requestId: responseRequestId,
+      verifyLink,
+      expiredIn,
+    };
+  }
+
   private sortAdminRolesCatalog(roles: AdminRoleConfigRecord[]): AdminRoleConfigRecord[] {
     return [...roles].sort((a, b) => {
       if (a.key === "SUPER_ADMIN") return -1;
@@ -3617,8 +3696,21 @@ export class AdminService {
 
     // Call RegTank restart API - this returns a NEW requestId
     const regTankResponse = await this.regTankApiClient.restartOnboarding(onboarding.request_id);
+    const isCompanyRestart = onboarding.organization_type === OrganizationType.COMPANY;
+    const resolvedCompanyRestart = isCompanyRestart
+      ? this.resolveCompanyRestartResponse({
+        response: regTankResponse as { requestId?: unknown; verifyLink?: unknown; expiredIn?: unknown },
+        organizationId: onboarding.investor_organization_id || onboarding.issuer_organization_id || null,
+        previousRequestId: onboarding.request_id,
+        portalType: onboarding.portal_type,
+      })
+      : null;
 
-    const cancelReason = `Restarted by admin ${adminUserId}. New requestId: ${regTankResponse.requestId}`;
+    const nextRequestId = resolvedCompanyRestart?.requestId ?? regTankResponse.requestId;
+    const nextVerifyLink = resolvedCompanyRestart?.verifyLink ?? regTankResponse.verifyLink;
+    const nextExpiredIn = resolvedCompanyRestart?.expiredIn ?? (regTankResponse.expiredIn || 86400);
+
+    const cancelReason = `Restarted by admin ${adminUserId}. New requestId: ${nextRequestId}`;
 
     // Mark the old onboarding record as cancelled
     await this.regTankRepository.cancelOnboarding(onboardingId, cancelReason);
@@ -3634,7 +3726,7 @@ export class AdminService {
       : onboarding.issuer_organization_id;
 
     // Create new onboarding record with the new requestId from RegTank
-    const expiresIn = regTankResponse.expiredIn || 86400;
+    const expiresIn = nextExpiredIn;
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
     // Create new onboarding record with PENDING status
@@ -3644,10 +3736,10 @@ export class AdminService {
       organizationId: organizationId || undefined,
       organizationType: onboarding.organization_type,
       portalType: onboarding.portal_type,
-      requestId: regTankResponse.requestId,
+      requestId: nextRequestId,
       referenceId: `${organizationId}-restart-${Date.now()}`,
       onboardingType: onboarding.onboarding_type,
-      verifyLink: regTankResponse.verifyLink,
+      verifyLink: nextVerifyLink,
       verifyLinkExpiresAt: expiresAt,
       status: "PENDING",
       regtankResponse: regTankResponse as Prisma.InputJsonValue,
@@ -3701,7 +3793,7 @@ export class AdminService {
       metadata: {
         cancelledOnboardingId: onboardingId,
         cancelledRequestId: onboarding.request_id,
-        newRequestId: regTankResponse.requestId,
+        newRequestId: nextRequestId,
         previousStatus: onboarding.status,
         cancelledBy: adminUserId,
         reason: "Restart requested by admin",
@@ -3714,7 +3806,7 @@ export class AdminService {
       {
         oldOnboardingId: onboardingId,
         oldRequestId: onboarding.request_id,
-        newRequestId: regTankResponse.requestId,
+        newRequestId: nextRequestId,
         userId: onboarding.user_id,
         previousStatus: onboarding.status,
         adminUserId,
@@ -3726,8 +3818,8 @@ export class AdminService {
     return {
       success: true,
       message: "Onboarding has been restarted. User will receive a new verification link.",
-      verifyLink: regTankResponse.verifyLink,
-      newRequestId: regTankResponse.requestId,
+      verifyLink: nextVerifyLink,
+      newRequestId: nextRequestId,
     };
   }
 

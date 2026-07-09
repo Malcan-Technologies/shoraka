@@ -116,7 +116,7 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
 
     mockCreateCorporateOnboarding.mockResolvedValue({
       requestId: "COD0002",
-      verifyLink: "https://masked.company.new.link",
+      verifyLink: "https://masked.company.new.link?requestId=COD0002",
       expiredIn: 86400,
     });
 
@@ -405,6 +405,48 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
     );
   });
 
+  it("new row uses same issuer organization for issuer portal", async () => {
+    mockFindInvestorOrganizationById.mockResolvedValue(null);
+    mockFindIssuerOrganizationById.mockResolvedValue({
+      id: "org-issuer-company-1",
+      owner_user_id: "USR01",
+      type: OrganizationType.COMPANY,
+      name: "Issuer Company Org",
+      onboarding_status: OnboardingStatus.IN_PROGRESS,
+      onboarding_fee_paid_at: new Date(),
+    });
+    mockFindByOrganizationId
+      .mockResolvedValueOnce(makeExistingRow({ status: "EXPIRED", request_id: "COD1001" }))
+      .mockResolvedValueOnce(makeExistingRow({ status: "EXPIRED", request_id: "COD1001" }));
+    mockCreateCorporateOnboarding.mockResolvedValue({
+      requestId: "COD1002",
+      verifyLink: "https://masked.company.new.link?requestId=COD1002",
+      expiredIn: 86400,
+    });
+
+    const service = new RegTankService();
+    await service.startCorporateOnboarding(
+      makeReq(),
+      "USR01",
+      "org-issuer-company-1",
+      "issuer",
+      "Issuer Company Org"
+    );
+
+    expect(mockTxCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          issuer_organization_id: "org-issuer-company-1",
+          investor_organization_id: null,
+          user_id: "USR01",
+          organization_type: OrganizationType.COMPANY,
+          onboarding_type: "CORPORATE",
+          portal_type: "issuer",
+        }),
+      })
+    );
+  });
+
   it("new row stores returned COD request ID and verify link", async () => {
     mockFindByOrganizationId
       .mockResolvedValueOnce(makeExistingRow({ status: "EXPIRED" }))
@@ -417,7 +459,7 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
       expect.objectContaining({
         data: expect.objectContaining({
           request_id: "COD0002",
-          verify_link: "https://masked.company.new.link",
+          verify_link: "https://masked.company.new.link?requestId=COD0002",
         }),
       })
     );
@@ -443,7 +485,7 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
             () =>
               resolve({
                 requestId: "COD0002",
-                verifyLink: "https://masked.company.new.link",
+                verifyLink: "https://masked.company.new.link?requestId=COD0002",
                 expiredIn: 86400,
               }),
             20
@@ -514,6 +556,45 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
 
     expect(result.requestId).toBe("COD0009");
     expect(mockCreateCorporateOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("new company onboarding response requestId/link mismatch returns retryable 503", async () => {
+    mockFindByOrganizationId.mockResolvedValue(null);
+    mockCreateCorporateOnboarding.mockResolvedValue({
+      requestId: "COD0002",
+      verifyLink: "https://masked.company.new.link?requestId=COD0009",
+      expiredIn: 86400,
+    });
+
+    const service = new RegTankService();
+    await expect(
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org")
+    ).rejects.toMatchObject<AppError>({
+      code: "REGTANK_CORPORATE_RESPONSE_MISMATCH",
+      statusCode: 503,
+    });
+    expect(mockCreateOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("company regeneration response requestId/link mismatch returns retryable 503 without mutating old row", async () => {
+    mockFindByOrganizationId
+      .mockResolvedValueOnce(makeExistingRow({ status: "EXPIRED" }))
+      .mockResolvedValueOnce(makeExistingRow({ status: "EXPIRED" }));
+    mockCreateCorporateOnboarding.mockResolvedValue({
+      requestId: "COD0002",
+      verifyLink: "https://masked.company.new.link?requestId=COD0007",
+      expiredIn: 86400,
+    });
+
+    const service = new RegTankService();
+    await expect(
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org")
+    ).rejects.toMatchObject<AppError>({
+      code: "REGTANK_CORPORATE_RESPONSE_MISMATCH",
+      statusCode: 503,
+    });
+    expect(mockTxUpdate).not.toHaveBeenCalled();
+    expect(mockTxCreate).not.toHaveBeenCalled();
   });
 
   it.each([

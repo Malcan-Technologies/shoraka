@@ -617,7 +617,7 @@ describe("RegTankService.startPersonalOnboarding stale-link handling", () => {
     mockFindByOrganizationId.mockResolvedValue(null);
     mockCreateCorporateOnboarding.mockResolvedValue({
       requestId: "COD0001",
-      verifyLink: "https://masked.corp.link",
+      verifyLink: "https://masked.corp.link?requestId=COD0001",
       expiredIn: 86400,
     });
 
