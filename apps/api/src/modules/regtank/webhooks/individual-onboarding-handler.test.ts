@@ -110,4 +110,56 @@ describe("IndividualOnboardingWebhookHandler", () => {
     expect(mockAppendWebhookPayload).toHaveBeenCalledWith("LD001-R01", payload);
     expect(mockHandleWebhookUpdate).toHaveBeenCalledTimes(1);
   });
+
+  it("EXPIRED webhook updates matching request row to EXPIRED", async () => {
+    mockFindByRequestId.mockResolvedValue(baseOnboardingRow({ request_id: "LD83612-R03", status: "IN_PROGRESS" }));
+    const handler = new IndividualOnboardingWebhookHandler();
+
+    await (handler as any).handle({ requestId: "LD83612-R03", status: "EXPIRED" });
+
+    expect(mockAppendWebhookPayload).toHaveBeenCalledWith(
+      "LD83612-R03",
+      expect.objectContaining({ requestId: "LD83612-R03", status: "EXPIRED" })
+    );
+    expect(mockUpdateStatus).toHaveBeenCalledWith(
+      "LD83612-R03",
+      expect.objectContaining({ status: "EXPIRED" })
+    );
+  });
+
+  it("webhook for R03 never mutates R04 row", async () => {
+    mockFindByRequestId.mockImplementation(async (requestId: string) =>
+      requestId === "LD83612-R03" ? baseOnboardingRow({ request_id: "LD83612-R03" }) : null
+    );
+    const handler = new IndividualOnboardingWebhookHandler();
+
+    await (handler as any).handle({ requestId: "LD83612-R03", status: "PROCESSING" });
+
+    expect(mockUpdateStatus).toHaveBeenCalledWith(
+      "LD83612-R03",
+      expect.objectContaining({ status: "PROCESSING" })
+    );
+    expect(mockUpdateStatus).not.toHaveBeenCalledWith(
+      "LD83612-R04",
+      expect.anything()
+    );
+  });
+
+  it("PROCESSING webhook for R04 updates only R04", async () => {
+    mockFindByRequestId.mockImplementation(async (requestId: string) =>
+      requestId === "LD83612-R04" ? baseOnboardingRow({ request_id: "LD83612-R04" }) : null
+    );
+    const handler = new IndividualOnboardingWebhookHandler();
+
+    await (handler as any).handle({ requestId: "LD83612-R04", status: "PROCESSING" });
+
+    expect(mockUpdateStatus).toHaveBeenCalledWith(
+      "LD83612-R04",
+      expect.objectContaining({ status: "PROCESSING" })
+    );
+    expect(mockUpdateStatus).not.toHaveBeenCalledWith(
+      "LD83612-R03",
+      expect.anything()
+    );
+  });
 });

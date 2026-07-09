@@ -125,7 +125,7 @@ describe("RegTankService.startPersonalOnboarding stale-link handling", () => {
     });
     mockRestartOnboarding.mockResolvedValue({
       requestId: "LD0001-R01",
-      verifyLink: "https://masked.restart.link",
+      verifyLink: "https://masked.restart.link?requestId=LD0001-R01",
       expiredIn: 86400,
     });
     mockGetOnboardingDetails.mockResolvedValue({
@@ -170,7 +170,7 @@ describe("RegTankService.startPersonalOnboarding stale-link handling", () => {
 
     expect(mockRestartOnboarding).toHaveBeenCalledTimes(1);
     expect(result.requestId).toBe("LD0001-R01");
-    expect(result.verifyLink).toBe("https://masked.restart.link");
+    expect(result.verifyLink).toBe("https://masked.restart.link?requestId=LD0001-R01");
     expect(result.verifyLink).not.toBe("https://masked.old.link");
   });
 
@@ -193,7 +193,7 @@ describe("RegTankService.startPersonalOnboarding stale-link handling", () => {
 
       expect(mockRestartOnboarding).toHaveBeenCalledTimes(1);
       expect(result.requestId).toBe("LD0001-R01");
-      expect(result.verifyLink).toBe("https://masked.restart.link");
+      expect(result.verifyLink).toBe("https://masked.restart.link?requestId=LD0001-R01");
     }
   );
 
@@ -231,7 +231,7 @@ describe("RegTankService.startPersonalOnboarding stale-link handling", () => {
     const service = new RegTankService();
     const result = await service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor");
 
-    expect(result.verifyLink).toBe("https://masked.restart.link");
+    expect(result.verifyLink).toBe("https://masked.restart.link?requestId=LD0001-R01");
     expect(result.verifyLink).not.toBe("https://masked.old.link");
   });
 
@@ -351,6 +351,30 @@ describe("RegTankService.startPersonalOnboarding stale-link handling", () => {
     expect(mockCreateOnboarding).not.toHaveBeenCalled();
   });
 
+  it("restart response requestId/verifyLink mismatch is handled safely", async () => {
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({
+        status: "EXPIRED",
+        verify_link_expires_at: nowMinus(1_000),
+      })
+    );
+    mockRestartOnboarding.mockResolvedValue({
+      requestId: "LD0001-R01",
+      verifyLink: "https://masked.restart.link?requestId=LD0001-R02",
+      expiredIn: 86400,
+    });
+
+    const service = new RegTankService();
+    await expect(
+      service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor")
+    ).rejects.toMatchObject<AppError>({
+      statusCode: 503,
+      code: "REGTANK_RESTART_RESPONSE_MISMATCH",
+    });
+    expect(mockCancelOnboarding).not.toHaveBeenCalled();
+    expect(mockCreateOnboarding).not.toHaveBeenCalled();
+  });
+
   it("expired link triggers one restart and returns new link", async () => {
     mockFindByOrganizationId.mockResolvedValue(
       makeExistingRow({
@@ -366,6 +390,7 @@ describe("RegTankService.startPersonalOnboarding stale-link handling", () => {
     expect(mockRestartOnboarding).toHaveBeenCalledWith("LD0001");
     expect(result.requestId).toBe("LD0001-R01");
     expect(result.verifyLink).toContain("masked.restart.link");
+    expect(result.verifyLink).toContain("requestId=LD0001-R01");
   });
 
   it("marks old row CANCELLED when auto-restarting", async () => {
@@ -508,7 +533,7 @@ describe("RegTankService.startPersonalOnboarding stale-link handling", () => {
             () =>
               resolve({
                 requestId: "LD0001-R01",
-                verifyLink: "https://masked.restart.link",
+                verifyLink: "https://masked.restart.link?requestId=LD0001-R01",
                 expiredIn: 86400,
               }),
             15
