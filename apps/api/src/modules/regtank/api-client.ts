@@ -223,7 +223,7 @@ export class RegTankAPIClient {
     logger.debug({ requestId }, "Fetching RegTank onboarding details");
 
     return this.makeRequest<RegTankOnboardingDetails>(
-      `/v3/onboarding/indv/request/${requestId}`
+      `/v3/onboarding/indv/query?requestId=${encodeURIComponent(requestId)}`
     );
   }
 

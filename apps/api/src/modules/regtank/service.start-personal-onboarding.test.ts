@@ -154,6 +154,57 @@ describe("RegTankService.startPersonalOnboarding stale-link handling", () => {
     expect(mockGetOnboardingDetails).toHaveBeenCalledWith("LD0001");
   });
 
+  it("active revision LD83641-R03 query returns PROCESSING and reuses existing link", async () => {
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({
+        request_id: "LD83641-R03",
+        status: "PROCESSING",
+        verify_link: "https://masked.old.link?requestId=LD83641-R03",
+        verify_link_expires_at: nowPlus(120_000),
+      })
+    );
+    mockGetOnboardingDetails.mockResolvedValue({
+      requestId: "LD83641-R03",
+      status: "PROCESSING",
+    });
+
+    const service = new RegTankService();
+    const result = await service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor");
+
+    expect(result.requestId).toBe("LD83641-R03");
+    expect(result.verifyLink).toContain("requestId=LD83641-R03");
+    expect(mockGetOnboardingDetails).toHaveBeenCalledWith("LD83641-R03");
+    expect(mockRestartOnboarding).not.toHaveBeenCalled();
+    expect(mockCreateOnboarding).not.toHaveBeenCalled();
+    expect(mockCancelOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("repeated Continue on active revision does not create R04", async () => {
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({
+        request_id: "LD83641-R03",
+        status: "PROCESSING",
+        verify_link: "https://masked.old.link?requestId=LD83641-R03",
+        verify_link_expires_at: nowPlus(120_000),
+      })
+    );
+    mockGetOnboardingDetails.mockResolvedValue({
+      requestId: "LD83641-R03",
+      status: "PROCESSING",
+    });
+
+    const service = new RegTankService();
+    const first = await service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor");
+    const second = await service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor");
+
+    expect(first.requestId).toBe("LD83641-R03");
+    expect(second.requestId).toBe("LD83641-R03");
+    expect(mockGetOnboardingDetails).toHaveBeenCalledTimes(2);
+    expect(mockRestartOnboarding).not.toHaveBeenCalled();
+    expect(mockCreateOnboarding).not.toHaveBeenCalled();
+    expect(mockCancelOnboarding).not.toHaveBeenCalled();
+  });
+
   it("provider not-found during pre-check triggers restart", async () => {
     mockFindByOrganizationId.mockResolvedValue(
       makeExistingRow({
