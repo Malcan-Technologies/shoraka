@@ -94,6 +94,9 @@ export function isSigningRoleKey(value: string): value is SigningRoleKey {
 /** Key under which the signing template is stored inside Product.workflow config. */
 export const SIGNING_TEMPLATE_WORKFLOW_KEY = "signing_template";
 
+/** System template key for the placeholder guarantor agreement document. */
+export const GUARANTOR_AGREEMENT_TEMPLATE_KEY = "guarantor_agreement";
+
 /** Links a product post_application supporting doc step to the signing package. */
 export interface SigningTemplateSupportingDocRef {
   /** Workflow step key from the product supporting_documents config. */
@@ -286,12 +289,39 @@ export function parseSigningTemplateConfig(raw: unknown): SigningTemplateConfig 
         .map(parseSupportingDocRef)
         .filter((item): item is SigningTemplateSupportingDocRef => item != null)
     : [];
-  return sanitizeSigningTemplateConfig({
+  return sanitizeSigningTemplateConfig(ensureDefaultSigningDocuments({
     enabled: r.enabled === true,
     roles,
     documents: [...documents].sort((a, b) => a.order - b.order),
     supporting_docs,
-  });
+  }));
+}
+
+/** Adds the standard guarantor agreement document when signing is enabled and only the offer letter exists. */
+export function ensureDefaultSigningDocuments(config: SigningTemplateConfig): SigningTemplateConfig {
+  if (!config.enabled) return config;
+  if (config.documents.some((doc) => doc.key === GUARANTOR_AGREEMENT_TEMPLATE_KEY)) {
+    return config;
+  }
+
+  const offerLetter = config.documents.find((doc) => doc.key === "offer_letter");
+  if (!offerLetter) return config;
+
+  return {
+    ...config,
+    documents: [
+      ...config.documents,
+      {
+        key: GUARANTOR_AGREEMENT_TEMPLATE_KEY,
+        name: "Guarantor Agreement",
+        description: "Placeholder guarantor agreement document",
+        source: "TEMPLATE",
+        required: true,
+        order: offerLetter.order + 1,
+        signer_role_keys: ["guarantor"],
+      },
+    ],
+  };
 }
 
 function mergeRoleMaxCount(a: number | null, b: number | null): number | null {

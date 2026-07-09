@@ -364,6 +364,39 @@ export async function generateInvoiceOfferLetterBuffer(
   return { pdfBuffer, signsets: layout.signsets };
 }
 
+const GUARANTOR_PLACEHOLDER_BODY =
+  "This is a placeholder guarantor agreement document. The final agreement text and commercial terms will be provided in a later release. By signing below, each signatory acknowledges receipt of this placeholder for signing workflow testing.";
+
+export function buildGuarantorAgreementPlaceholderPdf(
+  doc: PDFDoc,
+  signatories: OfferLetterSignatory[] = [],
+  layout?: SignatureLayoutContext
+): void {
+  formalOpen(
+    doc,
+    "GUARANTOR AGREEMENT",
+    "Placeholder agreement for guarantor obligations in respect of the financing facility"
+  );
+  sectionHeading(doc, "Placeholder terms");
+  doc.font("Helvetica").fontSize(BODY_SIZE).text(GUARANTOR_PLACEHOLDER_BODY, { align: "justify" });
+  doc.moveDown(0.5);
+  bodyParagraphs(doc);
+  drawSignatureBlocks(doc, signatories, layout);
+}
+
+export async function generateGuarantorAgreementPlaceholderBuffer(
+  signatories: OfferLetterSignatory[]
+): Promise<GeneratedOfferLetterResult> {
+  const tracked = createTrackedOfferLetterDoc();
+  const layout: SignatureLayoutContext = {
+    signsets: [],
+    getPageIndex: tracked.getPageIndex,
+  };
+  buildGuarantorAgreementPlaceholderPdf(tracked.doc, signatories, layout);
+  const pdfBuffer = await pdfBufferFromDoc(tracked.doc);
+  return { pdfBuffer, signsets: layout.signsets };
+}
+
 /**
  * Generate a contract offer letter PDF as a stream. Caller pipes to response.
  */

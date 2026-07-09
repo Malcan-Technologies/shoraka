@@ -11,6 +11,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DocumentTextIcon,
+  IdentificationIcon,
+  ShieldCheckIcon,
+} from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const ISSUER_ORIGIN =
@@ -190,112 +204,159 @@ export default function ExternalSigningPage() {
     }
   };
 
+  const stepIcon =
+    step === "access-code" ? (
+      <IdentificationIcon className="h-6 w-6 text-primary" />
+    ) : step === "ekyc" ? (
+      <ShieldCheckIcon className="h-6 w-6 text-primary" />
+    ) : (
+      <DocumentTextIcon className="h-6 w-6 text-primary" />
+    );
+
+  const stepTitle =
+    step === "access-code"
+      ? "Verify your identity"
+      : step === "ekyc"
+        ? "Identity verification"
+        : pendingAssignment
+          ? "Ready to sign"
+          : "Signing complete";
+
+  const stepDescription =
+    step === "access-code"
+      ? "Enter your MyKad number to verify your identity before signing."
+      : step === "ekyc"
+        ? "Scan the QR code with your phone to complete MyKad verification."
+        : recipient
+          ? `You are signing as ${recipient.name} (${recipient.email}).`
+          : "Secure signing link";
+
   return (
-    <main className="min-h-screen bg-background px-4 py-10">
-      <div className="mx-auto max-w-2xl rounded-2xl border border-border bg-card p-6 shadow-sm">
-        <div className="space-y-2">
+    <main className="flex min-h-screen items-start justify-center bg-background px-4 py-10 sm:items-center">
+      <Card className="mx-auto w-full max-w-md rounded-2xl shadow-sm">
+        <CardHeader>
           <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             CashSouk signing
           </p>
-          <h1 className="text-2xl font-bold text-foreground">
-            {session?.envelope.title ?? "Signing package"}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {recipient
-              ? `You are signing as ${recipient.name} (${recipient.email}).`
-              : "Secure signing link"}
-          </p>
-        </div>
-
-        {isLoading ? (
-          <p className="mt-6 text-sm text-muted-foreground">Loading signing package...</p>
-        ) : error ? (
-          <div className="mt-6 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-            {error}
-          </div>
-        ) : step === "access-code" ? (
-          <div className="mt-6 space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Enter your MyKad number to verify your identity before signing. This must match the
-              person named on this signing request.
-            </p>
-            <div className="space-y-2">
-              <Label htmlFor="access-ic">IC number</Label>
-              <Input
-                id="access-ic"
-                value={icNumber}
-                onChange={(event) => setIcNumber(event.target.value)}
-                inputMode="numeric"
-                placeholder="901212101234"
-                className="rounded-xl"
-              />
+          {isLoading ? (
+            <div className="space-y-2 pt-2">
+              <Skeleton className="h-7 w-3/4" />
+              <Skeleton className="h-4 w-full" />
             </div>
-            <Button
-              type="button"
-              className="rounded-xl"
-              disabled={isSubmitting || icNumber.replace(/\D/g, "").length !== 12}
-              onClick={() => {
-                verifyAccessCode().catch(() => undefined);
-              }}
-            >
-              {isSubmitting ? "Verifying..." : "Continue"}
-            </Button>
-          </div>
-        ) : step === "ekyc" ? (
-          <div className="mt-6 space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Scan this QR code with your phone to complete MyKad identity verification before
-              signing.
-            </p>
-            {ekycCaptureUrl ? (
-              <div className="flex justify-center">
-                <QRCodeSVG value={ekycCaptureUrl} size={220} />
+          ) : (
+            <div className="flex items-start gap-3 pt-2">
+              <div className="rounded-lg bg-primary/10 p-2">{stepIcon}</div>
+              <div className="min-w-0 flex-1">
+                <CardTitle className="text-xl">
+                  {session?.envelope.title ?? stepTitle}
+                </CardTitle>
+                <CardDescription className="mt-1">{stepDescription}</CardDescription>
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Preparing verification...</p>
-            )}
-            {ekycStatus === "pending" ? (
-              <p className="text-center text-sm text-muted-foreground">Waiting for verification...</p>
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-xl"
-              disabled={isSubmitting}
-              onClick={() => {
-                setEkycCaptureUrl(null);
-                startEkyc(true).catch(() => undefined);
-              }}
-            >
-              New QR
-            </Button>
-          </div>
-        ) : !pendingAssignment ? (
-          <div className="mt-6 rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-            There are no pending documents for you to sign. If you just completed signing, you can
-            close this page.
-          </div>
-        ) : (
-          <div className="mt-6 space-y-3">
-            <div className="rounded-xl border border-border bg-background p-4">
-              <p className="font-medium text-foreground">{pendingAssignment.document.name}</p>
-              <p className="text-sm text-muted-foreground">
-                Status: {pendingAssignment.document.status.replace(/_/g, " ")}
-              </p>
             </div>
-            <Button
-              type="button"
-              className="rounded-xl"
-              disabled={isSubmitting}
-              onClick={() => {
-                startSigning().catch(() => undefined);
-              }}
-            >
-              {isSubmitting ? "Opening..." : "Sign document"}
-            </Button>
-          </div>
-        )}
-      </div>
+          )}
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          {isLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+              <Skeleton className="h-11 w-full rounded-xl" />
+            </div>
+          ) : error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : step === "access-code" ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                This must match the person named on this signing request.
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="access-ic">IC number</Label>
+                <Input
+                  id="access-ic"
+                  value={icNumber}
+                  onChange={(event) => setIcNumber(event.target.value)}
+                  inputMode="numeric"
+                  placeholder="901212101234"
+                  className="h-11 rounded-xl"
+                />
+              </div>
+              <Button
+                type="button"
+                className="h-11 w-full rounded-xl"
+                disabled={isSubmitting || icNumber.replace(/\D/g, "").length !== 12}
+                onClick={() => {
+                  verifyAccessCode().catch(() => undefined);
+                }}
+              >
+                {isSubmitting ? "Verifying..." : "Continue"}
+              </Button>
+            </>
+          ) : step === "ekyc" ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Complete MyKad identity verification on your phone before signing.
+              </p>
+              {ekycCaptureUrl ? (
+                <div className="flex justify-center rounded-xl border border-border bg-muted/20 p-6">
+                  <QRCodeSVG value={ekycCaptureUrl} size={220} />
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-3 py-4">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  <p className="text-sm text-muted-foreground">Preparing verification...</p>
+                </div>
+              )}
+              {ekycStatus === "pending" && ekycCaptureUrl ? (
+                <p className="text-center text-sm text-muted-foreground">
+                  Waiting for verification...
+                </p>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 w-full rounded-xl"
+                disabled={isSubmitting}
+                onClick={() => {
+                  setEkycCaptureUrl(null);
+                  startEkyc(true).catch(() => undefined);
+                }}
+              >
+                New QR
+              </Button>
+            </>
+          ) : !pendingAssignment ? (
+            <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+              There are no pending documents for you to sign. If you just completed signing, you
+              can close this page.
+            </div>
+          ) : (
+            <>
+              <div className="rounded-xl border border-border bg-muted/20 p-4">
+                <p className="font-medium text-foreground">{pendingAssignment.document.name}</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Status: {pendingAssignment.document.status.replace(/_/g, " ")}
+                </p>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                When you continue, we will open the signing portal to complete your signature.
+              </p>
+              <Button
+                type="button"
+                className="h-11 w-full rounded-xl"
+                disabled={isSubmitting}
+                onClick={() => {
+                  startSigning().catch(() => undefined);
+                }}
+              >
+                {isSubmitting ? "Opening signing portal..." : "Sign document"}
+              </Button>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </main>
   );
 }

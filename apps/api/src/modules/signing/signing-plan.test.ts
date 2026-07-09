@@ -90,6 +90,26 @@ describe("parseSigningTemplateConfig", () => {
     expect(cfg.documents.map((d) => d.key)).toEqual(["a", "b"]);
     expect(cfg.roles[0].kyc_required).toBe(true);
   });
+
+  it("adds default guarantor agreement when only offer letter is configured", () => {
+    const cfg = parseSigningTemplateConfig({
+      enabled: true,
+      roles: [{ key: "issuer_director", label: "Director" }],
+      documents: [
+        {
+          key: "offer_letter",
+          name: "Offer letter",
+          source: "GENERATED_OFFER_LETTER",
+          order: 0,
+          signer_role_keys: ["issuer_director"],
+        },
+      ],
+    });
+    expect(cfg.documents.map((d) => d.key)).toEqual(["offer_letter", "guarantor_agreement"]);
+    expect(cfg.documents[1]?.source).toBe("TEMPLATE");
+    expect(cfg.documents[1]?.signer_role_keys).toEqual(["guarantor"]);
+    expect(cfg.roles.some((role) => role.key === "guarantor")).toBe(true);
+  });
 });
 
 describe("validateSigningTemplateConfig", () => {

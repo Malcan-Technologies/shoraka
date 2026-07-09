@@ -15,6 +15,7 @@ import {
   rollupDocumentStatus,
   rollupRecipientStatus,
   rollupEnvelopeStatus,
+  GUARANTOR_AGREEMENT_TEMPLATE_KEY,
   type AssignmentStatusInput,
   ApplicationStatus,
   ContractStatus,
@@ -37,6 +38,7 @@ import { buildAdminPeopleList } from "../admin/build-people-list";
 import { assertRequiredPostApplicationSupportingDocumentsPresent } from "../applications/supporting-docs-workflow";
 import {
   generateContractOfferLetterBuffer,
+  generateGuarantorAgreementPlaceholderBuffer,
   generateInvoiceOfferLetterBuffer,
   type OfferLetterSignatory,
 } from "../applications/offer-letter-pdf";
@@ -660,6 +662,15 @@ export class SigningService {
             `Document "${document.name}" has no uploaded file to sign.`
           );
         }
+      } else if (document.source === "TEMPLATE") {
+        const materialized = await this.materializeTemplateSigningDocument(
+          envelope,
+          document,
+          docAssignments,
+          recipientById
+        );
+        unsignedS3Key = materialized.s3Key;
+        signsetsByAssignmentId = materialized.signsetsByAssignmentId;
       } else {
         throw new AppError(
           422,
@@ -813,6 +824,57 @@ export class SigningService {
     await putS3ObjectBuffer({ key: s3Key, body: generated.pdfBuffer, contentType: "application/pdf" });
     await this.repo.setDocumentUnsignedS3Key(documentId, s3Key);
     return { s3Key, signsetsByAssignmentId };
+  }
+
+  private async materializeTemplateSigningDocument(
+    envelope: SigningEnvelopeWithGraph,
+    document: SigningEnvelopeWithGraph["documents"][number],
+    docAssignments: SigningEnvelopeWithGraph["assignments"],
+    recipientById: Map<string, SigningEnvelopeWithGraph["recipients"][number]>
+  ): Promise<{ s3Key: string; signsetsByAssignmentId: Map<string, unknown> }> {
+    if (document.unsigned_s3_key) {
+      return { s3Key: document.unsigned_s3_key, signsetsByAssignmentId: new Map() };
+    }
+
+    if (document.template_ref === GUARANTOR_AGREEMENT_TEMPLATE_KEY) {
+      const signatories = this.resolveOfferLetterSignatories(docAssignments, recipientById);
+      if (signatories.length === 0) {
+        throw new AppError(
+          422,
+          "SIGNING_DOCUMENT_NOT_READY",
+          "Guarantor agreement requires at least one signer."
+        );
+      }
+
+      const orderedAssignments = this.orderDocumentAssignments(docAssignments, recipientById);
+      const generated = await generateGuarantorAgreementPlaceholderBuffer(signatories);
+      if (generated.signsets.length !== orderedAssignments.length) {
+        throw new AppError(
+          500,
+          "SIGNING_LAYOUT_ERROR",
+          "Guarantor agreement signature layout does not match signer count."
+        );
+      }
+
+      const signsetsByAssignmentId = new Map<string, unknown>();
+      for (let index = 0; index < orderedAssignments.length; index += 1) {
+        const signset = generated.signsets[index];
+        const { assignment } = orderedAssignments[index];
+        signsetsByAssignmentId.set(assignment.id, signset);
+        await this.repo.setAssignmentSignset(assignment.id, signset);
+      }
+
+      const s3Key = `applications/${envelope.application_id}/signing/${envelope.id}/unsigned/${document.id}.pdf`;
+      await putS3ObjectBuffer({ key: s3Key, body: generated.pdfBuffer, contentType: "application/pdf" });
+      await this.repo.setDocumentUnsignedS3Key(document.id, s3Key);
+      return { s3Key, signsetsByAssignmentId };
+    }
+
+    throw new AppError(
+      422,
+      "SIGNING_DOCUMENT_NOT_SUPPORTED",
+      `Document "${document.name}" is not supported yet.`
+    );
   }
 
   async sendEnvelopeForIssuer(id: string, userId: string): Promise<SigningEnvelopeDto> {

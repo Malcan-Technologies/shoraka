@@ -3,12 +3,12 @@
 /**
  * Modal for reviewing contract or invoice offers. Issuer can download offer letter,
  * accept, or decline. CashSouk brand styling per BRANDING.md.
- * Contract end date uses contract_details.end_date; offer expiry shown in footer.
+ * Contract end date uses contract_details.end_date; offer expiry shown in the sidebar.
  */
 
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { TextareaWithCharCount } from "@/components/textarea-with-char-count";
 import { Label } from "@/components/ui/label";
@@ -33,9 +33,16 @@ import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import {
   ArrowDownTrayIcon,
-  CheckIcon,
+  ArrowPathIcon,
+  ArrowUpTrayIcon,
+  CalendarDaysIcon,
   CheckCircleIcon,
-} from "@heroicons/react/24/solid";
+  DocumentTextIcon,
+  PencilSquareIcon,
+  UserGroupIcon,
+  XMarkIcon,
+} from "@heroicons/react/24/outline";
+import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
 import type { NormalizedInvoice } from "../status";
 import {
@@ -50,12 +57,28 @@ import {
   type SigningEnvelopeDto,
   type SigningTemplateConfig,
   type SigningTemplateRole,
+  computeSigningEnvelopeProgress,
 } from "@cashsouk/types";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { Input } from "@/components/ui/input";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SigningProgressMatrix } from "@/components/signing/signing-progress-matrix";
+import { SigningProgressStepper } from "@/components/signing/signing-progress-stepper";
+import {
+  getCurrentSigningOfferStepId,
+  getSigningOfferSteps,
+  type SigningOfferStepId,
+} from "@/lib/signing-offer-steps";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 const PLATFORM_FEE_TOOLTIP =
@@ -197,22 +220,22 @@ function isGuarantorRole(role: SigningTemplateRole): boolean {
 
 function guarantorsFromApplication(rows: unknown): ApplicationGuarantorRow[] {
   if (!Array.isArray(rows)) return [];
-  return rows
-    .map((row) => {
-      if (!row || typeof row !== "object") return null;
-      const guarantor = row as Record<string, unknown>;
-      const id = typeof guarantor.id === "string" ? guarantor.id : "";
-      if (!id) return null;
-      return {
-        id,
-        name: typeof guarantor.name === "string" ? guarantor.name : null,
-        business_name:
-          typeof guarantor.business_name === "string" ? guarantor.business_name : null,
-        email: typeof guarantor.email === "string" ? guarantor.email : "",
-        ic_number: typeof guarantor.ic_number === "string" ? guarantor.ic_number : null,
-      };
-    })
-    .filter((guarantor): guarantor is ApplicationGuarantorRow => guarantor != null);
+  const result: ApplicationGuarantorRow[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const guarantor = row as Record<string, unknown>;
+    const id = typeof guarantor.id === "string" ? guarantor.id : "";
+    if (!id) continue;
+    result.push({
+      id,
+      name: typeof guarantor.name === "string" ? guarantor.name : null,
+      business_name:
+        typeof guarantor.business_name === "string" ? guarantor.business_name : null,
+      email: typeof guarantor.email === "string" ? guarantor.email : "",
+      ic_number: typeof guarantor.ic_number === "string" ? guarantor.ic_number : null,
+    });
+  }
+  return result;
 }
 
 function dedupeIssuerDirectors(directors: IssuerDirectorOption[]): IssuerDirectorOption[] {
@@ -460,18 +483,94 @@ function envelopeMatchesSignerBindings(
   );
 }
 
-function formatSignerNameList(names: string[]): string {
-  const trimmed = names.map((name) => name.trim()).filter(Boolean);
-  if (trimmed.length === 0) return "the selected signers";
-  if (trimmed.length === 1) return trimmed[0];
-  if (trimmed.length === 2) return `${trimmed[0]} and ${trimmed[1]}`;
-  return `${trimmed.slice(0, -1).join(", ")}, and ${trimmed[trimmed.length - 1]}`;
+type SigningDocumentGroup = {
+  key: string;
+  name: string;
+  roleKeys: string[];
+};
+
+function signingDocumentGroups(template: SigningTemplateConfig): SigningDocumentGroup[] {
+  const groups: SigningDocumentGroup[] = template.documents.map((doc) => ({
+    key: doc.key,
+    name: doc.name,
+    roleKeys: doc.signer_role_keys,
+  }));
+  for (const ref of template.supporting_docs ?? []) {
+    if (groups.some((group) => group.key === ref.step_key)) continue;
+    groups.push({
+      key: ref.step_key,
+      name: ref.label,
+      roleKeys: ref.signer_role_keys,
+    });
+  }
+  // Roles with no document mapping still need a place to configure signers.
+  const covered = new Set(groups.flatMap((group) => group.roleKeys));
+  const uncovered = template.roles.filter((role) => !covered.has(role.key));
+  if (uncovered.length > 0) {
+    groups.push({
+      key: "_unassigned_roles",
+      name: "Other signers",
+      roleKeys: uncovered.map((role) => role.key),
+    });
+  }
+  return groups;
 }
 
-function buildSigningConfirmDescription(bindings: RecipientBinding[]): string {
-  const names = bindings.map((binding) => binding.name);
-  const signers = formatSignerNameList(names);
-  return `Signing emails will be sent to ${signers}. Each signer will receive a link to review and sign the offer letter.`;
+function roleCountSubtitle(role: SigningTemplateRole): string {
+  const parts: string[] = [];
+  if (role.min_count > 0) parts.push(`min. ${role.min_count}`);
+  if (role.max_count != null) parts.push(`max. ${role.max_count}`);
+  return parts.join(" · ");
+}
+
+type SigningConfirmSigner = {
+  name: string;
+  email: string;
+  roleLabel: string;
+};
+
+type SigningConfirmDocumentGroup = {
+  key: string;
+  name: string;
+  signers: SigningConfirmSigner[];
+};
+
+function buildSigningConfirmGroups(
+  bindings: RecipientBinding[],
+  template: SigningTemplateConfig
+): SigningConfirmDocumentGroup[] {
+  const groups = signingDocumentGroups(template).filter(
+    (group) => group.key !== "_unassigned_roles"
+  );
+  const assignedRoleKeys = new Set(bindings.map((binding) => binding.role_key));
+  const coveredRoleKeys = new Set(groups.flatMap((group) => group.roleKeys));
+  const uncoveredRoleKeys = [...assignedRoleKeys].filter((roleKey) => !coveredRoleKeys.has(roleKey));
+  if (uncoveredRoleKeys.length > 0) {
+    groups.push({
+      key: "_unassigned_roles",
+      name: "Other documents",
+      roleKeys: uncoveredRoleKeys,
+    });
+  }
+
+  return groups
+    .map((group) => {
+      const seen = new Set<string>();
+      const signers: SigningConfirmSigner[] = [];
+      for (const binding of bindings) {
+        if (!group.roleKeys.includes(binding.role_key)) continue;
+        const role = template.roles.find((item) => item.key === binding.role_key);
+        const name = binding.name.trim() || "Unnamed signer";
+        const email = binding.email.trim();
+        const roleLabel = role?.label || binding.role_key;
+        const dedupeKey = `${binding.role_key}|${name.toLowerCase()}|${email.toLowerCase()}`;
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+        signers.push({ name, email, roleLabel });
+      }
+      return { key: group.key, name: group.name, signers };
+    })
+    .filter((group) => group.signers.length > 0);
 }
 
 function findActiveSigningEnvelope(
@@ -511,36 +610,6 @@ function bindingsFromEnvelopeRecipients(
     }
   }
   return bindings;
-}
-
-function RecipientReminders({
-  envelope,
-  onRemind,
-  disabled,
-}: {
-  envelope: SigningEnvelopeDto;
-  onRemind: (recipientId: string) => void;
-  disabled: boolean;
-}) {
-  const pending = envelope.recipients.filter((r) => r.status !== "SIGNED");
-  if (pending.length === 0) return null;
-  return (
-    <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-      <span className="text-xs text-muted-foreground">Remind:</span>
-      {pending.map((r) => (
-        <Button
-          key={r.id}
-          size="sm"
-          variant="ghost"
-          className="h-7 px-2 text-xs"
-          onClick={() => onRemind(r.id)}
-          disabled={disabled}
-        >
-          {r.name}
-        </Button>
-      ))}
-    </div>
-  );
 }
 
 /** Only mounted when Review Offer is clicked. Renders once, no isOpen toggle to avoid flash. */
@@ -595,12 +664,6 @@ export function ReviewOfferModal({
   );
   const signersLocked =
     activeSigningEnvelope != null && activeSigningEnvelope.status !== "DRAFT";
-  const showSigningProgress =
-    signersLocked &&
-    activeSigningEnvelope != null &&
-    (activeSigningEnvelope.status === "SENT" ||
-      activeSigningEnvelope.status === "IN_PROGRESS" ||
-      activeSigningEnvelope.status === "COMPLETED");
   const canRemindSigners =
     activeSigningEnvelope != null &&
     (activeSigningEnvelope.status === "SENT" || activeSigningEnvelope.status === "IN_PROGRESS");
@@ -667,7 +730,7 @@ export function ReviewOfferModal({
       buildIssuerEnvelopeBindings(
         signingTemplate,
         directorSourceOrganization,
-        applicationRecord?.application_guarantors
+        guarantorsFromApplication(applicationRecord?.application_guarantors)
       )
     );
   }, [
@@ -1020,9 +1083,45 @@ export function ReviewOfferModal({
   const needsSigningConfirm =
     useEnvelopeSigning && !(type === "invoice" && !requiresInvoiceSigning);
 
-  const signingConfirmDescription = React.useMemo(
-    () => buildSigningConfirmDescription(signerBindings),
-    [signerBindings]
+  const signingConfirmGroups = React.useMemo(
+    () => buildSigningConfirmGroups(signerBindings, signingTemplate),
+    [signerBindings, signingTemplate]
+  );
+
+  const signingConfirmDescription = (
+    <div className="space-y-4 text-left">
+      <p>
+        Signing emails with secure links will be sent to the people below.
+      </p>
+      {signingConfirmGroups.length === 0 ? (
+        <p>No signers have been assigned yet.</p>
+      ) : (
+        <div className="space-y-3">
+          {signingConfirmGroups.map((group) => (
+            <div
+              key={group.key}
+              className="rounded-xl border border-border bg-muted/30 px-3 py-2.5"
+            >
+              <p className="text-sm font-semibold text-foreground">{group.name}</p>
+              <ul className="mt-2 space-y-1.5">
+                {group.signers.map((signer) => (
+                  <li
+                    key={`${group.key}-${signer.roleLabel}-${signer.email || signer.name}`}
+                    className="text-sm"
+                  >
+                    <span className="font-medium text-foreground">{signer.name}</span>
+                    <span className="text-muted-foreground"> · {signer.roleLabel}</span>
+                    {signer.email ? (
+                      <span className="block text-xs text-muted-foreground">{signer.email}</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 
   const prepareAccept = async (): Promise<boolean> => {
@@ -1208,528 +1307,850 @@ export function ReviewOfferModal({
   };
   const addSignerBinding = (role: SigningTemplateRole) => {
     setSignerBindings((prev) => {
-      const usedDirectorKeys = new Set(
-        prev
-          .filter((binding) => binding.role_key === role.key)
-          .map((binding) => resolveBindingDirectorKey(issuerDirectors, binding))
-          .filter(Boolean)
-      );
-      const nextDirector = issuerDirectors.find((director) => !usedDirectorKeys.has(director.matchKey));
+      if (isDirectorRole(role) && issuerDirectors.length > 0) {
+        const usedDirectorKeys = new Set(
+          prev
+            .filter((binding) => binding.role_key === role.key)
+            .map((binding) => resolveBindingDirectorKey(issuerDirectors, binding))
+            .filter(Boolean)
+        );
+        const nextDirector = issuerDirectors.find(
+          (director) => !usedDirectorKeys.has(director.matchKey)
+        );
+        return [
+          ...prev,
+          {
+            role_key: role.key,
+            name: nextDirector?.name ?? "",
+            email: nextDirector?.email ?? "",
+            ic_number: nextDirector?.ic_number ?? null,
+          },
+        ];
+      }
+
       return [
         ...prev,
         {
           role_key: role.key,
-          name: nextDirector?.name ?? "",
-          email: nextDirector?.email ?? "",
-          ic_number: nextDirector?.ic_number ?? null,
+          name: "",
+          email: "",
+          ic_number: null,
         },
       ];
     });
   };
 
-  return (
-    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto rounded-xl border-border p-6 gap-0 sm:max-w-[720px]">
-        <DialogTitle className="sr-only">
-          Financing offer approved — Review and respond
-        </DialogTitle>
-        <DialogDescription className="sr-only">
-          Review the financing offer and accept or decline.
-        </DialogDescription>
-        {isLoading ? (
-          <p className="text-sm text-muted-foreground py-8">Loading offer...</p>
-        ) : (
-          <>
-            <div className="flex flex-col items-center text-center mb-6">
-              <div
-                className="w-[74px] h-[74px] rounded-full flex items-center justify-center mb-4 shadow-none"
-                style={{ background: "#ececec", boxShadow: "none", filter: "none" }}
-              >
-                <div
-                  className="w-[66px] h-[66px] rounded-full flex items-center justify-center shadow-none"
-                  style={{ background: "#c4c4c4", boxShadow: "none", filter: "none" }}
-                >
-                  <div
-                    className="w-14 h-14 rounded-full flex items-center justify-center shadow-none"
-                    style={{ background: "#000000", boxShadow: "none", filter: "none" }}
-                  >
-                    <CheckIcon className="h-7 w-7 text-white" />
-                  </div>
-                </div>
-              </div>
-              <p className="text-base font-semibold text-foreground">
-                Congratulations! Your {type === "contract" ? "contract" : "invoice"} financing request
-              </p>
-              <p className="text-3xl sm:text-4xl font-extrabold text-status-success-text tracking-tight mt-2">
-                {offeredValue}
-              </p>
-              <p className="text-base font-semibold text-foreground mt-1">
-                has been approved
-              </p>
-            </div>
+  const envelopeProgress = activeSigningEnvelope
+    ? computeSigningEnvelopeProgress(activeSigningEnvelope)
+    : null;
+  const allDocsSigned =
+    envelopeProgress != null &&
+    envelopeProgress.total_required > 0 &&
+    envelopeProgress.signed === envelopeProgress.total_required;
+  const envelopeCompleted = activeSigningEnvelope?.status === "COMPLETED";
+  const currentSigningStepId = getCurrentSigningOfferStepId({
+    hasPostDocs,
+    postDocsReady,
+    signersLocked,
+    allDocsSigned,
+    envelopeCompleted,
+  });
+  const signingSteps = getSigningOfferSteps({
+    hasPostDocs,
+    postDocsReady,
+    signersLocked,
+    allDocsSigned,
+    envelopeCompleted,
+  });
 
-            {type === "contract" ? (
-              <>
-                <dl className="grid grid-cols-[1fr_auto] gap-x-6 gap-y-3 text-sm py-4 border-y border-border">
-                  <dt className="text-muted-foreground font-medium">Contract name:</dt>
-                  <dd className="font-medium text-foreground text-right tabular-nums">
-                    {contractName}
-                  </dd>
+  const handleRefreshSigning = () => {
+    void queryClient.invalidateQueries({ queryKey: ["signing-envelopes", applicationId] });
+  };
 
-                  {contractValueNumber != null ? (
-                    <>
-                      <dt className="text-muted-foreground font-medium">Contract value:</dt>
-                      <dd className="font-medium text-foreground text-right tabular-nums">
-                        {formatCurrency(contractValueNumber)}
-                      </dd>
-                    </>
-                  ) : null}
+  // Label/value stack reads better in the sidebar than a cramped two-column dl.
+  const offerDetailsList =
+    type === "contract" ? (
+      <dl className="space-y-3 text-sm">
+        <div className="space-y-1">
+          <dt className="text-muted-foreground">Contract name</dt>
+          <dd className="font-medium break-words">{contractName}</dd>
+        </div>
+        {contractValueNumber != null ? (
+          <div className="space-y-1">
+            <dt className="text-muted-foreground">Contract value</dt>
+            <dd className="font-medium tabular-nums">{formatCurrency(contractValueNumber)}</dd>
+          </div>
+        ) : null}
+        {requestedFacilityNumber != null ? (
+          <div className="space-y-1">
+            <dt className="text-muted-foreground">Requested facility</dt>
+            <dd className="font-medium tabular-nums">{formatCurrency(requestedFacilityNumber)}</dd>
+          </div>
+        ) : null}
+        <div className="space-y-1">
+          <dt className="text-muted-foreground">Contract period</dt>
+          <dd className="font-medium tabular-nums">
+            {contractStartDate != null && contractEndDate != null
+              ? `${contractStartDate} – ${contractEndDate}`
+              : "—"}
+          </dd>
+        </div>
+        <div className="space-y-1">
+          <dt className="text-muted-foreground inline-flex items-center gap-1">
+            Facility fee rate
+            <InfoTooltip content={CONTRACT_FACILITY_FEE_RATE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+          </dt>
+          <dd className="font-medium tabular-nums">
+            {facilityFeeRatePercentNumber != null ? `${facilityFeeRatePercentNumber}%` : "—"}
+          </dd>
+        </div>
+        <div className="space-y-1">
+          <dt className="text-muted-foreground inline-flex items-center gap-1">
+            Facility fee cap
+            <InfoTooltip content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+          </dt>
+          <dd className="font-medium tabular-nums">
+            {maximumFacilityFeeNumber != null ? formatCurrency(maximumFacilityFeeNumber) : "—"}
+          </dd>
+        </div>
+      </dl>
+    ) : (
+      <dl className="space-y-3 text-sm">
+        <div className="space-y-1">
+          <dt className="text-muted-foreground">Invoice number</dt>
+          <dd className="font-medium break-words">{contractName}</dd>
+        </div>
+        <div className="space-y-1">
+          <dt className="text-muted-foreground">{summarySecondLabel}</dt>
+          <dd className="font-medium tabular-nums">{summarySecondValue}</dd>
+        </div>
+        {requestedFinancingNumber != null ? (
+          <div className="space-y-1">
+            <dt className="text-muted-foreground">Requested financing</dt>
+            <dd className="font-medium tabular-nums">{formatCurrency(requestedFinancingNumber)}</dd>
+          </div>
+        ) : null}
+        {invoiceMaturityDate != null ? (
+          <div className="space-y-1">
+            <dt className="text-muted-foreground">Maturity date</dt>
+            <dd className="font-medium tabular-nums">{invoiceMaturityDate}</dd>
+          </div>
+        ) : null}
+        <div className="space-y-1">
+          <dt className="text-muted-foreground inline-flex items-center gap-1">
+            {summaryThirdLabel}
+            <InfoTooltip content={PROFIT_RATE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+          </dt>
+          <dd className="font-medium tabular-nums">{summaryThirdValue}</dd>
+        </div>
+        <div className="space-y-1">
+          <dt className="text-muted-foreground inline-flex items-center gap-1">
+            Platform fee
+            <InfoTooltip content={PLATFORM_FEE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+          </dt>
+          <dd className="font-medium tabular-nums">
+            {expectedPlatformFeeNumber != null ? formatCurrency(expectedPlatformFeeNumber) : "—"}
+          </dd>
+        </div>
+        <div className="space-y-1">
+          <dt className="text-muted-foreground inline-flex items-center gap-1">
+            Estimated facility fee
+            <InfoTooltip content={facilityFeeEstimatedTooltip} iconClassName="h-3.5 w-3.5 shrink-0" />
+          </dt>
+          <dd className="font-medium tabular-nums">
+            {expectedFacilityFeeNumber != null ? formatCurrency(expectedFacilityFeeNumber) : "—"}
+          </dd>
+        </div>
+      </dl>
+    );
 
-                  {requestedFacilityNumber != null ? (
-                    <>
-                      <dt className="text-muted-foreground font-medium">Requested facility:</dt>
-                      <dd className="font-medium text-foreground text-right tabular-nums">
-                        {formatCurrency(requestedFacilityNumber)}
-                      </dd>
-                    </>
-                  ) : null}
+  const renderRoleSignerSection = (role: SigningTemplateRole) => {
+    const roleBindings = signerBindings
+      .map((binding, index) => ({ binding, index }))
+      .filter(({ binding }) => binding.role_key === role.key);
+    const useDirectorDropdown = isDirectorRole(role) && issuerDirectors.length > 0;
+    const usedDirectorKeys = new Set(
+      roleBindings
+        .map(({ binding }) => resolveBindingDirectorKey(issuerDirectors, binding))
+        .filter(Boolean)
+    );
+    const availableDirectors = issuerDirectors.filter(
+      (director) => !usedDirectorKeys.has(director.matchKey)
+    );
+    // Dropdown roles cannot add rows once every selectable person is already assigned.
+    const hasAvailableDropdownOptions = !useDirectorDropdown || availableDirectors.length > 0;
+    const withinMaxCount = role.max_count == null || roleBindings.length < role.max_count;
+    const canAdd = !signersLocked && withinMaxCount && hasAvailableDropdownOptions;
+    const countSubtitle = roleCountSubtitle(role);
 
-                  <dt className="text-muted-foreground font-medium">Contract period:</dt>
-                  <dd className="font-medium text-foreground text-right tabular-nums">
-                    {contractStartDate != null && contractEndDate != null ? `${contractStartDate} – ${contractEndDate}` : "—"}
-                  </dd>
-
-                  <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
-                    Facility fee rate:
-                    <InfoTooltip content={CONTRACT_FACILITY_FEE_RATE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
-                  </dt>
-                  <dd className="font-medium text-foreground text-right tabular-nums">
-                    {facilityFeeRatePercentNumber != null ? `${facilityFeeRatePercentNumber}%` : "—"}
-                  </dd>
-
-                  <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
-                    Facility fee cap:
-                    <InfoTooltip content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
-                  </dt>
-                  <dd className="font-medium text-foreground text-right tabular-nums">
-                    {maximumFacilityFeeNumber != null ? formatCurrency(maximumFacilityFeeNumber) : "—"}
-                  </dd>
-                </dl>
-              </>
-            ) : (
-              <>
-                <dl
-                  className="grid grid-cols-[1fr_auto] gap-x-6 gap-y-3 text-sm py-4 border-y border-border"
-                >
-                  <dt className="text-muted-foreground font-medium">Invoice number:</dt>
-                  <dd className="font-medium text-foreground text-right tabular-nums">{contractName}</dd>
-
-                  <dt className="text-muted-foreground font-medium">{summarySecondLabel}</dt>
-                  <dd className="font-medium text-foreground text-right tabular-nums">{summarySecondValue}</dd>
-
-                  {requestedFinancingNumber != null ? (
-                    <>
-                      <dt className="text-muted-foreground font-medium">Requested financing:</dt>
-                      <dd className="font-medium text-foreground text-right tabular-nums">
-                        {formatCurrency(requestedFinancingNumber)}
-                      </dd>
-                    </>
-                  ) : null}
-
-                  {invoiceMaturityDate != null ? (
-                    <>
-                      <dt className="text-muted-foreground font-medium">Maturity date</dt>
-                      <dd className="font-medium text-foreground text-right tabular-nums">{invoiceMaturityDate}</dd>
-                    </>
-                  ) : null}
-
-                  <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
-                    {summaryThirdLabel}
-                    <InfoTooltip content={PROFIT_RATE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
-                  </dt>
-                  <dd className="font-medium text-foreground text-right tabular-nums">{summaryThirdValue}</dd>
-
-                  <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
-                    Platform fee
-                    <InfoTooltip content={PLATFORM_FEE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
-                  </dt>
-                  <dd className="font-medium text-foreground text-right tabular-nums">
-                    {expectedPlatformFeeNumber != null ? formatCurrency(expectedPlatformFeeNumber) : "—"}
-                  </dd>
-
-                  <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
-                    Estimated facility fee
-                    <InfoTooltip content={facilityFeeEstimatedTooltip} iconClassName="h-3.5 w-3.5 shrink-0" />
-                  </dt>
-                  <dd className="font-medium text-foreground text-right tabular-nums">
-                    {expectedFacilityFeeNumber != null ? formatCurrency(expectedFacilityFeeNumber) : "—"}
-                  </dd>
-                </dl>
-              </>
-            )}
-
-            <button
-              type="button"
-              onClick={handleDownload}
-              disabled={!canDownload || downloading}
-              className="w-full min-h-[56px] rounded-xl border border-border bg-muted/30 hover:bg-muted/50 flex items-center justify-center gap-3 px-4 py-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-4"
-            >
-              <span className="rounded-lg border border-border bg-background p-2">
-                <ArrowDownTrayIcon className="h-5 w-5 text-foreground" />
-              </span>
-              <span className="text-base font-semibold text-foreground">
-                {downloading ? "Downloading…" : "Download offer letter"}
-              </span>
-            </button>
-
-            {hasPostDocs ? (
-              <div className="mt-4 rounded-2xl border border-border bg-muted/15 p-4">
-                <div className="space-y-1 pb-3">
-                  <p className="text-base font-semibold text-foreground">
-                    Required documents before signing
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Upload the post-application documents requested for this product before you sign the offer.
-                  </p>
-                </div>
-                {isLoadingProduct ? (
-                  <p className="text-sm text-muted-foreground">Loading required documents...</p>
-                ) : supportingDocumentsStepConfig ? (
-                  <SupportingDocumentsStep
-                    applicationId={applicationId}
-                    stepConfig={supportingDocumentsStepConfig}
-                    timingFilter="post_application"
-                    onDataChange={(data) => {
-                      setPostDocsState({
-                        areAllFilesUploaded: data.areAllFilesUploaded === true,
-                        hasPendingChanges: data.hasPendingChanges === true,
-                        saveFunction:
-                          typeof data.saveFunction === "function"
-                            ? (data.saveFunction as () => Promise<unknown>)
-                            : undefined,
-                      });
-                    }}
-                  />
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No post-application document configuration was found.
-                  </p>
-                )}
-                {!postDocsReady ? (
-                  <p className="mt-3 text-sm font-medium text-destructive">
-                    Upload all required documents before accepting this offer.
-                  </p>
-                ) : null}
-              </div>
+    return (
+      <div key={role.key} className="space-y-3 rounded-xl border border-border bg-background p-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground">{role.label || role.key}</p>
+            {countSubtitle ? (
+              <p className="text-xs text-muted-foreground">{countSubtitle}</p>
             ) : null}
+          </div>
+          {!signersLocked ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0 rounded-xl hover:bg-muted hover:text-foreground"
+              disabled={!canAdd}
+              title={
+                !hasAvailableDropdownOptions
+                  ? "All available signers have already been assigned"
+                  : !withinMaxCount
+                    ? `Maximum of ${role.max_count} signer(s) reached`
+                    : undefined
+              }
+              onClick={() => addSignerBinding(role)}
+            >
+              Add signer
+            </Button>
+          ) : null}
+        </div>
+        {roleBindings.length === 0 ? (
+          <p className="text-sm text-destructive">Add at least one signer for this role.</p>
+        ) : (
+          <div className="space-y-3">
+            {roleBindings.map(({ binding, index }) => {
+              const selectedDirectorKey = resolveBindingDirectorKey(issuerDirectors, binding);
+              const usedDirectorKeys = new Set(
+                roleBindings
+                  .filter(({ index: rowIndex }) => rowIndex !== index)
+                  .map(({ binding: rowBinding }) =>
+                    resolveBindingDirectorKey(issuerDirectors, rowBinding)
+                  )
+                  .filter(Boolean)
+              );
+              const selectableDirectors = issuerDirectors.filter(
+                (director) =>
+                  director.matchKey === selectedDirectorKey ||
+                  !usedDirectorKeys.has(director.matchKey)
+              );
+              const emailLocked = useDirectorDropdown || signersLocked;
+              const nameFieldId = `signer-name-${role.key}-${index}`;
+              const emailFieldId = `signer-email-${role.key}-${index}`;
 
-            {useEnvelopeSigning ? (
-              <div className="mt-4 rounded-2xl border border-border bg-muted/15 p-4">
-                <div className="space-y-1 pb-3">
-                  <p className="text-base font-semibold text-foreground">
-                    {showSigningProgress ? "Signing progress" : "Signing package signers"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {showSigningProgress
-                      ? "Track who has signed each document. Reminders can be sent to signers who have not completed signing yet."
-                      : signersLocked
-                        ? "This signing package has already been sent. Signers cannot be changed here."
-                        : "Review who will sign each configured role. Signing emails will be sent to every signer."}
-                  </p>
-                </div>
-
-                {showSigningProgress && activeSigningEnvelope ? (
-                  <div className="space-y-4">
-                    <SigningProgressMatrix envelope={activeSigningEnvelope} />
-                    {canRemindSigners ? (
-                      <RecipientReminders
-                        envelope={activeSigningEnvelope}
-                        onRemind={handleRemindRecipient}
-                        disabled={remindLoading}
+              return (
+                <div key={`${role.key}-${index}`} className="space-y-2">
+                  <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                    <div className="space-y-1.5">
+                      <Label htmlFor={nameFieldId} className="text-xs text-muted-foreground">
+                        Full name
+                      </Label>
+                      {useDirectorDropdown ? (
+                        <Select
+                          value={selectedDirectorKey || undefined}
+                          disabled={signersLocked}
+                          onValueChange={(matchKey) => {
+                            const director = issuerDirectors.find(
+                              (item) => item.matchKey === matchKey
+                            );
+                            if (!director) return;
+                            updateSignerBinding(index, {
+                              name: director.name,
+                              email: director.email,
+                              ic_number: director.ic_number,
+                            });
+                          }}
+                        >
+                          <SelectTrigger id={nameFieldId} className="rounded-xl">
+                            <SelectValue placeholder="Select director" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {selectableDirectors.map((director) => (
+                              <SelectItem key={director.matchKey} value={director.matchKey}>
+                                {director.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          id={nameFieldId}
+                          value={binding.name}
+                          onChange={(event) =>
+                            updateSignerBinding(index, {
+                              name: event.target.value,
+                              application_guarantor_id: null,
+                            })
+                          }
+                          placeholder="Full name"
+                          disabled={signersLocked}
+                          className="rounded-xl"
+                        />
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor={emailFieldId} className="text-xs text-muted-foreground">
+                        Email
+                      </Label>
+                      <Input
+                        id={emailFieldId}
+                        value={binding.email}
+                        onChange={(event) =>
+                          updateSignerBinding(index, {
+                            email: event.target.value,
+                            application_guarantor_id: null,
+                          })
+                        }
+                        placeholder="Email"
+                        type="email"
+                        readOnly={emailLocked}
+                        disabled={emailLocked}
+                        tabIndex={emailLocked ? -1 : undefined}
+                        className={cn("rounded-xl", emailLocked && "bg-muted select-none")}
                       />
+                    </div>
+                    {!signersLocked ? (
+                      <div className="flex items-end pb-1">
+                        <button
+                          type="button"
+                          aria-label="Remove signer"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-transparent hover:text-destructive"
+                          onClick={() => removeSignerBinding(index)}
+                        >
+                          <XMarkIcon className="h-5 w-5" />
+                        </button>
+                      </div>
                     ) : null}
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    {signingTemplate.roles.map((role) => {
-                      const roleBindings = signerBindings
-                        .map((binding, index) => ({ binding, index }))
-                        .filter(({ binding }) => binding.role_key === role.key);
-                      const canAdd =
-                        !signersLocked &&
-                        (role.max_count == null || roleBindings.length < role.max_count);
-                      const useDirectorDropdown =
-                        isDirectorRole(role) && issuerDirectors.length > 0;
-
-                      return (
-                        <div key={role.key} className="space-y-2 rounded-xl border border-border bg-background p-3">
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                              <p className="text-sm font-semibold text-foreground">{role.label || role.key}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {useDirectorDropdown ? "Issuer director" : "Signer"}
-                                {role.min_count > 0 ? ` · minimum ${role.min_count}` : ""}
-                                {role.max_count != null ? ` · maximum ${role.max_count}` : ""}
-                              </p>
-                            </div>
-                            {canAdd ? (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="rounded-xl"
-                                onClick={() => addSignerBinding(role)}
-                              >
-                                Add signer
-                              </Button>
-                            ) : null}
-                          </div>
-                          {roleBindings.length === 0 ? (
-                            <p className="text-sm text-destructive">Add at least one signer for this role.</p>
-                          ) : (
-                            <div className="space-y-2">
-                              {roleBindings.map(({ binding, index }) => {
-                                const selectedDirectorKey = resolveBindingDirectorKey(
-                                  issuerDirectors,
-                                  binding
-                                );
-                                const usedDirectorKeys = new Set(
-                                  roleBindings
-                                    .filter(({ index: rowIndex }) => rowIndex !== index)
-                                    .map(({ binding: rowBinding }) =>
-                                      resolveBindingDirectorKey(issuerDirectors, rowBinding)
-                                    )
-                                    .filter(Boolean)
-                                );
-                                const selectableDirectors = issuerDirectors.filter(
-                                  (director) =>
-                                    director.matchKey === selectedDirectorKey ||
-                                    !usedDirectorKeys.has(director.matchKey)
-                                );
-
-                                return (
-                                  <div key={`${role.key}-${index}`}>
-                                    <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-                                      {useDirectorDropdown ? (
-                                        <Select
-                                          value={selectedDirectorKey || undefined}
-                                          disabled={signersLocked}
-                                          onValueChange={(matchKey) => {
-                                            const director = issuerDirectors.find(
-                                              (item) => item.matchKey === matchKey
-                                            );
-                                            if (!director) return;
-                                            updateSignerBinding(index, {
-                                              name: director.name,
-                                              email: director.email,
-                                              ic_number: director.ic_number,
-                                            });
-                                          }}
-                                        >
-                                          <SelectTrigger className="rounded-xl">
-                                            <SelectValue placeholder="Select director" />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {selectableDirectors.map((director) => (
-                                              <SelectItem key={director.matchKey} value={director.matchKey}>
-                                                {director.name}
-                                              </SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
-                                      ) : (
-                                        <Input
-                                          value={binding.name}
-                                          onChange={(event) =>
-                                            updateSignerBinding(index, { name: event.target.value })
-                                          }
-                                          placeholder="Full name"
-                                          disabled={signersLocked}
-                                          className="rounded-xl"
-                                        />
-                                      )}
-                                      <Input
-                                        value={binding.email}
-                                        onChange={(event) =>
-                                          updateSignerBinding(index, { email: event.target.value })
-                                        }
-                                        placeholder="Email"
-                                        type="email"
-                                        readOnly={useDirectorDropdown || signersLocked}
-                                        disabled={useDirectorDropdown || signersLocked}
-                                        tabIndex={useDirectorDropdown ? -1 : undefined}
-                                        className={cn(
-                                          "rounded-xl",
-                                          useDirectorDropdown && "bg-muted select-none"
-                                        )}
-                                      />
-                                      {!signersLocked ? (
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="sm"
-                                          className="rounded-xl text-muted-foreground hover:text-destructive"
-                                          onClick={() => removeSignerBinding(index)}
-                                        >
-                                          Remove
-                                        </Button>
-                                      ) : null}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            ) : null}
-
-            <div className="grid grid-cols-2 gap-4 mt-6">
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() =>
-                  setIsRejectMode((prev) => {
-                    if (prev) {
-                      setRejectionReason("");
-                      setSelectedDeclineReason("");
-                    }
-                    return !prev;
-                  })
-                }
-                disabled={isPending || isPostDocsConfigLoading}
-                className={
-                  isRejectMode
-                    ? "h-12 rounded-xl border-[#f0caca] bg-[#f9e2e2] text-[#CE2922] hover:bg-[#f5d5d5]"
-                    : "h-12 rounded-xl border-border bg-[#e9edf2] text-foreground hover:bg-[#dde4eb]"
-                }
-              >
-                Decline offer
-              </Button>
-              <Button
-                size="lg"
-                onClick={signersLocked ? handleResendReminders : handleAccept}
-                disabled={isPending || isPostDocsConfigLoading}
-                className="h-12 rounded-xl bg-green-600 hover:bg-green-700 text-white shadow-sm"
-              >
-                {isSavingPostDocs
-                  ? "Saving documents..."
-                  : remindLoading
-                    ? "Sending reminders..."
-                    : acceptSigningLoading
-                      ? "Sending signing emails..."
-                      : type === "invoice" && !requiresInvoiceSigning
-                        ? "Accept offer"
-                        : signersLocked
-                          ? "Resend reminders"
-                          : "Accept and send for signing"}
-              </Button>
-            </div>
-            {isSigningOverrideEnabled && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleAcceptOverride}
-                disabled={isPending}
-                className="mt-3 h-9 rounded-xl border-dashed border-amber-300 text-amber-700 hover:bg-amber-50"
-              >
-                Accept without signing (local override)
-              </Button>
-            )}
-
-            {isRejectMode && (
-              <div className="mt-6 space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="decline-primary-reason" className="block text-base font-semibold text-foreground">
-                    Reason (required)
-                  </Label>
-                  <Select
-                    value={selectedDeclineReason}
-                    onValueChange={(value) => {
-                      setSelectedDeclineReason(value);
-                      if (value !== OTHER_ISSUER_DECLINE_REASON_VALUE) {
-                        setRejectionReason("");
-                      }
-                    }}
-                    disabled={isPending}
-                  >
-                    <SelectTrigger
-                      id="decline-primary-reason"
-                      className="h-12 rounded-xl border-border bg-[#f9fafb] focus:ring-4 focus:ring-primary/10"
-                    >
-                      <SelectValue placeholder="Select a primary reason" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ISSUER_OFFER_DECLINE_REASONS.map((reason) => (
-                        <SelectItem key={reason} value={reason}>
-                          {reason}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value={OTHER_ISSUER_DECLINE_REASON_VALUE}>
-                        Other (manual reason)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="rejection-reason" className="block text-base font-semibold text-foreground">
-                    {isOtherDeclineReason
-                      ? "Additional context (required)"
-                      : "Additional context (optional)"}
-                  </Label>
-                  <TextareaWithCharCount
-                    id="rejection-reason"
-                    placeholder={
-                      isOtherDeclineReason
-                        ? "Enter the primary reason and any details."
-                        : "Add any extra details (optional)."
-                    }
-                    value={rejectionReason}
-                    onChange={(e) =>
-                      setRejectionReason(e.target.value.slice(0, DECLINE_CONTEXT_MAX))
-                    }
-                    rows={4}
-                    className="min-h-[92px] resize-none rounded-xl border-border bg-[#f9fafb] px-4 py-3.5 focus:border-primary/35 focus:bg-background focus:outline-none focus:ring-4 focus:ring-primary/10"
-                    maxLength={DECLINE_CONTEXT_MAX}
-                    countLabel={`${rejectionReason.length}/${DECLINE_CONTEXT_MAX} characters`}
-                    disabled={isPending}
-                  />
-                </div>
-              </div>
-            )}
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
 
+  const signerBindingEditor = (
+    <div className="space-y-4">
+      {(() => {
+        const renderedRoleKeys = new Set<string>();
+        return signingDocumentGroups(signingTemplate).map((group) => {
+          const roles = group.roleKeys
+            .map((roleKey) => signingTemplate.roles.find((role) => role.key === roleKey))
+            .filter((role): role is SigningTemplateRole => role != null)
+            .filter((role) => {
+              if (renderedRoleKeys.has(role.key)) return false;
+              renderedRoleKeys.add(role.key);
+              return true;
+            });
+
+          return (
             <div
-              className={`mt-6 flex gap-3 ${isRejectMode ? "flex-row flex-wrap items-center justify-between" : "flex-wrap items-center justify-center"}`}
+              key={group.key}
+              className="space-y-3 rounded-xl border border-border bg-background p-4"
             >
-              <p
-                className={`text-sm text-muted-foreground ${isRejectMode ? "flex-1 min-w-0 text-left" : "text-center flex-1 min-w-0"}`}
-              >
-                {isRejectMode ? (
-                  <>
-                    Please respond to this offer by
-                    <br />
-                    {expiresAt}.
-                  </>
-                ) : (
-                  <>Please respond to this offer by {expiresAt}.</>
-                )}
-              </p>
-              {isRejectMode && (
-                <Button
-                  size="sm"
-                  onClick={handleReject}
-                  disabled={confirmDeclineDisabled}
-                  className="inline-flex h-9 min-h-[36px] items-center justify-center gap-2 rounded-xl border border-[#e3e8ee] bg-[#edf1f5] px-3.5 text-[15px] font-medium text-[#444] hover:bg-[#e6ebf0]"
-                >
-                  <CheckCircleIcon className="h-4 w-4" />
-                  Confirm decline
-                </Button>
+              <div>
+                <p className="text-sm font-semibold text-foreground">{group.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  Assign who will sign this document
+                  {group.roleKeys.length > 0
+                    ? ` · ${group.roleKeys
+                        .map(
+                          (roleKey) =>
+                            signingTemplate.roles.find((role) => role.key === roleKey)?.label ||
+                            roleKey
+                        )
+                        .join(", ")}`
+                    : ""}
+                </p>
+              </div>
+              {roles.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Signers for this document are configured above.
+                </p>
+              ) : (
+                <div className="space-y-3">{roles.map((role) => renderRoleSignerSection(role))}</div>
               )}
             </div>
+          );
+        });
+      })()}
+    </div>
+  );
+
+  const renderSigningStepContent = (stepId: SigningOfferStepId) => {
+    if (isRejectMode) {
+      return (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardHeader>
+            <CardTitle className="text-lg text-destructive">Decline offer</CardTitle>
+            <CardDescription>
+              Select a reason and confirm if you wish to decline this financing offer.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="decline-primary-reason" className="text-sm font-semibold">
+                Reason (required)
+              </Label>
+              <Select
+                value={selectedDeclineReason}
+                onValueChange={(value) => {
+                  setSelectedDeclineReason(value);
+                  if (value !== OTHER_ISSUER_DECLINE_REASON_VALUE) setRejectionReason("");
+                }}
+                disabled={isPending}
+              >
+                <SelectTrigger id="decline-primary-reason" className="h-11 rounded-xl bg-muted/40">
+                  <SelectValue placeholder="Select a primary reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ISSUER_OFFER_DECLINE_REASONS.map((reason) => (
+                    <SelectItem key={reason} value={reason}>
+                      {reason}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={OTHER_ISSUER_DECLINE_REASON_VALUE}>
+                    Other (manual reason)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="rejection-reason" className="text-sm font-semibold">
+                {isOtherDeclineReason
+                  ? "Additional context (required)"
+                  : "Additional context (optional)"}
+              </Label>
+              <TextareaWithCharCount
+                id="rejection-reason"
+                placeholder={
+                  isOtherDeclineReason
+                    ? "Enter the primary reason and any details."
+                    : "Add any extra details (optional)."
+                }
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value.slice(0, DECLINE_CONTEXT_MAX))}
+                rows={4}
+                className="min-h-[92px] resize-none rounded-xl bg-muted/40"
+                maxLength={DECLINE_CONTEXT_MAX}
+                countLabel={`${rejectionReason.length}/${DECLINE_CONTEXT_MAX} characters`}
+                disabled={isPending}
+              />
+            </div>
+            <Button
+              variant="outline"
+              className="w-full rounded-xl"
+              disabled={confirmDeclineDisabled}
+              onClick={handleReject}
+            >
+              <CheckCircleIcon className="mr-2 h-4 w-4" />
+              Confirm decline
+            </Button>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    switch (stepId) {
+      case "documents":
+        return (
+          <Card className="border-amber-500/30 bg-amber-50 dark:bg-amber-950/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <DocumentTextIcon className="h-5 w-5 text-amber-600" />
+                Upload required documents
+              </CardTitle>
+              <CardDescription>
+                Upload all post-application documents before assigning signers and sending the
+                signing package.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {isLoadingProduct ? (
+                <p className="text-sm text-muted-foreground">Loading required documents...</p>
+              ) : supportingDocumentsStepConfig ? (
+                <SupportingDocumentsStep
+                  applicationId={applicationId}
+                  stepConfig={supportingDocumentsStepConfig}
+                  timingFilter="post_application"
+                  onDataChange={(data) => {
+                    setPostDocsState({
+                      areAllFilesUploaded: data.areAllFilesUploaded === true,
+                      hasPendingChanges: data.hasPendingChanges === true,
+                      saveFunction:
+                        typeof data.saveFunction === "function"
+                          ? (data.saveFunction as () => Promise<unknown>)
+                          : undefined,
+                    });
+                  }}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No post-application document configuration was found.
+                </p>
+              )}
+              {!postDocsReady ? (
+                <p className="text-sm font-medium text-destructive">
+                  Upload all required documents before continuing.
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+        );
+      case "signers":
+        return (
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <UserGroupIcon className="h-5 w-5 text-primary" />
+                Configure signers
+              </CardTitle>
+              <CardDescription>
+                Assign who will sign each document. Signing emails with secure links will be sent
+                to every signer when you confirm.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg bg-muted/50 p-4">{signerBindingEditor}</div>
+              {!isRejectMode ? (
+                <Button
+                  className="h-11 w-full rounded-xl"
+                  onClick={handleAccept}
+                  disabled={isPending || isPostDocsConfigLoading || !postDocsReady}
+                >
+                  {acceptSigningLoading ? "Sending signing emails..." : "Confirm"}
+                </Button>
+              ) : null}
+            </CardContent>
+          </Card>
+        );
+      case "signing":
+        return (
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <PencilSquareIcon className="h-5 w-5 text-primary" />
+                    Document signing
+                  </CardTitle>
+                  <CardDescription>
+                    Signers complete signing externally via secure links. Track progress and send
+                    reminders to anyone who has not signed yet.
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 gap-1.5"
+                  onClick={handleRefreshSigning}
+                  disabled={isLoadingSigningEnvelopes}
+                >
+                  <ArrowPathIcon
+                    className={cn("h-4 w-4", isLoadingSigningEnvelopes && "animate-spin")}
+                  />
+                  Refresh
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {activeSigningEnvelope ? (
+                <SigningProgressMatrix
+                  envelope={activeSigningEnvelope}
+                  onRemind={canRemindSigners ? handleRemindRecipient : undefined}
+                  remindDisabled={remindLoading}
+                  showRemindActions={canRemindSigners}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">No signing package found.</p>
+              )}
+              {canRemindSigners ? (
+                <Button
+                  className="h-11 w-full rounded-xl"
+                  onClick={handleResendReminders}
+                  disabled={isPending}
+                >
+                  {remindLoading ? "Sending reminders..." : "Resend reminders"}
+                </Button>
+              ) : null}
+            </CardContent>
+          </Card>
+        );
+      case "complete":
+        return (
+          <Card className="border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <CheckCircleIcon className="h-5 w-5 text-emerald-600" />
+                Signing complete
+              </CardTitle>
+              <CardDescription>
+                All required documents have been signed. The offer acceptance process is complete.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {activeSigningEnvelope ? (
+                <SigningProgressMatrix envelope={activeSigningEnvelope} />
+              ) : null}
+            </CardContent>
+          </Card>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        className={cn(
+          "max-h-[90vh] overflow-y-auto rounded-xl border-border p-6 gap-0",
+          useEnvelopeSigning ? "max-w-4xl" : "sm:max-w-[720px]"
+        )}
+      >
+        {useEnvelopeSigning ? (
+          <>
+            <DialogHeader>
+              <div className="flex items-center justify-between gap-4">
+                <DialogTitle className="text-xl flex items-center gap-3">
+                  Review financing offer
+                  <Badge variant="outline" className="font-normal">
+                    {type === "contract" ? "Contract" : "Invoice"}
+                  </Badge>
+                  <Badge
+                    variant="secondary"
+                    className="border-transparent bg-status-success-bg font-normal text-status-success-text"
+                  >
+                    {offeredValue} approved
+                  </Badge>
+                </DialogTitle>
+              </div>
+              <DialogDescription>
+                Complete each step to accept this offer.
+              </DialogDescription>
+            </DialogHeader>
+
+            {isLoading ? (
+              <p className="py-8 text-sm text-muted-foreground">Loading offer...</p>
+            ) : (
+              <>
+                <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]">
+                  <div className="space-y-4">
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                          Signing progress
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <SigningProgressStepper steps={signingSteps} />
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                          Offer details
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {offerDetailsList}
+                        <Separator />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full gap-2 rounded-xl"
+                          onClick={handleDownload}
+                          disabled={!canDownload || downloading}
+                        >
+                          <ArrowDownTrayIcon className="h-4 w-4" />
+                          {downloading ? "Downloading…" : "Download offer letter"}
+                        </Button>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <CalendarDaysIcon className="h-4 w-4 shrink-0" />
+                          <span>Respond by {expiresAt}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {currentSigningStepId === "signers" || currentSigningStepId === "documents" ? (
+                      <Card className="border-dashed border-border bg-muted/20 shadow-none">
+                        <CardContent className="flex items-start gap-3 p-4">
+                          <div className="rounded-lg bg-muted p-2">
+                            <ArrowUpTrayIcon className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold text-foreground">
+                              Additional documents
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Optional uploads for the signing package. Coming soon.
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ) : null}
+                  </div>
+
+                  <div className="min-w-0">
+                    {renderSigningStepContent(currentSigningStepId)}
+                  </div>
+                </div>
+
+                <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t pt-4">
+                  <Button
+                    variant={isRejectMode ? "outline" : "destructive"}
+                    onClick={() =>
+                      setIsRejectMode((prev) => {
+                        if (prev) {
+                          setRejectionReason("");
+                          setSelectedDeclineReason("");
+                        }
+                        return !prev;
+                      })
+                    }
+                    disabled={isPending || isPostDocsConfigLoading}
+                    className="rounded-xl"
+                  >
+                    {isRejectMode ? "Cancel decline" : "Decline offer"}
+                  </Button>
+                  <Button variant="outline" className="rounded-xl" onClick={onClose}>
+                    Close
+                  </Button>
+                </div>
+
+                {isSigningOverrideEnabled ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAcceptOverride}
+                    disabled={isPending}
+                    className="mt-3 h-9 w-full rounded-xl border-dashed border-amber-500/40 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/20"
+                  >
+                    Accept without signing (local override)
+                  </Button>
+                ) : null}
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            <DialogTitle className="sr-only">
+              Financing offer approved — Review and respond
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Review the financing offer and accept or decline.
+            </DialogDescription>
+            {isLoading ? (
+              <p className="py-8 text-sm text-muted-foreground">Loading offer...</p>
+            ) : (
+              <>
+                <div className="mb-6 flex flex-col items-center text-center">
+                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-status-success-bg">
+                    <CheckIconSolid className="h-7 w-7 text-status-success-text" />
+                  </div>
+                  <p className="text-base font-semibold text-foreground">
+                    Congratulations! Your {type === "contract" ? "contract" : "invoice"} financing
+                    request
+                  </p>
+                  <p className="mt-2 text-3xl font-extrabold tracking-tight text-status-success-text sm:text-4xl">
+                    {offeredValue}
+                  </p>
+                  <p className="mt-1 text-base font-semibold text-foreground">has been approved</p>
+                </div>
+
+                <div className="rounded-xl bg-muted/30 p-4">{offerDetailsList}</div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-4 h-11 w-full gap-2 rounded-xl"
+                  onClick={handleDownload}
+                  disabled={!canDownload || downloading}
+                >
+                  <ArrowDownTrayIcon className="h-4 w-4" />
+                  {downloading ? "Downloading…" : "Download offer letter"}
+                </Button>
+
+                <div className="mt-6 grid grid-cols-2 gap-4">
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => setIsRejectMode((prev) => !prev)}
+                    disabled={isPending}
+                    className={cn(
+                      "h-12 rounded-xl",
+                      isRejectMode &&
+                        "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/15"
+                    )}
+                  >
+                    Decline offer
+                  </Button>
+                  <Button
+                    size="lg"
+                    onClick={handleAccept}
+                    disabled={isPending}
+                    className="h-12 rounded-xl bg-status-success-text text-white hover:bg-status-success-text/90"
+                  >
+                    {acceptInvoice.isPending ? "Accepting..." : "Accept offer"}
+                  </Button>
+                </div>
+
+                {isRejectMode ? (
+                  <div className="mt-6 space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="decline-primary-reason-simple">Reason (required)</Label>
+                      <Select
+                        value={selectedDeclineReason}
+                        onValueChange={(value) => {
+                          setSelectedDeclineReason(value);
+                          if (value !== OTHER_ISSUER_DECLINE_REASON_VALUE) setRejectionReason("");
+                        }}
+                        disabled={isPending}
+                      >
+                        <SelectTrigger id="decline-primary-reason-simple" className="rounded-xl">
+                          <SelectValue placeholder="Select a primary reason" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ISSUER_OFFER_DECLINE_REASONS.map((reason) => (
+                            <SelectItem key={reason} value={reason}>
+                              {reason}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value={OTHER_ISSUER_DECLINE_REASON_VALUE}>
+                            Other (manual reason)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <TextareaWithCharCount
+                      id="rejection-reason-simple"
+                      value={rejectionReason}
+                      onChange={(e) =>
+                        setRejectionReason(e.target.value.slice(0, DECLINE_CONTEXT_MAX))
+                      }
+                      rows={4}
+                      className="rounded-xl bg-muted/40"
+                      maxLength={DECLINE_CONTEXT_MAX}
+                      countLabel={`${rejectionReason.length}/${DECLINE_CONTEXT_MAX} characters`}
+                      disabled={isPending}
+                    />
+                    <Button
+                      variant="outline"
+                      className="w-full rounded-xl"
+                      disabled={confirmDeclineDisabled}
+                      onClick={handleReject}
+                    >
+                      Confirm decline
+                    </Button>
+                  </div>
+                ) : null}
+
+                <p className="mt-6 text-center text-sm text-muted-foreground">
+                  Please respond to this offer by {expiresAt}.
+                </p>
+              </>
+            )}
           </>
         )}
       </DialogContent>
@@ -1738,7 +2159,7 @@ export function ReviewOfferModal({
         onOpenChange={setSignerConfirmOpen}
         title="Confirm signers"
         description={signingConfirmDescription}
-        confirmText="Accept and send for signing"
+        confirmText="Confirm"
         cancelText="Go back"
         onConfirm={handleConfirmSignersAccept}
         isLoading={acceptSigningLoading}

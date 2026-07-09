@@ -35,6 +35,13 @@ const SYSTEM_SIGNING_TEMPLATES = [
     source: "GENERATED_OFFER_LETTER" as SigningDocumentSource,
     defaultName: "Offer letter",
   },
+  {
+    templateKey: "guarantor_agreement",
+    label: "Guarantor Agreement",
+    description: "Placeholder guarantor agreement PDF until a template file is uploaded",
+    source: "TEMPLATE" as SigningDocumentSource,
+    defaultName: "Guarantor Agreement",
+  },
 ] as const;
 
 type SystemTemplateKey = (typeof SYSTEM_SIGNING_TEMPLATES)[number]["templateKey"];
@@ -83,6 +90,21 @@ function availableSignerRolesForDocument(
 ) {
   const assignedKeys = new Set(document.signer_role_keys);
   return SIGNING_ROLE_REGISTRY.filter((role) => !assignedKeys.has(role.key));
+}
+
+function collectReferencedRoleKeys(template: SigningTemplateConfig): Set<string> {
+  return new Set([
+    ...template.documents.flatMap((doc) => doc.signer_role_keys),
+    ...(template.supporting_docs ?? []).flatMap((ref) => ref.signer_role_keys),
+  ]);
+}
+
+function pruneUnusedRoles(
+  template: SigningTemplateConfig,
+  roles: SigningTemplateRole[]
+): SigningTemplateRole[] {
+  const referencedKeys = collectReferencedRoleKeys(template);
+  return roles.filter((role) => referencedKeys.has(role.key));
 }
 
 function rolesForDocument(template: SigningTemplateConfig, document: SigningTemplateDocument) {
@@ -211,47 +233,38 @@ export function SigningPackageConfig({
   };
 
   const updateRole = (
-    _documentKey: string,
+    documentKey: string,
     roleKey: string,
     updates: Partial<SigningTemplateRole>
   ) => {
-    if (
-      updates.key &&
-      updates.key !== roleKey &&
-      template.roles.some((role) => role.key === updates.key)
-    ) {
+    if (updates.key && updates.key !== roleKey) {
+      const nextRoleKey = updates.key as SigningRoleKey;
+      const documents = template.documents.map((doc) =>
+        doc.key === documentKey
+          ? {
+              ...doc,
+              signer_role_keys: doc.signer_role_keys.map((key) =>
+                key === roleKey ? nextRoleKey : key
+              ),
+            }
+          : doc
+      );
+
+      let roles = template.roles;
+      if (!roles.some((role) => role.key === nextRoleKey)) {
+        roles = [...roles, defaultRole(roles.length, nextRoleKey)];
+      }
+
+      const nextTemplate = { ...template, documents };
+      roles = pruneUnusedRoles(nextTemplate, roles);
+      persist({ ...nextTemplate, roles });
       return;
     }
 
-    const roles = template.roles.map((role) => {
-      if (role.key !== roleKey) return role;
-      const nextRole = { ...role, ...updates };
-      if (updates.key && updates.key !== roleKey) {
-        const def = SIGNING_ROLE_REGISTRY.find((item) => item.key === updates.key);
-        if (def) nextRole.label = def.label;
-      }
-      return nextRole;
-    });
-
-    let documents = template.documents;
-    if (updates.key && updates.key !== roleKey) {
-      documents = documents.map((doc) => ({
-        ...doc,
-        signer_role_keys: doc.signer_role_keys.map((key) => (key === roleKey ? updates.key! : key)),
-      }));
-    }
-
-    persist({
-      ...template,
-      roles,
-      documents,
-      supporting_docs: (template.supporting_docs ?? []).map((ref) => ({
-        ...ref,
-        signer_role_keys: ref.signer_role_keys.map((key) =>
-          key === roleKey && updates.key ? updates.key : key
-        ),
-      })),
-    });
+    const roles = template.roles.map((role) =>
+      role.key === roleKey ? { ...role, ...updates } : role
+    );
+    persist({ ...template, roles });
   };
 
   const addRole = (documentKey: string) => {
@@ -514,14 +527,14 @@ export function SigningPackageConfig({
                                   </SelectTrigger>
                                   <SelectContent>
                                     {SIGNING_ROLE_REGISTRY.map((def) => {
-                                      const takenByOtherRole = template.roles.some(
-                                        (entry) => entry.key === def.key && entry.key !== role.key
+                                      const takenOnSameDocument = document.signer_role_keys.some(
+                                        (key) => key === def.key && key !== role.key
                                       );
                                       return (
                                         <SelectItem
                                           key={def.key}
                                           value={def.key}
-                                          disabled={takenByOtherRole}
+                                          disabled={takenOnSameDocument}
                                         >
                                           {def.label}
                                         </SelectItem>
