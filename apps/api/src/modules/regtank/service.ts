@@ -55,6 +55,13 @@ const PROTECTED_PERSONAL_ONBOARDING_STATUSES = new Set<string>([
   "COMPLETED",
 ]);
 
+const PROVIDER_INVALID_OR_ENDED_PERSONAL_STATUSES = new Set<string>([
+  "CANCELLED",
+  "EXPIRED",
+  "ENDED",
+  "INVALID",
+]);
+
 const personalOnboardingSingleFlight = new Map<string, Promise<StartPersonalOnboardingResult>>();
 const companyOnboardingSingleFlight = new Map<string, Promise<StartCorporateOnboardingResult>>();
 
@@ -156,6 +163,120 @@ export class RegTankService {
 
   private isProtectedPersonalOnboardingStatus(status: string): boolean {
     return PROTECTED_PERSONAL_ONBOARDING_STATUSES.has(status);
+  }
+
+  private isProviderInvalidOrEndedPersonalStatus(status: string): boolean {
+    return PROVIDER_INVALID_OR_ENDED_PERSONAL_STATUSES.has(status);
+  }
+
+  private isRegTankNotFoundError(error: unknown): boolean {
+    if (error instanceof AppError) {
+      if (error.statusCode === 404) return true;
+      const message = `${error.code} ${error.message}`.toLowerCase();
+      return (
+        message.includes("not found") ||
+        message.includes("data_not_found") ||
+        message.includes("error_data_not_found")
+      );
+    }
+    const fallback = String(error ?? "").toLowerCase();
+    return fallback.includes("not found");
+  }
+
+  private classifyRegTankStatusCheckFailure(error: unknown): {
+    category: string;
+    providerHttpStatus?: number;
+  } {
+    if (error instanceof AppError) {
+      if (error.statusCode === 408) {
+        return { category: "TIMEOUT", providerHttpStatus: error.statusCode };
+      }
+      if (error.statusCode >= 500 && error.statusCode <= 504) {
+        return { category: "PROVIDER_HTTP_5XX", providerHttpStatus: error.statusCode };
+      }
+      if (error.code === "REGTANK_REQUEST_FAILED") {
+        return { category: "NETWORK_OR_TRANSPORT_FAILURE", providerHttpStatus: error.statusCode };
+      }
+      if (error.code === "INVALID_RESPONSE") {
+        return { category: "MALFORMED_PROVIDER_RESPONSE", providerHttpStatus: error.statusCode };
+      }
+      return { category: "PROVIDER_CHECK_ERROR", providerHttpStatus: error.statusCode };
+    }
+    return { category: "UNKNOWN_PROVIDER_CHECK_ERROR" };
+  }
+
+  private async shouldRestartExistingPersonalOnboardingLink(
+    onboarding: NonNullable<Awaited<ReturnType<RegTankRepository["findByOrganizationId"]>>>,
+    organizationId: string
+  ): Promise<
+    | { decision: "reuse"; providerStatus: string }
+    | { decision: "restart"; reason: string }
+    | { decision: "protected"; providerStatus: string }
+    | { decision: "unavailable"; errorCategory: string; providerHttpStatus?: number }
+  > {
+    try {
+      const details = await this.apiClient.getOnboardingDetails(onboarding.request_id);
+      const providerStatusRaw = details?.status;
+      const providerStatus = normalizeRawStatus(providerStatusRaw);
+
+      if (typeof providerStatusRaw !== "string" || providerStatus.length === 0) {
+        logger.warn(
+          {
+            organizationId,
+            requestId: onboarding.request_id,
+            errorCategory: "MALFORMED_PROVIDER_RESPONSE",
+          },
+          "Provider status check returned missing/invalid status for personal onboarding"
+        );
+        return { decision: "unavailable", errorCategory: "MALFORMED_PROVIDER_RESPONSE" };
+      }
+
+      if (this.isProtectedPersonalOnboardingStatus(providerStatus)) {
+        return { decision: "protected", providerStatus };
+      }
+
+      if (this.isProviderInvalidOrEndedPersonalStatus(providerStatus)) {
+        return {
+          decision: "restart",
+          reason: `Provider status requires restart: ${providerStatus || "UNKNOWN"}`,
+        };
+      }
+
+      if (!this.isReusablePersonalOnboardingStatus(providerStatus)) {
+        logger.warn(
+          {
+            organizationId,
+            requestId: onboarding.request_id,
+            errorCategory: "AMBIGUOUS_PROVIDER_STATUS",
+            providerStatus,
+          },
+          "Provider status is not reusable and not in known dead/protected sets"
+        );
+        return {
+          decision: "unavailable",
+          errorCategory: "AMBIGUOUS_PROVIDER_STATUS",
+        };
+      }
+
+      return { decision: "reuse", providerStatus };
+    } catch (error) {
+      if (this.isRegTankNotFoundError(error)) {
+        return { decision: "restart", reason: "Provider request not found" };
+      }
+
+      const { category, providerHttpStatus } = this.classifyRegTankStatusCheckFailure(error);
+      logger.warn(
+        {
+          organizationId,
+          requestId: onboarding.request_id,
+          errorCategory: category,
+          providerHttpStatus,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+        "Provider status check unavailable for personal onboarding link"
+      );
+      return { decision: "unavailable", errorCategory: category, providerHttpStatus };
+    }
   }
 
   private isReusableCompanyOnboardingStatus(status: string): boolean {
@@ -498,6 +619,48 @@ export class RegTankService {
         reusableStatus;
 
       if (shouldResume && existingOnboarding.verify_link) {
+        const providerLinkDecision = await this.shouldRestartExistingPersonalOnboardingLink(
+          existingOnboarding,
+          organizationId
+        );
+
+        if (providerLinkDecision.decision === "protected") {
+          throw new AppError(
+            400,
+            "INVALID_STATE",
+            `Cannot start onboarding in status: ${providerLinkDecision.providerStatus}. Please contact support if restart is required.`
+          );
+        }
+
+        if (providerLinkDecision.decision === "restart") {
+          logger.info(
+            {
+              organizationId,
+              requestId: existingOnboarding.request_id,
+              reason: providerLinkDecision.reason,
+            },
+            "Existing personal onboarding link failed provider pre-check; auto-restarting before redirect"
+          );
+
+          return this.restartExpiredOrCancelledPersonalOnboarding({
+            req,
+            userId,
+            organizationId,
+            organizationType: organization.type,
+            previousOrgStatus,
+            portalType,
+            existingOnboarding,
+          });
+        }
+
+        if (providerLinkDecision.decision === "unavailable") {
+          throw new AppError(
+            503,
+            "REGTANK_STATUS_CHECK_UNAVAILABLE",
+            "We could not verify your onboarding status with RegTank. Please try again shortly."
+          );
+        }
+
         logger.info(
           {
             userId,
@@ -505,6 +668,7 @@ export class RegTankService {
             requestId: existingOnboarding.request_id,
             orgStatus: organization.onboarding_status,
             rtStatus: existingOnboarding.status,
+            providerStatus: providerLinkDecision.providerStatus,
           },
           "Resuming existing onboarding for organization (active and unexpired)"
         );

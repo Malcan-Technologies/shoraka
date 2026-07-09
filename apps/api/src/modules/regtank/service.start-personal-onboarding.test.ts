@@ -10,6 +10,7 @@ const mockSetWebhookPreferences = jest.fn().mockResolvedValue(undefined);
 const mockCreateIndividualOnboarding = jest.fn();
 const mockRestartOnboarding = jest.fn();
 const mockCreateCorporateOnboarding = jest.fn();
+const mockGetOnboardingDetails = jest.fn();
 
 const mockFindInvestorOrganizationById = jest.fn();
 const mockFindIssuerOrganizationById = jest.fn();
@@ -35,6 +36,7 @@ jest.mock("./api-client", () => ({
     createIndividualOnboarding: (...args: unknown[]) => mockCreateIndividualOnboarding(...args),
     restartOnboarding: (...args: unknown[]) => mockRestartOnboarding(...args),
     createCorporateOnboarding: (...args: unknown[]) => mockCreateCorporateOnboarding(...args),
+    getOnboardingDetails: (...args: unknown[]) => mockGetOnboardingDetails(...args),
   }),
 }));
 
@@ -126,6 +128,10 @@ describe("RegTankService.startPersonalOnboarding stale-link handling", () => {
       verifyLink: "https://masked.restart.link",
       expiredIn: 86400,
     });
+    mockGetOnboardingDetails.mockResolvedValue({
+      requestId: "LD0001",
+      status: "PROCESSING",
+    });
     mockCreateOnboarding.mockResolvedValue({});
     mockCancelOnboarding.mockResolvedValue({});
   });
@@ -145,6 +151,204 @@ describe("RegTankService.startPersonalOnboarding stale-link handling", () => {
     expect(result.verifyLink).toContain("masked.old.link");
     expect(mockRestartOnboarding).not.toHaveBeenCalled();
     expect(mockCreateIndividualOnboarding).not.toHaveBeenCalled();
+    expect(mockGetOnboardingDetails).toHaveBeenCalledWith("LD0001");
+  });
+
+  it("provider not-found during pre-check triggers restart", async () => {
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({
+        status: "PROCESSING",
+        verify_link_expires_at: nowPlus(120_000),
+      })
+    );
+    mockGetOnboardingDetails.mockRejectedValue(
+      new AppError(404, "REGTANK_API_ERROR", "LD0001 not Found")
+    );
+
+    const service = new RegTankService();
+    const result = await service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor");
+
+    expect(mockRestartOnboarding).toHaveBeenCalledTimes(1);
+    expect(result.requestId).toBe("LD0001-R01");
+    expect(result.verifyLink).toBe("https://masked.restart.link");
+    expect(result.verifyLink).not.toBe("https://masked.old.link");
+  });
+
+  it.each(["EXPIRED", "CANCELLED", "ENDED", "INVALID"])(
+    "provider %s status during pre-check triggers restart",
+    async (providerStatus) => {
+      mockFindByOrganizationId.mockResolvedValue(
+        makeExistingRow({
+          status: "PROCESSING",
+          verify_link_expires_at: nowPlus(120_000),
+        })
+      );
+      mockGetOnboardingDetails.mockResolvedValue({
+        requestId: "LD0001",
+        status: providerStatus,
+      });
+
+      const service = new RegTankService();
+      const result = await service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor");
+
+      expect(mockRestartOnboarding).toHaveBeenCalledTimes(1);
+      expect(result.requestId).toBe("LD0001-R01");
+      expect(result.verifyLink).toBe("https://masked.restart.link");
+    }
+  );
+
+  it("provider protected status does not auto-restart", async () => {
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({
+        status: "PROCESSING",
+        verify_link_expires_at: nowPlus(120_000),
+      })
+    );
+    mockGetOnboardingDetails.mockResolvedValue({
+      requestId: "LD0001",
+      status: "WAIT_FOR_APPROVAL",
+    });
+
+    const service = new RegTankService();
+    await expect(
+      service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor")
+    ).rejects.toMatchObject<AppError>({ code: "INVALID_STATE" });
+    expect(mockRestartOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("returns restarted link (not old link) before frontend redirect use", async () => {
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({
+        status: "PROCESSING",
+        verify_link_expires_at: nowPlus(120_000),
+        verify_link: "https://masked.old.link",
+      })
+    );
+    mockGetOnboardingDetails.mockRejectedValue(
+      new AppError(404, "REGTANK_API_ERROR", "request not found")
+    );
+
+    const service = new RegTankService();
+    const result = await service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor");
+
+    expect(result.verifyLink).toBe("https://masked.restart.link");
+    expect(result.verifyLink).not.toBe("https://masked.old.link");
+  });
+
+  it("provider timeout returns retryable error without reuse or restart", async () => {
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({
+        status: "PROCESSING",
+        verify_link_expires_at: nowPlus(120_000),
+      })
+    );
+    mockGetOnboardingDetails.mockRejectedValue(
+      new AppError(408, "REGTANK_REQUEST_FAILED", "request timeout")
+    );
+
+    const service = new RegTankService();
+    await expect(
+      service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor")
+    ).rejects.toMatchObject<AppError>({
+      statusCode: 503,
+      code: "REGTANK_STATUS_CHECK_UNAVAILABLE",
+      message: "We could not verify your onboarding status with RegTank. Please try again shortly.",
+    });
+    expect(mockRestartOnboarding).not.toHaveBeenCalled();
+    expect(mockCancelOnboarding).not.toHaveBeenCalled();
+    expect(mockCreateOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("provider 500 returns retryable error without reuse or restart", async () => {
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({
+        status: "PROCESSING",
+        verify_link_expires_at: nowPlus(120_000),
+      })
+    );
+    mockGetOnboardingDetails.mockRejectedValue(
+      new AppError(500, "REGTANK_API_ERROR", "upstream error")
+    );
+
+    const service = new RegTankService();
+    await expect(
+      service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor")
+    ).rejects.toMatchObject<AppError>({
+      statusCode: 503,
+      code: "REGTANK_STATUS_CHECK_UNAVAILABLE",
+    });
+    expect(mockRestartOnboarding).not.toHaveBeenCalled();
+    expect(mockCancelOnboarding).not.toHaveBeenCalled();
+    expect(mockCreateOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("provider 503 returns retryable error without reuse or restart", async () => {
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({
+        status: "PROCESSING",
+        verify_link_expires_at: nowPlus(120_000),
+      })
+    );
+    mockGetOnboardingDetails.mockRejectedValue(
+      new AppError(503, "REGTANK_API_ERROR", "service unavailable")
+    );
+
+    const service = new RegTankService();
+    await expect(
+      service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor")
+    ).rejects.toMatchObject<AppError>({
+      statusCode: 503,
+      code: "REGTANK_STATUS_CHECK_UNAVAILABLE",
+    });
+    expect(mockRestartOnboarding).not.toHaveBeenCalled();
+    expect(mockCancelOnboarding).not.toHaveBeenCalled();
+    expect(mockCreateOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("malformed provider response returns retryable error without reuse or restart", async () => {
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({
+        status: "PROCESSING",
+        verify_link_expires_at: nowPlus(120_000),
+      })
+    );
+    mockGetOnboardingDetails.mockResolvedValue({
+      requestId: "LD0001",
+    });
+
+    const service = new RegTankService();
+    await expect(
+      service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor")
+    ).rejects.toMatchObject<AppError>({
+      statusCode: 503,
+      code: "REGTANK_STATUS_CHECK_UNAVAILABLE",
+    });
+    expect(mockRestartOnboarding).not.toHaveBeenCalled();
+    expect(mockCancelOnboarding).not.toHaveBeenCalled();
+    expect(mockCreateOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("temporary provider failure keeps old row unchanged even when row is old", async () => {
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({
+        status: "PROCESSING",
+        verify_link_expires_at: nowPlus(120_000),
+        created_at: nowMinus(10 * 24 * 60 * 60 * 1000),
+      })
+    );
+    mockGetOnboardingDetails.mockRejectedValue(
+      new AppError(503, "REGTANK_API_ERROR", "service unavailable")
+    );
+
+    const service = new RegTankService();
+    await expect(
+      service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor")
+    ).rejects.toMatchObject<AppError>({
+      code: "REGTANK_STATUS_CHECK_UNAVAILABLE",
+    });
+    expect(mockRestartOnboarding).not.toHaveBeenCalled();
+    expect(mockCancelOnboarding).not.toHaveBeenCalled();
+    expect(mockCreateOnboarding).not.toHaveBeenCalled();
   });
 
   it("expired link triggers one restart and returns new link", async () => {
@@ -321,6 +525,31 @@ describe("RegTankService.startPersonalOnboarding stale-link handling", () => {
     expect(mockRestartOnboarding).toHaveBeenCalledTimes(1);
     expect(mockCancelOnboarding).toHaveBeenCalledTimes(1);
     expect(mockCreateOnboarding).toHaveBeenCalledTimes(1);
+  });
+
+  it("single-flight keeps one provider pre-check on temporary concurrent failure", async () => {
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({
+        status: "PROCESSING",
+        verify_link_expires_at: nowPlus(120_000),
+      })
+    );
+    mockGetOnboardingDetails.mockRejectedValue(
+      new AppError(503, "REGTANK_API_ERROR", "service unavailable")
+    );
+
+    const service = new RegTankService();
+    const [first, second] = await Promise.allSettled([
+      service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor"),
+      service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor"),
+    ]);
+
+    expect(first.status).toBe("rejected");
+    expect(second.status).toBe("rejected");
+    expect(mockGetOnboardingDetails).toHaveBeenCalledTimes(1);
+    expect(mockRestartOnboarding).not.toHaveBeenCalled();
+    expect(mockCancelOnboarding).not.toHaveBeenCalled();
+    expect(mockCreateOnboarding).not.toHaveBeenCalled();
   });
 
   it("reuses newer active attempt and does not create another restart", async () => {
