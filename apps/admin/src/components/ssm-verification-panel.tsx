@@ -37,7 +37,6 @@ import {
   CTOS_FETCH_BUTTON_CLASSNAME,
   CTOS_UI,
 } from "@/lib/ctos-ui-labels";
-import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -798,7 +797,6 @@ export function SSMVerificationPanel({
     );
   }
 
-  const isAlreadyVerified = application.ssmApproved;
   const { company } = comparison;
   const companyNameCheck = compareCompanyNamesForStrictDisplayExact({
     submittedName: company.applicationName,
@@ -850,12 +848,6 @@ export function SSMVerificationPanel({
               )}
             >
               <div className="flex flex-wrap items-end justify-end gap-2">
-                {isAlreadyVerified ? (
-                  <Badge variant="secondary" className="gap-1 border border-primary/20 bg-primary/5 text-primary">
-                    <CheckCircleIcon className="h-3.5 w-3.5" aria-hidden />
-                    Verified
-                  </Badge>
-                ) : null}
                 {useOrgCtosFlow ? (
                   <div className="flex flex-col items-end gap-2">
                     <Button
@@ -1074,86 +1066,59 @@ export function SSMVerificationPanel({
             appSharePctById={appSharePctById}
           />
 
-          {!isAlreadyVerified ? (
-            <div className="space-y-5">
-              <div className="flex items-center gap-3">
-                <Switch
-                  id="ctos-confirmed"
-                  checked={confirmed}
-                  onCheckedChange={setConfirmed}
-                  disabled={disabled}
-                />
-                <Label
-                  htmlFor="ctos-confirmed"
-                  className="text-sm font-normal text-foreground leading-snug cursor-pointer"
-                >
-                  I have verified this company against SSM records.
-                </Label>
-              </div>
-
-              <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="lg"
-                      className="w-full rounded-full gap-2 sm:w-auto"
-                      disabled={disabled}
-                      aria-label="Amend / Reject. Opens RegTank to choose updates or rejection."
-                      onClick={onTriggerAmendment}
-                    >
-                      <PencilSquareIcon className="h-5 w-5 shrink-0" aria-hidden />
-                      Amend / Reject
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" sideOffset={6} className={fieldTooltipContentClassName}>
-                    {disabled && !amendmentInProgress
-                      ? "You do not have permission to perform this action."
-                      : "Open RegTank to request an amendment or reject the corporate onboarding."}
-                  </TooltipContent>
-                </Tooltip>
-                <Button
-                  type="button"
-                  variant="action"
-                  size="lg"
-                  onClick={onApprove}
-                  disabled={approveDisabled}
-                  className="w-full rounded-full gap-2 sm:w-auto sm:justify-end"
-                >
-                  <CheckCircleIcon className="h-5 w-5 shrink-0" aria-hidden />
-                  Approve
-                </Button>
-              </div>
+          <div className="space-y-5">
+            <div className="flex items-center gap-3">
+              <Switch
+                id="ctos-confirmed"
+                checked={confirmed}
+                onCheckedChange={setConfirmed}
+                disabled={disabled}
+              />
+              <Label
+                htmlFor="ctos-confirmed"
+                className="text-sm font-normal text-foreground leading-snug cursor-pointer"
+              >
+                I have verified this company against SSM records.
+              </Label>
             </div>
-          ) : null}
+
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="lg"
+                    className="w-full rounded-full gap-2 sm:w-auto"
+                    disabled={disabled}
+                    aria-label="Amend / Reject. Opens RegTank to choose updates or rejection."
+                    onClick={onTriggerAmendment}
+                  >
+                    <PencilSquareIcon className="h-5 w-5 shrink-0" aria-hidden />
+                    Amend / Reject
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={6} className={fieldTooltipContentClassName}>
+                  {disabled && !amendmentInProgress
+                    ? "You do not have permission to perform this action."
+                    : "Open RegTank to request an amendment or reject the corporate onboarding."}
+                </TooltipContent>
+              </Tooltip>
+              <Button
+                type="button"
+                variant="action"
+                size="lg"
+                onClick={onApprove}
+                disabled={approveDisabled}
+                className="w-full rounded-full gap-2 sm:w-auto sm:justify-end"
+              >
+                <CheckCircleIcon className="h-5 w-5 shrink-0" aria-hidden />
+                Approve
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
-
-      {isAlreadyVerified ? (
-        <Card className="border-primary/20 bg-muted/30">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
-              <CheckCircleIcon className="h-5 w-5 text-primary mt-0.5 shrink-0" aria-hidden />
-              <div>
-                <p className="font-semibold text-foreground">Already verified</p>
-                {application.ssmVerifiedAt && application.ssmVerifiedBy ? (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Verified by {application.ssmVerifiedBy} on{" "}
-                    {new Date(application.ssmVerifiedAt).toLocaleDateString("en-MY", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                ) : null}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
 
       {useOrgCtosFlow ? (
         <AlertDialog open={getLatestConfirmOpen} onOpenChange={setGetLatestConfirmOpen}>
