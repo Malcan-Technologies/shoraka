@@ -446,11 +446,9 @@ export function OnboardingReviewDialog({
                           and ensure the onboarding has been approved by an admin.
                         </li>
                         <li>
-                          After all applicable directors and shareholders are approved, take one of:
-                          <strong> Approve</strong> (if all requirements are met),{" "}
-                          <strong>Reject</strong> (if the onboarding does not meet requirements), or{" "}
-                          <strong>Request Amendment</strong> (if changes or additional information
-                          are needed).
+                          After all applicable directors and shareholders are approved, select{" "}
+                          <strong>Approve</strong> if all requirements are met, or{" "}
+                          <strong>Reject</strong> if the onboarding does not meet the requirements.
                         </li>
                       </ol>
                       <p className="text-sm text-muted-foreground mt-3 leading-relaxed instruction-conclusion">
