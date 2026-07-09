@@ -1,5 +1,6 @@
 import type { Organization } from "@cashsouk/config";
 import {
+  canAccessApplicantAccount,
   getOnboardingRouteForOrg,
   getOnboardingStep,
   getOnboardingStepRoute,
@@ -63,5 +64,22 @@ describe("onboarding flow resolver", () => {
     });
     expect(getOnboardingStep(org, "investor")).toBe("deposit");
     expect(getOnboardingRouteForOrg(org, "investor")).toBe("/");
+  });
+
+  it("allows applicant account access only for AML/final/completed states", () => {
+    expect(canAccessApplicantAccount("PENDING_AML")).toBe(true);
+    expect(canAccessApplicantAccount("PENDING_FINAL_APPROVAL")).toBe(true);
+    expect(canAccessApplicantAccount("COMPLETED")).toBe(true);
+    expect(canAccessApplicantAccount("PENDING_APPROVAL")).toBe(false);
+    expect(canAccessApplicantAccount("PENDING_AMENDMENT")).toBe(false);
+    expect(canAccessApplicantAccount("PENDING_SSM_REVIEW")).toBe(false);
+    expect(canAccessApplicantAccount("REJECTED")).toBe(false);
+    expect(canAccessApplicantAccount(undefined)).toBe(false);
+  });
+
+  it("routes issuer personal orgs from terms directly to verify", () => {
+    const org = baseOrg({ type: "PERSONAL", tncAccepted: true, onboardingStatus: "IN_PROGRESS" });
+    expect(getOnboardingStep(org, "issuer")).toBe("verify");
+    expect(getOnboardingRouteForOrg(org, "issuer")).toBe("/onboarding/verify");
   });
 });

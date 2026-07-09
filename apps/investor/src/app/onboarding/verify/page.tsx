@@ -11,7 +11,6 @@ export default function OnboardingVerifyPage() {
     activeOrganization,
     startIndividualOnboarding,
     startCorporateOnboarding,
-    startRegTankOnboarding,
     refreshOrganizations,
   } = useOrganization();
   const [isLoading, setIsLoading] = useState(false);
@@ -30,12 +29,8 @@ export default function OnboardingVerifyPage() {
     try {
       const org = activeOrganization;
       const { verifyLink } = isCompany
-        ? startCorporateOnboarding
-          ? await startCorporateOnboarding(org.id, org.name ?? "")
-          : await startRegTankOnboarding(org.id)
-        : startIndividualOnboarding
-          ? await startIndividualOnboarding(org.id)
-          : await startRegTankOnboarding(org.id);
+        ? await startCorporateOnboarding(org.id, org.name ?? "")
+        : await startIndividualOnboarding(org.id);
 
       await refreshOrganizations();
       window.location.assign(verifyLink);

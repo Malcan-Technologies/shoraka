@@ -24,7 +24,13 @@ import {
 } from "@cashsouk/ui";
 import { Skeleton } from "@/components/ui/skeleton";
 import { logout } from "../lib/auth";
-import { createApiClient, useAuthToken, useOrganization, isOnboardingAppRoute } from "@cashsouk/config";
+import {
+  createApiClient,
+  useAuthToken,
+  useOrganization,
+  isOnboardingAppRoute,
+  canAccessApplicantAccount,
+} from "@cashsouk/config";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const INVESTOR_URL = process.env.NEXT_PUBLIC_INVESTOR_URL || "http://localhost:3002";
@@ -43,18 +49,10 @@ export function NavUser() {
   const { getAccessToken, signOut } = useAuthToken();
 
   // Check if organization has a status that allows Profile access
-  const allowsProfileAccess = useMemo(() => {
-    const status = activeOrganization?.onboardingStatus;
-    // Disable profile access for REJECTED and admin-gated pending statuses
-    if (status === "REJECTED" || status === "PENDING_APPROVAL" || status === "PENDING_AMENDMENT") {
-      return false;
-    }
-    return (
-      status === "PENDING_AML" ||
-      status === "PENDING_FINAL_APPROVAL" ||
-      status === "COMPLETED"
-    );
-  }, [activeOrganization]);
+  const allowsProfileAccess = useMemo(
+    () => canAccessApplicantAccount(activeOrganization?.onboardingStatus),
+    [activeOrganization?.onboardingStatus]
+  );
 
   // Profile should be disabled if status doesn't allow access OR if on onboarding page AND status doesn't allow access
   const isProfileDisabled =

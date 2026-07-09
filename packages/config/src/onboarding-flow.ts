@@ -45,6 +45,11 @@ const ORG_SWITCHER_ADMIN_WAIT_STATUSES: OnboardingStatus[] = [
 ];
 
 const POST_REGTANK_STATUSES: OnboardingStatus[] = [...ADMIN_PENDING_STATUSES, "COMPLETED"];
+const APPLICANT_ACCOUNT_ACCESS_STATUSES: OnboardingStatus[] = [
+  "PENDING_AML",
+  "PENDING_FINAL_APPROVAL",
+  "COMPLETED",
+];
 
 function isAdminPending(status: OnboardingStatus): boolean {
   return ADMIN_PENDING_STATUSES.includes(status);
@@ -52,6 +57,17 @@ function isAdminPending(status: OnboardingStatus): boolean {
 
 export function isOrganizationAdminWaitStatus(status: OnboardingStatus): boolean {
   return ORG_SWITCHER_ADMIN_WAIT_STATUSES.includes(status);
+}
+
+/**
+ * Account/Profile access for applicant portals should be driven by organization onboarding status.
+ * RegTank transport status is not the source of truth for this gate.
+ */
+export function canAccessApplicantAccount(
+  status: OnboardingStatus | null | undefined
+): boolean {
+  if (!status) return false;
+  return APPLICANT_ACCOUNT_ACCESS_STATUSES.includes(status);
 }
 
 /** Ready or awaiting admin review — not user-action onboarding steps. */

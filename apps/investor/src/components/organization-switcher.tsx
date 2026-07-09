@@ -184,25 +184,7 @@ export function OrganizationSwitcher() {
 
   const isOnboardingPage = isAddingNewOrganizationRoute(pathname);
 
-  const isExpired = (org: Organization) =>
-    String(org.regtankOnboardingStatus ?? "").toUpperCase() === "EXPIRED";
-  const visibleOrganizations = organizations.filter((org) => {
-    if (org.type === "PERSONAL") return true;
-    return !isExpired(org);
-  });
-
-  React.useEffect(() => {
-    if (!activeOrganization || visibleOrganizations.length === 0) return;
-    if (activeOrganization.type === "PERSONAL") return;
-    const status = String(activeOrganization.regtankOnboardingStatus ?? "").toUpperCase();
-    if (status !== "EXPIRED") return;
-    const target =
-      visibleOrganizations.find((o) => o.onboardingStatus === "COMPLETED") ??
-      visibleOrganizations[0];
-    if (target && target.id !== activeOrganization.id) {
-      switchOrganization(target.id);
-    }
-  }, [activeOrganization, visibleOrganizations, switchOrganization]);
+  const visibleOrganizations = organizations;
 
   const yourOrganizations = sortYourOrganizations(
     visibleOrganizations.filter(isOrganizationInYourOrganizationsSection)
@@ -219,7 +201,7 @@ export function OrganizationSwitcher() {
   };
 
   const handleSelectOrganization = async (org: Organization) => {
-    if (org.regtankOnboardingStatus === "EXPIRED") {
+    if (String(org.regtankOnboardingStatus ?? "").toUpperCase() === "EXPIRED") {
       try {
         const apiClient = createApiClient(
           process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000",

@@ -73,6 +73,7 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
     const status = personalOrganization?.onboardingStatus;
     const disabledStatuses = [
       "PENDING_APPROVAL",
+      "PENDING_AMENDMENT",
       "PENDING_AML",
       "PENDING_SSM_REVIEW",
       "PENDING_FINAL_APPROVAL",
