@@ -6,6 +6,7 @@ const mockCreateOnboarding = jest.fn();
 
 const mockSetOnboardingSettings = jest.fn().mockResolvedValue(undefined);
 const mockCreateCorporateOnboarding = jest.fn();
+const mockGetCorporateOnboardingDetails = jest.fn();
 const mockRestartOnboarding = jest.fn();
 
 const mockFindInvestorOrganizationById = jest.fn();
@@ -28,6 +29,7 @@ jest.mock("./api-client", () => ({
   getRegTankAPIClient: () => ({
     setOnboardingSettings: (...args: unknown[]) => mockSetOnboardingSettings(...args),
     createCorporateOnboarding: (...args: unknown[]) => mockCreateCorporateOnboarding(...args),
+    getCorporateOnboardingDetails: (...args: unknown[]) => mockGetCorporateOnboardingDetails(...args),
     restartOnboarding: (...args: unknown[]) => mockRestartOnboarding(...args),
   }),
 }));
@@ -118,6 +120,11 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
       expiredIn: 86400,
     });
 
+    mockGetCorporateOnboardingDetails.mockResolvedValue({
+      requestId: "COD0001",
+      status: "URL_GENERATED",
+    });
+
     mockPrismaTransaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
       cb({
         regTankOnboarding: {
@@ -128,7 +135,7 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
     );
   });
 
-  it("reuses valid unexpired company link", async () => {
+  it("locally active/unexpired + provider active reuses existing link", async () => {
     mockFindByOrganizationId.mockResolvedValue(
       makeExistingRow({ status: "URL_GENERATED", verify_link_expires_at: nowPlus(120_000) })
     );
@@ -143,18 +150,22 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
     );
 
     expect(result.requestId).toBe("COD0001");
+    expect(mockGetCorporateOnboardingDetails).toHaveBeenCalledWith("COD0001");
     expect(mockCreateCorporateOnboarding).not.toHaveBeenCalled();
     expect(mockTxUpdate).not.toHaveBeenCalled();
   });
 
-  it("expired company link creates one new COD request", async () => {
+  it("provider not found triggers regeneration", async () => {
     mockFindByOrganizationId
       .mockResolvedValueOnce(
-        makeExistingRow({ status: "PENDING", verify_link_expires_at: nowMinus(1_000) })
+        makeExistingRow({ status: "URL_GENERATED", verify_link_expires_at: nowPlus(120_000) })
       )
       .mockResolvedValueOnce(
-        makeExistingRow({ status: "PENDING", verify_link_expires_at: nowMinus(1_000) })
+        makeExistingRow({ status: "URL_GENERATED", verify_link_expires_at: nowPlus(120_000) })
       );
+    mockGetCorporateOnboardingDetails.mockRejectedValue(
+      new AppError(404, "REGTANK_API_ERROR", "COD0001 not Found")
+    );
 
     const service = new RegTankService();
     const result = await service.startCorporateOnboarding(
@@ -169,7 +180,68 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
     expect(mockCreateCorporateOnboarding).toHaveBeenCalledTimes(1);
   });
 
-  it("null expiry creates one new COD request", async () => {
+  it.each(["EXPIRED", "CANCELLED", "ENDED", "INVALID"])(
+    "provider %s triggers regeneration",
+    async (providerStatus) => {
+      mockFindByOrganizationId
+        .mockResolvedValueOnce(
+          makeExistingRow({ status: "URL_GENERATED", verify_link_expires_at: nowPlus(120_000) })
+        )
+        .mockResolvedValueOnce(
+          makeExistingRow({ status: "URL_GENERATED", verify_link_expires_at: nowPlus(120_000) })
+        );
+      mockGetCorporateOnboardingDetails.mockResolvedValue({
+        requestId: "COD0001",
+        status: providerStatus,
+      });
+
+      const service = new RegTankService();
+      const result = await service.startCorporateOnboarding(
+        makeReq(),
+        "USR01",
+        "org-company-1",
+        "investor",
+        "Company Org"
+      );
+
+      expect(result.requestId).toBe("COD0002");
+      expect(mockCreateCorporateOnboarding).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it("protected provider status returns protected-state error", async () => {
+    mockFindByOrganizationId
+      .mockResolvedValueOnce(
+        makeExistingRow({ status: "URL_GENERATED", verify_link_expires_at: nowPlus(120_000) })
+      )
+      .mockResolvedValueOnce(
+        makeExistingRow({ status: "URL_GENERATED", verify_link_expires_at: nowPlus(120_000) })
+      );
+    mockGetCorporateOnboardingDetails.mockResolvedValue({
+      requestId: "COD0001",
+      status: "WAIT_FOR_APPROVAL",
+    });
+
+    const service = new RegTankService();
+    await expect(
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org")
+    ).rejects.toMatchObject<AppError>({ code: "INVALID_STATE" });
+    expect(mockCreateCorporateOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("protected organization status skips provider check and regeneration", async () => {
+    mockFindInvestorOrganizationById.mockResolvedValue(makeCompanyOrg(OnboardingStatus.PENDING_AML));
+    mockFindByOrganizationId.mockResolvedValue(makeExistingRow({ status: "PENDING" }));
+
+    const service = new RegTankService();
+    await expect(
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org")
+    ).rejects.toMatchObject<AppError>({ code: "INVALID_STATE" });
+    expect(mockGetCorporateOnboardingDetails).not.toHaveBeenCalled();
+    expect(mockCreateCorporateOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("locally expired still regenerates directly without provider status call", async () => {
     mockFindByOrganizationId
       .mockResolvedValueOnce(makeExistingRow({ status: "PENDING", verify_link_expires_at: null }))
       .mockResolvedValueOnce(makeExistingRow({ status: "PENDING", verify_link_expires_at: null }));
@@ -177,6 +249,7 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
     const service = new RegTankService();
     await service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org");
 
+    expect(mockGetCorporateOnboardingDetails).not.toHaveBeenCalled();
     expect(mockCreateCorporateOnboarding).toHaveBeenCalledTimes(1);
   });
 
@@ -352,8 +425,16 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
 
   it("concurrent clicks result in one /corp/request call", async () => {
     mockFindByOrganizationId
-      .mockResolvedValueOnce(makeExistingRow({ status: "EXPIRED" }))
-      .mockResolvedValueOnce(makeExistingRow({ status: "EXPIRED" }));
+      .mockResolvedValueOnce(
+        makeExistingRow({ status: "URL_GENERATED", verify_link_expires_at: nowPlus(120_000) })
+      )
+      .mockResolvedValueOnce(
+        makeExistingRow({ status: "URL_GENERATED", verify_link_expires_at: nowPlus(120_000) })
+      );
+    mockGetCorporateOnboardingDetails.mockResolvedValue({
+      requestId: "COD0001",
+      status: "EXPIRED",
+    });
 
     mockCreateCorporateOnboarding.mockImplementation(
       async () =>
@@ -376,13 +457,22 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
       service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org"),
     ]);
 
+    expect(mockGetCorporateOnboardingDetails).toHaveBeenCalledTimes(1);
     expect(mockCreateCorporateOnboarding).toHaveBeenCalledTimes(1);
   });
 
   it("concurrent callers receive the same resulting link", async () => {
     mockFindByOrganizationId
-      .mockResolvedValueOnce(makeExistingRow({ status: "EXPIRED" }))
-      .mockResolvedValueOnce(makeExistingRow({ status: "EXPIRED" }));
+      .mockResolvedValueOnce(
+        makeExistingRow({ status: "URL_GENERATED", verify_link_expires_at: nowPlus(120_000) })
+      )
+      .mockResolvedValueOnce(
+        makeExistingRow({ status: "URL_GENERATED", verify_link_expires_at: nowPlus(120_000) })
+      );
+    mockGetCorporateOnboardingDetails.mockResolvedValue({
+      requestId: "COD0001",
+      status: "EXPIRED",
+    });
 
     const service = new RegTankService();
     const [a, b] = await Promise.all([
@@ -396,7 +486,9 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
 
   it("reuses newer valid row if it appears during protected operation", async () => {
     mockFindByOrganizationId
-      .mockResolvedValueOnce(makeExistingRow({ status: "PENDING", verify_link_expires_at: nowMinus(1_000) }))
+      .mockResolvedValueOnce(
+        makeExistingRow({ status: "URL_GENERATED", verify_link_expires_at: nowPlus(120_000) })
+      )
       .mockResolvedValueOnce(
         makeExistingRow({
           id: "rt_cod_new",
@@ -406,6 +498,10 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
           verify_link_expires_at: nowPlus(120_000),
         })
       );
+    mockGetCorporateOnboardingDetails.mockResolvedValue({
+      requestId: "COD0001",
+      status: "EXPIRED",
+    });
 
     const service = new RegTankService();
     const result = await service.startCorporateOnboarding(
@@ -418,6 +514,87 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
 
     expect(result.requestId).toBe("COD0009");
     expect(mockCreateCorporateOnboarding).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    new AppError(408, "REGTANK_API_ERROR", "Timeout"),
+    new AppError(500, "REGTANK_API_ERROR", "Internal server error"),
+    new AppError(503, "REGTANK_API_ERROR", "Service unavailable"),
+    new AppError(500, "REGTANK_REQUEST_FAILED", "Network failure"),
+  ])("provider temporary failure returns retryable 503 (%s)", async (providerError) => {
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({ status: "URL_GENERATED", verify_link_expires_at: nowPlus(120_000) })
+    );
+    mockGetCorporateOnboardingDetails.mockRejectedValue(providerError);
+
+    const service = new RegTankService();
+    await expect(
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org")
+    ).rejects.toMatchObject<AppError>({ code: "REGTANK_STATUS_CHECK_UNAVAILABLE", statusCode: 503 });
+    expect(mockCreateCorporateOnboarding).not.toHaveBeenCalled();
+    expect(mockTxUpdate).not.toHaveBeenCalled();
+    expect(mockTxCreate).not.toHaveBeenCalled();
+  });
+
+  it("malformed provider response returns retryable 503", async () => {
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({ status: "URL_GENERATED", verify_link_expires_at: nowPlus(120_000) })
+    );
+    mockGetCorporateOnboardingDetails.mockResolvedValue({ requestId: "COD0001" });
+
+    const service = new RegTankService();
+    await expect(
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org")
+    ).rejects.toMatchObject<AppError>({ code: "REGTANK_STATUS_CHECK_UNAVAILABLE", statusCode: 503 });
+    expect(mockCreateCorporateOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("unknown provider status returns retryable 503", async () => {
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({ status: "URL_GENERATED", verify_link_expires_at: nowPlus(120_000) })
+    );
+    mockGetCorporateOnboardingDetails.mockResolvedValue({
+      requestId: "COD0001",
+      status: "SOME_NEW_UNKNOWN_STATUS",
+    });
+
+    const service = new RegTankService();
+    await expect(
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org")
+    ).rejects.toMatchObject<AppError>({ code: "REGTANK_STATUS_CHECK_UNAVAILABLE", statusCode: 503 });
+    expect(mockCreateCorporateOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("mismatched provider requestId returns retryable 503", async () => {
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({ status: "URL_GENERATED", verify_link_expires_at: nowPlus(120_000) })
+    );
+    mockGetCorporateOnboardingDetails.mockResolvedValue({
+      requestId: "COD9999",
+      status: "URL_GENERATED",
+    });
+
+    const service = new RegTankService();
+    await expect(
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org")
+    ).rejects.toMatchObject<AppError>({ code: "REGTANK_STATUS_CHECK_UNAVAILABLE", statusCode: 503 });
+    expect(mockCreateCorporateOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("/corp/request failure keeps old row unchanged (no partial local write)", async () => {
+    mockFindByOrganizationId
+      .mockResolvedValueOnce(makeExistingRow({ status: "PENDING", verify_link_expires_at: nowMinus(1_000) }))
+      .mockResolvedValueOnce(makeExistingRow({ status: "PENDING", verify_link_expires_at: nowMinus(1_000) }));
+    mockCreateCorporateOnboarding.mockRejectedValue(
+      new AppError(500, "REGTANK_API_ERROR", "RegTank unavailable")
+    );
+
+    const service = new RegTankService();
+    await expect(
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org")
+    ).rejects.toBeInstanceOf(AppError);
+    expect(mockTxUpdate).not.toHaveBeenCalled();
+    expect(mockTxCreate).not.toHaveBeenCalled();
   });
 
   it("personal onboarding behavior remains unchanged", async () => {

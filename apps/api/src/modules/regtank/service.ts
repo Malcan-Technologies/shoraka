@@ -62,6 +62,13 @@ const PROVIDER_INVALID_OR_ENDED_PERSONAL_STATUSES = new Set<string>([
   "INVALID",
 ]);
 
+const PROVIDER_INVALID_OR_ENDED_COMPANY_STATUSES = new Set<string>([
+  "CANCELLED",
+  "EXPIRED",
+  "ENDED",
+  "INVALID",
+]);
+
 const personalOnboardingSingleFlight = new Map<string, Promise<StartPersonalOnboardingResult>>();
 const companyOnboardingSingleFlight = new Map<string, Promise<StartCorporateOnboardingResult>>();
 
@@ -183,6 +190,24 @@ export class RegTankService {
     return fallback.includes("not found");
   }
 
+  private isRegTankCorporateRequestNotFoundError(error: unknown, requestId: string): boolean {
+    if (!(error instanceof AppError) || error.statusCode !== 404) {
+      return false;
+    }
+
+    const message = `${error.code} ${error.message}`.toLowerCase();
+    const normalizedRequestId = requestId.toLowerCase();
+    const referencesCodRequest =
+      message.includes(normalizedRequestId) || message.includes("cod");
+    const indicatesNotFound =
+      message.includes("not found") ||
+      message.includes("record not found") ||
+      message.includes("data_not_found") ||
+      message.includes("error_data_not_found");
+
+    return referencesCodRequest && indicatesNotFound;
+  }
+
   private classifyRegTankStatusCheckFailure(error: unknown): {
     category: string;
     providerHttpStatus?: number;
@@ -283,6 +308,10 @@ export class RegTankService {
     return REUSABLE_COMPANY_ONBOARDING_STATUSES.has(status);
   }
 
+  private isProviderInvalidOrEndedCompanyStatus(status: string): boolean {
+    return PROVIDER_INVALID_OR_ENDED_COMPANY_STATUSES.has(status);
+  }
+
   private isProtectedCompanyRegTankStatus(status: string): boolean {
     return PROTECTED_COMPANY_REGTANK_STATUSES.has(status);
   }
@@ -306,6 +335,99 @@ export class RegTankService {
       Boolean(onboarding.verify_link) &&
       this.isVerifyLinkReusable(onboarding.verify_link_expires_at as Date | null | undefined)
     );
+  }
+
+  private async shouldRegenerateExistingCompanyOnboardingLink(
+    onboarding: NonNullable<Awaited<ReturnType<RegTankRepository["findByOrganizationId"]>>>,
+    organizationId: string
+  ): Promise<
+    | { decision: "reuse"; providerStatus: string }
+    | { decision: "regenerate"; reason: string }
+    | { decision: "protected"; providerStatus: string }
+    | { decision: "unavailable"; errorCategory: string; providerHttpStatus?: number }
+  > {
+    try {
+      const details = await this.apiClient.getCorporateOnboardingDetails(onboarding.request_id);
+      const providerRequestIdRaw = details?.requestId;
+      const providerStatusRaw = details?.status;
+      const providerStatus = normalizeRawStatus(providerStatusRaw);
+      const providerRequestId =
+        typeof providerRequestIdRaw === "string" ? providerRequestIdRaw.trim() : "";
+
+      if (providerRequestId.length === 0 || providerRequestId !== onboarding.request_id) {
+        logger.warn(
+          {
+            organizationId,
+            requestId: onboarding.request_id,
+            providerRequestId,
+            errorCategory: "MISMATCHED_OR_MISSING_PROVIDER_REQUEST_ID",
+          },
+          "Provider status check returned mismatched or missing COD requestId"
+        );
+        return {
+          decision: "unavailable",
+          errorCategory: "MISMATCHED_OR_MISSING_PROVIDER_REQUEST_ID",
+        };
+      }
+
+      if (typeof providerStatusRaw !== "string" || providerStatus.length === 0) {
+        logger.warn(
+          {
+            organizationId,
+            requestId: onboarding.request_id,
+            errorCategory: "MALFORMED_PROVIDER_RESPONSE",
+          },
+          "Provider status check returned missing/invalid status for company onboarding"
+        );
+        return { decision: "unavailable", errorCategory: "MALFORMED_PROVIDER_RESPONSE" };
+      }
+
+      if (this.isProtectedCompanyRegTankStatus(providerStatus)) {
+        return { decision: "protected", providerStatus };
+      }
+
+      if (this.isProviderInvalidOrEndedCompanyStatus(providerStatus)) {
+        return {
+          decision: "regenerate",
+          reason: `Provider status requires regeneration: ${providerStatus || "UNKNOWN"}`,
+        };
+      }
+
+      if (this.isReusableCompanyOnboardingStatus(providerStatus)) {
+        return { decision: "reuse", providerStatus };
+      }
+
+      logger.warn(
+        {
+          organizationId,
+          requestId: onboarding.request_id,
+          providerStatus,
+          errorCategory: "AMBIGUOUS_PROVIDER_STATUS",
+        },
+        "Provider status is not reusable and not in known dead/protected sets for company onboarding"
+      );
+      return {
+        decision: "unavailable",
+        errorCategory: "AMBIGUOUS_PROVIDER_STATUS",
+      };
+    } catch (error) {
+      if (this.isRegTankCorporateRequestNotFoundError(error, onboarding.request_id)) {
+        return { decision: "regenerate", reason: "Provider COD request not found" };
+      }
+
+      const { category, providerHttpStatus } = this.classifyRegTankStatusCheckFailure(error);
+      logger.warn(
+        {
+          organizationId,
+          requestId: onboarding.request_id,
+          errorCategory: category,
+          providerHttpStatus,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+        "Provider status check unavailable for company onboarding link"
+      );
+      return { decision: "unavailable", errorCategory: category, providerHttpStatus };
+    }
   }
 
   private async generateCompanyOnboardingLinkFromExisting(params: {
@@ -1231,14 +1353,91 @@ export class RegTankService {
       }
 
       if (existingOnboarding && this.isCompanyLinkSafelyReusable(existingOnboarding)) {
-        return {
-          verifyLink: existingOnboarding.verify_link!,
-          requestId: existingOnboarding.request_id,
-          expiresIn: Math.floor(
-            (existingOnboarding.verify_link_expires_at!.getTime() - Date.now()) / 1000
-          ),
-          organizationType: organization.type,
-        };
+        const providerDecision = await this.shouldRegenerateExistingCompanyOnboardingLink(
+          existingOnboarding,
+          organizationId
+        );
+
+        if (providerDecision.decision === "reuse") {
+          logger.info(
+            {
+              organizationId,
+              requestId: existingOnboarding.request_id,
+              providerStatus: providerDecision.providerStatus,
+              decision: "reuse",
+            },
+            "Reusing existing company onboarding link after provider status verification"
+          );
+          return {
+            verifyLink: existingOnboarding.verify_link!,
+            requestId: existingOnboarding.request_id,
+            expiresIn: Math.floor(
+              (existingOnboarding.verify_link_expires_at!.getTime() - Date.now()) / 1000
+            ),
+            organizationType: organization.type,
+          };
+        }
+
+        if (providerDecision.decision === "protected") {
+          throw new AppError(
+            400,
+            "INVALID_STATE",
+            `Cannot continue company onboarding in status: ${providerDecision.providerStatus}`
+          );
+        }
+
+        if (providerDecision.decision === "unavailable") {
+          throw new AppError(
+            503,
+            "REGTANK_STATUS_CHECK_UNAVAILABLE",
+            "We could not verify your onboarding status with RegTank. Please try again shortly."
+          );
+        }
+
+        logger.info(
+          {
+            organizationId,
+            requestId: existingOnboarding.request_id,
+            decision: "regenerate",
+            reason: providerDecision.reason,
+          },
+          "Regenerating company onboarding link after provider status verification"
+        );
+
+        const latest = await this.repository.findByOrganizationId(organizationId, portalType);
+        if (
+          latest &&
+          latest.request_id !== existingOnboarding.request_id &&
+          this.isCompanyLinkSafelyReusable(latest)
+        ) {
+          return {
+            verifyLink: latest.verify_link!,
+            requestId: latest.request_id,
+            expiresIn: Math.floor((latest.verify_link_expires_at!.getTime() - Date.now()) / 1000),
+            organizationType: organization.type,
+          };
+        }
+
+        if (latest && this.isProtectedCompanyRegTankStatus(normalizeRawStatus(latest.status))) {
+          throw new AppError(
+            400,
+            "INVALID_STATE",
+            `Cannot continue company onboarding in status: ${normalizeRawStatus(latest.status)}`
+          );
+        }
+
+        if (latest && this.isRegeneratableCompanyStatus(normalizeRawStatus(latest.status))) {
+          return this.generateCompanyOnboardingLinkFromExisting({
+            req,
+            userId,
+            organizationId,
+            portalType,
+            organizationType: organization.type,
+            companyName,
+            formName,
+            existingOnboarding: latest,
+          });
+        }
       }
 
       if (existingOnboarding && this.isRegeneratableCompanyStatus(rtStatus)) {
