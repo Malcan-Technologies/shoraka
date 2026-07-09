@@ -19,6 +19,37 @@ import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-on
 import { normalizeRawStatus } from "@cashsouk/types";
 import { decideIndividualApprovedOutcome } from "./helpers/individual-onboarding-transition";
 
+type StartPersonalOnboardingResult = {
+  verifyLink: string;
+  requestId: string;
+  expiresIn: number;
+  organizationType: string;
+};
+
+const REUSABLE_PERSONAL_ONBOARDING_STATUSES = new Set<string>([
+  "URL_GENERATED",
+  "IN_PROGRESS",
+  "PROCESSING",
+  "ID_UPLOADED",
+  "LIVENESS_STARTED",
+  "LIVENESS_FAILED",
+  "CAMERA_FAILED",
+  "EMAIL_SENT",
+  "ID_UPLOADED_FAILED",
+  "RESUBMISSION",
+]);
+
+const PROTECTED_PERSONAL_ONBOARDING_STATUSES = new Set<string>([
+  "WAIT_FOR_APPROVAL",
+  "PENDING_APPROVAL",
+  "LIVENESS_PASSED",
+  "APPROVED",
+  "REJECTED",
+  "COMPLETED",
+]);
+
+const personalOnboardingSingleFlight = new Map<string, Promise<StartPersonalOnboardingResult>>();
+
 export class RegTankService {
   private repository: RegTankRepository;
   private apiClient = getRegTankAPIClient();
@@ -31,6 +62,126 @@ export class RegTankService {
     this.authRepository = new AuthRepository();
   }
 
+  private async runPersonalOnboardingSingleFlight(
+    organizationId: string,
+    run: () => Promise<StartPersonalOnboardingResult>
+  ): Promise<StartPersonalOnboardingResult> {
+    const existing = personalOnboardingSingleFlight.get(organizationId);
+    if (existing) {
+      return existing;
+    }
+
+    const inFlight = run().finally(() => {
+      const current = personalOnboardingSingleFlight.get(organizationId);
+      if (current === inFlight) {
+        personalOnboardingSingleFlight.delete(organizationId);
+      }
+    });
+
+    personalOnboardingSingleFlight.set(organizationId, inFlight);
+    return inFlight;
+  }
+
+  private isVerifyLinkReusable(expiresAt: Date | null | undefined): boolean {
+    if (!expiresAt) {
+      return false;
+    }
+    return expiresAt.getTime() > Date.now();
+  }
+
+  private isReusablePersonalOnboardingStatus(status: string): boolean {
+    return REUSABLE_PERSONAL_ONBOARDING_STATUSES.has(status);
+  }
+
+  private isProtectedPersonalOnboardingStatus(status: string): boolean {
+    return PROTECTED_PERSONAL_ONBOARDING_STATUSES.has(status);
+  }
+
+  private async restartExpiredOrCancelledPersonalOnboarding(params: {
+    req: Request;
+    userId: string;
+    organizationId: string;
+    organizationType: OrganizationType;
+    previousOrgStatus: OnboardingStatus;
+    portalType: PortalType;
+    existingOnboarding: NonNullable<Awaited<ReturnType<RegTankRepository["findByOrganizationId"]>>>;
+  }): Promise<StartPersonalOnboardingResult> {
+    const {
+      req,
+      userId,
+      organizationId,
+      organizationType,
+      previousOrgStatus,
+      portalType,
+      existingOnboarding,
+    } = params;
+
+    const regTankResponse = await this.apiClient.restartOnboarding(existingOnboarding.request_id);
+    const expiresIn = regTankResponse.expiredIn || 86400;
+    const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+    if (existingOnboarding.status !== "CANCELLED") {
+      await this.repository.cancelOnboarding(
+        existingOnboarding.id,
+        `Auto-restarted due to stale/expired link. New requestId: ${regTankResponse.requestId}`
+      );
+    }
+
+    await this.repository.createOnboarding({
+      userId,
+      organizationId,
+      organizationType,
+      portalType,
+      requestId: regTankResponse.requestId,
+      referenceId: `${organizationId}-restart-${Date.now()}`,
+      onboardingType: "INDIVIDUAL",
+      verifyLink: regTankResponse.verifyLink,
+      verifyLinkExpiresAt: expiresAt,
+      status: "IN_PROGRESS",
+      regtankResponse: regTankResponse as Prisma.InputJsonValue,
+    });
+
+    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    await prisma.onboardingLog.create({
+      data: {
+        user_id: userId,
+        role: UserRole.INVESTOR,
+        event_type: "ONBOARDING_RESUMED",
+        portal: portalType,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        device_info: deviceInfo,
+        device_type: deviceType,
+        investor_organization_id: organizationId,
+        issuer_organization_id: null,
+        metadata: {
+          organizationId,
+          previousRequestId: existingOnboarding.request_id,
+          newRequestId: regTankResponse.requestId,
+          onboardingType: "INDIVIDUAL",
+          previousOrgStatus,
+          trigger: "AUTO_RESTART_EXPIRED_OR_STALE_LINK",
+        },
+      },
+    });
+
+    logger.info(
+      {
+        organizationId,
+        previousRequestId: existingOnboarding.request_id,
+        newRequestId: regTankResponse.requestId,
+      },
+      "Auto-restarted personal onboarding due to stale/expired link"
+    );
+
+    return {
+      verifyLink: regTankResponse.verifyLink,
+      requestId: regTankResponse.requestId,
+      expiresIn,
+      organizationType,
+    };
+  }
+
   /**
    * Start personal (individual) onboarding for an organization
    */
@@ -39,12 +190,7 @@ export class RegTankService {
     userId: string,
     organizationId: string,
     portalType: PortalType
-  ): Promise<{
-    verifyLink: string;
-    requestId: string;
-    expiresIn: number;
-    organizationType: string;
-  }> {
+  ): Promise<StartPersonalOnboardingResult> {
     logger.info(
       {
         userId,
@@ -129,81 +275,223 @@ export class RegTankService {
       }
     }
 
-    // Check if we should resume existing onboarding for this organization
-    // Resume if:
-    // - Organization status is NOT PENDING_APPROVAL or COMPLETED
-    // - RegTank onboarding status is NOT LIVENESS_PASSED, PENDING_APPROVAL, or APPROVED
-    // - verify_link exists and is valid
-    const existingOnboarding = await this.repository.findByOrganizationId(
-      organizationId,
-      portalType
-    );
-
-    const rtStored = normalizeRawStatus(existingOnboarding?.status);
-    const shouldResume =
-      organization.onboarding_status !== OnboardingStatus.PENDING_APPROVAL &&
-      existingOnboarding &&
-      !["LIVENESS_PASSED", "WAIT_FOR_APPROVAL", "PENDING_APPROVAL", "APPROVED", "REJECTED"].includes(rtStored) &&
-      existingOnboarding.verify_link !== null;
-
-    if (shouldResume && existingOnboarding.verify_link) {
-      logger.info(
-        {
-          userId,
-          organizationId,
-          requestId: existingOnboarding.request_id,
-          orgStatus: organization.onboarding_status,
-          rtStatus: existingOnboarding.status,
-        },
-        "Resuming existing onboarding for organization (not advanced enough)"
+    return this.runPersonalOnboardingSingleFlight(organizationId, async () => {
+      const existingOnboarding = await this.repository.findByOrganizationId(
+        organizationId,
+        portalType
       );
+      const rtStored = normalizeRawStatus(existingOnboarding?.status);
+      const hasVerifyLink = Boolean(existingOnboarding?.verify_link);
+      const hasReusableExpiry = this.isVerifyLinkReusable(existingOnboarding?.verify_link_expires_at);
+      const reusableStatus = this.isReusablePersonalOnboardingStatus(rtStored);
 
-      // For personal accounts, ensure organization status is IN_PROGRESS when resuming
-      if (organization.type === OrganizationType.PERSONAL) {
-        if (
-          organization.onboarding_status === OnboardingStatus.PENDING ||
-          organization.onboarding_status === OnboardingStatus.IN_PROGRESS
-        ) {
-          await this.organizationRepository.updateInvestorOrganizationOnboarding(
-            organizationId,
-            OnboardingStatus.IN_PROGRESS
-          );
-          logger.info(
-            { organizationId, previousStatus: organization.onboarding_status },
-            "Updated personal organization status to IN_PROGRESS when resuming onboarding"
-          );
-        }
-      }
+      const shouldResume =
+        organization.onboarding_status !== OnboardingStatus.PENDING_APPROVAL &&
+        existingOnboarding &&
+        hasVerifyLink &&
+        hasReusableExpiry &&
+        reusableStatus;
 
-      // Log ONBOARDING_RESUMED when resuming existing onboarding (only once, here)
-      const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-      const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-
-      await prisma.onboardingLog.create({
-        data: {
-          user_id: userId,
-          role,
-          event_type: "ONBOARDING_RESUMED",
-          portal: portalType,
-          ip_address: ipAddress,
-          user_agent: userAgent,
-          device_info: deviceInfo,
-          device_type: deviceType,
-          organization_name: organization.name,
-          investor_organization_id: organizationId,
-          issuer_organization_id: null,
-          metadata: {
+      if (shouldResume && existingOnboarding.verify_link) {
+        logger.info(
+          {
+            userId,
             organizationId,
             requestId: existingOnboarding.request_id,
-            onboardingType: "INDIVIDUAL",
-            previousOrgStatus: organization.onboarding_status,
-            previousRegTankStatus: existingOnboarding.status,
+            orgStatus: organization.onboarding_status,
+            rtStatus: existingOnboarding.status,
           },
-        },
-      });
+          "Resuming existing onboarding for organization (active and unexpired)"
+        );
 
-      // Ensure onboarding settings are configured before resuming
+        // For personal accounts, ensure organization status is IN_PROGRESS when resuming
+        if (organization.type === OrganizationType.PERSONAL) {
+          if (
+            organization.onboarding_status === OnboardingStatus.PENDING ||
+            organization.onboarding_status === OnboardingStatus.IN_PROGRESS
+          ) {
+            await this.organizationRepository.updateInvestorOrganizationOnboarding(
+              organizationId,
+              OnboardingStatus.IN_PROGRESS
+            );
+            logger.info(
+              { organizationId, previousStatus: organization.onboarding_status },
+              "Updated personal organization status to IN_PROGRESS when resuming onboarding"
+            );
+          }
+        }
+
+        // Log ONBOARDING_RESUMED when resuming existing onboarding (only once, here)
+        const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+        const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+
+        await prisma.onboardingLog.create({
+          data: {
+            user_id: userId,
+            role,
+            event_type: "ONBOARDING_RESUMED",
+            portal: portalType,
+            ip_address: ipAddress,
+            user_agent: userAgent,
+            device_info: deviceInfo,
+            device_type: deviceType,
+            organization_name: organization.name,
+            investor_organization_id: organizationId,
+            issuer_organization_id: null,
+            metadata: {
+              organizationId,
+              requestId: existingOnboarding.request_id,
+              onboardingType: "INDIVIDUAL",
+              previousOrgStatus: organization.onboarding_status,
+              previousRegTankStatus: existingOnboarding.status,
+            },
+          },
+        });
+
+        // Ensure onboarding settings are configured before resuming
+        const formId = parseInt(process.env.REGTANK_INVESTOR_PERSONAL_FORM_ID || "1036131", 10);
+        const config = getRegTankConfig();
+        const redirectUrl = config.redirectUrlInvestor;
+
+        try {
+          await this.apiClient.setOnboardingSettings({
+            formId,
+            livenessConfidence: 70,
+            approveMode: true,
+            kycApprovalTarget: "ACURIS",
+            enabledRegistrationEmail: false,
+            redirectUrl,
+          });
+          logger.info(
+            { formId, redirectUrl },
+            "RegTank onboarding settings configured successfully (resume)"
+          );
+        } catch (error) {
+          // Log but don't block - settings might already be configured
+          logger.warn(
+            {
+              error: error instanceof Error ? error.message : String(error),
+              formId,
+              redirectUrl,
+              message: "Failed to set RegTank settings during resume, but continuing",
+            },
+            "Failed to set RegTank onboarding settings during resume (non-blocking)"
+          );
+        }
+
+        return {
+          verifyLink: existingOnboarding.verify_link,
+          requestId: existingOnboarding.request_id,
+          expiresIn: Math.floor(
+            (existingOnboarding.verify_link_expires_at!.getTime() - Date.now()) / 1000
+          ),
+          organizationType: existingOnboarding.organization_type,
+        };
+      }
+
+      if (existingOnboarding) {
+        if (this.isProtectedPersonalOnboardingStatus(rtStored)) {
+          throw new AppError(
+            400,
+            "INVALID_STATE",
+            `Cannot start onboarding in status: ${rtStored}. Please contact support if restart is required.`
+          );
+        }
+
+        const shouldAutoRestart =
+          rtStored === "CANCELLED" ||
+          rtStored === "EXPIRED" ||
+          !hasVerifyLink ||
+          !hasReusableExpiry ||
+          reusableStatus;
+
+        if (shouldAutoRestart) {
+          return this.restartExpiredOrCancelledPersonalOnboarding({
+            req,
+            userId,
+            organizationId,
+            organizationType: organization.type,
+            previousOrgStatus,
+            portalType,
+            existingOnboarding,
+          });
+        }
+
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          `Cannot start onboarding in status: ${rtStored || "UNKNOWN"}`
+        );
+      }
+
+      // Prepare RegTank onboarding request
+      const referenceId = organizationId; // Use organization ID as reference
+
+      // Determine webhook endpoint based on REGTANK_WEBHOOK_MODE
+      // If REGTANK_WEBHOOK_MODE=dev, use /v1/webhooks/regtank/dev
+      // Otherwise, use /v1/webhooks/regtank (production)
+      const webhookMode = process.env.REGTANK_WEBHOOK_MODE || "prod";
+      const webhookEndpoint =
+        webhookMode === "dev" ? "/v1/webhooks/regtank/dev" : "/v1/webhooks/regtank";
+
+      const webhookUrl = process.env.API_URL
+        ? `${process.env.API_URL}${webhookEndpoint}`
+        : process.env.FRONTEND_URL
+          ? `${process.env.FRONTEND_URL}${webhookEndpoint}`
+          : `https://api.cashsouk.com${webhookEndpoint}`;
+
+      logger.info(
+        {
+          webhookMode,
+          webhookEndpoint,
+          webhookUrl,
+        },
+        "RegTank webhook URL configured"
+      );
+
+      // Set onboarding settings (no redirect URL - users navigate back manually)
+      // Settings are per formId, so we need to set them once per formId
+      // Note: formId is required - use investor personal form ID (investor portal only)
       const formId = parseInt(process.env.REGTANK_INVESTOR_PERSONAL_FORM_ID || "1036131", 10);
+
+      // Check if webhookUrl is localhost
+      if (webhookUrl.includes("localhost") || webhookUrl.includes("127.0.0.1")) {
+        logger.error(
+          {
+            webhookUrl,
+            message:
+              "Localhost URLs are not accessible from RegTank servers. Use a public URL or ngrok for development.",
+          },
+          "Cannot use localhost for RegTank webhook URL"
+        );
+        throw new Error(
+          "Localhost URLs are not accessible from RegTank. Please use a public URL (e.g., ngrok) for development."
+        );
+      }
+
+      // Set webhook preferences (global configuration, called once per environment)
+      // This should ideally be done during initial setup, but we'll call it here to ensure it's set
+      try {
+        await this.apiClient.setWebhookPreferences({
+          webhookUrl,
+          webhookEnabled: true,
+        });
+        logger.info({ webhookUrl }, "RegTank webhook preferences configured successfully");
+      } catch (error) {
+        // Log but don't block - webhook preferences might already be set
+        logger.warn(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            webhookUrl,
+            message:
+              "Failed to set RegTank webhook preferences, but continuing with onboarding request",
+          },
+          "Failed to set RegTank webhook preferences (non-blocking)"
+        );
+      }
+
+      // Set onboarding settings with redirect URL - called once per formId
+      // Redirect URL points to dashboard so users are redirected back after completing onboarding
       const config = getRegTankConfig();
       const redirectUrl = config.redirectUrlInvestor;
 
@@ -216,280 +504,174 @@ export class RegTankService {
           enabledRegistrationEmail: false,
           redirectUrl,
         });
-        logger.info(
-          { formId, redirectUrl },
-          "RegTank onboarding settings configured successfully (resume)"
-        );
+        logger.info({ formId, redirectUrl }, "RegTank onboarding settings configured successfully");
       } catch (error) {
-        // Log but don't block - settings might already be configured
-        logger.warn(
-          {
-            error: error instanceof Error ? error.message : String(error),
-            formId,
-            redirectUrl,
-            message: "Failed to set RegTank settings during resume, but continuing",
-          },
-          "Failed to set RegTank onboarding settings during resume (non-blocking)"
-        );
+        // Extract detailed error information
+        let errorMessage = "Failed to configure RegTank settings";
+        if (error instanceof AppError) {
+          errorMessage = error.message;
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
+        } else {
+          errorMessage = String(error);
+        }
+
+        // Check if error is "SettingInfo does not exist" - this is OK, settings might already be set
+        const isSettingsNotFound =
+          error instanceof AppError &&
+          error.code === "REGTANK_API_ERROR" &&
+          (errorMessage.includes("SettingInfo does not exist") ||
+            errorMessage.includes("ERROR_DATA_NOT_FOUND"));
+
+        if (isSettingsNotFound) {
+          logger.warn(
+            {
+              formId,
+              message: "RegTank settings not found, but continuing with onboarding request",
+            },
+            "RegTank settings do not exist yet, continuing with onboarding request"
+          );
+        } else {
+          // Other errors - log but don't block
+          logger.warn(
+            {
+              error: error instanceof Error ? error.message : String(error),
+              formId,
+              message: "Failed to set RegTank settings, but continuing with onboarding request",
+            },
+            "Failed to set RegTank onboarding settings (non-blocking)"
+          );
+        }
+        // Don't throw - continue with onboarding request
       }
 
-      return {
-        verifyLink: existingOnboarding.verify_link,
-        requestId: existingOnboarding.request_id,
-        expiresIn: existingOnboarding.verify_link_expires_at
-          ? Math.floor((existingOnboarding.verify_link_expires_at.getTime() - Date.now()) / 1000)
-          : 86400,
-        organizationType: existingOnboarding.organization_type,
+      const onboardingRequest: RegTankIndividualOnboardingRequest = {
+        email: user.email,
+        surname: user.last_name.trim(), // Parse: last_name → surname
+        forename: user.first_name.trim(), // Parse: first_name → forename
+        referenceId,
+        countryOfResidence: "MY", // TODO: Get from user profile or organization
+        nationality: "MY", // TODO: Get from user profile
+        placeOfBirth: "MY", // TODO: Get from user profile
+        idIssuingCountry: "MY", // TODO: Get from user profile
+        gender: "UNSPECIFIED", // TODO: Get from user profile
+        governmentIdNumber: "", // Will be provided by user in RegTank portal
+        idType: "IDENTITY",
+        language: "EN",
+        bypassIdUpload: false, // Boolean: If true, skip directly to liveness check
+        skipFormPage: false, // Boolean: If true, skip to form page (default behavior)
+        formId, // Include formId to link request to configured settings
+        // Note: webhookUrl is configured globally via /alert/preferences endpoint
+        // Note: redirectUrl is configured via /v3/onboarding/indv/setting endpoint
       };
-    }
 
-    // Prepare RegTank onboarding request
-    const referenceId = organizationId; // Use organization ID as reference
-
-    // Determine webhook endpoint based on REGTANK_WEBHOOK_MODE
-    // If REGTANK_WEBHOOK_MODE=dev, use /v1/webhooks/regtank/dev
-    // Otherwise, use /v1/webhooks/regtank (production)
-    const webhookMode = process.env.REGTANK_WEBHOOK_MODE || "prod";
-    const webhookEndpoint =
-      webhookMode === "dev" ? "/v1/webhooks/regtank/dev" : "/v1/webhooks/regtank";
-
-    const webhookUrl = process.env.API_URL
-      ? `${process.env.API_URL}${webhookEndpoint}`
-      : process.env.FRONTEND_URL
-        ? `${process.env.FRONTEND_URL}${webhookEndpoint}`
-        : `https://api.cashsouk.com${webhookEndpoint}`;
-
-    logger.info(
-      {
-        webhookMode,
-        webhookEndpoint,
-        webhookUrl,
-      },
-      "RegTank webhook URL configured"
-    );
-
-    // Set onboarding settings (no redirect URL - users navigate back manually)
-    // Settings are per formId, so we need to set them once per formId
-    // Note: formId is required - use investor personal form ID (investor portal only)
-    const formId = parseInt(process.env.REGTANK_INVESTOR_PERSONAL_FORM_ID || "1036131", 10);
-
-    // Check if webhookUrl is localhost
-    if (webhookUrl.includes("localhost") || webhookUrl.includes("127.0.0.1")) {
-      logger.error(
+      logger.info(
         {
+          userId,
+          organizationId,
+          portalType,
+          email: user.email,
+          referenceId,
           webhookUrl,
-          message:
-            "Localhost URLs are not accessible from RegTank servers. Use a public URL or ngrok for development.",
+          formId,
         },
-        "Cannot use localhost for RegTank webhook URL"
+        "Creating RegTank individual onboarding request"
       );
-      throw new Error(
-        "Localhost URLs are not accessible from RegTank. Please use a public URL (e.g., ngrok) for development."
-      );
-    }
 
-    // Set webhook preferences (global configuration, called once per environment)
-    // This should ideally be done during initial setup, but we'll call it here to ensure it's set
-    try {
-      await this.apiClient.setWebhookPreferences({
-        webhookUrl,
-        webhookEnabled: true,
-      });
-      logger.info({ webhookUrl }, "RegTank webhook preferences configured successfully");
-    } catch (error) {
-      // Log but don't block - webhook preferences might already be set
-      logger.warn(
-        {
-          error: error instanceof Error ? error.message : String(error),
-          webhookUrl,
-          message:
-            "Failed to set RegTank webhook preferences, but continuing with onboarding request",
-        },
-        "Failed to set RegTank webhook preferences (non-blocking)"
-      );
-    }
-
-    // Set onboarding settings with redirect URL - called once per formId
-    // Redirect URL points to dashboard so users are redirected back after completing onboarding
-    const config = getRegTankConfig();
-    const redirectUrl = config.redirectUrlInvestor;
-
-    try {
-      await this.apiClient.setOnboardingSettings({
-        formId,
-        livenessConfidence: 70,
-        approveMode: true,
-        kycApprovalTarget: "ACURIS",
-        enabledRegistrationEmail: false,
-        redirectUrl,
-      });
-      logger.info({ formId, redirectUrl }, "RegTank onboarding settings configured successfully");
-    } catch (error) {
-      // Extract detailed error information
-      let errorMessage = "Failed to configure RegTank settings";
-      if (error instanceof AppError) {
-        errorMessage = error.message;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      } else {
-        errorMessage = String(error);
-      }
-
-      // Check if error is "SettingInfo does not exist" - this is OK, settings might already be set
-      const isSettingsNotFound =
-        error instanceof AppError &&
-        error.code === "REGTANK_API_ERROR" &&
-        (errorMessage.includes("SettingInfo does not exist") ||
-          errorMessage.includes("ERROR_DATA_NOT_FOUND"));
-
-      if (isSettingsNotFound) {
-        logger.warn(
-          {
-            formId,
-            message: "RegTank settings not found, but continuing with onboarding request",
-          },
-          "RegTank settings do not exist yet, continuing with onboarding request"
-        );
-      } else {
-        // Other errors - log but don't block
-        logger.warn(
+      // Call RegTank API
+      let regTankResponse;
+      try {
+        regTankResponse = await this.apiClient.createIndividualOnboarding(onboardingRequest);
+      } catch (error) {
+        logger.error(
           {
             error: error instanceof Error ? error.message : String(error),
-            formId,
-            message: "Failed to set RegTank settings, but continuing with onboarding request",
+            errorStack: error instanceof Error ? error.stack : undefined,
+            organizationId,
+            userId,
+            email: user.email,
           },
-          "Failed to set RegTank onboarding settings (non-blocking)"
+          "Failed to create RegTank individual onboarding"
+        );
+        // Re-throw AppError as-is, wrap others
+        if (error instanceof AppError) {
+          throw error;
+        }
+        throw new AppError(
+          500,
+          "REGTANK_ONBOARDING_FAILED",
+          `Failed to start RegTank onboarding: ${error instanceof Error ? error.message : String(error)}`
         );
       }
-      // Don't throw - continue with onboarding request
-    }
 
-    const onboardingRequest: RegTankIndividualOnboardingRequest = {
-      email: user.email,
-      surname: user.last_name.trim(), // Parse: last_name → surname
-      forename: user.first_name.trim(), // Parse: first_name → forename
-      referenceId,
-      countryOfResidence: "MY", // TODO: Get from user profile or organization
-      nationality: "MY", // TODO: Get from user profile
-      placeOfBirth: "MY", // TODO: Get from user profile
-      idIssuingCountry: "MY", // TODO: Get from user profile
-      gender: "UNSPECIFIED", // TODO: Get from user profile
-      governmentIdNumber: "", // Will be provided by user in RegTank portal
-      idType: "IDENTITY",
-      language: "EN",
-      bypassIdUpload: false, // Boolean: If true, skip directly to liveness check
-      skipFormPage: false, // Boolean: If true, skip to form page (default behavior)
-      formId, // Include formId to link request to configured settings
-      // Note: webhookUrl is configured globally via /alert/preferences endpoint
-      // Note: redirectUrl is configured via /v3/onboarding/indv/setting endpoint
-    };
+      // Calculate expiration time (24 hours default)
+      const expiresIn = regTankResponse.expiredIn || 86400;
+      const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
-    logger.info(
-      {
+      // For personal accounts, organization is already IN_PROGRESS when user clicks "Yes"
+      // Set reg_tank_onboarding status to IN_PROGRESS to match organization status
+      // For company accounts, start with PENDING
+      const initialStatus =
+        organization.type === OrganizationType.PERSONAL ? "IN_PROGRESS" : "PENDING";
+
+      // Store onboarding record
+      await this.repository.createOnboarding({
         userId,
         organizationId,
+        organizationType: organization.type,
         portalType,
-        email: user.email,
-        referenceId,
-        webhookUrl,
-        formId,
-      },
-      "Creating RegTank individual onboarding request"
-    );
-
-    // Call RegTank API
-    let regTankResponse;
-    try {
-      regTankResponse = await this.apiClient.createIndividualOnboarding(onboardingRequest);
-    } catch (error) {
-      logger.error(
-        {
-          error: error instanceof Error ? error.message : String(error),
-          errorStack: error instanceof Error ? error.stack : undefined,
-          organizationId,
-          userId,
-          email: user.email,
-        },
-        "Failed to create RegTank individual onboarding"
-      );
-      // Re-throw AppError as-is, wrap others
-      if (error instanceof AppError) {
-        throw error;
-      }
-      throw new AppError(
-        500,
-        "REGTANK_ONBOARDING_FAILED",
-        `Failed to start RegTank onboarding: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-
-    // Calculate expiration time (24 hours default)
-    const expiresIn = regTankResponse.expiredIn || 86400;
-    const expiresAt = new Date(Date.now() + expiresIn * 1000);
-
-    // For personal accounts, organization is already IN_PROGRESS when user clicks "Yes"
-    // Set reg_tank_onboarding status to IN_PROGRESS to match organization status
-    // For company accounts, start with PENDING
-    const initialStatus =
-      organization.type === OrganizationType.PERSONAL ? "IN_PROGRESS" : "PENDING";
-
-    // Store onboarding record
-    await this.repository.createOnboarding({
-      userId,
-      organizationId,
-      organizationType: organization.type,
-      portalType,
-      requestId: regTankResponse.requestId,
-      referenceId,
-      onboardingType: "INDIVIDUAL",
-      verifyLink: regTankResponse.verifyLink,
-      verifyLinkExpiresAt: expiresAt,
-      status: initialStatus,
-      regtankResponse: regTankResponse as Prisma.InputJsonValue,
-    });
-
-    // Log onboarding event - always ONBOARDING_STARTED when creating a new onboarding
-    // Note: ONBOARDING_RESUMED is only logged in the shouldResume block above when actually resuming
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: userId,
-        role,
-        event_type: "ONBOARDING_STARTED",
-        portal: portalType,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-        device_info: deviceInfo,
-        device_type: deviceType,
-        organization_name: organization.name,
-        investor_organization_id: organizationId,
-        issuer_organization_id: null,
-        metadata: {
-          organizationId,
-          requestId: regTankResponse.requestId,
-          onboardingType: "INDIVIDUAL",
-          previousOrgStatus: previousOrgStatus,
-        },
-      },
-    });
-
-    logger.info(
-      {
         requestId: regTankResponse.requestId,
-        organizationId,
+        referenceId,
+        onboardingType: "INDIVIDUAL",
         verifyLink: regTankResponse.verifyLink,
-      },
-      "RegTank onboarding started successfully"
-    );
+        verifyLinkExpiresAt: expiresAt,
+        status: initialStatus,
+        regtankResponse: regTankResponse as Prisma.InputJsonValue,
+      });
 
-    return {
-      verifyLink: regTankResponse.verifyLink,
-      requestId: regTankResponse.requestId,
-      expiresIn,
-      organizationType: organization.type,
-    };
+      // Log onboarding event - always ONBOARDING_STARTED when creating a new onboarding
+      // Note: ONBOARDING_RESUMED is only logged in the shouldResume block above when actually resuming
+      const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+      const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+
+      await prisma.onboardingLog.create({
+        data: {
+          user_id: userId,
+          role,
+          event_type: "ONBOARDING_STARTED",
+          portal: portalType,
+          ip_address: ipAddress,
+          user_agent: userAgent,
+          device_info: deviceInfo,
+          device_type: deviceType,
+          organization_name: organization.name,
+          investor_organization_id: organizationId,
+          issuer_organization_id: null,
+          metadata: {
+            organizationId,
+            requestId: regTankResponse.requestId,
+            onboardingType: "INDIVIDUAL",
+            previousOrgStatus: previousOrgStatus,
+          },
+        },
+      });
+
+      logger.info(
+        {
+          requestId: regTankResponse.requestId,
+          organizationId,
+          verifyLink: regTankResponse.verifyLink,
+        },
+        "RegTank onboarding started successfully"
+      );
+
+      return {
+        verifyLink: regTankResponse.verifyLink,
+        requestId: regTankResponse.requestId,
+        expiresIn,
+        organizationType: organization.type,
+      };
+    });
   }
 
   /**
