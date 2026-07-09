@@ -1,0 +1,436 @@
+import { OnboardingStatus, OrganizationType } from "@prisma/client";
+import { AppError } from "../../lib/http/error-handler";
+
+const mockFindByOrganizationId = jest.fn();
+const mockCreateOnboarding = jest.fn();
+
+const mockSetOnboardingSettings = jest.fn().mockResolvedValue(undefined);
+const mockCreateCorporateOnboarding = jest.fn();
+const mockRestartOnboarding = jest.fn();
+
+const mockFindInvestorOrganizationById = jest.fn();
+const mockFindIssuerOrganizationById = jest.fn();
+
+const mockUserFindUnique = jest.fn();
+const mockOnboardingLogCreate = jest.fn().mockResolvedValue(undefined);
+const mockTxUpdate = jest.fn().mockResolvedValue(undefined);
+const mockTxCreate = jest.fn().mockResolvedValue(undefined);
+const mockPrismaTransaction = jest.fn();
+
+jest.mock("./repository", () => ({
+  RegTankRepository: jest.fn().mockImplementation(() => ({
+    findByOrganizationId: (...args: unknown[]) => mockFindByOrganizationId(...args),
+    createOnboarding: (...args: unknown[]) => mockCreateOnboarding(...args),
+  })),
+}));
+
+jest.mock("./api-client", () => ({
+  getRegTankAPIClient: () => ({
+    setOnboardingSettings: (...args: unknown[]) => mockSetOnboardingSettings(...args),
+    createCorporateOnboarding: (...args: unknown[]) => mockCreateCorporateOnboarding(...args),
+    restartOnboarding: (...args: unknown[]) => mockRestartOnboarding(...args),
+  }),
+}));
+
+jest.mock("../organization/repository", () => ({
+  OrganizationRepository: jest.fn().mockImplementation(() => ({
+    findInvestorOrganizationById: (...args: unknown[]) => mockFindInvestorOrganizationById(...args),
+    findIssuerOrganizationById: (...args: unknown[]) => mockFindIssuerOrganizationById(...args),
+  })),
+}));
+
+jest.mock("../auth/repository", () => ({
+  AuthRepository: jest.fn().mockImplementation(() => ({
+    createOnboardingLog: jest.fn(),
+  })),
+}));
+
+jest.mock("../../lib/prisma", () => ({
+  prisma: {
+    user: {
+      findUnique: (...args: unknown[]) => mockUserFindUnique(...args),
+    },
+    onboardingLog: {
+      create: (...args: unknown[]) => mockOnboardingLogCreate(...args),
+    },
+    $transaction: (...args: unknown[]) => mockPrismaTransaction(...args),
+  },
+}));
+
+jest.mock("../../config/regtank", () => ({
+  getRegTankConfig: () => ({
+    redirectUrlInvestor: "https://investor.example.com",
+    redirectUrlIssuer: "https://issuer.example.com",
+  }),
+}));
+
+import { RegTankService } from "./service";
+
+const nowPlus = (ms: number): Date => new Date(Date.now() + ms);
+const nowMinus = (ms: number): Date => new Date(Date.now() - ms);
+
+const makeReq = () =>
+  ({
+    headers: {},
+    ip: "127.0.0.1",
+  }) as never;
+
+const makeCompanyOrg = (status: OnboardingStatus = OnboardingStatus.IN_PROGRESS) => ({
+  id: "org-company-1",
+  owner_user_id: "USR01",
+  type: OrganizationType.COMPANY,
+  name: "Company Org",
+  onboarding_status: status,
+  tnc_accepted: true,
+});
+
+const makeExistingRow = (overrides?: Partial<Record<string, unknown>>) => ({
+  id: "rt_cod_old",
+  request_id: "COD0001",
+  status: "PENDING",
+  verify_link: "https://masked.company.old.link",
+  verify_link_expires_at: nowPlus(60_000),
+  organization_type: OrganizationType.COMPANY,
+  onboarding_type: "CORPORATE",
+  ...overrides,
+});
+
+describe("RegTankService.startCorporateOnboarding company auto-regeneration", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    mockFindInvestorOrganizationById.mockResolvedValue(makeCompanyOrg());
+    mockFindIssuerOrganizationById.mockResolvedValue(null);
+
+    mockFindByOrganizationId.mockResolvedValue(null);
+    mockCreateOnboarding.mockResolvedValue({});
+
+    mockUserFindUnique.mockResolvedValue({
+      user_id: "USR01",
+      email: "corp@test.com",
+      first_name: "Corp",
+      last_name: "User",
+    });
+
+    mockCreateCorporateOnboarding.mockResolvedValue({
+      requestId: "COD0002",
+      verifyLink: "https://masked.company.new.link",
+      expiredIn: 86400,
+    });
+
+    mockPrismaTransaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
+      cb({
+        regTankOnboarding: {
+          update: (...args: unknown[]) => mockTxUpdate(...args),
+          create: (...args: unknown[]) => mockTxCreate(...args),
+        },
+      })
+    );
+  });
+
+  it("reuses valid unexpired company link", async () => {
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({ status: "URL_GENERATED", verify_link_expires_at: nowPlus(120_000) })
+    );
+
+    const service = new RegTankService();
+    const result = await service.startCorporateOnboarding(
+      makeReq(),
+      "USR01",
+      "org-company-1",
+      "investor",
+      "Company Org"
+    );
+
+    expect(result.requestId).toBe("COD0001");
+    expect(mockCreateCorporateOnboarding).not.toHaveBeenCalled();
+    expect(mockTxUpdate).not.toHaveBeenCalled();
+  });
+
+  it("expired company link creates one new COD request", async () => {
+    mockFindByOrganizationId
+      .mockResolvedValueOnce(
+        makeExistingRow({ status: "PENDING", verify_link_expires_at: nowMinus(1_000) })
+      )
+      .mockResolvedValueOnce(
+        makeExistingRow({ status: "PENDING", verify_link_expires_at: nowMinus(1_000) })
+      );
+
+    const service = new RegTankService();
+    const result = await service.startCorporateOnboarding(
+      makeReq(),
+      "USR01",
+      "org-company-1",
+      "investor",
+      "Company Org"
+    );
+
+    expect(result.requestId).toBe("COD0002");
+    expect(mockCreateCorporateOnboarding).toHaveBeenCalledTimes(1);
+  });
+
+  it("null expiry creates one new COD request", async () => {
+    mockFindByOrganizationId
+      .mockResolvedValueOnce(makeExistingRow({ status: "PENDING", verify_link_expires_at: null }))
+      .mockResolvedValueOnce(makeExistingRow({ status: "PENDING", verify_link_expires_at: null }));
+
+    const service = new RegTankService();
+    await service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org");
+
+    expect(mockCreateCorporateOnboarding).toHaveBeenCalledTimes(1);
+  });
+
+  it("missing verify_link creates one new COD request", async () => {
+    mockFindByOrganizationId
+      .mockResolvedValueOnce(makeExistingRow({ status: "PENDING", verify_link: null }))
+      .mockResolvedValueOnce(makeExistingRow({ status: "PENDING", verify_link: null }));
+
+    const service = new RegTankService();
+    await service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org");
+
+    expect(mockCreateCorporateOnboarding).toHaveBeenCalledTimes(1);
+  });
+
+  it("CANCELLED row is not reused", async () => {
+    mockFindByOrganizationId
+      .mockResolvedValueOnce(makeExistingRow({ status: "CANCELLED", verify_link_expires_at: nowPlus(60_000) }))
+      .mockResolvedValueOnce(makeExistingRow({ status: "CANCELLED", verify_link_expires_at: nowPlus(60_000) }));
+
+    const service = new RegTankService();
+    const result = await service.startCorporateOnboarding(
+      makeReq(),
+      "USR01",
+      "org-company-1",
+      "investor",
+      "Company Org"
+    );
+
+    expect(result.requestId).toBe("COD0002");
+    expect(mockCreateCorporateOnboarding).toHaveBeenCalledTimes(1);
+  });
+
+  it("EXPIRED row is not reused", async () => {
+    mockFindByOrganizationId
+      .mockResolvedValueOnce(makeExistingRow({ status: "EXPIRED", verify_link_expires_at: nowPlus(60_000) }))
+      .mockResolvedValueOnce(makeExistingRow({ status: "EXPIRED", verify_link_expires_at: nowPlus(60_000) }));
+
+    const service = new RegTankService();
+    await service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org");
+
+    expect(mockCreateCorporateOnboarding).toHaveBeenCalledTimes(1);
+  });
+
+  it("APPROVED does not auto-generate", async () => {
+    mockFindByOrganizationId.mockResolvedValue(makeExistingRow({ status: "APPROVED" }));
+
+    const service = new RegTankService();
+    await expect(
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org")
+    ).rejects.toMatchObject<AppError>({ code: "INVALID_STATE" });
+    expect(mockCreateCorporateOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("REJECTED does not auto-generate", async () => {
+    mockFindByOrganizationId.mockResolvedValue(makeExistingRow({ status: "REJECTED" }));
+
+    const service = new RegTankService();
+    await expect(
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org")
+    ).rejects.toMatchObject<AppError>({ code: "INVALID_STATE" });
+  });
+
+  it("COMPLETED does not auto-generate", async () => {
+    mockFindByOrganizationId.mockResolvedValue(makeExistingRow({ status: "COMPLETED" }));
+
+    const service = new RegTankService();
+    await expect(
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org")
+    ).rejects.toMatchObject<AppError>({ code: "INVALID_STATE" });
+  });
+
+  it("PENDING_APPROVAL does not auto-generate", async () => {
+    mockFindByOrganizationId.mockResolvedValue(makeExistingRow({ status: "PENDING_APPROVAL" }));
+
+    const service = new RegTankService();
+    await expect(
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org")
+    ).rejects.toMatchObject<AppError>({ code: "INVALID_STATE" });
+  });
+
+  it("WAIT_FOR_APPROVAL does not auto-generate", async () => {
+    mockFindByOrganizationId.mockResolvedValue(makeExistingRow({ status: "WAIT_FOR_APPROVAL" }));
+
+    const service = new RegTankService();
+    await expect(
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org")
+    ).rejects.toMatchObject<AppError>({ code: "INVALID_STATE" });
+  });
+
+  it("PENDING_SSM_REVIEW does not auto-generate", async () => {
+    mockFindInvestorOrganizationById.mockResolvedValue(makeCompanyOrg(OnboardingStatus.PENDING_SSM_REVIEW));
+    mockFindByOrganizationId.mockResolvedValue(makeExistingRow({ status: "PENDING" }));
+
+    const service = new RegTankService();
+    await expect(
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org")
+    ).rejects.toMatchObject<AppError>({ code: "INVALID_STATE" });
+  });
+
+  it("PENDING_AML does not auto-generate", async () => {
+    mockFindInvestorOrganizationById.mockResolvedValue(makeCompanyOrg(OnboardingStatus.PENDING_AML));
+    mockFindByOrganizationId.mockResolvedValue(makeExistingRow({ status: "PENDING" }));
+
+    const service = new RegTankService();
+    await expect(
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org")
+    ).rejects.toMatchObject<AppError>({ code: "INVALID_STATE" });
+  });
+
+  it("PENDING_FINAL_APPROVAL does not auto-generate", async () => {
+    mockFindInvestorOrganizationById.mockResolvedValue(makeCompanyOrg(OnboardingStatus.PENDING_FINAL_APPROVAL));
+    mockFindByOrganizationId.mockResolvedValue(makeExistingRow({ status: "PENDING" }));
+
+    const service = new RegTankService();
+    await expect(
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org")
+    ).rejects.toMatchObject<AppError>({ code: "INVALID_STATE" });
+  });
+
+  it("old row becomes CANCELLED after successful regeneration", async () => {
+    mockFindByOrganizationId
+      .mockResolvedValueOnce(makeExistingRow({ status: "PENDING", verify_link_expires_at: nowMinus(1_000) }))
+      .mockResolvedValueOnce(makeExistingRow({ status: "PENDING", verify_link_expires_at: nowMinus(1_000) }));
+
+    const service = new RegTankService();
+    await service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org");
+
+    expect(mockTxUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "rt_cod_old" },
+        data: expect.objectContaining({ status: "CANCELLED" }),
+      })
+    );
+  });
+
+  it("new row uses same investor organization", async () => {
+    mockFindByOrganizationId
+      .mockResolvedValueOnce(makeExistingRow({ status: "EXPIRED" }))
+      .mockResolvedValueOnce(makeExistingRow({ status: "EXPIRED" }));
+
+    const service = new RegTankService();
+    await service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org");
+
+    expect(mockTxCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          investor_organization_id: "org-company-1",
+          user_id: "USR01",
+          organization_type: OrganizationType.COMPANY,
+          onboarding_type: "CORPORATE",
+        }),
+      })
+    );
+  });
+
+  it("new row stores returned COD request ID and verify link", async () => {
+    mockFindByOrganizationId
+      .mockResolvedValueOnce(makeExistingRow({ status: "EXPIRED" }))
+      .mockResolvedValueOnce(makeExistingRow({ status: "EXPIRED" }));
+
+    const service = new RegTankService();
+    await service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org");
+
+    expect(mockTxCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          request_id: "COD0002",
+          verify_link: "https://masked.company.new.link",
+        }),
+      })
+    );
+  });
+
+  it("concurrent clicks result in one /corp/request call", async () => {
+    mockFindByOrganizationId
+      .mockResolvedValueOnce(makeExistingRow({ status: "EXPIRED" }))
+      .mockResolvedValueOnce(makeExistingRow({ status: "EXPIRED" }));
+
+    mockCreateCorporateOnboarding.mockImplementation(
+      async () =>
+        await new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                requestId: "COD0002",
+                verifyLink: "https://masked.company.new.link",
+                expiredIn: 86400,
+              }),
+            20
+          )
+        )
+    );
+
+    const service = new RegTankService();
+    await Promise.all([
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org"),
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org"),
+    ]);
+
+    expect(mockCreateCorporateOnboarding).toHaveBeenCalledTimes(1);
+  });
+
+  it("concurrent callers receive the same resulting link", async () => {
+    mockFindByOrganizationId
+      .mockResolvedValueOnce(makeExistingRow({ status: "EXPIRED" }))
+      .mockResolvedValueOnce(makeExistingRow({ status: "EXPIRED" }));
+
+    const service = new RegTankService();
+    const [a, b] = await Promise.all([
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org"),
+      service.startCorporateOnboarding(makeReq(), "USR01", "org-company-1", "investor", "Company Org"),
+    ]);
+
+    expect(a.verifyLink).toBe(b.verifyLink);
+    expect(a.requestId).toBe(b.requestId);
+  });
+
+  it("reuses newer valid row if it appears during protected operation", async () => {
+    mockFindByOrganizationId
+      .mockResolvedValueOnce(makeExistingRow({ status: "PENDING", verify_link_expires_at: nowMinus(1_000) }))
+      .mockResolvedValueOnce(
+        makeExistingRow({
+          id: "rt_cod_new",
+          request_id: "COD0009",
+          status: "URL_GENERATED",
+          verify_link: "https://masked.company.newer.link",
+          verify_link_expires_at: nowPlus(120_000),
+        })
+      );
+
+    const service = new RegTankService();
+    const result = await service.startCorporateOnboarding(
+      makeReq(),
+      "USR01",
+      "org-company-1",
+      "investor",
+      "Company Org"
+    );
+
+    expect(result.requestId).toBe("COD0009");
+    expect(mockCreateCorporateOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("personal onboarding behavior remains unchanged", async () => {
+    const service = new RegTankService();
+    const fn = jest.spyOn(service, "startPersonalOnboarding").mockResolvedValue({
+      requestId: "LD001",
+      verifyLink: "https://masked.personal.link",
+      expiresIn: 86400,
+      organizationType: OrganizationType.PERSONAL,
+    });
+
+    const result = await service.startPersonalOnboarding(makeReq(), "USR01", "org-personal-1", "investor");
+    expect(result.requestId).toBe("LD001");
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+});

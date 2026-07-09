@@ -26,6 +26,13 @@ type StartPersonalOnboardingResult = {
   organizationType: string;
 };
 
+type StartCorporateOnboardingResult = {
+  verifyLink: string;
+  requestId: string;
+  expiresIn: number;
+  organizationType: string;
+};
+
 const REUSABLE_PERSONAL_ONBOARDING_STATUSES = new Set<string>([
   "URL_GENERATED",
   "IN_PROGRESS",
@@ -49,6 +56,40 @@ const PROTECTED_PERSONAL_ONBOARDING_STATUSES = new Set<string>([
 ]);
 
 const personalOnboardingSingleFlight = new Map<string, Promise<StartPersonalOnboardingResult>>();
+const companyOnboardingSingleFlight = new Map<string, Promise<StartCorporateOnboardingResult>>();
+
+const REUSABLE_COMPANY_ONBOARDING_STATUSES = new Set<string>([
+  "PENDING",
+  "IN_PROGRESS",
+  "URL_GENERATED",
+  "EMAIL_SENT",
+]);
+
+const REGENERATABLE_COMPANY_ONBOARDING_STATUSES = new Set<string>([
+  ...REUSABLE_COMPANY_ONBOARDING_STATUSES,
+  "CANCELLED",
+  "EXPIRED",
+]);
+
+const PROTECTED_COMPANY_REGTANK_STATUSES = new Set<string>([
+  "APPROVED",
+  "REJECTED",
+  "COMPLETED",
+  "PENDING_APPROVAL",
+  "WAIT_FOR_APPROVAL",
+  "PENDING_SSM_REVIEW",
+  "PENDING_AML",
+  "PENDING_FINAL_APPROVAL",
+]);
+
+const PROTECTED_COMPANY_ORGANIZATION_STATUSES = new Set<OnboardingStatus>([
+  OnboardingStatus.PENDING_APPROVAL,
+  OnboardingStatus.PENDING_SSM_REVIEW,
+  OnboardingStatus.PENDING_AML,
+  OnboardingStatus.PENDING_FINAL_APPROVAL,
+  OnboardingStatus.COMPLETED,
+  OnboardingStatus.REJECTED,
+]);
 
 export class RegTankService {
   private repository: RegTankRepository;
@@ -82,6 +123,26 @@ export class RegTankService {
     return inFlight;
   }
 
+  private async runCompanyOnboardingSingleFlight(
+    organizationId: string,
+    run: () => Promise<StartCorporateOnboardingResult>
+  ): Promise<StartCorporateOnboardingResult> {
+    const existing = companyOnboardingSingleFlight.get(organizationId);
+    if (existing) {
+      return existing;
+    }
+
+    const inFlight = run().finally(() => {
+      const current = companyOnboardingSingleFlight.get(organizationId);
+      if (current === inFlight) {
+        companyOnboardingSingleFlight.delete(organizationId);
+      }
+    });
+
+    companyOnboardingSingleFlight.set(organizationId, inFlight);
+    return inFlight;
+  }
+
   private isVerifyLinkReusable(expiresAt: Date | null | undefined): boolean {
     if (!expiresAt) {
       return false;
@@ -95,6 +156,150 @@ export class RegTankService {
 
   private isProtectedPersonalOnboardingStatus(status: string): boolean {
     return PROTECTED_PERSONAL_ONBOARDING_STATUSES.has(status);
+  }
+
+  private isReusableCompanyOnboardingStatus(status: string): boolean {
+    return REUSABLE_COMPANY_ONBOARDING_STATUSES.has(status);
+  }
+
+  private isProtectedCompanyRegTankStatus(status: string): boolean {
+    return PROTECTED_COMPANY_REGTANK_STATUSES.has(status);
+  }
+
+  private isRegeneratableCompanyStatus(status: string): boolean {
+    return REGENERATABLE_COMPANY_ONBOARDING_STATUSES.has(status);
+  }
+
+  private isProtectedCompanyOrganizationStatus(status: OnboardingStatus): boolean {
+    return PROTECTED_COMPANY_ORGANIZATION_STATUSES.has(status);
+  }
+
+  private isCompanyLinkSafelyReusable(
+    onboarding: Pick<Prisma.RegTankOnboardingUncheckedCreateInput, "verify_link" | "verify_link_expires_at"> & {
+      status?: string | null;
+    }
+  ): boolean {
+    const status = normalizeRawStatus(onboarding.status);
+    return (
+      this.isReusableCompanyOnboardingStatus(status) &&
+      Boolean(onboarding.verify_link) &&
+      this.isVerifyLinkReusable(onboarding.verify_link_expires_at as Date | null | undefined)
+    );
+  }
+
+  private async generateCompanyOnboardingLinkFromExisting(params: {
+    req: Request;
+    userId: string;
+    organizationId: string;
+    portalType: PortalType;
+    organizationType: OrganizationType;
+    companyName: string;
+    formName: string;
+    existingOnboarding: NonNullable<Awaited<ReturnType<RegTankRepository["findByOrganizationId"]>>>;
+  }): Promise<StartCorporateOnboardingResult> {
+    const {
+      req,
+      userId,
+      organizationId,
+      portalType,
+      organizationType,
+      companyName,
+      formName,
+      existingOnboarding,
+    } = params;
+
+    const onboardingRequest: RegTankCorporateOnboardingRequest = {
+      email: (await prisma.user.findUnique({
+        where: { user_id: userId },
+        select: { email: true },
+      }))!.email,
+      companyName,
+      formName,
+      referenceId: organizationId,
+    };
+
+    const regTankResponse = await this.apiClient.createCorporateOnboarding(onboardingRequest);
+    const expiresIn = regTankResponse.expiredIn || 86400;
+    const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.regTankOnboarding.update({
+          where: { id: existingOnboarding.id },
+          data: {
+            status: "CANCELLED",
+            substatus: `Auto-regenerated company onboarding link. New requestId: ${regTankResponse.requestId}`,
+          },
+        });
+
+        await tx.regTankOnboarding.create({
+          data: {
+            user_id: userId,
+            investor_organization_id: portalType === "investor" ? organizationId : null,
+            issuer_organization_id: portalType === "issuer" ? organizationId : null,
+            organization_type: organizationType,
+            portal_type: portalType,
+            request_id: regTankResponse.requestId,
+            reference_id: `${organizationId}-corp-regenerated-${Date.now()}`,
+            onboarding_type: "CORPORATE",
+            verify_link: regTankResponse.verifyLink,
+            verify_link_expires_at: expiresAt,
+            status: "PENDING",
+            regtank_response: regTankResponse as Prisma.InputJsonValue,
+          },
+        });
+      });
+    } catch (error) {
+      logger.error(
+        {
+          organizationId,
+          oldRequestId: existingOnboarding.request_id,
+          newRequestId: regTankResponse.requestId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "RegTank company link regeneration succeeded upstream but failed local persistence"
+      );
+      throw error;
+    }
+
+    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    await prisma.onboardingLog.create({
+      data: {
+        user_id: userId,
+        role: portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
+        event_type: "ONBOARDING_RESUMED",
+        portal: portalType,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        device_info: deviceInfo,
+        device_type: deviceType,
+        investor_organization_id: portalType === "investor" ? organizationId : null,
+        issuer_organization_id: portalType === "issuer" ? organizationId : null,
+        metadata: {
+          organizationId,
+          previousRequestId: existingOnboarding.request_id,
+          newRequestId: regTankResponse.requestId,
+          onboardingType: "CORPORATE",
+          trigger: "AUTO_REGENERATE_EXPIRED_COMPANY_LINK",
+        },
+      },
+    });
+
+    logger.info(
+      {
+        organizationId,
+        previousRequestId: existingOnboarding.request_id,
+        newRequestId: regTankResponse.requestId,
+      },
+      "Auto-regenerated company onboarding link"
+    );
+
+    return {
+      verifyLink: regTankResponse.verifyLink,
+      requestId: regTankResponse.requestId,
+      expiresIn,
+      organizationType,
+    };
   }
 
   private async restartExpiredOrCancelledPersonalOnboarding(params: {
@@ -684,12 +889,7 @@ export class RegTankService {
     portalType: PortalType,
     companyName: string,
     formId?: number
-  ): Promise<{
-    verifyLink: string;
-    requestId: string;
-    expiresIn: number;
-    organizationType: string;
-  }> {
+  ): Promise<StartCorporateOnboardingResult> {
     // Get formName from environment variables based on portal type
     const formName =
       portalType === "investor"
@@ -766,251 +966,277 @@ export class RegTankService {
       );
     }
 
-    // Check if there's already an active onboarding
-    const existingOnboarding = await this.repository.findByOrganizationId(
-      organizationId,
-      portalType
-    );
-    if (existingOnboarding && ["PENDING", "IN_PROGRESS"].includes(existingOnboarding.status)) {
-      if (existingOnboarding.verify_link) {
-        // Ensure onboarding settings are configured before resuming
-        const config = getRegTankConfig();
-        const redirectUrl =
-          portalType === "investor" ? config.redirectUrlInvestor : config.redirectUrlIssuer;
+    return this.runCompanyOnboardingSingleFlight(organizationId, async () => {
+      // Check if there's already an active onboarding
+      const existingOnboarding = await this.repository.findByOrganizationId(
+        organizationId,
+        portalType
+      );
 
-        // Get formId based on portal type
-        let formIdToUse = formId;
-        if (!formIdToUse) {
-          if (portalType === "investor") {
-            formIdToUse = parseInt(process.env.REGTANK_INVESTOR_CORPORATE_FORM_ID || "1015520", 10);
-          } else {
-            formIdToUse = parseInt(process.env.REGTANK_ISSUER_CORPORATE_FORM_ID || "1015520", 10);
-          }
+      const rtStatus = normalizeRawStatus(existingOnboarding?.status);
+
+      if (this.isProtectedCompanyOrganizationStatus(organization.onboarding_status)) {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          `Cannot continue company onboarding in organization status: ${organization.onboarding_status}`
+        );
+      }
+
+      if (existingOnboarding && this.isProtectedCompanyRegTankStatus(rtStatus)) {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          `Cannot continue company onboarding in status: ${rtStatus}`
+        );
+      }
+
+      // Get portal-specific redirectUrl from config
+      const config = getRegTankConfig();
+      const redirectUrl =
+        portalType === "investor" ? config.redirectUrlInvestor : config.redirectUrlIssuer;
+
+      // Get formId from parameter, or use portal-specific default
+      // Determine formId based on portal type if not provided in request
+      let formIdToUse = formId;
+      if (!formIdToUse) {
+        if (portalType === "investor") {
+          formIdToUse = parseInt(process.env.REGTANK_INVESTOR_CORPORATE_FORM_ID || "1015520", 10);
+        } else {
+          formIdToUse = parseInt(process.env.REGTANK_ISSUER_CORPORATE_FORM_ID || "1015520", 10);
+        }
+      }
+
+      // Set onboarding settings with redirect URL - called once per formId
+      // Redirect URL points to dashboard so users are redirected back after completing onboarding
+      try {
+        await this.apiClient.setOnboardingSettings({
+          formId: formIdToUse,
+          livenessConfidence: 70,
+          approveMode: true,
+          kycApprovalTarget: "ACURIS",
+          enabledRegistrationEmail: false,
+          redirectUrl,
+        });
+        logger.info(
+          { formId: formIdToUse, redirectUrl, portalType },
+          "RegTank onboarding settings configured successfully for corporate onboarding"
+        );
+      } catch (error) {
+        // Extract detailed error information
+        let errorMessage = "Failed to configure RegTank settings";
+        if (error instanceof AppError) {
+          errorMessage = error.message;
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
+        } else {
+          errorMessage = String(error);
         }
 
-        try {
-          await this.apiClient.setOnboardingSettings({
-            formId: formIdToUse,
-            livenessConfidence: 70,
-            approveMode: true,
-            kycApprovalTarget: "ACURIS",
-            enabledRegistrationEmail: false,
-            redirectUrl,
-          });
-          logger.info(
-            { formId: formIdToUse, redirectUrl, portalType },
-            "RegTank onboarding settings configured successfully (corporate resume)"
+        // Check if error is "SettingInfo does not exist" - this is OK, settings might already be set
+        const isSettingsNotFound =
+          error instanceof AppError &&
+          error.code === "REGTANK_API_ERROR" &&
+          (errorMessage.includes("SettingInfo does not exist") ||
+            errorMessage.includes("ERROR_DATA_NOT_FOUND"));
+
+        if (isSettingsNotFound) {
+          logger.warn(
+            {
+              formId: formIdToUse,
+              redirectUrl,
+              portalType,
+              message: "RegTank settings not found, but continuing with onboarding request",
+            },
+            "RegTank settings do not exist yet, continuing with corporate onboarding request"
           );
-        } catch (error) {
-          // Log but don't block - settings might already be configured
+        } else {
+          // Other errors - log but don't block
           logger.warn(
             {
               error: error instanceof Error ? error.message : String(error),
               formId: formIdToUse,
               redirectUrl,
               portalType,
-              message: "Failed to set RegTank settings during corporate resume, but continuing",
+              message: "Failed to set RegTank settings, but continuing with onboarding request",
             },
-            "Failed to set RegTank onboarding settings during corporate resume (non-blocking)"
+            "Failed to set RegTank onboarding settings (non-blocking)"
           );
         }
+        // Don't throw - continue with onboarding request
+      }
 
+      if (existingOnboarding && this.isCompanyLinkSafelyReusable(existingOnboarding)) {
         return {
-          verifyLink: existingOnboarding.verify_link,
+          verifyLink: existingOnboarding.verify_link!,
           requestId: existingOnboarding.request_id,
-          expiresIn: existingOnboarding.verify_link_expires_at
-            ? Math.floor((existingOnboarding.verify_link_expires_at.getTime() - Date.now()) / 1000)
-            : 86400,
+          expiresIn: Math.floor(
+            (existingOnboarding.verify_link_expires_at!.getTime() - Date.now()) / 1000
+          ),
           organizationType: organization.type,
         };
       }
-    }
 
-    // Prepare RegTank corporate onboarding request
-    const referenceId = organizationId; // Use organization ID as reference
+      if (existingOnboarding && this.isRegeneratableCompanyStatus(rtStatus)) {
+        // Re-check latest row inside protected single-flight operation.
+        const latest = await this.repository.findByOrganizationId(organizationId, portalType);
+        if (latest && this.isCompanyLinkSafelyReusable(latest)) {
+          return {
+            verifyLink: latest.verify_link!,
+            requestId: latest.request_id,
+            expiresIn: Math.floor((latest.verify_link_expires_at!.getTime() - Date.now()) / 1000),
+            organizationType: organization.type,
+          };
+        }
 
-    // Get portal-specific redirectUrl from config
-    const config = getRegTankConfig();
-    const redirectUrl =
-      portalType === "investor" ? config.redirectUrlInvestor : config.redirectUrlIssuer;
+        if (latest && this.isProtectedCompanyRegTankStatus(normalizeRawStatus(latest.status))) {
+          throw new AppError(
+            400,
+            "INVALID_STATE",
+            `Cannot continue company onboarding in status: ${normalizeRawStatus(latest.status)}`
+          );
+        }
 
-    // Get formId from parameter, or use portal-specific default
-    // Determine formId based on portal type if not provided in request
-    let formIdToUse = formId;
-    if (!formIdToUse) {
-      if (portalType === "investor") {
-        formIdToUse = parseInt(process.env.REGTANK_INVESTOR_CORPORATE_FORM_ID || "1015520", 10);
-      } else {
-        formIdToUse = parseInt(process.env.REGTANK_ISSUER_CORPORATE_FORM_ID || "1015520", 10);
-      }
-    }
-
-    // Set onboarding settings with redirect URL - called once per formId
-    // Redirect URL points to dashboard so users are redirected back after completing onboarding
-    try {
-      await this.apiClient.setOnboardingSettings({
-        formId: formIdToUse,
-        livenessConfidence: 70,
-        approveMode: true,
-        kycApprovalTarget: "ACURIS",
-        enabledRegistrationEmail: false,
-        redirectUrl,
-      });
-      logger.info(
-        { formId: formIdToUse, redirectUrl, portalType },
-        "RegTank onboarding settings configured successfully for corporate onboarding"
-      );
-    } catch (error) {
-      // Extract detailed error information
-      let errorMessage = "Failed to configure RegTank settings";
-      if (error instanceof AppError) {
-        errorMessage = error.message;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      } else {
-        errorMessage = String(error);
-      }
-
-      // Check if error is "SettingInfo does not exist" - this is OK, settings might already be set
-      const isSettingsNotFound =
-        error instanceof AppError &&
-        error.code === "REGTANK_API_ERROR" &&
-        (errorMessage.includes("SettingInfo does not exist") ||
-          errorMessage.includes("ERROR_DATA_NOT_FOUND"));
-
-      if (isSettingsNotFound) {
-        logger.warn(
-          {
-            formId: formIdToUse,
-            redirectUrl,
+        if (latest && this.isRegeneratableCompanyStatus(normalizeRawStatus(latest.status))) {
+          return this.generateCompanyOnboardingLinkFromExisting({
+            req,
+            userId,
+            organizationId,
             portalType,
-            message: "RegTank settings not found, but continuing with onboarding request",
-          },
-          "RegTank settings do not exist yet, continuing with corporate onboarding request"
-        );
-      } else {
-        // Other errors - log but don't block
-        logger.warn(
-          {
-            error: error instanceof Error ? error.message : String(error),
-            formId: formIdToUse,
-            redirectUrl,
-            portalType,
-            message: "Failed to set RegTank settings, but continuing with onboarding request",
-          },
-          "Failed to set RegTank onboarding settings (non-blocking)"
-        );
+            organizationType: organization.type,
+            companyName,
+            formName,
+            existingOnboarding: latest,
+          });
+        }
+
+        if (latest) {
+          throw new AppError(
+            400,
+            "INVALID_STATE",
+            `Cannot continue company onboarding in status: ${normalizeRawStatus(latest.status) || "UNKNOWN"}`
+          );
+        }
       }
-      // Don't throw - continue with onboarding request
-    }
 
-    const onboardingRequest: RegTankCorporateOnboardingRequest = {
-      email: user.email,
-      companyName: companyName,
-      formName: formName,
-      referenceId,
-    };
+      if (!existingOnboarding) {
+        // Prepare RegTank corporate onboarding request
+        const referenceId = organizationId; // Use organization ID as reference
 
-    logger.info(
-      {
-        userId,
-        organizationId,
-        portalType,
-        email: user.email,
-        referenceId,
-        companyName: onboardingRequest.companyName,
-      },
-      "Creating RegTank corporate onboarding request"
-    );
-
-    // Call RegTank API
-    let regTankResponse;
-    try {
-      regTankResponse = await this.apiClient.createCorporateOnboarding(onboardingRequest);
-    } catch (error) {
-      logger.error(
-        {
-          error: error instanceof Error ? error.message : String(error),
-          errorStack: error instanceof Error ? error.stack : undefined,
-          organizationId,
-          userId,
+        const onboardingRequest: RegTankCorporateOnboardingRequest = {
           email: user.email,
-        },
-        "Failed to create RegTank corporate onboarding"
-      );
-      // Re-throw AppError as-is, wrap others
-      if (error instanceof AppError) {
-        throw error;
-      }
-      throw new AppError(
-        500,
-        "REGTANK_ONBOARDING_FAILED",
-        `Failed to start RegTank corporate onboarding: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
+          companyName: companyName,
+          formName: formName,
+          referenceId,
+        };
 
-    // Calculate expiration time (24 hours default)
-    const expiresIn = regTankResponse.expiredIn || 86400;
-    const expiresAt = new Date(Date.now() + expiresIn * 1000);
+        logger.info(
+          {
+            userId,
+            organizationId,
+            portalType,
+            email: user.email,
+            referenceId,
+            companyName: onboardingRequest.companyName,
+          },
+          "Creating RegTank corporate onboarding request"
+        );
 
-    // Corporate onboarding starts with PENDING status
-    const initialStatus = "PENDING";
+        // Call RegTank API
+        let regTankResponse;
+        try {
+          regTankResponse = await this.apiClient.createCorporateOnboarding(onboardingRequest);
+        } catch (error) {
+          logger.error(
+            {
+              error: error instanceof Error ? error.message : String(error),
+              errorStack: error instanceof Error ? error.stack : undefined,
+              organizationId,
+              userId,
+              email: user.email,
+            },
+            "Failed to create RegTank corporate onboarding"
+          );
+          // Re-throw AppError as-is, wrap others
+          if (error instanceof AppError) {
+            throw error;
+          }
+          throw new AppError(
+            500,
+            "REGTANK_ONBOARDING_FAILED",
+            `Failed to start RegTank corporate onboarding: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
 
-    // Store onboarding record
-    await this.repository.createOnboarding({
-      userId,
-      organizationId,
-      organizationType: organization.type,
-      portalType,
-      requestId: regTankResponse.requestId,
-      referenceId,
-      onboardingType: "CORPORATE",
-      verifyLink: regTankResponse.verifyLink,
-      verifyLinkExpiresAt: expiresAt,
-      status: initialStatus,
-      regtankResponse: regTankResponse as Prisma.InputJsonValue,
-    });
+        // Calculate expiration time (24 hours default)
+        const expiresIn = regTankResponse.expiredIn || 86400;
+        const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
-    // Log onboarding started event
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+        // Corporate onboarding starts with PENDING status
+        const initialStatus = "PENDING";
 
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: userId,
-        role,
-        event_type: "ONBOARDING_STARTED",
-        portal: portalType,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-        device_info: deviceInfo,
-        device_type: deviceType,
-        organization_name: organization.name,
-        investor_organization_id: portalType === "investor" ? organizationId : null,
-        issuer_organization_id: portalType === "issuer" ? organizationId : null,
-        metadata: {
+        // Store onboarding record
+        await this.repository.createOnboarding({
+          userId,
           organizationId,
+          organizationType: organization.type,
+          portalType,
           requestId: regTankResponse.requestId,
+          referenceId,
           onboardingType: "CORPORATE",
-        },
-      },
+          verifyLink: regTankResponse.verifyLink,
+          verifyLinkExpiresAt: expiresAt,
+          status: initialStatus,
+          regtankResponse: regTankResponse as Prisma.InputJsonValue,
+        });
+
+        // Log onboarding started event
+        const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+        const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
+
+        await prisma.onboardingLog.create({
+          data: {
+            user_id: userId,
+            role,
+            event_type: "ONBOARDING_STARTED",
+            portal: portalType,
+            ip_address: ipAddress,
+            user_agent: userAgent,
+            device_info: deviceInfo,
+            device_type: deviceType,
+            organization_name: organization.name,
+            investor_organization_id: portalType === "investor" ? organizationId : null,
+            issuer_organization_id: portalType === "issuer" ? organizationId : null,
+            metadata: {
+              organizationId,
+              requestId: regTankResponse.requestId,
+              onboardingType: "CORPORATE",
+            },
+          },
+        });
+
+        logger.info(
+          {
+            requestId: regTankResponse.requestId,
+            organizationId,
+          },
+          "RegTank corporate onboarding started successfully"
+        );
+
+        return {
+          verifyLink: regTankResponse.verifyLink,
+          requestId: regTankResponse.requestId,
+          expiresIn,
+          organizationType: organization.type,
+        };
+      }
+
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        `Cannot continue company onboarding in status: ${rtStatus || "UNKNOWN"}`
+      );
     });
-
-    logger.info(
-      {
-        requestId: regTankResponse.requestId,
-        organizationId,
-        verifyLink: regTankResponse.verifyLink,
-      },
-      "RegTank corporate onboarding started successfully"
-    );
-
-    return {
-      verifyLink: regTankResponse.verifyLink,
-      requestId: regTankResponse.requestId,
-      expiresIn,
-      organizationType: organization.type,
-    };
   }
 
   /**
