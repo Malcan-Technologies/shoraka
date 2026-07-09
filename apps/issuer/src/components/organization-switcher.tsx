@@ -189,7 +189,25 @@ export function OrganizationSwitcher() {
 
   const isOnboardingPage = isAddingNewOrganizationRoute(pathname);
 
-  const visibleOrganizations = organizations;
+  // Hide corporate accounts with Expired status (regtank_onboarding.status = EXPIRED)
+  const isExpired = (org: Organization) =>
+    String(org.regtankOnboardingStatus ?? "").toUpperCase() === "EXPIRED";
+  const visibleOrganizations = organizations.filter((org) => {
+    if (org.type === "PERSONAL") return true;
+    return !isExpired(org);
+  });
+
+  // If current org is an expired corporate account, switch to first non-expired so user never sees "Expired" in sidebar
+  React.useEffect(() => {
+    if (!activeOrganization || visibleOrganizations.length === 0) return;
+    if (activeOrganization.type === "PERSONAL") return;
+    const status = String(activeOrganization.regtankOnboardingStatus ?? "").toUpperCase();
+    if (status !== "EXPIRED") return;
+    const target = visibleOrganizations.find((o) => o.onboardingStatus === "COMPLETED") ?? visibleOrganizations[0];
+    if (target && target.id !== activeOrganization.id) {
+      switchOrganization(target.id);
+    }
+  }, [activeOrganization, visibleOrganizations, switchOrganization]);
 
   const yourOrganizations = sortYourOrganizations(
     visibleOrganizations.filter(isOrganizationInYourOrganizationsSection)
