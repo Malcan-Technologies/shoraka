@@ -4638,6 +4638,20 @@ export class AdminService {
           : null;
       const codStatusUpper = codStatusRaw?.toUpperCase() ?? null;
 
+      if (codStatusRaw) {
+        try {
+          await this.regTankRepository.updateStatus(codRequestId, {
+            status: normalizeRawStatus(codStatusRaw),
+            regtankResponse: codDetails as Prisma.InputJsonValue,
+          });
+        } catch (error) {
+          logger.error(
+            { error: error instanceof Error ? error.message : String(error), requestId: codRequestId },
+            "[Admin Refresh] Failed to persist refreshed corporate onboarding status (non-blocking)"
+          );
+        }
+      }
+
       let onboardingApproved = Boolean(org.onboarding_approved);
       let onboardingStatusResult = org.onboarding_status;
       let onboardingAdvanced = false;

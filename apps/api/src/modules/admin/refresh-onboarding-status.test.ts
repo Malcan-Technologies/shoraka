@@ -55,6 +55,12 @@ jest.mock("../regtank/aml-fetcher", () => ({
   })),
 }));
 
+const mockAdvanceOnboardingStatusFromFlags = jest.fn();
+jest.mock("../onboarding/utils/advance-onboarding-status", () => ({
+  advanceOnboardingStatusFromFlags: (...args: unknown[]) =>
+    mockAdvanceOnboardingStatusFromFlags(...args),
+}));
+
 const mockRegTankOnboardingFindUnique = jest.fn();
 const mockInvestorOrgFindUnique = jest.fn();
 const mockIssuerOrgFindUnique = jest.fn();
@@ -316,6 +322,139 @@ describe("AdminService.refreshOnboardingStatus — personal", () => {
 
 describe("AdminService.refreshOnboardingStatus — company", () => {
   beforeEach(() => jest.clearAllMocks());
+
+  it("persists live EXPIRED COD status to the exact selected request_id row", async () => {
+    mockRegTankOnboardingFindUnique.mockResolvedValue(
+      corporateOnboarding({
+        request_id: "COD05339",
+        investor_organization: {
+          id: "org-2",
+          name: "Acme Sdn Bhd",
+          onboarding_status: OnboardingStatus.PENDING_AML,
+          onboarding_approved: true,
+          aml_approved: false,
+          ssm_approved: true,
+        },
+      })
+    );
+    mockGetCorporateOnboardingDetails.mockResolvedValue({ status: "EXPIRED", corpIndvDirectors: [] });
+    mockInvestorOrgFindUnique.mockResolvedValue({ director_aml_status: { directors: [] }, ssm_approved: true });
+    mockApplyCorporateAmlMilestoneFromLiveKyb.mockResolvedValue({
+      approved: false,
+      amlApproved: false,
+      onboardingStatus: OnboardingStatus.PENDING_AML,
+      advanced: false,
+    });
+
+    const service = new AdminService();
+    const result = await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+
+    expect(mockUpdateStatus).toHaveBeenCalledWith(
+      "COD05339",
+      expect.objectContaining({
+        status: "EXPIRED",
+        regtankResponse: expect.objectContaining({ status: "EXPIRED" }),
+      })
+    );
+    expect(result.onboardingProviderStatus).toBe("EXPIRED");
+  });
+
+  it("persists live active COD status to the exact selected request_id row", async () => {
+    mockRegTankOnboardingFindUnique.mockResolvedValue(corporateOnboarding({ request_id: "COD001" }));
+    mockGetCorporateOnboardingDetails.mockResolvedValue({ status: "WAIT_FOR_APPROVAL", corpIndvDirectors: [] });
+    mockInvestorOrgFindUnique.mockResolvedValue({ director_aml_status: { directors: [] }, ssm_approved: true });
+    mockApplyCorporateAmlMilestoneFromLiveKyb.mockResolvedValue({
+      approved: false,
+      amlApproved: false,
+      onboardingStatus: OnboardingStatus.PENDING_AML,
+      advanced: false,
+    });
+
+    const service = new AdminService();
+    await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+
+    expect(mockUpdateStatus).toHaveBeenCalledWith(
+      "COD001",
+      expect.objectContaining({
+        status: "WAIT_FOR_APPROVAL",
+        regtankResponse: expect.objectContaining({ status: "WAIT_FOR_APPROVAL" }),
+      })
+    );
+  });
+
+  it("never updates another COD row while persisting corporate status", async () => {
+    mockRegTankOnboardingFindUnique.mockResolvedValue(corporateOnboarding({ request_id: "COD05339" }));
+    mockGetCorporateOnboardingDetails.mockResolvedValue({ status: "PROCESSING", corpIndvDirectors: [] });
+    mockInvestorOrgFindUnique.mockResolvedValue({ director_aml_status: { directors: [] }, ssm_approved: true });
+    mockApplyCorporateAmlMilestoneFromLiveKyb.mockResolvedValue({
+      approved: false,
+      amlApproved: false,
+      onboardingStatus: OnboardingStatus.PENDING_AML,
+      advanced: false,
+    });
+
+    const service = new AdminService();
+    await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+
+    expect(mockUpdateStatus).toHaveBeenCalledWith(
+      "COD05339",
+      expect.objectContaining({ status: "PROCESSING" })
+    );
+    expect(mockUpdateStatus).not.toHaveBeenCalledWith("COD00001", expect.anything());
+  });
+
+  it("keeps existing corporate APPROVED progression behavior", async () => {
+    mockAdvanceOnboardingStatusFromFlags.mockResolvedValue({ changed: true });
+    mockRegTankOnboardingFindUnique.mockResolvedValue(
+      corporateOnboarding({
+        request_id: "COD05339",
+        investor_organization: {
+          id: "org-2",
+          name: "Acme Sdn Bhd",
+          onboarding_status: OnboardingStatus.PENDING_APPROVAL,
+          onboarding_approved: false,
+          aml_approved: false,
+          ssm_approved: true,
+        },
+      })
+    );
+    mockGetCorporateOnboardingDetails.mockResolvedValue({ status: "APPROVED", corpIndvDirectors: [] });
+    mockInvestorOrgFindUnique.mockResolvedValue({
+      onboarding_status: OnboardingStatus.PENDING_AML,
+      director_aml_status: { directors: [] },
+      ssm_approved: true,
+    });
+    mockApplyCorporateAmlMilestoneFromLiveKyb.mockResolvedValue({
+      approved: false,
+      amlApproved: false,
+      onboardingStatus: OnboardingStatus.PENDING_AML,
+      advanced: false,
+    });
+
+    const service = new AdminService();
+    const result = await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+
+    expect(mockAdvanceOnboardingStatusFromFlags).toHaveBeenCalled();
+    expect(result.onboardingProviderStatus).toBe("APPROVED");
+  });
+
+  it("does not overwrite local corporate status when provider query fails", async () => {
+    mockRegTankOnboardingFindUnique.mockResolvedValue(corporateOnboarding({ request_id: "COD05339" }));
+    mockGetCorporateOnboardingDetails.mockRejectedValue(new Error("RegTank COD timeout"));
+    mockInvestorOrgFindUnique.mockResolvedValue({ director_aml_status: { directors: [] }, ssm_approved: true });
+    mockApplyCorporateAmlMilestoneFromLiveKyb.mockResolvedValue({
+      approved: false,
+      amlApproved: false,
+      onboardingStatus: OnboardingStatus.PENDING_AML,
+      advanced: false,
+    });
+
+    const service = new AdminService();
+    const result = await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+
+    expect(mockUpdateStatus).not.toHaveBeenCalledWith("COD05339", expect.anything());
+    expect(result.partialFailures).toContain("COD");
+  });
 
   it("does not re-query RegTank for a COMPLETED organization", async () => {
     mockRegTankOnboardingFindUnique.mockResolvedValue(
