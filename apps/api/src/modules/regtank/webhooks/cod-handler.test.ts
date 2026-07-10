@@ -95,10 +95,72 @@ describe("CODWebhookHandler", () => {
 
     await expect((handler as any).handle(minimalCodPayload())).resolves.toBeUndefined();
 
+    expect(mockFindByRequestId).toHaveBeenCalledTimes(3);
+    expect(mockFindByRequestId).toHaveBeenNthCalledWith(1, "COD001");
+    expect(mockFindByRequestId).toHaveBeenNthCalledWith(2, "COD001");
+    expect(mockFindByRequestId).toHaveBeenNthCalledWith(3, "COD001");
     expect(mockAppendWebhookPayload).not.toHaveBeenCalled();
     expect(mockUpdateStatus).not.toHaveBeenCalled();
     expect(mockInvestorUpdate).not.toHaveBeenCalled();
     expect(mockUpdateInvestorOrganizationOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("retries exact COD request lookup and processes once found", async () => {
+    mockFindByRequestId
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(baseOnboardingRow({ request_id: "COD001", status: "PENDING" }));
+    const handler = new CODWebhookHandler();
+
+    await expect(
+      (handler as any).handle(minimalCodPayload({ requestId: "COD001", status: "PROCESSING" }))
+    ).resolves.toBeUndefined();
+
+    expect(mockFindByRequestId).toHaveBeenCalledTimes(2);
+    expect(mockFindByRequestId).toHaveBeenNthCalledWith(1, "COD001");
+    expect(mockFindByRequestId).toHaveBeenNthCalledWith(2, "COD001");
+    expect(mockAppendWebhookPayload).toHaveBeenCalledWith(
+      "COD001",
+      expect.objectContaining({ requestId: "COD001", status: "PROCESSING" })
+    );
+    expect(mockUpdateStatus).toHaveBeenCalledWith(
+      "COD001",
+      expect.objectContaining({ status: "PROCESSING" })
+    );
+  });
+
+  it("never attaches a COD webhook to another requestId row", async () => {
+    mockFindByRequestId.mockResolvedValue(baseOnboardingRow({ request_id: "COD999", status: "PENDING" }));
+    const handler = new CODWebhookHandler();
+
+    await expect(
+      (handler as any).handle(minimalCodPayload({ requestId: "COD123", status: "PROCESSING" }))
+    ).resolves.toBeUndefined();
+
+    expect(mockFindByRequestId).toHaveBeenCalledTimes(1);
+    expect(mockFindByRequestId).toHaveBeenCalledWith("COD123");
+    expect(mockAppendWebhookPayload).toHaveBeenCalledWith(
+      "COD123",
+      expect.objectContaining({ requestId: "COD123" })
+    );
+    expect(mockUpdateStatus).toHaveBeenCalledWith(
+      "COD123",
+      expect.objectContaining({ status: "PROCESSING" })
+    );
+    expect(mockUpdateStatus).not.toHaveBeenCalledWith("COD999", expect.anything());
+  });
+
+  it("immediate exact match path remains unchanged (single lookup)", async () => {
+    mockFindByRequestId.mockResolvedValue(baseOnboardingRow({ request_id: "COD001", status: "PENDING" }));
+    const handler = new CODWebhookHandler();
+
+    await expect(
+      (handler as any).handle(minimalCodPayload({ requestId: "COD001", status: "PROCESSING" }))
+    ).resolves.toBeUndefined();
+
+    expect(mockFindByRequestId).toHaveBeenCalledTimes(1);
+    expect(mockFindByRequestId).toHaveBeenCalledWith("COD001");
+    expect(mockAppendWebhookPayload).toHaveBeenCalledTimes(1);
+    expect(mockUpdateStatus).toHaveBeenCalledTimes(1);
   });
 
   it("E9: preserves the payload on a CANCELLED row, does not mutate the organization, and does not change status", async () => {

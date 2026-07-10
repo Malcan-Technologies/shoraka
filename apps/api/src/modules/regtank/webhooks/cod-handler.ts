@@ -30,6 +30,9 @@ import {
   logWebhookFamilyTypeMismatch,
 } from "./onboarding-webhook-guards";
 
+const COD_EXACT_LOOKUP_MAX_ATTEMPTS = 3;
+const COD_EXACT_LOOKUP_DELAY_MS = 75;
+
 /**
  * COD (Company Onboarding Data) Webhook Handler
  * Handles webhooks from /codliveness endpoint
@@ -57,6 +60,29 @@ export class CODWebhookHandler extends BaseWebhookHandler {
     return "COD (Company Onboarding Data)";
   }
 
+  private async findByExactRequestIdWithBoundedRetry(requestId: string) {
+    let onboarding = await this.repository.findByRequestId(requestId);
+    if (onboarding) return onboarding;
+
+    for (let attempt = 2; attempt <= COD_EXACT_LOOKUP_MAX_ATTEMPTS; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, COD_EXACT_LOOKUP_DELAY_MS));
+      onboarding = await this.repository.findByRequestId(requestId);
+      if (onboarding) {
+        logger.info(
+          {
+            webhookFamily: "codliveness",
+            requestId,
+            attempt,
+          },
+          "[COD Webhook] Exact requestId matched after bounded retry"
+        );
+        return onboarding;
+      }
+    }
+
+    return null;
+  }
+
   protected async handle(payload: RegTankCODWebhook): Promise<void> {
     const { requestId, status, isPrimary, corpIndvDirectors, corpIndvShareholders, corpBizShareholders, kybId } = payload;
     if (typeof status !== "string" || !status) {
@@ -68,7 +94,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
     }
 
     // Find onboarding record
-    const onboarding = await this.repository.findByRequestId(requestId);
+    const onboarding = await this.findByExactRequestIdWithBoundedRetry(requestId);
     if (!onboarding) {
       logger.warn(
         {
