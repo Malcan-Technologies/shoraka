@@ -22,6 +22,9 @@ import {
   logWebhookFamilyTypeMismatch,
 } from "./onboarding-webhook-guards";
 
+const PERSONAL_EXACT_LOOKUP_MAX_ATTEMPTS = 3;
+const PERSONAL_EXACT_LOOKUP_DELAY_MS = 75;
+
 /**
  * Individual Onboarding Webhook Handler
  * Handles webhooks from /liveness endpoint
@@ -47,6 +50,29 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     return "Individual Onboarding";
   }
 
+  private async findByExactRequestIdWithBoundedRetry(requestId: string) {
+    let onboarding = await this.repository.findByRequestId(requestId);
+    if (onboarding) return onboarding;
+
+    for (let attempt = 2; attempt <= PERSONAL_EXACT_LOOKUP_MAX_ATTEMPTS; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, PERSONAL_EXACT_LOOKUP_DELAY_MS));
+      onboarding = await this.repository.findByRequestId(requestId);
+      if (onboarding) {
+        logger.info(
+          {
+            webhookFamily: "liveness",
+            requestId,
+            attempt,
+          },
+          "[Individual Webhook] Exact requestId matched after bounded retry"
+        );
+        return onboarding;
+      }
+    }
+
+    return null;
+  }
+
   protected async handle(payload: RegTankIndividualOnboardingWebhook): Promise<void> {
     const { requestId, status } = payload;
     if (typeof status !== "string" || !status) {
@@ -58,7 +84,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     }
 
     // Find onboarding record
-    const onboarding = await this.repository.findByRequestId(requestId);
+    const onboarding = await this.findByExactRequestIdWithBoundedRetry(requestId);
     if (!onboarding) {
       const payloadRefRaw = (payload as Record<string, unknown>).referenceId;
       const payloadRef = typeof payloadRefRaw === "string" ? payloadRefRaw.trim() : "";

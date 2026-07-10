@@ -47,6 +47,10 @@ jest.mock("../../../lib/prisma", () => ({
   },
 }));
 
+jest.mock("../../organization/ctos-party-supplement-webhook-lookup", () => ({
+  findCtosPartySupplementByOnboardingJsonMatch: jest.fn().mockResolvedValue(null),
+}));
+
 import { IndividualOnboardingWebhookHandler } from "./individual-onboarding-handler";
 
 function baseOnboardingRow(overrides: Record<string, unknown> = {}) {
@@ -68,6 +72,87 @@ function baseOnboardingRow(overrides: Record<string, unknown> = {}) {
 describe("IndividualOnboardingWebhookHandler", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it("immediate exact match performs one lookup", async () => {
+    mockFindByRequestId.mockResolvedValue(baseOnboardingRow({ request_id: "LD001-R01", status: "PROCESSING" }));
+    const handler = new IndividualOnboardingWebhookHandler();
+
+    await (handler as any).handle({ requestId: "LD001-R01", status: "PROCESSING" });
+
+    expect(mockFindByRequestId).toHaveBeenCalledTimes(1);
+    expect(mockFindByRequestId).toHaveBeenCalledWith("LD001-R01");
+    expect(mockAppendWebhookPayload).toHaveBeenCalledWith(
+      "LD001-R01",
+      expect.objectContaining({ requestId: "LD001-R01", status: "PROCESSING" })
+    );
+    expect(mockUpdateStatus).toHaveBeenCalledWith(
+      "LD001-R01",
+      expect.objectContaining({ status: "PROCESSING" })
+    );
+  });
+
+  it("first miss then second exact hit processes webhook normally", async () => {
+    mockFindByRequestId
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(baseOnboardingRow({ request_id: "LD001-R01", status: "PROCESSING" }));
+    const handler = new IndividualOnboardingWebhookHandler();
+
+    await (handler as any).handle({ requestId: "LD001-R01", status: "WAIT_FOR_APPROVAL" });
+
+    expect(mockFindByRequestId).toHaveBeenCalledTimes(2);
+    expect(mockFindByRequestId).toHaveBeenNthCalledWith(1, "LD001-R01");
+    expect(mockFindByRequestId).toHaveBeenNthCalledWith(2, "LD001-R01");
+    expect(mockAppendWebhookPayload).toHaveBeenCalledWith(
+      "LD001-R01",
+      expect.objectContaining({ requestId: "LD001-R01", status: "WAIT_FOR_APPROVAL" })
+    );
+    expect(mockUpdateStatus).toHaveBeenCalledWith(
+      "LD001-R01",
+      expect.objectContaining({ status: "WAIT_FOR_APPROVAL" })
+    );
+  });
+
+  it("still missing performs three exact lookups and no mutation", async () => {
+    mockFindByRequestId.mockResolvedValue(null);
+    const handler = new IndividualOnboardingWebhookHandler();
+
+    await expect(
+      (handler as any).handle({ requestId: "LD001-R01", status: "PROCESSING" })
+    ).resolves.not.toThrow();
+
+    expect(mockFindByRequestId).toHaveBeenCalledTimes(3);
+    expect(mockFindByRequestId).toHaveBeenNthCalledWith(1, "LD001-R01");
+    expect(mockFindByRequestId).toHaveBeenNthCalledWith(2, "LD001-R01");
+    expect(mockFindByRequestId).toHaveBeenNthCalledWith(3, "LD001-R01");
+    expect(mockAppendWebhookPayload).not.toHaveBeenCalled();
+    expect(mockUpdateStatus).not.toHaveBeenCalled();
+    expect(mockUpdateInvestorOrganizationOnboarding).not.toHaveBeenCalled();
+    expect(mockHandleWebhookUpdate).not.toHaveBeenCalled();
+  });
+
+  it("never attaches to another requestId row", async () => {
+    mockFindByRequestId.mockImplementation(async (requestId: string) =>
+      requestId === "LD001-R99" ? baseOnboardingRow({ request_id: "LD001-R99" }) : null
+    );
+    const handler = new IndividualOnboardingWebhookHandler();
+
+    await expect(
+      (handler as any).handle({ requestId: "LD001-R01", status: "PROCESSING" })
+    ).resolves.not.toThrow();
+
+    expect(mockFindByRequestId).toHaveBeenCalledTimes(3);
+    expect(mockFindByRequestId).toHaveBeenNthCalledWith(1, "LD001-R01");
+    expect(mockFindByRequestId).toHaveBeenNthCalledWith(2, "LD001-R01");
+    expect(mockFindByRequestId).toHaveBeenNthCalledWith(3, "LD001-R01");
+    expect(mockAppendWebhookPayload).not.toHaveBeenCalledWith(
+      "LD001-R99",
+      expect.anything()
+    );
+    expect(mockUpdateStatus).not.toHaveBeenCalledWith(
+      "LD001-R99",
+      expect.anything()
+    );
   });
 
   it("E8: preserves the payload on a CANCELLED row and does not mutate the organization", async () => {
