@@ -68,6 +68,28 @@ export class ProductRepository {
   }
 
   /**
+   * Resolve the product row for a frozen application.product_version within the same
+   * base_id family as `productId` (includes INACTIVE historical versions).
+   */
+  async findByBaseAndVersion(productId: string, version: number): Promise<Product | null> {
+    const row = await this.findById(productId);
+    if (!row || row.status === "DELETED") return null;
+
+    if (row.version === version) return row;
+
+    const baseId = row.base_id ?? row.id;
+    const byVersion = await prisma.product.findFirst({
+      where: {
+        base_id: baseId,
+        version,
+        status: { not: "DELETED" },
+      },
+      orderBy: { created_at: "desc" },
+    });
+    return byVersion;
+  }
+
+  /**
    * Guard-only: which product.version to compare to application.product_version.
    * If the id row cannot supply a live version (missing, deleted, inactive with no active sibling), returns UNAVAILABLE.
    */

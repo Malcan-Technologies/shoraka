@@ -62,7 +62,12 @@ export async function getPrismaDevClient(): Promise<PrismaClient | null> {
           url: devDatabaseUrl,
         },
       },
-      log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
+      log:
+        process.env.NODE_ENV === "development" && process.env.PRISMA_LOG_QUERIES === "true"
+          ? ["query", "error", "warn"]
+          : process.env.NODE_ENV === "development"
+            ? ["error", "warn"]
+            : ["error"],
     });
 
     await prismaDevInstance.$connect();

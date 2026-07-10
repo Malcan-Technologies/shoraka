@@ -2105,6 +2105,18 @@ export class ApiClient {
 
   // --- Multi-party signing envelopes ---
 
+  /**
+   * Issuer: frozen product workflow for an application (application.product_version).
+   * Used by configure-signers / post-docs so packages do not pick up later product edits.
+   */
+  async getIssuerApplicationSigningProductWorkflow(
+    applicationId: string
+  ): Promise<ApiResponse<{ product_version: number; workflow: unknown[] }> | ApiError> {
+    return this.get<{ product_version: number; workflow: unknown[] }>(
+      `/v1/signing/applications/${applicationId}/product-workflow`
+    );
+  }
+
   /** Issuer: create a draft envelope from the application's product signing template. */
   async createIssuerSigningEnvelope(
     applicationId: string,
@@ -2221,6 +2233,37 @@ export class ApiClient {
     return this.post<{ signingUrl: string }>(
       `/v1/signing/external/${accessToken}/start-signing`,
       input
+    );
+  }
+
+  /** External no-auth recipient: confirm signing after SigningCloud backUrl return. */
+  async confirmExternalEnvelopeSigned(
+    accessToken: string,
+    input: { documentId: string }
+  ): Promise<ApiResponse<ExternalSigningSessionDto> | ApiError> {
+    return this.post<ExternalSigningSessionDto>(
+      `/v1/signing/external/${accessToken}/confirm-signed`,
+      input
+    );
+  }
+
+  /** External no-auth recipient: refresh statuses from SigningCloud document detail. */
+  async syncExternalSigningFromProvider(
+    accessToken: string
+  ): Promise<ApiResponse<ExternalSigningSessionDto> | ApiError> {
+    return this.post<ExternalSigningSessionDto>(
+      `/v1/signing/external/${accessToken}/sync-from-provider`,
+      {}
+    );
+  }
+
+  /** Issuer: refresh envelope statuses from SigningCloud document detail. */
+  async syncIssuerSigningEnvelopeFromProvider(
+    envelopeId: string
+  ): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
+    return this.post<SigningEnvelopeDto>(
+      `/v1/signing/envelopes/${envelopeId}/sync-from-provider`,
+      {}
     );
   }
 

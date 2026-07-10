@@ -289,39 +289,12 @@ export function parseSigningTemplateConfig(raw: unknown): SigningTemplateConfig 
         .map(parseSupportingDocRef)
         .filter((item): item is SigningTemplateSupportingDocRef => item != null)
     : [];
-  return sanitizeSigningTemplateConfig(ensureDefaultSigningDocuments({
+  return sanitizeSigningTemplateConfig({
     enabled: r.enabled === true,
     roles,
     documents: [...documents].sort((a, b) => a.order - b.order),
     supporting_docs,
-  }));
-}
-
-/** Adds the standard guarantor agreement document when signing is enabled and only the offer letter exists. */
-export function ensureDefaultSigningDocuments(config: SigningTemplateConfig): SigningTemplateConfig {
-  if (!config.enabled) return config;
-  if (config.documents.some((doc) => doc.key === GUARANTOR_AGREEMENT_TEMPLATE_KEY)) {
-    return config;
-  }
-
-  const offerLetter = config.documents.find((doc) => doc.key === "offer_letter");
-  if (!offerLetter) return config;
-
-  return {
-    ...config,
-    documents: [
-      ...config.documents,
-      {
-        key: GUARANTOR_AGREEMENT_TEMPLATE_KEY,
-        name: "Guarantor Agreement",
-        description: "Placeholder guarantor agreement document",
-        source: "TEMPLATE",
-        required: true,
-        order: offerLetter.order + 1,
-        signer_role_keys: ["guarantor"],
-      },
-    ],
-  };
+  });
 }
 
 function mergeRoleMaxCount(a: number | null, b: number | null): number | null {
@@ -575,9 +548,8 @@ export function validateRecipientBindings(
       } else if (!isValidSigningIcNumber(b.ic_number)) {
         errors.push(`Recipient for "${role.label || role.key}" must have a valid 12-digit IC number.`);
       }
-    } else if (b.ic_number?.trim() && !isValidSigningIcNumber(b.ic_number)) {
-      errors.push(`Recipient for "${role.label || role.key}" has an invalid IC number.`);
     }
+    // Non-director roles self-declare IC on the signing link; ignore any IC sent at bind time.
     const list = byRole.get(b.role_key) ?? [];
     list.push(b);
     byRole.set(b.role_key, list);
@@ -756,6 +728,8 @@ export interface ExternalSigningSessionDto {
   /** True when this recipient must complete MyKad eKYC before signing. */
   kyc_required: boolean;
   kyc_status: SigningKycStatus;
+  /** True when the envelope is COMPLETED / VOIDED / DECLINED / EXPIRED (read-only terminal). */
+  package_closed?: boolean;
 }
 
 export interface VerifyExternalAccessCodeInput {

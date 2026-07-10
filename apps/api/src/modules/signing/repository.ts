@@ -251,6 +251,13 @@ export class SigningRepository {
     });
   }
 
+  async markAssignmentDeclined(assignmentId: string): Promise<void> {
+    await prisma.signingAssignment.update({
+      where: { id: assignmentId },
+      data: { status: "DECLINED", signed_at: null },
+    });
+  }
+
   async recordSignedDocument(
     documentId: string,
     signedS3Key: string,

@@ -27,7 +27,6 @@ import {
 import { useContract } from "@/hooks/use-contracts";
 import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import { useAcceptInvoiceOffer, useRejectContractOffer, useRejectInvoiceOffer, useApplication } from "@/hooks/use-applications";
-import { useIssuerProduct } from "@/hooks/use-products";
 import { SupportingDocumentsStep } from "@/app/(application-flow)/applications/steps/supporting-documents-step";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
@@ -391,9 +390,8 @@ function buildIssuerEnvelopeBindings(
         role_key: role.key,
         name: guarantor.name ?? guarantor.business_name ?? "",
         email: guarantor.email,
-        ic_number: guarantor.ic_number?.trim()
-          ? normalizeSigningIcNumber(guarantor.ic_number)
-          : null,
+        // Guarantors self-declare IC on the signing link; never pre-bind from application.
+        ic_number: null,
         application_guarantor_id: guarantor.id,
       }));
     } else {
@@ -433,8 +431,6 @@ function validateSignerBindings(bindings: RecipientBinding[], template: SigningT
       if (!isValidSigningIcNumber(binding.ic_number)) {
         return `${role.label || role.key} must have a valid 12-digit IC number on file.`;
       }
-    } else if (binding.ic_number?.trim() && !isValidSigningIcNumber(binding.ic_number)) {
-      return "A signer has an invalid IC number.";
     }
   }
   return null;
@@ -617,12 +613,13 @@ export function ReviewOfferModal({
   type,
   applicationId,
   issuerOrganizationId: issuerOrganizationIdProp,
-  productId,
+  productId: _unusedProductId,
   contractId,
   invoice,
   requiresInvoiceSigning = true,
   onClose,
 }: ReviewOfferModalProps) {
+  // productId kept in props for callers; signing/post-docs use frozen application workflow.
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
   const { activeOrganization } = useOrganization();
@@ -631,18 +628,34 @@ export function ReviewOfferModal({
     () => createApiClient(API_URL, getAccessToken),
     [getAccessToken]
   );
-  const { data: product, isLoading: isLoadingProduct } = useIssuerProduct(productId ?? "");
+  // Frozen product.workflow for this application (application.product_version) — not the live catalog row.
+  const {
+    data: frozenProductWorkflow,
+    isLoading: isLoadingFrozenProductWorkflow,
+  } = useQuery({
+    queryKey: ["signing-product-workflow", applicationId],
+    queryFn: async () => {
+      const response = await apiClient.getIssuerApplicationSigningProductWorkflow(applicationId);
+      if (!response.success) {
+        throw new Error(
+          getApiErrorDetails(response, "Failed to load signing product configuration").message
+        );
+      }
+      return response.data;
+    },
+    enabled: Boolean(applicationId),
+  });
   const supportingDocumentsStepConfig = React.useMemo(
-    () => findSupportingDocumentsStepConfig((product as { workflow?: unknown } | null | undefined)?.workflow),
-    [product]
+    () => findSupportingDocumentsStepConfig(frozenProductWorkflow?.workflow),
+    [frozenProductWorkflow]
   );
   const hasPostDocs = React.useMemo(
     () => hasPostApplicationDocuments(supportingDocumentsStepConfig),
     [supportingDocumentsStepConfig]
   );
   const signingTemplate = React.useMemo(
-    () => readSigningTemplate((product as { workflow?: unknown } | null | undefined)?.workflow),
-    [product]
+    () => readSigningTemplate(frozenProductWorkflow?.workflow),
+    [frozenProductWorkflow]
   );
   const useEnvelopeSigning = signingTemplate.enabled;
   const envelopeTargetInvoiceId = type === "invoice" ? invoice?.id : null;
@@ -713,6 +726,7 @@ export function ReviewOfferModal({
   const [signerBindings, setSignerBindings] = React.useState<RecipientBinding[]>([]);
   const [signerConfirmOpen, setSignerConfirmOpen] = React.useState(false);
   const [remindLoading, setRemindLoading] = React.useState(false);
+  const [isSyncingSigning, setIsSyncingSigning] = React.useState(false);
   const isOtherDeclineReason = selectedDeclineReason === OTHER_ISSUER_DECLINE_REASON_VALUE;
   const isSigningOverrideEnabled = process.env.NODE_ENV !== "production";
 
@@ -959,7 +973,7 @@ export function ReviewOfferModal({
   };
 
   const sendSigningPackage = React.useCallback(async (): Promise<void> => {
-    if (productId && isLoadingProduct) {
+    if (isLoadingFrozenProductWorkflow) {
       throw new Error("Loading signing configuration. Please wait a moment.");
     }
 
@@ -1021,8 +1035,7 @@ export function ReviewOfferModal({
     applicationId,
     contractId,
     invoice?.id,
-    isLoadingProduct,
-    productId,
+    isLoadingFrozenProductWorkflow,
     queryClient,
     signerBindings,
     type,
@@ -1030,7 +1043,7 @@ export function ReviewOfferModal({
   ]);
 
   const ensurePostApplicationDocumentsSaved = React.useCallback(async (): Promise<boolean> => {
-    if (productId && isLoadingProduct) {
+    if (isLoadingFrozenProductWorkflow) {
       toast.info("Loading required documents. Please wait a moment.");
       return false;
     }
@@ -1074,9 +1087,8 @@ export function ReviewOfferModal({
     apiClient,
     applicationId,
     hasPostDocs,
-    isLoadingProduct,
+    isLoadingFrozenProductWorkflow,
     postDocsState,
-    productId,
     queryClient,
   ]);
 
@@ -1295,7 +1307,7 @@ export function ReviewOfferModal({
 
   const canDownload =
     type === "contract" || (type === "invoice" && !!invoice?.id);
-  const isPostDocsConfigLoading = Boolean(productId) && isLoadingProduct;
+  const isPostDocsConfigLoading = isLoadingFrozenProductWorkflow;
   const postDocsReady = !hasPostDocs || postDocsState.areAllFilesUploaded;
   const updateSignerBinding = (index: number, updates: Partial<RecipientBinding>) => {
     setSignerBindings((prev) =>
@@ -1364,7 +1376,19 @@ export function ReviewOfferModal({
   });
 
   const handleRefreshSigning = () => {
-    void queryClient.invalidateQueries({ queryKey: ["signing-envelopes", applicationId] });
+    void (async () => {
+      if (activeSigningEnvelope?.id) {
+        setIsSyncingSigning(true);
+        try {
+          await apiClient.syncIssuerSigningEnvelopeFromProvider(activeSigningEnvelope.id);
+        } catch {
+          // Still refetch local state if provider sync fails.
+        } finally {
+          setIsSyncingSigning(false);
+        }
+      }
+      await queryClient.invalidateQueries({ queryKey: ["signing-envelopes", applicationId] });
+    })();
   };
 
   // Label/value stack reads better in the sidebar than a cramped two-column dl.
@@ -1765,7 +1789,7 @@ export function ReviewOfferModal({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {isLoadingProduct ? (
+              {isLoadingFrozenProductWorkflow ? (
                 <p className="text-sm text-muted-foreground">Loading required documents...</p>
               ) : supportingDocumentsStepConfig ? (
                 <SupportingDocumentsStep
@@ -1843,10 +1867,13 @@ export function ReviewOfferModal({
                   size="sm"
                   className="shrink-0 gap-1.5"
                   onClick={handleRefreshSigning}
-                  disabled={isLoadingSigningEnvelopes}
+                  disabled={isLoadingSigningEnvelopes || isSyncingSigning}
                 >
                   <ArrowPathIcon
-                    className={cn("h-4 w-4", isLoadingSigningEnvelopes && "animate-spin")}
+                    className={cn(
+                      "h-4 w-4",
+                      (isLoadingSigningEnvelopes || isSyncingSigning) && "animate-spin"
+                    )}
                   />
                   Refresh
                 </Button>

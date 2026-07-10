@@ -91,7 +91,7 @@ describe("parseSigningTemplateConfig", () => {
     expect(cfg.roles[0].kyc_required).toBe(true);
   });
 
-  it("adds default guarantor agreement when only offer letter is configured", () => {
+  it("keeps offer-letter-only templates without auto-injecting guarantor agreement", () => {
     const cfg = parseSigningTemplateConfig({
       enabled: true,
       roles: [{ key: "issuer_director", label: "Director" }],
@@ -102,6 +102,34 @@ describe("parseSigningTemplateConfig", () => {
           source: "GENERATED_OFFER_LETTER",
           order: 0,
           signer_role_keys: ["issuer_director"],
+        },
+      ],
+    });
+    expect(cfg.documents.map((d) => d.key)).toEqual(["offer_letter"]);
+    expect(cfg.roles.map((role) => role.key)).toEqual(["issuer_director"]);
+  });
+
+  it("preserves an explicit guarantor agreement document from the product template", () => {
+    const cfg = parseSigningTemplateConfig({
+      enabled: true,
+      roles: [
+        { key: "issuer_director", label: "Director" },
+        { key: "guarantor", label: "Guarantor" },
+      ],
+      documents: [
+        {
+          key: "offer_letter",
+          name: "Offer letter",
+          source: "GENERATED_OFFER_LETTER",
+          order: 0,
+          signer_role_keys: ["issuer_director"],
+        },
+        {
+          key: "guarantor_agreement",
+          name: "Guarantor Agreement",
+          source: "TEMPLATE",
+          order: 1,
+          signer_role_keys: ["guarantor"],
         },
       ],
     });

@@ -9,6 +9,7 @@ import {
   createIssuerEnvelopeSchema,
   voidEnvelopeSchema,
   startExternalSigningSchema,
+  confirmExternalSignedSchema,
   verifyExternalAccessCodeSchema,
   recipientEkycSessionSchema,
 } from "./schemas";
@@ -93,6 +94,20 @@ async function getEnvelope(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+async function getApplicationProductWorkflow(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(
+      res,
+      await signingService.getProductWorkflowForIssuerApplication(
+        req.params.applicationId,
+        getUserId(req)
+      )
+    );
+  } catch (e) {
+    next(e);
+  }
+}
+
 async function listEnvelopes(req: Request, res: Response, next: NextFunction) {
   try {
     ok(
@@ -159,6 +174,40 @@ async function startExternalSigning(req: Request, res: Response, next: NextFunct
   }
 }
 
+async function confirmExternalSigned(req: Request, res: Response, next: NextFunction) {
+  try {
+    const body = confirmExternalSignedSchema.parse(req.body);
+    ok(
+      res,
+      await signingService.confirmRecipientSignedForExternalToken({
+        accessToken: req.params.accessToken,
+        documentId: body.documentId,
+      })
+    );
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function syncExternalFromProvider(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(res, await signingService.syncEnvelopeFromProviderForExternalToken(req.params.accessToken));
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function syncEnvelopeFromProvider(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(
+      res,
+      await signingService.syncEnvelopeFromProviderForIssuer(req.params.id, getUserId(req))
+    );
+  } catch (e) {
+    next(e);
+  }
+}
+
 export function createSigningAdminRouter(): Router {
   const router = Router();
   router.post("/envelopes/:id/void", voidEnvelope);
@@ -186,10 +235,18 @@ export function createSigningRouter(): Router {
   router.post("/external/:accessToken/verify", verifyExternalAccessCode);
   router.post("/external/:accessToken/ekyc/session", createExternalEkycSession);
   router.post("/external/:accessToken/start-signing", startExternalSigning);
+  router.post("/external/:accessToken/confirm-signed", confirmExternalSigned);
+  router.post("/external/:accessToken/sync-from-provider", syncExternalFromProvider);
   router.post("/applications/:applicationId/envelopes", requireAuth, createIssuerEnvelope);
+  router.get(
+    "/applications/:applicationId/product-workflow",
+    requireAuth,
+    getApplicationProductWorkflow
+  );
   router.get("/envelopes/:id", requireAuth, getEnvelope);
   router.get("/applications/:applicationId/envelopes", requireAuth, listEnvelopes);
   router.post("/envelopes/:id/send", requireAuth, sendEnvelope);
+  router.post("/envelopes/:id/sync-from-provider", requireAuth, syncEnvelopeFromProvider);
   router.post(
     "/envelopes/:id/recipients/:recipientId/remind",
     requireAuth,

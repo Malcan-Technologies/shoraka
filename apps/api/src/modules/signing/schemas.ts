@@ -8,7 +8,8 @@ const recipientBindingSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   application_guarantor_id: z.string().nullish(),
-  ic_number: z.string().min(1),
+  /** Required for issuer directors; omitted for third-party roles (self-declare on the link). */
+  ic_number: z.string().nullish(),
 });
 
 export const createEnvelopeSchema = z.object({
@@ -37,6 +38,11 @@ export const voidEnvelopeSchema = z.object({
 export const startExternalSigningSchema = z.object({
   documentId: z.string().min(1),
   redirectUrl: z.string().url().nullish(),
+});
+
+/** Signer returned from SigningCloud via backUrl — mark their assignment signed. */
+export const confirmExternalSignedSchema = z.object({
+  documentId: z.string().min(1),
 });
 
 export const verifyExternalAccessCodeSchema = z.object({

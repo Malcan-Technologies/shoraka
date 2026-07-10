@@ -94,9 +94,8 @@ export function buildInitialBindings(
         role_key: role.key,
         name: g.name,
         email: g.email,
-        ic_number: g.ic_number?.trim()
-          ? normalizeSigningIcNumber(g.ic_number)
-          : null,
+        // Guarantors self-declare IC on the signing link; never pre-bind from application.
+        ic_number: null,
         application_guarantor_id: g.application_guarantor_id ?? null,
       }));
     }

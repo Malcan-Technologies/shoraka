@@ -92,7 +92,7 @@ export async function uploadPdfToSigningCloudMultiSigner(params: {
       signerinfo: signers.map((s, index) => ({
         email: s.email,
         authtype: "0",
-        caprovide: "3",
+        caprovide: "1",
         signset: s.signsetJson ?? defaultSignsetForSignerIndex(index),
       })),
     },
@@ -226,7 +226,7 @@ export async function uploadPdfToSigningCloud(params: {
         {
           email: signerEmail,
           authtype: "0",
-          caprovide: "3",
+          caprovide: "1",
           signset: buildSignsetJsonString(),
         },
       ],

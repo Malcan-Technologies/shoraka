@@ -21,6 +21,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  CheckCircleIcon,
   DocumentTextIcon,
   IdentificationIcon,
   ShieldCheckIcon,
@@ -30,7 +31,12 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const ISSUER_ORIGIN =
   typeof window !== "undefined" ? window.location.origin : process.env.NEXT_PUBLIC_ISSUER_URL ?? "";
 
-type Step = "access-code" | "ekyc" | "sign";
+/** Marks that this tab just left for SigningCloud; cleared after return handling. */
+function pendingConfirmStorageKey(accessToken: string): string {
+  return `signing:pendingConfirm:${accessToken}`;
+}
+
+type Step = "access-code" | "ekyc" | "sign" | "done" | "closed";
 
 function getErrorMessage(response: unknown, fallback: string): string {
   if (
@@ -60,40 +66,152 @@ export default function ExternalSigningPage() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [ekycCaptureUrl, setEkycCaptureUrl] = React.useState<string | null>(null);
   const [ekycStatus, setEkycStatus] = React.useState<string>("pending");
+  /** Document just signed (optimistic return); excluded from "more to sign" until webhook catches up. */
+  const [justSigned, setJustSigned] = React.useState<{
+    documentId: string;
+    documentName: string;
+  } | null>(null);
+  const [isPollingReturn, setIsPollingReturn] = React.useState(false);
+  const returnHandledRef = React.useRef(false);
+
+  const applySession = React.useCallback(
+    (
+      data: ExternalSigningSessionDto,
+      opts?: { preferDone?: boolean; signedDoc?: { documentId: string; documentName: string } | null }
+    ) => {
+      setSession(data);
+      setError(null);
+
+      if (data.package_closed) {
+        setJustSigned(null);
+        setStep("closed");
+        return;
+      }
+
+      if (!data.access_verified) {
+        setStep("access-code");
+        return;
+      }
+
+      if (data.kyc_required && data.kyc_status !== "VERIFIED") {
+        setStep("ekyc");
+        return;
+      }
+
+      const pending = findUnsignedSigningAssignmentForRecipient(data.envelope, data.recipient_id);
+      if (opts?.preferDone || !pending) {
+        if (opts?.signedDoc) setJustSigned(opts.signedDoc);
+        setStep("done");
+        return;
+      }
+
+      setJustSigned(null);
+      setStep("sign");
+    },
+    []
+  );
+
+  const fetchSession = React.useCallback(async (): Promise<ExternalSigningSessionDto | null> => {
+    const response = await apiClient.getExternalSigningEnvelope(token);
+    if (!response.success) {
+      setError(getErrorMessage(response, "This signing link is not available."));
+      setSession(null);
+      return null;
+    }
+    return response.data;
+  }, [apiClient, token]);
 
   const loadSession = React.useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await apiClient.getExternalSigningEnvelope(token);
-      if (!response.success) {
-        setError(getErrorMessage(response, "This signing link is not available."));
-        setSession(null);
-        return;
-      }
-      setSession(response.data);
-      setError(null);
-      if (response.data.access_verified) {
-        if (
-          response.data.kyc_required &&
-          response.data.kyc_status !== "VERIFIED"
-        ) {
-          setStep("ekyc");
-        } else {
-          setStep("sign");
-        }
-      } else {
-        setStep("access-code");
-      }
+      const data = await fetchSession();
+      if (!data) return;
+      applySession(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load signing package.");
     } finally {
       setIsLoading(false);
     }
-  }, [apiClient, token]);
+  }, [applySession, fetchSession]);
 
+  // On mount: return from SigningCloud → confirm-signed; otherwise sync from provider then load.
   React.useEffect(() => {
-    loadSession().catch(() => undefined);
-  }, [loadSession]);
+    if (returnHandledRef.current) return;
+    returnHandledRef.current = true;
+
+    const storageKey = pendingConfirmStorageKey(token);
+    let pendingDoc: { documentId: string; documentName: string } | null = null;
+    try {
+      const raw = sessionStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { documentId?: string; documentName?: string };
+        if (parsed.documentId) {
+          pendingDoc = {
+            documentId: parsed.documentId,
+            documentName: parsed.documentName?.trim() || "Document",
+          };
+        }
+        sessionStorage.removeItem(storageKey);
+      }
+    } catch {
+      sessionStorage.removeItem(storageKey);
+    }
+
+    if (!pendingDoc) {
+      // Revisit: pull live SigningCloud statuses so progress catches up without sessionStorage.
+      setIsLoading(true);
+      apiClient
+        .syncExternalSigningFromProvider(token)
+        .then((response) => {
+          if (response.success) {
+            applySession(response.data);
+            return null;
+          }
+          return fetchSession();
+        })
+        .then((data) => {
+          if (data) applySession(data);
+        })
+        .catch(() => {
+          setError("This signing link is not available.");
+        })
+        .finally(() => setIsLoading(false));
+      return;
+    }
+
+    setJustSigned(pendingDoc);
+    setIsLoading(true);
+    setIsPollingReturn(true);
+
+    const finish = (data: ExternalSigningSessionDto | null) => {
+      setIsPollingReturn(false);
+      setIsLoading(false);
+      if (!data) {
+        setStep("done");
+        return;
+      }
+      applySession(data, { preferDone: true, signedDoc: pendingDoc });
+    };
+
+    // Sync from SigningCloud Get Document Detail (per-signer signstate), then show terminal.
+    apiClient
+      .confirmExternalEnvelopeSigned(token, { documentId: pendingDoc.documentId })
+      .then((response) => {
+        if (response.success) {
+          finish(response.data);
+          return;
+        }
+        // Confirm/sync failed — still show terminal; fall back to session read.
+        fetchSession()
+          .then((data) => finish(data))
+          .catch(() => finish(null));
+      })
+      .catch(() => {
+        fetchSession()
+          .then((data) => finish(data))
+          .catch(() => finish(null));
+      });
+  }, [apiClient, applySession, fetchSession, loadSession, token]);
 
   const recipient = session?.envelope.recipients.find(
     (item) => item.id === session.recipient_id
@@ -103,6 +221,21 @@ export default function ExternalSigningPage() {
     session && session.recipient_id
       ? findUnsignedSigningAssignmentForRecipient(session.envelope, session.recipient_id)
       : null;
+
+  // While webhook lags, the doc we just signed still looks unsigned — ignore it for Continue.
+  const hasMoreToSign = Boolean(
+    session && justSigned
+      ? session.envelope.assignments.some(
+          (a) =>
+            a.action === "SIGN" &&
+            a.status !== "SIGNED" &&
+            a.recipient_id === session.recipient_id &&
+            a.document_id !== justSigned.documentId
+        )
+      : pendingAssignment
+  );
+
+  const isGuarantor = recipient?.role_key === "guarantor";
 
   const verifyAccessCode = async () => {
     setIsSubmitting(true);
@@ -115,12 +248,7 @@ export default function ExternalSigningPage() {
         setError(getErrorMessage(response, "Could not verify IC number."));
         return;
       }
-      setSession(response.data);
-      if (response.data.kyc_required && response.data.kyc_status !== "VERIFIED") {
-        setStep("ekyc");
-      } else {
-        setStep("sign");
-      }
+      applySession(response.data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not verify IC number.");
     } finally {
@@ -169,8 +297,11 @@ export default function ExternalSigningPage() {
           setEkycStatus(response.data.status);
           if (response.data.status === "verified") {
             window.clearInterval(interval);
-            loadSession().catch(() => undefined);
-            setStep("sign");
+            fetchSession()
+              .then((data) => {
+                if (data) applySession(data);
+              })
+              .catch(() => undefined);
           }
           if (response.data.status === "failed" || response.data.status === "error") {
             window.clearInterval(interval);
@@ -181,13 +312,25 @@ export default function ExternalSigningPage() {
     }, 2500);
 
     return () => window.clearInterval(interval);
-  }, [apiClient, ekycCaptureUrl, loadSession, step]);
+  }, [apiClient, applySession, ekycCaptureUrl, fetchSession, step]);
 
   const startSigning = async () => {
     if (!pendingAssignment) return;
     setIsSubmitting(true);
     setError(null);
     try {
+      try {
+        sessionStorage.setItem(
+          pendingConfirmStorageKey(token),
+          JSON.stringify({
+            documentId: pendingAssignment.document.id,
+            documentName: pendingAssignment.document.name,
+          })
+        );
+      } catch {
+        // sessionStorage may be unavailable; return UX falls back to normal load.
+      }
+
       const response = await apiClient.startExternalEnvelopeSigning(token, {
         documentId: pendingAssignment.document.id,
         redirectUrl: window.location.href,
@@ -196,12 +339,34 @@ export default function ExternalSigningPage() {
         window.location.assign(response.data.signingUrl);
         return;
       }
+      try {
+        sessionStorage.removeItem(pendingConfirmStorageKey(token));
+      } catch {
+        // ignore
+      }
       setError(getErrorMessage(response, "Could not start signing."));
     } catch (e) {
+      try {
+        sessionStorage.removeItem(pendingConfirmStorageKey(token));
+      } catch {
+        // ignore
+      }
       setError(e instanceof Error ? e.message : "Could not start signing.");
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const continueAfterSigned = () => {
+    setJustSigned(null);
+    fetchSession()
+      .then((data) => {
+        if (data) applySession(data);
+        else loadSession().catch(() => undefined);
+      })
+      .catch(() => {
+        loadSession().catch(() => undefined);
+      });
   };
 
   const stepIcon =
@@ -209,6 +374,8 @@ export default function ExternalSigningPage() {
       <IdentificationIcon className="h-6 w-6 text-primary" />
     ) : step === "ekyc" ? (
       <ShieldCheckIcon className="h-6 w-6 text-primary" />
+    ) : step === "done" || step === "closed" ? (
+      <CheckCircleIcon className="h-6 w-6 text-primary" />
     ) : (
       <DocumentTextIcon className="h-6 w-6 text-primary" />
     );
@@ -218,18 +385,30 @@ export default function ExternalSigningPage() {
       ? "Verify your identity"
       : step === "ekyc"
         ? "Identity verification"
-        : pendingAssignment
-          ? "Ready to sign"
-          : "Signing complete";
+        : step === "closed"
+          ? "Signing package closed"
+          : step === "done"
+            ? "You've signed"
+            : pendingAssignment
+              ? "Ready to sign"
+              : "Signing complete";
 
   const stepDescription =
     step === "access-code"
-      ? "Enter your MyKad number to verify your identity before signing."
+      ? isGuarantor
+        ? "Enter your MyKad number. This will be used for identity verification."
+        : "Enter your MyKad number to verify your identity before signing."
       : step === "ekyc"
         ? "Scan the QR code with your phone to complete MyKad verification."
-        : recipient
-          ? `You are signing as ${recipient.name} (${recipient.email}).`
-          : "Secure signing link";
+        : step === "closed"
+          ? "This signing package is complete or no longer available."
+          : step === "done"
+            ? justSigned
+              ? `${justSigned.documentName} has been signed.`
+              : "There are no pending documents for you to sign."
+            : recipient
+              ? `You are signing as ${recipient.name} (${recipient.email}).`
+              : "Secure signing link";
 
   return (
     <main className="flex min-h-screen items-start justify-center bg-background px-4 py-10 sm:items-center">
@@ -248,7 +427,9 @@ export default function ExternalSigningPage() {
               <div className="rounded-lg bg-primary/10 p-2">{stepIcon}</div>
               <div className="min-w-0 flex-1">
                 <CardTitle className="text-xl">
-                  {session?.envelope.title ?? stepTitle}
+                  {step === "done" || step === "closed"
+                    ? stepTitle
+                    : (session?.envelope.title ?? stepTitle)}
                 </CardTitle>
                 <CardDescription className="mt-1">{stepDescription}</CardDescription>
               </div>
@@ -263,14 +444,16 @@ export default function ExternalSigningPage() {
               <Skeleton className="h-4 w-5/6" />
               <Skeleton className="h-11 w-full rounded-xl" />
             </div>
-          ) : error ? (
+          ) : error && step !== "done" && step !== "closed" ? (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : step === "access-code" ? (
             <>
               <p className="text-sm text-muted-foreground">
-                This must match the person named on this signing request.
+                {isGuarantor
+                  ? "Use the MyKad number of the person who will complete eKYC and sign."
+                  : "This must match the person named on this signing request."}
               </p>
               <div className="space-y-2">
                 <Label htmlFor="access-ic">IC number</Label>
@@ -327,17 +510,49 @@ export default function ExternalSigningPage() {
                 New QR
               </Button>
             </>
+          ) : step === "closed" ? (
+            <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+              You can close this page.
+            </div>
+          ) : step === "done" ? (
+            <>
+              <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                {hasMoreToSign
+                  ? "You still have another document to sign in this package."
+                  : "You can close this page."}
+              </div>
+              {isPollingReturn ? (
+                <p className="text-center text-xs text-muted-foreground">Updating status…</p>
+              ) : null}
+              {hasMoreToSign ? (
+                <Button
+                  type="button"
+                  className="h-11 w-full rounded-xl"
+                  onClick={continueAfterSigned}
+                >
+                  Continue
+                </Button>
+              ) : null}
+            </>
           ) : !pendingAssignment ? (
             <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-              There are no pending documents for you to sign. If you just completed signing, you
-              can close this page.
+              There are no pending documents for you to sign. You can close this page.
             </div>
           ) : (
             <>
               <div className="rounded-xl border border-border bg-muted/20 p-4">
                 <p className="font-medium text-foreground">{pendingAssignment.document.name}</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Status: {pendingAssignment.document.status.replace(/_/g, " ")}
+                  {/* Document stays PENDING until every required signer finishes; show this recipient's assignment. */}
+                  Your status:{" "}
+                  {(
+                    session?.envelope.assignments.find(
+                      (a) =>
+                        a.document_id === pendingAssignment.document.id &&
+                        a.recipient_id === session.recipient_id &&
+                        a.action === "SIGN"
+                    )?.status ?? "PENDING"
+                  ).replace(/_/g, " ")}
                 </p>
               </div>
               <p className="text-sm text-muted-foreground">

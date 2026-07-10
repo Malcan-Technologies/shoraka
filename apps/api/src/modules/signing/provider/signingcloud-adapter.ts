@@ -10,6 +10,7 @@ import {
   startManualSigning,
   extractSigningUrlFromManualSigningResponse,
   getContractFileData,
+  getContractDetailsData,
   type SigningCloudEnvConfig,
 } from "../../signingcloud/signingcloud-api";
 import type {
@@ -17,7 +18,11 @@ import type {
   CreateDocumentContractInput,
   StartSignerSessionInput,
   FetchSignedDocumentResult,
+  ProviderContractDetails,
+  ProviderSignerDetail,
+  ProviderSignerStatus,
 } from "./adapter";
+import { normalizeSigningEmail } from "@cashsouk/types";
 
 function requireConfig(): SigningCloudEnvConfig {
   const cfg = readSigningCloudConfigFromEnv();
@@ -39,6 +44,103 @@ function bufferFromHexPdfData(raw: Record<string, unknown>): Buffer {
     throw new Error("SigningCloud file response missing pdfdata");
   }
   return Buffer.from(hex, "hex");
+}
+
+/** SigningCloud signstate: 0 pending, 1 signed, 2 rejected (also accepts string labels). */
+function mapSignState(value: unknown): ProviderSignerStatus {
+  if (typeof value === "string") {
+    const s = value.trim().toLowerCase();
+    if (s === "1" || s === "signed" || s === "complete" || s === "completed") return "SIGNED";
+    if (s === "2" || s === "rejected" || s === "declined") return "REJECTED";
+    if (s === "0" || s === "pending" || s === "unsigned") return "PENDING";
+  }
+  const n = typeof value === "number" ? value : Number(value);
+  if (n === 1) return "SIGNED";
+  if (n === 2) return "REJECTED";
+  return "PENDING";
+}
+
+function readFirstString(obj: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const v = obj[key];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return null;
+}
+
+function readSignStateRaw(obj: Record<string, unknown>): unknown {
+  for (const key of ["signstate", "signState", "SignState", "sign_state", "status", "signerstatus"]) {
+    if (key in obj) return obj[key];
+  }
+  return undefined;
+}
+
+function unwrapDetailObject(raw: Record<string, unknown>): Record<string, unknown> {
+  let detail: Record<string, unknown> = raw;
+  for (const nestKey of ["data", "Data", "contractInfo", "contractinfo", "result"]) {
+    const nested = detail[nestKey];
+    if (typeof nested === "string" && nested.trim()) {
+      try {
+        const parsed = JSON.parse(nested) as unknown;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          detail = parsed as Record<string, unknown>;
+          continue;
+        }
+      } catch {
+        // keep current detail
+      }
+    } else if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+      detail = nested as Record<string, unknown>;
+    }
+  }
+  return detail;
+}
+
+function extractSignerRows(detail: Record<string, unknown>): unknown[] {
+  for (const key of ["addressee", "Addressee", "signerinfo", "signerInfo", "signers", "SignerInfo"]) {
+    const rows = detail[key];
+    if (Array.isArray(rows)) return rows;
+  }
+  return [];
+}
+
+/**
+ * Normalize Get Document Detail payload. Decrypted body may be the detail object
+ * directly or nest it under `data` / `contractInfo` (object or JSON string).
+ * Signer rows may appear as `addressee` or `signerinfo`.
+ */
+export function parseSigningCloudContractDetails(
+  raw: Record<string, unknown>
+): ProviderContractDetails {
+  const detail = unwrapDetailObject(raw);
+  const rows = extractSignerRows(detail);
+  const signers: ProviderSignerDetail[] = [];
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const item = row as Record<string, unknown>;
+    const emailRaw = readFirstString(item, ["email", "Email", "signeremail", "signerEmail"]);
+    if (!emailRaw) continue;
+    const email = normalizeSigningEmail(emailRaw);
+    const name = readFirstString(item, ["realname", "realName", "name", "Name"]);
+    signers.push({
+      email,
+      status: mapSignState(readSignStateRaw(item)),
+      name,
+    });
+  }
+
+  const stateRaw = detail.state ?? detail.State ?? detail.documentstate ?? detail.documentState;
+  const documentState =
+    typeof stateRaw === "number"
+      ? stateRaw
+      : typeof stateRaw === "string" && stateRaw.trim()
+        ? Number(stateRaw)
+        : null;
+
+  return {
+    documentState: Number.isFinite(documentState) ? documentState : null,
+    signers,
+  };
 }
 
 export class SigningCloudProvider implements SigningProvider {
@@ -92,5 +194,16 @@ export class SigningCloudProvider implements SigningProvider {
     const pdfBuffer = bufferFromHexPdfData(raw);
     const sha256 = crypto.createHash("sha256").update(pdfBuffer).digest("hex");
     return { pdfBuffer, sha256 };
+  }
+
+  async getContractDetails(input: { providerRef: string }): Promise<ProviderContractDetails> {
+    const cfg = requireConfig();
+    const accessToken = await getSigningCloudAccessToken(cfg);
+    const raw = await getContractDetailsData({
+      cfg,
+      accessToken,
+      contractnum: input.providerRef,
+    });
+    return parseSigningCloudContractDetails(raw);
   }
 }

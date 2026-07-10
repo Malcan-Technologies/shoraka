@@ -30,6 +30,21 @@ export interface FetchSignedDocumentResult {
   sha256: string;
 }
 
+/** Per-signer status from provider document detail (SigningCloud addressee.signstate). */
+export type ProviderSignerStatus = "PENDING" | "SIGNED" | "REJECTED";
+
+export interface ProviderSignerDetail {
+  email: string;
+  status: ProviderSignerStatus;
+  name?: string | null;
+}
+
+export interface ProviderContractDetails {
+  /** Provider document state when known (SigningCloud: 4 = completed). */
+  documentState?: number | null;
+  signers: ProviderSignerDetail[];
+}
+
 export interface SigningProvider {
   readonly name: string;
   /** Register a single document with one or more signers; returns the provider reference. */
@@ -38,4 +53,6 @@ export interface SigningProvider {
   startSignerSession(input: StartSignerSessionInput): Promise<{ signingUrl: string }>;
   /** Download the fully-signed document once complete. */
   fetchSignedDocument(input: { providerRef: string }): Promise<FetchSignedDocumentResult>;
+  /** Pull live per-signer status for a provider contract (Get Document Detail). */
+  getContractDetails(input: { providerRef: string }): Promise<ProviderContractDetails>;
 }

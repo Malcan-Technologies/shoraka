@@ -90,13 +90,22 @@ function getOfferStatus(item: {
 
 Every signer is an external party emailed an opaque link. The issuer **Review offer** modal is the signing control centre: bind signers (name, email, IC), attach post-application documents, send the envelope, monitor progress, and re-notify.
 
+**Product snapshot:** signing package documents and post-application document gates come from the application's frozen product version (`application.product_version` within the product `base_id` family), not the latest live catalog row. Void + recreate rebuilds from that same frozen workflow and does not pick up later product edits. Guarantor Agreement appears only when that frozen signing template includes it (no silent auto-inject).
+
 Signers complete the flow at `/signing/external/[token]`:
 
-1. IC access code (must match IC bound at send time)
+1. IC access code (directors: must match IC bound at send; guarantors: self-declare on the link)
 2. Per-recipient MyKad eKYC when the role requires it
-3. SigningCloud signing for assigned documents
+3. SigningCloud signing for assigned documents (API attaches `callUrl` from `API_PUBLIC_URL` or `API_URL`)
+4. On browser return (`backUrl`): page calls `POST /v1/signing/external/:token/confirm-signed` → API syncs from SigningCloud **Get Document Detail**, then trusts the return for that recipient if Detail still shows them pending
+5. On normal revisit of the signing link: page calls `POST /v1/signing/external/:token/sync-from-provider` (Detail sync without trust-return)
+6. Issuer **Refresh** calls `POST /v1/signing/envelopes/:id/sync-from-provider` (same Detail sync) before refetching envelopes
+7. SigningCloud webhook (when it arrives) runs the same Detail sync path (stores signed PDF when the document is complete)
+8. Continue if more docs remain for that recipient; envelope COMPLETED / VOIDED / DECLINED / EXPIRED → closed package page
 
-When the envelope completes, the webhook rolls up document status and the API auto-accepts the offer (`contract` / `invoice` → `APPROVED`). Signed offer letters are stored on the envelope document (`signed_s3_key`) and downloaded via:
+**Status source of truth:** our DB **assignment** statuses (not document status). Document stays `PENDING` until every required signer on that document is `SIGNED`. Updated from SigningCloud Detail (`signstate`: 0 pending / 1 signed / 2 rejected) on return, revisit, Refresh, and webhook. Webhook alone is not required for progress.
+
+When the envelope completes, rollup + signed PDF storage trigger offer auto-accept (`contract` / `invoice` → `APPROVED`). Signed offer letters are stored on the envelope document (`signed_s3_key`) and downloaded via:
 
 - Issuer: `GET /v1/applications/:id/offers/contracts/signed-letter` (or invoice variant)
 - Admin: `GET /v1/admin/applications/:id/offers/contracts/signed-letter` (or invoice variant)
