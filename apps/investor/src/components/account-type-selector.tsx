@@ -49,6 +49,16 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
   const [confirmationType, setConfirmationType] = React.useState<ConfirmationType>(null);
   const [companyName, setCompanyName] = React.useState("");
   const [formErrors, setFormErrors] = React.useState<{ companyName?: string }>({});
+  const normalizedCompanyName = companyName.trim().toLowerCase();
+  const duplicateCompanyNameWarning = React.useMemo(() => {
+    if (!normalizedCompanyName) return null;
+    const exists = organizations.some(
+      (org) => org.type === "COMPANY" && (org.name ?? "").trim().toLowerCase() === normalizedCompanyName
+    );
+    return exists
+      ? "A company with this name already exists in your list. You can still continue and start onboarding."
+      : null;
+  }, [normalizedCompanyName, organizations]);
 
   const personalOrganization = React.useMemo(
     () => organizations.find((org) => org.type === "PERSONAL"),
@@ -245,6 +255,9 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
               />
               {formErrors.companyName ? (
                 <p className="text-sm text-destructive">{formErrors.companyName}</p>
+              ) : null}
+              {!formErrors.companyName && duplicateCompanyNameWarning ? (
+                <p className="text-sm text-orange-700">{duplicateCompanyNameWarning}</p>
               ) : null}
             </div>
           </div>

@@ -223,7 +223,7 @@ export class OrganizationService {
       throw new AppError(400, "NAME_REQUIRED", "Company name is required for company accounts.");
     }
 
-    // Check if a corporate organization with the same name already exists
+    // Soft duplicate warning only: keep allowing creation on name match.
     if (orgType === OrganizationType.COMPANY && input.name) {
       const nameExists =
         portalType === "investor"
@@ -231,10 +231,14 @@ export class OrganizationService {
           : await this.repository.issuerOrganizationNameExists(input.name);
 
       if (nameExists) {
-        throw new AppError(
-          400,
-          "ORGANIZATION_NAME_EXISTS",
-          "An organization with this name already exists. Please use a different name."
+        logger.warn(
+          {
+            userId,
+            portalType,
+            orgType,
+            name: input.name,
+          },
+          "Company name matches an existing organization; continuing as soft warning"
         );
       }
     }

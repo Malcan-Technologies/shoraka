@@ -20,8 +20,7 @@ import {
   useSidebar,
 } from "@cashsouk/ui";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useOrganization, type Organization, type OnboardingStatus, createApiClient, getOnboardingRouteForOrg, isAddingNewOrganizationRoute, isOrganizationActionRequired, isOrganizationInYourOrganizationsSection, sortYourOrganizations } from "@cashsouk/config";
-import { useAuthToken } from "@cashsouk/config";
+import { useOrganization, type Organization, type OnboardingStatus, getOnboardingRouteForOrg, isAddingNewOrganizationRoute, isOrganizationActionRequired, isOrganizationInYourOrganizationsSection, sortYourOrganizations } from "@cashsouk/config";
 
 function getOrgDisplayName(org: Organization): string {
   // Use firstName + lastName if available (from RegTank onboarding)
@@ -178,44 +177,27 @@ export function OrganizationSwitcher() {
   const router = useRouter();
   const pathname = usePathname();
   const { isMobile } = useSidebar();
-  const { getAccessToken } = useAuthToken();
   const {
     activeOrganization,
     organizations,
     isLoading,
     switchOrganization,
-    portalType,
+    portalType
   } = useOrganization();
 
   const isOnboardingPage = isAddingNewOrganizationRoute(pathname);
 
-  // Hide corporate accounts with Expired status (regtank_onboarding.status = EXPIRED)
   const isExpired = (org: Organization) =>
     String(org.regtankOnboardingStatus ?? "").toUpperCase() === "EXPIRED";
-  const visibleOrganizations = organizations.filter((org) => {
-    if (org.type === "PERSONAL") return true;
-    return !isExpired(org);
-  });
-
-  // If current org is an expired corporate account, switch to first non-expired so user never sees "Expired" in sidebar
-  React.useEffect(() => {
-    if (!activeOrganization || visibleOrganizations.length === 0) return;
-    if (activeOrganization.type === "PERSONAL") return;
-    const status = String(activeOrganization.regtankOnboardingStatus ?? "").toUpperCase();
-    if (status !== "EXPIRED") return;
-    const target = visibleOrganizations.find((o) => o.onboardingStatus === "COMPLETED") ?? visibleOrganizations[0];
-    if (target && target.id !== activeOrganization.id) {
-      switchOrganization(target.id);
-    }
-  }, [activeOrganization, visibleOrganizations, switchOrganization]);
+  const isExpiredCompany = (org: Organization) => org.type === "COMPANY" && isExpired(org);
 
   const yourOrganizations = sortYourOrganizations(
-    visibleOrganizations.filter(isOrganizationInYourOrganizationsSection)
+    organizations.filter((org) => isOrganizationInYourOrganizationsSection(org) && !isExpiredCompany(org))
   );
   const hasYourOrganizations = yourOrganizations.length > 0;
 
   const actionRequiredOrganizations = sortOrganizations(
-    visibleOrganizations.filter(isOrganizationActionRequired)
+    organizations.filter((org) => isExpiredCompany(org) || isOrganizationActionRequired(org))
   );
   const hasActionRequiredOrganizations = actionRequiredOrganizations.length > 0;
 
@@ -224,18 +206,6 @@ export function OrganizationSwitcher() {
   };
 
   const handleSelectOrganization = async (org: Organization) => {
-    if (String(org.regtankOnboardingStatus ?? "").toUpperCase() === "EXPIRED") {
-      try {
-        const apiClient = createApiClient(
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000",
-          getAccessToken
-        );
-        await apiClient.post(`/v1/regtank/retry/${org.id}?portalType=${portalType}`);
-      } catch (error) {
-        console.error("[OrganizationSwitcher] Failed to restart expired onboarding:", error);
-      }
-    }
-
     switchOrganization(org.id);
     const destination = getOnboardingRouteForOrg(org, portalType);
     if (destination === "/") {
@@ -271,6 +241,11 @@ export function OrganizationSwitcher() {
                     regtankStatus={org.regtankOnboardingStatus || undefined}
                     size="sm"
                   />
+                  {isExpiredCompany(org) ? (
+                    <p className="mt-1 text-[11px] font-medium text-orange-700">
+                      Start again to restart onboarding.
+                    </p>
+                  ) : null}
                 </div>
                 {activeOrganization?.id === org.id && (
                   <Check className="size-4 text-primary shrink-0" />
