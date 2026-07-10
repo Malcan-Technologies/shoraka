@@ -21,6 +21,8 @@ export default function OnboardingVerifyPage() {
   }
 
   const isCompany = activeOrganization.type === "COMPANY";
+  const isExpiredPersonal =
+    !isCompany && String(activeOrganization.regtankOnboardingStatus ?? "").toUpperCase() === "EXPIRED";
   const isExpiredCompany =
     isCompany && String(activeOrganization.regtankOnboardingStatus ?? "").toUpperCase() === "EXPIRED";
 
@@ -68,6 +70,8 @@ export default function OnboardingVerifyPage() {
         title={
           isExpiredCompany
             ? "Company onboarding expired"
+            : isExpiredPersonal
+              ? "Personal onboarding expired"
             : isCompany
               ? "Company verification (eKYB)"
               : "Personal verification (eKYC)"
@@ -75,11 +79,13 @@ export default function OnboardingVerifyPage() {
         description={
           isExpiredCompany
             ? "Your previous company onboarding session expired. Start again to create a fresh verification session."
+            : isExpiredPersonal
+              ? "Your previous verification link has expired. Restart onboarding to generate a new verification link and continue."
             : isCompany
               ? "You will be redirected to our verification partner to complete company checks (eKYB)."
               : "You will be redirected to our verification partner to complete personal checks (eKYC)."
         }
-        continueLabel={isExpiredCompany ? "Restart onboarding" : undefined}
+        continueLabel={isExpiredCompany || isExpiredPersonal ? "Restart onboarding" : undefined}
       />
     </OnboardingLayout>
   );
