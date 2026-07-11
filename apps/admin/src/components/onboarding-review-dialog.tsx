@@ -87,6 +87,17 @@ type OnboardingPersonRow = PeopleRolesRowInput & {
   onboarding?: { status?: string | null } | null;
 };
 
+function formatOnboardingSyncDate(dateString: string | null | undefined) {
+  if (!dateString) return "-";
+  return new Intl.DateTimeFormat("en-MY", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(dateString));
+}
+
 function OnboardingPeopleReadonlyCards({
   rows,
   isRefreshing,
@@ -143,6 +154,85 @@ function OnboardingPeopleReadonlyCards({
         );
       })}
     </div>
+  );
+}
+
+function resolveDirectorShareholderEmptyMessage(
+  peopleRowCount: number,
+  ctosEmptyWarning: string | null
+): string {
+  if (ctosEmptyWarning) return ctosEmptyWarning;
+  if (peopleRowCount > 0) {
+    return "No directors or shareholders at 5% ownership or above are displayed here.";
+  }
+  return "No director or shareholder data is available yet. Use Refresh after RegTank updates COD/EOD records.";
+}
+
+function OnboardingDirectorShareholderSection({
+  title,
+  tooltip,
+  visibleRows,
+  peopleRowCount,
+  resolvedCtosEmptyWarning,
+  isRefreshing,
+  finalStatusDisplayMode,
+  lastSyncedAt,
+}: {
+  title: string;
+  tooltip: string;
+  visibleRows: OnboardingPersonRow[];
+  peopleRowCount: number;
+  resolvedCtosEmptyWarning: string | null;
+  isRefreshing: boolean;
+  finalStatusDisplayMode: "kyc_only" | "aml_first";
+  lastSyncedAt?: string | null;
+}) {
+  const emptyMessage =
+    visibleRows.length === 0
+      ? resolveDirectorShareholderEmptyMessage(peopleRowCount, resolvedCtosEmptyWarning)
+      : null;
+
+  return (
+    <>
+      <Separator />
+      <div className="space-y-3">
+        <div
+          className={cn(
+            "flex gap-2",
+            lastSyncedAt ? "items-center justify-between" : "items-center"
+          )}
+        >
+          <div className="flex items-center gap-2">
+            <h4 className="text-sm font-medium">{title}</h4>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <InformationCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent className="p-2">
+                <p className="max-w-md !text-sm leading-tight">{tooltip}</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+          {lastSyncedAt ? (
+            <span className="text-xs text-muted-foreground shrink-0">
+              Last synced: {formatOnboardingSyncDate(lastSyncedAt)}
+            </span>
+          ) : null}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Note: Shareholders with less than 5% ownership are not displayed here.
+        </p>
+        {visibleRows.length > 0 ? (
+          <OnboardingPeopleReadonlyCards
+            rows={visibleRows}
+            isRefreshing={isRefreshing}
+            finalStatusDisplayMode={finalStatusDisplayMode}
+          />
+        ) : emptyMessage ? (
+          <DirectorShareholderCtosEmptyAlert message={emptyMessage} />
+        ) : null}
+      </div>
+    </>
   );
 }
 
@@ -357,16 +447,7 @@ export function OnboardingReviewDialog({
 
   const isCombinedRefreshing = refreshStatusMutation.isPending || isFetching;
 
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "-";
-    return new Intl.DateTimeFormat("en-MY", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(dateString));
-  };
+  const formatDate = formatOnboardingSyncDate;
 
   const renderCurrentStepContent = () => {
     if (!application) return null;
@@ -496,43 +577,17 @@ export function OnboardingReviewDialog({
                 Open Onboarding Review
               </Button>
 
-              {isCompany && resolvedCtosEmptyWarning ? (
-                <>
-                  <Separator />
-                  <DirectorShareholderCtosEmptyAlert message={resolvedCtosEmptyWarning} />
-                </>
+              {isCompany ? (
+                <OnboardingDirectorShareholderSection
+                  title="Director/Shareholder KYC Status"
+                  tooltip="All directors/shareholders must complete their KYC verification in RegTank before corporate onboarding can be approved."
+                  visibleRows={visiblePeopleRows as OnboardingPersonRow[]}
+                  peopleRowCount={peopleRows.length}
+                  resolvedCtosEmptyWarning={resolvedCtosEmptyWarning}
+                  isRefreshing={refreshStatusMutation.isPending}
+                  finalStatusDisplayMode="kyc_only"
+                />
               ) : null}
-
-              {/* Director / shareholder list from backend people[] */}
-              {isCompany && visiblePeopleRows.length > 0 && (
-                <>
-                  <Separator />
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-medium">Director/Shareholder KYC Status</h4>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <InformationCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent className="p-2">
-                          <p className="max-w-md !text-sm leading-tight">
-                            All directors/shareholders must complete their KYC verification in RegTank
-                            before corporate onboarding can be approved.
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Note: Shareholders with less than 5% ownership are not displayed here.
-                    </p>
-                    <OnboardingPeopleReadonlyCards
-                      rows={visiblePeopleRows as OnboardingPersonRow[]}
-                      isRefreshing={refreshStatusMutation.isPending}
-                      finalStatusDisplayMode="kyc_only"
-                    />
-                  </div>
-                </>
-              )}
               
               {isPersonal ? (
                 <>
@@ -649,51 +704,18 @@ export function OnboardingReviewDialog({
                 );
               })()}
 
-              {isCompany && resolvedCtosEmptyWarning ? (
-                <>
-                  <Separator />
-                  <DirectorShareholderCtosEmptyAlert message={resolvedCtosEmptyWarning} />
-                </>
+              {isCompany ? (
+                <OnboardingDirectorShareholderSection
+                  title="AML screening status"
+                  tooltip="Individual director AML screening must be completed and approved in RegTank before corporate AML approval. Once all directors are approved, corporate KYB/AML will be processed automatically."
+                  visibleRows={visiblePeopleRows as OnboardingPersonRow[]}
+                  peopleRowCount={peopleRows.length}
+                  resolvedCtosEmptyWarning={resolvedCtosEmptyWarning}
+                  isRefreshing={refreshStatusMutation.isPending}
+                  finalStatusDisplayMode="aml_first"
+                  lastSyncedAt={application.directorAmlStatus?.lastSyncedAt}
+                />
               ) : null}
-              
-              {/* Director / shareholder list from backend people[] */}
-              {isCompany && visiblePeopleRows.length > 0 && (
-                <>
-                  <Separator />
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-medium">AML screening status</h4>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <InformationCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
-                          </TooltipTrigger>
-                          <TooltipContent className="p-2">
-                            <p className="max-w-md !text-sm leading-tight">
-                              Individual director AML screening must be completed and approved in RegTank
-                              before corporate AML approval. Once all directors are approved, corporate KYB/AML will be
-                              processed automatically.
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                      {application.directorAmlStatus?.lastSyncedAt && (
-                        <span className="text-xs text-muted-foreground shrink-0">
-                          Last synced: {formatDate(application.directorAmlStatus.lastSyncedAt)}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Note: Shareholders with less than 5% ownership are not displayed here.
-                    </p>
-                    <OnboardingPeopleReadonlyCards
-                      rows={visiblePeopleRows as OnboardingPersonRow[]}
-                      isRefreshing={refreshStatusMutation.isPending}
-                      finalStatusDisplayMode="aml_first"
-                    />
-                  </div>
-                </>
-              )}
               
               {isPersonal ? (
                 <>

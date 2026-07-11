@@ -41,7 +41,8 @@ import {
 } from "@cashsouk/types";
 import { toast } from "sonner";
 import { format, isValid, parse, parseISO } from "date-fns";
-import { useCreateIssuerOrganizationCtosSubjectReport } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
+import { useCreateApplicationCtosSubjectReport } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
+import { usePermissions } from "@/hooks/use-permissions";
 import { ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT } from "@/lib/admin-director-shareholder-review-message";
 
 /** Year row placeholder when no year (em dash). */
@@ -262,10 +263,9 @@ export function ApplicationFinancialReviewContent({
   app,
 }: ApplicationFinancialReviewContentProps) {
   const issuerOrgId = issuerOrganizationId?.trim() ?? "";
-  const createSubjectReport = useCreateIssuerOrganizationCtosSubjectReport(
-    issuerOrgId || undefined,
-    applicationId
-  );
+  const { can } = usePermissions();
+  const canManageFinancialCtos = can("applications.financial.manage");
+  const createSubjectReport = useCreateApplicationCtosSubjectReport(applicationId || undefined);
   const [subjectCtosFetchKey, setSubjectCtosFetchKey] = React.useState<string | null>(null);
 
   const { unauditedByYear, questionnaire: financialQuestionnaire } = React.useMemo(
@@ -777,6 +777,8 @@ export function ApplicationFinancialReviewContent({
           subjectCtosReports={app.issuer_organization?.latest_organization_ctos_subject_reports ?? null}
           ctosFetchPending={createSubjectReport.isPending}
           ctosFetchPendingKey={subjectCtosFetchKey}
+          canManageCtos={canManageFinancialCtos}
+          ctosViewReportApplicationId={applicationId}
           onFetchSubjectCtos={(person) => {
             const idKey = normalizeDirectorShareholderIdKey(person.matchKey);
             if (!idKey) {

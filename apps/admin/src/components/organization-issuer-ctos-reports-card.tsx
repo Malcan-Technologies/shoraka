@@ -70,6 +70,7 @@ export function OrganizationIssuerCtosReportsCard({
   const apiClient = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
   const queryClient = useQueryClient();
   const { can } = usePermissions();
+  const canViewOrganizations = can("organizations.view");
   const canManage = can("organizations.manage");
 
   const ctosQuery = useQuery({
@@ -81,7 +82,7 @@ export function OrganizationIssuerCtosReportsCard({
       }
       return res.data;
     },
-    enabled: Boolean(organizationId),
+    enabled: Boolean(organizationId) && canViewOrganizations,
   });
 
   const fetchCtosMutation = useMutation({
@@ -247,6 +248,10 @@ export function OrganizationIssuerCtosReportsCard({
                 ) : ctosQuery.isError ? (
                   <p className="text-sm text-destructive">
                     {(ctosQuery.error as Error)?.message ?? "Could not load CTOS."}
+                  </p>
+                ) : !canViewOrganizations ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    You do not have permission to view CTOS reports.
                   </p>
                 ) : orgCtosReports.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">

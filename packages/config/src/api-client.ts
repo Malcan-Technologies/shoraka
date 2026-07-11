@@ -1114,6 +1114,51 @@ export class ApiClient {
     );
   }
 
+  async listAdminOnboardingCtosReports(
+    onboardingId: string
+  ): Promise<ApiResponse<AdminCtosReportListItem[]> | ApiError> {
+    return this.get<AdminCtosReportListItem[]>(
+      `/v1/admin/onboarding-applications/${encodeURIComponent(onboardingId)}/ctos-reports`
+    );
+  }
+
+  async createAdminOnboardingCtosReport(
+    onboardingId: string,
+    options?: { skipDirectorShareholderNotifications?: boolean }
+  ): Promise<ApiResponse<AdminCtosReportListItem> | ApiError> {
+    const body: Record<string, boolean> = {};
+    if (options?.skipDirectorShareholderNotifications) {
+      body.skipDirectorShareholderNotifications = true;
+    }
+    return this.post<AdminCtosReportListItem>(
+      `/v1/admin/onboarding-applications/${encodeURIComponent(onboardingId)}/ctos-reports`,
+      body
+    );
+  }
+
+  async createAdminApplicationCtosReport(
+    applicationId: string
+  ): Promise<ApiResponse<AdminCtosReportListItem> | ApiError> {
+    return this.post<AdminCtosReportListItem>(
+      `/v1/admin/applications/${encodeURIComponent(applicationId)}/ctos-reports`,
+      {}
+    );
+  }
+
+  async createAdminApplicationCtosSubjectReport(
+    applicationId: string,
+    body: {
+      subjectRef: string;
+      subjectKind: "INDIVIDUAL" | "CORPORATE";
+      enquiryOverride?: { displayName: string; idNumber: string };
+    }
+  ): Promise<ApiResponse<AdminCtosReportListItem> | ApiError> {
+    return this.post<AdminCtosReportListItem>(
+      `/v1/admin/applications/${encodeURIComponent(applicationId)}/ctos-subject-reports`,
+      body
+    );
+  }
+
   async notifyIssuerDirectorShareholderActionRequired(
     issuerOrganizationId: string,
     body: { partyKey: string }

@@ -75,6 +75,8 @@ export function DirectorShareholderTable({
   ctosFetchPending,
   subjectCtosReports,
   onFetchSubjectCtos,
+  canManageCtos = true,
+  ctosViewReportApplicationId,
 }: {
   people: ApplicationPersonRow[];
   directorShareholderListSource?: DirectorShareholderListSource | null;
@@ -86,6 +88,9 @@ export function DirectorShareholderTable({
   /** Latest CTOS report per party (matches `subject_ref` from API to IC/SSM). */
   subjectCtosReports?: CtosSubjectReportListItem[] | null;
   onFetchSubjectCtos?: (person: ApplicationPersonRow) => void;
+  canManageCtos?: boolean;
+  /** When set, View report uses application-scoped CTOS HTML route (financial review). */
+  ctosViewReportApplicationId?: string;
 }) {
   const { getAccessToken } = useAuthToken();
   const [pendingCtosSubjectFetch, setPendingCtosSubjectFetch] = React.useState<PendingCtosSubjectFetch | null>(null);
@@ -107,7 +112,9 @@ export function DirectorShareholderTable({
         toast.error("Not signed in");
         return;
       }
-      const url = `${API_URL}/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-reports/${reportId}/html`;
+      const url = ctosViewReportApplicationId
+        ? `${API_URL}/v1/admin/applications/${encodeURIComponent(ctosViewReportApplicationId)}/ctos-reports/${reportId}/html`
+        : `${API_URL}/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-reports/${reportId}/html`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) {
         toast.error("Could not load report");
@@ -126,7 +133,7 @@ export function DirectorShareholderTable({
       w.document.write(html);
       w.document.close();
     },
-    [getAccessToken, organizationId, portal]
+    [getAccessToken, organizationId, portal, ctosViewReportApplicationId]
   );
 
   if (rows.length === 0) {
@@ -238,8 +245,15 @@ export function DirectorShareholderTable({
                           });
                         }}
                         disabled={
-                          ctosFetchPending === true &&
-                          ctosFetchPendingKey === normalizeDirectorShareholderIdKey(p.matchKey)
+                          !canManageCtos ||
+                          !onFetchSubjectCtos ||
+                          (ctosFetchPending === true &&
+                          ctosFetchPendingKey === normalizeDirectorShareholderIdKey(p.matchKey))
+                        }
+                        title={
+                          !canManageCtos
+                            ? "You do not have permission to perform this action."
+                            : undefined
                         }
                       >
                         {ctosFetchPending === true && ctosFetchPendingKey === normalizeDirectorShareholderIdKey(p.matchKey)
