@@ -12,6 +12,14 @@ export function ctosPositionDirectorShareholderFlags(position: string | undefine
   if (!pos) {
     return { isDirector: true, isShareholder: false };
   }
+  // Some sources provide text labels (e.g. "Director", "Shareholder")
+  // instead of compact CTOS codes (DO/SO/DS/AS).
+  const normalized = pos.replace(/[^A-Z]/g, "");
+  const looksDirector = normalized.includes("DIRECTOR");
+  const looksShareholder = normalized.includes("SHAREHOLDER");
+  if (looksDirector || looksShareholder) {
+    return { isDirector: looksDirector, isShareholder: looksShareholder };
+  }
   switch (pos) {
     case "DO":
     case "AD":
