@@ -3172,11 +3172,15 @@ export class AdminService {
       return null;
     }
     const existingResponse = this.mapToOnboardingApplicationResponse(refreshed);
+    const organizationForPeople =
+      refreshed.portal_type === "investor"
+        ? refreshed.investor_organization
+        : refreshed.issuer_organization;
     const partyBuild = buildDirectorShareholderPeopleList({
       ctos: existingResponse.latestOrganizationCtosCompanyJson,
-      issuerDirectorKycStatus: refreshed.issuer_organization?.director_kyc_status ?? null,
-      issuerDirectorAmlStatus: refreshed.issuer_organization?.director_aml_status ?? null,
-      ctosPartySupplements: refreshed.issuer_organization?.ctos_party_supplements ?? null,
+      issuerDirectorKycStatus: organizationForPeople?.director_kyc_status ?? null,
+      issuerDirectorAmlStatus: organizationForPeople?.director_aml_status ?? null,
+      ctosPartySupplements: organizationForPeople?.ctos_party_supplements ?? null,
       corporateEntities: existingResponse.corporateEntities ?? null,
     });
 
