@@ -1397,7 +1397,9 @@ export default function OrganizationDetailPage() {
                         subjectCtosReports={org.latestOrganizationCtosSubjectReports ?? null}
                         ctosFetchPendingKey={ctosFetchSubjectKey}
                         ctosFetchPending={fetchSubjectCtosMutation.isPending}
+                        canManageCtos={canManage}
                         onFetchSubjectCtos={(person) => {
+                          if (!canManage) return;
                           const idKey = normalizeDirectorShareholderIdKey(person.matchKey);
                           if (!idKey) {
                             toast.error("Missing IC / SSM. Cannot fetch CTOS report.");

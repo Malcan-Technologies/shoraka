@@ -76,6 +76,7 @@ import {
   type OnboardingCtosOrgFetchState,
   type OnboardingPeopleBuckets,
 } from "@/lib/onboarding-ctos-compare";
+import { usePermissions } from "@/hooks/use-permissions";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -430,6 +431,7 @@ function orderedCompareRows(buckets: OnboardingPeopleBuckets): {
 interface SSMVerificationPanelProps {
   application: OnboardingApplicationResponse;
   onApprove: () => void;
+  /** Locks approve / amend / attestation (onboarding.manage from parent). CTOS uses onboarding permissions internally. */
   disabled?: boolean;
   amendmentInProgress?: boolean;
 }
@@ -700,11 +702,14 @@ export function SSMVerificationPanel({
   const [confirmed, setConfirmed] = React.useState(false);
   const [getLatestConfirmOpen, setGetLatestConfirmOpen] = React.useState(false);
   const { getAccessToken } = useAuthToken();
+  const { can } = usePermissions();
+  const canViewOnboardingCtos = can("onboarding.view");
+  const canManageOnboardingCtos = can("onboarding.manage");
   const apiClient = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
   const queryClient = useQueryClient();
 
   const useOrgCtosFlow = application.portal === "issuer" || application.portal === "investor";
-  const orgId = application.organizationId;
+  const onboardingId = application.id;
 
   const applicationForCompare = React.useMemo(() => {
     if (!useMockOnboardingCtos || !useOrgCtosFlow) return application;
@@ -717,20 +722,20 @@ export function SSMVerificationPanel({
   }, [application, useOrgCtosFlow]);
 
   const ctosQuery = useQuery({
-    queryKey: ["admin", "organization-ctos-reports", application.portal, orgId],
+    queryKey: ["admin", "onboarding-ctos-reports", onboardingId],
     queryFn: async () => {
-      const res = await apiClient.listAdminOrganizationCtosReports(application.portal, orgId);
+      const res = await apiClient.listAdminOnboardingCtosReports(onboardingId);
       if (!res.success) {
         throw new Error(formatApiErrorMessage(res.error));
       }
       return res.data;
     },
-    enabled: useOrgCtosFlow && Boolean(orgId) && !useMockOnboardingCtos,
+    enabled: useOrgCtosFlow && Boolean(onboardingId) && !useMockOnboardingCtos && canViewOnboardingCtos,
   });
 
   const fetchCtosMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiClient.createAdminOrganizationCtosReport(application.portal, orgId, {
+      const res = await apiClient.createAdminOnboardingCtosReport(onboardingId, {
         skipDirectorShareholderNotifications: true,
       });
       if (!res.success) {
@@ -740,7 +745,7 @@ export function SSMVerificationPanel({
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "organization-ctos-reports", application.portal, orgId],
+        queryKey: ["admin", "onboarding-ctos-reports", onboardingId],
       });
       toast.success("SSM report saved.");
     },
@@ -815,7 +820,7 @@ export function SSMVerificationPanel({
         toast.error("Not signed in");
         return;
       }
-      const url = `${API_URL}/v1/admin/organizations/${application.portal}/${encodeURIComponent(orgId)}/ctos-reports/${reportId}/html`;
+      const url = `${API_URL}/v1/admin/onboarding-applications/${encodeURIComponent(onboardingId)}/ctos-reports/${reportId}/html`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) {
         toast.error("Could not load full report");
@@ -828,7 +833,7 @@ export function SSMVerificationPanel({
         w.document.close();
       }
     },
-    [getAccessToken, orgId, application.portal]
+    [getAccessToken, onboardingId]
   );
 
   const openLatestOrgReportHtml = React.useCallback(async () => {
@@ -937,10 +942,15 @@ export function SSMVerificationPanel({
                       size="sm"
                       className={cn(CTOS_FETCH_BUTTON_CLASSNAME, ctosHeaderReportButtonClassName)}
                       disabled={
-                        disabled ||
+                        !canManageOnboardingCtos ||
                         useMockOnboardingCtos ||
                         fetchCtosMutation.isPending ||
                         ctosListLoading
+                      }
+                      title={
+                        !canManageOnboardingCtos
+                          ? "You do not have permission to perform this action."
+                          : undefined
                       }
                       onClick={() => setGetLatestConfirmOpen(true)}
                     >
@@ -956,10 +966,15 @@ export function SSMVerificationPanel({
                         ctosHeaderReportButtonClassName
                       )}
                       disabled={
-                        disabled ||
+                        !canViewOnboardingCtos ||
                         useMockOnboardingCtos ||
                         !latestOrgCtos?.has_report_html ||
                         ctosListLoading
+                      }
+                      title={
+                        !canViewOnboardingCtos
+                          ? "You do not have permission to perform this action."
+                          : undefined
                       }
                       onClick={() => void openLatestOrgReportHtml()}
                     >
@@ -1010,7 +1025,13 @@ export function SSMVerificationPanel({
             </div>
           ) : null}
 
-          {useOrgCtosFlow && !useMockOnboardingCtos && ctosQuery.isError ? (
+          {useOrgCtosFlow && !useMockOnboardingCtos && !canViewOnboardingCtos ? (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              You do not have permission to view SSM reports.
+            </div>
+          ) : null}
+
+          {useOrgCtosFlow && !useMockOnboardingCtos && canViewOnboardingCtos && ctosQuery.isError ? (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
               {(ctosQuery.error as Error)?.message ?? "Could not load SSM data."}
             </div>
