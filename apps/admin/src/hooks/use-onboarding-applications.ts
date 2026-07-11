@@ -198,3 +198,23 @@ export function useRefreshCorporateAmlStatus() {
     },
   });
 }
+
+/** Stage-aware live RegTank refresh for personal or company investor/issuer organizations. */
+export function useRefreshOnboardingStatus() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (onboardingId: string) => {
+      const response = await apiClient.refreshOnboardingStatus(onboardingId);
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      return response.data;
+    },
+    onSuccess: (_data, onboardingId) => {
+      invalidateOnboardingCaches(queryClient, onboardingId);
+    },
+  });
+}

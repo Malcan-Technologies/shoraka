@@ -1469,6 +1469,9 @@ export class ApiClient {
         success: boolean;
         message: string;
         directorsUpdated: number;
+        onboardingStatus: string;
+        amlApproved: boolean;
+        advanced: boolean;
       }>
     | ApiError
   > {
@@ -1476,7 +1479,50 @@ export class ApiClient {
       success: boolean;
       message: string;
       directorsUpdated: number;
+      onboardingStatus: string;
+      amlApproved: boolean;
+      advanced: boolean;
     }>(`/v1/admin/onboarding-applications/${onboardingId}/refresh-aml-status`, {});
+  }
+
+  // Refresh onboarding + AML status from RegTank (personal or company)
+  async refreshOnboardingStatus(onboardingId: string): Promise<
+    | ApiResponse<{
+        success: boolean;
+        message: string;
+        organizationId: string;
+        onboardingStatus: string;
+        onboardingApproved: boolean;
+        ssmApproved: boolean;
+        amlApproved: boolean;
+        advanced: boolean;
+        onboardingProviderStatus: string | null;
+        amlProviderStatus: string | null;
+        lastSyncedAt: string | null;
+        directorsUpdated: number;
+        refreshedSources: string[];
+        warnings: string[];
+        partialFailures: string[];
+      }>
+    | ApiError
+  > {
+    return this.post<{
+      success: boolean;
+      message: string;
+      organizationId: string;
+      onboardingStatus: string;
+      onboardingApproved: boolean;
+      ssmApproved: boolean;
+      amlApproved: boolean;
+      advanced: boolean;
+      onboardingProviderStatus: string | null;
+      amlProviderStatus: string | null;
+      lastSyncedAt: string | null;
+      directorsUpdated: number;
+      refreshedSources: string[];
+      warnings: string[];
+      partialFailures: string[];
+    }>(`/v1/admin/onboarding-applications/${onboardingId}/refresh-status`, {});
   }
 
   async getUser(id: string): Promise<ApiResponse<{ user: UserDetailResponse }> | ApiError> {

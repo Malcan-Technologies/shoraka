@@ -5,7 +5,7 @@ import { RegTankRepository } from "../repository";
 import { AmlIdentityRepository } from "../aml-identity-repository";
 import { Prisma } from "@prisma/client";
 import { OrganizationRepository } from "../../organization/repository";
-import { UserRole } from "@prisma/client";
+import { UserRole, OrganizationType } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
 import { syncApplicationGuarantorsFromRegTankAmlWebhook } from "../../admin/guarantor-aml-webhook-sync";
@@ -18,6 +18,12 @@ import {
   parseCtosPartySupplement,
 } from "@cashsouk/types";
 import { mapRegTankKycScreeningStatusToAmlStatus } from "../helpers/regtank-kyc-screening-to-aml-status";
+import {
+  isCancelledOnboardingRow,
+  logCancelledOnboardingSkip,
+  isAmlWebhookOnboardingTypeConsistent,
+  logWebhookFamilyTypeMismatch,
+} from "./onboarding-webhook-guards";
 
 /**
  * KYC (Know Your Customer) Webhook Handler
@@ -246,6 +252,18 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       return;
     }
 
+    // Type-family check runs before persistence: a confirmed mismatch must not be
+    // appended to the wrong-type record at all.
+    if (!isAmlWebhookOnboardingTypeConsistent(onboarding)) {
+      logWebhookFamilyTypeMismatch({
+        webhookFamily: "kyc",
+        webhookRequestId: requestId,
+        onboarding,
+        expected: "CORPORATE onboarding rows must be organization_type COMPANY",
+      });
+      return;
+    }
+
     // Append to history using the onboarding request_id (not the KYC requestId)
     logger.debug(
       {
@@ -260,6 +278,15 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       onboarding.request_id,
       payload as Prisma.InputJsonValue
     );
+
+    if (isCancelledOnboardingRow(onboarding)) {
+      logCancelledOnboardingSkip({
+        webhookFamily: "kyc",
+        webhookRequestId: requestId,
+        onboarding,
+      });
+      return;
+    }
 
     logger.info(
       {
@@ -379,10 +406,9 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       }
     }
 
-    // Always persist raw status first
-    await this.repository.updateStatus(onboarding.request_id, {
-      status: statusRaw,
-    });
+    // Note: `reg_tank_onboarding.status` represents onboarding lifecycle progress
+    // (individual/COD events), not KYC screening results. The raw KYC status is
+    // preserved above in webhook_payloads; it must not overwrite that field.
 
     // Handle KYC approval side effects (unchanged behavior)
     const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
@@ -399,17 +425,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
             riskLevel,
             riskScore,
           },
-          "[KYC Webhook] Processing KYC approval - updating regtank_onboarding status and storing KYC payload (org step admin-driven)"
-        );
-
-        logger.info(
-          {
-            kycRequestId: requestId,
-            onboardingRequestId: onboarding.request_id,
-            previousRegTankStatus: onboarding.status,
-            newRegTankStatus: statusRaw,
-          },
-          "[KYC Webhook] ✓ Stored raw KYC webhook status before approval side effects"
+          "[KYC Webhook] Processing KYC approval - storing kyc_response and applying AML side effects (org step admin-driven)"
         );
 
         if (portalType === "investor" && onboarding.investor_organization_id) {
@@ -463,7 +479,11 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
               "[KYC Webhook] Stored kyc_response; org onboarding step unchanged unless personal AML milestone applies"
             );
 
-            if (onboarding.onboarding_type === "PERSONAL" && onboarding.investor_organization_id) {
+            if (
+              onboarding.onboarding_type === "INDIVIDUAL" &&
+              onboarding.organization_type === OrganizationType.PERSONAL &&
+              onboarding.investor_organization_id
+            ) {
               await maybeAdvanceOrgAfterAmlScreeningCleared({
                 organizationId: onboarding.investor_organization_id,
                 portalType: "investor",
@@ -528,7 +548,11 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
               "[KYC Webhook] Stored kyc_response; org onboarding step unchanged unless personal AML milestone applies"
             );
 
-            if (onboarding.onboarding_type === "PERSONAL" && onboarding.issuer_organization_id) {
+            if (
+              onboarding.onboarding_type === "INDIVIDUAL" &&
+              onboarding.organization_type === OrganizationType.PERSONAL &&
+              onboarding.issuer_organization_id
+            ) {
               await maybeAdvanceOrgAfterAmlScreeningCleared({
                 organizationId: onboarding.issuer_organization_id,
                 portalType: "issuer",

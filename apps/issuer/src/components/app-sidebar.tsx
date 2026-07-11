@@ -6,7 +6,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@cashsouk/ui";
-import { useOrganization, isAddingNewOrganizationRoute } from "@cashsouk/config";
+import {
+  useOrganization,
+  isAddingNewOrganizationRoute,
+  canAccessApplicantAccount,
+} from "@cashsouk/config";
 import {
   HomeIcon,
   UserCircleIcon,
@@ -55,14 +59,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isOnboardingPage = isAddingNewOrganizationRoute(pathname);
 
   // Check if organization has a status that allows Account/Profile access
-  const allowsAccountAccess = useMemo(() => {
-    const status = activeOrganization?.onboardingStatus;
-    return (
-      status === "PENDING_AML" ||
-      status === "PENDING_FINAL_APPROVAL" ||
-      status === "COMPLETED"
-    );
-  }, [activeOrganization]);
+  const allowsAccountAccess = useMemo(
+    () => canAccessApplicantAccount(activeOrganization?.onboardingStatus),
+    [activeOrganization?.onboardingStatus]
+  );
 
   // Disable all navigation when on onboarding page (adding new organization)
   // Also disable if active org is not onboarded (except for pending approval states)

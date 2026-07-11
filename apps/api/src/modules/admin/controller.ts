@@ -2064,6 +2064,45 @@ router.post(
 
 /**
  * @swagger
+ * POST /admin/onboarding-applications/:id/refresh-status:
+ *   post:
+ *     summary: Refresh onboarding + AML status from RegTank (personal or company)
+ *     description: >
+ *       Queries RegTank live for the applicable onboarding/AML records (individual
+ *       onboarding + KYC for personal orgs; COD/EOD + KYB/related-party AML for
+ *       company orgs), updates existing stored fields/JSON, and runs the existing
+ *       shared milestone/advancement helpers. Never sets ssm_approved/ssm_checked.
+ */
+router.post(
+  "/onboarding-applications/:id/refresh-status",
+  requirePermission("onboarding.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+
+      if (!id) {
+        throw new AppError(400, "VALIDATION_ERROR", "Onboarding ID is required");
+      }
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const result = await adminService.refreshOnboardingStatus(req, id, req.user.user_id);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
  * /v1/admin/applications:
  *   get:
  *     summary: List financing applications with pagination and filters (admin only)

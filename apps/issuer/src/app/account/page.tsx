@@ -14,7 +14,12 @@ import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Badge } from "../../components/ui/badge";
 import { Skeleton } from "../../components/ui/skeleton";
-import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
+import {
+  createApiClient,
+  useAuthToken,
+  useOrganization,
+  canAccessApplicantAccount,
+} from "@cashsouk/config";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -192,17 +197,12 @@ export default function AccountPage() {
   const apiClient = createApiClient(API_URL, getAccessToken);
   const [changePasswordOpen, setChangePasswordOpen] = React.useState(false);
 
-  // Block access if organization is in PENDING_APPROVAL or REJECTED status
+  // Account/Profile access is based on persisted organization onboarding status.
   useEffect(() => {
-    const isPendingApproval =
-      activeOrganization?.onboardingStatus === "PENDING_APPROVAL" ||
-      activeOrganization?.onboardingStatus === "PENDING_AMENDMENT" ||
-      activeOrganization?.regtankOnboardingStatus === "PENDING_APPROVAL";
-    const isPendingAmendment =
-      activeOrganization?.regtankOnboardingStatus === "PENDING_AMENDMENT";
-    const isRejected = activeOrganization?.regtankOnboardingStatus === "REJECTED";
-
-    if (isPendingApproval || isPendingAmendment || isRejected) {
+    if (
+      activeOrganization &&
+      !canAccessApplicantAccount(activeOrganization.onboardingStatus)
+    ) {
       router.replace("/");
     }
   }, [activeOrganization, router]);

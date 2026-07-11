@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -40,8 +40,7 @@ import {
   useRestartOnboarding,
   useCompleteFinalApproval,
   useApproveSsmVerification,
-  useRefreshCorporateStatus,
-  useRefreshCorporateAmlStatus,
+  useRefreshOnboardingStatus,
 } from "@/hooks/use-onboarding-applications";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -49,6 +48,12 @@ import {
   getFinalStatusBadgeClassName,
   getFinalStatusLabel,
 } from "@cashsouk/types";
+import {
+  ONBOARDING_OPEN_REGTANK_REVIEW_LABEL,
+  ONBOARDING_REFRESH_LABEL,
+  ONBOARDING_REFRESH_LOADING_LABEL,
+  ONBOARDING_RESTART_LABEL,
+} from "@cashsouk/config";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/use-permissions";
 import {
@@ -141,6 +146,41 @@ function OnboardingPeopleReadonlyCards({
   );
 }
 
+/**
+ * De-emphasized "Restart Onboarding" trigger for stages where onboarding is progressing
+ * normally. Restart stays available (backend allows it at these stages), but it should not
+ * look like a normal next-step action next to Approve/Refresh.
+ */
+function RestartOnboardingSecondaryAction({
+  onClick,
+  disabled,
+  disabledReason,
+  helperText,
+}: {
+  onClick: () => void;
+  disabled: boolean;
+  disabledReason?: string;
+  helperText: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 pt-1">
+      <span className="text-xs text-muted-foreground">{helperText}</span>
+      <Button
+        type="button"
+        onClick={onClick}
+        variant="ghost"
+        size="sm"
+        className="gap-1.5 text-muted-foreground hover:text-destructive"
+        disabled={disabled}
+        title={disabledReason}
+      >
+        <ArrowPathIcon className="h-3.5 w-3.5" />
+        {ONBOARDING_RESTART_LABEL}
+      </Button>
+    </div>
+  );
+}
+
 interface OnboardingReviewDialogProps {
   onboardingId: string;
   open: boolean;
@@ -169,8 +209,7 @@ export function OnboardingReviewDialog({
   const restartMutation = useRestartOnboarding();
   const finalApprovalMutation = useCompleteFinalApproval();
   const ssmApprovalMutation = useApproveSsmVerification();
-  const refreshCorporateMutation = useRefreshCorporateStatus();
-  const refreshCorporateAmlMutation = useRefreshCorporateAmlStatus();
+  const refreshStatusMutation = useRefreshOnboardingStatus();
 
   const adminPhase = React.useMemo((): OnboardingApprovalStatus => {
     if (!application) return "PENDING_ONBOARDING";
@@ -185,6 +224,7 @@ export function OnboardingReviewDialog({
   }, [application]);
 
   const isCompany = application?.type === "COMPANY";
+  const isPersonal = application?.type === "PERSONAL";
   const peopleRows = React.useMemo(() => application?.people ?? [], [application]);
   const visiblePeopleRows = React.useMemo(() => filterVisiblePeopleRows(peopleRows), [peopleRows]);
   const resolvedCtosEmptyWarning = React.useMemo(
@@ -286,38 +326,36 @@ export function OnboardingReviewDialog({
     });
   };
 
+  // Backend `refreshOnboardingStatus` intentionally skips live RegTank calls once an
+  // organization is COMPLETED/REJECTED (see terminal-state guard) — the button must not
+  // look like a normal live action for these two states.
+  const isTerminalOnboarding = adminPhase === "COMPLETED" || adminPhase === "REJECTED";
+  const terminalRefreshHelperText =
+    adminPhase === "COMPLETED"
+      ? "Onboarding is complete. No further status refresh is required."
+      : "This onboarding was rejected. Restart onboarding to begin a new review.";
+
   const handleCombinedRefresh = async () => {
-    if (!application) return;
-    if (isCompany) {
-      if (application.onboardingStatus === "PENDING_APPROVAL") {
-        try {
-          await refreshCorporateMutation.mutateAsync(onboardingId);
-          toast.success("Director KYC statuses refreshed");
-        } catch (err) {
-          toast.error("Failed to refresh director KYC statuses", {
-            description: err instanceof Error ? err.message : String(err),
-          });
-        }
+    if (!application || isTerminalOnboarding) return;
+    try {
+      const result = await refreshStatusMutation.mutateAsync(onboardingId);
+      if (result.partialFailures.length > 0) {
+        toast.warning("RegTank status was partially refreshed. Some related-party records could not be updated.", {
+          description: result.warnings[0],
+        });
+      } else {
+        toast.success(result.message);
       }
-      if (application.onboardingStatus === "PENDING_AML") {
-        try {
-          await refreshCorporateAmlMutation.mutateAsync(onboardingId);
-          toast.success("Director AML statuses refreshed");
-        } catch (err) {
-          toast.error("Failed to refresh director AML statuses", {
-            description: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
+    } catch (err) {
+      toast.error("Unable to retrieve the latest status from RegTank.", {
+        description: err instanceof Error ? err.message : String(err),
+      });
     }
     void queryClient.invalidateQueries({ queryKey: ["admin", "onboarding-applications"] });
     void refetch();
   };
 
-  const isCombinedRefreshing =
-    refreshCorporateMutation.isPending ||
-    refreshCorporateAmlMutation.isPending ||
-    isFetching;
+  const isCombinedRefreshing = refreshStatusMutation.isPending || isFetching;
 
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return "-";
@@ -408,11 +446,9 @@ export function OnboardingReviewDialog({
                           and ensure the onboarding has been approved by an admin.
                         </li>
                         <li>
-                          After all applicable directors and shareholders are approved, take one of:
-                          <strong> Approve</strong> (if all requirements are met),{" "}
-                          <strong>Reject</strong> (if the onboarding does not meet requirements), or{" "}
-                          <strong>Request Amendment</strong> (if changes or additional information
-                          are needed).
+                          After all applicable directors and shareholders are approved, select{" "}
+                          <strong>Approve</strong> if all requirements are met, or{" "}
+                          <strong>Reject</strong> if the onboarding does not meet the requirements.
                         </li>
                       </ol>
                       <p className="text-sm text-muted-foreground mt-3 leading-relaxed instruction-conclusion">
@@ -491,27 +527,26 @@ export function OnboardingReviewDialog({
                     </p>
                     <OnboardingPeopleReadonlyCards
                       rows={visiblePeopleRows as OnboardingPersonRow[]}
-                      isRefreshing={refreshCorporateMutation.isPending}
+                      isRefreshing={refreshStatusMutation.isPending}
                       finalStatusDisplayMode="kyc_only"
                     />
                   </div>
                 </>
               )}
               
-              <Separator />
-              <div className="text-sm text-muted-foreground">
-                Or request the user to redo their onboarding:
-              </div>
-              <Button
-                onClick={() => setShowRedoConfirm(true)}
-                variant="outline"
-                className="w-full gap-2"
-                disabled={restartMutation.isPending || !canManage}
-                title={!canManage ? "You do not have permission to perform this action." : undefined}
-              >
-                <ArrowPathIcon className="h-4 w-4" />
-                Restart Onboarding
-              </Button>
+              {isPersonal ? (
+                <>
+                  <Separator />
+                  <RestartOnboardingSecondaryAction
+                    onClick={() => setShowRedoConfirm(true)}
+                    disabled={restartMutation.isPending || !canManage}
+                    disabledReason={
+                      !canManage ? "You do not have permission to perform this action." : undefined
+                    }
+                    helperText="Need the applicant to redo their onboarding?"
+                  />
+                </>
+              ) : null}
             </CardContent>
           </Card>
         );
@@ -536,8 +571,8 @@ export function OnboardingReviewDialog({
                       <p className="text-sm font-medium">Business Account – AML Approval</p>
                       <ol className="text-sm text-muted-foreground space-y-3 list-decimal list-inside mt-2 leading-relaxed">
                         <li>
-                          Click the &quot;Open KYB/AML Review&quot; button to access the AML
-                          screening page in RegTank.
+                          Click the &quot;{ONBOARDING_OPEN_REGTANK_REVIEW_LABEL}&quot; button to
+                          access the KYB/AML screening page in RegTank.
                         </li>
                         <li>
                           Perform AML screening for all relevant associated parties: Directors (if
@@ -566,8 +601,8 @@ export function OnboardingReviewDialog({
                       <p className="text-sm font-medium">Personal Account – AML Approval</p>
                       <ol className="text-sm text-muted-foreground space-y-3 list-decimal list-inside mt-2 leading-relaxed">
                         <li>
-                          Click the &quot;Open KYB/AML Review&quot; button to access the AML
-                          screening page (My KYC) in RegTank.
+                          Click the &quot;{ONBOARDING_OPEN_REGTANK_REVIEW_LABEL}&quot; button to
+                          access the AML screening page (My KYC) in RegTank.
                         </li>
                         <li>Review the AML screening results.</li>
                         <li>
@@ -587,17 +622,32 @@ export function OnboardingReviewDialog({
                   </>
                 )}
               </div>
-              <Button
-                onClick={handleOpenKycReview}
-                className="w-full gap-2"
-                disabled={
-                  !canManage || (isCompany ? !application.kybPortalUrl : !application.kycPortalUrl)
-                }
-                title={!canManage ? "You do not have permission to perform this action." : undefined}
-              >
-                <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                {isCompany ? "Open KYB/AML Review" : "Open KYC/AML Review"}
-              </Button>
+              {(() => {
+                const amlPortalUrl = isCompany ? application.kybPortalUrl : application.kycPortalUrl;
+                const noPermission = !canManage;
+                const noReviewLink = canManage && !amlPortalUrl;
+                const disabledReason = noPermission
+                  ? "You do not have permission to perform this action."
+                  : noReviewLink
+                    ? "RegTank has not provided a review link for this application yet."
+                    : undefined;
+                return (
+                  <>
+                    <Button
+                      onClick={handleOpenKycReview}
+                      className="w-full gap-2"
+                      disabled={noPermission || !amlPortalUrl}
+                      title={disabledReason}
+                    >
+                      <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                      {ONBOARDING_OPEN_REGTANK_REVIEW_LABEL}
+                    </Button>
+                    {noReviewLink ? (
+                      <p className="text-xs text-muted-foreground">{disabledReason}</p>
+                    ) : null}
+                  </>
+                );
+              })()}
 
               {isCompany && resolvedCtosEmptyWarning ? (
                 <>
@@ -611,47 +661,53 @@ export function OnboardingReviewDialog({
                 <>
                   <Separator />
                   <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-medium">AML screening status</h4>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <InformationCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent className="p-2">
-                          <p className="max-w-md !text-sm leading-tight">
-                            Individual director AML screening must be completed and approved in RegTank
-                            before corporate AML approval. Once all directors are approved, corporate KYB/AML will be
-                            processed automatically.
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-medium">AML screening status</h4>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <InformationCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent className="p-2">
+                            <p className="max-w-md !text-sm leading-tight">
+                              Individual director AML screening must be completed and approved in RegTank
+                              before corporate AML approval. Once all directors are approved, corporate KYB/AML will be
+                              processed automatically.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                      {application.directorAmlStatus?.lastSyncedAt && (
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          Last synced: {formatDate(application.directorAmlStatus.lastSyncedAt)}
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       Note: Shareholders with less than 5% ownership are not displayed here.
                     </p>
                     <OnboardingPeopleReadonlyCards
                       rows={visiblePeopleRows as OnboardingPersonRow[]}
-                      isRefreshing={refreshCorporateAmlMutation.isPending}
+                      isRefreshing={refreshStatusMutation.isPending}
                       finalStatusDisplayMode="aml_first"
                     />
                   </div>
                 </>
               )}
               
-              <Separator />
-              <div className="text-sm text-muted-foreground">
-                Or request the user to redo their onboarding:
-              </div>
-              <Button
-                onClick={() => setShowRedoConfirm(true)}
-                variant="outline"
-                className="w-full gap-2"
-                disabled={restartMutation.isPending || !canManage}
-                title={!canManage ? "You do not have permission to perform this action." : undefined}
-              >
-                <ArrowPathIcon className="h-4 w-4" />
-                Restart Onboarding
-              </Button>
+              {isPersonal ? (
+                <>
+                  <Separator />
+                  <RestartOnboardingSecondaryAction
+                    onClick={() => setShowRedoConfirm(true)}
+                    disabled={restartMutation.isPending || !canManage}
+                    disabledReason={
+                      !canManage ? "You do not have permission to perform this action." : undefined
+                    }
+                    helperText="Need the applicant to redo their onboarding?"
+                  />
+                </>
+              ) : null}
             </CardContent>
           </Card>
         );
@@ -815,20 +871,19 @@ export function OnboardingReviewDialog({
                 </p>
               )}
 
-              <Separator />
-              <div className="text-sm text-muted-foreground">
-                Or request the user to redo their onboarding:
-              </div>
-              <Button
-                onClick={() => setShowRedoConfirm(true)}
-                variant="outline"
-                className="w-full gap-2"
-                disabled={restartMutation.isPending || !canManage}
-                title={!canManage ? "You do not have permission to perform this action." : undefined}
-              >
-                <ArrowPathIcon className="h-4 w-4" />
-                Restart Onboarding
-              </Button>
+              {isPersonal ? (
+                <>
+                  <Separator />
+                  <RestartOnboardingSecondaryAction
+                    onClick={() => setShowRedoConfirm(true)}
+                    disabled={restartMutation.isPending || !canManage}
+                    disabledReason={
+                      !canManage ? "You do not have permission to perform this action." : undefined
+                    }
+                    helperText="Need the applicant to redo their onboarding?"
+                  />
+                </>
+              ) : null}
             </CardContent>
           </Card>
         );
@@ -848,20 +903,19 @@ export function OnboardingReviewDialog({
                   </p>
                 </div>
               </div>
-              <Separator />
-              <div className="text-sm text-muted-foreground">
-                If needed, you can request the user to redo their onboarding:
-              </div>
-              <Button
-                onClick={() => setShowRedoConfirm(true)}
-                variant="outline"
-                className="w-full gap-2"
-                disabled={restartMutation.isPending || !canManage}
-                title={!canManage ? "You do not have permission to perform this action." : undefined}
-              >
-                <ArrowPathIcon className="h-4 w-4" />
-                Restart Onboarding
-              </Button>
+              {isPersonal ? (
+                <>
+                  <Separator />
+                  <RestartOnboardingSecondaryAction
+                    onClick={() => setShowRedoConfirm(true)}
+                    disabled={restartMutation.isPending || !canManage}
+                    disabledReason={
+                      !canManage ? "You do not have permission to perform this action." : undefined
+                    }
+                    helperText="Need the applicant to redo their onboarding, even though it's complete?"
+                  />
+                </>
+              ) : null}
             </CardContent>
           </Card>
         );
@@ -875,21 +929,24 @@ export function OnboardingReviewDialog({
                 <div>
                   <p className="font-semibold text-lg text-destructive">Onboarding Rejected</p>
                   <p className="text-sm text-muted-foreground">
-                    This application has been rejected. You can request the user to redo their
-                    onboarding.
+                    {isPersonal
+                      ? "This application has been rejected. You can request the user to redo their onboarding."
+                      : "This application has been rejected."}
                   </p>
                 </div>
               </div>
-              <Button
-                onClick={() => setShowRedoConfirm(true)}
-                variant="outline"
-                className="w-full gap-2"
-                disabled={restartMutation.isPending || !canManage}
-                title={!canManage ? "You do not have permission to perform this action." : undefined}
-              >
-                <ArrowPathIcon className="h-4 w-4" />
-                Restart Onboarding
-              </Button>
+              {isPersonal ? (
+                <Button
+                  onClick={() => setShowRedoConfirm(true)}
+                  variant="outline"
+                  className="w-full gap-2"
+                  disabled={restartMutation.isPending || !canManage}
+                  title={!canManage ? "You do not have permission to perform this action." : undefined}
+                >
+                  <ArrowPathIcon className="h-4 w-4" />
+                  {ONBOARDING_RESTART_LABEL}
+                </Button>
+              ) : null}
             </CardContent>
           </Card>
         );
@@ -903,21 +960,24 @@ export function OnboardingReviewDialog({
                 <div>
                   <p className="font-semibold text-lg text-muted-foreground">Link Expired</p>
                   <p className="text-sm text-muted-foreground">
-                    The onboarding link has expired. Click below to allow the user to restart the
-                    onboarding process.
+                    {isPersonal
+                      ? "The onboarding link has expired. Click below to allow the user to restart the onboarding process."
+                      : "The onboarding link has expired."}
                   </p>
                 </div>
               </div>
-              <Button
-                onClick={() => setShowRedoConfirm(true)}
-                variant="outline"
-                className="w-full gap-2"
-                disabled={restartMutation.isPending || !canManage}
-                title={!canManage ? "You do not have permission to perform this action." : undefined}
-              >
-                <ArrowPathIcon className="h-4 w-4" />
-                Restart Onboarding
-              </Button>
+              {isPersonal ? (
+                <Button
+                  onClick={() => setShowRedoConfirm(true)}
+                  variant="outline"
+                  className="w-full gap-2"
+                  disabled={restartMutation.isPending || !canManage}
+                  title={!canManage ? "You do not have permission to perform this action." : undefined}
+                >
+                  <ArrowPathIcon className="h-4 w-4" />
+                  {ONBOARDING_RESTART_LABEL}
+                </Button>
+              ) : null}
             </CardContent>
           </Card>
         );
@@ -936,31 +996,35 @@ export function OnboardingReviewDialog({
               <DialogTitle className="text-xl flex items-center gap-3">
                 Review Onboarding Application
                 {application && (
-                  <>
-                    <Badge variant="outline" className="font-normal">
-                      {application.type === "PERSONAL" ? "Personal" : "Company"}
-                    </Badge>
-                    <Badge variant="secondary" className="font-normal capitalize">
-                      {application.portal}
-                    </Badge>
-                  </>
+                  <Badge variant="outline" className="font-normal">
+                    {application.type === "PERSONAL" ? "Personal" : "Company"}{" "}
+                    {application.portal === "investor" ? "Investor" : "Issuer"}
+                  </Badge>
                 )}
               </DialogTitle>
               {application && (
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCombinedRefresh}
-                    disabled={isCombinedRefreshing || !canManage}
-                    className="gap-1.5"
-                    title={!canManage ? "You do not have permission to perform this action." : undefined}
-                  >
-                    <ArrowPathIcon
-                      className={`h-4 w-4 ${isCombinedRefreshing ? "animate-spin" : ""}`}
-                    />
-                    Refresh
-                  </Button>
+                <div className="flex items-center gap-2">
+                  {isTerminalOnboarding ? (
+                    <span className="text-xs text-muted-foreground text-right max-w-[220px]">
+                      {terminalRefreshHelperText}
+                    </span>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCombinedRefresh}
+                      disabled={isCombinedRefreshing || !canManage}
+                      aria-busy={isCombinedRefreshing || undefined}
+                      className="gap-1.5"
+                      title={!canManage ? "You do not have permission to perform this action." : undefined}
+                    >
+                      <ArrowPathIcon
+                        className={`h-4 w-4 ${isCombinedRefreshing ? "animate-spin" : ""}`}
+                      />
+                      {isCombinedRefreshing ? ONBOARDING_REFRESH_LOADING_LABEL : ONBOARDING_REFRESH_LABEL}
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -1074,32 +1138,34 @@ export function OnboardingReviewDialog({
 
         {application && (
           <>
-            <AlertDialog open={showRedoConfirm} onOpenChange={setShowRedoConfirm}>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Restart Onboarding?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will call the RegTank restart API to create a new onboarding request. The
-                    current onboarding will be cancelled and {application.userName} will receive a
-                    new verification link. Personal information from the previous submission will be
-                    inherited.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel disabled={restartMutation.isPending}>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleRequestRedo}
-                    disabled={restartMutation.isPending}
-                    className="gap-2"
-                  >
-                    {restartMutation.isPending && (
-                      <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                    )}
-                    Confirm Redo
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            {isPersonal ? (
+              <AlertDialog open={showRedoConfirm} onOpenChange={setShowRedoConfirm}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{ONBOARDING_RESTART_LABEL}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will call the RegTank restart API to create a new onboarding request. The
+                      current onboarding will be cancelled and {application.userName} will receive a
+                      new verification link. Personal information from the previous submission will be
+                      inherited. This cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={restartMutation.isPending}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleRequestRedo}
+                      disabled={restartMutation.isPending}
+                      className={cn(buttonVariants({ variant: "destructive" }), "gap-2")}
+                    >
+                      {restartMutation.isPending && (
+                        <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                      )}
+                      {ONBOARDING_RESTART_LABEL}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : null}
 
             <AlertDialog open={showFinalApprovalConfirm} onOpenChange={setShowFinalApprovalConfirm}>
               <AlertDialogContent>

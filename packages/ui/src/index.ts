@@ -189,8 +189,10 @@ export {
   TermsAcceptanceCard,
   IdentityVerifyStep,
   OnboardingLayout,
+  OnboardingStatusCard,
+  getOnboardingSteps,
 } from "./onboarding";
-export type { OnboardingStepperStep } from "./onboarding";
+export type { OnboardingStepperStep, OnboardingStatusCardProps, OnboardingStep } from "./onboarding";
 export {
   DirectorShareholdersUnifiedSection,
   directorShareholderOrgApiBase,

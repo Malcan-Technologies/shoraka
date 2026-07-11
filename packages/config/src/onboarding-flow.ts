@@ -1,5 +1,14 @@
 import type { OnboardingStatus, Organization, PortalType } from "./organization-context";
 
+/**
+ * Shared onboarding action labels. Keep button/loading text identical across the admin,
+ * investor, and issuer portals so the same action reads the same way everywhere.
+ */
+export const ONBOARDING_REFRESH_LABEL = "Refresh status";
+export const ONBOARDING_REFRESH_LOADING_LABEL = "Refreshing…";
+export const ONBOARDING_OPEN_REGTANK_REVIEW_LABEL = "Open RegTank Review";
+export const ONBOARDING_RESTART_LABEL = "Restart Onboarding";
+
 /** High-level onboarding destination used for routing and guards. */
 export type OnboardingFlowStep =
   | "account"
@@ -36,6 +45,11 @@ const ORG_SWITCHER_ADMIN_WAIT_STATUSES: OnboardingStatus[] = [
 ];
 
 const POST_REGTANK_STATUSES: OnboardingStatus[] = [...ADMIN_PENDING_STATUSES, "COMPLETED"];
+const APPLICANT_ACCOUNT_ACCESS_STATUSES: OnboardingStatus[] = [
+  "PENDING_AML",
+  "PENDING_FINAL_APPROVAL",
+  "COMPLETED",
+];
 
 function isAdminPending(status: OnboardingStatus): boolean {
   return ADMIN_PENDING_STATUSES.includes(status);
@@ -43,6 +57,17 @@ function isAdminPending(status: OnboardingStatus): boolean {
 
 export function isOrganizationAdminWaitStatus(status: OnboardingStatus): boolean {
   return ORG_SWITCHER_ADMIN_WAIT_STATUSES.includes(status);
+}
+
+/**
+ * Account/Profile access for applicant portals should be driven by organization onboarding status.
+ * RegTank transport status is not the source of truth for this gate.
+ */
+export function canAccessApplicantAccount(
+  status: OnboardingStatus | null | undefined
+): boolean {
+  if (!status) return false;
+  return APPLICANT_ACCOUNT_ACCESS_STATUSES.includes(status);
 }
 
 /** Ready or awaiting admin review — not user-action onboarding steps. */

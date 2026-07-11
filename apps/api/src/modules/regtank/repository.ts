@@ -231,6 +231,8 @@ export class RegTankRepository {
       verifyLinkExpiresAt?: Date;
       submittedAt?: Date;
       completedAt?: Date;
+      /** Latest raw RegTank response snapshot (e.g. from a live query/refresh, not a webhook). */
+      regtankResponse?: Prisma.InputJsonValue;
     }
   ): Promise<RegTankOnboarding> {
     return prisma.regTankOnboarding.update({
@@ -242,6 +244,7 @@ export class RegTankRepository {
         verify_link_expires_at: data.verifyLinkExpiresAt,
         submitted_at: data.submittedAt,
         completed_at: data.completedAt,
+        ...(data.regtankResponse !== undefined ? { regtank_response: data.regtankResponse } : {}),
       },
     });
   }
@@ -261,26 +264,23 @@ export class RegTankRepository {
   }
 
   /**
-   * Append webhook payload to the webhook_payloads array
+   * Append webhook payload to the webhook_payloads array.
+   *
+   * Uses a single atomic `array_append` SQL statement instead of read-then-write so
+   * concurrent webhook deliveries for the same requestId cannot race and silently
+   * drop one payload. `webhook_payloads` remains a plain JSONB[] column (no schema
+   * change); this only changes how a value is appended to it.
    */
   async appendWebhookPayload(
     requestId: string,
     payload: Prisma.InputJsonValue
-  ): Promise<RegTankOnboarding> {
-    const existing = await prisma.regTankOnboarding.findUnique({
-      where: { request_id: requestId },
-      select: { webhook_payloads: true },
-    });
-
-    const currentPayloads = (existing?.webhook_payloads as Prisma.InputJsonValue[]) || [];
-    const updatedPayloads = [...currentPayloads, payload];
-
-    return prisma.regTankOnboarding.update({
-      where: { request_id: requestId },
-      data: {
-        webhook_payloads: updatedPayloads,
-      },
-    });
+  ): Promise<void> {
+    await prisma.$executeRaw`
+      UPDATE regtank_onboarding
+      SET webhook_payloads = array_append(webhook_payloads, ${JSON.stringify(payload)}::jsonb),
+          updated_at = NOW()
+      WHERE request_id = ${requestId}
+    `;
   }
 
   /**

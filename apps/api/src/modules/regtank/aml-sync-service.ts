@@ -1,11 +1,16 @@
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
-import { Prisma } from "@prisma/client";
+import { Prisma, OrganizationType, OnboardingStatus } from "@prisma/client";
 import { AmlIdentityRepository } from "./aml-identity-repository";
 import { getRegTankAPIClient } from "./api-client";
 import { AMLFetcherService } from "./aml-fetcher";
 import { OrganizationRepository } from "../organization/repository";
 import { mapRegTankKycScreeningStatusToAmlStatus } from "./helpers/regtank-kyc-screening-to-aml-status";
+import { AppError } from "../../lib/http/error-handler";
+import {
+  applyCorporateAmlMilestoneFromLiveKyb,
+  applyPersonalAmlMilestoneFromLiveKyc,
+} from "./webhooks/org-aml-milestone";
 
 export interface DirectorAMLStatus {
   directors: Array<{
@@ -44,6 +49,13 @@ export interface DirectorAMLStatus {
   lastSyncedAt: string;
 }
 
+export interface AMLSyncResult {
+  directorAmlStatus: DirectorAMLStatus;
+  amlApproved: boolean;
+  onboardingStatus: OnboardingStatus;
+  advanced: boolean;
+}
+
 interface ExpectedEntity {
   entityType: "director" | "individual_shareholder" | "business_shareholder";
   name?: string;
@@ -72,19 +84,33 @@ export class AMLSyncService {
    */
   async syncOrganizationAMLStatus(
     organizationId: string,
-    organizationType: "investor" | "issuer"
-  ): Promise<DirectorAMLStatus> {
+    organizationType: "investor" | "issuer",
+    userId: string
+  ): Promise<AMLSyncResult> {
     logger.info(
       { organizationId, organizationType },
       "[AML Sync] Starting AML status sync"
     );
 
-    // 1. Get organization and COD request ID
+    // 1. Get organization and resolve its correct RegTank screening record.
+    // Personal organizations are screened via individual KYC, not a COD/KYB record.
     const org = await this.getOrganization(organizationId, organizationType);
+    if (!org) {
+      throw new AppError(404, "NOT_FOUND", "Organization not found");
+    }
+
+    if (org.type === OrganizationType.PERSONAL) {
+      return await this.syncPersonalOrganizationAMLStatus(org, organizationId, organizationType, userId);
+    }
+
     const codRequestId = await this.getCODRequestId(org);
 
     if (!codRequestId) {
-      throw new Error("Organization does not have COD request ID");
+      throw new AppError(
+        404,
+        "NO_APPLICABLE_REGTANK_RECORD",
+        "No applicable corporate RegTank onboarding (COD) record exists for this organization yet."
+      );
     }
 
     // 2. Fetch parent COD to get expected directors/shareholders/business shareholders
@@ -150,7 +176,65 @@ export class AMLSyncService {
       "[AML Sync] Completed AML status sync"
     );
 
-    return this.formatDirectorAMLStatus(mergedStatuses);
+    // 9. Determine the org-level AML milestone from the MAIN COMPANY's live KYB result
+    // (not from director/shareholder approval alone) via the shared milestone helper.
+    const milestone = await applyCorporateAmlMilestoneFromLiveKyb({
+      organizationId,
+      portalType: organizationType,
+      userId,
+      organizationName: org.name,
+      codRequestId,
+      trigger: "SELF_SERVICE_AML_REFRESH",
+    });
+
+    return {
+      directorAmlStatus: this.formatDirectorAMLStatus(mergedStatuses),
+      amlApproved: milestone.amlApproved,
+      onboardingStatus: milestone.onboardingStatus ?? org.onboarding_status,
+      advanced: milestone.advanced,
+    };
+  }
+
+  /**
+   * Personal (individual) organizations are screened via a single individual KYC record,
+   * never a COD/KYB record. There is no per-director/shareholder JSON to refresh here.
+   */
+  private async syncPersonalOrganizationAMLStatus(
+    org: { id: string; name: string | null; kyc_id: string | null; onboarding_status: OnboardingStatus },
+    organizationId: string,
+    organizationType: "investor" | "issuer",
+    userId: string
+  ): Promise<AMLSyncResult> {
+    const kycId = org.kyc_id;
+
+    if (!kycId) {
+      throw new AppError(
+        404,
+        "NO_APPLICABLE_REGTANK_RECORD",
+        "No applicable individual RegTank KYC record exists for this organization yet."
+      );
+    }
+
+    const milestone = await applyPersonalAmlMilestoneFromLiveKyc({
+      organizationId,
+      portalType: organizationType,
+      userId,
+      organizationName: org.name,
+      kycId,
+      trigger: "SELF_SERVICE_AML_REFRESH_PERSONAL",
+    });
+
+    logger.info(
+      { organizationId, organizationType, kycId, advanced: milestone.advanced },
+      "[AML Sync] Completed personal AML status sync"
+    );
+
+    return {
+      directorAmlStatus: { directors: [], lastSyncedAt: new Date().toISOString() },
+      amlApproved: milestone.amlApproved,
+      onboardingStatus: milestone.onboardingStatus ?? org.onboarding_status,
+      advanced: milestone.advanced,
+    };
   }
 
   private async getOrganization(organizationId: string, organizationType: "investor" | "issuer") {

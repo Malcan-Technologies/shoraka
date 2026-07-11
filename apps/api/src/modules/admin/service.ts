@@ -78,7 +78,16 @@ import {
   type SoukscoreRiskRating,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
+import { OrganizationRepository } from "../organization/repository";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
+import {
+  applyCorporateAmlMilestoneFromLiveKyb,
+  applyPersonalAmlMilestoneFromLiveKyc,
+} from "../regtank/webhooks/org-aml-milestone";
+import { shouldApplyCodApprovedOnboardingFlag } from "../regtank/helpers/cod-amendment-transition";
+import { getIndividualWaitForApprovalUpdate } from "../regtank/helpers/individual-onboarding-transition";
+import { RegTankService } from "../regtank/service";
+import { normalizeRawStatus } from "@cashsouk/types";
 import type { PortalType } from "../regtank/types";
 import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-entities";
 import { extractGovernmentIdFromCorporateUserInfo } from "../regtank/helpers/extract-government-id";
@@ -150,6 +159,8 @@ export class AdminService {
   private repository: AdminRepository;
   private regTankRepository: RegTankRepository;
   private regTankApiClient: RegTankAPIClient;
+  private regTankService: RegTankService;
+  private organizationRepository: OrganizationRepository;
   private notificationService: NotificationService;
   private productRepository: ProductRepository;
 
@@ -162,8 +173,89 @@ export class AdminService {
     this.repository = new AdminRepository();
     this.regTankRepository = new RegTankRepository();
     this.regTankApiClient = new RegTankAPIClient();
+    this.regTankService = new RegTankService();
+    this.organizationRepository = new OrganizationRepository();
     this.notificationService = new NotificationService();
     this.productRepository = new ProductRepository();
+  }
+
+  private extractRequestIdFromVerifyLink(verifyLink: string): string | null {
+    try {
+      const parsed = new URL(verifyLink);
+      const requestId = parsed.searchParams.get("requestId");
+      return typeof requestId === "string" && requestId.trim().length > 0 ? requestId.trim() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private resolveCompanyRestartResponse(params: {
+    response: { requestId?: unknown; verifyLink?: unknown; expiredIn?: unknown };
+    organizationId: string | null;
+    previousRequestId: string;
+    portalType: string;
+  }): { requestId: string; verifyLink: string; expiredIn: number } {
+    const { response, organizationId, previousRequestId, portalType } = params;
+    const responseRequestId =
+      typeof response.requestId === "string" && response.requestId.trim().length > 0
+        ? response.requestId.trim()
+        : "";
+    const verifyLink =
+      typeof response.verifyLink === "string" && response.verifyLink.trim().length > 0
+        ? response.verifyLink
+        : "";
+    const parsedVerifyLinkRequestId = verifyLink
+      ? this.extractRequestIdFromVerifyLink(verifyLink)
+      : null;
+
+    if (!responseRequestId || !verifyLink || !parsedVerifyLinkRequestId) {
+      logger.error(
+        {
+          organizationId,
+          portalType,
+          previousRequestId,
+          responseRequestId: responseRequestId || null,
+          parsedVerifyLinkRequestId,
+          hasVerifyLink: Boolean(verifyLink),
+          reason: "missing requestId/verifyLink or verifyLink requestId",
+        },
+        "Invalid admin company restart response from RegTank"
+      );
+      throw new AppError(
+        503,
+        "REGTANK_CORPORATE_RESPONSE_INVALID",
+        "We could not verify your company onboarding response from RegTank. Please try again shortly."
+      );
+    }
+
+    if (parsedVerifyLinkRequestId !== responseRequestId) {
+      logger.error(
+        {
+          organizationId,
+          portalType,
+          previousRequestId,
+          responseRequestId,
+          parsedVerifyLinkRequestId,
+          reason: "requestId mismatch between response and verifyLink",
+        },
+        "RegTank admin company restart response requestId mismatch"
+      );
+      throw new AppError(
+        503,
+        "REGTANK_CORPORATE_RESPONSE_MISMATCH",
+        "We could not verify your company onboarding response from RegTank. Please try again shortly."
+      );
+    }
+
+    const expiredIn = typeof response.expiredIn === "number" && Number.isFinite(response.expiredIn)
+      ? response.expiredIn
+      : 86400;
+
+    return {
+      requestId: responseRequestId,
+      verifyLink,
+      expiredIn,
+    };
   }
 
   private sortAdminRolesCatalog(roles: AdminRoleConfigRecord[]): AdminRoleConfigRecord[] {
@@ -3604,8 +3696,21 @@ export class AdminService {
 
     // Call RegTank restart API - this returns a NEW requestId
     const regTankResponse = await this.regTankApiClient.restartOnboarding(onboarding.request_id);
+    const isCompanyRestart = onboarding.organization_type === OrganizationType.COMPANY;
+    const resolvedCompanyRestart = isCompanyRestart
+      ? this.resolveCompanyRestartResponse({
+        response: regTankResponse as { requestId?: unknown; verifyLink?: unknown; expiredIn?: unknown },
+        organizationId: onboarding.investor_organization_id || onboarding.issuer_organization_id || null,
+        previousRequestId: onboarding.request_id,
+        portalType: onboarding.portal_type,
+      })
+      : null;
 
-    const cancelReason = `Restarted by admin ${adminUserId}. New requestId: ${regTankResponse.requestId}`;
+    const nextRequestId = resolvedCompanyRestart?.requestId ?? regTankResponse.requestId;
+    const nextVerifyLink = resolvedCompanyRestart?.verifyLink ?? regTankResponse.verifyLink;
+    const nextExpiredIn = resolvedCompanyRestart?.expiredIn ?? (regTankResponse.expiredIn || 86400);
+
+    const cancelReason = `Restarted by admin ${adminUserId}. New requestId: ${nextRequestId}`;
 
     // Mark the old onboarding record as cancelled
     await this.regTankRepository.cancelOnboarding(onboardingId, cancelReason);
@@ -3621,7 +3726,7 @@ export class AdminService {
       : onboarding.issuer_organization_id;
 
     // Create new onboarding record with the new requestId from RegTank
-    const expiresIn = regTankResponse.expiredIn || 86400;
+    const expiresIn = nextExpiredIn;
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
     // Create new onboarding record with PENDING status
@@ -3631,10 +3736,10 @@ export class AdminService {
       organizationId: organizationId || undefined,
       organizationType: onboarding.organization_type,
       portalType: onboarding.portal_type,
-      requestId: regTankResponse.requestId,
+      requestId: nextRequestId,
       referenceId: `${organizationId}-restart-${Date.now()}`,
       onboardingType: onboarding.onboarding_type,
-      verifyLink: regTankResponse.verifyLink,
+      verifyLink: nextVerifyLink,
       verifyLinkExpiresAt: expiresAt,
       status: "PENDING",
       regtankResponse: regTankResponse as Prisma.InputJsonValue,
@@ -3688,7 +3793,7 @@ export class AdminService {
       metadata: {
         cancelledOnboardingId: onboardingId,
         cancelledRequestId: onboarding.request_id,
-        newRequestId: regTankResponse.requestId,
+        newRequestId: nextRequestId,
         previousStatus: onboarding.status,
         cancelledBy: adminUserId,
         reason: "Restart requested by admin",
@@ -3701,7 +3806,7 @@ export class AdminService {
       {
         oldOnboardingId: onboardingId,
         oldRequestId: onboarding.request_id,
-        newRequestId: regTankResponse.requestId,
+        newRequestId: nextRequestId,
         userId: onboarding.user_id,
         previousStatus: onboarding.status,
         adminUserId,
@@ -3713,8 +3818,8 @@ export class AdminService {
     return {
       success: true,
       message: "Onboarding has been restarted. User will receive a new verification link.",
-      verifyLink: regTankResponse.verifyLink,
-      newRequestId: regTankResponse.requestId,
+      verifyLink: nextVerifyLink,
+      newRequestId: nextRequestId,
     };
   }
 
@@ -4466,7 +4571,15 @@ export class AdminService {
     _req: Request,
     onboardingId: string,
     adminUserId: string
-  ): Promise<{ success: true; message: string; directorsUpdated: number }> {
+  ): Promise<{
+    success: true;
+    message: string;
+    directorsUpdated: number;
+    onboardingStatus: OnboardingStatus;
+    onboardingApproved: boolean;
+    onboardingProviderStatus: string | null;
+    advanced: boolean;
+  }> {
     // Get the onboarding record
     const onboarding = await prisma.regTankOnboarding.findUnique({
       where: { id: onboardingId },
@@ -4514,6 +4627,93 @@ export class AdminService {
       );
 
       const codDetails = await this.regTankApiClient.getCorporateOnboardingDetails(codRequestId);
+
+      // Resolve the org-level onboarding-approval milestone from the live COD status.
+      // Only an exact "APPROVED" COD result may set onboarding_approved — mirrors the
+      // COD webhook rule (shouldApplyCodApprovedOnboardingFlag) so a missed webhook can
+      // be recovered by refresh without ever regressing an org already past this stage.
+      const codStatusRaw =
+        typeof (codDetails as Record<string, unknown>).status === "string"
+          ? ((codDetails as Record<string, unknown>).status as string)
+          : null;
+      const codStatusUpper = codStatusRaw?.toUpperCase() ?? null;
+
+      if (codStatusRaw) {
+        try {
+          await this.regTankRepository.updateStatus(codRequestId, {
+            status: normalizeRawStatus(codStatusRaw),
+            regtankResponse: codDetails as Prisma.InputJsonValue,
+          });
+        } catch (error) {
+          logger.error(
+            { error: error instanceof Error ? error.message : String(error), requestId: codRequestId },
+            "[Admin Refresh] Failed to persist refreshed corporate onboarding status (non-blocking)"
+          );
+        }
+      }
+
+      let onboardingApproved = Boolean(org.onboarding_approved);
+      let onboardingStatusResult = org.onboarding_status;
+      let onboardingAdvanced = false;
+
+      if (codStatusUpper === "APPROVED") {
+        const shouldApply = shouldApplyCodApprovedOnboardingFlag({
+          currentOnboardingStatus: org.onboarding_status,
+          onboardingApproved: org.onboarding_approved,
+        });
+
+        if (shouldApply) {
+          if (isInvestor) {
+            await prisma.investorOrganization.update({
+              where: { id: org.id },
+              data: { onboarding_approved: true },
+            });
+          } else {
+            await prisma.issuerOrganization.update({
+              where: { id: org.id },
+              data: { onboarding_approved: true },
+            });
+          }
+          onboardingApproved = true;
+
+          try {
+            await prisma.onboardingLog.create({
+              data: {
+                user_id: onboarding.user_id,
+                event_type: "ONBOARDING_STATUS_UPDATED",
+                role: isInvestor ? "INVESTOR" : "ISSUER",
+                portal: onboarding.portal_type,
+                organization_name: org.name ?? undefined,
+                investor_organization_id: isInvestor ? org.id : undefined,
+                issuer_organization_id: isInvestor ? undefined : org.id,
+                metadata: {
+                  organizationId: org.id,
+                  trigger: "ADMIN_MANUAL_ONBOARDING_REFRESH",
+                  previousStatus: org.onboarding_status,
+                  codStatus: codStatusRaw,
+                },
+              },
+            });
+          } catch (logError) {
+            logger.error(
+              { error: logError instanceof Error ? logError.message : String(logError), organizationId: org.id },
+              "[Admin Refresh] Failed to write onboarding log (non-blocking)"
+            );
+          }
+        }
+
+        const { changed } = await advanceOnboardingStatusFromFlags({
+          organizationId: org.id,
+          portalType: isInvestor ? "investor" : "issuer",
+          reason: "ADMIN_MANUAL_ONBOARDING_REFRESH",
+        });
+        onboardingAdvanced = changed;
+
+        const afterOrg = isInvestor
+          ? await prisma.investorOrganization.findUnique({ where: { id: org.id }, select: { onboarding_status: true } })
+          : await prisma.issuerOrganization.findUnique({ where: { id: org.id }, select: { onboarding_status: true } });
+        onboardingStatusResult = afterOrg?.onboarding_status ?? onboardingStatusResult;
+      }
 
       // Helper function to normalize name+email for duplicate detection
       const normalizeKey = (name: string, email: string): string => {
@@ -4963,8 +5163,14 @@ export class AdminService {
 
       return {
         success: true,
-        message: `Successfully refreshed ${directors.length} director KYC status${directors.length !== 1 ? "es" : ""}${corporateEntitiesUpdated ? " and corporate shareholders status" : ""}.`,
+        message: onboardingAdvanced
+          ? "RegTank onboarding approved. Onboarding has advanced to AML Approval."
+          : `Successfully refreshed ${directors.length} director KYC status${directors.length !== 1 ? "es" : ""}${corporateEntitiesUpdated ? " and corporate shareholders status" : ""}.`,
         directorsUpdated: directors.length,
+        onboardingStatus: onboardingStatusResult,
+        onboardingApproved,
+        onboardingProviderStatus: codStatusRaw,
+        advanced: onboardingAdvanced,
       };
     } catch (error) {
       logger.error(
@@ -4993,7 +5199,14 @@ export class AdminService {
     _req: Request,
     onboardingId: string,
     adminUserId: string
-  ): Promise<{ success: true; message: string; directorsUpdated: number }> {
+  ): Promise<{
+    success: true;
+    message: string;
+    directorsUpdated: number;
+    onboardingStatus: OnboardingStatus;
+    amlApproved: boolean;
+    advanced: boolean;
+  }> {
     // Get the onboarding record
     const onboarding = await prisma.regTankOnboarding.findUnique({
       where: { id: onboardingId },
@@ -5040,7 +5253,7 @@ export class AdminService {
         "Refreshing corporate AML statuses using AMLFetcherService"
       );
 
-      // Use AMLFetcherService to fetch all AML statuses
+      // Use AMLFetcherService to fetch all AML statuses (per-director/shareholder display data)
       const amlFetcher = new AMLFetcherService();
       await amlFetcher.fetchAllAMLStatuses(codRequestId, org.id, portalType);
 
@@ -5058,20 +5271,38 @@ export class AdminService {
       const directorAmlStatus = (updatedOrg?.director_aml_status as Record<string, unknown>) || { directors: [] };
       const directorsCount = Array.isArray(directorAmlStatus.directors) ? directorAmlStatus.directors.length : 0;
 
+      // Resolve the org-level AML milestone from the main company's live KYB status.
+      // This is the shared helper used by webhooks — never duplicate its approval logic here.
+      const milestone = await applyCorporateAmlMilestoneFromLiveKyb({
+        organizationId: org.id,
+        portalType,
+        userId: adminUserId,
+        organizationName: org.name,
+        codRequestId,
+        trigger: "ADMIN_MANUAL_AML_REFRESH",
+      });
+
       logger.info(
         {
           onboardingId,
           organizationId: org.id,
           adminUserId,
           directorsUpdated: directorsCount,
+          milestoneAdvanced: milestone.advanced,
+          onboardingStatus: milestone.onboardingStatus,
         },
         "Refreshed corporate AML statuses"
       );
 
       return {
         success: true,
-        message: `Successfully refreshed ${directorsCount} director AML status${directorsCount !== 1 ? "es" : ""}.`,
+        message: milestone.advanced
+          ? "AML screening approved. Onboarding has advanced to Final Approval."
+          : `Successfully refreshed ${directorsCount} director AML status${directorsCount !== 1 ? "es" : ""}. RegTank approval is still pending.`,
         directorsUpdated: directorsCount,
+        onboardingStatus: milestone.onboardingStatus ?? org.onboarding_status,
+        amlApproved: milestone.amlApproved,
+        advanced: milestone.advanced,
       };
     } catch (error) {
       logger.error(
@@ -5089,6 +5320,355 @@ export class AdminService {
         `Failed to refresh corporate AML status: ${error instanceof Error ? error.message : String(error)}`
       );
     }
+  }
+
+  /**
+   * Admin "Refresh status" — stage-aware live RegTank refresh used by the onboarding
+   * review modal. Consistently queries RegTank for both personal and company
+   * investor/issuer organizations, updates existing stored fields/JSON via the
+   * existing handlers below, then runs the existing shared milestone/advancement
+   * helpers. Never sets `ssm_approved`/`ssm_checked` — that remains an explicit admin
+   * decision (see `approveSsmVerification`).
+   */
+  async refreshOnboardingStatus(
+    req: Request,
+    onboardingId: string,
+    adminUserId: string
+  ): Promise<{
+    success: true;
+    message: string;
+    organizationId: string;
+    onboardingStatus: OnboardingStatus;
+    onboardingApproved: boolean;
+    ssmApproved: boolean;
+    amlApproved: boolean;
+    advanced: boolean;
+    onboardingProviderStatus: string | null;
+    amlProviderStatus: string | null;
+    lastSyncedAt: string | null;
+    directorsUpdated: number;
+    refreshedSources: string[];
+    warnings: string[];
+    partialFailures: string[];
+  }> {
+    const onboarding = await prisma.regTankOnboarding.findUnique({
+      where: { id: onboardingId },
+      include: {
+        investor_organization: true,
+        issuer_organization: true,
+      },
+    });
+    if (!onboarding) {
+      throw new AppError(404, "NOT_FOUND", "Onboarding record not found");
+    }
+
+    const isInvestor = onboarding.portal_type === "investor";
+    const org = isInvestor ? onboarding.investor_organization : onboarding.issuer_organization;
+    if (!org) {
+      throw new AppError(404, "NOT_FOUND", "Organization not found");
+    }
+
+    const readSsmApproved = async (): Promise<boolean> => {
+      if (isInvestor) {
+        const row = await prisma.investorOrganization.findUnique({ where: { id: org.id }, select: { ssm_approved: true } });
+        return Boolean(row?.ssm_approved);
+      }
+      const row = await prisma.issuerOrganization.findUnique({ where: { id: org.id }, select: { ssm_checked: true } });
+      return Boolean(row?.ssm_checked);
+    };
+
+    // Terminal states: never re-query or mutate a finished/rejected organization —
+    // avoids wasted RegTank calls and guarantees no regression is even possible.
+    if (org.onboarding_status === OnboardingStatus.COMPLETED || org.onboarding_status === OnboardingStatus.REJECTED) {
+      return {
+        success: true,
+        message: "RegTank status is already up to date.",
+        organizationId: org.id,
+        onboardingStatus: org.onboarding_status,
+        onboardingApproved: Boolean(org.onboarding_approved),
+        ssmApproved: await readSsmApproved(),
+        amlApproved: Boolean(org.aml_approved),
+        advanced: false,
+        onboardingProviderStatus: onboarding.status,
+        amlProviderStatus: null,
+        lastSyncedAt: new Date().toISOString(),
+        directorsUpdated: 0,
+        refreshedSources: [],
+        warnings: [],
+        partialFailures: [],
+      };
+    }
+
+    if (onboarding.onboarding_type === "CORPORATE") {
+      const warnings: string[] = [];
+      const partialFailures: string[] = [];
+      const refreshedSources: string[] = ["COD", "EOD"];
+
+      let onboardingResult: {
+        onboardingStatus: OnboardingStatus;
+        onboardingApproved: boolean;
+        onboardingProviderStatus: string | null;
+        directorsUpdated: number;
+        advanced: boolean;
+      };
+      try {
+        onboardingResult = await this.refreshCorporateOnboardingStatus(req, onboardingId, adminUserId);
+      } catch (error) {
+        partialFailures.push("COD");
+        warnings.push(
+          `Failed to refresh RegTank corporate onboarding data: ${error instanceof Error ? error.message : String(error)}`
+        );
+        const fallback = isInvestor
+          ? await prisma.investorOrganization.findUnique({ where: { id: org.id }, select: { onboarding_status: true, onboarding_approved: true } })
+          : await prisma.issuerOrganization.findUnique({ where: { id: org.id }, select: { onboarding_status: true, onboarding_approved: true } });
+        onboardingResult = {
+          onboardingStatus: fallback?.onboarding_status ?? org.onboarding_status,
+          onboardingApproved: Boolean(fallback?.onboarding_approved),
+          onboardingProviderStatus: null,
+          directorsUpdated: 0,
+          advanced: false,
+        };
+      }
+
+      let amlResult: { onboardingStatus: OnboardingStatus; amlApproved: boolean; advanced: boolean; directorsUpdated: number } | null = null;
+      try {
+        amlResult = await this.refreshCorporateAmlStatus(req, onboardingId, adminUserId);
+        refreshedSources.push("KYB", "RELATED_PARTY_AML");
+      } catch (error) {
+        partialFailures.push("KYB");
+        warnings.push(
+          `Failed to refresh RegTank AML/KYB screening data: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+
+      const finalStatus = amlResult?.onboardingStatus ?? onboardingResult.onboardingStatus;
+      const advanced = onboardingResult.advanced || Boolean(amlResult?.advanced);
+      const ssmApproved = await readSsmApproved();
+
+      let message: string;
+      if (advanced) {
+        message = onboardingResult.advanced
+          ? "RegTank status refreshed. Onboarding has advanced to AML Approval."
+          : "RegTank screening status refreshed. Onboarding has advanced to Final Approval.";
+      } else if (partialFailures.length > 0) {
+        message = "RegTank status was partially refreshed. Some related-party records could not be updated.";
+      } else if (finalStatus === OnboardingStatus.PENDING_SSM_REVIEW) {
+        message = "RegTank onboarding data refreshed. Complete the SSM/CTOS verification before continuing.";
+      } else if (finalStatus === OnboardingStatus.PENDING_AML) {
+        message = "RegTank screening status refreshed. AML approval is still pending.";
+      } else if (finalStatus === OnboardingStatus.PENDING_APPROVAL) {
+        message = "RegTank status refreshed. RegTank approval is still pending.";
+      } else {
+        message = "RegTank status refreshed.";
+      }
+
+      return {
+        success: true,
+        message,
+        organizationId: org.id,
+        onboardingStatus: finalStatus,
+        onboardingApproved: onboardingResult.onboardingApproved,
+        ssmApproved,
+        amlApproved: Boolean(amlResult?.amlApproved ?? org.aml_approved),
+        advanced,
+        onboardingProviderStatus: onboardingResult.onboardingProviderStatus,
+        amlProviderStatus: null,
+        lastSyncedAt: new Date().toISOString(),
+        directorsUpdated: Math.max(onboardingResult.directorsUpdated, amlResult?.directorsUpdated ?? 0),
+        refreshedSources,
+        warnings,
+        partialFailures,
+      };
+    }
+
+    // PERSONAL / INDIVIDUAL onboarding.
+    return this.refreshPersonalOnboardingStatus(onboarding, org, isInvestor, adminUserId);
+  }
+
+  /**
+   * Personal/individual admin refresh: query the live individual onboarding detail,
+   * apply the same monotonic transitions as the liveness webhook (reusing the exact
+   * shared decision helpers/handler so behavior stays identical), then — if a KYC
+   * record exists — apply the shared personal AML milestone from a live KYC query.
+   */
+  private async refreshPersonalOnboardingStatus(
+    onboarding: { request_id: string; reference_id: string; portal_type: string },
+    org: { id: string; name: string | null; onboarding_status: OnboardingStatus; onboarding_approved: boolean; aml_approved: boolean; kyc_id?: string | null },
+    isInvestor: boolean,
+    adminUserId: string
+  ): Promise<{
+    success: true;
+    message: string;
+    organizationId: string;
+    onboardingStatus: OnboardingStatus;
+    onboardingApproved: boolean;
+    ssmApproved: boolean;
+    amlApproved: boolean;
+    advanced: boolean;
+    onboardingProviderStatus: string | null;
+    amlProviderStatus: string | null;
+    lastSyncedAt: string | null;
+    directorsUpdated: number;
+    refreshedSources: string[];
+    warnings: string[];
+    partialFailures: string[];
+  }> {
+    const warnings: string[] = [];
+    const partialFailures: string[] = [];
+    const refreshedSources: string[] = [];
+    const portalType = onboarding.portal_type as PortalType;
+
+    let regtankDetails: Record<string, unknown> | null = null;
+    try {
+      regtankDetails = (await this.regTankApiClient.queryOnboardingDetails(onboarding.request_id)) as Record<string, unknown>;
+      refreshedSources.push("INDIVIDUAL_ONBOARDING");
+    } catch (error) {
+      partialFailures.push("INDIVIDUAL_ONBOARDING");
+      warnings.push(
+        `Failed to query RegTank individual onboarding status: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+
+    const rawStatus = typeof regtankDetails?.status === "string" ? (regtankDetails.status as string) : null;
+    const statusUpper = rawStatus?.toUpperCase() ?? null;
+
+    if (rawStatus) {
+      try {
+        await this.regTankRepository.updateStatus(onboarding.request_id, {
+          status: normalizeRawStatus(rawStatus),
+          regtankResponse: regtankDetails as Prisma.InputJsonValue,
+        });
+      } catch (error) {
+        logger.error(
+          { error: error instanceof Error ? error.message : String(error), requestId: onboarding.request_id },
+          "[Admin Refresh] Failed to persist refreshed individual onboarding status (non-blocking)"
+        );
+      }
+    }
+
+    const knownStatuses = new Set([
+      "URL_GENERATED",
+      "PROCESSING",
+      "ID_UPLOADED_FAILED",
+      "ID_UPLOADED",
+      "LIVENESS_STARTED",
+      "LIVENESS_FAILED",
+      "CAMERA_FAILED",
+      "EMAIL_SENT",
+      "LIVENESS_PASSED",
+      "WAIT_FOR_APPROVAL",
+      "APPROVED",
+      "REJECTED",
+      "RESUBMISSION",
+      "EXPIRED",
+    ]);
+    if (statusUpper && !knownStatuses.has(statusUpper)) {
+      warnings.push(`Observed undocumented RegTank individual onboarding status: ${statusUpper}`);
+    }
+
+    if (statusUpper === "LIVENESS_PASSED" || statusUpper === "WAIT_FOR_APPROVAL") {
+      const update = getIndividualWaitForApprovalUpdate({ currentOnboardingStatus: org.onboarding_status });
+      if (update) {
+        if (isInvestor) {
+          await this.organizationRepository.updateInvestorOrganizationOnboarding(
+            org.id,
+            OnboardingStatus.PENDING_APPROVAL,
+            { resetCompanySsmGateFromRegtankWebhook: true }
+          );
+        } else {
+          await this.organizationRepository.updateIssuerOrganizationOnboarding(
+            org.id,
+            OnboardingStatus.PENDING_APPROVAL,
+            { resetCompanySsmGateFromRegtankWebhook: true }
+          );
+        }
+      }
+    } else if (statusUpper === "APPROVED") {
+      try {
+        await this.regTankService.handleWebhookUpdate({
+          requestId: onboarding.request_id,
+          status: "APPROVED",
+          referenceId: onboarding.reference_id,
+        });
+      } catch (error) {
+        partialFailures.push("APPROVED_SYNC");
+        warnings.push(
+          `RegTank reports onboarding as approved, but applying the milestone failed: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    } else if (statusUpper === "REJECTED") {
+      warnings.push("RegTank reports this onboarding as rejected. A REJECTED webhook may still be pending.");
+    }
+
+    const afterOnboarding = isInvestor
+      ? await prisma.investorOrganization.findUnique({
+          where: { id: org.id },
+          select: { onboarding_status: true, onboarding_approved: true, aml_approved: true, kyc_id: true, name: true },
+        })
+      : await prisma.issuerOrganization.findUnique({
+          where: { id: org.id },
+          select: { onboarding_status: true, onboarding_approved: true, aml_approved: true, kyc_id: true, name: true },
+        });
+
+    let onboardingStatusResult = afterOnboarding?.onboarding_status ?? org.onboarding_status;
+    let amlApprovedResult = Boolean(afterOnboarding?.aml_approved);
+    let advanced = false;
+    let amlProviderStatus: string | null = null;
+    const kycId = afterOnboarding?.kyc_id ?? org.kyc_id ?? null;
+
+    if (kycId) {
+      try {
+        const milestone = await applyPersonalAmlMilestoneFromLiveKyc({
+          organizationId: org.id,
+          portalType,
+          userId: adminUserId,
+          organizationName: afterOnboarding?.name ?? org.name,
+          kycId,
+          trigger: "ADMIN_MANUAL_ONBOARDING_REFRESH_PERSONAL",
+        });
+        refreshedSources.push("KYC");
+        amlProviderStatus = milestone.rawStatus;
+        amlApprovedResult = milestone.amlApproved;
+        advanced = milestone.advanced;
+        onboardingStatusResult = milestone.onboardingStatus ?? onboardingStatusResult;
+      } catch (error) {
+        partialFailures.push("KYC");
+        warnings.push(`Failed to query RegTank individual KYC status: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    } else {
+      warnings.push("No individual KYC record found yet; AML screening was not queried.");
+    }
+
+    let message: string;
+    if (advanced) {
+      message = "AML screening approved. Onboarding has advanced to Final Approval.";
+    } else if (partialFailures.length > 0) {
+      message = "Unable to retrieve the latest status from RegTank.";
+    } else if (onboardingStatusResult === OnboardingStatus.PENDING_AML) {
+      message = "RegTank screening status refreshed. AML approval is still pending.";
+    } else if (onboardingStatusResult === OnboardingStatus.PENDING_APPROVAL) {
+      message = "RegTank status refreshed. RegTank approval is still pending.";
+    } else {
+      message = "RegTank status refreshed.";
+    }
+
+    return {
+      success: true,
+      message,
+      organizationId: org.id,
+      onboardingStatus: onboardingStatusResult,
+      onboardingApproved: Boolean(afterOnboarding?.onboarding_approved),
+      ssmApproved: false,
+      amlApproved: amlApprovedResult,
+      advanced,
+      onboardingProviderStatus: rawStatus,
+      amlProviderStatus,
+      lastSyncedAt: new Date().toISOString(),
+      directorsUpdated: 0,
+      refreshedSources,
+      warnings,
+      partialFailures,
+    };
   }
 
   /**
