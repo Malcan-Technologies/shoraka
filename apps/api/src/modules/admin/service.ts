@@ -4723,6 +4723,15 @@ export class AdminService {
       const normalizeKey = (name: string, email: string): string => {
         return `${(name || "").toLowerCase().trim()}|${(email || "").toLowerCase().trim()}`;
       };
+      const mergeRoleLabels = (existingRole: string, incomingRole: string): string => {
+        const roleSet = new Set(
+          `${existingRole || ""},${incomingRole || ""}`
+            .split(",")
+            .map((role) => role.trim())
+            .filter((role) => role.length > 0)
+        );
+        return Array.from(roleSet).join(", ");
+      };
 
       // Extract and update director information
       // Use a Map to deduplicate by normalized name+email and merge roles for people who are both directors and shareholders
@@ -4879,7 +4888,7 @@ export class AdminService {
 
           if (existingDirector) {
             // Person is both director and shareholder - merge roles
-            existingDirector.role = `${existingDirector.role}, ${shareholderRole}`;
+            existingDirector.role = mergeRoleLabels(existingDirector.role, shareholderRole);
             existingDirector.shareholderEodRequestId = shareholderEodRequestId;
 
             // Fetch both EOD details to check which one has kycId
@@ -4983,6 +4992,7 @@ export class AdminService {
       // Refresh corporate shareholders status from COD details
       let corporateEntitiesUpdated = false;
       let updatedCorporateEntities: Record<string, unknown> | null = null;
+      const extractedCorporateEntities = extractCorporateEntities(codDetails);
       const existingOrg = isInvestor
         ? await prisma.investorOrganization.findUnique({
           where: { id: org.id },
@@ -4993,7 +5003,7 @@ export class AdminService {
           select: { corporate_entities: true },
         });
 
-      if (existingOrg && codDetails.corpBizShareholders) {
+      if (existingOrg) {
         const corporateEntities = (existingOrg.corporate_entities as Record<string, unknown>) || {
           directors: [],
           shareholders: [],
@@ -5001,9 +5011,20 @@ export class AdminService {
         };
         let updated = false;
 
+        // Always persist latest individual director/shareholder entities from live COD.
+        corporateEntities.directors = Array.isArray(extractedCorporateEntities.directors)
+          ? extractedCorporateEntities.directors
+          : [];
+        corporateEntities.shareholders = Array.isArray(extractedCorporateEntities.shareholders)
+          ? extractedCorporateEntities.shareholders
+          : [];
+        updated = true;
+
         // Update corporate shareholders with latest status from COD details
         if (corporateEntities.corporateShareholders && Array.isArray(corporateEntities.corporateShareholders)) {
-          const codCorpShareholders = codDetails.corpBizShareholders as Record<string, unknown>[];
+          const codCorpShareholders = Array.isArray(codDetails.corpBizShareholders)
+            ? (codDetails.corpBizShareholders as Record<string, unknown>[])
+            : [];
 
           // Create a map of existing corporate shareholders by COD requestId or company name
           const existingMap = new Map<string, Record<string, unknown>>();
