@@ -323,6 +323,194 @@ describe("AdminService.refreshOnboardingStatus — personal", () => {
 describe("AdminService.refreshOnboardingStatus — company", () => {
   beforeEach(() => jest.clearAllMocks());
 
+  it("persists COD04000 directors/shareholders into corporate_entities during refresh", async () => {
+    mockRegTankOnboardingFindUnique.mockResolvedValue(corporateOnboarding({ request_id: "COD04000" }));
+    mockGetCorporateOnboardingDetails.mockResolvedValue({
+      status: "WAIT_FOR_APPROVAL",
+      corpIndvDirectors: [
+        {
+          corporateIndividualRequest: { requestId: "EOD04651", status: "APPROVED" },
+          corporateUserRequestInfo: {
+            firstName: "Lucas",
+            lastName: "Yi Jin",
+            fullName: "Lucas Yi Jin",
+            email: "lucas@example.com",
+            formContent: {
+              content: [
+                { fieldName: "First Name", fieldValue: "Lucas" },
+                { fieldName: "Last Name", fieldValue: "Yi Jin" },
+                { fieldName: "Designation", fieldValue: "Director" },
+                { fieldName: "Email Address", fieldValue: "lucas@example.com" },
+                { fieldName: "Government ID Number", fieldValue: "900101-10-1111" },
+              ],
+            },
+          },
+          kycRequestInfo: { kycId: "KY-COD04000" },
+        },
+      ],
+      corpIndvShareholders: [
+        {
+          corporateIndividualRequest: { requestId: "EOD04650", status: "APPROVED" },
+          corporateUserRequestInfo: {
+            firstName: "Lucas",
+            lastName: "Yi Jin",
+            fullName: "Lucas Yi Jin",
+            email: "lucas@example.com",
+            formContent: {
+              content: [
+                { fieldName: "First Name", fieldValue: "Lucas" },
+                { fieldName: "Last Name", fieldValue: "Yi Jin" },
+                { fieldName: "Email Address", fieldValue: "lucas@example.com" },
+                { fieldName: "% of Shares", fieldValue: "60" },
+                { fieldName: "Government ID Number", fieldValue: "900101-10-1111" },
+              ],
+            },
+          },
+          kycRequestInfo: { kycId: "KY-COD04000-SH" },
+        },
+      ],
+      corpBizShareholders: [],
+    });
+    mockInvestorOrgFindUnique.mockResolvedValue({
+      corporate_entities: null,
+      director_aml_status: { directors: [] },
+      ssm_approved: true,
+    });
+    mockApplyCorporateAmlMilestoneFromLiveKyb.mockResolvedValue({
+      approved: false,
+      amlApproved: false,
+      onboardingStatus: OnboardingStatus.PENDING_AML,
+      advanced: false,
+    });
+
+    const service = new AdminService();
+    await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+
+    const investorUpdatePayload = mockInvestorOrgUpdate.mock.calls.find(
+      (call) => call?.[0]?.where?.id === "org-2" && call?.[0]?.data?.director_kyc_status
+    )?.[0];
+    expect(investorUpdatePayload).toBeDefined();
+    expect(investorUpdatePayload.data.corporate_entities.directors[0].eodRequestId).toBe("EOD04651");
+    expect(investorUpdatePayload.data.corporate_entities.shareholders[0].eodRequestId).toBe("EOD04650");
+    expect(
+      investorUpdatePayload.data.corporate_entities.shareholders[0].personalInfo.formContent.content
+    ).toEqual(
+      expect.arrayContaining([expect.objectContaining({ fieldName: "% of Shares", fieldValue: "60" })])
+    );
+  });
+
+  it("refresh uses issuer organization when onboarding portal_type is issuer", async () => {
+    mockRegTankOnboardingFindUnique.mockResolvedValue(
+      corporateOnboarding({
+        id: "onboarding-issuer",
+        portal_type: "issuer",
+        issuer_organization: {
+          id: "issuer-org-1",
+          name: "Issuer Co",
+          onboarding_status: OnboardingStatus.PENDING_AML,
+          onboarding_approved: true,
+          aml_approved: false,
+          ssm_checked: true,
+        },
+        investor_organization: null,
+      })
+    );
+    mockGetCorporateOnboardingDetails.mockResolvedValue({
+      status: "WAIT_FOR_APPROVAL",
+      corpIndvDirectors: [],
+      corpIndvShareholders: [],
+      corpBizShareholders: [],
+    });
+    mockIssuerOrgFindUnique.mockResolvedValue({
+      corporate_entities: null,
+      director_aml_status: { directors: [] },
+      ssm_checked: true,
+    });
+    mockApplyCorporateAmlMilestoneFromLiveKyb.mockResolvedValue({
+      approved: false,
+      amlApproved: false,
+      onboardingStatus: OnboardingStatus.PENDING_AML,
+      advanced: false,
+    });
+
+    const service = new AdminService();
+    await service.refreshOnboardingStatus({} as never, "onboarding-issuer", "admin-1");
+
+    expect(mockIssuerOrgUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "issuer-org-1" } })
+    );
+    expect(mockInvestorOrgUpdate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "issuer-org-1" } })
+    );
+  });
+
+  it("does not duplicate shareholder role text when COD contains repeated shareholder rows", async () => {
+    mockRegTankOnboardingFindUnique.mockResolvedValue(corporateOnboarding({ request_id: "COD04000" }));
+    const shareholder = {
+      corporateIndividualRequest: { requestId: "EOD04650", status: "APPROVED" },
+      corporateUserRequestInfo: {
+        firstName: "Lucas",
+        lastName: "Yi Jin",
+        fullName: "Lucas Yi Jin",
+        email: "lucas@example.com",
+        formContent: {
+          content: [
+            { fieldName: "First Name", fieldValue: "Lucas" },
+            { fieldName: "Last Name", fieldValue: "Yi Jin" },
+            { fieldName: "Email Address", fieldValue: "lucas@example.com" },
+            { fieldName: "% of Shares", fieldValue: "60" },
+          ],
+        },
+      },
+      kycRequestInfo: { kycId: "KY-COD04000-SH" },
+    };
+    mockGetCorporateOnboardingDetails.mockResolvedValue({
+      status: "WAIT_FOR_APPROVAL",
+      corpIndvDirectors: [
+        {
+          corporateIndividualRequest: { requestId: "EOD04651", status: "APPROVED" },
+          corporateUserRequestInfo: {
+            firstName: "Lucas",
+            lastName: "Yi Jin",
+            fullName: "Lucas Yi Jin",
+            email: "lucas@example.com",
+            formContent: {
+              content: [
+                { fieldName: "First Name", fieldValue: "Lucas" },
+                { fieldName: "Last Name", fieldValue: "Yi Jin" },
+                { fieldName: "Designation", fieldValue: "Director" },
+                { fieldName: "Email Address", fieldValue: "lucas@example.com" },
+              ],
+            },
+          },
+          kycRequestInfo: { kycId: "KY-COD04000" },
+        },
+      ],
+      corpIndvShareholders: [shareholder, shareholder],
+      corpBizShareholders: [],
+    });
+    mockInvestorOrgFindUnique.mockResolvedValue({
+      corporate_entities: null,
+      director_aml_status: { directors: [] },
+      ssm_approved: true,
+    });
+    mockApplyCorporateAmlMilestoneFromLiveKyb.mockResolvedValue({
+      approved: false,
+      amlApproved: false,
+      onboardingStatus: OnboardingStatus.PENDING_AML,
+      advanced: false,
+    });
+
+    const service = new AdminService();
+    await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+
+    const investorUpdatePayload = mockInvestorOrgUpdate.mock.calls.find(
+      (call) => call?.[0]?.where?.id === "org-2" && call?.[0]?.data?.director_kyc_status
+    )?.[0];
+    const mergedRole = investorUpdatePayload?.data?.director_kyc_status?.directors?.[0]?.role;
+    expect(mergedRole).toBe("Director, Shareholder (60%)");
+  });
+
   it("persists live EXPIRED COD status to the exact selected request_id row", async () => {
     mockRegTankOnboardingFindUnique.mockResolvedValue(
       corporateOnboarding({

@@ -383,6 +383,74 @@ describe("buildUnifiedPeople", () => {
     expect(rows[0]?.sharePercentage).toBe(60);
   });
 
+  it("buildDirectorShareholderPeopleList returns ONBOARDING source with one COD04000 person row", () => {
+    const result = buildDirectorShareholderPeopleList({
+      ctos: null,
+      issuerDirectorKycStatus: {
+        directors: [
+          {
+            eodRequestId: "EOD04651",
+            governmentIdNumber: "900101101111",
+            kycStatus: "APPROVED",
+            kycId: "KY-COD04000",
+            email: "lucas@example.com",
+          },
+        ],
+        individualShareholders: [
+          {
+            shareholderEodRequestId: "EOD04650",
+            governmentIdNumber: "900101101111",
+            kycStatus: "APPROVED",
+            kycId: "KY-COD04000-SH",
+            email: "lucas@example.com",
+          },
+        ],
+      },
+      issuerDirectorAmlStatus: {
+        directors: [],
+        individualShareholders: [],
+        businessShareholders: [],
+      },
+      ctosPartySupplements: null,
+      corporateEntities: {
+        directors: [
+          {
+            eodRequestId: "EOD04651",
+            personalInfo: {
+              fullName: "Lucas Yi Jin",
+              email: "lucas@example.com",
+              formContent: {
+                content: [{ fieldName: "Government ID Number", fieldValue: "900101-10-1111" }],
+              },
+            },
+          },
+        ],
+        shareholders: [
+          {
+            eodRequestId: "EOD04650",
+            personalInfo: {
+              fullName: "Lucas Yi Jin",
+              email: "lucas@example.com",
+              formContent: {
+                content: [
+                  { fieldName: "Government ID Number", fieldValue: "900101-10-1111" },
+                  { fieldName: "% of Shares", fieldValue: "60" },
+                ],
+              },
+            },
+          },
+        ],
+        corporateShareholders: [],
+      },
+    });
+
+    expect(result.listSource).toBe("ONBOARDING");
+    expect(result.people).toHaveLength(1);
+    expect(result.people[0]?.name).toBe("Lucas Yi Jin");
+    expect(result.people[0]?.roles).toEqual(expect.arrayContaining(["DIRECTOR", "SHAREHOLDER"]));
+    expect(result.people[0]?.sharePercentage).toBe(60);
+  });
+
   it("sets corporate matchKey from Business Number in formContent.displayAreas (case-insensitive)", () => {
     const rows = buildUnifiedPeople({
       ctos: null,
