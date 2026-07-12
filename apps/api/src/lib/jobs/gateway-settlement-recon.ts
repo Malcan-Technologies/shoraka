@@ -31,7 +31,7 @@ export type GatewaySettlementReconResult = {
 export type GatewaySettlementReconMultiAccountResult = {
   runDate: string;
   completed: GatewaySettlementReconResult[];
-  skipped: Array<{ gatewayAccount: CurlecGatewayAccount; reason: string }>;
+  skippedUnconfigured: Array<{ gatewayAccount: CurlecGatewayAccount; reason: string }>;
   failed: Array<{ gatewayAccount: CurlecGatewayAccount; error: string }>;
 };
 
@@ -211,7 +211,7 @@ async function runGatewaySettlementReconForAccount(
             curlec_settlement_id: line.settlement_id ?? null,
             actual_amount: senToMyrDecimal(curlecAmountSen),
             detail: crossAccountMatch
-              ? `Payment found under different gateway account (${crossAccountMatch.gatewayAccount})`
+              ? `Payment ID is linked to another Curlec account (${crossAccountMatch.gatewayAccount}). No payment was updated.`
               : "Curlec settled payment not found in gateway_payments for account",
           },
         });
@@ -377,25 +377,37 @@ export async function runGatewaySettlementReconForConfiguredAccounts(
   const runDate = input.runDate ?? getYesterdayMytDateOnly();
   const triggeredBy = input.triggeredBy ?? "CRON";
   const completed: GatewaySettlementReconResult[] = [];
-  const skipped: Array<{ gatewayAccount: CurlecGatewayAccount; reason: string }> = [];
+  const skippedUnconfigured: Array<{ gatewayAccount: CurlecGatewayAccount; reason: string }> = [];
   const failed: Array<{ gatewayAccount: CurlecGatewayAccount; error: string }> = [];
 
   for (const gatewayAccount of Object.values(CurlecGatewayAccount)) {
     const status = getCurlecGatewayAccountConfigStatus(gatewayAccount);
     if (!status.configured) {
-      const reason = status.isPartial
-        ? `incomplete credentials (${status.missingEnvNames.join(", ")})`
-        : "account not configured";
-      skipped.push({ gatewayAccount, reason });
-      logger.warn(
-        {
-          runDate: formatRunDate(runDate),
-          gatewayAccount,
-          reason,
-          correlationId: CRON_CORRELATION_ID,
-        },
-        "Skipping gateway settlement recon for unconfigured account"
-      );
+      if (status.isPartial) {
+        const error = `Curlec ${gatewayAccount} credentials are incomplete. Missing: ${status.missingEnvNames.join(", ")}`;
+        failed.push({ gatewayAccount, error });
+        logger.error(
+          {
+            runDate: formatRunDate(runDate),
+            gatewayAccount,
+            missingEnvNames: status.missingEnvNames,
+            correlationId: CRON_CORRELATION_ID,
+          },
+          "Skipping gateway settlement recon due to partial account configuration"
+        );
+      } else {
+        const reason = "account not configured";
+        skippedUnconfigured.push({ gatewayAccount, reason });
+        logger.info(
+          {
+            runDate: formatRunDate(runDate),
+            gatewayAccount,
+            reason,
+            correlationId: CRON_CORRELATION_ID,
+          },
+          "Skipping gateway settlement recon for unconfigured account"
+        );
+      }
       continue;
     }
 
@@ -412,7 +424,10 @@ export async function runGatewaySettlementReconForConfiguredAccounts(
       );
 
       if (!result) {
-        skipped.push({ gatewayAccount, reason: "lock not acquired" });
+        failed.push({
+          gatewayAccount,
+          error: `Reconciliation lock not acquired for ${gatewayAccount} on ${formatRunDate(runDate)}`,
+        });
         continue;
       }
 
@@ -435,7 +450,7 @@ export async function runGatewaySettlementReconForConfiguredAccounts(
   return {
     runDate: formatRunDate(runDate),
     completed,
-    skipped,
+    skippedUnconfigured,
     failed,
   };
 }

@@ -1,3 +1,4 @@
+import { PrismaClient } from "@prisma/client";
 import { prisma } from "../prisma";
 import { withAdvisoryLock } from "./with-advisory-lock";
 
@@ -31,11 +32,43 @@ describeIntegration("withAdvisoryLock", () => {
     if (!dbAvailable) return;
 
     const lockKey = 9_999_002;
-    const first = await withAdvisoryLock(lockKey, async () => {
-      const second = await withAdvisoryLock(lockKey, async () => "inner");
+    const locker = new PrismaClient();
+    try {
+      const rows = await locker.$queryRaw<{ pg_try_advisory_lock: boolean }[]>`
+        SELECT pg_try_advisory_lock(${lockKey})
+      `;
+      expect(rows[0]?.pg_try_advisory_lock).toBe(true);
+      const callback = jest.fn(async () => "inner");
+      const second = await withAdvisoryLock(lockKey, callback);
       expect(second).toBeNull();
-      return "outer";
-    });
-    expect(first).toBe("outer");
+      expect(callback).not.toHaveBeenCalled();
+    } finally {
+      await locker.$queryRaw`SELECT pg_advisory_unlock(${lockKey})`;
+      await locker.$disconnect();
+    }
+  });
+
+  it("releases lock when callback throws", async () => {
+    if (!dbAvailable) return;
+
+    const lockKey = 9_999_003;
+    await expect(
+      withAdvisoryLock(lockKey, async () => {
+        throw new Error("callback failure");
+      })
+    ).rejects.toThrow("callback failure");
+
+    const afterError = await withAdvisoryLock(lockKey, async () => "ok-after-error");
+    expect(afterError).toBe("ok-after-error");
+  });
+
+  it("propagates database errors", async () => {
+    const failingClient = {
+      $transaction: jest.fn().mockRejectedValue(new Error("db unavailable")),
+    } as unknown as Pick<PrismaClient, "$transaction">;
+
+    await expect(withAdvisoryLock(9_999_004, async () => "ok", failingClient)).rejects.toThrow(
+      "db unavailable"
+    );
   });
 });

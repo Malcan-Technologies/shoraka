@@ -1,3 +1,4 @@
+import { PrismaClient } from "@prisma/client";
 import { prisma } from "../prisma";
 import { logger } from "../logger";
 
@@ -13,21 +14,24 @@ export const JOB_LOCK_KEYS = {
  */
 export async function withAdvisoryLock<T>(
   lockKey: number,
-  fn: () => Promise<T>
+  fn: () => Promise<T>,
+  dbClient: Pick<PrismaClient, "$transaction"> = prisma
 ): Promise<T | null> {
-  const rows = await prisma.$queryRaw<{ pg_try_advisory_lock: boolean }[]>`
-    SELECT pg_try_advisory_lock(${lockKey})
-  `;
-  const acquired = rows[0]?.pg_try_advisory_lock === true;
+  return dbClient.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<{ pg_try_advisory_lock: boolean }[]>`
+      SELECT pg_try_advisory_lock(${lockKey})
+    `;
+    const acquired = rows[0]?.pg_try_advisory_lock === true;
 
-  if (!acquired) {
-    logger.info({ lockKey }, "Advisory lock not acquired — skipping job run");
-    return null;
-  }
+    if (!acquired) {
+      logger.info({ lockKey }, "Advisory lock not acquired — skipping job run");
+      return null;
+    }
 
-  try {
-    return await fn();
-  } finally {
-    await prisma.$queryRaw`SELECT pg_advisory_unlock(${lockKey})`;
-  }
+    try {
+      return await fn();
+    } finally {
+      await tx.$queryRaw`SELECT pg_advisory_unlock(${lockKey})`;
+    }
+  });
 }

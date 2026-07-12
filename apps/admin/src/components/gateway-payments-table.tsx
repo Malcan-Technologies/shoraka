@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import Link from "next/link";
 import { useState } from "react";
 import { ArrowPathIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
+import type { CurlecGatewayAccount } from "@cashsouk/types";
 import { formatCurrency } from "@cashsouk/config";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,11 @@ import {
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { RequirePermission } from "@/components/require-permission";
 import { useGatewayPayments } from "@/hooks/use-gateway-payments";
+import {
+  GATEWAY_ACCOUNT_OPTIONS,
+  getGatewayAccountBadgeClassName,
+  getGatewayAccountLabel,
+} from "@/lib/gateway-account";
 
 const STATUS_LABEL: Record<string, string> = {
   CREATED: "Created",
@@ -51,6 +57,7 @@ const FILTER_OPTIONS = [
 ] as const;
 
 type GatewayFilter = (typeof FILTER_OPTIONS)[number]["value"];
+type GatewayAccountFilter = CurlecGatewayAccount | "ALL";
 
 function statusVariant(status: string) {
   if (status === "COMPLETED") return "default" as const;
@@ -76,9 +83,11 @@ export function GatewayPaymentsTable({
   initialFilter = "all",
 }: GatewayPaymentsTableProps) {
   const [filter, setFilter] = useState<GatewayFilter>(initialFilter);
+  const [gatewayAccount, setGatewayAccount] = useState<GatewayAccountFilter>("ALL");
   const { data, isLoading, error, refetch, isFetching } = useGatewayPayments({
     page: 1,
     pageSize: 50,
+    gatewayAccount: gatewayAccount === "ALL" ? undefined : gatewayAccount,
     filter: filter === "all" ? undefined : filter,
   });
 
@@ -124,6 +133,25 @@ export function GatewayPaymentsTable({
                     </Button>
                   ))}
                 </div>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <Button
+                    size="sm"
+                    variant={gatewayAccount === "ALL" ? "default" : "outline"}
+                    onClick={() => setGatewayAccount("ALL")}
+                  >
+                    All Accounts
+                  </Button>
+                  {GATEWAY_ACCOUNT_OPTIONS.map((option) => (
+                    <Button
+                      key={option.value}
+                      size="sm"
+                      variant={gatewayAccount === option.value ? "default" : "outline"}
+                      onClick={() => setGatewayAccount(option.value)}
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                </div>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
@@ -138,10 +166,13 @@ export function GatewayPaymentsTable({
                       <TableRow>
                         <TableHead>Created</TableHead>
                         <TableHead>Purpose</TableHead>
-                        <TableHead>Investor</TableHead>
-                        <TableHead>Payer name</TableHead>
+                        <TableHead>Organization</TableHead>
                         <TableHead>Amount</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Gateway account</TableHead>
+                        <TableHead className="hidden lg:table-cell">Curlec order ID</TableHead>
+                        <TableHead className="hidden xl:table-cell">Curlec payment ID</TableHead>
+                        <TableHead className="hidden 2xl:table-cell">Settlement ID</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -151,12 +182,28 @@ export function GatewayPaymentsTable({
                           <TableCell>{formatDate(item.createdAt)}</TableCell>
                           <TableCell>{PURPOSE_LABEL[item.purpose] ?? item.purpose}</TableCell>
                           <TableCell>{item.investorOrganizationName ?? "—"}</TableCell>
-                          <TableCell>{item.payerName ?? "—"}</TableCell>
                           <TableCell>{formatCurrency(item.amount)}</TableCell>
                           <TableCell>
                             <Badge variant={statusVariant(item.status)}>
                               {STATUS_LABEL[item.status] ?? item.status}
                             </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={getGatewayAccountBadgeClassName(item.gatewayAccount)}
+                            >
+                              {getGatewayAccountLabel(item.gatewayAccount)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="hidden font-mono text-xs lg:table-cell">
+                            {item.curlecOrderId}
+                          </TableCell>
+                          <TableCell className="hidden font-mono text-xs xl:table-cell">
+                            {item.curlecPaymentId ?? "—"}
+                          </TableCell>
+                          <TableCell className="hidden font-mono text-xs 2xl:table-cell">
+                            {item.settlementId ?? "—"}
                           </TableCell>
                           <TableCell className="text-right">
                             <Button asChild size="sm" variant="outline">

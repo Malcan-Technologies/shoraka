@@ -3,6 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient } from "@cashsouk/config";
 import type {
+  CurlecGatewayAccount,
+  GatewayReconRunStatus,
   GatewayReconExceptionDto,
   GatewayReconExceptionListResponse,
   GatewayReconPendingCountResponse,
@@ -44,7 +46,13 @@ export function useGatewayReconPendingCount({ enabled = true }: { enabled?: bool
   });
 }
 
-export function useGatewayReconRuns(params?: { page?: number; pageSize?: number }) {
+export function useGatewayReconRuns(params?: {
+  page?: number;
+  pageSize?: number;
+  gatewayAccount?: CurlecGatewayAccount;
+  status?: GatewayReconRunStatus;
+  runDate?: string;
+}) {
   const apiClient = useGatewayReconApiClient();
   return useQuery({
     queryKey: gatewayReconKeys.runs(params ?? {}),
@@ -63,6 +71,8 @@ export function useGatewayReconExceptions(params?: {
   pageSize?: number;
   resolved?: boolean;
   runId?: string;
+  gatewayAccount?: CurlecGatewayAccount;
+  type?: string;
 }) {
   const apiClient = useGatewayReconApiClient();
   return useQuery({
@@ -102,7 +112,7 @@ export function useTriggerGatewayReconRun() {
   const apiClient = useGatewayReconApiClient();
   const invalidate = useInvalidateGatewayRecon();
   return useMutation({
-    mutationFn: async (input?: { runDate?: string }) => {
+    mutationFn: async (input: { gatewayAccount: CurlecGatewayAccount; runDate?: string }) => {
       const response = await apiClient.triggerAdminGatewayReconRun(input);
       if (!response.success) throw new Error(response.error.message);
       return response.data as GatewayReconRunDetailDto;

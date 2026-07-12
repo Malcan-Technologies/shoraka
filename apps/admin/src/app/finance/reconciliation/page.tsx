@@ -14,6 +14,13 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -25,6 +32,11 @@ import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { RequirePermission } from "@/components/require-permission";
 import { ApplicationReviewRemarkDialog } from "@/components/application-review-remark-dialog";
 import { usePermissions } from "@/hooks/use-permissions";
+import {
+  GATEWAY_ACCOUNT_OPTIONS,
+  getGatewayAccountBadgeClassName,
+  getGatewayAccountLabel,
+} from "@/lib/gateway-account";
 import {
   useGatewayReconExceptions,
   useGatewayReconRuns,
@@ -59,6 +71,10 @@ export default function ReconciliationPage() {
   const canManage = can("gateway_payments.manage");
 
   const [runDate, setRunDate] = useState("");
+  const [runGatewayAccount, setRunGatewayAccount] = useState<"">("");
+  const [accountFilter, setAccountFilter] = useState<"ALL" | (typeof GATEWAY_ACCOUNT_OPTIONS)[number]["value"]>(
+    "ALL"
+  );
   const [resolveTarget, setResolveTarget] = useState<GatewayReconExceptionDto | null>(null);
 
   const {
@@ -67,7 +83,11 @@ export default function ReconciliationPage() {
     error: runsError,
     refetch: refetchRuns,
     isFetching: runsFetching,
-  } = useGatewayReconRuns({ page: 1, pageSize: 20 });
+  } = useGatewayReconRuns({
+    page: 1,
+    pageSize: 20,
+    gatewayAccount: accountFilter === "ALL" ? undefined : accountFilter,
+  });
 
   const {
     data: exceptionsData,
@@ -75,7 +95,12 @@ export default function ReconciliationPage() {
     error: exceptionsError,
     refetch: refetchExceptions,
     isFetching: exceptionsFetching,
-  } = useGatewayReconExceptions({ page: 1, pageSize: 50, resolved: false });
+  } = useGatewayReconExceptions({
+    page: 1,
+    pageSize: 50,
+    resolved: false,
+    gatewayAccount: accountFilter === "ALL" ? undefined : accountFilter,
+  });
 
   const triggerRun = useTriggerGatewayReconRun();
   const resolveException = useResolveGatewayReconException();
@@ -83,12 +108,29 @@ export default function ReconciliationPage() {
   const latestRun = runsData?.items[0] ?? null;
   const exceptions = exceptionsData?.items ?? [];
 
+  function formatExceptionDetail(detail: string | null) {
+    if (!detail) return "—";
+    if (detail.includes("Payment ID is linked to another Curlec account")) {
+      return "Payment ID was found under a different Curlec account. No payment was updated.";
+    }
+    return detail;
+  }
+
   async function handleTriggerRun() {
+    if (!runGatewayAccount) {
+      toast.error("Select a gateway account before running reconciliation");
+      return;
+    }
+
     try {
-      await triggerRun.mutateAsync(runDate.trim() ? { runDate: runDate.trim() } : undefined);
-      toast.success("Reconciliation run completed");
+      await triggerRun.mutateAsync({
+        gatewayAccount: runGatewayAccount,
+        ...(runDate.trim() ? { runDate: runDate.trim() } : {}),
+      });
+      toast.success(`Reconciliation run completed for ${getGatewayAccountLabel(runGatewayAccount)}`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Reconciliation run failed");
+      const message = error instanceof Error ? error.message : "Reconciliation run failed";
+      toast.error(`${getGatewayAccountLabel(runGatewayAccount)}: ${message}`);
     }
   }
 
@@ -154,12 +196,57 @@ export default function ReconciliationPage() {
                   />
                   <p className="mt-1 text-xs opacity-70">Leave blank to reconcile yesterday (MYT).</p>
                 </div>
+                <div>
+                  <Label htmlFor="recon-gateway-account">Gateway account</Label>
+                  <Select
+                    value={runGatewayAccount}
+                    onValueChange={(value) => setRunGatewayAccount(value as typeof runGatewayAccount)}
+                  >
+                    <SelectTrigger id="recon-gateway-account" className="mt-1 w-56">
+                      <SelectValue placeholder="Select account" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GATEWAY_ACCOUNT_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Button onClick={() => void handleTriggerRun()} disabled={isPending}>
                   Run now
                 </Button>
               </CardContent>
             </Card>
           ) : null}
+
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle>Filters</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap items-end gap-4">
+              <div>
+                <Label htmlFor="recon-account-filter">Gateway account</Label>
+                <Select
+                  value={accountFilter}
+                  onValueChange={(value) => setAccountFilter(value as typeof accountFilter)}
+                >
+                  <SelectTrigger id="recon-account-filter" className="mt-1 w-56">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Accounts</SelectItem>
+                    {GATEWAY_ACCOUNT_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
 
           <div className="grid gap-4 md:grid-cols-4">
             <Card className="rounded-2xl">
@@ -231,6 +318,7 @@ export default function ReconciliationPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Date</TableHead>
+                      <TableHead>Gateway account</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Scanned</TableHead>
                       <TableHead>Matched</TableHead>
@@ -243,6 +331,14 @@ export default function ReconciliationPage() {
                     {runsData?.items.map((run) => (
                       <TableRow key={run.id}>
                         <TableCell>{run.runDate}</TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={getGatewayAccountBadgeClassName(run.gatewayAccount)}
+                            >
+                              {getGatewayAccountLabel(run.gatewayAccount)}
+                            </Badge>
+                          </TableCell>
                         <TableCell>
                           <Badge variant={runStatusVariant(run.status)}>
                             {RUN_STATUS_LABEL[run.status] ?? run.status}
@@ -278,8 +374,11 @@ export default function ReconciliationPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Run date</TableHead>
+                      <TableHead>Gateway account</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Curlec payment</TableHead>
+                      <TableHead>Settlement ID</TableHead>
                       <TableHead>Expected</TableHead>
                       <TableHead>Actual</TableHead>
                       <TableHead>Detail</TableHead>
@@ -290,11 +389,23 @@ export default function ReconciliationPage() {
                   <TableBody>
                     {exceptions.map((item) => (
                       <TableRow key={item.id}>
+                        <TableCell>{item.runDate}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={getGatewayAccountBadgeClassName(item.gatewayAccount)}
+                          >
+                            {getGatewayAccountLabel(item.gatewayAccount)}
+                          </Badge>
+                        </TableCell>
                         <TableCell>
                           {EXCEPTION_TYPE_LABEL[item.type] ?? item.type}
                         </TableCell>
                         <TableCell className="font-mono text-xs">
                           {item.curlecPaymentId ?? "—"}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {item.curlecSettlementId ?? "—"}
                         </TableCell>
                         <TableCell>
                           {item.expectedAmount != null
@@ -304,7 +415,7 @@ export default function ReconciliationPage() {
                         <TableCell>
                           {item.actualAmount != null ? formatCurrency(item.actualAmount) : "—"}
                         </TableCell>
-                        <TableCell className="max-w-xs truncate">{item.detail ?? "—"}</TableCell>
+                        <TableCell className="max-w-xs truncate">{formatExceptionDetail(item.detail)}</TableCell>
                         <TableCell>{formatDate(item.createdAt)}</TableCell>
                         {canManage ? (
                           <TableCell>

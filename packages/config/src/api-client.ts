@@ -889,6 +889,7 @@ export class ApiClient {
   async listAdminGatewayPayments(params?: {
     page?: number;
     pageSize?: number;
+    gatewayAccount?: CurlecGatewayAccount;
     status?: string;
     purpose?: string;
     organizationType?: string;
@@ -898,6 +899,7 @@ export class ApiClient {
     const search = new URLSearchParams();
     if (params?.page) search.set("page", String(params.page));
     if (params?.pageSize) search.set("pageSize", String(params.pageSize));
+    if (params?.gatewayAccount) search.set("gatewayAccount", params.gatewayAccount);
     if (params?.status) search.set("status", params.status);
     if (params?.purpose) search.set("purpose", params.purpose);
     if (params?.organizationType) search.set("organizationType", params.organizationType);

@@ -42,12 +42,13 @@ export interface GatewayPaymentListItemDto {
   investorOrganizationId: string | null;
   investorOrganizationName: string | null;
   curlecOrderId: string;
+  curlecPaymentId: string | null;
+  settlementId: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface GatewayPaymentDetailDto extends GatewayPaymentListItemDto {
-  curlecPaymentId: string | null;
   method: string | null;
   bankCode: string | null;
   expectedPayerName: string | null;

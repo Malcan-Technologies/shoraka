@@ -542,6 +542,108 @@ describeIntegration("gateway reconciliation (M10)", () => {
     );
   });
 
+  it("scheduled recon skips fully unconfigured account", async () => {
+    if (!migrated) return;
+
+    const curlecConfigModule = jest.requireMock("../../config/curlec") as {
+      getCurlecGatewayAccountConfigStatus: jest.Mock;
+    };
+    const originalImpl = curlecConfigModule.getCurlecGatewayAccountConfigStatus.getMockImplementation();
+    curlecConfigModule.getCurlecGatewayAccountConfigStatus.mockImplementation(
+      (gatewayAccount: CurlecGatewayAccount) => ({
+        gatewayAccount,
+        configured: gatewayAccount !== CurlecGatewayAccount.INVESTOR_POOL,
+        isPartial: false,
+        missingEnvNames:
+          gatewayAccount === CurlecGatewayAccount.INVESTOR_POOL
+            ? [
+                "CURLEC_INVESTOR_POOL_KEY_ID",
+                "CURLEC_INVESTOR_POOL_KEY_SECRET",
+                "CURLEC_INVESTOR_POOL_WEBHOOK_SECRET",
+              ]
+            : [],
+      })
+    );
+
+    const runDate = getYesterdayMytDateOnly();
+    const result = await runGatewaySettlementReconForConfiguredAccounts(
+      { runDate, triggeredBy: "CRON_TEST" },
+      prisma,
+      async () => []
+    );
+    result.completed.forEach((run) => createdRunIds.push(run.runId));
+
+    expect(
+      result.skippedUnconfigured.some(
+        (entry) => entry.gatewayAccount === CurlecGatewayAccount.INVESTOR_POOL
+      )
+    ).toBe(true);
+    expect(
+      result.failed.some((entry) => entry.gatewayAccount === CurlecGatewayAccount.INVESTOR_POOL)
+    ).toBe(false);
+
+    curlecConfigModule.getCurlecGatewayAccountConfigStatus.mockImplementation(
+      originalImpl ??
+        ((gatewayAccount: CurlecGatewayAccount) => ({
+          gatewayAccount,
+          configured: true,
+          isPartial: false,
+          missingEnvNames: [],
+        }))
+    );
+  });
+
+  it("scheduled recon reports partial account configuration as failed", async () => {
+    if (!migrated) return;
+
+    const curlecConfigModule = jest.requireMock("../../config/curlec") as {
+      getCurlecGatewayAccountConfigStatus: jest.Mock;
+    };
+    const originalImpl = curlecConfigModule.getCurlecGatewayAccountConfigStatus.getMockImplementation();
+    curlecConfigModule.getCurlecGatewayAccountConfigStatus.mockImplementation(
+      (gatewayAccount: CurlecGatewayAccount) => ({
+        gatewayAccount,
+        configured: gatewayAccount !== CurlecGatewayAccount.OPERATING,
+        isPartial: gatewayAccount === CurlecGatewayAccount.OPERATING,
+        missingEnvNames:
+          gatewayAccount === CurlecGatewayAccount.OPERATING
+            ? ["CURLEC_OPERATING_KEY_SECRET"]
+            : [],
+      })
+    );
+
+    const runDate = getYesterdayMytDateOnly();
+    const result = await runGatewaySettlementReconForConfiguredAccounts(
+      { runDate, triggeredBy: "CRON_TEST" },
+      prisma,
+      async () => []
+    );
+    result.completed.forEach((run) => createdRunIds.push(run.runId));
+
+    expect(
+      result.failed.some(
+        (entry) =>
+          entry.gatewayAccount === CurlecGatewayAccount.OPERATING &&
+          entry.error.includes("Missing: CURLEC_OPERATING_KEY_SECRET")
+      )
+    ).toBe(true);
+    expect(
+      result.skippedUnconfigured.some(
+        (entry) => entry.gatewayAccount === CurlecGatewayAccount.OPERATING
+      )
+    ).toBe(false);
+
+    curlecConfigModule.getCurlecGatewayAccountConfigStatus.mockImplementation(
+      originalImpl ??
+        ((gatewayAccount: CurlecGatewayAccount) => ({
+          gatewayAccount,
+          configured: true,
+          isPartial: false,
+          missingEnvNames: [],
+        }))
+    );
+  });
+
   it("builds different lock keys per account and date scope", () => {
     const runDate = new Date(Date.UTC(2026, 6, 13));
     const operatingLock = getGatewaySettlementReconLockKey(runDate, CurlecGatewayAccount.OPERATING);
@@ -574,7 +676,7 @@ describeIntegration("gateway reconciliation (M10)", () => {
     expect(detail.gatewayAccount).toBe(CurlecGatewayAccount.OPERATING);
   });
 
-  it("manual trigger fails clearly for unconfigured account", async () => {
+  it("manual trigger fails clearly for partially configured account", async () => {
     if (!migrated) return;
 
     const curlecConfigModule = jest.requireMock("../../config/curlec") as {
@@ -598,6 +700,49 @@ describeIntegration("gateway reconciliation (M10)", () => {
         { userId: "ADMIN1" },
         getYesterdayMytDateOnly().toISOString().slice(0, 10),
         CurlecGatewayAccount.INVESTOR_POOL,
+        prisma
+      )
+    ).rejects.toMatchObject({ code: "CURLEC_GATEWAY_ACCOUNT_UNCONFIGURED" });
+
+    curlecConfigModule.getCurlecGatewayAccountConfigStatus.mockImplementation(
+      originalImpl ??
+        ((gatewayAccount: CurlecGatewayAccount) => ({
+          gatewayAccount,
+          configured: true,
+          isPartial: false,
+          missingEnvNames: [],
+        }))
+    );
+  });
+
+  it("manual trigger fails clearly for fully unconfigured account", async () => {
+    if (!migrated) return;
+
+    const curlecConfigModule = jest.requireMock("../../config/curlec") as {
+      getCurlecGatewayAccountConfigStatus: jest.Mock;
+    };
+    const originalImpl = curlecConfigModule.getCurlecGatewayAccountConfigStatus.getMockImplementation();
+    curlecConfigModule.getCurlecGatewayAccountConfigStatus.mockImplementation(
+      (gatewayAccount: CurlecGatewayAccount) => ({
+        gatewayAccount,
+        configured: gatewayAccount !== CurlecGatewayAccount.OPERATING,
+        isPartial: false,
+        missingEnvNames:
+          gatewayAccount === CurlecGatewayAccount.OPERATING
+            ? [
+                "CURLEC_OPERATING_KEY_ID",
+                "CURLEC_OPERATING_KEY_SECRET",
+                "CURLEC_OPERATING_WEBHOOK_SECRET",
+              ]
+            : [],
+      })
+    );
+
+    await expect(
+      triggerReconRun(
+        { userId: "ADMIN1" },
+        getYesterdayMytDateOnly().toISOString().slice(0, 10),
+        CurlecGatewayAccount.OPERATING,
         prisma
       )
     ).rejects.toMatchObject({ code: "CURLEC_GATEWAY_ACCOUNT_UNCONFIGURED" });

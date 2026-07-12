@@ -23,6 +23,7 @@ export interface GatewayReconRunDto {
 export interface GatewayReconExceptionDto {
   id: string;
   reconRunId: string;
+  runDate: string;
   gatewayAccount: CurlecGatewayAccount;
   type: GatewayReconExceptionType;
   gatewayPaymentId: string | null;

@@ -70,6 +70,7 @@ function mapReconRun(run: {
 function mapReconException(row: {
   id: string;
   recon_run_id: string;
+  runDate: string;
   gatewayAccount: CurlecGatewayAccount;
   type: GatewayReconExceptionType;
   gateway_payment_id: string | null;
@@ -86,6 +87,7 @@ function mapReconException(row: {
   return {
     id: row.id,
     reconRunId: row.recon_run_id,
+    runDate: row.runDate,
     gatewayAccount: row.gatewayAccount,
     type: row.type,
     gatewayPaymentId: row.gateway_payment_id,
@@ -147,7 +149,11 @@ export async function getReconRunDetail(
   return {
     ...mapReconRun(run),
     exceptions: run.exceptions.map((exception) =>
-      mapReconException({ ...exception, gatewayAccount: run.gatewayAccount })
+      mapReconException({
+        ...exception,
+        gatewayAccount: run.gatewayAccount,
+        runDate: run.run_date.toISOString().slice(0, 10),
+      })
     ),
   };
 }
@@ -174,7 +180,7 @@ export async function listReconExceptions(
     db.gatewayReconException.count({ where }),
     db.gatewayReconException.findMany({
       where,
-      include: { recon_run: { select: { gatewayAccount: true } } },
+      include: { recon_run: { select: { gatewayAccount: true, run_date: true } } },
       orderBy: { created_at: "desc" },
       skip,
       take: query.pageSize,
@@ -183,7 +189,11 @@ export async function listReconExceptions(
 
   return {
     items: items.map((item) =>
-      mapReconException({ ...item, gatewayAccount: item.recon_run.gatewayAccount })
+      mapReconException({
+        ...item,
+        gatewayAccount: item.recon_run.gatewayAccount,
+        runDate: item.recon_run.run_date.toISOString().slice(0, 10),
+      })
     ),
     total,
     page: query.page,
@@ -239,11 +249,12 @@ export async function resolveReconException(
 
   const run = await db.gatewayReconRun.findUnique({
     where: { id: updated.recon_run_id },
-    select: { gatewayAccount: true },
+    select: { gatewayAccount: true, run_date: true },
   });
 
   return mapReconException({
     ...updated,
     gatewayAccount: run?.gatewayAccount ?? CurlecGatewayAccount.LEGACY_DEFAULT,
+    runDate: run?.run_date.toISOString().slice(0, 10) ?? "",
   });
 }

@@ -66,6 +66,8 @@ function mapListItem(
       ? buildInvestorOrgDisplayName(payment.investor_organization)
       : null,
     curlecOrderId: payment.curlec_order_id,
+    curlecPaymentId: payment.curlec_payment_id,
+    settlementId: payment.settlement_id,
     createdAt: payment.created_at.toISOString(),
     updatedAt: payment.updated_at.toISOString(),
   };
@@ -144,6 +146,7 @@ export async function listGatewayPayments(
 
   if (query.purpose) where.purpose = query.purpose;
   if (query.organizationType) where.organization_type = query.organizationType;
+  if (query.gatewayAccount) where.gatewayAccount = query.gatewayAccount;
 
   if (query.search) {
     where.OR = [
@@ -196,7 +199,6 @@ export async function getGatewayPaymentDetail(
 
   return {
     ...mapListItem(payment),
-    curlecPaymentId: payment.curlec_payment_id,
     method: payment.method,
     bankCode: payment.bank_code,
     expectedPayerName: payment.investor_organization

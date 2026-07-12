@@ -18,6 +18,11 @@ import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
 import {
+  getGatewayAccountBadgeClassName,
+  getGatewayAccountDescription,
+  getGatewayAccountLabel,
+} from "@/lib/gateway-account";
+import {
   useApproveGatewayNameCheck,
   useGatewayPayment,
   useInitiateGatewayPaymentRefund,
@@ -148,17 +153,28 @@ export default function GatewayPaymentDetailPage() {
                   <CardHeader className="flex flex-row items-start justify-between gap-4">
                     <div>
                       <CardTitle>{formatCurrency(payment.amount)}</CardTitle>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {payment.investorOrganizationName ??
-                          PURPOSE_LABEL[payment.purpose] ??
-                          payment.purpose}
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <Badge variant={statusVariant(payment.status)}>
+                          {STATUS_LABEL[payment.status] ?? payment.status}
+                        </Badge>
+                        <Badge variant="outline">{PURPOSE_LABEL[payment.purpose] ?? payment.purpose}</Badge>
+                        <Badge
+                          variant="outline"
+                          className={getGatewayAccountBadgeClassName(payment.gatewayAccount)}
+                        >
+                          {getGatewayAccountLabel(payment.gatewayAccount)}
+                        </Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {getGatewayAccountDescription(payment.gatewayAccount)}
                       </p>
                     </div>
-                    <Badge variant={statusVariant(payment.status)}>
-                      {STATUS_LABEL[payment.status] ?? payment.status}
-                    </Badge>
                   </CardHeader>
                   <CardContent className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Organization</p>
+                      <p>{payment.investorOrganizationName ?? "—"}</p>
+                    </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Expected payer</p>
                       <p>{payment.expectedPayerName ?? "—"}</p>
@@ -176,6 +192,10 @@ export default function GatewayPaymentDetailPage() {
                       <p className="font-mono text-sm">{payment.curlecPaymentId ?? "—"}</p>
                     </div>
                     <div>
+                      <p className="text-xs text-muted-foreground">Settlement ID</p>
+                      <p className="font-mono text-sm">{payment.settlementId ?? "—"}</p>
+                    </div>
+                    <div>
                       <p className="text-xs text-muted-foreground">Bank</p>
                       <p>{payment.bankCode ?? "—"}</p>
                     </div>
@@ -186,6 +206,10 @@ export default function GatewayPaymentDetailPage() {
                     <div>
                       <p className="text-xs text-muted-foreground">Created</p>
                       <p>{formatDate(payment.createdAt)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Updated</p>
+                      <p>{formatDate(payment.updatedAt)}</p>
                     </div>
                     {payment.refundedAt ? (
                       <div>

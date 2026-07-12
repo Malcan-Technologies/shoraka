@@ -128,4 +128,15 @@ describe("getCurlecConfig(account)", () => {
       "CURLEC_OPERATING_WEBHOOK_SECRET",
     ]);
   });
+
+  it("flags fully unconfigured account without partial status", () => {
+    const status = getCurlecGatewayAccountConfigStatus("INVESTOR_POOL");
+    expect(status.configured).toBe(false);
+    expect(status.isPartial).toBe(false);
+    expect(status.missingEnvNames).toEqual([
+      "CURLEC_INVESTOR_POOL_KEY_ID",
+      "CURLEC_INVESTOR_POOL_KEY_SECRET",
+      "CURLEC_INVESTOR_POOL_WEBHOOK_SECRET",
+    ]);
+  });
 });
