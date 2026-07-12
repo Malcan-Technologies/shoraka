@@ -991,6 +991,7 @@ model GatewayPayment {
   id                       String                  @id @default(cuid())
   purpose                  GatewayPaymentPurpose
   organization_type        GatewayOrganizationType
+  gatewayAccount           CurlecGatewayAccount    @default(LEGACY_DEFAULT) @map("gateway_account")
   investor_organization_id String?
   issuer_organization_id   String?
   application_id           String?
@@ -1027,6 +1028,7 @@ model GatewayPayment {
   @@index([investor_organization_id])
   @@index([issuer_organization_id])
   @@index([application_id])
+  @@index([gatewayAccount])
   @@map("gateway_payments")
 }
 
@@ -1052,12 +1054,14 @@ model GatewayWebhookEvent {
   id              String    @id @default(cuid())
   event_id        String    @unique
   event_type      String
+  gatewayAccount  CurlecGatewayAccount @default(LEGACY_DEFAULT) @map("gateway_account")
   payload         Json
   signature_valid Boolean
   processed_at    DateTime?
   error           String?
   created_at      DateTime  @default(now())
 
+  @@index([gatewayAccount])
   @@map("gateway_webhook_events")
 }
 
@@ -1065,6 +1069,7 @@ model GatewayWebhookEvent {
 model GatewayReconRun {
   id                  String                  @id @default(cuid())
   run_date            DateTime                @db.Date
+  gatewayAccount      CurlecGatewayAccount    @default(LEGACY_DEFAULT) @map("gateway_account")
   status              GatewayReconRunStatus   @default(RUNNING)
   triggered_by        String
   settlements_scanned Int                     @default(0)
@@ -1077,7 +1082,8 @@ model GatewayReconRun {
   created_at          DateTime                @default(now())
   exceptions          GatewayReconException[]
 
-  @@unique([run_date])
+  @@unique([run_date, gatewayAccount])
+  @@index([gatewayAccount])
   @@map("gateway_recon_runs")
 }
 
@@ -1673,6 +1679,12 @@ enum GatewayPaymentStatus {
   REFUNDED
   FAILED
   EXPIRED
+}
+
+enum CurlecGatewayAccount {
+  LEGACY_DEFAULT
+  OPERATING
+  INVESTOR_POOL
 }
 
 enum NameCheckResult {

@@ -1,3 +1,5 @@
+import type { CurlecGatewayAccount } from "./gateway-payments";
+
 export type GatewayReconRunStatus = "RUNNING" | "COMPLETED" | "FAILED";
 
 export type GatewayReconExceptionType = "ORPHAN_CURLEC_PAYMENT" | "AMOUNT_MISMATCH";
@@ -5,6 +7,7 @@ export type GatewayReconExceptionType = "ORPHAN_CURLEC_PAYMENT" | "AMOUNT_MISMAT
 export interface GatewayReconRunDto {
   id: string;
   runDate: string;
+  gatewayAccount: CurlecGatewayAccount;
   status: GatewayReconRunStatus;
   triggeredBy: string;
   settlementsScanned: number;

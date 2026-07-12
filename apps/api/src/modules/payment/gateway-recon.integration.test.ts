@@ -1,4 +1,5 @@
 import {
+  CurlecGatewayAccount,
   GatewayOrganizationType,
   GatewayPaymentPurpose,
   GatewayPaymentStatus,
@@ -23,17 +24,18 @@ jest.mock("./curlec-client", () => ({
     fetchSettlementRecon: mockFetchSettlementRecon,
     fetchPayment: jest.fn(async (paymentId: string) => ({
       id: paymentId,
-      amount: 10000,
+      amount: 15000,
       currency: "MYR",
       status: "captured",
       method: "fpx",
-      order_id: "order_stub",
+      order_id: null,
     })),
   })),
 }));
 
 jest.mock("../../config/curlec", () => ({
   getCurlecConfig: jest.fn(() => ({
+    gatewayAccount: "LEGACY_DEFAULT" as const,
     keyId: "rzp_test_key",
     keySecret: "secret",
     webhookSecret: "whsec",
@@ -110,6 +112,82 @@ describeIntegration("gateway reconciliation (M10)", () => {
     createdPaymentIds.push(payment.id);
     return payment;
   }
+
+  it("new gateway models default to LEGACY_DEFAULT account", async () => {
+    if (!migrated) return;
+
+    const payment = await prisma.gatewayPayment.create({
+      data: {
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        organization_type: GatewayOrganizationType.ISSUER,
+        amount: new Prisma.Decimal("150.000000"),
+        status: GatewayPaymentStatus.CREATED,
+        curlec_order_id: `order_m10_default_${Date.now()}`,
+        idempotency_key: `m10:default:${Date.now()}`,
+      },
+    });
+    createdPaymentIds.push(payment.id);
+    expect(payment.gatewayAccount).toBe(CurlecGatewayAccount.LEGACY_DEFAULT);
+
+    const webhook = await prisma.gatewayWebhookEvent.create({
+      data: {
+        event_id: `evt_m10_default_${Date.now()}`,
+        event_type: "payment.captured",
+        payload: { event: "payment.captured" },
+        signature_valid: true,
+      },
+    });
+    expect(webhook.gatewayAccount).toBe(CurlecGatewayAccount.LEGACY_DEFAULT);
+
+    const run = await prisma.gatewayReconRun.create({
+      data: {
+        run_date: new Date(Date.UTC(2099, 6, 1)),
+        status: GatewayReconRunStatus.COMPLETED,
+        triggered_by: "TEST",
+      },
+    });
+    createdRunIds.push(run.id);
+    expect(run.gatewayAccount).toBe(CurlecGatewayAccount.LEGACY_DEFAULT);
+  });
+
+  it("allows same recon date across different gateway accounts but rejects duplicates per account", async () => {
+    if (!migrated) return;
+
+    const runDate = new Date(Date.UTC(2099, 6, 2));
+
+    const legacyRun = await prisma.gatewayReconRun.create({
+      data: {
+        run_date: runDate,
+        gatewayAccount: CurlecGatewayAccount.LEGACY_DEFAULT,
+        status: GatewayReconRunStatus.COMPLETED,
+        triggered_by: "TEST",
+      },
+    });
+    createdRunIds.push(legacyRun.id);
+
+    const operatingRun = await prisma.gatewayReconRun.create({
+      data: {
+        run_date: runDate,
+        gatewayAccount: CurlecGatewayAccount.OPERATING,
+        status: GatewayReconRunStatus.COMPLETED,
+        triggered_by: "TEST",
+      },
+    });
+    createdRunIds.push(operatingRun.id);
+
+    expect(legacyRun.id).not.toBe(operatingRun.id);
+
+    await expect(
+      prisma.gatewayReconRun.create({
+        data: {
+          run_date: runDate,
+          gatewayAccount: CurlecGatewayAccount.OPERATING,
+          status: GatewayReconRunStatus.COMPLETED,
+          triggered_by: "TEST",
+        },
+      })
+    ).rejects.toThrow();
+  });
 
   async function seedCompletedPayment(suffix: string, curlecPaymentId: string, amountMyr: string) {
     const payment = await prisma.gatewayPayment.create({

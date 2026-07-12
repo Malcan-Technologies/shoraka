@@ -53,6 +53,7 @@ function mapListItem(
 ) {
   return {
     id: payment.id,
+    gatewayAccount: payment.gatewayAccount,
     purpose: payment.purpose,
     organizationType: payment.organization_type,
     status: payment.status,

@@ -32,6 +32,7 @@ function parseRunDateInput(runDate?: string): Date {
 function mapReconRun(run: {
   id: string;
   run_date: Date;
+  gatewayAccount: string;
   status: GatewayReconRunStatus;
   triggered_by: string;
   settlements_scanned: number;
@@ -46,6 +47,7 @@ function mapReconRun(run: {
   return {
     id: run.id,
     runDate: run.run_date.toISOString().slice(0, 10),
+    gatewayAccount: run.gatewayAccount,
     status: run.status,
     triggeredBy: run.triggered_by,
     settlementsScanned: run.settlements_scanned,

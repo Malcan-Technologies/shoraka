@@ -26,6 +26,7 @@ const mockRefundPayment = jest.fn();
 
 jest.mock("../../config/curlec", () => ({
   getCurlecConfig: jest.fn(() => ({
+    gatewayAccount: "LEGACY_DEFAULT" as const,
     keyId: "rzp_test_key",
     keySecret: "rzp_test_secret",
     webhookSecret: "whsec_m5_integration_test",

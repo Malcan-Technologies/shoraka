@@ -1,4 +1,8 @@
-import { getCurlecConfig, type CurlecConfig } from "../../config/curlec";
+import {
+  getCurlecConfig,
+  type CurlecConfig,
+  type CurlecGatewayAccount,
+} from "../../config/curlec";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import {
@@ -23,11 +27,23 @@ type RequestOptions = {
   headers?: Record<string, string>;
 };
 
+export type CreateCurlecClientOptions = {
+  gatewayAccount?: CurlecGatewayAccount;
+  configOverride?: CurlecConfig;
+};
+
 export class CurlecClient {
-  constructor(private readonly config?: CurlecConfig) {}
+  constructor(
+    private readonly config?: CurlecConfig,
+    private readonly gatewayAccount: CurlecGatewayAccount = "LEGACY_DEFAULT"
+  ) {}
 
   private resolveConfig(): CurlecConfig {
-    return this.config ?? getCurlecConfig();
+    return this.config ?? getCurlecConfig(this.gatewayAccount);
+  }
+
+  getGatewayAccount(): CurlecGatewayAccount {
+    return this.resolveConfig().gatewayAccount;
   }
 
   private basicAuthHeader(config: CurlecConfig): string {
@@ -64,6 +80,7 @@ export class CurlecClient {
     if (!response.ok) {
       logger.warn(
         {
+          gatewayAccount: config.gatewayAccount,
           method,
           apiPath,
           status: response.status,
@@ -171,6 +188,19 @@ export class CurlecClient {
   }
 }
 
-export function createCurlecClient(config?: CurlecConfig): CurlecClient {
-  return new CurlecClient(config);
+export function createCurlecClient(
+  options?: CreateCurlecClientOptions | CurlecConfig
+): CurlecClient {
+  if (options && "keyId" in options) {
+    return new CurlecClient(options, options.gatewayAccount);
+  }
+
+  if (options?.configOverride) {
+    return new CurlecClient(
+      options.configOverride,
+      options.gatewayAccount ?? options.configOverride.gatewayAccount
+    );
+  }
+
+  return new CurlecClient(undefined, options?.gatewayAccount ?? "LEGACY_DEFAULT");
 }

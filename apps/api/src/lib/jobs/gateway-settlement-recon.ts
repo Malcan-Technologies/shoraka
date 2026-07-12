@@ -1,4 +1,5 @@
 import {
+  CurlecGatewayAccount,
   GatewayReconExceptionType,
   GatewayReconRunStatus,
   PrismaClient,
@@ -11,6 +12,7 @@ import { myrDecimalToSen, senToMyrDecimal } from "../../modules/payment/money";
 
 const CRON_CORRELATION_ID = "cron:gateway-settlement-recon";
 const RECON_PAGE_SIZE = 100;
+const RECON_GATEWAY_ACCOUNT: CurlecGatewayAccount = CurlecGatewayAccount.LEGACY_DEFAULT;
 
 export type GatewaySettlementReconResult = {
   runId: string;
@@ -114,9 +116,15 @@ export async function runGatewaySettlementReconJob(
   const { year, month, day } = getMytDateParts(runDate);
 
   let run = await db.gatewayReconRun.upsert({
-    where: { run_date: runDate },
+    where: {
+      run_date_gatewayAccount: {
+        run_date: runDate,
+        gatewayAccount: RECON_GATEWAY_ACCOUNT,
+      },
+    },
     create: {
       run_date: runDate,
+      gatewayAccount: RECON_GATEWAY_ACCOUNT,
       status: GatewayReconRunStatus.RUNNING,
       triggered_by: triggeredBy,
       started_at: new Date(),

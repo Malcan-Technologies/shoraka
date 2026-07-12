@@ -1,8 +1,9 @@
 import { resetCurlecConfigCache } from "../../config/curlec";
-import { CurlecClient } from "./curlec-client";
+import { CurlecClient, createCurlecClient } from "./curlec-client";
 import { extractBankCodeFromPayment, extractPayerNameFromPayment } from "./curlec-schemas";
 
 const testConfig = {
+  gatewayAccount: "LEGACY_DEFAULT" as const,
   keyId: "rzp_test_key",
   keySecret: "rzp_test_secret",
   webhookSecret: "whsec_test",
@@ -16,6 +17,16 @@ describe("CurlecClient", () => {
   afterEach(() => {
     global.fetch = originalFetch;
     jest.restoreAllMocks();
+    resetCurlecConfigCache();
+    delete process.env.CURLEC_KEY_ID;
+    delete process.env.CURLEC_KEY_SECRET;
+    delete process.env.CURLEC_WEBHOOK_SECRET;
+    delete process.env.CURLEC_OPERATING_KEY_ID;
+    delete process.env.CURLEC_OPERATING_KEY_SECRET;
+    delete process.env.CURLEC_OPERATING_WEBHOOK_SECRET;
+    delete process.env.CURLEC_INVESTOR_POOL_KEY_ID;
+    delete process.env.CURLEC_INVESTOR_POOL_KEY_SECRET;
+    delete process.env.CURLEC_INVESTOR_POOL_WEBHOOK_SECRET;
   });
 
   it("creates an order with basic auth and sen amount", async () => {
@@ -164,6 +175,120 @@ describe("CurlecClient", () => {
       "https://api.razorpay.com/v1/settlements/recon/combined?year=2026&month=6&day=28",
       expect.objectContaining({ method: "GET" })
     );
+  });
+
+  it("uses different key IDs for different gateway-account clients", async () => {
+    process.env.CURLEC_OPERATING_KEY_ID = "rzp_operating_key";
+    process.env.CURLEC_OPERATING_KEY_SECRET = "operating_secret";
+    process.env.CURLEC_OPERATING_WEBHOOK_SECRET = "operating_webhook";
+    process.env.CURLEC_INVESTOR_POOL_KEY_ID = "rzp_pool_key";
+    process.env.CURLEC_INVESTOR_POOL_KEY_SECRET = "pool_secret";
+    process.env.CURLEC_INVESTOR_POOL_WEBHOOK_SECRET = "pool_webhook";
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            id: "pay_operating",
+            amount: 1000,
+            currency: "MYR",
+            status: "captured",
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            id: "pay_pool",
+            amount: 1000,
+            currency: "MYR",
+            status: "captured",
+          }),
+      });
+
+    const operatingClient = createCurlecClient({ gatewayAccount: "OPERATING" });
+    const poolClient = createCurlecClient({ gatewayAccount: "INVESTOR_POOL" });
+
+    await operatingClient.fetchPayment("pay_operating");
+    await poolClient.fetchPayment("pay_pool");
+
+    const firstAuth = (global.fetch as jest.Mock).mock.calls[0]?.[1]?.headers?.Authorization;
+    const secondAuth = (global.fetch as jest.Mock).mock.calls[1]?.[1]?.headers?.Authorization;
+
+    expect(firstAuth).toContain(
+      Buffer.from("rzp_operating_key:operating_secret").toString("base64")
+    );
+    expect(secondAuth).toContain(Buffer.from("rzp_pool_key:pool_secret").toString("base64"));
+    expect(firstAuth).not.toBe(secondAuth);
+  });
+
+  it("keeps account-specific config isolated across client instances", async () => {
+    process.env.CURLEC_OPERATING_KEY_ID = "rzp_operating_key";
+    process.env.CURLEC_OPERATING_KEY_SECRET = "operating_secret";
+    process.env.CURLEC_OPERATING_WEBHOOK_SECRET = "operating_webhook";
+    process.env.CURLEC_INVESTOR_POOL_KEY_ID = "rzp_pool_key";
+    process.env.CURLEC_INVESTOR_POOL_KEY_SECRET = "pool_secret";
+    process.env.CURLEC_INVESTOR_POOL_WEBHOOK_SECRET = "pool_webhook";
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          id: "pay_any",
+          amount: 1000,
+          currency: "MYR",
+          status: "captured",
+        }),
+    });
+
+    const operatingClient = createCurlecClient({ gatewayAccount: "OPERATING" });
+    const poolClient = createCurlecClient({ gatewayAccount: "INVESTOR_POOL" });
+
+    await operatingClient.fetchPayment("pay_1");
+    await poolClient.fetchPayment("pay_2");
+    await operatingClient.fetchPayment("pay_3");
+
+    const authHeaders = (global.fetch as jest.Mock).mock.calls.map(
+      (call) => call?.[1]?.headers?.Authorization ?? ""
+    );
+
+    expect(authHeaders[0]).toContain(
+      Buffer.from("rzp_operating_key:operating_secret").toString("base64")
+    );
+    expect(authHeaders[1]).toContain(Buffer.from("rzp_pool_key:pool_secret").toString("base64"));
+    expect(authHeaders[2]).toContain(
+      Buffer.from("rzp_operating_key:operating_secret").toString("base64")
+    );
+  });
+
+  it("keeps existing createCurlecClient() callers on LEGACY_DEFAULT", async () => {
+    process.env.CURLEC_KEY_ID = "rzp_legacy_key";
+    process.env.CURLEC_KEY_SECRET = "legacy_secret";
+    process.env.CURLEC_WEBHOOK_SECRET = "legacy_webhook";
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          id: "pay_legacy",
+          amount: 1000,
+          currency: "MYR",
+          status: "captured",
+        }),
+    });
+
+    const client = createCurlecClient();
+    await client.fetchPayment("pay_legacy");
+
+    const authHeader = (global.fetch as jest.Mock).mock.calls[0]?.[1]?.headers?.Authorization;
+    expect(authHeader).toContain(Buffer.from("rzp_legacy_key:legacy_secret").toString("base64"));
+    expect(client.getGatewayAccount()).toBe("LEGACY_DEFAULT");
   });
 });
 

@@ -45,6 +45,7 @@ jest.mock("./curlec-client", () => {
 
 jest.mock("../../config/curlec", () => ({
   getCurlecConfig: jest.fn(() => ({
+    gatewayAccount: "LEGACY_DEFAULT" as const,
     keyId: "rzp_test_key",
     keySecret: "secret",
     webhookSecret: "whsec",
