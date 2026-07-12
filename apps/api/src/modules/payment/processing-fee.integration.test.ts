@@ -35,7 +35,7 @@ jest.mock("./curlec-client", () => {
         currency: "MYR",
         status: "captured",
         method: "fpx",
-        order_id: "order_test_m9_1",
+        order_id: null,
       })),
       fetchOrderPayments: jest.fn(async () => []),
     })),
@@ -194,6 +194,83 @@ describeIntegration("application processing fee (M9)", () => {
     expect(count).toBe(1);
   });
 
+  it("dedupes concurrent create calls to one active processing fee payment", async () => {
+    if (!migrated) return;
+
+    await prisma.gatewayPayment.updateMany({
+      where: {
+        application_id: applicationId,
+        purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
+        status: { in: [GatewayPaymentStatus.CREATED, GatewayPaymentStatus.PAID] },
+      },
+      data: { status: GatewayPaymentStatus.FAILED },
+    });
+
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => createApplicationProcessingFee({ userId }, applicationId, prisma))
+    );
+
+    const uniquePaymentIds = new Set(results.map((entry) => entry.id));
+    expect(uniquePaymentIds.size).toBe(1);
+
+    const activeCount = await prisma.gatewayPayment.count({
+      where: {
+        application_id: applicationId,
+        purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
+        status: { in: [GatewayPaymentStatus.CREATED, GatewayPaymentStatus.PAID] },
+      },
+    });
+    expect(activeCount).toBe(1);
+  });
+
+  it("does not reuse EXPIRED processing fee payments and creates a fresh order", async () => {
+    if (!migrated) return;
+
+    const first = await createApplicationProcessingFee({ userId }, applicationId, prisma);
+    await prisma.gatewayPayment.update({
+      where: { id: first.id },
+      data: { status: GatewayPaymentStatus.EXPIRED },
+    });
+
+    const second = await createApplicationProcessingFee({ userId }, applicationId, prisma);
+    createdPaymentIds.push(first.id, second.id);
+
+    expect(second.id).not.toBe(first.id);
+    expect(second.curlecOrderId).not.toBe(first.curlecOrderId);
+  });
+
+  it("does not reuse FAILED processing fee payments and creates a fresh order", async () => {
+    if (!migrated) return;
+
+    const first = await createApplicationProcessingFee({ userId }, applicationId, prisma);
+    await prisma.gatewayPayment.update({
+      where: { id: first.id },
+      data: { status: GatewayPaymentStatus.FAILED },
+    });
+
+    const second = await createApplicationProcessingFee({ userId }, applicationId, prisma);
+    createdPaymentIds.push(first.id, second.id);
+
+    expect(second.id).not.toBe(first.id);
+    expect(second.curlecOrderId).not.toBe(first.curlecOrderId);
+  });
+
+  it("reuses COMPLETED processing fee as proof of payment", async () => {
+    if (!migrated) return;
+
+    const created = await createApplicationProcessingFee({ userId }, applicationId, prisma);
+    await prisma.gatewayPayment.update({
+      where: { id: created.id },
+      data: { status: GatewayPaymentStatus.COMPLETED },
+    });
+
+    const result = await createApplicationProcessingFee({ userId }, applicationId, prisma);
+    createdPaymentIds.push(created.id);
+
+    expect(result.id).toBe(created.id);
+    expect(result.status).toBe(GatewayPaymentStatus.COMPLETED);
+  });
+
   it("blocks IDOR on fee lookup", async () => {
     if (!migrated) return;
 
@@ -201,18 +278,24 @@ describeIntegration("application processing fee (M9)", () => {
 
     await expect(
       getApplicationProcessingFee({ userId: "other-user" }, applicationId, created.id, prisma)
-    ).rejects.toMatchObject({ code: "PROCESSING_FEE_NOT_FOUND" });
+    ).rejects.toMatchObject({ code: "APPLICATION_FORBIDDEN" });
   });
 
   it("completes fee on webhook capture and posts operating ledger exactly once", async () => {
     if (!migrated) return;
 
-    const payment = await prisma.gatewayPayment.findFirstOrThrow({
+    await prisma.gatewayPayment.updateMany({
       where: {
         application_id: applicationId,
         purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
+        status: GatewayPaymentStatus.COMPLETED,
       },
+      data: { status: GatewayPaymentStatus.FAILED },
     });
+
+    const created = await createApplicationProcessingFee({ userId }, applicationId, prisma);
+    createdPaymentIds.push(created.id);
+    const payment = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
 
     const orderId = payment.curlec_order_id;
     const paymentId = `pay_m9_${Date.now()}`;
@@ -250,6 +333,44 @@ describeIntegration("application processing fee (M9)", () => {
       where: { gateway_payment_id: payment.id },
     });
     expect(ledgerCountAfterReplay).toBe(1);
+  });
+
+  it("recovers a valid late capture after local EXPIRED exactly once", async () => {
+    if (!migrated) return;
+
+    const created = await createApplicationProcessingFee({ userId }, applicationId, prisma);
+    createdPaymentIds.push(created.id);
+
+    await prisma.gatewayPayment.update({
+      where: { id: created.id },
+      data: { status: GatewayPaymentStatus.EXPIRED },
+    });
+
+    const eventId = `evt_m9_expired_capture_${Date.now()}`;
+    await seedWebhookEvent(eventId);
+    await processProcessingFeeCapture(
+      { orderId: created.curlecOrderId, paymentId: `pay_m9_expired_${Date.now()}`, eventId },
+      prisma
+    );
+
+    const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
+    expect(updated.status).toBe(GatewayPaymentStatus.COMPLETED);
+
+    const replayEventId = `evt_m9_expired_capture_replay_${Date.now()}`;
+    await seedWebhookEvent(replayEventId);
+    await processProcessingFeeCapture(
+      {
+        orderId: created.curlecOrderId,
+        paymentId: `pay_m9_expired_replay_${Date.now()}`,
+        eventId: replayEventId,
+      },
+      prisma
+    );
+
+    const ledgerCount = await prisma.noteLedgerEntry.count({
+      where: { idempotency_key: `gateway-processing-fee:ledger:${created.id}` },
+    });
+    expect(ledgerCount).toBe(1);
   });
 
   it("blocks DRAFT to SUBMITTED without completed processing fee", async () => {

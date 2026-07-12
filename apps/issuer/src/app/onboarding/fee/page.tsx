@@ -72,6 +72,8 @@ export default function OnboardingFeePage() {
   const [error, setError] = useState<string | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const feeBootstrappedRef = useRef(false);
+  const bootstrapInFlightRef = useRef(false);
+  const checkoutOpenInFlightRef = useRef(false);
 
   const feeQuery = useIssuerOnboardingFeeQuery(feePaymentId ?? undefined);
   const resolvedFee = feeQuery.data ?? confirmedFee ?? createFee.data ?? null;
@@ -84,7 +86,7 @@ export default function OnboardingFeePage() {
   }, [setTitle]);
 
   const bootstrapFee = useCallback(async () => {
-    if (!activeOrganization || feeBootstrappedRef.current) return;
+    if (!activeOrganization || feeBootstrappedRef.current || bootstrapInFlightRef.current) return;
 
     if (isAwaitingCompanyTnc(activeOrganization)) {
       setIsBootstrapping(false);
@@ -94,6 +96,7 @@ export default function OnboardingFeePage() {
 
     const companyName = activeOrganization.name?.trim() ?? "";
     storeIssuerPendingOnboarding({ orgId: activeOrganization.id, companyName });
+    bootstrapInFlightRef.current = true;
 
     try {
       const fee = await createFee.mutateAsync({ issuerOrganizationId: activeOrganization.id });
@@ -109,6 +112,7 @@ export default function OnboardingFeePage() {
       console.error("[OnboardingFeePage] Failed to load onboarding fee:", err);
       setError(err instanceof Error ? err.message : "Could not load onboarding fee");
     } finally {
+      bootstrapInFlightRef.current = false;
       setIsBootstrapping(false);
     }
   }, [activeOrganization, createFee, router]);
@@ -149,36 +153,42 @@ export default function OnboardingFeePage() {
   const feeAmount = resolvedFee?.amount;
 
   const handlePayFee = async () => {
+    if (checkoutOpenInFlightRef.current || isOpeningCheckout || createFee.isPending) {
+      return;
+    }
+
     if (!companyName) {
       toast.error("Missing company name");
       return;
     }
 
+    checkoutOpenInFlightRef.current = true;
+    setIsOpeningCheckout(true);
+
     let checkoutContact = resolveCheckoutContact(activeOrganization);
-    if (!checkoutContact.email) {
-      const apiClient = createApiClient(API_URL, getAccessToken);
-      const me = await apiClient.get<{
-        user: { email: string; first_name?: string; last_name?: string };
-      }>("/v1/auth/me");
-      if (me.success && me.data.user.email) {
-        checkoutContact = {
-          email: me.data.user.email,
-          contact: checkoutContact.contact || "+60000000000",
-          name:
-            checkoutContact.name ??
-            ([me.data.user.first_name, me.data.user.last_name].filter(Boolean).join(" ") ||
-              companyName),
-        };
-      }
-    }
-
-    if (!checkoutContact.email) {
-      toast.error("We could not find an email address for this account");
-      return;
-    }
-
     try {
-      setIsOpeningCheckout(true);
+      if (!checkoutContact.email) {
+        const apiClient = createApiClient(API_URL, getAccessToken);
+        const me = await apiClient.get<{
+          user: { email: string; first_name?: string; last_name?: string };
+        }>("/v1/auth/me");
+        if (me.success && me.data.user.email) {
+          checkoutContact = {
+            email: me.data.user.email,
+            contact: checkoutContact.contact || "+60000000000",
+            name:
+              checkoutContact.name ??
+              ([me.data.user.first_name, me.data.user.last_name].filter(Boolean).join(" ") ||
+                companyName),
+          };
+        }
+      }
+
+      if (!checkoutContact.email) {
+        toast.error("We could not find an email address for this account");
+        return;
+      }
+
       setError(null);
 
       const fee =
@@ -220,6 +230,7 @@ export default function OnboardingFeePage() {
         setError(message);
       }
     } finally {
+      checkoutOpenInFlightRef.current = false;
       setIsOpeningCheckout(false);
     }
   };
@@ -272,7 +283,9 @@ export default function OnboardingFeePage() {
                   type="button"
                   variant="action"
                   className="h-11 w-full rounded-xl"
-                  disabled={isOpeningCheckout || !resolvedFee || feeQuery.isLoading}
+                  disabled={
+                    isOpeningCheckout || createFee.isPending || !resolvedFee || feeQuery.isLoading
+                  }
                   onClick={() => void handlePayFee()}
                 >
                   {isOpeningCheckout

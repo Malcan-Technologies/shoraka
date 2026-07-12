@@ -56,6 +56,17 @@ export type IngestCurlecWebhookResult = {
 
 const DEPOSIT_CAPTURE_EVENTS = new Set(["payment.captured", "order.paid"]);
 const AMOUNT_MISMATCH_ERROR = "Curlec captured amount does not match internal payment amount";
+const CURRENCY_MISMATCH_ERROR = "Curlec captured currency does not match internal payment currency";
+const ORDER_MISMATCH_ERROR = "Curlec captured payment order does not match webhook order";
+const PAYMENT_ID_CONFLICT_ERROR = "Curlec payment is already linked to another gateway payment";
+
+const CAPTURE_SKIP_STATUSES: ReadonlySet<GatewayPaymentStatus> = new Set([
+  GatewayPaymentStatus.COMPLETED,
+  GatewayPaymentStatus.HELD,
+  GatewayPaymentStatus.NAME_CHECK_PENDING,
+  GatewayPaymentStatus.REFUNDED,
+  GatewayPaymentStatus.FAILED,
+]);
 
 function getAmountMismatch(
   payment: Pick<GatewayPayment, "amount">,
@@ -65,6 +76,14 @@ function getAmountMismatch(
   const actualSen = curlecPayment.amount;
   if (expectedSen === actualSen) return null;
   return { expectedSen, actualSen };
+}
+
+function getCurrencyMismatch(
+  payment: Pick<GatewayPayment, "currency">,
+  curlecPayment: Pick<CurlecPayment, "currency">
+) {
+  if (payment.currency === curlecPayment.currency) return null;
+  return { expected: payment.currency, actual: curlecPayment.currency };
 }
 
 function withAmountMismatchMetadata(
@@ -107,16 +126,25 @@ async function markWebhookProcessed(
   });
 }
 
-async function claimCreatedToPaid(
+async function claimCaptureToPaid(
   tx: Prisma.TransactionClient,
   gatewayPaymentId: string
 ): Promise<GatewayPaymentStatus | null> {
-  const claimed = await tx.gatewayPayment.updateMany({
+  const claimedFromCreated = await tx.gatewayPayment.updateMany({
     where: { id: gatewayPaymentId, status: GatewayPaymentStatus.CREATED },
     data: { status: GatewayPaymentStatus.PAID },
   });
 
-  if (claimed.count === 1) {
+  if (claimedFromCreated.count === 1) {
+    return GatewayPaymentStatus.PAID;
+  }
+
+  const claimedFromExpired = await tx.gatewayPayment.updateMany({
+    where: { id: gatewayPaymentId, status: GatewayPaymentStatus.EXPIRED },
+    data: { status: GatewayPaymentStatus.PAID },
+  });
+
+  if (claimedFromExpired.count === 1) {
     return GatewayPaymentStatus.PAID;
   }
 
@@ -125,6 +153,73 @@ async function claimCreatedToPaid(
     select: { status: true },
   });
   return current?.status ?? null;
+}
+
+function isCaptureSkippableStatus(status: GatewayPaymentStatus): boolean {
+  return CAPTURE_SKIP_STATUSES.has(status);
+}
+
+async function validateCapturedPayment(
+  db: PrismaClient,
+  payment: Pick<GatewayPayment, "id" | "currency">,
+  curlecPayment: Pick<CurlecPayment, "id" | "order_id" | "currency">,
+  orderId: string,
+  eventId: string
+): Promise<boolean> {
+  if (curlecPayment.order_id && curlecPayment.order_id !== orderId) {
+    await markWebhookProcessed(db, eventId, ORDER_MISMATCH_ERROR);
+    logger.warn(
+      {
+        eventId,
+        gatewayPaymentId: payment.id,
+        webhookOrderId: orderId,
+        curlecOrderId: curlecPayment.order_id,
+        curlecPaymentId: curlecPayment.id,
+      },
+      "Skipping Curlec capture due to order mismatch"
+    );
+    return false;
+  }
+
+  const currencyMismatch = getCurrencyMismatch(payment, curlecPayment);
+  if (currencyMismatch) {
+    await markWebhookProcessed(db, eventId, CURRENCY_MISMATCH_ERROR);
+    logger.warn(
+      {
+        eventId,
+        gatewayPaymentId: payment.id,
+        expectedCurrency: currencyMismatch.expected,
+        actualCurrency: currencyMismatch.actual,
+        curlecPaymentId: curlecPayment.id,
+      },
+      "Skipping Curlec capture due to currency mismatch"
+    );
+    return false;
+  }
+
+  const conflictingPayment = await db.gatewayPayment.findFirst({
+    where: {
+      curlec_payment_id: curlecPayment.id,
+      id: { not: payment.id },
+    },
+    select: { id: true },
+  });
+
+  if (conflictingPayment) {
+    await markWebhookProcessed(db, eventId, PAYMENT_ID_CONFLICT_ERROR);
+    logger.warn(
+      {
+        eventId,
+        gatewayPaymentId: payment.id,
+        conflictingGatewayPaymentId: conflictingPayment.id,
+        curlecPaymentId: curlecPayment.id,
+      },
+      "Skipping Curlec capture because payment id is already linked to another row"
+    );
+    return false;
+  }
+
+  return true;
 }
 
 export async function processInvestorDepositCapture(
@@ -141,13 +236,23 @@ export async function processInvestorDepositCapture(
     return;
   }
 
-  if (TERMINAL_GATEWAY_STATUSES.has(payment.status)) {
+  if (isCaptureSkippableStatus(payment.status)) {
     await markWebhookProcessed(db, input.eventId);
     return;
   }
 
   const curlecClient = createCurlecClient();
   const curlecPayment = await curlecClient.fetchPayment(input.paymentId);
+  const isCaptureValid = await validateCapturedPayment(
+    db,
+    { id: payment.id, currency: payment.currency },
+    { id: curlecPayment.id, order_id: curlecPayment.order_id, currency: curlecPayment.currency },
+    input.orderId,
+    input.eventId
+  );
+  if (!isCaptureValid) {
+    return;
+  }
   const payerName = extractPayerNameFromPayment(curlecPayment);
   const bankCode = extractBankCodeFromPayment(curlecPayment);
   const amountMismatch = getAmountMismatch(payment, curlecPayment);
@@ -164,8 +269,8 @@ export async function processInvestorDepositCapture(
 
   if (amountMismatch) {
     await db.$transaction(async (tx) => {
-      const statusAfterClaim = await claimCreatedToPaid(tx, payment.id);
-      if (!statusAfterClaim || TERMINAL_GATEWAY_STATUSES.has(statusAfterClaim)) {
+      const statusAfterClaim = await claimCaptureToPaid(tx, payment.id);
+      if (!statusAfterClaim || isCaptureSkippableStatus(statusAfterClaim)) {
         return;
       }
       if (statusAfterClaim !== GatewayPaymentStatus.PAID) {
@@ -217,12 +322,12 @@ export async function processInvestorDepositCapture(
 
   if (nameCheckResult === NameCheckResult.PASS) {
     await db.$transaction(async (tx) => {
-      const statusAfterClaim = await claimCreatedToPaid(tx, payment.id);
+      const statusAfterClaim = await claimCaptureToPaid(tx, payment.id);
       if (!statusAfterClaim) {
         return;
       }
 
-      if (TERMINAL_GATEWAY_STATUSES.has(statusAfterClaim)) {
+      if (isCaptureSkippableStatus(statusAfterClaim)) {
         return;
       }
 
@@ -235,7 +340,7 @@ export async function processInvestorDepositCapture(
     });
   } else if (nameCheckResult === NameCheckResult.FAIL) {
     await db.$transaction(async (tx) => {
-      await claimCreatedToPaid(tx, payment.id);
+      await claimCaptureToPaid(tx, payment.id);
     });
 
     const refreshed = await db.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
@@ -252,8 +357,8 @@ export async function processInvestorDepositCapture(
     }
   } else {
     await db.$transaction(async (tx) => {
-      const statusAfterClaim = await claimCreatedToPaid(tx, payment.id);
-      if (!statusAfterClaim || TERMINAL_GATEWAY_STATUSES.has(statusAfterClaim)) {
+      const statusAfterClaim = await claimCaptureToPaid(tx, payment.id);
+      if (!statusAfterClaim || isCaptureSkippableStatus(statusAfterClaim)) {
         return;
       }
       if (statusAfterClaim !== GatewayPaymentStatus.PAID) {
@@ -424,13 +529,23 @@ export async function processOnboardingFeeCapture(
     return;
   }
 
-  if (TERMINAL_GATEWAY_STATUSES.has(payment.status)) {
+  if (isCaptureSkippableStatus(payment.status)) {
     await markWebhookProcessed(db, input.eventId);
     return;
   }
 
   const curlecClient = createCurlecClient();
   const curlecPayment = await curlecClient.fetchPayment(input.paymentId);
+  const isCaptureValid = await validateCapturedPayment(
+    db,
+    { id: payment.id, currency: payment.currency },
+    { id: curlecPayment.id, order_id: curlecPayment.order_id, currency: curlecPayment.currency },
+    input.orderId,
+    input.eventId
+  );
+  if (!isCaptureValid) {
+    return;
+  }
   const amountMismatch = getAmountMismatch(payment, curlecPayment);
 
   await db.gatewayPayment.update({
@@ -465,7 +580,7 @@ export async function processOnboardingFeeCapture(
   }
 
   await db.$transaction(async (tx) => {
-    const statusAfterClaim = await claimCreatedToPaid(tx, payment.id);
+    const statusAfterClaim = await claimCaptureToPaid(tx, payment.id);
     if (!statusAfterClaim || statusAfterClaim !== GatewayPaymentStatus.PAID) {
       return;
     }
@@ -499,13 +614,23 @@ export async function processProcessingFeeCapture(
     return;
   }
 
-  if (TERMINAL_GATEWAY_STATUSES.has(payment.status)) {
+  if (isCaptureSkippableStatus(payment.status)) {
     await markWebhookProcessed(db, input.eventId);
     return;
   }
 
   const curlecClient = createCurlecClient();
   const curlecPayment = await curlecClient.fetchPayment(input.paymentId);
+  const isCaptureValid = await validateCapturedPayment(
+    db,
+    { id: payment.id, currency: payment.currency },
+    { id: curlecPayment.id, order_id: curlecPayment.order_id, currency: curlecPayment.currency },
+    input.orderId,
+    input.eventId
+  );
+  if (!isCaptureValid) {
+    return;
+  }
   const amountMismatch = getAmountMismatch(payment, curlecPayment);
 
   await db.gatewayPayment.update({
@@ -540,7 +665,7 @@ export async function processProcessingFeeCapture(
   }
 
   await db.$transaction(async (tx) => {
-    const statusAfterClaim = await claimCreatedToPaid(tx, payment.id);
+    const statusAfterClaim = await claimCaptureToPaid(tx, payment.id);
     if (!statusAfterClaim || statusAfterClaim !== GatewayPaymentStatus.PAID) {
       return;
     }
@@ -599,7 +724,7 @@ export async function syncGatewayPaymentFromCurlec(
   payment: GatewayPayment,
   db: PrismaClient = defaultPrisma
 ): Promise<GatewayPayment> {
-  if (TERMINAL_GATEWAY_STATUSES.has(payment.status)) {
+  if (isCaptureSkippableStatus(payment.status)) {
     return payment;
   }
 

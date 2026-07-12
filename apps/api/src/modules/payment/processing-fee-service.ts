@@ -40,7 +40,7 @@ async function assertApplicationAccess(
   return application;
 }
 
-async function getApplicationProcessingFeeAmount(db: PrismaClient) {
+async function getApplicationProcessingFeeAmount(db: PrismaClient | Prisma.TransactionClient) {
   const settings = await db.platformFinanceSetting.upsert({
     where: { key: "DEFAULT" },
     update: {},
@@ -50,12 +50,16 @@ async function getApplicationProcessingFeeAmount(db: PrismaClient) {
   return decimalToNumber(settings.application_processing_fee_amount);
 }
 
-async function findExistingProcessingFeePayment(db: PrismaClient, applicationId: string) {
+async function findExistingProcessingFeePayment(
+  db: PrismaClient | Prisma.TransactionClient,
+  applicationId: string
+) {
+  const reusableStatuses = [GatewayPaymentStatus.CREATED, GatewayPaymentStatus.PAID];
   return db.gatewayPayment.findFirst({
     where: {
       purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
       application_id: applicationId,
-      status: { not: GatewayPaymentStatus.FAILED },
+      status: { in: reusableStatuses },
     },
     orderBy: { created_at: "desc" },
   });
@@ -97,43 +101,50 @@ export async function createApplicationProcessingFee(
   db: PrismaClient = defaultPrisma
 ) {
   const application = await assertApplicationAccess(db, actor, applicationId);
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`
+      SELECT id FROM applications
+      WHERE id = ${applicationId}
+      FOR UPDATE
+    `;
 
-  const completed = await db.gatewayPayment.findFirst({
-    where: {
-      purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
-      application_id: applicationId,
-      status: GatewayPaymentStatus.COMPLETED,
-    },
-    orderBy: { created_at: "desc" },
-  });
-
-  if (completed) {
-    return mapGatewayPaymentResponse(completed);
-  }
-
-  const existing = await findExistingProcessingFeePayment(db, applicationId);
-  if (existing) {
-    return mapGatewayPaymentResponse(existing);
-  }
-
-  const amount = await getApplicationProcessingFeeAmount(db);
-
-  return createGatewayOrder(
-    actor,
-    {
-      purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
-      organizationType: GatewayOrganizationType.ISSUER,
-      amount,
-      receiptPrefix: "pf",
-      notes: {
-        applicationId,
-        issuerOrganizationId: application.issuer_organization_id,
+    const completed = await tx.gatewayPayment.findFirst({
+      where: {
+        purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
+        application_id: applicationId,
+        status: GatewayPaymentStatus.COMPLETED,
       },
-      issuerOrganizationId: application.issuer_organization_id,
-      applicationId,
-    },
-    db
-  );
+      orderBy: { created_at: "desc" },
+    });
+
+    if (completed) {
+      return mapGatewayPaymentResponse(completed);
+    }
+
+    const existing = await findExistingProcessingFeePayment(tx, applicationId);
+    if (existing) {
+      return mapGatewayPaymentResponse(existing);
+    }
+
+    const amount = await getApplicationProcessingFeeAmount(tx);
+
+    return createGatewayOrder(
+      actor,
+      {
+        purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
+        organizationType: GatewayOrganizationType.ISSUER,
+        amount,
+        receiptPrefix: "pf",
+        notes: {
+          applicationId,
+          issuerOrganizationId: application.issuer_organization_id,
+        },
+        issuerOrganizationId: application.issuer_organization_id,
+        applicationId,
+      },
+      tx
+    );
+  });
 }
 
 export async function getApplicationProcessingFee(

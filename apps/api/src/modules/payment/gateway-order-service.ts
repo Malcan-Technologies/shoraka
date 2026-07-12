@@ -50,7 +50,7 @@ export function mapGatewayPaymentResponse(payment: GatewayPayment) {
 export async function createGatewayOrder(
   actor: ActorContext,
   params: CreateGatewayOrderParams,
-  db: PrismaClient = defaultPrisma
+  db: PrismaClient | Prisma.TransactionClient = defaultPrisma
 ) {
   const receipt = `${params.receiptPrefix}_${randomUUID().replace(/-/g, "").slice(0, 24)}`;
   const curlecClient = createCurlecClient();

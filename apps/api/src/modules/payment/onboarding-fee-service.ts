@@ -35,7 +35,7 @@ async function assertIssuerOrgAccess(
   return issuerOrg;
 }
 
-async function getIssuerOnboardingFeeAmount(db: PrismaClient) {
+async function getIssuerOnboardingFeeAmount(db: PrismaClient | Prisma.TransactionClient) {
   const settings = await db.platformFinanceSetting.upsert({
     where: { key: "DEFAULT" },
     update: {},
@@ -46,14 +46,15 @@ async function getIssuerOnboardingFeeAmount(db: PrismaClient) {
 }
 
 async function findExistingOnboardingFeePayment(
-  db: PrismaClient,
+  db: PrismaClient | Prisma.TransactionClient,
   issuerOrganizationId: string
 ) {
+  const reusableStatuses = [GatewayPaymentStatus.CREATED, GatewayPaymentStatus.PAID];
   return db.gatewayPayment.findFirst({
     where: {
       purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
       issuer_organization_id: issuerOrganizationId,
-      status: { not: GatewayPaymentStatus.FAILED },
+      status: { in: reusableStatuses },
     },
     orderBy: { created_at: "desc" },
   });
@@ -74,42 +75,50 @@ export async function createIssuerOnboardingFee(
     );
   }
 
-  if (issuerOrg.onboarding_fee_paid_at) {
-    const completed = await db.gatewayPayment.findFirst({
-      where: {
-        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
-        issuer_organization_id: input.issuerOrganizationId,
-        status: GatewayPaymentStatus.COMPLETED,
-      },
-      orderBy: { created_at: "desc" },
-    });
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`
+      SELECT id FROM issuer_organizations
+      WHERE id = ${input.issuerOrganizationId}
+      FOR UPDATE
+    `;
 
-    if (completed) {
-      return mapGatewayPaymentResponse(completed);
+    if (issuerOrg.onboarding_fee_paid_at) {
+      const completed = await tx.gatewayPayment.findFirst({
+        where: {
+          purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+          issuer_organization_id: input.issuerOrganizationId,
+          status: GatewayPaymentStatus.COMPLETED,
+        },
+        orderBy: { created_at: "desc" },
+      });
+
+      if (completed) {
+        return mapGatewayPaymentResponse(completed);
+      }
     }
-  }
 
-  const existing = await findExistingOnboardingFeePayment(db, input.issuerOrganizationId);
-  if (existing) {
-    return mapGatewayPaymentResponse(existing);
-  }
+    const existing = await findExistingOnboardingFeePayment(tx, input.issuerOrganizationId);
+    if (existing) {
+      return mapGatewayPaymentResponse(existing);
+    }
 
-  const amount = await getIssuerOnboardingFeeAmount(db);
+    const amount = await getIssuerOnboardingFeeAmount(tx);
 
-  return createGatewayOrder(
-    actor,
-    {
-      purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
-      organizationType: GatewayOrganizationType.ISSUER,
-      amount,
-      receiptPrefix: "fee",
-      notes: {
+    return createGatewayOrder(
+      actor,
+      {
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        organizationType: GatewayOrganizationType.ISSUER,
+        amount,
+        receiptPrefix: "fee",
+        notes: {
+          issuerOrganizationId: input.issuerOrganizationId,
+        },
         issuerOrganizationId: input.issuerOrganizationId,
       },
-      issuerOrganizationId: input.issuerOrganizationId,
-    },
-    db
-  );
+      tx
+    );
+  });
 }
 
 export async function getIssuerOnboardingFee(

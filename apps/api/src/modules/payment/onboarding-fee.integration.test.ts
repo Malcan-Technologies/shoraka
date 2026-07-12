@@ -13,6 +13,7 @@ import {
   createIssuerOnboardingFee,
   getIssuerOnboardingFee,
 } from "./onboarding-fee-service";
+import { createCurlecClient } from "./curlec-client";
 import { processOnboardingFeeCapture } from "./webhook-service";
 
 jest.mock("./curlec-client", () => {
@@ -34,7 +35,7 @@ jest.mock("./curlec-client", () => {
         currency: "MYR",
         status: "captured",
         method: "fpx",
-        order_id: "order_test_m8_1",
+        order_id: null,
       })),
       fetchOrderPayments: jest.fn(async () => []),
     })),
@@ -194,6 +195,94 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     expect(count).toBe(1);
   });
 
+  it("dedupes concurrent create calls to one active onboarding fee payment", async () => {
+    if (!migrated) return;
+
+    await prisma.gatewayPayment.updateMany({
+      where: {
+        issuer_organization_id: orgId,
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        status: { in: [GatewayPaymentStatus.CREATED, GatewayPaymentStatus.PAID] },
+      },
+      data: { status: GatewayPaymentStatus.FAILED },
+    });
+
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        createIssuerOnboardingFee({ userId }, { issuerOrganizationId: orgId }, prisma)
+      )
+    );
+
+    const uniquePaymentIds = new Set(results.map((entry) => entry.id));
+    expect(uniquePaymentIds.size).toBe(1);
+
+    const activeCount = await prisma.gatewayPayment.count({
+      where: {
+        issuer_organization_id: orgId,
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        status: { in: [GatewayPaymentStatus.CREATED, GatewayPaymentStatus.PAID] },
+      },
+    });
+    expect(activeCount).toBe(1);
+  });
+
+  it("does not reuse EXPIRED onboarding fee payments and creates a fresh order", async () => {
+    if (!migrated) return;
+
+    const first = await createIssuerOnboardingFee({ userId }, { issuerOrganizationId: orgId }, prisma);
+    await prisma.gatewayPayment.update({
+      where: { id: first.id },
+      data: { status: GatewayPaymentStatus.EXPIRED },
+    });
+
+    const second = await createIssuerOnboardingFee({ userId }, { issuerOrganizationId: orgId }, prisma);
+    createdPaymentIds.push(first.id, second.id);
+
+    expect(second.id).not.toBe(first.id);
+    expect(second.curlecOrderId).not.toBe(first.curlecOrderId);
+    expect(second.status).toBe(GatewayPaymentStatus.CREATED);
+  });
+
+  it("does not reuse FAILED onboarding fee payments and creates a fresh order", async () => {
+    if (!migrated) return;
+
+    const first = await createIssuerOnboardingFee({ userId }, { issuerOrganizationId: orgId }, prisma);
+    await prisma.gatewayPayment.update({
+      where: { id: first.id },
+      data: { status: GatewayPaymentStatus.FAILED },
+    });
+
+    const second = await createIssuerOnboardingFee({ userId }, { issuerOrganizationId: orgId }, prisma);
+    createdPaymentIds.push(first.id, second.id);
+
+    expect(second.id).not.toBe(first.id);
+    expect(second.curlecOrderId).not.toBe(first.curlecOrderId);
+  });
+
+  it("reuses COMPLETED onboarding fee as proof of payment", async () => {
+    if (!migrated) return;
+
+    const created = await createIssuerOnboardingFee(
+      { userId },
+      { issuerOrganizationId: orgId },
+      prisma
+    );
+    await prisma.gatewayPayment.update({
+      where: { id: created.id },
+      data: { status: GatewayPaymentStatus.COMPLETED },
+    });
+    await prisma.issuerOrganization.update({
+      where: { id: orgId },
+      data: { onboarding_fee_paid_at: new Date() },
+    });
+
+    const result = await createIssuerOnboardingFee({ userId }, { issuerOrganizationId: orgId }, prisma);
+    createdPaymentIds.push(created.id);
+
+    expect(result.id).toBe(created.id);
+    expect(result.status).toBe(GatewayPaymentStatus.COMPLETED);
+  });
+
   it("blocks fee create when TNC not accepted", async () => {
     if (!migrated) return;
 
@@ -244,12 +333,26 @@ describeIntegration("issuer onboarding fee (M8)", () => {
   it("completes fee on webhook capture and posts operating ledger exactly once", async () => {
     if (!migrated) return;
 
-    const payment = await prisma.gatewayPayment.findFirstOrThrow({
+    await prisma.issuerOrganization.update({
+      where: { id: orgId },
+      data: { onboarding_fee_paid_at: null },
+    });
+    await prisma.gatewayPayment.updateMany({
       where: {
         issuer_organization_id: orgId,
         purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        status: GatewayPaymentStatus.COMPLETED,
       },
+      data: { status: GatewayPaymentStatus.FAILED },
     });
+
+    const created = await createIssuerOnboardingFee(
+      { userId },
+      { issuerOrganizationId: orgId },
+      prisma
+    );
+    createdPaymentIds.push(created.id);
+    const payment = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
 
     const orderId = payment.curlec_order_id;
     const paymentId = `pay_m8_${Date.now()}`;
@@ -290,6 +393,128 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       where: { gateway_payment_id: payment.id },
     });
     expect(ledgerCountAfterReplay).toBe(1);
+  });
+
+  it("recovers a valid late capture after local EXPIRED exactly once", async () => {
+    if (!migrated) return;
+
+    const created = await createIssuerOnboardingFee(
+      { userId },
+      { issuerOrganizationId: orgId },
+      prisma
+    );
+    createdPaymentIds.push(created.id);
+
+    await prisma.gatewayPayment.update({
+      where: { id: created.id },
+      data: { status: GatewayPaymentStatus.EXPIRED },
+    });
+
+    const eventId = `evt_m8_expired_capture_${Date.now()}`;
+    await seedWebhookEvent(eventId);
+    await processOnboardingFeeCapture(
+      { orderId: created.curlecOrderId, paymentId: `pay_m8_expired_${Date.now()}`, eventId },
+      prisma
+    );
+
+    const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
+    expect(updated.status).toBe(GatewayPaymentStatus.COMPLETED);
+
+    const replayEventId = `evt_m8_expired_capture_replay_${Date.now()}`;
+    await seedWebhookEvent(replayEventId);
+    await processOnboardingFeeCapture(
+      {
+        orderId: created.curlecOrderId,
+        paymentId: `pay_m8_expired_replay_${Date.now()}`,
+        eventId: replayEventId,
+      },
+      prisma
+    );
+
+    const ledgerCount = await prisma.noteLedgerEntry.count({
+      where: { idempotency_key: `gateway-onboarding-fee:ledger:${created.id}` },
+    });
+    expect(ledgerCount).toBe(1);
+  });
+
+  it("rejects late capture when captured currency does not match", async () => {
+    if (!migrated) return;
+
+    const created = await createIssuerOnboardingFee(
+      { userId },
+      { issuerOrganizationId: orgId },
+      prisma
+    );
+    createdPaymentIds.push(created.id);
+
+    await prisma.gatewayPayment.update({
+      where: { id: created.id },
+      data: { status: GatewayPaymentStatus.EXPIRED },
+    });
+
+    const mockedCreateCurlecClient = createCurlecClient as jest.Mock;
+    mockedCreateCurlecClient.mockReturnValueOnce({
+      createOrder: jest.fn(),
+      fetchPayment: jest.fn(async (paymentId: string) => ({
+        id: paymentId,
+        amount: 15000,
+        currency: "USD",
+        status: "captured",
+        method: "fpx",
+        order_id: created.curlecOrderId,
+      })),
+      fetchOrderPayments: jest.fn(async () => []),
+    });
+
+    const eventId = `evt_m8_currency_mismatch_${Date.now()}`;
+    await seedWebhookEvent(eventId);
+    await processOnboardingFeeCapture(
+      { orderId: created.curlecOrderId, paymentId: `pay_m8_currency_${Date.now()}`, eventId },
+      prisma
+    );
+
+    const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
+    expect(updated.status).toBe(GatewayPaymentStatus.EXPIRED);
+  });
+
+  it("rejects late capture when Curlec payment belongs to another order", async () => {
+    if (!migrated) return;
+
+    const created = await createIssuerOnboardingFee(
+      { userId },
+      { issuerOrganizationId: orgId },
+      prisma
+    );
+    createdPaymentIds.push(created.id);
+
+    await prisma.gatewayPayment.update({
+      where: { id: created.id },
+      data: { status: GatewayPaymentStatus.EXPIRED },
+    });
+
+    const mockedCreateCurlecClient = createCurlecClient as jest.Mock;
+    mockedCreateCurlecClient.mockReturnValueOnce({
+      createOrder: jest.fn(),
+      fetchPayment: jest.fn(async (paymentId: string) => ({
+        id: paymentId,
+        amount: 15000,
+        currency: "MYR",
+        status: "captured",
+        method: "fpx",
+        order_id: `order_mismatch_${Date.now()}`,
+      })),
+      fetchOrderPayments: jest.fn(async () => []),
+    });
+
+    const eventId = `evt_m8_order_mismatch_${Date.now()}`;
+    await seedWebhookEvent(eventId);
+    await processOnboardingFeeCapture(
+      { orderId: created.curlecOrderId, paymentId: `pay_m8_order_${Date.now()}`, eventId },
+      prisma
+    );
+
+    const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
+    expect(updated.status).toBe(GatewayPaymentStatus.EXPIRED);
   });
 
   it("blocks startCorporateOnboarding when onboarding fee is unpaid (new path)", async () => {

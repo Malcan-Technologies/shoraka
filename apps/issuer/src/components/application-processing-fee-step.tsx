@@ -53,6 +53,7 @@ export function ApplicationProcessingFeeStep({
   const resolvedFee = initialFee ?? feeOrderQuery.data ?? null;
   const [error, setError] = React.useState<string | null>(null);
   const [isOpeningCheckout, setIsOpeningCheckout] = React.useState(false);
+  const checkoutOpenInFlightRef = React.useRef(false);
 
   React.useEffect(() => {
     if (resolvedFee?.status === "COMPLETED") {
@@ -61,37 +62,43 @@ export function ApplicationProcessingFeeStep({
   }, [onFeeAlreadyPaid, resolvedFee?.status]);
 
   const handlePayFee = async () => {
+    if (checkoutOpenInFlightRef.current || isOpeningCheckout) {
+      return;
+    }
+
+    checkoutOpenInFlightRef.current = true;
+    setIsOpeningCheckout(true);
+
     let checkoutContact = resolveCheckoutContact(activeOrganization);
 
-    if (!checkoutContact.email) {
-      const apiClient = createApiClient(API_URL, getAccessToken);
-      const me = await apiClient.get<{
-        user: { email: string; first_name?: string; last_name?: string };
-      }>("/v1/auth/me");
-      if (me.success && me.data.user.email) {
-        checkoutContact = {
-          email: me.data.user.email,
-          contact: checkoutContact.contact || "+60000000000",
-          name:
-            checkoutContact.name ??
-            ([me.data.user.first_name, me.data.user.last_name].filter(Boolean).join(" ") ||
-              "Applicant"),
-        };
-      }
-    }
-
-    if (!checkoutContact.email) {
-      setError("We could not find an email address for this account");
-      return;
-    }
-
-    if (!resolvedFee) {
-      setError("Could not load the processing fee amount. Please try again.");
-      return;
-    }
-
     try {
-      setIsOpeningCheckout(true);
+      if (!checkoutContact.email) {
+        const apiClient = createApiClient(API_URL, getAccessToken);
+        const me = await apiClient.get<{
+          user: { email: string; first_name?: string; last_name?: string };
+        }>("/v1/auth/me");
+        if (me.success && me.data.user.email) {
+          checkoutContact = {
+            email: me.data.user.email,
+            contact: checkoutContact.contact || "+60000000000",
+            name:
+              checkoutContact.name ??
+              ([me.data.user.first_name, me.data.user.last_name].filter(Boolean).join(" ") ||
+                "Applicant"),
+          };
+        }
+      }
+
+      if (!checkoutContact.email) {
+        setError("We could not find an email address for this account");
+        return;
+      }
+
+      if (!resolvedFee) {
+        setError("Could not load the processing fee amount. Please try again.");
+        return;
+      }
+
       setError(null);
 
       if (resolvedFee.status === "COMPLETED") {
@@ -123,6 +130,7 @@ export function ApplicationProcessingFeeStep({
       const message = err instanceof Error ? err.message : "Could not start payment";
       setError(message);
     } finally {
+      checkoutOpenInFlightRef.current = false;
       setIsOpeningCheckout(false);
     }
   };
