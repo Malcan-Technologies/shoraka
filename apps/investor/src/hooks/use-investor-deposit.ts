@@ -12,6 +12,12 @@ type PersistedDepositIntent = {
   amount: number;
 };
 
+type ApiErrorPayload = {
+  code: string;
+  message: string;
+  details?: unknown;
+};
+
 const TERMINAL_DEPOSIT_STATUSES = new Set<GatewayPaymentStatus>([
   "COMPLETED",
   "HELD",
@@ -89,6 +95,23 @@ export function clearInvestorDepositIntent(investorOrganizationId: string) {
   window.sessionStorage.removeItem(getDepositIntentStorageKey(investorOrganizationId));
 }
 
+export class InvestorDepositCreateError extends Error {
+  constructor(
+    public code: string,
+    message: string,
+    public details?: unknown
+  ) {
+    super(message);
+    this.name = "InvestorDepositCreateError";
+  }
+}
+
+export function isDepositIntentTerminalError(error: unknown): error is InvestorDepositCreateError {
+  return (
+    error instanceof InvestorDepositCreateError && error.code === "DEPOSIT_INTENT_TERMINAL"
+  );
+}
+
 export function useCreateInvestorDepositMutation() {
   const apiClient = useInvestorDepositApiClient();
   return useMutation({
@@ -98,7 +121,10 @@ export function useCreateInvestorDepositMutation() {
       depositIntentId: string;
     }) => {
       const response = await apiClient.createInvestorDeposit(input);
-      if (!response.success) throw new Error(response.error.message);
+      if (!response.success) {
+        const payload = response.error as ApiErrorPayload;
+        throw new InvestorDepositCreateError(payload.code, payload.message, payload.details);
+      }
       return response.data;
     },
   });

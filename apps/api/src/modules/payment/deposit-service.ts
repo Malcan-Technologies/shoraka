@@ -182,16 +182,18 @@ export async function createInvestorDeposit(
       if (INTENT_NEW_REQUIRED_STATUSES.includes(existingIntent.status)) {
         throw new AppError(
           409,
-          "DEPOSIT_INTENT_REQUIRES_NEW",
-          "Previous attempt is no longer payable; start a new deposit intent"
+          "DEPOSIT_INTENT_TERMINAL",
+          "This deposit intent is no longer payable; start a new deposit intent",
+          { currentStatus: existingIntent.status }
         );
       }
 
       if (INTENT_FINAL_STATUSES.includes(existingIntent.status)) {
         throw new AppError(
           409,
-          "DEPOSIT_INTENT_FINALIZED",
-          "This deposit intent is already finalized; start a new deposit intent"
+          "DEPOSIT_INTENT_TERMINAL",
+          "This deposit intent is already finalized; start a new deposit intent",
+          { currentStatus: existingIntent.status }
         );
       }
     }

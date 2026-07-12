@@ -234,6 +234,27 @@ describeIntegration("investor deposit service", () => {
     expect(second.id).toBe(first.id);
   });
 
+  it("same intent reuses active PAID order", async () => {
+    if (!migrated) return;
+
+    const first = await createInvestorDeposit(
+      { userId },
+      depositInput(460, "45454545-4545-4454-8454-454545454545"),
+      prisma
+    );
+    await prisma.gatewayPayment.update({
+      where: { id: first.id },
+      data: { status: GatewayPaymentStatus.PAID },
+    });
+    const second = await createInvestorDeposit(
+      { userId },
+      depositInput(460, "45454545-4545-4454-8454-454545454545"),
+      prisma
+    );
+    createdPaymentIds.push(first.id);
+    expect(second.id).toBe(first.id);
+  });
+
   it("concurrent same-intent requests dedupe safely", async () => {
     if (!migrated) return;
 
@@ -334,7 +355,7 @@ describeIntegration("investor deposit service", () => {
     expect(a.id).not.toBe(b.id);
   });
 
-  it("FAILED intent requires new intent id", async () => {
+  it("FAILED intent returns terminal code with status and new intent succeeds", async () => {
     if (!migrated) return;
 
     const first = await createInvestorDeposit(
@@ -350,7 +371,11 @@ describeIntegration("investor deposit service", () => {
     createdPaymentIds.push(first.id);
     await expect(
       createInvestorDeposit({ userId }, depositInput(1300, "dddddddd-dddd-4ddd-8ddd-dddddddddddd"), prisma)
-    ).rejects.toMatchObject({ code: "DEPOSIT_INTENT_REQUIRES_NEW" });
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: "DEPOSIT_INTENT_TERMINAL",
+      details: { currentStatus: GatewayPaymentStatus.FAILED },
+    });
 
     const second = await createInvestorDeposit(
       { userId },
@@ -361,7 +386,7 @@ describeIntegration("investor deposit service", () => {
     expect(second.id).not.toBe(first.id);
   });
 
-  it("EXPIRED intent requires new intent id", async () => {
+  it("EXPIRED intent returns terminal code with status and new intent succeeds", async () => {
     if (!migrated) return;
 
     const first = await createInvestorDeposit(
@@ -381,10 +406,22 @@ describeIntegration("investor deposit service", () => {
         depositInput(1400, "ffffffff-ffff-4fff-8fff-ffffffffffff"),
         prisma
       )
-    ).rejects.toMatchObject({ code: "DEPOSIT_INTENT_REQUIRES_NEW" });
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: "DEPOSIT_INTENT_TERMINAL",
+      details: { currentStatus: GatewayPaymentStatus.EXPIRED },
+    });
+
+    const second = await createInvestorDeposit(
+      { userId },
+      depositInput(1400, "17171717-1717-4717-8717-171717171717"),
+      prisma
+    );
+    createdPaymentIds.push(second.id);
+    expect(second.id).not.toBe(first.id);
   });
 
-  it("COMPLETED intent must not be reused", async () => {
+  it("COMPLETED intent must not be reused and returns terminal code", async () => {
     if (!migrated) return;
 
     const first = await createInvestorDeposit(
@@ -404,7 +441,11 @@ describeIntegration("investor deposit service", () => {
         depositInput(1500, "12121212-1212-4212-8212-121212121212"),
         prisma
       )
-    ).rejects.toMatchObject({ code: "DEPOSIT_INTENT_FINALIZED" });
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: "DEPOSIT_INTENT_TERMINAL",
+      details: { currentStatus: GatewayPaymentStatus.COMPLETED },
+    });
 
     const second = await createInvestorDeposit(
       { userId },

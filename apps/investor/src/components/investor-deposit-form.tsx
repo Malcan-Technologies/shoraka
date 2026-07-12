@@ -6,7 +6,9 @@ import { Label, MoneyInput } from "@cashsouk/ui";
 import { useOrganization, type Organization } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
 import {
+  clearInvestorDepositIntent,
   getOrCreateInvestorDepositIntent,
+  isDepositIntentTerminalError,
   useCreateInvestorDepositMutation,
   useInvestorDepositLimitsQuery,
 } from "@/hooks/use-investor-deposit";
@@ -70,6 +72,28 @@ export function InvestorDepositForm({
   const minAmount = depositLimitsQuery.data?.minAmount;
   const maxAmount = depositLimitsQuery.data?.maxAmount;
 
+  async function openCheckout(created: {
+    id: string;
+    curlecKeyId: string;
+    curlecOrderId: string;
+    amount: number;
+  }, checkoutContact: { email: string; contact: string; name?: string }) {
+    onStarted?.();
+    setIsOpeningCheckout(true);
+    const callbackUrl = buildDepositCallbackUrl(created.id, returnTo);
+    await openCurlecFpxCheckout({
+      keyId: created.curlecKeyId,
+      orderId: created.curlecOrderId,
+      amountMyr: created.amount,
+      callbackUrl,
+      description: "Investor deposit",
+      prefillName: checkoutContact.name,
+      prefillEmail: checkoutContact.email,
+      prefillContact: checkoutContact.contact,
+      onDismiss: () => setIsOpeningCheckout(false),
+    });
+  }
+
   async function handleContinue() {
     const parsed = parseMoneyAmount(amount);
     if (minAmount == null || maxAmount == null) {
@@ -107,23 +131,26 @@ export function InvestorDepositForm({
         amount: parsed,
         depositIntentId,
       });
-      onStarted?.();
-      setIsOpeningCheckout(true);
-
-      const callbackUrl = buildDepositCallbackUrl(created.id, returnTo);
-
-      await openCurlecFpxCheckout({
-        keyId: created.curlecKeyId,
-        orderId: created.curlecOrderId,
-        amountMyr: created.amount,
-        callbackUrl,
-        description: "Investor deposit",
-        prefillName: checkoutContact.name,
-        prefillEmail: checkoutContact.email,
-        prefillContact: checkoutContact.contact,
-        onDismiss: () => setIsOpeningCheckout(false),
-      });
+      await openCheckout(created, checkoutContact);
     } catch (error) {
+      if (isDepositIntentTerminalError(error)) {
+        try {
+          clearInvestorDepositIntent(investorOrganizationId);
+          const freshIntentId = getOrCreateInvestorDepositIntent(investorOrganizationId, parsed);
+          const created = await createDeposit.mutateAsync({
+            investorOrganizationId,
+            amount: parsed,
+            depositIntentId: freshIntentId,
+          });
+          await openCheckout(created, checkoutContact);
+          return;
+        } catch (retryError) {
+          setIsOpeningCheckout(false);
+          toast.error(retryError instanceof Error ? retryError.message : "Could not start deposit");
+          return;
+        }
+      }
+
       setIsOpeningCheckout(false);
       toast.error(error instanceof Error ? error.message : "Could not start deposit");
     }
