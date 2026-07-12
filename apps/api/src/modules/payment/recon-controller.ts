@@ -96,7 +96,7 @@ gatewayReconAdminRouter.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const body = triggerReconRunSchema.parse(req.body ?? {});
-      send(res, await triggerReconRun(getActor(req, res), body.runDate));
+      send(res, await triggerReconRun(getActor(req, res), body.runDate, body.gatewayAccount));
     } catch (error) {
       next(error);
     }

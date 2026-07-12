@@ -1,4 +1,9 @@
-import { getCurlecConfig, resetCurlecConfigCache } from "./curlec";
+import {
+  getConfiguredCurlecGatewayAccounts,
+  getCurlecConfig,
+  getCurlecGatewayAccountConfigStatus,
+  resetCurlecConfigCache,
+} from "./curlec";
 
 describe("getCurlecConfig(account)", () => {
   const originalEnv = process.env;
@@ -99,5 +104,28 @@ describe("getCurlecConfig(account)", () => {
 
     expect(legacy.apiBaseUrl).toBe("https://api.example-curlec.test");
     expect(operating.apiBaseUrl).toBe("https://api.example-curlec.test");
+  });
+
+  it("returns configured gateway accounts only", () => {
+    process.env.CURLEC_KEY_ID = "rzp_legacy_key";
+    process.env.CURLEC_KEY_SECRET = "legacy_secret";
+    process.env.CURLEC_WEBHOOK_SECRET = "legacy_webhook";
+    process.env.CURLEC_INVESTOR_POOL_KEY_ID = "rzp_pool_key";
+    process.env.CURLEC_INVESTOR_POOL_KEY_SECRET = "pool_secret";
+    process.env.CURLEC_INVESTOR_POOL_WEBHOOK_SECRET = "pool_webhook";
+
+    expect(getConfiguredCurlecGatewayAccounts()).toEqual(["LEGACY_DEFAULT", "INVESTOR_POOL"]);
+  });
+
+  it("flags partial credentials for account status checks", () => {
+    process.env.CURLEC_OPERATING_KEY_ID = "rzp_operating_key";
+
+    const status = getCurlecGatewayAccountConfigStatus("OPERATING");
+    expect(status.configured).toBe(false);
+    expect(status.isPartial).toBe(true);
+    expect(status.missingEnvNames).toEqual([
+      "CURLEC_OPERATING_KEY_SECRET",
+      "CURLEC_OPERATING_WEBHOOK_SECRET",
+    ]);
   });
 });

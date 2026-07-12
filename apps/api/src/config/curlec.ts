@@ -30,6 +30,13 @@ export type CurlecConfig = {
   environment: "sandbox" | "production";
 };
 
+export type CurlecGatewayAccountConfigStatus = {
+  gatewayAccount: CurlecGatewayAccount;
+  configured: boolean;
+  isPartial: boolean;
+  missingEnvNames: string[];
+};
+
 const cachedConfigs = new Map<CurlecGatewayAccount, CurlecConfig>();
 
 /** Clear cached config — for tests only. */
@@ -107,6 +114,45 @@ function assertCredentialsPresent(
       `Curlec ${account} credentials are required. Missing: ${missing.join(", ")}.`
     );
   }
+}
+
+function getMissingCredentialEnvNames(credentials: {
+  keyId: string;
+  keySecret: string;
+  webhookSecret: string;
+  keyIdEnvName: string;
+  keySecretEnvName: string;
+  webhookSecretEnvName: string;
+}): string[] {
+  const missing: string[] = [];
+  if (!credentials.keyId) missing.push(credentials.keyIdEnvName);
+  if (!credentials.keySecret) missing.push(credentials.keySecretEnvName);
+  if (!credentials.webhookSecret) missing.push(credentials.webhookSecretEnvName);
+  return missing;
+}
+
+export function getCurlecGatewayAccountConfigStatus(
+  gatewayAccount: CurlecGatewayAccount
+): CurlecGatewayAccountConfigStatus {
+  const credentials = resolveCredentialFields(gatewayAccount);
+  const missingEnvNames = getMissingCredentialEnvNames(credentials);
+  const presentCount =
+    Number(Boolean(credentials.keyId)) +
+    Number(Boolean(credentials.keySecret)) +
+    Number(Boolean(credentials.webhookSecret));
+
+  return {
+    gatewayAccount,
+    configured: missingEnvNames.length === 0,
+    isPartial: presentCount > 0 && missingEnvNames.length > 0,
+    missingEnvNames,
+  };
+}
+
+export function getConfiguredCurlecGatewayAccounts(): CurlecGatewayAccount[] {
+  return CURLEC_GATEWAY_ACCOUNTS.filter(
+    (gatewayAccount) => getCurlecGatewayAccountConfigStatus(gatewayAccount).configured
+  );
 }
 
 /**

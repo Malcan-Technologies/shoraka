@@ -1,4 +1,5 @@
 import {
+  CurlecGatewayAccount,
   GatewayReconExceptionType,
   GatewayReconRunStatus,
   Prisma,
@@ -29,10 +30,15 @@ function parseRunDateInput(runDate?: string): Date {
   return new Date(Date.UTC(year, month - 1, day));
 }
 
+function toDateOnlyUtc(runDate: string): Date {
+  const [year, month, day] = runDate.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
 function mapReconRun(run: {
   id: string;
   run_date: Date;
-  gatewayAccount: string;
+  gatewayAccount: CurlecGatewayAccount;
   status: GatewayReconRunStatus;
   triggered_by: string;
   settlements_scanned: number;
@@ -64,6 +70,7 @@ function mapReconRun(run: {
 function mapReconException(row: {
   id: string;
   recon_run_id: string;
+  gatewayAccount: CurlecGatewayAccount;
   type: GatewayReconExceptionType;
   gateway_payment_id: string | null;
   curlec_payment_id: string | null;
@@ -79,6 +86,7 @@ function mapReconException(row: {
   return {
     id: row.id,
     reconRunId: row.recon_run_id,
+    gatewayAccount: row.gatewayAccount,
     type: row.type,
     gatewayPaymentId: row.gateway_payment_id,
     curlecPaymentId: row.curlec_payment_id,
@@ -98,9 +106,15 @@ export async function listReconRuns(
   db: PrismaClient = defaultPrisma
 ) {
   const skip = (query.page - 1) * query.pageSize;
+  const where: Prisma.GatewayReconRunWhereInput = {};
+  if (query.gatewayAccount) where.gatewayAccount = query.gatewayAccount;
+  if (query.status) where.status = query.status;
+  if (query.runDate) where.run_date = toDateOnlyUtc(query.runDate);
+
   const [total, items] = await Promise.all([
-    db.gatewayReconRun.count(),
+    db.gatewayReconRun.count({ where }),
     db.gatewayReconRun.findMany({
+      where,
       orderBy: { run_date: "desc" },
       skip,
       take: query.pageSize,
@@ -132,7 +146,9 @@ export async function getReconRunDetail(
 
   return {
     ...mapReconRun(run),
-    exceptions: run.exceptions.map(mapReconException),
+    exceptions: run.exceptions.map((exception) =>
+      mapReconException({ ...exception, gatewayAccount: run.gatewayAccount })
+    ),
   };
 }
 
@@ -150,6 +166,7 @@ export async function listReconExceptions(
 
   if (query.runId) where.recon_run_id = query.runId;
   if (query.type) where.type = query.type;
+  if (query.gatewayAccount) where.recon_run = { gatewayAccount: query.gatewayAccount };
 
   const skip = (query.page - 1) * query.pageSize;
 
@@ -157,6 +174,7 @@ export async function listReconExceptions(
     db.gatewayReconException.count({ where }),
     db.gatewayReconException.findMany({
       where,
+      include: { recon_run: { select: { gatewayAccount: true } } },
       orderBy: { created_at: "desc" },
       skip,
       take: query.pageSize,
@@ -164,7 +182,9 @@ export async function listReconExceptions(
   ]);
 
   return {
-    items: items.map(mapReconException),
+    items: items.map((item) =>
+      mapReconException({ ...item, gatewayAccount: item.recon_run.gatewayAccount })
+    ),
     total,
     page: query.page,
     pageSize: query.pageSize,
@@ -179,13 +199,17 @@ export async function getUnresolvedReconExceptionsCount(db: PrismaClient = defau
 export async function triggerReconRun(
   actor: AdminActorContext,
   runDateInput?: string,
+  gatewayAccount: CurlecGatewayAccount = CurlecGatewayAccount.LEGACY_DEFAULT,
   db: PrismaClient = defaultPrisma
 ) {
   const runDate = runDateInput ? parseRunDateInput(runDateInput) : getYesterdayMytDateOnly();
   const result = await runGatewaySettlementReconJob(
-    { runDate, triggeredBy: actor.userId },
+    { runDate, triggeredBy: actor.userId, gatewayAccount },
     db
   );
+  if (!result) {
+    throw new AppError(409, "RECON_LOCK_NOT_ACQUIRED", "Reconciliation is already running");
+  }
   return getReconRunDetail(result.runId, db);
 }
 
@@ -213,5 +237,13 @@ export async function resolveReconException(
     },
   });
 
-  return mapReconException(updated);
+  const run = await db.gatewayReconRun.findUnique({
+    where: { id: updated.recon_run_id },
+    select: { gatewayAccount: true },
+  });
+
+  return mapReconException({
+    ...updated,
+    gatewayAccount: run?.gatewayAccount ?? CurlecGatewayAccount.LEGACY_DEFAULT,
+  });
 }
