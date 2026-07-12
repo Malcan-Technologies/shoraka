@@ -34,6 +34,7 @@ import {
 import type { IssuerOnboardingFeeResponse } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const CHECKOUT_OPEN_TIMEOUT_MS = 20_000;
 
 function resolveCheckoutContact(
   activeOrganization: ReturnType<typeof useOrganization>["activeOrganization"]
@@ -151,10 +152,28 @@ export default function OnboardingFeePage() {
 
   const companyName = activeOrganization.name?.trim() ?? "";
   const feeAmount = resolvedFee?.amount;
-  const isPayActionInFlight = isOpeningCheckout || createFee.isPending;
+
+  function resetPayFlowState() {
+    checkoutOpenInFlightRef.current = false;
+    setIsOpeningCheckout(false);
+  }
+
+  async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string) {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  }
 
   const handlePayFee = async () => {
-    if (checkoutOpenInFlightRef.current || isPayActionInFlight) {
+    if (checkoutOpenInFlightRef.current) {
       return;
     }
 
@@ -193,7 +212,11 @@ export default function OnboardingFeePage() {
       setError(null);
 
       // Always re-request before opening checkout so EXPIRED/FAILED never reuses stale local order.
-      const fee = await createFee.mutateAsync({ issuerOrganizationId: activeOrganization.id });
+      const fee = await withTimeout(
+        createFee.mutateAsync({ issuerOrganizationId: activeOrganization.id }),
+        CHECKOUT_OPEN_TIMEOUT_MS,
+        "Payment request timed out. Please try again."
+      );
 
       setConfirmedFee(fee);
       setFeePaymentId(fee.id);
@@ -210,17 +233,25 @@ export default function OnboardingFeePage() {
         ISSUER_ONBOARDING_FEE_RETURN_TO
       );
 
-      await openCurlecFpxCheckout({
-        keyId: fee.curlecKeyId,
-        orderId: fee.curlecOrderId,
-        amountMyr: fee.amount,
-        callbackUrl,
-        description: "Issuer onboarding fee",
-        prefillName: checkoutContact.name,
-        prefillEmail: checkoutContact.email,
-        prefillContact: checkoutContact.contact,
-        onDismiss: () => setIsOpeningCheckout(false),
-      });
+      if (!fee.curlecKeyId || !fee.curlecOrderId) {
+        throw new Error("Payment order is incomplete. Please try again.");
+      }
+
+      await withTimeout(
+        openCurlecFpxCheckout({
+          keyId: fee.curlecKeyId,
+          orderId: fee.curlecOrderId,
+          amountMyr: fee.amount,
+          callbackUrl,
+          description: "Issuer onboarding fee",
+          prefillName: checkoutContact.name,
+          prefillEmail: checkoutContact.email,
+          prefillContact: checkoutContact.contact,
+          onDismiss: resetPayFlowState,
+        }),
+        CHECKOUT_OPEN_TIMEOUT_MS,
+        "Checkout is taking too long to open. Please try again."
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not start payment";
       if (message.includes("TNC_REQUIRED")) {
@@ -230,8 +261,7 @@ export default function OnboardingFeePage() {
         setError(message);
       }
     } finally {
-      checkoutOpenInFlightRef.current = false;
-      setIsOpeningCheckout(false);
+      resetPayFlowState();
     }
   };
 
@@ -283,10 +313,10 @@ export default function OnboardingFeePage() {
                   type="button"
                   variant="action"
                   className="h-11 w-full rounded-xl"
-                  disabled={isPayActionInFlight}
+                  disabled={isOpeningCheckout}
                   onClick={() => void handlePayFee()}
                 >
-                  {isPayActionInFlight
+                  {isOpeningCheckout
                     ? "Opening checkout..."
                     : "Pay with FPX"}
                 </Button>
