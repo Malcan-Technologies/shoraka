@@ -139,7 +139,7 @@ function FilterButton({
 }
 
 function DesktopTransactionRow({ tx }: { tx: Transaction }) {
-  const amountToneClassName = getTransactionAmountToneClassName(tx.type);
+  const amountToneClassName = getTransactionAmountToneClassName(tx.direction);
 
   return (
     <div className={cn(DESKTOP_ROW, "border-b border-border py-4 last:border-b-0")}>
@@ -148,7 +148,7 @@ function DesktopTransactionRow({ tx }: { tx: Transaction }) {
         <TransactionContextSubtitle context={tx.context} />
       </TableCell>
       <MoneyTableCell
-        {...splitSignedTransactionAmount(tx.type, tx.amount)}
+        {...splitSignedTransactionAmount(tx.direction, tx.amount)}
         toneClassName={amountToneClassName}
       />
       <MoneyTableCell {...splitBalanceAmount(tx.balance)} />
@@ -160,9 +160,9 @@ function DesktopTransactionRow({ tx }: { tx: Transaction }) {
 }
 
 function MobileTransactionRow({ tx }: { tx: Transaction }) {
-  const amount = splitSignedTransactionAmount(tx.type, tx.amount);
+  const amount = splitSignedTransactionAmount(tx.direction, tx.amount);
   const balance = splitBalanceAmount(tx.balance);
-  const amountToneClassName = getTransactionAmountToneClassName(tx.type);
+  const amountToneClassName = getTransactionAmountToneClassName(tx.direction);
 
   return (
     <div className="space-y-2 px-6 py-4">
