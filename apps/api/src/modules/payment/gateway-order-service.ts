@@ -1,4 +1,5 @@
 import {
+  CurlecGatewayAccount,
   GatewayOrganizationType,
   GatewayPayment,
   GatewayPaymentPurpose,
@@ -8,8 +9,11 @@ import {
 } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { getCurlecConfig } from "../../config/curlec";
+import { AppError } from "../../lib/http/error-handler";
+import { logger } from "../../lib/logger";
 import { prisma as defaultPrisma } from "../../lib/prisma";
 import { createCurlecClient } from "./curlec-client";
+import { resolveGatewayAccountForPurpose } from "./gateway-account";
 import { myrToSen } from "./money";
 import type { ActorContext } from "./deposit-service";
 
@@ -23,6 +27,7 @@ export type CreateGatewayOrderParams = {
   issuerOrganizationId?: string;
   applicationId?: string;
   idempotencyKey?: string;
+  gatewayAccount?: CurlecGatewayAccount;
 };
 
 function decimalToNumber(value: Prisma.Decimal): number {
@@ -30,14 +35,26 @@ function decimalToNumber(value: Prisma.Decimal): number {
 }
 
 export function mapGatewayPaymentResponse(payment: GatewayPayment) {
+  let curlecKeyId: string;
+  try {
+    curlecKeyId = getCurlecConfig(payment.gatewayAccount).keyId;
+  } catch {
+    throw new AppError(
+      500,
+      "CURLEC_ACCOUNT_CONFIG_ERROR",
+      `Curlec credentials are not configured for gateway account ${payment.gatewayAccount}`
+    );
+  }
+
   return {
     id: payment.id,
     status: payment.status,
     purpose: payment.purpose,
+    gatewayAccount: payment.gatewayAccount,
     amount: decimalToNumber(payment.amount),
     currency: payment.currency,
     curlecOrderId: payment.curlec_order_id,
-    curlecKeyId: getCurlecConfig().keyId,
+    curlecKeyId,
     investorOrganizationId: payment.investor_organization_id,
     issuerOrganizationId: payment.issuer_organization_id,
     applicationId: payment.application_id,
@@ -53,8 +70,20 @@ export async function createGatewayOrder(
   params: CreateGatewayOrderParams,
   db: PrismaClient | Prisma.TransactionClient = defaultPrisma
 ) {
+  const gatewayAccount = params.gatewayAccount ?? resolveGatewayAccountForPurpose(params.purpose);
+
+  try {
+    getCurlecConfig(gatewayAccount);
+  } catch {
+    throw new AppError(
+      500,
+      "CURLEC_ACCOUNT_CONFIG_ERROR",
+      `Curlec credentials are not configured for gateway account ${gatewayAccount}`
+    );
+  }
+
   const receipt = `${params.receiptPrefix}_${randomUUID().replace(/-/g, "").slice(0, 24)}`;
-  const curlecClient = createCurlecClient();
+  const curlecClient = createCurlecClient({ gatewayAccount });
   const order = await curlecClient.createOrder({
     amountSen: myrToSen(params.amount),
     currency: "MYR",
@@ -69,6 +98,7 @@ export async function createGatewayOrder(
     data: {
       purpose: params.purpose,
       organization_type: params.organizationType,
+      gatewayAccount,
       investor_organization_id: params.investorOrganizationId,
       issuer_organization_id: params.issuerOrganizationId,
       application_id: params.applicationId,
@@ -83,6 +113,16 @@ export async function createGatewayOrder(
       },
     },
   });
+
+  logger.info(
+    {
+      purpose: params.purpose,
+      gatewayAccount,
+      gatewayPaymentId: payment.id,
+      curlecOrderId: order.id,
+    },
+    "Gateway order created"
+  );
 
   return mapGatewayPaymentResponse(payment);
 }

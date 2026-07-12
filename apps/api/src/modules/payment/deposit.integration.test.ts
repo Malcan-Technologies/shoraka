@@ -8,6 +8,8 @@ import {
   UserRole,
 } from "@prisma/client";
 import { createInvestorDeposit, getInvestorDeposit, getInvestorDepositLimits } from "./deposit-service";
+import { createCurlecClient } from "./curlec-client";
+import { getCurlecConfig } from "../../config/curlec";
 
 jest.mock("./curlec-client", () => {
   let orderCounter = 0;
@@ -26,16 +28,23 @@ jest.mock("./curlec-client", () => {
   };
 });
 
-jest.mock("../../config/curlec", () => ({
-  getCurlecConfig: jest.fn(() => ({
-    gatewayAccount: "LEGACY_DEFAULT" as const,
-    keyId: "rzp_test_key",
-    keySecret: "secret",
-    webhookSecret: "whsec",
-    apiBaseUrl: "https://api.razorpay.com",
-    environment: "sandbox" as const,
-  })),
-}));
+jest.mock("../../config/curlec", () => {
+  const keyByAccount: Record<string, string> = {
+    LEGACY_DEFAULT: "rzp_test_legacy_key",
+    OPERATING: "rzp_test_operating_key",
+    INVESTOR_POOL: "rzp_test_pool_key",
+  };
+  return {
+    getCurlecConfig: jest.fn((gatewayAccount: string = "LEGACY_DEFAULT") => ({
+      gatewayAccount,
+      keyId: keyByAccount[gatewayAccount] ?? "rzp_test_unknown_key",
+      keySecret: "secret",
+      webhookSecret: "whsec",
+      apiBaseUrl: "https://api.razorpay.com",
+      environment: "sandbox" as const,
+    })),
+  };
+});
 
 const prisma = new PrismaClient();
 const describeIntegration = process.env.DATABASE_URL ? describe : describe.skip;
@@ -209,13 +218,19 @@ describeIntegration("investor deposit service", () => {
     expect(result.status).toBe(GatewayPaymentStatus.CREATED);
     expect(result.curlecOrderId).toBe("order_test_m4_1");
     expect(result.amount).toBe(250);
+    expect(result.gatewayAccount).toBe("INVESTOR_POOL");
+    expect(result.curlecKeyId).toBe("rzp_test_pool_key");
 
     const stored = await prisma.gatewayPayment.findUnique({ where: { id: result.id } });
     expect(stored?.purpose).toBe(GatewayPaymentPurpose.INVESTOR_DEPOSIT);
     expect(stored?.organization_type).toBe(GatewayOrganizationType.INVESTOR);
+    expect(stored?.gatewayAccount).toBe("INVESTOR_POOL");
     expect(stored?.idempotency_key).toBe(
       "gateway-deposit:intent:33333333-3333-4333-8333-333333333333"
     );
+    expect((createCurlecClient as jest.Mock).mock.calls.at(-1)?.[0]).toEqual({
+      gatewayAccount: "INVESTOR_POOL",
+    });
   });
 
   it("same intent repeated reuses same active order", async () => {
@@ -254,6 +269,61 @@ describeIntegration("investor deposit service", () => {
     );
     createdPaymentIds.push(first.id);
     expect(second.id).toBe(first.id);
+  });
+
+  it("reuses existing LEGACY_DEFAULT active intent without replacing account", async () => {
+    if (!migrated) return;
+
+    const intent = "19191919-1919-4919-8919-191919191919";
+    const legacy = await prisma.gatewayPayment.create({
+      data: {
+        purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+        organization_type: GatewayOrganizationType.INVESTOR,
+        gatewayAccount: "LEGACY_DEFAULT",
+        investor_organization_id: orgId,
+        amount: new Prisma.Decimal("250.000000"),
+        currency: "MYR",
+        status: GatewayPaymentStatus.CREATED,
+        curlec_order_id: `order_legacy_dep_${Date.now()}`,
+        idempotency_key: `gateway-deposit:intent:${intent}`,
+      },
+    });
+    createdPaymentIds.push(legacy.id);
+    const createCallsBefore = (createCurlecClient as jest.Mock).mock.calls.length;
+
+    const reused = await createInvestorDeposit({ userId }, depositInput(250, intent), prisma);
+
+    expect(reused.id).toBe(legacy.id);
+    expect(reused.gatewayAccount).toBe("LEGACY_DEFAULT");
+    expect(reused.curlecOrderId).toBe(legacy.curlec_order_id);
+    expect((createCurlecClient as jest.Mock).mock.calls.length).toBe(createCallsBefore);
+  });
+
+  it("reuses existing INVESTOR_POOL active intent without changing account", async () => {
+    if (!migrated) return;
+
+    const intent = "20202020-2020-4020-8020-202020202020";
+    const pool = await prisma.gatewayPayment.create({
+      data: {
+        purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+        organization_type: GatewayOrganizationType.INVESTOR,
+        gatewayAccount: "INVESTOR_POOL",
+        investor_organization_id: orgId,
+        amount: new Prisma.Decimal("260.000000"),
+        currency: "MYR",
+        status: GatewayPaymentStatus.CREATED,
+        curlec_order_id: `order_pool_dep_${Date.now()}`,
+        idempotency_key: `gateway-deposit:intent:${intent}`,
+      },
+    });
+    createdPaymentIds.push(pool.id);
+    const createCallsBefore = (createCurlecClient as jest.Mock).mock.calls.length;
+
+    const reused = await createInvestorDeposit({ userId }, depositInput(260, intent), prisma);
+
+    expect(reused.id).toBe(pool.id);
+    expect(reused.gatewayAccount).toBe("INVESTOR_POOL");
+    expect((createCurlecClient as jest.Mock).mock.calls.length).toBe(createCallsBefore);
   });
 
   it("concurrent same-intent requests dedupe safely", async () => {
@@ -455,6 +525,51 @@ describeIntegration("investor deposit service", () => {
     );
     createdPaymentIds.push(second.id);
     expect(second.id).not.toBe(first.id);
+  });
+
+  it("fails clearly when INVESTOR_POOL credentials are missing and does not create payment", async () => {
+    if (!migrated) return;
+
+    const beforeCount = await prisma.gatewayPayment.count({
+      where: { purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT, investor_organization_id: orgId },
+    });
+
+    const configMock = getCurlecConfig as jest.Mock;
+    const originalImpl = configMock.getMockImplementation();
+    configMock.mockImplementation((gatewayAccount: string = "LEGACY_DEFAULT") => {
+      if (gatewayAccount === "INVESTOR_POOL") {
+        throw new Error(
+          "Curlec INVESTOR_POOL credentials are required. Missing: CURLEC_INVESTOR_POOL_KEY_ID."
+        );
+      }
+      return {
+        gatewayAccount,
+        keyId: "rzp_test_legacy_key",
+        keySecret: "secret",
+        webhookSecret: "whsec",
+        apiBaseUrl: "https://api.razorpay.com",
+        environment: "sandbox" as const,
+      };
+    });
+
+    await expect(
+      createInvestorDeposit(
+        { userId },
+        depositInput(1600, "21212121-2121-4121-8121-212121212121"),
+        prisma
+      )
+    ).rejects.toMatchObject({
+      code: "CURLEC_ACCOUNT_CONFIG_ERROR",
+    });
+
+    if (originalImpl) {
+      configMock.mockImplementation(originalImpl);
+    }
+
+    const afterCount = await prisma.gatewayPayment.count({
+      where: { purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT, investor_organization_id: orgId },
+    });
+    expect(afterCount).toBe(beforeCount);
   });
 
   it("blocks IDOR on deposit lookup", async () => {

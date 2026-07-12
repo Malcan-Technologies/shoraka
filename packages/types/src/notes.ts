@@ -981,6 +981,7 @@ export interface InvestorDepositResponse {
   id: string;
   status: GatewayPaymentStatus;
   purpose: string;
+  gatewayAccount: "LEGACY_DEFAULT" | "OPERATING" | "INVESTOR_POOL";
   amount: number;
   currency: string;
   curlecOrderId: string;
@@ -1000,6 +1001,7 @@ export interface IssuerOnboardingFeeResponse {
   id: string;
   status: GatewayPaymentStatus;
   purpose: string;
+  gatewayAccount: "LEGACY_DEFAULT" | "OPERATING" | "INVESTOR_POOL";
   amount: number;
   currency: string;
   curlecOrderId: string;

@@ -15,6 +15,7 @@ import {
   getApplicationProcessingFee,
 } from "./processing-fee-service";
 import { createCurlecClient } from "./curlec-client";
+import { getCurlecConfig } from "../../config/curlec";
 import { processProcessingFeeCapture, processStoredCurlecWebhook } from "./webhook-service";
 
 jest.mock("./curlec-client", () => {
@@ -43,16 +44,23 @@ jest.mock("./curlec-client", () => {
   };
 });
 
-jest.mock("../../config/curlec", () => ({
-  getCurlecConfig: jest.fn(() => ({
-    gatewayAccount: "LEGACY_DEFAULT" as const,
-    keyId: "rzp_test_key",
-    keySecret: "secret",
-    webhookSecret: "whsec",
-    apiBaseUrl: "https://api.razorpay.com",
-    environment: "sandbox" as const,
-  })),
-}));
+jest.mock("../../config/curlec", () => {
+  const keyByAccount: Record<string, string> = {
+    LEGACY_DEFAULT: "rzp_test_legacy_key",
+    OPERATING: "rzp_test_operating_key",
+    INVESTOR_POOL: "rzp_test_pool_key",
+  };
+  return {
+    getCurlecConfig: jest.fn((gatewayAccount: string = "LEGACY_DEFAULT") => ({
+      gatewayAccount,
+      keyId: keyByAccount[gatewayAccount] ?? "rzp_test_unknown_key",
+      keySecret: "secret",
+      webhookSecret: "whsec",
+      apiBaseUrl: "https://api.razorpay.com",
+      environment: "sandbox" as const,
+    })),
+  };
+});
 
 const prisma = new PrismaClient();
 const describeIntegration = process.env.DATABASE_URL ? describe : describe.skip;
@@ -218,10 +226,16 @@ describeIntegration("application processing fee (M9)", () => {
     expect(result.status).toBe(GatewayPaymentStatus.CREATED);
     expect(result.amount).toBe(50);
     expect(result.applicationId).toBe(applicationId);
+    expect(result.gatewayAccount).toBe("OPERATING");
+    expect(result.curlecKeyId).toBe("rzp_test_operating_key");
 
     const stored = await prisma.gatewayPayment.findUnique({ where: { id: result.id } });
     expect(stored?.purpose).toBe(GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE);
     expect(stored?.organization_type).toBe(GatewayOrganizationType.ISSUER);
+    expect(stored?.gatewayAccount).toBe("OPERATING");
+    expect((createCurlecClient as jest.Mock).mock.calls.at(-1)?.[0]).toEqual({
+      gatewayAccount: "OPERATING",
+    });
   });
 
   it("returns existing payment on duplicate create (no second order)", async () => {
@@ -300,6 +314,61 @@ describeIntegration("application processing fee (M9)", () => {
 
     expect(second.id).not.toBe(first.id);
     expect(second.curlecOrderId).not.toBe(first.curlecOrderId);
+  });
+
+  it("fails clearly when OPERATING credentials are missing and does not create payment", async () => {
+    if (!migrated) return;
+
+    await prisma.gatewayPayment.updateMany({
+      where: {
+        application_id: applicationId,
+        purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
+      },
+      data: { status: GatewayPaymentStatus.FAILED },
+    });
+
+    const beforeCount = await prisma.gatewayPayment.count({
+      where: {
+        application_id: applicationId,
+        purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
+      },
+    });
+
+    const configMock = getCurlecConfig as jest.Mock;
+    const originalImpl = configMock.getMockImplementation();
+    configMock.mockImplementation((gatewayAccount: string = "LEGACY_DEFAULT") => {
+      if (gatewayAccount === "OPERATING") {
+        throw new Error(
+          "Curlec OPERATING credentials are required. Missing: CURLEC_OPERATING_KEY_ID."
+        );
+      }
+      return {
+        gatewayAccount,
+        keyId: "rzp_test_legacy_key",
+        keySecret: "secret",
+        webhookSecret: "whsec",
+        apiBaseUrl: "https://api.razorpay.com",
+        environment: "sandbox" as const,
+      };
+    });
+
+    await expect(createApplicationProcessingFee({ userId }, applicationId, prisma)).rejects.toMatchObject(
+      {
+        code: "CURLEC_ACCOUNT_CONFIG_ERROR",
+      }
+    );
+
+    if (originalImpl) {
+      configMock.mockImplementation(originalImpl);
+    }
+
+    const afterCount = await prisma.gatewayPayment.count({
+      where: {
+        application_id: applicationId,
+        purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
+      },
+    });
+    expect(afterCount).toBe(beforeCount);
   });
 
   it("reuses COMPLETED processing fee as proof of payment", async () => {

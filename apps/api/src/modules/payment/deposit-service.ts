@@ -38,6 +38,7 @@ function mapDepositResponse(payment: GatewayPayment) {
     id: mapped.id,
     status: mapped.status,
     purpose: mapped.purpose,
+    gatewayAccount: mapped.gatewayAccount,
     amount: mapped.amount,
     currency: mapped.currency,
     curlecOrderId: mapped.curlecOrderId,

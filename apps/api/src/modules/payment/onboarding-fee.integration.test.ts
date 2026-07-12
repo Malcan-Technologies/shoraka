@@ -15,6 +15,7 @@ import {
   getIssuerOnboardingFee,
 } from "./onboarding-fee-service";
 import { createCurlecClient } from "./curlec-client";
+import { getCurlecConfig } from "../../config/curlec";
 import { processOnboardingFeeCapture, processStoredCurlecWebhook } from "./webhook-service";
 
 jest.mock("./curlec-client", () => {
@@ -43,16 +44,23 @@ jest.mock("./curlec-client", () => {
   };
 });
 
-jest.mock("../../config/curlec", () => ({
-  getCurlecConfig: jest.fn(() => ({
-    gatewayAccount: "LEGACY_DEFAULT" as const,
-    keyId: "rzp_test_key",
-    keySecret: "secret",
-    webhookSecret: "whsec",
-    apiBaseUrl: "https://api.razorpay.com",
-    environment: "sandbox" as const,
-  })),
-}));
+jest.mock("../../config/curlec", () => {
+  const keyByAccount: Record<string, string> = {
+    LEGACY_DEFAULT: "rzp_test_legacy_key",
+    OPERATING: "rzp_test_operating_key",
+    INVESTOR_POOL: "rzp_test_pool_key",
+  };
+  return {
+    getCurlecConfig: jest.fn((gatewayAccount: string = "LEGACY_DEFAULT") => ({
+      gatewayAccount,
+      keyId: keyByAccount[gatewayAccount] ?? "rzp_test_unknown_key",
+      keySecret: "secret",
+      webhookSecret: "whsec",
+      apiBaseUrl: "https://api.razorpay.com",
+      environment: "sandbox" as const,
+    })),
+  };
+});
 
 const prisma = new PrismaClient();
 const describeIntegration = process.env.DATABASE_URL ? describe : describe.skip;
@@ -211,10 +219,130 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     expect(result.status).toBe(GatewayPaymentStatus.CREATED);
     expect(result.amount).toBe(150);
     expect(result.curlecOrderId).toBe("order_test_m8_1");
+    expect(result.gatewayAccount).toBe("OPERATING");
+    expect(result.curlecKeyId).toBe("rzp_test_operating_key");
 
     const stored = await prisma.gatewayPayment.findUnique({ where: { id: result.id } });
     expect(stored?.purpose).toBe(GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE);
     expect(stored?.organization_type).toBe(GatewayOrganizationType.ISSUER);
+    expect(stored?.gatewayAccount).toBe("OPERATING");
+    expect((createCurlecClient as jest.Mock).mock.calls.at(-1)?.[0]).toEqual({
+      gatewayAccount: "OPERATING",
+    });
+  });
+
+  it("reuses existing LEGACY_DEFAULT issuer fee payment without replacing account", async () => {
+    if (!migrated) return;
+
+    const legacy = await prisma.gatewayPayment.create({
+      data: {
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        organization_type: GatewayOrganizationType.ISSUER,
+        gatewayAccount: "LEGACY_DEFAULT",
+        issuer_organization_id: orgId,
+        amount: new Prisma.Decimal("150.000000"),
+        status: GatewayPaymentStatus.CREATED,
+        curlec_order_id: `order_legacy_fee_${Date.now()}`,
+        idempotency_key: `legacy-fee:${Date.now()}`,
+      },
+    });
+    createdPaymentIds.push(legacy.id);
+    const createCallsBefore = (createCurlecClient as jest.Mock).mock.calls.length;
+
+    const result = await createIssuerOnboardingFee({ userId }, { issuerOrganizationId: orgId }, prisma);
+
+    expect(result.id).toBe(legacy.id);
+    expect(result.gatewayAccount).toBe("LEGACY_DEFAULT");
+    expect(result.curlecOrderId).toBe(legacy.curlec_order_id);
+    expect((createCurlecClient as jest.Mock).mock.calls.length).toBe(createCallsBefore);
+  });
+
+  it("reuses existing OPERATING issuer fee payment without changing account", async () => {
+    if (!migrated) return;
+
+    await prisma.gatewayPayment.updateMany({
+      where: {
+        issuer_organization_id: orgId,
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+      },
+      data: { status: GatewayPaymentStatus.FAILED },
+    });
+
+    const operating = await prisma.gatewayPayment.create({
+      data: {
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        organization_type: GatewayOrganizationType.ISSUER,
+        gatewayAccount: "OPERATING",
+        issuer_organization_id: orgId,
+        amount: new Prisma.Decimal("150.000000"),
+        status: GatewayPaymentStatus.CREATED,
+        curlec_order_id: `order_operating_fee_${Date.now()}`,
+        idempotency_key: `operating-fee:${Date.now()}`,
+      },
+    });
+    createdPaymentIds.push(operating.id);
+    const createCallsBefore = (createCurlecClient as jest.Mock).mock.calls.length;
+
+    const result = await createIssuerOnboardingFee({ userId }, { issuerOrganizationId: orgId }, prisma);
+
+    expect(result.id).toBe(operating.id);
+    expect(result.gatewayAccount).toBe("OPERATING");
+    expect((createCurlecClient as jest.Mock).mock.calls.length).toBe(createCallsBefore);
+  });
+
+  it("fails clearly when OPERATING credentials are missing and does not create payment", async () => {
+    if (!migrated) return;
+
+    await prisma.gatewayPayment.updateMany({
+      where: {
+        issuer_organization_id: orgId,
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+      },
+      data: { status: GatewayPaymentStatus.FAILED },
+    });
+
+    const beforeCount = await prisma.gatewayPayment.count({
+      where: {
+        issuer_organization_id: orgId,
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+      },
+    });
+
+    const configMock = getCurlecConfig as jest.Mock;
+    const originalImpl = configMock.getMockImplementation();
+    configMock.mockImplementation((gatewayAccount: string = "LEGACY_DEFAULT") => {
+      if (gatewayAccount === "OPERATING") {
+        throw new Error(
+          "Curlec OPERATING credentials are required. Missing: CURLEC_OPERATING_KEY_ID."
+        );
+      }
+      return {
+        gatewayAccount,
+        keyId: "rzp_test_legacy_key",
+        keySecret: "secret",
+        webhookSecret: "whsec",
+        apiBaseUrl: "https://api.razorpay.com",
+        environment: "sandbox" as const,
+      };
+    });
+
+    await expect(
+      createIssuerOnboardingFee({ userId }, { issuerOrganizationId: orgId }, prisma)
+    ).rejects.toMatchObject({
+      code: "CURLEC_ACCOUNT_CONFIG_ERROR",
+    });
+
+    if (originalImpl) {
+      configMock.mockImplementation(originalImpl);
+    }
+
+    const afterCount = await prisma.gatewayPayment.count({
+      where: {
+        issuer_organization_id: orgId,
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+      },
+    });
+    expect(afterCount).toBe(beforeCount);
   });
 
   it("returns existing payment on duplicate create (no second order)", async () => {
@@ -235,8 +363,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
 
     const count = await prisma.gatewayPayment.count({
       where: {
-        issuer_organization_id: orgId,
-        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        curlec_order_id: first.curlecOrderId,
       },
     });
     expect(count).toBe(1);
