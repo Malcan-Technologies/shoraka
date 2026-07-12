@@ -83,7 +83,11 @@ Same flow for both; the first successful deposit also sets `deposit_received = t
 Follow the standard module layout (controller / service / schemas), plus:
 
 - `curlec-client.ts` — thin Curlec REST client (create order, fetch order/payment, fetch settlements). Server-side only, basic auth with key id/secret. Use the official `razorpay` Node SDK if it works against Curlec endpoints; otherwise plain fetch.
-- `webhook-controller.ts` — public route `POST /v1/webhooks/curlec`. Requirements:
+- `webhook-controller.ts` — account-specific public routes:
+  - `POST /v1/webhooks/curlec/operating`
+  - `POST /v1/webhooks/curlec/investor-pool`
+  - `POST /v1/webhooks/curlec` (legacy transitional route)
+  Requirements:
   - Mounted with **raw body** (signature is HMAC-SHA256 of the raw payload with the webhook secret; do not run through JSON middleware first).
   - Verify `X-Razorpay-Signature`; dedupe via `x-razorpay-event-id` (persist every event in `GatewayWebhookEvent`).
   - Handle out-of-order delivery (`payment.authorized` / `payment.captured` / `payment.failed` can arrive in any order) — process by reading current payment state, not by assuming sequence. All handlers idempotent.
@@ -141,7 +145,9 @@ Supporting changes:
 | `GET /v1/investor/deposits/:id` | INVESTOR + ownership | Poll status after checkout redirect |
 | `POST /v1/issuer/onboarding-fee` | ISSUER | Create onboarding fee order |
 | `POST /v1/applications/:id/processing-fee` | ISSUER + ownership | Create processing fee order |
-| `POST /v1/webhooks/curlec` | signature | Webhook ingress |
+| `POST /v1/webhooks/curlec/operating` | signature | Operating merchant webhook ingress |
+| `POST /v1/webhooks/curlec/investor-pool` | signature | Investor Pool merchant webhook ingress |
+| `POST /v1/webhooks/curlec` | signature | Legacy merchant webhook ingress (transitional) |
 | `GET /v1/admin/gateway-payments` | ADMIN | List/filter (purpose, status, org) |
 | `GET /v1/admin/gateway-payments/:id` | ADMIN | Detail incl. events + name check |
 | `POST /v1/admin/gateway-payments/:id/name-check` | ADMIN | Manual verify: approve (credit) or fail (hold) for `NAME_CHECK_PENDING` |
@@ -184,7 +190,11 @@ All UI uses shared `packages/ui` components, brand tokens, Hero Icons; checkout 
 - Extend `apps/api/src/config/env.ts` zod schema: `CURLEC_KEY_ID`, `CURLEC_KEY_SECRET`, `CURLEC_WEBHOOK_SECRET` (replaces the documented-but-unwired `PAYMENT_GATEWAY_*` placeholders).
 - Frontends need only the public key id (`NEXT_PUBLIC_CURLEC_KEY_ID`) — prefer returning it from the order-create response instead to avoid build-time env coupling.
 - Add to `env-templates/api.env.*` and SSM under `/cashsouk/prod/secrets/`; update `docs/guides/environment-variables.md`.
-- Curlec dashboard: enable FPX, auto-capture, webhook URL `https://api.<domain>/v1/webhooks/curlec` with secret; test mode keys for staging.
+- Curlec dashboard:
+  - Operating merchant: `https://api.<domain>/v1/webhooks/curlec/operating` with `CURLEC_OPERATING_WEBHOOK_SECRET`
+  - Investor Pool merchant: `https://api.<domain>/v1/webhooks/curlec/investor-pool` with `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET`
+  - Legacy merchant (transitional): `https://api.<domain>/v1/webhooks/curlec` with `CURLEC_WEBHOOK_SECRET`
+  - Enable only: `payment.captured`, `order.paid`, `payment.failed`, `refund.processed`, `refund.failed`
 
 ## 8. Delivery Phases
 

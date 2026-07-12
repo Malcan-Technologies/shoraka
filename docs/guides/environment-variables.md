@@ -122,6 +122,22 @@ The public key id is returned in order-create API responses — frontends do not
 
 `CURLEC_KEY_ID`, `CURLEC_KEY_SECRET`, and `CURLEC_WEBHOOK_SECRET` remain transitional compatibility variables for `LEGACY_DEFAULT` in Stage 1. Later rollout stages must provide both `OPERATING` and `INVESTOR_POOL` credential sets before account routing is enabled.
 
+Webhook endpoint mapping (production):
+
+- Operating merchant: `POST /v1/webhooks/curlec/operating` + `CURLEC_OPERATING_WEBHOOK_SECRET`
+- Investor Pool merchant: `POST /v1/webhooks/curlec/investor-pool` + `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET`
+- Legacy merchant (transitional): `POST /v1/webhooks/curlec` + `CURLEC_WEBHOOK_SECRET`
+
+Required events for each merchant route:
+
+- `payment.captured`
+- `order.paid`
+- `payment.failed`
+- `refund.processed`
+- `refund.failed`
+
+Retire the legacy webhook route only when no active/refundable legacy payments remain, no legacy webhook/reconciliation backlog remains, and finance/compliance approves removal.
+
 See also: `docs/integrations/payment-gateway-curlec-ops-runbook.md`, `docs/integrations/payment-gateway-curlec-plan-as-built.md`.
 
 > **Note:** Legacy `PAYMENT_GATEWAY_*` placeholders in older docs are superseded by `CURLEC_*`.

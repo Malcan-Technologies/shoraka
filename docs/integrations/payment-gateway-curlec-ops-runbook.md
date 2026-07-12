@@ -13,8 +13,8 @@ Related docs:
 ## Go-Live Checklist
 
 - Curlec live merchant account is approved, FPX is enabled, and auto-capture is enabled.
-- Curlec webhook points to `https://api.<domain>/v1/webhooks/curlec` and uses the same webhook secret configured for the API.
-- Production API credentials are configured outside the repository: `CURLEC_KEY_ID`, `CURLEC_KEY_SECRET`, `CURLEC_WEBHOOK_SECRET`, and `CURLEC_API_BASE_URL`.
+- Curlec webhooks are configured per merchant account (Operating, Investor Pool, Legacy) with account-matched route and secret.
+- Production API credentials are configured outside the repository: `CURLEC_KEY_ID`, `CURLEC_KEY_SECRET`, `CURLEC_WEBHOOK_SECRET`, `CURLEC_OPERATING_KEY_ID`, `CURLEC_OPERATING_KEY_SECRET`, `CURLEC_OPERATING_WEBHOOK_SECRET`, `CURLEC_INVESTOR_POOL_KEY_ID`, `CURLEC_INVESTOR_POOL_KEY_SECRET`, `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET`, and `CURLEC_API_BASE_URL`.
 - Curlec confirms the production API base URL for the Malaysia account.
 - Curlec confirms FPX per-transaction limits; admin finance settings reflect the accepted investor deposit minimum and maximum under **Settings → Platform Finance → Gateway Fees**.
 - Finance confirms the current MDR treatment: gateway fee amounts are tracked on gateway payments during reconciliation and are **not** posted to the note ledger yet.
@@ -92,6 +92,31 @@ Relationship: `Scanned ≥ Matched ≥ Stamped`. A payment can be **matched** bu
 ### Dev testing
 
 Use `pnpm --filter @cashsouk/api dev-simulate-gateway-settlement` to exercise recon locally without live settlements. See `payment-gateway-curlec-recon-testing.md`.
+
+## Webhook Endpoint Configuration
+
+Required events for every merchant route:
+
+- `payment.captured`
+- `order.paid`
+- `payment.failed`
+- `refund.processed`
+- `refund.failed`
+
+| Account | Merchant dashboard | Endpoint | Webhook secret variable | Purpose |
+|---|---|---|---|---|
+| Operating | Operating merchant account | `POST /v1/webhooks/curlec/operating` | `CURLEC_OPERATING_WEBHOOK_SECRET` | Issuer onboarding and application processing fee captures/refunds/failures |
+| Investor Pool | Investor Pool merchant account | `POST /v1/webhooks/curlec/investor-pool` | `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET` | Investor deposit captures/refunds/failures |
+| Legacy (transitional) | Legacy merchant account | `POST /v1/webhooks/curlec` | `CURLEC_WEBHOOK_SECRET` | Historical legacy rows (`LEGACY_DEFAULT`) |
+
+Legacy endpoint retirement condition:
+
+- Keep `POST /v1/webhooks/curlec` active until all are true:
+  - No active legacy `CREATED`, `PAID`, `NAME_CHECK_PENDING`, or `HELD` rows
+  - No refundable legacy rows remain in policy window
+  - No pending legacy webhook retries/recovery
+  - No unresolved legacy reconciliation backlog
+  - Finance/compliance sign-off is completed
 
 ## Admin Screens
 
