@@ -22,6 +22,7 @@ export type CreateGatewayOrderParams = {
   investorOrganizationId?: string;
   issuerOrganizationId?: string;
   applicationId?: string;
+  idempotencyKey?: string;
 };
 
 function decimalToNumber(value: Prisma.Decimal): number {
@@ -75,7 +76,7 @@ export async function createGatewayOrder(
       currency: "MYR",
       status: GatewayPaymentStatus.CREATED,
       curlec_order_id: order.id,
-      idempotency_key: `curlec:order:${order.id}`,
+      idempotency_key: params.idempotencyKey ?? `curlec:order:${order.id}`,
       metadata: {
         actorUserId: actor.userId,
         receipt,

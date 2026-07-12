@@ -82,11 +82,27 @@ async function getDepositLimits(db: PrismaClient | Prisma.TransactionClient) {
   };
 }
 
-const ACTIVE_DEPOSIT_STATUSES: GatewayPaymentStatus[] = [
+const REUSABLE_INTENT_STATUSES: GatewayPaymentStatus[] = [
   GatewayPaymentStatus.CREATED,
   GatewayPaymentStatus.PAID,
+];
+
+const INTENT_FINAL_STATUSES: GatewayPaymentStatus[] = [
+  GatewayPaymentStatus.COMPLETED,
+  GatewayPaymentStatus.REFUND_INITIATED,
+  GatewayPaymentStatus.REFUNDED,
+];
+
+const INTENT_NEW_REQUIRED_STATUSES: GatewayPaymentStatus[] = [
+  GatewayPaymentStatus.FAILED,
+  GatewayPaymentStatus.EXPIRED,
+  GatewayPaymentStatus.HELD,
   GatewayPaymentStatus.NAME_CHECK_PENDING,
 ];
+
+function buildDepositIntentKey(depositIntentId: string) {
+  return `gateway-deposit:intent:${depositIntentId}`;
+}
 
 export async function getInvestorDepositLimits(db: PrismaClient = defaultPrisma) {
   return getDepositLimits(db);
@@ -128,19 +144,56 @@ export async function createInvestorDeposit(
       FOR UPDATE
     `;
 
-    const reusableActive = await tx.gatewayPayment.findFirst({
+    const intentKey = buildDepositIntentKey(input.depositIntentId);
+    const existingIntent = await tx.gatewayPayment.findFirst({
       where: {
         purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
-        investor_organization_id: input.investorOrganizationId,
-        amount: new Prisma.Decimal(input.amount.toFixed(6)),
-        currency: "MYR",
-        status: { in: ACTIVE_DEPOSIT_STATUSES },
+        idempotency_key: intentKey,
       },
-      orderBy: { created_at: "desc" },
     });
 
-    if (reusableActive) {
-      return mapDepositResponse(reusableActive);
+    if (existingIntent) {
+      if (existingIntent.investor_organization_id !== input.investorOrganizationId) {
+        throw new AppError(
+          409,
+          "DEPOSIT_INTENT_OWNERSHIP_CONFLICT",
+          "This deposit intent belongs to another investor organization"
+        );
+      }
+      if (existingIntent.amount.toNumber() !== input.amount) {
+        throw new AppError(
+          409,
+          "DEPOSIT_INTENT_AMOUNT_CONFLICT",
+          "This deposit intent was already created with a different amount"
+        );
+      }
+      if (existingIntent.currency !== "MYR") {
+        throw new AppError(
+          409,
+          "DEPOSIT_INTENT_CURRENCY_CONFLICT",
+          "This deposit intent was already created with a different currency"
+        );
+      }
+
+      if (REUSABLE_INTENT_STATUSES.includes(existingIntent.status)) {
+        return mapDepositResponse(existingIntent);
+      }
+
+      if (INTENT_NEW_REQUIRED_STATUSES.includes(existingIntent.status)) {
+        throw new AppError(
+          409,
+          "DEPOSIT_INTENT_REQUIRES_NEW",
+          "Previous attempt is no longer payable; start a new deposit intent"
+        );
+      }
+
+      if (INTENT_FINAL_STATUSES.includes(existingIntent.status)) {
+        throw new AppError(
+          409,
+          "DEPOSIT_INTENT_FINALIZED",
+          "This deposit intent is already finalized; start a new deposit intent"
+        );
+      }
     }
 
     return createGatewayOrder(
@@ -154,6 +207,7 @@ export async function createInvestorDeposit(
           investorOrganizationId: input.investorOrganizationId,
         },
         investorOrganizationId: input.investorOrganizationId,
+        idempotencyKey: intentKey,
       },
       tx
     );

@@ -6,6 +6,7 @@ import { Label, MoneyInput } from "@cashsouk/ui";
 import { useOrganization, type Organization } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
 import {
+  getOrCreateInvestorDepositIntent,
   useCreateInvestorDepositMutation,
   useInvestorDepositLimitsQuery,
 } from "@/hooks/use-investor-deposit";
@@ -100,9 +101,11 @@ export function InvestorDepositForm({
     onValidationErrorChange(null);
 
     try {
+      const depositIntentId = getOrCreateInvestorDepositIntent(investorOrganizationId, parsed);
       const created = await createDeposit.mutateAsync({
         investorOrganizationId,
         amount: parsed,
+        depositIntentId,
       });
       onStarted?.();
       setIsOpeningCheckout(true);

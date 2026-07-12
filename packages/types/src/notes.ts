@@ -974,6 +974,7 @@ export interface InvestorDepositLimits {
 export interface CreateInvestorDepositInput {
   investorOrganizationId: string;
   amount: number;
+  depositIntentId: string;
 }
 
 export interface InvestorDepositResponse {

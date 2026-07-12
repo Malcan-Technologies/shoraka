@@ -3,6 +3,7 @@ import { z } from "zod";
 export const createInvestorDepositSchema = z.object({
   investorOrganizationId: z.string().min(1),
   amount: z.number().positive(),
+  depositIntentId: z.string().uuid(),
 });
 
 export const investorDepositIdParamSchema = z.object({
