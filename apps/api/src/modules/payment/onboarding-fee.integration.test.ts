@@ -11,6 +11,7 @@ import {
 import { RegTankService } from "../regtank/service";
 import {
   createIssuerOnboardingFee,
+  getIssuerOnboardingFeeStatus,
   getIssuerOnboardingFee,
 } from "./onboarding-fee-service";
 import { createCurlecClient } from "./curlec-client";
@@ -238,6 +239,39 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       },
     });
     expect(count).toBe(1);
+  });
+
+  it("status read does not create payment rows on page-load style calls", async () => {
+    if (!migrated) return;
+
+    await prisma.gatewayPayment.updateMany({
+      where: {
+        issuer_organization_id: orgId,
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+      },
+      data: { status: GatewayPaymentStatus.EXPIRED },
+    });
+
+    const beforeCount = await prisma.gatewayPayment.count({
+      where: {
+        issuer_organization_id: orgId,
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+      },
+    });
+
+    const statusA = await getIssuerOnboardingFeeStatus({ userId }, orgId, prisma);
+    const statusB = await getIssuerOnboardingFeeStatus({ userId }, orgId, prisma);
+
+    const afterCount = await prisma.gatewayPayment.count({
+      where: {
+        issuer_organization_id: orgId,
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+      },
+    });
+
+    expect(statusA.amount).toBe(150);
+    expect(statusB.amount).toBe(150);
+    expect(afterCount).toBe(beforeCount);
   });
 
   it("dedupes concurrent create calls to one active onboarding fee payment", async () => {

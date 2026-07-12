@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import type { GatewayPaymentStatus } from "@cashsouk/types";
+import type { GatewayPaymentStatus, IssuerOnboardingFeeStatusResponse } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -28,6 +28,8 @@ export function isTerminalOnboardingFeeStatus(status: GatewayPaymentStatus): boo
 export const issuerOnboardingFeeKeys = {
   all: ["issuer-onboarding-fee"] as const,
   detail: (feeId?: string) => [...issuerOnboardingFeeKeys.all, feeId] as const,
+  status: (issuerOrganizationId?: string) =>
+    [...issuerOnboardingFeeKeys.all, "status", issuerOrganizationId] as const,
 };
 
 function useIssuerOnboardingFeeApiClient() {
@@ -67,6 +69,22 @@ export function useIssuerOnboardingFeeQuery(
       const status = query.state.data?.status;
       if (status && isTerminalOnboardingFeeStatus(status)) return false;
       return PAYMENT_RETURN_POLL_INTERVAL_MS;
+    },
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+}
+
+export function useIssuerOnboardingFeeStatusQuery(issuerOrganizationId?: string) {
+  const apiClient = useIssuerOnboardingFeeApiClient();
+  return useQuery<IssuerOnboardingFeeStatusResponse>({
+    queryKey: issuerOnboardingFeeKeys.status(issuerOrganizationId),
+    enabled: Boolean(issuerOrganizationId),
+    queryFn: async () => {
+      if (!issuerOrganizationId) throw new Error("Issuer organization ID is required");
+      const response = await apiClient.getIssuerOnboardingFeeStatus(issuerOrganizationId);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
     },
     staleTime: 0,
     refetchOnMount: "always",

@@ -94,6 +94,7 @@ import type {
   InvestorDepositResponse,
   CreateIssuerOnboardingFeeInput,
   IssuerOnboardingFeeResponse,
+  IssuerOnboardingFeeStatusResponse,
   ApplicationProcessingFeeResponse,
   EligibleNoteInvoicesResponse,
   GetAdminNotesParams,
@@ -2815,6 +2816,14 @@ export class ApiClient {
     id: string
   ): Promise<ApiResponse<IssuerOnboardingFeeResponse> | ApiError> {
     return this.get<IssuerOnboardingFeeResponse>(`/v1/issuer/onboarding-fee/${id}`);
+  }
+
+  async getIssuerOnboardingFeeStatus(
+    issuerOrganizationId: string
+  ): Promise<ApiResponse<IssuerOnboardingFeeStatusResponse> | ApiError> {
+    return this.get<IssuerOnboardingFeeStatusResponse>(
+      `/v1/issuer/onboarding-fee/status/${encodeURIComponent(issuerOrganizationId)}`
+    );
   }
 
   async createApplicationProcessingFee(

@@ -143,3 +143,26 @@ export async function getIssuerOnboardingFee(
   const synced = await syncGatewayPaymentFromCurlec(payment, db);
   return mapGatewayPaymentResponse(synced);
 }
+
+export async function getIssuerOnboardingFeeStatus(
+  actor: ActorContext,
+  issuerOrganizationId: string,
+  db: PrismaClient = defaultPrisma
+) {
+  const issuerOrg = await assertIssuerOrgAccess(db, actor, issuerOrganizationId);
+  const amount = await getIssuerOnboardingFeeAmount(db);
+
+  const latest = await db.gatewayPayment.findFirst({
+    where: {
+      purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+      issuer_organization_id: issuerOrganizationId,
+    },
+    orderBy: { created_at: "desc" },
+  });
+
+  return {
+    amount,
+    latestPayment: latest ? mapGatewayPaymentResponse(latest) : null,
+    isPaid: Boolean(issuerOrg.onboarding_fee_paid_at),
+  };
+}

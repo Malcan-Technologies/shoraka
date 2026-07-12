@@ -1011,6 +1011,12 @@ export interface IssuerOnboardingFeeResponse {
   updatedAt: string;
 }
 
+export interface IssuerOnboardingFeeStatusResponse {
+  amount: number;
+  latestPayment: IssuerOnboardingFeeResponse | null;
+  isPaid: boolean;
+}
+
 export interface CreateApplicationProcessingFeeInput {
   applicationId: string;
 }

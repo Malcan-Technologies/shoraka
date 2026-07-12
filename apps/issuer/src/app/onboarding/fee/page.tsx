@@ -29,7 +29,7 @@ import { ISSUER_ONBOARDING_FEE_RETURN_TO } from "@/lib/issuer-onboarding-fee-rou
 import {
   storeIssuerPendingOnboarding,
   useCreateIssuerOnboardingFeeMutation,
-  useIssuerOnboardingFeeQuery,
+  useIssuerOnboardingFeeStatusQuery,
 } from "@/hooks/use-issuer-onboarding-fee";
 import type { IssuerOnboardingFeeResponse } from "@cashsouk/types";
 
@@ -68,16 +68,14 @@ export default function OnboardingFeePage() {
   const { activeOrganization, isLoading: orgLoading } = useOrganization();
   const createFee = useCreateIssuerOnboardingFeeMutation();
   const [confirmedFee, setConfirmedFee] = useState<IssuerOnboardingFeeResponse | null>(null);
-  const [feePaymentId, setFeePaymentId] = useState<string | null>(null);
   const [isOpeningCheckout, setIsOpeningCheckout] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
-  const feeBootstrappedRef = useRef(false);
-  const bootstrapInFlightRef = useRef(false);
   const checkoutOpenInFlightRef = useRef(false);
 
-  const feeQuery = useIssuerOnboardingFeeQuery(feePaymentId ?? undefined);
-  const resolvedFee = feeQuery.data ?? confirmedFee ?? createFee.data ?? null;
+  const statusQuery = useIssuerOnboardingFeeStatusQuery(activeOrganization?.id);
+  const resolvedFee = confirmedFee ?? createFee.data ?? statusQuery.data?.latestPayment ?? null;
+  const feeAmount = resolvedFee?.amount ?? statusQuery.data?.amount ?? null;
   const steps = activeOrganization
     ? getOnboardingStepperSteps(activeOrganization, "issuer", "fee")
     : [];
@@ -86,47 +84,31 @@ export default function OnboardingFeePage() {
     setTitle("Onboarding");
   }, [setTitle]);
 
-  const bootstrapFee = useCallback(async () => {
-    if (!activeOrganization || feeBootstrappedRef.current || bootstrapInFlightRef.current) return;
-
+  useEffect(() => {
+    if (orgLoading) return;
+    if (!activeOrganization) return;
     if (isAwaitingCompanyTnc(activeOrganization)) {
       setIsBootstrapping(false);
       router.replace("/onboarding/terms");
       return;
     }
-
-    const companyName = activeOrganization.name?.trim() ?? "";
-    storeIssuerPendingOnboarding({ orgId: activeOrganization.id, companyName });
-    bootstrapInFlightRef.current = true;
-
-    try {
-      const fee = await createFee.mutateAsync({ issuerOrganizationId: activeOrganization.id });
-      feeBootstrappedRef.current = true;
-      setConfirmedFee(fee);
-      setFeePaymentId(fee.id);
-
-      if (fee.status === "COMPLETED") {
-        router.replace("/onboarding/verify");
-        return;
-      }
-    } catch (err) {
-      console.error("[OnboardingFeePage] Failed to load onboarding fee:", err);
-      setError(err instanceof Error ? err.message : "Could not load onboarding fee");
-    } finally {
-      bootstrapInFlightRef.current = false;
-      setIsBootstrapping(false);
-    }
-  }, [activeOrganization, createFee, router]);
-
-  useEffect(() => {
-    if (orgLoading) return;
-    if (!activeOrganization) return;
     if (suppressBootstrap) {
       setIsBootstrapping(false);
       return;
     }
-    void bootstrapFee();
-  }, [activeOrganization, bootstrapFee, orgLoading, suppressBootstrap]);
+
+    if (statusQuery.isLoading) return;
+    if (statusQuery.isError) {
+      setError(statusQuery.error instanceof Error ? statusQuery.error.message : "Could not load fee");
+    }
+
+    if (statusQuery.data?.latestPayment?.status === "COMPLETED" || statusQuery.data?.isPaid) {
+      router.replace("/onboarding/verify");
+      return;
+    }
+
+    setIsBootstrapping(false);
+  }, [activeOrganization, orgLoading, router, statusQuery, suppressBootstrap]);
 
   if (orgLoading || isBootstrapping) {
     return (
@@ -151,7 +133,6 @@ export default function OnboardingFeePage() {
   }
 
   const companyName = activeOrganization.name?.trim() ?? "";
-  const feeAmount = resolvedFee?.amount;
 
   function resetPayFlowState() {
     checkoutOpenInFlightRef.current = false;
@@ -219,7 +200,6 @@ export default function OnboardingFeePage() {
       );
 
       setConfirmedFee(fee);
-      setFeePaymentId(fee.id);
 
       if (fee.status === "COMPLETED") {
         router.replace("/onboarding/verify");
