@@ -151,9 +151,10 @@ export default function OnboardingFeePage() {
 
   const companyName = activeOrganization.name?.trim() ?? "";
   const feeAmount = resolvedFee?.amount;
+  const isPayActionInFlight = isOpeningCheckout || createFee.isPending;
 
   const handlePayFee = async () => {
-    if (checkoutOpenInFlightRef.current || isOpeningCheckout || createFee.isPending) {
+    if (checkoutOpenInFlightRef.current || isPayActionInFlight) {
       return;
     }
 
@@ -191,9 +192,8 @@ export default function OnboardingFeePage() {
 
       setError(null);
 
-      const fee =
-        resolvedFee ??
-        (await createFee.mutateAsync({ issuerOrganizationId: activeOrganization.id }));
+      // Always re-request before opening checkout so EXPIRED/FAILED never reuses stale local order.
+      const fee = await createFee.mutateAsync({ issuerOrganizationId: activeOrganization.id });
 
       setConfirmedFee(fee);
       setFeePaymentId(fee.id);
@@ -283,16 +283,12 @@ export default function OnboardingFeePage() {
                   type="button"
                   variant="action"
                   className="h-11 w-full rounded-xl"
-                  disabled={
-                    isOpeningCheckout || createFee.isPending || !resolvedFee || feeQuery.isLoading
-                  }
+                  disabled={isPayActionInFlight}
                   onClick={() => void handlePayFee()}
                 >
-                  {isOpeningCheckout
+                  {isPayActionInFlight
                     ? "Opening checkout..."
-                    : feeQuery.isLoading && !resolvedFee
-                      ? "Loading..."
-                      : "Pay with FPX"}
+                    : "Pay with FPX"}
                 </Button>
                 <p className="text-center text-xs text-muted-foreground">
                   This fee is non-refundable and unlocks eKYB verification for your company account.
