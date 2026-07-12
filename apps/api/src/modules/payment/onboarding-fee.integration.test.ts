@@ -82,6 +82,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       data: {
         event_id: eventId,
         event_type: "payment.captured",
+        gatewayAccount: "OPERATING",
         payload: {
           event: "payment.captured",
           payload: { payment: { entity: { id: paymentId, order_id: orderId } } },
@@ -97,6 +98,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       data: {
         event_id: eventId,
         event_type: "order.paid",
+        gatewayAccount: "OPERATING",
         payload: {
           event: "order.paid",
           payload: { order: { entity: { id: orderId } } },
@@ -369,6 +371,35 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     expect(count).toBe(1);
   });
 
+  it("OPERATING webhook account processes OPERATING onboarding payment", async () => {
+    if (!migrated) return;
+
+    const created = await createIssuerOnboardingFee({ userId }, { issuerOrganizationId: orgId }, prisma);
+    createdPaymentIds.push(created.id);
+    const payment = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
+
+    const eventId = `evt_m8_operating_${Date.now()}`;
+    createdEventIds.push(eventId);
+    await prisma.gatewayWebhookEvent.create({
+      data: {
+        event_id: eventId,
+        event_type: "payment.captured",
+        gatewayAccount: "OPERATING",
+        payload: {
+          event: "payment.captured",
+          payload: { payment: { entity: { id: `pay_m8_op_${Date.now()}`, order_id: payment.curlec_order_id } } },
+        },
+        signature_valid: true,
+      },
+    });
+
+    await processStoredCurlecWebhook(eventId, prisma, "OPERATING");
+
+    const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
+    expect(updated.status).toBe(GatewayPaymentStatus.COMPLETED);
+    expect(updated.gatewayAccount).toBe("OPERATING");
+  });
+
   it("status read does not create payment rows on page-load style calls", async () => {
     if (!migrated) return;
 
@@ -566,7 +597,10 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     const eventId = `evt_m8_${Date.now()}`;
 
     await seedCaptureWebhookEvent(eventId, orderId, paymentId);
-    await processOnboardingFeeCapture({ orderId, paymentId, eventId }, prisma);
+    await processOnboardingFeeCapture(
+      { orderId, paymentId, eventId, routeGatewayAccount: "OPERATING" },
+      prisma
+    );
 
     const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
     expect(updated.status).toBe(GatewayPaymentStatus.COMPLETED);
@@ -592,6 +626,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
         orderId,
         paymentId: `pay_m8_replay_${Date.now()}`,
         eventId: replayEventId,
+        routeGatewayAccount: "OPERATING",
       },
       prisma
     );
@@ -620,7 +655,12 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     const eventId = `evt_m8_expired_capture_${Date.now()}`;
     await seedCaptureWebhookEvent(eventId, created.curlecOrderId, `pay_m8_expired_${Date.now()}`);
     await processOnboardingFeeCapture(
-      { orderId: created.curlecOrderId, paymentId: `pay_m8_expired_${Date.now()}`, eventId },
+      {
+        orderId: created.curlecOrderId,
+        paymentId: `pay_m8_expired_${Date.now()}`,
+        eventId,
+        routeGatewayAccount: "OPERATING",
+      },
       prisma
     );
 
@@ -638,6 +678,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
         orderId: created.curlecOrderId,
         paymentId: `pay_m8_expired_replay_${Date.now()}`,
         eventId: replayEventId,
+        routeGatewayAccount: "OPERATING",
       },
       prisma
     );
@@ -680,7 +721,12 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     const eventId = `evt_m8_currency_mismatch_${Date.now()}`;
     await seedCaptureWebhookEvent(eventId, created.curlecOrderId, `pay_m8_currency_${Date.now()}`);
     await processOnboardingFeeCapture(
-      { orderId: created.curlecOrderId, paymentId: `pay_m8_currency_${Date.now()}`, eventId },
+      {
+        orderId: created.curlecOrderId,
+        paymentId: `pay_m8_currency_${Date.now()}`,
+        eventId,
+        routeGatewayAccount: "OPERATING",
+      },
       prisma
     );
 
@@ -720,7 +766,12 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     const eventId = `evt_m8_order_mismatch_${Date.now()}`;
     await seedCaptureWebhookEvent(eventId, created.curlecOrderId, `pay_m8_order_${Date.now()}`);
     await processOnboardingFeeCapture(
-      { orderId: created.curlecOrderId, paymentId: `pay_m8_order_${Date.now()}`, eventId },
+      {
+        orderId: created.curlecOrderId,
+        paymentId: `pay_m8_order_${Date.now()}`,
+        eventId,
+        routeGatewayAccount: "OPERATING",
+      },
       prisma
     );
 
@@ -775,7 +826,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       });
 
     await seedOrderPaidWebhookEvent(eventId, created.curlecOrderId);
-    await processStoredCurlecWebhook(eventId, prisma);
+    await processStoredCurlecWebhook(eventId, prisma, "OPERATING");
 
     const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
     expect(updated.status).toBe(GatewayPaymentStatus.COMPLETED);
@@ -828,13 +879,13 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       });
 
     await seedOrderPaidWebhookEvent(eventId, created.curlecOrderId);
-    await processStoredCurlecWebhook(eventId, prisma);
+    await processStoredCurlecWebhook(eventId, prisma, "OPERATING");
 
     const afterFirst = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
     expect(afterFirst.status).toBe(GatewayPaymentStatus.COMPLETED);
 
     await seedOrderPaidWebhookEvent(replayEventId, created.curlecOrderId);
-    await processStoredCurlecWebhook(replayEventId, prisma);
+    await processStoredCurlecWebhook(replayEventId, prisma, "OPERATING");
 
     const ledgerCount = await prisma.noteLedgerEntry.count({
       where: { idempotency_key: `gateway-onboarding-fee:ledger:${created.id}` },
@@ -856,7 +907,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     const captureEventId = `evt_m8_sequence_capture_${Date.now()}`;
     const orderPaidEventId = `evt_m8_sequence_order_paid_${Date.now()}`;
     await seedCaptureWebhookEvent(captureEventId, created.curlecOrderId, paymentId);
-    await processStoredCurlecWebhook(captureEventId, prisma);
+    await processStoredCurlecWebhook(captureEventId, prisma, "OPERATING");
 
     const mockedCreateCurlecClient = createCurlecClient as jest.Mock;
     mockedCreateCurlecClient.mockReturnValueOnce({
@@ -874,7 +925,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       fetchPayment: jest.fn(),
     });
     await seedOrderPaidWebhookEvent(orderPaidEventId, created.curlecOrderId);
-    await processStoredCurlecWebhook(orderPaidEventId, prisma);
+    await processStoredCurlecWebhook(orderPaidEventId, prisma, "OPERATING");
 
     const ledgerCount = await prisma.noteLedgerEntry.count({
       where: { idempotency_key: `gateway-onboarding-fee:ledger:${created.id}` },
@@ -925,9 +976,9 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       });
 
     await seedOrderPaidWebhookEvent(orderPaidEventId, created.curlecOrderId);
-    await processStoredCurlecWebhook(orderPaidEventId, prisma);
+    await processStoredCurlecWebhook(orderPaidEventId, prisma, "OPERATING");
     await seedCaptureWebhookEvent(captureEventId, created.curlecOrderId, paymentId);
-    await processStoredCurlecWebhook(captureEventId, prisma);
+    await processStoredCurlecWebhook(captureEventId, prisma, "OPERATING");
 
     const ledgerCount = await prisma.noteLedgerEntry.count({
       where: { idempotency_key: `gateway-onboarding-fee:ledger:${created.id}` },
@@ -990,7 +1041,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       });
 
     await seedOrderPaidWebhookEvent(eventId, created.curlecOrderId);
-    await processStoredCurlecWebhook(eventId, prisma);
+    await processStoredCurlecWebhook(eventId, prisma, "OPERATING");
 
     const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
     expect(updated.status).not.toBe(GatewayPaymentStatus.COMPLETED);

@@ -23,3 +23,19 @@ export function resolveGatewayAccountForPurpose(
       return assertUnreachablePurpose(purpose);
   }
 }
+
+export function assertGatewayAccountMatch(
+  expectedGatewayAccount: CurlecGatewayAccount,
+  actualGatewayAccount: CurlecGatewayAccount,
+  context: string
+): void {
+  if (expectedGatewayAccount === actualGatewayAccount) {
+    return;
+  }
+
+  throw new AppError(
+    409,
+    "GATEWAY_ACCOUNT_MISMATCH",
+    `Gateway account mismatch in ${context}: expected ${expectedGatewayAccount}, got ${actualGatewayAccount}`
+  );
+}

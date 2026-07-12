@@ -13,7 +13,9 @@ import {
   getYesterdayMytDateOnly,
   runGatewaySettlementReconJob,
 } from "../../lib/jobs/gateway-settlement-recon";
+import { runGatewayStuckOrderPollerJob } from "../../lib/jobs/gateway-stuck-order-poller";
 import { resolveReconException } from "./recon-service";
+import { createCurlecClient } from "./curlec-client";
 
 const mockFetchOrderPayments = jest.fn();
 const mockFetchSettlementRecon = jest.fn();
@@ -209,9 +211,17 @@ describeIntegration("gateway reconciliation (M10)", () => {
     if (!migrated) return;
 
     const payment = await seedStaleCreatedPayment(`expire_${Date.now()}`);
+    await prisma.gatewayPayment.update({
+      where: { id: payment.id },
+      data: { gatewayAccount: CurlecGatewayAccount.OPERATING },
+    });
+    const operatingPayment = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
 
-    const outcome = await processStaleGatewayPayment(payment, prisma);
+    const outcome = await processStaleGatewayPayment(operatingPayment, prisma);
     expect(outcome).toBe("expired");
+    expect((createCurlecClient as jest.Mock).mock.calls.at(-1)?.[0]).toEqual({
+      gatewayAccount: "OPERATING",
+    });
 
     const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
     expect(updated.status).toBe(GatewayPaymentStatus.EXPIRED);
@@ -248,6 +258,11 @@ describeIntegration("gateway reconciliation (M10)", () => {
     const payment = await seedStaleCreatedPayment(suffix, {
       issuerOrganizationId: issuerOrg.id,
     });
+    await prisma.gatewayPayment.update({
+      where: { id: payment.id },
+      data: { gatewayAccount: CurlecGatewayAccount.INVESTOR_POOL },
+    });
+    const investorPoolPayment = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
     mockFetchOrderPayments.mockImplementation(async (orderId: string) => {
       if (orderId !== payment.curlec_order_id) {
         return [];
@@ -264,11 +279,42 @@ describeIntegration("gateway reconciliation (M10)", () => {
       ];
     });
 
-    const outcome = await processStaleGatewayPayment(payment, prisma);
+    const outcome = await processStaleGatewayPayment(investorPoolPayment, prisma);
     expect(outcome).toBe("recovered");
+    expect((createCurlecClient as jest.Mock).mock.calls.at(-1)?.[0]).toEqual({
+      gatewayAccount: "INVESTOR_POOL",
+    });
 
     const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
     expect(updated.status).toBe(GatewayPaymentStatus.COMPLETED);
+  });
+
+  it("poller isolates account-specific failures and continues other rows", async () => {
+    if (!migrated) return;
+
+    const legacy = await seedStaleCreatedPayment(`legacy_${Date.now()}`);
+    const operating = await seedStaleCreatedPayment(`operating_${Date.now()}`);
+    await prisma.gatewayPayment.update({
+      where: { id: operating.id },
+      data: { gatewayAccount: CurlecGatewayAccount.OPERATING },
+    });
+
+    mockFetchOrderPayments.mockImplementation(async (orderId: string) => {
+      if (orderId === operating.curlec_order_id) {
+        throw new Error("missing operating credentials");
+      }
+      return [];
+    });
+
+    const result = await runGatewayStuckOrderPollerJob(prisma);
+
+    expect(result.scanned).toBeGreaterThanOrEqual(2);
+    expect(result.expired).toBeGreaterThanOrEqual(1);
+
+    const legacyUpdated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: legacy.id } });
+    expect(legacyUpdated.status).toBe(GatewayPaymentStatus.EXPIRED);
+    const operatingUpdated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: operating.id } });
+    expect(operatingUpdated.status).toBe(GatewayPaymentStatus.EXPIRED);
   });
 
   it("recon stamps settlement fields on matched payments", async () => {

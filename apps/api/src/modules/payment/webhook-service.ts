@@ -1,4 +1,5 @@
 import {
+  CurlecGatewayAccount,
   GatewayPayment,
   GatewayPaymentPurpose,
   GatewayPaymentStatus,
@@ -21,6 +22,7 @@ import {
 } from "./deposit-service";
 import { verifyCurlecWebhookSignature } from "./curlec-signature";
 import { createCurlecClient } from "./curlec-client";
+import { assertGatewayAccountMatch } from "./gateway-account";
 import {
   extractBankCodeFromPayment,
   extractPayerNameFromPayment,
@@ -46,12 +48,14 @@ export type IngestCurlecWebhookInput = {
   rawBody: string;
   signature: string | undefined;
   eventId: string | undefined;
+  gatewayAccount?: CurlecGatewayAccount;
 };
 
 export type IngestCurlecWebhookResult = {
   eventId: string;
   eventType: string;
   duplicate: boolean;
+  gatewayAccount: CurlecGatewayAccount;
 };
 
 const DEPOSIT_CAPTURE_EVENTS = new Set(["payment.captured", "order.paid"]);
@@ -110,15 +114,19 @@ function withAmountMismatchMetadata(
 async function markWebhookProcessed(
   db: PrismaClient,
   eventId: string,
-  error?: string | null
+  error?: string | null,
+  gatewayAccount?: CurlecGatewayAccount
 ) {
   // Sync-from-Curlec paths do not ingest a webhook row first.
   if (eventId.startsWith("sync:")) {
     return;
   }
 
-  await db.gatewayWebhookEvent.update({
-    where: { event_id: eventId },
+  await db.gatewayWebhookEvent.updateMany({
+    where: {
+      event_id: eventId,
+      ...(gatewayAccount ? { gatewayAccount } : {}),
+    },
     data: {
       processed_at: new Date(),
       error: error ?? null,
@@ -161,13 +169,16 @@ function isCaptureSkippableStatus(status: GatewayPaymentStatus): boolean {
 
 async function validateCapturedPayment(
   db: PrismaClient,
-  payment: Pick<GatewayPayment, "id" | "currency">,
+  payment: Pick<GatewayPayment, "id" | "currency" | "gatewayAccount">,
   curlecPayment: Pick<CurlecPayment, "id" | "order_id" | "currency">,
   orderId: string,
-  eventId: string
+  eventId: string,
+  routeGatewayAccount: CurlecGatewayAccount
 ): Promise<boolean> {
+  assertGatewayAccountMatch(routeGatewayAccount, payment.gatewayAccount, "capture-validation");
+
   if (curlecPayment.order_id && curlecPayment.order_id !== orderId) {
-    await markWebhookProcessed(db, eventId, ORDER_MISMATCH_ERROR);
+    await markWebhookProcessed(db, eventId, ORDER_MISMATCH_ERROR, routeGatewayAccount);
     logger.warn(
       {
         eventId,
@@ -183,7 +194,7 @@ async function validateCapturedPayment(
 
   const currencyMismatch = getCurrencyMismatch(payment, curlecPayment);
   if (currencyMismatch) {
-    await markWebhookProcessed(db, eventId, CURRENCY_MISMATCH_ERROR);
+    await markWebhookProcessed(db, eventId, CURRENCY_MISMATCH_ERROR, routeGatewayAccount);
     logger.warn(
       {
         eventId,
@@ -200,13 +211,14 @@ async function validateCapturedPayment(
   const conflictingPayment = await db.gatewayPayment.findFirst({
     where: {
       curlec_payment_id: curlecPayment.id,
+      gatewayAccount: payment.gatewayAccount,
       id: { not: payment.id },
     },
     select: { id: true },
   });
 
   if (conflictingPayment) {
-    await markWebhookProcessed(db, eventId, PAYMENT_ID_CONFLICT_ERROR);
+    await markWebhookProcessed(db, eventId, PAYMENT_ID_CONFLICT_ERROR, routeGatewayAccount);
     logger.warn(
       {
         eventId,
@@ -223,32 +235,71 @@ async function validateCapturedPayment(
 }
 
 export async function processInvestorDepositCapture(
-  input: { orderId: string; paymentId: string; eventId: string },
+  input: {
+    orderId: string;
+    paymentId: string;
+    eventId: string;
+    routeGatewayAccount?: CurlecGatewayAccount;
+  },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
-  const payment = await db.gatewayPayment.findUnique({
-    where: { curlec_order_id: input.orderId },
+  const routeGatewayAccount = input.routeGatewayAccount ?? CurlecGatewayAccount.LEGACY_DEFAULT;
+
+  const payment = await db.gatewayPayment.findFirst({
+    where: { curlec_order_id: input.orderId, gatewayAccount: routeGatewayAccount },
     include: { investor_organization: true },
   });
 
   if (!payment) {
-    await markWebhookProcessed(db, input.eventId);
+    const paymentDifferentAccount = await db.gatewayPayment.findFirst({
+      where: { curlec_order_id: input.orderId },
+      select: { id: true, gatewayAccount: true },
+    });
+    if (paymentDifferentAccount) {
+      await markWebhookProcessed(
+        db,
+        input.eventId,
+        "Gateway account mismatch for order",
+        input.routeGatewayAccount
+      );
+      logger.warn(
+        {
+          eventId: input.eventId,
+          routeGatewayAccount: input.routeGatewayAccount,
+          paymentGatewayAccount: paymentDifferentAccount.gatewayAccount,
+          gatewayPaymentId: paymentDifferentAccount.id,
+          orderId: input.orderId,
+        },
+        "Skipped webhook due to gateway account mismatch"
+      );
+      return;
+    }
+
+    await markWebhookProcessed(
+      db,
+      input.eventId,
+      "Gateway payment not found for order in route account",
+      routeGatewayAccount
+    );
     return;
   }
+
+  assertGatewayAccountMatch(routeGatewayAccount, payment.gatewayAccount, "investor-deposit-capture");
 
   if (isCaptureSkippableStatus(payment.status)) {
-    await markWebhookProcessed(db, input.eventId);
+    await markWebhookProcessed(db, input.eventId, null, routeGatewayAccount);
     return;
   }
 
-  const curlecClient = createCurlecClient();
+  const curlecClient = createCurlecClient({ gatewayAccount: payment.gatewayAccount });
   const curlecPayment = await curlecClient.fetchPayment(input.paymentId);
   const isCaptureValid = await validateCapturedPayment(
     db,
-    { id: payment.id, currency: payment.currency },
+    { id: payment.id, currency: payment.currency, gatewayAccount: payment.gatewayAccount },
     { id: curlecPayment.id, order_id: curlecPayment.order_id, currency: curlecPayment.currency },
     input.orderId,
-    input.eventId
+    input.eventId,
+    routeGatewayAccount
   );
   if (!isCaptureValid) {
     return;
@@ -297,11 +348,12 @@ export async function processInvestorDepositCapture(
       );
     }
 
-    await markWebhookProcessed(db, input.eventId, AMOUNT_MISMATCH_ERROR);
+    await markWebhookProcessed(db, input.eventId, AMOUNT_MISMATCH_ERROR, routeGatewayAccount);
     logger.warn(
       {
         eventId: input.eventId,
         gatewayPaymentId: payment.id,
+        gatewayAccount: payment.gatewayAccount,
         orderId: input.orderId,
         expectedSen: amountMismatch.expectedSen,
         actualSen: amountMismatch.actualSen,
@@ -373,12 +425,13 @@ export async function processInvestorDepositCapture(
     });
   }
 
-  await markWebhookProcessed(db, input.eventId);
+  await markWebhookProcessed(db, input.eventId, null, routeGatewayAccount);
 
   logger.info(
     {
       eventId: input.eventId,
       gatewayPaymentId: payment.id,
+      gatewayAccount: payment.gatewayAccount,
       nameCheckResult,
       nameCheckScore: nameCheck.score,
       matchedVariant: nameCheck.matchedVariant,
@@ -390,9 +443,12 @@ export async function processInvestorDepositCapture(
 
 export async function processStoredCurlecWebhook(
   eventId: string,
-  db: PrismaClient = defaultPrisma
+  db: PrismaClient = defaultPrisma,
+  routeGatewayAccount: CurlecGatewayAccount = CurlecGatewayAccount.LEGACY_DEFAULT
 ): Promise<void> {
-  const stored = await db.gatewayWebhookEvent.findUnique({ where: { event_id: eventId } });
+  const stored = await db.gatewayWebhookEvent.findFirst({
+    where: { event_id: eventId, gatewayAccount: routeGatewayAccount },
+  });
   if (!stored) {
     throw new AppError(404, "WEBHOOK_NOT_FOUND", "Stored webhook event not found");
   }
@@ -406,7 +462,7 @@ export async function processStoredCurlecWebhook(
     payload = curlecWebhookPayloadSchema.parse(stored.payload);
   } catch (error) {
     if (error instanceof ZodError) {
-      await markWebhookProcessed(db, eventId, "Invalid stored payload");
+      await markWebhookProcessed(db, eventId, "Invalid stored payload", routeGatewayAccount);
       return;
     }
     throw error;
@@ -415,16 +471,41 @@ export async function processStoredCurlecWebhook(
   if (payload.event === "refund.processed" || payload.event === "refund.failed") {
     const refund = extractRefundRefs(payload);
     if (!refund) {
-      await markWebhookProcessed(db, eventId, "Missing refund references");
+      await markWebhookProcessed(db, eventId, "Missing refund references", routeGatewayAccount);
       return;
     }
 
     const payment = await db.gatewayPayment.findFirst({
-      where: { curlec_payment_id: refund.paymentId },
+      where: { curlec_payment_id: refund.paymentId, gatewayAccount: routeGatewayAccount },
     });
 
     if (!payment) {
-      await markWebhookProcessed(db, eventId, "Gateway payment not found for refund");
+      const paymentDifferentAccount = await db.gatewayPayment.findFirst({
+        where: { curlec_payment_id: refund.paymentId },
+        select: { id: true, gatewayAccount: true },
+      });
+      if (paymentDifferentAccount) {
+        await markWebhookProcessed(db, eventId, "Gateway account mismatch for refund", routeGatewayAccount);
+        logger.warn(
+          {
+            eventId,
+            routeGatewayAccount,
+            paymentGatewayAccount: paymentDifferentAccount.gatewayAccount,
+            gatewayPaymentId: paymentDifferentAccount.id,
+            curlecPaymentId: refund.paymentId,
+            refundId: refund.refundId,
+          },
+          "Skipped refund webhook due to gateway account mismatch"
+        );
+        return;
+      }
+
+      await markWebhookProcessed(
+        db,
+        eventId,
+        "Gateway payment not found for refund in route account",
+        routeGatewayAccount
+      );
       return;
     }
 
@@ -436,7 +517,7 @@ export async function processStoredCurlecWebhook(
       }
     }
 
-    await markWebhookProcessed(db, eventId);
+    await markWebhookProcessed(db, eventId, null, routeGatewayAccount);
     return;
   }
 
@@ -447,57 +528,79 @@ export async function processStoredCurlecWebhook(
         await markGatewayPaymentFailedByOrderId(
           db,
           failed.orderId,
+          routeGatewayAccount,
           failed.paymentId
         );
       }
       await markWebhookProcessed(
         db,
         eventId,
-        failed ? null : "Missing payment references"
+        failed ? null : "Missing payment references",
+        routeGatewayAccount
       );
       return;
     }
 
-    await markWebhookProcessed(db, eventId);
+    await markWebhookProcessed(db, eventId, null, routeGatewayAccount);
     return;
   }
 
   const capture = extractDepositCaptureRefs(payload);
   if (!capture) {
-    await markWebhookProcessed(db, eventId, "Missing order/payment references");
+    await markWebhookProcessed(
+      db,
+      eventId,
+      "Missing order/payment references",
+      routeGatewayAccount
+    );
     return;
   }
 
   let paymentId = capture.paymentId;
   if (!paymentId) {
-    const curlecClient = createCurlecClient();
+    const curlecClient = createCurlecClient({ gatewayAccount: routeGatewayAccount });
     const payments = await curlecClient.fetchOrderPayments(capture.orderId);
     const captured =
       payments.find((payment) => payment.status === "captured") ?? payments.at(0);
     if (!captured) {
-      await markWebhookProcessed(db, eventId, "No payments found for paid order");
+      await markWebhookProcessed(
+        db,
+        eventId,
+        "No payments found for paid order",
+        routeGatewayAccount
+      );
       return;
     }
     paymentId = captured.id;
   }
 
   await processGatewayPaymentCapture(
-    { orderId: capture.orderId, paymentId, eventId },
+    { orderId: capture.orderId, paymentId, eventId, routeGatewayAccount },
     db
   );
 }
 
 async function processGatewayPaymentCapture(
-  input: { orderId: string; paymentId: string; eventId: string },
+  input: {
+    orderId: string;
+    paymentId: string;
+    eventId: string;
+    routeGatewayAccount: CurlecGatewayAccount;
+  },
   db: PrismaClient
 ): Promise<void> {
-  const payment = await db.gatewayPayment.findUnique({
-    where: { curlec_order_id: input.orderId },
+  const payment = await db.gatewayPayment.findFirst({
+    where: { curlec_order_id: input.orderId, gatewayAccount: input.routeGatewayAccount },
     select: { purpose: true },
   });
 
   if (!payment) {
-    await markWebhookProcessed(db, input.eventId, "Gateway payment not found for order");
+    await markWebhookProcessed(
+      db,
+      input.eventId,
+      "Gateway payment not found for order in route account",
+      input.routeGatewayAccount
+    );
     return;
   }
 
@@ -512,36 +615,50 @@ async function processGatewayPaymentCapture(
       await processProcessingFeeCapture(input, db);
       return;
     default:
-      await markWebhookProcessed(db, input.eventId);
+      await markWebhookProcessed(db, input.eventId, null, input.routeGatewayAccount);
   }
 }
 
 export async function processOnboardingFeeCapture(
-  input: { orderId: string; paymentId: string; eventId: string },
+  input: {
+    orderId: string;
+    paymentId: string;
+    eventId: string;
+    routeGatewayAccount?: CurlecGatewayAccount;
+  },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
-  const payment = await db.gatewayPayment.findUnique({
-    where: { curlec_order_id: input.orderId },
+  const routeGatewayAccount = input.routeGatewayAccount ?? CurlecGatewayAccount.LEGACY_DEFAULT;
+  const payment = await db.gatewayPayment.findFirst({
+    where: { curlec_order_id: input.orderId, gatewayAccount: routeGatewayAccount },
   });
 
   if (!payment) {
-    await markWebhookProcessed(db, input.eventId);
+    await markWebhookProcessed(
+      db,
+      input.eventId,
+      "Gateway payment not found for order in route account",
+      routeGatewayAccount
+    );
     return;
   }
+
+  assertGatewayAccountMatch(routeGatewayAccount, payment.gatewayAccount, "onboarding-fee-capture");
 
   if (isCaptureSkippableStatus(payment.status)) {
-    await markWebhookProcessed(db, input.eventId);
+    await markWebhookProcessed(db, input.eventId, null, routeGatewayAccount);
     return;
   }
 
-  const curlecClient = createCurlecClient();
+  const curlecClient = createCurlecClient({ gatewayAccount: payment.gatewayAccount });
   const curlecPayment = await curlecClient.fetchPayment(input.paymentId);
   const isCaptureValid = await validateCapturedPayment(
     db,
-    { id: payment.id, currency: payment.currency },
+    { id: payment.id, currency: payment.currency, gatewayAccount: payment.gatewayAccount },
     { id: curlecPayment.id, order_id: curlecPayment.order_id, currency: curlecPayment.currency },
     input.orderId,
-    input.eventId
+    input.eventId,
+    routeGatewayAccount
   );
   if (!isCaptureValid) {
     return;
@@ -565,7 +682,7 @@ export async function processOnboardingFeeCapture(
         metadata: withAmountMismatchMetadata(payment, amountMismatch, curlecPayment),
       },
     });
-    await markWebhookProcessed(db, input.eventId, AMOUNT_MISMATCH_ERROR);
+    await markWebhookProcessed(db, input.eventId, AMOUNT_MISMATCH_ERROR, routeGatewayAccount);
     logger.warn(
       {
         eventId: input.eventId,
@@ -589,12 +706,13 @@ export async function processOnboardingFeeCapture(
     await completeOnboardingFeePayment(tx, current);
   });
 
-  await markWebhookProcessed(db, input.eventId);
+  await markWebhookProcessed(db, input.eventId, null, routeGatewayAccount);
 
   logger.info(
     {
       eventId: input.eventId,
       gatewayPaymentId: payment.id,
+      gatewayAccount: payment.gatewayAccount,
       orderId: input.orderId,
     },
     "Issuer onboarding fee webhook processed"
@@ -602,31 +720,45 @@ export async function processOnboardingFeeCapture(
 }
 
 export async function processProcessingFeeCapture(
-  input: { orderId: string; paymentId: string; eventId: string },
+  input: {
+    orderId: string;
+    paymentId: string;
+    eventId: string;
+    routeGatewayAccount?: CurlecGatewayAccount;
+  },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
-  const payment = await db.gatewayPayment.findUnique({
-    where: { curlec_order_id: input.orderId },
+  const routeGatewayAccount = input.routeGatewayAccount ?? CurlecGatewayAccount.LEGACY_DEFAULT;
+  const payment = await db.gatewayPayment.findFirst({
+    where: { curlec_order_id: input.orderId, gatewayAccount: routeGatewayAccount },
   });
 
   if (!payment) {
-    await markWebhookProcessed(db, input.eventId);
+    await markWebhookProcessed(
+      db,
+      input.eventId,
+      "Gateway payment not found for order in route account",
+      routeGatewayAccount
+    );
     return;
   }
+
+  assertGatewayAccountMatch(routeGatewayAccount, payment.gatewayAccount, "processing-fee-capture");
 
   if (isCaptureSkippableStatus(payment.status)) {
-    await markWebhookProcessed(db, input.eventId);
+    await markWebhookProcessed(db, input.eventId, null, routeGatewayAccount);
     return;
   }
 
-  const curlecClient = createCurlecClient();
+  const curlecClient = createCurlecClient({ gatewayAccount: payment.gatewayAccount });
   const curlecPayment = await curlecClient.fetchPayment(input.paymentId);
   const isCaptureValid = await validateCapturedPayment(
     db,
-    { id: payment.id, currency: payment.currency },
+    { id: payment.id, currency: payment.currency, gatewayAccount: payment.gatewayAccount },
     { id: curlecPayment.id, order_id: curlecPayment.order_id, currency: curlecPayment.currency },
     input.orderId,
-    input.eventId
+    input.eventId,
+    routeGatewayAccount
   );
   if (!isCaptureValid) {
     return;
@@ -650,7 +782,7 @@ export async function processProcessingFeeCapture(
         metadata: withAmountMismatchMetadata(payment, amountMismatch, curlecPayment),
       },
     });
-    await markWebhookProcessed(db, input.eventId, AMOUNT_MISMATCH_ERROR);
+    await markWebhookProcessed(db, input.eventId, AMOUNT_MISMATCH_ERROR, routeGatewayAccount);
     logger.warn(
       {
         eventId: input.eventId,
@@ -674,12 +806,13 @@ export async function processProcessingFeeCapture(
     await completeProcessingFeePayment(tx, current);
   });
 
-  await markWebhookProcessed(db, input.eventId);
+  await markWebhookProcessed(db, input.eventId, null, routeGatewayAccount);
 
   logger.info(
     {
       eventId: input.eventId,
       gatewayPaymentId: payment.id,
+      gatewayAccount: payment.gatewayAccount,
       orderId: input.orderId,
     },
     "Application processing fee webhook processed"
@@ -689,11 +822,12 @@ export async function processProcessingFeeCapture(
 async function markGatewayPaymentFailedByOrderId(
   db: PrismaClient,
   orderId: string,
+  gatewayAccount: CurlecGatewayAccount,
   curlecPaymentId?: string,
   method?: string | null
 ): Promise<GatewayPayment | null> {
-  const payment = await db.gatewayPayment.findUnique({
-    where: { curlec_order_id: orderId },
+  const payment = await db.gatewayPayment.findFirst({
+    where: { curlec_order_id: orderId, gatewayAccount },
   });
 
   if (!payment || TERMINAL_GATEWAY_STATUSES.has(payment.status)) {
@@ -728,7 +862,7 @@ export async function syncGatewayPaymentFromCurlec(
     return payment;
   }
 
-  const curlecClient = createCurlecClient();
+  const curlecClient = createCurlecClient({ gatewayAccount: payment.gatewayAccount });
   let orderPayments;
   try {
     orderPayments = await curlecClient.fetchOrderPayments(payment.curlec_order_id);
@@ -736,6 +870,7 @@ export async function syncGatewayPaymentFromCurlec(
     logger.warn(
       {
         gatewayPaymentId: payment.id,
+        gatewayAccount: payment.gatewayAccount,
         orderId: payment.curlec_order_id,
         error: error instanceof Error ? error.message : String(error),
       },
@@ -758,6 +893,7 @@ export async function syncGatewayPaymentFromCurlec(
     const updated = await markGatewayPaymentFailedByOrderId(
       db,
       payment.curlec_order_id,
+      payment.gatewayAccount,
       latest.id,
       latest.method
     );
@@ -770,6 +906,7 @@ export async function syncGatewayPaymentFromCurlec(
         orderId: payment.curlec_order_id,
         paymentId: latest.id,
         eventId: `sync:${payment.id}:${latest.id}`,
+        routeGatewayAccount: payment.gatewayAccount,
       },
       db
     );
@@ -868,13 +1005,18 @@ export async function ingestCurlecWebhook(
   input: IngestCurlecWebhookInput,
   db: PrismaClient = defaultPrisma
 ): Promise<IngestCurlecWebhookResult> {
-  const { rawBody, signature, eventId } = input;
+  const {
+    rawBody,
+    signature,
+    eventId,
+    gatewayAccount = CurlecGatewayAccount.LEGACY_DEFAULT,
+  } = input;
 
   if (!eventId?.trim()) {
     throw new AppError(400, "INVALID_WEBHOOK", "Missing X-Razorpay-Event-Id header");
   }
 
-  const config = getCurlecConfig();
+  const config = getCurlecConfig(gatewayAccount);
   if (!config.webhookSecret) {
     throw new AppError(
       401,
@@ -922,6 +1064,7 @@ export async function ingestCurlecWebhook(
         {
           event_id: normalizedEventId,
           event_type: payload.event,
+          gatewayAccount,
           payload: payload as Prisma.InputJsonValue,
           signature_valid: true,
         },
@@ -931,7 +1074,7 @@ export async function ingestCurlecWebhook(
 
     if (inserted.count === 0) {
       logger.info(
-        { eventId: normalizedEventId, eventType: payload.event },
+        { eventId: normalizedEventId, eventType: payload.event, gatewayAccount },
         "Curlec webhook duplicate ignored"
       );
 
@@ -939,11 +1082,12 @@ export async function ingestCurlecWebhook(
         eventId: normalizedEventId,
         eventType: payload.event,
         duplicate: true,
+        gatewayAccount,
       };
     }
 
     logger.info(
-      { eventId: normalizedEventId, eventType: payload.event },
+      { eventId: normalizedEventId, eventType: payload.event, gatewayAccount },
       "Curlec webhook event stored"
     );
 
@@ -951,11 +1095,13 @@ export async function ingestCurlecWebhook(
       eventId: normalizedEventId,
       eventType: payload.event,
       duplicate: false,
+      gatewayAccount,
     };
   } catch (error) {
     logger.error(
       {
         eventId: normalizedEventId,
+        gatewayAccount,
         error: error instanceof Error ? error.message : String(error),
       },
       "Failed to persist Curlec webhook event"

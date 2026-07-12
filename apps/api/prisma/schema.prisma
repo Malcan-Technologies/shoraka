@@ -1052,7 +1052,7 @@ model GatewayPaymentEvent {
 /// Raw Curlec webhook events for dedup and audit (processed in later milestones).
 model GatewayWebhookEvent {
   id              String    @id @default(cuid())
-  event_id        String    @unique
+  event_id        String
   event_type      String
   gatewayAccount  CurlecGatewayAccount @default(LEGACY_DEFAULT) @map("gateway_account")
   payload         Json
@@ -1061,6 +1061,8 @@ model GatewayWebhookEvent {
   error           String?
   created_at      DateTime  @default(now())
 
+  @@unique([gatewayAccount, event_id])
+  @@index([event_id])
   @@index([gatewayAccount])
   @@map("gateway_webhook_events")
 }

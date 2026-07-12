@@ -83,6 +83,7 @@ describeIntegration("application processing fee (M9)", () => {
       data: {
         event_id: eventId,
         event_type: "payment.captured",
+        gatewayAccount: "OPERATING",
         payload: {
           event: "payment.captured",
           payload: { payment: { entity: { id: paymentId, order_id: orderId } } },
@@ -98,6 +99,7 @@ describeIntegration("application processing fee (M9)", () => {
       data: {
         event_id: eventId,
         event_type: "order.paid",
+        gatewayAccount: "OPERATING",
         payload: {
           event: "order.paid",
           payload: { order: { entity: { id: orderId } } },
@@ -418,7 +420,10 @@ describeIntegration("application processing fee (M9)", () => {
     const eventId = `evt_m9_${Date.now()}`;
 
     await seedCaptureWebhookEvent(eventId, orderId, paymentId);
-    await processProcessingFeeCapture({ orderId, paymentId, eventId }, prisma);
+    await processProcessingFeeCapture(
+      { orderId, paymentId, eventId, routeGatewayAccount: "OPERATING" },
+      prisma
+    );
 
     const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
     expect(updated.status).toBe(GatewayPaymentStatus.COMPLETED);
@@ -441,6 +446,7 @@ describeIntegration("application processing fee (M9)", () => {
         orderId,
         paymentId: `pay_m9_replay_${Date.now()}`,
         eventId: replayEventId,
+        routeGatewayAccount: "OPERATING",
       },
       prisma
     );
@@ -465,7 +471,12 @@ describeIntegration("application processing fee (M9)", () => {
     const eventId = `evt_m9_expired_capture_${Date.now()}`;
     await seedCaptureWebhookEvent(eventId, created.curlecOrderId, `pay_m9_expired_${Date.now()}`);
     await processProcessingFeeCapture(
-      { orderId: created.curlecOrderId, paymentId: `pay_m9_expired_${Date.now()}`, eventId },
+      {
+        orderId: created.curlecOrderId,
+        paymentId: `pay_m9_expired_${Date.now()}`,
+        eventId,
+        routeGatewayAccount: "OPERATING",
+      },
       prisma
     );
 
@@ -483,6 +494,7 @@ describeIntegration("application processing fee (M9)", () => {
         orderId: created.curlecOrderId,
         paymentId: `pay_m9_expired_replay_${Date.now()}`,
         eventId: replayEventId,
+        routeGatewayAccount: "OPERATING",
       },
       prisma
     );
@@ -531,7 +543,7 @@ describeIntegration("application processing fee (M9)", () => {
       });
 
     await seedOrderPaidWebhookEvent(eventId, created.curlecOrderId);
-    await processStoredCurlecWebhook(eventId, prisma);
+    await processStoredCurlecWebhook(eventId, prisma, "OPERATING");
 
     const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
     expect(updated.status).toBe(GatewayPaymentStatus.COMPLETED);
@@ -580,13 +592,13 @@ describeIntegration("application processing fee (M9)", () => {
       });
 
     await seedOrderPaidWebhookEvent(eventId, created.curlecOrderId);
-    await processStoredCurlecWebhook(eventId, prisma);
+    await processStoredCurlecWebhook(eventId, prisma, "OPERATING");
 
     const afterFirst = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
     expect(afterFirst.status).toBe(GatewayPaymentStatus.COMPLETED);
 
     await seedOrderPaidWebhookEvent(replayEventId, created.curlecOrderId);
-    await processStoredCurlecWebhook(replayEventId, prisma);
+    await processStoredCurlecWebhook(replayEventId, prisma, "OPERATING");
 
     const ledgerCount = await prisma.noteLedgerEntry.count({
       where: { idempotency_key: `gateway-processing-fee:ledger:${created.id}` },
@@ -604,7 +616,7 @@ describeIntegration("application processing fee (M9)", () => {
     const captureEventId = `evt_m9_sequence_capture_${Date.now()}`;
     const orderPaidEventId = `evt_m9_sequence_order_paid_${Date.now()}`;
     await seedCaptureWebhookEvent(captureEventId, created.curlecOrderId, paymentId);
-    await processStoredCurlecWebhook(captureEventId, prisma);
+    await processStoredCurlecWebhook(captureEventId, prisma, "OPERATING");
 
     const mockedCreateCurlecClient = createCurlecClient as jest.Mock;
     mockedCreateCurlecClient.mockReturnValueOnce({
@@ -622,7 +634,7 @@ describeIntegration("application processing fee (M9)", () => {
       fetchPayment: jest.fn(),
     });
     await seedOrderPaidWebhookEvent(orderPaidEventId, created.curlecOrderId);
-    await processStoredCurlecWebhook(orderPaidEventId, prisma);
+    await processStoredCurlecWebhook(orderPaidEventId, prisma, "OPERATING");
 
     const ledgerCount = await prisma.noteLedgerEntry.count({
       where: { idempotency_key: `gateway-processing-fee:ledger:${created.id}` },
@@ -669,9 +681,9 @@ describeIntegration("application processing fee (M9)", () => {
       });
 
     await seedOrderPaidWebhookEvent(orderPaidEventId, created.curlecOrderId);
-    await processStoredCurlecWebhook(orderPaidEventId, prisma);
+    await processStoredCurlecWebhook(orderPaidEventId, prisma, "OPERATING");
     await seedCaptureWebhookEvent(captureEventId, created.curlecOrderId, paymentId);
-    await processStoredCurlecWebhook(captureEventId, prisma);
+    await processStoredCurlecWebhook(captureEventId, prisma, "OPERATING");
 
     const ledgerCount = await prisma.noteLedgerEntry.count({
       where: { idempotency_key: `gateway-processing-fee:ledger:${created.id}` },
@@ -726,7 +738,7 @@ describeIntegration("application processing fee (M9)", () => {
       });
 
     await seedOrderPaidWebhookEvent(eventId, created.curlecOrderId);
-    await processStoredCurlecWebhook(eventId, prisma);
+    await processStoredCurlecWebhook(eventId, prisma, "OPERATING");
 
     const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
     expect(updated.status).not.toBe(GatewayPaymentStatus.COMPLETED);

@@ -111,6 +111,7 @@ describeIntegration("Gateway payment schema unique constraints", () => {
       data: {
         event_id: `evt_dup_${suffix}`,
         event_type: "payment.captured",
+        gatewayAccount: "LEGACY_DEFAULT",
         payload: { id: `pay_${suffix}` },
         signature_valid: true,
       },
@@ -122,10 +123,43 @@ describeIntegration("Gateway payment schema unique constraints", () => {
         data: {
           event_id: `evt_dup_${suffix}`,
           event_type: "payment.captured",
+          gatewayAccount: "LEGACY_DEFAULT",
           payload: { id: `pay_other_${suffix}` },
           signature_valid: true,
         },
       })
     ).rejects.toMatchObject({ code: "P2002" });
+  });
+
+  it("allows same gateway webhook event_id across different accounts", async () => {
+    if (!migrated) {
+      console.warn("Skipping: run prisma migrate dev first");
+      return;
+    }
+
+    const suffix = `${Date.now()}`;
+    const legacy = await prisma.gatewayWebhookEvent.create({
+      data: {
+        event_id: `evt_cross_${suffix}`,
+        event_type: "payment.captured",
+        gatewayAccount: "LEGACY_DEFAULT",
+        payload: { id: `pay_${suffix}` },
+        signature_valid: true,
+      },
+    });
+    createdEventIds.push(legacy.id);
+
+    const operating = await prisma.gatewayWebhookEvent.create({
+      data: {
+        event_id: `evt_cross_${suffix}`,
+        event_type: "payment.captured",
+        gatewayAccount: "OPERATING",
+        payload: { id: `pay_other_${suffix}` },
+        signature_valid: true,
+      },
+    });
+    createdEventIds.push(operating.id);
+
+    expect(legacy.id).not.toBe(operating.id);
   });
 });

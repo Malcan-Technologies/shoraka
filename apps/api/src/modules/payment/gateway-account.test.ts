@@ -1,5 +1,5 @@
 import { GatewayPaymentPurpose } from "@prisma/client";
-import { resolveGatewayAccountForPurpose } from "./gateway-account";
+import { assertGatewayAccountMatch, resolveGatewayAccountForPurpose } from "./gateway-account";
 
 describe("resolveGatewayAccountForPurpose", () => {
   it("maps ISSUER_ONBOARDING_FEE to OPERATING", () => {
@@ -33,5 +33,15 @@ describe("resolveGatewayAccountForPurpose", () => {
       resolveGatewayAccountForPurpose(GatewayPaymentPurpose.INVESTOR_DEPOSIT),
     ];
     expect(resolved).not.toContain("LEGACY_DEFAULT");
+  });
+
+  it("assertGatewayAccountMatch passes for same account", () => {
+    expect(() => assertGatewayAccountMatch("OPERATING", "OPERATING", "test")).not.toThrow();
+  });
+
+  it("assertGatewayAccountMatch fails for mismatched account", () => {
+    expect(() => assertGatewayAccountMatch("OPERATING", "INVESTOR_POOL", "test")).toThrow(
+      /GATEWAY_ACCOUNT_MISMATCH|Gateway account mismatch/
+    );
   });
 });

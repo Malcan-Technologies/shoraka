@@ -8,6 +8,7 @@ import {
   Prisma,
   PrismaClient,
 } from "@prisma/client";
+import { getCurlecConfig } from "../../config/curlec";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma as defaultPrisma } from "../../lib/prisma";
@@ -155,7 +156,17 @@ export async function initiateInvestorDepositRefund(
     );
   }
 
-  const curlecClient = createCurlecClient();
+  try {
+    getCurlecConfig(payment.gatewayAccount);
+  } catch {
+    throw new AppError(
+      500,
+      "CURLEC_ACCOUNT_CONFIG_ERROR",
+      `Curlec credentials are not configured for gateway account ${payment.gatewayAccount}`
+    );
+  }
+
+  const curlecClient = createCurlecClient({ gatewayAccount: payment.gatewayAccount });
   const notes = input.adminReason?.trim() || refundReasonLabel(input.reason);
   const resolvedNameCheckResult =
     input.nameCheckResult !== undefined
@@ -174,6 +185,7 @@ export async function initiateInvestorDepositRefund(
     logger.warn(
       {
         gatewayPaymentId: payment.id,
+        gatewayAccount: payment.gatewayAccount,
         curlecPaymentId: input.curlecPaymentId,
         reason: input.reason,
         error: errorMessage,
@@ -233,6 +245,7 @@ export async function initiateInvestorDepositRefund(
         auto: !input.actorUserId,
         refundId: refund.id,
         reason: input.reason,
+          gatewayAccount: payment.gatewayAccount,
       },
     });
   });
