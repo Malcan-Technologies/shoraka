@@ -122,10 +122,25 @@ describeIntegration("investor deposit service", () => {
   it("returns configured deposit limits", async () => {
     if (!migrated) return;
 
+    const beforeCount = await prisma.gatewayPayment.count({
+      where: {
+        purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+        investor_organization_id: orgId,
+      },
+    });
+
     await expect(getInvestorDepositLimits(prisma)).resolves.toEqual({
       minAmount: 100,
       maxAmount: 30000,
     });
+
+    const afterCount = await prisma.gatewayPayment.count({
+      where: {
+        purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+        investor_organization_id: orgId,
+      },
+    });
+    expect(afterCount).toBe(beforeCount);
   });
 
   it("rejects deposits above platform maximum", async () => {
@@ -154,6 +169,123 @@ describeIntegration("investor deposit service", () => {
     expect(stored?.purpose).toBe(GatewayPaymentPurpose.INVESTOR_DEPOSIT);
     expect(stored?.organization_type).toBe(GatewayOrganizationType.INVESTOR);
     expect(stored?.idempotency_key).toBe("curlec:order:order_test_m4_1");
+  });
+
+  it("dedupes concurrent identical deposit create requests safely", async () => {
+    if (!migrated) return;
+
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        createInvestorDeposit({ userId }, { investorOrganizationId: orgId, amount: 250 }, prisma)
+      )
+    );
+
+    const uniqueIds = new Set(results.map((entry) => entry.id));
+    expect(uniqueIds.size).toBe(1);
+  });
+
+  it("reuses one active CREATED deposit for repeated same-amount requests", async () => {
+    if (!migrated) return;
+
+    const first = await createInvestorDeposit(
+      { userId },
+      { investorOrganizationId: orgId, amount: 500 },
+      prisma
+    );
+    const second = await createInvestorDeposit(
+      { userId },
+      { investorOrganizationId: orgId, amount: 500 },
+      prisma
+    );
+    createdPaymentIds.push(first.id);
+    expect(second.id).toBe(first.id);
+  });
+
+  it("FAILED deposit attempt allows a fresh new order", async () => {
+    if (!migrated) return;
+
+    const first = await createInvestorDeposit(
+      { userId },
+      { investorOrganizationId: orgId, amount: 700 },
+      prisma
+    );
+    await prisma.gatewayPayment.update({
+      where: { id: first.id },
+      data: { status: GatewayPaymentStatus.FAILED },
+    });
+
+    const second = await createInvestorDeposit(
+      { userId },
+      { investorOrganizationId: orgId, amount: 700 },
+      prisma
+    );
+    createdPaymentIds.push(first.id, second.id);
+    expect(second.id).not.toBe(first.id);
+    expect(second.curlecOrderId).not.toBe(first.curlecOrderId);
+  });
+
+  it("EXPIRED deposit attempt allows a fresh new order", async () => {
+    if (!migrated) return;
+
+    const first = await createInvestorDeposit(
+      { userId },
+      { investorOrganizationId: orgId, amount: 800 },
+      prisma
+    );
+    await prisma.gatewayPayment.update({
+      where: { id: first.id },
+      data: { status: GatewayPaymentStatus.EXPIRED },
+    });
+
+    const second = await createInvestorDeposit(
+      { userId },
+      { investorOrganizationId: orgId, amount: 800 },
+      prisma
+    );
+    createdPaymentIds.push(first.id, second.id);
+    expect(second.id).not.toBe(first.id);
+    expect(second.curlecOrderId).not.toBe(first.curlecOrderId);
+  });
+
+  it("COMPLETED deposit is not reused as a new deposit request", async () => {
+    if (!migrated) return;
+
+    const first = await createInvestorDeposit(
+      { userId },
+      { investorOrganizationId: orgId, amount: 900 },
+      prisma
+    );
+    await prisma.gatewayPayment.update({
+      where: { id: first.id },
+      data: { status: GatewayPaymentStatus.COMPLETED },
+    });
+
+    const second = await createInvestorDeposit(
+      { userId },
+      { investorOrganizationId: orgId, amount: 900 },
+      prisma
+    );
+    createdPaymentIds.push(first.id, second.id);
+    expect(second.id).not.toBe(first.id);
+  });
+
+  it("distinct intentional deposit amounts create distinct attempts", async () => {
+    if (!migrated) return;
+
+    const a = await createInvestorDeposit(
+      { userId },
+      { investorOrganizationId: orgId, amount: 1000 },
+      prisma
+    );
+    const b = await createInvestorDeposit(
+      { userId },
+      { investorOrganizationId: orgId, amount: 1100 },
+      prisma
+    );
+    createdPaymentIds.push(a.id, b.id);
+    expect(a.id).not.toBe(b.id);
+    expect(a.amount).toBe(1000);
+    expect(b.amount).toBe(1100);
   });
 
   it("blocks IDOR on deposit lookup", async () => {

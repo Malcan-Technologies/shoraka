@@ -51,7 +51,7 @@ function mapDepositResponse(payment: GatewayPayment) {
 }
 
 async function assertInvestorOrgAccess(
-  db: PrismaClient,
+  db: PrismaClient | Prisma.TransactionClient,
   actor: ActorContext,
   investorOrganizationId: string
 ) {
@@ -69,7 +69,7 @@ async function assertInvestorOrgAccess(
   return investorOrg;
 }
 
-async function getDepositLimits(db: PrismaClient) {
+async function getDepositLimits(db: PrismaClient | Prisma.TransactionClient) {
   const settings = await db.platformFinanceSetting.upsert({
     where: { key: "DEFAULT" },
     update: {},
@@ -81,6 +81,12 @@ async function getDepositLimits(db: PrismaClient) {
     maxAmount: decimalToNumber(settings.investor_max_deposit_amount),
   };
 }
+
+const ACTIVE_DEPOSIT_STATUSES: GatewayPaymentStatus[] = [
+  GatewayPaymentStatus.CREATED,
+  GatewayPaymentStatus.PAID,
+  GatewayPaymentStatus.NAME_CHECK_PENDING,
+];
 
 export async function getInvestorDepositLimits(db: PrismaClient = defaultPrisma) {
   return getDepositLimits(db);
@@ -97,38 +103,61 @@ export async function createInvestorDeposit(
   input: CreateInvestorDepositInput,
   db: PrismaClient = defaultPrisma
 ) {
-  await assertInvestorOrgAccess(db, actor, input.investorOrganizationId);
+  return db.$transaction(async (tx) => {
+    await assertInvestorOrgAccess(tx, actor, input.investorOrganizationId);
 
-  const { minAmount, maxAmount } = await getDepositLimits(db);
-  if (input.amount < minAmount) {
-    throw new AppError(
-      400,
-      "DEPOSIT_BELOW_MINIMUM",
-      `Minimum deposit amount is RM ${minAmount}`
-    );
-  }
-  if (input.amount > maxAmount) {
-    throw new AppError(
-      400,
-      "DEPOSIT_ABOVE_MAXIMUM",
-      `Maximum deposit amount is RM ${maxAmount}`
-    );
-  }
+    const { minAmount, maxAmount } = await getDepositLimits(tx);
+    if (input.amount < minAmount) {
+      throw new AppError(
+        400,
+        "DEPOSIT_BELOW_MINIMUM",
+        `Minimum deposit amount is RM ${minAmount}`
+      );
+    }
+    if (input.amount > maxAmount) {
+      throw new AppError(
+        400,
+        "DEPOSIT_ABOVE_MAXIMUM",
+        `Maximum deposit amount is RM ${maxAmount}`
+      );
+    }
 
-  return createGatewayOrder(
-    actor,
-    {
-      purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
-      organizationType: GatewayOrganizationType.INVESTOR,
-      amount: input.amount,
-      receiptPrefix: "dep",
-      notes: {
+    await tx.$queryRaw`
+      SELECT id FROM investor_organizations
+      WHERE id = ${input.investorOrganizationId}
+      FOR UPDATE
+    `;
+
+    const reusableActive = await tx.gatewayPayment.findFirst({
+      where: {
+        purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+        investor_organization_id: input.investorOrganizationId,
+        amount: new Prisma.Decimal(input.amount.toFixed(6)),
+        currency: "MYR",
+        status: { in: ACTIVE_DEPOSIT_STATUSES },
+      },
+      orderBy: { created_at: "desc" },
+    });
+
+    if (reusableActive) {
+      return mapDepositResponse(reusableActive);
+    }
+
+    return createGatewayOrder(
+      actor,
+      {
+        purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+        organizationType: GatewayOrganizationType.INVESTOR,
+        amount: input.amount,
+        receiptPrefix: "dep",
+        notes: {
+          investorOrganizationId: input.investorOrganizationId,
+        },
         investorOrganizationId: input.investorOrganizationId,
       },
-      investorOrganizationId: input.investorOrganizationId,
-    },
-    db
-  );
+      tx
+    );
+  });
 }
 
 export async function getInvestorDeposit(
