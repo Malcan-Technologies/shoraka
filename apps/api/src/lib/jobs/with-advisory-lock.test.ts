@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { prisma } from "../prisma";
-import { withAdvisoryLock } from "./with-advisory-lock";
+import { closeAdvisoryLockPool, withAdvisoryLock } from "./with-advisory-lock";
 
 const describeIntegration = process.env.DATABASE_URL ? describe : describe.skip;
 
@@ -18,6 +18,7 @@ describeIntegration("withAdvisoryLock", () => {
 
   afterAll(async () => {
     await prisma.$disconnect();
+    await closeAdvisoryLockPool();
   });
 
   it("runs fn when lock is acquired", async () => {
@@ -63,11 +64,11 @@ describeIntegration("withAdvisoryLock", () => {
   });
 
   it("propagates database errors", async () => {
-    const failingClient = {
-      $transaction: jest.fn().mockRejectedValue(new Error("db unavailable")),
-    } as unknown as Pick<PrismaClient, "$transaction">;
+    const failingPool = {
+      connect: jest.fn().mockRejectedValue(new Error("db unavailable")),
+    };
 
-    await expect(withAdvisoryLock(9_999_004, async () => "ok", failingClient)).rejects.toThrow(
+    await expect(withAdvisoryLock(9_999_004, async () => "ok", failingPool)).rejects.toThrow(
       "db unavailable"
     );
   });

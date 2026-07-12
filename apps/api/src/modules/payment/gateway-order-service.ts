@@ -94,25 +94,45 @@ export async function createGatewayOrder(
     },
   });
 
-  const payment = await db.gatewayPayment.create({
-    data: {
-      purpose: params.purpose,
-      organization_type: params.organizationType,
-      gatewayAccount,
-      investor_organization_id: params.investorOrganizationId,
-      issuer_organization_id: params.issuerOrganizationId,
-      application_id: params.applicationId,
-      amount: new Prisma.Decimal(params.amount.toFixed(6)),
-      currency: "MYR",
-      status: GatewayPaymentStatus.CREATED,
-      curlec_order_id: order.id,
-      idempotency_key: params.idempotencyKey ?? `curlec:order:${order.id}`,
-      metadata: {
-        actorUserId: actor.userId,
-        receipt,
+  let payment: GatewayPayment;
+  try {
+    payment = await db.gatewayPayment.create({
+      data: {
+        purpose: params.purpose,
+        organization_type: params.organizationType,
+        gatewayAccount,
+        investor_organization_id: params.investorOrganizationId,
+        issuer_organization_id: params.issuerOrganizationId,
+        application_id: params.applicationId,
+        amount: new Prisma.Decimal(params.amount.toFixed(6)),
+        currency: "MYR",
+        status: GatewayPaymentStatus.CREATED,
+        curlec_order_id: order.id,
+        idempotency_key: params.idempotencyKey ?? `curlec:order:${order.id}`,
+        metadata: {
+          actorUserId: actor.userId,
+          receipt,
+        },
       },
-    },
-  });
+    });
+  } catch (error) {
+    logger.error(
+      {
+        purpose: params.purpose,
+        gatewayAccount,
+        curlecOrderId: order.id,
+        receipt,
+        idempotencyKey: params.idempotencyKey ?? null,
+        error: error instanceof Error ? error.message : String(error),
+      },
+      "Gateway order created remotely but local payment persistence failed"
+    );
+    throw new AppError(
+      500,
+      "GATEWAY_ORDER_PERSIST_FAILED",
+      "Gateway order was created but local payment persistence failed. Please retry with the same intent."
+    );
+  }
 
   logger.info(
     {
