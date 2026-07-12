@@ -14,7 +14,7 @@ import {
   getIssuerOnboardingFee,
 } from "./onboarding-fee-service";
 import { createCurlecClient } from "./curlec-client";
-import { processOnboardingFeeCapture } from "./webhook-service";
+import { processOnboardingFeeCapture, processStoredCurlecWebhook } from "./webhook-service";
 
 jest.mock("./curlec-client", () => {
   let orderCounter = 0;
@@ -56,6 +56,7 @@ const prisma = new PrismaClient();
 const describeIntegration = process.env.DATABASE_URL ? describe : describe.skip;
 
 describeIntegration("issuer onboarding fee (M8)", () => {
+  let curlecOrderCounter = 0;
   let migrated = false;
   let userId = "";
   let orgId = "";
@@ -65,7 +66,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
   const createdRegTankIds: string[] = [];
   const createdEventIds: string[] = [];
 
-  async function seedWebhookEvent(eventId: string) {
+  async function seedCaptureWebhookEvent(eventId: string, orderId: string, paymentId: string) {
     createdEventIds.push(eventId);
     await prisma.gatewayWebhookEvent.create({
       data: {
@@ -73,12 +74,56 @@ describeIntegration("issuer onboarding fee (M8)", () => {
         event_type: "payment.captured",
         payload: {
           event: "payment.captured",
-          payload: { payment: { entity: { id: "pay_stub", order_id: "order_stub" } } },
+          payload: { payment: { entity: { id: paymentId, order_id: orderId } } },
         },
         signature_valid: true,
       },
     });
   }
+
+  async function seedOrderPaidWebhookEvent(eventId: string, orderId: string) {
+    createdEventIds.push(eventId);
+    await prisma.gatewayWebhookEvent.create({
+      data: {
+        event_id: eventId,
+        event_type: "order.paid",
+        payload: {
+          event: "order.paid",
+          payload: { order: { entity: { id: orderId } } },
+        },
+        signature_valid: true,
+      },
+    });
+  }
+
+  function buildDefaultCurlecClient() {
+    return {
+      createOrder: jest.fn(async () => {
+        curlecOrderCounter += 1;
+        return {
+          id: `order_test_m8_${curlecOrderCounter}`,
+          amount: 15000,
+          currency: "MYR",
+          status: "created",
+        };
+      }),
+      fetchPayment: jest.fn(async (paymentId: string) => ({
+        id: paymentId,
+        amount: 15000,
+        currency: "MYR",
+        status: "captured",
+        method: "fpx",
+        order_id: null,
+      })),
+      fetchOrderPayments: jest.fn(async () => []),
+    };
+  }
+
+  beforeEach(() => {
+    const mockedCreateCurlecClient = createCurlecClient as jest.Mock;
+    mockedCreateCurlecClient.mockReset();
+    mockedCreateCurlecClient.mockImplementation(() => buildDefaultCurlecClient());
+  });
 
   beforeAll(async () => {
     try {
@@ -358,7 +403,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     const paymentId = `pay_m8_${Date.now()}`;
     const eventId = `evt_m8_${Date.now()}`;
 
-    await seedWebhookEvent(eventId);
+    await seedCaptureWebhookEvent(eventId, orderId, paymentId);
     await processOnboardingFeeCapture({ orderId, paymentId, eventId }, prisma);
 
     const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
@@ -379,7 +424,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     expect(ledgerCount).toBe(1);
 
     const replayEventId = `evt_m8_replay_${Date.now()}`;
-    await seedWebhookEvent(replayEventId);
+    await seedCaptureWebhookEvent(replayEventId, orderId, `pay_m8_replay_${Date.now()}`);
     await processOnboardingFeeCapture(
       {
         orderId,
@@ -411,7 +456,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     });
 
     const eventId = `evt_m8_expired_capture_${Date.now()}`;
-    await seedWebhookEvent(eventId);
+    await seedCaptureWebhookEvent(eventId, created.curlecOrderId, `pay_m8_expired_${Date.now()}`);
     await processOnboardingFeeCapture(
       { orderId: created.curlecOrderId, paymentId: `pay_m8_expired_${Date.now()}`, eventId },
       prisma
@@ -421,7 +466,11 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     expect(updated.status).toBe(GatewayPaymentStatus.COMPLETED);
 
     const replayEventId = `evt_m8_expired_capture_replay_${Date.now()}`;
-    await seedWebhookEvent(replayEventId);
+    await seedCaptureWebhookEvent(
+      replayEventId,
+      created.curlecOrderId,
+      `pay_m8_expired_replay_${Date.now()}`
+    );
     await processOnboardingFeeCapture(
       {
         orderId: created.curlecOrderId,
@@ -467,7 +516,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     });
 
     const eventId = `evt_m8_currency_mismatch_${Date.now()}`;
-    await seedWebhookEvent(eventId);
+    await seedCaptureWebhookEvent(eventId, created.curlecOrderId, `pay_m8_currency_${Date.now()}`);
     await processOnboardingFeeCapture(
       { orderId: created.curlecOrderId, paymentId: `pay_m8_currency_${Date.now()}`, eventId },
       prisma
@@ -507,7 +556,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     });
 
     const eventId = `evt_m8_order_mismatch_${Date.now()}`;
-    await seedWebhookEvent(eventId);
+    await seedCaptureWebhookEvent(eventId, created.curlecOrderId, `pay_m8_order_${Date.now()}`);
     await processOnboardingFeeCapture(
       { orderId: created.curlecOrderId, paymentId: `pay_m8_order_${Date.now()}`, eventId },
       prisma
@@ -515,6 +564,274 @@ describeIntegration("issuer onboarding fee (M8)", () => {
 
     const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
     expect(updated.status).toBe(GatewayPaymentStatus.EXPIRED);
+  });
+
+  it("normal order.paid completes an active CREATED onboarding fee payment", async () => {
+    if (!migrated) return;
+
+    await prisma.issuerOrganization.update({
+      where: { id: orgId },
+      data: { onboarding_fee_paid_at: null },
+    });
+
+    const created = await createIssuerOnboardingFee(
+      { userId },
+      { issuerOrganizationId: orgId },
+      prisma
+    );
+    createdPaymentIds.push(created.id);
+
+    const paymentId = `pay_m8_order_paid_${Date.now()}`;
+    const eventId = `evt_m8_order_paid_${Date.now()}`;
+    const mockedCreateCurlecClient = createCurlecClient as jest.Mock;
+    mockedCreateCurlecClient
+      .mockReturnValueOnce({
+        createOrder: jest.fn(),
+        fetchOrderPayments: jest.fn(async () => [
+          {
+            id: paymentId,
+            amount: 15000,
+            currency: "MYR",
+            status: "captured",
+            method: "fpx",
+            order_id: created.curlecOrderId,
+          },
+        ]),
+        fetchPayment: jest.fn(),
+      })
+      .mockReturnValueOnce({
+        createOrder: jest.fn(),
+        fetchOrderPayments: jest.fn(async () => []),
+        fetchPayment: jest.fn(async () => ({
+          id: paymentId,
+          amount: 15000,
+          currency: "MYR",
+          status: "captured",
+          method: "fpx",
+          order_id: created.curlecOrderId,
+        })),
+      });
+
+    await seedOrderPaidWebhookEvent(eventId, created.curlecOrderId);
+    await processStoredCurlecWebhook(eventId, prisma);
+
+    const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
+    expect(updated.status).toBe(GatewayPaymentStatus.COMPLETED);
+  });
+
+  it("order.paid after local EXPIRED recovers once when amount/currency/order/payment match", async () => {
+    if (!migrated) return;
+
+    const created = await createIssuerOnboardingFee(
+      { userId },
+      { issuerOrganizationId: orgId },
+      prisma
+    );
+    createdPaymentIds.push(created.id);
+    await prisma.gatewayPayment.update({
+      where: { id: created.id },
+      data: { status: GatewayPaymentStatus.EXPIRED },
+    });
+
+    const paymentId = `pay_m8_order_paid_expired_${Date.now()}`;
+    const eventId = `evt_m8_order_paid_expired_${Date.now()}`;
+    const replayEventId = `evt_m8_order_paid_expired_replay_${Date.now()}`;
+    const mockedCreateCurlecClient = createCurlecClient as jest.Mock;
+    mockedCreateCurlecClient
+      .mockReturnValueOnce({
+        createOrder: jest.fn(),
+        fetchOrderPayments: jest.fn(async () => [
+          {
+            id: paymentId,
+            amount: 15000,
+            currency: "MYR",
+            status: "captured",
+            method: "fpx",
+            order_id: created.curlecOrderId,
+          },
+        ]),
+        fetchPayment: jest.fn(),
+      })
+      .mockReturnValueOnce({
+        createOrder: jest.fn(),
+        fetchOrderPayments: jest.fn(async () => []),
+        fetchPayment: jest.fn(async () => ({
+          id: paymentId,
+          amount: 15000,
+          currency: "MYR",
+          status: "captured",
+          method: "fpx",
+          order_id: created.curlecOrderId,
+        })),
+      });
+
+    await seedOrderPaidWebhookEvent(eventId, created.curlecOrderId);
+    await processStoredCurlecWebhook(eventId, prisma);
+
+    const afterFirst = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
+    expect(afterFirst.status).toBe(GatewayPaymentStatus.COMPLETED);
+
+    await seedOrderPaidWebhookEvent(replayEventId, created.curlecOrderId);
+    await processStoredCurlecWebhook(replayEventId, prisma);
+
+    const ledgerCount = await prisma.noteLedgerEntry.count({
+      where: { idempotency_key: `gateway-onboarding-fee:ledger:${created.id}` },
+    });
+    expect(ledgerCount).toBe(1);
+  });
+
+  it("payment.captured followed by order.paid for the same curlec_payment_id does not process twice", async () => {
+    if (!migrated) return;
+
+    const created = await createIssuerOnboardingFee(
+      { userId },
+      { issuerOrganizationId: orgId },
+      prisma
+    );
+    createdPaymentIds.push(created.id);
+
+    const paymentId = `pay_m8_sequence_1_${Date.now()}`;
+    const captureEventId = `evt_m8_sequence_capture_${Date.now()}`;
+    const orderPaidEventId = `evt_m8_sequence_order_paid_${Date.now()}`;
+    await seedCaptureWebhookEvent(captureEventId, created.curlecOrderId, paymentId);
+    await processStoredCurlecWebhook(captureEventId, prisma);
+
+    const mockedCreateCurlecClient = createCurlecClient as jest.Mock;
+    mockedCreateCurlecClient.mockReturnValueOnce({
+      createOrder: jest.fn(),
+      fetchOrderPayments: jest.fn(async () => [
+        {
+          id: paymentId,
+          amount: 15000,
+          currency: "MYR",
+          status: "captured",
+          method: "fpx",
+          order_id: created.curlecOrderId,
+        },
+      ]),
+      fetchPayment: jest.fn(),
+    });
+    await seedOrderPaidWebhookEvent(orderPaidEventId, created.curlecOrderId);
+    await processStoredCurlecWebhook(orderPaidEventId, prisma);
+
+    const ledgerCount = await prisma.noteLedgerEntry.count({
+      where: { idempotency_key: `gateway-onboarding-fee:ledger:${created.id}` },
+    });
+    expect(ledgerCount).toBe(1);
+  });
+
+  it("order.paid followed by payment.captured for the same curlec_payment_id does not process twice", async () => {
+    if (!migrated) return;
+
+    const created = await createIssuerOnboardingFee(
+      { userId },
+      { issuerOrganizationId: orgId },
+      prisma
+    );
+    createdPaymentIds.push(created.id);
+
+    const paymentId = `pay_m8_sequence_2_${Date.now()}`;
+    const orderPaidEventId = `evt_m8_sequence_order_paid_first_${Date.now()}`;
+    const captureEventId = `evt_m8_sequence_capture_second_${Date.now()}`;
+    const mockedCreateCurlecClient = createCurlecClient as jest.Mock;
+    mockedCreateCurlecClient
+      .mockReturnValueOnce({
+        createOrder: jest.fn(),
+        fetchOrderPayments: jest.fn(async () => [
+          {
+            id: paymentId,
+            amount: 15000,
+            currency: "MYR",
+            status: "captured",
+            method: "fpx",
+            order_id: created.curlecOrderId,
+          },
+        ]),
+        fetchPayment: jest.fn(),
+      })
+      .mockReturnValueOnce({
+        createOrder: jest.fn(),
+        fetchOrderPayments: jest.fn(async () => []),
+        fetchPayment: jest.fn(async () => ({
+          id: paymentId,
+          amount: 15000,
+          currency: "MYR",
+          status: "captured",
+          method: "fpx",
+          order_id: created.curlecOrderId,
+        })),
+      });
+
+    await seedOrderPaidWebhookEvent(orderPaidEventId, created.curlecOrderId);
+    await processStoredCurlecWebhook(orderPaidEventId, prisma);
+    await seedCaptureWebhookEvent(captureEventId, created.curlecOrderId, paymentId);
+    await processStoredCurlecWebhook(captureEventId, prisma);
+
+    const ledgerCount = await prisma.noteLedgerEntry.count({
+      where: { idempotency_key: `gateway-onboarding-fee:ledger:${created.id}` },
+    });
+    expect(ledgerCount).toBe(1);
+  });
+
+  it("order.paid with wrong amount/currency/order is rejected or held safely", async () => {
+    if (!migrated) return;
+
+    await prisma.issuerOrganization.update({
+      where: { id: orgId },
+      data: { onboarding_fee_paid_at: null },
+    });
+    await prisma.gatewayPayment.updateMany({
+      where: {
+        issuer_organization_id: orgId,
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        status: GatewayPaymentStatus.COMPLETED,
+      },
+      data: { status: GatewayPaymentStatus.FAILED },
+    });
+
+    const created = await createIssuerOnboardingFee(
+      { userId },
+      { issuerOrganizationId: orgId },
+      prisma
+    );
+    createdPaymentIds.push(created.id);
+
+    const paymentId = `pay_m8_order_paid_bad_${Date.now()}`;
+    const eventId = `evt_m8_order_paid_bad_${Date.now()}`;
+    const mockedCreateCurlecClient = createCurlecClient as jest.Mock;
+    mockedCreateCurlecClient
+      .mockReturnValueOnce({
+        createOrder: jest.fn(),
+        fetchOrderPayments: jest.fn(async () => [
+          {
+            id: paymentId,
+            amount: 14999,
+            currency: "USD",
+            status: "captured",
+            method: "fpx",
+            order_id: `wrong_${created.curlecOrderId}`,
+          },
+        ]),
+        fetchPayment: jest.fn(),
+      })
+      .mockReturnValueOnce({
+        createOrder: jest.fn(),
+        fetchOrderPayments: jest.fn(async () => []),
+        fetchPayment: jest.fn(async () => ({
+          id: paymentId,
+          amount: 14999,
+          currency: "USD",
+          status: "captured",
+          method: "fpx",
+          order_id: `wrong_${created.curlecOrderId}`,
+        })),
+      });
+
+    await seedOrderPaidWebhookEvent(eventId, created.curlecOrderId);
+    await processStoredCurlecWebhook(eventId, prisma);
+
+    const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
+    expect(updated.status).not.toBe(GatewayPaymentStatus.COMPLETED);
   });
 
   it("blocks startCorporateOnboarding when onboarding fee is unpaid (new path)", async () => {
