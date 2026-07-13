@@ -508,35 +508,43 @@ export function SupportingDocumentsStep({
         (cat) => cat.name === savedCategory.name
       );
       if (categoryIndex === -1) return;
+      const displayDocs = categories[categoryIndex].documents;
 
-      savedCategory.documents.forEach(
-        (savedDocument, documentIndex: number) => {
+      savedCategory.documents.forEach((savedDocument, savedIndex: number) => {
+        // Match filtered display slots by workflow index (timingFilter may drop rows).
+        const workflowIdx =
+          typeof savedDocument.workflow_document_index === "number"
+            ? savedDocument.workflow_document_index
+            : savedIndex;
+        const documentIndex = displayDocs.findIndex(
+          (doc) => doc.workflowDocumentIndex === workflowIdx
+        );
+        if (documentIndex === -1) return;
 
-          const key = `${categoryIndex}-${documentIndex}`;
+        const key = `${categoryIndex}-${documentIndex}`;
 
-          const list = Array.isArray(savedDocument.files)
-            ? savedDocument.files
-            : savedDocument.file
-              ? [savedDocument.file]
-              : [];
-          const normalized = list
-            .filter(
-              (f): f is SavedFileRef & { s3_key: string; file_name: string } =>
-                isRecord(f) &&
-                typeof f.s3_key === "string" &&
-                typeof f.file_name === "string"
-            )
-            .map((f) => ({
-              name: f.file_name,
-              size: f.file_size ?? 0,
-              uploadedAt: f.uploaded_at ?? new Date().toISOString(),
-              s3_key: f.s3_key,
-            }));
-          if (normalized.length > 0) {
-            loadedFiles[key] = sortUploadRecordsNewestFirst(normalized);
-          }
+        const list = Array.isArray(savedDocument.files)
+          ? savedDocument.files
+          : savedDocument.file
+            ? [savedDocument.file]
+            : [];
+        const normalized = list
+          .filter(
+            (f): f is SavedFileRef & { s3_key: string; file_name: string } =>
+              isRecord(f) &&
+              typeof f.s3_key === "string" &&
+              typeof f.file_name === "string"
+          )
+          .map((f) => ({
+            name: f.file_name,
+            size: f.file_size ?? 0,
+            uploadedAt: f.uploaded_at ?? new Date().toISOString(),
+            s3_key: f.s3_key,
+          }));
+        if (normalized.length > 0) {
+          loadedFiles[key] = sortUploadRecordsNewestFirst(normalized);
         }
-      );
+      });
     });
 
 
@@ -999,7 +1007,8 @@ export function SupportingDocumentsStep({
                             isItemFlagged && applicationFlowAmendmentTargetTableRowClassName
                           )}
                         >
-                          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,17rem)_1fr] lg:gap-x-4 lg:items-start">
+                          {/* Stack title + controls — nested lg: side-by-side grids collapse the file chip inside Review Offer modal. */}
+                          <div className="grid grid-cols-1 gap-3">
                             <div className="min-w-0 space-y-1.5">
                               <div>
                                 <h3
@@ -1061,8 +1070,8 @@ export function SupportingDocumentsStep({
                               ) : null}
                             </div>
 
-                            <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:gap-3 lg:items-start">
-                              <div className="min-w-0 flex-1 flex flex-col gap-2 max-w-[min(100%,26rem)] lg:max-w-[min(100%,28rem)]">
+                            <div className="flex min-w-0 flex-col gap-3">
+                              <div className="min-w-0 w-full flex flex-col gap-2">
                               {fileIsUploading ? (
                                 <p className="text-sm text-muted-foreground">Uploading…</p>
                               ) : hasFiles ? (
@@ -1102,7 +1111,7 @@ export function SupportingDocumentsStep({
                               ) : null}
                               </div>
 
-                            <div className="flex flex-col gap-1 w-full min-w-0 border-t border-border pt-3 lg:self-start lg:border-t-0 lg:pt-0 lg:min-w-[12rem] lg:w-[12rem] lg:shrink-0 lg:border-l lg:border-border lg:pl-3">
+                            <div className="flex flex-col gap-1 w-full min-w-0 border-t border-border pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1 sm:border-t-0 sm:pt-0">
                               {templateS3Key ? (
                                 <button
                                   type="button"
@@ -1170,6 +1179,37 @@ export function SupportingDocumentsStep({
                                     {mode === "multiple" ? "Upload files" : "Upload file"}
                                   </span>
                                 )
+                              ) : null}
+
+                              {mode === "single" && hasFiles ? (
+                                fileIsUploading ? (
+                                  <span
+                                    className={cn(supportingDocActionLink, supportingDocActionOff)}
+                                  >
+                                    <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
+                                    Uploading…
+                                  </span>
+                                ) : isEditable ? (
+                                  <label
+                                    htmlFor={`file-${key}-replace`}
+                                    className={cn(
+                                      supportingDocActionLink,
+                                      supportingDocUploadOn
+                                    )}
+                                  >
+                                    <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
+                                    Replace file
+                                    <Input
+                                      id={`file-${key}-replace`}
+                                      type="file"
+                                      accept={acceptAttr}
+                                      onChange={(e) =>
+                                        handleFileChange(categoryIndex, documentIndex, e)
+                                      }
+                                      className="hidden"
+                                    />
+                                  </label>
+                                ) : null
                               ) : null}
 
                               {mode === "multiple" && hasFiles ? (

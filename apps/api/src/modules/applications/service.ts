@@ -344,29 +344,65 @@ export class ApplicationService {
     return invoices.some((invoice) => invoice.status === InvoiceStatus.OFFER_SENT);
   }
 
-  private verifyPostApplicationSupportingDocumentsEditable(application: Application | null): void {
-    if (!this.hasOfferBeenSent(application)) {
-      throw new AppError(403, "EDIT_NOT_ALLOWED", "Post-application documents can be uploaded after an offer is sent");
+  private async assertPostApplicationPrepUnlocked(applicationId: string): Promise<void> {
+    const lockedEnvelope = await prisma.signingEnvelope.findFirst({
+      where: {
+        application_id: applicationId,
+        status: { in: ["SENT", "IN_PROGRESS", "COMPLETED"] },
+      },
+      select: { id: true },
+    });
+    if (lockedEnvelope) {
+      throw new AppError(
+        403,
+        "SIGNING_PREP_LOCKED",
+        "Post-application documents are locked after the signing package is sent. Void the package to make changes."
+      );
     }
   }
 
-  private verifyApplicationStepEditable(application: Application | null, fieldName: string | null): void {
+  private async verifyPostApplicationSupportingDocumentsEditable(
+    application: Application | null
+  ): Promise<void> {
+    if (!this.hasOfferBeenSent(application)) {
+      throw new AppError(
+        403,
+        "EDIT_NOT_ALLOWED",
+        "Post-application documents can be uploaded after an offer is sent"
+      );
+    }
+    if (application) {
+      await this.assertPostApplicationPrepUnlocked(application.id);
+    }
+  }
+
+  private async verifyApplicationStepEditable(
+    application: Application | null,
+    fieldName: string | null
+  ): Promise<void> {
     if (!application) return;
     const status = (application as { status?: string }).status;
-    if (status === ApplicationStatus.DRAFT || status === ApplicationStatus.AMENDMENT_REQUESTED) return;
+    if (status === ApplicationStatus.DRAFT || status === ApplicationStatus.AMENDMENT_REQUESTED) {
+      return;
+    }
     if (fieldName === "supporting_documents") {
-      this.verifyPostApplicationSupportingDocumentsEditable(application);
+      await this.verifyPostApplicationSupportingDocumentsEditable(application);
       return;
     }
     throw new AppError(403, "EDIT_NOT_ALLOWED", "Application cannot be edited in its current status");
   }
 
   private async getProductWorkflowForApplication(application: Application | null): Promise<unknown[]> {
-    const productId = (application?.financing_type as { product_id?: string } | null | undefined)?.product_id;
+    const productId = (application?.financing_type as { product_id?: string } | null | undefined)
+      ?.product_id;
     if (!productId || typeof productId !== "string") {
       throw new AppError(400, "VALIDATION_ERROR", "Application has no product for document upload");
     }
-    const product = await this.productRepository.findById(productId);
+    const productVersion = (application as { product_version?: number | null } | null)?.product_version;
+    const product =
+      productVersion != null
+        ? await this.productRepository.findByBaseAndVersion(productId, productVersion)
+        : await this.productRepository.findById(productId);
     if (!product) {
       throw new AppError(400, "VALIDATION_ERROR", "Product not found");
     }
@@ -652,7 +688,7 @@ export class ApplicationService {
     }
 
     const fieldName = this.getFieldNameForStepId(input.stepId);
-    this.verifyApplicationStepEditable(application, fieldName);
+    await this.verifyApplicationStepEditable(application, fieldName);
     if (!fieldName) {
       // For steps like contract_details and invoice_details that manage their own saves,
       // just update the last_completed_step without saving data to Application
@@ -1094,7 +1130,7 @@ export class ApplicationService {
         params.supportingDocIndex!
       );
       if (uploadTiming === "post_application") {
-        this.verifyPostApplicationSupportingDocumentsEditable(application);
+        await this.verifyPostApplicationSupportingDocumentsEditable(application);
       } else {
         this.verifyApplicationEditable(application);
       }
@@ -1160,19 +1196,39 @@ export class ApplicationService {
   /**
    * Delete an application document from S3.
    * Access and amendment checks performed here; S3 deletion delegated to documents service.
+   * Post-offer supporting-doc removals are allowed while signing prep is unlocked (NAV-03/04).
    */
   async deleteDocument(applicationId: string, s3Key: string, userId: string): Promise<void> {
     await this.verifyApplicationAccess(applicationId, userId);
     const application = await this.repository.findById(applicationId);
-    this.verifyApplicationEditable(application);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
 
-    if ((application as any).status === "AMENDMENT_REQUESTED") {
-      const { allowedSections } = await getAmendmentAllowedSections(applicationId);
-      const canRemoveAppUploadedFile =
-        allowedSections.has("supporting_documents") || allowedSections.has("business_details");
-      if (!canRemoveAppUploadedFile) {
-        throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
+    const status = (application as { status?: string }).status;
+    if (status === ApplicationStatus.DRAFT || status === ApplicationStatus.AMENDMENT_REQUESTED) {
+      if (status === ApplicationStatus.AMENDMENT_REQUESTED) {
+        const { allowedSections } = await getAmendmentAllowedSections(applicationId);
+        const canRemoveAppUploadedFile =
+          allowedSections.has("supporting_documents") || allowedSections.has("business_details");
+        if (!canRemoveAppUploadedFile) {
+          throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
+        }
       }
+    } else if (this.hasOfferBeenSent(application)) {
+      const supportingKeys = this.extractS3KeysFromSupportingDocuments(
+        application.supporting_documents
+      );
+      if (!supportingKeys.has(s3Key)) {
+        throw new AppError(
+          403,
+          "EDIT_NOT_ALLOWED",
+          "Only uploaded supporting documents can be removed after an offer is sent"
+        );
+      }
+      await this.assertPostApplicationPrepUnlocked(applicationId);
+    } else {
+      throw new AppError(403, "EDIT_NOT_ALLOWED", "Application cannot be edited in its current status");
     }
 
     if (shouldPreserveApplicationDocumentsInS3((application as { status?: string })?.status)) {

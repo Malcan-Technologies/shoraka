@@ -97,7 +97,11 @@ export const SIGNING_TEMPLATE_WORKFLOW_KEY = "signing_template";
 /** System template key for the placeholder guarantor agreement document. */
 export const GUARANTOR_AGREEMENT_TEMPLATE_KEY = "guarantor_agreement";
 
-/** Links a product post_application supporting doc step to the signing package. */
+/**
+ * Legacy shape: post-application supporting docs used to be linked into the
+ * signing package for signatures. Product rule is now upload-and-store only
+ * (review UI deferred) — refs are parsed then discarded by sanitize.
+ */
 export interface SigningTemplateSupportingDocRef {
   /** Workflow step key from the product supporting_documents config. */
   step_key: string;
@@ -140,7 +144,7 @@ export interface SigningTemplateDocument {
   template?: { s3_key: string; file_name: string; file_size?: number };
   /** Role keys whose bound people must sign this document. */
   signer_role_keys: string[];
-  /** When source is ISSUER_UPLOAD, links to a product post_application supporting doc step. */
+  /** Legacy: ISSUER_UPLOAD docs are no longer planned from supporting_docs refs. */
   supporting_doc_step_key?: string;
 }
 
@@ -148,7 +152,10 @@ export interface SigningTemplateConfig {
   enabled: boolean;
   roles: SigningTemplateRole[];
   documents: SigningTemplateDocument[];
-  /** Post-application supporting docs that require signature in the envelope. */
+  /**
+   * Always empty after sanitize. Post-application supporting docs are uploaded
+   * and stored outside the signing package — not signed in the envelope.
+   */
   supporting_docs?: SigningTemplateSupportingDocRef[];
 }
 
@@ -317,14 +324,11 @@ export function sanitizeSigningTemplateConfig(config: SigningTemplateConfig): Si
     signer_role_keys: remapRoleKeys(doc.signer_role_keys),
   }));
 
-  const supporting_docs = (config.supporting_docs ?? []).map((ref) => ({
-    ...ref,
-    signer_role_keys: remapRoleKeys(ref.signer_role_keys),
-  }));
+  // Drop legacy supporting_docs links — post-app uploads are store-only, not signed.
+  const supporting_docs: SigningTemplateSupportingDocRef[] = [];
 
   const usedRoleKeys = new Set<SigningRoleKey>([
     ...documents.flatMap((doc) => doc.signer_role_keys),
-    ...supporting_docs.flatMap((ref) => ref.signer_role_keys),
   ]);
 
   const mergedRoles = new Map<SigningRoleKey, SigningTemplateRole>();
@@ -379,8 +383,8 @@ export function validateSigningTemplateConfig(config: SigningTemplateConfig): st
   if (!config.enabled) return errors;
 
   if (config.roles.length === 0) errors.push("Signing: add at least one signer role.");
-  if (config.documents.length === 0 && (config.supporting_docs?.length ?? 0) === 0) {
-    errors.push("Signing: add at least one document or post-application supporting doc.");
+  if (config.documents.length === 0) {
+    errors.push("Signing: add at least one document.");
   }
 
   const roleKeys = new Set<string>();
@@ -417,19 +421,6 @@ export function validateSigningTemplateConfig(config: SigningTemplateConfig): st
         );
       }
       docSignerRoleKeys.add(roleKey);
-    }
-  }
-
-  for (const ref of config.supporting_docs ?? []) {
-    if (ref.signer_role_keys.length === 0) {
-      errors.push(`Signing: supporting doc "${ref.label}" has no assigned signer role.`);
-    }
-    for (const roleKey of ref.signer_role_keys) {
-      if (!roleKeys.has(roleKey)) {
-        errors.push(
-          `Signing: supporting doc "${ref.label}" references unknown role "${roleKey}".`
-        );
-      }
     }
   }
 
@@ -575,7 +566,8 @@ export function validateRecipientBindings(
 export function buildEnvelopePlanFromTemplate(
   template: SigningTemplateConfig,
   bindings: RecipientBinding[],
-  options?: { issuerUploadS3Keys?: Map<string, string> }
+  // Kept for call-site compat; issuer uploads are no longer planned into envelopes.
+  _options?: { issuerUploadS3Keys?: Map<string, string> }
 ): EnvelopePlan {
   const roleByKey = new Map(template.roles.map((r) => [r.key, r]));
   const perRoleIndex = new Map<string, number>();
@@ -620,23 +612,8 @@ export function buildEnvelopePlanFromTemplate(
       supporting_doc_step_key: doc.supporting_doc_step_key,
     }));
 
-  const supportingDocDocuments: PlannedDocument[] = (template.supporting_docs ?? []).map(
-    (ref, index) => {
-      const s3Key = options?.issuerUploadS3Keys?.get(ref.step_key);
-      return {
-        ref: `supporting_${ref.step_key}`,
-        key: `supporting_${ref.step_key}`,
-        name: ref.label,
-        source: "ISSUER_UPLOAD" as const,
-        required: ref.required,
-        order: templateDocuments.length + index,
-        template: s3Key ? { s3_key: s3Key, file_name: `${ref.label}.pdf` } : undefined,
-        supporting_doc_step_key: ref.step_key,
-      };
-    }
-  );
-
-  const documents = [...templateDocuments, ...supportingDocDocuments];
+  // Post-application supporting docs are stored on the application, not planned into the envelope.
+  const documents = templateDocuments;
 
   const assignments: PlannedAssignment[] = [];
   for (const doc of template.documents) {
@@ -646,18 +623,6 @@ export function buildEnvelopePlanFromTemplate(
           document_ref: doc.key,
           recipient_ref: recipient.ref,
           required: doc.required,
-          action: "SIGN",
-        });
-      }
-    }
-  }
-  for (const ref of template.supporting_docs ?? []) {
-    for (const roleKey of ref.signer_role_keys) {
-      for (const recipient of recipientsByRole.get(roleKey) ?? []) {
-        assignments.push({
-          document_ref: `supporting_${ref.step_key}`,
-          recipient_ref: recipient.ref,
-          required: ref.required,
           action: "SIGN",
         });
       }

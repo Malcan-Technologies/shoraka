@@ -454,6 +454,7 @@ export class SigningService {
     if (activeEnvelope) {
       throw new AppError(409, "SIGNING_ENVELOPE_EXISTS", "This application already has an active signing package.");
     }
+    await this.assertPostApplicationDocumentsReady(application);
     const workflow = await this.getProductWorkflowForApplication(application);
     const template = this.readSigningTemplateFromWorkflow(workflow);
     const { contractId, invoiceId } = this.resolveEnvelopeTarget({

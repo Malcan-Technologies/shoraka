@@ -4,6 +4,35 @@ export type SigningOfferStepId = "documents" | "signers" | "signing" | "complete
 
 type StepShell = Omit<SigningOfferStep, "status">;
 
+/** Locate supporting_documents step on a frozen product workflow array. */
+export function findSupportingDocumentsStepConfig(
+  workflow: unknown
+): { config?: Record<string, unknown> } | undefined {
+  if (!Array.isArray(workflow)) return undefined;
+  return workflow.find((step) => {
+    const id = String((step as { id?: unknown })?.id ?? "");
+    return id === "supporting_documents" || id.startsWith("supporting_documents_");
+  }) as { config?: Record<string, unknown> } | undefined;
+}
+
+/** True only when frozen supporting_documents config has ≥1 post_application row. */
+export function hasPostApplicationDocuments(
+  stepConfig: { config?: Record<string, unknown> } | undefined
+): boolean {
+  const config = stepConfig?.config;
+  if (!config || typeof config !== "object") return false;
+  return Object.entries(config).some(([key, value]) => {
+    if (key === "enabled_categories" || !Array.isArray(value)) return false;
+    return value.some((row) => {
+      const timing =
+        row && typeof row === "object"
+          ? (row as Record<string, unknown>).upload_timing
+          : undefined;
+      return timing === "post_application";
+    });
+  });
+}
+
 function stepShells(hasPostDocs: boolean): StepShell[] {
   const shells: StepShell[] = [];
   if (hasPostDocs) {
@@ -74,4 +103,36 @@ export function getSigningOfferSteps(input: {
     }
     return { ...shell, status };
   });
+}
+
+/** Index of stepId in shell order; -1 when absent (e.g. documents with hasPostDocs false). */
+export function getSigningOfferStepIndex(
+  stepId: string,
+  hasPostDocs: boolean
+): number {
+  return stepShells(hasPostDocs).findIndex((s) => s.id === stepId);
+}
+
+/** Negative if a before b, 0 if equal, positive if a after b (shell order). */
+export function compareSigningOfferStepOrder(
+  a: string,
+  b: string,
+  hasPostDocs: boolean
+): number {
+  return getSigningOfferStepIndex(a, hasPostDocs) - getSigningOfferStepIndex(b, hasPostDocs);
+}
+
+/**
+ * True when stepId is at or before the domain cursor in shell order.
+ * Unknown / absent ids (e.g. documents when !hasPostDocs) are unreachable.
+ */
+export function isSigningOfferStepReachable(
+  stepId: string,
+  currentDomainStepId: SigningOfferStepId,
+  hasPostDocs: boolean
+): boolean {
+  const stepIdx = getSigningOfferStepIndex(stepId, hasPostDocs);
+  const currentIdx = getSigningOfferStepIndex(currentDomainStepId, hasPostDocs);
+  if (stepIdx < 0 || currentIdx < 0) return false;
+  return stepIdx <= currentIdx;
 }

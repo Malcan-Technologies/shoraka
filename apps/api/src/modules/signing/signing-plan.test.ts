@@ -138,6 +138,36 @@ describe("parseSigningTemplateConfig", () => {
     expect(cfg.documents[1]?.signer_role_keys).toEqual(["guarantor"]);
     expect(cfg.roles.some((role) => role.key === "guarantor")).toBe(true);
   });
+
+  it("discards legacy supporting_docs links (post-app uploads are store-only)", () => {
+    const cfg = parseSigningTemplateConfig({
+      enabled: true,
+      roles: [{ key: "issuer_director", label: "Director" }],
+      documents: [
+        {
+          key: "offer_letter",
+          name: "Offer letter",
+          source: "GENERATED_OFFER_LETTER",
+          order: 0,
+          signer_role_keys: ["issuer_director"],
+        },
+      ],
+      supporting_docs: [
+        {
+          step_key: "financial:0",
+          label: "Board Resolution",
+          required: true,
+          signer_role_keys: ["issuer_director"],
+        },
+      ],
+    });
+    expect(cfg.supporting_docs).toEqual([]);
+    const plan = buildEnvelopePlanFromTemplate(cfg, [
+      { role_key: "issuer_director", name: "Ali", email: "ali@co.my", ic_number: SAMPLE_IC },
+    ]);
+    expect(plan.documents.map((d) => d.key)).toEqual(["offer_letter"]);
+    expect(plan.documents.some((d) => d.key.startsWith("supporting_"))).toBe(false);
+  });
 });
 
 describe("validateSigningTemplateConfig", () => {

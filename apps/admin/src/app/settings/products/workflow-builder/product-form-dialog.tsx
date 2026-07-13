@@ -62,7 +62,7 @@ import { INPUT_CLASS, SELECT_TRIGGER_CLASS, FIELD_GAP } from "./product-form-inp
 import { AlertTriangle } from "lucide-react";
 import { WorkflowStepCard } from "./workflow-step-card";
 import { StepConfigEditor } from "./step-configs/step-config-editor";
-import { SigningPackageConfig, type PostApplicationDocOption } from "./step-configs/signing-package-config";
+import { SigningPackageConfig } from "./step-configs/signing-package-config";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { SIGNING_TEMPLATE_WORKFLOW_KEY, parseSigningTemplateConfig, type SigningTemplateConfig } from "@cashsouk/types";
@@ -271,34 +271,6 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       })
     );
   }, []);
-
-  const postApplicationDocOptions = useMemo((): PostApplicationDocOption[] => {
-    const supportingStep = steps.find(
-      (step) => getStepKeyFromStepId(getStepId(step)) === SUPPORTING_DOCS_STEP_KEY
-    ) as { config?: Record<string, unknown> } | undefined;
-    const config = supportingStep?.config;
-    if (!config || typeof config !== "object") return [];
-    const options: PostApplicationDocOption[] = [];
-    for (const [categoryKey, rows] of Object.entries(config)) {
-      if (categoryKey === "enabled_categories" || !Array.isArray(rows)) continue;
-      rows.forEach((row, docIndex) => {
-        const timing =
-          row && typeof row === "object"
-            ? (row as Record<string, unknown>).upload_timing
-            : undefined;
-        if (timing !== "post_application") return;
-        const name =
-          row && typeof row === "object" && typeof (row as Record<string, unknown>).name === "string"
-            ? String((row as Record<string, unknown>).name).trim()
-            : "Document";
-        options.push({
-          step_key: `${categoryKey}:${docIndex}`,
-          label: name,
-        });
-      });
-    }
-    return options;
-  }, [steps]);
 
   /** Upload pending image to S3 and write s3Key into the financing type step. Mutates nextSteps. Returns s3Key if uploaded. */
   const uploadImageAndMerge = async (
@@ -886,7 +858,6 @@ const hasChanges = !isEdit
               <SigningPackageConfig
                 config={getSigningTemplateConfig()}
                 onChange={handleSigningTemplateChange}
-                postApplicationDocs={postApplicationDocOptions}
               />
 
               {/* Offer settings — below workflow steps, card layout to match workflow container */}

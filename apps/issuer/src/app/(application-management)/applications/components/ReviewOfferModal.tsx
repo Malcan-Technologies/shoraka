@@ -28,12 +28,12 @@ import { useContract } from "@/hooks/use-contracts";
 import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import { useAcceptInvoiceOffer, useRejectContractOffer, useRejectInvoiceOffer, useApplication } from "@/hooks/use-applications";
 import { SupportingDocumentsStep } from "@/app/(application-flow)/applications/steps/supporting-documents-step";
+import { SupportingDocumentsSkeleton } from "@/app/(application-flow)/applications/components/supporting-documents-skeleton";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
-  ArrowUpTrayIcon,
   CalendarDaysIcon,
   CheckCircleIcon,
   DocumentTextIcon,
@@ -66,7 +66,10 @@ import { SigningProgressMatrix } from "@/components/signing/signing-progress-mat
 import { SigningProgressStepper } from "@/components/signing/signing-progress-stepper";
 import {
   getCurrentSigningOfferStepId,
+  findSupportingDocumentsStepConfig,
   getSigningOfferSteps,
+  hasPostApplicationDocuments,
+  isSigningOfferStepReachable,
   type SigningOfferStepId,
 } from "@/lib/signing-offer-steps";
 import { Badge } from "@/components/ui/badge";
@@ -110,7 +113,6 @@ const DECLINE_CONTEXT_MAX = 200;
 type PostApplicationDocsState = {
   areAllFilesUploaded: boolean;
   hasPendingChanges: boolean;
-  saveFunction?: () => Promise<unknown>;
 };
 
 function formatDateOrDash(value: string | null | undefined): string {
@@ -153,29 +155,6 @@ function getApiErrorDetails(
     code: null,
     message: fallback,
   };
-}
-
-function findSupportingDocumentsStepConfig(workflow: unknown): { config?: Record<string, unknown> } | undefined {
-  if (!Array.isArray(workflow)) return undefined;
-  return workflow.find((step) => {
-    const id = String((step as { id?: unknown })?.id ?? "");
-    return id === "supporting_documents" || id.startsWith("supporting_documents_");
-  }) as { config?: Record<string, unknown> } | undefined;
-}
-
-function hasPostApplicationDocuments(stepConfig: { config?: Record<string, unknown> } | undefined): boolean {
-  const config = stepConfig?.config;
-  if (!config || typeof config !== "object") return false;
-  return Object.entries(config).some(([key, value]) => {
-    if (key === "enabled_categories" || !Array.isArray(value)) return false;
-    return value.some((row) => {
-      const timing =
-        row && typeof row === "object"
-          ? (row as Record<string, unknown>).upload_timing
-          : undefined;
-      return timing === "post_application";
-    });
-  });
 }
 
 function readSigningTemplate(workflow: unknown): SigningTemplateConfig {
@@ -491,14 +470,6 @@ function signingDocumentGroups(template: SigningTemplateConfig): SigningDocument
     name: doc.name,
     roleKeys: doc.signer_role_keys,
   }));
-  for (const ref of template.supporting_docs ?? []) {
-    if (groups.some((group) => group.key === ref.step_key)) continue;
-    groups.push({
-      key: ref.step_key,
-      name: ref.label,
-      roleKeys: ref.signer_role_keys,
-    });
-  }
   // Roles with no document mapping still need a place to configure signers.
   const covered = new Set(groups.flatMap((group) => group.roleKeys));
   const uncovered = template.roles.filter((role) => !covered.has(role.key));
@@ -577,7 +548,8 @@ function findActiveSigningEnvelope(
 ): SigningEnvelopeDto | null {
   return (
     envelopes.find((envelope) => {
-      if (["VOIDED", "DECLINED", "EXPIRED", "COMPLETED"].includes(envelope.status)) return false;
+      // VOIDED/DECLINED/EXPIRED unlock prep; COMPLETED stays locked for review (NAV-03/NAV-04).
+      if (["VOIDED", "DECLINED", "EXPIRED"].includes(envelope.status)) return false;
       if (offerType === "contract") return envelope.contract_id === (contractId ?? null);
       return envelope.invoice_id === invoiceId;
     }) ?? null
@@ -722,11 +694,33 @@ export function ReviewOfferModal({
     areAllFilesUploaded: false,
     hasPendingChanges: false,
   });
+  // Keep save fn in a ref so SupportingDocumentsStep's onDataChange can stay stable
+  // (inline setState + changing saveFunction identity caused max update depth).
+  const postDocsSaveRef = React.useRef<(() => Promise<unknown>) | undefined>(undefined);
+  const handlePostDocsDataChange = React.useCallback((data: Record<string, unknown>) => {
+    if (typeof data.saveFunction === "function") {
+      postDocsSaveRef.current = data.saveFunction as () => Promise<unknown>;
+    }
+    const areAllFilesUploaded = data.areAllFilesUploaded === true;
+    const hasPendingChanges = data.hasPendingChanges === true;
+    setPostDocsState((prev) => {
+      if (
+        prev.areAllFilesUploaded === areAllFilesUploaded &&
+        prev.hasPendingChanges === hasPendingChanges
+      ) {
+        return prev;
+      }
+      return { areAllFilesUploaded, hasPendingChanges };
+    });
+  }, []);
   const [isSavingPostDocs, setIsSavingPostDocs] = React.useState(false);
   const [signerBindings, setSignerBindings] = React.useState<RecipientBinding[]>([]);
   const [signerConfirmOpen, setSignerConfirmOpen] = React.useState(false);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = React.useState(false);
   const [remindLoading, setRemindLoading] = React.useState(false);
   const [isSyncingSigning, setIsSyncingSigning] = React.useState(false);
+  // Viewed step stickiness (D-05–D-07): domain progress stays in currentSigningStepId.
+  const [viewedStepId, setViewedStepId] = React.useState<SigningOfferStepId | null>(null);
   const isOtherDeclineReason = selectedDeclineReason === OTHER_ISSUER_DECLINE_REASON_VALUE;
   const isSigningOverrideEnabled = process.env.NODE_ENV !== "production";
 
@@ -1043,6 +1037,7 @@ export function ReviewOfferModal({
   ]);
 
   const ensurePostApplicationDocumentsSaved = React.useCallback(async (): Promise<boolean> => {
+    if (signersLocked) return true;
     if (isLoadingFrozenProductWorkflow) {
       toast.info("Loading required documents. Please wait a moment.");
       return false;
@@ -1052,16 +1047,18 @@ export function ReviewOfferModal({
       toast.error("Upload required documents before signing");
       return false;
     }
-    if (!postDocsState.saveFunction || !postDocsState.hasPendingChanges) {
+    if (!postDocsSaveRef.current || !postDocsState.hasPendingChanges) {
       return postDocsState.areAllFilesUploaded;
     }
 
     setIsSavingPostDocs(true);
     try {
-      const saved = await postDocsState.saveFunction();
+      const saved = await postDocsSaveRef.current();
+      // Schema requires stepNumber >= 1; Math.max on the API keeps last_completed_step unchanged.
+      const stepNumber = Math.max(1, applicationRecord?.last_completed_step ?? 1);
       const response = await apiClient.updateApplicationStep(applicationId, {
         stepId: "supporting_documents",
-        stepNumber: 0,
+        stepNumber,
         data: saved as Record<string, unknown>,
       });
       if (!response.success) {
@@ -1086,10 +1083,12 @@ export function ReviewOfferModal({
   }, [
     apiClient,
     applicationId,
+    applicationRecord?.last_completed_step,
     hasPostDocs,
     isLoadingFrozenProductWorkflow,
     postDocsState,
     queryClient,
+    signersLocked,
   ]);
 
   const needsSigningConfirm =
@@ -1374,6 +1373,79 @@ export function ReviewOfferModal({
     allDocsSigned,
     envelopeCompleted,
   });
+
+  // D-06: recompute viewed step on each open/reopen (applicationId change), never restore prior session.
+  React.useEffect(() => {
+    setViewedStepId(null);
+    postDocsSaveRef.current = undefined;
+    setPostDocsState({ areAllFilesUploaded: false, hasPendingChanges: false });
+  }, [applicationId]);
+
+  // D-05 smart land once workflow settles; do not re-sync when postDocsReady flips (D-07).
+  React.useEffect(() => {
+    if (isLoadingFrozenProductWorkflow || viewedStepId !== null) return;
+    setViewedStepId(
+      getCurrentSigningOfferStepId({
+        hasPostDocs,
+        postDocsReady,
+        signersLocked,
+        allDocsSigned,
+        envelopeCompleted,
+      })
+    );
+  }, [
+    isLoadingFrozenProductWorkflow,
+    viewedStepId,
+    hasPostDocs,
+    postDocsReady,
+    signersLocked,
+    allDocsSigned,
+    envelopeCompleted,
+  ]);
+
+  // D-13: if domain retreats (e.g. required doc removed), snap viewed step back — never auto-advance (D-14).
+  React.useEffect(() => {
+    if (viewedStepId == null) return;
+    if (!isSigningOfferStepReachable(viewedStepId, currentSigningStepId, hasPostDocs)) {
+      setViewedStepId(currentSigningStepId);
+    }
+  }, [viewedStepId, currentSigningStepId, hasPostDocs]);
+
+  // While frozen workflow loads, force documents shell + skeleton (D-03) — hasPostDocs is fail-closed false.
+  const displaySigningStepId: SigningOfferStepId = isLoadingFrozenProductWorkflow
+    ? "documents"
+    : (viewedStepId ?? currentSigningStepId);
+
+  // Close without auto-save; discard confirm when Upload has pending changes (D-11).
+  const requestClose = React.useCallback(() => {
+    if (displaySigningStepId === "documents" && postDocsState.hasPendingChanges) {
+      setDiscardConfirmOpen(true);
+      return;
+    }
+    onClose();
+  }, [displaySigningStepId, onClose, postDocsState.hasPendingChanges]);
+
+  // D-09/D-10: persist pending post-app uploads before leaving Upload; block nav on save failure.
+  const navigateFromUploadDocuments = React.useCallback(
+    async (targetStepId: SigningOfferStepId) => {
+      if (targetStepId === displaySigningStepId) return;
+      if (displaySigningStepId !== "documents" || signersLocked) {
+        setViewedStepId(targetStepId);
+        return;
+      }
+      const saved = await ensurePostApplicationDocumentsSaved();
+      if (!saved) return;
+      setViewedStepId(targetStepId);
+    },
+    [displaySigningStepId, ensurePostApplicationDocumentsSaved, signersLocked]
+  );
+
+  // Free-nav within domain cursor (D-01–D-04); leave-Upload persists via navigateFromUploadDocuments (D-09/D-10).
+  const handleSigningStepSelect = (stepId: SigningOfferStepId) => {
+    if (stepId === displaySigningStepId) return;
+    if (!isSigningOfferStepReachable(stepId, currentSigningStepId, hasPostDocs)) return;
+    void navigateFromUploadDocuments(stepId);
+  };
 
   const handleRefreshSigning = () => {
     void (async () => {
@@ -1777,45 +1849,49 @@ export function ReviewOfferModal({
     switch (stepId) {
       case "documents":
         return (
-          <Card className="border-amber-500/30 bg-amber-50 dark:bg-amber-950/20">
+          <Card className="border-primary/20 bg-primary/5">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
-                <DocumentTextIcon className="h-5 w-5 text-amber-600" />
-                Upload required documents
+                <DocumentTextIcon className="h-5 w-5 text-primary" />
+                Upload documents
               </CardTitle>
               <CardDescription>
-                Upload all post-application documents before assigning signers and sending the
-                signing package.
+                Complete all required documents before you confirm signers. Optional documents can
+                stay empty.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {signersLocked ? (
+                <p className="text-sm text-muted-foreground">
+                  Documents are locked for review after signing emails were sent. Void the package to
+                  edit again.
+                </p>
+              ) : null}
               {isLoadingFrozenProductWorkflow ? (
-                <p className="text-sm text-muted-foreground">Loading required documents...</p>
-              ) : supportingDocumentsStepConfig ? (
+                <SupportingDocumentsSkeleton />
+              ) : supportingDocumentsStepConfig && hasPostDocs ? (
                 <SupportingDocumentsStep
                   applicationId={applicationId}
                   stepConfig={supportingDocumentsStepConfig}
                   timingFilter="post_application"
-                  onDataChange={(data) => {
-                    setPostDocsState({
-                      areAllFilesUploaded: data.areAllFilesUploaded === true,
-                      hasPendingChanges: data.hasPendingChanges === true,
-                      saveFunction:
-                        typeof data.saveFunction === "function"
-                          ? (data.saveFunction as () => Promise<unknown>)
-                          : undefined,
-                    });
-                  }}
+                  onDataChange={handlePostDocsDataChange}
+                  readOnly={signersLocked}
                 />
-              ) : (
+              ) : null}
+              {!signersLocked && !isLoadingFrozenProductWorkflow && !postDocsReady ? (
                 <p className="text-sm text-muted-foreground">
-                  No post-application document configuration was found.
-                </p>
-              )}
-              {!postDocsReady ? (
-                <p className="text-sm font-medium text-destructive">
                   Upload all required documents before continuing.
                 </p>
+              ) : null}
+              {!signersLocked && !isLoadingFrozenProductWorkflow && postDocsReady ? (
+                <Button
+                  className="h-11 w-full rounded-xl"
+                  onClick={() => {
+                    void navigateFromUploadDocuments("signers");
+                  }}
+                >
+                  Continue to Configure signers
+                </Button>
               ) : null}
             </CardContent>
           </Card>
@@ -1834,15 +1910,28 @@ export function ReviewOfferModal({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {signersLocked ? (
+                <p className="text-sm text-muted-foreground">
+                  Signers are locked for review after signing emails were sent. Void the package to
+                  edit again.
+                </p>
+              ) : null}
               <div className="rounded-lg bg-muted/50 p-4">{signerBindingEditor}</div>
-              {!isRejectMode ? (
-                <Button
-                  className="h-11 w-full rounded-xl"
-                  onClick={handleAccept}
-                  disabled={isPending || isPostDocsConfigLoading || !postDocsReady}
-                >
-                  {acceptSigningLoading ? "Sending signing emails..." : "Confirm"}
-                </Button>
+              {!isRejectMode && !signersLocked ? (
+                <div className="space-y-2">
+                  <Button
+                    className="h-11 w-full rounded-xl"
+                    onClick={handleAccept}
+                    disabled={isPending || isPostDocsConfigLoading || !postDocsReady}
+                  >
+                    {acceptSigningLoading ? "Sending signing emails..." : "Confirm"}
+                  </Button>
+                  {hasPostDocs && !postDocsReady ? (
+                    <p className="text-sm text-muted-foreground">
+                      Upload required documents first
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
             </CardContent>
           </Card>
@@ -1927,7 +2016,7 @@ export function ReviewOfferModal({
   };
 
   return (
-    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={true} onOpenChange={(open) => !open && requestClose()}>
       <DialogContent
         className={cn(
           "max-h-[90vh] overflow-y-auto rounded-xl border-border p-6 gap-0",
@@ -1969,7 +2058,12 @@ export function ReviewOfferModal({
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <SigningProgressStepper steps={signingSteps} />
+                        <SigningProgressStepper
+                          steps={signingSteps}
+                          onStepClick={(stepId) =>
+                            handleSigningStepSelect(stepId as SigningOfferStepId)
+                          }
+                        />
                       </CardContent>
                     </Card>
 
@@ -1999,28 +2093,10 @@ export function ReviewOfferModal({
                         </div>
                       </CardContent>
                     </Card>
-
-                    {currentSigningStepId === "signers" || currentSigningStepId === "documents" ? (
-                      <Card className="border-dashed border-border bg-muted/20 shadow-none">
-                        <CardContent className="flex items-start gap-3 p-4">
-                          <div className="rounded-lg bg-muted p-2">
-                            <ArrowUpTrayIcon className="h-5 w-5 text-muted-foreground" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-foreground">
-                              Additional documents
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Optional uploads for the signing package. Coming soon.
-                            </p>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ) : null}
                   </div>
 
                   <div className="min-w-0">
-                    {renderSigningStepContent(currentSigningStepId)}
+                    {renderSigningStepContent(displaySigningStepId)}
                   </div>
                 </div>
 
@@ -2041,7 +2117,7 @@ export function ReviewOfferModal({
                   >
                     {isRejectMode ? "Cancel decline" : "Decline offer"}
                   </Button>
-                  <Button variant="outline" className="rounded-xl" onClick={onClose}>
+                  <Button variant="outline" className="rounded-xl" onClick={requestClose}>
                     Close
                   </Button>
                 </div>
@@ -2190,6 +2266,19 @@ export function ReviewOfferModal({
         cancelText="Go back"
         onConfirm={handleConfirmSignersAccept}
         isLoading={acceptSigningLoading}
+      />
+      <ConfirmDialog
+        open={discardConfirmOpen}
+        onOpenChange={setDiscardConfirmOpen}
+        title="Unsaved changes"
+        description="You have unsaved document uploads. If you leave now, those changes will be discarded."
+        confirmText="Discard"
+        cancelText="Stay"
+        variant="destructive"
+        onConfirm={() => {
+          setDiscardConfirmOpen(false);
+          onClose();
+        }}
       />
     </Dialog>
   );
