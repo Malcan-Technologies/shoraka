@@ -31,6 +31,10 @@ import {
   useCreateIssuerOnboardingFeeMutation,
   useIssuerOnboardingFeeStatusQuery,
 } from "@/hooks/use-issuer-onboarding-fee";
+import {
+  isIssuerFeeCaptureMismatchHeldError,
+  PaymentUnderReviewNotice,
+} from "@/components/payment-under-review-notice";
 import type { IssuerOnboardingFeeResponse } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -76,6 +80,10 @@ export default function OnboardingFeePage() {
   const statusQuery = useIssuerOnboardingFeeStatusQuery(activeOrganization?.id);
   const resolvedFee = confirmedFee ?? createFee.data ?? statusQuery.data?.latestPayment ?? null;
   const feeAmount = resolvedFee?.amount ?? statusQuery.data?.amount ?? null;
+  const isUnderReview =
+    Boolean(statusQuery.data?.isUnderReview) ||
+    resolvedFee?.status === "HELD" ||
+    isIssuerFeeCaptureMismatchHeldError(createFee.error);
   const steps = activeOrganization
     ? getOnboardingStepperSteps(activeOrganization, "issuer", "fee")
     : [];
@@ -107,6 +115,7 @@ export default function OnboardingFeePage() {
       return;
     }
 
+    // Keep the issuer on this page while a captured payment is under review.
     setIsBootstrapping(false);
   }, [activeOrganization, orgLoading, router, statusQuery, suppressBootstrap]);
 
@@ -154,7 +163,7 @@ export default function OnboardingFeePage() {
   }
 
   const handlePayFee = async () => {
-    if (checkoutOpenInFlightRef.current) {
+    if (checkoutOpenInFlightRef.current || isUnderReview) {
       return;
     }
 
@@ -206,6 +215,10 @@ export default function OnboardingFeePage() {
         return;
       }
 
+      if (fee.status === "HELD") {
+        return;
+      }
+
       storeIssuerPendingOnboarding({ orgId: activeOrganization.id, companyName });
 
       const callbackUrl = buildIssuerOnboardingFeeCallbackUrl(
@@ -233,6 +246,10 @@ export default function OnboardingFeePage() {
         "Checkout is taking too long to open. Please try again."
       );
     } catch (err) {
+      if (isIssuerFeeCaptureMismatchHeldError(err)) {
+        setError(null);
+        return;
+      }
       const message = err instanceof Error ? err.message : "Could not start payment";
       if (message.includes("TNC_REQUIRED")) {
         setError("Please accept the Terms and Conditions before paying.");
@@ -259,14 +276,17 @@ export default function OnboardingFeePage() {
 
           <div className="w-full space-y-6">
             <div className="space-y-2 text-center">
-              <h2 className="text-xl font-semibold">Pay onboarding fee</h2>
+              <h2 className="text-xl font-semibold">
+                {isUnderReview ? "Onboarding fee" : "Pay onboarding fee"}
+              </h2>
               <p className="text-[15px] text-muted-foreground">
-                A one-time fee is required after accepting the user agreement to start company
-                verification (eKYB).
+                {isUnderReview
+                  ? "Your payment is being verified before company verification (eKYB) continues."
+                  : "A one-time fee is required after accepting the user agreement to start company verification (eKYB)."}
               </p>
             </div>
 
-            {error ? (
+            {error && !isUnderReview ? (
               <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
                 <div className="flex items-start gap-3">
                   <ExclamationCircleIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-destructive" />
@@ -274,6 +294,8 @@ export default function OnboardingFeePage() {
                 </div>
               </div>
             ) : null}
+
+            {isUnderReview ? <PaymentUnderReviewNotice /> : null}
 
             <Card className="rounded-2xl shadow-sm">
               <CardHeader>
@@ -284,24 +306,28 @@ export default function OnboardingFeePage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="rounded-xl bg-muted/50 px-4 py-3 text-center">
-                  <p className="text-sm text-muted-foreground">Amount due</p>
+                  <p className="text-sm text-muted-foreground">
+                    {isUnderReview ? "Fee amount" : "Amount due"}
+                  </p>
                   <p className="text-2xl font-semibold tabular-nums">
                     RM {feeAmount != null ? feeAmount.toFixed(2) : "—"}
                   </p>
                 </div>
-                <Button
-                  type="button"
-                  variant="action"
-                  className="h-11 w-full rounded-xl"
-                  disabled={isOpeningCheckout}
-                  onClick={() => void handlePayFee()}
-                >
-                  {isOpeningCheckout
-                    ? "Opening checkout..."
-                    : "Pay with FPX"}
-                </Button>
+                {isUnderReview ? null : (
+                  <Button
+                    type="button"
+                    variant="action"
+                    className="h-11 w-full rounded-xl"
+                    disabled={isOpeningCheckout}
+                    onClick={() => void handlePayFee()}
+                  >
+                    {isOpeningCheckout ? "Opening checkout..." : "Pay with FPX"}
+                  </Button>
+                )}
                 <p className="text-center text-xs text-muted-foreground">
-                  This fee is non-refundable and unlocks eKYB verification for your company account.
+                  {isUnderReview
+                    ? "No further payment is required while this fee is under review."
+                    : "This fee is non-refundable and unlocks eKYB verification for your company account."}
                 </p>
               </CardContent>
             </Card>

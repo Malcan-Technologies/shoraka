@@ -9,6 +9,7 @@ import {
 import { formatCurrency } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@cashsouk/ui";
+import { PaymentUnderReviewNotice } from "@/components/payment-under-review-notice";
 
 function StatusIcon({
   icon: Icon,
@@ -145,6 +146,24 @@ function failureCopy(reason: FailureReason, status?: GatewayPaymentStatus) {
     description:
       "Your FPX payment wasn't completed. No fee has been charged — you can try again when ready.",
   };
+}
+
+export function OnboardingFeeUnderReviewView({ onContinue }: { onContinue: () => void }) {
+  return (
+    <Card className="mx-auto w-full max-w-md rounded-2xl border bg-card shadow-sm">
+      <CardContent className="space-y-6 px-6 py-10">
+        <PaymentUnderReviewNotice />
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 w-full rounded-xl"
+          onClick={onContinue}
+        >
+          Continue
+        </Button>
+      </CardContent>
+    </Card>
+  );
 }
 
 export function OnboardingFeeFailureView({

@@ -42,7 +42,11 @@ export function useCreateIssuerOnboardingFeeMutation() {
   return useMutation({
     mutationFn: async (input: { issuerOrganizationId: string }) => {
       const response = await apiClient.createIssuerOnboardingFee(input);
-      if (!response.success) throw new Error(response.error.message);
+      if (!response.success) {
+        const error = new Error(response.error.message) as Error & { code?: string };
+        error.code = response.error.code;
+        throw error;
+      }
       return response.data;
     },
   });
@@ -67,6 +71,8 @@ export function useIssuerOnboardingFeeQuery(
     refetchInterval: (query) => {
       if (!options?.pollUntilTerminal) return false;
       const status = query.state.data?.status;
+      // HELD is settled under review — stop confirm polling; not a pay failure.
+      if (status === "HELD") return false;
       if (status && isTerminalOnboardingFeeStatus(status)) return false;
       return PAYMENT_RETURN_POLL_INTERVAL_MS;
     },
@@ -88,6 +94,7 @@ export function useIssuerOnboardingFeeStatusQuery(issuerOrganizationId?: string)
     },
     staleTime: 0,
     refetchOnMount: "always",
+    refetchInterval: (query) => (query.state.data?.isUnderReview ? 5_000 : false),
   });
 }
 

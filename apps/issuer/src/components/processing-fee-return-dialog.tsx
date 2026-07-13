@@ -19,12 +19,18 @@ import {
   ApplicationSubmittingView,
   OnboardingFeeConfirmingView,
   OnboardingFeeFailureView,
+  OnboardingFeeUnderReviewView,
 } from "@/components/onboarding-fee-return-views";
 
 const PAYMENT_CONFIRM_TIMEOUT_MS = 20_000;
 const SUCCESS_REDIRECT_DELAY_MS = 2_500;
 
-type DialogPhase = "confirming" | "submitting" | "submitted" | "failed";
+type DialogPhase =
+  | "confirming"
+  | "submitting"
+  | "submitted"
+  | "under-review"
+  | "failed";
 
 interface ProcessingFeeReturnDialogProps {
   applicationId: string;
@@ -54,10 +60,16 @@ export function ProcessingFeeReturnDialog({
   const refetchFee = feeQuery.refetch;
 
   const hasDefinitiveSuccess = fee?.status === "COMPLETED";
+  const isUnderReview = fee?.status === "HELD";
   const hasDefinitiveFailure =
     fee != null && isTerminalProcessingFeeStatus(fee.status) && fee.status !== "COMPLETED";
 
-  const shouldRunTimeout = open && phase === "confirming" && !hasDefinitiveSuccess && !hasDefinitiveFailure;
+  const shouldRunTimeout =
+    open &&
+    phase === "confirming" &&
+    !hasDefinitiveSuccess &&
+    !hasDefinitiveFailure &&
+    !isUnderReview;
 
   React.useEffect(() => {
     if (!open) {
@@ -122,11 +134,12 @@ export function ProcessingFeeReturnDialog({
 
   const resolvedPhase: DialogPhase = React.useMemo(() => {
     if (phase === "submitting" || phase === "submitted" || phase === "failed") return phase;
+    if (isUnderReview) return "under-review";
     if (hasDefinitiveFailure) return "failed";
     if (feeQuery.isError) return "failed";
     if (pollTimedOut) return "failed";
     return "confirming";
-  }, [feeQuery.isError, hasDefinitiveFailure, phase, pollTimedOut]);
+  }, [feeQuery.isError, hasDefinitiveFailure, isUnderReview, phase, pollTimedOut]);
 
   const failureReason = React.useMemo(() => {
     if (hasDefinitiveFailure) return "failed" as const;
@@ -147,7 +160,9 @@ export function ProcessingFeeReturnDialog({
         ? "Submitting your application"
         : resolvedPhase === "submitted"
           ? "Application submitted"
-          : "Payment not completed";
+          : resolvedPhase === "under-review"
+            ? "Payment under review"
+            : "Payment not completed";
 
   const handleDialogOpenChange = React.useCallback((nextOpen: boolean) => {
     if (!nextOpen) {
@@ -182,6 +197,9 @@ export function ProcessingFeeReturnDialog({
               router.replace("/applications");
             }}
           />
+        ) : null}
+        {resolvedPhase === "under-review" ? (
+          <OnboardingFeeUnderReviewView onContinue={handleTryAgain} />
         ) : null}
         {resolvedPhase === "failed" ? (
           <OnboardingFeeFailureView

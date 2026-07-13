@@ -43,7 +43,11 @@ export function useCreateApplicationProcessingFeeMutation() {
   return useMutation({
     mutationFn: async (applicationId: string) => {
       const response = await apiClient.createApplicationProcessingFee(applicationId);
-      if (!response.success) throw new Error(response.error.message);
+      if (!response.success) {
+        const error = new Error(response.error.message) as Error & { code?: string };
+        error.code = response.error.code;
+        throw error;
+      }
       return response.data;
     },
   });
@@ -58,11 +62,35 @@ export function useApplicationProcessingFeeOrder(applicationId?: string, enabled
     queryFn: async () => {
       if (!applicationId) throw new Error("Application ID is required");
       const response = await apiClient.createApplicationProcessingFee(applicationId);
-      if (!response.success) throw new Error(response.error.message);
+      if (!response.success) {
+        const error = new Error(response.error.message) as Error & { code?: string };
+        error.code = response.error.code;
+        throw error;
+      }
       return response.data;
     },
     staleTime: 30_000,
+    refetchInterval: (query) => {
+      const err = query.state.error as (Error & { code?: string }) | null;
+      if (
+        err?.code === "PROCESSING_FEE_CAPTURE_MISMATCH_HELD" ||
+        query.state.data?.status === "HELD"
+      ) {
+        return 5_000;
+      }
+      return false;
+    },
+    retry: (failureCount, error) => {
+      if (isProcessingFeeCaptureMismatchHeldError(error)) return false;
+      return failureCount < 2;
+    },
   });
+}
+
+function isProcessingFeeCaptureMismatchHeldError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = "code" in error ? String((error as { code?: unknown }).code ?? "") : "";
+  return code === "PROCESSING_FEE_CAPTURE_MISMATCH_HELD";
 }
 
 export function normalizeProcessingFeeAmount(amount: unknown): number | null {
@@ -96,6 +124,8 @@ export function useApplicationProcessingFeeQuery(
     refetchInterval: (query) => {
       if (!options?.pollUntilTerminal) return false;
       const status = query.state.data?.status;
+      // HELD is settled under review — stop confirm polling; not a pay failure.
+      if (status === "HELD") return false;
       if (status && isTerminalProcessingFeeStatus(status)) return false;
       return PAYMENT_RETURN_POLL_INTERVAL_MS;
     },
