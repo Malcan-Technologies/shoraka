@@ -50,7 +50,7 @@ export type IngestCurlecWebhookInput = {
   rawBody: string;
   signature: string | undefined;
   eventId: string | undefined;
-  gatewayAccount?: CurlecGatewayAccount;
+  gatewayAccount: CurlecGatewayAccount;
 };
 
 export type IngestCurlecWebhookResult = {
@@ -367,7 +367,10 @@ export async function processInvestorDepositCapture(
   },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
-  const routeGatewayAccount = input.routeGatewayAccount ?? CurlecGatewayAccount.LEGACY_DEFAULT;
+  const routeGatewayAccount = input.routeGatewayAccount;
+  if (!routeGatewayAccount) {
+    throw new AppError(500, "GATEWAY_ACCOUNT_REQUIRED", "routeGatewayAccount is required");
+  }
 
   const payment = await db.gatewayPayment.findFirst({
     where: { curlec_order_id: input.orderId, gatewayAccount: routeGatewayAccount },
@@ -568,7 +571,7 @@ export async function processInvestorDepositCapture(
 export async function processStoredCurlecWebhook(
   eventId: string,
   db: PrismaClient = defaultPrisma,
-  routeGatewayAccount: CurlecGatewayAccount = CurlecGatewayAccount.LEGACY_DEFAULT
+  routeGatewayAccount: CurlecGatewayAccount
 ): Promise<void> {
   const stored = await db.gatewayWebhookEvent.findFirst({
     where: { event_id: eventId, gatewayAccount: routeGatewayAccount },
@@ -752,7 +755,10 @@ export async function processOnboardingFeeCapture(
   },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
-  const routeGatewayAccount = input.routeGatewayAccount ?? CurlecGatewayAccount.LEGACY_DEFAULT;
+  const routeGatewayAccount = input.routeGatewayAccount;
+  if (!routeGatewayAccount) {
+    throw new AppError(500, "GATEWAY_ACCOUNT_REQUIRED", "routeGatewayAccount is required");
+  }
   const payment = await db.gatewayPayment.findFirst({
     where: { curlec_order_id: input.orderId, gatewayAccount: routeGatewayAccount },
   });
@@ -860,7 +866,10 @@ export async function processProcessingFeeCapture(
   },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
-  const routeGatewayAccount = input.routeGatewayAccount ?? CurlecGatewayAccount.LEGACY_DEFAULT;
+  const routeGatewayAccount = input.routeGatewayAccount;
+  if (!routeGatewayAccount) {
+    throw new AppError(500, "GATEWAY_ACCOUNT_REQUIRED", "routeGatewayAccount is required");
+  }
   const payment = await db.gatewayPayment.findFirst({
     where: { curlec_order_id: input.orderId, gatewayAccount: routeGatewayAccount },
   });
@@ -1149,8 +1158,12 @@ export async function ingestCurlecWebhook(
     rawBody,
     signature,
     eventId,
-    gatewayAccount = CurlecGatewayAccount.LEGACY_DEFAULT,
+    gatewayAccount,
   } = input;
+
+  if (!gatewayAccount) {
+    throw new AppError(500, "GATEWAY_ACCOUNT_REQUIRED", "gatewayAccount is required");
+  }
 
   if (!eventId?.trim()) {
     throw new AppError(400, "INVALID_WEBHOOK", "Missing X-Razorpay-Event-Id header");

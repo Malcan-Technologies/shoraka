@@ -14,17 +14,14 @@ describe("ingestCurlecWebhook", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     resetCurlecConfigCache();
-    process.env.CURLEC_KEY_ID = "rzp_test_key";
-    process.env.CURLEC_KEY_SECRET = "rzp_test_secret";
-    process.env.CURLEC_WEBHOOK_SECRET = TEST_WEBHOOK_SECRET;
+    process.env.CURLEC_OPERATING_KEY_ID = "rzp_test_key";
+    process.env.CURLEC_OPERATING_KEY_SECRET = "rzp_test_secret";
+    process.env.CURLEC_OPERATING_WEBHOOK_SECRET = TEST_WEBHOOK_SECRET;
     resetCurlecConfigCache();
   });
 
   afterEach(() => {
     resetCurlecConfigCache();
-    delete process.env.CURLEC_KEY_ID;
-    delete process.env.CURLEC_KEY_SECRET;
-    delete process.env.CURLEC_WEBHOOK_SECRET;
     delete process.env.CURLEC_OPERATING_KEY_ID;
     delete process.env.CURLEC_OPERATING_KEY_SECRET;
     delete process.env.CURLEC_OPERATING_WEBHOOK_SECRET;
@@ -41,6 +38,7 @@ describe("ingestCurlecWebhook", () => {
         rawBody,
         signature,
         eventId: "evt_1",
+        gatewayAccount: "OPERATING",
       },
       db as never
     );
@@ -51,7 +49,7 @@ describe("ingestCurlecWebhook", () => {
         expect.objectContaining({
           event_id: "evt_1",
           event_type: "payment.captured",
-          gatewayAccount: "LEGACY_DEFAULT",
+          gatewayAccount: "OPERATING",
           signature_valid: true,
         }),
       ],
@@ -70,6 +68,7 @@ describe("ingestCurlecWebhook", () => {
         rawBody,
         signature,
         eventId: "evt_dup",
+        gatewayAccount: "OPERATING",
       },
       db as never
     );

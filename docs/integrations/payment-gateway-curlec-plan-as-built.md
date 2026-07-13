@@ -20,7 +20,7 @@ Phases 1–5 are **shipped**. Phase 6 (live smoke, prod env wiring, dev-tool rem
 | Investor deposit API + UI | `deposit-*`, `apps/investor/` Curlec checkout | Done |
 | Issuer onboarding fee | `onboarding-fee-*`, `apps/issuer/src/app/onboarding/fee/` | Done |
 | Application processing fee | `processing-fee-*`, application submit step | Done |
-| Webhooks | `POST /v1/webhooks/curlec/operating`, `POST /v1/webhooks/curlec/investor-pool`, `POST /v1/webhooks/curlec` (legacy transitional) | Done |
+| Webhooks | `POST /v1/webhooks/curlec/operating`, `POST /v1/webhooks/curlec/investor-pool` | Done |
 | Auto-refund | `refund-service.ts` via Curlec Refund API | Done |
 | Stuck-order poller | Every 15 min, `gateway-stuck-order-poller.ts` | Done |
 | Settlement recon | Daily 02:00 MYT, `gateway-settlement-recon.ts` | Done |
@@ -114,8 +114,6 @@ Follow the standard module layout (controller / service / schemas), plus:
 - `webhook-controller.ts` — account-specific routes:
   - `POST /v1/webhooks/curlec/operating`
   - `POST /v1/webhooks/curlec/investor-pool`
-  - `POST /v1/webhooks/curlec/legacy`
-  - `POST /v1/webhooks/curlec` (legacy transitional alias)
   Requirements:
   - Mounted with **raw body** (signature is HMAC-SHA256 of the raw payload with the webhook secret; do not run through JSON middleware first).
   - Verify `X-Razorpay-Signature`; dedupe via `x-razorpay-event-id` (persist every event in `GatewayWebhookEvent`).
@@ -177,7 +175,6 @@ Supporting changes:
 | `POST /v1/applications/:id/processing-fee` | ISSUER + ownership | Create processing fee order |
 | `POST /v1/webhooks/curlec/operating` | signature | Operating merchant webhook ingress |
 | `POST /v1/webhooks/curlec/investor-pool` | signature | Investor Pool merchant webhook ingress |
-| `POST /v1/webhooks/curlec` | signature | Legacy merchant webhook ingress (transitional) |
 | `GET /v1/admin/gateway-payments` | ADMIN | List/filter (purpose, status, org) |
 | `GET /v1/admin/gateway-payments/:id` | ADMIN | Detail incl. events + name check |
 | `GET /v1/admin/gateway-payments/exceptions/pending-count` | ADMIN | Count of HELD + NAME_CHECK_PENDING |
@@ -226,9 +223,6 @@ Curlec credentials are loaded lazily from env in `apps/api/src/config/curlec.ts`
 
 | Variable | Description | Notes |
 |---|---|---|
-| `CURLEC_KEY_ID` | Legacy merchant API key ID | Transitional `LEGACY_DEFAULT` only |
-| `CURLEC_KEY_SECRET` | Legacy merchant API secret | Secrets Manager in prod |
-| `CURLEC_WEBHOOK_SECRET` | Legacy webhook HMAC secret | Must match legacy merchant dashboard route |
 | `CURLEC_OPERATING_KEY_ID` | Operating merchant API key ID | Issuer fee orders/refunds/recon |
 | `CURLEC_OPERATING_KEY_SECRET` | Operating merchant API secret | Secrets Manager in prod |
 | `CURLEC_OPERATING_WEBHOOK_SECRET` | Operating webhook HMAC secret | Must match Operating merchant dashboard route |
@@ -245,7 +239,6 @@ Curlec dashboard webhook configuration (enable on each merchant account):
 
 - Operating merchant → `https://api.<domain>/v1/webhooks/curlec/operating` using `CURLEC_OPERATING_WEBHOOK_SECRET`
 - Investor Pool merchant → `https://api.<domain>/v1/webhooks/curlec/investor-pool` using `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET`
-- Legacy merchant (transitional) → `https://api.<domain>/v1/webhooks/curlec` using `CURLEC_WEBHOOK_SECRET`
 
 Enable only these handled events on each route:
 
@@ -255,9 +248,7 @@ Enable only these handled events on each route:
 - `refund.processed`
 - `refund.failed`
 
-Legacy route retirement condition:
-
-- Keep the legacy route until no active/refundable legacy rows remain and legacy webhook/recon backlogs are cleared with finance/compliance approval.
+Historical payments created before account separation were migrated to `OPERATING` and are handled on the Operating webhook route.
 
 ## 8. Delivery Phases
 

@@ -3,7 +3,7 @@ import { CurlecClient, createCurlecClient } from "./curlec-client";
 import { extractBankCodeFromPayment, extractPayerNameFromPayment } from "./curlec-schemas";
 
 const testConfig = {
-  gatewayAccount: "LEGACY_DEFAULT" as const,
+  gatewayAccount: "OPERATING" as const,
   keyId: "rzp_test_key",
   keySecret: "rzp_test_secret",
   webhookSecret: "whsec_test",
@@ -266,29 +266,8 @@ describe("CurlecClient", () => {
     );
   });
 
-  it("keeps existing createCurlecClient() callers on LEGACY_DEFAULT", async () => {
-    process.env.CURLEC_KEY_ID = "rzp_legacy_key";
-    process.env.CURLEC_KEY_SECRET = "legacy_secret";
-    process.env.CURLEC_WEBHOOK_SECRET = "legacy_webhook";
-
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () =>
-        JSON.stringify({
-          id: "pay_legacy",
-          amount: 1000,
-          currency: "MYR",
-          status: "captured",
-        }),
-    });
-
-    const client = createCurlecClient();
-    await client.fetchPayment("pay_legacy");
-
-    const authHeader = (global.fetch as jest.Mock).mock.calls[0]?.[1]?.headers?.Authorization;
-    expect(authHeader).toContain(Buffer.from("rzp_legacy_key:legacy_secret").toString("base64"));
-    expect(client.getGatewayAccount()).toBe("LEGACY_DEFAULT");
+  it("requires explicit gatewayAccount for createCurlecClient()", () => {
+    expect(() => createCurlecClient()).toThrow(/explicit gatewayAccount/);
   });
 });
 
@@ -353,14 +332,15 @@ describe("Curlec payment field extractors", () => {
 describe("getCurlecConfig", () => {
   afterEach(() => {
     resetCurlecConfigCache();
-    delete process.env.CURLEC_KEY_ID;
-    delete process.env.CURLEC_KEY_SECRET;
+    delete process.env.CURLEC_OPERATING_KEY_ID;
+    delete process.env.CURLEC_OPERATING_KEY_SECRET;
+    delete process.env.CURLEC_OPERATING_WEBHOOK_SECRET;
   });
 
   it("requires API credentials from environment", () => {
     jest.isolateModules(() => {
       const { getCurlecConfig } = require("../../config/curlec") as typeof import("../../config/curlec");
-      expect(() => getCurlecConfig()).toThrow(/CURLEC_KEY_ID/);
+      expect(() => getCurlecConfig("OPERATING")).toThrow(/CURLEC_OPERATING_KEY_ID/);
     });
   });
 });

@@ -13,8 +13,8 @@ Related docs:
 ## Go-Live Checklist
 
 - Curlec live merchant account is approved, FPX is enabled, and auto-capture is enabled.
-- Curlec webhooks are configured per merchant account (Operating, Investor Pool, Legacy) with account-matched route and secret.
-- Production API credentials are configured outside the repository: `CURLEC_KEY_ID`, `CURLEC_KEY_SECRET`, `CURLEC_WEBHOOK_SECRET`, `CURLEC_OPERATING_KEY_ID`, `CURLEC_OPERATING_KEY_SECRET`, `CURLEC_OPERATING_WEBHOOK_SECRET`, `CURLEC_INVESTOR_POOL_KEY_ID`, `CURLEC_INVESTOR_POOL_KEY_SECRET`, `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET`, and `CURLEC_API_BASE_URL`.
+- Curlec webhooks are configured per merchant account (Operating, Investor Pool) with account-matched route and secret.
+- Production API credentials are configured outside the repository: `CURLEC_OPERATING_KEY_ID`, `CURLEC_OPERATING_KEY_SECRET`, `CURLEC_OPERATING_WEBHOOK_SECRET`, `CURLEC_INVESTOR_POOL_KEY_ID`, `CURLEC_INVESTOR_POOL_KEY_SECRET`, `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET`, and `CURLEC_API_BASE_URL`.
 - Curlec confirms the production API base URL for the Malaysia account.
 - Curlec confirms FPX per-transaction limits; admin finance settings reflect the accepted investor deposit minimum and maximum under **Settings → Platform Finance → Gateway Fees**.
 - Finance confirms the current MDR treatment: gateway fee amounts are tracked on gateway payments during reconciliation and are **not** posted to the note ledger yet.
@@ -69,7 +69,7 @@ For a mistakenly credited `COMPLETED` investor deposit, use **Initiate refund** 
 
 Issuer onboarding and application processing fees have **no name check** and are **non-refundable** (including if onboarding or the application is later rejected). On successful capture they go straight to `COMPLETED` with an `OPERATING_ACCOUNT` ledger credit.
 
-New fee orders are routed to the **Operating** Curlec merchant (`OPERATING`). Historical fee rows may still be `LEGACY_DEFAULT`.
+Fee orders are routed to the **Operating** Curlec merchant (`OPERATING`). Historical payments created before account separation were migrated to `OPERATING` because they were created under the Operating Curlec merchant account.
 
 If Curlec reports a captured fee but amount/currency/order/ownership validation fails, the payment is moved to `HELD` with `captureMismatch` metadata (never `COMPLETED`, never plain `FAILED`). A second fee order is blocked until finance resolves the held row. Escalate to engineering with the Gateway Payment ID and Curlec payment/order IDs from payment detail metadata/events.
 
@@ -80,7 +80,7 @@ If Curlec reports a captured fee but amount/currency/order/ownership validation 
 | Issuer onboarding fee | `OPERATING` |
 | Application processing fee | `OPERATING` |
 | Investor deposit / refund follow-ups | `INVESTOR_POOL` |
-| Historical existing payments | stored `LEGACY_DEFAULT` (do not rewrite) |
+| Historical existing payments | migrated to `OPERATING` |
 
 All refunds, stuck-order polling, and settlement reconciliation use the payment's stored `gatewayAccount`. Reconciliation runs separately per account.
 
@@ -129,16 +129,9 @@ Required events for every merchant route:
 |---|---|---|---|---|
 | Operating | Operating merchant account | `POST /v1/webhooks/curlec/operating` | `CURLEC_OPERATING_WEBHOOK_SECRET` | Issuer onboarding and application processing fee captures/refunds/failures |
 | Investor Pool | Investor Pool merchant account | `POST /v1/webhooks/curlec/investor-pool` | `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET` | Investor deposit captures/refunds/failures |
-| Legacy (transitional) | Legacy merchant account | `POST /v1/webhooks/curlec` | `CURLEC_WEBHOOK_SECRET` | Historical legacy rows (`LEGACY_DEFAULT`) |
 
-Legacy endpoint retirement condition:
+Historical payments created before account separation were migrated to `OPERATING` and are handled on the Operating webhook route.
 
-- Keep `POST /v1/webhooks/curlec` active until all are true:
-  - No active legacy `CREATED`, `PAID`, `NAME_CHECK_PENDING`, or `HELD` rows
-  - No refundable legacy rows remain in policy window
-  - No pending legacy webhook retries/recovery
-  - No unresolved legacy reconciliation backlog
-  - Finance/compliance sign-off is completed
 
 ## Admin Screens
 

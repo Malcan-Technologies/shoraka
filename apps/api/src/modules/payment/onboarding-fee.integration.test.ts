@@ -46,12 +46,11 @@ jest.mock("./curlec-client", () => {
 
 jest.mock("../../config/curlec", () => {
   const keyByAccount: Record<string, string> = {
-    LEGACY_DEFAULT: "rzp_test_legacy_key",
     OPERATING: "rzp_test_operating_key",
     INVESTOR_POOL: "rzp_test_pool_key",
   };
   return {
-    getCurlecConfig: jest.fn((gatewayAccount: string = "LEGACY_DEFAULT") => ({
+    getCurlecConfig: jest.fn((gatewayAccount: string = "OPERATING") => ({
       gatewayAccount,
       keyId: keyByAccount[gatewayAccount] ?? "rzp_test_unknown_key",
       keySecret: "secret",
@@ -233,14 +232,14 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     });
   });
 
-  it("reuses existing LEGACY_DEFAULT issuer fee payment without replacing account", async () => {
+  it("reuses existing OPERATING issuer fee payment without replacing account", async () => {
     if (!migrated) return;
 
     const legacy = await prisma.gatewayPayment.create({
       data: {
         purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
         organization_type: GatewayOrganizationType.ISSUER,
-        gatewayAccount: "LEGACY_DEFAULT",
+        gatewayAccount: "OPERATING",
         issuer_organization_id: orgId,
         amount: new Prisma.Decimal("150.000000"),
         status: GatewayPaymentStatus.CREATED,
@@ -254,7 +253,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     const result = await createIssuerOnboardingFee({ userId }, { issuerOrganizationId: orgId }, prisma);
 
     expect(result.id).toBe(legacy.id);
-    expect(result.gatewayAccount).toBe("LEGACY_DEFAULT");
+    expect(result.gatewayAccount).toBe("OPERATING");
     expect(result.curlecOrderId).toBe(legacy.curlec_order_id);
     expect((createCurlecClient as jest.Mock).mock.calls.length).toBe(createCallsBefore);
   });
@@ -312,7 +311,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
 
     const configMock = getCurlecConfig as jest.Mock;
     const originalImpl = configMock.getMockImplementation();
-    configMock.mockImplementation((gatewayAccount: string = "LEGACY_DEFAULT") => {
+    configMock.mockImplementation((gatewayAccount: string = "OPERATING") => {
       if (gatewayAccount === "OPERATING") {
         throw new Error(
           "Curlec OPERATING credentials are required. Missing: CURLEC_OPERATING_KEY_ID."

@@ -991,7 +991,7 @@ model GatewayPayment {
   id                       String                  @id @default(cuid())
   purpose                  GatewayPaymentPurpose
   organization_type        GatewayOrganizationType
-  gatewayAccount           CurlecGatewayAccount    @default(LEGACY_DEFAULT) @map("gateway_account")
+  gatewayAccount           CurlecGatewayAccount    @map("gateway_account")
   investor_organization_id String?
   issuer_organization_id   String?
   application_id           String?
@@ -1043,7 +1043,7 @@ model GatewayPayment {
 /// on retry instead of creating another remote order.
 model GatewayOrderAttempt {
   id               String                       @id @default(cuid())
-  gatewayAccount   CurlecGatewayAccount         @default(LEGACY_DEFAULT) @map("gateway_account")
+  gatewayAccount   CurlecGatewayAccount         @map("gateway_account")
   purpose          GatewayPaymentPurpose
   scope_key        String
   idempotency_key  String?
@@ -1084,7 +1084,7 @@ model GatewayWebhookEvent {
   id              String    @id @default(cuid())
   event_id        String
   event_type      String
-  gatewayAccount  CurlecGatewayAccount @default(LEGACY_DEFAULT) @map("gateway_account")
+  gatewayAccount  CurlecGatewayAccount @map("gateway_account")
   payload         Json
   signature_valid Boolean
   processed_at    DateTime?
@@ -1101,7 +1101,7 @@ model GatewayWebhookEvent {
 model GatewayReconRun {
   id                  String                  @id @default(cuid())
   run_date            DateTime                @db.Date
-  gatewayAccount      CurlecGatewayAccount    @default(LEGACY_DEFAULT) @map("gateway_account")
+  gatewayAccount      CurlecGatewayAccount    @map("gateway_account")
   status              GatewayReconRunStatus   @default(RUNNING)
   triggered_by        String
   settlements_scanned Int                     @default(0)
@@ -1714,7 +1714,6 @@ enum GatewayPaymentStatus {
 }
 
 enum CurlecGatewayAccount {
-  LEGACY_DEFAULT
   OPERATING
   INVESTOR_POOL
 }

@@ -209,7 +209,7 @@ export async function getUnresolvedReconExceptionsCount(db: PrismaClient = defau
 export async function triggerReconRun(
   actor: AdminActorContext,
   runDateInput?: string,
-  gatewayAccount: CurlecGatewayAccount = CurlecGatewayAccount.LEGACY_DEFAULT,
+  gatewayAccount: CurlecGatewayAccount = CurlecGatewayAccount.OPERATING,
   db: PrismaClient = defaultPrisma
 ) {
   const runDate = runDateInput ? parseRunDateInput(runDateInput) : getYesterdayMytDateOnly();
@@ -252,9 +252,13 @@ export async function resolveReconException(
     select: { gatewayAccount: true, run_date: true },
   });
 
+  if (!run?.gatewayAccount) {
+    throw new AppError(500, "GATEWAY_ACCOUNT_REQUIRED", "Recon run is missing gatewayAccount");
+  }
+
   return mapReconException({
     ...updated,
-    gatewayAccount: run?.gatewayAccount ?? CurlecGatewayAccount.LEGACY_DEFAULT,
-    runDate: run?.run_date.toISOString().slice(0, 10) ?? "",
+    gatewayAccount: run.gatewayAccount,
+    runDate: run.run_date.toISOString().slice(0, 10),
   });
 }

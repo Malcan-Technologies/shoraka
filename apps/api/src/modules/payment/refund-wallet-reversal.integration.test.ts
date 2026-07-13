@@ -284,7 +284,7 @@ describeIntegration("refund confirmed + wallet reversal recovery", () => {
     if (!migrated) return;
 
     mockRefundPayment.mockRejectedValueOnce(new Error("Curlec refund failed"));
-    const payment = await seedCompletedDeposit(CurlecGatewayAccount.LEGACY_DEFAULT, 100);
+    const payment = await seedCompletedDeposit(CurlecGatewayAccount.OPERATING, 100);
     await prisma.gatewayPayment.update({
       where: { id: payment.id },
       data: { status: GatewayPaymentStatus.PAID },
@@ -307,7 +307,7 @@ describeIntegration("refund confirmed + wallet reversal recovery", () => {
     });
     expect(refundDebits).toBe(0);
     expect((createCurlecClient as jest.Mock).mock.calls.at(-1)?.[0]).toEqual({
-      gatewayAccount: CurlecGatewayAccount.LEGACY_DEFAULT,
+      gatewayAccount: CurlecGatewayAccount.OPERATING,
     });
   });
 

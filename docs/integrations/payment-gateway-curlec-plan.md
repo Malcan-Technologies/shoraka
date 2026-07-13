@@ -86,7 +86,6 @@ Follow the standard module layout (controller / service / schemas), plus:
 - `webhook-controller.ts` — account-specific public routes:
   - `POST /v1/webhooks/curlec/operating`
   - `POST /v1/webhooks/curlec/investor-pool`
-  - `POST /v1/webhooks/curlec` (legacy transitional route)
   Requirements:
   - Mounted with **raw body** (signature is HMAC-SHA256 of the raw payload with the webhook secret; do not run through JSON middleware first).
   - Verify `X-Razorpay-Signature`; dedupe via `x-razorpay-event-id` (persist every event in `GatewayWebhookEvent`).
@@ -147,7 +146,6 @@ Supporting changes:
 | `POST /v1/applications/:id/processing-fee` | ISSUER + ownership | Create processing fee order |
 | `POST /v1/webhooks/curlec/operating` | signature | Operating merchant webhook ingress |
 | `POST /v1/webhooks/curlec/investor-pool` | signature | Investor Pool merchant webhook ingress |
-| `POST /v1/webhooks/curlec` | signature | Legacy merchant webhook ingress (transitional) |
 | `GET /v1/admin/gateway-payments` | ADMIN | List/filter (purpose, status, org) |
 | `GET /v1/admin/gateway-payments/:id` | ADMIN | Detail incl. events + name check |
 | `POST /v1/admin/gateway-payments/:id/name-check` | ADMIN | Manual verify: approve (credit) or fail (hold) for `NAME_CHECK_PENDING` |
@@ -187,15 +185,14 @@ All UI uses shared `packages/ui` components, brand tokens, Hero Icons; checkout 
 
 ## 7. Config & Secrets
 
-- Extend `apps/api/src/config/env.ts` zod schema with the full Curlec credential set: legacy (`CURLEC_KEY_ID`, `CURLEC_KEY_SECRET`, `CURLEC_WEBHOOK_SECRET`), Operating (`CURLEC_OPERATING_KEY_ID`, `CURLEC_OPERATING_KEY_SECRET`, `CURLEC_OPERATING_WEBHOOK_SECRET`), Investor Pool (`CURLEC_INVESTOR_POOL_KEY_ID`, `CURLEC_INVESTOR_POOL_KEY_SECRET`, `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET`), and `CURLEC_API_BASE_URL`.
+- Extend `apps/api/src/config/env.ts` zod schema with the full Curlec credential set: Operating (`CURLEC_OPERATING_KEY_ID`, `CURLEC_OPERATING_KEY_SECRET`, `CURLEC_OPERATING_WEBHOOK_SECRET`), Investor Pool (`CURLEC_INVESTOR_POOL_KEY_ID`, `CURLEC_INVESTOR_POOL_KEY_SECRET`, `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET`), and `CURLEC_API_BASE_URL`.
 - Frontends need only the public key id returned from the order-create response (no build-time `NEXT_PUBLIC_CURLEC_*`).
 - Add to `env-templates/api.env.*` and SSM under `/cashsouk/prod/secrets/`; update `docs/guides/environment-variables.md`.
 - Curlec dashboard:
   - Operating merchant: `https://api.<domain>/v1/webhooks/curlec/operating` with `CURLEC_OPERATING_WEBHOOK_SECRET`
   - Investor Pool merchant: `https://api.<domain>/v1/webhooks/curlec/investor-pool` with `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET`
-  - Legacy merchant (transitional): `https://api.<domain>/v1/webhooks/curlec` with `CURLEC_WEBHOOK_SECRET`
   - Enable only: `payment.captured`, `order.paid`, `payment.failed`, `refund.processed`, `refund.failed`
-- Account routing (enabled): issuer fees → `OPERATING`; investor deposits/refunds → `INVESTOR_POOL`; historical rows remain `LEGACY_DEFAULT`.
+- Account routing: issuer fees → `OPERATING`; investor deposits/refunds → `INVESTOR_POOL`; historical payments migrated to `OPERATING` (same Operating merchant).
 
 ## 8. Delivery Phases
 

@@ -6,7 +6,7 @@ export type GatewayPaymentPurpose =
   | "APPLICATION_PROCESSING_FEE";
 
 export type GatewayOrganizationType = "INVESTOR" | "ISSUER";
-export type CurlecGatewayAccount = "LEGACY_DEFAULT" | "OPERATING" | "INVESTOR_POOL";
+export type CurlecGatewayAccount = "OPERATING" | "INVESTOR_POOL";
 
 export type GatewayPaymentEventType =
   | "NAME_CHECK"

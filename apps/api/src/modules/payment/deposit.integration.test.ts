@@ -30,12 +30,11 @@ jest.mock("./curlec-client", () => {
 
 jest.mock("../../config/curlec", () => {
   const keyByAccount: Record<string, string> = {
-    LEGACY_DEFAULT: "rzp_test_legacy_key",
     OPERATING: "rzp_test_operating_key",
     INVESTOR_POOL: "rzp_test_pool_key",
   };
   return {
-    getCurlecConfig: jest.fn((gatewayAccount: string = "LEGACY_DEFAULT") => ({
+    getCurlecConfig: jest.fn((gatewayAccount: string = "OPERATING") => ({
       gatewayAccount,
       keyId: keyByAccount[gatewayAccount] ?? "rzp_test_unknown_key",
       keySecret: "secret",
@@ -271,7 +270,7 @@ describeIntegration("investor deposit service", () => {
     expect(second.id).toBe(first.id);
   });
 
-  it("reuses existing LEGACY_DEFAULT active intent without replacing account", async () => {
+  it("reuses existing OPERATING active intent without replacing account", async () => {
     if (!migrated) return;
 
     const intent = "19191919-1919-4919-8919-191919191919";
@@ -279,7 +278,7 @@ describeIntegration("investor deposit service", () => {
       data: {
         purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
         organization_type: GatewayOrganizationType.INVESTOR,
-        gatewayAccount: "LEGACY_DEFAULT",
+        gatewayAccount: "OPERATING",
         investor_organization_id: orgId,
         amount: new Prisma.Decimal("250.000000"),
         currency: "MYR",
@@ -294,7 +293,7 @@ describeIntegration("investor deposit service", () => {
     const reused = await createInvestorDeposit({ userId }, depositInput(250, intent), prisma);
 
     expect(reused.id).toBe(legacy.id);
-    expect(reused.gatewayAccount).toBe("LEGACY_DEFAULT");
+    expect(reused.gatewayAccount).toBe("OPERATING");
     expect(reused.curlecOrderId).toBe(legacy.curlec_order_id);
     expect((createCurlecClient as jest.Mock).mock.calls.length).toBe(createCallsBefore);
   });
@@ -536,7 +535,7 @@ describeIntegration("investor deposit service", () => {
 
     const configMock = getCurlecConfig as jest.Mock;
     const originalImpl = configMock.getMockImplementation();
-    configMock.mockImplementation((gatewayAccount: string = "LEGACY_DEFAULT") => {
+    configMock.mockImplementation((gatewayAccount: string = "OPERATING") => {
       if (gatewayAccount === "INVESTOR_POOL") {
         throw new Error(
           "Curlec INVESTOR_POOL credentials are required. Missing: CURLEC_INVESTOR_POOL_KEY_ID."

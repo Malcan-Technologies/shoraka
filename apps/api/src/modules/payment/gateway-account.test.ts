@@ -26,13 +26,13 @@ describe("resolveGatewayAccountForPurpose", () => {
     ).toThrow(/Unsupported gateway payment purpose/);
   });
 
-  it("does not route any supported purpose to LEGACY_DEFAULT", () => {
+  it("routes only to OPERATING or INVESTOR_POOL", () => {
     const resolved = [
       resolveGatewayAccountForPurpose(GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE),
       resolveGatewayAccountForPurpose(GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE),
       resolveGatewayAccountForPurpose(GatewayPaymentPurpose.INVESTOR_DEPOSIT),
     ];
-    expect(resolved).not.toContain("LEGACY_DEFAULT");
+    expect(new Set(resolved)).toEqual(new Set(["OPERATING", "INVESTOR_POOL"]));
   });
 
   it("assertGatewayAccountMatch passes for same account", () => {

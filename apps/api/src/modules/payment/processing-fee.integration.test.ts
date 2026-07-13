@@ -46,12 +46,11 @@ jest.mock("./curlec-client", () => {
 
 jest.mock("../../config/curlec", () => {
   const keyByAccount: Record<string, string> = {
-    LEGACY_DEFAULT: "rzp_test_legacy_key",
     OPERATING: "rzp_test_operating_key",
     INVESTOR_POOL: "rzp_test_pool_key",
   };
   return {
-    getCurlecConfig: jest.fn((gatewayAccount: string = "LEGACY_DEFAULT") => ({
+    getCurlecConfig: jest.fn((gatewayAccount: string = "OPERATING") => ({
       gatewayAccount,
       keyId: keyByAccount[gatewayAccount] ?? "rzp_test_unknown_key",
       keySecret: "secret",
@@ -338,7 +337,7 @@ describeIntegration("application processing fee (M9)", () => {
 
     const configMock = getCurlecConfig as jest.Mock;
     const originalImpl = configMock.getMockImplementation();
-    configMock.mockImplementation((gatewayAccount: string = "LEGACY_DEFAULT") => {
+    configMock.mockImplementation((gatewayAccount: string = "OPERATING") => {
       if (gatewayAccount === "OPERATING") {
         throw new Error(
           "Curlec OPERATING credentials are required. Missing: CURLEC_OPERATING_KEY_ID."

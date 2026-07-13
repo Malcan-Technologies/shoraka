@@ -52,5 +52,5 @@ done
 - Fill in actual values after copying (Cognito IDs, S3 buckets, etc.)
 - For AWS deployment, environment variables are injected via SSM/Secrets Manager (no files needed)
 - Templates are safe to commit as they contain no secrets
-- API Curlec Stage 1 supports both legacy `CURLEC_*` vars and account-specific `CURLEC_OPERATING_*` / `CURLEC_INVESTOR_POOL_*` vars.
+- API Curlec credentials use account-specific `CURLEC_OPERATING_*` and `CURLEC_INVESTOR_POOL_*` vars plus shared `CURLEC_API_BASE_URL`.
 

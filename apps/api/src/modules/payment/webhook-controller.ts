@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { Router, Request, Response, NextFunction } from "express";
+import { Router, Request, Response } from "express";
 import express from "express";
 import { CurlecGatewayAccount } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
@@ -110,18 +110,8 @@ function accountWebhookRoute(path: string, gatewayAccount: CurlecGatewayAccount)
 
 /**
  * Curlec money-in webhooks — mounted before express.json() with express.raw().
- * Transitional route support:
- * - POST /v1/webhooks/curlec (LEGACY_DEFAULT only)
- * - POST /v1/webhooks/curlec/legacy
  * - POST /v1/webhooks/curlec/operating
  * - POST /v1/webhooks/curlec/investor-pool
  */
-accountWebhookRoute("/curlec/legacy", CurlecGatewayAccount.LEGACY_DEFAULT);
 accountWebhookRoute("/curlec/operating", CurlecGatewayAccount.OPERATING);
 accountWebhookRoute("/curlec/investor-pool", CurlecGatewayAccount.INVESTOR_POOL);
-curlecWebhookRouter.post(
-  "/curlec",
-  express.raw({ type: "application/json" }),
-  async (req: Request, res: Response, _next: NextFunction) =>
-    handleCurlecWebhookRoute(req, res, CurlecGatewayAccount.LEGACY_DEFAULT)
-);

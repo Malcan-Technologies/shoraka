@@ -10,6 +10,15 @@ describe("getCurlecConfig(account)", () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv };
+    delete process.env.CURLEC_KEY_ID;
+    delete process.env.CURLEC_KEY_SECRET;
+    delete process.env.CURLEC_WEBHOOK_SECRET;
+    delete process.env.CURLEC_OPERATING_KEY_ID;
+    delete process.env.CURLEC_OPERATING_KEY_SECRET;
+    delete process.env.CURLEC_OPERATING_WEBHOOK_SECRET;
+    delete process.env.CURLEC_INVESTOR_POOL_KEY_ID;
+    delete process.env.CURLEC_INVESTOR_POOL_KEY_SECRET;
+    delete process.env.CURLEC_INVESTOR_POOL_WEBHOOK_SECRET;
     resetCurlecConfigCache();
   });
 
@@ -18,25 +27,11 @@ describe("getCurlecConfig(account)", () => {
     resetCurlecConfigCache();
   });
 
-  it("resolves LEGACY_DEFAULT from legacy CURLEC_* variables", () => {
-    process.env.CURLEC_KEY_ID = "rzp_legacy_key";
-    process.env.CURLEC_KEY_SECRET = "legacy_secret";
-    process.env.CURLEC_WEBHOOK_SECRET = "legacy_webhook";
-    process.env.CURLEC_API_BASE_URL = "https://api.razorpay.com";
-
-    const config = getCurlecConfig("LEGACY_DEFAULT");
-
-    expect(config.gatewayAccount).toBe("LEGACY_DEFAULT");
-    expect(config.keyId).toBe("rzp_legacy_key");
-    expect(config.keySecret).toBe("legacy_secret");
-    expect(config.webhookSecret).toBe("legacy_webhook");
-    expect(config.apiBaseUrl).toBe("https://api.razorpay.com");
-  });
-
   it("resolves OPERATING from CURLEC_OPERATING_* variables only", () => {
     process.env.CURLEC_OPERATING_KEY_ID = "rzp_operating_key";
     process.env.CURLEC_OPERATING_KEY_SECRET = "operating_secret";
     process.env.CURLEC_OPERATING_WEBHOOK_SECRET = "operating_webhook";
+    process.env.CURLEC_API_BASE_URL = "https://api.razorpay.com";
 
     const config = getCurlecConfig("OPERATING");
 
@@ -44,6 +39,7 @@ describe("getCurlecConfig(account)", () => {
     expect(config.keyId).toBe("rzp_operating_key");
     expect(config.keySecret).toBe("operating_secret");
     expect(config.webhookSecret).toBe("operating_webhook");
+    expect(config.apiBaseUrl).toBe("https://api.razorpay.com");
   });
 
   it("resolves INVESTOR_POOL from CURLEC_INVESTOR_POOL_* variables only", () => {
@@ -59,7 +55,7 @@ describe("getCurlecConfig(account)", () => {
     expect(config.webhookSecret).toBe("pool_webhook");
   });
 
-  it("fails clearly when OPERATING credentials are missing", () => {
+  it("ignores unsupported legacy CURLEC_* variables for OPERATING", () => {
     process.env.CURLEC_KEY_ID = "rzp_legacy_key";
     process.env.CURLEC_KEY_SECRET = "legacy_secret";
     process.env.CURLEC_WEBHOOK_SECRET = "legacy_webhook";
@@ -70,16 +66,12 @@ describe("getCurlecConfig(account)", () => {
   });
 
   it("fails clearly when INVESTOR_POOL credentials are missing", () => {
-    process.env.CURLEC_KEY_ID = "rzp_legacy_key";
-    process.env.CURLEC_KEY_SECRET = "legacy_secret";
-    process.env.CURLEC_WEBHOOK_SECRET = "legacy_webhook";
-
     expect(() => getCurlecConfig("INVESTOR_POOL")).toThrow(
       /CURLEC_INVESTOR_POOL_KEY_ID, CURLEC_INVESTOR_POOL_KEY_SECRET, CURLEC_INVESTOR_POOL_WEBHOOK_SECRET/
     );
   });
 
-  it("does not silently fall back from account-specific config to legacy", () => {
+  it("does not silently fall back from OPERATING to legacy CURLEC_* vars", () => {
     process.env.CURLEC_KEY_ID = "rzp_legacy_key";
     process.env.CURLEC_KEY_SECRET = "legacy_secret";
     process.env.CURLEC_WEBHOOK_SECRET = "legacy_webhook";
@@ -92,29 +84,37 @@ describe("getCurlecConfig(account)", () => {
 
   it("applies shared CURLEC_API_BASE_URL to all accounts", () => {
     process.env.CURLEC_API_BASE_URL = "https://api.example-curlec.test";
-    process.env.CURLEC_KEY_ID = "rzp_legacy_key";
-    process.env.CURLEC_KEY_SECRET = "legacy_secret";
-    process.env.CURLEC_WEBHOOK_SECRET = "legacy_webhook";
     process.env.CURLEC_OPERATING_KEY_ID = "rzp_operating_key";
     process.env.CURLEC_OPERATING_KEY_SECRET = "operating_secret";
     process.env.CURLEC_OPERATING_WEBHOOK_SECRET = "operating_webhook";
-
-    const legacy = getCurlecConfig("LEGACY_DEFAULT");
-    const operating = getCurlecConfig("OPERATING");
-
-    expect(legacy.apiBaseUrl).toBe("https://api.example-curlec.test");
-    expect(operating.apiBaseUrl).toBe("https://api.example-curlec.test");
-  });
-
-  it("returns configured gateway accounts only", () => {
-    process.env.CURLEC_KEY_ID = "rzp_legacy_key";
-    process.env.CURLEC_KEY_SECRET = "legacy_secret";
-    process.env.CURLEC_WEBHOOK_SECRET = "legacy_webhook";
     process.env.CURLEC_INVESTOR_POOL_KEY_ID = "rzp_pool_key";
     process.env.CURLEC_INVESTOR_POOL_KEY_SECRET = "pool_secret";
     process.env.CURLEC_INVESTOR_POOL_WEBHOOK_SECRET = "pool_webhook";
 
-    expect(getConfiguredCurlecGatewayAccounts()).toEqual(["LEGACY_DEFAULT", "INVESTOR_POOL"]);
+    const operating = getCurlecConfig("OPERATING");
+    const investorPool = getCurlecConfig("INVESTOR_POOL");
+
+    expect(operating.apiBaseUrl).toBe("https://api.example-curlec.test");
+    expect(investorPool.apiBaseUrl).toBe("https://api.example-curlec.test");
+  });
+
+  it("returns configured gateway accounts only", () => {
+    process.env.CURLEC_INVESTOR_POOL_KEY_ID = "rzp_pool_key";
+    process.env.CURLEC_INVESTOR_POOL_KEY_SECRET = "pool_secret";
+    process.env.CURLEC_INVESTOR_POOL_WEBHOOK_SECRET = "pool_webhook";
+
+    expect(getConfiguredCurlecGatewayAccounts()).toEqual(["INVESTOR_POOL"]);
+  });
+
+  it("configured account list contains only OPERATING and INVESTOR_POOL when both set", () => {
+    process.env.CURLEC_OPERATING_KEY_ID = "rzp_operating_key";
+    process.env.CURLEC_OPERATING_KEY_SECRET = "operating_secret";
+    process.env.CURLEC_OPERATING_WEBHOOK_SECRET = "operating_webhook";
+    process.env.CURLEC_INVESTOR_POOL_KEY_ID = "rzp_pool_key";
+    process.env.CURLEC_INVESTOR_POOL_KEY_SECRET = "pool_secret";
+    process.env.CURLEC_INVESTOR_POOL_WEBHOOK_SECRET = "pool_webhook";
+
+    expect(getConfiguredCurlecGatewayAccounts()).toEqual(["OPERATING", "INVESTOR_POOL"]);
   });
 
   it("flags partial credentials for account status checks", () => {
@@ -138,5 +138,11 @@ describe("getCurlecConfig(account)", () => {
       "CURLEC_INVESTOR_POOL_KEY_SECRET",
       "CURLEC_INVESTOR_POOL_WEBHOOK_SECRET",
     ]);
+  });
+
+  it("rejects unknown gateway account values", () => {
+    expect(() => getCurlecConfig("LEGACY_DEFAULT" as "OPERATING")).toThrow(
+      /Unsupported Curlec gateway account/
+    );
   });
 });

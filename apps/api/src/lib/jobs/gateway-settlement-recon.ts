@@ -329,7 +329,14 @@ export async function runGatewaySettlementReconJob(
 ): Promise<GatewaySettlementReconResult | null> {
   const runDate = input.runDate ?? getYesterdayMytDateOnly();
   const triggeredBy = input.triggeredBy ?? "CRON";
-  const gatewayAccount = input.gatewayAccount ?? CurlecGatewayAccount.LEGACY_DEFAULT;
+  if (!input.gatewayAccount) {
+    throw new AppError(
+      400,
+      "GATEWAY_ACCOUNT_REQUIRED",
+      "gatewayAccount is required for settlement reconciliation (OPERATING or INVESTOR_POOL)"
+    );
+  }
+  const gatewayAccount = input.gatewayAccount;
   const accountConfigStatus = getCurlecGatewayAccountConfigStatus(gatewayAccount);
   if (!accountConfigStatus.configured) {
     throw new AppError(

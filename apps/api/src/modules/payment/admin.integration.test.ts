@@ -104,9 +104,6 @@ describeIntegration("admin gateway payments refunds", () => {
       status: "processed",
     });
     jest.restoreAllMocks();
-    process.env.CURLEC_KEY_ID = process.env.CURLEC_KEY_ID ?? "rzp_legacy_key";
-    process.env.CURLEC_KEY_SECRET = process.env.CURLEC_KEY_SECRET ?? "legacy_secret";
-    process.env.CURLEC_WEBHOOK_SECRET = process.env.CURLEC_WEBHOOK_SECRET ?? "legacy_whsec";
     process.env.CURLEC_OPERATING_KEY_ID = "rzp_operating_key";
     process.env.CURLEC_OPERATING_KEY_SECRET = "operating_secret";
     process.env.CURLEC_OPERATING_WEBHOOK_SECRET = "operating_whsec";
@@ -142,7 +139,7 @@ describeIntegration("admin gateway payments refunds", () => {
     await prisma.$disconnect();
   });
 
-  async function createHeldPayment(gatewayAccount: CurlecGatewayAccount = "LEGACY_DEFAULT") {
+  async function createHeldPayment(gatewayAccount: CurlecGatewayAccount = "OPERATING") {
     const payment = await prisma.gatewayPayment.create({
       data: {
         purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
@@ -167,6 +164,7 @@ describeIntegration("admin gateway payments refunds", () => {
   async function createNameCheckPendingPayment() {
     const payment = await prisma.gatewayPayment.create({
       data: {
+        gatewayAccount: "INVESTOR_POOL",
         purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
         organization_type: GatewayOrganizationType.INVESTOR,
         investor_organization_id: orgId,
@@ -195,7 +193,7 @@ describeIntegration("admin gateway payments refunds", () => {
     expect(detail.refundReference).toBe("rfnd_admin_test");
     expect(mockRefundPayment).toHaveBeenCalledTimes(1);
     expect((createCurlecClient as jest.Mock).mock.calls.at(-1)?.[0]).toEqual({
-      gatewayAccount: "LEGACY_DEFAULT",
+      gatewayAccount: "OPERATING",
     });
   });
 
@@ -225,7 +223,7 @@ describeIntegration("admin gateway payments refunds", () => {
     if (!migrated) return;
 
     const payment = await createHeldPayment("OPERATING");
-    jest.spyOn(curlecConfig, "getCurlecConfig").mockImplementation((gatewayAccount = "LEGACY_DEFAULT") => {
+    jest.spyOn(curlecConfig, "getCurlecConfig").mockImplementation((gatewayAccount = "OPERATING") => {
       if (gatewayAccount === "OPERATING") {
         throw new Error("missing operating credentials");
       }
@@ -256,6 +254,7 @@ describeIntegration("admin gateway payments refunds", () => {
 
     const payment = await prisma.gatewayPayment.create({
       data: {
+        gatewayAccount: "INVESTOR_POOL",
         purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
         organization_type: GatewayOrganizationType.INVESTOR,
         investor_organization_id: orgId,
@@ -285,6 +284,7 @@ describeIntegration("admin gateway payments refunds", () => {
 
     const payment = await prisma.gatewayPayment.create({
       data: {
+        gatewayAccount: "OPERATING",
         purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
         organization_type: GatewayOrganizationType.ISSUER,
         amount: new Prisma.Decimal("50.000000"),

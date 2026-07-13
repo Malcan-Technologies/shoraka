@@ -1,7 +1,9 @@
 {
   "family": "default-api-cashsouk-09ff",
   "networkMode": "awsvpc",
-  "requiresCompatibilities": ["FARGATE"],
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
   "cpu": "1024",
   "memory": "2048",
   "executionRoleArn": "arn:aws:iam::652821469470:role/service-role/ecsTaskExecutionRole",
@@ -231,18 +233,6 @@
         {
           "name": "CTOS_USER_ID",
           "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CTOS_USER_ID::"
-        },
-        {
-          "name": "CURLEC_KEY_ID",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CURLEC_KEY_ID::"
-        },
-        {
-          "name": "CURLEC_KEY_SECRET",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CURLEC_KEY_SECRET::"
-        },
-        {
-          "name": "CURLEC_WEBHOOK_SECRET",
-          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CURLEC_WEBHOOK_SECRET::"
         },
         {
           "name": "CURLEC_API_BASE_URL",

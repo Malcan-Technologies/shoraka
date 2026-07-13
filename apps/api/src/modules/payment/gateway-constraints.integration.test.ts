@@ -210,6 +210,7 @@ describeIntegration("Gateway payment schema unique constraints", () => {
     const suffix = `${Date.now()}`;
     const payment = await prisma.gatewayPayment.create({
       data: {
+        gatewayAccount: "OPERATING",
         ...basePaymentInput,
         curlec_order_id: `order_dup_key_${suffix}`,
         idempotency_key: `gateway-payment:dup-key-${suffix}`,
@@ -220,6 +221,7 @@ describeIntegration("Gateway payment schema unique constraints", () => {
     await expect(
       prisma.gatewayPayment.create({
         data: {
+        gatewayAccount: "OPERATING",
           ...basePaymentInput,
           curlec_order_id: `order_other_${suffix}`,
           idempotency_key: `gateway-payment:dup-key-${suffix}`,
@@ -239,7 +241,7 @@ describeIntegration("Gateway payment schema unique constraints", () => {
       data: {
         event_id: `evt_dup_${suffix}`,
         event_type: "payment.captured",
-        gatewayAccount: "LEGACY_DEFAULT",
+        gatewayAccount: "OPERATING",
         payload: { id: `pay_${suffix}` },
         signature_valid: true,
       },
@@ -251,7 +253,7 @@ describeIntegration("Gateway payment schema unique constraints", () => {
         data: {
           event_id: `evt_dup_${suffix}`,
           event_type: "payment.captured",
-          gatewayAccount: "LEGACY_DEFAULT",
+          gatewayAccount: "OPERATING",
           payload: { id: `pay_other_${suffix}` },
           signature_valid: true,
         },
@@ -266,28 +268,28 @@ describeIntegration("Gateway payment schema unique constraints", () => {
     }
 
     const suffix = `${Date.now()}`;
-    const legacy = await prisma.gatewayWebhookEvent.create({
-      data: {
-        event_id: `evt_cross_${suffix}`,
-        event_type: "payment.captured",
-        gatewayAccount: "LEGACY_DEFAULT",
-        payload: { id: `pay_${suffix}` },
-        signature_valid: true,
-      },
-    });
-    createdEventIds.push(legacy.id);
-
     const operating = await prisma.gatewayWebhookEvent.create({
       data: {
         event_id: `evt_cross_${suffix}`,
         event_type: "payment.captured",
         gatewayAccount: "OPERATING",
-        payload: { id: `pay_other_${suffix}` },
+        payload: { id: `pay_${suffix}` },
         signature_valid: true,
       },
     });
     createdEventIds.push(operating.id);
 
-    expect(legacy.id).not.toBe(operating.id);
+    const pool = await prisma.gatewayWebhookEvent.create({
+      data: {
+        event_id: `evt_cross_${suffix}`,
+        event_type: "payment.captured",
+        gatewayAccount: "INVESTOR_POOL",
+        payload: { id: `pay_other_${suffix}` },
+        signature_valid: true,
+      },
+    });
+    createdEventIds.push(pool.id);
+
+    expect(operating.id).not.toBe(pool.id);
   });
 });

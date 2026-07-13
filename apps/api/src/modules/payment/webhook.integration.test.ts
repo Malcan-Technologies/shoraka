@@ -7,7 +7,6 @@ import { curlecWebhookRouter } from "./webhook-controller";
 const prisma = new PrismaClient();
 
 const TEST_WEBHOOK_SECRET_BY_ACCOUNT: Record<CurlecGatewayAccount, string> = {
-  LEGACY_DEFAULT: "whsec_m3_legacy",
   OPERATING: "whsec_m3_operating",
   INVESTOR_POOL: "whsec_m3_investor_pool",
 };
@@ -16,7 +15,7 @@ jest.mock("../../config/curlec", () => {
   const actual = jest.requireActual<typeof import("../../config/curlec")>("../../config/curlec");
   return {
     ...actual,
-    getCurlecConfig: jest.fn((gatewayAccount: CurlecGatewayAccount = "LEGACY_DEFAULT") => ({
+    getCurlecConfig: jest.fn((gatewayAccount: CurlecGatewayAccount = "OPERATING") => ({
       gatewayAccount,
       keyId: `rzp_test_${gatewayAccount.toLowerCase()}`,
       keySecret: "rzp_test_secret",
@@ -88,14 +87,14 @@ describeIntegration("POST /v1/webhooks/curlec/*", () => {
 
     const eventId = `evt_m3_valid_${Date.now()}`;
     createdEventIds.push(eventId);
-    const routePath = "/v1/webhooks/curlec/legacy";
+    const routePath = "/v1/webhooks/curlec/operating";
     const rawBody = JSON.stringify({
       event: "payment.captured",
       payload: { payment: { entity: { id: "pay_test" } } },
     });
     const signature = computeCurlecWebhookSignature(
       rawBody,
-      TEST_WEBHOOK_SECRET_BY_ACCOUNT.LEGACY_DEFAULT
+      TEST_WEBHOOK_SECRET_BY_ACCOUNT.OPERATING
     );
 
     const response = await signedWebhookRequest(buildTestApp(), {
@@ -111,11 +110,11 @@ describeIntegration("POST /v1/webhooks/curlec/*", () => {
     expect(response.body.data.eventId).toBe(eventId);
 
     const stored = await prisma.gatewayWebhookEvent.findFirst({
-      where: { event_id: eventId, gatewayAccount: CurlecGatewayAccount.LEGACY_DEFAULT },
+      where: { event_id: eventId, gatewayAccount: CurlecGatewayAccount.OPERATING },
     });
     expect(stored?.event_type).toBe("payment.captured");
     expect(stored?.signature_valid).toBe(true);
-    expect(stored?.gatewayAccount).toBe(CurlecGatewayAccount.LEGACY_DEFAULT);
+    expect(stored?.gatewayAccount).toBe(CurlecGatewayAccount.OPERATING);
   });
 
   it("operating route verifies only operating secret", async () => {
@@ -191,14 +190,14 @@ describeIntegration("POST /v1/webhooks/curlec/*", () => {
     expect(response.body.error.code).toBe("INVALID_SIGNATURE");
   });
 
-  it("investor-pool route rejects payload signed with legacy secret", async () => {
+  it("investor-pool route rejects payload signed with operating secret", async () => {
     if (!migrated) return;
 
     const eventId = `evt_m3_bad_pool_${Date.now()}`;
     const rawBody = JSON.stringify({ event: "payment.captured", payload: { payment: { entity: {} } } });
     const wrongSignature = computeCurlecWebhookSignature(
       rawBody,
-      TEST_WEBHOOK_SECRET_BY_ACCOUNT.LEGACY_DEFAULT
+      TEST_WEBHOOK_SECRET_BY_ACCOUNT.OPERATING
     );
 
     const response = await signedWebhookRequest(buildTestApp(), {
@@ -212,37 +211,12 @@ describeIntegration("POST /v1/webhooks/curlec/*", () => {
     expect(response.body.error.code).toBe("INVALID_SIGNATURE");
   });
 
-  it("transitional /curlec route accepts legacy secret only", async () => {
+  it("shared /curlec route is absent", async () => {
     if (!migrated) return;
 
-    const eventId = `evt_m3_legacy_alias_${Date.now()}`;
-    createdEventIds.push(eventId);
+    const eventId = `evt_m3_shared_absent_${Date.now()}`;
     const rawBody = JSON.stringify({ event: "payment.captured", payload: { payment: { entity: {} } } });
-    const legacySignature = computeCurlecWebhookSignature(
-      rawBody,
-      TEST_WEBHOOK_SECRET_BY_ACCOUNT.LEGACY_DEFAULT
-    );
-
-    const response = await signedWebhookRequest(buildTestApp(), {
-      rawBody,
-      eventId,
-      routePath: "/v1/webhooks/curlec",
-      signature: legacySignature,
-    });
-
-    expect(response.status).toBe(200);
-    const stored = await prisma.gatewayWebhookEvent.findFirst({
-      where: { event_id: eventId, gatewayAccount: CurlecGatewayAccount.LEGACY_DEFAULT },
-    });
-    expect(stored).not.toBeNull();
-  });
-
-  it("transitional /curlec route rejects non-legacy secret", async () => {
-    if (!migrated) return;
-
-    const eventId = `evt_m3_legacy_alias_bad_${Date.now()}`;
-    const rawBody = JSON.stringify({ event: "payment.captured", payload: { payment: { entity: {} } } });
-    const nonLegacySignature = computeCurlecWebhookSignature(
+    const signature = computeCurlecWebhookSignature(
       rawBody,
       TEST_WEBHOOK_SECRET_BY_ACCOUNT.OPERATING
     );
@@ -251,11 +225,30 @@ describeIntegration("POST /v1/webhooks/curlec/*", () => {
       rawBody,
       eventId,
       routePath: "/v1/webhooks/curlec",
-      signature: nonLegacySignature,
+      signature,
     });
 
-    expect(response.status).toBe(401);
-    expect(response.body.error.code).toBe("INVALID_SIGNATURE");
+    expect(response.status).toBe(404);
+  });
+
+  it("legacy /curlec/legacy route is absent", async () => {
+    if (!migrated) return;
+
+    const eventId = `evt_m3_legacy_absent_${Date.now()}`;
+    const rawBody = JSON.stringify({ event: "payment.captured", payload: { payment: { entity: {} } } });
+    const signature = computeCurlecWebhookSignature(
+      rawBody,
+      TEST_WEBHOOK_SECRET_BY_ACCOUNT.OPERATING
+    );
+
+    const response = await signedWebhookRequest(buildTestApp(), {
+      rawBody,
+      eventId,
+      routePath: "/v1/webhooks/curlec/legacy",
+      signature,
+    });
+
+    expect(response.status).toBe(404);
   });
 
   it("returns 401 for malformed signature", async () => {
@@ -267,12 +260,12 @@ describeIntegration("POST /v1/webhooks/curlec/*", () => {
     const response = await signedWebhookRequest(buildTestApp(), {
       rawBody,
       eventId,
-      routePath: "/v1/webhooks/curlec/legacy",
+      routePath: "/v1/webhooks/curlec/operating",
       signature: "deadbeef".repeat(8),
     });
 
     const stored = await prisma.gatewayWebhookEvent.findUnique({
-      where: { gatewayAccount_event_id: { gatewayAccount: "LEGACY_DEFAULT", event_id: eventId } },
+      where: { gatewayAccount_event_id: { gatewayAccount: "OPERATING", event_id: eventId } },
     });
     expect(response.status).toBe(401);
     expect(response.body.error.code).toBe("INVALID_SIGNATURE");
@@ -285,33 +278,33 @@ describeIntegration("POST /v1/webhooks/curlec/*", () => {
     const eventId = `evt_m3_dup_${Date.now()}`;
     createdEventIds.push(eventId);
     const rawBody = JSON.stringify({ event: "payment.captured" });
-    const legacySignature = computeCurlecWebhookSignature(
-      rawBody,
-      TEST_WEBHOOK_SECRET_BY_ACCOUNT.LEGACY_DEFAULT
-    );
     const operatingSignature = computeCurlecWebhookSignature(
       rawBody,
       TEST_WEBHOOK_SECRET_BY_ACCOUNT.OPERATING
+    );
+    const poolSignature = computeCurlecWebhookSignature(
+      rawBody,
+      TEST_WEBHOOK_SECRET_BY_ACCOUNT.INVESTOR_POOL
     );
     const app = buildTestApp();
 
     const first = await signedWebhookRequest(app, {
       rawBody,
       eventId,
-      routePath: "/v1/webhooks/curlec/legacy",
-      signature: legacySignature,
+      routePath: "/v1/webhooks/curlec/operating",
+      signature: operatingSignature,
     });
     const second = await signedWebhookRequest(app, {
       rawBody,
       eventId,
-      routePath: "/v1/webhooks/curlec/legacy",
-      signature: legacySignature,
+      routePath: "/v1/webhooks/curlec/operating",
+      signature: operatingSignature,
     });
     const third = await signedWebhookRequest(app, {
       rawBody,
       eventId,
-      routePath: "/v1/webhooks/curlec/operating",
-      signature: operatingSignature,
+      routePath: "/v1/webhooks/curlec/investor-pool",
+      signature: poolSignature,
     });
 
     expect(first.status).toBe(200);
@@ -334,13 +327,13 @@ describeIntegration("POST /v1/webhooks/curlec/*", () => {
     const rawBody = "{not-json";
     const signature = computeCurlecWebhookSignature(
       rawBody,
-      TEST_WEBHOOK_SECRET_BY_ACCOUNT.LEGACY_DEFAULT
+      TEST_WEBHOOK_SECRET_BY_ACCOUNT.OPERATING
     );
 
     const response = await signedWebhookRequest(buildTestApp(), {
       rawBody,
       eventId,
-      routePath: "/v1/webhooks/curlec/legacy",
+      routePath: "/v1/webhooks/curlec/operating",
       signature,
     });
 
@@ -355,13 +348,13 @@ describeIntegration("POST /v1/webhooks/curlec/*", () => {
     const rawBody = JSON.stringify({ payload: {} });
     const signature = computeCurlecWebhookSignature(
       rawBody,
-      TEST_WEBHOOK_SECRET_BY_ACCOUNT.LEGACY_DEFAULT
+      TEST_WEBHOOK_SECRET_BY_ACCOUNT.OPERATING
     );
 
     const response = await signedWebhookRequest(buildTestApp(), {
       rawBody,
       eventId,
-      routePath: "/v1/webhooks/curlec/legacy",
+      routePath: "/v1/webhooks/curlec/operating",
       signature,
     });
 

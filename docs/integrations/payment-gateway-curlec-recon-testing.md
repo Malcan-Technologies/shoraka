@@ -38,7 +38,7 @@ Notes:
 
 ## Option 3 — Real settlement (true end-to-end, pre go-live)
 
-1. Switch `apps/api/.env` to the live keys (`CURLEC_KEY_ID=rzp_live_*`, matching secret).
+1. Switch `apps/api/.env` to the live Operating / Investor Pool keys (`CURLEC_OPERATING_KEY_ID=rzp_live_*` or `CURLEC_INVESTOR_POOL_KEY_ID=rzp_live_*`, matching secrets).
 2. Make one small real FPX payment.
 3. Wait for Curlec to settle it (~T+1–2; confirm in the Curlec dashboard).
 4. Run recon for the **settlement date**: on the admin page enter that date and click *Run now*, or let the daily 02:00 MYT cron run.

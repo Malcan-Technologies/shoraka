@@ -28,14 +28,14 @@ type RequestOptions = {
 };
 
 export type CreateCurlecClientOptions = {
-  gatewayAccount?: CurlecGatewayAccount;
+  gatewayAccount: CurlecGatewayAccount;
   configOverride?: CurlecConfig;
 };
 
 export class CurlecClient {
   constructor(
-    private readonly config?: CurlecConfig,
-    private readonly gatewayAccount: CurlecGatewayAccount = "LEGACY_DEFAULT"
+    private readonly config: CurlecConfig | undefined,
+    private readonly gatewayAccount: CurlecGatewayAccount
   ) {}
 
   private resolveConfig(): CurlecConfig {
@@ -196,11 +196,14 @@ export function createCurlecClient(
   }
 
   if (options?.configOverride) {
-    return new CurlecClient(
-      options.configOverride,
-      options.gatewayAccount ?? options.configOverride.gatewayAccount
+    return new CurlecClient(options.configOverride, options.gatewayAccount);
+  }
+
+  if (!options?.gatewayAccount) {
+    throw new Error(
+      "createCurlecClient requires an explicit gatewayAccount (OPERATING or INVESTOR_POOL)."
     );
   }
 
-  return new CurlecClient(undefined, options?.gatewayAccount ?? "LEGACY_DEFAULT");
+  return new CurlecClient(undefined, options.gatewayAccount);
 }

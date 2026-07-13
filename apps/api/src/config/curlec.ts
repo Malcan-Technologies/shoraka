@@ -1,9 +1,6 @@
 import { z } from "zod";
 
 const curlecEnvSchema = z.object({
-  CURLEC_KEY_ID: z.string().optional(),
-  CURLEC_KEY_SECRET: z.string().optional(),
-  CURLEC_WEBHOOK_SECRET: z.string().optional(),
   CURLEC_OPERATING_KEY_ID: z.string().optional(),
   CURLEC_OPERATING_KEY_SECRET: z.string().optional(),
   CURLEC_OPERATING_WEBHOOK_SECRET: z.string().optional(),
@@ -13,11 +10,7 @@ const curlecEnvSchema = z.object({
   CURLEC_API_BASE_URL: z.string().url().optional(),
 });
 
-export const CURLEC_GATEWAY_ACCOUNTS = [
-  "LEGACY_DEFAULT",
-  "OPERATING",
-  "INVESTOR_POOL",
-] as const;
+export const CURLEC_GATEWAY_ACCOUNTS = ["OPERATING", "INVESTOR_POOL"] as const;
 
 export type CurlecGatewayAccount = (typeof CURLEC_GATEWAY_ACCOUNTS)[number];
 
@@ -44,6 +37,10 @@ export function resetCurlecConfigCache(): void {
   cachedConfigs.clear();
 }
 
+function isCurlecGatewayAccount(value: string): value is CurlecGatewayAccount {
+  return (CURLEC_GATEWAY_ACCOUNTS as readonly string[]).includes(value);
+}
+
 function resolveCredentialFields(account: CurlecGatewayAccount): {
   keyId: string;
   keySecret: string;
@@ -65,24 +62,13 @@ function resolveCredentialFields(account: CurlecGatewayAccount): {
     };
   }
 
-  if (account === "INVESTOR_POOL") {
-    return {
-      keyId: env.CURLEC_INVESTOR_POOL_KEY_ID?.trim() ?? "",
-      keySecret: env.CURLEC_INVESTOR_POOL_KEY_SECRET?.trim() ?? "",
-      webhookSecret: env.CURLEC_INVESTOR_POOL_WEBHOOK_SECRET?.trim() ?? "",
-      keyIdEnvName: "CURLEC_INVESTOR_POOL_KEY_ID",
-      keySecretEnvName: "CURLEC_INVESTOR_POOL_KEY_SECRET",
-      webhookSecretEnvName: "CURLEC_INVESTOR_POOL_WEBHOOK_SECRET",
-    };
-  }
-
   return {
-    keyId: env.CURLEC_KEY_ID?.trim() ?? "",
-    keySecret: env.CURLEC_KEY_SECRET?.trim() ?? "",
-    webhookSecret: env.CURLEC_WEBHOOK_SECRET?.trim() ?? "",
-    keyIdEnvName: "CURLEC_KEY_ID",
-    keySecretEnvName: "CURLEC_KEY_SECRET",
-    webhookSecretEnvName: "CURLEC_WEBHOOK_SECRET",
+    keyId: env.CURLEC_INVESTOR_POOL_KEY_ID?.trim() ?? "",
+    keySecret: env.CURLEC_INVESTOR_POOL_KEY_SECRET?.trim() ?? "",
+    webhookSecret: env.CURLEC_INVESTOR_POOL_WEBHOOK_SECRET?.trim() ?? "",
+    keyIdEnvName: "CURLEC_INVESTOR_POOL_KEY_ID",
+    keySecretEnvName: "CURLEC_INVESTOR_POOL_KEY_SECRET",
+    webhookSecretEnvName: "CURLEC_INVESTOR_POOL_WEBHOOK_SECRET",
   };
 }
 
@@ -158,8 +144,15 @@ export function getConfiguredCurlecGatewayAccounts(): CurlecGatewayAccount[] {
 /**
  * Curlec (Razorpay Malaysia) credentials and API base URL.
  * Server-only — never expose keySecret or webhookSecret to clients.
+ * Requires an explicit gateway account (OPERATING or INVESTOR_POOL).
  */
-export function getCurlecConfig(gatewayAccount: CurlecGatewayAccount = "LEGACY_DEFAULT"): CurlecConfig {
+export function getCurlecConfig(gatewayAccount: CurlecGatewayAccount): CurlecConfig {
+  if (!isCurlecGatewayAccount(gatewayAccount)) {
+    throw new Error(
+      `Unsupported Curlec gateway account: ${String(gatewayAccount)}. Expected OPERATING or INVESTOR_POOL.`
+    );
+  }
+
   const cached = cachedConfigs.get(gatewayAccount);
   if (cached) {
     return cached;
