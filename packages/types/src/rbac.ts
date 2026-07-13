@@ -66,6 +66,8 @@ export const ADMIN_PERMISSIONS = [
   "investor_withdrawals.manage",
   "gateway_payments.view",
   "gateway_payments.manage",
+  "gateway_reconciliation.view",
+  "gateway_reconciliation.manage",
 
   // Contracts (standalone)
   "contracts.view",
@@ -267,7 +269,9 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
       "investor_withdrawals.view",
       "investor_withdrawals.manage",
       "gateway_payments.view",
-      "gateway_payments.manage"
+      "gateway_payments.manage",
+      "gateway_reconciliation.view",
+      "gateway_reconciliation.manage"
     ),
   },
   {

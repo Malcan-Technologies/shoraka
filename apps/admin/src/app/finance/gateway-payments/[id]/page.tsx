@@ -45,6 +45,7 @@ export default function GatewayPaymentDetailPage() {
   const id = typeof params?.id === "string" ? params.id : null;
   const { can } = usePermissions();
   const canManage = can("gateway_payments.manage");
+  const disabledReason = !canManage ? "You do not have permission to perform this action." : undefined;
 
   const { data: payment, isLoading, error, refetch, isFetching } = useGatewayPayment(id);
   const retryRefund = useRetryGatewayPaymentRefund();
@@ -59,13 +60,11 @@ export default function GatewayPaymentDetailPage() {
     approveNameCheck.isPending ||
     rejectNameCheck.isPending;
 
-  const canRetryRefund = Boolean(canManage && payment?.status === "HELD");
-  const canReviewNameCheck = Boolean(canManage && payment?.status === "NAME_CHECK_PENDING");
-  const canInitiateRefund = Boolean(
-    canManage &&
-      payment?.status === "COMPLETED" &&
-      payment.purpose === "INVESTOR_DEPOSIT"
-  );
+  const showReviewNameCheck = payment?.status === "NAME_CHECK_PENDING";
+  const showRetryRefund = payment?.status === "HELD";
+  const showInitiateRefund =
+    payment?.status === "COMPLETED" && payment.purpose === "INVESTOR_DEPOSIT";
+  const showActionsCard = Boolean(showReviewNameCheck || showRetryRefund || showInitiateRefund);
 
   const handleRetryRefund = async () => {
     if (!id) return;
@@ -220,40 +219,47 @@ export default function GatewayPaymentDetailPage() {
                   </CardContent>
                 </Card>
 
-                {canManage && (canRetryRefund || canInitiateRefund || canReviewNameCheck) ? (
+                {showActionsCard ? (
                   <Card className="rounded-2xl">
                     <CardHeader>
                       <CardTitle>Actions</CardTitle>
                     </CardHeader>
                     <CardContent className="flex flex-wrap gap-2">
-                      {canReviewNameCheck ? (
+                      {showReviewNameCheck ? (
                         <>
-                          <Button onClick={() => void handleApproveNameCheck()} disabled={isPending}>
+                          <Button
+                            onClick={() => void handleApproveNameCheck()}
+                            disabled={!canManage || isPending}
+                            title={disabledReason}
+                          >
                             Approve name check
                           </Button>
                           <Button
                             variant="destructive"
                             onClick={() => void handleRejectNameCheck()}
-                            disabled={isPending}
+                            disabled={!canManage || isPending}
+                            title={disabledReason}
                           >
                             Reject name check
                           </Button>
                         </>
                       ) : null}
-                      {canRetryRefund ? (
+                      {showRetryRefund ? (
                         <Button
                           variant="destructive"
                           onClick={() => void handleRetryRefund()}
-                          disabled={isPending}
+                          disabled={!canManage || isPending}
+                          title={disabledReason}
                         >
                           Retry auto-refund
                         </Button>
                       ) : null}
-                      {canInitiateRefund ? (
+                      {showInitiateRefund ? (
                         <Button
                           variant="destructive"
                           onClick={() => setShowRefundDialog(true)}
-                          disabled={isPending}
+                          disabled={!canManage || isPending}
+                          title={disabledReason}
                         >
                           Initiate refund
                         </Button>

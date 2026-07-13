@@ -41,7 +41,7 @@ gatewayReconAdminRouter.use(requireRole(UserRole.ADMIN));
 
 gatewayReconAdminRouter.get(
   "/runs",
-  requirePermission("gateway_payments.view"),
+  requirePermission("gateway_reconciliation.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const query = listReconRunsQuerySchema.parse(req.query);
@@ -54,7 +54,7 @@ gatewayReconAdminRouter.get(
 
 gatewayReconAdminRouter.get(
   "/runs/:id",
-  requirePermission("gateway_payments.view"),
+  requirePermission("gateway_reconciliation.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = reconRunIdParamSchema.parse(req.params);
@@ -67,7 +67,7 @@ gatewayReconAdminRouter.get(
 
 gatewayReconAdminRouter.get(
   "/exceptions",
-  requirePermission("gateway_payments.view"),
+  requirePermission("gateway_reconciliation.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const query = listReconExceptionsQuerySchema.parse(req.query);
@@ -80,7 +80,7 @@ gatewayReconAdminRouter.get(
 
 gatewayReconAdminRouter.get(
   "/exceptions/pending-count",
-  requirePermission("gateway_payments.view"),
+  requirePermission("gateway_reconciliation.view"),
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       send(res, await getUnresolvedReconExceptionsCount());
@@ -92,7 +92,7 @@ gatewayReconAdminRouter.get(
 
 gatewayReconAdminRouter.post(
   "/run",
-  requirePermission("gateway_payments.manage"),
+  requirePermission("gateway_reconciliation.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const body = triggerReconRunSchema.parse(req.body ?? {});
@@ -105,7 +105,7 @@ gatewayReconAdminRouter.post(
 
 gatewayReconAdminRouter.post(
   "/exceptions/:id/resolve",
-  requirePermission("gateway_payments.manage"),
+  requirePermission("gateway_reconciliation.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = reconExceptionIdParamSchema.parse(req.params);

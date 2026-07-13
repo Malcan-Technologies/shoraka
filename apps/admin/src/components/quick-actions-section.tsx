@@ -53,6 +53,7 @@ export function QuickActionsSection({
   const canDisbursements = can("disbursements.view");
   const canViewInvestorWithdrawals = can("investor_withdrawals.view");
   const canViewGatewayPayments = can("gateway_payments.view");
+  const canViewReconciliation = can("gateway_reconciliation.view");
 
   const { data: pendingCountData, isLoading: isPendingCountLoading } = usePendingApprovalCount({ enabled: canOnboarding });
   const { data: noteActionCountData, isLoading: isNoteActionCountLoading } = useNoteActionRequiredCount({ enabled: canNotes });
@@ -66,7 +67,7 @@ export function QuickActionsSection({
   const { data: gatewayPaymentExceptionsData, isLoading: isGatewayPaymentExceptionsLoading } =
     useGatewayPaymentsExceptionCount({ enabled: canViewGatewayPayments });
   const { data: gatewayReconExceptionsData, isLoading: isGatewayReconExceptionsLoading } =
-    useGatewayReconPendingCount({ enabled: canViewGatewayPayments });
+    useGatewayReconPendingCount({ enabled: canViewReconciliation });
   const { data: applicationsForSidebar = [], isLoading: isApplicationsForSidebarLoading } =
     useAdminApplicationsForSidebar({ enabled: canApplications });
   const { data: productsData, isLoading: isProductsLoading } = useProducts({
@@ -125,7 +126,8 @@ export function QuickActionsSection({
     canServiceFee ||
     canDisbursements ||
     canViewInvestorWithdrawals ||
-    canViewGatewayPayments;
+    canViewGatewayPayments ||
+    canViewReconciliation;
 
   return (
     <section className="space-y-4">
@@ -297,7 +299,7 @@ export function QuickActionsSection({
               loading={loading || isGatewayPaymentExceptionsLoading}
             />
           )}
-          {canViewGatewayPayments && (
+          {canViewReconciliation && (
             <QuickActionCard
               title="Reconciliation"
               description="Review settlement runs and exceptions"

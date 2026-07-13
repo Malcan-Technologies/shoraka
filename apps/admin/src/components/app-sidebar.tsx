@@ -225,6 +225,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canViewDisbursements = can("disbursements.view");
   const canViewInvestorWithdrawals = can("investor_withdrawals.view");
   const canViewGatewayPayments = can("gateway_payments.view");
+  const canViewReconciliation = can("gateway_reconciliation.view");
 
   const canViewUsers = can("users.view");
   const canViewOrganizations = can("organizations.view");
@@ -251,7 +252,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     enabled: canViewGatewayPayments,
   });
   const { data: gatewayReconData } = useGatewayReconPendingCount({
-    enabled: canViewGatewayPayments,
+    enabled: canViewReconciliation,
   });
   const { data: pendingServiceFeeLettersData } = usePendingServiceFeeTrusteeLetters({
     enabled: canViewServiceFee,
@@ -312,8 +313,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       (item.title === "Issuer Payouts" && canViewDisbursements) ||
       (item.title === "Investor Withdrawals" && canViewInvestorWithdrawals) ||
       (item.title === "Gateway Payments" && canViewGatewayPayments) ||
-      (item.title === "Gateway Payments" && canViewGatewayPayments) ||
-      (item.title === "Reconciliation" && canViewGatewayPayments)
+      (item.title === "Reconciliation" && canViewReconciliation)
     );
   });
 
@@ -592,8 +592,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       (item.title === "Issuer Payouts" && canViewDisbursements) ||
       (item.title === "Investor Withdrawals" && canViewInvestorWithdrawals) ||
       (item.title === "Gateway Payments" && canViewGatewayPayments) ||
-      (item.title === "Gateway Payments" && canViewGatewayPayments) ||
-      (item.title === "Reconciliation" && canViewGatewayPayments);
+      (item.title === "Reconciliation" && canViewReconciliation);
 
                     if (!canShow) return null;
 

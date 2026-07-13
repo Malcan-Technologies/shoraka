@@ -68,7 +68,8 @@ function formatDate(value: string) {
 
 export default function ReconciliationPage() {
   const { can } = usePermissions();
-  const canManage = can("gateway_payments.manage");
+  const canManage = can("gateway_reconciliation.manage");
+  const disabledReason = !canManage ? "You do not have permission to perform this action." : undefined;
 
   const [runDate, setRunDate] = useState("");
   const [runGatewayAccount, setRunGatewayAccount] = useState<"">("");
@@ -149,7 +150,7 @@ export default function ReconciliationPage() {
   const isPending = triggerRun.isPending || resolveException.isPending;
 
   return (
-    <RequirePermission permission="gateway_payments.view">
+    <RequirePermission permission="gateway_reconciliation.view">
       <>
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
@@ -179,47 +180,56 @@ export default function ReconciliationPage() {
             review before they can be cleared from the queue.
           </p>
 
-          {canManage ? (
-            <Card className="rounded-2xl">
-              <CardHeader>
-                <CardTitle>Run reconciliation</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-wrap items-end gap-4">
-                <div>
-                  <Label htmlFor="recon-run-date">Run date (MYT, optional)</Label>
-                  <Input
-                    id="recon-run-date"
-                    type="date"
-                    value={runDate}
-                    onChange={(event) => setRunDate(event.target.value)}
-                    className="mt-1 w-48"
-                  />
-                  <p className="mt-1 text-xs opacity-70">Leave blank to reconcile yesterday (MYT).</p>
-                </div>
-                <div>
-                  <Label htmlFor="recon-gateway-account">Gateway account</Label>
-                  <Select
-                    value={runGatewayAccount}
-                    onValueChange={(value) => setRunGatewayAccount(value as typeof runGatewayAccount)}
+          <Card className="rounded-2xl">
+            <CardHeader>
+              <CardTitle>Run reconciliation</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap items-end gap-4">
+              <div>
+                <Label htmlFor="recon-run-date">Run date (MYT, optional)</Label>
+                <Input
+                  id="recon-run-date"
+                  type="date"
+                  value={runDate}
+                  onChange={(event) => setRunDate(event.target.value)}
+                  className="mt-1 w-48"
+                  disabled={!canManage}
+                  title={disabledReason}
+                />
+                <p className="mt-1 text-xs opacity-70">Leave blank to reconcile yesterday (MYT).</p>
+              </div>
+              <div>
+                <Label htmlFor="recon-gateway-account">Gateway account</Label>
+                <Select
+                  value={runGatewayAccount}
+                  onValueChange={(value) => setRunGatewayAccount(value as typeof runGatewayAccount)}
+                  disabled={!canManage}
+                >
+                  <SelectTrigger
+                    id="recon-gateway-account"
+                    className="mt-1 w-56"
+                    title={disabledReason}
                   >
-                    <SelectTrigger id="recon-gateway-account" className="mt-1 w-56">
-                      <SelectValue placeholder="Select account" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {GATEWAY_ACCOUNT_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button onClick={() => void handleTriggerRun()} disabled={isPending}>
-                  Run now
-                </Button>
-              </CardContent>
-            </Card>
-          ) : null}
+                    <SelectValue placeholder="Select account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GATEWAY_ACCOUNT_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                onClick={() => void handleTriggerRun()}
+                disabled={!canManage || isPending}
+                title={disabledReason}
+              >
+                Run now
+              </Button>
+            </CardContent>
+          </Card>
 
           <Card className="rounded-2xl">
             <CardHeader>
@@ -383,7 +393,7 @@ export default function ReconciliationPage() {
                       <TableHead>Actual</TableHead>
                       <TableHead>Detail</TableHead>
                       <TableHead>Created</TableHead>
-                      {canManage ? <TableHead /> : null}
+                      <TableHead />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -417,17 +427,17 @@ export default function ReconciliationPage() {
                         </TableCell>
                         <TableCell className="max-w-xs truncate">{formatExceptionDetail(item.detail)}</TableCell>
                         <TableCell>{formatDate(item.createdAt)}</TableCell>
-                        {canManage ? (
-                          <TableCell>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setResolveTarget(item)}
-                            >
-                              Resolve
-                            </Button>
-                          </TableCell>
-                        ) : null}
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setResolveTarget(item)}
+                            disabled={!canManage}
+                            title={disabledReason}
+                          >
+                            Resolve
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
