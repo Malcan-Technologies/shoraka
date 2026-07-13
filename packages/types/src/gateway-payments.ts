@@ -17,7 +17,9 @@ export type GatewayPaymentEventType =
   | "OVERRIDE_REJECTED"
   | "REFUND_INITIATED"
   | "REFUNDED"
-  | "EXPIRED";
+  | "EXPIRED"
+  | "CAPTURE_MISMATCH"
+  | "REFUND_WALLET_REVERSAL_FAILED";
 
 export interface GatewayPaymentEventDto {
   id: string;
@@ -60,6 +62,7 @@ export interface GatewayPaymentDetailDto extends GatewayPaymentListItemDto {
   refundNotes: string | null;
   openOverrideProposedBy: string | null;
   openOverrideReason: string | null;
+  metadata: Record<string, unknown> | null;
   events: GatewayPaymentEventDto[];
 }
 

@@ -120,7 +120,15 @@ Server-only — never expose key secrets or webhook secrets to clients. Loaded b
 
 The public key id is returned in order-create API responses — frontends do not need a `NEXT_PUBLIC_CURLEC_*` variable.
 
-`CURLEC_KEY_ID`, `CURLEC_KEY_SECRET`, and `CURLEC_WEBHOOK_SECRET` remain transitional compatibility variables for `LEGACY_DEFAULT` in Stage 1. Later rollout stages must provide both `OPERATING` and `INVESTOR_POOL` credential sets before account routing is enabled.
+`CURLEC_KEY_ID`, `CURLEC_KEY_SECRET`, and `CURLEC_WEBHOOK_SECRET` are transitional compatibility credentials for historical `LEGACY_DEFAULT` payments only. Do not replace them with Operating or Investor Pool credentials.
+
+Account routing is enabled:
+
+- Issuer onboarding fee / application processing fee → `OPERATING` (`CURLEC_OPERATING_*`)
+- Investor deposits and deposit refunds → `INVESTOR_POOL` (`CURLEC_INVESTOR_POOL_*`)
+- Historical rows keep stored `LEGACY_DEFAULT` and continue using legacy credentials
+
+Both `OPERATING` and `INVESTOR_POOL` credential sets are required in production alongside legacy until legacy retirement criteria are met.
 
 Webhook endpoint mapping (production):
 

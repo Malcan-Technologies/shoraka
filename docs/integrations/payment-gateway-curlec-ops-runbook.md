@@ -35,6 +35,7 @@ The wallet is **never** credited unless the name check passes or an admin explic
 | Captured amount ≠ order | `REFUND_INITIATED` → `REFUNDED` | Never credited | None (auto-refund) |
 | Name unavailable or ambiguous (`REVIEW`) | `NAME_CHECK_PENDING` | Never credited | Admin approves (credit) or rejects (auto-refund) |
 | Refund API / webhook failure | `HELD` | Never credited (or debited if post-credit refund) | **Retry auto-refund** on payment detail |
+| Confirmed Curlec refund but wallet debit failed | `HELD` (metadata `refundConfirmedWalletReversalFailed`) | Still credited until fixed | **Retry auto-refund** retries wallet debit only — does not call Curlec again |
 
 Normal auto-refund path: `REFUND_INITIATED` → `REFUNDED` via Curlec Refund API + webhooks.
 
@@ -54,6 +55,12 @@ If the Curlec Refund API or `refund.failed` webhook fails after a failed name ch
 1. Open **Admin → Finance → Gateway Payments** → filter **Needs attention**.
 2. Use **Retry auto-refund** on the payment detail page.
 
+If a post-credit refund already succeeded at Curlec but the local wallet debit failed (insufficient available balance):
+
+1. The payment is `HELD` with metadata `refundConfirmedWalletReversalFailed`.
+2. Free or restore available balance as needed, then use **Retry auto-refund**.
+3. That action reverses the wallet only (idempotent key `gateway-deposit:refund:<paymentId>`). It must not create a second Curlec refund.
+
 ### Manual post-credit correction (rare)
 
 For a mistakenly credited `COMPLETED` investor deposit, use **Initiate refund** on the gateway payment detail page. This debits the wallet and refunds via Curlec.
@@ -61,6 +68,21 @@ For a mistakenly credited `COMPLETED` investor deposit, use **Initiate refund** 
 ## Issuer Fees
 
 Issuer onboarding and application processing fees have **no name check** and are **non-refundable** (including if onboarding or the application is later rejected). On successful capture they go straight to `COMPLETED` with an `OPERATING_ACCOUNT` ledger credit.
+
+New fee orders are routed to the **Operating** Curlec merchant (`OPERATING`). Historical fee rows may still be `LEGACY_DEFAULT`.
+
+If Curlec reports a captured fee but amount/currency/order/ownership validation fails, the payment is moved to `HELD` with `captureMismatch` metadata (never `COMPLETED`, never plain `FAILED`). A second fee order is blocked until finance resolves the held row. Escalate to engineering with the Gateway Payment ID and Curlec payment/order IDs from payment detail metadata/events.
+
+## Account routing
+
+| Purpose | Gateway account |
+|---|---|
+| Issuer onboarding fee | `OPERATING` |
+| Application processing fee | `OPERATING` |
+| Investor deposit / refund follow-ups | `INVESTOR_POOL` |
+| Historical existing payments | stored `LEGACY_DEFAULT` (do not rewrite) |
+
+All refunds, stuck-order polling, and settlement reconciliation use the payment's stored `gatewayAccount`. Reconciliation runs separately per account.
 
 ## Reconciliation
 

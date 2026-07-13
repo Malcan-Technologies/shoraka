@@ -1018,6 +1018,7 @@ export interface IssuerOnboardingFeeStatusResponse {
   amount: number;
   latestPayment: IssuerOnboardingFeeResponse | null;
   isPaid: boolean;
+  isUnderReview: boolean;
 }
 
 export interface CreateApplicationProcessingFeeInput {

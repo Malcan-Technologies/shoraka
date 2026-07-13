@@ -95,6 +95,20 @@ export async function assertApplicationProcessingFeePaid(
   }
 }
 
+async function findHeldCaptureMismatchProcessingFee(
+  db: PrismaClient | Prisma.TransactionClient,
+  applicationId: string
+) {
+  return db.gatewayPayment.findFirst({
+    where: {
+      purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
+      application_id: applicationId,
+      status: GatewayPaymentStatus.HELD,
+    },
+    orderBy: { created_at: "desc" },
+  });
+}
+
 export async function createApplicationProcessingFee(
   actor: ActorContext,
   applicationId: string,
@@ -119,6 +133,16 @@ export async function createApplicationProcessingFee(
 
     if (completed) {
       return mapGatewayPaymentResponse(completed);
+    }
+
+    const heldMismatch = await findHeldCaptureMismatchProcessingFee(tx, applicationId);
+    if (heldMismatch) {
+      throw new AppError(
+        409,
+        "PROCESSING_FEE_CAPTURE_MISMATCH_HELD",
+        "A captured application processing fee payment is under review. Do not create another payment order.",
+        { gatewayPaymentId: heldMismatch.id, status: heldMismatch.status }
+      );
     }
 
     const existing = await findExistingProcessingFeePayment(tx, applicationId);

@@ -35,7 +35,7 @@ Phases 1–5 are **shipped**. Phase 6 (live smoke, prod env wiring, dev-tool rem
 | Decision | Choice |
 |---|---|
 | Payment method | **FPX only** at launch (bank-to-bank, no chargebacks, supports payer identification) |
-| Settlement | **Single Curlec settlement account**. Our internal ledger attributes funds to buckets (`INVESTOR_POOL`, `OPERATING_ACCOUNT`); physical movement between bank accounts happens later via RHB API / manual fund-out instructed through the trustee |
+| Settlement | **Per Curlec merchant account.** Operating and Investor Pool each have their own Curlec settlements. Reconciliation runs separately per `gatewayAccount`. Internal ledger still attributes funds to buckets (`INVESTOR_POOL`, `OPERATING_ACCOUNT`); physical bank movement between buckets remains via RHB / trustee as before |
 | AML name check (investors only) | Payer bank account name must match investor account name. On clear mismatch or amount mismatch: **never credit**; auto-refund via Curlec API. On unavailable/ambiguous name: `NAME_CHECK_PENDING` for admin approve/reject |
 | Issuers | No name check |
 | Fee amounts | Admin-configurable via `PlatformFinanceSetting`: issuer onboarding fee (default RM150), application processing fee (default RM50), minimum investor deposit (default RM100), maximum investor deposit (default RM30,000) |
@@ -226,10 +226,14 @@ Curlec credentials are loaded lazily from env in `apps/api/src/config/curlec.ts`
 
 | Variable | Description | Notes |
 |---|---|---|
-| `CURLEC_KEY_ID` | API key ID (`rzp_test_*` or `rzp_live_*`) | Server-only |
-| `CURLEC_KEY_SECRET` | API secret | Server-only; Secrets Manager in prod |
+| `CURLEC_KEY_ID` | Legacy merchant API key ID | Transitional `LEGACY_DEFAULT` only |
+| `CURLEC_KEY_SECRET` | Legacy merchant API secret | Secrets Manager in prod |
 | `CURLEC_WEBHOOK_SECRET` | Legacy webhook HMAC secret | Must match legacy merchant dashboard route |
+| `CURLEC_OPERATING_KEY_ID` | Operating merchant API key ID | Issuer fee orders/refunds/recon |
+| `CURLEC_OPERATING_KEY_SECRET` | Operating merchant API secret | Secrets Manager in prod |
 | `CURLEC_OPERATING_WEBHOOK_SECRET` | Operating webhook HMAC secret | Must match Operating merchant dashboard route |
+| `CURLEC_INVESTOR_POOL_KEY_ID` | Investor Pool merchant API key ID | Deposit orders/refunds/recon |
+| `CURLEC_INVESTOR_POOL_KEY_SECRET` | Investor Pool merchant API secret | Secrets Manager in prod |
 | `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET` | Investor Pool webhook HMAC secret | Must match Investor Pool merchant dashboard route |
 | `CURLEC_API_BASE_URL` | API base URL | Default `https://api.razorpay.com`; confirm Malaysia prod URL with Curlec |
 

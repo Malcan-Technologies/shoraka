@@ -60,6 +60,20 @@ async function findExistingOnboardingFeePayment(
   });
 }
 
+async function findHeldCaptureMismatchOnboardingFee(
+  db: PrismaClient | Prisma.TransactionClient,
+  issuerOrganizationId: string
+) {
+  return db.gatewayPayment.findFirst({
+    where: {
+      purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+      issuer_organization_id: issuerOrganizationId,
+      status: GatewayPaymentStatus.HELD,
+    },
+    orderBy: { created_at: "desc" },
+  });
+}
+
 export async function createIssuerOnboardingFee(
   actor: ActorContext,
   input: CreateIssuerOnboardingFeeInput,
@@ -95,6 +109,16 @@ export async function createIssuerOnboardingFee(
       if (completed) {
         return mapGatewayPaymentResponse(completed);
       }
+    }
+
+    const heldMismatch = await findHeldCaptureMismatchOnboardingFee(tx, input.issuerOrganizationId);
+    if (heldMismatch) {
+      throw new AppError(
+        409,
+        "ONBOARDING_FEE_CAPTURE_MISMATCH_HELD",
+        "A captured onboarding fee payment is under review. Do not create another payment order.",
+        { gatewayPaymentId: heldMismatch.id, status: heldMismatch.status }
+      );
     }
 
     const existing = await findExistingOnboardingFeePayment(tx, input.issuerOrganizationId);
@@ -164,5 +188,6 @@ export async function getIssuerOnboardingFeeStatus(
     amount,
     latestPayment: latest ? mapGatewayPaymentResponse(latest) : null,
     isPaid: Boolean(issuerOrg.onboarding_fee_paid_at),
+    isUnderReview: latest?.status === GatewayPaymentStatus.HELD,
   };
 }

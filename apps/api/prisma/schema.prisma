@@ -1037,6 +1037,31 @@ model GatewayPayment {
   @@map("gateway_payments")
 }
 
+/// Durable checkpoint for a Curlec order-create attempt. Written before the
+/// remote Curlec call and updated with the remote order id immediately after
+/// success, so a failed local GatewayPayment insert can recover the same order
+/// on retry instead of creating another remote order.
+model GatewayOrderAttempt {
+  id               String                       @id @default(cuid())
+  gatewayAccount   CurlecGatewayAccount         @default(LEGACY_DEFAULT) @map("gateway_account")
+  purpose          GatewayPaymentPurpose
+  scope_key        String
+  idempotency_key  String?
+  receipt          String
+  curlec_order_id  String?
+  amount           Decimal                      @db.Decimal(18, 6)
+  currency         String                       @default("MYR")
+  status           GatewayOrderAttemptStatus     @default(PENDING)
+  last_error_code  String?
+  created_at       DateTime                     @default(now())
+  updated_at       DateTime                     @updatedAt
+
+  @@unique([gatewayAccount, purpose, scope_key])
+  @@index([gatewayAccount, curlec_order_id])
+  @@index([status, created_at])
+  @@map("gateway_order_attempts")
+}
+
 /// Admin audit trail for gateway payment status and resolution actions.
 model GatewayPaymentEvent {
   id                  String                 @id @default(cuid())
@@ -1711,6 +1736,15 @@ enum GatewayPaymentEventType {
   REFUND_INITIATED
   REFUNDED
   EXPIRED
+  CAPTURE_MISMATCH
+  REFUND_WALLET_REVERSAL_FAILED
+}
+
+enum GatewayOrderAttemptStatus {
+  PENDING
+  REMOTE_CREATED
+  RESOLVED
+  FAILED
 }
 
 enum GatewayReconRunStatus {

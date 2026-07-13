@@ -731,7 +731,15 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     );
 
     const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
-    expect(updated.status).toBe(GatewayPaymentStatus.EXPIRED);
+    expect(updated.status).toBe(GatewayPaymentStatus.HELD);
+    expect((updated.metadata as Record<string, unknown>).captureMismatch).toMatchObject({
+      mismatchType: "CURRENCY_MISMATCH",
+    });
+    // Clear held mismatch so later shared-org tests can create new orders.
+    await prisma.gatewayPayment.update({
+      where: { id: created.id },
+      data: { status: GatewayPaymentStatus.FAILED },
+    });
   });
 
   it("rejects late capture when Curlec payment belongs to another order", async () => {
@@ -776,7 +784,14 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     );
 
     const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
-    expect(updated.status).toBe(GatewayPaymentStatus.EXPIRED);
+    expect(updated.status).toBe(GatewayPaymentStatus.HELD);
+    expect((updated.metadata as Record<string, unknown>).captureMismatch).toMatchObject({
+      mismatchType: "ORDER_MISMATCH",
+    });
+    await prisma.gatewayPayment.update({
+      where: { id: created.id },
+      data: { status: GatewayPaymentStatus.FAILED },
+    });
   });
 
   it("normal order.paid completes an active CREATED onboarding fee payment", async () => {
@@ -785,6 +800,14 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     await prisma.issuerOrganization.update({
       where: { id: orgId },
       data: { onboarding_fee_paid_at: null },
+    });
+    await prisma.gatewayPayment.updateMany({
+      where: {
+        issuer_organization_id: orgId,
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        status: { in: [GatewayPaymentStatus.COMPLETED, GatewayPaymentStatus.HELD] },
+      },
+      data: { status: GatewayPaymentStatus.FAILED },
     });
 
     const created = await createIssuerOnboardingFee(
@@ -997,7 +1020,12 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       where: {
         issuer_organization_id: orgId,
         purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
-        status: GatewayPaymentStatus.COMPLETED,
+        status: {
+          in: [
+            GatewayPaymentStatus.COMPLETED,
+            GatewayPaymentStatus.HELD,
+          ],
+        },
       },
       data: { status: GatewayPaymentStatus.FAILED },
     });
@@ -1044,6 +1072,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     await processStoredCurlecWebhook(eventId, prisma, "OPERATING");
 
     const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
+    expect(updated.status).toBe(GatewayPaymentStatus.HELD);
     expect(updated.status).not.toBe(GatewayPaymentStatus.COMPLETED);
   });
 
@@ -1138,5 +1167,220 @@ describeIntegration("issuer onboarding fee (M8)", () => {
         "Resume Corp"
       )
     ).rejects.toMatchObject({ statusCode: 402, code: "ONBOARDING_FEE_REQUIRED" });
+  });
+
+  it("CREATED amount mismatch moves fee to HELD and blocks a second order", async () => {
+    if (!migrated) return;
+
+    const suffix = `${Date.now()}`.slice(-4);
+    const mismatchUser = await prisma.user.create({
+      data: {
+        user_id: `M${suffix}`.slice(0, 5),
+        email: `mismatch-fee-${Date.now()}@example.com`,
+        cognito_sub: `sub-mismatch-${Date.now()}`,
+        cognito_username: `mismatch-${Date.now()}`,
+        first_name: "Mismatch",
+        last_name: "Issuer",
+        roles: [UserRole.ISSUER],
+        issuer_account: ["COMPANY"],
+      },
+    });
+    createdUserIds.push(mismatchUser.user_id);
+
+    const mismatchOrg = await prisma.issuerOrganization.create({
+      data: {
+        owner_user_id: mismatchUser.user_id,
+        type: OrganizationType.COMPANY,
+        name: "Mismatch Corp",
+        tnc_accepted: true,
+      },
+    });
+    createdOrgIds.push(mismatchOrg.id);
+
+    const created = await createIssuerOnboardingFee(
+      { userId: mismatchUser.user_id },
+      { issuerOrganizationId: mismatchOrg.id },
+      prisma
+    );
+    createdPaymentIds.push(created.id);
+
+    (createCurlecClient as jest.Mock).mockReturnValueOnce({
+      createOrder: jest.fn(),
+      fetchPayment: jest.fn(async (paymentId: string) => ({
+        id: paymentId,
+        amount: 99999,
+        currency: "MYR",
+        status: "captured",
+        method: "fpx",
+        order_id: created.curlecOrderId,
+      })),
+      fetchOrderPayments: jest.fn(async () => []),
+    });
+
+    await processOnboardingFeeCapture(
+      {
+        orderId: created.curlecOrderId,
+        paymentId: `pay_mismatch_${Date.now()}`,
+        eventId: `evt_mismatch_${Date.now()}`,
+        routeGatewayAccount: "OPERATING",
+      },
+      prisma
+    );
+
+    const held = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
+    expect(held.status).toBe(GatewayPaymentStatus.HELD);
+    expect(held.gatewayAccount).toBe("OPERATING");
+    const metadata = held.metadata as Record<string, unknown>;
+    expect(metadata.captureMismatch).toMatchObject({ mismatchType: "AMOUNT_MISMATCH" });
+
+    const status = await getIssuerOnboardingFeeStatus(
+      { userId: mismatchUser.user_id },
+      mismatchOrg.id,
+      prisma
+    );
+    expect(status.isPaid).toBe(false);
+    expect(status.isUnderReview).toBe(true);
+
+    await expect(
+      createIssuerOnboardingFee(
+        { userId: mismatchUser.user_id },
+        { issuerOrganizationId: mismatchOrg.id },
+        prisma
+      )
+    ).rejects.toMatchObject({ code: "ONBOARDING_FEE_CAPTURE_MISMATCH_HELD" });
+  });
+
+  it("EXPIRED late-capture amount mismatch moves fee to HELD", async () => {
+    if (!migrated) return;
+
+    const suffix = `${Date.now()}`.slice(-4);
+    const mismatchUser = await prisma.user.create({
+      data: {
+        user_id: `E${suffix}`.slice(0, 5),
+        email: `expired-mismatch-${Date.now()}@example.com`,
+        cognito_sub: `sub-expired-mismatch-${Date.now()}`,
+        cognito_username: `expired-mismatch-${Date.now()}`,
+        first_name: "Expired",
+        last_name: "Issuer",
+        roles: [UserRole.ISSUER],
+        issuer_account: ["COMPANY"],
+      },
+    });
+    createdUserIds.push(mismatchUser.user_id);
+
+    const mismatchOrg = await prisma.issuerOrganization.create({
+      data: {
+        owner_user_id: mismatchUser.user_id,
+        type: OrganizationType.COMPANY,
+        name: "Expired Mismatch Corp",
+        tnc_accepted: true,
+      },
+    });
+    createdOrgIds.push(mismatchOrg.id);
+
+    const created = await createIssuerOnboardingFee(
+      { userId: mismatchUser.user_id },
+      { issuerOrganizationId: mismatchOrg.id },
+      prisma
+    );
+    createdPaymentIds.push(created.id);
+
+    await prisma.gatewayPayment.update({
+      where: { id: created.id },
+      data: { status: GatewayPaymentStatus.EXPIRED },
+    });
+
+    (createCurlecClient as jest.Mock).mockReturnValueOnce({
+      createOrder: jest.fn(),
+      fetchPayment: jest.fn(async (paymentId: string) => ({
+        id: paymentId,
+        amount: 11111,
+        currency: "MYR",
+        status: "captured",
+        method: "fpx",
+        order_id: created.curlecOrderId,
+      })),
+      fetchOrderPayments: jest.fn(async () => []),
+    });
+
+    await processOnboardingFeeCapture(
+      {
+        orderId: created.curlecOrderId,
+        paymentId: `pay_expired_mismatch_${Date.now()}`,
+        eventId: `evt_expired_mismatch_${Date.now()}`,
+        routeGatewayAccount: "OPERATING",
+      },
+      prisma
+    );
+
+    const held = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
+    expect(held.status).toBe(GatewayPaymentStatus.HELD);
+    expect((held.metadata as Record<string, unknown>).captureMismatch).toBeTruthy();
+  });
+
+  it("currency mismatch holds issuer fee without completing", async () => {
+    if (!migrated) return;
+
+    const suffix = `${Date.now()}`.slice(-4);
+    const mismatchUser = await prisma.user.create({
+      data: {
+        user_id: `C${suffix}`.slice(0, 5),
+        email: `currency-mismatch-${Date.now()}@example.com`,
+        cognito_sub: `sub-currency-mismatch-${Date.now()}`,
+        cognito_username: `currency-mismatch-${Date.now()}`,
+        first_name: "Currency",
+        last_name: "Issuer",
+        roles: [UserRole.ISSUER],
+        issuer_account: ["COMPANY"],
+      },
+    });
+    createdUserIds.push(mismatchUser.user_id);
+
+    const mismatchOrg = await prisma.issuerOrganization.create({
+      data: {
+        owner_user_id: mismatchUser.user_id,
+        type: OrganizationType.COMPANY,
+        name: "Currency Mismatch Corp",
+        tnc_accepted: true,
+      },
+    });
+    createdOrgIds.push(mismatchOrg.id);
+
+    const created = await createIssuerOnboardingFee(
+      { userId: mismatchUser.user_id },
+      { issuerOrganizationId: mismatchOrg.id },
+      prisma
+    );
+    createdPaymentIds.push(created.id);
+
+    (createCurlecClient as jest.Mock).mockReturnValueOnce({
+      createOrder: jest.fn(),
+      fetchPayment: jest.fn(async (paymentId: string) => ({
+        id: paymentId,
+        amount: 15000,
+        currency: "SGD",
+        status: "captured",
+        method: "fpx",
+        order_id: created.curlecOrderId,
+      })),
+      fetchOrderPayments: jest.fn(async () => []),
+    });
+
+    await processOnboardingFeeCapture(
+      {
+        orderId: created.curlecOrderId,
+        paymentId: `pay_currency_mismatch_${Date.now()}`,
+        eventId: `evt_currency_mismatch_${Date.now()}`,
+        routeGatewayAccount: "OPERATING",
+      },
+      prisma
+    );
+
+    const held = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
+    expect(held.status).toBe(GatewayPaymentStatus.HELD);
+    expect(held.status).not.toBe(GatewayPaymentStatus.COMPLETED);
+    expect((held.metadata as Record<string, unknown>).captureMismatch).toMatchObject({
+      mismatchType: "CURRENCY_MISMATCH",
+    });
   });
 });
