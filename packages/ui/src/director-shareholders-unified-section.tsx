@@ -8,9 +8,11 @@ import {
   canManageDirectorShareholder,
   filterVisiblePeopleRows,
   formatPeopleIdentityLine,
+  formatPeopleRolesLine,
   formatPeopleRolesLineTitleCase,
   getFinalStatusBadgeClassName,
   getFinalStatusLabel,
+  isMissingGovernmentIdPerson,
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
   resolveDirectorShareholderCtosEmptyWarning,
@@ -20,6 +22,7 @@ import {
 } from "@cashsouk/types";
 import { toast } from "sonner";
 import { DirectorShareholderCtosEmptyAlert } from "./director-shareholder-ctos-empty-alert";
+import { DirectorShareholderUnresolvedIdentityCard } from "./director-shareholder-unresolved-identity-card";
 import { Input } from "./components/input";
 import { Button } from "./components/button";
 import { Badge } from "./components/badge";
@@ -112,6 +115,16 @@ export function DirectorShareholdersUnifiedSection({
     [people]
   );
 
+  const unresolvedPeople = React.useMemo(
+    () => filterVisiblePeopleRows(people).filter((p) => isMissingGovernmentIdPerson(p)),
+    [people]
+  );
+
+  const verifiedRows = React.useMemo(
+    () => rows.filter((r) => !isMissingGovernmentIdPerson(r.__person)),
+    [rows]
+  );
+
   React.useEffect(() => {
     if (!autoFocusFirstEmptyEmail) return;
     const t = window.setTimeout(() => {
@@ -196,10 +209,14 @@ export function DirectorShareholdersUnifiedSection({
     }
   };
 
-  const directorLikeRows = rows.filter(isDirectorLikeRow);
-  const shareholderOnlyRows = rows.filter(isIndividualShareholderOnlyRow);
-  const corporateRows = rows.filter((r) => r.type === "COMPANY");
-  const emptyAll = directorLikeRows.length === 0 && shareholderOnlyRows.length === 0 && corporateRows.length === 0;
+  const directorLikeRows = verifiedRows.filter(isDirectorLikeRow);
+  const shareholderOnlyRows = verifiedRows.filter(isIndividualShareholderOnlyRow);
+  const corporateRows = verifiedRows.filter((r) => r.type === "COMPANY");
+  const emptyAll =
+    directorLikeRows.length === 0 &&
+    shareholderOnlyRows.length === 0 &&
+    corporateRows.length === 0 &&
+    unresolvedPeople.length === 0;
 
   const renderRow = (row: AugmentedRow) => {
     const email = displayEmail(row);
@@ -277,6 +294,20 @@ export function DirectorShareholdersUnifiedSection({
       <div className="p-6 space-y-6">
         {resolvedCtosEmptyWarning ? (
           <DirectorShareholderCtosEmptyAlert message={resolvedCtosEmptyWarning} />
+        ) : null}
+        {unresolvedPeople.length > 0 ? (
+          <div className="space-y-3">
+            {unresolvedPeople.map((p, index) => (
+              <DirectorShareholderUnresolvedIdentityCard
+                key={`unresolved-${String(p.requestId ?? "")}-${(p.roles ?? []).join("-")}-${index}`}
+                name={p.name}
+                role={formatPeopleRolesLine(p)}
+                sharePercentage={p.sharePercentage}
+                eodRequestId={p.requestId}
+                onboardingStatus={p.onboarding?.status ?? null}
+              />
+            ))}
+          </div>
         ) : null}
         {emptyAll ? (
           <p className="text-sm text-muted-foreground text-center py-8">

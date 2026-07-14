@@ -16,13 +16,18 @@ import { useOrganization, createApiClient, useAuthToken, type OrganizationMember
 import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
   filterVisiblePeopleRows,
+  formatPeopleRolesLine,
   formatPeopleRolesLineTitleCaseWithoutShare,
   formatShareOwnershipCell,
   getFinalStatusBadgeClassName,
   getFinalStatusLabel,
+  isMissingGovernmentIdPerson,
   resolveDirectorShareholderCtosEmptyWarning,
 } from "@cashsouk/types";
-import { DirectorShareholderCtosEmptyAlert } from "@cashsouk/ui";
+import {
+  DirectorShareholderCtosEmptyAlert,
+  DirectorShareholderUnresolvedIdentityCard,
+} from "@cashsouk/ui";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { useApplication } from "@/hooks/use-applications";
@@ -760,14 +765,33 @@ export function CompanyDetailsStep({
                 <DirectorShareholderCtosEmptyAlert message={resolvedCtosEmptyWarning} />
               </div>
             ) : null}
-            {visiblePeopleRows.length === 0 ? (
+            {visiblePeopleRows.some((p) => isMissingGovernmentIdPerson(p)) ? (
+              <div className="col-span-2 space-y-3">
+                {visiblePeopleRows
+                  .filter((p) => isMissingGovernmentIdPerson(p))
+                  .map((p, index) => (
+                    <DirectorShareholderUnresolvedIdentityCard
+                      key={`unresolved-${String(p.requestId ?? "")}-${(p.roles ?? []).join("-")}-${index}`}
+                      name={p.name}
+                      role={formatPeopleRolesLine(p)}
+                      sharePercentage={p.sharePercentage}
+                      eodRequestId={p.requestId}
+                      onboardingStatus={p.onboarding?.status ?? null}
+                    />
+                  ))}
+              </div>
+            ) : null}
+            {visiblePeopleRows.filter((p) => !isMissingGovernmentIdPerson(p)).length === 0 &&
+            !visiblePeopleRows.some((p) => isMissingGovernmentIdPerson(p)) ? (
               <p className="text-[17px] leading-7 text-muted-foreground col-span-2">
                 {resolvedCtosEmptyWarning
                   ? "No directors or shareholders are available from CTOS."
                   : "No directors or shareholders found"}
               </p>
             ) : (
-              visiblePeopleRows.map((p) => {
+              visiblePeopleRows
+                .filter((p) => !isMissingGovernmentIdPerson(p))
+                .map((p) => {
                 const displayRow = buildDirectorShareholderDisplayRowForEmailEligibility(p, null);
                 const finalStatus = getFinalStatusLabel({
                   screening: p.screening,

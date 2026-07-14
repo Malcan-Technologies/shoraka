@@ -403,7 +403,29 @@ function personRowFromSupplement(params: {
 
 function normalizeUnifiedPeopleRows(rows: ApplicationPersonRow[]): ApplicationPersonRow[] {
   const merged = new Map<string, ApplicationPersonRow>();
+  const unresolved: ApplicationPersonRow[] = [];
+
   for (const row of rows) {
+    if (row.identityWarning === "MISSING_GOVERNMENT_ID") {
+      const roleSet = new Set<string>((row.roles ?? []).map((r) => String(r).toUpperCase()));
+      const share = typeof row.sharePercentage === "number" ? row.sharePercentage : null;
+      if (roleSet.has("SHAREHOLDER") && (share == null || share < 5)) roleSet.delete("SHAREHOLDER");
+      if (roleSet.size === 0) continue;
+      unresolved.push({
+        ...row,
+        matchKey: "",
+        identityWarning: "MISSING_GOVERNMENT_ID",
+        roles: Array.from(roleSet),
+        email: String(row.email ?? "").trim() || "",
+        userEmail: undefined,
+        kycEmail: undefined,
+        amlEmail: undefined,
+        directorAmlStatus: undefined,
+        directorKycStatus: undefined,
+      });
+      continue;
+    }
+
     const key = normalizeDirectorShareholderIdKey(row.matchKey);
     if (!key) continue;
     const existing = merged.get(key);
@@ -452,7 +474,7 @@ function normalizeUnifiedPeopleRows(rows: ApplicationPersonRow[]): ApplicationPe
       directorKycStatus: undefined,
     };
   });
-  return out;
+  return [...out, ...unresolved];
 }
 
 /**
@@ -498,17 +520,45 @@ function buildPeopleFromUserDeclaredData(params: {
   const supplementByKey = buildSupplementMapByMatchKey(params.ctosPartySupplements);
 
   const baseRows = displayRows.map((r) => {
+    const sharePct = typeof r.sharePercentage === "number" ? r.sharePercentage : null;
+    const roles: Array<"DIRECTOR" | "SHAREHOLDER"> = [];
+    if (r.isDirector) roles.push("DIRECTOR");
+    if (r.isShareholder && sharePct != null && sharePct >= 5) roles.push("SHAREHOLDER");
+
+    // Display-only unresolved identity: no trusted matchKey; never merge by name/email/EOD.
+    if (r.identityWarning === "MISSING_GOVERNMENT_ID") {
+      const eod = String(r.enquiryId ?? "").trim() || null;
+      const onboardingStatus = String(r.status ?? "").trim() || null;
+      return {
+        matchKey: "",
+        identityWarning: "MISSING_GOVERNMENT_ID" as const,
+        name: r.name ?? null,
+        entityType: "INDIVIDUAL" as const,
+        roles,
+        sharePercentage: sharePct,
+        status: "",
+        action: null,
+        screening: r.amlStatus
+          ? { status: normalizeRawStatus(r.amlStatus) || r.amlStatus, id: eod, riskLevel: null, riskScore: null }
+          : null,
+        onboarding: { status: onboardingStatus, id: null },
+        requestId: eod,
+        requestIdType: eod ? ("ONBOARDING" as const) : null,
+        icFrontUrl: null,
+        icBackUrl: null,
+        userEmail: null,
+        kycEmail: r.email ?? null,
+        amlEmail: null,
+        email: r.email ?? "",
+        directorAmlStatus: r.amlStatus ?? null,
+        directorKycStatus: onboardingStatus,
+      };
+    }
+
     // Admin UI expects matchKey to be the IC government id (INDIVIDUAL) or SSM number (CORPORATE).
     // We must not fall back to RegTank request ids here.
     const matchKey = (r.idNumber ?? r.registrationNumber ?? "") as string;
     const key = normalizeDirectorShareholderIdKey(matchKey) ?? matchKey;
-
-    const roles: Array<"DIRECTOR" | "SHAREHOLDER"> = [];
-    if (r.isDirector) roles.push("DIRECTOR");
-
-    // Preserve rule: <5% shareholders should not get the SHAREHOLDER role.
-    const sharePct = typeof r.sharePercentage === "number" ? r.sharePercentage : null;
-    if (r.isShareholder && sharePct != null && sharePct >= 5) roles.push("SHAREHOLDER");
 
     const entityType = (r.type === "INDIVIDUAL" ? "INDIVIDUAL" : "CORPORATE") as "INDIVIDUAL" | "CORPORATE";
     const icUrls = entityType === "INDIVIDUAL" ? icDocsByMatchKey.get(key) : undefined;
@@ -520,7 +570,7 @@ function buildPeopleFromUserDeclaredData(params: {
         name: r.name ?? null,
         entityType,
         roles,
-        sharePercentage: typeof r.sharePercentage === "number" ? r.sharePercentage : null,
+        sharePercentage: sharePct,
         sup: bundle.sup,
         supplementRaw: bundle.raw,
         icFrontUrl: icUrls?.front ?? null,
@@ -540,7 +590,7 @@ function buildPeopleFromUserDeclaredData(params: {
       name: r.name ?? null,
       entityType,
       roles,
-      sharePercentage: typeof r.sharePercentage === "number" ? r.sharePercentage : null,
+      sharePercentage: sharePct,
       status: enriched.status,
       action: null,
       screening: enriched.screening,

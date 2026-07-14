@@ -94,6 +94,10 @@ export {
   type DirectorShareholderCtosEmptyAlertProps,
 } from "./director-shareholder-ctos-empty-alert";
 export {
+  DirectorShareholderUnresolvedIdentityCard,
+  type DirectorShareholderUnresolvedIdentityCardProps,
+} from "./director-shareholder-unresolved-identity-card";
+export {
   DirectorShareholderAlertCard,
   type DirectorShareholderAlertCardProps,
 } from "./director-shareholder-alert-card";

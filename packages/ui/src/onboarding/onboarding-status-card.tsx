@@ -12,7 +12,9 @@ import {
 import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
   filterVisiblePeopleRows,
+  formatPeopleRolesLine,
   getFinalStatusBadgeClassName,
+  isMissingGovernmentIdPerson,
   resolveDirectorShareholderCtosEmptyWarning,
   type ApplicationPersonRow,
   type DirectorShareholderListSource,
@@ -23,6 +25,7 @@ import { Button } from "../components/button";
 import { Badge } from "../components/badge";
 import { OnboardingStepper } from "./onboarding-stepper";
 import { DirectorShareholderCtosEmptyAlert } from "../director-shareholder-ctos-empty-alert";
+import { DirectorShareholderUnresolvedIdentityCard } from "../director-shareholder-unresolved-identity-card";
 import { UnifiedKycAmlReadonlyRows } from "../components/unified-kyc-aml-readonly-rows";
 
 type OrganizationWithPeople = Organization & {
@@ -64,10 +67,19 @@ export function OnboardingStatusCard({
   const corporateUnifiedRows = React.useMemo(() => {
     if (!isCompany) return [];
     const people = orgWithPeople.people ?? [];
-    return filterVisiblePeopleRows(people).map((person) => ({
-      ...buildDirectorShareholderDisplayRowForEmailEligibility(person, null),
-      __person: person,
-    }));
+    return filterVisiblePeopleRows(people)
+      .filter((person) => !isMissingGovernmentIdPerson(person))
+      .map((person) => ({
+        ...buildDirectorShareholderDisplayRowForEmailEligibility(person, null),
+        __person: person,
+      }));
+  }, [isCompany, orgWithPeople.people]);
+
+  const unresolvedCorporatePeople = React.useMemo(() => {
+    if (!isCompany) return [];
+    return filterVisiblePeopleRows(orgWithPeople.people ?? []).filter((p) =>
+      isMissingGovernmentIdPerson(p)
+    );
   }, [isCompany, orgWithPeople.people]);
 
   const resolvedCtosEmptyWarning = React.useMemo(
@@ -86,7 +98,9 @@ export function OnboardingStatusCard({
     (organization.onboardingStatus === "PENDING_APPROVAL" ||
       isPendingAml ||
       organization.onboardingStatus === "PENDING_AMENDMENT") &&
-    (corporateUnifiedRows.length > 0 || Boolean(resolvedCtosEmptyWarning));
+    (corporateUnifiedRows.length > 0 ||
+      unresolvedCorporatePeople.length > 0 ||
+      Boolean(resolvedCtosEmptyWarning));
 
   // Personal accounts have no director/shareholder list, but the same self-service AML
   // refresh already works for them on the backend — show status + Refresh here instead of
@@ -167,12 +181,26 @@ export function OnboardingStatusCard({
             {resolvedCtosEmptyWarning ? (
               <DirectorShareholderCtosEmptyAlert message={resolvedCtosEmptyWarning} />
             ) : null}
+            {unresolvedCorporatePeople.length > 0 ? (
+              <div className="space-y-3">
+                {unresolvedCorporatePeople.map((p, index) => (
+                  <DirectorShareholderUnresolvedIdentityCard
+                    key={`unresolved-${String(p.requestId ?? "")}-${(p.roles ?? []).join("-")}-${index}`}
+                    name={p.name}
+                    role={formatPeopleRolesLine(p)}
+                    sharePercentage={p.sharePercentage}
+                    eodRequestId={p.requestId}
+                    onboardingStatus={p.onboarding?.status ?? null}
+                  />
+                ))}
+              </div>
+            ) : null}
             {corporateUnifiedRows.length > 0 ? (
               <UnifiedKycAmlReadonlyRows
                 rows={corporateUnifiedRows}
                 isRefreshing={isPendingAml && isRefreshing}
               />
-            ) : resolvedCtosEmptyWarning ? (
+            ) : unresolvedCorporatePeople.length === 0 && resolvedCtosEmptyWarning ? (
               <p className="text-sm text-muted-foreground">
                 No directors or shareholders are available from CTOS.
               </p>

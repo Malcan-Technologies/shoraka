@@ -47,6 +47,12 @@ import {
   type OnboardingApprovalStatus,
   getFinalStatusBadgeClassName,
   getFinalStatusLabel,
+  filterVisiblePeopleRows,
+  formatPeopleRolesLine,
+  partitionPeopleByIdentityResolution,
+  resolveDirectorShareholderCtosEmptyWarning,
+  type ApplicationPersonRow,
+  type PeopleRolesRowInput,
 } from "@cashsouk/types";
 import {
   ONBOARDING_OPEN_REGTANK_REVIEW_LABEL,
@@ -70,13 +76,7 @@ import {
   StarIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
-import {
-  filterVisiblePeopleRows,
-  formatPeopleRolesLine,
-  type PeopleRolesRowInput,
-} from "@/lib/onboarding-people-display";
-import { resolveDirectorShareholderCtosEmptyWarning } from "@cashsouk/types";
-import { DirectorShareholderCtosEmptyAlert } from "@cashsouk/ui";
+import { DirectorShareholderCtosEmptyAlert, DirectorShareholderUnresolvedIdentityCard } from "@cashsouk/ui";
 
 type OnboardingPersonRow = PeopleRolesRowInput & {
   matchKey: string;
@@ -85,6 +85,10 @@ type OnboardingPersonRow = PeopleRolesRowInput & {
   status: string;
   screening?: { status?: string | null } | null;
   onboarding?: { status?: string | null } | null;
+  identityWarning?: ApplicationPersonRow["identityWarning"];
+  requestId?: string | null;
+  sharePercentage?: number | null;
+  roles: string[];
 };
 
 function formatOnboardingSyncDate(dateString: string | null | undefined) {
@@ -157,6 +161,30 @@ function OnboardingPeopleReadonlyCards({
   );
 }
 
+function OnboardingUnresolvedIdentityCards({
+  rows,
+  isRefreshing,
+}: {
+  rows: OnboardingPersonRow[];
+  isRefreshing: boolean;
+}) {
+  if (rows.length === 0) return null;
+  return (
+    <div className={cn("space-y-3", isRefreshing && "opacity-70")} aria-busy={isRefreshing || undefined}>
+      {rows.map((p, index) => (
+        <DirectorShareholderUnresolvedIdentityCard
+          key={`unresolved-${String(p.requestId ?? "")}-${(p.roles ?? []).join("-")}-${index}`}
+          name={p.name}
+          role={formatPeopleRolesLine(p)}
+          sharePercentage={p.sharePercentage}
+          eodRequestId={p.requestId}
+          onboardingStatus={p.onboarding?.status ?? null}
+        />
+      ))}
+    </div>
+  );
+}
+
 function resolveDirectorShareholderEmptyMessage(
   peopleRowCount: number,
   ctosEmptyWarning: string | null
@@ -187,8 +215,12 @@ function OnboardingDirectorShareholderSection({
   finalStatusDisplayMode: "kyc_only" | "aml_first";
   lastSyncedAt?: string | null;
 }) {
+  const { verified, unresolved } = React.useMemo(
+    () => partitionPeopleByIdentityResolution(visibleRows as ApplicationPersonRow[]),
+    [visibleRows]
+  );
   const emptyMessage =
-    visibleRows.length === 0
+    verified.length === 0 && unresolved.length === 0
       ? resolveDirectorShareholderEmptyMessage(peopleRowCount, resolvedCtosEmptyWarning)
       : null;
 
@@ -222,15 +254,20 @@ function OnboardingDirectorShareholderSection({
         <p className="text-xs text-muted-foreground">
           Note: Shareholders with less than 5% ownership are not displayed here.
         </p>
-        {visibleRows.length > 0 ? (
+        {verified.length > 0 ? (
           <OnboardingPeopleReadonlyCards
-            rows={visibleRows}
+            rows={verified as OnboardingPersonRow[]}
             isRefreshing={isRefreshing}
             finalStatusDisplayMode={finalStatusDisplayMode}
           />
-        ) : emptyMessage ? (
-          <DirectorShareholderCtosEmptyAlert message={emptyMessage} />
         ) : null}
+        {unresolved.length > 0 ? (
+          <OnboardingUnresolvedIdentityCards
+            rows={unresolved as OnboardingPersonRow[]}
+            isRefreshing={isRefreshing}
+          />
+        ) : null}
+        {emptyMessage ? <DirectorShareholderCtosEmptyAlert message={emptyMessage} /> : null}
       </div>
     </>
   );
