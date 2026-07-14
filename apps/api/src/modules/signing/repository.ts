@@ -231,6 +231,20 @@ export class SigningRepository {
     });
   }
 
+  /** Clears IC gate so the signer can re-enter IC before eKYC completes. */
+  async clearRecipientAccessGate(
+    recipientId: string,
+    options: { clearIcNumber: boolean }
+  ): Promise<void> {
+    await prisma.signingRecipient.update({
+      where: { id: recipientId },
+      data: {
+        access_code_verified_at: null,
+        ...(options.clearIcNumber ? { ic_number: null } : {}),
+      },
+    });
+  }
+
   async markEnvelopeSent(envelopeId: string): Promise<void> {
     await prisma.$transaction([
       prisma.signingEnvelope.update({

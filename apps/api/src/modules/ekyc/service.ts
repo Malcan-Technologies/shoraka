@@ -145,6 +145,31 @@ function mapRecordToSigningKycStatus(
   return "PENDING";
 }
 
+/**
+ * If this email already completed MyKad eKYC, `providedIc` must match the verified IC.
+ * Blocks binding / starting a new session that would overwrite a verified identity.
+ */
+export async function assertProvidedIcCompatibleWithEmailEkyc(
+  email: string,
+  providedIc: string
+): Promise<void> {
+  const record = await prisma.signingCloudEkyc.findUnique({
+    where: { email: normalizeEkycEmail(email) },
+    select: { status: true, confirmed_ic_number: true },
+  });
+  if (record?.status !== SigningCloudEkycStatus.verified) return;
+
+  const stored = normalizeEkycIc(record.confirmed_ic_number ?? "");
+  const provided = normalizeEkycIc(providedIc);
+  if (stored.length === 12 && provided !== stored) {
+    throw new AppError(
+      403,
+      "EKYC_IC_MISMATCH",
+      "This email is already verified with a different MyKad number. Enter the MyKad number used for that verification, or contact support if it needs to be updated."
+    );
+  }
+}
+
 /** Resolve eKYC gate status for one signer from the shared signingcloud_ekyc row. */
 export async function resolveSigningKycStatus(input: {
   kycRequired: boolean;
@@ -305,11 +330,21 @@ class EkycService {
       },
     });
 
-    if (
-      existing?.status === SigningCloudEkycStatus.verified &&
-      normalizeEkycIc(existing.confirmed_ic_number ?? "") === icNumber
-    ) {
-      throw new AppError(409, "EKYC_ALREADY_COMPLETED", "Identity verification has already been completed");
+    if (existing?.status === SigningCloudEkycStatus.verified) {
+      const storedIc = normalizeEkycIc(existing.confirmed_ic_number ?? "");
+      if (storedIc.length === 12 && storedIc === icNumber) {
+        throw new AppError(
+          409,
+          "EKYC_ALREADY_COMPLETED",
+          "Identity verification has already been completed"
+        );
+      }
+      // Never downgrade a verified row by starting eKYC with a different (or missing) IC.
+      throw new AppError(
+        409,
+        "EKYC_IC_MISMATCH",
+        "This email is already verified with a different MyKad number. Enter the MyKad number used for that verification, or contact support if it needs to be updated."
+      );
     }
 
     if (

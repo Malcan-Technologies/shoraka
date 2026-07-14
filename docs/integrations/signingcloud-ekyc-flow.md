@@ -14,7 +14,7 @@ Related docs:
 | Scenario | eKYC again? |
 |----------|-------------|
 | Same email, different org / envelope | **No** — if `signingcloud_ekyc.status = verified` and IC matches |
-| Same email, new IC bound on envelope | **Yes** — IC mismatch → status resolves to `PENDING` until re-verified |
+| Same email, new IC bound on envelope | **Blocked** — verified email IC is authoritative; mistyped IC is rejected (does not overwrite) |
 | Role with `kyc_required: false` | **No** — skipped entirely |
 
 Each envelope recipient still has its own signing link and IC access-code gate. Only **MyKad eKYC** is shared via email.

@@ -487,4 +487,29 @@ describe("EkycService.createExternalSignerSession", () => {
       })
     );
   });
+
+  it("does not overwrite a verified email row when a different IC is supplied", async () => {
+    mockFindUnique.mockResolvedValue({
+      id: "ekyc-1",
+      user_id: "u1",
+      status: SigningCloudEkycStatus.verified,
+      session_token: "old-token",
+      sdk_endpoint: "https://sdk.example/old",
+      confirmed_name: "Director Name",
+      confirmed_ic_number: "820508105871",
+      issuer_organization_id: "org-1",
+      updated_at: new Date(),
+    });
+
+    await expect(
+      ekycService.createExternalSignerSession({
+        email: "director@example.com",
+        icNumber: "900101015555",
+        confirmedNameInput: "Director Name",
+        issuerOrganizationId: "org-1",
+      })
+    ).rejects.toMatchObject({ code: "EKYC_IC_MISMATCH" });
+
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
 });

@@ -55,6 +55,7 @@ import type { SigningProvider } from "./provider/adapter";
 import {
   ekycService,
   resolveSigningKycStatus,
+  assertProvidedIcCompatibleWithEmailEkyc,
 } from "../ekyc/service";
 import { generateSigningAccessToken } from "./token";
 
@@ -582,17 +583,50 @@ export class SigningService {
     const { envelope, recipientId, recipient } = await this.requireExternalTokenSession(accessToken);
     const provided = normalizeSigningIcNumber(icNumber);
     if (!isValidSigningIcNumber(provided)) {
-      throw new AppError(400, "VALIDATION_ERROR", "A valid 12-digit IC number is required.");
+      throw new AppError(400, "VALIDATION_ERROR", "A valid 12-digit MyKad number is required.");
     }
+
+    // Email-level verified MyKad is authoritative — wrong IC must not bind or overwrite it.
+    await assertProvidedIcCompatibleWithEmailEkyc(recipient.email, provided);
 
     const expected = normalizeSigningIcNumber(String(recipient.ic_number ?? ""));
     if (!expected) {
       await this.repo.bindRecipientIcAndVerifyAccess(recipientId, provided);
     } else if (expected !== provided) {
-      throw new AppError(403, "ACCESS_CODE_INVALID", "The IC number does not match our records.");
+      throw new AppError(403, "ACCESS_CODE_INVALID", "The MyKad number does not match our records.");
     } else if (!recipient.access_code_verified_at) {
       await this.repo.markRecipientAccessCodeVerified(recipientId);
     }
+
+    const refreshed = await this.requireEnvelope(envelope.id);
+    const updatedRecipient = refreshed.recipients.find((item) => item.id === recipientId)!;
+    return this.mapExternalSession(refreshed, updatedRecipient);
+  }
+
+  /**
+   * Return the signer to the IC entry step before eKYC is verified.
+   * Guarantors / self-declare roles clear bound IC; directors keep the offer-time IC.
+   */
+  async resetExternalAccessGate(accessToken: string): Promise<ExternalSigningSessionDto> {
+    const { envelope, recipientId, recipient } = await this.requireExternalTokenSession(accessToken);
+
+    const kycStatus = await resolveSigningKycStatus({
+      kycRequired: recipient.kyc_required,
+      email: recipient.email,
+      icNumber: recipient.ic_number,
+    });
+    if (kycStatus === "VERIFIED") {
+      throw new AppError(
+        409,
+        "EKYC_ALREADY_VERIFIED",
+        "Identity verification is already complete. You cannot change the MyKad number."
+      );
+    }
+
+    const keepBoundIc = roleRequiresBindingIcAtOffer({
+      key: recipient.role_key,
+    });
+    await this.repo.clearRecipientAccessGate(recipientId, { clearIcNumber: !keepBoundIc });
 
     const refreshed = await this.requireEnvelope(envelope.id);
     const updatedRecipient = refreshed.recipients.find((item) => item.id === recipientId)!;
@@ -610,7 +644,7 @@ export class SigningService {
       throw new AppError(404, "SIGNING_RECIPIENT_NOT_FOUND", "Recipient not found.");
     }
     if (!recipient.access_code_verified_at) {
-      throw new AppError(403, "ACCESS_CODE_REQUIRED", "Verify your IC number before starting identity verification.");
+      throw new AppError(403, "ACCESS_CODE_REQUIRED", "Verify your MyKad number before starting identity verification.");
     }
     if (!recipient.kyc_required) {
       throw new AppError(409, "EKYC_NOT_REQUIRED", "Identity verification is not required for this signer.");

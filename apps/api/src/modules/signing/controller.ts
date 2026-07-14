@@ -142,6 +142,14 @@ async function verifyExternalAccessCode(req: Request, res: Response, next: NextF
   }
 }
 
+async function resetExternalAccessGate(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(res, await signingService.resetExternalAccessGate(req.params.accessToken));
+  } catch (e) {
+    next(e);
+  }
+}
+
 async function createExternalEkycSession(req: Request, res: Response, next: NextFunction) {
   try {
     const body = recipientEkycSessionSchema.parse(req.body ?? {});
@@ -233,6 +241,7 @@ export function createSigningRouter(): Router {
   const router = Router();
   router.get("/external/:accessToken", getExternalEnvelope);
   router.post("/external/:accessToken/verify", verifyExternalAccessCode);
+  router.post("/external/:accessToken/reset-access", resetExternalAccessGate);
   router.post("/external/:accessToken/ekyc/session", createExternalEkycSession);
   router.post("/external/:accessToken/start-signing", startExternalSigning);
   router.post("/external/:accessToken/confirm-signed", confirmExternalSigned);

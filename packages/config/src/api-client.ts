@@ -2214,6 +2214,16 @@ export class ApiClient {
     );
   }
 
+  /** External no-auth recipient: go back to IC entry before eKYC completes. */
+  async resetExternalSigningAccessGate(
+    accessToken: string
+  ): Promise<ApiResponse<ExternalSigningSessionDto> | ApiError> {
+    return this.post<ExternalSigningSessionDto>(
+      `/v1/signing/external/${accessToken}/reset-access`,
+      {}
+    );
+  }
+
   /** External no-auth recipient: start MyKad eKYC session. */
   async createExternalRecipientEkycSession(
     accessToken: string,

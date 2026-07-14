@@ -245,12 +245,32 @@ export default function ExternalSigningPage() {
         ic_number: icNumber,
       });
       if (!response.success) {
-        setError(getErrorMessage(response, "Could not verify IC number."));
+        setError(getErrorMessage(response, "Could not verify MyKad number."));
         return;
       }
       applySession(response.data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not verify IC number.");
+      setError(e instanceof Error ? e.message : "Could not verify MyKad number.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const goBackToAccessCode = async () => {
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const response = await apiClient.resetExternalSigningAccessGate(token);
+      if (!response.success) {
+        setError(getErrorMessage(response, "Could not go back."));
+        return;
+      }
+      setEkycCaptureUrl(null);
+      setEkycStatus("pending");
+      setIcNumber("");
+      applySession(response.data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not go back.");
     } finally {
       setIsSubmitting(false);
     }
@@ -444,130 +464,175 @@ export default function ExternalSigningPage() {
               <Skeleton className="h-4 w-5/6" />
               <Skeleton className="h-11 w-full rounded-xl" />
             </div>
-          ) : error && step !== "done" && step !== "closed" ? (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : step === "access-code" ? (
+          ) : !session && error ? (
             <>
-              <p className="text-sm text-muted-foreground">
-                {isGuarantor
-                  ? "Use the MyKad number of the person who will complete eKYC and sign."
-                  : "This must match the person named on this signing request."}
-              </p>
-              <div className="space-y-2">
-                <Label htmlFor="access-ic">IC number</Label>
-                <Input
-                  id="access-ic"
-                  value={icNumber}
-                  onChange={(event) => setIcNumber(event.target.value)}
-                  inputMode="numeric"
-                  placeholder="901212101234"
-                  className="h-11 rounded-xl"
-                />
-              </div>
-              <Button
-                type="button"
-                className="h-11 w-full rounded-xl"
-                disabled={isSubmitting || icNumber.replace(/\D/g, "").length !== 12}
-                onClick={() => {
-                  verifyAccessCode().catch(() => undefined);
-                }}
-              >
-                {isSubmitting ? "Verifying..." : "Continue"}
-              </Button>
-            </>
-          ) : step === "ekyc" ? (
-            <>
-              <p className="text-sm text-muted-foreground">
-                Complete MyKad identity verification on your phone before signing.
-              </p>
-              {ekycCaptureUrl ? (
-                <div className="flex justify-center rounded-xl border border-border bg-muted/20 p-6">
-                  <QRCodeSVG value={ekycCaptureUrl} size={220} />
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-3 py-4">
-                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                  <p className="text-sm text-muted-foreground">Preparing verification...</p>
-                </div>
-              )}
-              {ekycStatus === "pending" && ekycCaptureUrl ? (
-                <p className="text-center text-sm text-muted-foreground">
-                  Waiting for verification...
-                </p>
-              ) : null}
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
               <Button
                 type="button"
                 variant="outline"
                 className="h-11 w-full rounded-xl"
                 disabled={isSubmitting}
                 onClick={() => {
-                  setEkycCaptureUrl(null);
-                  startEkyc(true).catch(() => undefined);
+                  setError(null);
+                  loadSession().catch(() => undefined);
                 }}
               >
-                New QR
+                Try again
               </Button>
             </>
-          ) : step === "closed" ? (
-            <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-              You can close this page.
-            </div>
-          ) : step === "done" ? (
-            <>
-              <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-                {hasMoreToSign
-                  ? "You still have another document to sign in this package."
-                  : "You can close this page."}
-              </div>
-              {isPollingReturn ? (
-                <p className="text-center text-xs text-muted-foreground">Updating status…</p>
-              ) : null}
-              {hasMoreToSign ? (
-                <Button
-                  type="button"
-                  className="h-11 w-full rounded-xl"
-                  onClick={continueAfterSigned}
-                >
-                  Continue
-                </Button>
-              ) : null}
-            </>
-          ) : !pendingAssignment ? (
-            <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-              There are no pending documents for you to sign. You can close this page.
-            </div>
           ) : (
             <>
-              <div className="rounded-xl border border-border bg-muted/20 p-4">
-                <p className="font-medium text-foreground">{pendingAssignment.document.name}</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {/* Document stays PENDING until every required signer finishes; show this recipient's assignment. */}
-                  Your status:{" "}
-                  {(
-                    session?.envelope.assignments.find(
-                      (a) =>
-                        a.document_id === pendingAssignment.document.id &&
-                        a.recipient_id === session.recipient_id &&
-                        a.action === "SIGN"
-                    )?.status ?? "PENDING"
-                  ).replace(/_/g, " ")}
-                </p>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                When you continue, we will open the signing portal to complete your signature.
-              </p>
-              <Button
-                type="button"
-                className="h-11 w-full rounded-xl"
-                disabled={isSubmitting}
-                onClick={() => {
-                  startSigning().catch(() => undefined);
-                }}
-              >
-                {isSubmitting ? "Opening signing portal..." : "Sign document"}
-              </Button>
+              {error ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              ) : null}
+
+              {step === "access-code" ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    {isGuarantor
+                      ? "Use the MyKad number of the person who will complete identity verification and sign."
+                      : "This must match the person named on this signing request."}
+                  </p>
+                  <div className="space-y-2">
+                    <Label htmlFor="access-ic">MyKad number</Label>
+                    <Input
+                      id="access-ic"
+                      value={icNumber}
+                      onChange={(event) => {
+                        setIcNumber(event.target.value);
+                        if (error) setError(null);
+                      }}
+                      inputMode="numeric"
+                      placeholder="901212101234"
+                      className="h-11 rounded-xl"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    className="h-11 w-full rounded-xl"
+                    disabled={isSubmitting || icNumber.replace(/\D/g, "").length !== 12}
+                    onClick={() => {
+                      verifyAccessCode().catch(() => undefined);
+                    }}
+                  >
+                    {isSubmitting ? "Verifying..." : "Continue"}
+                  </Button>
+                </>
+              ) : step === "ekyc" ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Complete MyKad identity verification on your phone before signing.
+                  </p>
+                  {ekycCaptureUrl ? (
+                    <div className="flex justify-center rounded-xl border border-border bg-muted/20 p-6">
+                      <QRCodeSVG value={ekycCaptureUrl} size={220} />
+                    </div>
+                  ) : !error ? (
+                    <div className="flex flex-col items-center gap-3 py-4">
+                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                      <p className="text-sm text-muted-foreground">Preparing verification...</p>
+                    </div>
+                  ) : null}
+                  {ekycStatus === "pending" && ekycCaptureUrl ? (
+                    <p className="text-center text-sm text-muted-foreground">
+                      Waiting for verification...
+                    </p>
+                  ) : null}
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 w-full rounded-xl sm:flex-1"
+                      disabled={isSubmitting}
+                      onClick={() => {
+                        goBackToAccessCode().catch(() => undefined);
+                      }}
+                    >
+                      Go back
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 w-full rounded-xl sm:flex-1"
+                      disabled={isSubmitting}
+                      onClick={() => {
+                        setError(null);
+                        setEkycCaptureUrl(null);
+                        startEkyc(true).catch(() => undefined);
+                      }}
+                    >
+                      New QR code
+                    </Button>
+                  </div>
+                  <p className="text-center text-xs text-muted-foreground">
+                    Entered the wrong MyKad number? Choose Go back to enter it again before
+                    verifying.
+                  </p>
+                </>
+              ) : step === "closed" ? (
+                <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                  You can close this page.
+                </div>
+              ) : step === "done" ? (
+                <>
+                  <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                    {hasMoreToSign
+                      ? "You still have another document to sign in this package."
+                      : "You can close this page."}
+                  </div>
+                  {isPollingReturn ? (
+                    <p className="text-center text-xs text-muted-foreground">Updating status…</p>
+                  ) : null}
+                  {hasMoreToSign ? (
+                    <Button
+                      type="button"
+                      className="h-11 w-full rounded-xl"
+                      onClick={continueAfterSigned}
+                    >
+                      Continue
+                    </Button>
+                  ) : null}
+                </>
+              ) : !pendingAssignment ? (
+                <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                  There are no pending documents for you to sign. You can close this page.
+                </div>
+              ) : (
+                <>
+                  <div className="rounded-xl border border-border bg-muted/20 p-4">
+                    <p className="font-medium text-foreground">{pendingAssignment.document.name}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {/* Document stays PENDING until every required signer finishes; show this recipient's assignment. */}
+                      Your status:{" "}
+                      {(
+                        session?.envelope.assignments.find(
+                          (a) =>
+                            a.document_id === pendingAssignment.document.id &&
+                            a.recipient_id === session.recipient_id &&
+                            a.action === "SIGN"
+                        )?.status ?? "PENDING"
+                      ).replace(/_/g, " ")}
+                    </p>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    When you continue, we will open the signing portal to complete your signature.
+                  </p>
+                  <Button
+                    type="button"
+                    className="h-11 w-full rounded-xl"
+                    disabled={isSubmitting}
+                    onClick={() => {
+                      startSigning().catch(() => undefined);
+                    }}
+                  >
+                    {isSubmitting ? "Opening signing portal..." : "Sign document"}
+                  </Button>
+                </>
+              )}
             </>
           )}
         </CardContent>
