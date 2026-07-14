@@ -1,4 +1,5 @@
 import {
+  CurlecGatewayAccount,
   GatewayOrganizationType,
   GatewayPaymentPurpose,
   GatewayPaymentStatus,
@@ -15,6 +16,8 @@ import {
   rejectNameCheck,
   retryHeldDepositRefund,
 } from "./admin-service";
+import { createCurlecClient } from "./curlec-client";
+import * as curlecConfig from "../../config/curlec";
 
 const prisma = new PrismaClient();
 
@@ -100,6 +103,14 @@ describeIntegration("admin gateway payments refunds", () => {
       payment_id: "pay_admin_test",
       status: "processed",
     });
+    jest.restoreAllMocks();
+    process.env.CURLEC_OPERATING_KEY_ID = "rzp_operating_key";
+    process.env.CURLEC_OPERATING_KEY_SECRET = "operating_secret";
+    process.env.CURLEC_OPERATING_WEBHOOK_SECRET = "operating_whsec";
+    process.env.CURLEC_INVESTOR_POOL_KEY_ID = "rzp_pool_key";
+    process.env.CURLEC_INVESTOR_POOL_KEY_SECRET = "pool_secret";
+    process.env.CURLEC_INVESTOR_POOL_WEBHOOK_SECRET = "pool_whsec";
+    curlecConfig.resetCurlecConfigCache();
   });
 
   afterAll(async () => {
@@ -128,11 +139,12 @@ describeIntegration("admin gateway payments refunds", () => {
     await prisma.$disconnect();
   });
 
-  async function createHeldPayment() {
+  async function createHeldPayment(gatewayAccount: CurlecGatewayAccount = "OPERATING") {
     const payment = await prisma.gatewayPayment.create({
       data: {
         purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
         organization_type: GatewayOrganizationType.INVESTOR,
+        gatewayAccount,
         investor_organization_id: orgId,
         amount: new Prisma.Decimal("100.000000"),
         currency: "MYR",
@@ -152,6 +164,7 @@ describeIntegration("admin gateway payments refunds", () => {
   async function createNameCheckPendingPayment() {
     const payment = await prisma.gatewayPayment.create({
       data: {
+        gatewayAccount: "INVESTOR_POOL",
         purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
         organization_type: GatewayOrganizationType.INVESTOR,
         investor_organization_id: orgId,
@@ -179,6 +192,61 @@ describeIntegration("admin gateway payments refunds", () => {
     expect(detail.status).toBe(GatewayPaymentStatus.REFUND_INITIATED);
     expect(detail.refundReference).toBe("rfnd_admin_test");
     expect(mockRefundPayment).toHaveBeenCalledTimes(1);
+    expect((createCurlecClient as jest.Mock).mock.calls.at(-1)?.[0]).toEqual({
+      gatewayAccount: "OPERATING",
+    });
+  });
+
+  it("routes HELD refund retry to OPERATING account credentials", async () => {
+    if (!migrated) return;
+
+    const payment = await createHeldPayment("OPERATING");
+    await retryHeldDepositRefund({ userId: adminUserId }, payment.id, prisma);
+
+    expect((createCurlecClient as jest.Mock).mock.calls.at(-1)?.[0]).toEqual({
+      gatewayAccount: "OPERATING",
+    });
+  });
+
+  it("routes HELD refund retry to INVESTOR_POOL account credentials", async () => {
+    if (!migrated) return;
+
+    const payment = await createHeldPayment("INVESTOR_POOL");
+    await retryHeldDepositRefund({ userId: adminUserId }, payment.id, prisma);
+
+    expect((createCurlecClient as jest.Mock).mock.calls.at(-1)?.[0]).toEqual({
+      gatewayAccount: "INVESTOR_POOL",
+    });
+  });
+
+  it("fails before remote call when account credentials are missing", async () => {
+    if (!migrated) return;
+
+    const payment = await createHeldPayment("OPERATING");
+    jest.spyOn(curlecConfig, "getCurlecConfig").mockImplementation((gatewayAccount = "OPERATING") => {
+      if (gatewayAccount === "OPERATING") {
+        throw new Error("missing operating credentials");
+      }
+      return {
+        gatewayAccount,
+        keyId: "key",
+        keySecret: "secret",
+        webhookSecret: "whsec",
+        apiBaseUrl: "https://api.razorpay.com",
+        environment: "sandbox",
+      };
+    });
+
+    await expect(retryHeldDepositRefund({ userId: adminUserId }, payment.id, prisma)).rejects.toMatchObject(
+      {
+        code: "CURLEC_ACCOUNT_CONFIG_ERROR",
+      }
+    );
+    expect(mockRefundPayment).not.toHaveBeenCalled();
+
+    const current = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    expect(current.status).toBe(GatewayPaymentStatus.HELD);
+    expect(current.gatewayAccount).toBe("OPERATING");
   });
 
   it("initiates refund for a COMPLETED investor deposit", async () => {
@@ -186,6 +254,7 @@ describeIntegration("admin gateway payments refunds", () => {
 
     const payment = await prisma.gatewayPayment.create({
       data: {
+        gatewayAccount: "INVESTOR_POOL",
         purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
         organization_type: GatewayOrganizationType.INVESTOR,
         investor_organization_id: orgId,
@@ -215,6 +284,7 @@ describeIntegration("admin gateway payments refunds", () => {
 
     const payment = await prisma.gatewayPayment.create({
       data: {
+        gatewayAccount: "OPERATING",
         purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
         organization_type: GatewayOrganizationType.ISSUER,
         amount: new Prisma.Decimal("50.000000"),

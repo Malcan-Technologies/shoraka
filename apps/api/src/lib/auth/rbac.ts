@@ -99,11 +99,44 @@ async function backfillInvestorWithdrawalPermissions(prisma: PrismaClient): Prom
   }
 }
 
+async function backfillGatewayReconciliationPermissions(prisma: PrismaClient): Promise<void> {
+  const roles = await prisma.adminRoleConfig.findMany({
+    select: { id: true, permissions: true },
+  });
+
+  for (const role of roles) {
+    const nextPermissions = new Set(role.permissions ?? []);
+    const hasChanges = (() => {
+      let changed = false;
+      if (nextPermissions.has("gateway_payments.view")) {
+        if (!nextPermissions.has("gateway_reconciliation.view")) {
+          nextPermissions.add("gateway_reconciliation.view");
+          changed = true;
+        }
+      }
+      if (nextPermissions.has("gateway_payments.manage")) {
+        if (!nextPermissions.has("gateway_reconciliation.manage")) {
+          nextPermissions.add("gateway_reconciliation.manage");
+          changed = true;
+        }
+      }
+      return changed;
+    })();
+
+    if (!hasChanges) continue;
+    await prisma.adminRoleConfig.update({
+      where: { id: role.id },
+      data: { permissions: Array.from(nextPermissions) },
+    });
+  }
+}
+
 export async function ensureAdminRoleCatalog(prisma: PrismaClient): Promise<void> {
   if (!syncPromise) {
     syncPromise = (async () => {
       await syncSuperAdminRole(prisma);
       await backfillInvestorWithdrawalPermissions(prisma);
+      await backfillGatewayReconciliationPermissions(prisma);
     })().finally(() => {
       syncPromise = null;
     });

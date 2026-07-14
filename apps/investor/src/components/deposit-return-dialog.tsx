@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import {
   DepositCompleteView,
   DepositConfirmingView,
@@ -10,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { isTerminalDepositStatus } from "@/hooks/use-investor-deposit";
+import { clearInvestorDepositIntent } from "@/hooks/use-investor-deposit";
 import { useInvestorDepositReturn } from "@/hooks/use-investor-deposit-return";
 
 interface DepositReturnDialogProps {
@@ -32,6 +34,12 @@ export function DepositReturnDialog({
     depositQuery.isError ||
     !deposit ||
     !isTerminalDepositStatus(deposit.status);
+
+  React.useEffect(() => {
+    if (!deposit || !isTerminalDepositStatus(deposit.status)) return;
+    if (!deposit.investorOrganizationId) return;
+    clearInvestorDepositIntent(deposit.investorOrganizationId);
+  }, [deposit]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

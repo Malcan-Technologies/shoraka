@@ -1,11 +1,7 @@
 import { formatCurrency } from "@cashsouk/config";
 import type { InvestorBalanceActivityEntry } from "@cashsouk/types";
 import { formatNoteReferenceDisplay } from "@cashsouk/types";
-import type {
-  Transaction,
-  TransactionContext,
-  TransactionType,
-} from "./transactions.types";
+import type { Transaction, TransactionContext, TransactionType } from "./transactions.types";
 
 export function parseMoneyAmount(value: string): number {
   return Number(value.replaceAll(",", "").replaceAll(" ", "")) || 0;
@@ -23,21 +19,21 @@ export function formatTransactionDateTime(value: string): string {
   });
 }
 
-export function isCreditTransaction(type: TransactionType): boolean {
-  return type === "Deposit" || type === "Returns" || type === "Release";
+export function isIncomingDirection(direction: "IN" | "OUT"): boolean {
+  return direction === "IN";
 }
 
-export function getTransactionAmountToneClassName(type: TransactionType): string {
-  return isCreditTransaction(type) ? "text-emerald-700" : "text-destructive";
+export function getTransactionAmountToneClassName(direction: "IN" | "OUT"): string {
+  return isIncomingDirection(direction) ? "text-emerald-700" : "text-destructive";
 }
 
-export function formatSignedTransactionAmount(type: TransactionType, amount: number): string {
-  const prefix = isCreditTransaction(type) ? "+" : "-";
+export function formatSignedTransactionAmount(direction: "IN" | "OUT", amount: number): string {
+  const prefix = isIncomingDirection(direction) ? "+" : "-";
   return `${prefix}${formatCurrency(amount)}`;
 }
 
-export function splitSignedTransactionAmount(type: TransactionType, amount: number) {
-  const sign = isCreditTransaction(type) ? "+" : "-";
+export function splitSignedTransactionAmount(direction: "IN" | "OUT", amount: number) {
+  const sign = isIncomingDirection(direction) ? "+" : "-";
   return {
     prefix: `${sign}RM `,
     digits: formatCurrency(amount, { includeSymbol: false }),
@@ -135,6 +131,7 @@ export function mapActivityEntryToTransaction(
   return {
     id: entry.id,
     type,
+    direction: entry.direction,
     amount: entry.amount,
     context: buildActivityContext(entry, noteReferenceById),
     balance: runningBalance ?? 0,

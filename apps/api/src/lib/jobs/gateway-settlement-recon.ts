@@ -1,25 +1,38 @@
 import {
+  CurlecGatewayAccount,
   GatewayReconExceptionType,
   GatewayReconRunStatus,
   PrismaClient,
 } from "@prisma/client";
-import { prisma as defaultPrisma } from "../prisma";
-import { logger } from "../logger";
+import { getCurlecGatewayAccountConfigStatus } from "../../config/curlec";
 import { createCurlecClient } from "../../modules/payment/curlec-client";
 import type { CurlecSettlementReconItem } from "../../modules/payment/curlec-schemas";
 import { myrDecimalToSen, senToMyrDecimal } from "../../modules/payment/money";
+import { AppError } from "../http/error-handler";
+import { logger } from "../logger";
+import { prisma as defaultPrisma } from "../prisma";
+import { withAdvisoryLock } from "./with-advisory-lock";
 
 const CRON_CORRELATION_ID = "cron:gateway-settlement-recon";
 const RECON_PAGE_SIZE = 100;
+const RECON_LOCK_KEY_BASE = 9_201_000;
 
 export type GatewaySettlementReconResult = {
   runId: string;
   runDate: string;
+  gatewayAccount: CurlecGatewayAccount;
   status: GatewayReconRunStatus;
   settlementsScanned: number;
   paymentsMatched: number;
   paymentsStamped: number;
   exceptionsCount: number;
+};
+
+export type GatewaySettlementReconMultiAccountResult = {
+  runDate: string;
+  completed: GatewaySettlementReconResult[];
+  skippedUnconfigured: Array<{ gatewayAccount: CurlecGatewayAccount; reason: string }>;
+  failed: Array<{ gatewayAccount: CurlecGatewayAccount; error: string }>;
 };
 
 /** Calendar date parts for a given instant in Malaysia time (UTC+8). */
@@ -72,17 +85,19 @@ function gatewayFeeSen(item: CurlecSettlementReconItem): number {
  * never produces real settlements). Production always uses the default.
  */
 export type ReconItemsFetcher = (
+  gatewayAccount: CurlecGatewayAccount,
   year: number,
   month: number,
   day: number
 ) => Promise<CurlecSettlementReconItem[]>;
 
 async function fetchAllReconItemsForDate(
+  gatewayAccount: CurlecGatewayAccount,
   year: number,
   month: number,
   day: number
 ): Promise<CurlecSettlementReconItem[]> {
-  const client = createCurlecClient();
+  const client = createCurlecClient({ gatewayAccount });
   const items: CurlecSettlementReconItem[] = [];
   let skip = 0;
 
@@ -104,19 +119,44 @@ async function fetchAllReconItemsForDate(
   return items;
 }
 
-export async function runGatewaySettlementReconJob(
-  input: { runDate?: Date; triggeredBy?: string } = {},
+function formatRunDate(runDate: Date): string {
+  return runDate.toISOString().slice(0, 10);
+}
+
+function hashLockScope(scope: string): number {
+  let hash = 0;
+  for (let i = 0; i < scope.length; i += 1) {
+    hash = (hash * 31 + scope.charCodeAt(i)) >>> 0;
+  }
+  return hash % 100_000;
+}
+
+export function getGatewaySettlementReconLockKey(
+  runDate: Date,
+  gatewayAccount: CurlecGatewayAccount
+): number {
+  const scope = `${formatRunDate(runDate)}:${gatewayAccount}`;
+  return RECON_LOCK_KEY_BASE + hashLockScope(scope);
+}
+
+async function runGatewaySettlementReconForAccount(
+  input: { runDate: Date; triggeredBy: string; gatewayAccount: CurlecGatewayAccount },
   db: PrismaClient = defaultPrisma,
   fetchReconItems: ReconItemsFetcher = fetchAllReconItemsForDate
 ): Promise<GatewaySettlementReconResult> {
-  const runDate = input.runDate ?? getYesterdayMytDateOnly();
-  const triggeredBy = input.triggeredBy ?? "CRON";
+  const { runDate, triggeredBy, gatewayAccount } = input;
   const { year, month, day } = getMytDateParts(runDate);
 
   let run = await db.gatewayReconRun.upsert({
-    where: { run_date: runDate },
+    where: {
+      run_date_gatewayAccount: {
+        run_date: runDate,
+        gatewayAccount,
+      },
+    },
     create: {
       run_date: runDate,
+      gatewayAccount,
       status: GatewayReconRunStatus.RUNNING,
       triggered_by: triggeredBy,
       started_at: new Date(),
@@ -142,7 +182,7 @@ export async function runGatewaySettlementReconJob(
   let exceptionsCount = 0;
 
   try {
-    const allItems = await fetchReconItems(year, month, day);
+    const allItems = await fetchReconItems(gatewayAccount, year, month, day);
     const paymentLines = allItems.filter(isSettledPaymentLine);
     settlementsScanned = paymentLines.length;
 
@@ -150,11 +190,19 @@ export async function runGatewaySettlementReconJob(
       const curlecPaymentId = line.payment_id!.trim();
       const curlecAmountSen = reconItemAmountSen(line);
 
-      const gatewayPayment = await db.gatewayPayment.findUnique({
-        where: { curlec_payment_id: curlecPaymentId },
+      const gatewayPayment = await db.gatewayPayment.findFirst({
+        where: { curlec_payment_id: curlecPaymentId, gatewayAccount },
       });
 
       if (!gatewayPayment) {
+        const crossAccountMatch = await db.gatewayPayment.findFirst({
+          where: {
+            curlec_payment_id: curlecPaymentId,
+            gatewayAccount: { not: gatewayAccount },
+          },
+          select: { id: true, gatewayAccount: true },
+        });
+
         await db.gatewayReconException.create({
           data: {
             recon_run_id: run.id,
@@ -162,7 +210,9 @@ export async function runGatewaySettlementReconJob(
             curlec_payment_id: curlecPaymentId,
             curlec_settlement_id: line.settlement_id ?? null,
             actual_amount: senToMyrDecimal(curlecAmountSen),
-            detail: "Curlec settled payment not found in gateway_payments",
+            detail: crossAccountMatch
+              ? `Payment ID is linked to another Curlec account (${crossAccountMatch.gatewayAccount}). No payment was updated.`
+              : "Curlec settled payment not found in gateway_payments for account",
           },
         });
         exceptionsCount += 1;
@@ -192,8 +242,8 @@ export async function runGatewaySettlementReconJob(
       const settledAt =
         line.created_at != null ? new Date(line.created_at * 1000) : new Date();
 
-      await db.gatewayPayment.update({
-        where: { id: gatewayPayment.id },
+      await db.gatewayPayment.updateMany({
+        where: { id: gatewayPayment.id, gatewayAccount },
         data: {
           settlement_id: line.settlement_id ?? gatewayPayment.settlement_id,
           settled_at: settledAt,
@@ -219,6 +269,7 @@ export async function runGatewaySettlementReconJob(
       {
         runId: run.id,
         runDate: runDate.toISOString(),
+        gatewayAccount,
         settlementsScanned,
         paymentsMatched,
         paymentsStamped,
@@ -242,7 +293,13 @@ export async function runGatewaySettlementReconJob(
       },
     });
     logger.error(
-      { runId: run.id, error: message, correlationId: CRON_CORRELATION_ID },
+      {
+        runId: run.id,
+        runDate: runDate.toISOString(),
+        gatewayAccount,
+        error: message,
+        correlationId: CRON_CORRELATION_ID,
+      },
       "Gateway settlement recon failed"
     );
     throw error;
@@ -251,10 +308,156 @@ export async function runGatewaySettlementReconJob(
   return {
     runId: run.id,
     runDate: runDate.toISOString().slice(0, 10),
+    gatewayAccount,
     status: run.status,
     settlementsScanned,
     paymentsMatched,
     paymentsStamped,
     exceptionsCount,
+  };
+}
+
+export async function runGatewaySettlementReconJob(
+  input: {
+    runDate?: Date;
+    triggeredBy?: string;
+    gatewayAccount?: CurlecGatewayAccount;
+    skipIfLocked?: boolean;
+  } = {},
+  db: PrismaClient = defaultPrisma,
+  fetchReconItems: ReconItemsFetcher = fetchAllReconItemsForDate
+): Promise<GatewaySettlementReconResult | null> {
+  const runDate = input.runDate ?? getYesterdayMytDateOnly();
+  const triggeredBy = input.triggeredBy ?? "CRON";
+  if (!input.gatewayAccount) {
+    throw new AppError(
+      400,
+      "GATEWAY_ACCOUNT_REQUIRED",
+      "gatewayAccount is required for settlement reconciliation (OPERATING or INVESTOR_POOL)"
+    );
+  }
+  const gatewayAccount = input.gatewayAccount;
+  const accountConfigStatus = getCurlecGatewayAccountConfigStatus(gatewayAccount);
+  if (!accountConfigStatus.configured) {
+    throw new AppError(
+      400,
+      "CURLEC_GATEWAY_ACCOUNT_UNCONFIGURED",
+      `Curlec ${gatewayAccount} credentials are incomplete. Missing: ${accountConfigStatus.missingEnvNames.join(", ")}`
+    );
+  }
+
+  const lockKey = getGatewaySettlementReconLockKey(runDate, gatewayAccount);
+  const result = await withAdvisoryLock(lockKey, async () =>
+    runGatewaySettlementReconForAccount({ runDate, triggeredBy, gatewayAccount }, db, fetchReconItems)
+  );
+
+  if (result) {
+    return result;
+  }
+
+  logger.info(
+    {
+      runDate: formatRunDate(runDate),
+      gatewayAccount,
+      lockKey,
+      correlationId: CRON_CORRELATION_ID,
+    },
+    "Gateway settlement recon skipped because lock not acquired"
+  );
+
+  if (input.skipIfLocked) {
+    return null;
+  }
+
+  throw new AppError(
+    409,
+    "RECON_LOCK_NOT_ACQUIRED",
+    `Reconciliation already running for ${gatewayAccount} on ${formatRunDate(runDate)}`
+  );
+}
+
+export async function runGatewaySettlementReconForConfiguredAccounts(
+  input: { runDate?: Date; triggeredBy?: string } = {},
+  db: PrismaClient = defaultPrisma,
+  fetchReconItems: ReconItemsFetcher = fetchAllReconItemsForDate
+): Promise<GatewaySettlementReconMultiAccountResult> {
+  const runDate = input.runDate ?? getYesterdayMytDateOnly();
+  const triggeredBy = input.triggeredBy ?? "CRON";
+  const completed: GatewaySettlementReconResult[] = [];
+  const skippedUnconfigured: Array<{ gatewayAccount: CurlecGatewayAccount; reason: string }> = [];
+  const failed: Array<{ gatewayAccount: CurlecGatewayAccount; error: string }> = [];
+
+  for (const gatewayAccount of Object.values(CurlecGatewayAccount)) {
+    const status = getCurlecGatewayAccountConfigStatus(gatewayAccount);
+    if (!status.configured) {
+      if (status.isPartial) {
+        const error = `Curlec ${gatewayAccount} credentials are incomplete. Missing: ${status.missingEnvNames.join(", ")}`;
+        failed.push({ gatewayAccount, error });
+        logger.error(
+          {
+            runDate: formatRunDate(runDate),
+            gatewayAccount,
+            missingEnvNames: status.missingEnvNames,
+            correlationId: CRON_CORRELATION_ID,
+          },
+          "Skipping gateway settlement recon due to partial account configuration"
+        );
+      } else {
+        const reason = "account not configured";
+        skippedUnconfigured.push({ gatewayAccount, reason });
+        logger.info(
+          {
+            runDate: formatRunDate(runDate),
+            gatewayAccount,
+            reason,
+            correlationId: CRON_CORRELATION_ID,
+          },
+          "Skipping gateway settlement recon for unconfigured account"
+        );
+      }
+      continue;
+    }
+
+    try {
+      const result = await runGatewaySettlementReconJob(
+        {
+          runDate,
+          triggeredBy,
+          gatewayAccount,
+          skipIfLocked: true,
+        },
+        db,
+        fetchReconItems
+      );
+
+      if (!result) {
+        failed.push({
+          gatewayAccount,
+          error: `Reconciliation lock not acquired for ${gatewayAccount} on ${formatRunDate(runDate)}`,
+        });
+        continue;
+      }
+
+      completed.push(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      failed.push({ gatewayAccount, error: message });
+      logger.error(
+        {
+          runDate: formatRunDate(runDate),
+          gatewayAccount,
+          error: message,
+          correlationId: CRON_CORRELATION_ID,
+        },
+        "Gateway settlement recon failed for account"
+      );
+    }
+  }
+
+  return {
+    runDate: formatRunDate(runDate),
+    completed,
+    skippedUnconfigured,
+    failed,
   };
 }

@@ -94,6 +94,7 @@ import type {
   InvestorDepositResponse,
   CreateIssuerOnboardingFeeInput,
   IssuerOnboardingFeeResponse,
+  IssuerOnboardingFeeStatusResponse,
   ApplicationProcessingFeeResponse,
   EligibleNoteInvoicesResponse,
   GetAdminNotesParams,
@@ -132,9 +133,11 @@ import type {
   GatewayPaymentDetailDto,
   GatewayPaymentListResponse,
   GatewayPaymentPendingCountResponse,
+  CurlecGatewayAccount,
   GatewayReconExceptionDto,
   GatewayReconExceptionListResponse,
   GatewayReconPendingCountResponse,
+  GatewayReconRunStatus,
   GatewayReconRunDetailDto,
   GatewayReconRunListResponse,
 } from "@cashsouk/types";
@@ -886,6 +889,7 @@ export class ApiClient {
   async listAdminGatewayPayments(params?: {
     page?: number;
     pageSize?: number;
+    gatewayAccount?: CurlecGatewayAccount;
     status?: string;
     purpose?: string;
     organizationType?: string;
@@ -895,6 +899,7 @@ export class ApiClient {
     const search = new URLSearchParams();
     if (params?.page) search.set("page", String(params.page));
     if (params?.pageSize) search.set("pageSize", String(params.pageSize));
+    if (params?.gatewayAccount) search.set("gatewayAccount", params.gatewayAccount);
     if (params?.status) search.set("status", params.status);
     if (params?.purpose) search.set("purpose", params.purpose);
     if (params?.organizationType) search.set("organizationType", params.organizationType);
@@ -958,10 +963,16 @@ export class ApiClient {
   async listAdminGatewayReconRuns(params?: {
     page?: number;
     pageSize?: number;
+    gatewayAccount?: CurlecGatewayAccount;
+    status?: GatewayReconRunStatus;
+    runDate?: string;
   }): Promise<ApiResponse<GatewayReconRunListResponse> | ApiError> {
     const search = new URLSearchParams();
     if (params?.page) search.set("page", String(params.page));
     if (params?.pageSize) search.set("pageSize", String(params.pageSize));
+    if (params?.gatewayAccount) search.set("gatewayAccount", params.gatewayAccount);
+    if (params?.status) search.set("status", params.status);
+    if (params?.runDate) search.set("runDate", params.runDate);
     const qs = search.toString();
     return this.get<GatewayReconRunListResponse>(
       `/v1/admin/gateway-recon/runs${qs ? `?${qs}` : ""}`
@@ -977,6 +988,7 @@ export class ApiClient {
     pageSize?: number;
     resolved?: boolean;
     runId?: string;
+    gatewayAccount?: CurlecGatewayAccount;
     type?: string;
   }): Promise<ApiResponse<GatewayReconExceptionListResponse> | ApiError> {
     const search = new URLSearchParams();
@@ -984,6 +996,7 @@ export class ApiClient {
     if (params?.pageSize) search.set("pageSize", String(params.pageSize));
     if (params?.resolved !== undefined) search.set("resolved", String(params.resolved));
     if (params?.runId) search.set("runId", params.runId);
+    if (params?.gatewayAccount) search.set("gatewayAccount", params.gatewayAccount);
     if (params?.type) search.set("type", params.type);
     const qs = search.toString();
     return this.get<GatewayReconExceptionListResponse>(
@@ -1001,6 +1014,7 @@ export class ApiClient {
 
   async triggerAdminGatewayReconRun(input?: {
     runDate?: string;
+    gatewayAccount?: CurlecGatewayAccount;
   }): Promise<ApiResponse<GatewayReconRunDetailDto> | ApiError> {
     return this.post<GatewayReconRunDetailDto>("/v1/admin/gateway-recon/run", input ?? {});
   }
@@ -2815,6 +2829,14 @@ export class ApiClient {
     id: string
   ): Promise<ApiResponse<IssuerOnboardingFeeResponse> | ApiError> {
     return this.get<IssuerOnboardingFeeResponse>(`/v1/issuer/onboarding-fee/${id}`);
+  }
+
+  async getIssuerOnboardingFeeStatus(
+    issuerOrganizationId: string
+  ): Promise<ApiResponse<IssuerOnboardingFeeStatusResponse> | ApiError> {
+    return this.get<IssuerOnboardingFeeStatusResponse>(
+      `/v1/issuer/onboarding-fee/status/${encodeURIComponent(issuerOrganizationId)}`
+    );
   }
 
   async createApplicationProcessingFee(

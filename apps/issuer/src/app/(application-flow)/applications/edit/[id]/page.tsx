@@ -93,6 +93,7 @@ import { DevToolsPanel } from "../../components/dev-tools-panel";
 import "../../components/dev-tools-registry";
 import { ApplicationProcessingFeeStep } from "@/components/application-processing-fee-step";
 import { ProcessingFeeReturnListener } from "@/components/processing-fee-return-listener";
+import { isIssuerFeeCaptureMismatchHeldError } from "@/components/payment-under-review-notice";
 import { buildEditApplicationStepUrl } from "@/lib/application-processing-fee-routes";
 import {
   issuerProcessingFeeSubmitRef,
@@ -1274,15 +1275,24 @@ function EditApplicationPageBody() {
       await persistDeclarationsStep(declarationsPayload);
 
       if (requiresProcessingFee) {
-        const fee = await createProcessingFeeMutation.mutateAsync(applicationId);
-        if (fee.status === "COMPLETED") {
-          await finalizeApplicationSubmit(false);
-          holdSubmitting = true;
+        try {
+          const fee = await createProcessingFeeMutation.mutateAsync(applicationId);
+          if (fee.status === "COMPLETED") {
+            await finalizeApplicationSubmit(false);
+            holdSubmitting = true;
+            return;
+          }
+          setPendingProcessingFee(fee);
+          setShowProcessingFeeStep(true);
           return;
+        } catch (error) {
+          if (isIssuerFeeCaptureMismatchHeldError(error)) {
+            setPendingProcessingFee(null);
+            setShowProcessingFeeStep(true);
+            return;
+          }
+          throw error;
         }
-        setPendingProcessingFee(fee);
-        setShowProcessingFeeStep(true);
-        return;
       }
 
       await finalizeApplicationSubmit(application?.status === "AMENDMENT_REQUESTED");

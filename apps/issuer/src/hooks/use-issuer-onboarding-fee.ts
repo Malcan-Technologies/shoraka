@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import type { GatewayPaymentStatus } from "@cashsouk/types";
+import type { GatewayPaymentStatus, IssuerOnboardingFeeStatusResponse } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -28,6 +28,8 @@ export function isTerminalOnboardingFeeStatus(status: GatewayPaymentStatus): boo
 export const issuerOnboardingFeeKeys = {
   all: ["issuer-onboarding-fee"] as const,
   detail: (feeId?: string) => [...issuerOnboardingFeeKeys.all, feeId] as const,
+  status: (issuerOrganizationId?: string) =>
+    [...issuerOnboardingFeeKeys.all, "status", issuerOrganizationId] as const,
 };
 
 function useIssuerOnboardingFeeApiClient() {
@@ -40,7 +42,11 @@ export function useCreateIssuerOnboardingFeeMutation() {
   return useMutation({
     mutationFn: async (input: { issuerOrganizationId: string }) => {
       const response = await apiClient.createIssuerOnboardingFee(input);
-      if (!response.success) throw new Error(response.error.message);
+      if (!response.success) {
+        const error = new Error(response.error.message) as Error & { code?: string };
+        error.code = response.error.code;
+        throw error;
+      }
       return response.data;
     },
   });
@@ -65,11 +71,30 @@ export function useIssuerOnboardingFeeQuery(
     refetchInterval: (query) => {
       if (!options?.pollUntilTerminal) return false;
       const status = query.state.data?.status;
+      // HELD is settled under review — stop confirm polling; not a pay failure.
+      if (status === "HELD") return false;
       if (status && isTerminalOnboardingFeeStatus(status)) return false;
       return PAYMENT_RETURN_POLL_INTERVAL_MS;
     },
     staleTime: 0,
     refetchOnMount: "always",
+  });
+}
+
+export function useIssuerOnboardingFeeStatusQuery(issuerOrganizationId?: string) {
+  const apiClient = useIssuerOnboardingFeeApiClient();
+  return useQuery<IssuerOnboardingFeeStatusResponse>({
+    queryKey: issuerOnboardingFeeKeys.status(issuerOrganizationId),
+    enabled: Boolean(issuerOrganizationId),
+    queryFn: async () => {
+      if (!issuerOrganizationId) throw new Error("Issuer organization ID is required");
+      const response = await apiClient.getIssuerOnboardingFeeStatus(issuerOrganizationId);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchInterval: (query) => (query.state.data?.isUnderReview ? 5_000 : false),
   });
 }
 

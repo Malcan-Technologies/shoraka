@@ -5,6 +5,18 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { GatewayPaymentStatus } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const DEPOSIT_INTENT_STORAGE_PREFIX = "investor-deposit-intent";
+
+type PersistedDepositIntent = {
+  intentId: string;
+  amount: number;
+};
+
+type ApiErrorPayload = {
+  code: string;
+  message: string;
+  details?: unknown;
+};
 
 const TERMINAL_DEPOSIT_STATUSES = new Set<GatewayPaymentStatus>([
   "COMPLETED",
@@ -31,12 +43,88 @@ function useInvestorDepositApiClient() {
   return createApiClient(API_URL, getAccessToken);
 }
 
+function getDepositIntentStorageKey(investorOrganizationId: string) {
+  return `${DEPOSIT_INTENT_STORAGE_PREFIX}:${investorOrganizationId}`;
+}
+
+function makeDepositIntentId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function readPersistedDepositIntent(investorOrganizationId: string): PersistedDepositIntent | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.sessionStorage.getItem(getDepositIntentStorageKey(investorOrganizationId));
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as PersistedDepositIntent;
+    if (!parsed.intentId || typeof parsed.amount !== "number") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedDepositIntent(
+  investorOrganizationId: string,
+  value: PersistedDepositIntent
+) {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(getDepositIntentStorageKey(investorOrganizationId), JSON.stringify(value));
+}
+
+export function getOrCreateInvestorDepositIntent(
+  investorOrganizationId: string,
+  amount: number
+): string {
+  const existing = readPersistedDepositIntent(investorOrganizationId);
+  if (existing && existing.amount === amount) {
+    return existing.intentId;
+  }
+
+  const intentId = makeDepositIntentId();
+  writePersistedDepositIntent(investorOrganizationId, { intentId, amount });
+  return intentId;
+}
+
+export function clearInvestorDepositIntent(investorOrganizationId: string) {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(getDepositIntentStorageKey(investorOrganizationId));
+}
+
+export class InvestorDepositCreateError extends Error {
+  constructor(
+    public code: string,
+    message: string,
+    public details?: unknown
+  ) {
+    super(message);
+    this.name = "InvestorDepositCreateError";
+  }
+}
+
+export function isDepositIntentTerminalError(error: unknown): error is InvestorDepositCreateError {
+  return (
+    error instanceof InvestorDepositCreateError && error.code === "DEPOSIT_INTENT_TERMINAL"
+  );
+}
+
 export function useCreateInvestorDepositMutation() {
   const apiClient = useInvestorDepositApiClient();
   return useMutation({
-    mutationFn: async (input: { investorOrganizationId: string; amount: number }) => {
+    mutationFn: async (input: {
+      investorOrganizationId: string;
+      amount: number;
+      depositIntentId: string;
+    }) => {
       const response = await apiClient.createInvestorDeposit(input);
-      if (!response.success) throw new Error(response.error.message);
+      if (!response.success) {
+        const payload = response.error as ApiErrorPayload;
+        throw new InvestorDepositCreateError(payload.code, payload.message, payload.details);
+      }
       return response.data;
     },
   });

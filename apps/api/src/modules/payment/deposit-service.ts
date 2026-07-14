@@ -38,6 +38,7 @@ function mapDepositResponse(payment: GatewayPayment) {
     id: mapped.id,
     status: mapped.status,
     purpose: mapped.purpose,
+    gatewayAccount: mapped.gatewayAccount,
     amount: mapped.amount,
     currency: mapped.currency,
     curlecOrderId: mapped.curlecOrderId,
@@ -51,7 +52,7 @@ function mapDepositResponse(payment: GatewayPayment) {
 }
 
 async function assertInvestorOrgAccess(
-  db: PrismaClient,
+  db: PrismaClient | Prisma.TransactionClient,
   actor: ActorContext,
   investorOrganizationId: string
 ) {
@@ -69,7 +70,7 @@ async function assertInvestorOrgAccess(
   return investorOrg;
 }
 
-async function getDepositLimits(db: PrismaClient) {
+async function getDepositLimits(db: PrismaClient | Prisma.TransactionClient) {
   const settings = await db.platformFinanceSetting.upsert({
     where: { key: "DEFAULT" },
     update: {},
@@ -80,6 +81,28 @@ async function getDepositLimits(db: PrismaClient) {
     minAmount: decimalToNumber(settings.investor_min_deposit_amount),
     maxAmount: decimalToNumber(settings.investor_max_deposit_amount),
   };
+}
+
+const REUSABLE_INTENT_STATUSES: GatewayPaymentStatus[] = [
+  GatewayPaymentStatus.CREATED,
+  GatewayPaymentStatus.PAID,
+];
+
+const INTENT_FINAL_STATUSES: GatewayPaymentStatus[] = [
+  GatewayPaymentStatus.COMPLETED,
+  GatewayPaymentStatus.REFUND_INITIATED,
+  GatewayPaymentStatus.REFUNDED,
+];
+
+const INTENT_NEW_REQUIRED_STATUSES: GatewayPaymentStatus[] = [
+  GatewayPaymentStatus.FAILED,
+  GatewayPaymentStatus.EXPIRED,
+  GatewayPaymentStatus.HELD,
+  GatewayPaymentStatus.NAME_CHECK_PENDING,
+];
+
+function buildDepositIntentKey(depositIntentId: string) {
+  return `gateway-deposit:intent:${depositIntentId}`;
 }
 
 export async function getInvestorDepositLimits(db: PrismaClient = defaultPrisma) {
@@ -97,38 +120,101 @@ export async function createInvestorDeposit(
   input: CreateInvestorDepositInput,
   db: PrismaClient = defaultPrisma
 ) {
-  await assertInvestorOrgAccess(db, actor, input.investorOrganizationId);
+  return db.$transaction(async (tx) => {
+    await assertInvestorOrgAccess(tx, actor, input.investorOrganizationId);
 
-  const { minAmount, maxAmount } = await getDepositLimits(db);
-  if (input.amount < minAmount) {
-    throw new AppError(
-      400,
-      "DEPOSIT_BELOW_MINIMUM",
-      `Minimum deposit amount is RM ${minAmount}`
-    );
-  }
-  if (input.amount > maxAmount) {
-    throw new AppError(
-      400,
-      "DEPOSIT_ABOVE_MAXIMUM",
-      `Maximum deposit amount is RM ${maxAmount}`
-    );
-  }
+    const { minAmount, maxAmount } = await getDepositLimits(tx);
+    if (input.amount < minAmount) {
+      throw new AppError(
+        400,
+        "DEPOSIT_BELOW_MINIMUM",
+        `Minimum deposit amount is RM ${minAmount}`
+      );
+    }
+    if (input.amount > maxAmount) {
+      throw new AppError(
+        400,
+        "DEPOSIT_ABOVE_MAXIMUM",
+        `Maximum deposit amount is RM ${maxAmount}`
+      );
+    }
 
-  return createGatewayOrder(
-    actor,
-    {
-      purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
-      organizationType: GatewayOrganizationType.INVESTOR,
-      amount: input.amount,
-      receiptPrefix: "dep",
-      notes: {
-        investorOrganizationId: input.investorOrganizationId,
+    await tx.$queryRaw`
+      SELECT id FROM investor_organizations
+      WHERE id = ${input.investorOrganizationId}
+      FOR UPDATE
+    `;
+
+    const intentKey = buildDepositIntentKey(input.depositIntentId);
+    const existingIntent = await tx.gatewayPayment.findFirst({
+      where: {
+        purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+        idempotency_key: intentKey,
       },
-      investorOrganizationId: input.investorOrganizationId,
-    },
-    db
-  );
+    });
+
+    if (existingIntent) {
+      if (existingIntent.investor_organization_id !== input.investorOrganizationId) {
+        throw new AppError(
+          409,
+          "DEPOSIT_INTENT_OWNERSHIP_CONFLICT",
+          "This deposit intent belongs to another investor organization"
+        );
+      }
+      if (existingIntent.amount.toNumber() !== input.amount) {
+        throw new AppError(
+          409,
+          "DEPOSIT_INTENT_AMOUNT_CONFLICT",
+          "This deposit intent was already created with a different amount"
+        );
+      }
+      if (existingIntent.currency !== "MYR") {
+        throw new AppError(
+          409,
+          "DEPOSIT_INTENT_CURRENCY_CONFLICT",
+          "This deposit intent was already created with a different currency"
+        );
+      }
+
+      if (REUSABLE_INTENT_STATUSES.includes(existingIntent.status)) {
+        return mapDepositResponse(existingIntent);
+      }
+
+      if (INTENT_NEW_REQUIRED_STATUSES.includes(existingIntent.status)) {
+        throw new AppError(
+          409,
+          "DEPOSIT_INTENT_TERMINAL",
+          "This deposit intent is no longer payable; start a new deposit intent",
+          { currentStatus: existingIntent.status }
+        );
+      }
+
+      if (INTENT_FINAL_STATUSES.includes(existingIntent.status)) {
+        throw new AppError(
+          409,
+          "DEPOSIT_INTENT_TERMINAL",
+          "This deposit intent is already finalized; start a new deposit intent",
+          { currentStatus: existingIntent.status }
+        );
+      }
+    }
+
+    return createGatewayOrder(
+      actor,
+      {
+        purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+        organizationType: GatewayOrganizationType.INVESTOR,
+        amount: input.amount,
+        receiptPrefix: "dep",
+        notes: {
+          investorOrganizationId: input.investorOrganizationId,
+        },
+        investorOrganizationId: input.investorOrganizationId,
+        idempotencyKey: intentKey,
+      },
+      tx
+    );
+  });
 }
 
 export async function getInvestorDeposit(

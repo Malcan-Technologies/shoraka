@@ -23,12 +23,18 @@ import {
   OnboardingFeeFailureView,
   OnboardingFeeStartingEkycView,
   OnboardingFeeSuccessView,
+  OnboardingFeeUnderReviewView,
 } from "@/components/onboarding-fee-return-views";
 
 /** Only used when Curlec never returns a terminal status (payment still pending). */
 const PAYMENT_CONFIRM_TIMEOUT_MS = 20_000;
 
-type DialogPhase = "confirming" | "starting-ekyc" | "success" | "failed";
+type DialogPhase =
+  | "confirming"
+  | "starting-ekyc"
+  | "success"
+  | "under-review"
+  | "failed";
 
 interface OnboardingFeeReturnDialogProps {
   feeId: string;
@@ -54,12 +60,14 @@ export function OnboardingFeeReturnDialog({
   const fee = feeQuery.data;
 
   const hasDefinitiveSuccess = fee?.status === "COMPLETED";
+  const isUnderReview = fee?.status === "HELD";
   const hasDefinitiveFailure =
     fee != null &&
     isTerminalOnboardingFeeStatus(fee.status) &&
     fee.status !== "COMPLETED";
 
-  const shouldRunTimeout = open && !hasDefinitiveSuccess && !hasDefinitiveFailure;
+  const shouldRunTimeout =
+    open && !hasDefinitiveSuccess && !hasDefinitiveFailure && !isUnderReview;
 
   React.useEffect(() => {
     if (!open) {
@@ -85,11 +93,19 @@ export function OnboardingFeeReturnDialog({
   const phase: DialogPhase = React.useMemo(() => {
     if (isStartingEkyc) return "starting-ekyc";
     if (hasDefinitiveSuccess) return "success";
+    if (isUnderReview) return "under-review";
     if (hasDefinitiveFailure) return "failed";
     if (feeQuery.isError) return "failed";
     if (pollTimedOut) return "failed";
     return "confirming";
-  }, [feeQuery.isError, hasDefinitiveFailure, hasDefinitiveSuccess, isStartingEkyc, pollTimedOut]);
+  }, [
+    feeQuery.isError,
+    hasDefinitiveFailure,
+    hasDefinitiveSuccess,
+    isStartingEkyc,
+    isUnderReview,
+    pollTimedOut,
+  ]);
 
   const failureReason = React.useMemo(() => {
     if (hasDefinitiveFailure) return "failed" as const;
@@ -177,7 +193,9 @@ export function OnboardingFeeReturnDialog({
         ? "Starting verification"
         : phase === "success"
           ? "Payment successful"
-          : "Payment not completed";
+          : phase === "under-review"
+            ? "Payment under review"
+            : "Payment not completed";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -191,6 +209,9 @@ export function OnboardingFeeReturnDialog({
         ) : null}
         {phase === "starting-ekyc" ? <OnboardingFeeStartingEkycView /> : null}
         {phase === "success" && fee ? <OnboardingFeeSuccessView amount={fee.amount} /> : null}
+        {phase === "under-review" ? (
+          <OnboardingFeeUnderReviewView onContinue={handleTryAgain} />
+        ) : null}
         {phase === "failed" ? (
           <OnboardingFeeFailureView
             reason={failureReason}

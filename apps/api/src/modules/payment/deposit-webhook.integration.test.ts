@@ -1,6 +1,7 @@
 import express from "express";
 import request from "supertest";
 import {
+  CurlecGatewayAccount,
   GatewayOrganizationType,
   GatewayPaymentPurpose,
   GatewayPaymentStatus,
@@ -18,17 +19,21 @@ import { curlecWebhookRouter } from "./webhook-controller";
 
 const prisma = new PrismaClient();
 
-const TEST_WEBHOOK_SECRET = "whsec_m5_integration_test";
+const TEST_WEBHOOK_SECRET_BY_ACCOUNT: Record<CurlecGatewayAccount, string> = {
+  OPERATING: "whsec_m5_operating",
+  INVESTOR_POOL: "whsec_m5_pool",
+};
 
 const mockFetchPayment = jest.fn();
 const mockFetchOrderPayments = jest.fn();
 const mockRefundPayment = jest.fn();
 
 jest.mock("../../config/curlec", () => ({
-  getCurlecConfig: jest.fn(() => ({
+  getCurlecConfig: jest.fn((gatewayAccount: CurlecGatewayAccount = "OPERATING") => ({
+    gatewayAccount,
     keyId: "rzp_test_key",
     keySecret: "rzp_test_secret",
-    webhookSecret: "whsec_m5_integration_test",
+    webhookSecret: TEST_WEBHOOK_SECRET_BY_ACCOUNT[gatewayAccount],
     apiBaseUrl: "https://api.razorpay.com",
     environment: "sandbox" as const,
   })),
@@ -61,11 +66,15 @@ async function gatewayTablesMigrated(): Promise<boolean> {
 
 function signedWebhookRequest(
   app: express.Application,
-  params: { rawBody: string; eventId: string }
+  params: { rawBody: string; eventId: string; routePath?: string; signatureAccount?: CurlecGatewayAccount }
 ) {
-  const signature = computeCurlecWebhookSignature(params.rawBody, TEST_WEBHOOK_SECRET);
+  const signatureAccount = params.signatureAccount ?? "INVESTOR_POOL";
+  const signature = computeCurlecWebhookSignature(
+    params.rawBody,
+    TEST_WEBHOOK_SECRET_BY_ACCOUNT[signatureAccount]
+  );
   return request(app)
-    .post("/v1/webhooks/curlec")
+    .post(params.routePath ?? "/v1/webhooks/curlec/investor-pool")
     .set("Content-Type", "application/json")
     .set("X-Razorpay-Event-Id", params.eventId)
     .set("X-Razorpay-Signature", signature)
@@ -137,6 +146,7 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
 
     const payment = await prisma.gatewayPayment.create({
       data: {
+        gatewayAccount: "INVESTOR_POOL",
         purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
         organization_type: GatewayOrganizationType.INVESTOR,
         investor_organization_id: orgId,
@@ -185,6 +195,7 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
     await prisma.gatewayPayment.update({
       where: { id: gatewayPaymentId },
       data: {
+        gatewayAccount: CurlecGatewayAccount.INVESTOR_POOL,
         status: GatewayPaymentStatus.CREATED,
         curlec_payment_id: null,
         method: null,
@@ -271,6 +282,76 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
     });
     expect(ledgerEntry?.direction).toBe(NoteLedgerDirection.CREDIT);
     expect(ledgerEntry?.amount.toNumber()).toBe(250);
+  });
+
+  it("investor-pool route matches only INVESTOR_POOL payment", async () => {
+    if (!migrated) return;
+
+    await prisma.gatewayPayment.update({
+      where: { id: gatewayPaymentId },
+      data: { gatewayAccount: CurlecGatewayAccount.INVESTOR_POOL },
+    });
+
+    mockFetchPayment.mockResolvedValue({
+      id: paymentId,
+      amount: 25000,
+      currency: "MYR",
+      status: "captured",
+      method: "fpx",
+      order_id: orderId,
+      bank: "MB2U",
+      acquirer_data: { account_holder_name: "Jane Doe" },
+    });
+
+    const eventId = `evt_m5_pool_${Date.now()}`;
+    createdEventIds.push(eventId);
+    const app = buildTestApp();
+    const response = await signedWebhookRequest(app, {
+      eventId,
+      rawBody: buildCapturePayload(orderId, paymentId),
+      routePath: "/v1/webhooks/curlec/investor-pool",
+      signatureAccount: "INVESTOR_POOL",
+    });
+    expect(response.status).toBe(200);
+
+    const payment = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: gatewayPaymentId } });
+    expect(payment.status).toBe(GatewayPaymentStatus.COMPLETED);
+    expect(payment.gatewayAccount).toBe(CurlecGatewayAccount.INVESTOR_POOL);
+  });
+
+  it("route account mismatch does not mutate payment", async () => {
+    if (!migrated) return;
+
+    await prisma.gatewayPayment.update({
+      where: { id: gatewayPaymentId },
+      data: { gatewayAccount: CurlecGatewayAccount.INVESTOR_POOL },
+    });
+
+    mockFetchPayment.mockResolvedValue({
+      id: paymentId,
+      amount: 25000,
+      currency: "MYR",
+      status: "captured",
+      method: "fpx",
+      order_id: orderId,
+      bank: "MB2U",
+      acquirer_data: { account_holder_name: "Jane Doe" },
+    });
+
+    const eventId = `evt_m5_mismatch_${Date.now()}`;
+    createdEventIds.push(eventId);
+    const app = buildTestApp();
+    const response = await signedWebhookRequest(app, {
+      eventId,
+      rawBody: buildCapturePayload(orderId, paymentId),
+      routePath: "/v1/webhooks/curlec/operating",
+      signatureAccount: "OPERATING",
+    });
+    expect(response.status).toBe(200);
+
+    const payment = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: gatewayPaymentId } });
+    expect(payment.status).toBe(GatewayPaymentStatus.CREATED);
+    expect(payment.curlec_payment_id).toBeNull();
   });
 
   it("dedupes duplicate webhook event_id without double credit", async () => {
@@ -471,14 +552,21 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
       data: {
         event_id: eventId,
         event_type: "payment.captured",
+        gatewayAccount: CurlecGatewayAccount.INVESTOR_POOL,
         payload: JSON.parse(buildCapturePayload(orderId, paymentId)),
         signature_valid: true,
       },
     });
 
     await Promise.all([
-      processInvestorDepositCapture({ orderId, paymentId, eventId }, prisma),
-      processInvestorDepositCapture({ orderId, paymentId, eventId }, prisma),
+      processInvestorDepositCapture(
+        { orderId, paymentId, eventId, routeGatewayAccount: CurlecGatewayAccount.INVESTOR_POOL },
+        prisma
+      ),
+      processInvestorDepositCapture(
+        { orderId, paymentId, eventId, routeGatewayAccount: CurlecGatewayAccount.INVESTOR_POOL },
+        prisma
+      ),
     ]);
 
     const balanceTxCount = await prisma.investorBalanceTransaction.count({

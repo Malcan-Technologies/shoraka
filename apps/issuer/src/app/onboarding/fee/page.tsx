@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -29,11 +29,16 @@ import { ISSUER_ONBOARDING_FEE_RETURN_TO } from "@/lib/issuer-onboarding-fee-rou
 import {
   storeIssuerPendingOnboarding,
   useCreateIssuerOnboardingFeeMutation,
-  useIssuerOnboardingFeeQuery,
+  useIssuerOnboardingFeeStatusQuery,
 } from "@/hooks/use-issuer-onboarding-fee";
+import {
+  isIssuerFeeCaptureMismatchHeldError,
+  PaymentUnderReviewNotice,
+} from "@/components/payment-under-review-notice";
 import type { IssuerOnboardingFeeResponse } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const CHECKOUT_OPEN_TIMEOUT_MS = 20_000;
 
 function resolveCheckoutContact(
   activeOrganization: ReturnType<typeof useOrganization>["activeOrganization"]
@@ -67,14 +72,18 @@ export default function OnboardingFeePage() {
   const { activeOrganization, isLoading: orgLoading } = useOrganization();
   const createFee = useCreateIssuerOnboardingFeeMutation();
   const [confirmedFee, setConfirmedFee] = useState<IssuerOnboardingFeeResponse | null>(null);
-  const [feePaymentId, setFeePaymentId] = useState<string | null>(null);
   const [isOpeningCheckout, setIsOpeningCheckout] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
-  const feeBootstrappedRef = useRef(false);
+  const checkoutOpenInFlightRef = useRef(false);
 
-  const feeQuery = useIssuerOnboardingFeeQuery(feePaymentId ?? undefined);
-  const resolvedFee = feeQuery.data ?? confirmedFee ?? createFee.data ?? null;
+  const statusQuery = useIssuerOnboardingFeeStatusQuery(activeOrganization?.id);
+  const resolvedFee = confirmedFee ?? createFee.data ?? statusQuery.data?.latestPayment ?? null;
+  const feeAmount = resolvedFee?.amount ?? statusQuery.data?.amount ?? null;
+  const isUnderReview =
+    Boolean(statusQuery.data?.isUnderReview) ||
+    resolvedFee?.status === "HELD" ||
+    isIssuerFeeCaptureMismatchHeldError(createFee.error);
   const steps = activeOrganization
     ? getOnboardingStepperSteps(activeOrganization, "issuer", "fee")
     : [];
@@ -83,45 +92,32 @@ export default function OnboardingFeePage() {
     setTitle("Onboarding");
   }, [setTitle]);
 
-  const bootstrapFee = useCallback(async () => {
-    if (!activeOrganization || feeBootstrappedRef.current) return;
-
+  useEffect(() => {
+    if (orgLoading) return;
+    if (!activeOrganization) return;
     if (isAwaitingCompanyTnc(activeOrganization)) {
       setIsBootstrapping(false);
       router.replace("/onboarding/terms");
       return;
     }
-
-    const companyName = activeOrganization.name?.trim() ?? "";
-    storeIssuerPendingOnboarding({ orgId: activeOrganization.id, companyName });
-
-    try {
-      const fee = await createFee.mutateAsync({ issuerOrganizationId: activeOrganization.id });
-      feeBootstrappedRef.current = true;
-      setConfirmedFee(fee);
-      setFeePaymentId(fee.id);
-
-      if (fee.status === "COMPLETED") {
-        router.replace("/onboarding/verify");
-        return;
-      }
-    } catch (err) {
-      console.error("[OnboardingFeePage] Failed to load onboarding fee:", err);
-      setError(err instanceof Error ? err.message : "Could not load onboarding fee");
-    } finally {
-      setIsBootstrapping(false);
-    }
-  }, [activeOrganization, createFee, router]);
-
-  useEffect(() => {
-    if (orgLoading) return;
-    if (!activeOrganization) return;
     if (suppressBootstrap) {
       setIsBootstrapping(false);
       return;
     }
-    void bootstrapFee();
-  }, [activeOrganization, bootstrapFee, orgLoading, suppressBootstrap]);
+
+    if (statusQuery.isLoading) return;
+    if (statusQuery.isError) {
+      setError(statusQuery.error instanceof Error ? statusQuery.error.message : "Could not load fee");
+    }
+
+    if (statusQuery.data?.latestPayment?.status === "COMPLETED" || statusQuery.data?.isPaid) {
+      router.replace("/onboarding/verify");
+      return;
+    }
+
+    // Keep the issuer on this page while a captured payment is under review.
+    setIsBootstrapping(false);
+  }, [activeOrganization, orgLoading, router, statusQuery, suppressBootstrap]);
 
   if (orgLoading || isBootstrapping) {
     return (
@@ -146,50 +142,80 @@ export default function OnboardingFeePage() {
   }
 
   const companyName = activeOrganization.name?.trim() ?? "";
-  const feeAmount = resolvedFee?.amount;
+
+  function resetPayFlowState() {
+    checkoutOpenInFlightRef.current = false;
+    setIsOpeningCheckout(false);
+  }
+
+  async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string) {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  }
 
   const handlePayFee = async () => {
+    if (checkoutOpenInFlightRef.current || isUnderReview) {
+      return;
+    }
+
     if (!companyName) {
       toast.error("Missing company name");
       return;
     }
 
+    checkoutOpenInFlightRef.current = true;
+    setIsOpeningCheckout(true);
+
     let checkoutContact = resolveCheckoutContact(activeOrganization);
-    if (!checkoutContact.email) {
-      const apiClient = createApiClient(API_URL, getAccessToken);
-      const me = await apiClient.get<{
-        user: { email: string; first_name?: string; last_name?: string };
-      }>("/v1/auth/me");
-      if (me.success && me.data.user.email) {
-        checkoutContact = {
-          email: me.data.user.email,
-          contact: checkoutContact.contact || "+60000000000",
-          name:
-            checkoutContact.name ??
-            ([me.data.user.first_name, me.data.user.last_name].filter(Boolean).join(" ") ||
-              companyName),
-        };
-      }
-    }
-
-    if (!checkoutContact.email) {
-      toast.error("We could not find an email address for this account");
-      return;
-    }
-
     try {
-      setIsOpeningCheckout(true);
+      if (!checkoutContact.email) {
+        const apiClient = createApiClient(API_URL, getAccessToken);
+        const me = await apiClient.get<{
+          user: { email: string; first_name?: string; last_name?: string };
+        }>("/v1/auth/me");
+        if (me.success && me.data.user.email) {
+          checkoutContact = {
+            email: me.data.user.email,
+            contact: checkoutContact.contact || "+60000000000",
+            name:
+              checkoutContact.name ??
+              ([me.data.user.first_name, me.data.user.last_name].filter(Boolean).join(" ") ||
+                companyName),
+          };
+        }
+      }
+
+      if (!checkoutContact.email) {
+        toast.error("We could not find an email address for this account");
+        return;
+      }
+
       setError(null);
 
-      const fee =
-        resolvedFee ??
-        (await createFee.mutateAsync({ issuerOrganizationId: activeOrganization.id }));
+      // Always re-request before opening checkout so EXPIRED/FAILED never reuses stale local order.
+      const fee = await withTimeout(
+        createFee.mutateAsync({ issuerOrganizationId: activeOrganization.id }),
+        CHECKOUT_OPEN_TIMEOUT_MS,
+        "Payment request timed out. Please try again."
+      );
 
       setConfirmedFee(fee);
-      setFeePaymentId(fee.id);
 
       if (fee.status === "COMPLETED") {
         router.replace("/onboarding/verify");
+        return;
+      }
+
+      if (fee.status === "HELD") {
         return;
       }
 
@@ -200,18 +226,30 @@ export default function OnboardingFeePage() {
         ISSUER_ONBOARDING_FEE_RETURN_TO
       );
 
-      await openCurlecFpxCheckout({
-        keyId: fee.curlecKeyId,
-        orderId: fee.curlecOrderId,
-        amountMyr: fee.amount,
-        callbackUrl,
-        description: "Issuer onboarding fee",
-        prefillName: checkoutContact.name,
-        prefillEmail: checkoutContact.email,
-        prefillContact: checkoutContact.contact,
-        onDismiss: () => setIsOpeningCheckout(false),
-      });
+      if (!fee.curlecKeyId || !fee.curlecOrderId) {
+        throw new Error("Payment order is incomplete. Please try again.");
+      }
+
+      await withTimeout(
+        openCurlecFpxCheckout({
+          keyId: fee.curlecKeyId,
+          orderId: fee.curlecOrderId,
+          amountMyr: fee.amount,
+          callbackUrl,
+          description: "Issuer onboarding fee",
+          prefillName: checkoutContact.name,
+          prefillEmail: checkoutContact.email,
+          prefillContact: checkoutContact.contact,
+          onDismiss: resetPayFlowState,
+        }),
+        CHECKOUT_OPEN_TIMEOUT_MS,
+        "Checkout is taking too long to open. Please try again."
+      );
     } catch (err) {
+      if (isIssuerFeeCaptureMismatchHeldError(err)) {
+        setError(null);
+        return;
+      }
       const message = err instanceof Error ? err.message : "Could not start payment";
       if (message.includes("TNC_REQUIRED")) {
         setError("Please accept the Terms and Conditions before paying.");
@@ -220,7 +258,7 @@ export default function OnboardingFeePage() {
         setError(message);
       }
     } finally {
-      setIsOpeningCheckout(false);
+      resetPayFlowState();
     }
   };
 
@@ -238,14 +276,17 @@ export default function OnboardingFeePage() {
 
           <div className="w-full space-y-6">
             <div className="space-y-2 text-center">
-              <h2 className="text-xl font-semibold">Pay onboarding fee</h2>
+              <h2 className="text-xl font-semibold">
+                {isUnderReview ? "Onboarding fee" : "Pay onboarding fee"}
+              </h2>
               <p className="text-[15px] text-muted-foreground">
-                A one-time fee is required after accepting the user agreement to start company
-                verification (eKYB).
+                {isUnderReview
+                  ? "Your payment is being verified before company verification (eKYB) continues."
+                  : "A one-time fee is required after accepting the user agreement to start company verification (eKYB)."}
               </p>
             </div>
 
-            {error ? (
+            {error && !isUnderReview ? (
               <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
                 <div className="flex items-start gap-3">
                   <ExclamationCircleIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-destructive" />
@@ -253,6 +294,8 @@ export default function OnboardingFeePage() {
                 </div>
               </div>
             ) : null}
+
+            {isUnderReview ? <PaymentUnderReviewNotice /> : null}
 
             <Card className="rounded-2xl shadow-sm">
               <CardHeader>
@@ -263,26 +306,28 @@ export default function OnboardingFeePage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="rounded-xl bg-muted/50 px-4 py-3 text-center">
-                  <p className="text-sm text-muted-foreground">Amount due</p>
+                  <p className="text-sm text-muted-foreground">
+                    {isUnderReview ? "Fee amount" : "Amount due"}
+                  </p>
                   <p className="text-2xl font-semibold tabular-nums">
                     RM {feeAmount != null ? feeAmount.toFixed(2) : "—"}
                   </p>
                 </div>
-                <Button
-                  type="button"
-                  variant="action"
-                  className="h-11 w-full rounded-xl"
-                  disabled={isOpeningCheckout || !resolvedFee || feeQuery.isLoading}
-                  onClick={() => void handlePayFee()}
-                >
-                  {isOpeningCheckout
-                    ? "Opening checkout..."
-                    : feeQuery.isLoading && !resolvedFee
-                      ? "Loading..."
-                      : "Pay with FPX"}
-                </Button>
+                {isUnderReview ? null : (
+                  <Button
+                    type="button"
+                    variant="action"
+                    className="h-11 w-full rounded-xl"
+                    disabled={isOpeningCheckout}
+                    onClick={() => void handlePayFee()}
+                  >
+                    {isOpeningCheckout ? "Opening checkout..." : "Pay with FPX"}
+                  </Button>
+                )}
                 <p className="text-center text-xs text-muted-foreground">
-                  This fee is non-refundable and unlocks eKYB verification for your company account.
+                  {isUnderReview
+                    ? "No further payment is required while this fee is under review."
+                    : "This fee is non-refundable and unlocks eKYB verification for your company account."}
                 </p>
               </CardContent>
             </Card>

@@ -14,7 +14,10 @@ import {
 } from "./deposit-service";
 import { recordGatewayPaymentEvent, mapGatewayPaymentEvent } from "./gateway-events";
 import { ListGatewayPaymentsQuery } from "./admin-schemas";
-import { initiateInvestorDepositRefund } from "./refund-service";
+import {
+  initiateInvestorDepositRefund,
+  retryWalletReversalForConfirmedRefund,
+} from "./refund-service";
 
 export type AdminActorContext = {
   userId: string;
@@ -53,6 +56,7 @@ function mapListItem(
 ) {
   return {
     id: payment.id,
+    gatewayAccount: payment.gatewayAccount,
     purpose: payment.purpose,
     organizationType: payment.organization_type,
     status: payment.status,
@@ -65,6 +69,8 @@ function mapListItem(
       ? buildInvestorOrgDisplayName(payment.investor_organization)
       : null,
     curlecOrderId: payment.curlec_order_id,
+    curlecPaymentId: payment.curlec_payment_id,
+    settlementId: payment.settlement_id,
     createdAt: payment.created_at.toISOString(),
     updatedAt: payment.updated_at.toISOString(),
   };
@@ -143,6 +149,7 @@ export async function listGatewayPayments(
 
   if (query.purpose) where.purpose = query.purpose;
   if (query.organizationType) where.organization_type = query.organizationType;
+  if (query.gatewayAccount) where.gatewayAccount = query.gatewayAccount;
 
   if (query.search) {
     where.OR = [
@@ -195,7 +202,6 @@ export async function getGatewayPaymentDetail(
 
   return {
     ...mapListItem(payment),
-    curlecPaymentId: payment.curlec_payment_id,
     method: payment.method,
     bankCode: payment.bank_code,
     expectedPayerName: payment.investor_organization
@@ -209,6 +215,10 @@ export async function getGatewayPaymentDetail(
     refundNotes: payment.refund_notes,
     openOverrideProposedBy: null,
     openOverrideReason: null,
+    metadata:
+      payment.metadata && typeof payment.metadata === "object" && !Array.isArray(payment.metadata)
+        ? (payment.metadata as Record<string, unknown>)
+        : null,
     events: payment.events.map(mapGatewayPaymentEvent),
   };
 }
@@ -226,6 +236,17 @@ export async function retryHeldDepositRefund(
       "INVALID_GATEWAY_STATUS",
       "Retry refund is only allowed for HELD payments"
     );
+  }
+
+  const metadata =
+    payment.metadata && typeof payment.metadata === "object" && !Array.isArray(payment.metadata)
+      ? (payment.metadata as Record<string, unknown>)
+      : {};
+
+  // Remote refund already confirmed — retry local wallet debit only.
+  if ("refundConfirmedWalletReversalFailed" in metadata) {
+    await retryWalletReversalForConfirmedRefund(payment, { actorUserId: actor.userId }, db);
+    return getGatewayPaymentDetail(gatewayPaymentId, db);
   }
 
   if (!payment.curlec_payment_id) {

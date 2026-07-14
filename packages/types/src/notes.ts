@@ -974,12 +974,14 @@ export interface InvestorDepositLimits {
 export interface CreateInvestorDepositInput {
   investorOrganizationId: string;
   amount: number;
+  depositIntentId: string;
 }
 
 export interface InvestorDepositResponse {
   id: string;
   status: GatewayPaymentStatus;
   purpose: string;
+  gatewayAccount: "OPERATING" | "INVESTOR_POOL";
   amount: number;
   currency: string;
   curlecOrderId: string;
@@ -999,6 +1001,7 @@ export interface IssuerOnboardingFeeResponse {
   id: string;
   status: GatewayPaymentStatus;
   purpose: string;
+  gatewayAccount: "OPERATING" | "INVESTOR_POOL";
   amount: number;
   currency: string;
   curlecOrderId: string;
@@ -1009,6 +1012,13 @@ export interface IssuerOnboardingFeeResponse {
   payerName: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface IssuerOnboardingFeeStatusResponse {
+  amount: number;
+  latestPayment: IssuerOnboardingFeeResponse | null;
+  isPaid: boolean;
+  isUnderReview: boolean;
 }
 
 export interface CreateApplicationProcessingFeeInput {

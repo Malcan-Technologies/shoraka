@@ -18,6 +18,11 @@ import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
 import {
+  getGatewayAccountBadgeClassName,
+  getGatewayAccountDescription,
+  getGatewayAccountLabel,
+} from "@/lib/gateway-account";
+import {
   useApproveGatewayNameCheck,
   useGatewayPayment,
   useInitiateGatewayPaymentRefund,
@@ -40,6 +45,7 @@ export default function GatewayPaymentDetailPage() {
   const id = typeof params?.id === "string" ? params.id : null;
   const { can } = usePermissions();
   const canManage = can("gateway_payments.manage");
+  const disabledReason = !canManage ? "You do not have permission to perform this action." : undefined;
 
   const { data: payment, isLoading, error, refetch, isFetching } = useGatewayPayment(id);
   const retryRefund = useRetryGatewayPaymentRefund();
@@ -54,13 +60,11 @@ export default function GatewayPaymentDetailPage() {
     approveNameCheck.isPending ||
     rejectNameCheck.isPending;
 
-  const canRetryRefund = Boolean(canManage && payment?.status === "HELD");
-  const canReviewNameCheck = Boolean(canManage && payment?.status === "NAME_CHECK_PENDING");
-  const canInitiateRefund = Boolean(
-    canManage &&
-      payment?.status === "COMPLETED" &&
-      payment.purpose === "INVESTOR_DEPOSIT"
-  );
+  const showReviewNameCheck = payment?.status === "NAME_CHECK_PENDING";
+  const showRetryRefund = payment?.status === "HELD";
+  const showInitiateRefund =
+    payment?.status === "COMPLETED" && payment.purpose === "INVESTOR_DEPOSIT";
+  const showActionsCard = Boolean(showReviewNameCheck || showRetryRefund || showInitiateRefund);
 
   const handleRetryRefund = async () => {
     if (!id) return;
@@ -148,17 +152,28 @@ export default function GatewayPaymentDetailPage() {
                   <CardHeader className="flex flex-row items-start justify-between gap-4">
                     <div>
                       <CardTitle>{formatCurrency(payment.amount)}</CardTitle>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {payment.investorOrganizationName ??
-                          PURPOSE_LABEL[payment.purpose] ??
-                          payment.purpose}
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <Badge variant={statusVariant(payment.status)}>
+                          {STATUS_LABEL[payment.status] ?? payment.status}
+                        </Badge>
+                        <Badge variant="outline">{PURPOSE_LABEL[payment.purpose] ?? payment.purpose}</Badge>
+                        <Badge
+                          variant="outline"
+                          className={getGatewayAccountBadgeClassName(payment.gatewayAccount)}
+                        >
+                          {getGatewayAccountLabel(payment.gatewayAccount)}
+                        </Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {getGatewayAccountDescription(payment.gatewayAccount)}
                       </p>
                     </div>
-                    <Badge variant={statusVariant(payment.status)}>
-                      {STATUS_LABEL[payment.status] ?? payment.status}
-                    </Badge>
                   </CardHeader>
                   <CardContent className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Organization</p>
+                      <p>{payment.investorOrganizationName ?? "—"}</p>
+                    </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Expected payer</p>
                       <p>{payment.expectedPayerName ?? "—"}</p>
@@ -176,6 +191,10 @@ export default function GatewayPaymentDetailPage() {
                       <p className="font-mono text-sm">{payment.curlecPaymentId ?? "—"}</p>
                     </div>
                     <div>
+                      <p className="text-xs text-muted-foreground">Settlement ID</p>
+                      <p className="font-mono text-sm">{payment.settlementId ?? "—"}</p>
+                    </div>
+                    <div>
                       <p className="text-xs text-muted-foreground">Bank</p>
                       <p>{payment.bankCode ?? "—"}</p>
                     </div>
@@ -187,6 +206,10 @@ export default function GatewayPaymentDetailPage() {
                       <p className="text-xs text-muted-foreground">Created</p>
                       <p>{formatDate(payment.createdAt)}</p>
                     </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Updated</p>
+                      <p>{formatDate(payment.updatedAt)}</p>
+                    </div>
                     {payment.refundedAt ? (
                       <div>
                         <p className="text-xs text-muted-foreground">Refunded</p>
@@ -196,40 +219,47 @@ export default function GatewayPaymentDetailPage() {
                   </CardContent>
                 </Card>
 
-                {canManage && (canRetryRefund || canInitiateRefund || canReviewNameCheck) ? (
+                {showActionsCard ? (
                   <Card className="rounded-2xl">
                     <CardHeader>
                       <CardTitle>Actions</CardTitle>
                     </CardHeader>
                     <CardContent className="flex flex-wrap gap-2">
-                      {canReviewNameCheck ? (
+                      {showReviewNameCheck ? (
                         <>
-                          <Button onClick={() => void handleApproveNameCheck()} disabled={isPending}>
+                          <Button
+                            onClick={() => void handleApproveNameCheck()}
+                            disabled={!canManage || isPending}
+                            title={disabledReason}
+                          >
                             Approve name check
                           </Button>
                           <Button
                             variant="destructive"
                             onClick={() => void handleRejectNameCheck()}
-                            disabled={isPending}
+                            disabled={!canManage || isPending}
+                            title={disabledReason}
                           >
                             Reject name check
                           </Button>
                         </>
                       ) : null}
-                      {canRetryRefund ? (
+                      {showRetryRefund ? (
                         <Button
                           variant="destructive"
                           onClick={() => void handleRetryRefund()}
-                          disabled={isPending}
+                          disabled={!canManage || isPending}
+                          title={disabledReason}
                         >
                           Retry auto-refund
                         </Button>
                       ) : null}
-                      {canInitiateRefund ? (
+                      {showInitiateRefund ? (
                         <Button
                           variant="destructive"
                           onClick={() => setShowRefundDialog(true)}
-                          disabled={isPending}
+                          disabled={!canManage || isPending}
+                          title={disabledReason}
                         >
                           Initiate refund
                         </Button>

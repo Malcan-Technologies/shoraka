@@ -103,16 +103,42 @@ Issuer director CTOS RegTank onboarding: after a successful RegTank create call,
 
 ### Payment Gateway (Curlec / Razorpay Malaysia)
 
-Server-only — never expose `CURLEC_KEY_SECRET` or `CURLEC_WEBHOOK_SECRET` to clients. Loaded by `apps/api/src/config/curlec.ts`.
+Server-only — never expose key secrets or webhook secrets to clients. Loaded by `apps/api/src/config/curlec.ts`.
 
 | Variable | Description | Example (Dev) | Example (Prod) |
 |---|---|---|---|
-| `CURLEC_KEY_ID` | Curlec API key ID | `rzp_test_...` | `rzp_live_...` (Secrets Manager) |
-| `CURLEC_KEY_SECRET` | Curlec API secret | From Curlec dashboard | Secrets Manager |
-| `CURLEC_WEBHOOK_SECRET` | Webhook HMAC signing secret | From Curlec dashboard webhook config | Secrets Manager |
+| `CURLEC_OPERATING_KEY_ID` | Operating merchant key ID | `rzp_test_...` | Secrets Manager |
+| `CURLEC_OPERATING_KEY_SECRET` | Operating merchant API secret | From Curlec dashboard | Secrets Manager |
+| `CURLEC_OPERATING_WEBHOOK_SECRET` | Operating merchant webhook secret | From Curlec dashboard | Secrets Manager |
+| `CURLEC_INVESTOR_POOL_KEY_ID` | Investor-pool merchant key ID | `rzp_test_...` | Secrets Manager |
+| `CURLEC_INVESTOR_POOL_KEY_SECRET` | Investor-pool merchant API secret | From Curlec dashboard | Secrets Manager |
+| `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET` | Investor-pool merchant webhook secret | From Curlec dashboard | Secrets Manager |
 | `CURLEC_API_BASE_URL` | Curlec REST API base URL | `https://api.razorpay.com` | Confirm Malaysia prod URL with Curlec |
 
 The public key id is returned in order-create API responses — frontends do not need a `NEXT_PUBLIC_CURLEC_*` variable.
+
+Account routing is enabled:
+
+- Issuer onboarding fee / application processing fee → `OPERATING` (`CURLEC_OPERATING_*`)
+- Investor deposits and deposit refunds → `INVESTOR_POOL` (`CURLEC_INVESTOR_POOL_*`)
+- Historical rows were migrated to `OPERATING` (same merchant as Operating)
+
+Both `OPERATING` and `INVESTOR_POOL` credential sets are required in production alongside legacy until legacy retirement criteria are met.
+
+Webhook endpoint mapping (production):
+
+- Operating merchant: `POST /v1/webhooks/curlec/operating` + `CURLEC_OPERATING_WEBHOOK_SECRET`
+- Investor Pool merchant: `POST /v1/webhooks/curlec/investor-pool` + `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET`
+
+Required events for each merchant route:
+
+- `payment.captured`
+- `order.paid`
+- `payment.failed`
+- `refund.processed`
+- `refund.failed`
+
+Retire the legacy webhook route only when no active/refundable legacy payments remain, no legacy webhook/reconciliation backlog remains, and finance/compliance approves removal.
 
 See also: `docs/integrations/payment-gateway-curlec-ops-runbook.md`, `docs/integrations/payment-gateway-curlec-plan-as-built.md`.
 
@@ -242,9 +268,12 @@ export const env = envSchema.parse(process.env);
   │   ├── DATABASE_URL              (SecureString)
   │   ├── JWT_SECRET                (SecureString)
   │   ├── SMTP_PASSWORD             (SecureString)
-  │   ├── CURLEC_KEY_ID             (SecureString)
-  │   ├── CURLEC_KEY_SECRET         (SecureString)
-  │   └── CURLEC_WEBHOOK_SECRET     (SecureString)
+  │   ├── CURLEC_OPERATING_KEY_ID                    (SecureString)
+  │   ├── CURLEC_OPERATING_KEY_SECRET                (SecureString)
+  │   ├── CURLEC_OPERATING_WEBHOOK_SECRET            (SecureString)
+  │   ├── CURLEC_INVESTOR_POOL_KEY_ID                (SecureString)
+  │   ├── CURLEC_INVESTOR_POOL_KEY_SECRET            (SecureString)
+  │   └── CURLEC_INVESTOR_POOL_WEBHOOK_SECRET        (SecureString)
   └── frontend/
       ├── NEXT_PUBLIC_API_URL       (String)
       ├── NEXT_PUBLIC_COGNITO_DOMAIN (String)

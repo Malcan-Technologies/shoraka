@@ -5,8 +5,13 @@ import { AppError } from "../../lib/http/error-handler";
 import {
   createIssuerOnboardingFeeSchema,
   issuerOnboardingFeeIdParamSchema,
+  issuerOnboardingFeeStatusParamSchema,
 } from "./onboarding-fee-schemas";
-import { createIssuerOnboardingFee, getIssuerOnboardingFee } from "./onboarding-fee-service";
+import {
+  createIssuerOnboardingFee,
+  getIssuerOnboardingFee,
+  getIssuerOnboardingFeeStatus,
+} from "./onboarding-fee-service";
 
 function getActor(req: Request, res: Response) {
   if (!req.user?.user_id) {
@@ -41,6 +46,18 @@ issuerOnboardingFeeRouter.post("/", async (req: Request, res: Response, next: Ne
     next(error);
   }
 });
+
+issuerOnboardingFeeRouter.get(
+  "/status/:issuerOrganizationId",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { issuerOrganizationId } = issuerOnboardingFeeStatusParamSchema.parse(req.params);
+      send(res, await getIssuerOnboardingFeeStatus(getActor(req, res), issuerOrganizationId));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 issuerOnboardingFeeRouter.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
   try {

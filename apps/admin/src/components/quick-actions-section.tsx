@@ -8,6 +8,7 @@ import {
   ArrowPathIcon,
   ArrowUpTrayIcon,
   ArrowsRightLeftIcon,
+  BanknotesIcon,
   ClipboardDocumentCheckIcon,
   DocumentCheckIcon,
   DocumentTextIcon,
@@ -29,6 +30,8 @@ import {
   usePendingServiceFeeTrusteeLetters,
 } from "@/notes/hooks/use-notes";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useGatewayPaymentsExceptionCount } from "@/hooks/use-gateway-payments";
+import { useGatewayReconPendingCount } from "@/hooks/use-gateway-recon";
 
 interface QuickActionsSectionProps {
   loading?: boolean;
@@ -49,6 +52,8 @@ export function QuickActionsSection({
   const canServiceFee = can("service_fee.view");
   const canDisbursements = can("disbursements.view");
   const canViewInvestorWithdrawals = can("investor_withdrawals.view");
+  const canViewGatewayPayments = can("gateway_payments.view");
+  const canViewReconciliation = can("gateway_reconciliation.view");
 
   const { data: pendingCountData, isLoading: isPendingCountLoading } = usePendingApprovalCount({ enabled: canOnboarding });
   const { data: noteActionCountData, isLoading: isNoteActionCountLoading } = useNoteActionRequiredCount({ enabled: canNotes });
@@ -59,6 +64,10 @@ export function QuickActionsSection({
     usePendingInvestorWithdrawals({ enabled: canViewInvestorWithdrawals });
   const { data: pendingServiceFeeLettersData, isLoading: isPendingServiceFeeLettersLoading } =
     usePendingServiceFeeTrusteeLetters({ enabled: canServiceFee });
+  const { data: gatewayPaymentExceptionsData, isLoading: isGatewayPaymentExceptionsLoading } =
+    useGatewayPaymentsExceptionCount({ enabled: canViewGatewayPayments });
+  const { data: gatewayReconExceptionsData, isLoading: isGatewayReconExceptionsLoading } =
+    useGatewayReconPendingCount({ enabled: canViewReconciliation });
   const { data: applicationsForSidebar = [], isLoading: isApplicationsForSidebarLoading } =
     useAdminApplicationsForSidebar({ enabled: canApplications });
   const { data: productsData, isLoading: isProductsLoading } = useProducts({
@@ -78,6 +87,8 @@ export function QuickActionsSection({
   const pendingIssuerPayoutsCount = pendingIssuerPayoutsData?.count ?? 0;
   const pendingInvestorWithdrawalsCount = pendingInvestorWithdrawalsData?.count ?? 0;
   const pendingServiceFeeLettersCount = pendingServiceFeeLettersData?.count ?? 0;
+  const gatewayPaymentExceptionsCount = gatewayPaymentExceptionsData?.count ?? 0;
+  const gatewayReconExceptionsCount = gatewayReconExceptionsData?.count ?? 0;
   const activeApplicationProductKeys = React.useMemo(
     () => activeProductBaseKeySet(applicationNavGroups),
     [applicationNavGroups]
@@ -108,7 +119,15 @@ export function QuickActionsSection({
     : "/applications";
 
   const hasAnyQuickAction =
-    canOnboarding || canApplications || canNotes || canRepayments || canServiceFee || canDisbursements;
+    canOnboarding ||
+    canApplications ||
+    canNotes ||
+    canRepayments ||
+    canServiceFee ||
+    canDisbursements ||
+    canViewInvestorWithdrawals ||
+    canViewGatewayPayments ||
+    canViewReconciliation;
 
   return (
     <section className="space-y-4">
@@ -260,6 +279,42 @@ export function QuickActionsSection({
                     : "default"
               }
               loading={loading || isPendingInvestorWithdrawalsLoading}
+            />
+          )}
+          {canViewGatewayPayments && (
+            <QuickActionCard
+              title="Gateway Payments"
+              description="Review payment status, refunds, and name checks"
+              count={gatewayPaymentExceptionsCount}
+              countLabel="open"
+              href="/finance/gateway-payments"
+              icon={BanknotesIcon}
+              variant={
+                gatewayPaymentExceptionsCount > 5
+                  ? "urgent"
+                  : gatewayPaymentExceptionsCount > 0
+                    ? "warning"
+                    : "default"
+              }
+              loading={loading || isGatewayPaymentExceptionsLoading}
+            />
+          )}
+          {canViewReconciliation && (
+            <QuickActionCard
+              title="Reconciliation"
+              description="Review settlement runs and exceptions"
+              count={gatewayReconExceptionsCount}
+              countLabel="open"
+              href="/finance/reconciliation"
+              icon={ArrowsRightLeftIcon}
+              variant={
+                gatewayReconExceptionsCount > 5
+                  ? "urgent"
+                  : gatewayReconExceptionsCount > 0
+                    ? "warning"
+                    : "default"
+              }
+              loading={loading || isGatewayReconExceptionsLoading}
             />
           )}
         </div>
