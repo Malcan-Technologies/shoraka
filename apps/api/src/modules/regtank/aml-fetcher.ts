@@ -35,6 +35,23 @@ interface BusinessShareholderAMLStatus {
 }
 
 /**
+ * Deduplicate comma-separated role labels (same behavior as admin refreshCorporateOnboardingStatus).
+ * Preserves first-seen order. Does not change role text format.
+ */
+export function mergeRoleLabels(
+  existingRole: string | null | undefined,
+  incomingRole: string | null | undefined
+): string {
+  const roleSet = new Set(
+    `${existingRole || ""},${incomingRole || ""}`
+      .split(",")
+      .map((role) => role.trim())
+      .filter((role) => role.length > 0)
+  );
+  return Array.from(roleSet).join(", ");
+}
+
+/**
  * Service for fetching AML statuses for corporate onboarding entities
  * Handles fetching and storing AML statuses for:
  * - Individual directors
@@ -415,11 +432,14 @@ export class AMLFetcherService {
           );
 
           if (existingDirectorIndex !== -1) {
-            // Person is both director and shareholder - merge roles
+            // Person is both director and shareholder - merge roles (dedupe exact labels)
             const existing = directorKycStatus.directors[existingDirectorIndex] as Record<string, unknown>;
             directorKycStatus.directors[existingDirectorIndex] = {
               ...existing,
-              role: `${existing.role}, ${role}`,
+              role: mergeRoleLabels(
+                typeof existing.role === "string" ? existing.role : "",
+                role
+              ),
               shareholderEodRequestId: eodRequestId,
               kycId: (existing.kycId as string | undefined) || kycId,
               kycRequestInfo: existing.kycRequestInfo || kycRequestInfo || undefined,
