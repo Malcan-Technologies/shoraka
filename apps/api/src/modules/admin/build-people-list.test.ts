@@ -383,26 +383,29 @@ describe("buildUnifiedPeople", () => {
     expect(rows[0]?.sharePercentage).toBe(60);
   });
 
-  it("buildDirectorShareholderPeopleList returns ONBOARDING source with one COD04000 person row", () => {
+  it("buildDirectorShareholderPeopleList: COD05079 same-email people stay separate; EXPIRED without KYC still listed", () => {
+    const sharedEmail = "shared@example.com";
     const result = buildDirectorShareholderPeopleList({
       ctos: null,
       issuerDirectorKycStatus: {
         directors: [
           {
-            eodRequestId: "EOD04651",
+            eodRequestId: "EOD06284",
+            shareholderEodRequestId: "EOD06283",
             governmentIdNumber: "900101101111",
-            kycStatus: "APPROVED",
-            kycId: "KY-COD04000",
-            email: "lucas@example.com",
+            kycStatus: "EXPIRED",
+            email: sharedEmail,
+            name: "Lim Tze Yang",
+            role: "Director, Shareholder (30%)",
           },
-        ],
-        individualShareholders: [
           {
-            shareholderEodRequestId: "EOD04650",
-            governmentIdNumber: "900101101111",
-            kycStatus: "APPROVED",
-            kycId: "KY-COD04000-SH",
-            email: "lucas@example.com",
+            eodRequestId: "EOD06286",
+            shareholderEodRequestId: "EOD06285",
+            governmentIdNumber: "800202102222",
+            kycStatus: "EXPIRED",
+            email: sharedEmail,
+            name: "Ahmad Shahril",
+            role: "Director, Shareholder (30%)",
           },
         ],
       },
@@ -415,40 +418,82 @@ describe("buildUnifiedPeople", () => {
       corporateEntities: {
         directors: [
           {
-            eodRequestId: "EOD04651",
+            eodRequestId: "EOD06284",
+            status: "EXPIRED",
             personalInfo: {
-              fullName: "Lucas Yi Jin",
-              email: "lucas@example.com",
+              fullName: "Lim Tze Yang",
+              email: sharedEmail,
               formContent: {
                 content: [{ fieldName: "Government ID Number", fieldValue: "900101-10-1111" }],
+              },
+            },
+          },
+          {
+            eodRequestId: "EOD06286",
+            status: "EXPIRED",
+            personalInfo: {
+              fullName: "Ahmad Shahril",
+              email: sharedEmail,
+              formContent: {
+                content: [{ fieldName: "Government ID Number", fieldValue: "800202-10-2222" }],
               },
             },
           },
         ],
         shareholders: [
           {
-            eodRequestId: "EOD04650",
+            eodRequestId: "EOD06283",
+            status: "EXPIRED",
             personalInfo: {
-              fullName: "Lucas Yi Jin",
-              email: "lucas@example.com",
+              fullName: "Lim Tze Yang",
+              email: sharedEmail,
               formContent: {
                 content: [
                   { fieldName: "Government ID Number", fieldValue: "900101-10-1111" },
-                  { fieldName: "% of Shares", fieldValue: "60" },
+                  { fieldName: "% of Shares", fieldValue: "30" },
+                ],
+              },
+            },
+          },
+          {
+            eodRequestId: "EOD06285",
+            status: "EXPIRED",
+            personalInfo: {
+              fullName: "Ahmad Shahril",
+              email: sharedEmail,
+              formContent: {
+                content: [
+                  { fieldName: "Government ID Number", fieldValue: "800202-10-2222" },
+                  { fieldName: "% of Shares", fieldValue: "30" },
                 ],
               },
             },
           },
         ],
-        corporateShareholders: [],
+        corporateShareholders: [
+          {
+            name: "ABC Berhad",
+            isPrimary: false,
+            corporateOnboardingRequest: { requestId: "COD05080", status: "WAIT_FOR_APPROVAL" },
+          },
+        ],
       },
     });
 
     expect(result.listSource).toBe("ONBOARDING");
-    expect(result.people).toHaveLength(1);
-    expect(result.people[0]?.name).toBe("Lucas Yi Jin");
-    expect(result.people[0]?.roles).toEqual(expect.arrayContaining(["DIRECTOR", "SHAREHOLDER"]));
-    expect(result.people[0]?.sharePercentage).toBe(60);
+    expect(result.people).toHaveLength(2);
+    const lim = result.people.find((p) => p.name === "Lim Tze Yang");
+    const ahmad = result.people.find((p) => p.name === "Ahmad Shahril");
+    expect(lim).toBeDefined();
+    expect(ahmad).toBeDefined();
+    expect(lim!.roles).toEqual(expect.arrayContaining(["DIRECTOR", "SHAREHOLDER"]));
+    expect(ahmad!.roles).toEqual(expect.arrayContaining(["DIRECTOR", "SHAREHOLDER"]));
+    expect(lim!.sharePercentage).toBe(30);
+    expect(ahmad!.sharePercentage).toBe(30);
+    expect(lim!.onboarding?.status).toBe("EXPIRED");
+    expect(ahmad!.onboarding?.status).toBe("EXPIRED");
+    expect(lim!.screening?.status ?? null).toBeNull();
+    expect(ahmad!.screening?.status ?? null).toBeNull();
   });
 
   it("sets corporate matchKey from Business Number in formContent.displayAreas (case-insensitive)", () => {

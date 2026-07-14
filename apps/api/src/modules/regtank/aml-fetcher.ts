@@ -6,6 +6,10 @@ import { AmlIdentityRepository } from "./aml-identity-repository";
 import type { PortalType } from "./types";
 import { extractGovernmentIdFromCorporateUserInfo } from "./helpers/extract-government-id";
 import { mapRegTankKycScreeningStatusToAmlStatus } from "./helpers/regtank-kyc-screening-to-aml-status";
+import {
+  corporatePersonIdentitiesMatch,
+  resolveCorporatePersonMergeKey,
+} from "./helpers/corporate-person-merge-key";
 
 interface DirectorAMLStatus {
   kycId: string;
@@ -65,13 +69,6 @@ export class AMLFetcherService {
   constructor() {
     this.apiClient = getRegTankAPIClient();
     this.amlIdentityRepository = new AmlIdentityRepository();
-  }
-
-  /**
-   * Helper function to normalize name+email for matching
-   */
-  private normalizeKey(name: string, email: string): string {
-    return `${(name || "").toLowerCase().trim()}|${(email || "").toLowerCase().trim()}`;
   }
 
   /**
@@ -226,9 +223,16 @@ export class AMLFetcherService {
           }
 
           // Step 5: Update director_kyc_status with kycRequestInfo
-          const mapKey = this.normalizeKey(name, email);
-          const existingDirectorIndex = directorKycStatus.directors.findIndex(
-            (d: any) => d.eodRequestId === eodRequestId || this.normalizeKey(d.name, d.email) === mapKey
+          const existingDirectorIndex = directorKycStatus.directors.findIndex((d: any) =>
+            corporatePersonIdentitiesMatch(
+              {
+                governmentIdNumber: d.governmentIdNumber,
+                name: d.name,
+                eodRequestId: d.eodRequestId,
+                shareholderEodRequestId: d.shareholderEodRequestId,
+              },
+              { governmentIdNumber, name, eodRequestId }
+            )
           );
 
           if (existingDirectorIndex !== -1) {
@@ -426,9 +430,20 @@ export class AMLFetcherService {
 
           // Step 5: Update director_kyc_status with kycRequestInfo
           // Check if person is already a director (merge roles)
-          const mapKey = this.normalizeKey(name, email);
-          const existingDirectorIndex = directorKycStatus.directors.findIndex(
-            (d: any) => d.eodRequestId === eodRequestId || this.normalizeKey(d.name, d.email) === mapKey
+          const existingDirectorIndex = directorKycStatus.directors.findIndex((d: any) =>
+            corporatePersonIdentitiesMatch(
+              {
+                governmentIdNumber: d.governmentIdNumber,
+                name: d.name,
+                eodRequestId: d.eodRequestId,
+                shareholderEodRequestId: d.shareholderEodRequestId,
+              },
+              {
+                governmentIdNumber: shareholderGovernmentId,
+                name,
+                eodRequestId,
+              }
+            )
           );
 
           if (existingDirectorIndex !== -1) {
@@ -941,19 +956,37 @@ export class AMLFetcherService {
         }
       }
 
-      // Create a map of existing AML statuses by kycId and eodRequestId
+      // Create a map of existing AML statuses by stable identity (never email alone)
       const existingAmlMap = new Map<string, any>();
       for (const existing of existingDirectorAmlStatus.directors) {
-        const key = existing.kycId || existing.eodRequestId || `${existing.name}|${existing.email}`;
+        const key =
+          existing.kycId ||
+          resolveCorporatePersonMergeKey({
+            governmentIdNumber: existing.governmentIdNumber,
+            name: existing.name,
+            eodRequestId: existing.eodRequestId,
+          });
         existingAmlMap.set(key, existing);
       }
 
       // Merge new AML statuses
       for (const newAmlStatus of allIndividualAmlStatuses) {
         const existingIndex = existingDirectorAmlStatus.directors.findIndex(
-          (d: any) => (d.kycId && d.kycId === newAmlStatus.kycId) || 
-                      (d.eodRequestId && d.eodRequestId === newAmlStatus.eodRequestId) ||
-                      (d.name === newAmlStatus.name && d.email === newAmlStatus.email)
+          (d: any) =>
+            (d.kycId && d.kycId === newAmlStatus.kycId) ||
+            corporatePersonIdentitiesMatch(
+              {
+                governmentIdNumber: d.governmentIdNumber,
+                name: d.name,
+                eodRequestId: d.eodRequestId,
+                shareholderEodRequestId: d.shareholderEodRequestId,
+              },
+              {
+                governmentIdNumber: newAmlStatus.governmentIdNumber,
+                name: newAmlStatus.name,
+                eodRequestId: newAmlStatus.eodRequestId,
+              }
+            )
         );
 
         if (existingIndex !== -1) {

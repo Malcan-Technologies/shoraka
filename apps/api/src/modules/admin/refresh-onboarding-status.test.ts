@@ -7,10 +7,16 @@ jest.mock("../products/repository", () => ({ ProductRepository: jest.fn().mockIm
 
 const mockQueryOnboardingDetails = jest.fn();
 const mockGetCorporateOnboardingDetails = jest.fn();
+const mockGetEntityOnboardingDetails = jest.fn();
+const mockQueryKYCStatus = jest.fn();
+const mockQueryKYBStatus = jest.fn();
 jest.mock("../regtank/api-client", () => ({
   RegTankAPIClient: jest.fn().mockImplementation(() => ({
     queryOnboardingDetails: (...args: unknown[]) => mockQueryOnboardingDetails(...args),
     getCorporateOnboardingDetails: (...args: unknown[]) => mockGetCorporateOnboardingDetails(...args),
+    getEntityOnboardingDetails: (...args: unknown[]) => mockGetEntityOnboardingDetails(...args),
+    queryKYCStatus: (...args: unknown[]) => mockQueryKYCStatus(...args),
+    queryKYBStatus: (...args: unknown[]) => mockQueryKYBStatus(...args),
   })),
 }));
 
@@ -724,5 +730,161 @@ describe("AdminService.refreshOnboardingStatus — company", () => {
 
     expect(result.partialFailures).toContain("KYB");
     expect(result.onboardingStatus).toBe(OnboardingStatus.PENDING_AML);
+  });
+
+  it("COD05079: same email + different government IDs stay two people with merged roles; expired EODs; COD05080 retained", async () => {
+    const sharedEmail = "shared@example.com";
+    const personForm = (first: string, last: string, govId: string, extra: { fieldName: string; fieldValue: string }[] = []) => ({
+      firstName: first,
+      lastName: last,
+      fullName: `${first} ${last}`,
+      email: sharedEmail,
+      formContent: {
+        content: [
+          { fieldName: "First Name", fieldValue: first },
+          { fieldName: "Last Name", fieldValue: last },
+          { fieldName: "Email Address", fieldValue: sharedEmail },
+          { fieldName: "Government ID Number", fieldValue: govId },
+          ...extra,
+        ],
+      },
+    });
+
+    mockRegTankOnboardingFindUnique.mockResolvedValue(
+      corporateOnboarding({ request_id: "COD05079" })
+    );
+    mockGetCorporateOnboardingDetails.mockResolvedValue({
+      status: "WAIT_FOR_APPROVAL",
+      corpIndvDirectors: [
+        {
+          corporateIndividualRequest: { requestId: "EOD06284", status: "EXPIRED" },
+          corporateUserRequestInfo: personForm("Lim", "Tze Yang", "900101-10-1111", [
+            { fieldName: "Designation", fieldValue: "Director" },
+          ]),
+        },
+        {
+          corporateIndividualRequest: { requestId: "EOD06286", status: "EXPIRED" },
+          corporateUserRequestInfo: personForm("Ahmad", "Shahril", "800202-10-2222", [
+            { fieldName: "Designation", fieldValue: "Director" },
+          ]),
+        },
+      ],
+      corpIndvShareholders: [
+        {
+          corporateIndividualRequest: { requestId: "EOD06283", status: "EXPIRED" },
+          corporateUserRequestInfo: personForm("Lim", "Tze Yang", "900101-10-1111", [
+            { fieldName: "% of Shares", fieldValue: "30" },
+          ]),
+        },
+        {
+          corporateIndividualRequest: { requestId: "EOD06285", status: "EXPIRED" },
+          corporateUserRequestInfo: personForm("Ahmad", "Shahril", "800202-10-2222", [
+            { fieldName: "% of Shares", fieldValue: "30" },
+          ]),
+        },
+      ],
+      corpBizShareholders: [
+        {
+          name: "ABC Berhad",
+          isPrimary: false,
+          corporateOnboardingRequest: { requestId: "COD05080", status: "WAIT_FOR_APPROVAL" },
+          formContent: {
+            content: [{ fieldName: "% of Shares", fieldValue: "30" }],
+          },
+        },
+      ],
+    });
+    mockGetEntityOnboardingDetails.mockImplementation(async (requestId: string) => ({
+      corporateIndividualRequest: { requestId, status: "EXPIRED" },
+    }));
+    mockInvestorOrgFindUnique.mockResolvedValue({
+      corporate_entities: null,
+      director_aml_status: { directors: [] },
+      ssm_approved: true,
+    });
+    mockApplyCorporateAmlMilestoneFromLiveKyb.mockResolvedValue({
+      approved: false,
+      amlApproved: false,
+      onboardingStatus: OnboardingStatus.PENDING_AML,
+      advanced: false,
+    });
+
+    const service = new AdminService();
+    const first = await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+    expect(first.onboardingStatus).toBe(OnboardingStatus.PENDING_AML);
+
+    expect(mockGetCorporateOnboardingDetails).toHaveBeenCalledWith("COD05079");
+    expect(mockGetEntityOnboardingDetails.mock.calls.map((c) => c[0]).sort()).toEqual(
+      expect.arrayContaining(["EOD06283", "EOD06284", "EOD06285", "EOD06286"])
+    );
+    expect(mockQueryKYCStatus).not.toHaveBeenCalled();
+    expect(mockQueryOnboardingDetails).not.toHaveBeenCalled();
+
+    const investorUpdatePayload = mockInvestorOrgUpdate.mock.calls.find(
+      (call) => call?.[0]?.where?.id === "org-2" && call?.[0]?.data?.director_kyc_status
+    )?.[0];
+    expect(investorUpdatePayload).toBeDefined();
+
+    const directors = investorUpdatePayload.data.director_kyc_status.directors as Array<{
+      name: string;
+      email: string;
+      role: string;
+      kycStatus: string;
+      kycId?: string;
+      eodRequestId: string;
+      shareholderEodRequestId?: string;
+      governmentIdNumber?: string;
+    }>;
+    expect(directors).toHaveLength(2);
+
+    const lim = directors.find((d) => d.name === "Lim Tze Yang");
+    const ahmad = directors.find((d) => d.name === "Ahmad Shahril");
+    expect(lim).toBeDefined();
+    expect(ahmad).toBeDefined();
+    expect(lim!.email).toBe(sharedEmail);
+    expect(ahmad!.email).toBe(sharedEmail);
+    expect(lim!.governmentIdNumber).not.toBe(ahmad!.governmentIdNumber);
+    expect(lim!.role).toContain("Director");
+    expect(lim!.role).toContain("Shareholder");
+    expect(lim!.role).toContain("30%");
+    expect(ahmad!.role).toContain("Director");
+    expect(ahmad!.role).toContain("Shareholder");
+    expect(ahmad!.role).toContain("30%");
+    expect([lim!.eodRequestId, lim!.shareholderEodRequestId].sort()).toEqual(["EOD06283", "EOD06284"]);
+    expect([ahmad!.eodRequestId, ahmad!.shareholderEodRequestId].sort()).toEqual(["EOD06285", "EOD06286"]);
+    expect(lim!.kycStatus).toBe("EXPIRED");
+    expect(ahmad!.kycStatus).toBe("EXPIRED");
+    expect(lim!.kycId).toBeUndefined();
+    expect(ahmad!.kycId).toBeUndefined();
+
+    const corpShareholders = investorUpdatePayload.data.corporate_entities.corporateShareholders;
+    expect(corpShareholders).toHaveLength(1);
+    expect(corpShareholders[0].name).toBe("ABC Berhad");
+    expect(corpShareholders[0].corporateOnboardingRequest.requestId).toBe("COD05080");
+    expect(corpShareholders[0].corporateOnboardingRequest.status).toBe("WAIT_FOR_APPROVAL");
+    expect(corpShareholders[0].isPrimary).toBe(false);
+
+    // Idempotent second refresh
+    mockInvestorOrgFindUnique.mockResolvedValue({
+      corporate_entities: investorUpdatePayload.data.corporate_entities,
+      director_aml_status: { directors: [] },
+      ssm_approved: true,
+    });
+    mockInvestorOrgUpdate.mockClear();
+    mockGetCorporateOnboardingDetails.mockClear();
+    mockGetEntityOnboardingDetails.mockClear();
+
+    await service.refreshOnboardingStatus({} as never, "onboarding-2", "admin-1");
+
+    const secondUpdate = mockInvestorOrgUpdate.mock.calls.find(
+      (call) => call?.[0]?.where?.id === "org-2" && call?.[0]?.data?.director_kyc_status
+    )?.[0];
+    expect(secondUpdate.data.director_kyc_status.directors).toHaveLength(2);
+    expect(secondUpdate.data.corporate_entities.corporateShareholders).toHaveLength(1);
+    expect(secondUpdate.data.corporate_entities.corporateShareholders[0].corporateOnboardingRequest.requestId).toBe(
+      "COD05080"
+    );
+    expect(mockGetCorporateOnboardingDetails).toHaveBeenCalledWith("COD05079");
+    expect(mockQueryKYCStatus).not.toHaveBeenCalled();
   });
 });
