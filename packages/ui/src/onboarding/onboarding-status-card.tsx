@@ -25,7 +25,7 @@ import { Button } from "../components/button";
 import { Badge } from "../components/badge";
 import { OnboardingStepper } from "./onboarding-stepper";
 import { DirectorShareholderCtosEmptyAlert } from "../director-shareholder-ctos-empty-alert";
-import { DirectorShareholderUnresolvedIdentityCard } from "../director-shareholder-unresolved-identity-card";
+import { DirectorShareholderUnresolvedIdentitySection } from "../director-shareholder-unresolved-identity-card";
 import { UnifiedKycAmlReadonlyRows } from "../components/unified-kyc-aml-readonly-rows";
 
 type OrganizationWithPeople = Organization & {
@@ -181,26 +181,28 @@ export function OnboardingStatusCard({
             {resolvedCtosEmptyWarning ? (
               <DirectorShareholderCtosEmptyAlert message={resolvedCtosEmptyWarning} />
             ) : null}
-            {unresolvedCorporatePeople.length > 0 ? (
-              <div className="space-y-3">
-                {unresolvedCorporatePeople.map((p, index) => (
-                  <DirectorShareholderUnresolvedIdentityCard
-                    key={`unresolved-${String(p.requestId ?? "")}-${(p.roles ?? []).join("-")}-${index}`}
-                    name={p.name}
-                    role={formatPeopleRolesLine(p)}
-                    sharePercentage={p.sharePercentage}
-                    eodRequestId={p.requestId}
-                    onboardingStatus={p.onboarding?.status ?? null}
-                  />
-                ))}
-              </div>
-            ) : null}
             {corporateUnifiedRows.length > 0 ? (
               <UnifiedKycAmlReadonlyRows
                 rows={corporateUnifiedRows}
                 isRefreshing={isPendingAml && isRefreshing}
               />
-            ) : unresolvedCorporatePeople.length === 0 && resolvedCtosEmptyWarning ? (
+            ) : null}
+            {unresolvedCorporatePeople.length > 0 ? (
+              <DirectorShareholderUnresolvedIdentitySection
+                people={unresolvedCorporatePeople.map((p) => ({
+                  name: p.name,
+                  role: formatPeopleRolesLine(p),
+                  sharePercentage: p.sharePercentage,
+                  eodRequestId: p.requestId,
+                  onboardingStatus: p.onboarding?.status ?? null,
+                  amlStatus: p.screening?.status ?? null,
+                  kycId: p.onboarding?.id ?? null,
+                }))}
+              />
+            ) : null}
+            {corporateUnifiedRows.length === 0 &&
+            unresolvedCorporatePeople.length === 0 &&
+            resolvedCtosEmptyWarning ? (
               <p className="text-sm text-muted-foreground">
                 No directors or shareholders are available from CTOS.
               </p>

@@ -41,7 +41,7 @@ import {
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import {
   DirectorShareholderCtosEmptyAlert,
-  DirectorShareholderUnresolvedIdentityCard,
+  DirectorShareholderUnresolvedIdentitySection,
 } from "@cashsouk/ui";
 import { toast } from "sonner";
 
@@ -164,20 +164,6 @@ export function DirectorShareholderTable({
 
   return (
     <>
-      {unresolvedRows.length > 0 ? (
-        <div className="space-y-3 mb-4">
-          {unresolvedRows.map((p, index) => (
-            <DirectorShareholderUnresolvedIdentityCard
-              key={`unresolved-${String(p.requestId ?? "")}-${(p.roles ?? []).join("-")}-${index}`}
-              name={p.name}
-              role={formatPeopleRolesLine(p)}
-              sharePercentage={p.sharePercentage}
-              eodRequestId={p.requestId}
-              onboardingStatus={p.onboarding?.status ?? null}
-            />
-          ))}
-        </div>
-      ) : null}
       {verifiedRows.length > 0 ? (
       <div className="overflow-x-auto">
         <Table>
@@ -326,6 +312,21 @@ export function DirectorShareholderTable({
           </TableBody>
         </Table>
       </div>
+      ) : null}
+      {unresolvedRows.length > 0 ? (
+        <div className={verifiedRows.length > 0 ? "mt-4" : undefined}>
+          <DirectorShareholderUnresolvedIdentitySection
+            people={unresolvedRows.map((p) => ({
+              name: p.name,
+              role: formatPeopleRolesLine(p),
+              sharePercentage: p.sharePercentage,
+              eodRequestId: p.requestId,
+              onboardingStatus: p.onboarding?.status ?? null,
+              amlStatus: p.screening?.status ?? null,
+              kycId: p.onboarding?.id ?? null,
+            }))}
+          />
+        </div>
       ) : null}
 
       <AlertDialog

@@ -76,7 +76,7 @@ import {
   StarIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
-import { DirectorShareholderCtosEmptyAlert, DirectorShareholderUnresolvedIdentityCard } from "@cashsouk/ui";
+import { DirectorShareholderCtosEmptyAlert, DirectorShareholderUnresolvedIdentitySection } from "@cashsouk/ui";
 
 type OnboardingPersonRow = PeopleRolesRowInput & {
   matchKey: string;
@@ -84,7 +84,7 @@ type OnboardingPersonRow = PeopleRolesRowInput & {
   entityType: "INDIVIDUAL" | "CORPORATE";
   status: string;
   screening?: { status?: string | null } | null;
-  onboarding?: { status?: string | null } | null;
+  onboarding?: { status?: string | null; id?: string | null } | null;
   identityWarning?: ApplicationPersonRow["identityWarning"];
   requestId?: string | null;
   sharePercentage?: number | null;
@@ -170,18 +170,18 @@ function OnboardingUnresolvedIdentityCards({
 }) {
   if (rows.length === 0) return null;
   return (
-    <div className={cn("space-y-3", isRefreshing && "opacity-70")} aria-busy={isRefreshing || undefined}>
-      {rows.map((p, index) => (
-        <DirectorShareholderUnresolvedIdentityCard
-          key={`unresolved-${String(p.requestId ?? "")}-${(p.roles ?? []).join("-")}-${index}`}
-          name={p.name}
-          role={formatPeopleRolesLine(p)}
-          sharePercentage={p.sharePercentage}
-          eodRequestId={p.requestId}
-          onboardingStatus={p.onboarding?.status ?? null}
-        />
-      ))}
-    </div>
+    <DirectorShareholderUnresolvedIdentitySection
+      isRefreshing={isRefreshing}
+      people={rows.map((p) => ({
+        name: p.name,
+        role: formatPeopleRolesLine(p),
+        sharePercentage: p.sharePercentage,
+        eodRequestId: p.requestId,
+        onboardingStatus: p.onboarding?.status ?? null,
+        amlStatus: p.screening?.status ?? null,
+        kycId: p.onboarding?.id ?? null,
+      }))}
+    />
   );
 }
 

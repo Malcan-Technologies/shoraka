@@ -26,7 +26,7 @@ import {
 } from "@cashsouk/types";
 import {
   DirectorShareholderCtosEmptyAlert,
-  DirectorShareholderUnresolvedIdentityCard,
+  DirectorShareholderUnresolvedIdentitySection,
 } from "@cashsouk/ui";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
@@ -765,22 +765,6 @@ export function CompanyDetailsStep({
                 <DirectorShareholderCtosEmptyAlert message={resolvedCtosEmptyWarning} />
               </div>
             ) : null}
-            {visiblePeopleRows.some((p) => isMissingGovernmentIdPerson(p)) ? (
-              <div className="col-span-2 space-y-3">
-                {visiblePeopleRows
-                  .filter((p) => isMissingGovernmentIdPerson(p))
-                  .map((p, index) => (
-                    <DirectorShareholderUnresolvedIdentityCard
-                      key={`unresolved-${String(p.requestId ?? "")}-${(p.roles ?? []).join("-")}-${index}`}
-                      name={p.name}
-                      role={formatPeopleRolesLine(p)}
-                      sharePercentage={p.sharePercentage}
-                      eodRequestId={p.requestId}
-                      onboardingStatus={p.onboarding?.status ?? null}
-                    />
-                  ))}
-              </div>
-            ) : null}
             {visiblePeopleRows.filter((p) => !isMissingGovernmentIdPerson(p)).length === 0 &&
             !visiblePeopleRows.some((p) => isMissingGovernmentIdPerson(p)) ? (
               <p className="text-[17px] leading-7 text-muted-foreground col-span-2">
@@ -789,48 +773,67 @@ export function CompanyDetailsStep({
                   : "No directors or shareholders found"}
               </p>
             ) : (
-              visiblePeopleRows
-                .filter((p) => !isMissingGovernmentIdPerson(p))
-                .map((p) => {
-                const displayRow = buildDirectorShareholderDisplayRowForEmailEligibility(p, null);
-                const finalStatus = getFinalStatusLabel({
-                  screening: p.screening,
-                  onboarding: p.onboarding,
-                });
-                const own = formatShareOwnershipCell(p);
-                const idLabel =
-                  (displayRow.idNumber || displayRow.registrationNumber || p.matchKey || "").trim();
-                return (
-                  <React.Fragment key={p.matchKey}>
-                    <div className={labelClassName}>{formatPeopleRolesLineTitleCaseWithoutShare(p)}</div>
-                    <div className="flex flex-col gap-2">
-                      <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
-                        <div className="flex min-w-0 flex-col">
-                          <span className="text-[17px] leading-7 font-medium truncate">{p.name ?? "—"}</span>
-                          <span className="text-xs text-muted-foreground truncate">{idLabel || "—"}</span>
+              <>
+                {visiblePeopleRows
+                  .filter((p) => !isMissingGovernmentIdPerson(p))
+                  .map((p) => {
+                    const displayRow = buildDirectorShareholderDisplayRowForEmailEligibility(p, null);
+                    const finalStatus = getFinalStatusLabel({
+                      screening: p.screening,
+                      onboarding: p.onboarding,
+                    });
+                    const own = formatShareOwnershipCell(p);
+                    const idLabel =
+                      (displayRow.idNumber || displayRow.registrationNumber || p.matchKey || "").trim();
+                    return (
+                      <React.Fragment key={p.matchKey}>
+                        <div className={labelClassName}>{formatPeopleRolesLineTitleCaseWithoutShare(p)}</div>
+                        <div className="flex flex-col gap-2">
+                          <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
+                            <div className="flex min-w-0 flex-col">
+                              <span className="text-[17px] leading-7 font-medium truncate">{p.name ?? "—"}</span>
+                              <span className="text-xs text-muted-foreground truncate">{idLabel || "—"}</span>
+                            </div>
+                            <div className="h-4 w-px bg-border" />
+                            <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">
+                              {own || "—"}
+                            </div>
+                            <div className="h-4 w-px bg-border" />
+                            <div className="flex flex-col gap-0.5 min-w-0">
+                              <span className="text-xs text-muted-foreground">Status</span>
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "w-fit border-transparent text-[11px] font-normal",
+                                  getFinalStatusBadgeClassName(finalStatus.tone)
+                                )}
+                              >
+                                {finalStatus.label}
+                              </Badge>
+                            </div>
+                          </div>
                         </div>
-                        <div className="h-4 w-px bg-border" />
-                        <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">
-                          {own || "—"}
-                        </div>
-                        <div className="h-4 w-px bg-border" />
-                        <div className="flex flex-col gap-0.5 min-w-0">
-                          <span className="text-xs text-muted-foreground">Status</span>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "w-fit border-transparent text-[11px] font-normal",
-                              getFinalStatusBadgeClassName(finalStatus.tone)
-                            )}
-                          >
-                            {finalStatus.label}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  </React.Fragment>
-                );
-              })
+                      </React.Fragment>
+                    );
+                  })}
+                {visiblePeopleRows.some((p) => isMissingGovernmentIdPerson(p)) ? (
+                  <div className="col-span-2">
+                    <DirectorShareholderUnresolvedIdentitySection
+                      people={visiblePeopleRows
+                        .filter((p) => isMissingGovernmentIdPerson(p))
+                        .map((p) => ({
+                          name: p.name,
+                          role: formatPeopleRolesLine(p),
+                          sharePercentage: p.sharePercentage,
+                          eodRequestId: p.requestId,
+                          onboardingStatus: p.onboarding?.status ?? null,
+                          amlStatus: p.screening?.status ?? null,
+                          kycId: p.onboarding?.id ?? null,
+                        }))}
+                    />
+                  </div>
+                ) : null}
+              </>
             )}
           </div>
         </div>

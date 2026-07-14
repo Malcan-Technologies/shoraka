@@ -22,7 +22,7 @@ import {
 } from "@cashsouk/types";
 import { toast } from "sonner";
 import { DirectorShareholderCtosEmptyAlert } from "./director-shareholder-ctos-empty-alert";
-import { DirectorShareholderUnresolvedIdentityCard } from "./director-shareholder-unresolved-identity-card";
+import { DirectorShareholderUnresolvedIdentitySection } from "./director-shareholder-unresolved-identity-card";
 import { Input } from "./components/input";
 import { Button } from "./components/button";
 import { Badge } from "./components/badge";
@@ -295,20 +295,6 @@ export function DirectorShareholdersUnifiedSection({
         {resolvedCtosEmptyWarning ? (
           <DirectorShareholderCtosEmptyAlert message={resolvedCtosEmptyWarning} />
         ) : null}
-        {unresolvedPeople.length > 0 ? (
-          <div className="space-y-3">
-            {unresolvedPeople.map((p, index) => (
-              <DirectorShareholderUnresolvedIdentityCard
-                key={`unresolved-${String(p.requestId ?? "")}-${(p.roles ?? []).join("-")}-${index}`}
-                name={p.name}
-                role={formatPeopleRolesLine(p)}
-                sharePercentage={p.sharePercentage}
-                eodRequestId={p.requestId}
-                onboardingStatus={p.onboarding?.status ?? null}
-              />
-            ))}
-          </div>
-        ) : null}
         {emptyAll ? (
           <p className="text-sm text-muted-foreground text-center py-8">
             {resolvedCtosEmptyWarning
@@ -343,6 +329,19 @@ export function DirectorShareholdersUnifiedSection({
                 </div>
                 <div className="space-y-3">{corporateRows.map(renderRow)}</div>
               </div>
+            ) : null}
+            {unresolvedPeople.length > 0 ? (
+              <DirectorShareholderUnresolvedIdentitySection
+                people={unresolvedPeople.map((p) => ({
+                  name: p.name,
+                  role: formatPeopleRolesLine(p),
+                  sharePercentage: p.sharePercentage,
+                  eodRequestId: p.requestId,
+                  onboardingStatus: p.onboarding?.status ?? null,
+                  amlStatus: p.screening?.status ?? null,
+                  kycId: p.onboarding?.id ?? null,
+                }))}
+              />
             ) : null}
           </>
         )}
