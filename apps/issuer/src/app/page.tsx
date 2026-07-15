@@ -215,49 +215,63 @@ function IssuerDashboardContent() {
             </section>
           )}
 
-          {/* Welcome Section - only shown when all steps are complete */}
-          {allStepsComplete && (
+          {/* Dashboard preview — greyed out until onboarding is fully complete */}
+          {(allStepsComplete || isAwaitingApproval || isRejected) && (
             <>
-              <section className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Welcome back, {displayName}!</h2>
+              {allStepsComplete && (
+                <section className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Welcome back, {displayName}!</h2>
+                    </div>
+                    <p className="mt-1 text-[17px] leading-7 text-muted-foreground">
+                      Manage your financing applications from this dashboard.
+                    </p>
                   </div>
-                  <p className="mt-1 text-[17px] leading-7 text-muted-foreground">
-                    Manage your financing applications from this dashboard.
-                  </p>
-                </div>
-                <Button
-                  asChild
-                  className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95"
-                >
-                  <Link href="/applications/new">
-                    <PlusIcon className="h-4 w-4" />
-                    Apply for financing
-                  </Link>
-                </Button>
-              </section>
+                  <Button
+                    asChild
+                    className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95"
+                  >
+                    <Link href="/applications/new">
+                      <PlusIcon className="h-4 w-4" />
+                      Apply for financing
+                    </Link>
+                  </Button>
+                </section>
+              )}
 
-              <AccountOverviewCard
-                isDisabled={!isAccountEnabled}
-                successRate={issuerDashboard?.overview.successRatePercent ?? null}
-                activeFinancing={issuerDashboard?.overview.activeFinancingAmount ?? null}
-                pastFinancing={issuerDashboard?.overview.pastFinancingAmount ?? null}
-                activeNotes={issuerDashboard?.overview.activeNotesCount ?? null}
-                completedNotes={issuerDashboard?.overview.completedNotesCount ?? null}
-              />
-              <RepaymentPerformanceCard
-                isDisabled={!isAccountEnabled}
-                onTimeRate={issuerDashboard?.repaymentPerformance.onTimePercent ?? null}
-                pastDueCount={issuerDashboard?.repaymentPerformance.pastDueCount ?? null}
-                lateRepaymentsLastSixMonthsCount={
-                  issuerDashboard?.repaymentPerformance.lateRepaymentsLastSixMonthsCount ?? null
-                }
-              />
+              <div
+                className={cn(
+                  "space-y-8",
+                  !isAccountEnabled && "pointer-events-none select-none opacity-60"
+                )}
+                aria-hidden={!isAccountEnabled}
+              >
+                <AccountOverviewCard
+                  isDisabled={!isAccountEnabled}
+                  successRate={issuerDashboard?.overview.successRatePercent ?? null}
+                  activeFinancing={issuerDashboard?.overview.activeFinancingAmount ?? null}
+                  pastFinancing={issuerDashboard?.overview.pastFinancingAmount ?? null}
+                  activeNotes={issuerDashboard?.overview.activeNotesCount ?? null}
+                  completedNotes={issuerDashboard?.overview.completedNotesCount ?? null}
+                />
+                <RepaymentPerformanceCard
+                  isDisabled={!isAccountEnabled}
+                  onTimeRate={issuerDashboard?.repaymentPerformance.onTimePercent ?? null}
+                  pastDueCount={issuerDashboard?.repaymentPerformance.pastDueCount ?? null}
+                  lateRepaymentsLastSixMonthsCount={
+                    issuerDashboard?.repaymentPerformance.lateRepaymentsLastSixMonthsCount ?? null
+                  }
+                />
 
-              <RecentApplicationsCard />
-              <RecentFinancingCard organizationId={activeOrganization?.id} />
-              <RecentNotesCard />
+                {isAccountEnabled ? (
+                  <>
+                    <RecentApplicationsCard />
+                    <RecentFinancingCard organizationId={activeOrganization?.id} />
+                    <RecentNotesCard />
+                  </>
+                ) : null}
+              </div>
             </>
           )}
         </div>

@@ -1,9 +1,11 @@
 import type { Organization } from "@cashsouk/config";
 import {
   canAccessApplicantAccount,
+  getIssuerOnboardingOutstandingStep,
   getOnboardingRouteForOrg,
   getOnboardingStep,
   getOnboardingStepRoute,
+  getOnboardingStepperSteps,
 } from "@cashsouk/config";
 
 function baseOrg(overrides: Partial<Organization> = {}): Organization {
@@ -81,5 +83,117 @@ describe("onboarding flow resolver", () => {
     const org = baseOrg({ type: "PERSONAL", tncAccepted: true, onboardingStatus: "IN_PROGRESS" });
     expect(getOnboardingStep(org, "issuer")).toBe("verify");
     expect(getOnboardingRouteForOrg(org, "issuer")).toBe("/onboarding/verify");
+  });
+});
+
+function issuerCompanyOrg(overrides: Partial<Organization> = {}): Organization {
+  return baseOrg({
+    type: "COMPANY",
+    name: "Acme",
+    tncAccepted: false,
+    onboardingFeePaidAt: null,
+    onboardingStatus: "PENDING",
+    ...overrides,
+  });
+}
+
+function stepById(steps: ReturnType<typeof getOnboardingStepperSteps>, id: string) {
+  const step = steps.find((entry) => entry.id === id);
+  if (!step) throw new Error(`Missing step ${id}`);
+  return step;
+}
+
+describe("issuer onboarding stepper outstanding step", () => {
+  it("shows agreement when agreement is missing", () => {
+    const org = issuerCompanyOrg({ tncAccepted: false });
+    expect(getIssuerOnboardingOutstandingStep(org)).toBe("terms");
+
+    const steps = getOnboardingStepperSteps(org, "issuer");
+    expect(stepById(steps, "tnc").isCurrent).toBe(true);
+    expect(stepById(steps, "tnc").displayStatus).toBe("outstanding");
+    expect(stepById(steps, "fee").displayStatus).toBe("upcoming");
+    expect(stepById(steps, "fee").isRejected).toBeFalsy();
+  });
+
+  it("shows fee when agreement is done and fee is unpaid", () => {
+    const org = issuerCompanyOrg({ tncAccepted: true, onboardingFeePaidAt: null });
+    expect(getIssuerOnboardingOutstandingStep(org)).toBe("fee");
+
+    const steps = getOnboardingStepperSteps(org, "issuer");
+    expect(stepById(steps, "tnc").isCompleted).toBe(true);
+    expect(stepById(steps, "tnc").isRejected).toBeFalsy();
+    expect(stepById(steps, "fee").isCurrent).toBe(true);
+    expect(stepById(steps, "fee").displayStatus).toBe("outstanding");
+  });
+
+  it("shows RegTank when agreement and fee are done but verification is incomplete", () => {
+    const org = issuerCompanyOrg({
+      tncAccepted: true,
+      onboardingFeePaidAt: new Date().toISOString(),
+      onboardingStatus: "IN_PROGRESS",
+    });
+    expect(getIssuerOnboardingOutstandingStep(org)).toBe("verify");
+
+    const steps = getOnboardingStepperSteps(org, "issuer");
+    expect(stepById(steps, "tnc").isCompleted).toBe(true);
+    expect(stepById(steps, "fee").isCompleted).toBe(true);
+    expect(stepById(steps, "verify").isCurrent).toBe(true);
+    expect(stepById(steps, "approval").displayStatus).toBe("upcoming");
+  });
+
+  it("shows approval pending when RegTank is complete and admin review is pending", () => {
+    const org = issuerCompanyOrg({
+      tncAccepted: true,
+      onboardingFeePaidAt: new Date().toISOString(),
+      onboardingStatus: "PENDING_APPROVAL",
+    });
+    expect(getIssuerOnboardingOutstandingStep(org)).toBe("approval");
+
+    const steps = getOnboardingStepperSteps(org, "issuer");
+    expect(stepById(steps, "verify").isCompleted).toBe(true);
+    expect(stepById(steps, "approval").isCurrent).toBe(true);
+    expect(stepById(steps, "approval").statusLabel).toBe("Waiting for admin approval");
+  });
+
+  it("marks all steps completed when onboarding is complete", () => {
+    const org = issuerCompanyOrg({
+      tncAccepted: true,
+      onboardingFeePaidAt: new Date().toISOString(),
+      onboardingStatus: "COMPLETED",
+    });
+    expect(getIssuerOnboardingOutstandingStep(org)).toBe("completed");
+
+    const steps = getOnboardingStepperSteps(org, "issuer");
+    expect(steps.every((step) => step.isCompleted)).toBe(true);
+    expect(steps.some((step) => step.isRejected)).toBe(false);
+  });
+
+  it("does not mark completed steps red on rejection", () => {
+    const org = issuerCompanyOrg({
+      tncAccepted: true,
+      onboardingFeePaidAt: new Date().toISOString(),
+      onboardingStatus: "REJECTED",
+    });
+
+    const steps = getOnboardingStepperSteps(org, "issuer");
+    expect(stepById(steps, "tnc").isCompleted).toBe(true);
+    expect(stepById(steps, "tnc").isRejected).toBeFalsy();
+    expect(stepById(steps, "fee").isCompleted).toBe(true);
+    expect(stepById(steps, "fee").isRejected).toBeFalsy();
+    expect(stepById(steps, "verify").isRejected).toBe(true);
+    expect(stepById(steps, "approval").displayStatus).toBe("upcoming");
+    expect(stepById(steps, "approval").isRejected).toBeFalsy();
+  });
+
+  it("keeps unreached steps neutral instead of failed", () => {
+    const org = issuerCompanyOrg({ tncAccepted: false });
+    const steps = getOnboardingStepperSteps(org, "issuer");
+
+    for (const step of steps) {
+      if (step.id !== "tnc") {
+        expect(step.isRejected).toBeFalsy();
+        expect(step.displayStatus).toBe("upcoming");
+      }
+    }
   });
 });

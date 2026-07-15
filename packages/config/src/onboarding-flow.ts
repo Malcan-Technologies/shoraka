@@ -20,12 +20,23 @@ export type OnboardingFlowStep =
   | "completed"
   | "rejected";
 
+export type OnboardingStepDisplayStatus =
+  | "completed"
+  | "outstanding"
+  | "upcoming"
+  | "waiting_admin"
+  | "action_required"
+  | "failed";
+
 export type OnboardingStepperStep = {
   id: string;
   label: string;
   isCompleted: boolean;
   isCurrent: boolean;
   isRejected?: boolean;
+  /** Human-readable gate status derived from backend org state. */
+  statusLabel?: string;
+  displayStatus?: OnboardingStepDisplayStatus;
 };
 
 const ADMIN_PENDING_STATUSES: OnboardingStatus[] = [
@@ -94,6 +105,14 @@ export function sortYourOrganizations(orgs: Organization[]): Organization[] {
 
 function isPostRegTank(status: OnboardingStatus): boolean {
   return POST_REGTANK_STATUSES.includes(status);
+}
+
+/** First outstanding onboarding gate for an issuer organization. */
+export function getIssuerOnboardingOutstandingStep(
+  org: Organization | null | undefined,
+  options?: { addingNewOrg?: boolean }
+): OnboardingFlowStep {
+  return getOnboardingStep(org, "issuer", options);
 }
 
 /** Maps the active organization to the step the user should be on. */
@@ -183,78 +202,175 @@ export function isAddingNewOrganizationRoute(pathname: string): boolean {
   return pathname === "/onboarding/account";
 }
 
+type StepperPipelineStep = {
+  id: string;
+  label: string;
+};
+
+function getStepperPipeline(organization: Organization, portalType: PortalType): StepperPipelineStep[] {
+  const pipeline: StepperPipelineStep[] = [{ id: "tnc", label: "User Agreement" }];
+
+  if (portalType === "issuer" && organization.type === "COMPANY") {
+    pipeline.push({ id: "fee", label: "Onboarding Fee" });
+  }
+
+  pipeline.push({ id: "verify", label: "Onboarding" }, { id: "approval", label: "Approval" });
+
+  if (portalType === "investor") {
+    pipeline.push({ id: "deposit", label: "Deposit" });
+  }
+
+  return pipeline;
+}
+
+function flowStepToStepperId(flowStep: OnboardingFlowStep): string | null {
+  switch (flowStep) {
+    case "terms":
+      return "tnc";
+    case "fee":
+      return "fee";
+    case "verify":
+      return "verify";
+    case "approval":
+      return "approval";
+    case "deposit":
+      return "deposit";
+    case "rejected":
+      return "verify";
+    case "completed":
+      return null;
+    default:
+      return null;
+  }
+}
+
+function isStepRequirementMet(
+  stepId: string,
+  organization: Organization,
+  portalType: PortalType
+): boolean {
+  switch (stepId) {
+    case "tnc":
+      return organization.tncAccepted === true;
+    case "fee":
+      return (
+        portalType !== "issuer" ||
+        organization.type !== "COMPANY" ||
+        Boolean(organization.onboardingFeePaidAt)
+      );
+    case "verify":
+      return isPostRegTank(organization.onboardingStatus);
+    case "approval":
+      return organization.onboardingStatus === "COMPLETED";
+    case "deposit":
+      return organization.depositReceived === true;
+    default:
+      return false;
+  }
+}
+
+function getStepDisplayStatus(
+  stepId: string,
+  outstandingFlowStep: OnboardingFlowStep,
+  organization: Organization,
+  portalType: PortalType,
+  isCompleted: boolean,
+  isRejected: boolean
+): OnboardingStepDisplayStatus {
+  if (isCompleted) return "completed";
+  if (isRejected) return "failed";
+
+  if (outstandingFlowStep === "rejected") {
+    return isStepRequirementMet(stepId, organization, portalType) ? "completed" : "upcoming";
+  }
+
+  const outstandingId = flowStepToStepperId(outstandingFlowStep);
+  if (outstandingFlowStep === "completed" || !outstandingId) {
+    return "completed";
+  }
+
+  if (stepId !== outstandingId) {
+    return "upcoming";
+  }
+
+  if (outstandingFlowStep === "approval") {
+    if (organization.onboardingStatus === "PENDING_AMENDMENT") {
+      return "action_required";
+    }
+    return "waiting_admin";
+  }
+
+  return "outstanding";
+}
+
+function getStepStatusLabel(displayStatus: OnboardingStepDisplayStatus): string {
+  switch (displayStatus) {
+    case "completed":
+      return "Completed";
+    case "outstanding":
+      return "Outstanding";
+    case "waiting_admin":
+      return "Waiting for admin approval";
+    case "action_required":
+      return "Action required";
+    case "failed":
+      return "Action required";
+    case "upcoming":
+    default:
+      return "";
+  }
+}
+
 /** Stepper labels for onboarding route pages and dashboard status cards. */
 export function getOnboardingStepperSteps(
   organization: Organization,
   portalType: PortalType,
-  currentRouteStep?: OnboardingFlowStep | null
+  _currentRouteStep?: OnboardingFlowStep | null
 ): OnboardingStepperStep[] {
-  const isRejected = organization.onboardingStatus === "REJECTED";
-  const isCompany = organization.type === "COMPANY";
+  const outstandingFlowStep = getOnboardingStep(organization, portalType);
+  const pipeline = getStepperPipeline(organization, portalType);
+  const outstandingId = flowStepToStepperId(outstandingFlowStep);
+  const outstandingIndex =
+    outstandingId === null ? pipeline.length : pipeline.findIndex((step) => step.id === outstandingId);
 
-  const tncComplete = !isRejected && organization.tncAccepted === true;
-  const feeComplete =
-    !isRejected &&
-    (portalType !== "issuer" || !isCompany || Boolean(organization.onboardingFeePaidAt));
-  const verifyComplete = !isRejected && isPostRegTank(organization.onboardingStatus);
-  const accountApprovalComplete = organization.onboardingStatus === "COMPLETED";
-  const depositComplete = organization.depositReceived === true;
+  return pipeline.map((step, index) => {
+    let isCompleted = false;
+    let isCurrent = false;
+    let isRejected = false;
 
-  const flowStep = getOnboardingStep(organization, portalType);
-  const currentStepId = (() => {
-    if (isRejected) return "";
-    if (currentRouteStep && ["account", "terms", "fee", "verify"].includes(currentRouteStep)) {
-      return currentRouteStep;
+    if (outstandingFlowStep === "completed") {
+      isCompleted = true;
+    } else if (outstandingFlowStep === "rejected") {
+      isRejected = step.id === "verify";
+      isCompleted =
+        isStepRequirementMet(step.id, organization, portalType) && step.id !== "verify";
+    } else if (outstandingId && outstandingIndex >= 0) {
+      if (index < outstandingIndex) {
+        isCompleted = true;
+      } else if (step.id === outstandingId) {
+        isCurrent = true;
+      }
     }
-    if (flowStep === "terms") return "tnc";
-    if (flowStep === "fee") return "fee";
-    if (flowStep === "verify") return "verify";
-    if (flowStep === "approval") return "approval";
-    if (flowStep === "deposit") return "deposit";
-    return "";
-  })();
 
-  const steps: OnboardingStepperStep[] = [
-    {
-      id: "tnc",
-      label: "User Agreement",
-      isCompleted: tncComplete,
-      isCurrent: currentStepId === "tnc" || currentStepId === "terms",
-    },
-  ];
+    const displayStatus = getStepDisplayStatus(
+      step.id,
+      outstandingFlowStep,
+      organization,
+      portalType,
+      isCompleted,
+      isRejected
+    );
 
-  if (portalType === "issuer" && isCompany) {
-    steps.push({
-      id: "fee",
-      label: "Onboarding Fee",
-      isCompleted: feeComplete,
-      isCurrent: currentStepId === "fee",
-    });
-  }
+    const statusLabel = getStepStatusLabel(displayStatus);
 
-  steps.push({
-    id: "verify",
-    label: "Onboarding",
-    isCompleted: verifyComplete,
-    isCurrent: currentStepId === "verify",
-    isRejected,
+    return {
+      id: step.id,
+      label: step.label,
+      isCompleted,
+      isCurrent,
+      isRejected,
+      statusLabel: statusLabel || undefined,
+      displayStatus,
+    };
   });
-
-  steps.push({
-    id: "approval",
-    label: "Approval",
-    isCompleted: accountApprovalComplete,
-    isCurrent: currentStepId === "approval",
-  });
-
-  if (portalType === "investor") {
-    steps.push({
-      id: "deposit",
-      label: "Deposit",
-      isCompleted: depositComplete,
-      isCurrent: currentStepId === "deposit",
-    });
-  }
-
-  return steps;
 }
