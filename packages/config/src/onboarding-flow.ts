@@ -110,6 +110,15 @@ export function getOnboardingStep(
     return "rejected";
   }
 
+  // Required gates use their own fields — never skip them because status is COMPLETED.
+  if (!org.tncAccepted) {
+    return "terms";
+  }
+
+  if (portalType === "issuer" && org.type === "COMPANY" && !org.onboardingFeePaidAt) {
+    return "fee";
+  }
+
   if (portalType === "investor") {
     if (org.onboardingStatus === "COMPLETED") {
       return org.depositReceived ? "completed" : "deposit";
@@ -120,14 +129,6 @@ export function getOnboardingStep(
 
   if (isAdminPending(org.onboardingStatus)) {
     return "approval";
-  }
-
-  if (!org.tncAccepted) {
-    return "terms";
-  }
-
-  if (portalType === "issuer" && org.type === "COMPANY" && !org.onboardingFeePaidAt) {
-    return "fee";
   }
 
   if (!isPostRegTank(org.onboardingStatus)) {
@@ -204,44 +205,17 @@ function getStepperPipeline(organization: Organization, portalType: PortalType):
   return pipeline;
 }
 
-function flowStepToStepperId(flowStep: OnboardingFlowStep): string | null {
-  switch (flowStep) {
-    case "terms":
-      return "tnc";
-    case "fee":
-      return "fee";
-    case "verify":
-      return "verify";
-    case "approval":
-      return "approval";
-    case "deposit":
-      return "deposit";
-    case "rejected":
-      return "verify";
-    case "completed":
-      return null;
-    default:
-      return null;
-  }
-}
-
-function isStepRequirementMet(
-  stepId: string,
-  organization: Organization,
-  portalType: PortalType
-): boolean {
+function isStepCompletedFromDb(stepId: string, organization: Organization): boolean {
   switch (stepId) {
     case "tnc":
       return organization.tncAccepted === true;
     case "fee":
-      return (
-        portalType !== "issuer" ||
-        organization.type !== "COMPANY" ||
-        Boolean(organization.onboardingFeePaidAt)
-      );
+      return Boolean(organization.onboardingFeePaidAt);
     case "verify":
+      // Post-RegTank admin-wait / completed statuses mean verification was submitted.
       return isPostRegTank(organization.onboardingStatus);
     case "approval":
+      // Existing app rule: final admin approval is represented by COMPLETED.
       return organization.onboardingStatus === "COMPLETED";
     case "deposit":
       return organization.depositReceived === true;
@@ -250,43 +224,42 @@ function isStepRequirementMet(
   }
 }
 
+function isStepRejectedFromDb(stepId: string, organization: Organization): boolean {
+  return stepId === "verify" && organization.onboardingStatus === "REJECTED";
+}
+
 /** Stepper labels for onboarding route pages and dashboard status cards. */
 export function getOnboardingStepperSteps(
   organization: Organization,
   portalType: PortalType,
   _currentRouteStep?: OnboardingFlowStep | null
 ): OnboardingStepperStep[] {
-  const outstandingFlowStep = getOnboardingStep(organization, portalType);
   const pipeline = getStepperPipeline(organization, portalType);
-  const outstandingId = flowStepToStepperId(outstandingFlowStep);
-  const outstandingIndex =
-    outstandingId === null ? pipeline.length : pipeline.findIndex((step) => step.id === outstandingId);
 
-  return pipeline.map((step, index) => {
-    let isCompleted = false;
-    let isCurrent = false;
-    let isRejected = false;
-
-    if (outstandingFlowStep === "completed") {
-      isCompleted = true;
-    } else if (outstandingFlowStep === "rejected") {
-      isRejected = step.id === "verify";
-      isCompleted =
-        isStepRequirementMet(step.id, organization, portalType) && step.id !== "verify";
-    } else if (outstandingId && outstandingIndex >= 0) {
-      if (index < outstandingIndex) {
-        isCompleted = true;
-      } else if (step.id === outstandingId) {
-        isCurrent = true;
-      }
-    }
+  const steps = pipeline.map((step) => {
+    const isRejected = isStepRejectedFromDb(step.id, organization);
+    const isCompleted = !isRejected && isStepCompletedFromDb(step.id, organization);
 
     return {
       id: step.id,
       label: step.label,
       isCompleted,
-      isCurrent,
+      isCurrent: false,
       isRejected,
     };
   });
+
+  // Current = first required step whose own DB fields say incomplete.
+  const currentIndex = steps.findIndex((step) => !step.isCompleted && !step.isRejected);
+  if (currentIndex >= 0) {
+    steps[currentIndex].isCurrent = true;
+  } else {
+    // Rejected verify with all prior steps complete: keep verify as the focus step.
+    const rejectedIndex = steps.findIndex((step) => step.isRejected);
+    if (rejectedIndex >= 0) {
+      steps[rejectedIndex].isCurrent = true;
+    }
+  }
+
+  return steps;
 }
