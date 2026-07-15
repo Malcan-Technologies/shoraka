@@ -1202,7 +1202,6 @@ export default function ApplicationsPage() {
           productId={selectedReviewApplication?.productId ?? null}
           contractId={selectedContractId ?? undefined}
           invoice={offerType === "invoice" ? selectedInvoice ?? undefined : undefined}
-          requiresInvoiceSigning
           onClose={() => setReviewModalOpen(false)}
         />
       )}

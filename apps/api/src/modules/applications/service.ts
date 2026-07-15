@@ -60,6 +60,7 @@ import {
   ContractStatus,
   InvoiceStatus,
   WithdrawReason,
+  canDirectAcceptInvoice,
   getFinancialYearEndComputationDetails,
   getIssuerFinancialTabYears,
   issuerUnauditedPlddForFyEndYear,
@@ -1687,6 +1688,61 @@ export class ApplicationService {
   /**
    * Accept or reject an invoice offer. Issuer must be a member of the application's organization.
    */
+  /**
+   * When SigningCloud is configured, invoice accept is allowed without an envelope only for
+   * contract-linked invoices whose contract offer signing package is COMPLETED.
+   * Throws USE_SIGNING_FLOW (invoice-only) or CONTRACT_SIGNING_INCOMPLETE (linked, not done).
+   */
+  async assertInvoiceOfferAcceptAllowed(
+    applicationId: string,
+    invoiceId: string,
+    userId: string
+  ): Promise<void> {
+    // Authz first so eligibility codes cannot leak offer/signing state to strangers.
+    await this.verifyApplicationAccess(applicationId, userId);
+
+    const invoice = await prisma.invoice.findFirst({
+      where: { id: invoiceId, application_id: applicationId },
+      select: { contract_id: true },
+    });
+    if (!invoice) {
+      throw new AppError(404, "NOT_FOUND", "Invoice not found in this application");
+    }
+
+    const invoiceContractId = invoice.contract_id;
+    let hasCompletedContractEnvelope = false;
+    if (invoiceContractId) {
+      const completed = await prisma.signingEnvelope.findFirst({
+        where: { contract_id: invoiceContractId, status: "COMPLETED" },
+        select: { id: true },
+      });
+      hasCompletedContractEnvelope = completed != null;
+    }
+
+    if (
+      canDirectAcceptInvoice({
+        invoiceContractId,
+        hasCompletedContractEnvelope,
+      })
+    ) {
+      return;
+    }
+
+    if (invoiceContractId) {
+      throw new AppError(
+        400,
+        "CONTRACT_SIGNING_INCOMPLETE",
+        "Finish contract signing before accepting this invoice offer."
+      );
+    }
+
+    throw new AppError(
+      400,
+      "USE_SIGNING_FLOW",
+      "Complete signing via the signing envelope before accepting this offer."
+    );
+  }
+
   async respondToInvoiceOffer(
     applicationId: string,
     invoiceId: string,

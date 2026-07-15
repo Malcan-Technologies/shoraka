@@ -1,6 +1,67 @@
 import type { SigningOfferStep } from "@/components/signing/signing-progress-stepper";
+import {
+  canDirectAcceptInvoice,
+  needsSigningEnvelope,
+  type SigningPackageOfferKind,
+} from "@cashsouk/types";
 
 export type SigningOfferStepId = "documents" | "signers" | "signing" | "complete";
+
+/** UI mode for ReviewOfferModal: full signing stepper vs Accept/Decline-only. */
+export type ReviewOfferModalMode =
+  | { ui: "signing_stepper"; packageKind: SigningPackageOfferKind }
+  | { ui: "accept_decline"; canAccept: boolean; blockedMessage?: string };
+
+/**
+ * Derive modal mode from offer type + invoice contract link + contract envelope state.
+ * Does not consult signingTemplate.enabled — packages are always required when envelopes are needed.
+ */
+export function resolveReviewOfferModalMode(input: {
+  offerType: "contract" | "invoice";
+  /** Invoice's `contract_id` when `offerType` is `"invoice"`. */
+  invoiceContractId?: string | null;
+  hasCompletedContractEnvelope: boolean;
+}): ReviewOfferModalMode {
+  if (input.offerType === "contract") {
+    return { ui: "signing_stepper", packageKind: "contract" };
+  }
+
+  if (
+    needsSigningEnvelope({
+      kind: "invoice",
+      invoiceContractId: input.invoiceContractId,
+    })
+  ) {
+    return { ui: "signing_stepper", packageKind: "invoice" };
+  }
+
+  if (
+    canDirectAcceptInvoice({
+      invoiceContractId: input.invoiceContractId,
+      hasCompletedContractEnvelope: input.hasCompletedContractEnvelope,
+    })
+  ) {
+    return { ui: "accept_decline", canAccept: true };
+  }
+
+  return {
+    ui: "accept_decline",
+    canAccept: false,
+    blockedMessage:
+      "Finish contract signing first before accepting this invoice offer.",
+  };
+}
+
+/** True when a COMPLETED envelope exists for the given contract id. */
+export function hasCompletedContractEnvelope(
+  envelopes: Array<{ contract_id: string | null; status: string }>,
+  contractId: string | null | undefined
+): boolean {
+  if (contractId == null || contractId === "") return false;
+  return envelopes.some(
+    (envelope) => envelope.contract_id === contractId && envelope.status === "COMPLETED"
+  );
+}
 
 type StepShell = Omit<SigningOfferStep, "status">;
 

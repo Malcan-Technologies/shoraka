@@ -4,7 +4,7 @@
  * To add a step: see workflow-registry.tsx (and add validation here if the step has required fields).
  */
 
-import { getStepKeyFromStepId, STEP_KEY_DISPLAY, enforceDeclarationsLastAndDropReview } from "@cashsouk/types";
+import { getStepKeyFromStepId, STEP_KEY_DISPLAY, enforceDeclarationsLastAndDropReview, parseSigningPackagesConfig, writeSigningPackagesConfig } from "@cashsouk/types";
 import { isDeclarationHtmlEmpty } from "@cashsouk/ui/declaration-rich-text";
 import { parseMoney } from "@cashsouk/ui";
 
@@ -134,6 +134,11 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
               ? Number(raw)
               : null,
       };
+    }
+
+    // Always persist dual signing_packages; migrate legacy signing_template on save.
+    if (stepKey === FIRST_STEP_KEY) {
+      config = writeSigningPackagesConfig(config, parseSigningPackagesConfig(config));
     }
 
     const configForApi = { ...config } as Record<string, unknown>;

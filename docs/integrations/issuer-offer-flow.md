@@ -88,9 +88,20 @@ function getOfferStatus(item: {
 
 ## External signing (all signers)
 
-Every signer is an external party emailed an opaque link. The issuer **Review offer** modal is the signing control centre: bind signers (name, email, IC), attach post-application documents, send the envelope, monitor progress, and re-notify.
+Signing packages are **always required** for offer types that need an envelope — there is no product-level enable/disable. Products store dual packages under workflow key `signing_packages`:
 
-**Product snapshot:** signing package documents and post-application document gates come from the application's frozen product version (`application.product_version` within the product `base_id` family), not the latest live catalog row. Void + recreate rebuilds from that same frozen workflow and does not pick up later product edits. Guarantor Agreement appears only when that frozen signing template includes it (no silent auto-inject).
+| Package | Used for |
+|---------|----------|
+| **contract** | Contract offers (`new_contract` / `existing_contract`) |
+| **invoice** | Invoice-only offers (invoice with no `contract_id`) |
+
+**Contract-linked invoices** (invoice with `contract_id` set) never create an invoice envelope. After the **contract** package envelope is `COMPLETED`, the issuer Accept/Declines that invoice offer directly in Review offer (no signers, uploads, or signing steps). If the contract envelope is not yet complete, Accept is blocked with a short message; Decline remains available.
+
+**Invoice-only** offers each get their own invoice package envelope. Different invoices on the same application may have active envelopes **in parallel** (uniqueness is per `contract_id` or per `invoice_id`, not per application). Active = `DRAFT` | `SENT` | `IN_PROGRESS`.
+
+Every signer is an external party emailed an opaque link. For envelope paths, the issuer **Review offer** modal is the signing control centre: bind signers (name, email, IC), attach post-application documents, send the envelope, monitor progress, and re-notify.
+
+**Product snapshot:** signing package documents and post-application document gates come from the application's frozen product version (`application.product_version` within the product `base_id` family), not the latest live catalog row. Void + recreate rebuilds from that same frozen workflow and does not pick up later product edits. Guarantor Agreement appears only when that frozen signing template includes it (no silent auto-inject). Legacy flat `signing_template` is migrated in-memory to both packages until the product is saved as `signing_packages`.
 
 Signers complete the flow at `/signing/external/[token]`:
 
@@ -121,16 +132,27 @@ Requires auth; user must be member or owner of the application’s issuer organi
 - **POST /v1/applications/:id/offers/contracts/accept**
 - **POST /v1/applications/:id/offers/contracts/reject**
 
+When SigningCloud is configured, contract accept goes through the signing envelope (auto-accept on `COMPLETED`). Non-production clients may pass `{ skipSigning: true }` to bypass for local QA.
+
 ### Invoice offer
 
 - **POST /v1/applications/:id/offers/invoices/:invoiceId/accept**
 - **POST /v1/applications/:id/offers/invoices/:invoiceId/reject**
 
+| Invoice kind | Accept path |
+|--------------|-------------|
+| Invoice-only (`contract_id` null) | Signing envelope (invoice package); auto-accept on `COMPLETED` |
+| Contract-linked (`contract_id` set) | Direct Accept/Decline after contract envelope `COMPLETED`; no invoice envelope. Before that → `CONTRACT_SIGNING_INCOMPLETE` (or UI blocks Accept) |
+| Creating an envelope for a contract-linked invoice | `400 CONTRACT_LINKED_INVOICE_NO_PACKAGE` |
+
+Non-production `{ skipSigning: true }` bypass applies the same as contract.
 ### Errors
 
 - `400 INVALID_STATE` — No pending offer, no contract/invoice, or no `offer_details`.
 - `400 ALREADY_RESPONDED` — Already accepted or rejected.
 - `400 OFFER_EXPIRED` — `expires_at` has passed.
+- `400 USE_SIGNING_FLOW` — SigningCloud configured; accept via envelope completion (or contract-linked direct accept when eligible).
+- `400 CONTRACT_SIGNING_INCOMPLETE` — Contract-linked invoice accept before contract envelope `COMPLETED`.
 - `403 FORBIDDEN` — User not in issuer org.
 
 ### Response

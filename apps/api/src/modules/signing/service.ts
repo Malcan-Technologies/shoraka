@@ -4,8 +4,11 @@
  */
 import {
   SIGNING_TEMPLATE_WORKFLOW_KEY,
+  SIGNING_PACKAGES_WORKFLOW_KEY,
   getStepKeyFromStepId,
   parseSigningTemplateConfig,
+  parseSigningPackagesConfig,
+  resolveSigningTemplateForOffer,
   validateSigningTemplateConfig,
   isValidSigningIcNumber,
   normalizeSigningIcNumber,
@@ -26,6 +29,7 @@ import {
   type RecipientEkycSession,
   type RecipientEkycSessionStatus,
   type SigningEnvelopeDto,
+  type SigningPackageOfferKind,
   type SigningTemplateConfig,
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
@@ -220,15 +224,26 @@ export class SigningService {
     }
   }
 
-  private readSigningTemplateFromWorkflow(workflow: unknown): SigningTemplateConfig {
+  private readSigningTemplateFromWorkflow(
+    workflow: unknown,
+    kind: SigningPackageOfferKind
+  ): SigningTemplateConfig {
     const steps = Array.isArray(workflow) ? workflow : [];
     for (const step of steps) {
       const config = (step as { config?: Record<string, unknown> } | null)?.config;
-      if (config && config[SIGNING_TEMPLATE_WORKFLOW_KEY] != null) {
-        return parseSigningTemplateConfig(config[SIGNING_TEMPLATE_WORKFLOW_KEY]);
+      if (!config) continue;
+      if (
+        config[SIGNING_PACKAGES_WORKFLOW_KEY] != null ||
+        config[SIGNING_TEMPLATE_WORKFLOW_KEY] != null
+      ) {
+        const packages = parseSigningPackagesConfig(config);
+        return resolveSigningTemplateForOffer({ packages, kind });
       }
     }
-    return parseSigningTemplateConfig(null);
+    return resolveSigningTemplateForOffer({
+      packages: parseSigningPackagesConfig(null),
+      kind,
+    });
   }
 
   /**
@@ -415,9 +430,6 @@ export class SigningService {
 
   async createDraftEnvelope(input: CreateDraftEnvelopeInput): Promise<SigningEnvelopeDto> {
     const template = parseSigningTemplateConfig(input.templateConfig);
-    if (!template.enabled) {
-      throw new AppError(400, "SIGNING_TEMPLATE_DISABLED", "This product has no signing package configured.");
-    }
 
     const templateErrors = validateSigningTemplateConfig(template);
     if (templateErrors.length > 0) {
@@ -451,18 +463,37 @@ export class SigningService {
     if (!this.applicationHasOfferSent(application)) {
       throw new AppError(400, "INVALID_STATE", "An offer must be sent before creating a signing package.");
     }
-    const activeEnvelope = await this.repo.findActiveEnvelopeForApplication(input.applicationId);
-    if (activeEnvelope) {
-      throw new AppError(409, "SIGNING_ENVELOPE_EXISTS", "This application already has an active signing package.");
-    }
-    await this.assertPostApplicationDocumentsReady(application);
-    const workflow = await this.getProductWorkflowForApplication(application);
-    const template = this.readSigningTemplateFromWorkflow(workflow);
     const { contractId, invoiceId } = this.resolveEnvelopeTarget({
       application,
       contractId: input.contractId,
       invoiceId: input.invoiceId,
     });
+    if (invoiceId) {
+      const invoice = application.invoices.find((item) => item.id === invoiceId);
+      if (invoice?.contract_id) {
+        throw new AppError(
+          400,
+          "CONTRACT_LINKED_INVOICE_NO_PACKAGE",
+          "Contract-linked invoice offers do not use a signing package. Accept or decline the offer instead."
+        );
+      }
+    }
+    const activeEnvelope = contractId
+      ? await this.repo.findActiveEnvelopeForContract(contractId)
+      : invoiceId
+        ? await this.repo.findActiveEnvelopeForInvoice(invoiceId)
+        : null;
+    if (activeEnvelope) {
+      throw new AppError(
+        409,
+        "SIGNING_ENVELOPE_EXISTS",
+        "This offer already has an active signing package."
+      );
+    }
+    await this.assertPostApplicationDocumentsReady(application);
+    const workflow = await this.getProductWorkflowForApplication(application);
+    const packageKind: SigningPackageOfferKind = contractId ? "contract" : "invoice";
+    const template = this.readSigningTemplateFromWorkflow(workflow, packageKind);
     const bindings = await this.validateAndNormalizeIssuerBindings(
       application,
       template,

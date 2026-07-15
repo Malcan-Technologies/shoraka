@@ -9,7 +9,6 @@ import * as React from "react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ChevronDownIcon } from "@heroicons/react/24/outline";
-import { readSigningTemplate } from "./build-recipients";
 import { SigningProgressMatrix } from "./signing-progress-matrix";
 import {
   useAdminSigningEnvelopes,
@@ -84,7 +83,7 @@ function splitEnvelopes(envelopes: SigningEnvelopeDto[]): {
 
 export interface SigningEnvelopePanelProps {
   applicationId: string;
-  /** Product.workflow JSON (holds the signing template config). */
+  /** Product.workflow JSON (retained for callers; panel is driven by envelope state). */
   workflow: unknown;
   people: ApplicationPersonRow[];
   guarantors: unknown;
@@ -97,20 +96,14 @@ export interface SigningEnvelopePanelProps {
 
 export function SigningEnvelopePanel({
   applicationId,
-  workflow,
   canManage = true,
 }: SigningEnvelopePanelProps) {
-  const template = React.useMemo(() => readSigningTemplate(workflow), [workflow]);
   const { data: envelopes = [], isLoading } = useAdminSigningEnvelopes(applicationId);
   const voidMutation = useVoidSigningEnvelope(applicationId);
   const remindMutation = useRemindSigningRecipient(applicationId);
   const [historyOpen, setHistoryOpen] = React.useState(false);
 
   const { primary, history } = React.useMemo(() => splitEnvelopes(envelopes), [envelopes]);
-
-  if (!template.enabled) {
-    return null;
-  }
 
   const handleVoid = async (envelopeId: string) => {
     try {

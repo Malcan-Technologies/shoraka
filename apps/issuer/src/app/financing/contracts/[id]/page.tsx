@@ -175,7 +175,6 @@ export default function ContractDetailsPage() {
           productId={offerModalContext.productId ?? null}
           contractId={contractId}
           invoice={offerModalContext.invoice}
-          requiresInvoiceSigning
           onClose={() => setOfferModalContext(null)}
         />
       )}

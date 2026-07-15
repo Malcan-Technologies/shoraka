@@ -4,9 +4,12 @@ import * as React from "react";
 import {
   SIGNING_ROLE_REGISTRY,
   createDefaultRoleFromRegistry,
+  parseSigningPackagesConfig,
   parseSigningTemplateConfig,
   sanitizeSigningTemplateConfig,
   type SigningDocumentSource,
+  type SigningPackageOfferKind,
+  type SigningPackagesConfig,
   type SigningRoleKey,
   type SigningTemplateConfig,
   type SigningTemplateDocument,
@@ -78,10 +81,7 @@ function normalizeSigningTemplate(next: SigningTemplateConfig): SigningTemplateC
   return sanitizeSigningTemplateConfig(sorted);
 }
 
-function availableSignerRolesForDocument(
-  template: SigningTemplateConfig,
-  document: SigningTemplateDocument
-) {
+function availableSignerRolesForDocument(document: SigningTemplateDocument) {
   const assignedKeys = new Set(document.signer_role_keys);
   return SIGNING_ROLE_REGISTRY.filter((role) => !assignedKeys.has(role.key));
 }
@@ -103,11 +103,18 @@ function rolesForDocument(template: SigningTemplateConfig, document: SigningTemp
   return template.roles.filter((role) => keySet.has(role.key));
 }
 
-export function SigningPackageConfig({
+/** Single package editor — documents and roles. Reused by contract and invoice sections. */
+function SigningPackageSection({
+  title,
+  description,
+  helperText,
   config,
   onChange,
 }: {
-  config: unknown;
+  title: string;
+  description: string;
+  helperText?: string;
+  config: SigningTemplateConfig;
   onChange: (config: SigningTemplateConfig) => void;
 }) {
   const template = React.useMemo(() => parseSigningTemplateConfig(config), [config]);
@@ -132,10 +139,6 @@ export function SigningPackageConfig({
       setPendingTemplateKey(availableTemplates[0].templateKey);
     }
   }, [availableTemplates, pendingTemplateKey]);
-
-  const handleEnabledChange = (enabled: boolean) => {
-    persist({ ...template, enabled });
-  };
 
   const addDocument = (templateKey: SystemTemplateKey) => {
     const initialRole = defaultRole(template.roles.length);
@@ -212,7 +215,7 @@ export function SigningPackageConfig({
     const document = template.documents.find((doc) => doc.key === documentKey);
     if (!document) return;
 
-    const nextRegistryRole = availableSignerRolesForDocument(template, document)[0];
+    const nextRegistryRole = availableSignerRolesForDocument(document)[0];
     if (!nextRegistryRole) return;
 
     const existingRole = template.roles.find((role) => role.key === nextRegistryRole.key);
@@ -250,227 +253,280 @@ export function SigningPackageConfig({
 
   return (
     <div className={cn("grid rounded-xl border border-border bg-card p-4 text-sm leading-6", SECTION_GAP)}>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-foreground">Signing package</h3>
-          <p className="text-sm text-muted-foreground">
-            Configure envelope documents and signer roles. Issuers assign people and send signing
-            emails when accepting an offer. Post-application supporting documents are configured in
-            the Supporting documents step — issuers upload them at offer time for storage; they are
-            not signed here.
-          </p>
-        </div>
-        <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm">
-          <Switch checked={template.enabled} onCheckedChange={handleEnabledChange} />
-          Enabled
-        </label>
+      <div className="min-w-0">
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        <p className="text-sm text-muted-foreground">{description}</p>
+        {helperText ? <p className="mt-1 text-sm text-muted-foreground">{helperText}</p> : null}
       </div>
 
-      {template.enabled ? (
-        <>
-          {availableTemplates.length > 0 ? (
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-              <div className="grid min-w-0 flex-1 gap-2 sm:max-w-md">
-                <label className="text-xs font-medium text-muted-foreground">Add document</label>
-                <Select
-                  value={pendingTemplateKey}
-                  onValueChange={(value) => setPendingTemplateKey(value as SystemTemplateKey)}
-                >
-                  <SelectTrigger className={SELECT_TRIGGER_CLASS}>
-                    <SelectValue placeholder="Select a document" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableTemplates.map((item) => (
-                      <SelectItem key={item.templateKey} value={item.templateKey}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1.5 sm:mb-0.5"
-                onClick={() => addDocument(pendingTemplateKey)}
-              >
-                <PlusIcon className="h-4 w-4" />
-                Add document
-              </Button>
-            </div>
-          ) : null}
-
-          {template.documents.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No documents yet. Select a system template above and click Add document.
-            </p>
-          ) : (
-            <ul className="grid gap-4">
-              {template.documents.map((document) => {
-                const systemTemplate = SYSTEM_SIGNING_TEMPLATES.find(
-                  (item) => item.templateKey === document.key
-                );
-                const documentRoles = rolesForDocument(template, document);
-                const canAddSignerRole = availableSignerRolesForDocument(template, document).length > 0;
-
-                return (
-                  <li
-                    key={document.key}
-                    className="grid gap-4 rounded-lg border border-border bg-muted/15 p-4"
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <h4 className="text-sm font-semibold text-foreground">
-                          {systemTemplate?.label ?? document.name}
-                        </h4>
-                        <p className="text-xs text-muted-foreground">
-                          {systemTemplate?.description ?? "System template — not uploaded"}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-2 text-sm">
-                          <Switch
-                            checked={document.required}
-                            onCheckedChange={(required) =>
-                              updateDocument(document.key, { required })
-                            }
-                          />
-                          Required
-                        </label>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                          onClick={() => removeDocument(document.key)}
-                          aria-label={`Remove ${document.name}`}
-                        >
-                          <TrashIcon className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-3 border-t border-border pt-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                            Signers at offer time
-                          </p>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            Roles the issuer fills in when accepting this offer.
-                          </p>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="gap-1.5"
-                          onClick={() => addRole(document.key)}
-                          disabled={!canAddSignerRole}
-                        >
-                          <PlusIcon className="h-4 w-4" />
-                          Add signer
-                        </Button>
-                      </div>
-
-                      {documentRoles.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">Add at least one signer.</p>
-                      ) : (
-                        <ul className="grid gap-3">
-                          {documentRoles.map((role) => (
-                            <li key={role.key} className="grid gap-2 rounded-lg bg-background p-3">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Select
-                                  value={role.key}
-                                  onValueChange={(value) =>
-                                    updateRole(document.key, role.key, {
-                                      key: value as SigningRoleKey,
-                                    })
-                                  }
-                                >
-                                  <SelectTrigger className={cn(SELECT_TRIGGER_CLASS, "h-8 w-[180px]")}>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {SIGNING_ROLE_REGISTRY.map((def) => {
-                                      const takenOnSameDocument = document.signer_role_keys.some(
-                                        (key) => key === def.key && key !== role.key
-                                      );
-                                      return (
-                                        <SelectItem
-                                          key={def.key}
-                                          value={def.key}
-                                          disabled={takenOnSameDocument}
-                                        >
-                                          {def.label}
-                                        </SelectItem>
-                                      );
-                                    })}
-                                  </SelectContent>
-                                </Select>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                                  onClick={() => removeRole(document.key, role.key)}
-                                  aria-label="Remove signer"
-                                  disabled={documentRoles.length === 1}
-                                >
-                                  <TrashIcon className="h-4 w-4" />
-                                </Button>
-                              </div>
-                              <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                                <label className="flex items-center gap-1.5">
-                                  Min at offer
-                                  <Input
-                                    type="number"
-                                    min={0}
-                                    value={role.min_count}
-                                    onChange={(event) =>
-                                      updateRole(document.key, role.key, {
-                                        min_count: Math.max(
-                                          0,
-                                          Number.parseInt(event.target.value, 10) || 0
-                                        ),
-                                      })
-                                    }
-                                    className={cn(INPUT_CLASS, "h-8 w-20")}
-                                  />
-                                </label>
-                                <label className="flex items-center gap-1.5">
-                                  Max at offer
-                                  <Input
-                                    type="number"
-                                    min={1}
-                                    value={role.max_count ?? ""}
-                                    placeholder="No limit"
-                                    onChange={(event) => {
-                                      const raw = event.target.value.trim();
-                                      updateRole(document.key, role.key, {
-                                        max_count:
-                                          raw === ""
-                                            ? null
-                                            : Math.max(1, Number.parseInt(raw, 10) || 1),
-                                      });
-                                    }}
-                                    className={cn(INPUT_CLASS, "h-8 w-24")}
-                                  />
-                                </label>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </>
+      {availableTemplates.length > 0 ? (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <div className="grid min-w-0 flex-1 gap-2 sm:max-w-md">
+            <label className="text-xs font-medium text-muted-foreground">Add document</label>
+            <Select
+              value={pendingTemplateKey}
+              onValueChange={(value) => setPendingTemplateKey(value as SystemTemplateKey)}
+            >
+              <SelectTrigger className={SELECT_TRIGGER_CLASS}>
+                <SelectValue placeholder="Select a document" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableTemplates.map((item) => (
+                  <SelectItem key={item.templateKey} value={item.templateKey}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5 sm:mb-0.5"
+            onClick={() => addDocument(pendingTemplateKey)}
+          >
+            <PlusIcon className="h-4 w-4" />
+            Add document
+          </Button>
+        </div>
       ) : null}
+
+      {template.documents.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No documents yet. Select a system template above and click Add document.
+        </p>
+      ) : (
+        <ul className="grid gap-4">
+          {template.documents.map((document) => {
+            const systemTemplate = SYSTEM_SIGNING_TEMPLATES.find(
+              (item) => item.templateKey === document.key
+            );
+            const documentRoles = rolesForDocument(template, document);
+            const canAddSignerRole = availableSignerRolesForDocument(document).length > 0;
+
+            return (
+              <li
+                key={document.key}
+                className="grid gap-4 rounded-lg border border-border bg-muted/15 p-4"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground">
+                      {systemTemplate?.label ?? document.name}
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      {systemTemplate?.description ?? "System template — not uploaded"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={document.required}
+                        onCheckedChange={(required) =>
+                          updateDocument(document.key, { required })
+                        }
+                      />
+                      Required
+                    </label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => removeDocument(document.key)}
+                      aria-label={`Remove ${document.name}`}
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 border-t border-border pt-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Signers at offer time
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Roles the issuer fills in when accepting this offer.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => addRole(document.key)}
+                      disabled={!canAddSignerRole}
+                    >
+                      <PlusIcon className="h-4 w-4" />
+                      Add signer
+                    </Button>
+                  </div>
+
+                  {documentRoles.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Add at least one signer.</p>
+                  ) : (
+                    <ul className="grid gap-3">
+                      {documentRoles.map((role) => (
+                        <li key={role.key} className="grid gap-2 rounded-lg bg-background p-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Select
+                              value={role.key}
+                              onValueChange={(value) =>
+                                updateRole(document.key, role.key, {
+                                  key: value as SigningRoleKey,
+                                })
+                              }
+                            >
+                              <SelectTrigger className={cn(SELECT_TRIGGER_CLASS, "h-8 w-[180px]")}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {SIGNING_ROLE_REGISTRY.map((def) => {
+                                  const takenOnSameDocument = document.signer_role_keys.some(
+                                    (key) => key === def.key && key !== role.key
+                                  );
+                                  return (
+                                    <SelectItem
+                                      key={def.key}
+                                      value={def.key}
+                                      disabled={takenOnSameDocument}
+                                    >
+                                      {def.label}
+                                    </SelectItem>
+                                  );
+                                })}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                              onClick={() => removeRole(document.key, role.key)}
+                              aria-label="Remove signer"
+                              disabled={documentRoles.length === 1}
+                            >
+                              <TrashIcon className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                            <label className="flex items-center gap-1.5">
+                              Min at offer
+                              <Input
+                                type="number"
+                                min={0}
+                                value={role.min_count}
+                                onChange={(event) =>
+                                  updateRole(document.key, role.key, {
+                                    min_count: Math.max(
+                                      0,
+                                      Number.parseInt(event.target.value, 10) || 0
+                                    ),
+                                  })
+                                }
+                                className={cn(INPUT_CLASS, "h-8 w-20")}
+                              />
+                            </label>
+                            <label className="flex items-center gap-1.5">
+                              Max at offer
+                              <Input
+                                type="number"
+                                min={1}
+                                value={role.max_count ?? ""}
+                                placeholder="No limit"
+                                onChange={(event) => {
+                                  const raw = event.target.value.trim();
+                                  updateRole(document.key, role.key, {
+                                    max_count:
+                                      raw === ""
+                                        ? null
+                                        : Math.max(1, Number.parseInt(raw, 10) || 1),
+                                  });
+                                }}
+                                className={cn(INPUT_CLASS, "h-8 w-24")}
+                              />
+                            </label>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+const PACKAGE_SECTIONS: Array<{
+  kind: SigningPackageOfferKind;
+  title: string;
+  description: string;
+  helperText?: string;
+}> = [
+  {
+    kind: "contract",
+    title: "Contract offer signing package",
+    description:
+      "Envelope documents and signer roles for contract offers. Issuers assign people and send signing emails when accepting a contract offer.",
+  },
+  {
+    kind: "invoice",
+    title: "Invoice offer signing package",
+    description:
+      "Envelope documents and signer roles for invoice-only invoice offers. Issuers assign people and send signing emails when accepting those offers.",
+    helperText:
+      "Not used for contract-linked invoice offers — those Accept/Decline after the contract package is completed, with no envelope.",
+  },
+];
+
+export function SigningPackageConfig({
+  config,
+  onChange,
+}: {
+  /** Financing-type step config (or packages object). Migrates legacy signing_template on read. */
+  config: unknown;
+  onChange: (packages: SigningPackagesConfig) => void;
+}) {
+  const packages = React.useMemo(() => parseSigningPackagesConfig(config), [config]);
+
+  const handlePackageChange = React.useCallback(
+    (kind: SigningPackageOfferKind, next: SigningTemplateConfig) => {
+      onChange({
+        ...packages,
+        [kind]: next,
+      });
+    },
+    [onChange, packages]
+  );
+
+  return (
+    <div className={cn("grid", SECTION_GAP)}>
+      <div className="min-w-0">
+        <h2 className="text-sm font-semibold text-foreground">Signing packages</h2>
+        <p className="text-sm text-muted-foreground">
+          Configure separate envelope templates for contract offers and invoice-only invoice offers.
+          Post-application supporting documents are configured in the Supporting documents step —
+          issuers upload them at offer time for storage; they are not signed here.
+        </p>
+      </div>
+
+      {PACKAGE_SECTIONS.map((section) => (
+        <SigningPackageSection
+          key={section.kind}
+          title={section.title}
+          description={section.description}
+          helperText={section.helperText}
+          config={packages[section.kind]}
+          onChange={(next) => handlePackageChange(section.kind, next)}
+        />
+      ))}
     </div>
   );
 }

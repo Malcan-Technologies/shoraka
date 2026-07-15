@@ -402,11 +402,9 @@ export function createApplicationRouter(): Router {
         // Dev/local-only escape hatch so QA can accept without external webhook/signing flow.
         const skipSigning = isDevSigningBypassRequested(req);
         if (readSigningCloudConfigFromEnv() && !skipSigning) {
-          throw new AppError(
-            400,
-            "USE_SIGNING_FLOW",
-            "Complete signing via the signing envelope before accepting this offer."
-          );
+          // Contract-linked + contract envelope COMPLETED may accept without an envelope.
+          // Invoice-only / incomplete contract signing still require the signing flow.
+          await applicationService.assertInvoiceOfferAcceptAllowed(id, invoiceId, userId);
         }
         const data = await applicationService.respondToInvoiceOffer(id, invoiceId, "accept", userId);
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });

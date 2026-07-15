@@ -248,6 +248,8 @@ export function SupportingDocumentsStep({
   timingFilter = "pre_application",
   amendmentRemarks = [],
   flaggedItems,
+  /** sideBySide = application flow page; stacked = narrow hosts (e.g. Review Offer modal). */
+  documentRowLayout = "sideBySide",
 }: {
   applicationId: string;
   stepConfig?: WorkflowSupportingStepConfig;
@@ -258,7 +260,9 @@ export function SupportingDocumentsStep({
   isAmendmentMode?: boolean;
   flaggedSections?: Set<string>;
   flaggedItems?: Map<string, Set<string>>;
+  documentRowLayout?: "sideBySide" | "stacked";
 }) {
+  const isStackedLayout = documentRowLayout === "stacked";
   const devTools = useDevTools();
   const { getAccessToken } = useAuthToken();
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
@@ -1007,8 +1011,13 @@ export function SupportingDocumentsStep({
                             isItemFlagged && applicationFlowAmendmentTargetTableRowClassName
                           )}
                         >
-                          {/* Stack title + controls — nested lg: side-by-side grids collapse the file chip inside Review Offer modal. */}
-                          <div className="grid grid-cols-1 gap-3">
+                          <div
+                            className={cn(
+                              "grid grid-cols-1 gap-3",
+                              !isStackedLayout &&
+                                "lg:grid-cols-[minmax(0,17rem)_1fr] lg:gap-x-4 lg:items-start"
+                            )}
+                          >
                             <div className="min-w-0 space-y-1.5">
                               <div>
                                 <h3
@@ -1070,8 +1079,20 @@ export function SupportingDocumentsStep({
                               ) : null}
                             </div>
 
-                            <div className="flex min-w-0 flex-col gap-3">
-                              <div className="min-w-0 w-full flex flex-col gap-2">
+                            <div
+                              className={cn(
+                                "flex min-w-0 flex-col gap-3",
+                                !isStackedLayout && "lg:flex-row lg:gap-3 lg:items-start"
+                              )}
+                            >
+                              <div
+                                className={cn(
+                                  "min-w-0 flex flex-col gap-2",
+                                  isStackedLayout
+                                    ? "w-full"
+                                    : "flex-1 max-w-[min(100%,26rem)] lg:max-w-[min(100%,28rem)]"
+                                )}
+                              >
                               {fileIsUploading ? (
                                 <p className="text-sm text-muted-foreground">Uploading…</p>
                               ) : hasFiles ? (
@@ -1111,7 +1132,14 @@ export function SupportingDocumentsStep({
                               ) : null}
                               </div>
 
-                            <div className="flex flex-col gap-1 w-full min-w-0 border-t border-border pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1 sm:border-t-0 sm:pt-0">
+                            <div
+                              className={cn(
+                                "flex flex-col gap-1 w-full min-w-0 border-t border-border pt-3",
+                                isStackedLayout
+                                  ? "sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1 sm:border-t-0 sm:pt-0"
+                                  : "lg:self-start lg:border-t-0 lg:pt-0 lg:min-w-[12rem] lg:w-[12rem] lg:shrink-0 lg:border-l lg:border-border lg:pl-3"
+                              )}
+                            >
                               {templateS3Key ? (
                                 <button
                                   type="button"

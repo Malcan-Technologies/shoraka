@@ -2,9 +2,9 @@
  * Multi-party signing domain contracts shared across API + portals.
  *
  * Two layers live here:
- *  1. Template config (`SigningTemplateConfig`) — product-level definition of which
- *     documents exist, which signer roles exist, and who signs what. Stored inside
- *     `Product.workflow` (see `SIGNING_TEMPLATE_WORKFLOW_KEY`) and configured by admins.
+ *  1. Template config — product-level definition of documents and signer roles.
+ *     Preferred storage: `signing_packages` (`contract` + `invoice`) under
+ *     `SIGNING_PACKAGES_WORKFLOW_KEY`. Legacy flat `signing_template` migrates on read.
  *  2. Runtime DTOs (`SigningEnvelopeDto` and friends) — the per-application envelope the
  *     API returns to admin / issuer / external signer UIs. These mirror the Prisma
  *     `signing_*` models.
@@ -94,6 +94,15 @@ export function isSigningRoleKey(value: string): value is SigningRoleKey {
 /** Key under which the signing template is stored inside Product.workflow config. */
 export const SIGNING_TEMPLATE_WORKFLOW_KEY = "signing_template";
 
+/**
+ * Preferred key for dual contract/invoice signing packages inside Product.workflow config.
+ * Replaces the legacy flat `signing_template` key (migrated on read).
+ */
+export const SIGNING_PACKAGES_WORKFLOW_KEY = "signing_packages";
+
+/** Offer kind used to pick which package from SigningPackagesConfig. */
+export type SigningPackageOfferKind = "contract" | "invoice";
+
 /** System template key for the placeholder guarantor agreement document. */
 export const GUARANTOR_AGREEMENT_TEMPLATE_KEY = "guarantor_agreement";
 
@@ -159,11 +168,22 @@ export interface SigningTemplateConfig {
   supporting_docs?: SigningTemplateSupportingDocRef[];
 }
 
+/** Dual signing packages configured on a product workflow. */
+export interface SigningPackagesConfig {
+  contract: SigningTemplateConfig;
+  invoice: SigningTemplateConfig;
+}
+
 export const DEFAULT_SIGNING_TEMPLATE_CONFIG: SigningTemplateConfig = {
   enabled: false,
   roles: [],
   documents: [],
   supporting_docs: [],
+};
+
+export const DEFAULT_SIGNING_PACKAGES_CONFIG: SigningPackagesConfig = {
+  contract: { ...DEFAULT_SIGNING_TEMPLATE_CONFIG, roles: [], documents: [], supporting_docs: [] },
+  invoice: { ...DEFAULT_SIGNING_TEMPLATE_CONFIG, roles: [], documents: [], supporting_docs: [] },
 };
 
 const DOCUMENT_SOURCES: readonly SigningDocumentSource[] = [
@@ -304,6 +324,104 @@ export function parseSigningTemplateConfig(raw: unknown): SigningTemplateConfig 
   });
 }
 
+/**
+ * Parse dual signing packages from a workflow step config object.
+ * Prefers `signing_packages`; else migrates legacy `signing_template` into both children;
+ * else returns empty defaults. Legacy `enabled` is ignored by callers of these helpers.
+ */
+export function parseSigningPackagesConfig(workflowStepConfig: unknown): SigningPackagesConfig {
+  const config = asRecord(workflowStepConfig);
+
+  if (config[SIGNING_PACKAGES_WORKFLOW_KEY] != null) {
+    const packages = asRecord(config[SIGNING_PACKAGES_WORKFLOW_KEY]);
+    return {
+      contract: parseSigningTemplateConfig(packages.contract),
+      invoice: parseSigningTemplateConfig(packages.invoice),
+    };
+  }
+
+  if (config[SIGNING_TEMPLATE_WORKFLOW_KEY] != null) {
+    const legacyRaw = config[SIGNING_TEMPLATE_WORKFLOW_KEY];
+    // Parse twice so contract and invoice are independent clones.
+    return {
+      contract: parseSigningTemplateConfig(legacyRaw),
+      invoice: parseSigningTemplateConfig(legacyRaw),
+    };
+  }
+
+  return {
+    contract: parseSigningTemplateConfig(null),
+    invoice: parseSigningTemplateConfig(null),
+  };
+}
+
+/** Resolve the signing package for a contract or invoice offer kind. */
+export function resolveSigningTemplateForOffer(input: {
+  packages: SigningPackagesConfig;
+  kind: SigningPackageOfferKind;
+}): SigningTemplateConfig {
+  return input.kind === "contract" ? input.packages.contract : input.packages.invoice;
+}
+
+/**
+ * Whether this offer kind requires a signing envelope.
+ * Contract-linked invoices (`invoiceContractId` set) skip envelopes and use direct accept
+ * after the contract package is COMPLETED.
+ */
+export function needsSigningEnvelope(input: {
+  kind: SigningPackageOfferKind;
+  /** Invoice's `contract_id` when `kind` is `"invoice"`. */
+  invoiceContractId?: string | null;
+}): boolean {
+  if (input.kind === "contract") return true;
+  return input.invoiceContractId == null || input.invoiceContractId === "";
+}
+
+/**
+ * Contract-linked invoice may be accepted without an envelope once the contract
+ * offer signing package exists with status COMPLETED.
+ */
+export function canDirectAcceptInvoice(input: {
+  invoiceContractId?: string | null;
+  hasCompletedContractEnvelope: boolean;
+}): boolean {
+  return (
+    !needsSigningEnvelope({ kind: "invoice", invoiceContractId: input.invoiceContractId }) &&
+    input.hasCompletedContractEnvelope
+  );
+}
+
+/**
+ * Persist dual signing packages on a workflow step config.
+ * Writes `signing_packages` only and removes legacy flat `signing_template`.
+ */
+export function writeSigningPackagesConfig(
+  workflowStepConfig: Record<string, unknown>,
+  packages: SigningPackagesConfig
+): Record<string, unknown> {
+  const next = { ...workflowStepConfig };
+  next[SIGNING_PACKAGES_WORKFLOW_KEY] = {
+    contract: packages.contract,
+    invoice: packages.invoice,
+  };
+  delete next[SIGNING_TEMPLATE_WORKFLOW_KEY];
+  return next;
+}
+
+/** Product template upload category key, namespaced so contract/invoice files do not collide. */
+export function signingTemplateDocumentCategoryKey(kind: SigningPackageOfferKind): string {
+  return `signing_template_document_${kind}`;
+}
+
+/** Parse a namespaced signing template document category key back to package kind. */
+export function parseSigningTemplateDocumentCategoryKey(
+  categoryKey: string
+): SigningPackageOfferKind | null {
+  if (categoryKey === "signing_template_document_contract") return "contract";
+  if (categoryKey === "signing_template_document_invoice") return "invoice";
+  return null;
+}
+
 function mergeRoleMaxCount(a: number | null, b: number | null): number | null {
   if (a == null || b == null) return null;
   return Math.max(a, b);
@@ -376,11 +494,10 @@ export function sanitizeSigningTemplateConfig(config: SigningTemplateConfig): Si
 
 /**
  * Return validation error messages for a signing template. Empty array = valid.
- * Only enforced when `enabled` is true.
+ * Packages are always on — legacy `enabled` is ignored.
  */
 export function validateSigningTemplateConfig(config: SigningTemplateConfig): string[] {
   const errors: string[] = [];
-  if (!config.enabled) return errors;
 
   if (config.roles.length === 0) errors.push("Signing: add at least one signer role.");
   if (config.documents.length === 0) {

@@ -65,7 +65,12 @@ import { StepConfigEditor } from "./step-configs/step-config-editor";
 import { SigningPackageConfig } from "./step-configs/signing-package-config";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { SIGNING_TEMPLATE_WORKFLOW_KEY, parseSigningTemplateConfig, type SigningTemplateConfig } from "@cashsouk/types";
+import {
+  parseSigningPackagesConfig,
+  parseSigningTemplateDocumentCategoryKey,
+  writeSigningPackagesConfig,
+  type SigningPackagesConfig,
+} from "@cashsouk/types";
 
 export interface ProductFormDialogProps {
   open: boolean;
@@ -254,19 +259,21 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     );
   };
 
-  const getSigningTemplateConfig = useCallback((): SigningTemplateConfig => {
+  /** Financing-type step config — SigningPackageConfig migrates legacy signing_template on read. */
+  const getSigningPackagesStepConfig = useCallback((): Record<string, unknown> => {
     const firstStep = steps.find((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY);
-    const config = (firstStep as { config?: Record<string, unknown> } | undefined)?.config ?? {};
-    return parseSigningTemplateConfig(config[SIGNING_TEMPLATE_WORKFLOW_KEY]);
+    return (firstStep as { config?: Record<string, unknown> } | undefined)?.config ?? {};
   }, [steps]);
 
-  const handleSigningTemplateChange = useCallback((template: SigningTemplateConfig) => {
+  const handleSigningPackagesChange = useCallback((packages: SigningPackagesConfig) => {
     setSteps((prev) =>
       prev.map((s) => {
         if (getStepKeyFromStepId(getStepId(s)) !== FIRST_STEP_KEY) return s;
         const step = s as Record<string, unknown>;
-        const config = { ...((step.config as Record<string, unknown> | undefined) ?? {}) };
-        config[SIGNING_TEMPLATE_WORKFLOW_KEY] = template;
+        const config = writeSigningPackagesConfig(
+          { ...((step.config as Record<string, unknown> | undefined) ?? {}) },
+          packages
+        );
         return { ...step, config };
       })
     );
@@ -348,12 +355,14 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         }
         continue;
       }
-      if (categoryKey === "signing_template_document") {
+      const signingPackageKind = parseSigningTemplateDocumentCategoryKey(categoryKey);
+      if (signingPackageKind) {
         const firstIdx = nextSteps.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY);
         if (firstIdx >= 0) {
           const step = nextSteps[firstIdx] as Record<string, unknown>;
           const config = { ...((step.config ?? {}) as Record<string, unknown>) };
-          const template = parseSigningTemplateConfig(config[SIGNING_TEMPLATE_WORKFLOW_KEY]);
+          const packages = parseSigningPackagesConfig(config);
+          const template = packages[signingPackageKind];
           const documents = [...template.documents];
           const document = documents[index];
           if (document) {
@@ -361,8 +370,10 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
               ...document,
               template: { s3_key: s3Key, file_name: file.name, file_size: file.size },
             };
-            config[SIGNING_TEMPLATE_WORKFLOW_KEY] = { ...template, documents };
-            step.config = config;
+            step.config = writeSigningPackagesConfig(config, {
+              ...packages,
+              [signingPackageKind]: { ...template, documents },
+            });
           }
         }
         continue;
@@ -856,8 +867,8 @@ const hasChanges = !isEdit
               </div>
 
               <SigningPackageConfig
-                config={getSigningTemplateConfig()}
-                onChange={handleSigningTemplateChange}
+                config={getSigningPackagesStepConfig()}
+                onChange={handleSigningPackagesChange}
               />
 
               {/* Offer settings — below workflow steps, card layout to match workflow container */}

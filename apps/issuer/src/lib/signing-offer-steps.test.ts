@@ -4,8 +4,10 @@ import {
   getCurrentSigningOfferStepId,
   getSigningOfferStepIndex,
   getSigningOfferSteps,
+  hasCompletedContractEnvelope,
   hasPostApplicationDocuments,
   isSigningOfferStepReachable,
+  resolveReviewOfferModalMode,
 } from "./signing-offer-steps";
 
 const unlockedBase = {
@@ -177,5 +179,78 @@ describe("getCurrentSigningOfferStepId locked package", () => {
         envelopeCompleted: true,
       })
     ).toBe("complete");
+  });
+});
+
+describe("resolveReviewOfferModalMode", () => {
+  it("uses contract package stepper for contract offers", () => {
+    expect(
+      resolveReviewOfferModalMode({
+        offerType: "contract",
+        invoiceContractId: null,
+        hasCompletedContractEnvelope: false,
+      })
+    ).toEqual({ ui: "signing_stepper", packageKind: "contract" });
+  });
+
+  it("uses invoice package stepper for invoice-only offers", () => {
+    expect(
+      resolveReviewOfferModalMode({
+        offerType: "invoice",
+        invoiceContractId: null,
+        hasCompletedContractEnvelope: false,
+      })
+    ).toEqual({ ui: "signing_stepper", packageKind: "invoice" });
+  });
+
+  it("allows Accept/Decline when contract-linked and contract envelope is COMPLETED", () => {
+    expect(
+      resolveReviewOfferModalMode({
+        offerType: "invoice",
+        invoiceContractId: "ctr-1",
+        hasCompletedContractEnvelope: true,
+      })
+    ).toEqual({ ui: "accept_decline", canAccept: true });
+  });
+
+  it("blocks Accept when contract-linked but contract envelope is not COMPLETED", () => {
+    const mode = resolveReviewOfferModalMode({
+      offerType: "invoice",
+      invoiceContractId: "ctr-1",
+      hasCompletedContractEnvelope: false,
+    });
+    expect(mode).toMatchObject({ ui: "accept_decline", canAccept: false });
+    if (mode.ui === "accept_decline") {
+      expect(mode.blockedMessage).toMatch(/contract signing/i);
+    }
+  });
+});
+
+describe("hasCompletedContractEnvelope", () => {
+  it("is true when a COMPLETED envelope targets the contract", () => {
+    expect(
+      hasCompletedContractEnvelope(
+        [
+          { contract_id: "other", status: "COMPLETED" },
+          { contract_id: "ctr-1", status: "COMPLETED" },
+        ],
+        "ctr-1"
+      )
+    ).toBe(true);
+  });
+
+  it("is false when the contract envelope is not COMPLETED", () => {
+    expect(
+      hasCompletedContractEnvelope(
+        [{ contract_id: "ctr-1", status: "IN_PROGRESS" }],
+        "ctr-1"
+      )
+    ).toBe(false);
+  });
+
+  it("is false when contractId is missing", () => {
+    expect(
+      hasCompletedContractEnvelope([{ contract_id: "ctr-1", status: "COMPLETED" }], null)
+    ).toBe(false);
   });
 });

@@ -41,12 +41,13 @@ import {
   UserGroupIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
-import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
 import type { NormalizedInvoice } from "../status";
 import {
+  SIGNING_PACKAGES_WORKFLOW_KEY,
   SIGNING_TEMPLATE_WORKFLOW_KEY,
-  parseSigningTemplateConfig,
+  parseSigningPackagesConfig,
+  resolveSigningTemplateForOffer,
   isValidSigningIcNumber,
   normalizeSigningIcNumber,
   roleRequiresBindingIcAtOffer,
@@ -54,6 +55,7 @@ import {
   type ApplicationPersonRow,
   type RecipientBinding,
   type SigningEnvelopeDto,
+  type SigningPackageOfferKind,
   type SigningTemplateConfig,
   type SigningTemplateRole,
   computeSigningEnvelopeProgress,
@@ -63,13 +65,15 @@ import { Input } from "@/components/ui/input";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SigningProgressMatrix } from "@/components/signing/signing-progress-matrix";
-import { SigningProgressStepper } from "@/components/signing/signing-progress-stepper";
+import { SigningProgressStepper, type SigningOfferStep } from "@/components/signing/signing-progress-stepper";
 import {
   getCurrentSigningOfferStepId,
   findSupportingDocumentsStepConfig,
   getSigningOfferSteps,
+  hasCompletedContractEnvelope,
   hasPostApplicationDocuments,
   isSigningOfferStepReachable,
+  resolveReviewOfferModalMode,
   type SigningOfferStepId,
 } from "@/lib/signing-offer-steps";
 import { Badge } from "@/components/ui/badge";
@@ -103,7 +107,6 @@ type ReviewOfferModalProps = {
   productId?: string | null;
   contractId?: string;
   invoice?: NormalizedInvoice | null;
-  requiresInvoiceSigning?: boolean;
   onClose: () => void;
 };
 
@@ -157,15 +160,29 @@ function getApiErrorDetails(
   };
 }
 
-function readSigningTemplate(workflow: unknown): SigningTemplateConfig {
+/** Resolve contract or invoice package from frozen workflow (dual packages or legacy). */
+function readSigningTemplateForOffer(
+  workflow: unknown,
+  kind: SigningPackageOfferKind
+): SigningTemplateConfig {
   const steps = Array.isArray(workflow) ? workflow : [];
   for (const step of steps) {
     const config = (step as { config?: Record<string, unknown> } | null)?.config;
-    if (config && config[SIGNING_TEMPLATE_WORKFLOW_KEY] != null) {
-      return parseSigningTemplateConfig(config[SIGNING_TEMPLATE_WORKFLOW_KEY]);
+    if (!config) continue;
+    if (
+      config[SIGNING_PACKAGES_WORKFLOW_KEY] != null ||
+      config[SIGNING_TEMPLATE_WORKFLOW_KEY] != null
+    ) {
+      return resolveSigningTemplateForOffer({
+        packages: parseSigningPackagesConfig(config),
+        kind,
+      });
     }
   }
-  return parseSigningTemplateConfig(null);
+  return resolveSigningTemplateForOffer({
+    packages: parseSigningPackagesConfig(null),
+    kind,
+  });
 }
 
 type IssuerDirectorOption = {
@@ -588,7 +605,6 @@ export function ReviewOfferModal({
   productId: _unusedProductId,
   contractId,
   invoice,
-  requiresInvoiceSigning = true,
   onClose,
 }: ReviewOfferModalProps) {
   // productId kept in props for callers; signing/post-docs use frozen application workflow.
@@ -625,11 +641,8 @@ export function ReviewOfferModal({
     () => hasPostApplicationDocuments(supportingDocumentsStepConfig),
     [supportingDocumentsStepConfig]
   );
-  const signingTemplate = React.useMemo(
-    () => readSigningTemplate(frozenProductWorkflow?.workflow),
-    [frozenProductWorkflow]
-  );
-  const useEnvelopeSigning = signingTemplate.enabled;
+  const invoiceContractId =
+    type === "invoice" ? (invoice?.contractId ?? contractId ?? null) : null;
   const envelopeTargetInvoiceId = type === "invoice" ? invoice?.id : null;
   const { data: signingEnvelopes = [], isLoading: isLoadingSigningEnvelopes } = useQuery({
     queryKey: ["signing-envelopes", applicationId],
@@ -640,8 +653,24 @@ export function ReviewOfferModal({
       }
       return response.data;
     },
-    enabled: useEnvelopeSigning,
+    enabled: Boolean(applicationId),
   });
+  const contractEnvelopeCompleted = hasCompletedContractEnvelope(
+    signingEnvelopes,
+    invoiceContractId
+  );
+  const modalMode = resolveReviewOfferModalMode({
+    offerType: type,
+    invoiceContractId,
+    hasCompletedContractEnvelope: contractEnvelopeCompleted,
+  });
+  const useSigningStepper = modalMode.ui === "signing_stepper";
+  const packageKind: SigningPackageOfferKind =
+    modalMode.ui === "signing_stepper" ? modalMode.packageKind : "invoice";
+  const signingTemplate = React.useMemo(
+    () => readSigningTemplateForOffer(frozenProductWorkflow?.workflow, packageKind),
+    [frozenProductWorkflow, packageKind]
+  );
   const activeSigningEnvelope = React.useMemo(
     () =>
       findActiveSigningEnvelope(signingEnvelopes, type, contractId, envelopeTargetInvoiceId),
@@ -652,9 +681,9 @@ export function ReviewOfferModal({
   const canRemindSigners =
     activeSigningEnvelope != null &&
     (activeSigningEnvelope.status === "SENT" || activeSigningEnvelope.status === "IN_PROGRESS");
-  const { data: applicationRecord } = useApplication(useEnvelopeSigning ? applicationId : "");
+  const { data: applicationRecord } = useApplication(useSigningStepper ? applicationId : "");
   const { data: corporateEntities } = useCorporateEntities(
-    useEnvelopeSigning ? issuerOrganizationId : undefined
+    useSigningStepper ? issuerOrganizationId : undefined
   );
   const directorSourceOrganization = React.useMemo(() => {
     if (corporateEntities?.people?.length) {
@@ -667,9 +696,11 @@ export function ReviewOfferModal({
     [directorSourceOrganization]
   );
 
-  const shouldLoadContract = !!contractId;
+  const shouldLoadContract = type === "contract" ? !!contractId : !!invoiceContractId;
+  const contractLookupId =
+    type === "contract" ? contractId : (invoiceContractId ?? undefined);
   const { data: contractRecord, isLoading: isLoadingContract } = useContract(
-    shouldLoadContract && contractId ? contractId : ""
+    shouldLoadContract && contractLookupId ? contractLookupId : ""
   );
 
   const rejectContract = useRejectContractOffer();
@@ -725,7 +756,7 @@ export function ReviewOfferModal({
   const isSigningOverrideEnabled = process.env.NODE_ENV !== "production";
 
   React.useEffect(() => {
-    if (!signingTemplate.enabled) {
+    if (!useSigningStepper) {
       setSignerBindings([]);
       return;
     }
@@ -747,6 +778,7 @@ export function ReviewOfferModal({
     directorSourceOrganization,
     isLoadingSigningEnvelopes,
     signingTemplate,
+    useSigningStepper,
   ]);
 
   const contractDetails = (contractRecord as { contract_details?: Record<string, unknown> } | null)?.contract_details;
@@ -832,7 +864,7 @@ export function ReviewOfferModal({
       ? offeredFacilityNumber * (facilityFeeRatePercentNumber / 100)
       : null;
 
-  const isContractLinkedInvoice = type === "invoice" && !!contractId;
+  const isContractLinkedInvoice = type === "invoice" && !!invoiceContractId;
 
   const approvedFacilityAmountNumber =
     isContractLinkedInvoice && contractDetails?.approved_facility != null
@@ -971,8 +1003,8 @@ export function ReviewOfferModal({
       throw new Error("Loading signing configuration. Please wait a moment.");
     }
 
-    if (!useEnvelopeSigning) {
-      throw new Error("Signing package is not configured for this product.");
+    if (!useSigningStepper) {
+      throw new Error("Signing package is not used for this offer.");
     }
 
     const invoiceId = type === "invoice" ? invoice?.id : null;
@@ -1033,7 +1065,7 @@ export function ReviewOfferModal({
     queryClient,
     signerBindings,
     type,
-    useEnvelopeSigning,
+    useSigningStepper,
   ]);
 
   const ensurePostApplicationDocumentsSaved = React.useCallback(async (): Promise<boolean> => {
@@ -1091,8 +1123,7 @@ export function ReviewOfferModal({
     signersLocked,
   ]);
 
-  const needsSigningConfirm =
-    useEnvelopeSigning && !(type === "invoice" && !requiresInvoiceSigning);
+  const needsSigningConfirm = useSigningStepper;
 
   const signingConfirmGroups = React.useMemo(
     () => buildSigningConfirmGroups(signerBindings, signingTemplate),
@@ -1142,9 +1173,13 @@ export function ReviewOfferModal({
       return false;
     }
 
-    if (type === "invoice" && !requiresInvoiceSigning) {
-      const docsReady = await ensurePostApplicationDocumentsSaved();
-      if (!docsReady) return false;
+    if (modalMode.ui === "accept_decline") {
+      if (!modalMode.canAccept) {
+        toast.error("Cannot accept yet", {
+          description: modalMode.blockedMessage,
+        });
+        return false;
+      }
       setAcceptSigningLoading(true);
       try {
         await acceptInvoice.mutateAsync({ applicationId, invoiceId: invoiceId! });
@@ -1161,12 +1196,10 @@ export function ReviewOfferModal({
     const docsReady = await ensurePostApplicationDocumentsSaved();
     if (!docsReady) return false;
 
-    if (useEnvelopeSigning) {
-      const bindingError = validateSignerBindings(signerBindings, signingTemplate);
-      if (bindingError) {
-        toast.error("Review signer details", { description: bindingError });
-        return false;
-      }
+    const bindingError = validateSignerBindings(signerBindings, signingTemplate);
+    if (bindingError) {
+      toast.error("Review signer details", { description: bindingError });
+      return false;
     }
 
     return true;
@@ -1876,6 +1909,7 @@ export function ReviewOfferModal({
                   timingFilter="post_application"
                   onDataChange={handlePostDocsDataChange}
                   readOnly={signersLocked}
+                  documentRowLayout="stacked"
                 />
               ) : null}
               {!signersLocked && !isLoadingFrozenProductWorkflow && !postDocsReady ? (
@@ -2015,245 +2049,360 @@ export function ReviewOfferModal({
     }
   };
 
+  const acceptDeclineSteps: SigningOfferStep[] = [
+    {
+      id: "respond",
+      label: "Respond to offer",
+      description: "Accept or decline this invoice offer",
+      status: "current",
+    },
+  ];
+
+  const canDirectAccept =
+    modalMode.ui === "accept_decline" &&
+    modalMode.canAccept &&
+    !isLoadingSigningEnvelopes;
+
+  const linkedContractTitle =
+    contractDetails?.title != null || contractDetails?.contract_title != null
+      ? String(contractDetails.title ?? contractDetails.contract_title)
+      : "—";
+  const linkedContractValueNumber =
+    contractDetails != null &&
+    (contractDetails.contract_value != null || contractDetails.value != null)
+      ? (() => {
+          const n = Number(contractDetails.contract_value ?? contractDetails.value);
+          return Number.isFinite(n) ? n : null;
+        })()
+      : null;
+  const linkedContractStartDate = contractDetails?.start_date
+    ? formatDateOrDash(String(contractDetails.start_date))
+    : null;
+  const linkedContractEndDate = contractDetails?.end_date
+    ? formatDateOrDash(String(contractDetails.end_date))
+    : null;
+  const linkedContractOfferDetails = (
+    contractRecord as { offer_details?: Record<string, unknown> } | null
+  )?.offer_details;
+  const linkedRequestedFacilityNumber =
+    linkedContractOfferDetails?.requested_facility != null &&
+    Number.isFinite(Number(linkedContractOfferDetails.requested_facility))
+      ? Number(linkedContractOfferDetails.requested_facility)
+      : approvedFacilityAmountNumber;
+  const linkedFacilityFeeRatePercent =
+    contractFacilityFeeRatePercentNumber ??
+    (linkedContractOfferDetails?.facility_fee_rate_percent != null &&
+    Number.isFinite(Number(linkedContractOfferDetails.facility_fee_rate_percent))
+      ? Number(linkedContractOfferDetails.facility_fee_rate_percent)
+      : null);
+  const linkedOfferedFacilityNumber =
+    linkedContractOfferDetails?.offered_facility != null &&
+    Number.isFinite(Number(linkedContractOfferDetails.offered_facility))
+      ? Number(linkedContractOfferDetails.offered_facility)
+      : approvedFacilityAmountNumber;
+  const linkedFacilityFeeCapNumber =
+    linkedFacilityFeeRatePercent != null && linkedOfferedFacilityNumber != null
+      ? linkedOfferedFacilityNumber * (linkedFacilityFeeRatePercent / 100)
+      : null;
+
+  const linkedContractDetailsList = (
+    <dl className="space-y-3 text-sm">
+      <div className="space-y-1">
+        <dt className="text-muted-foreground">Contract name</dt>
+        <dd className="font-medium break-words">{linkedContractTitle}</dd>
+      </div>
+      {linkedContractValueNumber != null ? (
+        <div className="space-y-1">
+          <dt className="text-muted-foreground">Contract value</dt>
+          <dd className="font-medium tabular-nums">{formatCurrency(linkedContractValueNumber)}</dd>
+        </div>
+      ) : null}
+      {linkedRequestedFacilityNumber != null ? (
+        <div className="space-y-1">
+          <dt className="text-muted-foreground">Approved facility</dt>
+          <dd className="font-medium tabular-nums">
+            {formatCurrency(linkedRequestedFacilityNumber)}
+          </dd>
+        </div>
+      ) : null}
+      <div className="space-y-1">
+        <dt className="text-muted-foreground">Contract period</dt>
+        <dd className="font-medium tabular-nums">
+          {linkedContractStartDate != null && linkedContractEndDate != null
+            ? `${linkedContractStartDate} – ${linkedContractEndDate}`
+            : "—"}
+        </dd>
+      </div>
+      <div className="space-y-1">
+        <dt className="text-muted-foreground inline-flex items-center gap-1">
+          Facility fee rate
+          <InfoTooltip
+            content={CONTRACT_FACILITY_FEE_RATE_TOOLTIP}
+            iconClassName="h-3.5 w-3.5 shrink-0"
+          />
+        </dt>
+        <dd className="font-medium tabular-nums">
+          {linkedFacilityFeeRatePercent != null ? `${linkedFacilityFeeRatePercent}%` : "—"}
+        </dd>
+      </div>
+      {linkedFacilityFeeCapNumber != null ? (
+        <div className="space-y-1">
+          <dt className="text-muted-foreground inline-flex items-center gap-1">
+            Facility fee cap
+            <InfoTooltip
+              content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP}
+              iconClassName="h-3.5 w-3.5 shrink-0"
+            />
+          </dt>
+          <dd className="font-medium tabular-nums">
+            {formatCurrency(linkedFacilityFeeCapNumber)}
+          </dd>
+        </div>
+      ) : null}
+    </dl>
+  );
+
+  const invoiceOfferTermsList =
+    type === "invoice" ? (
+      <dl className="space-y-3 text-sm">
+        <div className="space-y-1">
+          <dt className="text-muted-foreground">Invoice number</dt>
+          <dd className="font-medium break-words">{contractName}</dd>
+        </div>
+        <div className="space-y-1">
+          <dt className="text-muted-foreground">{summarySecondLabel}</dt>
+          <dd className="font-medium tabular-nums">{summarySecondValue}</dd>
+        </div>
+        {requestedFinancingNumber != null ? (
+          <div className="space-y-1">
+            <dt className="text-muted-foreground">Requested financing</dt>
+            <dd className="font-medium tabular-nums">{formatCurrency(requestedFinancingNumber)}</dd>
+          </div>
+        ) : null}
+        {invoiceMaturityDate != null ? (
+          <div className="space-y-1">
+            <dt className="text-muted-foreground">Maturity date</dt>
+            <dd className="font-medium tabular-nums">{invoiceMaturityDate}</dd>
+          </div>
+        ) : null}
+        <div className="space-y-1">
+          <dt className="text-muted-foreground inline-flex items-center gap-1">
+            {summaryThirdLabel}
+            <InfoTooltip content={PROFIT_RATE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+          </dt>
+          <dd className="font-medium tabular-nums">{summaryThirdValue}</dd>
+        </div>
+        <div className="space-y-1">
+          <dt className="text-muted-foreground inline-flex items-center gap-1">
+            Platform fee
+            <InfoTooltip content={PLATFORM_FEE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+          </dt>
+          <dd className="font-medium tabular-nums">
+            {expectedPlatformFeeNumber != null ? formatCurrency(expectedPlatformFeeNumber) : "—"}
+          </dd>
+        </div>
+        <div className="space-y-1">
+          <dt className="text-muted-foreground inline-flex items-center gap-1">
+            Estimated facility fee
+            <InfoTooltip content={facilityFeeEstimatedTooltip} iconClassName="h-3.5 w-3.5 shrink-0" />
+          </dt>
+          <dd className="font-medium tabular-nums">
+            {expectedFacilityFeeNumber != null ? formatCurrency(expectedFacilityFeeNumber) : "—"}
+          </dd>
+        </div>
+      </dl>
+    ) : null;
+
+  const renderAcceptDeclineContent = () => {
+    if (isRejectMode) {
+      return renderSigningStepContent("signers");
+    }
+
+    const acceptDisabled =
+      isPending ||
+      isLoadingSigningEnvelopes ||
+      (modalMode.ui === "accept_decline" && !modalMode.canAccept);
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <DocumentTextIcon className="h-5 w-5 text-primary" />
+            Offer terms
+          </CardTitle>
+          <CardDescription>
+            {canDirectAccept
+              ? "No signing package is required for this invoice. Review the terms, then accept or decline."
+              : (modalMode.ui === "accept_decline" && modalMode.blockedMessage) ||
+                "Finish contract signing first before accepting this invoice offer."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {invoiceOfferTermsList}
+          <Separator />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full gap-2 rounded-xl"
+            onClick={handleDownload}
+            disabled={!canDownload || downloading}
+          >
+            <ArrowDownTrayIcon className="h-4 w-4" />
+            {downloading ? "Downloading…" : "Download offer letter"}
+          </Button>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <CalendarDaysIcon className="h-4 w-4 shrink-0" />
+            <span>Respond by {expiresAt}</span>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Button
+              variant="outline"
+              className="h-11 rounded-xl"
+              disabled={isPending}
+              onClick={() => setIsRejectMode(true)}
+            >
+              Decline offer
+            </Button>
+            <Button className="h-11 rounded-xl" onClick={handleAccept} disabled={acceptDisabled}>
+              {acceptSigningLoading || acceptInvoice.isPending ? "Accepting..." : "Accept offer"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <Dialog open={true} onOpenChange={(open) => !open && requestClose()}>
-      <DialogContent
-        className={cn(
-          "max-h-[90vh] overflow-y-auto rounded-xl border-border p-6 gap-0",
-          useEnvelopeSigning ? "max-w-4xl" : "sm:max-w-[720px]"
-        )}
-      >
-        {useEnvelopeSigning ? (
-          <>
-            <DialogHeader>
-              <div className="flex items-center justify-between gap-4">
-                <DialogTitle className="text-xl flex items-center gap-3">
-                  Review financing offer
-                  <Badge variant="outline" className="font-normal">
-                    {type === "contract" ? "Contract" : "Invoice"}
-                  </Badge>
-                  <Badge
-                    variant="secondary"
-                    className="border-transparent bg-status-success-bg font-normal text-status-success-text"
-                  >
-                    {offeredValue} approved
-                  </Badge>
-                </DialogTitle>
-              </div>
-              <DialogDescription>
-                Complete each step to accept this offer.
-              </DialogDescription>
-            </DialogHeader>
+      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto rounded-xl border-border p-6 gap-0">
+        <DialogHeader>
+          <div className="flex items-center justify-between gap-4">
+            <DialogTitle className="text-xl flex items-center gap-3">
+              Review financing offer
+              <Badge variant="outline" className="font-normal">
+                {type === "contract" ? "Contract" : "Invoice"}
+              </Badge>
+              <Badge
+                variant="secondary"
+                className="border-transparent bg-status-success-bg font-normal text-status-success-text"
+              >
+                {offeredValue} approved
+              </Badge>
+            </DialogTitle>
+          </div>
+          <DialogDescription>
+            {useSigningStepper
+              ? "Complete each step to accept this offer."
+              : "Accept or decline this offer."}
+          </DialogDescription>
+        </DialogHeader>
 
-            {isLoading ? (
-              <p className="py-8 text-sm text-muted-foreground">Loading offer...</p>
-            ) : (
-              <>
-                <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]">
-                  <div className="space-y-4">
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">
-                          Signing progress
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <SigningProgressStepper
-                          steps={signingSteps}
-                          onStepClick={(stepId) =>
-                            handleSigningStepSelect(stepId as SigningOfferStepId)
-                          }
-                        />
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm font-medium text-muted-foreground">
-                          Offer details
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        {offerDetailsList}
-                        <Separator />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="w-full gap-2 rounded-xl"
-                          onClick={handleDownload}
-                          disabled={!canDownload || downloading}
-                        >
-                          <ArrowDownTrayIcon className="h-4 w-4" />
-                          {downloading ? "Downloading…" : "Download offer letter"}
-                        </Button>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <CalendarDaysIcon className="h-4 w-4 shrink-0" />
-                          <span>Respond by {expiresAt}</span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <div className="min-w-0">
-                    {renderSigningStepContent(displaySigningStepId)}
-                  </div>
-                </div>
-
-                <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t pt-4">
-                  <Button
-                    variant={isRejectMode ? "outline" : "destructive"}
-                    onClick={() =>
-                      setIsRejectMode((prev) => {
-                        if (prev) {
-                          setRejectionReason("");
-                          setSelectedDeclineReason("");
-                        }
-                        return !prev;
-                      })
-                    }
-                    disabled={isPending || isPostDocsConfigLoading}
-                    className="rounded-xl"
-                  >
-                    {isRejectMode ? "Cancel decline" : "Decline offer"}
-                  </Button>
-                  <Button variant="outline" className="rounded-xl" onClick={requestClose}>
-                    Close
-                  </Button>
-                </div>
-
-                {isSigningOverrideEnabled ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAcceptOverride}
-                    disabled={isPending}
-                    className="mt-3 h-9 w-full rounded-xl border-dashed border-amber-500/40 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/20"
-                  >
-                    Accept without signing (local override)
-                  </Button>
-                ) : null}
-              </>
-            )}
-          </>
+        {isLoading ? (
+          <p className="py-8 text-sm text-muted-foreground">Loading offer...</p>
         ) : (
           <>
-            <DialogTitle className="sr-only">
-              Financing offer approved — Review and respond
-            </DialogTitle>
-            <DialogDescription className="sr-only">
-              Review the financing offer and accept or decline.
-            </DialogDescription>
-            {isLoading ? (
-              <p className="py-8 text-sm text-muted-foreground">Loading offer...</p>
-            ) : (
-              <>
-                <div className="mb-6 flex flex-col items-center text-center">
-                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-status-success-bg">
-                    <CheckIconSolid className="h-7 w-7 text-status-success-text" />
-                  </div>
-                  <p className="text-base font-semibold text-foreground">
-                    Congratulations! Your {type === "contract" ? "contract" : "invoice"} financing
-                    request
-                  </p>
-                  <p className="mt-2 text-3xl font-extrabold tracking-tight text-status-success-text sm:text-4xl">
-                    {offeredValue}
-                  </p>
-                  <p className="mt-1 text-base font-semibold text-foreground">has been approved</p>
-                </div>
-
-                <div className="rounded-xl bg-muted/30 p-4">{offerDetailsList}</div>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="mt-4 h-11 w-full gap-2 rounded-xl"
-                  onClick={handleDownload}
-                  disabled={!canDownload || downloading}
-                >
-                  <ArrowDownTrayIcon className="h-4 w-4" />
-                  {downloading ? "Downloading…" : "Download offer letter"}
-                </Button>
-
-                <div className="mt-6 grid grid-cols-2 gap-4">
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={() => setIsRejectMode((prev) => !prev)}
-                    disabled={isPending}
-                    className={cn(
-                      "h-12 rounded-xl",
-                      isRejectMode &&
-                        "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/15"
-                    )}
-                  >
-                    Decline offer
-                  </Button>
-                  <Button
-                    size="lg"
-                    onClick={handleAccept}
-                    disabled={isPending}
-                    className="h-12 rounded-xl bg-status-success-text text-white hover:bg-status-success-text/90"
-                  >
-                    {acceptInvoice.isPending ? "Accepting..." : "Accept offer"}
-                  </Button>
-                </div>
-
-                {isRejectMode ? (
-                  <div className="mt-6 space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="decline-primary-reason-simple">Reason (required)</Label>
-                      <Select
-                        value={selectedDeclineReason}
-                        onValueChange={(value) => {
-                          setSelectedDeclineReason(value);
-                          if (value !== OTHER_ISSUER_DECLINE_REASON_VALUE) setRejectionReason("");
-                        }}
-                        disabled={isPending}
-                      >
-                        <SelectTrigger id="decline-primary-reason-simple" className="rounded-xl">
-                          <SelectValue placeholder="Select a primary reason" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ISSUER_OFFER_DECLINE_REASONS.map((reason) => (
-                            <SelectItem key={reason} value={reason}>
-                              {reason}
-                            </SelectItem>
-                          ))}
-                          <SelectItem value={OTHER_ISSUER_DECLINE_REASON_VALUE}>
-                            Other (manual reason)
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <TextareaWithCharCount
-                      id="rejection-reason-simple"
-                      value={rejectionReason}
-                      onChange={(e) =>
-                        setRejectionReason(e.target.value.slice(0, DECLINE_CONTEXT_MAX))
+            <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]">
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      {useSigningStepper ? "Signing progress" : "Offer progress"}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <SigningProgressStepper
+                      steps={useSigningStepper ? signingSteps : acceptDeclineSteps}
+                      onStepClick={
+                        useSigningStepper
+                          ? (stepId) => handleSigningStepSelect(stepId as SigningOfferStepId)
+                          : undefined
                       }
-                      rows={4}
-                      className="rounded-xl bg-muted/40"
-                      maxLength={DECLINE_CONTEXT_MAX}
-                      countLabel={`${rejectionReason.length}/${DECLINE_CONTEXT_MAX} characters`}
-                      disabled={isPending}
                     />
-                    <Button
-                      variant="outline"
-                      className="w-full rounded-xl"
-                      disabled={confirmDeclineDisabled}
-                      onClick={handleReject}
-                    >
-                      Confirm decline
-                    </Button>
-                  </div>
-                ) : null}
+                  </CardContent>
+                </Card>
 
-                <p className="mt-6 text-center text-sm text-muted-foreground">
-                  Please respond to this offer by {expiresAt}.
-                </p>
-              </>
-            )}
+                {useSigningStepper ? (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">
+                        Offer details
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {offerDetailsList}
+                      <Separator />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full gap-2 rounded-xl"
+                        onClick={handleDownload}
+                        disabled={!canDownload || downloading}
+                      >
+                        <ArrowDownTrayIcon className="h-4 w-4" />
+                        {downloading ? "Downloading…" : "Download offer letter"}
+                      </Button>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <CalendarDaysIcon className="h-4 w-4 shrink-0" />
+                        <span>Respond by {expiresAt}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">
+                        Contract details
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>{linkedContractDetailsList}</CardContent>
+                  </Card>
+                )}
+              </div>
+
+              <div className="min-w-0">
+                {useSigningStepper
+                  ? renderSigningStepContent(displaySigningStepId)
+                  : renderAcceptDeclineContent()}
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t pt-4">
+              {useSigningStepper || isRejectMode ? (
+                <Button
+                  variant={isRejectMode ? "outline" : "destructive"}
+                  onClick={() =>
+                    setIsRejectMode((prev) => {
+                      if (prev) {
+                        setRejectionReason("");
+                        setSelectedDeclineReason("");
+                      }
+                      return !prev;
+                    })
+                  }
+                  disabled={isPending || (useSigningStepper && isPostDocsConfigLoading)}
+                  className="rounded-xl"
+                >
+                  {isRejectMode ? "Cancel decline" : "Decline offer"}
+                </Button>
+              ) : null}
+              <Button variant="outline" className="rounded-xl" onClick={requestClose}>
+                Close
+              </Button>
+            </div>
+
+            {useSigningStepper && isSigningOverrideEnabled ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAcceptOverride}
+                disabled={isPending}
+                className="mt-3 h-9 w-full rounded-xl border-dashed border-amber-500/40 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/20"
+              >
+                Accept without signing (local override)
+              </Button>
+            ) : null}
           </>
         )}
       </DialogContent>

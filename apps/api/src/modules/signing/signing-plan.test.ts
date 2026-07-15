@@ -1,5 +1,10 @@
 import {
   parseSigningTemplateConfig,
+  parseSigningPackagesConfig,
+  resolveSigningTemplateForOffer,
+  writeSigningPackagesConfig,
+  signingTemplateDocumentCategoryKey,
+  parseSigningTemplateDocumentCategoryKey,
   validateSigningTemplateConfig,
   validateRecipientBindings,
   buildEnvelopePlanFromTemplate,
@@ -9,6 +14,10 @@ import {
   rollupDocumentStatus,
   rollupRecipientStatus,
   rollupEnvelopeStatus,
+  needsSigningEnvelope,
+  canDirectAcceptInvoice,
+  SIGNING_PACKAGES_WORKFLOW_KEY,
+  SIGNING_TEMPLATE_WORKFLOW_KEY,
   type SigningTemplateConfig,
   type RecipientBinding,
   type SigningEnvelopeDto,
@@ -170,13 +179,270 @@ describe("parseSigningTemplateConfig", () => {
   });
 });
 
+describe("parseSigningPackagesConfig", () => {
+  const contractBody = {
+    enabled: false,
+    roles: [{ key: "issuer_director", label: "Director" }],
+    documents: [
+      {
+        key: "facility",
+        name: "Facility Agreement",
+        source: "TEMPLATE",
+        order: 0,
+        signer_role_keys: ["issuer_director"],
+      },
+    ],
+  };
+
+  const invoiceBody = {
+    enabled: false,
+    roles: [{ key: "issuer_director", label: "Director" }],
+    documents: [
+      {
+        key: "invoice_letter",
+        name: "Invoice Offer Letter",
+        source: "GENERATED_OFFER_LETTER",
+        order: 0,
+        signer_role_keys: ["issuer_director"],
+      },
+    ],
+  };
+
+  it("exposes SIGNING_PACKAGES_WORKFLOW_KEY as signing_packages", () => {
+    expect(SIGNING_PACKAGES_WORKFLOW_KEY).toBe("signing_packages");
+    expect(SIGNING_TEMPLATE_WORKFLOW_KEY).toBe("signing_template");
+  });
+
+  it("parses nested signing_packages contract and invoice children", () => {
+    const packages = parseSigningPackagesConfig({
+      [SIGNING_PACKAGES_WORKFLOW_KEY]: {
+        contract: contractBody,
+        invoice: invoiceBody,
+      },
+    });
+    expect(packages.contract.documents.map((d) => d.key)).toEqual(["facility"]);
+    expect(packages.invoice.documents.map((d) => d.key)).toEqual(["invoice_letter"]);
+  });
+
+  it("migrates legacy signing_template to contract and cloned invoice", () => {
+    const packages = parseSigningPackagesConfig({
+      [SIGNING_TEMPLATE_WORKFLOW_KEY]: contractBody,
+    });
+    expect(packages.contract.documents.map((d) => d.key)).toEqual(["facility"]);
+    expect(packages.invoice.documents.map((d) => d.key)).toEqual(["facility"]);
+    // Clone: mutating one child must not affect the other
+    packages.invoice.documents.push({
+      key: "extra",
+      name: "Extra",
+      source: "TEMPLATE",
+      required: true,
+      order: 1,
+      signer_role_keys: ["issuer_director"],
+    });
+    expect(packages.contract.documents.map((d) => d.key)).toEqual(["facility"]);
+  });
+
+  it("returns empty defaults when neither key is present", () => {
+    const packages = parseSigningPackagesConfig({});
+    expect(packages.contract.roles).toEqual([]);
+    expect(packages.contract.documents).toEqual([]);
+    expect(packages.invoice.roles).toEqual([]);
+    expect(packages.invoice.documents).toEqual([]);
+  });
+
+  it("prefers signing_packages over legacy signing_template when both exist", () => {
+    const packages = parseSigningPackagesConfig({
+      [SIGNING_PACKAGES_WORKFLOW_KEY]: {
+        contract: contractBody,
+        invoice: invoiceBody,
+      },
+      [SIGNING_TEMPLATE_WORKFLOW_KEY]: {
+        enabled: true,
+        roles: [{ key: "guarantor", label: "Guarantor" }],
+        documents: [
+          {
+            key: "legacy_only",
+            name: "Legacy",
+            source: "TEMPLATE",
+            order: 0,
+            signer_role_keys: ["guarantor"],
+          },
+        ],
+      },
+    });
+    expect(packages.contract.documents.map((d) => d.key)).toEqual(["facility"]);
+    expect(packages.invoice.documents.map((d) => d.key)).toEqual(["invoice_letter"]);
+  });
+
+  it("ignores legacy enabled when parsing packages (no enable fork)", () => {
+    const packages = parseSigningPackagesConfig({
+      [SIGNING_PACKAGES_WORKFLOW_KEY]: {
+        contract: { ...contractBody, enabled: false },
+        invoice: { ...invoiceBody, enabled: false },
+      },
+    });
+    // New helpers treat packages as present; resolve still returns children
+    expect(resolveSigningTemplateForOffer({ packages, kind: "contract" }).documents[0]?.key).toBe(
+      "facility"
+    );
+    expect(resolveSigningTemplateForOffer({ packages, kind: "invoice" }).documents[0]?.key).toBe(
+      "invoice_letter"
+    );
+  });
+});
+
+describe("needsSigningEnvelope", () => {
+  it("is true for contract offers", () => {
+    expect(needsSigningEnvelope({ kind: "contract" })).toBe(true);
+  });
+
+  it("is true for invoice-only offers (no contract_id)", () => {
+    expect(needsSigningEnvelope({ kind: "invoice", invoiceContractId: null })).toBe(true);
+    expect(needsSigningEnvelope({ kind: "invoice", invoiceContractId: undefined })).toBe(true);
+  });
+
+  it("is false for contract-linked invoice offers", () => {
+    expect(needsSigningEnvelope({ kind: "invoice", invoiceContractId: "contract-1" })).toBe(false);
+  });
+});
+
+describe("canDirectAcceptInvoice", () => {
+  it("is true when contract-linked and contract envelope is COMPLETED", () => {
+    expect(
+      canDirectAcceptInvoice({
+        invoiceContractId: "contract-1",
+        hasCompletedContractEnvelope: true,
+      })
+    ).toBe(true);
+  });
+
+  it("is false when contract-linked but contract envelope is not COMPLETED", () => {
+    expect(
+      canDirectAcceptInvoice({
+        invoiceContractId: "contract-1",
+        hasCompletedContractEnvelope: false,
+      })
+    ).toBe(false);
+  });
+
+  it("is false for invoice-only even if a completed envelope flag is true", () => {
+    expect(
+      canDirectAcceptInvoice({
+        invoiceContractId: null,
+        hasCompletedContractEnvelope: true,
+      })
+    ).toBe(false);
+  });
+});
+
+describe("resolveSigningTemplateForOffer", () => {
+  it("returns the contract or invoice child by kind", () => {
+    const packages = parseSigningPackagesConfig({
+      [SIGNING_PACKAGES_WORKFLOW_KEY]: {
+        contract: {
+          roles: [{ key: "issuer_director", label: "Director" }],
+          documents: [
+            {
+              key: "facility",
+              name: "Facility",
+              source: "TEMPLATE",
+              order: 0,
+              signer_role_keys: ["issuer_director"],
+            },
+          ],
+        },
+        invoice: {
+          roles: [{ key: "issuer_director", label: "Director" }],
+          documents: [
+            {
+              key: "invoice_letter",
+              name: "Invoice",
+              source: "GENERATED_OFFER_LETTER",
+              order: 0,
+              signer_role_keys: ["issuer_director"],
+            },
+          ],
+        },
+      },
+    });
+    expect(resolveSigningTemplateForOffer({ packages, kind: "contract" }).documents[0]?.key).toBe(
+      "facility"
+    );
+    expect(resolveSigningTemplateForOffer({ packages, kind: "invoice" }).documents[0]?.key).toBe(
+      "invoice_letter"
+    );
+  });
+});
+
+describe("writeSigningPackagesConfig", () => {
+  it("writes signing_packages only and removes legacy signing_template", () => {
+    const packages = parseSigningPackagesConfig({
+      [SIGNING_TEMPLATE_WORKFLOW_KEY]: {
+        enabled: true,
+        roles: [{ key: "issuer_director", label: "Director" }],
+        documents: [
+          {
+            key: "facility",
+            name: "Facility",
+            source: "TEMPLATE",
+            order: 0,
+            signer_role_keys: ["issuer_director"],
+          },
+        ],
+      },
+    });
+    const next = writeSigningPackagesConfig(
+      {
+        some_other: true,
+        [SIGNING_TEMPLATE_WORKFLOW_KEY]: { enabled: true, roles: [], documents: [] },
+      },
+      packages
+    );
+    expect(next.some_other).toBe(true);
+    expect(next[SIGNING_TEMPLATE_WORKFLOW_KEY]).toBeUndefined();
+    expect(next[SIGNING_PACKAGES_WORKFLOW_KEY]).toEqual({
+      contract: packages.contract,
+      invoice: packages.invoice,
+    });
+  });
+});
+
+describe("signingTemplateDocumentCategoryKey", () => {
+  it("namespaces upload category keys per package", () => {
+    expect(signingTemplateDocumentCategoryKey("contract")).toBe(
+      "signing_template_document_contract"
+    );
+    expect(signingTemplateDocumentCategoryKey("invoice")).toBe(
+      "signing_template_document_invoice"
+    );
+  });
+
+  it("parses namespaced category keys back to package kind", () => {
+    expect(parseSigningTemplateDocumentCategoryKey("signing_template_document_contract")).toBe(
+      "contract"
+    );
+    expect(parseSigningTemplateDocumentCategoryKey("signing_template_document_invoice")).toBe(
+      "invoice"
+    );
+    expect(parseSigningTemplateDocumentCategoryKey("signing_template_document")).toBeNull();
+    expect(parseSigningTemplateDocumentCategoryKey("financial_docs")).toBeNull();
+  });
+});
+
 describe("validateSigningTemplateConfig", () => {
   it("passes for a well-formed template", () => {
     expect(validateSigningTemplateConfig(TEMPLATE)).toEqual([]);
   });
 
-  it("skips validation when disabled", () => {
-    expect(validateSigningTemplateConfig({ ...TEMPLATE, enabled: false, roles: [], documents: [] })).toEqual([]);
+  it("validates even when legacy enabled is false", () => {
+    const errors = validateSigningTemplateConfig({
+      ...TEMPLATE,
+      enabled: false,
+      roles: [],
+      documents: [],
+    });
+    expect(errors.some((e) => e.includes("signer role"))).toBe(true);
+    expect(errors.some((e) => e.includes("document"))).toBe(true);
   });
 
   it("flags documents that reference unknown roles", () => {

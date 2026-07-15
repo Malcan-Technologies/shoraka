@@ -5,8 +5,10 @@ import { prisma } from "../../lib/prisma";
 import type { EnvelopePlan } from "@cashsouk/types";
 import type { SigningEnvelopeWithGraph } from "./mapper";
 import { hashSigningAccessToken } from "./token";
+import { AppError } from "../../lib/http/error-handler";
 
-const TERMINAL_ENVELOPE_STATUSES = ["DECLINED", "VOIDED", "EXPIRED"] as const;
+/** Statuses that block creating another envelope for the same contract/invoice. */
+const ACTIVE_ENVELOPE_STATUSES = ["DRAFT", "SENT", "IN_PROGRESS"] as const;
 
 const GRAPH_INCLUDE = {
   documents: true,
@@ -42,13 +44,26 @@ export class SigningRepository {
     });
   }
 
-  async findActiveEnvelopeForApplication(
-    applicationId: string
+  async findActiveEnvelopeForContract(
+    contractId: string
   ): Promise<SigningEnvelopeWithGraph | null> {
     return prisma.signingEnvelope.findFirst({
       where: {
-        application_id: applicationId,
-        status: { notIn: [...TERMINAL_ENVELOPE_STATUSES] },
+        contract_id: contractId,
+        status: { in: [...ACTIVE_ENVELOPE_STATUSES] },
+      },
+      include: GRAPH_INCLUDE,
+      orderBy: { created_at: "desc" },
+    });
+  }
+
+  async findActiveEnvelopeForInvoice(
+    invoiceId: string
+  ): Promise<SigningEnvelopeWithGraph | null> {
+    return prisma.signingEnvelope.findFirst({
+      where: {
+        invoice_id: invoiceId,
+        status: { in: [...ACTIVE_ENVELOPE_STATUSES] },
       },
       include: GRAPH_INCLUDE,
       orderBy: { created_at: "desc" },
@@ -58,6 +73,41 @@ export class SigningRepository {
   async createFromPlan(input: CreateEnvelopeInput): Promise<SigningEnvelopeWithGraph> {
     const { plan } = input;
     return prisma.$transaction(async (tx) => {
+      // Serialize same-target creates: lock parent row, then re-check active envelope.
+      if (input.contract_id) {
+        await tx.$queryRaw`SELECT id FROM contracts WHERE id = ${input.contract_id} FOR UPDATE`;
+        const active = await tx.signingEnvelope.findFirst({
+          where: {
+            contract_id: input.contract_id,
+            status: { in: [...ACTIVE_ENVELOPE_STATUSES] },
+          },
+          select: { id: true },
+        });
+        if (active) {
+          throw new AppError(
+            409,
+            "SIGNING_ENVELOPE_EXISTS",
+            "This offer already has an active signing package."
+          );
+        }
+      } else if (input.invoice_id) {
+        await tx.$queryRaw`SELECT id FROM invoices WHERE id = ${input.invoice_id} FOR UPDATE`;
+        const active = await tx.signingEnvelope.findFirst({
+          where: {
+            invoice_id: input.invoice_id,
+            status: { in: [...ACTIVE_ENVELOPE_STATUSES] },
+          },
+          select: { id: true },
+        });
+        if (active) {
+          throw new AppError(
+            409,
+            "SIGNING_ENVELOPE_EXISTS",
+            "This offer already has an active signing package."
+          );
+        }
+      }
+
       const envelope = await tx.signingEnvelope.create({
         data: {
           application_id: input.application_id,

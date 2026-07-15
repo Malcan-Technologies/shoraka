@@ -42,6 +42,7 @@ import {
   computeNetExpectedReturnRatePercent,
   deriveGrossProfitAndServiceFeeFromNet,
   INVESTOR_RETURN_RATE_DISPLAY_DECIMALS,
+  SIGNING_PACKAGES_WORKFLOW_KEY,
   SIGNING_TEMPLATE_WORKFLOW_KEY,
   isNoteFullyFunded,
   isSoukscoreRiskRating,
@@ -50,7 +51,6 @@ import {
   meetsMinimumFunding,
   normalizeNoteCapacityAmount,
   NOTE_MONEY_TOLERANCE,
-  parseSigningTemplateConfig,
   roundNoteMoney,
 } from "@cashsouk/types";
 import {
@@ -171,12 +171,16 @@ function workflowHasRequiredPostApplicationDocs(workflow: unknown): boolean {
   return false;
 }
 
-function workflowSigningEnabled(workflow: unknown): boolean {
+function workflowHasSigningPackage(workflow: unknown): boolean {
   if (!Array.isArray(workflow)) return false;
   for (const step of workflow) {
     const config = asRecord((step as { config?: unknown }).config);
-    if (config && config[SIGNING_TEMPLATE_WORKFLOW_KEY] != null) {
-      return parseSigningTemplateConfig(config[SIGNING_TEMPLATE_WORKFLOW_KEY]).enabled;
+    if (!config) continue;
+    if (
+      config[SIGNING_PACKAGES_WORKFLOW_KEY] != null ||
+      config[SIGNING_TEMPLATE_WORKFLOW_KEY] != null
+    ) {
+      return true;
     }
   }
   return false;
@@ -1240,7 +1244,7 @@ export class NoteService {
     const workflow = product?.workflow;
     if (!workflow) return;
 
-    if (workflowSigningEnabled(workflow)) {
+    if (workflowHasSigningPackage(workflow)) {
       const completedEnvelope = await prisma.signingEnvelope.findFirst({
         where: {
           application_id: note.source_application_id,
