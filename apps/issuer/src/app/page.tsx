@@ -245,7 +245,7 @@ function IssuerDashboardContent() {
                   "space-y-8",
                   !isAccountEnabled && "pointer-events-none select-none opacity-60"
                 )}
-                aria-hidden={!isAccountEnabled}
+                inert={!isAccountEnabled ? true : undefined}
               >
                 <AccountOverviewCard
                   isDisabled={!isAccountEnabled}

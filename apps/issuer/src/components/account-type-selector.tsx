@@ -24,7 +24,6 @@ import {
   type CreateOrganizationInput,
   createApiClient,
   useAuthToken,
-  getOnboardingRouteForOrg,
 } from "@cashsouk/config";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -79,7 +78,7 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
       };
       const org = await createOrganization(input);
       switchOrganization(org.id);
-      router.push(getOnboardingRouteForOrg(org, "issuer"));
+      router.push("/onboarding/terms");
     } catch (err) {
       console.error("[AccountTypeSelector] Failed to create company account:", err);
       setError(err instanceof Error ? err.message : "Failed to create company account");

@@ -51,16 +51,6 @@ export function OnboardingStepper({ steps, className }: OnboardingStepperProps) 
                 >
                   {step.label}
                 </span>
-                {step.statusLabel ? (
-                  <span
-                    className={`
-                      mt-1 text-[10px] md:text-xs text-center w-[80px] md:w-[100px] leading-tight
-                      ${step.isRejected ? "text-destructive" : step.isCurrent ? "text-primary" : step.isCompleted ? "text-muted-foreground" : "text-muted-foreground/70"}
-                    `}
-                  >
-                    {step.statusLabel}
-                  </span>
-                ) : null}
               </div>
 
               {index < steps.length - 1 && (

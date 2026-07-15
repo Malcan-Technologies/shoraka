@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import {
   Button,
   Card,
@@ -15,7 +14,7 @@ import {
   useHeader,
 } from "@cashsouk/ui";
 import { ArrowRightIcon, ArrowsRightLeftIcon } from "@heroicons/react/24/outline";
-import { createApiClient, useAuthToken, useOrganization, getOnboardingRouteForOrg } from "@cashsouk/config";
+import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import { redirectToLanding } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,15 +26,13 @@ const INVESTOR_URL = process.env.NEXT_PUBLIC_INVESTOR_URL || "http://localhost:3
 type OnboardingStep = "welcome" | "name-input" | "account-type";
 
 function OnboardingAccountPageContent() {
-  const searchParams = useSearchParams();
-  const isAddingNewOrg = searchParams.get("adding") === "1";
   const { setTitle } = useHeader();
   const { getAccessToken } = useAuthToken();
 
   useEffect(() => {
     setTitle("Onboarding");
   }, [setTitle]);
-  const { isLoading: orgLoading, organizations, activeOrganization } = useOrganization();
+  const { isLoading: orgLoading } = useOrganization();
   const [user, setUser] = useState<{ firstName: string; lastName: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<OnboardingStep>("welcome");
@@ -85,35 +82,6 @@ function OnboardingAccountPageContent() {
       isMounted = false;
     };
   }, [getAccessToken]);
-
-  useEffect(() => {
-    if (orgLoading || loading) return;
-
-    if (organizations.length === 0) return;
-
-    if (isAddingNewOrg) {
-      if (user?.firstName?.trim() && user?.lastName?.trim()) {
-        setStep("account-type");
-      }
-      return;
-    }
-
-    const resumeOrg = activeOrganization ?? organizations[0];
-    if (resumeOrg) {
-      const resumeRoute = getOnboardingRouteForOrg(resumeOrg, "issuer");
-      if (resumeRoute !== "/onboarding/account") {
-        window.location.replace(resumeRoute);
-      }
-    }
-  }, [
-    orgLoading,
-    loading,
-    organizations,
-    activeOrganization,
-    user?.firstName,
-    user?.lastName,
-    isAddingNewOrg,
-  ]);
 
   const handleStartOnboarding = () => {
     if (!user?.firstName?.trim() || !user?.lastName?.trim()) {

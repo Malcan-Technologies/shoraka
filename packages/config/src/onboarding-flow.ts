@@ -20,23 +20,12 @@ export type OnboardingFlowStep =
   | "completed"
   | "rejected";
 
-export type OnboardingStepDisplayStatus =
-  | "completed"
-  | "outstanding"
-  | "upcoming"
-  | "waiting_admin"
-  | "action_required"
-  | "failed";
-
 export type OnboardingStepperStep = {
   id: string;
   label: string;
   isCompleted: boolean;
   isCurrent: boolean;
   isRejected?: boolean;
-  /** Human-readable gate status derived from backend org state. */
-  statusLabel?: string;
-  displayStatus?: OnboardingStepDisplayStatus;
 };
 
 const ADMIN_PENDING_STATUSES: OnboardingStatus[] = [
@@ -105,14 +94,6 @@ export function sortYourOrganizations(orgs: Organization[]): Organization[] {
 
 function isPostRegTank(status: OnboardingStatus): boolean {
   return POST_REGTANK_STATUSES.includes(status);
-}
-
-/** First outstanding onboarding gate for an issuer organization. */
-export function getIssuerOnboardingOutstandingStep(
-  org: Organization | null | undefined,
-  options?: { addingNewOrg?: boolean }
-): OnboardingFlowStep {
-  return getOnboardingStep(org, "issuer", options);
 }
 
 /** Maps the active organization to the step the user should be on. */
@@ -269,58 +250,6 @@ function isStepRequirementMet(
   }
 }
 
-function getStepDisplayStatus(
-  stepId: string,
-  outstandingFlowStep: OnboardingFlowStep,
-  organization: Organization,
-  portalType: PortalType,
-  isCompleted: boolean,
-  isRejected: boolean
-): OnboardingStepDisplayStatus {
-  if (isCompleted) return "completed";
-  if (isRejected) return "failed";
-
-  if (outstandingFlowStep === "rejected") {
-    return isStepRequirementMet(stepId, organization, portalType) ? "completed" : "upcoming";
-  }
-
-  const outstandingId = flowStepToStepperId(outstandingFlowStep);
-  if (outstandingFlowStep === "completed" || !outstandingId) {
-    return "completed";
-  }
-
-  if (stepId !== outstandingId) {
-    return "upcoming";
-  }
-
-  if (outstandingFlowStep === "approval") {
-    if (organization.onboardingStatus === "PENDING_AMENDMENT") {
-      return "action_required";
-    }
-    return "waiting_admin";
-  }
-
-  return "outstanding";
-}
-
-function getStepStatusLabel(displayStatus: OnboardingStepDisplayStatus): string {
-  switch (displayStatus) {
-    case "completed":
-      return "Completed";
-    case "outstanding":
-      return "Outstanding";
-    case "waiting_admin":
-      return "Waiting for admin approval";
-    case "action_required":
-      return "Action required";
-    case "failed":
-      return "Action required";
-    case "upcoming":
-    default:
-      return "";
-  }
-}
-
 /** Stepper labels for onboarding route pages and dashboard status cards. */
 export function getOnboardingStepperSteps(
   organization: Organization,
@@ -352,25 +281,12 @@ export function getOnboardingStepperSteps(
       }
     }
 
-    const displayStatus = getStepDisplayStatus(
-      step.id,
-      outstandingFlowStep,
-      organization,
-      portalType,
-      isCompleted,
-      isRejected
-    );
-
-    const statusLabel = getStepStatusLabel(displayStatus);
-
     return {
       id: step.id,
       label: step.label,
       isCompleted,
       isCurrent,
       isRejected,
-      statusLabel: statusLabel || undefined,
-      displayStatus,
     };
   });
 }

@@ -202,7 +202,7 @@ export function OrganizationSwitcher() {
   const hasActionRequiredOrganizations = actionRequiredOrganizations.length > 0;
 
   const handleAddOrganization = () => {
-    router.push("/onboarding/account?adding=1");
+    router.push("/onboarding/account");
   };
 
   const handleSelectOrganization = async (org: Organization) => {
