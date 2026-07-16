@@ -1,0 +1,174 @@
+/**
+ * SECTION: Future prospectus field-source research (not Note Identity)
+ * WHY: Preserve prior Stage 1 audit notes for later sections without mixing into Note Identity POC
+ *
+ * Do not treat this catalog as the active Note Identity implementation.
+ * Active Note Identity sources live in prospectus-note-identity.types.ts.
+ *
+ * Corrections still needed when those stages are implemented:
+ * - Purpose path is applications.business_details.why_raising_funds.financing_for
+ * - Listing date must use note_listings.opens_at only
+ * - Tenure must use opens_at → maturity_date only
+ * - Expected period return / payment basis / shariah need business decisions
+ */
+
+export type ProspectusFutureFieldAvailability =
+  | "stored"
+  | "calculated"
+  | "constant"
+  | "inferred"
+  | "missing"
+  | "unresolved";
+
+export type ProspectusFutureFieldOrigin =
+  | "note"
+  | "note_listing"
+  | "note_snapshot_product"
+  | "note_snapshot_paymaster"
+  | "note_snapshot_invoice"
+  | "application"
+  | "invoice"
+  | "contract"
+  | "product"
+  | "platform_constant"
+  | "calculated"
+  | "none";
+
+export interface ProspectusFutureFieldSource {
+  label: string;
+  model: string;
+  path: string;
+  origin: ProspectusFutureFieldOrigin;
+  availability: ProspectusFutureFieldAvailability;
+  existingApi: string;
+  notes: string;
+}
+
+/** Research-only keys for sections after Note Identity. */
+export type ProspectusFutureFieldKey =
+  | "listingDate"
+  | "maturityDate"
+  | "paymasterName"
+  | "paymasterEntityType"
+  | "financingAmount"
+  | "minimumInvestment"
+  | "profitRate"
+  | "expectedReturnPeriod"
+  | "tenure"
+  | "purposeOfFinancing"
+  | "paymentBasis"
+  | "shariahPrinciple";
+
+export const PROSPECTUS_FUTURE_FIELD_SOURCES: Record<
+  ProspectusFutureFieldKey,
+  ProspectusFutureFieldSource
+> = {
+  listingDate: {
+    label: "Listing date",
+    model: "note_listings",
+    path: "opens_at",
+    origin: "note_listing",
+    availability: "stored",
+    existingApi: "NoteDetail.listing.opensAt",
+    notes: "Possible fallback published_at must not be used. Investor UI currently shows publishedAt.",
+  },
+  maturityDate: {
+    label: "Maturity date",
+    model: "notes",
+    path: "maturity_date",
+    origin: "note",
+    availability: "stored",
+    existingApi: "NoteListItem.maturityDate",
+    notes: "Seeded from invoice details at create.",
+  },
+  paymasterName: {
+    label: "Paymaster name",
+    model: "notes",
+    path: "paymaster_snapshot.name",
+    origin: "note_snapshot_paymaster",
+    availability: "stored",
+    existingApi: "NoteListItem.paymasterName",
+    notes: "Mapper aliases company_name/business_name exist but must not auto-fallback for prospectus.",
+  },
+  paymasterEntityType: {
+    label: "Paymaster entity type",
+    model: "notes",
+    path: "paymaster_snapshot.entity_type",
+    origin: "note_snapshot_paymaster",
+    availability: "stored",
+    existingApi: "NoteDetail.paymasterSnapshot only (no typed DTO field)",
+    notes: "Shown on contract/application UIs, not note list DTOs.",
+  },
+  financingAmount: {
+    label: "Financing amount",
+    model: "notes",
+    path: "target_amount",
+    origin: "note",
+    availability: "stored",
+    existingApi: "NoteListItem.targetAmount",
+    notes: "Possible fallback offered_amount on invoice snapshot — not primary.",
+  },
+  minimumInvestment: {
+    label: "Minimum investment",
+    model: "n/a",
+    path: "MARKETPLACE_MIN_COMMIT_MYR",
+    origin: "platform_constant",
+    availability: "constant",
+    existingApi: "computeMarketplaceCommitBounds().minCommit",
+    notes: "Not a Note column.",
+  },
+  profitRate: {
+    label: "Profit rate",
+    model: "notes",
+    path: "profit_rate_percent",
+    origin: "note",
+    availability: "stored",
+    existingApi: "NoteListItem.profitRatePercent",
+    notes: "From offer at create.",
+  },
+  expectedReturnPeriod: {
+    label: "Expected return (period)",
+    model: "n/a",
+    path: "no period-% field",
+    origin: "calculated",
+    availability: "unresolved",
+    existingApi: "annual net: expectedReturnRatePercent; period MYR via calculators",
+    notes: "Business decision required: period gross vs net. Do not reuse annual net as period %.",
+  },
+  tenure: {
+    label: "Tenure",
+    model: "n/a",
+    path: "calculateCalendarDayCount(note_listings.opens_at, notes.maturity_date)",
+    origin: "calculated",
+    availability: "calculated",
+    existingApi: "calculateCalendarDayCount()",
+    notes: "Marketplace days-left is not contractual tenure. Do not use published_at.",
+  },
+  purposeOfFinancing: {
+    label: "Purpose of financing",
+    model: "applications",
+    path: "business_details.why_raising_funds.financing_for",
+    origin: "application",
+    availability: "missing",
+    existingApi: "Application review / issuer business-details step",
+    notes: "Not on Note snapshots. Prior map omitted why_raising_funds.",
+  },
+  paymentBasis: {
+    label: "Payment basis",
+    model: "n/a",
+    path: "none",
+    origin: "none",
+    availability: "unresolved",
+    existingApi: "paymentSchedules[] only",
+    notes: "No Bullet Payment helper. Do not infer for prospectus without a confirmed rule.",
+  },
+  shariahPrinciple: {
+    label: "Shariah principle",
+    model: "n/a",
+    path: "none",
+    origin: "none",
+    availability: "unresolved",
+    existingApi: "none",
+    notes: "Not in schema. Marketing Shariah Compliant ≠ principle label.",
+  },
+};

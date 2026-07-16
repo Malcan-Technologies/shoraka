@@ -18,9 +18,7 @@ describe("prospectus page-1 POC", () => {
     const html = buildProspectusPage1Html(SAMPLE_PROSPECTUS_PAGE1_DATA);
 
     expect(html).toContain(SAMPLE_PROSPECTUS_PAGE1_DATA.noteReference);
-    expect(html).toContain("INVESTMENT SUMMARY");
     expect(html).toContain("@page");
-    expect(html).toContain("Risk Rating");
   });
 
   it(

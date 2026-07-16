@@ -1,7 +1,7 @@
 /**
- * Redirected: broad Stage 1 preview replaced by Note Identity isolation.
+ * Dev-only: write Note Identity plain HTML preview.
  *
- * Usage:
+ * Usage (from apps/api):
  *   pnpm prospectus:note-identity-preview
  */
 
@@ -15,9 +15,7 @@ function main() {
   const outPath = path.join(outDir, "prospectus-note-identity-preview.html");
   writeFileSync(outPath, buildProspectusNoteIdentityDocument(), "utf8");
   // eslint-disable-next-line no-console
-  console.log(
-    `Stage 1 preview now writes Note Identity only → ${outPath}\nPrefer: pnpm prospectus:note-identity-preview`
-  );
+  console.log(`Wrote Note Identity preview to ${outPath}`);
 }
 
 main();
