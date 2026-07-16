@@ -2,6 +2,8 @@ import type { SigningOfferStep } from "@/components/signing/signing-progress-ste
 import {
   canDirectAcceptInvoice,
   needsSigningEnvelope,
+  resolveAcceptanceDocumentsFromWorkflow,
+  workflowHasAcceptanceDocuments,
   type SigningPackageOfferKind,
 } from "@cashsouk/types";
 
@@ -65,7 +67,7 @@ export function hasCompletedContractEnvelope(
 
 type StepShell = Omit<SigningOfferStep, "status">;
 
-/** Locate supporting_documents step on a frozen product workflow array. */
+/** @deprecated Prefer resolveAcceptanceDocumentsFromWorkflow(workflow). */
 export function findSupportingDocumentsStepConfig(
   workflow: unknown
 ): { config?: Record<string, unknown> } | undefined {
@@ -76,22 +78,28 @@ export function findSupportingDocumentsStepConfig(
   }) as { config?: Record<string, unknown> } | undefined;
 }
 
-/** True only when frozen supporting_documents config has ≥1 post_application row. */
-export function hasPostApplicationDocuments(
-  stepConfig: { config?: Record<string, unknown> } | undefined
-): boolean {
-  const config = stepConfig?.config;
-  if (!config || typeof config !== "object") return false;
-  return Object.entries(config).some(([key, value]) => {
-    if (key === "enabled_categories" || !Array.isArray(value)) return false;
-    return value.some((row) => {
-      const timing =
-        row && typeof row === "object"
-          ? (row as Record<string, unknown>).upload_timing
-          : undefined;
-      return timing === "post_application";
-    });
-  });
+/** Synthetic supporting-documents-style config for the Review Offer upload UI. */
+export function buildAcceptanceDocumentsStepConfig(
+  workflow: unknown
+): { config: Record<string, unknown> } {
+  const rows = resolveAcceptanceDocumentsFromWorkflow(workflow);
+  return {
+    config: {
+      acceptance_documents: rows.map((row) => ({
+        name: row.name,
+        required: row.required,
+        allow_multiple: row.allow_multiple,
+        allowed_types: row.allowed_types,
+        ...(row.template ? { template: row.template } : {}),
+        ...(row.legacy ? { _legacy: row.legacy } : {}),
+      })),
+    },
+  };
+}
+
+/** True when frozen workflow has ≥1 acceptance document (new config or legacy post_application). */
+export function hasPostApplicationDocuments(workflow: unknown): boolean {
+  return workflowHasAcceptanceDocuments(workflow);
 }
 
 function stepShells(hasPostDocs: boolean): StepShell[] {

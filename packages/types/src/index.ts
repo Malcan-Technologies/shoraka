@@ -248,6 +248,8 @@ export interface Application {
   /** Present when loaded via GET /applications/:id (relational guarantors for hydration). */
   application_guarantors?: unknown[];
   supporting_documents?: JsonValue | null;
+  /** Offer-acceptance uploads (e.g. Board Resolution); separate from supporting_documents. */
+  acceptance_documents?: JsonValue | null;
   declarations?: JsonValue | null;
   review_and_submit?: JsonValue | null;
   created_at: string;
@@ -438,6 +440,7 @@ export * from "./notes";
 export * from "./investor-return-breakdown";
 export * from "./marketplace-note-dates";
 export * from "./signing-envelopes";
+export * from "./acceptance-documents";
 export * from "./guarantors";
 export * from "./company-name-normalization";
 export * from "./gateway-payments";

@@ -1,4 +1,4 @@
-import { getStepKeyFromStepId } from "@cashsouk/types";
+import { acceptanceDocumentsReady, getStepKeyFromStepId } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { getFileExtension } from "../../lib/s3/client";
 
@@ -206,13 +206,23 @@ export function assertRequiredSupportingDocumentsPresent(
   );
 }
 
+/** Required acceptance docs present (new storage and/or legacy supporting_documents slots). */
 export function assertRequiredPostApplicationSupportingDocumentsPresent(
   workflow: unknown,
-  applicationSupportingDocuments: unknown
+  applicationSupportingDocuments: unknown,
+  applicationAcceptanceDocuments?: unknown
 ): void {
-  assertRequiredSupportingDocumentsPresentForTiming(
-    workflow,
-    applicationSupportingDocuments,
-    "post_application"
-  );
+  if (
+    !acceptanceDocumentsReady(
+      workflow,
+      applicationAcceptanceDocuments,
+      applicationSupportingDocuments
+    )
+  ) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "Required acceptance documents must be uploaded before continuing"
+    );
+  }
 }

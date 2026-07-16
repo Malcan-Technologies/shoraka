@@ -180,6 +180,7 @@ const requestUploadUrlSchema = z
     existingS3Key: z.string().optional(),
     supportingDocCategoryKey: z.string().min(1).optional(),
     supportingDocIndex: z.number().int().min(0).optional(),
+    acceptanceDocIndex: z.number().int().min(0).optional(),
     guarantorAgreementUpload: z.literal(true).optional(),
   })
   .superRefine((data, ctx) => {
@@ -192,10 +193,17 @@ const requestUploadUrlSchema = z
         path: hasKey ? ["supportingDocIndex"] : ["supportingDocCategoryKey"],
       });
     }
-    if (data.guarantorAgreementUpload && (hasKey || hasIdx)) {
+    if (data.acceptanceDocIndex !== undefined && (hasKey || hasIdx)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "guarantorAgreementUpload cannot be combined with supporting document slot fields",
+        message: "acceptanceDocIndex cannot be combined with supporting document slot fields",
+        path: ["acceptanceDocIndex"],
+      });
+    }
+    if (data.guarantorAgreementUpload && (hasKey || hasIdx || data.acceptanceDocIndex !== undefined)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "guarantorAgreementUpload cannot be combined with document slot fields",
         path: ["guarantorAgreementUpload"],
       });
     }
@@ -219,6 +227,7 @@ async function requestUploadUrl(req: Request, res: Response, next: NextFunction)
       existingS3Key: input.existingS3Key,
       supportingDocCategoryKey: input.supportingDocCategoryKey,
       supportingDocIndex: input.supportingDocIndex,
+      acceptanceDocIndex: input.acceptanceDocIndex,
       guarantorAgreementUpload: input.guarantorAgreementUpload,
       userId,
     });

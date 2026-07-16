@@ -512,8 +512,8 @@ export function SigningPackageConfig({
         <h2 className="text-sm font-semibold text-foreground">Signing packages</h2>
         <p className="text-sm text-muted-foreground">
           Configure separate envelope templates for contract offers and invoice-only invoice offers.
-          Post-application supporting documents are configured in the Supporting documents step —
-          issuers upload them at offer time for storage; they are not signed here.
+          Acceptance documents (e.g. Board Resolution) are configured below — issuers upload them at
+          offer time for admin review; they are not signed here.
         </p>
       </div>
 

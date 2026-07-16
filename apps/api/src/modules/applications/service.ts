@@ -31,6 +31,10 @@ import {
   getSupportingDocAllowedTypesFromProductWorkflow,
   getSupportingDocUploadTimingFromProductWorkflow,
 } from "./supporting-docs-workflow";
+import {
+  resolveAcceptanceDocumentAllowedTypes,
+  resolveAcceptanceDocumentsFromWorkflow,
+} from "@cashsouk/types";
 import { buildApplicationRevisionSnapshot } from "./revision-snapshot";
 import {
   upsertLatestOrganizationFinancialStatementsFromApplication,
@@ -241,6 +245,26 @@ export class ApplicationService {
     return keys;
   }
 
+  private extractS3KeysFromAcceptanceDocuments(data: unknown): Set<string> {
+    const keys = new Set<string>();
+    if (!data || typeof data !== "object") return keys;
+    const root = data as Record<string, unknown>;
+    const docs = Array.isArray(root.documents) ? root.documents : Array.isArray(data) ? data : [];
+    for (const doc of docs) {
+      const record = doc as Record<string, unknown>;
+      const file = record?.file as Record<string, unknown> | undefined;
+      if (typeof file?.s3_key === "string" && file.s3_key) keys.add(file.s3_key);
+      const files = record?.files;
+      if (Array.isArray(files)) {
+        for (const f of files) {
+          const key = (f as Record<string, unknown>)?.s3_key;
+          if (typeof key === "string" && key) keys.add(key);
+        }
+      }
+    }
+    return keys;
+  }
+
   /**
    * Delete S3 objects on step save failure to prevent orphan files.
    * Logs but does not rethrow.
@@ -269,6 +293,7 @@ export class ApplicationService {
       "business_details_1": "business_details",
       "financial_statements_1": "financial_statements",
       "supporting_documents_1": "supporting_documents",
+      "acceptance_documents_1": "acceptance_documents",
       "declarations_1": "declarations",
       "review_and_submit_1": "review_and_submit",
     };
@@ -285,6 +310,7 @@ export class ApplicationService {
       business_details: "business_details",
       financial_statements: "financial_statements",
       supporting_documents: "supporting_documents",
+      acceptance_documents: "acceptance_documents",
       declarations: "declarations",
       review_and_submit: "review_and_submit",
     };
@@ -362,19 +388,25 @@ export class ApplicationService {
     }
   }
 
-  private async verifyPostApplicationSupportingDocumentsEditable(
+  private async verifyAcceptanceDocumentsEditable(
     application: Application | null
   ): Promise<void> {
     if (!this.hasOfferBeenSent(application)) {
       throw new AppError(
         403,
         "EDIT_NOT_ALLOWED",
-        "Post-application documents can be uploaded after an offer is sent"
+        "Acceptance documents can be uploaded after an offer is sent"
       );
     }
     if (application) {
       await this.assertPostApplicationPrepUnlocked(application.id);
     }
+  }
+
+  private async verifyPostApplicationSupportingDocumentsEditable(
+    application: Application | null
+  ): Promise<void> {
+    await this.verifyAcceptanceDocumentsEditable(application);
   }
 
   private async verifyApplicationStepEditable(
@@ -386,6 +418,11 @@ export class ApplicationService {
     if (status === ApplicationStatus.DRAFT || status === ApplicationStatus.AMENDMENT_REQUESTED) {
       return;
     }
+    if (fieldName === "acceptance_documents") {
+      await this.verifyAcceptanceDocumentsEditable(application);
+      return;
+    }
+    // Legacy: frozen products may still save post-app slots via supporting_documents.
     if (fieldName === "supporting_documents") {
       await this.verifyPostApplicationSupportingDocumentsEditable(application);
       return;
@@ -1113,6 +1150,7 @@ export class ApplicationService {
     existingS3Key?: string;
     supportingDocCategoryKey?: string;
     supportingDocIndex?: number;
+    acceptanceDocIndex?: number;
     guarantorAgreementUpload?: boolean;
     userId: string;
   }): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number }> {
@@ -1121,9 +1159,18 @@ export class ApplicationService {
     const isSupportingDocsWorkflowUpload =
       params.supportingDocCategoryKey !== undefined &&
       params.supportingDocIndex !== undefined;
+    const isAcceptanceDocUpload = params.acceptanceDocIndex !== undefined;
     const isGuarantorAgreementUpload = params.guarantorAgreementUpload === true;
     let workflow: unknown[] | null = null;
-    if (isSupportingDocsWorkflowUpload) {
+    if (isAcceptanceDocUpload) {
+      workflow = await this.getProductWorkflowForApplication(application);
+      const rows = resolveAcceptanceDocumentsFromWorkflow(workflow);
+      const row = rows[params.acceptanceDocIndex!];
+      if (!row) {
+        throw new AppError(400, "VALIDATION_ERROR", "Invalid acceptance document slot");
+      }
+      await this.verifyAcceptanceDocumentsEditable(application);
+    } else if (isSupportingDocsWorkflowUpload) {
       workflow = await this.getProductWorkflowForApplication(application);
       const uploadTiming = getSupportingDocUploadTimingFromProductWorkflow(
         workflow,
@@ -1144,7 +1191,9 @@ export class ApplicationService {
 
     if ((application as any).status === "AMENDMENT_REQUESTED") {
       const { allowedSections } = await getAmendmentAllowedSections(params.applicationId);
-      if (isSupportingDocsWorkflowUpload) {
+      if (isAcceptanceDocUpload) {
+        // Acceptance docs are post-offer; amendment locks do not apply.
+      } else if (isSupportingDocsWorkflowUpload) {
         if (!allowedSections.has("supporting_documents")) {
           throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
         }
@@ -1163,7 +1212,11 @@ export class ApplicationService {
     }
 
     let allowedTypes: string[];
-    if (isSupportingDocsWorkflowUpload) {
+    if (isAcceptanceDocUpload) {
+      const rows = resolveAcceptanceDocumentsFromWorkflow(workflow ?? []);
+      const row = rows[params.acceptanceDocIndex!];
+      allowedTypes = resolveAcceptanceDocumentAllowedTypes(row ?? {});
+    } else if (isSupportingDocsWorkflowUpload) {
       allowedTypes = getSupportingDocAllowedTypesFromProductWorkflow(
         workflow ?? [],
         params.supportingDocCategoryKey!,
@@ -1220,11 +1273,14 @@ export class ApplicationService {
       const supportingKeys = this.extractS3KeysFromSupportingDocuments(
         application.supporting_documents
       );
-      if (!supportingKeys.has(s3Key)) {
+      const acceptanceKeys = this.extractS3KeysFromAcceptanceDocuments(
+        (application as { acceptance_documents?: unknown }).acceptance_documents
+      );
+      if (!supportingKeys.has(s3Key) && !acceptanceKeys.has(s3Key)) {
         throw new AppError(
           403,
           "EDIT_NOT_ALLOWED",
-          "Only uploaded supporting documents can be removed after an offer is sent"
+          "Only uploaded acceptance or supporting documents can be removed after an offer is sent"
         );
       }
       await this.assertPostApplicationPrepUnlocked(applicationId);

@@ -1,6 +1,7 @@
 import {
   getStepKeyFromStepId,
   REVIEW_SECTION_ORDER,
+  workflowHasAcceptanceDocuments,
   type ReviewSection,
 } from "@cashsouk/types";
 
@@ -34,6 +35,7 @@ const REVIEW_TAB_LABELS: Record<string, string> = {
   financial: "Financial",
   business_details: "Business & Guarantor",
   supporting_documents: "Documents",
+  acceptance_documents: "Acceptance documents",
   contract_details: "Contract",
   invoice_details: "Invoice",
   company_details: "Company",
@@ -43,6 +45,7 @@ const REVIEW_TAB_ORDER = [
   "company_details",
   "business_details",
   "supporting_documents",
+  "acceptance_documents",
   "contract_details",
   "invoice_details",
 ] as const;
@@ -52,12 +55,14 @@ const REVIEW_TAB_ORDER = [
  * - Contract unlocks when Financial + Company + Business + Documents are approved.
  * - Invoice unlocks when all Contract prerequisites AND Contract section are approved.
  *   (For invoice_only applications, server omits contract_details from prerequisites.)
+ * Acceptance documents are post-offer and are not a prerequisite for contract/invoice review.
  */
 const TAB_PREREQUISITES: Record<string, string[]> = {
   financial: [],
   company_details: [],
   business_details: [],
   supporting_documents: [],
+  acceptance_documents: [],
   contract_details: ["financial", "company_details", "business_details", "supporting_documents"],
   invoice_details: ["financial", "company_details", "business_details", "supporting_documents", "contract_details"],
 };
@@ -100,6 +105,17 @@ export function getReviewTabDescriptorsFromWorkflow(
       kind: stepKey as ReviewTabDescriptor["kind"],
       stepKey,
       stepId,
+    });
+  }
+
+  if (workflowHasAcceptanceDocuments(workflow)) {
+    stepTabs.push({
+      id: "acceptance_documents",
+      label: getReviewTabLabel("acceptance_documents"),
+      reviewSection: "acceptance_documents",
+      kind: "acceptance_documents",
+      stepKey: "acceptance_documents",
+      stepId: "acceptance_documents",
     });
   }
 

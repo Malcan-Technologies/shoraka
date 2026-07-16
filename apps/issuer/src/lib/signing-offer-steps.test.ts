@@ -64,28 +64,47 @@ describe("getCurrentSigningOfferStepId", () => {
 });
 
 describe("hasPostApplicationDocuments", () => {
-  it("returns false for missing or empty config", () => {
+  it("returns false for missing or empty workflow", () => {
     expect(hasPostApplicationDocuments(undefined)).toBe(false);
-    expect(hasPostApplicationDocuments({ config: {} })).toBe(false);
+    expect(hasPostApplicationDocuments([])).toBe(false);
   });
 
-  it("returns true when a category row has upload_timing post_application", () => {
+  it("returns true for financing_type.acceptance_documents", () => {
     expect(
-      hasPostApplicationDocuments({
-        config: {
-          financial: [{ upload_timing: "post_application", required: true }],
+      hasPostApplicationDocuments([
+        {
+          id: "financing_type_1",
+          config: {
+            acceptance_documents: [{ name: "Board Resolution", required: true }],
+          },
         },
-      })
+      ])
     ).toBe(true);
   });
 
-  it("returns false when only pre_application rows exist", () => {
+  it("returns true for legacy supporting_documents upload_timing post_application", () => {
     expect(
-      hasPostApplicationDocuments({
-        config: {
-          financial: [{ upload_timing: "pre_application", required: true }],
+      hasPostApplicationDocuments([
+        {
+          id: "supporting_documents_1",
+          config: {
+            financial_docs: [{ name: "Board Resolution", upload_timing: "post_application" }],
+          },
         },
-      })
+      ])
+    ).toBe(true);
+  });
+
+  it("returns false when only pre_application rows exist and no acceptance_documents key", () => {
+    expect(
+      hasPostApplicationDocuments([
+        {
+          id: "supporting_documents_1",
+          config: {
+            financial_docs: [{ name: "Mgmt accounts", upload_timing: "pre_application" }],
+          },
+        },
+      ])
     ).toBe(false);
   });
 });

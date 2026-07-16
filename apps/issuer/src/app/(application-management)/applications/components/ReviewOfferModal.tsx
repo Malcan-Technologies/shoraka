@@ -68,7 +68,7 @@ import { SigningProgressMatrix } from "@/components/signing/signing-progress-mat
 import { SigningProgressStepper, type SigningOfferStep } from "@/components/signing/signing-progress-stepper";
 import {
   getCurrentSigningOfferStepId,
-  findSupportingDocumentsStepConfig,
+  buildAcceptanceDocumentsStepConfig,
   getSigningOfferSteps,
   hasCompletedContractEnvelope,
   hasPostApplicationDocuments,
@@ -633,13 +633,13 @@ export function ReviewOfferModal({
     },
     enabled: Boolean(applicationId),
   });
-  const supportingDocumentsStepConfig = React.useMemo(
-    () => findSupportingDocumentsStepConfig(frozenProductWorkflow?.workflow),
+  const acceptanceDocumentsStepConfig = React.useMemo(
+    () => buildAcceptanceDocumentsStepConfig(frozenProductWorkflow?.workflow),
     [frozenProductWorkflow]
   );
   const hasPostDocs = React.useMemo(
-    () => hasPostApplicationDocuments(supportingDocumentsStepConfig),
-    [supportingDocumentsStepConfig]
+    () => hasPostApplicationDocuments(frozenProductWorkflow?.workflow),
+    [frozenProductWorkflow]
   );
   const invoiceContractId =
     type === "invoice" ? (invoice?.contractId ?? contractId ?? null) : null;
@@ -1089,7 +1089,7 @@ export function ReviewOfferModal({
       // Schema requires stepNumber >= 1; Math.max on the API keeps last_completed_step unchanged.
       const stepNumber = Math.max(1, applicationRecord?.last_completed_step ?? 1);
       const response = await apiClient.updateApplicationStep(applicationId, {
-        stepId: "supporting_documents",
+        stepId: "acceptance_documents",
         stepNumber,
         data: saved as Record<string, unknown>,
       });
@@ -1902,11 +1902,11 @@ export function ReviewOfferModal({
               ) : null}
               {isLoadingFrozenProductWorkflow ? (
                 <SupportingDocumentsSkeleton />
-              ) : supportingDocumentsStepConfig && hasPostDocs ? (
+              ) : hasPostDocs ? (
                 <SupportingDocumentsStep
                   applicationId={applicationId}
-                  stepConfig={supportingDocumentsStepConfig}
-                  timingFilter="post_application"
+                  stepConfig={acceptanceDocumentsStepConfig}
+                  documentStorage="acceptance_documents"
                   onDataChange={handlePostDocsDataChange}
                   readOnly={signersLocked}
                   documentRowLayout="stacked"

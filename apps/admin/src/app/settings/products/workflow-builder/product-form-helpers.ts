@@ -4,7 +4,7 @@
  * To add a step: see workflow-registry.tsx (and add validation here if the step has required fields).
  */
 
-import { getStepKeyFromStepId, STEP_KEY_DISPLAY, enforceDeclarationsLastAndDropReview, parseSigningPackagesConfig, writeSigningPackagesConfig } from "@cashsouk/types";
+import { getStepKeyFromStepId, STEP_KEY_DISPLAY, enforceDeclarationsLastAndDropReview, parseSigningPackagesConfig, writeSigningPackagesConfig, migrateWorkflowAcceptanceDocuments, ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY } from "@cashsouk/types";
 import { isDeclarationHtmlEmpty } from "@cashsouk/ui/declaration-rich-text";
 import { parseMoney } from "@cashsouk/ui";
 
@@ -36,7 +36,8 @@ export function getStepId(step: Step | unknown): string {
  */
 export function buildPayloadFromSteps(steps: unknown[]): Step[] {
   const ordered = enforceDeclarationsLastAndDropReview(steps as Step[]);
-  return ordered.map((s) => {
+  const migrated = migrateWorkflowAcceptanceDocuments(ordered);
+  return migrated.map((s) => {
     const step = s as Step;
     let config = { ...(step.config ?? {}) };
     const stepKey = getStepKeyFromStepId(step.id ?? "");
@@ -449,9 +450,8 @@ function runStepValidation(steps: unknown[]): { errors: string[]; stepIdsWithErr
         stepIdsWithErrors.add(stepId);
       }
       let badAllowedTypes = 0;
-      let badUploadTiming = 0;
       for (const key of SUPPORTING_DOC_CATEGORY_KEYS) {
-        const list = config[key] as Array<{ allowed_types?: unknown; upload_timing?: unknown }> | undefined;
+        const list = config[key] as Array<{ allowed_types?: unknown }> | undefined;
         if (!Array.isArray(list)) continue;
         for (const item of list) {
           const at = item?.allowed_types;
@@ -465,24 +465,43 @@ function runStepValidation(steps: unknown[]): { errors: string[]; stepIdsWithErr
             .filter((t) => t === "pdf" || t === "excel");
           const unique = [...new Set(tokens)];
           if (unique.length !== 1) badAllowedTypes++;
-
-          const timing = item?.upload_timing;
-          if (
-            timing !== undefined &&
-            timing !== "pre_application" &&
-            timing !== "post_application"
-          ) {
-            badUploadTiming++;
-          }
         }
       }
       if (badAllowedTypes > 0) {
         errors.push(`${stepLabel}: each document allows only one file type (PDF or Excel)`);
         stepIdsWithErrors.add(stepId);
       }
-      if (badUploadTiming > 0) {
-        errors.push(`${stepLabel}: each document must be pre-application or post-application`);
-        stepIdsWithErrors.add(stepId);
+    }
+
+    if (stepKey === FIRST_STEP_KEY) {
+      const list = config[ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY] as
+        | Array<{ name?: string; allowed_types?: unknown }>
+        | undefined;
+      if (Array.isArray(list)) {
+        let acceptanceMissingName = 0;
+        let acceptanceBadTypes = 0;
+        for (const item of list) {
+          if (!String(item?.name ?? "").trim()) acceptanceMissingName++;
+          const at = item?.allowed_types;
+          if (at === undefined) continue;
+          if (!Array.isArray(at) || at.length === 0) {
+            acceptanceBadTypes++;
+            continue;
+          }
+          const tokens = at
+            .filter((x): x is string => typeof x === "string")
+            .filter((t) => t === "pdf" || t === "excel");
+          const unique = [...new Set(tokens)];
+          if (unique.length !== 1) acceptanceBadTypes++;
+        }
+        if (acceptanceMissingName > 0) {
+          errors.push(`Acceptance documents: every document must have a name`);
+          stepIdsWithErrors.add(stepId);
+        }
+        if (acceptanceBadTypes > 0) {
+          errors.push(`Acceptance documents: each document allows only one file type (PDF or Excel)`);
+          stepIdsWithErrors.add(stepId);
+        }
       }
     }
 

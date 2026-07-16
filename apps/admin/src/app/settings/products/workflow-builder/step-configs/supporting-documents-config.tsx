@@ -131,7 +131,6 @@ export function SupportingDocumentsConfig({
           name: "",
           allow_multiple: false,
           allowed_types: ["pdf"],
-          upload_timing: "pre_application" as const,
         },
       ],
     };
@@ -155,7 +154,6 @@ export function SupportingDocumentsConfig({
         name: "",
         allow_multiple: false,
         allowed_types: ["pdf"],
-        upload_timing: "pre_application",
       },
     ]);
   };

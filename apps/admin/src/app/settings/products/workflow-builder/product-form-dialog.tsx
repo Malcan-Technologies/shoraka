@@ -63,6 +63,7 @@ import { AlertTriangle } from "lucide-react";
 import { WorkflowStepCard } from "./workflow-step-card";
 import { StepConfigEditor } from "./step-configs/step-config-editor";
 import { SigningPackageConfig } from "./step-configs/signing-package-config";
+import { AcceptanceDocumentsConfig } from "./step-configs/acceptance-documents-config";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -279,6 +280,15 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     );
   }, []);
 
+  const handleAcceptanceDocumentsConfigChange = useCallback((nextConfig: Record<string, unknown>) => {
+    setSteps((prev) =>
+      prev.map((s) => {
+        if (getStepKeyFromStepId(getStepId(s)) !== FIRST_STEP_KEY) return s;
+        return { ...(s as Record<string, unknown>), config: nextConfig };
+      })
+    );
+  }, []);
+
   /** Upload pending image to S3 and write s3Key into the financing type step. Mutates nextSteps. Returns s3Key if uploaded. */
   const uploadImageAndMerge = async (
     productId: string,
@@ -375,6 +385,28 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
               [signingPackageKind]: { ...template, documents },
             });
           }
+        }
+        continue;
+      }
+      if (categoryKey === "acceptance_documents") {
+        const firstIdx = nextSteps.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY);
+        if (firstIdx >= 0) {
+          const step = nextSteps[firstIdx] as Record<string, unknown>;
+          const config = { ...((step.config ?? {}) as Record<string, unknown>) };
+          const list = ((config.acceptance_documents as unknown[]) ?? []).slice();
+          const item = (list[index] ?? {}) as Record<string, unknown>;
+          const updated = {
+            ...item,
+            template: { s3_key: s3Key, file_name: file.name, file_size: file.size },
+          };
+          if (index >= list.length) {
+            while (list.length < index) list.push({});
+            list.push(updated);
+          } else {
+            list[index] = updated;
+          }
+          config.acceptance_documents = list;
+          step.config = config;
         }
         continue;
       }
@@ -646,8 +678,14 @@ const hasChanges = !isEdit
     const pendingSigningTemplates = Object.keys(pendingSupportingDocTemplates).filter((k) =>
       k.startsWith("signing_template_document_")
     );
+    const pendingAcceptanceTemplates = Object.keys(pendingSupportingDocTemplates).filter((k) =>
+      k.startsWith("acceptance_documents_")
+    );
     const pendingSupportingOnly = Object.keys(pendingSupportingDocTemplates).filter(
-      (k) => !k.startsWith("guarantor_agreement_") && !k.startsWith("signing_template_document_")
+      (k) =>
+        !k.startsWith("guarantor_agreement_") &&
+        !k.startsWith("signing_template_document_") &&
+        !k.startsWith("acceptance_documents_")
     );
     const pendingGuarantorAgreementOnly = Object.keys(pendingSupportingDocTemplates).filter((k) =>
       k.startsWith("guarantor_agreement_")
@@ -657,7 +695,10 @@ const hasChanges = !isEdit
       const step = steps[i];
       const stepId = getStepId(step);
       const stepKey = getStepKeyFromStepId(stepId);
-      if (stepKey === FIRST_STEP_KEY && (hasPendingImage || pendingSigningTemplates.length > 0)) {
+      if (
+        stepKey === FIRST_STEP_KEY &&
+        (hasPendingImage || pendingSigningTemplates.length > 0 || pendingAcceptanceTemplates.length > 0)
+      ) {
         edited.add(stepId);
         continue;
       }
@@ -869,6 +910,14 @@ const hasChanges = !isEdit
               <SigningPackageConfig
                 config={getSigningPackagesStepConfig()}
                 onChange={handleSigningPackagesChange}
+              />
+
+              <AcceptanceDocumentsConfig
+                config={getSigningPackagesStepConfig()}
+                onChange={handleAcceptanceDocumentsConfigChange}
+                onPendingTemplateChange={(index, file) =>
+                  handlePendingSupportingDocTemplate("acceptance_documents", index, file)
+                }
               />
 
               {/* Offer settings — below workflow steps, card layout to match workflow container */}

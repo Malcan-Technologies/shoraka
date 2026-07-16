@@ -220,6 +220,59 @@ export function buildCategoryGroups(
   return groups;
 }
 
+/** Flat acceptance_documents payload → one category with acceptance_documents:<index>:<slug> keys. */
+export function buildAcceptanceCategoryGroups(documents: unknown): CategoryGroup[] {
+  if (documents == null || typeof documents !== "object") return [];
+  const root = documents as Record<string, unknown>;
+  const list = Array.isArray(root.documents)
+    ? (root.documents as Record<string, unknown>[])
+    : Array.isArray(documents)
+      ? (documents as Record<string, unknown>[])
+      : [];
+  if (list.length === 0) return [];
+
+  const items: DocItem[] = list.map((d, i) => {
+    const filesArr = Array.isArray(d?.files) ? (d.files as Array<Record<string, unknown>>) : [];
+    const file = (d?.file as Record<string, unknown> | undefined) ?? filesArr[0];
+    const name = String(d?.title ?? d?.name ?? file?.file_name ?? "document");
+    const slug = name.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
+    const idx =
+      typeof d?.workflow_document_index === "number" ? (d.workflow_document_index as number) : i;
+    const files: DocFile[] = [];
+    if (file?.s3_key && typeof file.s3_key === "string") {
+      files.push({
+        label: String(file.file_name ?? name),
+        s3Key: file.s3_key,
+        secondary: formattedFileSize(file),
+      });
+    }
+    for (const f of filesArr) {
+      if (typeof f?.s3_key === "string" && f.s3_key && !files.some((x) => x.s3Key === f.s3_key)) {
+        files.push({
+          label: String(f.file_name ?? name),
+          s3Key: f.s3_key,
+          secondary: formattedFileSize(f),
+        });
+      }
+    }
+    return {
+      key: `acceptance_documents:${idx}:${slug}`,
+      label: name || `Document ${idx + 1}`,
+      s3Key: files[0]?.s3Key,
+      downloadFileName: typeof file?.file_name === "string" ? file.file_name : undefined,
+      files,
+    };
+  });
+
+  return [
+    {
+      categoryKey: "acceptance_documents",
+      categoryLabel: "Acceptance Documents",
+      items,
+    },
+  ];
+}
+
 export interface DocumentListProps {
   documents: unknown;
   reviewItems: { item_type: string; item_id: string; status: string }[];
@@ -238,6 +291,7 @@ export interface DocumentListProps {
   lockItemPrimaryReviewActions?: boolean;
   /** Product supporting_documents step config (for Required/Optional + Single/Multiple hints). */
   supportingDocumentsStepConfig?: Record<string, unknown> | null;
+  documentKind?: "supporting" | "acceptance";
 }
 
 export function DocumentList({
@@ -256,10 +310,14 @@ export function DocumentList({
   actionLockTooltip,
   lockItemPrimaryReviewActions = false,
   supportingDocumentsStepConfig = null,
+  documentKind = "supporting",
 }: DocumentListProps) {
   const categoryGroups = React.useMemo(
-    () => buildCategoryGroups(documents, supportingDocumentsStepConfig),
-    [documents, supportingDocumentsStepConfig]
+    () =>
+      documentKind === "acceptance"
+        ? buildAcceptanceCategoryGroups(documents)
+        : buildCategoryGroups(documents, supportingDocumentsStepConfig),
+    [documents, supportingDocumentsStepConfig, documentKind]
   );
 
   const getItemStatus = (key: string) => {
@@ -270,7 +328,9 @@ export function DocumentList({
   if (totalItems === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        No document entries in supporting documents.
+        {documentKind === "acceptance"
+          ? "No acceptance documents uploaded yet."
+          : "No document entries in supporting documents."}
       </p>
     );
   }

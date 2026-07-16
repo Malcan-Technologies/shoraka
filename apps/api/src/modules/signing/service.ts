@@ -424,7 +424,8 @@ export class SigningService {
     const workflow = await this.getProductWorkflowForApplication(application);
     assertRequiredPostApplicationSupportingDocumentsPresent(
       workflow,
-      application.supporting_documents
+      application.supporting_documents,
+      (application as { acceptance_documents?: unknown }).acceptance_documents
     );
   }
 

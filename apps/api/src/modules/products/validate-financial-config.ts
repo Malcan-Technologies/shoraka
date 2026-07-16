@@ -6,7 +6,11 @@
  */
 
 import { addMonths, isBefore, parseISO, startOfDay, isValid } from "date-fns";
-import { getStepKeyFromStepId } from "@cashsouk/types";
+import {
+  ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY,
+  getStepKeyFromStepId,
+  migrateWorkflowAcceptanceDocuments,
+} from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 
 function getStepId(step: unknown): string {
@@ -70,6 +74,12 @@ const DEFAULT_MAX_FINANCING_RATIO = 80;
  */
 export function applyFinancialDefaults(workflow: unknown[]): void {
   if (!Array.isArray(workflow) || workflow.length === 0) return;
+
+  const migrated = migrateWorkflowAcceptanceDocuments(
+    workflow as Array<{ id?: string; config?: unknown }>
+  );
+  workflow.splice(0, workflow.length, ...migrated);
+
   const step = workflow.find((s) => stepIdStartsWith(s, "invoice_details"));
   if (!step || typeof step !== "object") return;
   const config = (step as { config?: unknown }).config;
@@ -170,12 +180,17 @@ function supportingDocRowHasValidAllowedTypes(row: unknown): boolean {
 function supportingDocRowHasValidUploadTiming(row: unknown): boolean {
   if (!row || typeof row !== "object") return true;
   const timing = (row as Record<string, unknown>).upload_timing;
-  return timing === undefined || timing === "pre_application" || timing === "post_application";
+  // Legacy rows may still carry timing until migrate; reject unknown values only.
+  return (
+    timing === undefined ||
+    timing === "pre_application" ||
+    timing === "post_application"
+  );
 }
 
 /**
- * Each supporting-doc row may omit allowed_types (pdf at runtime), set exactly one
- * of pdf | excel, and optionally choose pre_application | post_application timing.
+ * Each supporting-doc row may omit allowed_types (pdf at runtime) or set exactly one
+ * of pdf | excel. Post-application rows are migrated to acceptance_documents on save.
  */
 export function validateSupportingDocumentsConfig(workflow: unknown[]): void {
   if (!Array.isArray(workflow) || workflow.length === 0) return;
@@ -200,9 +215,50 @@ export function validateSupportingDocumentsConfig(workflow: unknown[]): void {
           throw new AppError(
             400,
             "VALIDATION_ERROR",
-            `Supporting documents (${key}, row ${i + 1}): upload timing must be pre-application or post-application.`
+            `Supporting documents (${key}, row ${i + 1}): invalid upload timing.`
           );
         }
+      }
+    }
+    return;
+  }
+}
+
+export function validateAcceptanceDocumentsConfig(workflow: unknown[]): void {
+  if (!Array.isArray(workflow) || workflow.length === 0) return;
+  for (const step of workflow) {
+    const sid = (step as { id?: string })?.id ?? "";
+    if (getStepKeyFromStepId(sid) !== "financing_type") continue;
+    const config = (step as { config?: Record<string, unknown> }).config;
+    if (!config || typeof config !== "object") return;
+    const list = config[ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY];
+    if (list === undefined) return;
+    if (!Array.isArray(list)) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "Acceptance documents must be an array."
+      );
+    }
+    for (let i = 0; i < list.length; i++) {
+      const row = list[i];
+      const name =
+        row && typeof row === "object" && typeof (row as { name?: unknown }).name === "string"
+          ? String((row as { name: string }).name).trim()
+          : "";
+      if (!name) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          `Acceptance documents (row ${i + 1}): every document must have a name.`
+        );
+      }
+      if (!supportingDocRowHasValidAllowedTypes(row)) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          `Acceptance documents (row ${i + 1}): choose exactly one file type (PDF or Excel), not both.`
+        );
       }
     }
     return;
@@ -243,6 +299,7 @@ export function validateFinancialConfig(params: {
     validateMandatoryWorkflowStepSet(params.workflow);
     validateWorkflowFinancialConfig(params.workflow);
     validateSupportingDocumentsConfig(params.workflow);
+    validateAcceptanceDocumentsConfig(params.workflow);
     validateBusinessDetailsGuarantorAgreement(params.workflow);
   }
 }

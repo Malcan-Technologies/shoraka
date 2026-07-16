@@ -44,14 +44,15 @@ import {
   INVESTOR_RETURN_RATE_DISPLAY_DECIMALS,
   SIGNING_PACKAGES_WORKFLOW_KEY,
   SIGNING_TEMPLATE_WORKFLOW_KEY,
+  collectAcceptanceDocumentReviewKeys,
   isNoteFullyFunded,
   isSoukscoreRiskRating,
-  getStepKeyFromStepId,
   maxFundedBeforeMarketplaceCommit,
   meetsMinimumFunding,
   normalizeNoteCapacityAmount,
   NOTE_MONEY_TOLERANCE,
   roundNoteMoney,
+  workflowHasRequiredAcceptanceDocuments,
 } from "@cashsouk/types";
 import {
   creditInvestorBalance,
@@ -153,22 +154,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 }
 
 function workflowHasRequiredPostApplicationDocs(workflow: unknown): boolean {
-  if (!Array.isArray(workflow)) return false;
-  for (const step of workflow) {
-    const stepId = String((step as { id?: unknown })?.id ?? "");
-    if (getStepKeyFromStepId(stepId) !== "supporting_documents") continue;
-    const config = asRecord((step as { config?: unknown }).config);
-    if (!config) return false;
-    return Object.entries(config).some(([key, value]) => {
-      if (key === "enabled_categories" || !Array.isArray(value)) return false;
-      return value.some((row) => {
-        const record = asRecord(row);
-        if (!record) return false;
-        return record.upload_timing === "post_application" && record.required !== false;
-      });
-    });
-  }
-  return false;
+  return workflowHasRequiredAcceptanceDocuments(workflow);
 }
 
 function workflowHasSigningPackage(workflow: unknown): boolean {
@@ -184,62 +170,6 @@ function workflowHasSigningPackage(workflow: unknown): boolean {
     }
   }
   return false;
-}
-
-function collectSupportingDocumentKeys(docs: unknown): Set<string> {
-  const keys = new Set<string>();
-  const raw = (docs as Record<string, unknown> | null)?.supporting_documents ?? docs;
-  if (!raw || typeof raw !== "object") return keys;
-  if (Array.isArray(raw)) {
-    raw.forEach((doc, index) => {
-      const record = asRecord(doc);
-      const name = String(record?.name ?? record?.title ?? "document");
-      const slug = name.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
-      keys.add(`supporting_documents:others:${index}:${slug}`);
-    });
-    return keys;
-  }
-  const object = raw as Record<string, unknown>;
-  const categories = object.categories;
-  const labelToKey: Record<string, string> = {
-    "Financial Docs": "financial_docs",
-    "Legal Docs": "legal_docs",
-    "Compliance Docs": "compliance_docs",
-    Others: "others",
-  };
-  if (Array.isArray(categories)) {
-    categories.forEach((category, categoryIndex) => {
-      const categoryRecord = asRecord(category);
-      const categoryLabel = String(categoryRecord?.name ?? `Category ${categoryIndex + 1}`);
-      const categoryKey = labelToKey[categoryLabel] ?? `cat_${categoryIndex}`;
-      const docsList = Array.isArray(categoryRecord?.documents) ? categoryRecord.documents : [];
-      docsList.forEach((doc, docIndex) => {
-        const record = asRecord(doc);
-        const files = Array.isArray(record?.files)
-          ? (record.files as Array<{ file_name?: string }>)
-          : [];
-        const file = asRecord(record?.file) as { file_name?: string } | null;
-        const label =
-          String(record?.title ?? file?.file_name ?? files[0]?.file_name ?? record?.name ?? "").trim() ||
-          `Document ${docIndex + 1}`;
-        const slug = label.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
-        keys.add(`supporting_documents:${categoryKey}:${docIndex}:${slug}`);
-      });
-    });
-    return keys;
-  }
-  for (const categoryKey of ["financial_docs", "legal_docs", "compliance_docs", "others"]) {
-    const value = object[categoryKey];
-    if (value == null) continue;
-    const list = Array.isArray(value) ? value : [value];
-    list.forEach((doc, index) => {
-      const record = asRecord(doc);
-      const name = String(record?.name ?? record?.title ?? "doc");
-      const slug = name.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
-      keys.add(`supporting_documents:${categoryKey}:${index}:${slug}`);
-    });
-  }
-  return keys;
 }
 
 function resolveProductCategoryFromWorkflow(
@@ -1270,14 +1200,20 @@ export class NoteService {
 
     const application = await prisma.application.findUnique({
       where: { id: note.source_application_id },
-      select: { supporting_documents: true },
+      select: { supporting_documents: true, acceptance_documents: true },
     });
-    const docKeys = collectSupportingDocumentKeys(application?.supporting_documents);
+    const docKeys = new Set(
+      collectAcceptanceDocumentReviewKeys(
+        workflow,
+        application?.acceptance_documents,
+        application?.supporting_documents
+      )
+    );
     if (docKeys.size === 0) {
       throw new AppError(
         409,
         "POST_APPLICATION_DOCS_NOT_APPROVED",
-        "Post-application supporting documents must be approved before this note can be published."
+        "Acceptance documents must be approved before this note can be published."
       );
     }
 
@@ -1296,7 +1232,7 @@ export class NoteService {
       throw new AppError(
         409,
         "POST_APPLICATION_DOCS_NOT_APPROVED",
-        "Post-application supporting documents must be approved before this note can be published."
+        "Acceptance documents must be approved before this note can be published."
       );
     }
   }

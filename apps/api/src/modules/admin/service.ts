@@ -70,6 +70,7 @@ import {
   parseItemScopeKey,
   REVIEW_SECTION_ORDER,
   getStepKeyFromStepId,
+  workflowHasAcceptanceDocuments,
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
   canManageDirectorShareholder,
@@ -628,6 +629,9 @@ export class AdminService {
 
     const normalizedRequiredSections = applyStructureOverrides(requiredSections);
     const visibleSections = new Set(normalizedRequiredSections);
+    if (workflowHasAcceptanceDocuments(workflow)) {
+      visibleSections.add("acceptance_documents");
+    }
     return {
       requiredSections: normalizedRequiredSections,
       visibleSections,
@@ -5962,9 +5966,20 @@ export class AdminService {
    * Expects format supporting_documents:<category>:<index>:<name>
    */
   private validateDocumentExists(
-    application: { supporting_documents?: unknown },
+    application: { supporting_documents?: unknown; acceptance_documents?: unknown },
     itemId: string
   ): void {
+    if (itemId.startsWith("acceptance_documents:")) {
+      const docs = application.acceptance_documents;
+      if (!docs || typeof docs !== "object") {
+        throw new AppError(400, "INVALID_ITEM", "Application has no acceptance documents");
+      }
+      const docKeys = this.collectAcceptanceDocumentKeys(docs);
+      if (!docKeys.has(itemId)) {
+        throw new AppError(400, "INVALID_ITEM", `Document ${itemId} not found in this application`);
+      }
+      return;
+    }
     const docs = application.supporting_documents;
     if (!docs || typeof docs !== "object") {
       throw new AppError(400, "INVALID_ITEM", "Application has no supporting documents");
@@ -5976,6 +5991,27 @@ export class AdminService {
     if (!docKeys.has(itemId)) {
       throw new AppError(400, "INVALID_ITEM", `Document ${itemId} not found in this application`);
     }
+  }
+
+  private collectAcceptanceDocumentKeys(docs: unknown): Set<string> {
+    const keys = new Set<string>();
+    const root = docs as Record<string, unknown> | null;
+    const list = Array.isArray(root?.documents)
+      ? (root!.documents as unknown[])
+      : Array.isArray(docs)
+        ? (docs as unknown[])
+        : [];
+    list.forEach((d, i) => {
+      const record = d as Record<string, unknown>;
+      const name = String(record?.name ?? record?.title ?? "document");
+      const slug = name.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
+      const idx =
+        typeof record?.workflow_document_index === "number"
+          ? record.workflow_document_index
+          : i;
+      keys.add(`acceptance_documents:${idx}:${slug}`);
+    });
+    return keys;
   }
 
   /** Collect document keys from supporting_documents structure (matches frontend document-list). */

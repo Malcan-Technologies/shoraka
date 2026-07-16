@@ -139,7 +139,6 @@ export function BusinessDetailsConfig({
           onTemplateSelect={onTemplateSelect}
           onTemplateRemove={onTemplateRemove}
           showRemove={false}
-          showUploadTiming={false}
         />
       </ul>
     </div>

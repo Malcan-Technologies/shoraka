@@ -52,6 +52,7 @@ export type ReviewApplicationView = {
   business_details?: unknown;
   application_guarantors?: unknown;
   supporting_documents?: unknown;
+  acceptance_documents?: unknown;
   financing_type?: unknown;
   financing_structure?: unknown;
   company_details?: unknown;
@@ -367,6 +368,31 @@ export function SectionContent({
           supportingDocumentsStepConfig={
             sectionComparison ? supportingDocumentsStepConfig ?? null : null
           }
+        />
+      );
+    case "acceptance_documents":
+      return (
+        <DocumentsSection
+          supportingDocuments={app.acceptance_documents}
+          title="Acceptance Documents"
+          documentKind="acceptance"
+          reviewItems={reviewItems}
+          isReviewable={isReviewable}
+          approvePending={approveItemPending}
+          isActionLocked={isActionLocked}
+          actionLockTooltip={actionLockTooltip}
+          viewDocumentPending={viewDocumentPending}
+          onViewDocument={onViewDocument}
+          onDownloadDocument={onDownloadDocument}
+          onDownloadAllDocuments={onDownloadAllDocuments}
+          isDownloadAllPending={downloadAllDocumentsPending}
+          onApproveItem={(id) => onApproveItem(id, "document")}
+          onRejectItem={(id) => onRejectItem(id, "document")}
+          onRequestAmendmentItem={(id) => onRequestAmendmentItem(id, "document")}
+          onResetItemToPending={onResetItemToPending ? (id) => onResetItemToPending(id, "document") : undefined}
+          comments={sectionComments}
+          onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
+          hideSectionComments={hideSectionComments}
         />
       );
     case "contract_details": {

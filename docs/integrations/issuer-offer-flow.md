@@ -99,9 +99,9 @@ Signing packages are **always required** for offer types that need an envelope â
 
 **Invoice-only** offers each get their own invoice package envelope. Different invoices on the same application may have active envelopes **in parallel** (uniqueness is per `contract_id` or per `invoice_id`, not per application). Active = `DRAFT` | `SENT` | `IN_PROGRESS`.
 
-Every signer is an external party emailed an opaque link. For envelope paths, the issuer **Review offer** modal is the signing control centre: bind signers (name, email, IC), attach post-application documents, send the envelope, monitor progress, and re-notify.
+Every signer is an external party emailed an opaque link. For envelope paths, the issuer **Review offer** modal is the signing control centre: bind signers (name, email, IC), attach **acceptance documents** (e.g. Board Resolution), send the envelope, monitor progress, and re-notify.
 
-**Product snapshot:** signing package documents and post-application document gates come from the application's frozen product version (`application.product_version` within the product `base_id` family), not the latest live catalog row. Void + recreate rebuilds from that same frozen workflow and does not pick up later product edits. Guarantor Agreement appears only when that frozen signing template includes it (no silent auto-inject). Legacy flat `signing_template` is migrated in-memory to both packages until the product is saved as `signing_packages`.
+**Product snapshot:** signing package documents and acceptance-document gates come from the application's frozen product version (`application.product_version` within the product `base_id` family), not the latest live catalog row. Acceptance documents are configured on the financing-type step as `acceptance_documents` (legacy: supporting-document rows with `upload_timing: post_application` are dual-read until the product is re-saved). Void + recreate rebuilds from that same frozen workflow and does not pick up later product edits. Guarantor Agreement appears only when that frozen signing template includes it (no silent auto-inject). Legacy flat `signing_template` is migrated in-memory to both packages until the product is saved as `signing_packages`.
 
 Signers complete the flow at `/signing/external/[token]`:
 

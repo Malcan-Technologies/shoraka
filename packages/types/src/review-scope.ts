@@ -5,6 +5,7 @@
  * Scope key format:
  * - Section: scope_key = section id (e.g. "supporting_documents")
  * - Supporting documents item: scope_key = "supporting_documents:<category>:<index>:<name>"
+ * - Acceptance documents item: scope_key = "acceptance_documents:<index>:<name>"
  * - Invoice item: scope_key = "invoice_details:<index>:<invoice_number>"
  */
 
@@ -14,6 +15,7 @@ export const REVIEW_SECTION_ORDER = [
   "company_details",
   "business_details",
   "supporting_documents",
+  "acceptance_documents",
   "contract_details",
   "invoice_details",
 ] as const;
@@ -24,6 +26,9 @@ export type ReviewSection = (typeof REVIEW_SECTION_ORDER)[number];
 export function getSectionForScopeKey(scopeKey: string): ReviewSection {
   if (scopeKey.startsWith("supporting_documents:")) {
     return "supporting_documents";
+  }
+  if (scopeKey.startsWith("acceptance_documents:")) {
+    return "acceptance_documents";
   }
   if (scopeKey.startsWith("invoice_details:")) {
     return "invoice_details";
@@ -57,6 +62,9 @@ export function parseItemScopeKey(scopeKey: string): {
   if (scopeKey.startsWith("supporting_documents:")) {
     return { itemType: "document", itemId: scopeKey };
   }
+  if (scopeKey.startsWith("acceptance_documents:")) {
+    return { itemType: "document", itemId: scopeKey };
+  }
   if (scopeKey.startsWith("invoice_details:")) {
     return { itemType: "invoice", itemId: scopeKey };
   }
@@ -78,7 +86,10 @@ export function getItemIdFromScopeKey(scopeKey: string): string {
  * Check if a scope_key refers to a document item.
  */
 export function isDocumentScopeKey(scopeKey: string): boolean {
-  return scopeKey.startsWith("supporting_documents:");
+  return (
+    scopeKey.startsWith("supporting_documents:") ||
+    scopeKey.startsWith("acceptance_documents:")
+  );
 }
 
 /** Get section sort index for ordering. */
@@ -118,6 +129,9 @@ export function getItemDisplayNameFromScopeKey(scopeKey: string): string {
   if (scopeKey.startsWith("supporting_documents:")) {
     if (lastPart) return toDisplayName(lastPart);
   }
+  if (scopeKey.startsWith("acceptance_documents:")) {
+    if (lastPart) return toDisplayName(lastPart);
+  }
   return "Item";
 }
 
@@ -137,6 +151,7 @@ const ALLOWED_TABS = [
   "contract_details",
   "invoice_details",
   "supporting_documents",
+  "acceptance_documents",
   "business_details",
 ] as const;
 
@@ -210,6 +225,9 @@ export function parseAmendScopeKey(scopeKey: string): ParsedAmendScope {
   // Tab-level: exact matches to allowed tabs
   if (ALLOWED_TABS.includes(scopeKey as any)) {
     parsed = { workflowId: scopeKey, kind: "tab" };
+  } else if (scopeKey.startsWith("acceptance_documents:")) {
+    const itemId = getItemIdFromScopeKey(scopeKey);
+    parsed = { workflowId: "acceptance_documents", kind: "supporting_doc", entityId: itemId };
   } else if (isDocumentScopeKey(scopeKey)) {
     const itemId = getItemIdFromScopeKey(scopeKey);
     parsed = { workflowId: "supporting_documents", kind: "supporting_doc", entityId: itemId };

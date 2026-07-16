@@ -80,6 +80,8 @@ function getApplicationSectionManagePermission(section: string): AdminPermission
       return "applications.business_guarantor.manage";
     case "supporting_documents":
       return "applications.documents.manage";
+    case "acceptance_documents":
+      return "applications.documents.manage";
     case "contract_details":
       return "applications.contract.manage";
     case "invoice_details":

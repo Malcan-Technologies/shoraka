@@ -246,6 +246,7 @@ export function SupportingDocumentsStep({
   onDataChange,
   readOnly = false,
   timingFilter = "pre_application",
+  documentStorage = "supporting_documents",
   amendmentRemarks = [],
   flaggedItems,
   /** sideBySide = application flow page; stacked = narrow hosts (e.g. Review Offer modal). */
@@ -256,6 +257,7 @@ export function SupportingDocumentsStep({
   onDataChange?: (data: Record<string, unknown>) => void;
   readOnly?: boolean;
   timingFilter?: "pre_application" | "post_application";
+  documentStorage?: "supporting_documents" | "acceptance_documents";
   amendmentRemarks?: AmendmentRemarkItem[];
   isAmendmentMode?: boolean;
   flaggedSections?: Set<string>;
@@ -371,6 +373,7 @@ export function SupportingDocumentsStep({
         documents: (docs as RawWorkflowDoc[])
           .map((doc, workflowDocumentIndex) => ({ doc, workflowDocumentIndex }))
           .filter(({ doc }) => {
+            if (documentStorage === "acceptance_documents") return true;
             const timing = doc?.upload_timing === "post_application" ? "post_application" : "pre_application";
             return timing === timingFilter;
           })
@@ -381,10 +384,14 @@ export function SupportingDocumentsStep({
             allowedTypes: resolveIssuerAllowedTypes(doc ?? {}),
             required: doc?.required !== false,
             workflowDocumentIndex,
+            legacy:
+              doc && typeof doc === "object" && (doc as { _legacy?: unknown })._legacy
+                ? ((doc as { _legacy: { categoryKey: string; documentIndex: number } })._legacy)
+                : undefined,
           })),
       }))
       .filter((category) => category.documents.length > 0);
-  }, [stepConfig, timingFilter]);
+  }, [stepConfig, timingFilter, documentStorage]);
 
 
   const [uploadedFiles, setUploadedFiles] = React.useState<Record<string, UploadRecord[]>>({});
@@ -417,61 +424,79 @@ export function SupportingDocumentsStep({
       { clientId: string; s3_key: string; file_name: string; file_size: number; uploaded_at: string }[]
     > = new Map()
   ) => {
+    const normalizeSlot = (
+      categoryIndex: number,
+      documentIndex: number,
+      document: { title: string; workflowDocumentIndex: number }
+    ) => {
+      const key = `${categoryIndex}-${documentIndex}`;
+      const mode = getUploadMode(categoryIndex, documentIndex);
+      const existingFiles = files[key] ?? [];
+      const uploadedFromSave = uploadResults.get(key) ?? [];
+      const normalized = existingFiles
+        .map((f) => {
+          const uploadResult = uploadedFromSave.find((r) => r.clientId === f.clientId);
+          const s3_key = uploadResult?.s3_key ?? f.s3_key;
+          const fileName = uploadResult?.file_name ?? f.name;
+          if (!s3_key || !fileName) return null;
+          return {
+            file_name: fileName,
+            file_size: uploadResult?.file_size ?? f.size ?? 0,
+            s3_key,
+            uploaded_at:
+              uploadResult?.uploaded_at ??
+              f.uploadedAt ??
+              new Date().toISOString(),
+          };
+        })
+        .filter(Boolean) as Array<{
+        file_name: string;
+        file_size: number;
+        s3_key: string;
+        uploaded_at: string;
+      }>;
+
+      const base = {
+        title: document.title,
+        workflow_document_index: document.workflowDocumentIndex,
+      } as Record<string, unknown>;
+
+      if (normalized.length === 0) {
+        return base;
+      }
+
+      if (mode === "multiple") {
+        return {
+          ...base,
+          files: normalized,
+        };
+      }
+
+      return {
+        ...base,
+        file: normalized[0],
+      };
+    };
+
+    if (documentStorage === "acceptance_documents") {
+      return {
+        documents: categories.flatMap((category, categoryIndex) =>
+          category.documents.map((document, documentIndex) =>
+            normalizeSlot(categoryIndex, documentIndex, document)
+          )
+        ),
+      };
+    }
+
     return {
       categories: categories.map((category, categoryIndex: number) => ({
         name: category.name,
-        documents: category.documents.map((document, documentIndex: number) => {
-          const key = `${categoryIndex}-${documentIndex}`;
-          const mode = getUploadMode(categoryIndex, documentIndex);
-          const existingFiles = files[key] ?? [];
-          const uploadedFromSave = uploadResults.get(key) ?? [];
-          const normalized = existingFiles
-            .map((f) => {
-              const uploadResult = uploadedFromSave.find((r) => r.clientId === f.clientId);
-              const s3_key = uploadResult?.s3_key ?? f.s3_key;
-              const fileName = uploadResult?.file_name ?? f.name;
-              if (!s3_key || !fileName) return null;
-              return {
-                file_name: fileName,
-                file_size: uploadResult?.file_size ?? f.size ?? 0,
-                s3_key,
-                uploaded_at:
-                  uploadResult?.uploaded_at ??
-                  f.uploadedAt ??
-                  new Date().toISOString(),
-              };
-            })
-            .filter(Boolean) as Array<{
-            file_name: string;
-            file_size: number;
-            s3_key: string;
-            uploaded_at: string;
-          }>;
-
-          const base = {
-            title: document.title,
-            workflow_document_index: document.workflowDocumentIndex,
-          } as Record<string, unknown>;
-
-          if (normalized.length === 0) {
-            return base;
-          }
-
-          if (mode === "multiple") {
-            return {
-              ...base,
-              files: normalized,
-            };
-          }
-
-          return {
-            ...base,
-            file: normalized[0],
-          };
-        }),
+        documents: category.documents.map((document, documentIndex: number) =>
+          normalizeSlot(categoryIndex, documentIndex, document)
+        ),
       })),
     };
-  }, [categories, getUploadMode]);
+  }, [categories, getUploadMode, documentStorage]);
 
   React.useEffect(() => {
     const allExpanded: Record<number, boolean> = {};
@@ -482,80 +507,158 @@ export function SupportingDocumentsStep({
   }, [categories]);
 
   React.useEffect(() => {
-    if (!application?.supporting_documents || categories.length === 0) {
+    if (categories.length === 0) {
       setUploadedFiles({});
       setSelectedFiles({});
       setInitialUploadedFiles({});
       return;
     }
 
-    let data: unknown = application.supporting_documents;
-    if (typeof data === "string") {
-      try {
-        data = JSON.parse(data) as unknown;
-      } catch {
-        return;
-      }
-    }
-    if (isRecord(data) && "supporting_documents" in data) {
-      data = data.supporting_documents;
-    }
-
-    if (!isRecord(data) || !Array.isArray(data.categories)) {
-      return;
-    }
-
     const loadedFiles: Record<string, UploadRecord[]> = {};
 
-    (data.categories as SavedSupportingCategory[]).forEach((savedCategory) => {
-      const categoryIndex = categories.findIndex(
-        (cat) => cat.name === savedCategory.name
-      );
-      if (categoryIndex === -1) return;
-      const displayDocs = categories[categoryIndex].documents;
+    const pushNormalized = (
+      key: string,
+      savedDocument: {
+        files?: unknown;
+        file?: unknown;
+        workflow_document_index?: number;
+      }
+    ) => {
+      const list = Array.isArray(savedDocument.files)
+        ? savedDocument.files
+        : savedDocument.file
+          ? [savedDocument.file]
+          : [];
+      const normalized = list
+        .filter(
+          (f): f is SavedFileRef & { s3_key: string; file_name: string } =>
+            isRecord(f) &&
+            typeof f.s3_key === "string" &&
+            typeof f.file_name === "string"
+        )
+        .map((f) => ({
+          name: f.file_name,
+          size: f.file_size ?? 0,
+          uploadedAt: f.uploaded_at ?? new Date().toISOString(),
+          s3_key: f.s3_key,
+        }));
+      if (normalized.length > 0) {
+        loadedFiles[key] = sortUploadRecordsNewestFirst(normalized);
+      }
+    };
 
-      savedCategory.documents.forEach((savedDocument, savedIndex: number) => {
-        // Match filtered display slots by workflow index (timingFilter may drop rows).
-        const workflowIdx =
-          typeof savedDocument.workflow_document_index === "number"
-            ? savedDocument.workflow_document_index
-            : savedIndex;
-        const documentIndex = displayDocs.findIndex(
-          (doc) => doc.workflowDocumentIndex === workflowIdx
-        );
-        if (documentIndex === -1) return;
-
-        const key = `${categoryIndex}-${documentIndex}`;
-
-        const list = Array.isArray(savedDocument.files)
-          ? savedDocument.files
-          : savedDocument.file
-            ? [savedDocument.file]
-            : [];
-        const normalized = list
-          .filter(
-            (f): f is SavedFileRef & { s3_key: string; file_name: string } =>
-              isRecord(f) &&
-              typeof f.s3_key === "string" &&
-              typeof f.file_name === "string"
-          )
-          .map((f) => ({
-            name: f.file_name,
-            size: f.file_size ?? 0,
-            uploadedAt: f.uploaded_at ?? new Date().toISOString(),
-            s3_key: f.s3_key,
-          }));
-        if (normalized.length > 0) {
-          loadedFiles[key] = sortUploadRecordsNewestFirst(normalized);
+    if (documentStorage === "acceptance_documents") {
+      let data: unknown = (application as { acceptance_documents?: unknown } | undefined)
+        ?.acceptance_documents;
+      if (typeof data === "string") {
+        try {
+          data = JSON.parse(data) as unknown;
+        } catch {
+          data = null;
         }
-      });
-    });
+      }
+      const docs =
+        isRecord(data) && Array.isArray(data.documents)
+          ? (data.documents as Array<{
+              files?: unknown;
+              file?: unknown;
+              workflow_document_index?: number;
+            }>)
+          : [];
 
+      categories.forEach((category, categoryIndex) => {
+        category.documents.forEach((document, documentIndex) => {
+          const key = `${categoryIndex}-${documentIndex}`;
+          const saved =
+            docs.find((d) => d.workflow_document_index === document.workflowDocumentIndex) ??
+            docs[document.workflowDocumentIndex];
+          if (saved) pushNormalized(key, saved);
+        });
+      });
+
+      // Dual-read: legacy post-app files still in supporting_documents.
+      if (Object.keys(loadedFiles).length === 0 && application?.supporting_documents) {
+        let supportData: unknown = application.supporting_documents;
+        if (typeof supportData === "string") {
+          try {
+            supportData = JSON.parse(supportData) as unknown;
+          } catch {
+            supportData = null;
+          }
+        }
+        if (isRecord(supportData) && "supporting_documents" in supportData) {
+          supportData = supportData.supporting_documents;
+        }
+        if (isRecord(supportData) && Array.isArray(supportData.categories)) {
+          const supportCategories = supportData.categories as SavedSupportingCategory[];
+          categories.forEach((category, categoryIndex) => {
+            category.documents.forEach((document, documentIndex) => {
+              const legacy = (document as { legacy?: { categoryKey: string; documentIndex: number } })
+                .legacy;
+              if (!legacy) return;
+              const cat = supportCategories.find(
+                (c) =>
+                  c.name.replace(/\s+/g, "_").toLowerCase() ===
+                    legacy.categoryKey.replace(/_/g, " ").toLowerCase() ||
+                  c.name.toLowerCase().includes(legacy.categoryKey.replace(/_/g, " ").toLowerCase())
+              );
+              // Prefer category order index from synthetic single-category UI: match by workflow index across all.
+              const allDocs = supportCategories.flatMap((c) => c.documents ?? []);
+              const saved =
+                allDocs.find((d) => d.workflow_document_index === legacy.documentIndex) ??
+                (cat?.documents ?? [])[legacy.documentIndex];
+              if (saved) pushNormalized(`${categoryIndex}-${documentIndex}`, saved);
+            });
+          });
+        }
+      }
+    } else {
+      if (!application?.supporting_documents) {
+        setUploadedFiles({});
+        setSelectedFiles({});
+        setInitialUploadedFiles({});
+        return;
+      }
+
+      let data: unknown = application.supporting_documents;
+      if (typeof data === "string") {
+        try {
+          data = JSON.parse(data) as unknown;
+        } catch {
+          return;
+        }
+      }
+      if (isRecord(data) && "supporting_documents" in data) {
+        data = data.supporting_documents;
+      }
+
+      if (!isRecord(data) || !Array.isArray(data.categories)) {
+        return;
+      }
+
+      (data.categories as SavedSupportingCategory[]).forEach((savedCategory) => {
+        const categoryIndex = categories.findIndex((cat) => cat.name === savedCategory.name);
+        if (categoryIndex === -1) return;
+        const displayDocs = categories[categoryIndex].documents;
+
+        savedCategory.documents.forEach((savedDocument, savedIndex: number) => {
+          const workflowIdx =
+            typeof savedDocument.workflow_document_index === "number"
+              ? savedDocument.workflow_document_index
+              : savedIndex;
+          const documentIndex = displayDocs.findIndex(
+            (doc) => doc.workflowDocumentIndex === workflowIdx
+          );
+          if (documentIndex === -1) return;
+          pushNormalized(`${categoryIndex}-${documentIndex}`, savedDocument);
+        });
+      });
+    }
 
     setUploadedFiles(loadedFiles);
     setSelectedFiles({});
     setInitialUploadedFiles(loadedFiles);
-  }, [application, categories]);
+  }, [application, categories, documentStorage]);
 
   const handleFileChange = (categoryIndex: number, documentIndex: number, event: React.ChangeEvent<HTMLInputElement>) => {
     const key = `${categoryIndex}-${documentIndex}`;
@@ -650,13 +753,22 @@ export function SupportingDocumentsStep({
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({
-              fileName: typedFile.name,
-              contentType: typedFile.type || "application/octet-stream",
-              fileSize: typedFile.size,
-              supportingDocCategoryKey: slotCategory.groupKey,
-              supportingDocIndex: slotDocument.workflowDocumentIndex,
-            }),
+            body: JSON.stringify(
+              documentStorage === "acceptance_documents"
+                ? {
+                    fileName: typedFile.name,
+                    contentType: typedFile.type || "application/octet-stream",
+                    fileSize: typedFile.size,
+                    acceptanceDocIndex: slotDocument.workflowDocumentIndex,
+                  }
+                : {
+                    fileName: typedFile.name,
+                    contentType: typedFile.type || "application/octet-stream",
+                    fileSize: typedFile.size,
+                    supportingDocCategoryKey: slotCategory.groupKey,
+                    supportingDocIndex: slotDocument.workflowDocumentIndex,
+                  }
+            ),
           });
 
           const urlResult = await urlResponse.json();
@@ -762,6 +874,7 @@ export function SupportingDocumentsStep({
     onDataChange,
     buildDataToSave,
     categories,
+    documentStorage,
   ]);
 
   const uploadFilesRef = React.useRef(uploadFilesToS3);

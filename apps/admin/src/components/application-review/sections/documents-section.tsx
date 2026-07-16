@@ -104,6 +104,8 @@ export function collectSupportingDocumentFiles(input: unknown): SupportingDocFil
 
 export interface DocumentsSectionProps {
   supportingDocuments: unknown;
+  title?: string;
+  documentKind?: "supporting" | "acceptance";
   reviewItems: { item_type: string; item_id: string; status: string }[];
   isReviewable: boolean;
   approvePending: boolean;
@@ -136,6 +138,8 @@ export interface DocumentsSectionProps {
 
 export function DocumentsSection({
   supportingDocuments,
+  title = "Supporting Documents",
+  documentKind = "supporting",
   reviewItems,
   isReviewable,
   approvePending,
@@ -156,10 +160,40 @@ export function DocumentsSection({
   hideSectionComments = false,
   supportingDocumentsStepConfig = null,
 }: DocumentsSectionProps) {
-  const downloadableFiles = React.useMemo(
-    () => collectSupportingDocumentFiles(supportingDocuments),
-    [supportingDocuments]
-  );
+  const downloadableFiles = React.useMemo(() => {
+    if (documentKind === "acceptance") {
+      const root = supportingDocuments as Record<string, unknown> | null;
+      const list = Array.isArray(root?.documents)
+        ? (root!.documents as Record<string, unknown>[])
+        : [];
+      const files: SupportingDocFile[] = [];
+      list.forEach((doc, i) => {
+        const title = String(doc.title ?? doc.name ?? `document-${i + 1}`);
+        const single = doc.file as Record<string, unknown> | undefined;
+        if (typeof single?.s3_key === "string" && single.s3_key) {
+          files.push({
+            s3Key: single.s3_key,
+            fileName: String(single.file_name ?? `${title}.pdf`),
+            category: "Acceptance Documents",
+            field: title,
+          });
+        }
+        const multiple = Array.isArray(doc.files) ? (doc.files as Array<Record<string, unknown>>) : [];
+        multiple.forEach((f, fileIndex) => {
+          if (typeof f?.s3_key === "string" && f.s3_key) {
+            files.push({
+              s3Key: f.s3_key,
+              fileName: String(f.file_name ?? `${title}-${fileIndex + 1}.pdf`),
+              category: "Acceptance Documents",
+              field: title,
+            });
+          }
+        });
+      });
+      return files;
+    }
+    return collectSupportingDocumentFiles(supportingDocuments);
+  }, [supportingDocuments, documentKind]);
 
   if (sectionComparison) {
     const { beforeDocs, afterDocs, amendmentRemarks } = sectionComparison;
@@ -199,7 +233,7 @@ export function DocumentsSection({
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <DocumentTextIcon className="h-5 w-5 text-primary" />
-            <CardTitle className={reviewCardTitleClass}>Supporting Documents</CardTitle>
+            <CardTitle className={reviewCardTitleClass}>{title}</CardTitle>
           </div>
           <Button
             type="button"
@@ -218,6 +252,7 @@ export function DocumentsSection({
         {supportingDocuments && typeof supportingDocuments === "object" ? (
           <DocumentList
             documents={supportingDocuments}
+            documentKind={documentKind}
             reviewItems={reviewItems}
             isReviewable={!!isReviewable}
             onViewDocument={onViewDocument}
@@ -233,7 +268,11 @@ export function DocumentsSection({
             lockItemPrimaryReviewActions={peerDocumentRejected}
           />
         ) : (
-          <p className={reviewEmptyStateClass}>No supporting documents submitted.</p>
+          <p className={reviewEmptyStateClass}>
+            {documentKind === "acceptance"
+              ? "No acceptance documents uploaded yet."
+              : "No supporting documents submitted."}
+          </p>
         )}
         {!hideSectionComments ? (
           <SectionComments comments={comments} onSubmitComment={onAddComment} />

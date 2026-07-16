@@ -146,6 +146,7 @@ const SECTION_PERMISSION_MAP: Record<string, AdminPermission> = {
   company_details: "applications.company.manage",
   business_details: "applications.business_guarantor.manage",
   supporting_documents: "applications.documents.manage",
+  acceptance_documents: "applications.documents.manage",
   contract_details: "applications.contract.manage",
   invoice_details: "applications.invoice.manage",
 };
