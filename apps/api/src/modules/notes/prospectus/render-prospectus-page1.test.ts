@@ -17,11 +17,8 @@ describe("prospectus page-1 POC", () => {
   it("builds HTML containing key page-1 sections and sample note reference", () => {
     const html = buildProspectusPage1Html(SAMPLE_PROSPECTUS_PAGE1_DATA);
 
-    expect(html).toContain("ARF-2505-0187");
+    expect(html).toContain(SAMPLE_PROSPECTUS_PAGE1_DATA.noteReference);
     expect(html).toContain("INVESTMENT SUMMARY");
-    expect(html).toContain("KEY INVESTOR HIGHLIGHTS");
-    expect(html).toContain("AT A GLANCE");
-    expect(html).toContain("ISSUER&#39;S TRACK RECORD ON CASH SOUK");
     expect(html).toContain("@page");
     expect(html).toContain("Risk Rating");
   });

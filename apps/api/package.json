@@ -30,6 +30,7 @@
     "dev-simulate-gateway-settlement": "tsx scripts/dev-simulate-gateway-settlement.ts",
     "run-note-listing-expiry": "tsx scripts/run-note-listing-expiry.ts",
     "prospectus:page1-poc": "tsx scripts/generate-prospectus-page1-poc.ts",
+    "prospectus:stage1-preview": "tsx scripts/generate-prospectus-stage1-preview.ts",
     "seed-expired-offer-for-test": "tsx scripts/seed-expired-offer-for-test.ts",
     "seed-ekyc-identity": "tsx scripts/seed-ekyc-identity.ts",
     "seed-inactive-product-apps": "tsx scripts/seed-inactive-products-with-applications.ts",
