@@ -101,7 +101,7 @@ export default function OnboardingFeePage() {
       return;
     }
     if (suppressBootstrap) {
-      setIsBootstrapping(false);
+      // Keep skeleton under the return dialog so the fee form does not flash.
       return;
     }
 

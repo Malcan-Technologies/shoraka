@@ -19,6 +19,10 @@ import {
 } from "@/hooks/use-issuer-onboarding-fee";
 import { ISSUER_ONBOARDING_FEE_RETURN_TO } from "@/lib/issuer-onboarding-fee-routes";
 import {
+  ONBOARDING_FEE_SUCCESS_CONTINUE_PATH,
+  type OnboardingFeeReturnCloseReason,
+} from "@/lib/onboarding-fee-return-navigation";
+import {
   OnboardingFeeConfirmingView,
   OnboardingFeeFailureView,
   OnboardingFeeStartingEkycView,
@@ -39,7 +43,7 @@ type DialogPhase =
 interface OnboardingFeeReturnDialogProps {
   feeId: string;
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onOpenChange: (open: boolean, reason?: OnboardingFeeReturnCloseReason) => void;
 }
 
 export function OnboardingFeeReturnDialog({
@@ -86,7 +90,7 @@ export function OnboardingFeeReturnDialog({
   }, [open, feeId, shouldRunTimeout]);
 
   const handleTryAgain = React.useCallback(() => {
-    onOpenChange(false);
+    onOpenChange(false, "dismiss");
     router.replace(ISSUER_ONBOARDING_FEE_RETURN_TO);
   }, [onOpenChange, router]);
 
@@ -165,8 +169,9 @@ export function OnboardingFeeReturnDialog({
       try {
         await refreshOrganizations();
         clearIssuerPendingOnboarding();
-        onOpenChange(false);
-        router.push("/onboarding/verify");
+        // Close without clearing params via replace(/onboarding/fee) — that remounts fee and flashes.
+        onOpenChange(false, "success");
+        router.replace(ONBOARDING_FEE_SUCCESS_CONTINUE_PATH);
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to continue onboarding";
         toast.error(message);
@@ -198,7 +203,7 @@ export function OnboardingFeeReturnDialog({
             : "Payment not completed";
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(nextOpen) => onOpenChange(nextOpen, "dismiss")}>
       <DialogContent
         className="max-w-md border-0 bg-transparent p-0 shadow-none"
         aria-describedby={undefined}

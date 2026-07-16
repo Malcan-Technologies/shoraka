@@ -3,6 +3,10 @@
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { OnboardingFeeReturnDialog } from "@/components/onboarding-fee-return-dialog";
+import {
+  shouldClearOnboardingFeeReturnParams,
+  type OnboardingFeeReturnCloseReason,
+} from "@/lib/onboarding-fee-return-navigation";
 
 function resolveReturnTo(value: string | null, pathname: string): string {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
@@ -31,9 +35,9 @@ export function OnboardingFeeReturnListener() {
     router.replace(query ? `${returnTo}?${query}` : returnTo);
   }
 
-  function handleOpenChange(nextOpen: boolean) {
+  function handleOpenChange(nextOpen: boolean, reason?: OnboardingFeeReturnCloseReason) {
     setOpen(nextOpen);
-    if (!nextOpen) {
+    if (!nextOpen && shouldClearOnboardingFeeReturnParams(reason)) {
       clearReturnParam();
     }
   }
