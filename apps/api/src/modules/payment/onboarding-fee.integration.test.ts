@@ -1382,4 +1382,81 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       mismatchType: "CURRENCY_MISMATCH",
     });
   });
+
+  it("poll sync completes CREATED fee when Curlec has failed null-fee attempt plus captured payment", async () => {
+    if (!migrated) return;
+
+    await prisma.issuerOrganization.update({
+      where: { id: orgId },
+      data: { onboarding_fee_paid_at: null },
+    });
+    await prisma.gatewayPayment.updateMany({
+      where: {
+        issuer_organization_id: orgId,
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        status: { in: [GatewayPaymentStatus.COMPLETED, GatewayPaymentStatus.HELD] },
+      },
+      data: { status: GatewayPaymentStatus.FAILED },
+    });
+
+    const created = await createIssuerOnboardingFee(
+      { userId },
+      { issuerOrganizationId: orgId },
+      prisma
+    );
+    createdPaymentIds.push(created.id);
+    expect(created.status).toBe(GatewayPaymentStatus.CREATED);
+
+    const failedPaymentId = `pay_sync_failed_${Date.now()}`;
+    const capturedPaymentId = `pay_sync_captured_${Date.now()}`;
+    const mockedCreateCurlecClient = createCurlecClient as jest.Mock;
+    mockedCreateCurlecClient.mockReturnValue({
+      createOrder: jest.fn(),
+      fetchOrderPayments: jest.fn(async () => [
+        {
+          id: failedPaymentId,
+          amount: 15000,
+          currency: "MYR",
+          status: "failed",
+          method: "fpx",
+          order_id: created.curlecOrderId,
+          fee: null,
+          tax: null,
+          created_at: 100,
+        },
+        {
+          id: capturedPaymentId,
+          amount: 15000,
+          currency: "MYR",
+          status: "captured",
+          method: "fpx",
+          order_id: created.curlecOrderId,
+          fee: 100,
+          tax: 0,
+          created_at: 200,
+        },
+      ]),
+      fetchPayment: jest.fn(async () => ({
+        id: capturedPaymentId,
+        amount: 15000,
+        currency: "MYR",
+        status: "captured",
+        method: "fpx",
+        order_id: created.curlecOrderId,
+        fee: 100,
+        tax: 0,
+      })),
+    });
+
+    const result = await getIssuerOnboardingFee({ userId }, created.id, prisma);
+
+    expect(result.status).toBe(GatewayPaymentStatus.COMPLETED);
+
+    const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
+    expect(updated.status).toBe(GatewayPaymentStatus.COMPLETED);
+    expect(updated.curlec_payment_id).toBe(capturedPaymentId);
+
+    const org = await prisma.issuerOrganization.findUniqueOrThrow({ where: { id: orgId } });
+    expect(org.onboarding_fee_paid_at).not.toBeNull();
+  });
 });

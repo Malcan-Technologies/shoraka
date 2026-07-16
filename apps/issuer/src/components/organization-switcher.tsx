@@ -79,12 +79,21 @@ function OnboardingStatusBadge({
   const textSize = size === "sm" ? "text-[11px]" : "text-xs";
   const iconSize = size === "sm" ? "h-3 w-3" : "h-3.5 w-3.5";
   
-  // Determine badge based on regtank status or org status
+  // Determine badge based on org status first, then regtank status
   if (status === "COMPLETED") {
     return (
       <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-emerald-700`}>
         <CheckCircleIcon className={iconSize} />
         Verified
+      </span>
+    );
+  }
+
+  if (status === "REJECTED") {
+    return (
+      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-red-700`}>
+        <ClockIcon className={iconSize} />
+        Rejected
       </span>
     );
   }
