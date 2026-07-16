@@ -34,6 +34,7 @@
     "prospectus:dates-paymaster-preview": "tsx scripts/generate-prospectus-dates-paymaster-preview.ts",
     "prospectus:risk-assessment-preview": "tsx scripts/generate-prospectus-risk-assessment-preview.ts",
     "prospectus:main-financial-terms-preview": "tsx scripts/generate-prospectus-main-financial-terms-preview.ts",
+    "prospectus:timing-purpose-preview": "tsx scripts/generate-prospectus-timing-purpose-preview.ts",
     "prospectus:stage1-preview": "tsx scripts/generate-prospectus-stage1-preview.ts",
     "seed-expired-offer-for-test": "tsx scripts/seed-expired-offer-for-test.ts",
     "seed-ekyc-identity": "tsx scripts/seed-ekyc-identity.ts",

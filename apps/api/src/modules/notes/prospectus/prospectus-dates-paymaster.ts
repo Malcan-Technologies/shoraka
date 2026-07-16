@@ -35,13 +35,16 @@ export function formatProspectusDateUtc(value: Date | string | null | undefined)
   }).format(date);
 }
 
-export function buildProspectusDatesPaymaster(
-  input: ProspectusDatesPaymasterInput
-): ProspectusDatesPaymaster {
+/**
+ * Shared tenure + maturity display for Stage 2 and Stage 4B.
+ * Tenure = calculateCalendarDayCount(opens_at, maturity_date) → "{n} days".
+ */
+export function buildProspectusTenureAndMaturity(input: {
+  listingOpensAt: Date | string | null | undefined;
+  maturityDate: Date | string | null | undefined;
+}): { tenure: string; maturityDate: string; listingDate: string } {
   const opensAt = toValidDate(input.listingOpensAt);
   const maturity = toValidDate(input.maturityDate);
-  const paymasterName = nonEmptyString(input.paymasterName);
-  const paymasterEntityType = nonEmptyString(input.paymasterEntityType);
 
   let tenure = PROSPECTUS_DATA_NOT_AVAILABLE;
   if (opensAt && maturity) {
@@ -53,6 +56,23 @@ export function buildProspectusDatesPaymaster(
     listingDate: formatProspectusDateUtc(opensAt),
     maturityDate: formatProspectusDateUtc(maturity),
     tenure,
+  };
+}
+
+export function buildProspectusDatesPaymaster(
+  input: ProspectusDatesPaymasterInput
+): ProspectusDatesPaymaster {
+  const timing = buildProspectusTenureAndMaturity({
+    listingOpensAt: input.listingOpensAt,
+    maturityDate: input.maturityDate,
+  });
+  const paymasterName = nonEmptyString(input.paymasterName);
+  const paymasterEntityType = nonEmptyString(input.paymasterEntityType);
+
+  return {
+    listingDate: timing.listingDate,
+    maturityDate: timing.maturityDate,
+    tenure: timing.tenure,
     paymasterName: paymasterName ?? PROSPECTUS_DATA_NOT_AVAILABLE,
     paymasterEntityType: paymasterEntityType ?? PROSPECTUS_DATA_NOT_AVAILABLE,
   };

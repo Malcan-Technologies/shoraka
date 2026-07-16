@@ -7,6 +7,7 @@
  *
  * Corrections still needed when those stages are implemented:
  * - Purpose path is applications.business_details.why_raising_funds.financing_for
+ * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*
  * - Listing date must use note_listings.opens_at only
  * - Tenure must use opens_at → maturity_date only
  * - Expected period return / payment basis / shariah need business decisions
