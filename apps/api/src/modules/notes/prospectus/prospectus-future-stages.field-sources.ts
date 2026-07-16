@@ -70,7 +70,7 @@ export const PROSPECTUS_FUTURE_FIELD_SOURCES: Record<
     origin: "note_listing",
     availability: "stored",
     existingApi: "NoteDetail.listing.opensAt",
-    notes: "Possible fallback published_at must not be used. Investor UI currently shows publishedAt.",
+    notes: "Implemented in DATA STAGE 2 (prospectus-dates-paymaster). published_at not used.",
   },
   maturityDate: {
     label: "Maturity date",
@@ -79,7 +79,7 @@ export const PROSPECTUS_FUTURE_FIELD_SOURCES: Record<
     origin: "note",
     availability: "stored",
     existingApi: "NoteListItem.maturityDate",
-    notes: "Seeded from invoice details at create.",
+    notes: "Implemented in DATA STAGE 2 (prospectus-dates-paymaster).",
   },
   paymasterName: {
     label: "Paymaster name",
@@ -88,7 +88,7 @@ export const PROSPECTUS_FUTURE_FIELD_SOURCES: Record<
     origin: "note_snapshot_paymaster",
     availability: "stored",
     existingApi: "NoteListItem.paymasterName",
-    notes: "Mapper aliases company_name/business_name exist but must not auto-fallback for prospectus.",
+    notes: "Implemented in DATA STAGE 2 — name only, no aliases.",
   },
   paymasterEntityType: {
     label: "Paymaster entity type",
@@ -97,7 +97,7 @@ export const PROSPECTUS_FUTURE_FIELD_SOURCES: Record<
     origin: "note_snapshot_paymaster",
     availability: "stored",
     existingApi: "NoteDetail.paymasterSnapshot only (no typed DTO field)",
-    notes: "Shown on contract/application UIs, not note list DTOs.",
+    notes: "Implemented in DATA STAGE 2. Display-ready issuer ENTITY_TYPES labels.",
   },
   financingAmount: {
     label: "Financing amount",
@@ -142,7 +142,7 @@ export const PROSPECTUS_FUTURE_FIELD_SOURCES: Record<
     origin: "calculated",
     availability: "calculated",
     existingApi: "calculateCalendarDayCount()",
-    notes: "Marketplace days-left is not contractual tenure. Do not use published_at.",
+    notes: "Implemented in DATA STAGE 2. Marketplace days-left is not used.",
   },
   purposeOfFinancing: {
     label: "Purpose of financing",
