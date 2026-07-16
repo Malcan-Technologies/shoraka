@@ -235,6 +235,7 @@ export function getOnboardingStepperSteps(
   _currentRouteStep?: OnboardingFlowStep | null
 ): OnboardingStepperStep[] {
   const pipeline = getStepperPipeline(organization, portalType);
+  const isOrgRejected = organization.onboardingStatus === "REJECTED";
 
   const steps = pipeline.map((step) => {
     const isRejected = isStepRejectedFromDb(step.id, organization);
@@ -249,16 +250,16 @@ export function getOnboardingStepperSteps(
     };
   });
 
-  // Current = first required step whose own DB fields say incomplete.
-  const currentIndex = steps.findIndex((step) => !step.isCompleted && !step.isRejected);
+  // Rejected orgs keep origin/main routing (dashboard). Do not mark an earlier
+  // incomplete step as current — only show accurate completed/rejected flags.
+  if (isOrgRejected) {
+    return steps;
+  }
+
+  // Non-rejected: current = first required step whose own DB fields say incomplete.
+  const currentIndex = steps.findIndex((step) => !step.isCompleted);
   if (currentIndex >= 0) {
     steps[currentIndex].isCurrent = true;
-  } else {
-    // Rejected verify with all prior steps complete: keep verify as the focus step.
-    const rejectedIndex = steps.findIndex((step) => step.isRejected);
-    if (rejectedIndex >= 0) {
-      steps[rejectedIndex].isCurrent = true;
-    }
   }
 
   return steps;

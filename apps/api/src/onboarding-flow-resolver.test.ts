@@ -93,6 +93,29 @@ describe("onboarding flow resolver", () => {
       onboardingStatus: "COMPLETED",
     });
     expect(getOnboardingStep(org, "issuer")).toBe("fee");
+    expect(getOnboardingRouteForOrg(org, "issuer")).toBe("/onboarding/fee");
+  });
+
+  it("routes rejected organizations to dashboard like origin/main", () => {
+    const paid = baseOrg({
+      type: "COMPANY",
+      name: "Acme",
+      tncAccepted: true,
+      onboardingFeePaidAt: new Date().toISOString(),
+      onboardingStatus: "REJECTED",
+    });
+    expect(getOnboardingStep(paid, "issuer")).toBe("rejected");
+    expect(getOnboardingRouteForOrg(paid, "issuer")).toBe("/");
+
+    const unpaid = baseOrg({
+      type: "COMPANY",
+      name: "Acme",
+      tncAccepted: true,
+      onboardingFeePaidAt: null,
+      onboardingStatus: "REJECTED",
+    });
+    expect(getOnboardingStep(unpaid, "issuer")).toBe("rejected");
+    expect(getOnboardingRouteForOrg(unpaid, "issuer")).toBe("/");
   });
 });
 
@@ -231,6 +254,22 @@ describe("issuer onboarding stepper DB-accurate steps", () => {
     expect(stepById(paidSteps, "verify").isCompleted).toBe(false);
     expect(stepById(paidSteps, "approval").isCompleted).toBe(false);
     expect(stepById(paidSteps, "approval").isRejected).toBeFalsy();
+    expect(paidSteps.every((step) => !step.isCurrent)).toBe(true);
+    expect(getOnboardingRouteForOrg(paidRejected, "issuer")).toBe("/");
+
+    const feeMissingRejected = issuerCompanyOrg({
+      tncAccepted: true,
+      onboardingFeePaidAt: null,
+      onboardingStatus: "REJECTED",
+    });
+    const feeMissingSteps = getOnboardingStepperSteps(feeMissingRejected, "issuer");
+    expect(stepById(feeMissingSteps, "tnc").isCompleted).toBe(true);
+    expect(stepById(feeMissingSteps, "fee").isCompleted).toBe(false);
+    expect(stepById(feeMissingSteps, "fee").isCurrent).toBe(false);
+    expect(stepById(feeMissingSteps, "verify").isRejected).toBe(true);
+    expect(stepById(feeMissingSteps, "approval").isCompleted).toBe(false);
+    expect(feeMissingSteps.every((step) => !step.isCurrent)).toBe(true);
+    expect(getOnboardingRouteForOrg(feeMissingRejected, "issuer")).toBe("/");
 
     const unpaidRejected = issuerCompanyOrg({
       tncAccepted: false,
@@ -239,10 +278,11 @@ describe("issuer onboarding stepper DB-accurate steps", () => {
     });
     const unpaidSteps = getOnboardingStepperSteps(unpaidRejected, "issuer");
     expect(stepById(unpaidSteps, "tnc").isCompleted).toBe(false);
-    expect(stepById(unpaidSteps, "tnc").isCurrent).toBe(true);
+    expect(stepById(unpaidSteps, "tnc").isCurrent).toBe(false);
     expect(stepById(unpaidSteps, "fee").isCompleted).toBe(false);
     expect(stepById(unpaidSteps, "verify").isRejected).toBe(true);
     expect(stepById(unpaidSteps, "verify").isCompleted).toBe(false);
+    expect(getOnboardingRouteForOrg(unpaidRejected, "issuer")).toBe("/");
   });
 
   it("personal issuer has no fee step and currents first incomplete required step", () => {
