@@ -41,6 +41,9 @@ pnpm-debug.log*
 *.db
 *.db-journal
 
+# Local generated prospectus POC output
+apps/api/tmp/
+
 # IDE
 .vscode
 .idea
