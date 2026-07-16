@@ -12,6 +12,7 @@
  * - Tenure must use opens_at → maturity_date only
  * - Expected period return still needs a business decision
  * - Stage 4C (payment basis / shariah principle) implemented as unresolved → Data not available
+ * - Stage 5A (paymaster highlight) in prospectus-paymaster-highlight.* — name/entity only; claims unresolved
  */
 
 export type ProspectusFutureFieldAvailability =
