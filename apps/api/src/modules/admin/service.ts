@@ -91,6 +91,7 @@ import { normalizeRawStatus } from "@cashsouk/types";
 import type { PortalType } from "../regtank/types";
 import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-entities";
 import { extractGovernmentIdFromCorporateUserInfo } from "../regtank/helpers/extract-government-id";
+import { resolveCorporatePersonMergeKey } from "../regtank/helpers/corporate-person-merge-key";
 import { buildAdminPeopleList, buildDirectorShareholderPeopleList } from "./build-people-list";
 import { notifyIssuerDirectorShareholderActionRequired } from "../notification/director-shareholder-notifications";
 import { logApplicationActivity } from "../applications/logs/service";
@@ -4719,13 +4720,25 @@ export class AdminService {
         onboardingStatusResult = afterOrg?.onboarding_status ?? onboardingStatusResult;
       }
 
-      // Helper function to normalize name+email for duplicate detection
-      const normalizeKey = (name: string, email: string): string => {
-        return `${(name || "").toLowerCase().trim()}|${(email || "").toLowerCase().trim()}`;
+      const mergeRoleLabels = (existingRole: string, incomingRole: string): string => {
+        const roleSet = new Set(
+          `${existingRole || ""},${incomingRole || ""}`
+            .split(",")
+            .map((role) => role.trim())
+            .filter((role) => role.length > 0)
+        );
+        return Array.from(roleSet).join(", ");
+      };
+      const mapEodStatusToKycStatus = (eodStatus: string, fallback: string): string => {
+        if (eodStatus === "LIVENESS_STARTED") return "LIVENESS_STARTED";
+        if (eodStatus === "WAIT_FOR_APPROVAL") return "WAIT_FOR_APPROVAL";
+        if (eodStatus === "APPROVED") return "APPROVED";
+        if (eodStatus === "REJECTED") return "REJECTED";
+        if (eodStatus === "EXPIRED") return "EXPIRED";
+        return fallback;
       };
 
-      // Extract and update director information
-      // Use a Map to deduplicate by normalized name+email and merge roles for people who are both directors and shareholders
+      // Deduplicate by government ID → name → EOD (never email alone)
       const directorsMap = new Map<string, {
         eodRequestId: string; // Keep director EOD ID as primary
         shareholderEodRequestId?: string; // Track shareholder EOD ID if different
@@ -4762,7 +4775,11 @@ export class AdminService {
           const governmentIdNumber =
             extractGovernmentIdFromCorporateUserInfo(userInfo as Record<string, unknown>) || undefined;
 
-          const mapKey = normalizeKey(name, email);
+          const mapKey = resolveCorporatePersonMergeKey({
+            governmentIdNumber,
+            name,
+            eodRequestId,
+          });
 
           // Fetch EOD details to get latest KYC status
           let kycStatus = director.corporateIndividualRequest?.status || "PENDING";
@@ -4774,16 +4791,7 @@ export class AdminService {
                 await this.regTankApiClient.getEntityOnboardingDetails(eodRequestId);
               const eodStatus = eodDetails.corporateIndividualRequest?.status?.toUpperCase() || "";
 
-              // Map EOD status to KYC status
-              if (eodStatus === "LIVENESS_STARTED") {
-                kycStatus = "LIVENESS_STARTED";
-              } else if (eodStatus === "WAIT_FOR_APPROVAL") {
-                kycStatus = "WAIT_FOR_APPROVAL";
-              } else if (eodStatus === "APPROVED") {
-                kycStatus = "APPROVED";
-              } else if (eodStatus === "REJECTED") {
-                kycStatus = "REJECTED";
-              }
+              kycStatus = mapEodStatusToKycStatus(eodStatus, kycStatus);
 
               // Get KYC ID from EOD details if available
               if (eodDetails.kycRequestInfo?.kycId) {
@@ -4838,7 +4846,11 @@ export class AdminService {
           const shareholderGovernmentId =
             extractGovernmentIdFromCorporateUserInfo(userInfo as Record<string, unknown>) || undefined;
 
-          const mapKey = normalizeKey(name, email);
+          const mapKey = resolveCorporatePersonMergeKey({
+            governmentIdNumber: shareholderGovernmentId,
+            name,
+            eodRequestId: shareholderEodRequestId,
+          });
           const existingDirector = directorsMap.get(mapKey);
           const shareholderRole = `Shareholder${sharePercent ? ` (${sharePercent}%)` : ""}`;
 
@@ -4852,15 +4864,7 @@ export class AdminService {
                 await this.regTankApiClient.getEntityOnboardingDetails(shareholderEodRequestId);
               const eodStatus = eodDetails.corporateIndividualRequest?.status?.toUpperCase() || "";
 
-              if (eodStatus === "LIVENESS_STARTED") {
-                kycStatus = "LIVENESS_STARTED";
-              } else if (eodStatus === "WAIT_FOR_APPROVAL") {
-                kycStatus = "WAIT_FOR_APPROVAL";
-              } else if (eodStatus === "APPROVED") {
-                kycStatus = "APPROVED";
-              } else if (eodStatus === "REJECTED") {
-                kycStatus = "REJECTED";
-              }
+              kycStatus = mapEodStatusToKycStatus(eodStatus, kycStatus);
 
               if (eodDetails.kycRequestInfo?.kycId) {
                 kycId = eodDetails.kycRequestInfo.kycId;
@@ -4879,7 +4883,7 @@ export class AdminService {
 
           if (existingDirector) {
             // Person is both director and shareholder - merge roles
-            existingDirector.role = `${existingDirector.role}, ${shareholderRole}`;
+            existingDirector.role = mergeRoleLabels(existingDirector.role, shareholderRole);
             existingDirector.shareholderEodRequestId = shareholderEodRequestId;
 
             // Fetch both EOD details to check which one has kycId
@@ -4983,6 +4987,7 @@ export class AdminService {
       // Refresh corporate shareholders status from COD details
       let corporateEntitiesUpdated = false;
       let updatedCorporateEntities: Record<string, unknown> | null = null;
+      const extractedCorporateEntities = extractCorporateEntities(codDetails);
       const existingOrg = isInvestor
         ? await prisma.investorOrganization.findUnique({
           where: { id: org.id },
@@ -4993,7 +4998,7 @@ export class AdminService {
           select: { corporate_entities: true },
         });
 
-      if (existingOrg && codDetails.corpBizShareholders) {
+      if (existingOrg) {
         const corporateEntities = (existingOrg.corporate_entities as Record<string, unknown>) || {
           directors: [],
           shareholders: [],
@@ -5001,9 +5006,20 @@ export class AdminService {
         };
         let updated = false;
 
+        // Always persist latest individual director/shareholder entities from live COD.
+        corporateEntities.directors = Array.isArray(extractedCorporateEntities.directors)
+          ? extractedCorporateEntities.directors
+          : [];
+        corporateEntities.shareholders = Array.isArray(extractedCorporateEntities.shareholders)
+          ? extractedCorporateEntities.shareholders
+          : [];
+        updated = true;
+
         // Update corporate shareholders with latest status from COD details
         if (corporateEntities.corporateShareholders && Array.isArray(corporateEntities.corporateShareholders)) {
-          const codCorpShareholders = codDetails.corpBizShareholders as Record<string, unknown>[];
+          const codCorpShareholders = Array.isArray(codDetails.corpBizShareholders)
+            ? (codDetails.corpBizShareholders as Record<string, unknown>[])
+            : [];
 
           // Create a map of existing corporate shareholders by COD requestId or company name
           const existingMap = new Map<string, Record<string, unknown>>();

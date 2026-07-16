@@ -17,6 +17,8 @@ export {
   isDirectorShareholderAmlScreeningApproved,
   shouldShowPeopleSendEmailButton,
   isFinancialReviewKycReadyForApprove,
+  isMissingGovernmentIdPerson,
+  partitionPeopleByIdentityResolution,
   resolveDirectorShareholderCtosEmptyWarning,
   type ApplicationPersonRow,
   type DirectorShareholderListSource,

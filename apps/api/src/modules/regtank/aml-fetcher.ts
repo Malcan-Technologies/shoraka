@@ -6,6 +6,10 @@ import { AmlIdentityRepository } from "./aml-identity-repository";
 import type { PortalType } from "./types";
 import { extractGovernmentIdFromCorporateUserInfo } from "./helpers/extract-government-id";
 import { mapRegTankKycScreeningStatusToAmlStatus } from "./helpers/regtank-kyc-screening-to-aml-status";
+import {
+  corporatePersonIdentitiesMatch,
+  resolveCorporatePersonMergeKey,
+} from "./helpers/corporate-person-merge-key";
 
 interface DirectorAMLStatus {
   kycId: string;
@@ -35,6 +39,23 @@ interface BusinessShareholderAMLStatus {
 }
 
 /**
+ * Deduplicate comma-separated role labels (same behavior as admin refreshCorporateOnboardingStatus).
+ * Preserves first-seen order. Does not change role text format.
+ */
+export function mergeRoleLabels(
+  existingRole: string | null | undefined,
+  incomingRole: string | null | undefined
+): string {
+  const roleSet = new Set(
+    `${existingRole || ""},${incomingRole || ""}`
+      .split(",")
+      .map((role) => role.trim())
+      .filter((role) => role.length > 0)
+  );
+  return Array.from(roleSet).join(", ");
+}
+
+/**
  * Service for fetching AML statuses for corporate onboarding entities
  * Handles fetching and storing AML statuses for:
  * - Individual directors
@@ -48,13 +69,6 @@ export class AMLFetcherService {
   constructor() {
     this.apiClient = getRegTankAPIClient();
     this.amlIdentityRepository = new AmlIdentityRepository();
-  }
-
-  /**
-   * Helper function to normalize name+email for matching
-   */
-  private normalizeKey(name: string, email: string): string {
-    return `${(name || "").toLowerCase().trim()}|${(email || "").toLowerCase().trim()}`;
   }
 
   /**
@@ -209,9 +223,16 @@ export class AMLFetcherService {
           }
 
           // Step 5: Update director_kyc_status with kycRequestInfo
-          const mapKey = this.normalizeKey(name, email);
-          const existingDirectorIndex = directorKycStatus.directors.findIndex(
-            (d: any) => d.eodRequestId === eodRequestId || this.normalizeKey(d.name, d.email) === mapKey
+          const existingDirectorIndex = directorKycStatus.directors.findIndex((d: any) =>
+            corporatePersonIdentitiesMatch(
+              {
+                governmentIdNumber: d.governmentIdNumber,
+                name: d.name,
+                eodRequestId: d.eodRequestId,
+                shareholderEodRequestId: d.shareholderEodRequestId,
+              },
+              { governmentIdNumber, name, eodRequestId }
+            )
           );
 
           if (existingDirectorIndex !== -1) {
@@ -409,17 +430,31 @@ export class AMLFetcherService {
 
           // Step 5: Update director_kyc_status with kycRequestInfo
           // Check if person is already a director (merge roles)
-          const mapKey = this.normalizeKey(name, email);
-          const existingDirectorIndex = directorKycStatus.directors.findIndex(
-            (d: any) => d.eodRequestId === eodRequestId || this.normalizeKey(d.name, d.email) === mapKey
+          const existingDirectorIndex = directorKycStatus.directors.findIndex((d: any) =>
+            corporatePersonIdentitiesMatch(
+              {
+                governmentIdNumber: d.governmentIdNumber,
+                name: d.name,
+                eodRequestId: d.eodRequestId,
+                shareholderEodRequestId: d.shareholderEodRequestId,
+              },
+              {
+                governmentIdNumber: shareholderGovernmentId,
+                name,
+                eodRequestId,
+              }
+            )
           );
 
           if (existingDirectorIndex !== -1) {
-            // Person is both director and shareholder - merge roles
+            // Person is both director and shareholder - merge roles (dedupe exact labels)
             const existing = directorKycStatus.directors[existingDirectorIndex] as Record<string, unknown>;
             directorKycStatus.directors[existingDirectorIndex] = {
               ...existing,
-              role: `${existing.role}, ${role}`,
+              role: mergeRoleLabels(
+                typeof existing.role === "string" ? existing.role : "",
+                role
+              ),
               shareholderEodRequestId: eodRequestId,
               kycId: (existing.kycId as string | undefined) || kycId,
               kycRequestInfo: existing.kycRequestInfo || kycRequestInfo || undefined,
@@ -921,19 +956,37 @@ export class AMLFetcherService {
         }
       }
 
-      // Create a map of existing AML statuses by kycId and eodRequestId
+      // Create a map of existing AML statuses by stable identity (never email alone)
       const existingAmlMap = new Map<string, any>();
       for (const existing of existingDirectorAmlStatus.directors) {
-        const key = existing.kycId || existing.eodRequestId || `${existing.name}|${existing.email}`;
+        const key =
+          existing.kycId ||
+          resolveCorporatePersonMergeKey({
+            governmentIdNumber: existing.governmentIdNumber,
+            name: existing.name,
+            eodRequestId: existing.eodRequestId,
+          });
         existingAmlMap.set(key, existing);
       }
 
       // Merge new AML statuses
       for (const newAmlStatus of allIndividualAmlStatuses) {
         const existingIndex = existingDirectorAmlStatus.directors.findIndex(
-          (d: any) => (d.kycId && d.kycId === newAmlStatus.kycId) || 
-                      (d.eodRequestId && d.eodRequestId === newAmlStatus.eodRequestId) ||
-                      (d.name === newAmlStatus.name && d.email === newAmlStatus.email)
+          (d: any) =>
+            (d.kycId && d.kycId === newAmlStatus.kycId) ||
+            corporatePersonIdentitiesMatch(
+              {
+                governmentIdNumber: d.governmentIdNumber,
+                name: d.name,
+                eodRequestId: d.eodRequestId,
+                shareholderEodRequestId: d.shareholderEodRequestId,
+              },
+              {
+                governmentIdNumber: newAmlStatus.governmentIdNumber,
+                name: newAmlStatus.name,
+                eodRequestId: newAmlStatus.eodRequestId,
+              }
+            )
         );
 
         if (existingIndex !== -1) {

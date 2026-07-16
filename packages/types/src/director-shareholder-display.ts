@@ -12,6 +12,9 @@ import { normalizeRawStatus } from "./status-normalization";
 
 export type DirectorShareholderPartyType = "INDIVIDUAL" | "COMPANY";
 
+/** Display-only flag when RegTank did not provide a government ID (not stored in DB JSON). */
+export type DirectorShareholderIdentityWarning = "MISSING_GOVERNMENT_ID";
+
 export interface DirectorShareholderDisplayRow {
   id: string;
   name: string;
@@ -29,6 +32,11 @@ export interface DirectorShareholderDisplayRow {
   /** Admin CTOS subject enquiry (IC / SSM / EOD). */
   enquiryId: string | null;
   subjectKind: "INDIVIDUAL" | "CORPORATE" | null;
+  /**
+   * Display-only: person lacks a trusted government ID. Never used for merge/match.
+   * Unresolved rows keep separate cards (no name/email merge).
+   */
+  identityWarning?: DirectorShareholderIdentityWarning;
   /** CTOS party: RegTank link sent (supplement sentAt / lastSentAt). Drives row chrome without overloading `status`. */
   ctosOnboardingLinkSent?: boolean;
   /** Raw internal RegTank status (reg_tank_onboarding semantics) when CTOS supplement exists. */
@@ -1013,6 +1021,16 @@ function buildOnboardingDisplayRows(
 
   const indBuckets = new Map<string, IndBucket>();
   const indOrder: string[] = [];
+  const unresolvedIndividuals: Array<{
+    name: string;
+    email: string;
+    eod: string | null;
+    ownershipDisplay: string | null;
+    isDirector: boolean;
+    isShareholder: boolean;
+    sharePctMax: number;
+    ceStatus: string | null;
+  }> = [];
 
   const bucketKeyForIndividual = (icKey: string): string => `I:${icKey}`;
 
@@ -1068,8 +1086,6 @@ function buildOnboardingDisplayRows(
     const pr = p as Record<string, unknown>;
     const icRaw = issuerIcFromCePersonFormOnly(p);
     const icKey = normalizeDirectorShareholderIdKey(icRaw);
-    if (!icKey) continue;
-    const icRawTrim = String(icRaw ?? "").trim();
     const eod = String(p.eodRequestId ?? "").trim() || null;
     const em = emailFromCePerson(p);
     const own = ownershipFromCePerson(p);
@@ -1078,6 +1094,20 @@ function buildOnboardingDisplayRows(
       designation: "director",
       sharePercentage: 0,
     });
+    if (!icKey) {
+      unresolvedIndividuals.push({
+        name: personNameFromCe(p),
+        email: em,
+        eod,
+        ownershipDisplay: own,
+        isDirector: true,
+        isShareholder: false,
+        sharePctMax: dirShare,
+        ceStatus: String(p.status ?? "").trim() || null,
+      });
+      continue;
+    }
+    const icRawTrim = String(icRaw ?? "").trim();
     addInd(icKey, {
       name: personNameFromCe(p),
       roles: new Set(["Director"]),
@@ -1099,12 +1129,24 @@ function buildOnboardingDisplayRows(
 
     const icRaw = issuerIcFromCePersonFormOnly(p);
     const icKey = normalizeDirectorShareholderIdKey(icRaw);
-    if (!icKey) continue;
-    const icRawTrim = String(icRaw ?? "").trim();
     const eod = String(p.eodRequestId ?? "").trim() || null;
     const em = emailFromCePerson(p);
     const own = ownershipFromCePerson(p);
     const shRole = deriveDirectorShareholderRoles({ sharePercentage: share });
+    if (!icKey) {
+      unresolvedIndividuals.push({
+        name: personNameFromCe(p),
+        email: em,
+        eod,
+        ownershipDisplay: own,
+        isDirector: false,
+        isShareholder: shRole.isShareholder,
+        sharePctMax: share,
+        ceStatus: String(p.status ?? "").trim() || null,
+      });
+      continue;
+    }
+    const icRawTrim = String(icRaw ?? "").trim();
     const existingKey = findExistingIndKey(icKey);
     if (existingKey) {
       mergeInd(existingKey, {
@@ -1173,6 +1215,41 @@ function buildOnboardingDisplayRows(
       amlStatus: amlLine || undefined,
     });
   }
+
+  // Missing government ID: keep one display card per source row (never merge by name/email/EOD).
+  unresolvedIndividuals.forEach((u, index) => {
+    const rawResolved =
+      resolveIndividualStatus(null, u.eod, directorKycStatus, kycById) || u.ceStatus || "";
+    const status = normalizeRawStatus(rawResolved);
+    const amlRaw = findLegacyAmlRawForOnboardingRow(null, u.eod, directorKycStatus, directorAmlStatus);
+    const amlLine = normalizeRawStatus(amlRaw);
+    const role = getDisplayRoleLabel({
+      isDirector: u.isDirector,
+      isShareholder: u.isShareholder,
+      sharePercentage: u.sharePctMax,
+    });
+    const roleTag = u.isDirector ? "director" : "shareholder";
+    rows.push({
+      id: `onb-unresolved-${roleTag}-${index}-${u.eod ?? "none"}`,
+      name: u.name,
+      role,
+      type: "INDIVIDUAL",
+      idNumber: null,
+      registrationNumber: null,
+      ownershipDisplay: u.ownershipDisplay,
+      email: u.email,
+      status,
+      canEnterEmail: false,
+      canSendOnboarding: false,
+      enquiryId: u.eod,
+      subjectKind: "INDIVIDUAL",
+      isDirector: u.isDirector,
+      isShareholder: u.isShareholder,
+      sharePercentage: u.sharePctMax,
+      amlStatus: amlLine || undefined,
+      identityWarning: "MISSING_GOVERNMENT_ID",
+    });
+  });
 
   for (const corp of corpShareholders) {
     const c = corp as Record<string, unknown>;
