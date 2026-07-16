@@ -95,6 +95,15 @@ function OnboardingStatusBadge({
     );
   }
 
+  if (status === "REJECTED") {
+    return (
+      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-red-700`}>
+        <ClockIcon className={iconSize} />
+        Rejected
+      </span>
+    );
+  }
+
   if (status === "PENDING_AML") {
     return (
       <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-blue-700`}>
