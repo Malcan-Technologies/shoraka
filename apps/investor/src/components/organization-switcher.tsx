@@ -113,6 +113,15 @@ function OnboardingStatusBadge({
     );
   }
 
+  if (status === "PENDING_AMENDMENT") {
+    return (
+      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-amber-700`}>
+        <ClockIcon className={iconSize} />
+        Amendment in Progress
+      </span>
+    );
+  }
+
   if (status === "PENDING_FINAL_APPROVAL") {
     return (
       <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-blue-700`}>
