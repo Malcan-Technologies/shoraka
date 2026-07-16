@@ -10,7 +10,8 @@
  * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*
  * - Listing date must use note_listings.opens_at only
  * - Tenure must use opens_at → maturity_date only
- * - Expected period return / payment basis / shariah need business decisions
+ * - Expected period return still needs a business decision
+ * - Stage 4C (payment basis / shariah principle) implemented as unresolved → Data not available
  */
 
 export type ProspectusFutureFieldAvailability =
@@ -160,8 +161,9 @@ export const PROSPECTUS_FUTURE_FIELD_SOURCES: Record<
     path: "none",
     origin: "none",
     availability: "unresolved",
-    existingApi: "paymentSchedules[] only",
-    notes: "No Bullet Payment helper. Do not infer for prospectus without a confirmed rule.",
+    existingApi: "paymentSchedules[] only (amounts/due_date; no label)",
+    notes:
+      "Stage 4C: Data not available. No Bullet helper. Do not infer from single schedule row.",
   },
   shariahPrinciple: {
     label: "Shariah principle",
@@ -170,6 +172,7 @@ export const PROSPECTUS_FUTURE_FIELD_SOURCES: Record<
     origin: "none",
     availability: "unresolved",
     existingApi: "none",
-    notes: "Not in schema. Marketing Shariah Compliant ≠ principle label.",
+    notes:
+      "Stage 4C: Data not available. Not in schema. Marketing / Tawarruq ops ≠ principle wording.",
   },
 };
