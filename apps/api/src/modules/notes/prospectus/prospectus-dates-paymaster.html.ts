@@ -1,6 +1,6 @@
 /**
  * SECTION: Plain HTML for Dates & Paymaster data preview
- * WHY: Unstyled Stage 2 proof — no design
+ * WHY: Unstyled Stage 2 proof — Closing Date is a template extension; visual placement pending
  */
 
 import type { ProspectusDatesPaymaster } from "./prospectus-dates-paymaster.types";
@@ -18,10 +18,13 @@ function escapeHtml(value: string): string {
 export function buildProspectusDatesPaymasterHtml(data: ProspectusDatesPaymaster): string {
   const rows: Array<{ key: keyof ProspectusDatesPaymaster; displayLabel: string }> = [
     { key: "listingDate", displayLabel: "Listing date" },
-    { key: "maturityDate", displayLabel: "Maturity date" },
-    { key: "tenure", displayLabel: "Tenure" },
-    { key: "paymasterName", displayLabel: "Paymaster name" },
-    { key: "paymasterEntityType", displayLabel: "Paymaster entity type" },
+    { key: "closingDate", displayLabel: "Listing Closing Date" },
+    { key: "maturityDate", displayLabel: "Maturity date (source)" },
+    { key: "tenure", displayLabel: "Tenure (source)" },
+    { key: "maturityDateWithTenure", displayLabel: "Maturity date" },
+    { key: "paymasterName", displayLabel: "Paymaster name (source)" },
+    { key: "paymasterEntityType", displayLabel: "Paymaster entity type (source)" },
+    { key: "paymasterDisplay", displayLabel: "Paymaster" },
   ];
 
   const body = rows
@@ -45,12 +48,18 @@ export function buildProspectusDatesPaymasterHtml(data: ProspectusDatesPaymaster
 <body>
   <h1>Prospectus Page 1 — DATA STAGE 2: Dates and Paymaster</h1>
   <p>Unstyled data preview. Missing values must be exactly: Data not available</p>
+  <p>Listing Closing Date uses note_listings.closes_at only (scheduled). notes.funding_closed_at is not used. Final visual placement of Closing Date is pending (not in original Canva).</p>
   <p>
     Listing date: ${escapeHtml(data.listingDate)}<br />
-    Maturity date: ${escapeHtml(data.maturityDate)}<br />
-    Tenure: ${escapeHtml(data.tenure)}<br />
-    Paymaster name: ${escapeHtml(data.paymasterName)}<br />
-    Paymaster entity type: ${escapeHtml(data.paymasterEntityType)}
+    Closing date: ${escapeHtml(data.closingDate)}<br />
+    Maturity date: ${escapeHtml(data.maturityDateWithTenure)}<br />
+    Paymaster: ${escapeHtml(data.paymasterDisplay)}
+  </p>
+  <p>
+    Tenure (source): ${escapeHtml(data.tenure)}<br />
+    Maturity date (source): ${escapeHtml(data.maturityDate)}<br />
+    Paymaster name (source): ${escapeHtml(data.paymasterName)}<br />
+    Paymaster entity type (source): ${escapeHtml(data.paymasterEntityType)}
   </p>
   <table border="1" cellpadding="6" cellspacing="0">
     <thead>

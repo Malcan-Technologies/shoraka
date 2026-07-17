@@ -1,6 +1,6 @@
 /**
  * SECTION: Build Dates & Paymaster view-model from raw inputs
- * WHY: Pure formatting/calculation for Stage 2 preview — no Prisma
+ * WHY: Pure formatting/calculation for Stage 2 — no Prisma; no closing-date fallbacks
  */
 
 import { calculateCalendarDayCount } from "../calculators";
@@ -36,7 +36,7 @@ export function formatProspectusDateUtc(value: Date | string | null | undefined)
 }
 
 /**
- * Shared tenure + maturity display for Stage 2 and Stage 4B.
+ * Shared tenure + maturity + listing display for Stage 2 and later stages.
  * Tenure = calculateCalendarDayCount(opens_at, maturity_date) → "{n} days".
  */
 export function buildProspectusTenureAndMaturity(input: {
@@ -59,6 +59,32 @@ export function buildProspectusTenureAndMaturity(input: {
   };
 }
 
+/** Maturity with optional tenure suffix; no empty parentheses. */
+export function composeProspectusMaturityDateWithTenure(
+  maturityDate: string,
+  tenure: string
+): string {
+  if (maturityDate === PROSPECTUS_DATA_NOT_AVAILABLE) {
+    return PROSPECTUS_DATA_NOT_AVAILABLE;
+  }
+  if (tenure === PROSPECTUS_DATA_NOT_AVAILABLE) {
+    return maturityDate;
+  }
+  return `${maturityDate} (${tenure})`;
+}
+
+/** Paymaster line; entity type never shown without name; values not shortened. */
+export function composeProspectusPaymasterDisplay(
+  paymasterName: string | null | undefined,
+  paymasterEntityType: string | null | undefined
+): string {
+  const name = nonEmptyString(paymasterName);
+  if (!name) return PROSPECTUS_DATA_NOT_AVAILABLE;
+  const entityType = nonEmptyString(paymasterEntityType);
+  if (!entityType) return name;
+  return `${name} (${entityType})`;
+}
+
 export function buildProspectusDatesPaymaster(
   input: ProspectusDatesPaymasterInput
 ): ProspectusDatesPaymaster {
@@ -66,14 +92,24 @@ export function buildProspectusDatesPaymaster(
     listingOpensAt: input.listingOpensAt,
     maturityDate: input.maturityDate,
   });
+  const closingDate = formatProspectusDateUtc(input.listingClosesAt);
   const paymasterName = nonEmptyString(input.paymasterName);
   const paymasterEntityType = nonEmptyString(input.paymasterEntityType);
 
   return {
     listingDate: timing.listingDate,
+    closingDate,
     maturityDate: timing.maturityDate,
     tenure: timing.tenure,
+    maturityDateWithTenure: composeProspectusMaturityDateWithTenure(
+      timing.maturityDate,
+      timing.tenure
+    ),
     paymasterName: paymasterName ?? PROSPECTUS_DATA_NOT_AVAILABLE,
     paymasterEntityType: paymasterEntityType ?? PROSPECTUS_DATA_NOT_AVAILABLE,
+    paymasterDisplay: composeProspectusPaymasterDisplay(
+      input.paymasterName,
+      input.paymasterEntityType
+    ),
   };
 }
