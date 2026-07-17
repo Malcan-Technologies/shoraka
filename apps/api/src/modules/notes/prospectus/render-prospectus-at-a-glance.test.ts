@@ -39,7 +39,7 @@ describe("prospectus At a Glance (Page 1 DATA STAGE 6)", () => {
     expect(glance.minimumInvestment).toBe(terms.minimumInvestment);
     expect(glance.tenure).toBe(timing.tenure);
     expect(glance.financingAmount).toBe("RM 500,000.00");
-    expect(glance.profitRate).toBe("12% p.a.");
+    expect(glance.profitRate).toBe("12%");
     expect(glance.tenure).toBe("120 days");
     expect(glance.minimumInvestment).toBe("RM 100.00");
   });
@@ -47,7 +47,7 @@ describe("prospectus At a Glance (Page 1 DATA STAGE 6)", () => {
   it("renders plain HTML with Stage 6 summary lines", () => {
     const html = buildProspectusAtAGlanceDocument();
     expect(html).toContain("Financing amount: RM 500,000.00");
-    expect(html).toContain("Profit rate: 12% p.a.");
+    expect(html).toContain("Profit rate: 12%");
     expect(html).toContain("Expected return: Data not available");
     expect(html).toContain("Tenure: 120 days");
     expect(html).toContain("Minimum investment: RM 100.00");

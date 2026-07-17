@@ -1,12 +1,19 @@
-import { MARKETPLACE_MIN_COMMIT_MYR } from "@cashsouk/types";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import {
+  formatInvestorReturnRatePercent,
+  MARKETPLACE_MIN_COMMIT_MYR,
+} from "@cashsouk/types";
 import {
   buildProspectusMainFinancialTerms,
   formatProspectusMoneyMyr,
   formatProspectusProfitRatePa,
+  formatProspectusProfitRatePercent,
 } from "./prospectus-main-financial-terms";
 import { SAMPLE_PROSPECTUS_MAIN_FINANCIAL_TERMS_INPUT } from "./prospectus-main-financial-terms.sample-data";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
+  PROSPECTUS_EXPECTED_RETURN_AUDIT,
   PROSPECTUS_MAIN_FINANCIAL_TERMS_FIELD_SOURCES,
 } from "./prospectus-main-financial-terms.types";
 import { buildProspectusMainFinancialTermsDocument } from "./render-prospectus-main-financial-terms";
@@ -22,50 +29,116 @@ describe("prospectus Main Financial Terms (Page 1 DATA STAGE 4A)", () => {
     expect(PROSPECTUS_MAIN_FINANCIAL_TERMS_FIELD_SOURCES.profitRate.canonicalSource).toBe(
       "notes.profit_rate_percent"
     );
+    expect(PROSPECTUS_MAIN_FINANCIAL_TERMS_FIELD_SOURCES.profitRate.label).toBe(
+      "Profit Rate (p.a.)"
+    );
     expect(
       PROSPECTUS_MAIN_FINANCIAL_TERMS_FIELD_SOURCES.expectedReturnForInvestmentPeriod.availability
     ).toBe("unresolved");
   });
 
-  it("formats money and gross profit rate; leaves period return unavailable", () => {
-    expect(formatProspectusMoneyMyr(500_000)).toBe("RM 500,000.00");
-    expect(formatProspectusMoneyMyr(MARKETPLACE_MIN_COMMIT_MYR)).toBe("RM 100.00");
-    expect(formatProspectusProfitRatePa(12)).toBe("12% p.a.");
-    expect(formatProspectusProfitRatePa(null)).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-
-    const built = buildProspectusMainFinancialTerms(SAMPLE_PROSPECTUS_MAIN_FINANCIAL_TERMS_INPUT);
+  it("formats financing amount when available", () => {
+    const built = buildProspectusMainFinancialTerms({
+      targetAmount: 500_000,
+      profitRatePercent: 12,
+    });
     expect(built.financingAmount).toBe("RM 500,000.00");
-    expect(built.minimumInvestment).toBe("RM 100.00");
-    expect(built.profitRate).toBe("12% p.a.");
-    expect(built.expectedReturnForInvestmentPeriod).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(formatProspectusMoneyMyr(500_000)).toBe("RM 500,000.00");
   });
 
-  it("does not hardcode 100 and uses MARKETPLACE_MIN_COMMIT_MYR", () => {
+  it("returns Data not available for missing financing amount", () => {
+    const missing = buildProspectusMainFinancialTerms({
+      targetAmount: null,
+      profitRatePercent: 12,
+    });
+    expect(missing.financingAmount).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+  });
+
+  it("uses MARKETPLACE_MIN_COMMIT_MYR and does not hardcode the min in the module", () => {
     const built = buildProspectusMainFinancialTerms({
       targetAmount: 1_000,
       profitRatePercent: 10,
     });
     expect(built.minimumInvestment).toBe(formatProspectusMoneyMyr(MARKETPLACE_MIN_COMMIT_MYR));
-  });
+    expect(built.minimumInvestment).toBe("RM 100.00");
 
-  it("returns Data not available for missing financing amount or profit rate", () => {
-    const missing = buildProspectusMainFinancialTerms({
-      targetAmount: null,
-      profitRatePercent: undefined,
-    });
-    expect(missing.financingAmount).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(missing.profitRate).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(missing.expectedReturnForInvestmentPeriod).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-  });
-
-  it("renders plain HTML with Stage 4A lines", () => {
-    const html = buildProspectusMainFinancialTermsDocument();
-    expect(html).toContain("Financing amount: RM 500,000.00");
-    expect(html).toContain("Minimum investment: RM 100.00");
-    expect(html).toContain("Profit rate: 12% p.a.");
-    expect(html).toContain(
-      `Expected return for investment period: ${PROSPECTUS_DATA_NOT_AVAILABLE}`
+    const moduleSource = readFileSync(
+      join(__dirname, "prospectus-main-financial-terms.ts"),
+      "utf8"
     );
+    expect(moduleSource).toContain("MARKETPLACE_MIN_COMMIT_MYR");
+    expect(moduleSource).not.toMatch(/minimumInvestment:\s*formatProspectusMoneyMyr\(\s*100\s*\)/);
+    expect(moduleSource).not.toMatch(/formatProspectusMoneyMyr\(\s*100\s*\)/);
+  });
+
+  it("formats annual gross profit rate without duplicating p.a. in the value", () => {
+    expect(formatProspectusProfitRatePercent(12)).toBe("12%");
+    expect(formatProspectusProfitRatePercent(null)).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    // Legacy helper for stages whose labels omit (p.a.)
+    expect(formatProspectusProfitRatePa(12)).toBe("12% p.a.");
+
+    const built = buildProspectusMainFinancialTerms(SAMPLE_PROSPECTUS_MAIN_FINANCIAL_TERMS_INPUT);
+    expect(built.profitRate).toBe("12%");
+    expect(built.profitRate).not.toContain("p.a.");
+  });
+
+  it("reuses platform rate precision (1dp investor convention) for decimal rates", () => {
+    // formatInvestorReturnRatePercent intentionally rounds to 1 decimal.
+    expect(formatInvestorReturnRatePercent(10.25)).toBe("10.3%");
+    expect(formatProspectusProfitRatePercent(10.25)).toBe("10.3%");
+    expect(formatProspectusProfitRatePercent(10.2)).toBe("10.2%");
+    expect(formatProspectusProfitRatePercent(10.375)).toBe("10.4%");
+  });
+
+  it("returns Data not available for missing or invalid profit rate", () => {
+    expect(
+      buildProspectusMainFinancialTerms({
+        targetAmount: 500_000,
+        profitRatePercent: undefined,
+      }).profitRate
+    ).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(
+      buildProspectusMainFinancialTerms({
+        targetAmount: 500_000,
+        profitRatePercent: Number.NaN,
+      }).profitRate
+    ).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+  });
+
+  it("keeps expected period return unresolved with audit metadata", () => {
+    const built = buildProspectusMainFinancialTerms(SAMPLE_PROSPECTUS_MAIN_FINANCIAL_TERMS_INPUT);
+    expect(built.expectedReturnForInvestmentPeriod).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(built.audit.expectedReturn).toEqual(PROSPECTUS_EXPECTED_RETURN_AUDIT);
+    expect(built.audit.expectedReturn.status).toBe("unresolved");
+    expect(built.audit.expectedReturn.formulaDecision).toBe("pending");
+    expect(built.audit.expectedReturn.grossOrNetDecision).toBe("pending");
+  });
+
+  it("renders Canva-facing HTML without audit, net rate, or Canva 3.95%", () => {
+    const html = buildProspectusMainFinancialTermsDocument();
+    expect(html).toContain("Financing Amount: RM 500,000.00");
+    expect(html).toContain("Minimum Investment: RM 100.00");
+    expect(html).toContain("Profit Rate (p.a.): 12%");
+    expect(html).not.toContain("Profit Rate (p.a.): 12% p.a.");
+    expect(html).not.toContain("Profit Rate for Investors");
+    expect(html).toContain(
+      `Expected Return for Investment Period: ${PROSPECTUS_DATA_NOT_AVAILABLE}`
+    );
+    expect(html).not.toContain("3.95%");
+    expect(html).not.toContain("formulaDecision");
+    expect(html).not.toContain("grossOrNetDecision");
+    expect(html).not.toContain("computeNetExpectedReturnRatePercent");
     expect(html).toContain("notes.target_amount");
+  });
+
+  it("does not import or call annual-net period substitution in the builder module", () => {
+    const moduleSource = readFileSync(
+      join(__dirname, "prospectus-main-financial-terms.ts"),
+      "utf8"
+    );
+    expect(moduleSource).not.toContain("computeNetExpectedReturnRatePercent");
+    expect(moduleSource).not.toContain("expectedReturnRatePercent");
+    expect(moduleSource).not.toContain("3.95");
+    expect(moduleSource).not.toMatch(/\/\s*365/);
   });
 });

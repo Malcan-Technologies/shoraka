@@ -28,6 +28,15 @@
  * - No Note-level risk explanation
  * - Page 2 scale must be corrected or approved before final publication
  * - Rating scale link text remains "See rating scale on page 2" with scaleStatus pending_scale_decision
+ *
+ * Stage 4A main financial terms (prospectus-main-financial-terms.*) — correction notes:
+ * - Financing amount = notes.target_amount
+ * - Minimum investment = MARKETPLACE_MIN_COMMIT_MYR (not capacity-adjusted minCommit)
+ * - Profit rate = notes.profit_rate_percent = annual GROSS before investor service fees
+ * - Expected period return = unresolved (Data not available); no approved formula
+ * - No approved gross-versus-net, day-count, or rounding decision for period return
+ * - Stage 6 At a Glance reuses buildProspectusMainFinancialTerms (same formatters)
+ * - Canva sample 3.95% must not be used as production data
  */
 
 export type ProspectusFutureFieldAvailability =
@@ -118,40 +127,41 @@ export const PROSPECTUS_FUTURE_FIELD_SOURCES: Record<
     notes: "Implemented in DATA STAGE 2. Display-ready issuer ENTITY_TYPES labels.",
   },
   financingAmount: {
-    label: "Financing amount",
+    label: "Financing Amount",
     model: "notes",
     path: "target_amount",
     origin: "note",
     availability: "stored",
     existingApi: "NoteListItem.targetAmount",
-    notes: "Possible fallback offered_amount on invoice snapshot — not primary.",
+    notes: "Stage 4A canonical. Not invoice/offered/funded/disbursed amount.",
   },
   minimumInvestment: {
-    label: "Minimum investment",
+    label: "Minimum Investment",
     model: "n/a",
     path: "MARKETPLACE_MIN_COMMIT_MYR",
     origin: "platform_constant",
     availability: "constant",
-    existingApi: "computeMarketplaceCommitBounds().minCommit",
-    notes: "Not a Note column.",
+    existingApi: "MARKETPLACE_MIN_COMMIT_MYR (not computeMarketplaceCommitBounds().minCommit)",
+    notes: "Stage 4A platform floor. Capacity-adjusted minCommit is not prospectus minimum.",
   },
   profitRate: {
-    label: "Profit rate",
+    label: "Profit Rate (p.a.)",
     model: "notes",
     path: "profit_rate_percent",
     origin: "note",
     availability: "stored",
     existingApi: "NoteListItem.profitRatePercent",
-    notes: "From offer at create.",
+    notes: "Stage 4A annual GROSS before investor service fees. Not net / period return.",
   },
   expectedReturnPeriod: {
-    label: "Expected return (period)",
+    label: "Expected Return for Investment Period",
     model: "n/a",
     path: "no period-% field",
     origin: "calculated",
     availability: "unresolved",
-    existingApi: "annual net: expectedReturnRatePercent; period MYR via calculators",
-    notes: "Business decision required: period gross vs net. Do not reuse annual net as period %.",
+    existingApi: "none approved; do not use Canva 3.95% or annual net as period %",
+    notes:
+      "Stage 4A: Data not available. Pending formula, gross-vs-net, day-count, rounding. Stage 6 reuses Stage 4A value.",
   },
   tenure: {
     label: "Tenure",

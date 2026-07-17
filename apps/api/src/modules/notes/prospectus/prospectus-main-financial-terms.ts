@@ -1,6 +1,6 @@
 /**
  * SECTION: Build Main Financial Terms view-model
- * WHY: Format confirmed money/rate fields only; period return stays unresolved
+ * WHY: One canonical source per confirmed field; period return stays unresolved
  */
 
 import {
@@ -11,11 +11,15 @@ import {
 } from "@cashsouk/types";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
+  PROSPECTUS_EXPECTED_RETURN_AUDIT,
   type ProspectusMainFinancialTerms,
   type ProspectusMainFinancialTermsInput,
 } from "./prospectus-main-financial-terms.types";
 
-/** Match packages/config formatCurrency (RM + en-MY, 2dp) without adding a config dependency. */
+/**
+ * Match packages/config formatCurrency (RM + en-MY, 2dp).
+ * Keep 2 decimals — platform NOTE_MONEY_DECIMALS; do not switch to Canva 0dp here.
+ */
 export function formatProspectusMoneyMyr(amount: number | null | undefined): string {
   if (amount == null || !Number.isFinite(amount)) {
     return PROSPECTUS_DATA_NOT_AVAILABLE;
@@ -28,7 +32,11 @@ export function formatProspectusMoneyMyr(amount: number | null | undefined): str
   return `RM ${formatted}`;
 }
 
-export function formatProspectusProfitRatePa(
+/**
+ * Annual gross percent for labels that already include "(p.a.)".
+ * Reuses formatInvestorReturnRatePercent (1dp investor convention).
+ */
+export function formatProspectusProfitRatePercent(
   profitRatePercent: number | null | undefined
 ): string {
   if (profitRatePercent == null || !Number.isFinite(profitRatePercent)) {
@@ -36,6 +44,20 @@ export function formatProspectusProfitRatePa(
   }
   const rateLabel = formatInvestorReturnRatePercent(profitRatePercent);
   if (rateLabel === "-") {
+    return PROSPECTUS_DATA_NOT_AVAILABLE;
+  }
+  return rateLabel;
+}
+
+/**
+ * Percent + " p.a." for stages whose label does not already say p.a.
+ * Stages 5C / 8 reuse this helper directly.
+ */
+export function formatProspectusProfitRatePa(
+  profitRatePercent: number | null | undefined
+): string {
+  const rateLabel = formatProspectusProfitRatePercent(profitRatePercent);
+  if (rateLabel === PROSPECTUS_DATA_NOT_AVAILABLE) {
     return PROSPECTUS_DATA_NOT_AVAILABLE;
   }
   return `${rateLabel} p.a.`;
@@ -47,7 +69,10 @@ export function buildProspectusMainFinancialTerms(
   return {
     financingAmount: formatProspectusMoneyMyr(input.targetAmount),
     minimumInvestment: formatProspectusMoneyMyr(MARKETPLACE_MIN_COMMIT_MYR),
-    profitRate: formatProspectusProfitRatePa(input.profitRatePercent),
+    profitRate: formatProspectusProfitRatePercent(input.profitRatePercent),
     expectedReturnForInvestmentPeriod: PROSPECTUS_DATA_NOT_AVAILABLE,
+    audit: {
+      expectedReturn: PROSPECTUS_EXPECTED_RETURN_AUDIT,
+    },
   };
 }
