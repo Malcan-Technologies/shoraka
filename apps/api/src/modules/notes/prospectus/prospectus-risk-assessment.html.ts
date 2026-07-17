@@ -1,10 +1,13 @@
 /**
- * SECTION: Plain HTML for Risk Assessment data preview
- * WHY: Unstyled Stage 3 proof — no design
+ * SECTION: Plain HTML for Risk Assessment Canva-facing preview
+ * WHY: Unstyled Stage 3 — audit metadata excluded from this document
  */
 
 import type { ProspectusRiskAssessment } from "./prospectus-risk-assessment.types";
-import { PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES } from "./prospectus-risk-assessment.types";
+import {
+  PROSPECTUS_RATING_SCALE_STATUS,
+  PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES,
+} from "./prospectus-risk-assessment.types";
 
 function escapeHtml(value: string): string {
   return value
@@ -16,27 +19,8 @@ function escapeHtml(value: string): string {
 }
 
 export function buildProspectusRiskAssessmentHtml(data: ProspectusRiskAssessment): string {
-  const rows: Array<{ key: keyof ProspectusRiskAssessment; displayLabel: string }> = [
-    { key: "riskGrade", displayLabel: "Risk grade" },
-    { key: "riskLabel", displayLabel: "Risk label" },
-    { key: "riskScore", displayLabel: "Risk score" },
-    { key: "riskExplanation", displayLabel: "Risk explanation" },
-    { key: "ratingScaleReference", displayLabel: "Rating scale reference" },
-    { key: "riskAppliesTo", displayLabel: "Risk applies to" },
-    { key: "assessmentSource", displayLabel: "Assessment source" },
-  ];
-
-  const body = rows
-    .map(({ key, displayLabel }) => {
-      const source = PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES[key];
-      return `<tr>
-  <td>${escapeHtml(displayLabel)}</td>
-  <td>${escapeHtml(data[key])}</td>
-  <td>${escapeHtml(source.canonicalSource)}</td>
-  <td>${escapeHtml(source.availability)}</td>
-</tr>`;
-    })
-    .join("\n");
+  const { canva } = data;
+  const gradeSrc = PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES.riskGrade;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -46,29 +30,20 @@ export function buildProspectusRiskAssessmentHtml(data: ProspectusRiskAssessment
 </head>
 <body>
   <h1>Prospectus Page 1 — DATA STAGE 3: Risk Assessment</h1>
-  <p>Unstyled data preview. Missing values must be exactly: Data not available</p>
-  <p>
-    Risk grade: ${escapeHtml(data.riskGrade)}<br />
-    Risk label: ${escapeHtml(data.riskLabel)}<br />
-    Risk score: ${escapeHtml(data.riskScore)}<br />
-    Risk explanation: ${escapeHtml(data.riskExplanation)}<br />
-    Rating scale reference: ${escapeHtml(data.ratingScaleReference)}<br />
-    Risk applies to: ${escapeHtml(data.riskAppliesTo)}<br />
-    Assessment source: ${escapeHtml(data.assessmentSource)}
-  </p>
-  <table border="1" cellpadding="6" cellspacing="0">
-    <thead>
-      <tr>
-        <th>Label</th>
-        <th>Value</th>
-        <th>Canonical source</th>
-        <th>Availability</th>
-      </tr>
-    </thead>
-    <tbody>
-${body}
-    </tbody>
-  </table>
+  <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
+  <p>SoukScore grades only (AAA, AA, A, BBB, BB, B). Invalid Canva grades are rejected. Page 2 scale status: ${escapeHtml(
+    PROSPECTUS_RATING_SCALE_STATUS
+  )} (not shown in risk box).</p>
+  <p>Canonical grade source: ${escapeHtml(gradeSrc.canonicalSource)}</p>
+  <section>
+    <h2>Risk Rating</h2>
+    <p>
+      Risk Rating: ${escapeHtml(canva.riskGrade)}<br />
+      Risk label: ${escapeHtml(canva.riskLabel)}<br />
+      Risk explanation: ${escapeHtml(canva.riskExplanation)}<br />
+      Rating scale reference: ${escapeHtml(canva.ratingScaleReference)}
+    </p>
+  </section>
 </body>
 </html>`;
 }

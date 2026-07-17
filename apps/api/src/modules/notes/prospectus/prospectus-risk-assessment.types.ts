@@ -1,30 +1,49 @@
 /**
  * SECTION: Prospectus Page 1 — Risk Assessment (DATA STAGE 3)
- * WHY: Isolate SoukScore grade vs unrelated RegTank/CTOS scores and Canva A–E marketing scale
+ * WHY: SoukScore grade only for Canva; no A-/Low Risk/RegTank/CTOS; Page 2 scale pending
  */
 
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
 
 export { PROSPECTUS_DATA_NOT_AVAILABLE };
 
-/** Static prospectus link copy (Page 2 scale content is not implemented in product). */
+/** Static template link — Page 2 scale not yet approved for SoukScore AAA–B. */
 export const PROSPECTUS_RATING_SCALE_REFERENCE = "See rating scale on page 2";
 
-export interface ProspectusRiskAssessment {
+/** Internal marker: do not ship as final until Page 2 uses an approved scale. */
+export const PROSPECTUS_RATING_SCALE_STATUS = "pending_scale_decision" as const;
+
+export type ProspectusRatingScaleStatus = typeof PROSPECTUS_RATING_SCALE_STATUS;
+
+/** Canva Page 1 risk box only. */
+export interface ProspectusRiskAssessmentCanvaFacing {
   riskGrade: string;
   riskLabel: string;
-  riskScore: string;
   riskExplanation: string;
   ratingScaleReference: string;
+}
+
+/** Debug/audit metadata — not rendered in Canva-facing HTML. */
+export interface ProspectusRiskAssessmentAudit {
+  /** Always Data not available — no numerical SoukScore on Note. */
+  riskScore: string;
   riskAppliesTo: string;
   assessmentSource: string;
+  /** True when a valid grade is present from the frozen Note snapshot. */
+  isFrozen: boolean;
+  scaleStatus: ProspectusRatingScaleStatus;
+}
+
+export interface ProspectusRiskAssessment {
+  canva: ProspectusRiskAssessmentCanvaFacing;
+  audit: ProspectusRiskAssessmentAudit;
 }
 
 /** Raw inputs for preview/builder — not Prisma. */
 export interface ProspectusRiskAssessmentInput {
   /**
    * notes.invoice_snapshot.offer_details.risk_rating
-   * Allowed platform grades: AAA | AA | A | BBB | BB | B
+   * Allowed: AAA | AA | A | BBB | BB | B (isSoukscoreRiskRating)
    */
   soukscoreRiskRating: string | null | undefined;
 }
@@ -33,65 +52,70 @@ export interface ProspectusRiskAssessmentFieldSource {
   label: string;
   canonicalSource: string;
   availability: "stored" | "static" | "not_stored" | "unresolved";
+  surface: "canva" | "audit";
   possibleAlternatives: string;
   notes: string;
 }
 
-export const PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES: Record<
-  keyof ProspectusRiskAssessment,
-  ProspectusRiskAssessmentFieldSource
-> = {
+export const PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES = {
   riskGrade: {
-    label: "Risk grade",
+    label: "Risk Rating",
     canonicalSource: "notes.invoice_snapshot.offer_details.risk_rating",
-    availability: "stored",
+    availability: "stored" as const,
+    surface: "canva" as const,
     possibleAlternatives:
-      "live invoices.offer_details.risk_rating; Canva A–E / A- — not used",
+      "live invoices.offer_details.risk_rating; Canva A– / A–E — not used",
     notes:
-      "SoukScore grades: AAA, AA, A, BBB, BB, B. Set by admin on invoice offer. Exposed as NoteListItem.riskRating.",
+      "SoukScore: AAA, AA, A, BBB, BB, B via isSoukscoreRiskRating. NoteListItem.riskRating.",
   },
   riskLabel: {
     label: "Risk label",
     canonicalSource: "none",
-    availability: "not_stored",
+    availability: "not_stored" as const,
+    surface: "canva" as const,
     possibleAlternatives:
-      "RegTank riskLevel (Low/Medium/High Risk) on org/person AML — different system, not used",
-    notes: "No Low Risk / Very Low mapping from SoukScore grades exists in code.",
-  },
-  riskScore: {
-    label: "Risk score",
-    canonicalSource: "none for note prospectus",
-    availability: "not_stored",
-    possibleAlternatives:
-      "RegTank KYC/KYB riskScore; CTOS party riskScore; investor UI prop named riskScore (actually letter grade) — not used",
-    notes: "No numerical SoukScore on Note. Do not treat letter grade as a numeric score.",
+      "RegTank riskLevel (Low/Medium/High Risk) — different system, not used",
+    notes: "No approved SoukScore-to-label mapping. Do not derive Low Risk.",
   },
   riskExplanation: {
     label: "Risk explanation",
     canonicalSource: "none",
-    availability: "not_stored",
-    possibleAlternatives: "NoteListing.risk_disclosure JSON (unused for this paragraph); Canva copy — not used",
-    notes: "No stored prospectus explanation paragraph.",
+    availability: "not_stored" as const,
+    surface: "canva" as const,
+    possibleAlternatives: "NoteListing.risk_disclosure; Canva sample narrative — not used",
+    notes: "No stored Note-level explanation. Do not generate from FS/paymaster/CTOS.",
   },
   ratingScaleReference: {
     label: "Rating scale reference",
     canonicalSource: "static prospectus wording",
-    availability: "static",
-    possibleAlternatives: "Page 2 Canva A–E scale content — not implemented in product",
-    notes: "Link text only. Product filter/badge scale is AAA–B, not A–E.",
+    availability: "static" as const,
+    surface: "canva" as const,
+    possibleAlternatives: "Page 2 Canva A–E scale — incompatible with SoukScore until corrected",
+    notes:
+      "Display text only. audit.scaleStatus = pending_scale_decision until Page 2 is approved.",
+  },
+  riskScore: {
+    label: "Risk score",
+    canonicalSource: "none for note prospectus",
+    availability: "not_stored" as const,
+    surface: "audit" as const,
+    possibleAlternatives: "RegTank/CTOS numerical scores — not used",
+    notes: "No numerical SoukScore on Note. Audit-only; never Canva-facing.",
   },
   riskAppliesTo: {
     label: "Risk applies to",
     canonicalSource: "invoice offer → frozen on note invoice_snapshot",
-    availability: "stored",
+    availability: "stored" as const,
+    surface: "audit" as const,
     possibleAlternatives: "issuer org AML; paymaster CTOS — different assessments",
-    notes: "SoukScore is assigned per invoice offer, then frozen into the Note snapshot.",
+    notes: "Audit metadata only.",
   },
   assessmentSource: {
     label: "Assessment source",
     canonicalSource: "Admin send-invoice-offer → offer_details.risk_rating",
-    availability: "stored",
+    availability: "stored" as const,
+    surface: "audit" as const,
     possibleAlternatives: "CTOS; RegTank AML — not SoukScore",
-    notes: "Manual admin selection at offer send. Validated by SOUKSCORE_RISK_RATING_GRADES.",
+    notes: "Audit metadata only. Validated by SOUKSCORE_RISK_RATING_GRADES.",
   },
 };

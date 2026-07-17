@@ -19,6 +19,15 @@
  * - Stage 6 (At a Glance) in prospectus-at-a-glance.* — composes Stage 4A + Stage 2 only
  * - Stage 7 (issuer track-record summary) in prospectus-issuer-track-record.* — identity key only; aggregates unresolved
  * - Stage 8 (historical note table) in prospectus-historical-note-table.* — row formatters; no eligibility filter
+ *
+ * Stage 3 risk (prospectus-risk-assessment.*) — correction notes:
+ * - Current platform risk scale (SoukScore): AAA | AA | A | BBB | BB | B
+ * - Canva design shows A- and an A–E presentation on page 2 — mismatch unresolved
+ * - No approved SoukScore-to-label mapping (e.g. Low Risk)
+ * - No numerical SoukScore on Note
+ * - No Note-level risk explanation
+ * - Page 2 scale must be corrected or approved before final publication
+ * - Rating scale link text remains "See rating scale on page 2" with scaleStatus pending_scale_decision
  */
 
 export type ProspectusFutureFieldAvailability =

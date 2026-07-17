@@ -1,6 +1,6 @@
 /**
  * SECTION: Sample Risk Assessment for Stage 3 preview
- * WHY: Use a valid SoukScore grade only; never Canva A- / Low Risk / explanation copy
+ * WHY: Valid SoukScore only (AA); never Canva A- / Low Risk / generated explanation
  */
 
 import { buildProspectusRiskAssessment } from "./prospectus-risk-assessment";
@@ -9,9 +9,9 @@ import type {
   ProspectusRiskAssessmentInput,
 } from "./prospectus-risk-assessment.types";
 
-/** Valid platform grade (AAA–B). Canva “A-” is not a stored value. */
+/** Valid platform grade (AAA–B). Canva “A-” is rejected by isSoukscoreRiskRating. */
 export const SAMPLE_PROSPECTUS_RISK_ASSESSMENT_INPUT: ProspectusRiskAssessmentInput = {
-  soukscoreRiskRating: "A",
+  soukscoreRiskRating: "AA",
 };
 
 export const SAMPLE_PROSPECTUS_RISK_ASSESSMENT: ProspectusRiskAssessment =
