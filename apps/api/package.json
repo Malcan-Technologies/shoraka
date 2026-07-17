@@ -42,6 +42,7 @@
     "prospectus:shariah-highlight-preview": "tsx scripts/generate-prospectus-shariah-highlight-preview.ts",
     "prospectus:at-a-glance-preview": "tsx scripts/generate-prospectus-at-a-glance-preview.ts",
     "prospectus:issuer-track-record-preview": "tsx scripts/generate-prospectus-issuer-track-record-preview.ts",
+    "prospectus:historical-note-table-preview": "tsx scripts/generate-prospectus-historical-note-table-preview.ts",
     "prospectus:stage1-preview": "tsx scripts/generate-prospectus-stage1-preview.ts",
     "seed-expired-offer-for-test": "tsx scripts/seed-expired-offer-for-test.ts",
     "seed-ekyc-identity": "tsx scripts/seed-ekyc-identity.ts",

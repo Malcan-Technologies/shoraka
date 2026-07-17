@@ -18,6 +18,7 @@
  * - Stage 5D (Shariah highlight) in prospectus-shariah-highlight.* — compliance claim unresolved; not Tawarruq-as-proof
  * - Stage 6 (At a Glance) in prospectus-at-a-glance.* — composes Stage 4A + Stage 2 only
  * - Stage 7 (issuer track-record summary) in prospectus-issuer-track-record.* — identity key only; aggregates unresolved
+ * - Stage 8 (historical note table) in prospectus-historical-note-table.* — row formatters; no eligibility filter
  */
 
 export type ProspectusFutureFieldAvailability =
