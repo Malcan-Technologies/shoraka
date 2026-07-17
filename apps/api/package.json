@@ -40,6 +40,7 @@
     "prospectus:issuer-fundamentals-highlight-preview": "tsx scripts/generate-prospectus-issuer-fundamentals-highlight-preview.ts",
     "prospectus:return-highlight-preview": "tsx scripts/generate-prospectus-return-highlight-preview.ts",
     "prospectus:shariah-highlight-preview": "tsx scripts/generate-prospectus-shariah-highlight-preview.ts",
+    "prospectus:at-a-glance-preview": "tsx scripts/generate-prospectus-at-a-glance-preview.ts",
     "prospectus:stage1-preview": "tsx scripts/generate-prospectus-stage1-preview.ts",
     "seed-expired-offer-for-test": "tsx scripts/seed-expired-offer-for-test.ts",
     "seed-ekyc-identity": "tsx scripts/seed-ekyc-identity.ts",
