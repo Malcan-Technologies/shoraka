@@ -59,6 +59,7 @@ import {
   type SigningTemplateConfig,
   type SigningTemplateRole,
   computeSigningEnvelopeProgress,
+  offerAcceptanceAllowsSigning,
 } from "@cashsouk/types";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { Input } from "@/components/ui/input";
@@ -67,15 +68,26 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SigningProgressMatrix } from "@/components/signing/signing-progress-matrix";
 import { SigningProgressStepper, type SigningOfferStep } from "@/components/signing/signing-progress-stepper";
 import {
+  acknowledgementStepId,
   getCurrentSigningOfferStepId,
   buildAcceptanceDocumentsStepConfig,
+  getNextStepAfterAcknowledgement,
+  getOfferAcknowledgements,
   getSigningOfferSteps,
   hasCompletedContractEnvelope,
   hasPostApplicationDocuments,
+  isAcknowledgementStepId,
   isSigningOfferStepReachable,
+  parseAcknowledgementStepKey,
+  resolveOfferAcceptanceStatus,
   resolveReviewOfferModalMode,
+  workflowUsesOfferAcceptanceFlow,
   type SigningOfferStepId,
 } from "@/lib/signing-offer-steps";
+import {
+  OfferAcknowledgementStep,
+  areRequiredAcknowledgementsChecked,
+} from "./OfferAcknowledgementStep";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -641,6 +653,19 @@ export function ReviewOfferModal({
     () => hasPostApplicationDocuments(frozenProductWorkflow?.workflow),
     [frozenProductWorkflow]
   );
+  const acknowledgementDocs = React.useMemo(
+    () => getOfferAcknowledgements(frozenProductWorkflow?.workflow),
+    [frozenProductWorkflow]
+  );
+  const usesAcceptanceFlow = React.useMemo(
+    () => workflowUsesOfferAcceptanceFlow(frozenProductWorkflow?.workflow),
+    [frozenProductWorkflow]
+  );
+  const [acknowledgementCheckedKeys, setAcknowledgementCheckedKeys] = React.useState<Set<string>>(
+    () => new Set()
+  );
+  const [offerLetterPreviewUrl, setOfferLetterPreviewUrl] = React.useState<string | null>(null);
+  const [isSubmittingAcceptance, setIsSubmittingAcceptance] = React.useState(false);
   const invoiceContractId =
     type === "invoice" ? (invoice?.contractId ?? contractId ?? null) : null;
   const envelopeTargetInvoiceId = type === "invoice" ? invoice?.id : null;
@@ -712,6 +737,41 @@ export function ReviewOfferModal({
       ? (contractRecord as { offer_details?: Record<string, unknown> } | null)?.offer_details
       : (invoice as { offer_details?: Record<string, unknown> } | undefined)?.offer_details;
   const od = offerDetails as Record<string, unknown> | null | undefined;
+  const acceptanceStatus = resolveOfferAcceptanceStatus(offerDetails);
+  const recordedAcknowledgementKeys = React.useMemo(() => {
+    const acceptance = offerDetails?.offer_acceptance as
+      | { acknowledgements?: Array<{ document_key?: string }> }
+      | undefined;
+    const keys = new Set<string>();
+    for (const row of acceptance?.acknowledgements ?? []) {
+      if (typeof row.document_key === "string" && row.document_key) keys.add(row.document_key);
+    }
+    return keys;
+  }, [offerDetails]);
+  React.useEffect(() => {
+    if (recordedAcknowledgementKeys.size === 0) return;
+    setAcknowledgementCheckedKeys((prev) => {
+      if (prev.size > 0) return prev;
+      return new Set(recordedAcknowledgementKeys);
+    });
+  }, [recordedAcknowledgementKeys]);
+  const acknowledgementsReady = areRequiredAcknowledgementsChecked(
+    acknowledgementDocs,
+    acknowledgementCheckedKeys
+  );
+  const stepShellInput = React.useMemo(
+    () => ({
+      usesAcceptanceFlow,
+      hasPostDocs,
+      acknowledgements: acknowledgementDocs.map((doc) => ({
+        key: doc.key,
+        name: doc.name,
+        required: doc.required,
+      })),
+      acceptanceStatus,
+    }),
+    [usesAcceptanceFlow, hasPostDocs, acknowledgementDocs, acceptanceStatus]
+  );
 
   const isLoading = shouldLoadContract ? isLoadingContract : false;
 
@@ -1070,6 +1130,10 @@ export function ReviewOfferModal({
 
   const ensurePostApplicationDocumentsSaved = React.useCallback(async (): Promise<boolean> => {
     if (signersLocked) return true;
+    // Step 3: acceptance docs were uploaded + approved in Step 1/2 — no in-modal upload to save.
+    if (usesAcceptanceFlow && offerAcceptanceAllowsSigning(acceptanceStatus)) {
+      return true;
+    }
     if (isLoadingFrozenProductWorkflow) {
       toast.info("Loading required documents. Please wait a moment.");
       return false;
@@ -1113,6 +1177,7 @@ export function ReviewOfferModal({
       setIsSavingPostDocs(false);
     }
   }, [
+    acceptanceStatus,
     apiClient,
     applicationId,
     applicationRecord?.last_completed_step,
@@ -1121,6 +1186,61 @@ export function ReviewOfferModal({
     postDocsState,
     queryClient,
     signersLocked,
+    usesAcceptanceFlow,
+  ]);
+
+  const submitOfferAcceptance = React.useCallback(async () => {
+    if (!acknowledgementsReady) {
+      toast.error("Accept all required acknowledgements before submitting.");
+      return;
+    }
+    if (hasPostDocs) {
+      const saved = await ensurePostApplicationDocumentsSaved();
+      if (!saved) return;
+    }
+    setIsSubmittingAcceptance(true);
+    try {
+      const keys = [...acknowledgementCheckedKeys];
+      const response =
+        type === "contract"
+          ? await apiClient.submitContractOfferAcceptance(applicationId, {
+              acknowledgement_keys: keys,
+            })
+          : invoice?.id
+            ? await apiClient.submitInvoiceOfferAcceptance(applicationId, invoice.id, {
+                acknowledgement_keys: keys,
+              })
+            : null;
+      if (!response?.success) {
+        const err = getApiErrorDetails(
+          response ?? { success: false },
+          "Could not submit offer acceptance"
+        );
+        toast.error(err.message);
+        return;
+      }
+      toast.success("Offer acceptance submitted");
+      await queryClient.invalidateQueries({ queryKey: ["applications"] });
+      if (type === "contract" && contractId) {
+        await queryClient.invalidateQueries({ queryKey: ["contract", contractId] });
+      }
+      setViewedStepId(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not submit offer acceptance");
+    } finally {
+      setIsSubmittingAcceptance(false);
+    }
+  }, [
+    acknowledgementsReady,
+    acknowledgementCheckedKeys,
+    apiClient,
+    applicationId,
+    contractId,
+    ensurePostApplicationDocumentsSaved,
+    hasPostDocs,
+    invoice?.id,
+    queryClient,
+    type,
   ]);
 
   const needsSigningConfirm = useSigningStepper;
@@ -1340,7 +1460,11 @@ export function ReviewOfferModal({
   const canDownload =
     type === "contract" || (type === "invoice" && !!invoice?.id);
   const isPostDocsConfigLoading = isLoadingFrozenProductWorkflow;
-  const postDocsReady = !hasPostDocs || postDocsState.areAllFilesUploaded;
+  // Step 3 (acceptance flow): uploads already done in Step 1 — do not gate Confirm on the upload UI.
+  const signingPhaseSkipsUploadGate =
+    usesAcceptanceFlow && offerAcceptanceAllowsSigning(acceptanceStatus);
+  const postDocsReady =
+    signingPhaseSkipsUploadGate || !hasPostDocs || postDocsState.areAllFilesUploaded;
   const updateSignerBinding = (index: number, updates: Partial<RecipientBinding>) => {
     setSignerBindings((prev) =>
       prev.map((binding, i) => (i === index ? { ...binding, ...updates } : binding))
@@ -1393,14 +1517,16 @@ export function ReviewOfferModal({
     envelopeProgress.signed === envelopeProgress.total_required;
   const envelopeCompleted = activeSigningEnvelope?.status === "COMPLETED";
   const currentSigningStepId = getCurrentSigningOfferStepId({
-    hasPostDocs,
+    ...stepShellInput,
+    checkedAcknowledgementKeys: acknowledgementCheckedKeys,
     postDocsReady,
     signersLocked,
     allDocsSigned,
     envelopeCompleted,
   });
   const signingSteps = getSigningOfferSteps({
-    hasPostDocs,
+    ...stepShellInput,
+    checkedAcknowledgementKeys: acknowledgementCheckedKeys,
     postDocsReady,
     signersLocked,
     allDocsSigned,
@@ -1412,14 +1538,48 @@ export function ReviewOfferModal({
     setViewedStepId(null);
     postDocsSaveRef.current = undefined;
     setPostDocsState({ areAllFilesUploaded: false, hasPendingChanges: false });
+    setAcknowledgementCheckedKeys(new Set());
   }, [applicationId]);
+
+  // Load in-modal offer letter preview when any acknowledgement uses generated_offer_letter.
+  React.useEffect(() => {
+    const needsLetter = acknowledgementDocs.some(
+      (doc) => doc.content_source === "generated_offer_letter"
+    );
+    if (!needsLetter || !applicationId) {
+      setOfferLetterPreviewUrl(null);
+      return;
+    }
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const blob =
+          type === "contract"
+            ? await apiClient.getContractOfferLetterBlob(applicationId)
+            : invoice?.id
+              ? await apiClient.getInvoiceOfferLetterBlob(applicationId, invoice.id)
+              : null;
+        if (!blob || cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setOfferLetterPreviewUrl(objectUrl);
+      } catch {
+        if (!cancelled) setOfferLetterPreviewUrl(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [acknowledgementDocs, applicationId, apiClient, type, invoice?.id]);
 
   // D-05 smart land once workflow settles; do not re-sync when postDocsReady flips (D-07).
   React.useEffect(() => {
     if (isLoadingFrozenProductWorkflow || viewedStepId !== null) return;
     setViewedStepId(
       getCurrentSigningOfferStepId({
-        hasPostDocs,
+        ...stepShellInput,
+        checkedAcknowledgementKeys: acknowledgementCheckedKeys,
         postDocsReady,
         signersLocked,
         allDocsSigned,
@@ -1429,7 +1589,8 @@ export function ReviewOfferModal({
   }, [
     isLoadingFrozenProductWorkflow,
     viewedStepId,
-    hasPostDocs,
+    stepShellInput,
+    acknowledgementCheckedKeys,
     postDocsReady,
     signersLocked,
     allDocsSigned,
@@ -1439,14 +1600,16 @@ export function ReviewOfferModal({
   // D-13: if domain retreats (e.g. required doc removed), snap viewed step back — never auto-advance (D-14).
   React.useEffect(() => {
     if (viewedStepId == null) return;
-    if (!isSigningOfferStepReachable(viewedStepId, currentSigningStepId, hasPostDocs)) {
+    if (!isSigningOfferStepReachable(viewedStepId, currentSigningStepId, stepShellInput)) {
       setViewedStepId(currentSigningStepId);
     }
-  }, [viewedStepId, currentSigningStepId, hasPostDocs]);
+  }, [viewedStepId, currentSigningStepId, stepShellInput]);
 
-  // While frozen workflow loads, force documents shell + skeleton (D-03) — hasPostDocs is fail-closed false.
+  // While frozen workflow loads, force first ack / documents shell + skeleton.
   const displaySigningStepId: SigningOfferStepId = isLoadingFrozenProductWorkflow
-    ? "documents"
+    ? usesAcceptanceFlow && acknowledgementDocs.length > 0
+      ? acknowledgementStepId(acknowledgementDocs[0].key)
+      : "documents"
     : (viewedStepId ?? currentSigningStepId);
 
   // Close without auto-save; discard confirm when Upload has pending changes (D-11).
@@ -1476,7 +1639,7 @@ export function ReviewOfferModal({
   // Free-nav within domain cursor (D-01–D-04); leave-Upload persists via navigateFromUploadDocuments (D-09/D-10).
   const handleSigningStepSelect = (stepId: SigningOfferStepId) => {
     if (stepId === displaySigningStepId) return;
-    if (!isSigningOfferStepReachable(stepId, currentSigningStepId, hasPostDocs)) return;
+    if (!isSigningOfferStepReachable(stepId, currentSigningStepId, stepShellInput)) return;
     void navigateFromUploadDocuments(stepId);
   };
 
@@ -1879,7 +2042,98 @@ export function ReviewOfferModal({
       );
     }
 
+    const acknowledgementKey = parseAcknowledgementStepKey(stepId);
+    if (acknowledgementKey) {
+      const doc = acknowledgementDocs.find((item) => item.key === acknowledgementKey);
+      if (!doc) {
+        return (
+          <p className="text-sm text-muted-foreground">Acknowledgement document not found.</p>
+        );
+      }
+      const thisChecked =
+        doc.required === false || acknowledgementCheckedKeys.has(doc.key);
+      const nextStep = getNextStepAfterAcknowledgement(doc.key, stepShellInput);
+      const isLastAckBeforeSubmit = nextStep == null && !hasPostDocs;
+      const continueLabel =
+        nextStep === "documents"
+          ? "Continue to Upload documents"
+          : nextStep && isAcknowledgementStepId(nextStep)
+            ? "Continue"
+            : isLastAckBeforeSubmit
+              ? "Submit for review"
+              : "Continue";
+
+      return (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <DocumentTextIcon className="h-5 w-5 text-primary" />
+              {doc.name}
+            </CardTitle>
+            <CardDescription>
+              Review this document and tick the checkbox to confirm. This is not an electronic
+              signature.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <OfferAcknowledgementStep
+              applicationId={applicationId}
+              offerType={type}
+              invoiceId={invoice?.id}
+              documents={[doc]}
+              checkedKeys={acknowledgementCheckedKeys}
+              onCheckedChange={(key, checked) => {
+                setAcknowledgementCheckedKeys((prev) => {
+                  const next = new Set(prev);
+                  if (checked) next.add(key);
+                  else next.delete(key);
+                  return next;
+                });
+              }}
+              offerLetterPreviewUrl={offerLetterPreviewUrl}
+            />
+            <Button
+              className="h-11 w-full rounded-xl"
+              disabled={!thisChecked || (isLastAckBeforeSubmit && isSubmittingAcceptance)}
+              onClick={() => {
+                if (isLastAckBeforeSubmit) {
+                  void submitOfferAcceptance();
+                  return;
+                }
+                if (nextStep) {
+                  void navigateFromUploadDocuments(nextStep);
+                }
+              }}
+            >
+              {continueLabel}
+            </Button>
+          </CardContent>
+        </Card>
+      );
+    }
+
     switch (stepId) {
+      case "awaiting_review":
+        return (
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <DocumentTextIcon className="h-5 w-5 text-primary" />
+                Under review
+              </CardTitle>
+              <CardDescription>
+                CashSouk is reviewing your acceptance documents. You will be able to configure
+                signers once they are approved.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                No further action is required from you right now. Close this dialog and check back
+                later, or keep this page open — it refreshes automatically.
+              </p>
+            </CardContent>
+          </Card>
+        );
       case "documents":
         return (
           <Card className="border-primary/20 bg-primary/5">
@@ -1889,8 +2143,9 @@ export function ReviewOfferModal({
                 Upload documents
               </CardTitle>
               <CardDescription>
-                Complete all required documents before you confirm signers. Optional documents can
-                stay empty.
+                {usesAcceptanceFlow
+                  ? "Upload required acceptance documents (for example a Board Resolution). CashSouk must approve them before signing."
+                  : "Complete all required documents before you confirm signers. Optional documents can stay empty."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1918,14 +2173,26 @@ export function ReviewOfferModal({
                 </p>
               ) : null}
               {!signersLocked && !isLoadingFrozenProductWorkflow && postDocsReady ? (
-                <Button
-                  className="h-11 w-full rounded-xl"
-                  onClick={() => {
-                    void navigateFromUploadDocuments("signers");
-                  }}
-                >
-                  Continue to Configure signers
-                </Button>
+                usesAcceptanceFlow ? (
+                  <Button
+                    className="h-11 w-full rounded-xl"
+                    disabled={!acknowledgementsReady || isSubmittingAcceptance}
+                    onClick={() => {
+                      void submitOfferAcceptance();
+                    }}
+                  >
+                    Submit for review
+                  </Button>
+                ) : (
+                  <Button
+                    className="h-11 w-full rounded-xl"
+                    onClick={() => {
+                      void navigateFromUploadDocuments("signers");
+                    }}
+                  >
+                    Continue to Configure signers
+                  </Button>
+                )
               ) : null}
             </CardContent>
           </Card>

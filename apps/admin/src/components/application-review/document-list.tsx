@@ -267,7 +267,7 @@ export function buildAcceptanceCategoryGroups(documents: unknown): CategoryGroup
   return [
     {
       categoryKey: "acceptance_documents",
-      categoryLabel: "Acceptance Documents",
+      categoryLabel: "Acceptance",
       items,
     },
   ];

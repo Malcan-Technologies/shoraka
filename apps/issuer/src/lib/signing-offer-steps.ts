@@ -1,13 +1,49 @@
+/**
+ * Offer-acceptance phase helpers for the Review Offer modal stepper.
+ * Extends the legacy signing stepper with Step 1 acknowledgements + upload.
+ * Each acknowledgement document is its own stepper step (`acknowledge:<key>`).
+ */
+
 import type { SigningOfferStep } from "@/components/signing/signing-progress-stepper";
 import {
   canDirectAcceptInvoice,
+  getOfferAcceptanceFromOfferDetails,
   needsSigningEnvelope,
+  offerAcceptanceAllowsSigning,
+  offerAcceptanceIsAwaitingAdmin,
+  offerAcceptanceIsStep1Editable,
+  resolveOfferAcknowledgementsFromWorkflow,
   resolveAcceptanceDocumentsFromWorkflow,
   workflowHasAcceptanceDocuments,
+  workflowUsesOfferAcceptanceFlow,
+  type OfferAcceptanceStatus,
+  type OfferAcknowledgementDocument,
   type SigningPackageOfferKind,
 } from "@cashsouk/types";
 
-export type SigningOfferStepId = "documents" | "signers" | "signing" | "complete";
+const ACK_STEP_PREFIX = "acknowledge:";
+
+export type SigningOfferStepId =
+  | `acknowledge:${string}`
+  | "documents"
+  | "awaiting_review"
+  | "signers"
+  | "signing"
+  | "complete";
+
+export function acknowledgementStepId(documentKey: string): SigningOfferStepId {
+  return `${ACK_STEP_PREFIX}${documentKey}`;
+}
+
+export function parseAcknowledgementStepKey(stepId: string): string | null {
+  if (!stepId.startsWith(ACK_STEP_PREFIX)) return null;
+  const key = stepId.slice(ACK_STEP_PREFIX.length);
+  return key.length > 0 ? key : null;
+}
+
+export function isAcknowledgementStepId(stepId: string): stepId is `acknowledge:${string}` {
+  return parseAcknowledgementStepKey(stepId) != null;
+}
 
 /** UI mode for ReviewOfferModal: full signing stepper vs Accept/Decline-only. */
 export type ReviewOfferModalMode =
@@ -67,6 +103,12 @@ export function hasCompletedContractEnvelope(
 
 type StepShell = Omit<SigningOfferStep, "status">;
 
+export type AcknowledgementStepShellInput = {
+  key: string;
+  name: string;
+  required?: boolean;
+};
+
 /** @deprecated Prefer resolveAcceptanceDocumentsFromWorkflow(workflow). */
 export function findSupportingDocumentsStepConfig(
   workflow: unknown
@@ -102,9 +144,84 @@ export function hasPostApplicationDocuments(workflow: unknown): boolean {
   return workflowHasAcceptanceDocuments(workflow);
 }
 
-function stepShells(hasPostDocs: boolean): StepShell[] {
+export function getOfferAcknowledgements(workflow: unknown): OfferAcknowledgementDocument[] {
+  return resolveOfferAcknowledgementsFromWorkflow(workflow);
+}
+
+export function resolveOfferAcceptanceStatus(offerDetails: unknown): OfferAcceptanceStatus | null {
+  return getOfferAcceptanceFromOfferDetails(offerDetails)?.status ?? null;
+}
+
+export type SigningOfferStepShellInput = {
+  usesAcceptanceFlow: boolean;
+  hasPostDocs: boolean;
+  acknowledgements: AcknowledgementStepShellInput[];
+  acceptanceStatus: OfferAcceptanceStatus | null;
+};
+
+function stepShells(input: SigningOfferStepShellInput): StepShell[] {
   const shells: StepShell[] = [];
-  if (hasPostDocs) {
+
+  if (input.usesAcceptanceFlow) {
+    if (offerAcceptanceIsStep1Editable(input.acceptanceStatus)) {
+      for (const doc of input.acknowledgements) {
+        shells.push({
+          id: acknowledgementStepId(doc.key),
+          label: doc.name || "Acknowledgement",
+          description: "Review and accept this document",
+        });
+      }
+      if (input.hasPostDocs) {
+        shells.push({
+          id: "documents",
+          label: "Upload documents",
+          description: "Upload required acceptance documents",
+        });
+      }
+      return shells;
+    }
+
+    if (offerAcceptanceIsAwaitingAdmin(input.acceptanceStatus)) {
+      shells.push({
+        id: "awaiting_review",
+        label: "Under review",
+        description: "CashSouk is reviewing your acceptance documents",
+      });
+      return shells;
+    }
+
+    if (offerAcceptanceAllowsSigning(input.acceptanceStatus)) {
+      shells.push(
+        {
+          id: "signers",
+          label: "Configure signers",
+          description: "Assign who will sign each document",
+        },
+        {
+          id: "signing",
+          label: "Document signing",
+          description: "Track signing progress across all documents",
+        },
+        {
+          id: "complete",
+          label: "Complete",
+          description: "All documents signed and offer accepted",
+        }
+      );
+      return shells;
+    }
+
+    // Rejected / unknown — never fall through to legacy Configure signers.
+    shells.push({
+      id: "awaiting_review",
+      label: "Under review",
+      description: "CashSouk is reviewing your acceptance documents",
+    });
+    return shells;
+  }
+
+  // Legacy path: optional upload then signing in one continuous flow
+  if (input.hasPostDocs) {
     shells.push({
       id: "documents",
       label: "Upload documents",
@@ -131,13 +248,66 @@ function stepShells(hasPostDocs: boolean): StepShell[] {
   return shells;
 }
 
-export function getCurrentSigningOfferStepId(input: {
-  hasPostDocs: boolean;
+function isAckChecked(
+  doc: AcknowledgementStepShellInput,
+  checkedKeys: ReadonlySet<string>
+): boolean {
+  if (doc.required === false) return true;
+  return checkedKeys.has(doc.key);
+}
+
+function firstIncompleteAcknowledgementStepId(
+  acknowledgements: AcknowledgementStepShellInput[],
+  checkedKeys: ReadonlySet<string>
+): SigningOfferStepId | null {
+  for (const doc of acknowledgements) {
+    if (!isAckChecked(doc, checkedKeys)) {
+      return acknowledgementStepId(doc.key);
+    }
+  }
+  return null;
+}
+
+export type SigningOfferStepCursorInput = SigningOfferStepShellInput & {
+  checkedAcknowledgementKeys: ReadonlySet<string>;
   postDocsReady: boolean;
   signersLocked: boolean;
   allDocsSigned: boolean;
   envelopeCompleted: boolean;
-}): SigningOfferStepId {
+};
+
+export function getCurrentSigningOfferStepId(
+  input: SigningOfferStepCursorInput
+): SigningOfferStepId {
+  if (input.usesAcceptanceFlow) {
+    if (offerAcceptanceIsStep1Editable(input.acceptanceStatus)) {
+      const incompleteAck = firstIncompleteAcknowledgementStepId(
+        input.acknowledgements,
+        input.checkedAcknowledgementKeys
+      );
+      if (incompleteAck) return incompleteAck;
+      if (input.hasPostDocs) return "documents";
+      if (input.acknowledgements.length > 0) {
+        const last = input.acknowledgements[input.acknowledgements.length - 1];
+        return acknowledgementStepId(last.key);
+      }
+      return "documents";
+    }
+    if (offerAcceptanceIsAwaitingAdmin(input.acceptanceStatus)) {
+      return "awaiting_review";
+    }
+    if (offerAcceptanceAllowsSigning(input.acceptanceStatus)) {
+      if (input.signersLocked) {
+        if (!input.allDocsSigned) return "signing";
+        if (input.envelopeCompleted) return "complete";
+        return "signing";
+      }
+      return "signers";
+    }
+    // Rejected / unknown — stay on awaiting shell; never legacy Configure signers.
+    return "awaiting_review";
+  }
+
   if (input.signersLocked) {
     if (!input.allDocsSigned) return "signing";
     if (input.envelopeCompleted) return "complete";
@@ -147,20 +317,24 @@ export function getCurrentSigningOfferStepId(input: {
   return "signers";
 }
 
-export function getSigningOfferSteps(input: {
-  hasPostDocs: boolean;
-  postDocsReady: boolean;
-  signersLocked: boolean;
-  allDocsSigned: boolean;
-  envelopeCompleted: boolean;
-}): SigningOfferStep[] {
+export function getSigningOfferSteps(input: SigningOfferStepCursorInput): SigningOfferStep[] {
   const currentId = getCurrentSigningOfferStepId(input);
-  const shells = stepShells(input.hasPostDocs);
+  const shells = stepShells(input);
   const currentIdx = shells.findIndex((s) => s.id === currentId);
 
   return shells.map((shell, idx) => {
     let status: SigningOfferStep["status"];
-    if (idx < currentIdx) {
+    const ackKey = parseAcknowledgementStepKey(shell.id);
+    if (ackKey) {
+      const checked = input.checkedAcknowledgementKeys.has(ackKey);
+      if (checked || (idx < currentIdx && currentIdx >= 0)) {
+        status = "completed";
+      } else if (idx === currentIdx) {
+        status = "current";
+      } else {
+        status = "pending";
+      }
+    } else if (idx < currentIdx) {
       status = "completed";
     } else if (idx === currentIdx) {
       status = "current";
@@ -170,38 +344,54 @@ export function getSigningOfferSteps(input: {
     if (shell.id === "complete" && input.envelopeCompleted) {
       status = "completed";
     }
+    if (shell.id === "awaiting_review") {
+      status = "current";
+    }
     return { ...shell, status };
   });
 }
 
-/** Index of stepId in shell order; -1 when absent (e.g. documents with hasPostDocs false). */
+/** Index of stepId in shell order; -1 when absent. */
 export function getSigningOfferStepIndex(
   stepId: string,
-  hasPostDocs: boolean
+  input: SigningOfferStepShellInput
 ): number {
-  return stepShells(hasPostDocs).findIndex((s) => s.id === stepId);
+  return stepShells(input).findIndex((s) => s.id === stepId);
 }
 
 /** Negative if a before b, 0 if equal, positive if a after b (shell order). */
 export function compareSigningOfferStepOrder(
   a: string,
   b: string,
-  hasPostDocs: boolean
+  input: SigningOfferStepShellInput
 ): number {
-  return getSigningOfferStepIndex(a, hasPostDocs) - getSigningOfferStepIndex(b, hasPostDocs);
+  return getSigningOfferStepIndex(a, input) - getSigningOfferStepIndex(b, input);
 }
 
 /**
  * True when stepId is at or before the domain cursor in shell order.
- * Unknown / absent ids (e.g. documents when !hasPostDocs) are unreachable.
+ * Unknown / absent ids are unreachable.
  */
 export function isSigningOfferStepReachable(
   stepId: string,
   currentDomainStepId: SigningOfferStepId,
-  hasPostDocs: boolean
+  input: SigningOfferStepShellInput
 ): boolean {
-  const stepIdx = getSigningOfferStepIndex(stepId, hasPostDocs);
-  const currentIdx = getSigningOfferStepIndex(currentDomainStepId, hasPostDocs);
+  const stepIdx = getSigningOfferStepIndex(stepId, input);
+  const currentIdx = getSigningOfferStepIndex(currentDomainStepId, input);
   if (stepIdx < 0 || currentIdx < 0) return false;
   return stepIdx <= currentIdx;
 }
+
+/** Next step after the given acknowledgement key within Step 1 shells. */
+export function getNextStepAfterAcknowledgement(
+  documentKey: string,
+  input: SigningOfferStepShellInput
+): SigningOfferStepId | null {
+  const shells = stepShells(input);
+  const idx = shells.findIndex((s) => s.id === acknowledgementStepId(documentKey));
+  if (idx < 0 || idx >= shells.length - 1) return null;
+  return shells[idx + 1].id as SigningOfferStepId;
+}
+
+export { workflowUsesOfferAcceptanceFlow };

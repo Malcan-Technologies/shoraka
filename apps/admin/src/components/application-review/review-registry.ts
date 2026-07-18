@@ -35,7 +35,7 @@ const REVIEW_TAB_LABELS: Record<string, string> = {
   financial: "Financial",
   business_details: "Business & Guarantor",
   supporting_documents: "Documents",
-  acceptance_documents: "Acceptance documents",
+  acceptance_documents: "Acceptance",
   contract_details: "Contract",
   invoice_details: "Invoice",
   company_details: "Company",

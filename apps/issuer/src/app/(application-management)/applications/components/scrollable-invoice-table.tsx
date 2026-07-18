@@ -21,6 +21,7 @@ import {
   resolveIssuerInvoiceStatusBadgeKey,
 } from "@cashsouk/config";
 import type { WithdrawReason } from "@cashsouk/types";
+import { shouldShowIssuerReviewOfferCta } from "@/lib/offer-utils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -320,7 +321,12 @@ export function ScrollableInvoiceTable({
   const hasExpandedActionColumn = React.useMemo(() => {
     return application.invoices.some((inv: NormalizedInvoice) => {
       const invStatus = String(inv.status ?? "").toUpperCase();
-      const showReviewOffer = invStatus === "OFFER_SENT" && inv.offerStatus === "Offer received";
+      const showReviewOffer =
+        invStatus === "OFFER_SENT" &&
+        shouldShowIssuerReviewOfferCta({
+          status: inv.status,
+          offer_details: inv.offer_details,
+        });
       const showMakeAmendments =
         application.cardStatus.showMakeAmendments && invStatus === "AMENDMENT_REQUESTED";
       return showReviewOffer || showMakeAmendments;
@@ -477,7 +483,11 @@ export function ScrollableInvoiceTable({
             application.invoices.map((inv: NormalizedInvoice) => {
               const invStatus = String(inv.status ?? "").toUpperCase();
               const showReviewOffer =
-                invStatus === "OFFER_SENT" && inv.offerStatus === "Offer received";
+                invStatus === "OFFER_SENT" &&
+                shouldShowIssuerReviewOfferCta({
+                  status: inv.status,
+                  offer_details: inv.offer_details,
+                });
               const canReview = inv.canReviewOffer;
               const showMakeAmendments =
                 application.cardStatus.showMakeAmendments && invStatus === "AMENDMENT_REQUESTED";

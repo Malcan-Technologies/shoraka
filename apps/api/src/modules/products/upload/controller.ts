@@ -66,11 +66,11 @@ function getExistingTemplateKeyFromWorkflow(
     const key = (row?.template?.s3_key ?? legacy?.s3_key)?.trim();
     return key && key.startsWith(PRODUCT_S3_KEY_PREFIX) ? key : undefined;
   }
-  if (categoryKey === "acceptance_documents") {
+  if (categoryKey === "acceptance_documents" || categoryKey === "offer_acknowledgements") {
     const financing = workflow.find((s) => getStepId(s).startsWith("financing_type"));
     if (!financing) return undefined;
     const config = getConfig(financing);
-    const list = (config.acceptance_documents as Array<{ template?: { s3_key?: string } }>) ?? [];
+    const list = (config[categoryKey] as Array<{ template?: { s3_key?: string } }>) ?? [];
     const listKey = list[templateIndex]?.template?.s3_key?.trim();
     return listKey && listKey.startsWith(PRODUCT_S3_KEY_PREFIX) ? listKey : undefined;
   }

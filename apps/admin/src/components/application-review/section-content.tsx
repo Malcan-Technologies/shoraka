@@ -374,7 +374,7 @@ export function SectionContent({
       return (
         <DocumentsSection
           supportingDocuments={app.acceptance_documents}
-          title="Acceptance Documents"
+          title="Acceptance"
           documentKind="acceptance"
           reviewItems={reviewItems}
           isReviewable={isReviewable}

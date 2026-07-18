@@ -64,6 +64,7 @@ import { WorkflowStepCard } from "./workflow-step-card";
 import { StepConfigEditor } from "./step-configs/step-config-editor";
 import { SigningPackageConfig } from "./step-configs/signing-package-config";
 import { AcceptanceDocumentsConfig } from "./step-configs/acceptance-documents-config";
+import { OfferAcknowledgementsConfig } from "./step-configs/offer-acknowledgements-config";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -289,6 +290,15 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     );
   }, []);
 
+  const handleOfferAcknowledgementsConfigChange = useCallback((nextConfig: Record<string, unknown>) => {
+    setSteps((prev) =>
+      prev.map((s) => {
+        if (getStepKeyFromStepId(getStepId(s)) !== FIRST_STEP_KEY) return s;
+        return { ...(s as Record<string, unknown>), config: nextConfig };
+      })
+    );
+  }, []);
+
   /** Upload pending image to S3 and write s3Key into the financing type step. Mutates nextSteps. Returns s3Key if uploaded. */
   const uploadImageAndMerge = async (
     productId: string,
@@ -388,12 +398,12 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         }
         continue;
       }
-      if (categoryKey === "acceptance_documents") {
+      if (categoryKey === "acceptance_documents" || categoryKey === "offer_acknowledgements") {
         const firstIdx = nextSteps.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY);
         if (firstIdx >= 0) {
           const step = nextSteps[firstIdx] as Record<string, unknown>;
           const config = { ...((step.config ?? {}) as Record<string, unknown>) };
-          const list = ((config.acceptance_documents as unknown[]) ?? []).slice();
+          const list = ((config[categoryKey] as unknown[]) ?? []).slice();
           const item = (list[index] ?? {}) as Record<string, unknown>;
           const updated = {
             ...item,
@@ -405,7 +415,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
           } else {
             list[index] = updated;
           }
-          config.acceptance_documents = list;
+          config[categoryKey] = list;
           step.config = config;
         }
         continue;
@@ -678,14 +688,15 @@ const hasChanges = !isEdit
     const pendingSigningTemplates = Object.keys(pendingSupportingDocTemplates).filter((k) =>
       k.startsWith("signing_template_document_")
     );
-    const pendingAcceptanceTemplates = Object.keys(pendingSupportingDocTemplates).filter((k) =>
-      k.startsWith("acceptance_documents_")
+    const pendingAcceptanceTemplates = Object.keys(pendingSupportingDocTemplates).filter(
+      (k) => k.startsWith("acceptance_documents_") || k.startsWith("offer_acknowledgements_")
     );
     const pendingSupportingOnly = Object.keys(pendingSupportingDocTemplates).filter(
       (k) =>
         !k.startsWith("guarantor_agreement_") &&
         !k.startsWith("signing_template_document_") &&
-        !k.startsWith("acceptance_documents_")
+        !k.startsWith("acceptance_documents_") &&
+        !k.startsWith("offer_acknowledgements_")
     );
     const pendingGuarantorAgreementOnly = Object.keys(pendingSupportingDocTemplates).filter((k) =>
       k.startsWith("guarantor_agreement_")
@@ -910,6 +921,14 @@ const hasChanges = !isEdit
               <SigningPackageConfig
                 config={getSigningPackagesStepConfig()}
                 onChange={handleSigningPackagesChange}
+              />
+
+              <OfferAcknowledgementsConfig
+                config={getSigningPackagesStepConfig()}
+                onChange={handleOfferAcknowledgementsConfigChange}
+                onPendingTemplateChange={(index, file) =>
+                  handlePendingSupportingDocTemplate("offer_acknowledgements", index, file)
+                }
               />
 
               <AcceptanceDocumentsConfig

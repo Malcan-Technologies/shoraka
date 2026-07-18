@@ -24,6 +24,9 @@ import {
   ApplicationStatus,
   ContractStatus,
   InvoiceStatus,
+  getOfferAcceptanceFromOfferDetails,
+  offerAcceptanceAllowsSigning,
+  workflowUsesOfferAcceptanceFlow,
   type ExternalSigningSessionDto,
   type RecipientBinding,
   type RecipientEkycSession,
@@ -38,6 +41,9 @@ import { sendEmail } from "../../lib/email/ses-client";
 import { getS3ObjectBuffer, putS3ObjectBuffer } from "../../lib/s3/client";
 import { ProductRepository } from "../products/repository";
 import { OrganizationRepository } from "../organization/repository";
+import { patchOfferAcceptance } from "../applications/offer-acceptance";
+import { prisma } from "../../lib/prisma";
+import { Prisma } from "@prisma/client";
 import { OrganizationService } from "../organization/service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
 import { assertRequiredPostApplicationSupportingDocumentsPresent } from "../applications/supporting-docs-workflow";
@@ -429,6 +435,81 @@ export class SigningService {
     );
   }
 
+  /** When the product uses phased acceptance, envelope create/send requires admin-approved phase. */
+  private async assertOfferAcceptanceAllowsSigning(
+    application: SigningApplicationContext,
+    contractId: string | null,
+    invoiceId: string | null
+  ): Promise<void> {
+    const workflow = await this.getProductWorkflowForApplication(application);
+    if (!workflowUsesOfferAcceptanceFlow(workflow)) return;
+
+    let offerDetails: unknown = null;
+    if (contractId) {
+      const contract = application.contract;
+      offerDetails = contract && contract.id === contractId ? contract.offer_details : null;
+    } else if (invoiceId) {
+      const invoice = application.invoices.find((item) => item.id === invoiceId);
+      offerDetails = invoice?.offer_details ?? null;
+    }
+    const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
+    // Offers sent before offer_acceptance existed keep the legacy presence-only gate.
+    if (!acceptance) return;
+    if (!offerAcceptanceAllowsSigning(acceptance.status)) {
+      throw new AppError(
+        400,
+        "OFFER_ACCEPTANCE_NOT_APPROVED",
+        "Acceptance documents must be approved by CashSouk before the signing package can be created or sent."
+      );
+    }
+  }
+
+  private async markOfferAcceptanceSigningInProgress(
+    envelope: SigningEnvelopeWithGraph
+  ): Promise<void> {
+    if (envelope.contract_id) {
+      const contract = await prisma.contract.findUnique({
+        where: { id: envelope.contract_id },
+        select: { offer_details: true },
+      });
+      const offer = (contract?.offer_details as Record<string, unknown> | null) ?? null;
+      if (!offer) return;
+      const current = getOfferAcceptanceFromOfferDetails(offer);
+      if (!current || current.status === "SIGNING_IN_PROGRESS" || current.status === "COMPLETED") {
+        return;
+      }
+      await prisma.contract.update({
+        where: { id: envelope.contract_id },
+        data: {
+          offer_details: patchOfferAcceptance(offer, {
+            status: "SIGNING_IN_PROGRESS",
+          }) as Prisma.InputJsonValue,
+        },
+      });
+      return;
+    }
+    if (envelope.invoice_id) {
+      const invoice = await prisma.invoice.findUnique({
+        where: { id: envelope.invoice_id },
+        select: { offer_details: true },
+      });
+      const offer = (invoice?.offer_details as Record<string, unknown> | null) ?? null;
+      if (!offer) return;
+      const current = getOfferAcceptanceFromOfferDetails(offer);
+      if (!current || current.status === "SIGNING_IN_PROGRESS" || current.status === "COMPLETED") {
+        return;
+      }
+      await prisma.invoice.update({
+        where: { id: envelope.invoice_id },
+        data: {
+          offer_details: patchOfferAcceptance(offer, {
+            status: "SIGNING_IN_PROGRESS",
+          }) as Prisma.InputJsonValue,
+        },
+      });
+    }
+  }
+
   async createDraftEnvelope(input: CreateDraftEnvelopeInput): Promise<SigningEnvelopeDto> {
     const template = parseSigningTemplateConfig(input.templateConfig);
 
@@ -492,6 +573,7 @@ export class SigningService {
       );
     }
     await this.assertPostApplicationDocumentsReady(application);
+    await this.assertOfferAcceptanceAllowsSigning(application, contractId, invoiceId);
     const workflow = await this.getProductWorkflowForApplication(application);
     const packageKind: SigningPackageOfferKind = contractId ? "contract" : "invoice";
     const template = this.readSigningTemplateFromWorkflow(workflow, packageKind);
@@ -751,6 +833,11 @@ export class SigningService {
 
     const recipientById = new Map(envelope.recipients.map((r) => [r.id, r]));
     const application = await this.requireApplicationContext(envelope.application_id);
+    await this.assertOfferAcceptanceAllowsSigning(
+      application,
+      envelope.contract_id ?? null,
+      envelope.invoice_id ?? null
+    );
 
     for (const document of [...envelope.documents].sort((a, b) => a.order - b.order)) {
       const docAssignments = envelope.assignments.filter((a) => a.document_id === document.id);
@@ -834,6 +921,7 @@ export class SigningService {
     }
 
     await this.repo.markEnvelopeSent(id);
+    await this.markOfferAcceptanceSigningInProgress(envelope);
     return this.getEnvelope(id);
   }
 

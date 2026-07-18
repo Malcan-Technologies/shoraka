@@ -108,11 +108,14 @@ export function DashboardInvoiceCard({
   row,
   offerStatus,
   onReviewOffer,
+  showReviewOffer,
   contractFeeContext,
 }: {
   row: IssuerDashboardInvoice;
   offerStatus: OfferStatus;
   onReviewOffer: () => void;
+  /** When omitted, defaults to offer received (legacy). Pass false while acceptance awaits admin. */
+  showReviewOffer?: boolean;
   contractFeeContext?: {
     facilityFeeRatePercent?: unknown;
     facilityFeeCapAmount?: unknown;
@@ -147,6 +150,8 @@ export function DashboardInvoiceCard({
   });
   const showFeeSummary = feeDisplay.phase !== "pending" || offerStatus === "Offer received";
   const hideFeesBeforeAcceptance = offerStatus === "Offer received";
+  const reviewOfferVisible =
+    showReviewOffer ?? offerStatus === "Offer received";
 
   return (
     <Card className="min-w-0 max-w-full rounded-xl border border-border bg-muted/50 shadow-none">
@@ -166,7 +171,7 @@ export function DashboardInvoiceCard({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <ReviewOfferButton show={offerStatus === "Offer received"} onClick={onReviewOffer} />
+            <ReviewOfferButton show={reviewOfferVisible} onClick={onReviewOffer} />
             {showActionRequired ? (
               <TooltipProvider>
                 <Tooltip>

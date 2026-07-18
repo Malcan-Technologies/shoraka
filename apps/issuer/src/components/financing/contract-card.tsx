@@ -52,10 +52,13 @@ export function DashboardContractCard({
   row,
   offerStatus,
   onReviewOffer,
+  showReviewOffer,
 }: {
   row: IssuerDashboardContract;
   offerStatus: OfferStatus;
   onReviewOffer: () => void;
+  /** When omitted, defaults to offer received (legacy). Pass false while acceptance awaits admin. */
+  showReviewOffer?: boolean;
 }) {
   const router = useRouter();
   const actionRequiredApplicationIds = row.actionRequiredApplicationIds ?? [];
@@ -69,6 +72,8 @@ export function DashboardContractCard({
     approvedNum != null && utilisedNum != null && approvedNum > 0
       ? Math.round((utilisedNum / approvedNum) * 100)
       : 0;
+  const reviewOfferVisible =
+    showReviewOffer ?? offerStatus === "Offer received";
 
   const contractPeriod =
     row.contractStartDate && row.contractEndDate
@@ -95,7 +100,7 @@ export function DashboardContractCard({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <ReviewOfferButton show={offerStatus === "Offer received"} onClick={onReviewOffer} />
+            <ReviewOfferButton show={reviewOfferVisible} onClick={onReviewOffer} />
             {showActionRequired ? (
               <TooltipProvider>
                 <Tooltip>

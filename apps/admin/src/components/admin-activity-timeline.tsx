@@ -57,6 +57,7 @@ import { Button } from "@/components/ui/button";
 import { formatRemarkAsBullets } from "@/lib/utils";
 import { getReviewTabLabel } from "@/components/application-review/review-registry";
 import { formatCurrency } from "@cashsouk/config";
+import { getItemDisplayNameFromScopeKey } from "@cashsouk/types";
 import type {
   ResubmitChangesMetadata,
   ResubmitFieldChangeItem,
@@ -86,36 +87,7 @@ type ActivityMetadata = {
 };
 
 function formatItemLabelFromScopeKey(scopeKey: string): string {
-  if (!scopeKey) return "Item";
-
-  const parts = scopeKey.split(":");
-  const lastPart = parts[parts.length - 1] ?? "";
-
-  if (
-    scopeKey.startsWith("invoice_details:") ||
-    scopeKey.startsWith("invoice:")
-  ) {
-    return lastPart ? `Invoice ${lastPart}` : "Invoice";
-  }
-
-  if (
-    scopeKey.startsWith("supporting_documents:") ||
-    scopeKey.startsWith("document:")
-  ) {
-    if (!lastPart) return "Document";
-    return lastPart
-      .replace(/_/g, " ")
-      .split(" ")
-      .filter(Boolean)
-      .map((word) =>
-        word.length > 1 && word === word.toUpperCase()
-          ? word
-          : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-      )
-      .join(" ");
-  }
-
-  return "Item";
+  return getItemDisplayNameFromScopeKey(scopeKey);
 }
 
 /**
@@ -157,6 +129,7 @@ function formatResubmitTabsOnlyActivity({
     "company_details",
     "business_details",
     "supporting_documents",
+    "acceptance_documents",
     "contract_details",
     "invoice_details",
   ];

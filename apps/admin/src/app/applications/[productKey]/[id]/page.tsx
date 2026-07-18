@@ -1017,6 +1017,9 @@ export default function DynamicApplicationDetailPage() {
                     contractId={(app.contract as { id?: string } | null | undefined)?.id ?? null}
                     productVersion={typeof app.product_version === "number" ? app.product_version : null}
                     canManage={canAppManage}
+                    offerDetails={
+                      (app.contract as { offer_details?: unknown } | null | undefined)?.offer_details
+                    }
                   />
 
                   <ApplicationReviewTabs

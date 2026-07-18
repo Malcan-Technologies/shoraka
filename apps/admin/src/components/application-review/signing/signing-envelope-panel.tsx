@@ -17,6 +17,8 @@ import {
 } from "@/hooks/use-signing-envelopes";
 import {
   computeSigningEnvelopeProgress,
+  getOfferAcceptanceFromOfferDetails,
+  getOfferAcceptanceStatusPresentation,
   type ApplicationPersonRow,
   type SigningEnvelopeDto,
   type SigningEnvelopeStatus,
@@ -92,11 +94,14 @@ export interface SigningEnvelopePanelProps {
   productVersion?: number | null;
   /** Whether the admin can manage void/reminder actions for this application's signing. */
   canManage?: boolean;
+  /** offer_details from the contract or invoice this package belongs to */
+  offerDetails?: unknown;
 }
 
 export function SigningEnvelopePanel({
   applicationId,
   canManage = true,
+  offerDetails,
 }: SigningEnvelopePanelProps) {
   const { data: envelopes = [], isLoading } = useAdminSigningEnvelopes(applicationId);
   const voidMutation = useVoidSigningEnvelope(applicationId);
@@ -104,6 +109,15 @@ export function SigningEnvelopePanel({
   const [historyOpen, setHistoryOpen] = React.useState(false);
 
   const { primary, history } = React.useMemo(() => splitEnvelopes(envelopes), [envelopes]);
+  const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
+  const acceptancePresentation = acceptance
+    ? getOfferAcceptanceStatusPresentation(acceptance.status)
+    : null;
+  const signingBlocked =
+    acceptance != null &&
+    acceptance.status !== "APPROVED_FOR_SIGNING" &&
+    acceptance.status !== "SIGNING_IN_PROGRESS" &&
+    acceptance.status !== "COMPLETED";
 
   const handleVoid = async (envelopeId: string) => {
     try {
@@ -134,11 +148,23 @@ export function SigningEnvelopePanel({
         <CardTitle className="text-lg">Signing package</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {acceptancePresentation ? (
+          <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium text-foreground">Offer acceptance</span>
+              <Badge variant="secondary">{acceptancePresentation.label}</Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">{acceptancePresentation.hint}</p>
+          </div>
+        ) : null}
+
         {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
 
         {!isLoading && envelopes.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            No signing package yet. The issuer creates and sends this package from their offer flow.
+            {signingBlocked
+              ? "Signing package is locked until acceptance documents are approved."
+              : "No signing package yet. The issuer creates and sends this package from their offer flow."}
           </p>
         )}
 

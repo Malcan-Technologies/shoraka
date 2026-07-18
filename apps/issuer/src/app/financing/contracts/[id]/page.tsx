@@ -26,7 +26,7 @@ import {
   formatDate,
 } from "@/components/financing/utils";
 import { ReviewOfferModal } from "../../../(application-management)/applications/components/ReviewOfferModal";
-import { getOfferStatus } from "@/lib/offer-utils";
+import { getOfferStatus, shouldShowIssuerReviewOfferCta } from "@/lib/offer-utils";
 import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labels";
 import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
 import type { Invoice } from "@cashsouk/types";
@@ -334,6 +334,7 @@ export default function ContractDetailsPage() {
                 key={inv.id}
                 row={inv}
                 offerStatus={getOfferStatus(modalInvoice)}
+                showReviewOffer={shouldShowIssuerReviewOfferCta(modalInvoice)}
                 contractFeeContext={{
                   facilityFeeRatePercent:
                     (asContractForModal(row.contractForModal).contract_details as Record<string, unknown> | null)

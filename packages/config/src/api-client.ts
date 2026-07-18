@@ -2296,6 +2296,16 @@ export class ApiClient {
     );
   }
 
+  async submitContractOfferAcceptance(
+    applicationId: string,
+    body: { acknowledgement_keys: string[] }
+  ): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(
+      `/v1/applications/${applicationId}/offers/contracts/acceptance`,
+      body
+    );
+  }
+
   async acceptInvoiceOffer(
     applicationId: string,
     invoiceId: string,
@@ -2317,6 +2327,17 @@ export class ApiClient {
     return this.post<Application>(
       `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/reject`,
       body ?? {}
+    );
+  }
+
+  async submitInvoiceOfferAcceptance(
+    applicationId: string,
+    invoiceId: string,
+    body: { acknowledgement_keys: string[] }
+  ): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(
+      `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/acceptance`,
+      body
     );
   }
 

@@ -2,6 +2,14 @@
 
 Admin sends offers for Contract and Invoice. The issuer receives them, can accept or reject, and may see offers retracted.
 
+For products configured with **offer acknowledgements** and/or **acceptance documents**, the issuer follows a phased flow (see [Offer acceptance & signing phases](../guides/application-flow/offer-acceptance-and-signing-phases.md)):
+
+1. **Step 1** — Preview + checkbox per acknowledgement, upload acceptance docs, submit.
+2. **Step 2** — Admin reviews acceptance docs (approve / request changes / reject).
+3. **Step 3** — Signing package (configure signers → send → track). No upload step.
+
+`offer_details.offer_acceptance.status` tracks the phase (Option A). Envelope create/send requires `APPROVED_FOR_SIGNING` (or later). Contract-linked invoices still Accept/Decline after the contract envelope is `COMPLETED`.
+
 ## Data Sources
 
 - **GET /v1/applications?organizationId=...** — Lists applications with `contract` and `invoices` (used by dashboard).

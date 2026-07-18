@@ -5,6 +5,7 @@
 
 import {
   getReviewTabDescriptorsFromWorkflow,
+  getReviewTabLabel,
   type ReviewTabDescriptor,
 } from "@/components/application-review/review-registry";
 
@@ -17,6 +18,9 @@ export type TabDescriptorVisibilityApp = {
 /**
  * Workflow tabs + Financial, filtered by API visible_review_sections when provided,
  * then structure rules (invoice_only label, hide invoice tab when contract flow has zero invoices).
+ *
+ * Acceptance can exist on the frozen product version (API) while the live catalog row used for
+ * workflow descriptors does not — inject the tab when the API marks it visible.
  */
 export function getEffectiveReviewTabDescriptors(
   workflow: unknown[] | null | undefined,
@@ -36,6 +40,23 @@ export function getEffectiveReviewTabDescriptors(
   let descriptors = visibleReviewSectionsFromApi
     ? tabDescriptors.filter((d) => visibleReviewSectionsFromApi.has(d.reviewSection))
     : tabDescriptors;
+
+  if (
+    visibleReviewSectionsFromApi?.has("acceptance_documents") &&
+    !descriptors.some((d) => d.reviewSection === "acceptance_documents")
+  ) {
+    descriptors = [
+      ...descriptors,
+      {
+        id: "acceptance_documents",
+        label: getReviewTabLabel("acceptance_documents"),
+        reviewSection: "acceptance_documents",
+        kind: "acceptance_documents",
+        stepKey: "acceptance_documents",
+        stepId: "acceptance_documents",
+      },
+    ];
+  }
 
   const structureType = (app.financing_structure as { structure_type?: string } | null | undefined)
     ?.structure_type;

@@ -24,7 +24,7 @@ import { useIssuerDashboard } from "@/hooks/use-issuer-dashboard";
 import { useIssuerProducts } from "@/hooks/use-products";
 import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
 import type { IssuerDashboardContract, IssuerDashboardInvoice } from "@/types/issuer-dashboard";
-import { getOfferStatus } from "@/lib/offer-utils";
+import { getOfferStatus, shouldShowIssuerReviewOfferCta } from "@/lib/offer-utils";
 import { ReviewOfferModal } from "../(application-management)/applications/components/ReviewOfferModal";
 import { DashboardContractCard } from "@/components/financing/contract-card";
 import { DashboardInvoiceCard } from "@/components/financing/invoice-card";
@@ -336,6 +336,7 @@ function IssuerFinancingPageContent() {
                         key={c.id}
                         row={c}
                         offerStatus={getOfferStatus(modalContract)}
+                        showReviewOffer={shouldShowIssuerReviewOfferCta(modalContract)}
                         onReviewOffer={() =>
                           setOfferModalContext({
                             type: "contract",
@@ -389,6 +390,7 @@ function IssuerFinancingPageContent() {
                         key={inv.id}
                         row={inv}
                         offerStatus={getOfferStatus(modalInvoice)}
+                        showReviewOffer={shouldShowIssuerReviewOfferCta(modalInvoice)}
                         onReviewOffer={() =>
                           setOfferModalContext({
                             type: "invoice",

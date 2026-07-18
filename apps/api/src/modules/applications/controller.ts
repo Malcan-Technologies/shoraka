@@ -401,6 +401,27 @@ export function createApplicationRouter(): Router {
     }
   );
   router.post(
+    "/:id/offers/contracts/acceptance",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const { id } = applicationIdParamSchema.parse(req.params);
+        const body = z
+          .object({ acknowledgement_keys: z.array(z.string().min(1)).default([]) })
+          .parse(req.body ?? {});
+        const userId = getUserId(req);
+        const data = await applicationService.submitContractOfferAcceptance(
+          id,
+          userId,
+          body.acknowledgement_keys
+        );
+        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
+      } catch (e) {
+        next(e);
+      }
+    }
+  );
+  router.post(
     "/:id/offers/invoices/:invoiceId/accept",
     requireAuth,
     async (req, res, next) => {
@@ -432,6 +453,29 @@ export function createApplicationRouter(): Router {
         const { reason } = z.object({ reason: z.string().max(2000).optional() }).parse(req.body ?? {});
         const userId = getUserId(req);
         const data = await applicationService.respondToInvoiceOffer(id, invoiceId, "reject", userId, reason);
+        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
+      } catch (e) {
+        next(e);
+      }
+    }
+  );
+  router.post(
+    "/:id/offers/invoices/:invoiceId/acceptance",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const { id } = applicationIdParamSchema.parse(req.params);
+        const invoiceId = z.string().cuid().parse(req.params.invoiceId);
+        const body = z
+          .object({ acknowledgement_keys: z.array(z.string().min(1)).default([]) })
+          .parse(req.body ?? {});
+        const userId = getUserId(req);
+        const data = await applicationService.submitInvoiceOfferAcceptance(
+          id,
+          invoiceId,
+          userId,
+          body.acknowledgement_keys
+        );
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
       } catch (e) {
         next(e);

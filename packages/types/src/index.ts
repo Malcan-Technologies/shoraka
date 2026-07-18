@@ -368,6 +368,8 @@ export interface ContractOfferDetails {
   sent_by_user_id: string | null;
   responded_by_user_id: string | null;
   version: number;
+  /** Phased accept → admin review → signing (Option A). Absent on legacy offers. */
+  offer_acceptance?: import("./offer-acceptance").OfferAcceptanceDetails;
 }
 
 export interface InvoiceDetails {
@@ -410,6 +412,8 @@ export interface InvoiceOfferDetails {
   sent_by_user_id: string | null;
   responded_by_user_id: string | null;
   version: number;
+  /** Phased accept → admin review → signing (Option A). Absent on legacy offers. */
+  offer_acceptance?: import("./offer-acceptance").OfferAcceptanceDetails;
 }
 
 export * from "./invoice-offer-risk-rating";
@@ -441,6 +445,7 @@ export * from "./investor-return-breakdown";
 export * from "./marketplace-note-dates";
 export * from "./signing-envelopes";
 export * from "./acceptance-documents";
+export * from "./offer-acceptance";
 export * from "./guarantors";
 export * from "./company-name-normalization";
 export * from "./gateway-payments";

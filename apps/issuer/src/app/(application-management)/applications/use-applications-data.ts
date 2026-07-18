@@ -23,7 +23,11 @@ import {
   resolveApprovedFacility,
   resolveRequestedFacility,
 } from "@cashsouk/config";
-import { WithdrawReason } from "@cashsouk/types";
+import {
+  WithdrawReason,
+  getOfferAcceptanceFromOfferDetails,
+  offerAcceptanceAllowsIssuerReviewCta,
+} from "@cashsouk/types";
 import { useOrganizationApplications } from "@/hooks/use-applications";
 import { getCardStatus, APPLICATION_STATUS_PRIORITY, type NormalizedApplication, type NormalizedInvoice } from "./status";
 import { numberOrNull } from "@/lib/facility-fee-display";
@@ -175,11 +179,11 @@ function prepareInvoice(
   const documentName = String(doc?.file_name ?? details.document_name ?? details.document ?? "—");
   const signedOfferLetterAvailable = isSignedOfferLetterAvailable(api.status);
   const offerStatus = api.status === "OFFER_SENT" && api.offer_details ? "Offer received" : null;
-  const canReviewOffer = offerStatus === "Offer received" && (
-    structureType === "invoice_only" ||
-    contractStatus === "APPROVED" ||
-    !contractStatus
-  );
+  const acceptanceStatus = getOfferAcceptanceFromOfferDetails(api.offer_details)?.status ?? null;
+  const canReviewOffer =
+    offerStatus === "Offer received" &&
+    offerAcceptanceAllowsIssuerReviewCta(acceptanceStatus) &&
+    (structureType === "invoice_only" || contractStatus === "APPROVED" || !contractStatus);
 
   const offeredAmount = resolveOfferedAmount(api.offer_details);
   const profitRateVal = resolveOfferedProfitRate(api.offer_details);
@@ -244,12 +248,20 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     }
   }
 
-  const cardStatus = getCardStatus({
+  let cardStatus = getCardStatus({
     applicationStatus: api.status ?? "DRAFT",
     contractStatus,
     invoiceStatuses: invoices.map((i) => i.status ?? "DRAFT"),
     withdrawReason,
   });
+  // Hide Review Offer while acceptance docs await admin; show again on amendment or approval.
+  if (cardStatus.showReviewOffer && contractStatus === "OFFER_SENT") {
+    const acceptanceStatus =
+      getOfferAcceptanceFromOfferDetails(contract?.offer_details)?.status ?? null;
+    if (!offerAcceptanceAllowsIssuerReviewCta(acceptanceStatus)) {
+      cardStatus = { ...cardStatus, showReviewOffer: false };
+    }
+  }
 
   const structureType = (api.financing_structure as { structure_type?: string } | undefined)?.structure_type;
   let type: "Contract financing" | "Invoice financing" | "Generic" = "Generic";

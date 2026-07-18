@@ -26,6 +26,7 @@ import { requestPresignedUploadUrl, deleteDocumentFromS3 } from "./documents/ser
 import { shouldPreserveApplicationDocumentsInS3 } from "./amendment-preserve-s3";
 import {
   assertRequiredSupportingDocumentsPresent,
+  assertRequiredPostApplicationSupportingDocumentsPresent,
   fileNameToSupportingDocTypeToken,
   getGuarantorAgreementAllowedTypesFromProductWorkflow,
   getSupportingDocAllowedTypesFromProductWorkflow,
@@ -34,7 +35,16 @@ import {
 import {
   resolveAcceptanceDocumentAllowedTypes,
   resolveAcceptanceDocumentsFromWorkflow,
+  getOfferAcceptanceFromOfferDetails,
+  offerAcceptanceIsStep1Editable,
+  requiredOfferAcknowledgementKeys,
+  resolveStatusAfterOfferAcceptanceSubmit,
+  workflowUsesOfferAcceptanceFlow,
 } from "@cashsouk/types";
+import {
+  buildAcknowledgementRecords,
+  patchOfferAcceptance,
+} from "./offer-acceptance";
 import { buildApplicationRevisionSnapshot } from "./revision-snapshot";
 import {
   upsertLatestOrganizationFinancialStatementsFromApplication,
@@ -1517,6 +1527,193 @@ export class ApplicationService {
       select: { item_id: true },
     });
     return exactGenerated?.item_id ?? generated;
+  }
+
+  /**
+   * Step 1 of offer acceptance: record acknowledgements + require acceptance uploads,
+   * then move to PENDING_ADMIN_REVIEW (or APPROVED_FOR_SIGNING when no acceptance docs).
+   */
+  async submitContractOfferAcceptance(
+    applicationId: string,
+    userId: string,
+    acknowledgementKeys: string[]
+  ): Promise<Application> {
+    await this.verifyApplicationAccess(applicationId, userId);
+    const application = await this.repository.findById(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+    if (!application.contract_id) {
+      throw new AppError(400, "INVALID_STATE", "Application has no contract");
+    }
+    const workflow = await this.getProductWorkflowForApplication(application);
+    if (!workflowUsesOfferAcceptanceFlow(workflow)) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "This product does not use the offer acceptance flow."
+      );
+    }
+    const contractId = application.contract_id;
+    const requiredKeys = requiredOfferAcknowledgementKeys(workflow);
+    const checked = new Set(acknowledgementKeys);
+    for (const key of requiredKeys) {
+      if (!checked.has(key)) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          "All required acknowledgements must be accepted before submitting."
+        );
+      }
+    }
+    assertRequiredPostApplicationSupportingDocumentsPresent(
+      workflow,
+      application.supporting_documents,
+      (application as { acceptance_documents?: unknown }).acceptance_documents
+    );
+
+    const now = new Date().toISOString();
+    const nextStatus = resolveStatusAfterOfferAcceptanceSubmit(workflow);
+    const acknowledgements = buildAcknowledgementRecords({
+      documentKeys: [...checked],
+      userId,
+      acceptedAt: now,
+    });
+
+    await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<
+        { status: string; offer_details: Prisma.JsonValue | null }[]
+      >`SELECT status, offer_details FROM contracts WHERE id = ${contractId} FOR UPDATE`;
+      const contract = locked[0];
+      if (!contract || contract.status !== "OFFER_SENT") {
+        throw new AppError(400, "INVALID_STATE", "No pending contract offer to accept");
+      }
+      const offer = (contract.offer_details as Record<string, unknown> | null) ?? null;
+      if (!offer) {
+        throw new AppError(400, "INVALID_STATE", "Contract has no offer details");
+      }
+      const acceptance = getOfferAcceptanceFromOfferDetails(offer);
+      if (!offerAcceptanceIsStep1Editable(acceptance?.status)) {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "Offer acceptance has already been submitted or is not editable."
+        );
+      }
+      const expiresAt = offer.expires_at as string | null | undefined;
+      if (expiresAt && new Date(expiresAt) < new Date()) {
+        throw new AppError(400, "OFFER_EXPIRED", "This offer has expired");
+      }
+      const updatedOffer = patchOfferAcceptance(offer, {
+        status: nextStatus,
+        acknowledgements,
+        submitted_at: now,
+        reviewed_at: nextStatus === "APPROVED_FOR_SIGNING" ? now : null,
+        reviewed_by_user_id: nextStatus === "APPROVED_FOR_SIGNING" ? userId : null,
+      });
+      await tx.contract.update({
+        where: { id: contractId },
+        data: { offer_details: updatedOffer as Prisma.InputJsonValue },
+      });
+    });
+
+    return this.repository.findById(applicationId) as Promise<Application>;
+  }
+
+  async submitInvoiceOfferAcceptance(
+    applicationId: string,
+    invoiceId: string,
+    userId: string,
+    acknowledgementKeys: string[]
+  ): Promise<Application> {
+    await this.verifyApplicationAccess(applicationId, userId);
+    const application = await this.repository.findById(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+    const workflow = await this.getProductWorkflowForApplication(application);
+    if (!workflowUsesOfferAcceptanceFlow(workflow)) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "This product does not use the offer acceptance flow."
+      );
+    }
+    const invoices = (application as { invoices?: { id: string; contract_id?: string | null }[] }).invoices ?? [];
+    const invoice = invoices.find((item) => item.id === invoiceId);
+    if (!invoice) {
+      throw new AppError(404, "NOT_FOUND", "Invoice not found");
+    }
+    if (invoice.contract_id) {
+      throw new AppError(
+        400,
+        "CONTRACT_LINKED_INVOICE_NO_PACKAGE",
+        "Contract-linked invoice offers do not use the offer acceptance flow."
+      );
+    }
+    const requiredKeys = requiredOfferAcknowledgementKeys(workflow);
+    const checked = new Set(acknowledgementKeys);
+    for (const key of requiredKeys) {
+      if (!checked.has(key)) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          "All required acknowledgements must be accepted before submitting."
+        );
+      }
+    }
+    assertRequiredPostApplicationSupportingDocumentsPresent(
+      workflow,
+      application.supporting_documents,
+      (application as { acceptance_documents?: unknown }).acceptance_documents
+    );
+
+    const now = new Date().toISOString();
+    const nextStatus = resolveStatusAfterOfferAcceptanceSubmit(workflow);
+    const acknowledgements = buildAcknowledgementRecords({
+      documentKeys: [...checked],
+      userId,
+      acceptedAt: now,
+    });
+
+    await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<
+        { status: string; offer_details: Prisma.JsonValue | null }[]
+      >`SELECT status, offer_details FROM invoices WHERE id = ${invoiceId} AND application_id = ${applicationId} FOR UPDATE`;
+      const row = locked[0];
+      if (!row || row.status !== "OFFER_SENT") {
+        throw new AppError(400, "INVALID_STATE", "No pending invoice offer to accept");
+      }
+      const offer = (row.offer_details as Record<string, unknown> | null) ?? null;
+      if (!offer) {
+        throw new AppError(400, "INVALID_STATE", "Invoice has no offer details");
+      }
+      const acceptance = getOfferAcceptanceFromOfferDetails(offer);
+      if (!offerAcceptanceIsStep1Editable(acceptance?.status)) {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "Offer acceptance has already been submitted or is not editable."
+        );
+      }
+      const expiresAt = offer.expires_at as string | null | undefined;
+      if (expiresAt && new Date(expiresAt) < new Date()) {
+        throw new AppError(400, "OFFER_EXPIRED", "This offer has expired");
+      }
+      const updatedOffer = patchOfferAcceptance(offer, {
+        status: nextStatus,
+        acknowledgements,
+        submitted_at: now,
+        reviewed_at: nextStatus === "APPROVED_FOR_SIGNING" ? now : null,
+        reviewed_by_user_id: nextStatus === "APPROVED_FOR_SIGNING" ? userId : null,
+      });
+      await tx.invoice.update({
+        where: { id: invoiceId },
+        data: { offer_details: updatedOffer as Prisma.InputJsonValue },
+      });
+    });
+
+    return this.repository.findById(applicationId) as Promise<Application>;
   }
 
   /**
