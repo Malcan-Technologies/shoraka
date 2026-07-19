@@ -51,6 +51,9 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).toContain("Highlight Description");
     expect(pageSource).toContain("PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT");
     expect(pageSource).toContain("PROSPECTUS_HIGHLIGHT_KEYS");
+    // Shariah remains read-only (no editable inputs for the fixed highlight).
+    expect(pageSource).toContain('key === "shariah"');
+    expect(pageSource).toContain("isShariah");
   });
 
   it("renders Page 2/3 financials through the metric table component", () => {

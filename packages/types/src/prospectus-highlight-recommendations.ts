@@ -9,7 +9,7 @@ import {
   isSoukscoreRiskRating,
   type SoukscoreRiskRating,
 } from "./invoice-offer-risk-rating";
-import { formatInvestorReturnRatePercent } from "./note-expected-return";
+import { roundNoteMoney } from "./note-expected-return";
 
 export const PROSPECTUS_HIGHLIGHT_KEYS = [
   "paymaster",
@@ -25,9 +25,9 @@ export type ProspectusHighlightCopy = {
   description: string;
 };
 
-export const PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT_TITLE = "Shariah financing structure";
+export const PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT_TITLE = "Shariah-compliant investment";
 
-export const PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT_DESCRIPTION = `This Note is structured under ${PROSPECTUS_FIXED_SHARIAH_PRINCIPLE}.`;
+export const PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT_DESCRIPTION = `Structured under ${PROSPECTUS_FIXED_SHARIAH_PRINCIPLE}.`;
 
 export const PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT: ProspectusHighlightCopy = {
   title: PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT_TITLE,
@@ -180,34 +180,62 @@ export function recommendIssuerFinancialStrengthHighlight(input: {
   return ISSUER_FINANCIAL_STRENGTH_RECOMMENDATIONS[input.riskRating];
 }
 
+/** Canva-aligned Profit Rate label (one decimal), e.g. "12.0%". */
+function formatReturnHighlightProfitRate(rate: number): string | null {
+  if (!Number.isFinite(rate)) return null;
+  return `${roundNoteMoney(rate, 1).toFixed(1)}%`;
+}
+
+function formatReturnHighlightTenure(
+  opensAt: string | null | undefined,
+  maturity: string | null | undefined
+): string | null {
+  if (!opensAt || !maturity) return null;
+  const start = new Date(opensAt);
+  const end = new Date(maturity);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  const days = calculateCalendarDayCount(start, end);
+  if (days <= 0) return null;
+  return `${days} days`;
+}
+
 /**
  * Return highlight recommendation from Profit Rate (gross) and Tenure (calendar days).
+ * Canva wording; does not use Expected Return.
  */
 export function recommendReturnHighlight(input: {
   profitRatePercent?: number | null;
   listingOpensAt?: string | null;
   maturityDate?: string | null;
 }): ProspectusHighlightCopy {
-  const rate = input.profitRatePercent;
-  const opensAt = input.listingOpensAt;
-  const maturity = input.maturityDate;
-  if (rate == null || !Number.isFinite(rate) || !opensAt || !maturity) {
-    return { title: "Return information", description: DNA };
+  const rateLabel =
+    input.profitRatePercent == null
+      ? null
+      : formatReturnHighlightProfitRate(input.profitRatePercent);
+  const tenureLabel = formatReturnHighlightTenure(
+    input.listingOpensAt,
+    input.maturityDate
+  );
+
+  if (rateLabel && tenureLabel) {
+    return {
+      title: "Attractive short-term returns",
+      description: `Earn up to ${rateLabel} p.a. for a short investment period of ${tenureLabel}.`,
+    };
   }
-  const start = new Date(opensAt);
-  const end = new Date(maturity);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return { title: "Return information", description: DNA };
+  if (rateLabel) {
+    return {
+      title: "Attractive short-term returns",
+      description: `Earn up to ${rateLabel} p.a.`,
+    };
   }
-  const days = calculateCalendarDayCount(start, end);
-  const rateLabel = formatInvestorReturnRatePercent(rate);
-  if (rateLabel === "-" || days <= 0) {
-    return { title: "Return information", description: DNA };
+  if (tenureLabel) {
+    return {
+      title: "Short-term investment",
+      description: `The investment period is ${tenureLabel}.`,
+    };
   }
-  return {
-    title: `${rateLabel} p.a. over ${days} days`,
-    description: `This Note offers a profit rate of ${rateLabel} p.a. with a tenure of ${days} days.`,
-  };
+  return { title: "Investment return", description: DNA };
 }
 
 export function recommendShariahHighlight(): ProspectusHighlightCopy {

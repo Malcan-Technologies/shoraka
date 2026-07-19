@@ -155,8 +155,9 @@ export const PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT: ProspectusPublicationCo
     },
     {
       key: "return",
-      title: "12% p.a. over 120 days",
-      description: "This Note offers a profit rate of 12% p.a. with a tenure of 120 days.",
+      title: "Attractive short-term returns",
+      description:
+        "Earn up to 12.0% p.a. for a short investment period of 120 days.",
       sourceType: "derived_suggestion",
       isVisible: true,
     },
