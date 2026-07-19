@@ -51,6 +51,31 @@
  * - Page 2 rating scale alignment with SoukScore AAA–B
  *
  * =============================================================================
+ * PAGE 2 — STAGE 1 ABOUT THE ISSUER (implemented)
+ * =============================================================================
+ *
+ * Module: prospectus-issuer-profile.*
+ * Preview: pnpm prospectus:issuer-profile-preview
+ * Output: apps/api/tmp/prospectus/prospectus-issuer-profile-preview.html
+ * Freeze helper: note-issuer-snapshot.ts (NoteService.createFromInvoiceSource)
+ *
+ * Confirmed Canva fields (frozen notes.issuer_snapshot only):
+ * - Company Name → notes.issuer_snapshot.name
+ * - Registration Number → notes.issuer_snapshot.registration_number
+ *   (new SSM only; old SSM unsupported; no "number (old)" combine)
+ * - Industry → notes.issuer_snapshot.industry
+ * - Registered Country → notes.issuer_snapshot.country
+ *   display: "Registered in {country}"; no hardcoded Malaysia; missing → DNA
+ * - Business Description → notes.issuer_snapshot.business_description
+ *   original at create: applications.business_details.about_your_business.what_does_company_do
+ *
+ * Unresolved:
+ * - Company Size / SME — no approved classification; inferenceAllowed = false
+ *
+ * Backward compatibility: old Notes missing new snapshot keys → Data not available
+ * No live IssuerOrganization / Application fallback at render.
+ *
+ * =============================================================================
  * PAGE 2 — STAGE 2 INVOICE & PAYMASTER INFORMATION (implemented)
  * =============================================================================
  *

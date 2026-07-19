@@ -47,6 +47,24 @@ export function parsePaymasterSnapshot(value: unknown): {
   };
 }
 
+/** Page 2 About the Issuer — notes.issuer_snapshot canonical keys only. */
+export function parseIssuerSnapshot(value: unknown): {
+  name: string | null;
+  registrationNumber: string | null;
+  industry: string | null;
+  country: string | null;
+  businessDescription: string | null;
+} {
+  const record = asJsonRecord(value);
+  return {
+    name: nonEmptyString(record?.name),
+    registrationNumber: nonEmptyString(record?.registration_number),
+    industry: nonEmptyString(record?.industry),
+    country: nonEmptyString(record?.country),
+    businessDescription: nonEmptyString(record?.business_description),
+  };
+}
+
 export function parsePurposeSnapshot(value: unknown): NotePurposeSnapshot | null {
   const record = asJsonRecord(value);
   const financingFor = nonEmptyString(record?.financing_for);

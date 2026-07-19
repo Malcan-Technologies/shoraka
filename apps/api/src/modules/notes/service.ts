@@ -94,6 +94,10 @@ import {
   notifyNoteSettlementPosted,
   resolveNoteNotificationTitle,
 } from "../notification/note-lifecycle-notifications";
+import {
+  buildNoteIssuerSnapshot,
+  resolveIssuerIndustryFromCorporateData,
+} from "./note-issuer-snapshot";
 import { noteInclude, noteRepository } from "./repository";
 import {
   buildSettlementAllocations,
@@ -213,16 +217,6 @@ function resolvePurposeOfFinancingFromBusinessDetails(
   if (typeof financingFor === "string" && financingFor.trim().length > 0) {
     return financingFor.trim();
   }
-  return null;
-}
-
-function resolveIssuerIndustryFromCorporateData(
-  data: Prisma.JsonValue | null | undefined
-): string | null {
-  const corporateData = asRecord(data);
-  const basicInfo = asRecord(corporateData?.basicInfo);
-  const industry = basicInfo?.industry;
-  if (typeof industry === "string" && industry.trim().length > 0) return industry.trim();
   return null;
 }
 
@@ -2045,6 +2039,8 @@ export class NoteService {
         id: string;
         name: string | null;
         type: string;
+        registration_number?: string | null;
+        country?: string | null;
         corporate_onboarding_data: Prisma.JsonValue | null;
       };
     };
@@ -2097,9 +2093,10 @@ export class NoteService {
     const purposeOfFinancing = resolvePurposeOfFinancingFromBusinessDetails(
       application.business_details
     );
-    const issuerIndustry = resolveIssuerIndustryFromCorporateData(
-      application.issuer_organization.corporate_onboarding_data
-    );
+    const issuerSnapshot = buildNoteIssuerSnapshot({
+      organization: application.issuer_organization,
+      businessDetails: application.business_details,
+    });
     const invoiceFaceValue = resolveRequestedInvoiceAmount(invoiceDetails);
     const targetAmount =
       resolveOfferedAmount(invoiceOffer) ||
@@ -2130,12 +2127,7 @@ export class NoteService {
               params.title ??
               `Note for invoice ${invoiceNumber} - ${application.issuer_organization.name ?? application.issuer_organization.id}`,
             note_reference: reference,
-            issuer_snapshot: {
-              id: application.issuer_organization.id,
-              name: application.issuer_organization.name,
-              type: application.issuer_organization.type,
-              industry: issuerIndustry,
-            },
+            issuer_snapshot: { ...issuerSnapshot },
             paymaster_snapshot: json(sourceContract?.customer_details),
             product_snapshot: json({
               ...(financingType ?? {}),
