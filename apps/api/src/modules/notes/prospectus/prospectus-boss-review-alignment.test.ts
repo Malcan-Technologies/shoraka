@@ -23,10 +23,12 @@ import { buildProspectusPageThreeInvestorTakeaways } from "./prospectus-page-thr
 import { SAMPLE_PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAYS_INPUT } from "./prospectus-page-three-investor-takeaways.sample-data";
 import { PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAY_KEYS } from "./prospectus-page-three-investor-takeaways.types";
 import { PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT } from "./prospectus-placeholder-publication-content";
+import { buildProspectusHeader } from "./prospectus-header";
 import { SAMPLE_PROSPECTUS_PAGE_ONE } from "./prospectus-page-one.sample-data";
 import { SAMPLE_PROSPECTUS_PAGE_TWO } from "./prospectus-page-two.sample-data";
 import { SAMPLE_PROSPECTUS_PAGE_THREE } from "./prospectus-page-three.sample-data";
 import { renderProspectusPageThreeHtml } from "./render-prospectus-page-three";
+import { renderProspectusPageTwoHtml } from "./render-prospectus-page-two";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
 import { buildProspectusDatesPaymasterDocument } from "./render-prospectus-dates-paymaster";
 
@@ -92,7 +94,7 @@ describe("prospectus boss-review alignment", () => {
       expect(profile.businessDescription).not.toContain("Secret Issuer");
     });
 
-    it("omits Issuer from Page 3 metadata strip", () => {
+    it("omits Issuer from Page 3 metadata strip; keeps shared Shariah badge", () => {
       const meta = buildProspectusPageThreeMetadata({
         ...SAMPLE_PROSPECTUS_PAGE_THREE_METADATA_INPUT,
         issuerName: "ABC Engineering Sdn Bhd",
@@ -101,7 +103,14 @@ describe("prospectus boss-review alignment", () => {
       expect(meta.metadata).not.toHaveProperty("issuer");
       const html = renderProspectusPageThreeHtml(SAMPLE_PROSPECTUS_PAGE_THREE);
       expect(html).not.toContain("Issuer:");
-      expect(html).not.toMatch(/Shariah/i);
+      expect(html).toContain("Shariah Status Badge:");
+      expect(html).toContain('class="shariah-badge"');
+      const pageThreeHtmlSource = readFileSync(
+        join(__dirname, "prospectus-page-three.html.ts"),
+        "utf8"
+      );
+      expect(pageThreeHtmlSource).toContain("buildProspectusHeaderHtml");
+      expect(pageThreeHtmlSource).not.toMatch(/function renderHeader/);
     });
   });
 
@@ -195,6 +204,46 @@ describe("prospectus boss-review alignment", () => {
       );
       expect(grades).toEqual(["AAA", "AA", "A", "BBB", "BB", "B"]);
       expect(grades).not.toContain("A-");
+    });
+  });
+
+  describe("shared header", () => {
+    it("keeps Page 2/3 header fields aligned with shared builder", () => {
+      const shared = buildProspectusHeader();
+      expect(SAMPLE_PROSPECTUS_PAGE_TWO.header).toMatchObject({
+        brandName: shared.brandName,
+        tagline: shared.tagline,
+        shariahStatusBadge: shared.shariahStatusBadge,
+      });
+      expect(SAMPLE_PROSPECTUS_PAGE_THREE.header).toMatchObject({
+        brandName: shared.brandName,
+        tagline: shared.tagline,
+        shariahStatusBadge: shared.shariahStatusBadge,
+      });
+      expect(shared.shariahStatusBadge).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    });
+
+    it("Page 2 and Page 3 HTML use shared header module with Shariah badge", () => {
+      const pageTwoHtml = renderProspectusPageTwoHtml(SAMPLE_PROSPECTUS_PAGE_TWO);
+      const pageThreeHtml = renderProspectusPageThreeHtml(SAMPLE_PROSPECTUS_PAGE_THREE);
+      for (const html of [pageTwoHtml, pageThreeHtml]) {
+        expect(html).toContain("Shariah Status Badge:");
+        expect(html).toContain('class="shariah-badge"');
+        expect(html).toContain("Brand Tagline:");
+        expect(html).not.toContain("source-statement");
+        expect(html).not.toContain('data-stage="footer"');
+        expect(html).not.toContain("prospectus-footer");
+      }
+      expect(pageTwoHtml).not.toContain("Company Name:");
+      expect(pageTwoHtml).not.toContain("Registration Number:");
+      expect(pageThreeHtml).not.toContain("Issuer:");
+
+      const pageTwoSource = readFileSync(
+        join(__dirname, "prospectus-page-two.html.ts"),
+        "utf8"
+      );
+      expect(pageTwoSource).toContain("buildProspectusHeaderHtml");
+      expect(pageTwoSource).not.toMatch(/function renderHeader/);
     });
   });
 });

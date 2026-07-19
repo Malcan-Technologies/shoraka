@@ -32,9 +32,22 @@ Temporary placeholders live in `apps/api/src/modules/notes/prospectus/prospectus
 
 ## HIDDEN
 
+Boss-review removal applies to **issuer identity** only:
+
 - Issuer company name
-- SSM / registration number
+- SSM / registration number (and old SSM)
 - Page 3 Issuer metadata item
+
+## Shared header
+
+Pages 1–3 use consistent shared header behaviour via `prospectus-header.*`:
+
+- CashSouk logo
+- brand name
+- tagline (DNA until approved copy)
+- Shariah Status Badge (same unresolved/DNA behaviour on all pages)
+
+The Shariah badge remains on Page 3. It is not a Page 3-specific header variation.
 
 ## Rules
 
@@ -43,5 +56,5 @@ Temporary placeholders live in `apps/api/src/modules/notes/prospectus/prospectus
 3. Prospectus-specific values must later be stored separately from Application/CTOS.
 4. Never overwrite Application or CTOS source data.
 5. Final approved dropdown labels remain pending.
-6. Page 3 removes the Shariah badge only; Page 1/2 header behaviour unchanged.
+6. Issuer identity remains hidden; Shariah badge stays in the shared header on Page 3.
 7. CTOS is not switched into Page 3 investor financials in this step.

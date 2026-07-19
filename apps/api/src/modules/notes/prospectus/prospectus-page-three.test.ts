@@ -424,13 +424,16 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       ).toBe(true);
     });
 
-    it("omits Issuer metadata and Page 3 Shariah badge from HTML", () => {
+    it("omits Issuer metadata; keeps shared header Shariah badge", () => {
       const html = renderProspectusPageThreeHtml(SAMPLE_PROSPECTUS_PAGE_THREE);
       expect(html).not.toContain("Issuer:");
       expect(html).not.toContain("ABC Engineering");
-      expect(html).not.toMatch(/Shariah/i);
+      expect(html).toContain("Shariah Status Badge:");
+      expect(html).toContain('data-stage="header"');
       expect(html).toContain("CashSouk");
       expect(html).toContain("Sector: Construction");
+      expect(html).not.toContain("source-statement");
+      expect(html).not.toContain('data-stage="footer"');
     });
   });
 

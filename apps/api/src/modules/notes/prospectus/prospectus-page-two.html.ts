@@ -4,29 +4,13 @@
  */
 
 import { escapeHtml, escapeHtmlAttribute } from "./prospectus-html";
+import { buildProspectusHeaderHtml } from "./prospectus-header.html";
 import type { ProspectusPageTwo } from "./prospectus-page-two.types";
 import {
   PROSPECTUS_PAGE_TWO_HEIGHT_MM,
   PROSPECTUS_PAGE_TWO_WIDTH_MM,
 } from "./prospectus-page-two.types";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
-
-function renderHeader(page: ProspectusPageTwo): string {
-  const { header } = page;
-  const logoHtml =
-    header.logo.kind === "official_asset"
-      ? `<img class="prospectus-logo" src="${escapeHtmlAttribute(
-          header.logo.previewSrc
-        )}" alt="${escapeHtmlAttribute(header.logo.alt)}" height="40" />`
-      : `<span class="prospectus-logo-text">${escapeHtml(header.logo.text)}</span>`;
-
-  return `<header class="prospectus-header" data-stage="header">
-  ${logoHtml}
-  <p class="brand-name">${escapeHtml(header.brandName)}</p>
-  <p>Brand Tagline: ${escapeHtml(header.tagline)}</p>
-  <p>Shariah Status Badge: ${escapeHtml(header.shariahStatusBadge)}</p>
-</header>`;
-}
 
 function renderFinancialTable(page: ProspectusPageTwo): string {
   const data = page.financialComparisonMetrics;
@@ -172,7 +156,7 @@ export function buildProspectusPageTwoHtml(page: ProspectusPageTwo): string {
 </head>
 <body>
   <div class="page" data-page="prospectus-page-two">
-    ${renderHeader(page)}
+    ${buildProspectusHeaderHtml(page.header)}
 
     <section data-stage="1">
       <h2>${escapeHtml(s1.sectionHeading)}</h2>

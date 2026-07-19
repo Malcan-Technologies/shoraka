@@ -12,7 +12,7 @@ export function buildProspectusHeaderHtml(data: ProspectusHeader): string {
       ? `<img class="prospectus-logo" src="${escapeHtmlAttribute(data.logo.previewSrc)}" alt="${escapeHtmlAttribute(data.logo.alt)}" height="48" />`
       : `<span class="prospectus-logo-text">${escapeHtml(data.logo.text)}</span>`;
 
-  return `<header class="prospectus-header">
+  return `<header class="prospectus-header" data-stage="header">
   ${logoHtml}
   <p class="brand-name">${escapeHtml(data.brandName)}</p>
   <p class="brand-tagline">Brand Tagline: ${escapeHtml(data.tagline)}</p>

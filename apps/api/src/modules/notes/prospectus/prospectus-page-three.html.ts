@@ -3,7 +3,8 @@
  * WHY: Six visible content stages matching Canva/Data-First map; trends only in Stage 5 column
  */
 
-import { escapeHtml, escapeHtmlAttribute } from "./prospectus-html";
+import { escapeHtml } from "./prospectus-html";
+import { buildProspectusHeaderHtml } from "./prospectus-header.html";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
 import type { ProspectusPageThreeCoverageEfficiencyRowKey } from "./prospectus-page-three-coverage-efficiency.types";
 import { PROSPECTUS_PAGE_THREE_METADATA_LABELS } from "./prospectus-page-three-metadata.types";
@@ -12,22 +13,6 @@ import {
   PROSPECTUS_PAGE_THREE_HEIGHT_MM,
   PROSPECTUS_PAGE_THREE_WIDTH_MM,
 } from "./prospectus-page-three.types";
-
-function renderHeader(page: ProspectusPageThree): string {
-  const { header } = page;
-  const logoHtml =
-    header.logo.kind === "official_asset"
-      ? `<img class="prospectus-logo" src="${escapeHtmlAttribute(
-          header.logo.previewSrc
-        )}" alt="${escapeHtmlAttribute(header.logo.alt)}" height="40" />`
-      : `<span class="prospectus-logo-text">${escapeHtml(header.logo.text)}</span>`;
-
-  return `<header class="prospectus-header" data-stage="header">
-  ${logoHtml}
-  <p class="brand-name">${escapeHtml(header.brandName)}</p>
-  <p>Brand Tagline: ${escapeHtml(header.tagline)}</p>
-</header>`;
-}
 
 /** Visible Stage 1 — page title and subtitle only. */
 function renderPageTitle(page: ProspectusPageThree): string {
@@ -236,7 +221,7 @@ export function buildProspectusPageThreeHtml(page: ProspectusPageThree): string 
 </head>
 <body>
   <div class="page" data-page="prospectus-page-three">
-${renderHeader(page)}
+${buildProspectusHeaderHtml(page.header)}
 ${renderPageTitle(page)}
 ${renderMetadataStrip(page)}
 ${renderMetricTable({

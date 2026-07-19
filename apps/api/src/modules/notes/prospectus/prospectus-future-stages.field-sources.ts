@@ -30,10 +30,15 @@
  * - Missing Page 3 financial values (manual fills only for unsupported rows)
  * - Paymaster track-record metrics (no reliable source today)
  *
- * HIDDEN (legal privacy)
+ * HIDDEN (legal privacy — boss-review removal is issuer identity only)
  * - Issuer company name
  * - SSM / registration number (and old SSM)
  * - Page 3 Issuer metadata strip item
+ * - Shariah badge is NOT hidden; it remains via shared prospectus-header on Pages 1–3
+ *
+ * SHARED HEADER (prospectus-header.*)
+ * - Logo, brand name, tagline, Shariah Status Badge — same module for Page 2/3 HTML
+ * - No Page 3-specific header without the badge
  *
  * PLACEHOLDERS
  * - Central module: prospectus-placeholder-publication-content.ts
@@ -403,13 +408,13 @@
  *
  * Visible content stages (not technical layers):
  * 1. Page Title (+ subtitle DNA)
- * 2. Metadata Strip (Issuer, Sector, Risk Rating, Paymaster, gradings DNA)
+ * 2. Metadata Strip (Sector, Risk Rating, Paymaster, gradings DNA; Issuer identity omitted)
  * 3. 3-Year Income Statement Summary
  * 4. 3-Year Balance Sheet & Liquidity
  * 5. Cash Flow, Coverage, Efficiency + Trend (3-Yr) column
  * 6. Investor Takeaways
  *
- * Plus: Shared header (branding only — not a numbered stage)
+ * Plus: Shared header via buildProspectusHeaderHtml (logo, brand, tagline, Shariah badge)
  * No source statement. No shared footer.
  *
  * Technical integration (NOT a seventh visible stage):
