@@ -57,9 +57,9 @@ export function ProspectusPreviewSheet(props: {
     <Sheet open={props.open} onOpenChange={props.onOpenChange}>
       <SheetContent
         side="right"
-        className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(56rem,96vw)]"
+        className="flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(56rem,96vw)]"
       >
-        <SheetHeader className="space-y-3 border-b px-6 py-4 text-left">
+        <SheetHeader className="shrink-0 space-y-3 border-b px-6 py-4 text-left">
           <div className="pr-8">
             <SheetTitle>Prospectus Preview</SheetTitle>
             <SheetDescription>{props.statusLabel}</SheetDescription>
@@ -99,16 +99,18 @@ export function ProspectusPreviewSheet(props: {
           </div>
         </SheetHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto bg-muted/40 p-4 md:p-6">
-          {props.isLoading ? <Skeleton className="mx-auto h-[70vh] w-full max-w-[210mm]" /> : null}
+        <div className="min-h-0 flex-1 overflow-hidden bg-muted/40 p-4 md:p-6">
+          {props.isLoading ? (
+            <Skeleton className="mx-auto h-full w-full max-w-[210mm]" />
+          ) : null}
           {props.errorMessage ? (
             <p className="text-sm text-destructive">{props.errorMessage}</p>
           ) : null}
           {!props.isLoading && !props.errorMessage && html ? (
-            <div className="mx-auto w-full max-w-[210mm] overflow-hidden rounded-xl border bg-white shadow-sm">
+            <div className="mx-auto h-full w-full max-w-[210mm] overflow-auto rounded-xl border bg-white shadow-sm">
               <iframe
                 title={`Prospectus ${PAGE_LABELS[page]}`}
-                className="h-[min(80vh,1100px)] w-full border-0 bg-white"
+                className="h-full min-h-full w-full border-0 bg-white"
                 srcDoc={html}
               />
             </div>
