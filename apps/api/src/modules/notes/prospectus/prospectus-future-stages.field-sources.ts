@@ -385,6 +385,35 @@
  * Not in Stage 1: income statement, balance sheet, coverage, trends, takeaways,
  * full Page 3 Prisma mapper, full Page 3 HTML assembly, snapshot write path.
  *
+ * =============================================================================
+ * PAGE 3 — STAGE 2: 3-YEAR INCOME STATEMENT SUMMARY (implemented)
+ * =============================================================================
+ *
+ * Modules: prospectus-page-three-income-statement.*
+ * Preview: pnpm prospectus:page-three-income-statement-preview
+ * Output: apps/api/tmp/prospectus/prospectus-page-three-income-statement-preview.html
+ *
+ * Shared source:
+ * - Reuses Page 2 Stage 4A ProspectusFinancialComparisonSource (years + FYE + rawFinancials)
+ * - No independent Page 3 year selection; no unaudited_by_year parse; no CTOS fallback
+ *
+ * Confirmed rows:
+ * - Revenue → rawFinancials.turnover → formatProspectusMoneyMyr (full MYR; no RM mil.)
+ * - Profit Before Tax → rawFinancials.plnpbt → formatProspectusMoneyMyr
+ * - Profit After Tax → rawFinancials.plnpat → formatProspectusMoneyMyr
+ * - Net Profit Margin → calculateProfitMargin + Page 2 percent formatter (shared with Stage 4B)
+ *
+ * Unresolved rows (always Data not available):
+ * - Gross Profit, EBITDA, EBIT (no Application FS keys; no generated formulas)
+ *
+ * Snapshot compatibility (Stage 2 does not write snapshot):
+ * - Works when plnpbt is present in rawFinancials (live Stage 4A / future freeze)
+ * - Old published snapshots without plnpbt → PBT DNA; Revenue/PAT/NPM still render
+ * - No live Application fallback; plnpbt still requires future shared freeze extension
+ *   under page_2.financial_comparison.selected_years[].raw_financials
+ *
+ * Not in Stage 2: balance sheet, coverage, trends, takeaways, Prisma mapper, full assembly.
+ *
  * Corrections still needed when those stages are implemented:
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)
  * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*
