@@ -21,6 +21,14 @@
  * - Highlight title/explanation unsupported; no claim without approved rules and copy
  * - Future options (not implemented): classification mapping, paymaster-history model, admin-authored highlight, claim approval workflow, frozen highlight snapshot
  * - Stage 5B (issuer fundamentals highlight) in prospectus-issuer-fundamentals-highlight.* — live FS; claims unresolved
+ *
+ * Stage 5B issuer fundamentals highlight — correction notes:
+ * - Canonical FS source: applications.financial_statements
+ * - Years from unaudited_by_year keys (caller order preserved; no invented sort)
+ * - Financial data is live Application data; not frozen on Note (snapshotDecision pending)
+ * - Shared calculators exist (profit_margin, gearing, currat, workcap) but are not approved claim rules
+ * - No profitability or leverage classification; title/explanation unsupported
+ * - Future options (not implemented): approved ratio thresholds, admin-authored narrative, risk/compliance approval, frozen FS summary / highlight snapshot
  * - Stage 5C (return highlight) in prospectus-return-highlight.* — gross + tenure + annual net; marketing claims unresolved
  * - Stage 5D (Shariah highlight) in prospectus-shariah-highlight.* — compliance claim unresolved; not Tawarruq-as-proof
  * - Stage 6 (At a Glance) in prospectus-at-a-glance.* — composes Stage 4A + Stage 2 only
