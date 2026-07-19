@@ -1,13 +1,14 @@
 /**
  * SECTION: Build At a Glance view-model
- * WHY: Compose Stage 4A financial terms + Stage 2 tenure — no duplicate formatters
+ * WHY: Compose Stage 4A financial terms + Stage 2 tenure — no duplicate formatters or formulas
  */
 
 import { buildProspectusTenureAndMaturity } from "./prospectus-dates-paymaster";
 import { buildProspectusMainFinancialTerms } from "./prospectus-main-financial-terms";
-import type {
-  ProspectusAtAGlance,
-  ProspectusAtAGlanceInput,
+import {
+  PROSPECTUS_AT_A_GLANCE_AUDIT,
+  type ProspectusAtAGlance,
+  type ProspectusAtAGlanceInput,
 } from "./prospectus-at-a-glance.types";
 
 export function buildProspectusAtAGlance(input: ProspectusAtAGlanceInput): ProspectusAtAGlance {
@@ -26,5 +27,6 @@ export function buildProspectusAtAGlance(input: ProspectusAtAGlanceInput): Prosp
     expectedReturn: terms.expectedReturnForInvestmentPeriod,
     tenure: timing.tenure,
     minimumInvestment: terms.minimumInvestment,
+    audit: PROSPECTUS_AT_A_GLANCE_AUDIT,
   };
 }

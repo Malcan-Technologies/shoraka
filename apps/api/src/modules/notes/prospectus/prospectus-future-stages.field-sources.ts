@@ -49,6 +49,15 @@
  * - No approved title or explanation; landing-page marketing is not a Note-level source
  * - Future options (not implemented): Product compliance flag, approved principle field, adviser/committee reference, approval date/certificate, frozen Note snapshot, approved highlight copy, legal/compliance sign-off
  * - Stage 6 (At a Glance) in prospectus-at-a-glance.* — composes Stage 4A + Stage 2 only
+ *
+ * Stage 6 At a Glance — correction notes:
+ * - Composes Stage 4A (buildProspectusMainFinancialTerms) and Stage 2 (buildProspectusTenureAndMaturity)
+ * - Financing amount = notes.target_amount via Stage 4A
+ * - Profit rate = notes.profit_rate_percent = annual gross before fees via Stage 4A
+ * - Final profit-rate label is Profit Rate (p.a.); Canva "Profit Rate for Investors" rejected as misleading
+ * - Expected return remains unresolved (Stage 4A DNA); final label is singular Expected Return
+ * - Tenure reuses Stage 2; minimum investment uses MARKETPLACE_MIN_COMMIT_MYR via Stage 4A
+ * - No duplicate calculations or formatters; no Canva-specific money/rate formatting in Stage 6
  * - Stage 7 (issuer track-record summary) in prospectus-issuer-track-record.* — identity key only; aggregates unresolved
  * - Stage 8 (historical note table) in prospectus-historical-note-table.* — row formatters; no eligibility filter
  *

@@ -1,27 +1,67 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { MARKETPLACE_MIN_COMMIT_MYR } from "@cashsouk/types";
 import { buildProspectusAtAGlance } from "./prospectus-at-a-glance";
 import { SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT } from "./prospectus-at-a-glance.sample-data";
 import {
+  PROSPECTUS_AT_A_GLANCE_AUDIT,
   PROSPECTUS_AT_A_GLANCE_FIELD_SOURCES,
   PROSPECTUS_DATA_NOT_AVAILABLE,
 } from "./prospectus-at-a-glance.types";
 import { buildProspectusTenureAndMaturity } from "./prospectus-dates-paymaster";
-import { buildProspectusMainFinancialTerms } from "./prospectus-main-financial-terms";
+import {
+  buildProspectusMainFinancialTerms,
+  formatProspectusMoneyMyr,
+  formatProspectusProfitRatePercent,
+} from "./prospectus-main-financial-terms";
 import { buildProspectusAtAGlanceDocument } from "./render-prospectus-at-a-glance";
 
 describe("prospectus At a Glance (Page 1 DATA STAGE 6)", () => {
-  it("documents reuse of Stage 4A and Stage 2 and safer labels than Canva", () => {
-    expect(PROSPECTUS_AT_A_GLANCE_FIELD_SOURCES.profitRate.displayLabel).toBe(
-      "Profit rate (p.a.)"
-    );
-    expect(PROSPECTUS_AT_A_GLANCE_FIELD_SOURCES.profitRate.notes).toMatch(/Investors/i);
-    expect(PROSPECTUS_AT_A_GLANCE_FIELD_SOURCES.expectedReturn.displayLabel).toBe(
-      "Expected return"
-    );
+  it("documents Stage 4A/Stage 2 reuse and corrected labels", () => {
+    expect(PROSPECTUS_AT_A_GLANCE_FIELD_SOURCES.profitRate.label).toBe("Profit Rate (p.a.)");
+    expect(PROSPECTUS_AT_A_GLANCE_FIELD_SOURCES.expectedReturn.label).toBe("Expected Return");
     expect(PROSPECTUS_AT_A_GLANCE_FIELD_SOURCES.financingAmount.reusedFrom).toContain("Stage 4A");
     expect(PROSPECTUS_AT_A_GLANCE_FIELD_SOURCES.tenure.reusedFrom).toContain("Stage 2");
+    expect(PROSPECTUS_AT_A_GLANCE_FIELD_SOURCES.profitRate.notes).toMatch(/Investors/i);
   });
 
-  it("matches Stage 4A and Stage 2 outputs for the same inputs", () => {
+  it("matches Stage 4A financing amount when available and DNA when missing", () => {
+    const available = buildProspectusAtAGlance(SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT);
+    const terms = buildProspectusMainFinancialTerms({
+      targetAmount: SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT.targetAmount,
+      profitRatePercent: SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT.profitRatePercent,
+    });
+    expect(available.financingAmount).toBe(terms.financingAmount);
+    expect(available.financingAmount).toBe("RM 500,000.00");
+
+    const missing = buildProspectusAtAGlance({
+      ...SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT,
+      targetAmount: null,
+    });
+    expect(missing.financingAmount).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+  });
+
+  it("matches Stage 4A profit rate formatting including decimals and missing", () => {
+    const available = buildProspectusAtAGlance(SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT);
+    expect(available.profitRate).toBe("12%");
+    expect(available.profitRate).toBe(
+      formatProspectusProfitRatePercent(SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT.profitRatePercent)
+    );
+
+    const decimal = buildProspectusAtAGlance({
+      ...SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT,
+      profitRatePercent: 10.25,
+    });
+    expect(decimal.profitRate).toBe(formatProspectusProfitRatePercent(10.25));
+
+    const missing = buildProspectusAtAGlance({
+      ...SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT,
+      profitRatePercent: null,
+    });
+    expect(missing.profitRate).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+  });
+
+  it("keeps expected return unresolved and tenure/min from Stage 2 / Stage 4A", () => {
     const glance = buildProspectusAtAGlance(SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT);
     const terms = buildProspectusMainFinancialTerms({
       targetAmount: SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT.targetAmount,
@@ -32,26 +72,58 @@ describe("prospectus At a Glance (Page 1 DATA STAGE 6)", () => {
       maturityDate: SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT.maturityDate,
     });
 
-    expect(glance.financingAmount).toBe(terms.financingAmount);
-    expect(glance.profitRate).toBe(terms.profitRate);
     expect(glance.expectedReturn).toBe(terms.expectedReturnForInvestmentPeriod);
     expect(glance.expectedReturn).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(glance.minimumInvestment).toBe(terms.minimumInvestment);
     expect(glance.tenure).toBe(timing.tenure);
-    expect(glance.financingAmount).toBe("RM 500,000.00");
-    expect(glance.profitRate).toBe("12%");
     expect(glance.tenure).toBe("120 days");
+    expect(glance.minimumInvestment).toBe(terms.minimumInvestment);
+    expect(glance.minimumInvestment).toBe(formatProspectusMoneyMyr(MARKETPLACE_MIN_COMMIT_MYR));
     expect(glance.minimumInvestment).toBe("RM 100.00");
+
+    const missingTenure = buildProspectusAtAGlance({
+      ...SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT,
+      listingOpensAt: null,
+      maturityDate: null,
+    });
+    expect(missingTenure.tenure).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("renders plain HTML with Stage 6 summary lines", () => {
-    const html = buildProspectusAtAGlanceDocument();
-    expect(html).toContain("Financing amount: RM 500,000.00");
-    expect(html).toContain("Profit rate: 12%");
-    expect(html).toContain("Expected return: Data not available");
+  it("reuses Stage 4A and Stage 2 builders without duplicate formulas or hardcoded min", () => {
+    const moduleSource = readFileSync(join(__dirname, "prospectus-at-a-glance.ts"), "utf8");
+    expect(moduleSource).toContain("buildProspectusMainFinancialTerms");
+    expect(moduleSource).toContain("buildProspectusTenureAndMaturity");
+    expect(moduleSource).not.toContain("/365");
+    expect(moduleSource).not.toContain("computeNetExpectedReturnRatePercent");
+    expect(moduleSource).not.toContain("calculateCalendarDayCount");
+    expect(moduleSource).not.toMatch(/\b100\b/);
+    expect(moduleSource).not.toContain("formatProspectusMoneyMyr");
+    expect(moduleSource).not.toContain("formatProspectusProfitRatePercent");
+  });
+
+  it("renders Canva-facing labels only and hides audit metadata", () => {
+    const data = buildProspectusAtAGlance(SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT);
+    expect(data.audit).toEqual(PROSPECTUS_AT_A_GLANCE_AUDIT);
+    expect(data.audit.profitRate.meaning).toBe("annual_gross_before_fees");
+    expect(data.audit.expectedReturn.formulaDecision).toBe("pending");
+
+    const html = buildProspectusAtAGlanceDocument(data);
+    expect(html).toContain("Financing Amount: RM 500,000.00");
+    expect(html).toContain("Profit Rate (p.a.): 12%");
+    expect(html).toContain("Expected Return: Data not available");
     expect(html).toContain("Tenure: 120 days");
-    expect(html).toContain("Minimum investment: RM 100.00");
+    expect(html).toContain("Minimum Investment: RM 100.00");
+    expect(html).toContain("Profit Rate (p.a.)");
+    expect(html).toContain("Expected Return");
     expect(html).not.toContain("Profit Rate for Investors");
+    expect(html).not.toContain("Profit Rate (p.a.): 12% p.a.");
     expect(html).not.toContain("Expected Returns");
+    expect(html).not.toContain("3.95%");
+    expect(html).not.toContain("reusedFromStage4A");
+    expect(html).not.toContain("annual_gross_before_fees");
+    expect(html).not.toContain("formulaDecision");
+    expect(html).not.toContain("sourceType");
+    expect(html).not.toContain("labelDecision");
+    expect(html).not.toContain("Canonical source");
+    expect(html).not.toContain("Reused from");
   });
 });
