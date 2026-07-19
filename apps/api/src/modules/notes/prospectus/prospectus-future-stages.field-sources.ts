@@ -50,6 +50,30 @@
  * - Stage 5A–5B claim titles/explanations
  * - Page 2 rating scale alignment with SoukScore AAA–B
  *
+ * =============================================================================
+ * PAGE 2 — STAGE 2 INVOICE & PAYMASTER INFORMATION (implemented)
+ * =============================================================================
+ *
+ * Module: prospectus-invoice-paymaster.*
+ * Preview: pnpm prospectus:invoice-paymaster-preview
+ * Output: apps/api/tmp/prospectus/prospectus-invoice-paymaster-preview.html
+ *
+ * Confirmed Canva fields:
+ * - Invoice Amount → notes.invoice_snapshot.details.value (invoice face value)
+ *   formatProspectusMoneyMyr only (e.g. RM 625,000.00). Compact money rejected.
+ *   Do not use target_amount / funded_amount / requested_amount.
+ * - Invoice Due Date → notes.maturity_date (copied from invoice maturity at create)
+ *   formatProspectusDateUtc. No live Invoice fallback.
+ * - Paymaster → notes.paymaster_snapshot.name (frozen at create)
+ * - Nature of Paymaster → notes.paymaster_snapshot.entity_type (full value; no "Government" shorten)
+ *
+ * Unresolved (Data not available; no inference):
+ * - Deed of Assignment (DOA) — no structured executed status
+ * - Paymaster Rating — no PM1/PM2 field
+ * - Confidence Grading — no High/Medium/Low field
+ *
+ * Snapshot rule: note_creation_snapshots only; liveFallbackAllowed = false.
+ *
  * Corrections still needed when those stages are implemented:
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)
  * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*

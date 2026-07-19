@@ -44,6 +44,7 @@
     "prospectus:issuer-track-record-preview": "tsx scripts/generate-prospectus-issuer-track-record-preview.ts",
     "prospectus:historical-note-table-preview": "tsx scripts/generate-prospectus-historical-note-table-preview.ts",
     "prospectus:page-one-preview": "tsx scripts/generate-prospectus-page-one-preview.ts",
+    "prospectus:invoice-paymaster-preview": "tsx scripts/generate-prospectus-invoice-paymaster-preview.ts",
     "prospectus:stage1-preview": "tsx scripts/generate-prospectus-stage1-preview.ts",
     "seed-expired-offer-for-test": "tsx scripts/seed-expired-offer-for-test.ts",
     "seed-ekyc-identity": "tsx scripts/seed-ekyc-identity.ts",

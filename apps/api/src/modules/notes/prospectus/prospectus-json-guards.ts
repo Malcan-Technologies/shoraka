@@ -61,6 +61,24 @@ export function parseInvoiceSnapshotRiskRating(value: unknown): SoukscoreRiskRat
   return isSoukscoreRiskRating(rating) ? rating : null;
 }
 
+/**
+ * Prospectus invoice face value — notes.invoice_snapshot.details.value only.
+ * Does not use invoice_value / invoiceAmount aliases or requested_amount.
+ */
+export function parseInvoiceSnapshotFaceValue(value: unknown): number | null {
+  const invoice = asJsonRecord(value);
+  const details = asJsonRecord(invoice?.details);
+  const raw = details?.value;
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    const parsed = Number(trimmed.replace(/,/g, ""));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 const HISTORICAL_STATUSES = new Set<string>(["ACTIVE", "REPAID", "ARREARS", "DEFAULTED"]);
 
 function parseHistoricalNoteRow(value: unknown): ProspectusPage1HistoricalNoteSnapshot | null {
