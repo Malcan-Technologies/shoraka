@@ -1,10 +1,9 @@
 /**
- * SECTION: Plain HTML for Note Identity data preview
- * WHY: Unstyled proof that the four identity values can be shown
+ * SECTION: Plain HTML for Note Identity Canva-facing preview
+ * WHY: Unstyled Stage 1 — source paths and audit excluded from summary
  */
 
 import type { ProspectusNoteIdentity } from "./prospectus-note-identity.types";
-import { PROSPECTUS_NOTE_IDENTITY_FIELD_SOURCES } from "./prospectus-note-identity.types";
 
 function escapeHtml(value: string): string {
   return value
@@ -16,25 +15,6 @@ function escapeHtml(value: string): string {
 }
 
 export function buildProspectusNoteIdentityHtml(identity: ProspectusNoteIdentity): string {
-  const rows: Array<{ key: keyof ProspectusNoteIdentity; displayLabel: string }> = [
-    { key: "investmentNoteLabel", displayLabel: "Investment Note" },
-    { key: "noteReference", displayLabel: "Note reference" },
-    { key: "financingType", displayLabel: "Financing type" },
-    { key: "description", displayLabel: "Description" },
-  ];
-
-  const body = rows
-    .map(({ key, displayLabel }) => {
-      const source = PROSPECTUS_NOTE_IDENTITY_FIELD_SOURCES[key];
-      return `<tr>
-  <td>${escapeHtml(displayLabel)}</td>
-  <td>${escapeHtml(identity[key])}</td>
-  <td>${escapeHtml(source.canonicalSource)}</td>
-  <td>${escapeHtml(source.availability)}</td>
-</tr>`;
-    })
-    .join("\n");
-
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -43,26 +23,15 @@ export function buildProspectusNoteIdentityHtml(identity: ProspectusNoteIdentity
 </head>
 <body>
   <h1>Prospectus Page 1 — DATA STAGE 1: Note Identity</h1>
-  <p>Unstyled data preview. Missing values must be exactly: Data not available</p>
-  <p>
-    Investment Note: ${escapeHtml(identity.investmentNoteLabel)}<br />
-    Note reference: ${escapeHtml(identity.noteReference)}<br />
-    Financing type: ${escapeHtml(identity.financingType)}<br />
-    Description: ${escapeHtml(identity.description)}
-  </p>
-  <table border="1" cellpadding="6" cellspacing="0">
-    <thead>
-      <tr>
-        <th>Label</th>
-        <th>Value</th>
-        <th>Canonical source</th>
-        <th>Availability</th>
-      </tr>
-    </thead>
-    <tbody>
-${body}
-    </tbody>
-  </table>
+  <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
+  <section>
+    <h2>${escapeHtml(identity.investmentNoteLabel)}</h2>
+    <p>
+      Note ID: ${escapeHtml(identity.noteReference)}<br />
+      Financing Type: ${escapeHtml(identity.financingType)}<br />
+      Product Description: ${escapeHtml(identity.description)}
+    </p>
+  </section>
 </body>
 </html>`;
 }

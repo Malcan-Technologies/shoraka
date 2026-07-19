@@ -469,6 +469,8 @@ export function mapNoteDetail(
     ...mapNoteListItem(note),
     issuerResidualPayout: resolveIssuerResidualPayoutListStatus(note, withdrawals),
     productSnapshot: asRecord(note.product_snapshot),
+    purposeSnapshot: asRecord(note.purpose_snapshot),
+    prospectusSnapshot: asRecord(note.prospectus_snapshot),
     issuerSnapshot: asRecord(note.issuer_snapshot) ?? {},
     paymasterSnapshot: asRecord(note.paymaster_snapshot),
     contractSnapshot: asRecord(note.contract_snapshot),

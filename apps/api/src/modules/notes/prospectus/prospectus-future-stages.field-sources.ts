@@ -6,7 +6,7 @@
  * Active Note Identity sources live in prospectus-note-identity.types.ts.
  *
  * Corrections still needed when those stages are implemented:
- * - Purpose path is applications.business_details.why_raising_funds.financing_for
+ * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)
  * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*
  * - Listing date must use note_listings.opens_at only
  * - Tenure must use opens_at → maturity_date only
@@ -58,35 +58,36 @@
  * - Expected return remains unresolved (Stage 4A DNA); final label is singular Expected Return
  * - Tenure reuses Stage 2; minimum investment uses MARKETPLACE_MIN_COMMIT_MYR via Stage 4A
  * - No duplicate calculations or formatters; no Canva-specific money/rate formatting in Stage 6
- * - Stage 7 (issuer track-record summary) in prospectus-issuer-track-record.* — identity key only; aggregates unresolved
+ * - Stage 7 (issuer track-record summary) in prospectus-issuer-track-record.* — implemented with dashboard-shared helpers
  *
- * Stage 7 Issuer track-record summary — correction notes:
+ * Stage 1 Note identity — final decisions:
+ * - Raw notes.note_reference (NOTE-...); no ARF; no formatNoteReferenceDisplay
+ * - Financing type display uppercase from product_snapshot.product_name (presentation only)
+ * - Product description frozen at create: product_snapshot.description from financing_type step config.description
+ *
+ * Stage 2 Dates — final decisions:
+ * - Label Closing Date (not Listing Closing Date); source note_listings.closes_at
+ * - Display order: Listing Date → Closing Date → Maturity Date → Paymaster
+ *
+ * Stage 7 Issuer track-record summary — final decisions:
  * - Static heading: ISSUER'S TRACK RECORD ON CASH SOUK
- * - Issuer grouping key: notes.issuer_organization_id
- * - Current Note exclusion: notes.id != current_note_id
- * - Total Notes Funded: unresolved definition and status filter
- * - Total Amount Funded: candidate source notes.funded_amount; aggregate filter unresolved
- * - Successful Repayment: numerator and denominator unresolved; REPAID does not prove on-time
- * - On-time Payment Rate: issuer dashboard has a six-month schedule metric; not approved for prospectus reuse
- * - No investor-facing track-record block exists today
- * - All metrics would be live if computed; no Note snapshot; freeze-at-publication pending
- * - No positive narrative is approved
- * - Stage 8 (historical note table) in prospectus-historical-note-table.* — row formatters; no eligibility filter
+ * - Eligible statuses: ACTIVE, REPAID, ARREARS, DEFAULTED (exclude DRAFT/PUBLISHED/FUNDING/FAILED_FUNDING/CANCELLED)
+ * - Group by notes.issuer_organization_id; exclude current notes.id
+ * - Total Notes Funded: count eligible notes
+ * - Total Amount Funded: SUM(funded_amount); never target_amount
+ * - Successful Repayment: REPAID / (REPAID + ARREARS + DEFAULTED) × 100; ACTIVE excluded; DNA if denom 0
+ * - On-time Payment Rate — Last 6 Months: shared schedule-level helper with dashboard; exclude current Note schedules
+ * - Frozen at publish into notes.prospectus_snapshot.page_1.issuer_track_record
+ * - Stage 8 (historical note table) in prospectus-historical-note-table.* — funded history table
  *
- * Stage 8 Historical note table — correction notes:
+ * Stage 8 Historical note table — final decisions:
  * - Exact Canva columns: Note ID, Financing Type, Amount (RM), Tenure, Profit Rate (p.a.), Status, Repayment Date
- * - Issuer grouping: notes.issuer_organization_id
- * - Current Note exclusion: notes.id != current_note_id (future query; builder preserves caller rows)
- * - Note ID: notes.note_reference (stored value; no ARF conversion)
- * - Financing Type: notes.product_snapshot.product_name (no live Product / alias fallback)
- * - Amount (RM): unresolved; target and funded amounts remain audit-only candidates
- * - Tenure: Stage 2 buildProspectusTenureAndMaturity reuse
- * - Profit Rate: Stage 4A formatProspectusProfitRatePercent (annual gross; no duplicate p.a. in cell)
- * - Status: notes.status raw; display mapping pending (no Fully Repaid inference)
- * - Repayment Date: notes.repaid_at via formatProspectusDateUtc
- * - No on-time inference; no investor return column
- * - Eligibility filter, sort, and row limit pending
- * - Rows are live_historical_notes; isFrozen false; snapshotDecision pending
+ * - Same issuer; exclude current Note; statuses ACTIVE/REPAID/ARREARS/DEFAULTED
+ * - Sort updated_at DESC; limit 4
+ * - Amount = notes.funded_amount (Stage 4A money formatter)
+ * - Status labels: Active / Repaid / In Arrears / Defaulted (not Settled / Fully Repaid / raw enum)
+ * - Repayment Date = notes.repaid_at; empty state: "No notes are available yet."
+ * - Frozen at publish into notes.prospectus_snapshot.page_1.historical_notes
  *
  * Stage 3 risk (prospectus-risk-assessment.*) — correction notes:
  * - Current platform risk scale (SoukScore): AAA | AA | A | BBB | BB | B
@@ -108,10 +109,11 @@
  *
  * Stage 4B timing and purpose (prospectus-timing-purpose.*) — correction notes:
  * - Tenure and maturity reuse Stage 2 buildProspectusTenureAndMaturity
- * - Purpose path: applications.business_details.why_raising_funds.financing_for
- * - Purpose is live Application data (not frozen on Note); snapshotDecision pending
+ * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for
+ * - Original source at create: applications.business_details.why_raising_funds.financing_for
+ * - Render must not read live Application; old Notes without snapshot → Data not available
  * - Related fields (how_funds_used, business_plan, etc.) are not fallbacks
- * - Listing Closing Date (note_listings.closes_at) belongs only to Stage 2
+ * - Closing Date (note_listings.closes_at) belongs only to Stage 2
  * - Canva "Working Capital" is sample content only — preserve free text as stored
  *
  * Stage 4C payment basis & Shariah principle (prospectus-payment-basis-shariah.*) — correction notes:
@@ -256,13 +258,13 @@ export const PROSPECTUS_FUTURE_FIELD_SOURCES: Record<
   },
   purposeOfFinancing: {
     label: "Purpose of Financing",
-    model: "applications",
-    path: "business_details.why_raising_funds.financing_for",
-    origin: "application",
+    model: "notes",
+    path: "purpose_snapshot.financing_for",
+    origin: "note",
     availability: "stored",
-    existingApi: "Application review / issuer business-details step (free text max 400)",
+    existingApi: "Frozen at Note create from Application financing_for (free text max 400)",
     notes:
-      "Stage 4B: live via source_application_id; not frozen on Note. No fallbacks. Listing Closing Date is Stage 2 only.",
+      "Stage 4B: notes.purpose_snapshot.financing_for. No live Application at render. Closing Date is Stage 2 only.",
   },
   paymentBasis: {
     label: "Payment Basis",

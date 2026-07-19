@@ -234,6 +234,10 @@ export interface NoteListItem extends NoteMoneySummary {
 
 export interface NoteDetail extends NoteListItem {
   productSnapshot: Record<string, unknown> | null;
+  /** Frozen at Note create: `{ financing_for }` from Application business_details. */
+  purposeSnapshot: Record<string, unknown> | null;
+  /** Frozen at publish: Page 1 Stage 7/8 track-record snapshot. */
+  prospectusSnapshot: Record<string, unknown> | null;
   issuerSnapshot: Record<string, unknown>;
   paymasterSnapshot: Record<string, unknown> | null;
   contractSnapshot: Record<string, unknown> | null;

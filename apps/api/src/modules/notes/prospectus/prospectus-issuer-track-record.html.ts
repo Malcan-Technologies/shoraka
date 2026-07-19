@@ -1,6 +1,6 @@
 /**
- * SECTION: Plain HTML for Issuer Track-Record Summary Canva-facing preview
- * WHY: Unstyled Stage 7 — grouping keys, dashboard values, filters, and audit excluded
+ * SECTION: Plain HTML for Issuer Track-Record Canva-facing preview
+ * WHY: Heading + four metrics; audit/filters/dashboard metadata excluded
  */
 
 import type { ProspectusIssuerTrackRecord } from "./prospectus-issuer-track-record.types";
@@ -32,7 +32,7 @@ export function buildProspectusIssuerTrackRecordHtml(
       Total Notes Funded: ${escapeHtml(data.totalNotesFunded)}<br />
       Total Amount Funded: ${escapeHtml(data.totalAmountFunded)}<br />
       Successful Repayment: ${escapeHtml(data.successfulRepayment)}<br />
-      On-time Payment Rate: ${escapeHtml(data.onTimePaymentRate)}
+      ${escapeHtml(data.onTimePaymentRateLabel)}: ${escapeHtml(data.onTimePaymentRate)}
     </p>
   </section>
 </body>

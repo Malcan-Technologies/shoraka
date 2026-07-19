@@ -61,13 +61,13 @@ export const PROSPECTUS_DATES_PAYMASTER_FIELD_SOURCES: Record<
     notes: "Listing open for investors.",
   },
   closingDate: {
-    label: "Listing Closing Date",
+    label: "Closing Date",
     canonicalSource: "note_listings.closes_at",
     availability: "stored",
     possibleAlternatives:
       "notes.funding_closed_at (actual funding close); notes.activated_at — not used",
     notes:
-      "Template extension (not in original Canva). Scheduled commit deadline. Investor listingClosesAt countdown uses this field. Final visual placement pending.",
+      "Scheduled investment/listing commitment deadline. Display order: Listing Date → Closing Date → Maturity Date → Paymaster. funding_closed_at is never a fallback.",
   },
   maturityDate: {
     label: "Maturity date",

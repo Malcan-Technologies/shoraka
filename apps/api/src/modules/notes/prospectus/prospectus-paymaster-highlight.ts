@@ -19,6 +19,7 @@ export function buildProspectusPaymasterHighlight(
 
   const paymaster = buildProspectusDatesPaymaster({
     listingOpensAt: null,
+    listingClosesAt: null,
     maturityDate: null,
     paymasterName: input.paymasterName,
     paymasterEntityType: input.paymasterEntityType,

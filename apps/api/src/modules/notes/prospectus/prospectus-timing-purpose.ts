@@ -1,6 +1,6 @@
 /**
  * SECTION: Build Timing & Purpose view-model
- * WHY: Reuse Stage 2 tenure/maturity; purpose is trimmed live Application text only
+ * WHY: Reuse Stage 2 tenure/maturity; purpose from frozen purpose_snapshot only
  */
 
 import { buildProspectusTenureAndMaturity } from "./prospectus-dates-paymaster";
@@ -20,11 +20,14 @@ function nonEmptyString(value: string | null | undefined): string | null {
 export function buildProspectusTimingPurpose(
   input: ProspectusTimingPurposeInput
 ): ProspectusTimingPurpose {
+  // Live Application must not become a render fallback.
+  void input.liveApplicationFinancingFor;
+
   const timing = buildProspectusTenureAndMaturity({
     listingOpensAt: input.listingOpensAt,
     maturityDate: input.maturityDate,
   });
-  const purpose = nonEmptyString(input.purposeOfFinancing);
+  const purpose = nonEmptyString(input.purposeSnapshotFinancingFor);
 
   return {
     tenure: timing.tenure,

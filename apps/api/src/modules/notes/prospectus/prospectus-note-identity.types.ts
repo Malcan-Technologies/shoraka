@@ -1,6 +1,6 @@
 /**
  * SECTION: Prospectus Page 1 — Note Identity (DATA STAGE 1)
- * WHY: Isolate top-left Canva block: title, note reference, financing type, description
+ * WHY: Static heading; raw NOTE reference; uppercase financing type display; frozen description
  */
 
 export const PROSPECTUS_DATA_NOT_AVAILABLE = "Data not available";
@@ -9,17 +9,23 @@ export const PROSPECTUS_DATA_NOT_AVAILABLE = "Data not available";
 export const PROSPECTUS_INVESTMENT_NOTE_LABEL = "INVESTMENT NOTE";
 
 export interface ProspectusNoteIdentity {
-  /** Always static prospectus wording. */
   investmentNoteLabel: string;
-  /** From notes.note_reference only. */
+  /** Raw notes.note_reference — never formatNoteReferenceDisplay / ARF. */
   noteReference: string;
-  /** From notes.product_snapshot.product_name only. */
+  /** Presentation uppercase of product_snapshot.product_name. */
   financingType: string;
-  /**
-   * Short financing/product description.
-   * Not present on Note today → PROSPECTUS_DATA_NOT_AVAILABLE until frozen into snapshot.
-   */
+  /** Frozen notes.product_snapshot.description. */
   description: string;
+}
+
+export interface ProspectusNoteIdentityInput {
+  noteReference: string | null | undefined;
+  /** notes.product_snapshot.product_name — stored value; display uppercased separately. */
+  productSnapshotProductName: string | null | undefined;
+  /** notes.product_snapshot.description — frozen at create. */
+  productSnapshotDescription: string | null | undefined;
+  /** Observational only — must not be used as fallback. */
+  liveProductDescription?: string | null;
 }
 
 export interface ProspectusNoteIdentityFieldSource {
@@ -42,29 +48,28 @@ export const PROSPECTUS_NOTE_IDENTITY_FIELD_SOURCES: Record<
     notes: "Prospectus document heading. Not in Prisma, Product, or Note DTOs.",
   },
   noteReference: {
-    label: "Note reference",
+    label: "Note ID",
     canonicalSource: "notes.note_reference",
     availability: "stored",
     possibleAlternatives:
-      "formatNoteReferenceDisplay() changes display shape only; do not use as a data source",
-    notes: "API: NoteListItem.noteReference via mapNoteListItem. No automatic fallback.",
+      "formatNoteReferenceDisplay() changes display shape only; ARF conversion — not used",
+    notes: "Display raw NOTE-... value. No prospectus-specific reference.",
   },
   financingType: {
-    label: "Financing type",
+    label: "Financing Type",
     canonicalSource: "notes.product_snapshot.product_name",
     availability: "stored",
-    possibleAlternatives:
-      "product_snapshot.name / productName / productLabel (mapper aliases); live Product.workflow name — not used",
+    possibleAlternatives: "live Product.workflow name — not used",
     notes:
-      "Written at note create from Product.workflow name. If product_name missing → Data not available.",
+      "Stored product_name unchanged. Prospectus display is uppercase presentation only.",
   },
   description: {
-    label: "Description",
-    canonicalSource: "none on Note",
-    availability: "not_stored",
+    label: "Product Description",
+    canonicalSource: "notes.product_snapshot.description",
+    availability: "stored",
     possibleAlternatives:
-      "live Product.workflow[0].config.description (admin financing-type config; issuer product cards)",
+      "live Product financing-type config.description at render time — not used",
     notes:
-      "application.financing_type stores only product_id. Note create does not copy description into product_snapshot.",
+      "Frozen at Note create from financing_type step config.description. Old Notes without field → Data not available.",
   },
 };

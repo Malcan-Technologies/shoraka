@@ -1,6 +1,6 @@
 /**
  * SECTION: Plain HTML for Historical Note Table Canva-facing preview
- * WHY: Exact Canva columns only — audit/supporting amount/date columns excluded
+ * WHY: Exact Canva columns; empty-state wording; audit hidden
  */
 
 import {
@@ -18,7 +18,7 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-const CANVA_KEYS: Array<keyof Omit<ProspectusHistoricalNoteTableRow, "audit">> = [
+const CANVA_KEYS: Array<keyof ProspectusHistoricalNoteTableRow> = [
   "noteId",
   "financingType",
   "amountRm",
@@ -35,18 +35,19 @@ export function buildProspectusHistoricalNoteTableHtml(
     (label) => `<th>${escapeHtml(label)}</th>`
   ).join("");
 
-  // Plain empty body — do not invent "No prior notes" / first-issuance claims.
-  const body =
-    table.rows.length === 0
-      ? ""
-      : table.rows
-          .map((row) => {
-            const cells = CANVA_KEYS.map(
-              (key) => `<td>${escapeHtml(row[key])}</td>`
-            ).join("");
-            return `<tr>${cells}</tr>`;
-          })
-          .join("\n");
+  let body: string;
+  if (table.rows.length === 0) {
+    body = `<tr><td colspan="${CANVA_KEYS.length}">${escapeHtml(
+      table.emptyStateMessage ?? "No notes are available yet."
+    )}</td></tr>`;
+  } else {
+    body = table.rows
+      .map((row) => {
+        const cells = CANVA_KEYS.map((key) => `<td>${escapeHtml(row[key])}</td>`).join("");
+        return `<tr>${cells}</tr>`;
+      })
+      .join("\n");
+  }
 
   return `<!DOCTYPE html>
 <html lang="en">

@@ -77,6 +77,10 @@ import {
   resolveIssuerResidualPayoutListStatus,
   resolveProductNameFromWorkflow,
 } from "./mapper";
+import {
+  buildProspectusPage1TrackRecordSnapshot,
+  wrapProspectusSnapshot,
+} from "./prospectus/prospectus-track-record-query";
 import { NotificationService } from "../notification/service";
 import {
   notifyNoteActivated,
@@ -155,9 +159,9 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function resolveProductCategoryFromWorkflow(
+function findFinancingTypeWorkflowStep(
   workflow: Prisma.JsonValue | null | undefined
-): string | null {
+): Record<string, unknown> | null {
   if (!Array.isArray(workflow)) return null;
   const financingTypeStep = workflow.find((step) => {
     if (!step || typeof step !== "object" || Array.isArray(step)) return false;
@@ -172,9 +176,43 @@ function resolveProductCategoryFromWorkflow(
   ) {
     return null;
   }
-  const financingConfig = asRecord((financingTypeStep as Record<string, unknown>).config);
+  return financingTypeStep as Record<string, unknown>;
+}
+
+function resolveProductCategoryFromWorkflow(
+  workflow: Prisma.JsonValue | null | undefined
+): string | null {
+  const financingTypeStep = findFinancingTypeWorkflowStep(workflow);
+  if (!financingTypeStep) return null;
+  const financingConfig = asRecord(financingTypeStep.config);
   const category = financingConfig?.category;
   if (typeof category === "string" && category.trim().length > 0) return category.trim();
+  return null;
+}
+
+/** Financing-type step config.description — frozen into product_snapshot.description. */
+function resolveProductDescriptionFromWorkflow(
+  workflow: Prisma.JsonValue | null | undefined
+): string | null {
+  const financingTypeStep = findFinancingTypeWorkflowStep(workflow);
+  if (!financingTypeStep) return null;
+  const financingConfig = asRecord(financingTypeStep.config);
+  const description = financingConfig?.description;
+  if (typeof description === "string" && description.trim().length > 0) {
+    return description.trim();
+  }
+  return null;
+}
+
+function resolvePurposeOfFinancingFromBusinessDetails(
+  businessDetails: Prisma.JsonValue | null | undefined
+): string | null {
+  const details = asRecord(businessDetails);
+  const whyRaising = asRecord(details?.why_raising_funds);
+  const financingFor = whyRaising?.financing_for;
+  if (typeof financingFor === "string" && financingFor.trim().length > 0) {
+    return financingFor.trim();
+  }
   return null;
 }
 
@@ -2002,6 +2040,7 @@ export class NoteService {
       issuer_organization_id: string;
       contract_id: string | null;
       financing_type: Prisma.JsonValue | null;
+      business_details: Prisma.JsonValue | null;
       issuer_organization: {
         id: string;
         name: string | null;
@@ -2054,6 +2093,10 @@ export class NoteService {
       financingType.product_name.trim().length > 0
         ? financingType.product_name.trim()
         : null);
+    const productDescription = resolveProductDescriptionFromWorkflow(product?.workflow);
+    const purposeOfFinancing = resolvePurposeOfFinancingFromBusinessDetails(
+      application.business_details
+    );
     const issuerIndustry = resolveIssuerIndustryFromCorporateData(
       application.issuer_organization.corporate_onboarding_data
     );
@@ -2099,7 +2142,11 @@ export class NoteService {
               product_id: productId,
               category: productCategory,
               ...(productDisplayName ? { product_name: productDisplayName } : {}),
+              ...(productDescription ? { description: productDescription } : {}),
             }),
+            purpose_snapshot: purposeOfFinancing
+              ? json({ financing_for: purposeOfFinancing })
+              : undefined,
             contract_snapshot: json(
               sourceContract
                 ? {
@@ -2382,6 +2429,13 @@ export class NoteService {
     }
 
     const closesAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    const page1Snapshot = await buildProspectusPage1TrackRecordSnapshot({
+      issuerOrganizationId: note.issuer_organization_id,
+      currentNoteId: id,
+      now,
+    });
+    const prospectusSnapshot = wrapProspectusSnapshot(page1Snapshot);
+
     const updated = await prisma.$transaction(async (tx) => {
       const stateUpdate = await tx.note.updateMany({
         where: {
@@ -2401,6 +2455,7 @@ export class NoteService {
           listing_status: NoteListingStatus.PUBLISHED,
           funding_status: NoteFundingStatus.OPEN,
           published_at: now,
+          prospectus_snapshot: prospectusSnapshot as unknown as Prisma.InputJsonValue,
         },
       });
       if (stateUpdate.count !== 1) {

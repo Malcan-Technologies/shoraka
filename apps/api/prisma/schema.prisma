@@ -647,6 +647,8 @@ model Note {
   title                           String
   note_reference                  String                @unique
   product_snapshot                Json?
+  purpose_snapshot                Json?
+  prospectus_snapshot             Json?
   issuer_snapshot                 Json
   paymaster_snapshot              Json?
   contract_snapshot               Json?

@@ -158,16 +158,20 @@ describe("prospectus Dates and Paymaster (Page 1 DATA STAGE 2)", () => {
     expect(missing.paymasterEntityType).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("renders plain HTML with Stage 2 lines including Closing date", () => {
+  it("renders Closing Date label immediately after Listing Date", () => {
+    expect(PROSPECTUS_DATES_PAYMASTER_FIELD_SOURCES.closingDate.label).toBe("Closing Date");
     const html = buildProspectusDatesPaymasterDocument();
-    expect(html).toContain("Listing date: 15 May 2025");
-    expect(html).toContain("Closing date: 30 May 2025");
-    expect(html).toContain("Maturity date: 12 September 2025 (120 days)");
+    expect(html).toContain("Listing Date: 15 May 2025");
+    expect(html).toContain("Closing Date: 30 May 2025");
+    expect(html).toContain("Maturity Date: 12 September 2025 (120 days)");
     expect(html).toContain(
       "Paymaster: Kementerian Kerja Raya (KKR) (Federal Government Agency)"
     );
-    expect(html).toContain("note_listings.closes_at");
-    expect(html).toContain("funding_closed_at is not used");
-    expect(html).toContain("visual placement");
+    expect(html).not.toContain("Listing Closing Date");
+    expect(html.indexOf("Listing Date:")).toBeLessThan(html.indexOf("Closing Date:"));
+    expect(html.indexOf("Closing Date:")).toBeLessThan(html.indexOf("Maturity Date:"));
+    expect(html).toContain("Federal Government Agency");
+    expect(html).not.toContain("funding_closed_at");
   });
 });
+
