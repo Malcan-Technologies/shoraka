@@ -1,142 +1,195 @@
 /**
  * SECTION: Prospectus Page 1 — Issuer Track-Record Summary (DATA STAGE 7)
- * WHY: Summary before historical table; issuer-dashboard aggregates exist but prospectus rules do not
+ * WHY: Canva four metrics unresolved; identity/exclusion rules audit-only; no aggregate query yet
  */
 
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
 
 export { PROSPECTUS_DATA_NOT_AVAILABLE };
 
-export interface ProspectusIssuerTrackRecord {
-  issuerIdentitySource: string;
-  previousIssuedNotes: string;
-  successfullyFundedNotes: string;
-  activeNotes: string;
-  fullyRepaidNotes: string;
-  totalHistoricalAmountRaised: string;
-  onTimeRepaymentRate: string;
-  defaultCount: string;
-  averageInvestorReturn: string;
-  trackRecordSummaryTitle: string;
-  trackRecordSummaryExplanation: string;
-  dataFrozenOnCurrentNote: string;
+/** Static Canva section heading — template wording, not data-driven. */
+export const PROSPECTUS_ISSUER_TRACK_RECORD_SECTION_HEADING =
+  "ISSUER'S TRACK RECORD ON CASH SOUK";
+
+/** Canonical issuer grouping for future historical Note queries. */
+export const PROSPECTUS_ISSUER_TRACK_RECORD_IDENTITY_SOURCE =
+  "notes.issuer_organization_id";
+
+/** Future aggregation must exclude the prospectus Note by id, not by note reference. */
+export const PROSPECTUS_ISSUER_TRACK_RECORD_CURRENT_NOTE_EXCLUSION_KEY = "notes.id";
+
+/**
+ * Observational historical Note rows — prove Stage 7 does not aggregate them yet.
+ * Candidate statuses listed for documentation only; no prospectus filter is approved.
+ */
+export interface ProspectusIssuerTrackRecordSampleNote {
+  id?: string | null;
+  status?: string | null;
+  fundedAmount?: number | null;
+  targetAmount?: number | null;
+  fundingStatus?: string | null;
+  activatedAt?: Date | string | null;
 }
 
-/** No approved prospectus aggregates yet — builder does not invent filters. */
-export type ProspectusIssuerTrackRecordInput = Record<string, never>;
+export interface ProspectusIssuerTrackRecordAudit {
+  issuer: {
+    groupingKey: typeof PROSPECTUS_ISSUER_TRACK_RECORD_IDENTITY_SOURCE;
+    currentNoteExclusionKey: typeof PROSPECTUS_ISSUER_TRACK_RECORD_CURRENT_NOTE_EXCLUSION_KEY;
+    currentNoteExcluded: "required";
+  };
+  totalNotesFunded: {
+    status: "unresolved";
+    filterDecision: "pending";
+    dashboardMetricAvailable: true;
+    dashboardMetricReused: false;
+  };
+  totalAmountFunded: {
+    status: "unresolved";
+    candidateSource: "notes.funded_amount";
+    filterDecision: "pending";
+    currentNoteExclusionRequired: true;
+  };
+  successfulRepayment: {
+    status: "unresolved";
+    numeratorDecision: "pending";
+    denominatorDecision: "pending";
+    repaidDoesNotEqualOnTime: true;
+  };
+  onTimePaymentRate: {
+    status: "unresolved";
+    dashboardWindow: "six_months";
+    dashboardMetricReused: false;
+    prospectusWindowDecision: "pending";
+  };
+  snapshot: {
+    isFrozen: false;
+    snapshotDecision: "pending";
+  };
+  claims: {
+    approvalRequired: true;
+    generatedNarrativeAllowed: false;
+  };
+}
+
+export const PROSPECTUS_ISSUER_TRACK_RECORD_AUDIT: ProspectusIssuerTrackRecordAudit = {
+  issuer: {
+    groupingKey: PROSPECTUS_ISSUER_TRACK_RECORD_IDENTITY_SOURCE,
+    currentNoteExclusionKey: PROSPECTUS_ISSUER_TRACK_RECORD_CURRENT_NOTE_EXCLUSION_KEY,
+    currentNoteExcluded: "required",
+  },
+  totalNotesFunded: {
+    status: "unresolved",
+    filterDecision: "pending",
+    dashboardMetricAvailable: true,
+    dashboardMetricReused: false,
+  },
+  totalAmountFunded: {
+    status: "unresolved",
+    candidateSource: "notes.funded_amount",
+    filterDecision: "pending",
+    currentNoteExclusionRequired: true,
+  },
+  successfulRepayment: {
+    status: "unresolved",
+    numeratorDecision: "pending",
+    denominatorDecision: "pending",
+    repaidDoesNotEqualOnTime: true,
+  },
+  onTimePaymentRate: {
+    status: "unresolved",
+    dashboardWindow: "six_months",
+    dashboardMetricReused: false,
+    prospectusWindowDecision: "pending",
+  },
+  snapshot: {
+    isFrozen: false,
+    snapshotDecision: "pending",
+  },
+  claims: {
+    approvalRequired: true,
+    generatedNarrativeAllowed: false,
+  },
+};
+
+/** Canva-facing track-record fields only. */
+export interface ProspectusIssuerTrackRecord {
+  sectionHeading: string;
+  totalNotesFunded: string;
+  totalAmountFunded: string;
+  successfulRepayment: string;
+  onTimePaymentRate: string;
+  /** Audit/debug only — omitted from Canva HTML. */
+  audit: ProspectusIssuerTrackRecordAudit;
+}
+
+/**
+ * Optional observational inputs prove dashboard/history values never become Canva metrics.
+ * Builder must not query Prisma or implement approved status filters.
+ */
+export interface ProspectusIssuerTrackRecordInput {
+  currentNoteId?: string | null;
+  issuerOrganizationId?: string | null;
+  historicalNotes?: ProspectusIssuerTrackRecordSampleNote[] | null;
+  /** Issuer-dashboard repaymentPerformance.onTimePercent — not prospectus. */
+  dashboardOnTimePercent?: number | null;
+  dashboardActiveNotesCount?: number | null;
+  dashboardCompletedNotesCount?: number | null;
+  dashboardPastFinancingAmount?: number | null;
+}
 
 export interface ProspectusIssuerTrackRecordFieldSource {
   label: string;
   canonicalSource: string;
-  availability: "documented" | "unresolved" | "constant";
-  possibleAlternatives: string;
+  availability: "static" | "unresolved";
+  surface: "canva" | "audit";
   notes: string;
 }
 
-/** Canonical grouping for issuer history (live Note FK, not display name). */
-export const PROSPECTUS_ISSUER_TRACK_RECORD_IDENTITY_SOURCE =
-  "notes.issuer_organization_id";
-
 export const PROSPECTUS_ISSUER_TRACK_RECORD_FIELD_SOURCES: Record<
-  keyof ProspectusIssuerTrackRecord,
+  | "sectionHeading"
+  | "totalNotesFunded"
+  | "totalAmountFunded"
+  | "successfulRepayment"
+  | "onTimePaymentRate",
   ProspectusIssuerTrackRecordFieldSource
 > = {
-  issuerIdentitySource: {
-    label: "Issuer identity source",
-    canonicalSource: PROSPECTUS_ISSUER_TRACK_RECORD_IDENTITY_SOURCE,
-    availability: "documented",
-    possibleAlternatives:
-      "notes.issuer_snapshot.id; Application.issuer_organization_id; Contract issuer — not used for grouping",
+  sectionHeading: {
+    label: "Section Heading",
+    canonicalSource: "static template wording",
+    availability: "static",
+    surface: "canva",
+    notes: "Exact Canva heading. Not generated from data or marketing claims.",
+  },
+  totalNotesFunded: {
+    label: "Total Notes Funded",
+    canonicalSource: "none confirmed for prospectus",
+    availability: "unresolved",
+    surface: "canva",
     notes:
-      "Issuer dashboard and Note create use issuer_organization_id. Do not group by display name. Snapshot id should match but FK is canonical.",
+      "FilterDecision pending. Do not reuse activeNotesCount + completedNotesCount. Failed/cancelled Notes must not count unless approved. Group by issuer_organization_id; exclude current notes.id.",
   },
-  previousIssuedNotes: {
-    label: "Previous issued notes",
+  totalAmountFunded: {
+    label: "Total Amount Funded",
     canonicalSource: "none confirmed for prospectus",
     availability: "unresolved",
-    possibleAlternatives:
-      "Count notes by issuer_organization_id excluding current id; status filter undefined for \"issued\" — not used",
+    surface: "canva",
     notes:
-      "Must exclude current Note. DRAFT/CANCELLED must not be counted without an explicit metric. No prospectus filter exists.",
+      "Candidate monetary source notes.funded_amount if business rule approved. Not target_amount. No compact \"mil\" formatter yet. Current Note exclusion required.",
   },
-  successfullyFundedNotes: {
-    label: "Successfully funded notes",
+  successfulRepayment: {
+    label: "Successful Repayment",
     canonicalSource: "none confirmed for prospectus",
     availability: "unresolved",
-    possibleAlternatives:
-      "Issuer dashboard: activated_at !== null; funding_status FUNDED/FAILED successRatePercent — different meanings; not reused as prospectus \"successful\"",
-    notes: "Do not invent \"successful\" without an approved prospectus rule.",
-  },
-  activeNotes: {
-    label: "Active notes",
-    canonicalSource: "none confirmed for prospectus",
-    availability: "unresolved",
-    possibleAlternatives:
-      "Issuer dashboard overview.activeNotesCount (status === ACTIVE) — issuer portal only; does not exclude current Note",
-    notes: "Status ACTIVE is measurable; prospectus exclusion/filter not approved for investor PDF.",
-  },
-  fullyRepaidNotes: {
-    label: "Fully repaid notes",
-    canonicalSource: "none confirmed for prospectus",
-    availability: "unresolved",
-    possibleAlternatives:
-      "Issuer dashboard completedNotesCount (status === REPAID) — not investor track record; REPAID ≠ on-time",
-    notes: "NoteStatus.REPAID is measurable; prospectus metric + current-Note exclusion not approved.",
-  },
-  totalHistoricalAmountRaised: {
-    label: "Total historical amount raised",
-    canonicalSource: "none confirmed for prospectus",
-    availability: "unresolved",
-    possibleAlternatives:
-      "notes.funded_amount (actual raise) vs target_amount; dashboard pastFinancingAmount = sum funded_amount where REPAID; activeFinancingAmount where ACTIVE — not a combined prospectus total",
+    surface: "canva",
     notes:
-      "Do not use target_amount as raised. funded_amount is the raise metric in dashboard amounts. No approved prospectus sum + exclusion rule.",
+      "Numerator/denominator pending. REPAID ≠ successful repayment %. REPAID ≠ on-time. Do not treat ACTIVE as failure silently.",
   },
-  onTimeRepaymentRate: {
-    label: "On-time repayment rate",
+  onTimePaymentRate: {
+    label: "On-time Payment Rate",
     canonicalSource: "none confirmed for prospectus",
     availability: "unresolved",
-    possibleAlternatives:
-      "Issuer dashboard repaymentPerformance.onTimePercent (schedules due in last 6 months; RECEIVED payments vs expected_total) — rolling window, not lifetime; not frozen",
-    notes: "REPAID status alone does not prove on-time. Prospectus must not reuse 6-month window without approval.",
-  },
-  defaultCount: {
-    label: "Default count",
-    canonicalSource: "none confirmed for prospectus",
-    availability: "unresolved",
-    possibleAlternatives:
-      "Count NoteStatus.DEFAULTED / servicing DEFAULTED by issuer_organization_id — measurable in DB; no investor-facing aggregate today",
-    notes: "Issuer dashboard does not publish default count. Zero-defaults marketing needs approval.",
-  },
-  averageInvestorReturn: {
-    label: "Average investor return",
-    canonicalSource: "none confirmed",
-    availability: "unresolved",
-    possibleAlternatives:
-      "Average profit_rate_percent; average net expectedReturnRatePercent; realised settlement profits — no approved weighting",
-    notes: "Do not average percentages without an approved weighted formula.",
-  },
-  trackRecordSummaryTitle: {
-    label: "Track-record summary title",
-    canonicalSource: "none confirmed",
-    availability: "unresolved",
-    possibleAlternatives: "Canva heading copy; invent \"Proven track record\" — not used",
-    notes: "No stored approved investor prospectus title.",
-  },
-  trackRecordSummaryExplanation: {
-    label: "Track-record summary explanation",
-    canonicalSource: "none confirmed",
-    availability: "unresolved",
-    possibleAlternatives:
-      "Canva successful/excellent/100% repaid wording; auto-narrative from counts — not used",
-    notes: "Marketing conclusions need compliance approval.",
-  },
-  dataFrozenOnCurrentNote: {
-    label: "Data frozen on current Note",
-    canonicalSource: "no issuer history snapshot on Note",
-    availability: "constant",
-    possibleAlternatives: "Freeze aggregates at publish — not implemented",
+    surface: "canva",
     notes:
-      "Any future aggregate would be live at generation time unless frozen. Live history can change after publication.",
+      "Issuer dashboard has six-month schedule onTimePercent — dashboardMetricReused = false. Prospectus window/schedule rules pending.",
   },
 };

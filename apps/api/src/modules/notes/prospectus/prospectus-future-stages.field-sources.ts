@@ -59,6 +59,18 @@
  * - Tenure reuses Stage 2; minimum investment uses MARKETPLACE_MIN_COMMIT_MYR via Stage 4A
  * - No duplicate calculations or formatters; no Canva-specific money/rate formatting in Stage 6
  * - Stage 7 (issuer track-record summary) in prospectus-issuer-track-record.* — identity key only; aggregates unresolved
+ *
+ * Stage 7 Issuer track-record summary — correction notes:
+ * - Static heading: ISSUER'S TRACK RECORD ON CASH SOUK
+ * - Issuer grouping key: notes.issuer_organization_id
+ * - Current Note exclusion: notes.id != current_note_id
+ * - Total Notes Funded: unresolved definition and status filter
+ * - Total Amount Funded: candidate source notes.funded_amount; aggregate filter unresolved
+ * - Successful Repayment: numerator and denominator unresolved; REPAID does not prove on-time
+ * - On-time Payment Rate: issuer dashboard has a six-month schedule metric; not approved for prospectus reuse
+ * - No investor-facing track-record block exists today
+ * - All metrics would be live if computed; no Note snapshot; freeze-at-publication pending
+ * - No positive narrative is approved
  * - Stage 8 (historical note table) in prospectus-historical-note-table.* — row formatters; no eligibility filter
  *
  * Stage 3 risk (prospectus-risk-assessment.*) — correction notes:
