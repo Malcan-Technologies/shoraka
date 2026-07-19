@@ -994,7 +994,8 @@ function ProspectusReviewPageInner() {
         open={previewOpen}
         onOpenChange={setPreviewOpen}
         statusLabel={previewStatusLabel}
-        isLoading={preview.isLoading || preview.isFetching}
+        isLoading={preview.isLoading}
+        isFetching={preview.isFetching}
         errorMessage={
           preview.error instanceof Error ? preview.error.message : preview.error ? "Preview failed" : null
         }

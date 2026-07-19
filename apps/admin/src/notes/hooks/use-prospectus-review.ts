@@ -11,6 +11,11 @@ function prospectusReviewKey(noteId: string) {
   return [...notesKeys.detail(noteId), "prospectus-review"] as const;
 }
 
+/** Preview cache key — invalidated when the review draft/status changes. */
+export function prospectusReviewPreviewKey(noteId: string) {
+  return [...prospectusReviewKey(noteId), "preview"] as const;
+}
+
 export function useProspectusReview(noteId?: string) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
@@ -51,6 +56,7 @@ export function useSaveProspectusReviewDraft(noteId: string) {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: prospectusReviewKey(noteId) });
+      void qc.invalidateQueries({ queryKey: prospectusReviewPreviewKey(noteId) });
     },
   });
 }
@@ -104,13 +110,19 @@ export function useReopenProspectusReview(noteId: string) {
   });
 }
 
+/**
+ * Loads all three prospectus pages once per saved review version.
+ * Page switches are local. Refetch only after review-key invalidation (e.g. Save Draft).
+ */
 export function useProspectusReviewPreview(noteId: string, enabled: boolean) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
   return useQuery({
-    queryKey: [...prospectusReviewKey(noteId), "preview"] as const,
+    queryKey: prospectusReviewPreviewKey(noteId),
     enabled: Boolean(noteId && enabled),
-    refetchOnMount: "always",
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
     queryFn: async () => {
       const res = await apiClient.getAdminProspectusReviewPreview(noteId);
       if (!res.success) throw new Error(res.error.message);

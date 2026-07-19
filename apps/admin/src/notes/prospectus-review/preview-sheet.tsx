@@ -10,6 +10,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  PREVIEW_DOCUMENT_FRAME_CLASS,
+  PREVIEW_IFRAME_CLASS,
+  PREVIEW_SHEET_BODY_CLASS,
+  PREVIEW_SHEET_CONTENT_CLASS,
+  cleanProspectusPreviewHtml,
+  type ProspectusPreviewPages,
+} from "./preview-sheet-utils";
 
 type PreviewPageKey = "page1" | "page2" | "page3";
 
@@ -19,53 +27,55 @@ const PAGE_LABELS: Record<PreviewPageKey, string> = {
   page3: "Page 3",
 };
 
-function stripPreviewBanner(html: string): string {
-  return html.replace(
-    /<div[^>]*data-prospectus-preview-banner[^>]*>[\s\S]*?<\/div>/i,
-    ""
-  );
-}
+const PAGE_KEYS: PreviewPageKey[] = ["page1", "page2", "page3"];
 
-export function ProspectusPreviewSheet(props: {
+export type ProspectusPreviewSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   statusLabel: "Draft preview" | "Approved preview";
+  /** True only for the initial load with no cached pages. */
   isLoading: boolean;
+  /** True while refreshing; keep showing the last successful pages. */
+  isFetching?: boolean;
   errorMessage?: string | null;
-  html?: { page1: string; page2: string; page3: string } | null;
-}) {
+  html?: ProspectusPreviewPages | null;
+};
+
+function ProspectusPreviewSheetComponent(props: ProspectusPreviewSheetProps) {
   const [page, setPage] = React.useState<PreviewPageKey>("page1");
-  const pages: PreviewPageKey[] = ["page1", "page2", "page3"];
-  const pageIndex = pages.indexOf(page);
+  const pageIndex = PAGE_KEYS.indexOf(page);
 
   React.useEffect(() => {
     if (props.open) setPage("page1");
   }, [props.open]);
 
-  const rawHtml = props.html?.[page] ?? "";
-  const html = stripPreviewBanner(rawHtml);
+  const cleanedHtml = React.useMemo(
+    () => cleanProspectusPreviewHtml(props.html),
+    [props.html?.page1, props.html?.page2, props.html?.page3]
+  );
 
-  const openInNewTab = () => {
+  const html = cleanedHtml?.[page] ?? "";
+  const showInitialLoading = props.isLoading && !cleanedHtml;
+  const showRefreshHint = Boolean(props.isFetching && cleanedHtml);
+
+  const openInNewTab = React.useCallback(() => {
     if (!html) return;
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(html);
     win.document.close();
-  };
+  }, [html]);
 
   return (
     <Sheet open={props.open} onOpenChange={props.onOpenChange}>
-      <SheetContent
-        side="right"
-        className="flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(56rem,96vw)]"
-      >
+      <SheetContent side="right" className={PREVIEW_SHEET_CONTENT_CLASS}>
         <SheetHeader className="shrink-0 space-y-3 border-b px-6 py-4 text-left">
           <div className="pr-8">
             <SheetTitle>Prospectus Preview</SheetTitle>
             <SheetDescription>{props.statusLabel}</SheetDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {pages.map((key) => (
+            {PAGE_KEYS.map((key) => (
               <Button
                 key={key}
                 size="sm"
@@ -75,20 +85,20 @@ export function ProspectusPreviewSheet(props: {
                 {PAGE_LABELS[key]}
               </Button>
             ))}
-            <div className="ml-auto flex flex-wrap gap-2">
+            <div className="ml-auto flex flex-wrap items-center gap-2">
               <Button
                 size="sm"
                 variant="outline"
                 disabled={pageIndex <= 0}
-                onClick={() => setPage(pages[pageIndex - 1]!)}
+                onClick={() => setPage(PAGE_KEYS[pageIndex - 1]!)}
               >
                 Previous Page
               </Button>
               <Button
                 size="sm"
                 variant="outline"
-                disabled={pageIndex >= pages.length - 1}
-                onClick={() => setPage(pages[pageIndex + 1]!)}
+                disabled={pageIndex >= PAGE_KEYS.length - 1}
+                onClick={() => setPage(PAGE_KEYS[pageIndex + 1]!)}
               >
                 Next Page
               </Button>
@@ -99,20 +109,27 @@ export function ProspectusPreviewSheet(props: {
           </div>
         </SheetHeader>
 
-        <div className="min-h-0 flex-1 overflow-hidden bg-muted/40 p-4 md:p-6">
-          {props.isLoading ? (
+        <div className={PREVIEW_SHEET_BODY_CLASS}>
+          {showInitialLoading ? (
             <Skeleton className="mx-auto h-full w-full max-w-[210mm]" />
           ) : null}
-          {props.errorMessage ? (
+          {props.errorMessage && !cleanedHtml ? (
             <p className="text-sm text-destructive">{props.errorMessage}</p>
           ) : null}
-          {!props.isLoading && !props.errorMessage && html ? (
-            <div className="mx-auto h-full w-full max-w-[210mm] overflow-auto rounded-xl border bg-white shadow-sm">
+          {html ? (
+            <div className={PREVIEW_DOCUMENT_FRAME_CLASS}>
               <iframe
                 title={`Prospectus ${PAGE_LABELS[page]}`}
-                className="h-full min-h-full w-full border-0 bg-white"
+                className={PREVIEW_IFRAME_CLASS}
                 srcDoc={html}
               />
+            </div>
+          ) : null}
+          {showRefreshHint ? (
+            <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center p-2">
+              <span className="rounded-md bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow-sm">
+                Updating preview…
+              </span>
             </div>
           ) : null}
         </div>
@@ -120,3 +137,5 @@ export function ProspectusPreviewSheet(props: {
     </Sheet>
   );
 }
+
+export const ProspectusPreviewSheet = React.memo(ProspectusPreviewSheetComponent);
