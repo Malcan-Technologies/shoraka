@@ -451,6 +451,39 @@
  *
  * Not in Stage 3: coverage/efficiency, trends, takeaways, Prisma mapper, full assembly.
  *
+ * =============================================================================
+ * PAGE 3 — STAGE 4: CASH FLOW, COVERAGE AND EFFICIENCY (implemented)
+ * =============================================================================
+ *
+ * Modules: prospectus-page-three-coverage-efficiency.*
+ * Preview: pnpm prospectus:page-three-coverage-efficiency-preview
+ * Output: apps/api/tmp/prospectus/prospectus-page-three-coverage-efficiency-preview.html
+ *
+ * Shared source: Page 2 Stage 4A years/FYE/rawFinancials only (no independent selection/CTOS).
+ * No Trend column (deferred to Page 3 Stage 5).
+ *
+ * Confirmed row:
+ * - Return on Equity → calculateReturnOnEquity(plnpat, bsqpuc)
+ *   + Page 2 formatProspectusFinancialPercentFromRatio (shared with Stage 4B)
+ * - bsqpuc remains Paid-Up Capital in the FS schema; not relabelled as Total Equity
+ *
+ * Unresolved (always Data not available):
+ * - Operating Cash Flow (no OCF field; no PAT/depreciation inference)
+ * - Free Cash Flow (no OCF/capex; bsfatot is not capex)
+ * - Interest Coverage (no approved helper / finance-cost input)
+ * - DSCR (no CashSouk definition / debt-service input)
+ * - Debt / Equity (calculateGearing rejected; bsqpuc ≠ Total Equity)
+ * - Return on Assets (average vs closing undecided)
+ * - Receivables Days (no trade receivables field)
+ * - Payables Days (no payables / purchases-COGS fields)
+ * - Asset Turnover (average vs closing undecided)
+ *
+ * Snapshot (Stage 4 does not write):
+ * - ROE inputs already frozen: plnpat, bsqpuc — no additional Stage 4 freeze keys
+ * - Old published snapshots: ROE works; all other rows DNA; no live fallback
+ *
+ * Not in Stage 4: trends, takeaways, Prisma mapper, full assembly.
+ *
  * Corrections still needed when those stages are implemented:
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)
  * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*

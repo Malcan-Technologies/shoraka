@@ -57,6 +57,7 @@
     "prospectus:page-three-metadata-preview": "tsx scripts/generate-prospectus-page-three-metadata-preview.ts",
     "prospectus:page-three-income-statement-preview": "tsx scripts/generate-prospectus-page-three-income-statement-preview.ts",
     "prospectus:page-three-balance-sheet-preview": "tsx scripts/generate-prospectus-page-three-balance-sheet-preview.ts",
+    "prospectus:page-three-coverage-efficiency-preview": "tsx scripts/generate-prospectus-page-three-coverage-efficiency-preview.ts",
     "prospectus:stage1-preview": "tsx scripts/generate-prospectus-stage1-preview.ts",
     "seed-expired-offer-for-test": "tsx scripts/seed-expired-offer-for-test.ts",
     "seed-ekyc-identity": "tsx scripts/seed-ekyc-identity.ts",
