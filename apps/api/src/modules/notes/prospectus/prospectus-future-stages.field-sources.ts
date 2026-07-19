@@ -30,6 +30,15 @@
  * - No profitability or leverage classification; title/explanation unsupported
  * - Future options (not implemented): approved ratio thresholds, admin-authored narrative, risk/compliance approval, frozen FS summary / highlight snapshot
  * - Stage 5C (return highlight) in prospectus-return-highlight.* — gross + tenure + annual net; marketing claims unresolved
+ *
+ * Stage 5C return highlight — correction notes:
+ * - Annual gross: notes.profit_rate_percent via Stage 4A buildProspectusMainFinancialTerms
+ * - Annual net expected return: computeNetExpectedReturnRatePercent (fee on gross profit, not principal)
+ * - Annual net ≠ period return; expected period return remains unresolved (Stage 4A DNA)
+ * - Prospectus tenure (opens_at→maturity) differs from settlement accrual (activated_at→profit maturity)
+ * - No attractive / short-term classification; no approved title or explanation
+ * - Stage 6 continues using Stage 4A for gross rate and unresolved period return
+ * - Future decisions: gross vs net period value, % vs RM, start date, day-count, rounding, approved wording
  * - Stage 5D (Shariah highlight) in prospectus-shariah-highlight.* — compliance claim unresolved; not Tawarruq-as-proof
  * - Stage 6 (At a Glance) in prospectus-at-a-glance.* — composes Stage 4A + Stage 2 only
  * - Stage 7 (issuer track-record summary) in prospectus-issuer-track-record.* — identity key only; aggregates unresolved

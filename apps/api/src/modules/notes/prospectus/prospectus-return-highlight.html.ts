@@ -1,10 +1,9 @@
 /**
- * SECTION: Plain HTML for Return Investor Highlight preview
- * WHY: Unstyled Stage 5C proof — no design
+ * SECTION: Plain HTML for Return Investor Highlight Canva-facing preview
+ * WHY: Unstyled Stage 5C — formulas, fee rate, date-basis, and claims audit excluded
  */
 
 import type { ProspectusReturnHighlight } from "./prospectus-return-highlight.types";
-import { PROSPECTUS_RETURN_HIGHLIGHT_FIELD_SOURCES } from "./prospectus-return-highlight.types";
 
 function escapeHtml(value: string): string {
   return value
@@ -16,29 +15,6 @@ function escapeHtml(value: string): string {
 }
 
 export function buildProspectusReturnHighlightHtml(data: ProspectusReturnHighlight): string {
-  const rows: Array<{ key: keyof ProspectusReturnHighlight; displayLabel: string }> = [
-    { key: "annualGrossProfitRate", displayLabel: "Annual gross profit rate" },
-    { key: "tenure", displayLabel: "Tenure" },
-    { key: "netOrAfterFeeRate", displayLabel: "Net or after-fee rate" },
-    { key: "returnClassification", displayLabel: "Return classification" },
-    { key: "tenureClassification", displayLabel: "Tenure classification" },
-    { key: "highlightTitle", displayLabel: "Highlight title" },
-    { key: "highlightExplanation", displayLabel: "Highlight explanation" },
-    { key: "claimApprovalStatus", displayLabel: "Claim approval status" },
-  ];
-
-  const body = rows
-    .map(({ key, displayLabel }) => {
-      const source = PROSPECTUS_RETURN_HIGHLIGHT_FIELD_SOURCES[key];
-      return `<tr>
-  <td>${escapeHtml(displayLabel)}</td>
-  <td>${escapeHtml(data[key])}</td>
-  <td>${escapeHtml(source.canonicalSource)}</td>
-  <td>${escapeHtml(source.availability)}</td>
-</tr>`;
-    })
-    .join("\n");
-
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -47,31 +23,20 @@ export function buildProspectusReturnHighlightHtml(data: ProspectusReturnHighlig
 </head>
 <body>
   <h1>Prospectus Page 1 — DATA STAGE 5C: Return Investor Highlight</h1>
-  <p>Unstyled data preview. Missing values must be exactly: Data not available</p>
-  <p>Gross rate is before fees. Marketplace does not advertise the gross rate as after fees. Highlight claims are unresolved.</p>
-  <p>
-    Annual gross profit rate: ${escapeHtml(data.annualGrossProfitRate)}<br />
-    Tenure: ${escapeHtml(data.tenure)}<br />
-    Net or after-fee rate: ${escapeHtml(data.netOrAfterFeeRate)}<br />
-    Return classification: ${escapeHtml(data.returnClassification)}<br />
-    Tenure classification: ${escapeHtml(data.tenureClassification)}<br />
-    Highlight title: ${escapeHtml(data.highlightTitle)}<br />
-    Highlight explanation: ${escapeHtml(data.highlightExplanation)}<br />
-    Claim approval status: ${escapeHtml(data.claimApprovalStatus)}
-  </p>
-  <table border="1" cellpadding="6" cellspacing="0">
-    <thead>
-      <tr>
-        <th>Label</th>
-        <th>Value</th>
-        <th>Canonical source</th>
-        <th>Availability</th>
-      </tr>
-    </thead>
-    <tbody>
-${body}
-    </tbody>
-  </table>
+  <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
+  <section>
+    <h2>Key Investor Highlights — Return</h2>
+    <p>
+      Annual Gross Profit Rate: ${escapeHtml(data.annualGrossProfitRate)}<br />
+      Tenure: ${escapeHtml(data.tenure)}<br />
+      Annual Net Expected Return Rate (p.a.): ${escapeHtml(data.annualNetExpectedReturnRate)}<br />
+      Expected Return for Investment Period: ${escapeHtml(data.expectedReturnForInvestmentPeriod)}<br />
+      Return Classification: ${escapeHtml(data.returnClassification)}<br />
+      Tenure Classification: ${escapeHtml(data.tenureClassification)}<br />
+      Highlight Title: ${escapeHtml(data.highlightTitle)}<br />
+      Highlight Explanation: ${escapeHtml(data.highlightExplanation)}
+    </p>
+  </section>
 </body>
 </html>`;
 }
