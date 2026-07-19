@@ -519,6 +519,42 @@
  *
  * Not in Stage 5: investor takeaways, Prisma mapper, full Page 3 assembly.
  *
+ * =============================================================================
+ * PAGE 3 — STAGE 6: INVESTOR TAKEAWAYS (implemented — structural DNA only)
+ * =============================================================================
+ *
+ * Modules: prospectus-page-three-investor-takeaways.*
+ * Preview: pnpm prospectus:page-three-investor-takeaways-preview
+ * Output: apps/api/tmp/prospectus/prospectus-page-three-investor-takeaways-preview.html
+ *
+ * Visible structure:
+ * - Heading: INVESTOR TAKEAWAYS
+ * - Six items (exact order):
+ *   1. Revenue and Profitability
+ *   2. Liquidity
+ *   3. Leverage
+ *   4. Debt-Servicing Capacity
+ *   5. Working-Capital Efficiency
+ *   6. Overall Financial Profile
+ * - Every takeaway text = Data not available
+ *
+ * Current platform reality:
+ * - No approved narrative source (admin memo, risk commentary, frozen prospectus copy)
+ * - Financial values do not generate narrative
+ * - Stage 5 trends do not generate narrative
+ * - Threshold-based / AI-generated commentary rejected
+ * - No CTOS fallback; no Prisma; no independent year selection
+ * - Snapshot/publish path untouched in this stage
+ *
+ * Future preferred source (not implemented):
+ * - prospectus_snapshot.page_3.investor_takeaways
+ * - versioned, approved_at, optional approved_by
+ * - items keyed by the six takeaway keys (string | null)
+ * - admin-authored or approved; finance + legal/compliance review;
+ *   frozen at publication; no live Application fallback
+ *
+ * Not in Stage 6: Prisma mapper, full Page 3 HTML assembly, snapshot write path.
+ *
  * Corrections still needed when those stages are implemented:
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)
  * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*
