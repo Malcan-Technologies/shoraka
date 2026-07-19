@@ -30,6 +30,17 @@ test.describe("Admin Prospectus Review (demo Note)", () => {
     await expect(page.getByRole("button", { name: /Core Terms/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Investor Highlights/i })).toBeVisible();
 
+    const stepsGrid = page.locator("[data-prospectus-steps-grid]");
+    await expect(stepsGrid).toHaveClass(/items-start/);
+    const stepsCard = page.locator("[data-prospectus-steps-card]");
+    const activeCard = page.locator("[data-prospectus-active-step-card]");
+    await expect(stepsCard).toBeVisible();
+    await expect(activeCard).toBeVisible();
+    await expect(activeCard.locator("[data-prospectus-step-icon='0']")).toBeVisible();
+    await expect(
+      page.getByRole("navigation", { name: /Prospectus review steps/i }).locator("[data-prospectus-step-icon]")
+    ).toHaveCount(0);
+
     await expect(page.getByText(/temporary placeholder catalogue/i)).toHaveCount(0);
     await expect(page.getByText(/Highlight: paymaster/i)).toHaveCount(0);
     await expect(page.getByText(/source: draft/i)).toHaveCount(0);

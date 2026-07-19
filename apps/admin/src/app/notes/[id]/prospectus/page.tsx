@@ -68,6 +68,12 @@ import { ProspectusPreviewSheet } from "@/notes/prospectus-review/preview-sheet"
 import { ProspectusSectionHeading } from "@/notes/prospectus-review/section-heading";
 import { ProspectusStatusBadge } from "@/notes/prospectus-review/status-badge";
 import { getProspectusActionVisibility } from "@/notes/prospectus-review/action-visibility";
+import {
+  PROSPECTUS_ACTIVE_COLUMN_CLASS,
+  PROSPECTUS_STEP_ICONS,
+  PROSPECTUS_STEP_ICON_CLASS,
+  PROSPECTUS_STEPS_GRID_CLASS,
+} from "@/notes/prospectus-review/step-icons";
 
 function OptionSelect(props: {
   label: string;
@@ -347,6 +353,7 @@ function ProspectusReviewPageInner() {
     canManage,
     notePublished,
   });
+  const StepIcon = PROSPECTUS_STEP_ICONS[step];
 
   const stepNav = (
     <nav aria-label="Prospectus review steps" className="space-y-4">
@@ -508,15 +515,19 @@ function ProspectusReviewPageInner() {
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)]">
-            <Card className="hidden h-fit rounded-2xl lg:block">
+          <div data-prospectus-steps-grid className={PROSPECTUS_STEPS_GRID_CLASS}>
+            <Card className="hidden h-fit rounded-2xl lg:block" data-prospectus-steps-card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Steps</CardTitle>
               </CardHeader>
               <CardContent className="min-w-0">{stepNav}</CardContent>
             </Card>
 
-            <div className="min-w-0 space-y-4">
+            {/*
+              flex + gap (not space-y): hidden mobile Select must not add top margin
+              to the active-step card on desktop (space-y still margins display:none siblings).
+            */}
+            <div className={PROSPECTUS_ACTIVE_COLUMN_CLASS}>
               <div className="lg:hidden">
                 <Label className="text-sm">Step</Label>
                 <Select
@@ -545,9 +556,18 @@ function ProspectusReviewPageInner() {
                 </Select>
               </div>
 
-              <Card className="rounded-2xl">
+              <Card className="rounded-2xl" data-prospectus-active-step-card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">{PROSPECTUS_STEP_TITLES[step]}</CardTitle>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <StepIcon
+                      className={PROSPECTUS_STEP_ICON_CLASS}
+                      data-prospectus-step-icon={step}
+                      aria-hidden="true"
+                    />
+                    <CardTitle className="min-w-0 text-base font-semibold text-foreground">
+                      {PROSPECTUS_STEP_TITLES[step]}
+                    </CardTitle>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div ref={stepPanelRef} data-prospectus-step-panel className="space-y-6">

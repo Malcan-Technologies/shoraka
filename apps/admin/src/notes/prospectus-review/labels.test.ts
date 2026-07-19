@@ -20,6 +20,12 @@ import {
   PROSPECTUS_STATUS_BADGE_COMPACT_CLASS,
   PROSPECTUS_STATUS_BADGE_TONE,
 } from "./status-badge-styles";
+import {
+  PROSPECTUS_ACTIVE_COLUMN_CLASS,
+  PROSPECTUS_STEP_ICON_CLASS,
+  PROSPECTUS_STEP_ICON_NAMES,
+  PROSPECTUS_STEPS_GRID_CLASS,
+} from "./step-icons";
 import type { ProspectusReviewStoredContent } from "@cashsouk/types";
 
 describe("prospectus review admin labels", () => {
@@ -163,6 +169,30 @@ describe("prospectus review completion checklist", () => {
     expect(statusForCompletionItem(checklist[0]!)).toBe("complete");
     expect(statusForCompletionItem(checklist[1]!)).toBe("required");
     expect(statusForCompletionItem(checklist[2]!)).toBe("optional");
+  });
+});
+
+describe("prospectus review step title icons", () => {
+  it("maps every workflow step to an Application Review style icon", () => {
+    expect(PROSPECTUS_STEP_ICON_NAMES).toEqual({
+      0: "DocumentTextIcon",
+      1: "StarIcon",
+      2: "BuildingOffice2Icon",
+      3: "ClipboardDocumentCheckIcon",
+      4: "BanknotesIcon",
+      5: "LightBulbIcon",
+      6: "EyeIcon",
+    });
+    expect(PROSPECTUS_STEP_ICON_CLASS).toBe("h-5 w-5 shrink-0 text-primary");
+  });
+
+  it("keeps layout tokens for aligned steps and active cards", () => {
+    expect(PROSPECTUS_STEPS_GRID_CLASS).toContain("items-start");
+    expect(PROSPECTUS_STEPS_GRID_CLASS).toContain("grid");
+    expect(PROSPECTUS_ACTIVE_COLUMN_CLASS).toContain("flex");
+    expect(PROSPECTUS_ACTIVE_COLUMN_CLASS).toContain("gap-4");
+    expect(PROSPECTUS_ACTIVE_COLUMN_CLASS).not.toContain("space-y");
+    expect(PROSPECTUS_ACTIVE_COLUMN_CLASS).not.toMatch(/mt-|pt-/);
   });
 });
 
