@@ -148,7 +148,7 @@ export function buildNoteInvestmentDetailSections(
     },
     {
       id: "investment-terms",
-      title: "Investment Terms",
+      title: "Investment Summary",
       rows: [
         { label: "Financing Amount", value: financingAmount },
         { label: "Minimum Investment", value: minimumInvestment },
@@ -156,7 +156,8 @@ export function buildNoteInvestmentDetailSections(
         { label: "Expected Return (p.a.)", value: expectedReturn },
         {
           label: "Purpose of Financing",
-          value: textOrDash(purpose?.financing_for),
+          // purpose_snapshot.financing_for only (Note create freeze).
+          value: textOrDna(purpose?.financing_for),
         },
         {
           label: "Payment Basis",

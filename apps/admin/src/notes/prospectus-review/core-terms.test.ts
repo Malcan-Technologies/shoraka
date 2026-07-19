@@ -116,10 +116,29 @@ describe("note & investment details coverage", () => {
     expect(sections.map((s) => s.title)).toEqual([
       "Note Details",
       "Dates & Paymaster",
-      "Investment Terms",
+      "Investment Summary",
       "Risk Information",
       "At a Glance",
     ]);
+    expect(sections.map((s) => s.title)).not.toContain("Investment Terms");
+  });
+
+  it("titles the investment section Investment Summary with the approved field set", () => {
+    const section = buildNoteInvestmentDetailSections(sampleNote()).find(
+      (s) => s.id === "investment-terms"
+    )!;
+    expect(section.title).toBe("Investment Summary");
+    expect(section.rows.map((r) => r.label)).toEqual([
+      "Financing Amount",
+      "Minimum Investment",
+      "Profit Rate (p.a.)",
+      "Expected Return (p.a.)",
+      "Purpose of Financing",
+      "Payment Basis",
+      "Shariah Principle",
+    ]);
+    expect(section.rows.some((r) => r.label === "Tenure")).toBe(false);
+    expect(section.rows.some((r) => r.label === "Maturity Date")).toBe(false);
   });
 
   it("omits Track Record and Historical Notes preview-only rows", () => {
@@ -161,9 +180,20 @@ describe("note & investment details coverage", () => {
     expect(byId["dates-paymaster"]?.find((r) => r.label === "Nature of Paymaster")?.value).toBe(
       "Government Ministry"
     );
+    expect(byId["investment-terms"]?.map((r) => r.label)).toEqual([
+      "Financing Amount",
+      "Minimum Investment",
+      "Profit Rate (p.a.)",
+      "Expected Return (p.a.)",
+      "Purpose of Financing",
+      "Payment Basis",
+      "Shariah Principle",
+    ]);
     expect(byId["investment-terms"]?.find((r) => r.label === "Purpose of Financing")?.value).toBe(
       "Working capital"
     );
+    expect(byId["investment-terms"]?.some((r) => r.label === "Tenure")).toBe(false);
+    expect(byId["investment-terms"]?.some((r) => r.label === "Maturity Date")).toBe(false);
     expect(byId["risk-information"]?.map((r) => r.label)).toEqual([
       "Risk Rating",
       "Risk Label",
@@ -239,6 +269,29 @@ describe("note & investment details coverage", () => {
     const terms = sections.find((s) => s.id === "investment-terms")!.rows;
     expect(terms.find((r) => r.label === "Payment Basis")?.value).toBe("Bullet at maturity");
     expect(terms.find((r) => r.label === "Shariah Principle")?.value).toBe("Commodity Murabahah");
+  });
+
+  it("shows Data not available for missing Purpose of Financing without Application fallback", () => {
+    const terms = buildNoteInvestmentDetailSections(
+      sampleNote({ purposeSnapshot: null })
+    ).find((s) => s.id === "investment-terms")!.rows;
+    expect(terms.find((r) => r.label === "Purpose of Financing")?.value).toBe(
+      "Data not available"
+    );
+    expect(terms.find((r) => r.label === "Purpose of Financing")?.value).not.toBe("—");
+
+    const blank = buildNoteInvestmentDetailSections(
+      sampleNote({ purposeSnapshot: { financing_for: "   " } })
+    ).find((s) => s.id === "investment-terms")!.rows;
+    expect(blank.find((r) => r.label === "Purpose of Financing")?.value).toBe(
+      "Data not available"
+    );
+
+    const source = fs.readFileSync(path.join(__dirname, "core-terms.ts"), "utf8");
+    expect(source).not.toMatch(/liveApplicationFinancingFor|liveApplication/);
+    expect(source).toContain("purpose?.financing_for");
+    expect(source).toContain('title: "Investment Summary"');
+    expect(source).not.toContain('title: "Investment Terms"');
   });
 });
 
