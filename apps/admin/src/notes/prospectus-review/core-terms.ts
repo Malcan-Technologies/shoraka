@@ -154,6 +154,12 @@ export function buildNoteInvestmentDetailSections(
         { label: "Minimum Investment", value: minimumInvestment },
         { label: "Profit Rate (p.a.)", value: profitRate },
         { label: "Expected Return (p.a.)", value: expectedReturn },
+        // Same Tenure / Maturity as Dates & Paymaster (intentional prospectus mirror).
+        { label: "Tenure", value: tenure },
+        {
+          label: "Maturity Date",
+          value: formatProspectusAlignedDate(note.maturityDate),
+        },
         {
           label: "Purpose of Financing",
           // purpose_snapshot.financing_for only (Note create freeze).

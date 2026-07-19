@@ -133,12 +133,12 @@ describe("note & investment details coverage", () => {
       "Minimum Investment",
       "Profit Rate (p.a.)",
       "Expected Return (p.a.)",
+      "Tenure",
+      "Maturity Date",
       "Purpose of Financing",
       "Payment Basis",
       "Shariah Principle",
     ]);
-    expect(section.rows.some((r) => r.label === "Tenure")).toBe(false);
-    expect(section.rows.some((r) => r.label === "Maturity Date")).toBe(false);
   });
 
   it("omits Track Record and Historical Notes preview-only rows", () => {
@@ -185,6 +185,8 @@ describe("note & investment details coverage", () => {
       "Minimum Investment",
       "Profit Rate (p.a.)",
       "Expected Return (p.a.)",
+      "Tenure",
+      "Maturity Date",
       "Purpose of Financing",
       "Payment Basis",
       "Shariah Principle",
@@ -192,8 +194,6 @@ describe("note & investment details coverage", () => {
     expect(byId["investment-terms"]?.find((r) => r.label === "Purpose of Financing")?.value).toBe(
       "Working capital"
     );
-    expect(byId["investment-terms"]?.some((r) => r.label === "Tenure")).toBe(false);
-    expect(byId["investment-terms"]?.some((r) => r.label === "Maturity Date")).toBe(false);
     expect(byId["risk-information"]?.map((r) => r.label)).toEqual([
       "Risk Rating",
       "Risk Label",
@@ -292,6 +292,102 @@ describe("note & investment details coverage", () => {
     expect(source).toContain("purpose?.financing_for");
     expect(source).toContain('title: "Investment Summary"');
     expect(source).not.toContain('title: "Investment Terms"');
+  });
+});
+
+describe("Investment Summary Tenure and Maturity Date", () => {
+  function sectionRows(note: NoteDetail, id: string) {
+    return buildNoteInvestmentDetailSections(note).find((s) => s.id === id)!.rows;
+  }
+
+  function value(rows: Array<{ label: string; value: string }>, label: string) {
+    return rows.find((r) => r.label === label)?.value;
+  }
+
+  it("includes Tenure and Maturity Date in the approved Investment Summary order", () => {
+    expect(sectionRows(sampleNote(), "investment-terms").map((r) => r.label)).toEqual([
+      "Financing Amount",
+      "Minimum Investment",
+      "Profit Rate (p.a.)",
+      "Expected Return (p.a.)",
+      "Tenure",
+      "Maturity Date",
+      "Purpose of Financing",
+      "Payment Basis",
+      "Shariah Principle",
+    ]);
+  });
+
+  it("keeps Tenure and Maturity Date under Dates & Paymaster", () => {
+    const dates = sectionRows(sampleNote(), "dates-paymaster");
+    expect(dates.map((r) => r.label)).toEqual([
+      "Listing Date",
+      "Closing Date",
+      "Maturity Date",
+      "Tenure",
+      "Paymaster",
+      "Nature of Paymaster",
+    ]);
+    expect(value(dates, "Tenure")).toBeTruthy();
+    expect(value(dates, "Maturity Date")).toBeTruthy();
+  });
+
+  it("matches Tenure and Maturity Date between Dates & Paymaster and Investment Summary", () => {
+    const note = sampleNote();
+    const dates = sectionRows(note, "dates-paymaster");
+    const summary = sectionRows(note, "investment-terms");
+    expect(value(summary, "Tenure")).toBe(value(dates, "Tenure"));
+    expect(value(summary, "Maturity Date")).toBe(value(dates, "Maturity Date"));
+  });
+
+  it("uses calculateCalendarDayCount and formatUtcCalendarDateEnMy without a second tenure formula", () => {
+    const opensAt = "2025-05-15T00:00:00.000Z";
+    const maturityDate = "2025-09-12T00:00:00.000Z";
+    const expectedDays = calculateCalendarDayCount(
+      new Date(opensAt),
+      new Date(maturityDate)
+    );
+    expect(expectedDays).toBe(120);
+
+    const base = sampleNote();
+    const summary = sectionRows(
+      sampleNote({
+        listing: {
+          ...base.listing!,
+          opensAt,
+          closesAt: "2025-05-30T00:00:00.000Z",
+        },
+        maturityDate,
+      }),
+      "investment-terms"
+    );
+    expect(value(summary, "Tenure")).toBe("120 days");
+    expect(value(summary, "Maturity Date")).toBe("12 September 2025");
+
+    const source = fs.readFileSync(path.join(__dirname, "core-terms.ts"), "utf8");
+    expect(source).toContain("calculateCalendarDayCount");
+    expect(source).toContain("formatUtcCalendarDateEnMy");
+    expect(source).toContain("formatProspectusAlignedTenure");
+    expect(source).not.toMatch(/Math\.round\([\s\S]*86_?400_?000/);
+    expect(source).not.toMatch(/daysLeft|investorDays|differenceInCalendarDays/);
+  });
+
+  it("shows Data not available for missing Tenure and Maturity Date in Investment Summary", () => {
+    const base = sampleNote();
+    const summary = sectionRows(
+      sampleNote({
+        listing: {
+          ...base.listing!,
+          opensAt: null,
+        },
+        maturityDate: null,
+      }),
+      "investment-terms"
+    );
+    expect(value(summary, "Tenure")).toBe("Data not available");
+    expect(value(summary, "Maturity Date")).toBe("Data not available");
+    expect(value(summary, "Tenure")).not.toBe("—");
+    expect(value(summary, "Maturity Date")).not.toBe("—");
   });
 });
 
