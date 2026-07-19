@@ -1,10 +1,9 @@
 /**
- * SECTION: Plain HTML for Timing & Purpose preview
- * WHY: Unstyled Stage 4B proof — no design
+ * SECTION: Plain HTML for Timing & Purpose Canva-facing preview
+ * WHY: Unstyled Stage 4B — audit metadata excluded; closes_at stays in Stage 2
  */
 
 import type { ProspectusTimingPurpose } from "./prospectus-timing-purpose.types";
-import { PROSPECTUS_TIMING_PURPOSE_FIELD_SOURCES } from "./prospectus-timing-purpose.types";
 
 function escapeHtml(value: string): string {
   return value
@@ -16,24 +15,6 @@ function escapeHtml(value: string): string {
 }
 
 export function buildProspectusTimingPurposeHtml(data: ProspectusTimingPurpose): string {
-  const rows: Array<{ key: keyof ProspectusTimingPurpose; displayLabel: string }> = [
-    { key: "tenure", displayLabel: "Tenure" },
-    { key: "maturityDate", displayLabel: "Maturity date" },
-    { key: "purposeOfFinancing", displayLabel: "Purpose of financing" },
-  ];
-
-  const body = rows
-    .map(({ key, displayLabel }) => {
-      const source = PROSPECTUS_TIMING_PURPOSE_FIELD_SOURCES[key];
-      return `<tr>
-  <td>${escapeHtml(displayLabel)}</td>
-  <td>${escapeHtml(data[key])}</td>
-  <td>${escapeHtml(source.canonicalSource)}</td>
-  <td>${escapeHtml(source.availability)}</td>
-</tr>`;
-    })
-    .join("\n");
-
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -42,26 +23,15 @@ export function buildProspectusTimingPurposeHtml(data: ProspectusTimingPurpose):
 </head>
 <body>
   <h1>Prospectus Page 1 — DATA STAGE 4B: Timing and Purpose</h1>
-  <p>Unstyled data preview. Missing values must be exactly: Data not available</p>
-  <p>Purpose is live Application data (not frozen on Note).</p>
-  <p>
-    Tenure: ${escapeHtml(data.tenure)}<br />
-    Maturity date: ${escapeHtml(data.maturityDate)}<br />
-    Purpose of financing: ${escapeHtml(data.purposeOfFinancing)}
-  </p>
-  <table border="1" cellpadding="6" cellspacing="0">
-    <thead>
-      <tr>
-        <th>Label</th>
-        <th>Value</th>
-        <th>Canonical source</th>
-        <th>Availability</th>
-      </tr>
-    </thead>
-    <tbody>
-${body}
-    </tbody>
-  </table>
+  <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
+  <section>
+    <h2>Investment Summary — Timing and Purpose</h2>
+    <p>
+      Tenure: ${escapeHtml(data.tenure)}<br />
+      Maturity Date: ${escapeHtml(data.maturityDate)}<br />
+      Purpose of Financing: ${escapeHtml(data.purposeOfFinancing)}
+    </p>
+  </section>
 </body>
 </html>`;
 }

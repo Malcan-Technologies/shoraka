@@ -1,6 +1,6 @@
 /**
  * SECTION: Sample Timing & Purpose for Stage 4B preview
- * WHY: Same date span as Stage 2; purpose sample mirrors seed free text (not Canva short label alone)
+ * WHY: Same date span as Stage 2; purpose is real free-text style — not Canva "Working Capital"
  */
 
 import { buildProspectusTimingPurpose } from "./prospectus-timing-purpose";
@@ -13,7 +13,8 @@ export const SAMPLE_PROSPECTUS_TIMING_PURPOSE_INPUT: ProspectusTimingPurposeInpu
   listingOpensAt: "2025-05-15T00:00:00.000Z",
   maturityDate: "2025-09-12T00:00:00.000Z",
   /** Illustrative financing_for free text (live Application field). */
-  purposeOfFinancing: "Working capital to fulfill a new contract with a major client.",
+  purposeOfFinancing:
+    "To finance purchase of raw materials and working capital requirements",
 };
 
 export const SAMPLE_PROSPECTUS_TIMING_PURPOSE: ProspectusTimingPurpose =

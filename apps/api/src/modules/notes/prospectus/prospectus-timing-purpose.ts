@@ -1,11 +1,12 @@
 /**
  * SECTION: Build Timing & Purpose view-model
- * WHY: Reuse Stage 2 tenure/maturity; purpose is live Application text only
+ * WHY: Reuse Stage 2 tenure/maturity; purpose is trimmed live Application text only
  */
 
 import { buildProspectusTenureAndMaturity } from "./prospectus-dates-paymaster";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
+  PROSPECTUS_PURPOSE_AUDIT,
   type ProspectusTimingPurpose,
   type ProspectusTimingPurposeInput,
 } from "./prospectus-timing-purpose.types";
@@ -29,5 +30,8 @@ export function buildProspectusTimingPurpose(
     tenure: timing.tenure,
     maturityDate: timing.maturityDate,
     purposeOfFinancing: purpose ?? PROSPECTUS_DATA_NOT_AVAILABLE,
+    audit: {
+      purpose: PROSPECTUS_PURPOSE_AUDIT,
+    },
   };
 }

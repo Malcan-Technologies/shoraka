@@ -37,6 +37,14 @@
  * - No approved gross-versus-net, day-count, or rounding decision for period return
  * - Stage 6 At a Glance reuses buildProspectusMainFinancialTerms (same formatters)
  * - Canva sample 3.95% must not be used as production data
+ *
+ * Stage 4B timing and purpose (prospectus-timing-purpose.*) — correction notes:
+ * - Tenure and maturity reuse Stage 2 buildProspectusTenureAndMaturity
+ * - Purpose path: applications.business_details.why_raising_funds.financing_for
+ * - Purpose is live Application data (not frozen on Note); snapshotDecision pending
+ * - Related fields (how_funds_used, business_plan, etc.) are not fallbacks
+ * - Listing Closing Date (note_listings.closes_at) belongs only to Stage 2
+ * - Canva "Working Capital" is sample content only — preserve free text as stored
  */
 
 export type ProspectusFutureFieldAvailability =
@@ -173,13 +181,14 @@ export const PROSPECTUS_FUTURE_FIELD_SOURCES: Record<
     notes: "Implemented in DATA STAGE 2. Marketplace days-left is not used.",
   },
   purposeOfFinancing: {
-    label: "Purpose of financing",
+    label: "Purpose of Financing",
     model: "applications",
     path: "business_details.why_raising_funds.financing_for",
     origin: "application",
-    availability: "missing",
-    existingApi: "Application review / issuer business-details step",
-    notes: "Not on Note snapshots. Prior map omitted why_raising_funds.",
+    availability: "stored",
+    existingApi: "Application review / issuer business-details step (free text max 400)",
+    notes:
+      "Stage 4B: live via source_application_id; not frozen on Note. No fallbacks. Listing Closing Date is Stage 2 only.",
   },
   paymentBasis: {
     label: "Payment basis",
