@@ -1,6 +1,6 @@
 /**
  * SECTION: Plain HTML for Page 2 Stage 4A financial comparison source preview
- * WHY: Prove year selection/order/FYE/source note — no Stage 4B metric rows
+ * WHY: Prove year selection/order/FYE — no Stage 4B metric rows
  */
 
 import type { ProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source.types";
@@ -56,7 +56,6 @@ ${data.years
     <h2>${escapeHtml(data.sectionHeading)}</h2>
     <p>Table Unit Label: ${escapeHtml(data.tableUnitLabel)}</p>
     ${yearBlock}
-    <p>Source Note: ${escapeHtml(data.sourceNote)}</p>
   </section>
 </body>
 </html>`;

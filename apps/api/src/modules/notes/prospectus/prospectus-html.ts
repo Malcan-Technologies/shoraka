@@ -1,6 +1,6 @@
 /**
  * SECTION: Shared prospectus HTML helpers
- * WHY: One escape path for Stage 8 layout modules (header / CTA / footer)
+ * WHY: One escape path for Stage 8 layout modules (header / CTA)
  */
 
 export function escapeHtml(value: string): string {

@@ -489,17 +489,6 @@ function pageStyles(): string {
       font-size: 8px;
     }
 
-    .footer {
-      margin-top: auto;
-      padding-top: 8px;
-      border-top: 1px solid var(--line);
-      display: flex;
-      gap: 8px;
-      align-items: flex-start;
-      color: var(--muted);
-      font-size: 8px;
-    }
-
     .icon {
       display: inline-block;
       width: 16px;
@@ -647,11 +636,6 @@ export function buildProspectusPage1Html(data: ProspectusPage1Data): string {
       </table>
       <div class="track-disclaimer">${escapeHtml(data.trackRecordDisclaimer)}</div>
     </section>
-
-    <footer class="footer">
-      ${iconPlaceholder("check")}
-      <div>${escapeHtml(data.footerDisclaimer)}</div>
-    </footer>
   </main>
 </body>
 </html>`;

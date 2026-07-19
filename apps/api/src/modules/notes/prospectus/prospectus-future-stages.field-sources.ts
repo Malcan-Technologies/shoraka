@@ -176,7 +176,7 @@
  *
  * Application source only; CTOS not used; no source mixing.
  * Full MYR cells; no compact/million conversion.
- * Table unit label + source note remain Stage 4A DNA.
+ * Table unit label remains Stage 4A DNA. No visible source statement/note.
  * Publication freeze still pending Page 2 mapper.
  *
  * =============================================================================
@@ -266,13 +266,12 @@
  * - Scale decision is not fully resolved while labels/definitions/note are DNA
  *
  * =============================================================================
- * PAGE 2 — STAGE 8 CTA AND SHARED HEADER / FOOTER
+ * PAGE 2 — STAGE 8 CTA AND SHARED HEADER
  * =============================================================================
  *
  * Modules:
  * - prospectus-header.* (reusable across prospectus pages)
  * - prospectus-investment-cta.*
- * - prospectus-footer.* (reusable across prospectus pages)
  * Preview: pnpm prospectus:investment-cta-preview
  * Output: apps/api/tmp/prospectus/prospectus-investment-cta-preview.html
  *
@@ -293,12 +292,8 @@
  * - Display: Minimum investment: RM 100.00 (full money; not Canva RM 100)
  * - No attractive / short-term / Shariah-compliant investment claims
  *
- * Footer:
- * - Legal text may only reuse exact current approved production copy
- * - Canva/legacy text is not automatically approved
- * - Current risk warning and Product Terms/Risk Disclosure statement: Data not available
- * - Components shared across prospectus pages (Page 1 integration later)
- * - Future legal/marketing copy should be versioned static config or snapshot version
+ * No prospectus shared footer. No Investment Risk Warning / Product Terms block.
+ * No visible source statement on Pages 1–3.
  *
  * =============================================================================
  * PAGE 2 — FULL PRISMA MAPPER + PUBLICATION SNAPSHOT + HTML ASSEMBLY
@@ -349,8 +344,9 @@
  * CTA href /investments/{note.id} only when investable; else disabled button
  *
  * Assembly order:
- * header → Stage 1 → 2 → 3 → 4B financial table → 5 → 6 → 7 → CTA → footer
+ * header → Stage 1 → 2 → 3 → 4B financial table → 5 → 6 → 7 → CTA
  * Stage 4A is internal source model only (not a duplicate final section)
+ * Page 2 ends after Investment CTA — no source statement, no shared footer
  *
  * Money: formatProspectusMoneyMyr only; no compact/mil/million/k; no (MYR mil.)
  *
@@ -366,8 +362,8 @@
  * 5. Cash Flow, Coverage, Efficiency + Trend (3-Yr) column
  * 6. Investor Takeaways
  *
- * Plus: Source statement slot (DNA — Canva audited/management wording not approved)
- * Plus: Shared header / footer (same as Pages 1–2)
+ * Plus: Shared header (branding only — not a numbered stage)
+ * No source statement. No shared footer.
  *
  * Technical integration (NOT a seventh visible stage):
  * - Prisma loader / mapper / shared page_2 financial freeze / HTML assembly / preview
@@ -385,25 +381,26 @@
  *   trends render in Stage 5 Trend (3-Yr) column (no standalone FINANCIAL TRENDS section)
  * - prospectus-page-three-investor-takeaways.* → Stage 6
  *
- * Shared financial source:
+ * Shared financial source (internal only — not a visible prospectus field):
  * - Page 2 Stage 4A years/FYE/raw via prospectus_snapshot.page_2.financial_comparison
+ * - Live unpublished preview may read applications.financial_statements.unaudited_by_year
  * - No independent Page 3 year selection; no CTOS; no published live Application fallback
  * - Extended freeze keys: plnpbt, bsfatot, othass, bsclbank, bsslltd, bsclstd
  * - bsclbank = Non-Current Assets (never Cash & Bank); bsqpuc ≠ Total Equity
  *
  * Assembly order:
  * header → Stage 1 title → Stage 2 metadata → Stage 3 income → Stage 4 balance →
- * Stage 5 coverage+trends → Stage 6 takeaways → source (DNA) → footer
+ * Stage 5 coverage+trends → Stage 6 takeaways (page ends)
  *
  * Confirmed helpers (must match Page 2 for shared metrics):
  * - Revenue/PAT/NPM/ROE/Current Ratio; computeTotalAssets/Liabilities; full MYR
  *
  * No standalone visible Financial Trends section.
- * Canva sample claims / source wording / trend arrows are not production truth.
+ * Canva sample claims / trend arrows are not production truth.
  * Final Canva styling remains a later task.
  *
  * Business still unresolved (DNA / finance/product/legal):
- * - subtitle; Paymaster/Confidence grading; source wording
+ * - subtitle; Paymaster/Confidence grading
  * - Gross Profit; EBITDA; EBIT; Cash & Bank; Trade Receivables; Total Equity; Quick Ratio
  * - OCF; FCF; Interest Coverage; DSCR; Debt/Equity; ROA; days; Asset Turnover
  * - all trends; all investor takeaways

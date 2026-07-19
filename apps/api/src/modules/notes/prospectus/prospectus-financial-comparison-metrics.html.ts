@@ -72,7 +72,6 @@ export function buildProspectusFinancialComparisonMetricsHtml(
 ${bodyRows}
       </tbody>
     </table>
-    <p>Source Note: ${escapeHtml(data.sourceNote)}</p>
   </section>
 </body>
 </html>`;

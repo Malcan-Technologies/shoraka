@@ -75,7 +75,6 @@ function renderFinancialTable(page: ProspectusPageTwo): string {
 ${bodyRows}
     </tbody>
   </table>
-  <p>Source Note: ${escapeHtml(data.sourceNote)}</p>
 </section>`;
 }
 
@@ -120,19 +119,9 @@ function renderCta(page: ProspectusPageTwo): string {
 </section>`;
 }
 
-function renderFooter(page: ProspectusPageTwo): string {
-  const { footer } = page;
-  return `<footer class="prospectus-footer" data-stage="footer">
-  <p>Investment Risk Warning: ${escapeHtml(footer.investmentRiskWarning)}</p>
-  <p>Product Terms / Risk Disclosure Statement: ${escapeHtml(
-    footer.productTermsRiskDisclosureStatement
-  )}</p>
-</footer>`;
-}
-
 /**
  * Assembles Page 2 Canva-facing sections in approved order.
- * Stage 4A is not rendered as a duplicate section — Stage 4B owns the financial table.
+ * Ends after Investment CTA. Stage 4A is not a duplicate final section.
  */
 export function buildProspectusPageTwoHtml(page: ProspectusPageTwo): string {
   const s1 = page.issuerProfile;
@@ -171,7 +160,7 @@ export function buildProspectusPageTwoHtml(page: ProspectusPageTwo): string {
       flex-direction: column;
       gap: 10px;
     }
-    section, header, footer { margin: 0; padding: 0; }
+    section, header { margin: 0; padding: 0; }
     h1, h2, h3 { margin: 0 0 6px; font-weight: 700; }
     h2 { font-size: 13px; }
     p { margin: 0; }
@@ -251,7 +240,6 @@ export function buildProspectusPageTwoHtml(page: ProspectusPageTwo): string {
 
     ${renderSoukscoreScale(page)}
     ${renderCta(page)}
-    ${renderFooter(page)}
   </div>
 </body>
 </html>`;

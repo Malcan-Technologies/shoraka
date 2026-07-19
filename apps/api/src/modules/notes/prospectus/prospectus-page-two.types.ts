@@ -6,7 +6,6 @@
 import type { ProspectusCreditInsights } from "./prospectus-credit-insights.types";
 import type { ProspectusFinancialComparisonMetrics } from "./prospectus-financial-comparison-metrics.types";
 import type { ProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source.types";
-import type { ProspectusFooter } from "./prospectus-footer.types";
 import type { ProspectusHeader } from "./prospectus-header.types";
 import type { ProspectusInvestmentCta } from "./prospectus-investment-cta.types";
 import type { ProspectusInvoicePaymaster } from "./prospectus-invoice-paymaster.types";
@@ -36,7 +35,6 @@ export interface ProspectusPageTwo {
   invoiceWorkNarrative: ProspectusInvoiceWorkNarrative;
   soukscoreRatingScale: ProspectusSoukscoreRatingScale;
   investmentCta: ProspectusInvestmentCta;
-  footer: ProspectusFooter;
   /** Audit-only render metadata — omitted from Canva HTML. */
   meta: {
     noteId: string;

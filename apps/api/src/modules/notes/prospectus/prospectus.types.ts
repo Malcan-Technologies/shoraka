@@ -65,5 +65,4 @@ export interface ProspectusPage1Data {
   trackRecordMetrics: ProspectusTrackRecordMetric[];
   historicalNotes: ProspectusHistoricalNoteRow[];
   trackRecordDisclaimer: string;
-  footerDisclaimer: string;
 }

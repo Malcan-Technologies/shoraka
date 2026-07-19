@@ -376,7 +376,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
         formatProspectusMoneyMyr(MARKETPLACE_MIN_COMMIT_MYR)
       );
       expect(page.header.tagline).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-      expect(page.footer.investmentRiskWarning).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+      expect(page).not.toHaveProperty("footer");
     });
 
     it("selects no SoukScore grade for invalid ratings", () => {
@@ -464,7 +464,6 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       const s6 = html.indexOf('data-stage="6"');
       const s7 = html.indexOf('data-stage="7"');
       const cta = html.indexOf('data-stage="8-cta"');
-      const footer = html.indexOf('data-stage="footer"');
       expect(headerIdx).toBeGreaterThan(-1);
       expect(s1).toBeGreaterThan(headerIdx);
       expect(s2).toBeGreaterThan(s1);
@@ -474,7 +473,12 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(s6).toBeGreaterThan(s5);
       expect(s7).toBeGreaterThan(s6);
       expect(cta).toBeGreaterThan(s7);
-      expect(footer).toBeGreaterThan(cta);
+      expect(html.indexOf('data-stage="footer"')).toBe(-1);
+      expect(html).not.toContain("Source Note:");
+      expect(html).not.toContain("Investment Risk Warning");
+      expect(html).not.toContain("Product Terms / Risk Disclosure Statement");
+      expect(html).not.toContain("prospectus-footer");
+      expect(html.lastIndexOf("data-stage=")).toBe(cta);
 
       expect(html).not.toContain('data-stage="4a"');
       expect(html).not.toContain("canonicalSystem");

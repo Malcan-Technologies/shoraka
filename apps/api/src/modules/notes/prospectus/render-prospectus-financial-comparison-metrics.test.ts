@@ -132,14 +132,14 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
     expect(sample.audit.netDebtEquity.gearingSubstitutionAllowed).toBe(false);
   });
 
-  it("ignores CTOS and inherits Stage 4A unit/source note", () => {
+  it("ignores CTOS and inherits Stage 4A unit label without a source note field", () => {
     const metrics = buildProspectusFinancialComparisonMetrics({
       source: SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_METRICS_SOURCE,
       ctosFinancials: { financials: [{ financial_year: 2024, turnover: 99_999_999 }] },
     });
     expect(row(metrics, "revenue")?.values[2]).toBe("RM 18,600,000.00");
     expect(metrics.tableUnitLabel).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(metrics.sourceNote).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(metrics).not.toHaveProperty("sourceNote");
     expect(metrics.audit.source.ctosUsed).toBe(false);
     expect(metrics.audit.source.inheritedFromStage4A).toBe(true);
   });
@@ -211,6 +211,8 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
     expect(moduleSource).not.toContain("1_000_000");
     expect(moduleSource).not.toMatch(/\/\s*1_?000_?000/);
 
+    expect(html).not.toContain("Source Note:");
+    expect(html).not.toMatch(/Source: Data not available/);
     expect(html).not.toContain("formulaOwnedBySharedHelper");
     expect(html).not.toContain("gearingSubstitutionAllowed");
     expect(html).not.toContain("ctosUsed");

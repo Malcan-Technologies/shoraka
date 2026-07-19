@@ -44,11 +44,6 @@ export interface ProspectusFinancialComparisonSourceAudit {
     millionConversionAllowed: false;
     unitLabelDecision: "unavailable";
   };
-  sourceNote: {
-    status: "unresolved";
-    auditedClaimAllowed: false;
-    managementAccountClaimAllowed: false;
-  };
   snapshot: {
     sourceType: "live_application_financial_statements";
     isFrozen: false;
@@ -81,11 +76,6 @@ export const PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT: ProspectusFinancialCo
       millionConversionAllowed: false,
       unitLabelDecision: "unavailable",
     },
-    sourceNote: {
-      status: "unresolved",
-      auditedClaimAllowed: false,
-      managementAccountClaimAllowed: false,
-    },
     snapshot: {
       sourceType: "live_application_financial_statements",
       isFrozen: false,
@@ -98,7 +88,6 @@ export interface ProspectusFinancialComparisonSource {
   sectionHeading: string;
   tableUnitLabel: string;
   years: ProspectusFinancialComparisonYear[];
-  sourceNote: string;
   /** Audit/debug only — omitted from Canva HTML. */
   audit: ProspectusFinancialComparisonSourceAudit;
 }
@@ -124,7 +113,7 @@ export interface ProspectusFinancialComparisonSourceFieldSource {
 }
 
 export const PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_FIELD_SOURCES: Record<
-  "sectionHeading" | "tableUnitLabel" | "years" | "sourceNote",
+  "sectionHeading" | "tableUnitLabel" | "years",
   ProspectusFinancialComparisonSourceFieldSource
 > = {
   sectionHeading: {
@@ -151,14 +140,5 @@ export const PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_FIELD_SOURCES: Record<
     possibleAlternatives: "CTOS financials_json — not used; no source mixing",
     notes:
       "Latest three valid 4-digit year keys; select descending; display ascending as FY{year}.",
-  },
-  sourceNote: {
-    label: "Source note",
-    canonicalSource: "none",
-    availability: "unresolved",
-    surface: "canva",
-    possibleAlternatives:
-      "Audited Financial Statements; Management Account — not used",
-    notes: "Application unaudited source does not prove Canva audited wording.",
   },
 };

@@ -10,7 +10,6 @@ import {
   PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
   type ProspectusFinancialComparisonSource,
 } from "./prospectus-financial-comparison-source.types";
-import { buildProspectusFooter } from "./prospectus-footer";
 import { buildProspectusHeader } from "./prospectus-header";
 import {
   parseInvoiceSnapshotRiskRating,
@@ -51,7 +50,6 @@ function emptyFinancialComparisonSource(): ProspectusFinancialComparisonSource {
     sectionHeading: PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
     tableUnitLabel: PROSPECTUS_DATA_NOT_AVAILABLE,
     years: [],
-    sourceNote: PROSPECTUS_DATA_NOT_AVAILABLE,
     audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
   };
 }
@@ -152,7 +150,6 @@ export function buildProspectusPageThree(
     coverageEfficiency,
     trends,
     investorTakeaways,
-    footer: buildProspectusFooter(),
     meta: {
       noteId: input.noteId,
       financialMode: input.financialMode,

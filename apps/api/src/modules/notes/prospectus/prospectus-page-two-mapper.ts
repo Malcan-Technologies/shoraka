@@ -15,7 +15,6 @@ import {
   type ProspectusFinancialComparisonSource,
   type ProspectusFinancialComparisonYear,
 } from "./prospectus-financial-comparison-source.types";
-import { buildProspectusFooter } from "./prospectus-footer";
 import { buildProspectusHeader } from "./prospectus-header";
 import { buildProspectusInvestmentCta } from "./prospectus-investment-cta";
 import { buildProspectusInvoicePaymaster } from "./prospectus-invoice-paymaster";
@@ -67,7 +66,6 @@ function emptyFinancialComparisonSource(): ProspectusFinancialComparisonSource {
     sectionHeading: PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
     tableUnitLabel: PROSPECTUS_DATA_NOT_AVAILABLE,
     years: [],
-    sourceNote: PROSPECTUS_DATA_NOT_AVAILABLE,
     audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
   };
 }
@@ -103,7 +101,6 @@ export function buildFinancialComparisonSourceFromFrozen(
     sectionHeading: PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
     tableUnitLabel: PROSPECTUS_DATA_NOT_AVAILABLE,
     years,
-    sourceNote: PROSPECTUS_DATA_NOT_AVAILABLE,
     audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
   };
 }
@@ -200,7 +197,6 @@ export function buildProspectusPageTwo(
     investmentCta: buildProspectusInvestmentCta({
       noteId: investable ? input.noteId : null,
     }),
-    footer: buildProspectusFooter(),
     meta: {
       noteId: input.noteId,
       noteReference: input.noteReference,

@@ -1,7 +1,6 @@
 import { readFileSync } from "fs";
 import path from "path";
 import { MARKETPLACE_MIN_COMMIT_MYR } from "@cashsouk/types";
-import { buildProspectusFooter } from "./prospectus-footer";
 import { buildProspectusHeader } from "./prospectus-header";
 import {
   PROSPECTUS_BRAND_NAME,
@@ -10,7 +9,6 @@ import {
 } from "./prospectus-header.types";
 import { buildProspectusInvestmentCta } from "./prospectus-investment-cta";
 import {
-  SAMPLE_PROSPECTUS_FOOTER,
   SAMPLE_PROSPECTUS_HEADER,
   SAMPLE_PROSPECTUS_INVESTMENT_CTA,
   SAMPLE_PROSPECTUS_INVESTMENT_CTA_INPUT,
@@ -26,7 +24,7 @@ import { buildProspectusInvestorNoteInvestmentPath } from "./prospectus-investor
 import { formatProspectusMoneyMyr } from "./prospectus-main-financial-terms";
 import { buildProspectusInvestmentCtaDocument } from "./render-prospectus-investment-cta";
 
-describe("prospectus Page 2 CTA and shared header/footer (DATA STAGE 8)", () => {
+describe("prospectus Page 2 CTA and shared header (DATA STAGE 8)", () => {
   describe("header", () => {
     it("uses the official logo asset and CashSouk brand name", () => {
       const header = buildProspectusHeader();
@@ -178,43 +176,22 @@ describe("prospectus Page 2 CTA and shared header/footer (DATA STAGE 8)", () => 
     });
   });
 
-  describe("footer", () => {
-    it("keeps legal fields DNA when only Canva/legacy wording is supplied", () => {
-      const footer = buildProspectusFooter({
-        legacyCanvaRiskWarning:
-          "Investments are subject to credit risk, default risk, and other risks.",
-        legacyCanvaTermsStatement:
-          "Investors are advised to read and understand the Product Terms and Risk Disclosure Statement before investing.",
-      });
-      expect(footer.investmentRiskWarning).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-      expect(footer.productTermsRiskDisclosureStatement).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-      expect(footer.audit.riskWarning.status).toBe("unresolved");
-      expect(footer.audit.termsStatement.status).toBe("unresolved");
-      expect(footer.audit.riskWarning.generatedLegalCopyAllowed).toBe(false);
-      expect(footer.audit.termsStatement.generatedLegalCopyAllowed).toBe(false);
-      expect(footer.audit.shared.reusableAcrossProspectusPages).toBe(true);
-
-      expect(footer.investmentRiskWarning).not.toMatch(/credit risk/i);
-      expect(footer.productTermsRiskDisclosureStatement).not.toMatch(
-        /Product Terms and Risk Disclosure Statement before investing/i
-      );
-    });
-  });
-
   describe("shared HTML composition", () => {
-    it("renders reusable header → CTA → footer without audit or debug fields", () => {
+    it("renders reusable header → CTA without footer or source statement", () => {
       const html = buildProspectusInvestmentCtaDocument({
         header: SAMPLE_PROSPECTUS_HEADER,
         cta: SAMPLE_PROSPECTUS_INVESTMENT_CTA,
-        footer: SAMPLE_PROSPECTUS_FOOTER,
       });
 
       const headerIdx = html.indexOf('class="prospectus-header"');
       const ctaIdx = html.indexOf('class="prospectus-investment-cta"');
-      const footerIdx = html.indexOf('class="prospectus-footer"');
       expect(headerIdx).toBeGreaterThan(-1);
       expect(ctaIdx).toBeGreaterThan(headerIdx);
-      expect(footerIdx).toBeGreaterThan(ctaIdx);
+      expect(html).not.toContain("prospectus-footer");
+      expect(html).not.toContain("Investment Risk Warning");
+      expect(html).not.toContain("Product Terms / Risk Disclosure Statement");
+      expect(html).not.toContain("Source Note:");
+      expect(html).not.toContain("Source: Data not available");
 
       expect(html).toContain("CashSouk");
       expect(html).toContain("Brand Tagline: Data not available");
@@ -223,10 +200,6 @@ describe("prospectus Page 2 CTA and shared header/footer (DATA STAGE 8)", () => 
       expect(html).toContain("CTA Paragraph: Data not available");
       expect(html).toContain("INVEST NOW");
       expect(html).toContain("Minimum investment: RM 100.00");
-      expect(html).toContain("Investment Risk Warning: Data not available");
-      expect(html).toContain(
-        "Product Terms / Risk Disclosure Statement: Data not available"
-      );
 
       expect(html).not.toContain("logoSource");
       expect(html).not.toContain("taglineApproved");

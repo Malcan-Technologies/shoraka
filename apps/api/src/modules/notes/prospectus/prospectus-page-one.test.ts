@@ -519,6 +519,16 @@ describe("prospectus Page 1 assembly and HTML", () => {
       cursor = at;
     }
     expect((html.match(/data-page="prospectus-page-one"/g) ?? []).length).toBe(1);
+    const historicalIdx = html.indexOf('data-stage="8"');
+    expect(historicalIdx).toBeGreaterThan(-1);
+    expect(html.lastIndexOf("data-stage=")).toBe(historicalIdx);
+    expect(html).not.toContain("Source Note:");
+    expect(html).not.toContain("source-statement");
+    expect(html).not.toMatch(/Source: Audited Financial Statements/i);
+    expect(html).not.toContain("Investment Risk Warning");
+    expect(html).not.toContain("Product Terms / Risk Disclosure Statement");
+    expect(html).not.toContain("prospectus-footer");
+    expect(html).not.toContain('data-stage="footer"');
   });
 
   it("omits audit metadata, Prisma IDs, source paths, and debug JSON", () => {

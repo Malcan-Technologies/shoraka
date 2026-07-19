@@ -86,7 +86,6 @@ export function buildProspectusFinancialComparisonSource(
     sectionHeading: PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
     tableUnitLabel: PROSPECTUS_DATA_NOT_AVAILABLE,
     years,
-    sourceNote: PROSPECTUS_DATA_NOT_AVAILABLE,
     audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
   };
 }

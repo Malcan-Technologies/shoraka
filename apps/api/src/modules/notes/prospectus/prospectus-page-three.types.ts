@@ -1,9 +1,8 @@
 /**
  * SECTION: Prospectus Page 3 assembled view-model
- * WHY: One A4 page composed from Stages 1–6 + shared header/footer
+ * WHY: One A4 page composed from six visible content stages + shared header
  */
 
-import type { ProspectusFooter } from "./prospectus-footer.types";
 import type { ProspectusHeader } from "./prospectus-header.types";
 import type { ProspectusPageThreeBalanceSheet } from "./prospectus-page-three-balance-sheet.types";
 import type { ProspectusPageThreeCoverageEfficiency } from "./prospectus-page-three-coverage-efficiency.types";
@@ -16,12 +15,6 @@ import type { ProspectusFinancialComparisonSource } from "./prospectus-financial
 /** Same A4 dimensions as Page 1 and Page 2. */
 export const PROSPECTUS_PAGE_THREE_WIDTH_MM = 210;
 export const PROSPECTUS_PAGE_THREE_HEIGHT_MM = 297;
-
-/**
- * Canva source line is not approved production copy.
- * Visible slot remains Data not available.
- */
-export const PROSPECTUS_PAGE_THREE_SOURCE_STATEMENT = "Data not available";
 
 /**
  * Six visible Page 3 content stages (Canva / Data-First map).
@@ -51,7 +44,6 @@ export interface ProspectusPageThree {
   coverageEfficiency: ProspectusPageThreeCoverageEfficiency;
   trends: ProspectusPageThreeTrends;
   investorTakeaways: ProspectusPageThreeInvestorTakeaways;
-  footer: ProspectusFooter;
   /** Audit-only render metadata — omitted from Canva HTML. */
   meta: {
     noteId: string;

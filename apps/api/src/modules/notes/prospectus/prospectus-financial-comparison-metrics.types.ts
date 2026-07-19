@@ -168,7 +168,6 @@ export interface ProspectusFinancialComparisonMetrics {
   tableUnitLabel: string;
   years: ProspectusFinancialComparisonSource["years"];
   rows: ProspectusFinancialComparisonMetricRow[];
-  sourceNote: string;
   audit: ProspectusFinancialComparisonMetricsAudit;
 }
 

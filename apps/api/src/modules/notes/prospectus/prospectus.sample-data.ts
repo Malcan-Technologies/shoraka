@@ -30,5 +30,4 @@ export const SAMPLE_PROSPECTUS_PAGE1_DATA: ProspectusPage1Data = {
   trackRecordMetrics: [],
   historicalNotes: [],
   trackRecordDisclaimer: PROSPECTUS_DATA_NOT_AVAILABLE,
-  footerDisclaimer: PROSPECTUS_DATA_NOT_AVAILABLE,
 };

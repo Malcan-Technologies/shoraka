@@ -10,7 +10,6 @@ import { PROSPECTUS_PAGE_THREE_METADATA_LABELS } from "./prospectus-page-three-m
 import type { ProspectusPageThree } from "./prospectus-page-three.types";
 import {
   PROSPECTUS_PAGE_THREE_HEIGHT_MM,
-  PROSPECTUS_PAGE_THREE_SOURCE_STATEMENT,
   PROSPECTUS_PAGE_THREE_WIDTH_MM,
 } from "./prospectus-page-three.types";
 
@@ -178,7 +177,7 @@ ${bodyRows}
 </section>`;
 }
 
-/** Visible Stage 6 — investor takeaways. */
+/** Visible Stage 6 — investor takeaways. Ends Page 3. */
 function renderTakeaways(page: ProspectusPageThree): string {
   const { investorTakeaways } = page;
   const bodyRows = investorTakeaways.items
@@ -204,22 +203,6 @@ ${bodyRows}
     </tbody>
   </table>
 </section>`;
-}
-
-function renderSourceStatement(): string {
-  return `<section data-stage="source" data-content-stage="source-statement">
-  <p>Source: ${escapeHtml(PROSPECTUS_PAGE_THREE_SOURCE_STATEMENT)}</p>
-</section>`;
-}
-
-function renderFooter(page: ProspectusPageThree): string {
-  const { footer } = page;
-  return `<footer class="prospectus-footer" data-stage="footer">
-  <p>Investment Risk Warning: ${escapeHtml(footer.investmentRiskWarning)}</p>
-  <p>Product Terms / Risk Disclosure Statement: ${escapeHtml(
-    footer.productTermsRiskDisclosureStatement
-  )}</p>
-</footer>`;
 }
 
 export function buildProspectusPageThreeHtml(page: ProspectusPageThree): string {
@@ -249,7 +232,6 @@ export function buildProspectusPageThreeHtml(page: ProspectusPageThree): string 
     .brand-name { font-size: 14px; font-weight: 700; margin: 2px 0; }
     .fin-table { width: 100%; border-collapse: collapse; font-size: 9px; }
     .fin-table th, .fin-table td { text-align: left; vertical-align: top; }
-    .prospectus-footer { margin-top: auto; font-size: 8px; }
   </style>
 </head>
 <body>
@@ -273,8 +255,6 @@ ${renderMetricTable({
 })}
 ${renderCoverageEfficiencyWithTrends(page)}
 ${renderTakeaways(page)}
-${renderSourceStatement()}
-${renderFooter(page)}
   </div>
 </body>
 </html>`;

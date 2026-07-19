@@ -18,7 +18,6 @@ import {
 import { SAMPLE_PROSPECTUS_PAGE_THREE } from "./prospectus-page-three.sample-data";
 import {
   PROSPECTUS_PAGE_THREE_HEIGHT_MM,
-  PROSPECTUS_PAGE_THREE_SOURCE_STATEMENT,
   PROSPECTUS_PAGE_THREE_VISIBLE_CONTENT_STAGES,
   PROSPECTUS_PAGE_THREE_WIDTH_MM,
 } from "./prospectus-page-three.types";
@@ -429,7 +428,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         "coverage_efficiency_with_trends",
         "investor_takeaways",
       ]);
-      expect(PROSPECTUS_PAGE_THREE_SOURCE_STATEMENT).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+      expect(SAMPLE_PROSPECTUS_PAGE_THREE).not.toHaveProperty("footer");
     });
 
     it("assembles one A4 Page 3 in reference order with Stage 5 Trend column only", () => {
@@ -449,8 +448,6 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         'data-content-stage="balance-sheet-liquidity"',
         'data-content-stage="coverage-efficiency"',
         'data-content-stage="investor-takeaways"',
-        'data-content-stage="source-statement"',
-        'data-stage="footer"',
       ];
       let cursor = -1;
       for (const marker of stageOrder) {
@@ -458,6 +455,16 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         expect(idx).toBeGreaterThan(cursor);
         cursor = idx;
       }
+      const takeawaysIdx = html.indexOf('data-content-stage="investor-takeaways"');
+      expect(html.lastIndexOf("data-content-stage=")).toBe(takeawaysIdx);
+      expect(html).not.toContain("source-statement");
+      expect(html).not.toContain('data-stage="footer"');
+      expect(html).not.toContain("prospectus-footer");
+      expect(html).not.toContain("Source Note:");
+      expect(html).not.toMatch(/Source: Audited Financial Statements/i);
+      expect(html).not.toMatch(/Source: Data not available/);
+      expect(html).not.toContain("Investment Risk Warning");
+      expect(html).not.toContain("Product Terms / Risk Disclosure Statement");
 
       expect(html).toContain('data-stage="1"');
       expect(html).toContain('data-stage="2"');
@@ -470,7 +477,6 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(html).toContain("Trend (3-Yr)");
       expect(html).not.toContain("FINANCIAL TRENDS");
       expect((html.match(/class="trend-cell"/g) ?? []).length).toBe(10);
-      expect(html).toContain("Source: Data not available");
       expect(html).not.toMatch(/Audited Financial Statements|Management Account/i);
 
       expect(html).toContain("RM 13,900,000.00");

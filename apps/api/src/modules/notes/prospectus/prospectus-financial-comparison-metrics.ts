@@ -134,7 +134,6 @@ export function buildProspectusFinancialComparisonMetrics(
     tableUnitLabel: source.tableUnitLabel,
     years: source.years,
     rows,
-    sourceNote: source.sourceNote,
     audit: PROSPECTUS_FINANCIAL_COMPARISON_METRICS_AUDIT,
   };
 }

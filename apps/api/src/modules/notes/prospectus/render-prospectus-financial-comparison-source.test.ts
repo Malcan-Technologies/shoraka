@@ -162,18 +162,18 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
     );
   });
 
-  it("keeps source note and table unit unresolved without audited/mil claims", () => {
+  it("keeps table unit unresolved without audited/mil claims and has no source note field", () => {
     const data = buildProspectusFinancialComparisonSource(
       SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_INPUT
     );
-    expect(data.sourceNote).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.tableUnitLabel).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_FIELD_SOURCES.sourceNote.availability).toBe(
-      "unresolved"
-    );
     expect(PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_FIELD_SOURCES.tableUnitLabel.availability).toBe(
       "unresolved"
     );
+    expect(data).not.toHaveProperty("sourceNote");
+    expect(
+      "sourceNote" in PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_FIELD_SOURCES
+    ).toBe(false);
   });
 
   it("preserves raw year financial objects for Stage 4B", () => {
@@ -211,8 +211,9 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
     expect(html.indexOf("FY2022")).toBeLessThan(html.indexOf("FY2023"));
     expect(html.indexOf("FY2023")).toBeLessThan(html.indexOf("FY2024"));
     expect(html).toContain("31 Dec 2022");
-    expect(html).toContain("Source Note: Data not available");
     expect(html).toContain("Table Unit Label: Data not available");
+    expect(html).not.toContain("Source Note:");
+    expect(html).not.toContain("Source:");
 
     expect(html).not.toContain("Audited Financial Statements");
     expect(html).not.toContain("Management Account");
@@ -236,6 +237,6 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
     expect(data.audit.snapshot.snapshotDecision).toBe("freeze_at_publication");
     expect(data.audit.financialYearEnd.hardcodedDecemberAllowed).toBe(false);
     expect(data.audit.tableUnits.millionConversionAllowed).toBe(false);
-    expect(data.audit.sourceNote.auditedClaimAllowed).toBe(false);
+    expect(data.audit).not.toHaveProperty("sourceNote");
   });
 });
