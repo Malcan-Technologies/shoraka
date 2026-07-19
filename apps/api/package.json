@@ -51,6 +51,7 @@
     "prospectus:financial-comparison-metrics-preview": "tsx scripts/generate-prospectus-financial-comparison-metrics-preview.ts",
     "prospectus:credit-insights-preview": "tsx scripts/generate-prospectus-credit-insights-preview.ts",
     "prospectus:invoice-work-narrative-preview": "tsx scripts/generate-prospectus-invoice-work-narrative-preview.ts",
+    "prospectus:soukscore-rating-scale-preview": "tsx scripts/generate-prospectus-soukscore-rating-scale-preview.ts",
     "prospectus:stage1-preview": "tsx scripts/generate-prospectus-stage1-preview.ts",
     "seed-expired-offer-for-test": "tsx scripts/seed-expired-offer-for-test.ts",
     "seed-ekyc-identity": "tsx scripts/seed-ekyc-identity.ts",

@@ -238,6 +238,33 @@
  * Admin/legal-approved frozen text; publication freeze required when approved.
  * Legal/compliance approval required before any non-DNA implementation.
  *
+ * =============================================================================
+ * PAGE 2 — STAGE 7 SOUKSCORE RATING SCALE (structural AAA–B; copy DNA)
+ * =============================================================================
+ *
+ * Module: prospectus-soukscore-rating-scale.*
+ * Preview: pnpm prospectus:soukscore-rating-scale-preview
+ * Output: apps/api/tmp/prospectus/prospectus-soukscore-rating-scale-preview.html
+ *
+ * Page 2 scale uses SoukScore (not Canva A–E).
+ * Canonical grades (SOUKSCORE_RISK_RATING_GRADES): AAA, AA, A, BBB, BB, B
+ * Selected grade source: notes.invoice_snapshot.offer_details.risk_rating
+ * Validator reused: isSoukscoreRiskRating
+ * Canva A–E scale rejected; no A–E mapping; no numeric score or threshold ranges
+ * Labels unresolved; definitions unresolved; assessment note unresolved
+ * CTOS / CCRIS / RegTank / AML / KYC not mixed
+ * Selected grade may be structurally highlighted (isSelected / data-selected)
+ *
+ * Future preferred source: versioned approved static configuration
+ * Future prospectus snapshot should record configuration version at publication
+ * Current labels, definitions, and assessment note remain Data not available
+ *
+ * Page 1 relationship (Page 1 not modified here):
+ * - Page 1 links with "See rating scale on page 2"
+ * - Page 2 now has the correct AAA–B structural scale
+ * - Page 1 audit.scaleStatus remains pending_scale_decision until approved copy exists
+ * - Scale decision is not fully resolved while labels/definitions/note are DNA
+ *
  * Corrections still needed when those stages are implemented:
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)
  * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*
