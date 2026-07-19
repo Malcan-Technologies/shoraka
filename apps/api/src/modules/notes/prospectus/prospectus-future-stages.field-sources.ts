@@ -151,6 +151,34 @@
  * Live Application values; freeze later at prospectus publication
  * (notes.prospectus_snapshot.page_2). Stage 4B calculates supported metrics.
  *
+ * =============================================================================
+ * PAGE 2 — STAGE 4B 3-YEAR FINANCIAL COMPARISON METRICS (implemented)
+ * =============================================================================
+ *
+ * Module: prospectus-financial-comparison-metrics.*
+ * Preview: pnpm prospectus:financial-comparison-metrics-preview
+ * Output: apps/api/tmp/prospectus/prospectus-financial-comparison-metrics-preview.html
+ *
+ * Consumes Stage 4A ProspectusFinancialComparisonSource only (no independent year selection).
+ *
+ * Supported rows:
+ * - Revenue → rawFinancials.turnover → formatProspectusMoneyMyr
+ * - Profit After Tax → rawFinancials.plnpat → formatProspectusMoneyMyr
+ * - Net Profit Margin → calculateProfitMargin(plnpat, turnover) → percent from ratio
+ * - ROE → calculateReturnOnEquity(plnpat, bsqpuc) → percent from ratio
+ * - Current Ratio → calculateCurrentRatio(bscatot, curlib) → "{n}x"
+ *
+ * Unsupported (Data not available; no approximation):
+ * - Net Debt / Equity — do NOT substitute calculateGearing
+ * - Interest Coverage
+ * - DSCR
+ * - Receivables Days
+ *
+ * Application source only; CTOS not used; no source mixing.
+ * Full MYR cells; no compact/million conversion.
+ * Table unit label + source note remain Stage 4A DNA.
+ * Publication freeze still pending Page 2 mapper.
+ *
  * Corrections still needed when those stages are implemented:
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)
  * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*
