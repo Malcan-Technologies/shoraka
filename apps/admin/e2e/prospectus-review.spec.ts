@@ -38,23 +38,35 @@ test.describe("Admin Prospectus Review (demo Note)", () => {
     await expect(page.getByText("Financing Amount")).toBeVisible();
     await expect(page.getByText("Risk Rating")).toBeVisible();
 
+    // DRAFT early steps: Save + Preview only (no Submit).
+    await expect(page.getByRole("button", { name: /Save Draft/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Submit for Review/i })).toHaveCount(0);
+
     await page.getByRole("button", { name: /Investor Highlights/i }).click();
     await expect(page.getByText("Paymaster Highlight")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Key Investor Highlights" })).toBeVisible();
     await expect(
-      page.getByText(/The available wording is currently under product review/i)
+      page.getByText(/The available wording is still under review/i)
+    ).toHaveCount(0);
+    await expect(
+      page.getByText(/Do not display.*omit/i)
     ).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: /About Key Investor Highlights/i })
-    ).toBeVisible();
+    ).toHaveCount(0);
 
-    // Decorative progression symbols must not appear in step nav.
-    await expect(page.getByRole("navigation", { name: /Prospectus review steps/i })).not.toContainText("✓");
-    await expect(page.getByRole("navigation", { name: /Prospectus review steps/i })).not.toContainText("○");
+    const stepNav = page.getByRole("navigation", { name: /Prospectus review steps/i });
+    await expect(stepNav).not.toContainText("✓");
+    await expect(stepNav).not.toContainText("○");
+    await expect(stepNav.locator("[data-prospectus-status]").first()).toBeVisible();
 
     await page.getByRole("button", { name: /Preview & Approval/i }).click();
+    await expect(page.getByRole("button", { name: /Submit for Review/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Submit for Review/i })).toBeDisabled();
+
     await page.getByRole("button", { name: /^Investor Highlights/ }).click();
     await expect(page.getByRole("heading", { name: "Key Investor Highlights" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Submit for Review/i })).toHaveCount(0);
 
     const stepBeforePreview = await page.getByRole("heading", { name: "Investor Highlights" }).count();
     expect(stepBeforePreview).toBeGreaterThan(0);

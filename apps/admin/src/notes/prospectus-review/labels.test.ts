@@ -15,11 +15,11 @@ import {
   isProspectusDraftReadyToSubmit,
   statusForCompletionItem,
 } from "./completion";
+import { getProspectusActionVisibility } from "./action-visibility";
 import {
-  PROSPECTUS_INFO_OMIT_ITEM,
-  PROSPECTUS_INFO_WORDING_AND_OMIT,
-  PROSPECTUS_INFO_WORDING_UNDER_REVIEW,
-} from "./section-info";
+  PROSPECTUS_STATUS_BADGE_COMPACT_CLASS,
+  PROSPECTUS_STATUS_BADGE_TONE,
+} from "./status-badge-styles";
 import type { ProspectusReviewStoredContent } from "@cashsouk/types";
 
 describe("prospectus review admin labels", () => {
@@ -123,7 +123,7 @@ describe("prospectus review completion checklist", () => {
     expect(isProspectusDraftReadyToSubmit(draft)).toBe(true);
   });
 
-  it("uses compact Complete / Required / Optional text without icon symbols", () => {
+  it("uses Complete / Required / Optional without progression icon symbols", () => {
     expect(PROSPECTUS_STEP_STATUS_LABEL).toEqual({
       complete: "Complete",
       required: "Required",
@@ -166,17 +166,128 @@ describe("prospectus review completion checklist", () => {
   });
 });
 
-describe("prospectus review section helpers", () => {
-  it("keeps info tooltip wording concise and ops-safe", () => {
-    expect(PROSPECTUS_INFO_WORDING_UNDER_REVIEW).toBe(
-      "The available wording is still under review."
-    );
-    expect(PROSPECTUS_INFO_OMIT_ITEM).toBe(
-      'Choose "Do not display" to omit this item from the prospectus.'
-    );
-    expect(PROSPECTUS_INFO_WORDING_AND_OMIT).toBe(
-      'The available wording is still under review. Choose "Do not display" to omit an item from the prospectus.'
-    );
-    expect(PROSPECTUS_INFO_WORDING_AND_OMIT).not.toMatch(/placeholder catalogue|product\/legal|test wording/i);
+describe("prospectus review compact status badges", () => {
+  it("uses compact badge sizing and existing workflow tones", () => {
+    expect(PROSPECTUS_STATUS_BADGE_COMPACT_CLASS).toContain("h-5");
+    expect(PROSPECTUS_STATUS_BADGE_COMPACT_CLASS).toContain("text-[10px]");
+    expect(PROSPECTUS_STATUS_BADGE_COMPACT_CLASS).toContain("px-1.5");
+    expect(PROSPECTUS_STATUS_BADGE_COMPACT_CLASS).toContain("shrink-0");
+    expect(PROSPECTUS_STATUS_BADGE_TONE.complete).toMatch(/success/);
+    expect(PROSPECTUS_STATUS_BADGE_TONE.required).toMatch(/amber/);
+    expect(PROSPECTUS_STATUS_BADGE_TONE.optional).toMatch(/neutral/);
+  });
+});
+
+describe("prospectus review action visibility", () => {
+  it("shows Save and Preview on DRAFT steps before final, without Submit", () => {
+    for (const step of [0, 1, 2, 3, 4, 5] as const) {
+      const actions = getProspectusActionVisibility({
+        step,
+        status: "DRAFT",
+        canManage: true,
+        notePublished: false,
+      });
+      expect(actions.saveDraft).toBe(true);
+      expect(actions.preview).toBe(true);
+      expect(actions.submitForReview).toBe(false);
+      expect(actions.approve).toBe(false);
+    }
+  });
+
+  it("shows Submit only on Preview & Approval in DRAFT", () => {
+    const actions = getProspectusActionVisibility({
+      step: 6,
+      status: "DRAFT",
+      canManage: true,
+      notePublished: false,
+    });
+    expect(actions.saveDraft).toBe(true);
+    expect(actions.preview).toBe(true);
+    expect(actions.submitForReview).toBe(true);
+    expect(actions.approve).toBe(false);
+  });
+
+  it("hides Approve on READY_FOR_REVIEW until final step", () => {
+    const earlier = getProspectusActionVisibility({
+      step: 3,
+      status: "READY_FOR_REVIEW",
+      canManage: true,
+      notePublished: false,
+    });
+    expect(earlier.preview).toBe(true);
+    expect(earlier.approve).toBe(false);
+    expect(earlier.submitForReview).toBe(false);
+
+    const finalStep = getProspectusActionVisibility({
+      step: 6,
+      status: "READY_FOR_REVIEW",
+      canManage: true,
+      notePublished: false,
+    });
+    expect(finalStep.approve).toBe(true);
+    expect(finalStep.submitForReview).toBe(false);
+  });
+
+  it("keeps Reopen on final step only for approved unpublished Notes", () => {
+    const earlier = getProspectusActionVisibility({
+      step: 2,
+      status: "APPROVED",
+      canManage: true,
+      notePublished: false,
+    });
+    expect(earlier.reopen).toBe(false);
+    expect(earlier.preview).toBe(true);
+
+    const finalStep = getProspectusActionVisibility({
+      step: 6,
+      status: "APPROVED",
+      canManage: true,
+      notePublished: false,
+    });
+    expect(finalStep.reopen).toBe(true);
+
+    const published = getProspectusActionVisibility({
+      step: 6,
+      status: "APPROVED",
+      canManage: true,
+      notePublished: true,
+    });
+    expect(published.reopen).toBe(false);
+    expect(published.preview).toBe(true);
+  });
+
+  it("blocks submit readiness when required checklist items are incomplete", () => {
+    const draft: ProspectusReviewStoredContent = {
+      page1: {
+        keyInvestorHighlights: [
+          { key: "paymaster", optionKey: null, isVisible: true },
+          { key: "issuer_fundamentals", optionKey: null, isVisible: true },
+          { key: "return", optionKey: null, isVisible: true },
+          { key: "shariah", optionKey: null, isVisible: true },
+        ],
+        paymentBasisOptionKey: null,
+        shariahPrincipleOptionKey: null,
+      },
+      page2: {
+        creditInsights: {},
+        invoiceWorkStatements: [
+          { key: "work_under_contract", optionKey: null, isVisible: true },
+          { key: "certification_acceptance", optionKey: null, isVisible: true },
+          { key: "paymaster_trust_account", optionKey: null, isVisible: true },
+          { key: "deed_of_assignment", optionKey: null, isVisible: true },
+        ],
+      },
+      page3: {
+        investorTakeaways: {},
+      },
+    };
+    expect(isProspectusDraftReadyToSubmit(draft)).toBe(false);
+    const actions = getProspectusActionVisibility({
+      step: 6,
+      status: "DRAFT",
+      canManage: true,
+      notePublished: false,
+    });
+    expect(actions.submitForReview).toBe(true);
   });
 });

@@ -55,7 +55,6 @@ import {
   getProspectusStepStatuses,
   isProspectusDraftReadyToSubmit,
   statusForCompletionItem,
-  type ProspectusStepStatus,
 } from "@/notes/prospectus-review/completion";
 import {
   buildCoreTermsRows,
@@ -66,11 +65,9 @@ import {
   readUnauditedYear,
 } from "@/notes/prospectus-review/core-terms";
 import { ProspectusPreviewSheet } from "@/notes/prospectus-review/preview-sheet";
-import {
-  PROSPECTUS_INFO_OMIT_ITEM,
-  PROSPECTUS_INFO_WORDING_AND_OMIT,
-  ProspectusSectionHeading,
-} from "@/notes/prospectus-review/section-heading";
+import { ProspectusSectionHeading } from "@/notes/prospectus-review/section-heading";
+import { ProspectusStatusBadge } from "@/notes/prospectus-review/status-badge";
+import { getProspectusActionVisibility } from "@/notes/prospectus-review/action-visibility";
 
 function OptionSelect(props: {
   label: string;
@@ -113,11 +110,6 @@ function ReadOnlyGrid({ rows }: { rows: Array<{ label: string; value: string }> 
       ))}
     </div>
   );
-}
-
-function statusTextClass(status: ProspectusStepStatus): string {
-  if (status === "required") return "text-xs text-amber-700";
-  return "text-xs text-muted-foreground";
 }
 
 const FINANCIAL_YEARS = ["2022", "2023", "2024"] as const;
@@ -349,6 +341,12 @@ function ProspectusReviewPageInner() {
   };
   const previewStatusLabel =
     status === "APPROVED" ? ("Approved preview" as const) : ("Draft preview" as const);
+  const actions = getProspectusActionVisibility({
+    step,
+    status: status ?? "DRAFT",
+    canManage,
+    notePublished,
+  });
 
   const stepNav = (
     <nav aria-label="Prospectus review steps" className="space-y-4">
@@ -367,7 +365,7 @@ function ProspectusReviewPageInner() {
                   key={item.id}
                   type="button"
                   variant={isCurrent ? "secondary" : "ghost"}
-                  className="h-auto w-full justify-between gap-2 whitespace-normal px-3 py-2 text-left text-sm"
+                  className="h-auto w-full justify-between gap-2 px-3 py-2 text-left text-sm"
                   aria-current={isCurrent ? "step" : undefined}
                   aria-label={
                     rowStatus
@@ -377,17 +375,13 @@ function ProspectusReviewPageInner() {
                   onClick={() => goToStep(item.id)}
                 >
                   <span
-                    className={`min-w-0 break-words ${
+                    className={`min-w-0 flex-1 truncate ${
                       isRequiredIncomplete && !isCurrent ? "font-medium text-foreground" : ""
                     }`}
                   >
                     {item.label}
                   </span>
-                  {rowStatus ? (
-                    <span className={`shrink-0 ${statusTextClass(rowStatus)}`}>
-                      {PROSPECTUS_STEP_STATUS_LABEL[rowStatus]}
-                    </span>
-                  ) : null}
+                  {rowStatus ? <ProspectusStatusBadge status={rowStatus} /> : null}
                 </Button>
               );
             })}
@@ -398,9 +392,12 @@ function ProspectusReviewPageInner() {
   );
 
   const actionBar = (
-    <div className="sticky bottom-0 z-10 -mx-1 border-t bg-background/95 px-1 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <div
+      data-prospectus-action-bar
+      className="sticky bottom-0 z-10 border-t bg-background/95 px-1 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+    >
       <div className="flex flex-wrap items-center gap-2">
-        {canManage && !locked ? (
+        {actions.saveDraft ? (
           <Button
             variant="outline"
             onClick={() => void onSave()}
@@ -409,25 +406,30 @@ function ProspectusReviewPageInner() {
             Save Draft
           </Button>
         ) : null}
-        <Button variant="secondary" onClick={() => void onPreview()} disabled={preview.isFetching}>
-          Preview Prospectus
-        </Button>
-        {canManage && !locked && status === "DRAFT" ? (
-          <Button onClick={() => void onSubmit()} disabled={submit.isPending || dirty || !canSubmitReady}>
+        {actions.preview ? (
+          <Button variant="secondary" onClick={() => void onPreview()} disabled={preview.isFetching}>
+            Preview Prospectus
+          </Button>
+        ) : null}
+        {actions.submitForReview ? (
+          <Button
+            onClick={() => void onSubmit()}
+            disabled={submit.isPending || dirty || !canSubmitReady}
+          >
             Submit for Review
           </Button>
         ) : null}
-        {canManage && !locked && status === "READY_FOR_REVIEW" ? (
+        {actions.approve ? (
           <Button onClick={() => void onApprove()} disabled={approve.isPending || dirty}>
             Approve Prospectus
           </Button>
         ) : null}
-        {canManage && locked && !notePublished ? (
+        {actions.reopen ? (
           <Button variant="outline" onClick={() => void onReopen()} disabled={reopen.isPending}>
             Reopen for Editing
           </Button>
         ) : null}
-        {status === "APPROVED" ? (
+        {actions.backToNote ? (
           <Button variant="ghost" onClick={() => router.push(`/notes/${noteId}`)}>
             Back to Note
           </Button>
@@ -565,10 +567,7 @@ function ProspectusReviewPageInner() {
                   {step === 1 ? (
                     <div className="space-y-6">
                       <section>
-                        <ProspectusSectionHeading
-                          title="Key Investor Highlights"
-                          info={PROSPECTUS_INFO_WORDING_AND_OMIT}
-                        />
+                        <ProspectusSectionHeading title="Key Investor Highlights" />
                         <div className="grid gap-3 md:grid-cols-2">
                           {draft.page1.keyInvestorHighlights.map((h, idx) => (
                             <OptionSelect
@@ -688,10 +687,7 @@ function ProspectusReviewPageInner() {
                   {step === 3 ? (
                     <div className="space-y-6">
                       <section>
-                        <ProspectusSectionHeading
-                          title="Credit Insights"
-                          info={PROSPECTUS_INFO_WORDING_AND_OMIT}
-                        />
+                        <ProspectusSectionHeading title="Credit Insights" />
                         <div className="grid gap-3 md:grid-cols-2">
                           {(
                             [
@@ -725,10 +721,7 @@ function ProspectusReviewPageInner() {
                         </div>
                       </section>
                       <section>
-                        <ProspectusSectionHeading
-                          title="Invoice / Work Information"
-                          info={PROSPECTUS_INFO_OMIT_ITEM}
-                        />
+                        <ProspectusSectionHeading title="Invoice / Work Information" />
                         <div className="grid gap-3 md:grid-cols-2">
                           {draft.page2.invoiceWorkStatements.map((s, idx) => (
                             <OptionSelect
@@ -872,10 +865,7 @@ function ProspectusReviewPageInner() {
 
                   {step === 5 ? (
                     <section>
-                      <ProspectusSectionHeading
-                        title="Investor Takeaways"
-                        info={PROSPECTUS_INFO_OMIT_ITEM}
-                      />
+                      <ProspectusSectionHeading title="Investor Takeaways" />
                       <div className="grid gap-3 md:grid-cols-2">
                         {(
                           [
@@ -946,10 +936,10 @@ function ProspectusReviewPageInner() {
                                 className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                                 onClick={() => goToChecklistItem(item.id)}
                               >
-                                <span className="min-w-0 flex-1 font-medium">{item.label}</span>
-                                <span className={`shrink-0 ${statusTextClass(rowStatus)}`}>
-                                  {PROSPECTUS_STEP_STATUS_LABEL[rowStatus]}
+                                <span className="min-w-0 flex-1 truncate font-medium">
+                                  {item.label}
                                 </span>
+                                <ProspectusStatusBadge status={rowStatus} />
                                 <ChevronRightIcon
                                   className="h-4 w-4 shrink-0 text-muted-foreground"
                                   aria-hidden="true"
@@ -971,10 +961,10 @@ function ProspectusReviewPageInner() {
                     </div>
                   ) : null}
                   </div>
-
-                  {actionBar}
                 </CardContent>
               </Card>
+
+              {actionBar}
             </div>
           </div>
         </div>
