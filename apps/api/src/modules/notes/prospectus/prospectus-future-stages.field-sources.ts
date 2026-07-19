@@ -414,6 +414,43 @@
  *
  * Not in Stage 2: balance sheet, coverage, trends, takeaways, Prisma mapper, full assembly.
  *
+ * =============================================================================
+ * PAGE 3 — STAGE 3: BALANCE SHEET AND LIQUIDITY (implemented)
+ * =============================================================================
+ *
+ * Modules: prospectus-page-three-balance-sheet.*
+ * Preview: pnpm prospectus:page-three-balance-sheet-preview
+ * Output: apps/api/tmp/prospectus/prospectus-page-three-balance-sheet-preview.html
+ *
+ * Shared source: Page 2 Stage 4A years/FYE/rawFinancials only (no independent selection/CTOS).
+ *
+ * Confirmed rows:
+ * - Current Assets → bscatot → formatProspectusMoneyMyr
+ * - Current Liabilities → curlib → formatProspectusMoneyMyr
+ * - Current Ratio → calculateCurrentRatio + Page 2 multiple formatter
+ * - Total Assets → computeTotalAssets (admin Application path):
+ *     bsfatot + othass + bscatot + bsclbank (bsclbank = Non-Current Assets)
+ * - Total Liabilities → computeTotalLiabilities:
+ *     curlib + bsslltd + bsclstd
+ *
+ * Missing-component policy (exact helper behaviour):
+ * - nullish components default to 0 in the sum
+ * - entirely missing inputs yield 0 (finance/product risk for incomplete freezes)
+ * - prospectus does not invent a stricter DNA rule for totals
+ *
+ * Unresolved (always Data not available):
+ * - Cash & Bank (bsclbank must never populate this row)
+ * - Trade Receivables
+ * - Total Equity (bsqpuc is Paid-Up Capital; relabel not allowed)
+ * - Quick Ratio (no approved formula / inventory field)
+ *
+ * Snapshot (Stage 3 does not write):
+ * - Future shared freeze extension under page_2.financial_comparison needs:
+ *   bsfatot, othass, bsclbank, bsslltd, bsclstd
+ * - Old published snapshots: no live fallback; totals follow helper zero-default policy
+ *
+ * Not in Stage 3: coverage/efficiency, trends, takeaways, Prisma mapper, full assembly.
+ *
  * Corrections still needed when those stages are implemented:
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)
  * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*
