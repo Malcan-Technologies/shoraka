@@ -99,6 +99,29 @@
  *
  * Snapshot rule: note_creation_snapshots only; liveFallbackAllowed = false.
  *
+ * =============================================================================
+ * PAGE 2 — STAGE 3 PAYMASTER TRACK RECORD (implemented as DNA-first)
+ * =============================================================================
+ *
+ * Module: prospectus-paymaster-track-record.*
+ * Preview: pnpm prospectus:paymaster-track-record-preview
+ * Output: apps/api/tmp/prospectus/prospectus-paymaster-track-record-preview.html
+ *
+ * No structured paymaster-history source. No approved stable grouping key.
+ * Candidate keys only (not implemented): paymaster_snapshot.ssm_number, .name
+ * Name grouping is not approved.
+ *
+ * All visible metrics currently Data not available:
+ * - Total Invoices Paid
+ * - Total Amount Paid
+ * - Successful Repayment %
+ * - On-time Payment
+ * - Average Payment Period
+ *
+ * Do not reuse Page 1 issuer track-record helpers (issuer_organization_id grouping).
+ * Compact money rejected. Future Total Amount Paid must use formatProspectusMoneyMyr
+ * (e.g. RM 150,000,000.00). Future freeze at prospectus publication once formulas approved.
+ *
  * Corrections still needed when those stages are implemented:
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)
  * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*
