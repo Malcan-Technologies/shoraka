@@ -1,9 +1,13 @@
 /**
- * SECTION: Plain HTML for Historical Note Table preview
- * WHY: Unstyled Stage 8 proof — no design; no Prisma
+ * SECTION: Plain HTML for Historical Note Table Canva-facing preview
+ * WHY: Exact Canva columns only — audit/supporting amount/date columns excluded
  */
 
-import type { ProspectusHistoricalNoteTableRow } from "./prospectus-historical-note-table.types";
+import {
+  PROSPECTUS_HISTORICAL_NOTE_TABLE_HEADERS,
+  type ProspectusHistoricalNoteTable,
+  type ProspectusHistoricalNoteTableRow,
+} from "./prospectus-historical-note-table.types";
 
 function escapeHtml(value: string): string {
   return value
@@ -14,33 +18,31 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-const COLUMNS: Array<{ key: keyof ProspectusHistoricalNoteTableRow; header: string }> = [
-  { key: "noteReference", header: "Note reference" },
-  { key: "financingType", header: "Financing type" },
-  { key: "canvaAmountRm", header: "Amount (RM) [Canva unresolved]" },
-  { key: "financingTarget", header: "Financing target" },
-  { key: "fundedAmount", header: "Funded amount" },
-  { key: "grossProfitRate", header: "Gross profit rate (p.a.)" },
-  { key: "tenure", header: "Tenure" },
-  { key: "listingDate", header: "Listing date" },
-  { key: "activationDate", header: "Activation date" },
-  { key: "maturityDate", header: "Maturity date" },
-  { key: "actualRepaymentDate", header: "Actual repayment date" },
-  { key: "noteStatus", header: "Note status" },
-  { key: "repaymentPerformanceLabel", header: "Repayment-performance label" },
+const CANVA_KEYS: Array<keyof Omit<ProspectusHistoricalNoteTableRow, "audit">> = [
+  "noteId",
+  "financingType",
+  "amountRm",
+  "tenure",
+  "profitRate",
+  "status",
+  "repaymentDate",
 ];
 
 export function buildProspectusHistoricalNoteTableHtml(
-  rows: ProspectusHistoricalNoteTableRow[]
+  table: ProspectusHistoricalNoteTable
 ): string {
-  const header = COLUMNS.map((c) => `<th>${escapeHtml(c.header)}</th>`).join("");
+  const header = PROSPECTUS_HISTORICAL_NOTE_TABLE_HEADERS.map(
+    (label) => `<th>${escapeHtml(label)}</th>`
+  ).join("");
+
+  // Plain empty body — do not invent "No prior notes" / first-issuance claims.
   const body =
-    rows.length === 0
-      ? `<tr><td colspan="${COLUMNS.length}">No historical rows</td></tr>`
-      : rows
+    table.rows.length === 0
+      ? ""
+      : table.rows
           .map((row) => {
-            const cells = COLUMNS.map(
-              (c) => `<td>${escapeHtml(row[c.key])}</td>`
+            const cells = CANVA_KEYS.map(
+              (key) => `<td>${escapeHtml(row[key])}</td>`
             ).join("");
             return `<tr>${cells}</tr>`;
           })
@@ -54,8 +56,7 @@ export function buildProspectusHistoricalNoteTableHtml(
 </head>
 <body>
   <h1>Prospectus Page 1 — DATA STAGE 8: Historical Note Table</h1>
-  <p>Unstyled data preview. Missing values must be exactly: Data not available</p>
-  <p>Grouping: notes.issuer_organization_id. Current Note excluded by notes.id. No NoteStatus eligibility filter. No sort or row limit. Live at generation time (not frozen). Canva Amount (RM) unresolved (target vs funded). Status is raw NoteStatus — not on-time performance.</p>
+  <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
   <table border="1" cellpadding="6" cellspacing="0">
     <thead>
       <tr>${header}</tr>

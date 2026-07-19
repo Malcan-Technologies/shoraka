@@ -1,45 +1,130 @@
 /**
  * SECTION: Prospectus Page 1 — Historical Note Table (DATA STAGE 8)
- * WHY: Factual prior-Note rows; no invented eligibility filter or on-time claims
+ * WHY: Exact Canva columns; Amount unresolved; no eligibility filter / sort / row limit
  */
 
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
 
 export { PROSPECTUS_DATA_NOT_AVAILABLE };
 
-/** Formatted row for plain HTML preview. */
+export const PROSPECTUS_HISTORICAL_NOTE_TABLE_HEADERS = [
+  "Note ID",
+  "Financing Type",
+  "Amount (RM)",
+  "Tenure",
+  "Profit Rate (p.a.)",
+  "Status",
+  "Repayment Date",
+] as const;
+
+export const PROSPECTUS_HISTORICAL_NOTE_ISSUER_GROUPING_KEY =
+  "notes.issuer_organization_id";
+
+export const PROSPECTUS_HISTORICAL_NOTE_CURRENT_NOTE_EXCLUSION_KEY = "notes.id";
+
+export interface ProspectusHistoricalNoteRowAudit {
+  identity: {
+    issuerGroupingKey: typeof PROSPECTUS_HISTORICAL_NOTE_ISSUER_GROUPING_KEY;
+    currentNoteExclusionKey: typeof PROSPECTUS_HISTORICAL_NOTE_CURRENT_NOTE_EXCLUSION_KEY;
+  };
+  amount: {
+    targetSource: "notes.target_amount";
+    fundedSource: "notes.funded_amount";
+    canvaAmountSource: "unresolved";
+    decision: "pending";
+    /** Supporting values — not Canva-facing. */
+    financingTarget: string;
+    fundedAmount: string;
+  };
+  eligibility: {
+    statusFilterDecision: "pending";
+    includedByBuilder: "caller_supplied";
+    currentNoteExclusionRequired: true;
+  };
+  status: {
+    source: "notes.status";
+    displayMappingDecision: "pending";
+  };
+  dates: {
+    repaymentDateSource: "notes.repaid_at";
+  };
+}
+
+export interface ProspectusHistoricalNoteTableAudit {
+  identity: {
+    issuerGroupingKey: typeof PROSPECTUS_HISTORICAL_NOTE_ISSUER_GROUPING_KEY;
+    currentNoteExclusionKey: typeof PROSPECTUS_HISTORICAL_NOTE_CURRENT_NOTE_EXCLUSION_KEY;
+    currentNoteExclusionRequired: true;
+  };
+  eligibility: {
+    statusFilterDecision: "pending";
+  };
+  table: {
+    sortDecision: "pending";
+    rowLimitDecision: "pending";
+    sourceType: "live_historical_notes";
+    isFrozen: false;
+    snapshotDecision: "pending";
+  };
+}
+
+export const PROSPECTUS_HISTORICAL_NOTE_TABLE_AUDIT: ProspectusHistoricalNoteTableAudit = {
+  identity: {
+    issuerGroupingKey: PROSPECTUS_HISTORICAL_NOTE_ISSUER_GROUPING_KEY,
+    currentNoteExclusionKey: PROSPECTUS_HISTORICAL_NOTE_CURRENT_NOTE_EXCLUSION_KEY,
+    currentNoteExclusionRequired: true,
+  },
+  eligibility: {
+    statusFilterDecision: "pending",
+  },
+  table: {
+    sortDecision: "pending",
+    rowLimitDecision: "pending",
+    sourceType: "live_historical_notes",
+    isFrozen: false,
+    snapshotDecision: "pending",
+  },
+};
+
+/** Canva-facing historical row columns only. */
 export interface ProspectusHistoricalNoteTableRow {
-  noteReference: string;
+  noteId: string;
   financingType: string;
-  /** Canva single Amount (RM) — target vs funded unresolved → Data not available */
-  canvaAmountRm: string;
-  financingTarget: string;
-  fundedAmount: string;
-  grossProfitRate: string;
+  amountRm: string;
   tenure: string;
-  listingDate: string;
-  activationDate: string;
-  maturityDate: string;
-  actualRepaymentDate: string;
-  noteStatus: string;
-  repaymentPerformanceLabel: string;
+  profitRate: string;
+  status: string;
+  repaymentDate: string;
+  /** Row audit/supporting data — omitted from Canva HTML. */
+  audit: ProspectusHistoricalNoteRowAudit;
+}
+
+export interface ProspectusHistoricalNoteTable {
+  rows: ProspectusHistoricalNoteTableRow[];
+  audit: ProspectusHistoricalNoteTableAudit;
 }
 
 /** Raw Note fields for one historical row — not Prisma. */
 export interface ProspectusHistoricalNoteRowInput {
-  /** notes.id — used only to exclude the current prospectus Note */
+  /** notes.id — exclusion key for future query; builder does not filter by this. */
   id: string;
-  /** notes.issuer_organization_id — must match current Note issuer */
+  /** notes.issuer_organization_id — grouping key for future query; builder does not filter. */
   issuerOrganizationId: string;
   /** notes.note_reference */
   noteReference: string | null | undefined;
   /** notes.status (raw NoteStatus) */
   noteStatus: string | null | undefined;
-  /** notes.product_snapshot.product_name */
+  /** notes.product_snapshot.product_name — only approved financing-type source */
   productName: string | null | undefined;
-  /** notes.target_amount */
+  /**
+   * Observational aliases / live Product — must not become Financing Type.
+   */
+  productSnapshotName?: string | null;
+  productSnapshotProductLabel?: string | null;
+  liveProductName?: string | null;
+  /** notes.target_amount — audit supporting only */
   targetAmount: number | null | undefined;
-  /** notes.funded_amount */
+  /** notes.funded_amount — audit supporting only */
   fundedAmount: number | null | undefined;
   /** notes.profit_rate_percent — annual gross before service fee */
   profitRatePercent: number | null | undefined;
@@ -47,16 +132,18 @@ export interface ProspectusHistoricalNoteRowInput {
   listingOpensAt: Date | string | null | undefined;
   /** notes.maturity_date */
   maturityDate: Date | string | null | undefined;
-  /** notes.activated_at */
-  activatedAt: Date | string | null | undefined;
+  /** notes.activated_at — observational only */
+  activatedAt?: Date | string | null | undefined;
   /** notes.repaid_at — set when settlement posts REPAID */
   repaidAt: Date | string | null | undefined;
 }
 
+/**
+ * Options document future query boundary only.
+ * Builder does not filter, sort, or truncate by these values.
+ */
 export interface ProspectusHistoricalNoteTableOptions {
-  /** notes.issuer_organization_id of the prospectus Note */
   issuerOrganizationId?: string | null;
-  /** notes.id of the prospectus Note — excluded from history */
   currentNoteId?: string | null;
 }
 
@@ -64,89 +151,71 @@ export interface ProspectusHistoricalNoteTableColumnSource {
   label: string;
   canonicalSource: string;
   availability: "stored" | "calculated" | "unresolved";
+  surface: "canva" | "audit";
   notes: string;
 }
 
 export const PROSPECTUS_HISTORICAL_NOTE_TABLE_COLUMN_SOURCES: Record<
-  keyof ProspectusHistoricalNoteTableRow,
+  | "noteId"
+  | "financingType"
+  | "amountRm"
+  | "tenure"
+  | "profitRate"
+  | "status"
+  | "repaymentDate",
   ProspectusHistoricalNoteTableColumnSource
 > = {
-  noteReference: {
-    label: "Note reference (Canva: Note ID)",
+  noteId: {
+    label: "Note ID",
     canonicalSource: "notes.note_reference",
     availability: "stored",
-    notes: "Do not use notes.id as the display id. note_reference alone cannot exclude current Note.",
+    surface: "canva",
+    notes:
+      "Stored reference as-is. No ARF conversion. formatNoteReferenceDisplay is not used (display-shape helper, not prospectus source).",
   },
   financingType: {
-    label: "Financing type",
+    label: "Financing Type",
     canonicalSource: "notes.product_snapshot.product_name",
     availability: "stored",
-    notes: "Same Stage 1 source. No mapper aliases.",
+    surface: "canva",
+    notes: "Frozen snapshot only. No live Product or alias fallbacks.",
   },
-  canvaAmountRm: {
-    label: "Amount (RM) [Canva]",
-    canonicalSource: "none confirmed — target vs funded ambiguous",
+  amountRm: {
+    label: "Amount (RM)",
+    canonicalSource: "none confirmed",
     availability: "unresolved",
-    notes: "Canva label does not say target or funded. Shown as Data not available; use columns below.",
-  },
-  financingTarget: {
-    label: "Financing target",
-    canonicalSource: "notes.target_amount",
-    availability: "stored",
-    notes: "Raise goal. Not amount raised.",
-  },
-  fundedAmount: {
-    label: "Funded amount",
-    canonicalSource: "notes.funded_amount",
-    availability: "stored",
-    notes: "Committed principal. Not disbursed / net issuer payout.",
-  },
-  grossProfitRate: {
-    label: "Gross profit rate (p.a.)",
-    canonicalSource: "notes.profit_rate_percent",
-    availability: "stored",
-    notes: "Annual GROSS before service fee. Not realised or net return.",
+    surface: "canva",
+    notes:
+      "Target vs funded vs disbursed vs payout unresolved. Supporting target/funded stay in row audit only.",
   },
   tenure: {
     label: "Tenure",
     canonicalSource: "buildProspectusTenureAndMaturity(opens_at, maturity_date)",
     availability: "calculated",
-    notes: "Same Stage 2 contractual span. Not days remaining.",
+    surface: "canva",
+    notes: "Stage 2 reuse. No duplicate day-count in Stage 8.",
   },
-  listingDate: {
-    label: "Listing date",
-    canonicalSource: "note_listings.opens_at",
+  profitRate: {
+    label: "Profit Rate (p.a.)",
+    canonicalSource: "notes.profit_rate_percent",
     availability: "stored",
-    notes: "Same Stage 2 listing date helper. Not published_at.",
+    surface: "canva",
+    notes:
+      "Stage 4A formatProspectusProfitRatePercent. Annual GROSS. Header already has (p.a.) — value is percent only.",
   },
-  activationDate: {
-    label: "Activation date",
-    canonicalSource: "notes.activated_at",
-    availability: "stored",
-    notes: "Activation / servicing start. Not a funded-date synonym unless product says so.",
-  },
-  maturityDate: {
-    label: "Maturity date",
-    canonicalSource: "notes.maturity_date",
-    availability: "stored",
-    notes: "Not repayment date.",
-  },
-  actualRepaymentDate: {
-    label: "Actual repayment date",
-    canonicalSource: "notes.repaid_at",
-    availability: "stored",
-    notes: "Set when settlement posts and status becomes REPAID. Not maturity_date.",
-  },
-  noteStatus: {
-    label: "Note status",
+  status: {
+    label: "Status",
     canonicalSource: "notes.status",
     availability: "stored",
-    notes: "Raw NoteStatus. Not investor Settled label. Not Paid on time.",
+    surface: "canva",
+    notes:
+      "Raw NoteStatus. displayMappingDecision = pending. Do not map REPAID → Fully Repaid.",
   },
-  repaymentPerformanceLabel: {
-    label: "Repayment-performance label",
-    canonicalSource: "none confirmed",
-    availability: "unresolved",
-    notes: "REPAID ≠ on-time. Do not invent Paid on time / excellent wording.",
+  repaymentDate: {
+    label: "Repayment Date",
+    canonicalSource: "notes.repaid_at",
+    availability: "stored",
+    surface: "canva",
+    notes: "formatProspectusDateUtc. Do not derive from maturity or payment received_at.",
   },
 };

@@ -73,6 +73,21 @@
  * - No positive narrative is approved
  * - Stage 8 (historical note table) in prospectus-historical-note-table.* — row formatters; no eligibility filter
  *
+ * Stage 8 Historical note table — correction notes:
+ * - Exact Canva columns: Note ID, Financing Type, Amount (RM), Tenure, Profit Rate (p.a.), Status, Repayment Date
+ * - Issuer grouping: notes.issuer_organization_id
+ * - Current Note exclusion: notes.id != current_note_id (future query; builder preserves caller rows)
+ * - Note ID: notes.note_reference (stored value; no ARF conversion)
+ * - Financing Type: notes.product_snapshot.product_name (no live Product / alias fallback)
+ * - Amount (RM): unresolved; target and funded amounts remain audit-only candidates
+ * - Tenure: Stage 2 buildProspectusTenureAndMaturity reuse
+ * - Profit Rate: Stage 4A formatProspectusProfitRatePercent (annual gross; no duplicate p.a. in cell)
+ * - Status: notes.status raw; display mapping pending (no Fully Repaid inference)
+ * - Repayment Date: notes.repaid_at via formatProspectusDateUtc
+ * - No on-time inference; no investor return column
+ * - Eligibility filter, sort, and row limit pending
+ * - Rows are live_historical_notes; isFrozen false; snapshotDecision pending
+ *
  * Stage 3 risk (prospectus-risk-assessment.*) — correction notes:
  * - Current platform risk scale (SoukScore): AAA | AA | A | BBB | BB | B
  * - Canva design shows A- and an A–E presentation on page 2 — mismatch unresolved
