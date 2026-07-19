@@ -65,7 +65,14 @@ import {
   formatDerivedRatio,
   readUnauditedYear,
 } from "@/notes/prospectus-review/core-terms";
+import {
+  buildInvestmentCtaVerificationRows,
+  buildInvoicePaymasterVerificationRows,
+  buildPageTwoFinancialComparisonRows,
+  buildRiskScaleVerificationRows,
+} from "@/notes/prospectus-review/page-two-coverage";
 import { ProspectusPreviewSheet } from "@/notes/prospectus-review/preview-sheet";
+import type { ProspectusPreviewPageKey } from "@/notes/prospectus-review/preview-page";
 import { ProspectusSectionHeading } from "@/notes/prospectus-review/section-heading";
 import { ProspectusStatusBadge } from "@/notes/prospectus-review/status-badge";
 import { getProspectusActionVisibility } from "@/notes/prospectus-review/action-visibility";
@@ -179,6 +186,8 @@ function ProspectusReviewPageInner() {
   const [draft, setDraft] = React.useState<ProspectusReviewStoredContent | null>(null);
   const [dirty, setDirty] = React.useState(false);
   const [previewOpen, setPreviewOpen] = React.useState(false);
+  const [previewPageHint, setPreviewPageHint] =
+    React.useState<ProspectusPreviewPageKey | null>(null);
   const [financialYear, setFinancialYear] = React.useState<string>("2024");
   const stepPanelRef = React.useRef<HTMLDivElement>(null);
   const preview = useProspectusReviewPreview(noteId, previewOpen);
@@ -260,12 +269,18 @@ function ProspectusReviewPageInner() {
     }
   };
 
-  const onPreview = async () => {
+  const onPreview = async (preferredPage?: ProspectusPreviewPageKey) => {
     if (dirty && canManage && !locked) {
       const saved = await onSave();
       if (!saved) return;
     }
+    setPreviewPageHint(preferredPage ?? null);
     setPreviewOpen(true);
+  };
+
+  const onPreviewOpenChange = (open: boolean) => {
+    setPreviewOpen(open);
+    if (!open) setPreviewPageHint(null);
   };
 
   const onSubmit = async () => {
@@ -344,6 +359,12 @@ function ProspectusReviewPageInner() {
       })
     : [];
   const issuerRows = note ? buildIssuerProfileRows(note) : [];
+  const invoicePaymasterRows = note ? buildInvoicePaymasterVerificationRows(note) : [];
+  const pageTwoFinancialRows = buildPageTwoFinancialComparisonRows(
+    (application as { financial_statements?: unknown } | undefined)?.financial_statements
+  );
+  const riskScaleRows = note ? buildRiskScaleVerificationRows(note) : [];
+  const investmentCtaRows = buildInvestmentCtaVerificationRows();
   const yearRaw = readUnauditedYear(
     (application as { financial_statements?: unknown } | undefined)?.financial_statements,
     financialYear
@@ -426,7 +447,11 @@ function ProspectusReviewPageInner() {
           </Button>
         ) : null}
         {actions.preview ? (
-          <Button variant="secondary" onClick={() => void onPreview()} disabled={preview.isFetching}>
+          <Button
+            variant="secondary"
+            onClick={() => void onPreview()}
+            disabled={preview.isFetching}
+          >
             Preview Prospectus
           </Button>
         ) : null}
@@ -668,6 +693,14 @@ function ProspectusReviewPageInner() {
                         )}
                       </section>
                       <section>
+                        <ProspectusSectionHeading title="Invoice & Paymaster Information" />
+                        {note ? (
+                          <ReadOnlyGrid rows={invoicePaymasterRows} />
+                        ) : (
+                          <Skeleton className="h-32 w-full" />
+                        )}
+                      </section>
+                      <section>
                         <ProspectusSectionHeading title="Paymaster Track Record" />
                         <div className="grid gap-3 md:grid-cols-2">
                           {(
@@ -713,6 +746,55 @@ function ProspectusReviewPageInner() {
                               />
                             </div>
                           ))}
+                        </div>
+                      </section>
+                      <section>
+                        <ProspectusSectionHeading title="3-Year Financial Comparison" />
+                        <ReadOnlyGrid rows={pageTwoFinancialRows} />
+                        <div className="mt-3">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void onPreview("page2")}
+                            disabled={preview.isFetching}
+                          >
+                            Preview Page 2
+                          </Button>
+                        </div>
+                      </section>
+                      <section>
+                        <ProspectusSectionHeading title="Risk Rating Scale" />
+                        {note ? (
+                          <ReadOnlyGrid rows={riskScaleRows} />
+                        ) : (
+                          <Skeleton className="h-24 w-full" />
+                        )}
+                        <div className="mt-3">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void onPreview("page2")}
+                            disabled={preview.isFetching}
+                          >
+                            View in Page 2 Preview
+                          </Button>
+                        </div>
+                      </section>
+                      <section>
+                        <ProspectusSectionHeading title="Investment CTA" />
+                        <ReadOnlyGrid rows={investmentCtaRows} />
+                        <div className="mt-3">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void onPreview("page2")}
+                            disabled={preview.isFetching}
+                          >
+                            View in Page 2 Preview
+                          </Button>
                         </div>
                       </section>
                     </div>
@@ -1006,8 +1088,9 @@ function ProspectusReviewPageInner() {
 
       <ProspectusPreviewSheet
         open={previewOpen}
-        onOpenChange={setPreviewOpen}
+        onOpenChange={onPreviewOpenChange}
         workflowStep={step}
+        preferredPage={previewPageHint}
         statusLabel={previewStatusLabel}
         isLoading={preview.isLoading}
         isFetching={preview.isFetching}

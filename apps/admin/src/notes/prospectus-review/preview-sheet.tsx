@@ -37,6 +37,11 @@ export type ProspectusPreviewSheetProps = {
   onOpenChange: (open: boolean) => void;
   /** Active workflow step — used to pick Page 1/2/3 when the sheet opens. */
   workflowStep: ProspectusWorkflowStepId;
+  /**
+   * Optional explicit page when opening via a “Preview Page N” shortcut.
+   * Takes precedence over workflow-step mapping for that open.
+   */
+  preferredPage?: ProspectusPreviewPageKey | null;
   statusLabel: "Draft preview" | "Approved preview";
   /** True only for the initial load with no cached pages. */
   isLoading: boolean;
@@ -53,8 +58,11 @@ function ProspectusPreviewSheetComponent(props: ProspectusPreviewSheetProps) {
 
   React.useEffect(() => {
     if (!props.open) return;
-    setPage(resolvePreviewPageForStep(props.workflowStep, lastViewedPageRef.current));
-  }, [props.open, props.workflowStep]);
+    const next =
+      props.preferredPage ??
+      resolvePreviewPageForStep(props.workflowStep, lastViewedPageRef.current);
+    setPage(next);
+  }, [props.open, props.workflowStep, props.preferredPage]);
 
   React.useEffect(() => {
     if (!props.open) return;
