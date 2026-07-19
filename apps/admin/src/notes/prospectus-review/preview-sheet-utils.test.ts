@@ -6,6 +6,10 @@ import {
   cleanProspectusPreviewHtml,
   stripPreviewBanner,
 } from "./preview-sheet-utils";
+import {
+  PROSPECTUS_STEP_PREVIEW_PAGE,
+  resolvePreviewPageForStep,
+} from "./preview-page";
 
 describe("prospectus preview sheet utils", () => {
   it("keeps the sheet viewport-bound without an outer scroll container", () => {
@@ -50,5 +54,20 @@ describe("prospectus preview sheet utils", () => {
     expect(showInitialLoading).toBe(false);
     expect(keepShowingCached).toBe(true);
     expect(isFetching).toBe(true);
+  });
+
+  it("maps workflow steps to the matching prospectus preview page", () => {
+    expect(PROSPECTUS_STEP_PREVIEW_PAGE).toEqual({
+      0: "page1",
+      1: "page1",
+      2: "page2",
+      3: "page2",
+      4: "page3",
+      5: "page3",
+    });
+    expect(resolvePreviewPageForStep(2, null)).toBe("page2");
+    expect(resolvePreviewPageForStep(4, null)).toBe("page3");
+    expect(resolvePreviewPageForStep(6, null)).toBe("page1");
+    expect(resolvePreviewPageForStep(6, "page3")).toBe("page3");
   });
 });

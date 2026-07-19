@@ -18,20 +18,25 @@ import {
   cleanProspectusPreviewHtml,
   type ProspectusPreviewPages,
 } from "./preview-sheet-utils";
+import {
+  resolvePreviewPageForStep,
+  type ProspectusPreviewPageKey,
+} from "./preview-page";
+import type { ProspectusWorkflowStepId } from "./labels";
 
-type PreviewPageKey = "page1" | "page2" | "page3";
-
-const PAGE_LABELS: Record<PreviewPageKey, string> = {
+const PAGE_LABELS: Record<ProspectusPreviewPageKey, string> = {
   page1: "Page 1",
   page2: "Page 2",
   page3: "Page 3",
 };
 
-const PAGE_KEYS: PreviewPageKey[] = ["page1", "page2", "page3"];
+const PAGE_KEYS: ProspectusPreviewPageKey[] = ["page1", "page2", "page3"];
 
 export type ProspectusPreviewSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Active workflow step — used to pick Page 1/2/3 when the sheet opens. */
+  workflowStep: ProspectusWorkflowStepId;
   statusLabel: "Draft preview" | "Approved preview";
   /** True only for the initial load with no cached pages. */
   isLoading: boolean;
@@ -42,12 +47,19 @@ export type ProspectusPreviewSheetProps = {
 };
 
 function ProspectusPreviewSheetComponent(props: ProspectusPreviewSheetProps) {
-  const [page, setPage] = React.useState<PreviewPageKey>("page1");
+  const [page, setPage] = React.useState<ProspectusPreviewPageKey>("page1");
+  const lastViewedPageRef = React.useRef<ProspectusPreviewPageKey | null>(null);
   const pageIndex = PAGE_KEYS.indexOf(page);
 
   React.useEffect(() => {
-    if (props.open) setPage("page1");
-  }, [props.open]);
+    if (!props.open) return;
+    setPage(resolvePreviewPageForStep(props.workflowStep, lastViewedPageRef.current));
+  }, [props.open, props.workflowStep]);
+
+  React.useEffect(() => {
+    if (!props.open) return;
+    lastViewedPageRef.current = page;
+  }, [page, props.open]);
 
   const cleanedHtml = React.useMemo(
     () => cleanProspectusPreviewHtml(props.html),

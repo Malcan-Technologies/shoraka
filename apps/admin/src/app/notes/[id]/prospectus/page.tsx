@@ -993,6 +993,7 @@ function ProspectusReviewPageInner() {
       <ProspectusPreviewSheet
         open={previewOpen}
         onOpenChange={setPreviewOpen}
+        workflowStep={step}
         statusLabel={previewStatusLabel}
         isLoading={preview.isLoading}
         isFetching={preview.isFetching}
