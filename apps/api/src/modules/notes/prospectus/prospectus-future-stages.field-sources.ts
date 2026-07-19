@@ -45,6 +45,12 @@
  * - Related fields (how_funds_used, business_plan, etc.) are not fallbacks
  * - Listing Closing Date (note_listings.closes_at) belongs only to Stage 2
  * - Canva "Working Capital" is sample content only — preserve free text as stored
+ *
+ * Stage 4C payment basis & Shariah principle (prospectus-payment-basis-shariah.*) — correction notes:
+ * - Payment Basis: no stored field; create path often has one maturity schedule; schedule shape is not an approved label; inferenceAllowed = false; future enum/config or frozen Note snapshot required
+ * - Shariah Principle: no Product/Note structured field; Tawarruq is operational evidence only and must not be the investor-facing principle; legal/adviser decision required; future Product field + frozen Note snapshot + approval reference
+ * - Stage 5D must reuse Stage 4C unresolved principle (Data not available) and must not invent a Shariah claim
+ * - Canva "Bullet Payment at Maturity" and "Bai' Al-Dayn Bi Al-Sila'" are sample only — never hardcoded as production values
  */
 
 export type ProspectusFutureFieldAvailability =
@@ -191,23 +197,23 @@ export const PROSPECTUS_FUTURE_FIELD_SOURCES: Record<
       "Stage 4B: live via source_application_id; not frozen on Note. No fallbacks. Listing Closing Date is Stage 2 only.",
   },
   paymentBasis: {
-    label: "Payment basis",
+    label: "Payment Basis",
     model: "n/a",
     path: "none",
     origin: "none",
     availability: "unresolved",
     existingApi: "paymentSchedules[] only (amounts/due_date; no label)",
     notes:
-      "Stage 4C: Data not available. No Bullet helper. Do not infer from single schedule row.",
+      "Stage 4C: Data not available. One maturity schedule observed in create path is insufficient. No inference. Future: stored enum/config or frozen Note snapshot.",
   },
   shariahPrinciple: {
-    label: "Shariah principle",
+    label: "Shariah Principle",
     model: "n/a",
     path: "none",
     origin: "none",
     availability: "unresolved",
     existingApi: "none",
     notes:
-      "Stage 4C: Data not available. Not in schema. Marketing / Tawarruq ops ≠ principle wording.",
+      "Stage 4C: Data not available. Tawarruq ops ≠ investor-facing principle. Stage 5D reuses DNA. Future: Product field + Note snapshot + adviser approval reference.",
   },
 };
