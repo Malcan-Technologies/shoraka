@@ -1,7 +1,9 @@
 import { formatCurrency } from "@cashsouk/config";
 import {
   MARKETPLACE_MIN_COMMIT_MYR,
+  calculateCalendarDayCount,
   formatInvestorReturnRatePercent,
+  formatUtcCalendarDateEnMy,
   resolveNetExpectedReturnRatePercent,
   type NoteDetail,
 } from "@cashsouk/types";
@@ -25,25 +27,26 @@ function textOrDna(value: unknown): string {
   return DATA_NOT_AVAILABLE;
 }
 
-function formatDate(value: string | null | undefined): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString("en-MY", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+/** Prospectus-aligned UTC calendar date; DNA when missing. */
+function formatProspectusAlignedDate(value: string | null | undefined): string {
+  return formatUtcCalendarDateEnMy(value) ?? DATA_NOT_AVAILABLE;
 }
 
-function tenureDays(opensAt: string | null | undefined, maturity: string | null | undefined): string {
-  if (!opensAt || !maturity) return "—";
+/**
+ * Tenure = calculateCalendarDayCount(opens_at, maturity_date), same as Page 1 prospectus.
+ * Does not use investor days-left helpers.
+ */
+function formatProspectusAlignedTenure(
+  opensAt: string | null | undefined,
+  maturity: string | null | undefined
+): string {
+  if (!opensAt || !maturity) return DATA_NOT_AVAILABLE;
   const start = new Date(opensAt);
   const end = new Date(maturity);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "—";
-  const days = Math.round((end.getTime() - start.getTime()) / 86_400_000);
-  if (!Number.isFinite(days) || days < 0) return "—";
-  return `${days} days`;
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return DATA_NOT_AVAILABLE;
+  }
+  return `${calculateCalendarDayCount(start, end)} days`;
 }
 
 function formatRatePercent(rate: number | null | undefined): string {
@@ -99,9 +102,10 @@ export function buildNoteInvestmentDetailSections(
       ? product.description.trim()
       : "—";
 
-  const opensAt = note.listing?.opensAt ?? note.publishedAt ?? note.createdAt;
-  const closesAt = note.listing?.closesAt ?? note.listingClosesAt;
-  const tenure = tenureDays(opensAt, note.maturityDate);
+  // Same sources as Page 1 prospectus Stage 2 — no publishedAt/createdAt fallbacks.
+  const opensAt = note.listing?.opensAt ?? null;
+  const closesAt = note.listing?.closesAt ?? note.listingClosesAt ?? null;
+  const tenure = formatProspectusAlignedTenure(opensAt, note.maturityDate);
   const financingAmount = formatCurrency(note.targetAmount);
   const minimumInvestment = formatCurrency(MARKETPLACE_MIN_COMMIT_MYR);
   const profitRate = formatRatePercent(note.profitRatePercent);
@@ -112,6 +116,7 @@ export function buildNoteInvestmentDetailSections(
     })
   );
 
+  const paymasterName = textOrDna(note.paymasterName ?? paymaster?.name);
   const natureOfPaymaster = textOrDna(
     paymaster?.entity_type ?? paymaster?.entityType ?? paymaster?.type
   );
@@ -130,11 +135,14 @@ export function buildNoteInvestmentDetailSections(
       id: "dates-paymaster",
       title: "Dates & Paymaster",
       rows: [
-        { label: "Listing Date", value: formatDate(opensAt) },
-        { label: "Closing Date", value: formatDate(closesAt) },
-        { label: "Maturity Date", value: formatDate(note.maturityDate) },
+        { label: "Listing Date", value: formatProspectusAlignedDate(opensAt) },
+        { label: "Closing Date", value: formatProspectusAlignedDate(closesAt) },
+        {
+          label: "Maturity Date",
+          value: formatProspectusAlignedDate(note.maturityDate),
+        },
         { label: "Tenure", value: tenure },
-        { label: "Paymaster", value: textOrDash(note.paymasterName) },
+        { label: "Paymaster", value: paymasterName },
         { label: "Nature of Paymaster", value: natureOfPaymaster },
       ],
     },

@@ -435,6 +435,7 @@ export * from "./notes";
 export * from "./prospectus-review";
 export * from "./investor-return-breakdown";
 export * from "./marketplace-note-dates";
+export * from "./prospectus-calendar";
 export * from "./offer-signing";
 export * from "./guarantors";
 export * from "./company-name-normalization";

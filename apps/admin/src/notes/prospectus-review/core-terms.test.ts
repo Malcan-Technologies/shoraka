@@ -6,7 +6,10 @@ jest.mock("@cashsouk/config", () => ({
     })}`,
 }));
 
-import type { NoteDetail } from "@cashsouk/types";
+import {
+  calculateCalendarDayCount,
+  type NoteDetail,
+} from "@cashsouk/types";
 import {
   buildNoteInvestmentDetailSections,
   resolveCatalogueOptionLabel,
@@ -191,3 +194,152 @@ describe("note & investment details coverage", () => {
     expect(terms.find((r) => r.label === "Shariah Principle")?.value).toBe("Commodity Murabahah");
   });
 });
+
+describe("Dates & Paymaster prospectus alignment", () => {
+  function datesRows(note: NoteDetail) {
+    return buildNoteInvestmentDetailSections(note).find((s) => s.id === "dates-paymaster")!.rows;
+  }
+
+  function value(rows: Array<{ label: string; value: string }>, label: string) {
+    return rows.find((r) => r.label === label)?.value;
+  }
+
+  it("keeps all six fields in the approved order", () => {
+    expect(datesRows(sampleNote()).map((r) => r.label)).toEqual([
+      "Listing Date",
+      "Closing Date",
+      "Maturity Date",
+      "Tenure",
+      "Paymaster",
+      "Nature of Paymaster",
+    ]);
+  });
+
+  it("uses listing.opensAt only and does not fall back to publishedAt or createdAt", () => {
+    const rows = datesRows(
+      sampleNote({
+        listing: null,
+        listingClosesAt: null,
+        publishedAt: "2026-01-01T00:00:00.000Z",
+        createdAt: "2025-12-01T00:00:00.000Z",
+      })
+    );
+    expect(value(rows, "Listing Date")).toBe("Data not available");
+    expect(value(rows, "Listing Date")).not.toContain("2026");
+    expect(value(rows, "Listing Date")).not.toContain("2025");
+  });
+
+  it("formats Listing, Closing, and Maturity dates with UTC calendar parts", () => {
+    const base = sampleNote();
+    const rows = datesRows(
+      sampleNote({
+        listing: {
+          ...base.listing!,
+          opensAt: "2025-05-15T00:00:00.000Z",
+          closesAt: "2025-05-30T00:00:00.000Z",
+        },
+        maturityDate: "2025-09-12T00:00:00.000Z",
+      })
+    );
+    expect(value(rows, "Listing Date")).toBe("15 May 2025");
+    expect(value(rows, "Closing Date")).toBe("30 May 2025");
+    expect(value(rows, "Maturity Date")).toBe("12 September 2025");
+    expect(value(rows, "Closing Date")).not.toMatch(/\(\d+ days\)/);
+    expect(value(rows, "Maturity Date")).not.toMatch(/\(/);
+  });
+
+  it("does not shift UTC midnight-boundary timestamps to the next local calendar day", () => {
+    const base = sampleNote();
+    const rows = datesRows(
+      sampleNote({
+        listing: {
+          ...base.listing!,
+          opensAt: "2026-01-01T20:00:00.000Z",
+          closesAt: "2026-01-14T20:00:00.000Z",
+        },
+        maturityDate: "2026-04-01T02:00:00.000Z",
+      })
+    );
+    expect(value(rows, "Listing Date")).toBe("1 January 2026");
+    expect(value(rows, "Closing Date")).toBe("14 January 2026");
+    expect(value(rows, "Maturity Date")).toBe("1 April 2026");
+  });
+
+  it("computes Tenure with calculateCalendarDayCount matching Page 1 prospectus", () => {
+    const opensAt = "2025-05-15T00:00:00.000Z";
+    const maturityDate = "2025-09-12T00:00:00.000Z";
+    const expectedDays = calculateCalendarDayCount(
+      new Date(opensAt),
+      new Date(maturityDate)
+    );
+    expect(expectedDays).toBe(120);
+
+    const base = sampleNote();
+    const rows = datesRows(
+      sampleNote({
+        listing: {
+          ...base.listing!,
+          opensAt,
+          closesAt: "2025-05-30T00:00:00.000Z",
+        },
+        maturityDate,
+      })
+    );
+    expect(value(rows, "Tenure")).toBe(`${expectedDays} days`);
+    expect(value(rows, "Tenure")).toBe("120 days");
+  });
+
+  it("matches prospectus tenure across a timezone-boundary pair (not investor days-left)", () => {
+    const opensAt = "2026-01-01T20:00:00.000Z";
+    const maturityDate = "2026-04-01T02:00:00.000Z";
+    const prospectusDays = calculateCalendarDayCount(
+      new Date(opensAt),
+      new Date(maturityDate)
+    );
+    const adminRoundDays = Math.round(
+      (new Date(maturityDate).getTime() - new Date(opensAt).getTime()) / 86_400_000
+    );
+    expect(prospectusDays).toBe(90);
+    expect(adminRoundDays).toBe(89);
+
+    const base = sampleNote();
+    const rows = datesRows(
+      sampleNote({
+        listing: {
+          ...base.listing!,
+          opensAt,
+          closesAt: "2026-01-14T20:00:00.000Z",
+        },
+        maturityDate,
+      })
+    );
+    expect(value(rows, "Tenure")).toBe("90 days");
+    expect(value(rows, "Tenure")).not.toBe(`${adminRoundDays} days`);
+  });
+
+  it("shows Data not available for missing tenure inputs, paymaster, and nature", () => {
+    const base = sampleNote();
+    const rows = datesRows(
+      sampleNote({
+        listing: {
+          ...base.listing!,
+          opensAt: null,
+          closesAt: null,
+        },
+        listingClosesAt: null,
+        maturityDate: null,
+        paymasterName: null,
+        paymasterSnapshot: {},
+      })
+    );
+    expect(value(rows, "Listing Date")).toBe("Data not available");
+    expect(value(rows, "Closing Date")).toBe("Data not available");
+    expect(value(rows, "Maturity Date")).toBe("Data not available");
+    expect(value(rows, "Tenure")).toBe("Data not available");
+    expect(value(rows, "Paymaster")).toBe("Data not available");
+    expect(value(rows, "Nature of Paymaster")).toBe("Data not available");
+    expect(value(rows, "Paymaster")).not.toBe("—");
+    expect(value(rows, "Nature of Paymaster")).not.toBe("—");
+  });
+});
+
