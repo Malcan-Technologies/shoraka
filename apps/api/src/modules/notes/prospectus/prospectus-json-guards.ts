@@ -79,6 +79,37 @@ export function parseInvoiceSnapshotRiskRating(value: unknown): SoukscoreRiskRat
   return isSoukscoreRiskRating(rating) ? rating : null;
 }
 
+const ISO_DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Application financial_statements for Page 2 Stage 4A.
+ * Does not require financial_year_end to be in the future (render-time, not save-time).
+ * Does not parse CTOS.
+ */
+export function parseApplicationFinancialStatements(value: unknown): {
+  financialYearEndIso: string | null;
+  unauditedByYear: Record<string, Record<string, unknown>>;
+} {
+  const root = asJsonRecord(value);
+  const questionnaire = asJsonRecord(root?.questionnaire);
+  const fyeRaw = nonEmptyString(questionnaire?.financial_year_end);
+  const financialYearEndIso =
+    fyeRaw && ISO_DATE_ONLY.test(fyeRaw) ? fyeRaw : null;
+
+  const byYear = asJsonRecord(root?.unaudited_by_year);
+  const unauditedByYear: Record<string, Record<string, unknown>> = {};
+  if (byYear) {
+    for (const [key, yearValue] of Object.entries(byYear)) {
+      const yearRecord = asJsonRecord(yearValue);
+      if (yearRecord) {
+        unauditedByYear[key] = yearRecord;
+      }
+    }
+  }
+
+  return { financialYearEndIso, unauditedByYear };
+}
+
 /**
  * Prospectus invoice face value — notes.invoice_snapshot.details.value only.
  * Does not use invoice_value / invoiceAmount aliases or requested_amount.

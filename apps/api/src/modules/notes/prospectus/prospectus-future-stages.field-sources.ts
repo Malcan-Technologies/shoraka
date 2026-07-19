@@ -122,6 +122,35 @@
  * Compact money rejected. Future Total Amount Paid must use formatProspectusMoneyMyr
  * (e.g. RM 150,000,000.00). Future freeze at prospectus publication once formulas approved.
  *
+ * =============================================================================
+ * PAGE 2 — STAGE 4A 3-YEAR FINANCIAL COMPARISON SOURCE (implemented)
+ * =============================================================================
+ *
+ * Module: prospectus-financial-comparison-source.*
+ * Preview: pnpm prospectus:financial-comparison-source-preview
+ * Output: apps/api/tmp/prospectus/prospectus-financial-comparison-source-preview.html
+ *
+ * Selected source: applications.financial_statements.unaudited_by_year only
+ * CTOS financials_json: not used
+ * Source mixing: forbidden
+ *
+ * Year rule: latest three valid 4-digit year keys
+ * - select: numeric descending
+ * - display: ascending as FY{year}
+ * - supports 0–3 years; never invent/pad years
+ *
+ * Financial year end: questionnaire.financial_year_end (ISO YYYY-MM-DD)
+ * - reusable month/day applied per selected year via fyEndDateForYear
+ * - display: d MMM yyyy (e.g. 31 Dec 2024)
+ * - no hardcoded 31 December when source missing/invalid
+ *
+ * Table unit label: Data not available (no MYR mil. / compact conversion)
+ * Future Stage 4B cells: full MYR via formatProspectusMoneyMyr
+ * Source note: Data not available (no audited/management claim)
+ *
+ * Live Application values; freeze later at prospectus publication
+ * (notes.prospectus_snapshot.page_2). Stage 4B calculates supported metrics.
+ *
  * Corrections still needed when those stages are implemented:
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)
  * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*
