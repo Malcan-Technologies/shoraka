@@ -3,9 +3,9 @@
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeftIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import { Skeleton } from "@cashsouk/ui";
-import type { ProspectusReviewStoredContent } from "@cashsouk/types";
+import type { ProspectusReviewStoredContent, ProspectusReviewStatus } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,10 +18,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useNoteDetail } from "@/notes/hooks/use-note-detail";
+import { useApplicationDetail } from "@/hooks/use-application-detail";
+import { useUserDetail } from "@/hooks/use-users";
 import {
   ProspectusReviewConflictError,
   useApproveProspectusReview,
@@ -31,16 +35,28 @@ import {
   useSaveProspectusReviewDraft,
   useSubmitProspectusReview,
 } from "@/notes/hooks/use-prospectus-review";
-
-const STEPS = [
-  "Page 1 — Core Terms",
-  "Page 1 — Investor Highlights",
-  "Page 2 — Issuer and Paymaster",
-  "Page 2 — Credit and Invoice Narrative",
-  "Page 3 — Financial Review",
-  "Page 3 — Investor Takeaways",
-  "Final Preview and Approval",
-] as const;
+import {
+  HIGHLIGHT_FIELD_LABELS,
+  INVOICE_WORK_FIELD_LABELS,
+  PROSPECTUS_STEP_GROUPS,
+  PROSPECTUS_STEP_TITLES,
+  formatActorDisplayName,
+  formatProspectusReviewStatus,
+  type ProspectusWorkflowStepId,
+} from "@/notes/prospectus-review/labels";
+import {
+  buildProspectusCompletionChecklist,
+  isProspectusDraftReadyToSubmit,
+} from "@/notes/prospectus-review/completion";
+import {
+  buildCoreTermsRows,
+  buildIssuerProfileRows,
+  formatDerivedMoney,
+  formatDerivedPercent,
+  formatDerivedRatio,
+  readUnauditedYear,
+} from "@/notes/prospectus-review/core-terms";
+import { ProspectusPreviewSheet } from "@/notes/prospectus-review/preview-sheet";
 
 function OptionSelect(props: {
   label: string;
@@ -51,13 +67,13 @@ function OptionSelect(props: {
 }) {
   return (
     <div className="space-y-1.5">
-      <Label>{props.label}</Label>
+      <Label className="text-sm">{props.label}</Label>
       <Select
         disabled={props.disabled}
         value={props.value ?? undefined}
         onValueChange={props.onChange}
       >
-        <SelectTrigger>
+        <SelectTrigger className="h-11">
           <SelectValue placeholder="Select option" />
         </SelectTrigger>
         <SelectContent>
@@ -72,6 +88,58 @@ function OptionSelect(props: {
   );
 }
 
+function ReadOnlyGrid({ rows }: { rows: Array<{ label: string; value: string }> }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {rows.map((row) => (
+        <div key={row.label} className="min-w-0 rounded-xl border bg-muted/30 px-4 py-3">
+          <div className="text-xs text-muted-foreground">{row.label}</div>
+          <div className="mt-1 break-words text-sm font-medium text-foreground">{row.value}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const FINANCIAL_YEARS = ["2022", "2023", "2024"] as const;
+
+const MANUAL_FIELD_GROUPS: Array<{
+  title: string;
+  fields: Array<[string, string, string?]>;
+}> = [
+  {
+    title: "Income Statement",
+    fields: [
+      ["grossProfit", "Gross Profit", "RM"],
+      ["ebitda", "EBITDA", "RM"],
+      ["ebit", "EBIT", "RM"],
+    ],
+  },
+  {
+    title: "Balance Sheet & Liquidity",
+    fields: [
+      ["cashAndBank", "Cash & Bank", "RM"],
+      ["tradeReceivables", "Trade Receivables", "RM"],
+      ["totalEquity", "Total Equity", "RM"],
+      ["quickRatio", "Quick Ratio"],
+    ],
+  },
+  {
+    title: "Cash Flow, Coverage & Efficiency",
+    fields: [
+      ["operatingCashFlow", "Operating Cash Flow", "RM"],
+      ["freeCashFlow", "Free Cash Flow", "RM"],
+      ["interestCoverage", "Interest Coverage"],
+      ["dscr", "DSCR"],
+      ["debtEquity", "Debt / Equity"],
+      ["returnOnAssets", "Return on Assets", "%"],
+      ["receivablesDays", "Receivables Days", "days"],
+      ["payablesDays", "Payables Days", "days"],
+      ["assetTurnover", "Asset Turnover"],
+    ],
+  },
+];
+
 function ProspectusReviewPageInner() {
   const params = useParams<{ id: string }>();
   const noteId = params.id;
@@ -80,16 +148,21 @@ function ProspectusReviewPageInner() {
   const canManage = can("notes.manage");
 
   const { data, isLoading, error, refetch } = useProspectusReview(noteId);
+  const { data: note } = useNoteDetail(noteId);
+  const { data: application } = useApplicationDetail(note?.sourceApplicationId ?? "");
+  const { data: updatedByUser } = useUserDetail(data?.review.updatedByUserId ?? null);
+
   const saveDraft = useSaveProspectusReviewDraft(noteId);
   const submit = useSubmitProspectusReview(noteId);
   const approve = useApproveProspectusReview(noteId);
   const reopen = useReopenProspectusReview(noteId);
 
-  const [step, setStep] = React.useState(0);
+  const [step, setStep] = React.useState<ProspectusWorkflowStepId>(0);
   const [draft, setDraft] = React.useState<ProspectusReviewStoredContent | null>(null);
   const [dirty, setDirty] = React.useState(false);
-  const [showPreview, setShowPreview] = React.useState(false);
-  const preview = useProspectusReviewPreview(noteId, showPreview && step === 6);
+  const [previewOpen, setPreviewOpen] = React.useState(false);
+  const [financialYear, setFinancialYear] = React.useState<string>("2024");
+  const preview = useProspectusReviewPreview(noteId, previewOpen);
 
   React.useEffect(() => {
     if (data?.review.draftContent && !dirty) {
@@ -107,9 +180,13 @@ function ProspectusReviewPageInner() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [dirty]);
 
-  const locked = data?.review.status === "APPROVED";
+  const status = data?.review.status as ProspectusReviewStatus | undefined;
+  const locked = status === "APPROVED";
+  const notePublished = note?.status === "PUBLISHED" || note?.publishedAt != null;
 
-  const updateDraft = (updater: (prev: ProspectusReviewStoredContent) => ProspectusReviewStoredContent) => {
+  const updateDraft = (
+    updater: (prev: ProspectusReviewStoredContent) => ProspectusReviewStoredContent
+  ) => {
     setDraft((prev) => {
       if (!prev) return prev;
       setDirty(true);
@@ -117,8 +194,8 @@ function ProspectusReviewPageInner() {
     });
   };
 
-  const onSave = async () => {
-    if (!draft || !data) return;
+  const onSave = async (): Promise<boolean> => {
+    if (!draft || !data) return false;
     try {
       await saveDraft.mutateAsync({
         draftContent: draft,
@@ -126,15 +203,25 @@ function ProspectusReviewPageInner() {
       });
       setDirty(false);
       toast.success("Draft saved");
+      return true;
     } catch (e) {
       if (e instanceof ProspectusReviewConflictError) {
         toast.error("This review was updated elsewhere. Refresh and try again.");
         void refetch();
         setDirty(false);
-        return;
+        return false;
       }
       toast.error(e instanceof Error ? e.message : "Save failed");
+      return false;
     }
+  };
+
+  const onPreview = async () => {
+    if (dirty && canManage && !locked) {
+      const saved = await onSave();
+      if (!saved) return;
+    }
+    setPreviewOpen(true);
   };
 
   const onSubmit = async () => {
@@ -155,13 +242,13 @@ function ProspectusReviewPageInner() {
       toast.error("Save draft before approving");
       return;
     }
-    if (data?.review.status !== "READY_FOR_REVIEW") {
+    if (status !== "READY_FOR_REVIEW") {
       toast.error("Submit for review before approving");
       return;
     }
     try {
       await approve.mutateAsync();
-      toast.success("Prospectus review approved");
+      toast.success("Prospectus approved");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Approve failed");
     }
@@ -179,433 +266,635 @@ function ProspectusReviewPageInner() {
 
   if (isLoading || !data || !draft) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-6 px-4 py-10 md:px-6 md:py-12">
         <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-40 w-full" />
+        <Skeleton className="h-32 w-full rounded-2xl" />
+        <Skeleton className="h-56 w-full rounded-2xl" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="p-6 text-sm text-destructive">
+      <div className="px-4 py-10 text-sm text-destructive md:px-6">
         {error instanceof Error ? error.message : "Failed to load review"}
       </div>
     );
   }
 
   const catalogues = data.catalogues;
+  const actorName = formatActorDisplayName(updatedByUser);
+  const checklist = buildProspectusCompletionChecklist(draft);
+  const canSubmitReady = isProspectusDraftReadyToSubmit(draft);
+  const coreRows = note ? buildCoreTermsRows(note) : [];
+  const issuerRows = note ? buildIssuerProfileRows(note) : [];
+  const yearRaw = readUnauditedYear(
+    (application as { financial_statements?: unknown } | undefined)?.financial_statements,
+    financialYear
+  );
+
+  const yearNumber = (value: unknown): number => {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value.trim() !== "") {
+      const parsed = Number(value.replace(/,/g, ""));
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  };
+  const previewStatusLabel =
+    status === "APPROVED" ? ("Approved preview" as const) : ("Draft preview" as const);
+
+  const stepNav = (
+    <nav aria-label="Prospectus review steps" className="space-y-4">
+      {PROSPECTUS_STEP_GROUPS.map((group) => (
+        <div key={group.group} className="space-y-1">
+          <div className="px-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            {group.group}
+          </div>
+          <div className="space-y-1">
+            {group.steps.map((item) => (
+              <Button
+                key={item.id}
+                type="button"
+                variant={step === item.id ? "secondary" : "ghost"}
+                className="h-auto w-full justify-start whitespace-normal px-3 py-2 text-left text-sm"
+                aria-current={step === item.id ? "step" : undefined}
+                onClick={() => setStep(item.id)}
+              >
+                <span className="min-w-0 break-words">
+                  {item.id + 1}. {item.label}
+                </span>
+              </Button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </nav>
+  );
+
+  const actionBar = (
+    <div className="sticky bottom-0 z-10 -mx-1 border-t bg-background/95 px-1 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="flex flex-wrap items-center gap-2">
+        {canManage && !locked ? (
+          <Button
+            variant="outline"
+            onClick={() => void onSave()}
+            disabled={saveDraft.isPending || !dirty}
+          >
+            Save Draft
+          </Button>
+        ) : null}
+        <Button variant="secondary" onClick={() => void onPreview()} disabled={preview.isFetching}>
+          Preview Prospectus
+        </Button>
+        {canManage && !locked && status === "DRAFT" ? (
+          <Button onClick={() => void onSubmit()} disabled={submit.isPending || dirty || !canSubmitReady}>
+            Submit for Review
+          </Button>
+        ) : null}
+        {canManage && !locked && status === "READY_FOR_REVIEW" ? (
+          <Button onClick={() => void onApprove()} disabled={approve.isPending || dirty}>
+            Approve Prospectus
+          </Button>
+        ) : null}
+        {canManage && locked && !notePublished ? (
+          <Button variant="outline" onClick={() => void onReopen()} disabled={reopen.isPending}>
+            Reopen for Editing
+          </Button>
+        ) : null}
+        {status === "APPROVED" ? (
+          <Button variant="ghost" onClick={() => router.push(`/notes/${noteId}`)}>
+            Back to Note
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between gap-3 border-b px-4 py-3">
-        <div className="flex items-center gap-3">
-          <SidebarTrigger />
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.push(`/notes/${noteId}`)}
-            aria-label="Back to note"
-          >
-            <ArrowLeftIcon className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-lg font-semibold">Prospectus Review</h1>
-            <p className="text-sm text-muted-foreground">
-              {data.note.noteReference} · {data.note.title}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline">{data.review.status}</Badge>
+      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mr-2 h-4" />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => router.push(`/notes/${noteId}`)}
+          className="-ml-1 gap-1.5"
+        >
+          <ArrowLeftIcon className="h-4 w-4" />
+          Note
+        </Button>
+        <Separator orientation="vertical" className="mx-2 h-4" />
+        <h1 className="truncate text-lg font-semibold">Prospectus Review</h1>
+        <div className="ml-auto">
           <SystemHealthIndicator />
         </div>
       </header>
 
-      <div className="grid flex-1 grid-cols-1 gap-4 overflow-hidden p-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <Card className="h-fit">
-          <CardHeader>
-            <CardTitle className="text-base">Steps</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1">
-            {STEPS.map((label, index) => (
-              <Button
-                key={label}
-                variant={step === index ? "secondary" : "ghost"}
-                className="w-full justify-start text-left text-sm"
-                onClick={() => {
-                  setStep(index);
-                  setShowPreview(index === 6);
-                }}
-              >
-                {index + 1}. {label}
-              </Button>
-            ))}
-          </CardContent>
-        </Card>
-
-        <div className="min-h-0 space-y-4 overflow-y-auto">
-          {data.catalogueNotice ? (
-            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-foreground">
-              {data.catalogueNotice}
-            </p>
-          ) : null}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <div>
-                <CardTitle className="text-base">{STEPS[step]}</CardTitle>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Last saved {new Date(data.review.updatedAt).toLocaleString()}
-                  {data.review.updatedByUserId
-                    ? ` · by ${data.review.updatedByUserId.slice(0, 8)}…`
-                    : ""}{" "}
-                  · v{data.review.contentVersion}
-                </p>
+      <div className="flex-1 overflow-y-auto">
+        <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                <DocumentTextIcon className="h-5 w-5 text-primary" />
               </div>
-              <div className="flex flex-wrap gap-2">
-                {canManage && !locked ? (
-                  <Button onClick={onSave} disabled={saveDraft.isPending || !dirty}>
-                    Save Draft
-                  </Button>
-                ) : null}
-                {canManage && locked ? (
-                  <Button variant="outline" onClick={onReopen} disabled={reopen.isPending}>
-                    Reopen for Editing
-                  </Button>
-                ) : null}
-                {canManage && !locked && step === 6 && data.review.status === "DRAFT" ? (
-                  <Button onClick={onSubmit} disabled={submit.isPending || dirty}>
-                    Submit for Review
-                  </Button>
-                ) : null}
-                {canManage &&
-                !locked &&
-                step === 6 &&
-                data.review.status === "READY_FOR_REVIEW" ? (
-                  <Button onClick={onApprove} disabled={approve.isPending || dirty}>
-                    Approve
-                  </Button>
-                ) : null}
-                {data.review.status === "APPROVED" ? (
-                  <Button onClick={() => router.push(`/notes/${noteId}`)}>Back to Note</Button>
-                ) : null}
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {step === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Listing Date, Closing Date, Maturity Date, Paymaster, Financing Amount, Minimum
-                  Investment, Expected Return, Tenure, Purpose, and SoukScore are auto-derived and
-                  read-only in the prospectus. Use the next steps for officer selections.
-                </p>
-              ) : null}
-
-              {step === 1 ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {draft.page1.keyInvestorHighlights.map((h, idx) => (
-                    <OptionSelect
-                      key={h.key}
-                      label={`Highlight: ${h.key}`}
-                      disabled={locked || !canManage}
-                      value={h.optionKey}
-                      options={catalogues.highlights[h.key] ?? []}
-                      onChange={(value) =>
-                        updateDraft((prev) => {
-                          const next = structuredClone(prev);
-                          next.page1.keyInvestorHighlights[idx] = {
-                            ...next.page1.keyInvestorHighlights[idx]!,
-                            optionKey: value,
-                            isVisible: value !== "do_not_display",
-                          };
-                          return next;
-                        })
-                      }
-                    />
-                  ))}
-                  <OptionSelect
-                    label="Payment Basis"
-                    disabled={locked || !canManage}
-                    value={draft.page1.paymentBasisOptionKey}
-                    options={catalogues.paymentBasis}
-                    onChange={(value) =>
-                      updateDraft((prev) => ({
-                        ...prev,
-                        page1: { ...prev.page1, paymentBasisOptionKey: value },
-                      }))
-                    }
-                  />
-                  <OptionSelect
-                    label="Shariah Principle"
-                    disabled={locked || !canManage}
-                    value={draft.page1.shariahPrincipleOptionKey}
-                    options={catalogues.shariahPrinciple}
-                    onChange={(value) =>
-                      updateDraft((prev) => ({
-                        ...prev,
-                        page1: { ...prev.page1, shariahPrincipleOptionKey: value },
-                      }))
-                    }
-                  />
+              <div className="min-w-0">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Prospectus Review
                 </div>
-              ) : null}
+                <h2 className="truncate text-2xl font-bold">
+                  {data.note.noteReference}
+                </h2>
+                <p className="mt-1 truncate text-sm text-muted-foreground">{data.note.title}</p>
+              </div>
+            </div>
+            <Badge variant="outline" className="shrink-0">
+              {formatProspectusReviewStatus(data.review.status)}
+            </Badge>
+          </div>
 
-              {step === 2 ? (
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Issuer name and registration number stay hidden from the investor prospectus.
-                    Industry, entity type, country, and business description remain auto-derived.
-                  </p>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {(
-                      [
-                        ["totalInvoicesPaid", "Total Invoices Paid"],
-                        ["totalAmountPaid", "Total Amount Paid"],
-                        ["successfulRepaymentPercent", "Successful Repayment %"],
-                        ["onTimePaymentPercent", "On-time Payment %"],
-                        ["averagePaymentPeriodDays", "Average Payment Period (days)"],
-                      ] as const
-                    ).map(([key, label]) => (
-                      <div key={key} className="space-y-1.5">
-                        <Label>{label}</Label>
-                        <Input
+          <Card className="rounded-2xl">
+            <CardContent className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="min-w-0">
+                <div className="text-xs text-muted-foreground">Note Reference</div>
+                <div className="mt-1 truncate text-sm font-semibold">{data.note.noteReference}</div>
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs text-muted-foreground">Review Status</div>
+                <div className="mt-1 text-sm font-semibold">
+                  {formatProspectusReviewStatus(data.review.status)}
+                </div>
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs text-muted-foreground">Last Saved</div>
+                <div className="mt-1 text-sm font-semibold">
+                  {new Date(data.review.updatedAt).toLocaleString()}
+                </div>
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs text-muted-foreground">Last Updated By</div>
+                <div className="mt-1 truncate text-sm font-semibold" title={actorName}>
+                  {actorName}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)]">
+            <Card className="hidden h-fit rounded-2xl lg:block">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Steps</CardTitle>
+              </CardHeader>
+              <CardContent className="min-w-0">{stepNav}</CardContent>
+            </Card>
+
+            <div className="min-w-0 space-y-4">
+              <div className="lg:hidden">
+                <Label className="text-sm">Step</Label>
+                <Select
+                  value={String(step)}
+                  onValueChange={(value) => setStep(Number(value) as ProspectusWorkflowStepId)}
+                >
+                  <SelectTrigger className="mt-1.5 h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROSPECTUS_STEP_GROUPS.flatMap((group) =>
+                      group.steps.map((item) => (
+                        <SelectItem key={item.id} value={String(item.id)}>
+                          {group.group}: {item.label}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Card className="rounded-2xl">
+                <CardHeader>
+                  <CardTitle className="text-base">{PROSPECTUS_STEP_TITLES[step]}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {step === 0 ? (
+                    <div className="space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        These details are taken from the approved Note information.
+                      </p>
+                      {note ? (
+                        <ReadOnlyGrid rows={coreRows} />
+                      ) : (
+                        <Skeleton className="h-40 w-full" />
+                      )}
+                    </div>
+                  ) : null}
+
+                  {step === 1 ? (
+                    <div className="space-y-4">
+                      <p className="text-sm text-muted-foreground">
+                        The available wording is currently under product review.
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Select “Do not display” when the item should be omitted from the prospectus.
+                      </p>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {draft.page1.keyInvestorHighlights.map((h, idx) => (
+                          <OptionSelect
+                            key={h.key}
+                            label={HIGHLIGHT_FIELD_LABELS[h.key] ?? "Investor Highlight"}
+                            disabled={locked || !canManage}
+                            value={h.optionKey}
+                            options={catalogues.highlights[h.key] ?? []}
+                            onChange={(value) =>
+                              updateDraft((prev) => {
+                                const next = structuredClone(prev);
+                                next.page1.keyInvestorHighlights[idx] = {
+                                  ...next.page1.keyInvestorHighlights[idx]!,
+                                  optionKey: value,
+                                  isVisible: value !== "do_not_display",
+                                };
+                                return next;
+                              })
+                            }
+                          />
+                        ))}
+                        <OptionSelect
+                          label="Payment Basis"
                           disabled={locked || !canManage}
-                          value={String(draft.page2.paymasterTrackRecord?.[key] ?? "")}
-                          onChange={(e) =>
+                          value={draft.page1.paymentBasisOptionKey}
+                          options={catalogues.paymentBasis}
+                          onChange={(value) =>
                             updateDraft((prev) => ({
                               ...prev,
-                              page2: {
-                                ...prev.page2,
-                                paymasterTrackRecord: {
-                                  ...prev.page2.paymasterTrackRecord,
-                                  [key]:
-                                    key === "totalInvoicesPaid"
-                                      ? e.target.value === ""
-                                        ? null
-                                        : Number(e.target.value)
-                                      : e.target.value === ""
-                                        ? null
-                                        : e.target.value,
-                                },
-                              },
+                              page1: { ...prev.page1, paymentBasisOptionKey: value },
+                            }))
+                          }
+                        />
+                        <OptionSelect
+                          label="Shariah Principle"
+                          disabled={locked || !canManage}
+                          value={draft.page1.shariahPrincipleOptionKey}
+                          options={catalogues.shariahPrinciple}
+                          onChange={(value) =>
+                            updateDraft((prev) => ({
+                              ...prev,
+                              page1: { ...prev.page1, shariahPrincipleOptionKey: value },
                             }))
                           }
                         />
                       </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
+                    </div>
+                  ) : null}
 
-              {step === 3 ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {(
-                    [
-                      ["creditScoreOptionKey", "Credit Score"],
-                      ["paymentBehaviourOptionKey", "Payment Behaviour"],
-                      ["creditUtilisationOptionKey", "Credit Utilisation"],
-                      ["litigationCheckOptionKey", "Litigation Check"],
-                      ["ccrisStatusOptionKey", "CCRIS Status"],
-                    ] as const
-                  ).map(([field, label]) => (
-                    <OptionSelect
-                      key={field}
-                      label={label}
-                      disabled={locked || !canManage}
-                      value={draft.page2.creditInsights[field]}
-                      options={catalogues.creditInsights}
-                      onChange={(value) =>
-                        updateDraft((prev) => ({
-                          ...prev,
-                          page2: {
-                            ...prev.page2,
-                            creditInsights: {
-                              ...prev.page2.creditInsights,
-                              [field]: value,
-                            },
-                          },
-                        }))
-                      }
-                    />
-                  ))}
-                  {draft.page2.invoiceWorkStatements.map((s, idx) => (
-                    <OptionSelect
-                      key={s.key}
-                      label={`Invoice/Work: ${s.key}`}
-                      disabled={locked || !canManage}
-                      value={s.optionKey}
-                      options={catalogues.invoiceWork[s.key] ?? []}
-                      onChange={(value) =>
-                        updateDraft((prev) => {
-                          const next = structuredClone(prev);
-                          next.page2.invoiceWorkStatements[idx] = {
-                            ...next.page2.invoiceWorkStatements[idx]!,
-                            optionKey: value,
-                            isVisible: value !== "do_not_display",
-                          };
-                          return next;
-                        })
-                      }
-                    />
-                  ))}
-                </div>
-              ) : null}
+                  {step === 2 ? (
+                    <div className="space-y-6">
+                      <div className="space-y-3">
+                        <h3 className="text-sm font-semibold">Issuer Information</h3>
+                        {note ? <ReadOnlyGrid rows={issuerRows} /> : <Skeleton className="h-32 w-full" />}
+                      </div>
+                      <div className="space-y-3">
+                        <h3 className="text-sm font-semibold">Paymaster Track Record</h3>
+                        <div className="grid gap-4 md:grid-cols-2">
+                          {(
+                            [
+                              ["totalInvoicesPaid", "Total Invoices Paid", ""],
+                              ["totalAmountPaid", "Total Amount Paid", "RM"],
+                              ["successfulRepaymentPercent", "Successful Repayment", "%"],
+                              ["onTimePaymentPercent", "On-Time Payment", "%"],
+                              ["averagePaymentPeriodDays", "Average Payment Period", "days"],
+                            ] as const
+                          ).map(([key, label, unit]) => (
+                            <div key={key} className="space-y-1.5">
+                              <Label className="text-sm">
+                                {label}
+                                {unit ? ` (${unit})` : ""}
+                              </Label>
+                              <Input
+                                className="h-11"
+                                type="number"
+                                disabled={locked || !canManage}
+                                value={
+                                  draft.page2.paymasterTrackRecord?.[key] == null
+                                    ? ""
+                                    : String(draft.page2.paymasterTrackRecord[key])
+                                }
+                                onChange={(e) =>
+                                  updateDraft((prev) => ({
+                                    ...prev,
+                                    page2: {
+                                      ...prev.page2,
+                                      paymasterTrackRecord: {
+                                        ...prev.page2.paymasterTrackRecord,
+                                        [key]:
+                                          e.target.value === ""
+                                            ? null
+                                            : key === "totalInvoicesPaid"
+                                              ? Number(e.target.value)
+                                              : e.target.value,
+                                      },
+                                    },
+                                  }))
+                                }
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
 
-              {step === 4 ? (
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Confirmed derived fields (Revenue, PAT, ratios, etc.) stay read-only. Enter
-                    unsupported fields only, by year (YYYY). Zero is valid.
-                  </p>
-                  {["2022", "2023", "2024"].map((year) => (
-                    <Card key={year}>
-                      <CardHeader>
-                        <CardTitle className="text-sm">FY{year} manual fills</CardTitle>
-                      </CardHeader>
-                      <CardContent className="grid gap-3 md:grid-cols-3">
+                  {step === 3 ? (
+                    <div className="space-y-6">
+                      <div className="grid gap-4 md:grid-cols-2">
                         {(
                           [
-                            ["grossProfit", "Gross Profit"],
-                            ["ebitda", "EBITDA"],
-                            ["ebit", "EBIT"],
-                            ["cashAndBank", "Cash & Bank"],
-                            ["tradeReceivables", "Trade Receivables"],
-                            ["totalEquity", "Total Equity"],
-                            ["quickRatio", "Quick Ratio"],
-                            ["operatingCashFlow", "Operating Cash Flow"],
-                            ["freeCashFlow", "Free Cash Flow"],
-                            ["interestCoverage", "Interest Coverage"],
-                            ["dscr", "DSCR"],
-                            ["debtEquity", "Debt / Equity"],
-                            ["returnOnAssets", "Return on Assets"],
-                            ["receivablesDays", "Receivables Days"],
-                            ["payablesDays", "Payables Days"],
-                            ["assetTurnover", "Asset Turnover"],
+                            ["creditScoreOptionKey", "Credit Score"],
+                            ["paymentBehaviourOptionKey", "Payment Behaviour"],
+                            ["creditUtilisationOptionKey", "Credit Utilisation"],
+                            ["litigationCheckOptionKey", "Litigation Check"],
+                            ["ccrisStatusOptionKey", "CCRIS Status"],
                           ] as const
                         ).map(([field, label]) => (
-                          <div key={field} className="space-y-1.5">
-                            <Label>{label}</Label>
-                            <Input
+                          <OptionSelect
+                            key={field}
+                            label={label}
+                            disabled={locked || !canManage}
+                            value={draft.page2.creditInsights[field]}
+                            options={catalogues.creditInsights}
+                            onChange={(value) =>
+                              updateDraft((prev) => ({
+                                ...prev,
+                                page2: {
+                                  ...prev.page2,
+                                  creditInsights: {
+                                    ...prev.page2.creditInsights,
+                                    [field]: value,
+                                  },
+                                },
+                              }))
+                            }
+                          />
+                        ))}
+                      </div>
+                      <div className="space-y-3">
+                        <h3 className="text-sm font-semibold">Invoice / Work Information</h3>
+                        <div className="grid gap-4 md:grid-cols-2">
+                          {draft.page2.invoiceWorkStatements.map((s, idx) => (
+                            <OptionSelect
+                              key={s.key}
+                              label={INVOICE_WORK_FIELD_LABELS[s.key] ?? "Invoice statement"}
                               disabled={locked || !canManage}
-                              value={String(
-                                draft.page3.manualFinancialInputs?.years?.[year]?.[field] ?? ""
-                              )}
-                              onChange={(e) =>
+                              value={s.optionKey}
+                              options={catalogues.invoiceWork[s.key] ?? []}
+                              onChange={(value) =>
                                 updateDraft((prev) => {
-                                  const years = {
-                                    ...(prev.page3.manualFinancialInputs?.years ?? {}),
+                                  const next = structuredClone(prev);
+                                  next.page2.invoiceWorkStatements[idx] = {
+                                    ...next.page2.invoiceWorkStatements[idx]!,
+                                    optionKey: value,
+                                    isVisible: value !== "do_not_display",
                                   };
-                                  const row = { ...(years[year] ?? {}) };
-                                  row[field] = e.target.value === "" ? null : e.target.value;
-                                  years[year] = row;
-                                  return {
-                                    ...prev,
-                                    page3: {
-                                      ...prev.page3,
-                                      manualFinancialInputs: { years },
-                                    },
-                                  };
+                                  return next;
                                 })
                               }
                             />
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : null}
-
-              {step === 5 ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {(
-                    [
-                      ["revenue_profitability", "revenueProfitabilityOptionKey", "Revenue and Profitability"],
-                      ["liquidity", "liquidityOptionKey", "Liquidity"],
-                      ["leverage", "leverageOptionKey", "Leverage"],
-                      ["debt_servicing_capacity", "debtServicingCapacityOptionKey", "Debt-Servicing Capacity"],
-                      ["working_capital_efficiency", "workingCapitalEfficiencyOptionKey", "Working-Capital Efficiency"],
-                      ["overall_financial_profile", "overallFinancialProfileOptionKey", "Overall Financial Profile"],
-                    ] as const
-                  ).map(([catalogueKey, field, label]) => (
-                    <OptionSelect
-                      key={field}
-                      label={label}
-                      disabled={locked || !canManage}
-                      value={draft.page3.investorTakeaways[field]}
-                      options={catalogues.takeaways[catalogueKey] ?? []}
-                      onChange={(value) =>
-                        updateDraft((prev) => ({
-                          ...prev,
-                          page3: {
-                            ...prev.page3,
-                            investorTakeaways: {
-                              ...prev.page3.investorTakeaways,
-                              [field]: value,
-                            },
-                          },
-                        }))
-                      }
-                    />
-                  ))}
-                </div>
-              ) : null}
-
-              {step === 6 ? (
-                <div className="space-y-3">
-                  <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
-                    {preview.data?.draftMarker ??
-                      (data.review.status === "APPROVED"
-                        ? "Approved Prospectus Preview — not yet published"
-                        : "Draft Prospectus — not yet approved")}
-                    {preview.data?.previewSource
-                      ? ` (source: ${preview.data.previewSource})`
-                      : ""}
-                    . Preview uses the same Page 1–3 builders as publication.
-                  </p>
-                  {data.review.status === "DRAFT" ? (
-                    <p className="text-sm text-muted-foreground">
-                      Save all selections, then Submit for Review before Approve.
-                    </p>
-                  ) : null}
-                  {data.review.status === "READY_FOR_REVIEW" ? (
-                    <p className="text-sm text-muted-foreground">
-                      Ready for review. Approve when content is complete, or save draft edits to
-                      return to Draft.
-                    </p>
-                  ) : null}
-                  {data.publishBlockedReason ? (
-                    <p className="text-sm text-muted-foreground">{data.publishBlockedReason}</p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Approved and ready for marketplace publish from the Note detail page.
-                    </p>
-                  )}
-                  {preview.isLoading ? <Skeleton className="h-40 w-full" /> : null}
-                  {preview.error ? (
-                    <p className="text-sm text-destructive">
-                      {preview.error instanceof Error
-                        ? preview.error.message
-                        : "Preview failed to load"}
-                    </p>
-                  ) : null}
-                  {preview.data ? (
-                    <div className="space-y-4">
-                      {(["page1", "page2", "page3"] as const).map((key) => (
-                        <iframe
-                          key={key}
-                          title={`Prospectus ${key}`}
-                          className="h-[480px] w-full rounded-md border bg-white"
-                          srcDoc={preview.data.html[key]}
-                        />
-                      ))}
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   ) : null}
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
+
+                  {step === 4 ? (
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap gap-2">
+                        {FINANCIAL_YEARS.map((year) => (
+                          <Button
+                            key={year}
+                            size="sm"
+                            type="button"
+                            variant={financialYear === year ? "secondary" : "outline"}
+                            onClick={() => setFinancialYear(year)}
+                          >
+                            FY{year}
+                          </Button>
+                        ))}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="text-xs font-medium text-muted-foreground">
+                          From financial records
+                        </div>
+                        <ReadOnlyGrid
+                          rows={[
+                            {
+                              label: "Revenue",
+                              value: formatDerivedMoney(yearRaw.turnover),
+                            },
+                            {
+                              label: "Profit Before Tax",
+                              value: formatDerivedMoney(yearRaw.plnpbt),
+                            },
+                            {
+                              label: "Profit After Tax",
+                              value: formatDerivedMoney(yearRaw.plnpat),
+                            },
+                            {
+                              label: "Net Profit Margin",
+                              value: formatDerivedPercent(yearRaw.plnpat, yearRaw.turnover),
+                            },
+                            {
+                              label: "Current Assets",
+                              value: formatDerivedMoney(yearRaw.bscatot),
+                            },
+                            {
+                              label: "Total Assets",
+                              value: formatDerivedMoney(
+                                yearNumber(yearRaw.bscatot) +
+                                  yearNumber(yearRaw.bsfatot) +
+                                  yearNumber(yearRaw.othass)
+                              ),
+                            },
+                            {
+                              label: "Current Liabilities",
+                              value: formatDerivedMoney(yearRaw.curlib),
+                            },
+                            {
+                              label: "Current Ratio",
+                              value: formatDerivedRatio(yearRaw.bscatot, yearRaw.curlib),
+                            },
+                            {
+                              label: "Return on Equity",
+                              value: formatDerivedPercent(yearRaw.plnpat, yearRaw.bsqpuc),
+                            },
+                          ]}
+                        />
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="text-xs font-medium text-muted-foreground">
+                          Officer input required
+                        </div>
+                        {MANUAL_FIELD_GROUPS.map((group) => (
+                          <div key={group.title} className="space-y-3">
+                            <h3 className="text-sm font-semibold">{group.title}</h3>
+                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                              {group.fields.map(([field, label, unit]) => (
+                                <div key={field} className="space-y-1.5">
+                                  <Label className="text-sm">
+                                    {label}
+                                    {unit ? ` (${unit})` : ""}
+                                  </Label>
+                                  <Input
+                                    className="h-11"
+                                    type="number"
+                                    disabled={locked || !canManage}
+                                    value={
+                                      draft.page3.manualFinancialInputs?.years?.[financialYear]?.[
+                                        field
+                                      ] == null
+                                        ? ""
+                                        : String(
+                                            draft.page3.manualFinancialInputs.years[financialYear]?.[
+                                              field
+                                            ]
+                                          )
+                                    }
+                                    onChange={(e) =>
+                                      updateDraft((prev) => {
+                                        const years = {
+                                          ...(prev.page3.manualFinancialInputs?.years ?? {}),
+                                        };
+                                        const row = { ...(years[financialYear] ?? {}) };
+                                        row[field] = e.target.value === "" ? null : e.target.value;
+                                        years[financialYear] = row;
+                                        return {
+                                          ...prev,
+                                          page3: {
+                                            ...prev.page3,
+                                            manualFinancialInputs: { years },
+                                          },
+                                        };
+                                      })
+                                    }
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {step === 5 ? (
+                    <div className="space-y-4">
+                      <p className="text-sm text-muted-foreground">
+                        Select “Do not display” when the item should be omitted from the prospectus.
+                      </p>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {(
+                          [
+                            [
+                              "revenue_profitability",
+                              "revenueProfitabilityOptionKey",
+                              "Revenue and Profitability",
+                            ],
+                            ["liquidity", "liquidityOptionKey", "Liquidity"],
+                            ["leverage", "leverageOptionKey", "Leverage"],
+                            [
+                              "debt_servicing_capacity",
+                              "debtServicingCapacityOptionKey",
+                              "Debt-Servicing Capacity",
+                            ],
+                            [
+                              "working_capital_efficiency",
+                              "workingCapitalEfficiencyOptionKey",
+                              "Working-Capital Efficiency",
+                            ],
+                            [
+                              "overall_financial_profile",
+                              "overallFinancialProfileOptionKey",
+                              "Overall Financial Profile",
+                            ],
+                          ] as const
+                        ).map(([catalogueKey, field, label]) => (
+                          <OptionSelect
+                            key={field}
+                            label={label}
+                            disabled={locked || !canManage}
+                            value={draft.page3.investorTakeaways[field]}
+                            options={catalogues.takeaways[catalogueKey] ?? []}
+                            onChange={(value) =>
+                              updateDraft((prev) => ({
+                                ...prev,
+                                page3: {
+                                  ...prev.page3,
+                                  investorTakeaways: {
+                                    ...prev.page3.investorTakeaways,
+                                    [field]: value,
+                                  },
+                                },
+                              }))
+                            }
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {step === 6 ? (
+                    <div className="space-y-4">
+                      <p className="text-sm text-muted-foreground">
+                        Review the checklist below, then open the prospectus preview before submit
+                        or approval.
+                      </p>
+                      <ul className="space-y-2">
+                        {checklist.map((item) => (
+                          <li
+                            key={item.id}
+                            className="flex items-center justify-between rounded-xl border px-4 py-3 text-sm"
+                          >
+                            <span>{item.label}</span>
+                            <Badge variant={item.complete ? "secondary" : "outline"}>
+                              {item.complete
+                                ? "Complete"
+                                : item.required
+                                  ? "Required"
+                                  : "Optional"}
+                            </Badge>
+                          </li>
+                        ))}
+                      </ul>
+                      {data.publishBlockedReason ? (
+                        <p className="text-sm text-muted-foreground">
+                          Publishing stays blocked until this prospectus is approved.
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          Approved and ready to publish from the Note detail page.
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {actionBar}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </div>
       </div>
+
+      <ProspectusPreviewSheet
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        statusLabel={previewStatusLabel}
+        isLoading={preview.isLoading || preview.isFetching}
+        errorMessage={
+          preview.error instanceof Error ? preview.error.message : preview.error ? "Preview failed" : null
+        }
+        html={preview.data?.html ?? null}
+      />
     </div>
   );
 }

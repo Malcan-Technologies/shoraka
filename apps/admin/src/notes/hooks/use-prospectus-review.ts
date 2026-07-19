@@ -110,6 +110,7 @@ export function useProspectusReviewPreview(noteId: string, enabled: boolean) {
   return useQuery({
     queryKey: [...prospectusReviewKey(noteId), "preview"] as const,
     enabled: Boolean(noteId && enabled),
+    refetchOnMount: "always",
     queryFn: async () => {
       const res = await apiClient.getAdminProspectusReviewPreview(noteId);
       if (!res.success) throw new Error(res.error.message);
