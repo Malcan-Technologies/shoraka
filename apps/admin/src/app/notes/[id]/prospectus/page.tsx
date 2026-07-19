@@ -3,7 +3,11 @@
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeftIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowLeftIcon,
+  ChevronRightIcon,
+  DocumentTextIcon,
+} from "@heroicons/react/24/outline";
 import { Skeleton } from "@cashsouk/ui";
 import type { ProspectusReviewStoredContent, ProspectusReviewStatus } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
@@ -45,12 +49,13 @@ import {
   type ProspectusWorkflowStepId,
 } from "@/notes/prospectus-review/labels";
 import {
-  PROSPECTUS_STEP_MARKER_LABEL,
-  PROSPECTUS_STEP_MARKER_SYMBOL,
+  CHECKLIST_ITEM_STEP,
+  PROSPECTUS_STEP_STATUS_LABEL,
   buildProspectusCompletionChecklist,
-  getProspectusStepMarkers,
+  getProspectusStepStatuses,
   isProspectusDraftReadyToSubmit,
-  type ProspectusStepMarker,
+  statusForCompletionItem,
+  type ProspectusStepStatus,
 } from "@/notes/prospectus-review/completion";
 import {
   buildCoreTermsRows,
@@ -61,6 +66,11 @@ import {
   readUnauditedYear,
 } from "@/notes/prospectus-review/core-terms";
 import { ProspectusPreviewSheet } from "@/notes/prospectus-review/preview-sheet";
+import {
+  PROSPECTUS_INFO_OMIT_ITEM,
+  PROSPECTUS_INFO_WORDING_AND_OMIT,
+  ProspectusSectionHeading,
+} from "@/notes/prospectus-review/section-heading";
 
 function OptionSelect(props: {
   label: string;
@@ -94,7 +104,7 @@ function OptionSelect(props: {
 
 function ReadOnlyGrid({ rows }: { rows: Array<{ label: string; value: string }> }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {rows.map((row) => (
         <div key={row.label} className="min-w-0 rounded-xl border bg-muted/30 px-4 py-3">
           <div className="text-xs text-muted-foreground">{row.label}</div>
@@ -103,6 +113,11 @@ function ReadOnlyGrid({ rows }: { rows: Array<{ label: string; value: string }> 
       ))}
     </div>
   );
+}
+
+function statusTextClass(status: ProspectusStepStatus): string {
+  if (status === "required") return "text-xs text-amber-700";
+  return "text-xs text-muted-foreground";
 }
 
 const FINANCIAL_YEARS = ["2022", "2023", "2024"] as const;
@@ -166,6 +181,7 @@ function ProspectusReviewPageInner() {
   const [dirty, setDirty] = React.useState(false);
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [financialYear, setFinancialYear] = React.useState<string>("2024");
+  const stepPanelRef = React.useRef<HTMLDivElement>(null);
   const preview = useProspectusReviewPreview(noteId, previewOpen);
 
   React.useEffect(() => {
@@ -196,6 +212,31 @@ function ProspectusReviewPageInner() {
       setDirty(true);
       return updater(prev);
     });
+  };
+
+  const focusStepPanel = React.useCallback(() => {
+    requestAnimationFrame(() => {
+      const panel = stepPanelRef.current;
+      if (!panel) return;
+      const target = panel.querySelector<HTMLElement>(
+        'input:not([disabled]), button[role="combobox"]:not([disabled]), [role="combobox"]:not([disabled]), select:not([disabled]), textarea:not([disabled])'
+      );
+      target?.focus();
+    });
+  }, []);
+
+  const goToStep = React.useCallback(
+    (next: ProspectusWorkflowStepId, focusField = false) => {
+      setStep(next);
+      if (focusField) focusStepPanel();
+    },
+    [focusStepPanel]
+  );
+
+  const goToChecklistItem = (itemId: string) => {
+    const mapped = CHECKLIST_ITEM_STEP[itemId];
+    if (mapped == null) return;
+    goToStep(mapped, true);
   };
 
   const onSave = async (): Promise<boolean> => {
@@ -290,7 +331,7 @@ function ProspectusReviewPageInner() {
   const actorName = formatActorDisplayName(updatedByUser);
   const checklist = buildProspectusCompletionChecklist(draft);
   const canSubmitReady = isProspectusDraftReadyToSubmit(draft);
-  const stepMarkers = getProspectusStepMarkers(draft);
+  const stepStatuses = getProspectusStepStatuses(draft);
   const coreRows = note ? buildCoreTermsRows(note) : [];
   const issuerRows = note ? buildIssuerProfileRows(note) : [];
   const yearRaw = readUnauditedYear(
@@ -309,12 +350,6 @@ function ProspectusReviewPageInner() {
   const previewStatusLabel =
     status === "APPROVED" ? ("Approved preview" as const) : ("Draft preview" as const);
 
-  const markerClass = (marker: ProspectusStepMarker) => {
-    if (marker === "complete") return "text-emerald-700";
-    if (marker === "attention") return "text-amber-700";
-    return "text-muted-foreground";
-  };
-
   const stepNav = (
     <nav aria-label="Prospectus review steps" className="space-y-4">
       {PROSPECTUS_STEP_GROUPS.map((group) => (
@@ -322,27 +357,37 @@ function ProspectusReviewPageInner() {
           <div className="px-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
             {group.group}
           </div>
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             {group.steps.map((item) => {
-              const marker = stepMarkers[item.id];
-              const markerLabel = PROSPECTUS_STEP_MARKER_LABEL[marker];
+              const rowStatus = stepStatuses[item.id];
+              const isCurrent = step === item.id;
+              const isRequiredIncomplete = rowStatus === "required";
               return (
                 <Button
                   key={item.id}
                   type="button"
-                  variant={step === item.id ? "secondary" : "ghost"}
-                  className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-2 text-left text-sm"
-                  aria-current={step === item.id ? "step" : undefined}
-                  aria-label={`${item.label}, ${markerLabel}`}
-                  onClick={() => setStep(item.id)}
+                  variant={isCurrent ? "secondary" : "ghost"}
+                  className="h-auto w-full justify-between gap-2 whitespace-normal px-3 py-2 text-left text-sm"
+                  aria-current={isCurrent ? "step" : undefined}
+                  aria-label={
+                    rowStatus
+                      ? `${item.label}, ${PROSPECTUS_STEP_STATUS_LABEL[rowStatus]}`
+                      : item.label
+                  }
+                  onClick={() => goToStep(item.id)}
                 >
                   <span
-                    className={`w-4 shrink-0 text-center font-semibold ${markerClass(marker)}`}
-                    aria-hidden="true"
+                    className={`min-w-0 break-words ${
+                      isRequiredIncomplete && !isCurrent ? "font-medium text-foreground" : ""
+                    }`}
                   >
-                    {PROSPECTUS_STEP_MARKER_SYMBOL[marker]}
+                    {item.label}
                   </span>
-                  <span className="min-w-0 break-words">{item.label}</span>
+                  {rowStatus ? (
+                    <span className={`shrink-0 ${statusTextClass(rowStatus)}`}>
+                      {PROSPECTUS_STEP_STATUS_LABEL[rowStatus]}
+                    </span>
+                  ) : null}
                 </Button>
               );
             })}
@@ -461,7 +506,7 @@ function ProspectusReviewPageInner() {
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)]">
             <Card className="hidden h-fit rounded-2xl lg:block">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Steps</CardTitle>
@@ -474,28 +519,36 @@ function ProspectusReviewPageInner() {
                 <Label className="text-sm">Step</Label>
                 <Select
                   value={String(step)}
-                  onValueChange={(value) => setStep(Number(value) as ProspectusWorkflowStepId)}
+                  onValueChange={(value) => goToStep(Number(value) as ProspectusWorkflowStepId)}
                 >
                   <SelectTrigger className="mt-1.5 h-11">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {PROSPECTUS_STEP_GROUPS.flatMap((group) =>
-                      group.steps.map((item) => (
-                        <SelectItem key={item.id} value={String(item.id)}>
-                          {PROSPECTUS_STEP_MARKER_SYMBOL[stepMarkers[item.id]]} {item.label}
-                        </SelectItem>
-                      ))
+                      group.steps.map((item) => {
+                        const rowStatus = stepStatuses[item.id];
+                        const suffix = rowStatus
+                          ? ` (${PROSPECTUS_STEP_STATUS_LABEL[rowStatus]})`
+                          : "";
+                        return (
+                          <SelectItem key={item.id} value={String(item.id)}>
+                            {item.label}
+                            {suffix}
+                          </SelectItem>
+                        );
+                      })
                     )}
                   </SelectContent>
                 </Select>
               </div>
 
               <Card className="rounded-2xl">
-                <CardHeader>
+                <CardHeader className="pb-3">
                   <CardTitle className="text-base">{PROSPECTUS_STEP_TITLES[step]}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  <div ref={stepPanelRef} data-prospectus-step-panel className="space-y-6">
                   {step === 0 ? (
                     <div className="space-y-3">
                       <p className="text-sm text-muted-foreground">
@@ -510,71 +563,80 @@ function ProspectusReviewPageInner() {
                   ) : null}
 
                   {step === 1 ? (
-                    <div className="space-y-4">
-                      <p className="text-sm text-muted-foreground">
-                        The available wording is currently under product review.
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Select “Do not display” when the item should be omitted from the prospectus.
-                      </p>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        {draft.page1.keyInvestorHighlights.map((h, idx) => (
+                    <div className="space-y-6">
+                      <section>
+                        <ProspectusSectionHeading
+                          title="Key Investor Highlights"
+                          info={PROSPECTUS_INFO_WORDING_AND_OMIT}
+                        />
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {draft.page1.keyInvestorHighlights.map((h, idx) => (
+                            <OptionSelect
+                              key={h.key}
+                              label={HIGHLIGHT_FIELD_LABELS[h.key] ?? "Investor Highlight"}
+                              disabled={locked || !canManage}
+                              value={h.optionKey}
+                              options={catalogues.highlights[h.key] ?? []}
+                              onChange={(value) =>
+                                updateDraft((prev) => {
+                                  const next = structuredClone(prev);
+                                  next.page1.keyInvestorHighlights[idx] = {
+                                    ...next.page1.keyInvestorHighlights[idx]!,
+                                    optionKey: value,
+                                    isVisible: value !== "do_not_display",
+                                  };
+                                  return next;
+                                })
+                              }
+                            />
+                          ))}
+                        </div>
+                      </section>
+                      <section>
+                        <ProspectusSectionHeading title="Investment Structure" />
+                        <div className="grid gap-3 md:grid-cols-2">
                           <OptionSelect
-                            key={h.key}
-                            label={HIGHLIGHT_FIELD_LABELS[h.key] ?? "Investor Highlight"}
+                            label="Payment Basis"
                             disabled={locked || !canManage}
-                            value={h.optionKey}
-                            options={catalogues.highlights[h.key] ?? []}
+                            value={draft.page1.paymentBasisOptionKey}
+                            options={catalogues.paymentBasis}
                             onChange={(value) =>
-                              updateDraft((prev) => {
-                                const next = structuredClone(prev);
-                                next.page1.keyInvestorHighlights[idx] = {
-                                  ...next.page1.keyInvestorHighlights[idx]!,
-                                  optionKey: value,
-                                  isVisible: value !== "do_not_display",
-                                };
-                                return next;
-                              })
+                              updateDraft((prev) => ({
+                                ...prev,
+                                page1: { ...prev.page1, paymentBasisOptionKey: value },
+                              }))
                             }
                           />
-                        ))}
-                        <OptionSelect
-                          label="Payment Basis"
-                          disabled={locked || !canManage}
-                          value={draft.page1.paymentBasisOptionKey}
-                          options={catalogues.paymentBasis}
-                          onChange={(value) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              page1: { ...prev.page1, paymentBasisOptionKey: value },
-                            }))
-                          }
-                        />
-                        <OptionSelect
-                          label="Shariah Principle"
-                          disabled={locked || !canManage}
-                          value={draft.page1.shariahPrincipleOptionKey}
-                          options={catalogues.shariahPrinciple}
-                          onChange={(value) =>
-                            updateDraft((prev) => ({
-                              ...prev,
-                              page1: { ...prev.page1, shariahPrincipleOptionKey: value },
-                            }))
-                          }
-                        />
-                      </div>
+                          <OptionSelect
+                            label="Shariah Principle"
+                            disabled={locked || !canManage}
+                            value={draft.page1.shariahPrincipleOptionKey}
+                            options={catalogues.shariahPrinciple}
+                            onChange={(value) =>
+                              updateDraft((prev) => ({
+                                ...prev,
+                                page1: { ...prev.page1, shariahPrincipleOptionKey: value },
+                              }))
+                            }
+                          />
+                        </div>
+                      </section>
                     </div>
                   ) : null}
 
                   {step === 2 ? (
                     <div className="space-y-6">
-                      <div className="space-y-3">
-                        <h3 className="text-sm font-semibold">Issuer Information</h3>
-                        {note ? <ReadOnlyGrid rows={issuerRows} /> : <Skeleton className="h-32 w-full" />}
-                      </div>
-                      <div className="space-y-3">
-                        <h3 className="text-sm font-semibold">Paymaster Track Record</h3>
-                        <div className="grid gap-4 md:grid-cols-2">
+                      <section>
+                        <ProspectusSectionHeading title="Issuer Information" />
+                        {note ? (
+                          <ReadOnlyGrid rows={issuerRows} />
+                        ) : (
+                          <Skeleton className="h-32 w-full" />
+                        )}
+                      </section>
+                      <section>
+                        <ProspectusSectionHeading title="Paymaster Track Record" />
+                        <div className="grid gap-3 md:grid-cols-2">
                           {(
                             [
                               ["totalInvoicesPaid", "Total Invoices Paid", ""],
@@ -619,46 +681,55 @@ function ProspectusReviewPageInner() {
                             </div>
                           ))}
                         </div>
-                      </div>
+                      </section>
                     </div>
                   ) : null}
 
                   {step === 3 ? (
                     <div className="space-y-6">
-                      <div className="grid gap-4 md:grid-cols-2">
-                        {(
-                          [
-                            ["creditScoreOptionKey", "Credit Score"],
-                            ["paymentBehaviourOptionKey", "Payment Behaviour"],
-                            ["creditUtilisationOptionKey", "Credit Utilisation"],
-                            ["litigationCheckOptionKey", "Litigation Check"],
-                            ["ccrisStatusOptionKey", "CCRIS Status"],
-                          ] as const
-                        ).map(([field, label]) => (
-                          <OptionSelect
-                            key={field}
-                            label={label}
-                            disabled={locked || !canManage}
-                            value={draft.page2.creditInsights[field]}
-                            options={catalogues.creditInsights}
-                            onChange={(value) =>
-                              updateDraft((prev) => ({
-                                ...prev,
-                                page2: {
-                                  ...prev.page2,
-                                  creditInsights: {
-                                    ...prev.page2.creditInsights,
-                                    [field]: value,
+                      <section>
+                        <ProspectusSectionHeading
+                          title="Credit Insights"
+                          info={PROSPECTUS_INFO_WORDING_AND_OMIT}
+                        />
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {(
+                            [
+                              ["creditScoreOptionKey", "Credit Score"],
+                              ["paymentBehaviourOptionKey", "Payment Behaviour"],
+                              ["creditUtilisationOptionKey", "Credit Utilisation"],
+                              ["litigationCheckOptionKey", "Litigation Check"],
+                              ["ccrisStatusOptionKey", "CCRIS Status"],
+                            ] as const
+                          ).map(([field, label]) => (
+                            <OptionSelect
+                              key={field}
+                              label={label}
+                              disabled={locked || !canManage}
+                              value={draft.page2.creditInsights[field]}
+                              options={catalogues.creditInsights}
+                              onChange={(value) =>
+                                updateDraft((prev) => ({
+                                  ...prev,
+                                  page2: {
+                                    ...prev.page2,
+                                    creditInsights: {
+                                      ...prev.page2.creditInsights,
+                                      [field]: value,
+                                    },
                                   },
-                                },
-                              }))
-                            }
-                          />
-                        ))}
-                      </div>
-                      <div className="space-y-3">
-                        <h3 className="text-sm font-semibold">Invoice / Work Information</h3>
-                        <div className="grid gap-4 md:grid-cols-2">
+                                }))
+                              }
+                            />
+                          ))}
+                        </div>
+                      </section>
+                      <section>
+                        <ProspectusSectionHeading
+                          title="Invoice / Work Information"
+                          info={PROSPECTUS_INFO_OMIT_ITEM}
+                        />
+                        <div className="grid gap-3 md:grid-cols-2">
                           {draft.page2.invoiceWorkStatements.map((s, idx) => (
                             <OptionSelect
                               key={s.key}
@@ -680,12 +751,12 @@ function ProspectusReviewPageInner() {
                             />
                           ))}
                         </div>
-                      </div>
+                      </section>
                     </div>
                   ) : null}
 
                   {step === 4 ? (
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       <div className="flex flex-wrap gap-2">
                         {FINANCIAL_YEARS.map((year) => (
                           <Button
@@ -700,10 +771,8 @@ function ProspectusReviewPageInner() {
                         ))}
                       </div>
 
-                      <div className="space-y-2">
-                        <div className="text-xs font-medium text-muted-foreground">
-                          From financial records
-                        </div>
+                      <section>
+                        <ProspectusSectionHeading title="Financial Information" />
                         <ReadOnlyGrid
                           rows={[
                             {
@@ -748,70 +817,66 @@ function ProspectusReviewPageInner() {
                             },
                           ]}
                         />
-                      </div>
+                      </section>
 
-                      <div className="space-y-4">
-                        <div className="text-xs font-medium text-muted-foreground">
-                          Officer input required
-                        </div>
-                        {MANUAL_FIELD_GROUPS.map((group) => (
-                          <div key={group.title} className="space-y-3">
-                            <h3 className="text-sm font-semibold">{group.title}</h3>
-                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                              {group.fields.map(([field, label, unit]) => (
-                                <div key={field} className="space-y-1.5">
-                                  <Label className="text-sm">
-                                    {label}
-                                    {unit ? ` (${unit})` : ""}
-                                  </Label>
-                                  <Input
-                                    className="h-11"
-                                    type="number"
-                                    disabled={locked || !canManage}
-                                    value={
-                                      draft.page3.manualFinancialInputs?.years?.[financialYear]?.[
-                                        field
-                                      ] == null
-                                        ? ""
-                                        : String(
-                                            draft.page3.manualFinancialInputs.years[financialYear]?.[
-                                              field
-                                            ]
-                                          )
-                                    }
-                                    onChange={(e) =>
-                                      updateDraft((prev) => {
-                                        const years = {
-                                          ...(prev.page3.manualFinancialInputs?.years ?? {}),
-                                        };
-                                        const row = { ...(years[financialYear] ?? {}) };
-                                        row[field] = e.target.value === "" ? null : e.target.value;
-                                        years[financialYear] = row;
-                                        return {
-                                          ...prev,
-                                          page3: {
-                                            ...prev.page3,
-                                            manualFinancialInputs: { years },
-                                          },
-                                        };
-                                      })
-                                    }
-                                  />
-                                </div>
-                              ))}
-                            </div>
+                      {MANUAL_FIELD_GROUPS.map((group) => (
+                        <section key={group.title}>
+                          <ProspectusSectionHeading title={group.title} />
+                          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                            {group.fields.map(([field, label, unit]) => (
+                              <div key={field} className="space-y-1.5">
+                                <Label className="text-sm">
+                                  {label}
+                                  {unit ? ` (${unit})` : ""}
+                                </Label>
+                                <Input
+                                  className="h-11"
+                                  type="number"
+                                  disabled={locked || !canManage}
+                                  value={
+                                    draft.page3.manualFinancialInputs?.years?.[financialYear]?.[
+                                      field
+                                    ] == null
+                                      ? ""
+                                      : String(
+                                          draft.page3.manualFinancialInputs.years[financialYear]?.[
+                                            field
+                                          ]
+                                        )
+                                  }
+                                  onChange={(e) =>
+                                    updateDraft((prev) => {
+                                      const years = {
+                                        ...(prev.page3.manualFinancialInputs?.years ?? {}),
+                                      };
+                                      const row = { ...(years[financialYear] ?? {}) };
+                                      row[field] = e.target.value === "" ? null : e.target.value;
+                                      years[financialYear] = row;
+                                      return {
+                                        ...prev,
+                                        page3: {
+                                          ...prev.page3,
+                                          manualFinancialInputs: { years },
+                                        },
+                                      };
+                                    })
+                                  }
+                                />
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </section>
+                      ))}
                     </div>
                   ) : null}
 
                   {step === 5 ? (
-                    <div className="space-y-4">
-                      <p className="text-sm text-muted-foreground">
-                        Select “Do not display” when the item should be omitted from the prospectus.
-                      </p>
-                      <div className="grid gap-4 md:grid-cols-2">
+                    <section>
+                      <ProspectusSectionHeading
+                        title="Investor Takeaways"
+                        info={PROSPECTUS_INFO_OMIT_ITEM}
+                      />
+                      <div className="grid gap-3 md:grid-cols-2">
                         {(
                           [
                             [
@@ -859,7 +924,7 @@ function ProspectusReviewPageInner() {
                           />
                         ))}
                       </div>
-                    </div>
+                    </section>
                   ) : null}
 
                   {step === 6 ? (
@@ -868,22 +933,31 @@ function ProspectusReviewPageInner() {
                         Review the checklist below, then open the prospectus preview before submit
                         or approval.
                       </p>
-                      <ul className="space-y-2">
-                        {checklist.map((item) => (
-                          <li
-                            key={item.id}
-                            className="flex items-center justify-between rounded-xl border px-4 py-3 text-sm"
-                          >
-                            <span>{item.label}</span>
-                            <Badge variant={item.complete ? "secondary" : "outline"}>
-                              {item.complete
-                                ? "Complete"
-                                : item.required
-                                  ? "Required"
-                                  : "Optional"}
-                            </Badge>
-                          </li>
-                        ))}
+                      <ul
+                        className="overflow-hidden rounded-xl border"
+                        aria-label="Prospectus completion checklist"
+                      >
+                        {checklist.map((item) => {
+                          const rowStatus = statusForCompletionItem(item);
+                          return (
+                            <li key={item.id} className="border-b last:border-b-0">
+                              <button
+                                type="button"
+                                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                                onClick={() => goToChecklistItem(item.id)}
+                              >
+                                <span className="min-w-0 flex-1 font-medium">{item.label}</span>
+                                <span className={`shrink-0 ${statusTextClass(rowStatus)}`}>
+                                  {PROSPECTUS_STEP_STATUS_LABEL[rowStatus]}
+                                </span>
+                                <ChevronRightIcon
+                                  className="h-4 w-4 shrink-0 text-muted-foreground"
+                                  aria-hidden="true"
+                                />
+                              </button>
+                            </li>
+                          );
+                        })}
                       </ul>
                       {data.publishBlockedReason ? (
                         <p className="text-sm text-muted-foreground">
@@ -896,6 +970,7 @@ function ProspectusReviewPageInner() {
                       )}
                     </div>
                   ) : null}
+                  </div>
 
                   {actionBar}
                 </CardContent>

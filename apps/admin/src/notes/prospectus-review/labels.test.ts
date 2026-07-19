@@ -8,10 +8,18 @@ import {
   INVOICE_WORK_FIELD_LABELS,
 } from "./labels";
 import {
+  CHECKLIST_ITEM_STEP,
+  PROSPECTUS_STEP_STATUS_LABEL,
   buildProspectusCompletionChecklist,
-  getProspectusStepMarkers,
+  getProspectusStepStatuses,
   isProspectusDraftReadyToSubmit,
+  statusForCompletionItem,
 } from "./completion";
+import {
+  PROSPECTUS_INFO_OMIT_ITEM,
+  PROSPECTUS_INFO_WORDING_AND_OMIT,
+  PROSPECTUS_INFO_WORDING_UNDER_REVIEW,
+} from "./section-info";
 import type { ProspectusReviewStoredContent } from "@cashsouk/types";
 
 describe("prospectus review admin labels", () => {
@@ -115,14 +123,60 @@ describe("prospectus review completion checklist", () => {
     expect(isProspectusDraftReadyToSubmit(draft)).toBe(true);
   });
 
-  it("marks empty draft steps with complete / attention / pending symbols", () => {
-    const markers = getProspectusStepMarkers(emptyDraft());
-    expect(markers[0]).toBe("complete"); // Core Terms
-    expect(markers[1]).toBe("attention"); // Investor Highlights
-    expect(markers[2]).toBe("pending"); // Issuer & Paymaster
-    expect(markers[3]).toBe("attention"); // Credit & Invoice Details
-    expect(markers[4]).toBe("pending"); // Financial Review
-    expect(markers[5]).toBe("attention"); // Investor Takeaways (required)
-    expect(markers[6]).toBe("pending"); // Preview & Approval
+  it("uses compact Complete / Required / Optional text without icon symbols", () => {
+    expect(PROSPECTUS_STEP_STATUS_LABEL).toEqual({
+      complete: "Complete",
+      required: "Required",
+      optional: "Optional",
+    });
+    expect(Object.values(PROSPECTUS_STEP_STATUS_LABEL).join(" ")).not.toMatch(/[✓!○]/);
+
+    const statuses = getProspectusStepStatuses(emptyDraft());
+    expect(statuses[0]).toBe("complete");
+    expect(statuses[1]).toBe("required");
+    expect(statuses[2]).toBe("optional");
+    expect(statuses[3]).toBe("required");
+    expect(statuses[4]).toBe("optional");
+    expect(statuses[5]).toBe("required");
+    expect(statuses[6]).toBeUndefined();
+  });
+
+  it("maps checklist rows to workflow steps for navigation", () => {
+    expect(CHECKLIST_ITEM_STEP).toEqual({
+      core: 0,
+      highlights: 1,
+      paymaster: 2,
+      credit: 3,
+      financials: 4,
+      takeaways: 5,
+    });
+
+    const checklist = buildProspectusCompletionChecklist(emptyDraft());
+    expect(checklist.map((i) => i.label)).toEqual([
+      "Core Terms",
+      "Investor Highlights",
+      "Issuer & Paymaster",
+      "Credit & Invoice Details",
+      "Financial Review",
+      "Investor Takeaways",
+    ]);
+    expect(statusForCompletionItem(checklist[0]!)).toBe("complete");
+    expect(statusForCompletionItem(checklist[1]!)).toBe("required");
+    expect(statusForCompletionItem(checklist[2]!)).toBe("optional");
+  });
+});
+
+describe("prospectus review section helpers", () => {
+  it("keeps info tooltip wording concise and ops-safe", () => {
+    expect(PROSPECTUS_INFO_WORDING_UNDER_REVIEW).toBe(
+      "The available wording is still under review."
+    );
+    expect(PROSPECTUS_INFO_OMIT_ITEM).toBe(
+      'Choose "Do not display" to omit this item from the prospectus.'
+    );
+    expect(PROSPECTUS_INFO_WORDING_AND_OMIT).toBe(
+      'The available wording is still under review. Choose "Do not display" to omit an item from the prospectus.'
+    );
+    expect(PROSPECTUS_INFO_WORDING_AND_OMIT).not.toMatch(/placeholder catalogue|product\/legal|test wording/i);
   });
 });

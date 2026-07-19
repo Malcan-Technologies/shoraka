@@ -8,19 +8,23 @@ export type ProspectusCompletionItem = {
   required: boolean;
 };
 
-/** Step nav marker: complete, attention (required incomplete), or pending (optional incomplete). */
-export type ProspectusStepMarker = "complete" | "attention" | "pending";
+/** Compact step/checklist status: Complete, Required, or Optional. */
+export type ProspectusStepStatus = "complete" | "required" | "optional";
 
-export const PROSPECTUS_STEP_MARKER_SYMBOL: Record<ProspectusStepMarker, string> = {
-  complete: "✓",
-  attention: "!",
-  pending: "○",
+export const PROSPECTUS_STEP_STATUS_LABEL: Record<ProspectusStepStatus, string> = {
+  complete: "Complete",
+  required: "Required",
+  optional: "Optional",
 };
 
-export const PROSPECTUS_STEP_MARKER_LABEL: Record<ProspectusStepMarker, string> = {
-  complete: "Complete",
-  attention: "Action required",
-  pending: "Not started",
+/** Maps Final checklist rows to workflow step ids. */
+export const CHECKLIST_ITEM_STEP: Record<string, ProspectusWorkflowStepId> = {
+  core: 0,
+  highlights: 1,
+  paymaster: 2,
+  credit: 3,
+  financials: 4,
+  takeaways: 5,
 };
 
 function hasOption(value: string | null | undefined): boolean {
@@ -78,34 +82,34 @@ export function buildProspectusCompletionChecklist(
   );
 
   return [
-    { id: "core", label: "Core Terms reviewed", complete: true, required: true },
+    { id: "core", label: "Core Terms", complete: true, required: true },
     {
       id: "highlights",
-      label: "Investor Highlights complete",
+      label: "Investor Highlights",
       complete: highlightsComplete && paymentComplete,
       required: true,
     },
     {
       id: "paymaster",
-      label: "Paymaster information complete",
+      label: "Issuer & Paymaster",
       complete: paymasterComplete,
       required: false,
     },
     {
       id: "credit",
-      label: "Credit and Invoice details complete",
+      label: "Credit & Invoice Details",
       complete: creditComplete && invoiceComplete,
       required: true,
     },
     {
       id: "financials",
-      label: "Financial Review complete",
+      label: "Financial Review",
       complete: financialInputComplete,
       required: false,
     },
     {
       id: "takeaways",
-      label: "Investor Takeaways complete",
+      label: "Investor Takeaways",
       complete: takeawaysComplete,
       required: true,
     },
@@ -118,31 +122,35 @@ export function isProspectusDraftReadyToSubmit(draft: ProspectusReviewStoredCont
     .every((item) => item.complete);
 }
 
+export function statusForCompletionItem(item: ProspectusCompletionItem): ProspectusStepStatus {
+  if (item.complete) return "complete";
+  return item.required ? "required" : "optional";
+}
+
 /**
- * Markers for the step navigator.
- * ✓ complete · ! required incomplete · ○ optional incomplete / not started
+ * Compact status words for the step navigator.
+ * Preview & Approval only shows Complete when the draft is ready.
  */
-export function getProspectusStepMarkers(
+export function getProspectusStepStatuses(
   draft: ProspectusReviewStoredContent
-): Record<ProspectusWorkflowStepId, ProspectusStepMarker> {
+): Partial<Record<ProspectusWorkflowStepId, ProspectusStepStatus>> {
   const checklist = buildProspectusCompletionChecklist(draft);
   const byId = Object.fromEntries(checklist.map((item) => [item.id, item]));
   const ready = isProspectusDraftReadyToSubmit(draft);
 
-  const markerFor = (itemId: string): ProspectusStepMarker => {
+  const statusFor = (itemId: string): ProspectusStepStatus => {
     const item = byId[itemId];
-    if (!item) return "pending";
-    if (item.complete) return "complete";
-    return item.required ? "attention" : "pending";
+    if (!item) return "optional";
+    return statusForCompletionItem(item);
   };
 
   return {
-    0: markerFor("core"),
-    1: markerFor("highlights"),
-    2: markerFor("paymaster"),
-    3: markerFor("credit"),
-    4: markerFor("financials"),
-    5: markerFor("takeaways"),
-    6: ready ? "complete" : "pending",
+    0: statusFor("core"),
+    1: statusFor("highlights"),
+    2: statusFor("paymaster"),
+    3: statusFor("credit"),
+    4: statusFor("financials"),
+    5: statusFor("takeaways"),
+    ...(ready ? { 6: "complete" as const } : {}),
   };
 }
