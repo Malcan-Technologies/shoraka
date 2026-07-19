@@ -355,256 +355,65 @@
  * Money: formatProspectusMoneyMyr only; no compact/mil/million/k; no (MYR mil.)
  *
  * =============================================================================
- * PAGE 3 — STAGE 1: SHARED FINANCIAL SOURCE + METADATA STRIP (implemented)
+ * PAGE 3 — SIX VISIBLE CONTENT STAGES (Canva / Data-First map)
  * =============================================================================
  *
- * Modules: prospectus-page-three-metadata.*
- * Preview: pnpm prospectus:page-three-metadata-preview
- * Output: apps/api/tmp/prospectus/prospectus-page-three-metadata-preview.html
+ * Visible content stages (not technical layers):
+ * 1. Page Title (+ subtitle DNA)
+ * 2. Metadata Strip (Issuer, Sector, Risk Rating, Paymaster, gradings DNA)
+ * 3. 3-Year Income Statement Summary
+ * 4. 3-Year Balance Sheet & Liquidity
+ * 5. Cash Flow, Coverage, Efficiency + Trend (3-Yr) column
+ * 6. Investor Takeaways
  *
- * Visible fields:
- * - Page title (static): DETAILED FINANCIAL COMPARISON
- * - Page subtitle: Data not available (no approved production copy)
- * - Issuer → notes.issuer_snapshot.name (frozen input; no live org fallback)
- * - Sector → notes.issuer_snapshot.industry (frozen input; no live org fallback)
- * - Risk Rating → notes.invoice_snapshot.offer_details.risk_rating via isSoukscoreRiskRating
- * - Paymaster → notes.paymaster_snapshot.name (frozen input; no live customer fallback)
- * - Paymaster Grading → Data not available (unresolved; no PM1 / SoukScore / CTOS)
- * - Confidence Grading → Data not available (unresolved; no High / CTOS confidence)
+ * Plus: Source statement slot (DNA — Canva audited/management wording not approved)
+ * Plus: Shared header / footer (same as Pages 1–2)
  *
- * Shared financial source:
- * - Reuses Page 2 Stage 4A ProspectusFinancialComparisonSource.years pass-through
- * - No independent Page 3 year selection; no unaudited_by_year parse in Page 3
- * - No CTOS fallback; no fabricated years; FYE labels come from the reused source
- * - Later Page 3 metric stages must consume the same financialYears / rawFinancials
- *
- * Publication snapshot (not modified in Stage 1):
- * - Shared freeze remains prospectus_snapshot.page_2.financial_comparison
- * - Current raw keys: turnover, plnpat, bsqpuc, bscatot, curlib
- * - Future confirmed extension keys: plnpbt, bsfatot, othass, bsclbank, bsslltd, bsclstd
- * - bsclbank = Non-Current Assets (never Cash & Bank)
- * - No separate prospectus_snapshot.page_3.financial_comparison for the same raw FS
- *
- * Not in Stage 1: income statement, balance sheet, coverage, trends, takeaways,
- * full Page 3 Prisma mapper, full Page 3 HTML assembly, snapshot write path.
- *
- * =============================================================================
- * PAGE 3 — STAGE 2: 3-YEAR INCOME STATEMENT SUMMARY (implemented)
- * =============================================================================
- *
- * Modules: prospectus-page-three-income-statement.*
- * Preview: pnpm prospectus:page-three-income-statement-preview
- * Output: apps/api/tmp/prospectus/prospectus-page-three-income-statement-preview.html
- *
- * Shared source:
- * - Reuses Page 2 Stage 4A ProspectusFinancialComparisonSource (years + FYE + rawFinancials)
- * - No independent Page 3 year selection; no unaudited_by_year parse; no CTOS fallback
- *
- * Confirmed rows:
- * - Revenue → rawFinancials.turnover → formatProspectusMoneyMyr (full MYR; no RM mil.)
- * - Profit Before Tax → rawFinancials.plnpbt → formatProspectusMoneyMyr
- * - Profit After Tax → rawFinancials.plnpat → formatProspectusMoneyMyr
- * - Net Profit Margin → calculateProfitMargin + Page 2 percent formatter (shared with Stage 4B)
- *
- * Unresolved rows (always Data not available):
- * - Gross Profit, EBITDA, EBIT (no Application FS keys; no generated formulas)
- *
- * Snapshot compatibility (Stage 2 does not write snapshot):
- * - Works when plnpbt is present in rawFinancials (live Stage 4A / future freeze)
- * - Old published snapshots without plnpbt → PBT DNA; Revenue/PAT/NPM still render
- * - No live Application fallback; plnpbt still requires future shared freeze extension
- *   under page_2.financial_comparison.selected_years[].raw_financials
- *
- * Not in Stage 2: balance sheet, coverage, trends, takeaways, Prisma mapper, full assembly.
- *
- * =============================================================================
- * PAGE 3 — STAGE 3: BALANCE SHEET AND LIQUIDITY (implemented)
- * =============================================================================
- *
- * Modules: prospectus-page-three-balance-sheet.*
- * Preview: pnpm prospectus:page-three-balance-sheet-preview
- * Output: apps/api/tmp/prospectus/prospectus-page-three-balance-sheet-preview.html
- *
- * Shared source: Page 2 Stage 4A years/FYE/rawFinancials only (no independent selection/CTOS).
- *
- * Confirmed rows:
- * - Current Assets → bscatot → formatProspectusMoneyMyr
- * - Current Liabilities → curlib → formatProspectusMoneyMyr
- * - Current Ratio → calculateCurrentRatio + Page 2 multiple formatter
- * - Total Assets → computeTotalAssets (admin Application path):
- *     bsfatot + othass + bscatot + bsclbank (bsclbank = Non-Current Assets)
- * - Total Liabilities → computeTotalLiabilities:
- *     curlib + bsslltd + bsclstd
- *
- * Missing-component policy (exact helper behaviour):
- * - nullish components default to 0 in the sum
- * - entirely missing inputs yield 0 (finance/product risk for incomplete freezes)
- * - prospectus does not invent a stricter DNA rule for totals
- *
- * Unresolved (always Data not available):
- * - Cash & Bank (bsclbank must never populate this row)
- * - Trade Receivables
- * - Total Equity (bsqpuc is Paid-Up Capital; relabel not allowed)
- * - Quick Ratio (no approved formula / inventory field)
- *
- * Snapshot (Stage 3 does not write):
- * - Future shared freeze extension under page_2.financial_comparison needs:
- *   bsfatot, othass, bsclbank, bsslltd, bsclstd
- * - Old published snapshots: no live fallback; totals follow helper zero-default policy
- *
- * Not in Stage 3: coverage/efficiency, trends, takeaways, Prisma mapper, full assembly.
- *
- * =============================================================================
- * PAGE 3 — STAGE 4: CASH FLOW, COVERAGE AND EFFICIENCY (implemented)
- * =============================================================================
- *
- * Modules: prospectus-page-three-coverage-efficiency.*
- * Preview: pnpm prospectus:page-three-coverage-efficiency-preview
- * Output: apps/api/tmp/prospectus/prospectus-page-three-coverage-efficiency-preview.html
- *
- * Shared source: Page 2 Stage 4A years/FYE/rawFinancials only (no independent selection/CTOS).
- * No Trend column (deferred to Page 3 Stage 5).
- *
- * Confirmed row:
- * - Return on Equity → calculateReturnOnEquity(plnpat, bsqpuc)
- *   + Page 2 formatProspectusFinancialPercentFromRatio (shared with Stage 4B)
- * - bsqpuc remains Paid-Up Capital in the FS schema; not relabelled as Total Equity
- *
- * Unresolved (always Data not available):
- * - Operating Cash Flow (no OCF field; no PAT/depreciation inference)
- * - Free Cash Flow (no OCF/capex; bsfatot is not capex)
- * - Interest Coverage (no approved helper / finance-cost input)
- * - DSCR (no CashSouk definition / debt-service input)
- * - Debt / Equity (calculateGearing rejected; bsqpuc ≠ Total Equity)
- * - Return on Assets (average vs closing undecided)
- * - Receivables Days (no trade receivables field)
- * - Payables Days (no payables / purchases-COGS fields)
- * - Asset Turnover (average vs closing undecided)
- *
- * Snapshot (Stage 4 does not write):
- * - ROE inputs already frozen: plnpat, bsqpuc — no additional Stage 4 freeze keys
- * - Old published snapshots: ROE works; all other rows DNA; no live fallback
- *
- * Not in Stage 4: trends, takeaways, Prisma mapper, full assembly.
- *
- * =============================================================================
- * PAGE 3 — STAGE 5: FINANCIAL TRENDS (implemented — structural DNA only)
- * =============================================================================
- *
- * Modules: prospectus-page-three-trends.*
- * Preview: pnpm prospectus:page-three-trends-preview
- * Output: apps/api/tmp/prospectus/prospectus-page-three-trends-preview.html
- *
- * Composition:
- * - Input = completed Stage 2 income + Stage 3 balance sheet + Stage 4 coverage results
- * - Metric order = Stage 2 row keys → Stage 3 → Stage 4 (26 metrics; no duplicates)
- * - Labels reused from section rows; no remapping of financial values
- *
- * Visible result for every metric:
- * - Trend = Data not available
- * - Interpretation = Data not available
- * - Direction = null (internal only; not rendered)
- *
- * Rejected / not implemented:
- * - No canonical trend helper in the platform
- * - No approved metric-specific interpretation rules
- * - Generic higher-is-better / latest>previous logic rejected
- * - No arrows, directional colours, Improving/Declining/Stable labels
- * - Formatted display strings (RM / % / x) are never reverse-parsed
- * - No CTOS fallback; no Prisma; no independent year selection
- *
- * Future requirements (documented only):
- * - Use frozen raw financial values + approved calculators
- * - Explicit metric-specific rules with versioning
- * - Decisions on year window, gaps, negatives, thresholds
- * - Snapshot/publish behaviour for trends remains undecided
- *   (candidateInterpretationClass is audit-only; approved: false)
- *
- * Not in Stage 5: investor takeaways, Prisma mapper, full Page 3 assembly.
- *
- * =============================================================================
- * PAGE 3 — STAGE 6: INVESTOR TAKEAWAYS (implemented — structural DNA only)
- * =============================================================================
- *
- * Modules: prospectus-page-three-investor-takeaways.*
- * Preview: pnpm prospectus:page-three-investor-takeaways-preview
- * Output: apps/api/tmp/prospectus/prospectus-page-three-investor-takeaways-preview.html
- *
- * Visible structure:
- * - Heading: INVESTOR TAKEAWAYS
- * - Six items (exact order):
- *   1. Revenue and Profitability
- *   2. Liquidity
- *   3. Leverage
- *   4. Debt-Servicing Capacity
- *   5. Working-Capital Efficiency
- *   6. Overall Financial Profile
- * - Every takeaway text = Data not available
- *
- * Current platform reality:
- * - No approved narrative source (admin memo, risk commentary, frozen prospectus copy)
- * - Financial values do not generate narrative
- * - Stage 5 trends do not generate narrative
- * - Threshold-based / AI-generated commentary rejected
- * - No CTOS fallback; no Prisma; no independent year selection
- * - Snapshot/publish path untouched in this stage
- *
- * Future preferred source (not implemented):
- * - prospectus_snapshot.page_3.investor_takeaways
- * - versioned, approved_at, optional approved_by
- * - items keyed by the six takeaway keys (string | null)
- * - admin-authored or approved; finance + legal/compliance review;
- *   frozen at publication; no live Application fallback
- *
- * Not in Stage 6: Prisma mapper, full Page 3 HTML assembly (see Stage 7).
- *
- * =============================================================================
- * PAGE 3 — STAGE 7: PRISMA MAPPER + SHARED FREEZE + FULL ASSEMBLY (implemented)
- * =============================================================================
- *
+ * Technical integration (NOT a seventh visible stage):
+ * - Prisma loader / mapper / shared page_2 financial freeze / HTML assembly / preview
  * Modules: prospectus-page-three.*
  * Preview: pnpm prospectus:page-three-preview [--note-id=<NOTE_ID>]
  * Output: apps/api/tmp/prospectus/prospectus-page-three-preview.html
- * Page size: A4 210mm × 297mm (same as Page 1/2)
+ * Page size: A4 210mm × 297mm
  *
- * Prisma query boundary (PROSPECTUS_PAGE_THREE_NOTE_SELECT):
- * - Note: id, status, published_at, source_application_id,
- *   issuer_snapshot, invoice_snapshot, paymaster_snapshot, prospectus_snapshot
- * - Application.financial_statements ONLY for unpublished preview
- * - No CTOS; no live organization; no documents/investments/commitments
+ * Internal helper modules (may stay split; final HTML follows six stages):
+ * - prospectus-page-three-metadata.* → title + metadata (split at HTML composition)
+ * - prospectus-page-three-income-statement.* → Stage 3
+ * - prospectus-page-three-balance-sheet.* → Stage 4
+ * - prospectus-page-three-coverage-efficiency.* → Stage 5 metric values
+ * - prospectus-page-three-trends.* → internal 26-metric DNA model; only ten coverage
+ *   trends render in Stage 5 Trend (3-Yr) column (no standalone FINANCIAL TRENDS section)
+ * - prospectus-page-three-investor-takeaways.* → Stage 6
  *
- * Publication rule: status === PUBLISHED && published_at != null
- *
- * Shared financial freeze (no separate page_3.financial_comparison):
- * - prospectus_snapshot.page_2.financial_comparison
- * - Extended raw keys at publish: plnpbt, bsfatot, othass, bsclbank, bsslltd, bsclstd
- * - Merge via existing wrapProspectusSnapshotWithPageTwo (preserves unknown branches)
- *
- * Snapshot preference:
- * - Published + valid page_2 → frozen Stage 4A source (no live Application)
- * - Unpublished → live Application → Stage 4A → Page 3 Stages 2–4
- * - Published missing/malformed page_2 → empty years (no live fallback)
- * - Old freeze without extended keys: PBT DNA; totals follow helper zero-default
+ * Shared financial source:
+ * - Page 2 Stage 4A years/FYE/raw via prospectus_snapshot.page_2.financial_comparison
+ * - No independent Page 3 year selection; no CTOS; no published live Application fallback
+ * - Extended freeze keys: plnpbt, bsfatot, othass, bsclbank, bsslltd, bsclstd
+ * - bsclbank = Non-Current Assets (never Cash & Bank); bsqpuc ≠ Total Equity
  *
  * Assembly order:
- * header → metadata → income → balance sheet → coverage → trends → takeaways → footer
+ * header → Stage 1 title → Stage 2 metadata → Stage 3 income → Stage 4 balance →
+ * Stage 5 coverage+trends → Stage 6 takeaways → source (DNA) → footer
  *
- * Formatting: formatProspectusMoneyMyr only; Page 2 percent/ratio formatters; exact DNA
+ * Confirmed helpers (must match Page 2 for shared metrics):
+ * - Revenue/PAT/NPM/ROE/Current Ratio; computeTotalAssets/Liabilities; full MYR
  *
- * Overflow: dense tables may exceed 297mm in simple HTML; content is not removed —
- * final visual layout may need continuation pages or tighter approved spacing.
+ * No standalone visible Financial Trends section.
+ * Canva sample claims / source wording / trend arrows are not production truth.
+ * Final Canva styling remains a later task.
  *
- * Business still unresolved (DNA / finance decisions):
- * - subtitle; Paymaster/Confidence grading
- * - Gross Profit; EBITDA; EBIT
- * - Cash & Bank; Trade Receivables; Total Equity; Quick Ratio
- * - OCF; FCF; Interest Coverage; DSCR; Debt/Equity; ROA
- * - Receivables Days; Payables Days; Asset Turnover
+ * Business still unresolved (DNA / finance/product/legal):
+ * - subtitle; Paymaster/Confidence grading; source wording
+ * - Gross Profit; EBITDA; EBIT; Cash & Bank; Trade Receivables; Total Equity; Quick Ratio
+ * - OCF; FCF; Interest Coverage; DSCR; Debt/Equity; ROA; days; Asset Turnover
  * - all trends; all investor takeaways
  * - finance policy for zero-default Total Assets/Liabilities
  * - approved narrative snapshot workflow (page_3.investor_takeaways)
  *
- * Corrections still needed when those stages are implemented:
+ * =============================================================================
+ * PAGE 1 / SHARED — CORRECTIONS STILL NEEDED (when remaining stages are implemented)
+ * =============================================================================
+ *
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)
  * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*
  * - Listing date must use note_listings.opens_at only

@@ -18,6 +18,8 @@ import {
 import { SAMPLE_PROSPECTUS_PAGE_THREE } from "./prospectus-page-three.sample-data";
 import {
   PROSPECTUS_PAGE_THREE_HEIGHT_MM,
+  PROSPECTUS_PAGE_THREE_SOURCE_STATEMENT,
+  PROSPECTUS_PAGE_THREE_VISIBLE_CONTENT_STAGES,
   PROSPECTUS_PAGE_THREE_WIDTH_MM,
 } from "./prospectus-page-three.types";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
@@ -416,8 +418,21 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
     });
   });
 
-  describe("HTML assembly", () => {
-    it("assembles one A4 Page 3 with correct stage order and no audit/IDs/claims", () => {
+  describe("HTML assembly — six visible content stages", () => {
+    it("defines exactly six visible content stages (integration is not a stage)", () => {
+      expect(PROSPECTUS_PAGE_THREE_VISIBLE_CONTENT_STAGES).toHaveLength(6);
+      expect(PROSPECTUS_PAGE_THREE_VISIBLE_CONTENT_STAGES).toEqual([
+        "page_title",
+        "metadata_strip",
+        "income_statement",
+        "balance_sheet_liquidity",
+        "coverage_efficiency_with_trends",
+        "investor_takeaways",
+      ]);
+      expect(PROSPECTUS_PAGE_THREE_SOURCE_STATEMENT).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    });
+
+    it("assembles one A4 Page 3 in reference order with Stage 5 Trend column only", () => {
       const html = renderProspectusPageThreeHtml(SAMPLE_PROSPECTUS_PAGE_THREE);
       expect(html).toContain('data-page="prospectus-page-three"');
       expect(html.match(/data-page="prospectus-page-three"/g)).toHaveLength(1);
@@ -428,12 +443,13 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
 
       const stageOrder = [
         'data-stage="header"',
-        'data-stage="1"',
-        'data-stage="2"',
-        'data-stage="3"',
-        'data-stage="4"',
-        'data-stage="5"',
-        'data-stage="6"',
+        'data-content-stage="page-title"',
+        'data-content-stage="metadata-strip"',
+        'data-content-stage="income-statement"',
+        'data-content-stage="balance-sheet-liquidity"',
+        'data-content-stage="coverage-efficiency"',
+        'data-content-stage="investor-takeaways"',
+        'data-content-stage="source-statement"',
         'data-stage="footer"',
       ];
       let cursor = -1;
@@ -443,7 +459,20 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         cursor = idx;
       }
 
+      expect(html).toContain('data-stage="1"');
+      expect(html).toContain('data-stage="2"');
+      expect(html).toContain('data-stage="3"');
+      expect(html).toContain('data-stage="4"');
+      expect(html).toContain('data-stage="5"');
+      expect(html).toContain('data-stage="6"');
+
       expect(html).toContain("DETAILED FINANCIAL COMPARISON");
+      expect(html).toContain("Trend (3-Yr)");
+      expect(html).not.toContain("FINANCIAL TRENDS");
+      expect((html.match(/class="trend-cell"/g) ?? []).length).toBe(10);
+      expect(html).toContain("Source: Data not available");
+      expect(html).not.toMatch(/Audited Financial Statements|Management Account/i);
+
       expect(html).toContain("RM 13,900,000.00");
       expect(html).toContain("RM 8,100,000.00");
       expect(html).not.toMatch(/RM\s*mil/i);
@@ -455,6 +484,18 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(html).not.toMatch(/[↑↓▲▼]/);
       expect(html).not.toContain("calculateGearing");
       expect(html).not.toContain("Cash & Bank</th><td>RM");
+    });
+
+    it("does not add Trend columns to income or balance sheet tables", () => {
+      const html = renderProspectusPageThreeHtml(SAMPLE_PROSPECTUS_PAGE_THREE);
+      const incomeIdx = html.indexOf('data-content-stage="income-statement"');
+      const balanceIdx = html.indexOf('data-content-stage="balance-sheet-liquidity"');
+      const coverageIdx = html.indexOf('data-content-stage="coverage-efficiency"');
+      const incomeChunk = html.slice(incomeIdx, balanceIdx);
+      const balanceChunk = html.slice(balanceIdx, coverageIdx);
+      expect(incomeChunk).not.toContain("Trend (3-Yr)");
+      expect(balanceChunk).not.toContain("Trend (3-Yr)");
+      expect(html.slice(coverageIdx)).toContain("Trend (3-Yr)");
     });
   });
 });

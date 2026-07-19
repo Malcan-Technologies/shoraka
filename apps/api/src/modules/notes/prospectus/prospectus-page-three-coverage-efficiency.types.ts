@@ -1,6 +1,6 @@
 /**
- * SECTION: Prospectus Page 3 — Cash Flow, Coverage and Efficiency (DATA STAGE 4)
- * WHY: ROE via shared helper only; all other Canva rows stay DNA; no trends
+ * SECTION: Prospectus Page 3 — Cash Flow, Coverage and Efficiency (visible Stage 5 metrics)
+ * WHY: ROE via shared helper only; other rows DNA; Trend column composed in full Page 3 HTML
  */
 
 import type { ProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source.types";

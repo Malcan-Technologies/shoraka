@@ -1,6 +1,6 @@
 /**
- * SECTION: Prospectus Page 3 — Detailed Financial Comparison metadata (DATA STAGE 1)
- * WHY: Title + metadata strip + reuse Page 2 Stage 4A years; no metrics/formulas yet
+ * SECTION: Prospectus Page 3 — title + metadata (visible Stages 1–2 at HTML composition)
+ * WHY: Internal module builds both; full Page 3 HTML splits title vs metadata strip
  */
 
 import type {

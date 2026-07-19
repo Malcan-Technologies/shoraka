@@ -1,16 +1,18 @@
 /**
  * SECTION: Full Prospectus Page 3 HTML assembly
- * WHY: One A4 document; Stages 1–6 Canva-facing sections; no audit/Prisma IDs/source paths
+ * WHY: Six visible content stages matching Canva/Data-First map; trends only in Stage 5 column
  */
 
 import { escapeHtml, escapeHtmlAttribute } from "./prospectus-html";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
+import type { ProspectusPageThreeCoverageEfficiencyRowKey } from "./prospectus-page-three-coverage-efficiency.types";
+import { PROSPECTUS_PAGE_THREE_METADATA_LABELS } from "./prospectus-page-three-metadata.types";
 import type { ProspectusPageThree } from "./prospectus-page-three.types";
 import {
   PROSPECTUS_PAGE_THREE_HEIGHT_MM,
+  PROSPECTUS_PAGE_THREE_SOURCE_STATEMENT,
   PROSPECTUS_PAGE_THREE_WIDTH_MM,
 } from "./prospectus-page-three.types";
-import { PROSPECTUS_PAGE_THREE_METADATA_LABELS } from "./prospectus-page-three-metadata.types";
 
 function renderHeader(page: ProspectusPageThree): string {
   const { header } = page;
@@ -29,12 +31,20 @@ function renderHeader(page: ProspectusPageThree): string {
 </header>`;
 }
 
-function renderMetadata(page: ProspectusPageThree): string {
+/** Visible Stage 1 — page title and subtitle only. */
+function renderPageTitle(page: ProspectusPageThree): string {
   const { metadata } = page;
-  const labels = PROSPECTUS_PAGE_THREE_METADATA_LABELS;
-  return `<section data-stage="1">
+  return `<section data-stage="1" data-content-stage="page-title">
   <h2>${escapeHtml(metadata.pageTitle)}</h2>
   <p>${escapeHtml(metadata.pageSubtitle)}</p>
+</section>`;
+}
+
+/** Visible Stage 2 — six-item metadata strip. */
+function renderMetadataStrip(page: ProspectusPageThree): string {
+  const { metadata } = page;
+  const labels = PROSPECTUS_PAGE_THREE_METADATA_LABELS;
+  return `<section data-stage="2" data-content-stage="metadata-strip">
   <p>
     ${escapeHtml(labels.issuer)}: ${escapeHtml(metadata.metadata.issuer)}<br />
     ${escapeHtml(labels.sector)}: ${escapeHtml(metadata.metadata.sector)}<br />
@@ -46,8 +56,10 @@ function renderMetadata(page: ProspectusPageThree): string {
 </section>`;
 }
 
+/** Stages 3–4 metric tables — year columns only (no Trend column). */
 function renderMetricTable(input: {
   stage: string;
+  contentStage: string;
   sectionHeading: string;
   years: Array<{ yearLabel: string; financialYearEndLabel: string }>;
   rows: Array<{ label: string; values: string[] }>;
@@ -83,7 +95,9 @@ function renderMetricTable(input: {
           })
           .join("\n");
 
-  return `<section data-stage="${escapeHtml(input.stage)}">
+  return `<section data-stage="${escapeHtml(input.stage)}" data-content-stage="${escapeHtml(
+    input.contentStage
+  )}">
   <h2>${escapeHtml(input.sectionHeading)}</h2>
   <table class="fin-table" border="1" cellpadding="4" cellspacing="0">
     <thead>
@@ -99,24 +113,62 @@ ${bodyRows}
 </section>`;
 }
 
-function renderTrends(page: ProspectusPageThree): string {
-  const { trends } = page;
-  const bodyRows = trends.trends
-    .map(
-      (item) =>
-        `<tr><th scope="row">${escapeHtml(item.metricLabel)}</th><td>${escapeHtml(
-          item.trend
-        )}</td></tr>`
-    )
-    .join("\n");
+/**
+ * Visible Stage 5 — coverage/efficiency rows + Trend (3-Yr) column.
+ * Uses only the ten Stage 5 metric keys; does not render the full 26-item trend model.
+ */
+function renderCoverageEfficiencyWithTrends(page: ProspectusPageThree): string {
+  const coverage = page.coverageEfficiency;
+  const trendByKey = new Map(
+    page.trends.trends.map((item) => [item.metricKey, item.trend] as const)
+  );
 
-  return `<section data-stage="5">
-  <h2>${escapeHtml(trends.sectionHeading)}</h2>
+  const yearHeaders =
+    coverage.years.length === 0
+      ? `<th>${escapeHtml(PROSPECTUS_DATA_NOT_AVAILABLE)}</th>`
+      : coverage.years
+          .map(
+            (year) =>
+              `<th>${escapeHtml(year.yearLabel)}<br /><span>${escapeHtml(
+                year.financialYearEndLabel
+              )}</span></th>`
+          )
+          .join("");
+
+  const bodyRows =
+    coverage.years.length === 0
+      ? coverage.rows
+          .map((row) => {
+            const trend =
+              trendByKey.get(row.key as ProspectusPageThreeCoverageEfficiencyRowKey) ??
+              PROSPECTUS_DATA_NOT_AVAILABLE;
+            return `<tr><th scope="row">${escapeHtml(row.label)}</th><td>${escapeHtml(
+              PROSPECTUS_DATA_NOT_AVAILABLE
+            )}</td><td class="trend-cell">${escapeHtml(trend)}</td></tr>`;
+          })
+          .join("\n")
+      : coverage.rows
+          .map((row) => {
+            const cells = row.values
+              .map((value) => `<td>${escapeHtml(value)}</td>`)
+              .join("");
+            const trend =
+              trendByKey.get(row.key as ProspectusPageThreeCoverageEfficiencyRowKey) ??
+              PROSPECTUS_DATA_NOT_AVAILABLE;
+            return `<tr><th scope="row">${escapeHtml(
+              row.label
+            )}</th>${cells}<td class="trend-cell">${escapeHtml(trend)}</td></tr>`;
+          })
+          .join("\n");
+
+  return `<section data-stage="5" data-content-stage="coverage-efficiency">
+  <h2>${escapeHtml(coverage.sectionHeading)}</h2>
   <table class="fin-table" border="1" cellpadding="4" cellspacing="0">
     <thead>
       <tr>
         <th>Metric</th>
-        <th>Trend</th>
+        ${yearHeaders}
+        <th>Trend (3-Yr)</th>
       </tr>
     </thead>
     <tbody>
@@ -126,6 +178,7 @@ ${bodyRows}
 </section>`;
 }
 
+/** Visible Stage 6 — investor takeaways. */
 function renderTakeaways(page: ProspectusPageThree): string {
   const { investorTakeaways } = page;
   const bodyRows = investorTakeaways.items
@@ -137,7 +190,7 @@ function renderTakeaways(page: ProspectusPageThree): string {
     )
     .join("\n");
 
-  return `<section data-stage="6">
+  return `<section data-stage="6" data-content-stage="investor-takeaways">
   <h2>${escapeHtml(investorTakeaways.sectionHeading)}</h2>
   <table class="fin-table" border="1" cellpadding="4" cellspacing="0">
     <thead>
@@ -150,6 +203,12 @@ function renderTakeaways(page: ProspectusPageThree): string {
 ${bodyRows}
     </tbody>
   </table>
+</section>`;
+}
+
+function renderSourceStatement(): string {
+  return `<section data-stage="source" data-content-stage="source-statement">
+  <p>Source: ${escapeHtml(PROSPECTUS_PAGE_THREE_SOURCE_STATEMENT)}</p>
 </section>`;
 }
 
@@ -196,27 +255,25 @@ export function buildProspectusPageThreeHtml(page: ProspectusPageThree): string 
 <body>
   <div class="page" data-page="prospectus-page-three">
 ${renderHeader(page)}
-${renderMetadata(page)}
+${renderPageTitle(page)}
+${renderMetadataStrip(page)}
 ${renderMetricTable({
-  stage: "2",
+  stage: "3",
+  contentStage: "income-statement",
   sectionHeading: page.incomeStatement.sectionHeading,
   years: page.incomeStatement.years,
   rows: page.incomeStatement.rows,
 })}
 ${renderMetricTable({
-  stage: "3",
+  stage: "4",
+  contentStage: "balance-sheet-liquidity",
   sectionHeading: page.balanceSheet.sectionHeading,
   years: page.balanceSheet.years,
   rows: page.balanceSheet.rows,
 })}
-${renderMetricTable({
-  stage: "4",
-  sectionHeading: page.coverageEfficiency.sectionHeading,
-  years: page.coverageEfficiency.years,
-  rows: page.coverageEfficiency.rows,
-})}
-${renderTrends(page)}
+${renderCoverageEfficiencyWithTrends(page)}
 ${renderTakeaways(page)}
+${renderSourceStatement()}
 ${renderFooter(page)}
   </div>
 </body>

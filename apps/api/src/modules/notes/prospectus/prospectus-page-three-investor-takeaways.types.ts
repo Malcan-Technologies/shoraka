@@ -1,5 +1,5 @@
 /**
- * SECTION: Prospectus Page 3 — Investor Takeaways (DATA STAGE 6)
+ * SECTION: Prospectus Page 3 — Investor Takeaways (visible Stage 6)
  * WHY: Structural takeaway slots only; no generated financial/investment claims
  */
 

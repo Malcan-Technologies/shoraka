@@ -1,5 +1,5 @@
 /**
- * SECTION: Prospectus Page 3 — 3-Year Income Statement Summary (DATA STAGE 2)
+ * SECTION: Prospectus Page 3 — 3-Year Income Statement Summary (visible Stage 3)
  * WHY: Confirmed Application FS rows only; Gross Profit/EBITDA/EBIT stay DNA
  */
 

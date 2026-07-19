@@ -1,6 +1,6 @@
 /**
- * SECTION: Prospectus Page 3 — Financial Trends (DATA STAGE 5)
- * WHY: Structural trend slots for every Page 3 metric; all visible trends DNA until rules approved
+ * SECTION: Prospectus Page 3 — Internal financial trend model
+ * WHY: DNA trend slots for all Page 3 metrics; only ten Stage 5 coverage trends render in HTML
  */
 
 import type { ProspectusPageThreeBalanceSheet } from "./prospectus-page-three-balance-sheet.types";
@@ -22,10 +22,16 @@ import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types"
 
 export { PROSPECTUS_DATA_NOT_AVAILABLE };
 
-/** Static Canva section title — not a database field. */
+/**
+ * Internal model heading only — not rendered as a standalone Page 3 section.
+ * Canva places trends as the Stage 5 "Trend (3-Yr)" column on coverage/efficiency rows.
+ */
 export const PROSPECTUS_PAGE_THREE_TRENDS_SECTION_HEADING = "FINANCIAL TRENDS";
 
-/** Income → Balance Sheet → Coverage/Efficiency (exact Stage 2–4 row order). */
+/**
+ * Internal 26-metric trend model (income + balance + coverage).
+ * Full Page 3 HTML renders only the ten coverage/efficiency trend values in Stage 5.
+ */
 export const PROSPECTUS_PAGE_THREE_TREND_METRIC_KEYS = [
   ...PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_ROW_KEYS,
   ...PROSPECTUS_PAGE_THREE_BALANCE_SHEET_ROW_KEYS,

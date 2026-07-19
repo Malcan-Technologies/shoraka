@@ -17,6 +17,25 @@ import type { ProspectusFinancialComparisonSource } from "./prospectus-financial
 export const PROSPECTUS_PAGE_THREE_WIDTH_MM = 210;
 export const PROSPECTUS_PAGE_THREE_HEIGHT_MM = 297;
 
+/**
+ * Canva source line is not approved production copy.
+ * Visible slot remains Data not available.
+ */
+export const PROSPECTUS_PAGE_THREE_SOURCE_STATEMENT = "Data not available";
+
+/**
+ * Six visible Page 3 content stages (Canva / Data-First map).
+ * Prisma loader, mapper, snapshot, and HTML shell are technical integration — not stages.
+ */
+export const PROSPECTUS_PAGE_THREE_VISIBLE_CONTENT_STAGES = [
+  "page_title",
+  "metadata_strip",
+  "income_statement",
+  "balance_sheet_liquidity",
+  "coverage_efficiency_with_trends",
+  "investor_takeaways",
+] as const;
+
 export type ProspectusPageThreeFinancialMode =
   | "frozen_publication_snapshot"
   | "live_unpublished_preview"

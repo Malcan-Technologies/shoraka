@@ -1,5 +1,5 @@
 /**
- * SECTION: Prospectus Page 3 — Balance Sheet and Liquidity (DATA STAGE 3)
+ * SECTION: Prospectus Page 3 — Balance Sheet and Liquidity (visible Stage 4)
  * WHY: Confirmed Application FS lines + admin shared totals; unsupported Canva rows DNA
  */
 
