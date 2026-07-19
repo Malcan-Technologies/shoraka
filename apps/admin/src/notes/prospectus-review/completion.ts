@@ -1,10 +1,26 @@
 import type { ProspectusReviewStoredContent } from "@cashsouk/types";
+import type { ProspectusWorkflowStepId } from "./labels";
 
 export type ProspectusCompletionItem = {
   id: string;
   label: string;
   complete: boolean;
   required: boolean;
+};
+
+/** Step nav marker: complete, attention (required incomplete), or pending (optional incomplete). */
+export type ProspectusStepMarker = "complete" | "attention" | "pending";
+
+export const PROSPECTUS_STEP_MARKER_SYMBOL: Record<ProspectusStepMarker, string> = {
+  complete: "✓",
+  attention: "!",
+  pending: "○",
+};
+
+export const PROSPECTUS_STEP_MARKER_LABEL: Record<ProspectusStepMarker, string> = {
+  complete: "Complete",
+  attention: "Action required",
+  pending: "Not started",
 };
 
 function hasOption(value: string | null | undefined): boolean {
@@ -100,4 +116,33 @@ export function isProspectusDraftReadyToSubmit(draft: ProspectusReviewStoredCont
   return buildProspectusCompletionChecklist(draft)
     .filter((item) => item.required)
     .every((item) => item.complete);
+}
+
+/**
+ * Markers for the step navigator.
+ * ✓ complete · ! required incomplete · ○ optional incomplete / not started
+ */
+export function getProspectusStepMarkers(
+  draft: ProspectusReviewStoredContent
+): Record<ProspectusWorkflowStepId, ProspectusStepMarker> {
+  const checklist = buildProspectusCompletionChecklist(draft);
+  const byId = Object.fromEntries(checklist.map((item) => [item.id, item]));
+  const ready = isProspectusDraftReadyToSubmit(draft);
+
+  const markerFor = (itemId: string): ProspectusStepMarker => {
+    const item = byId[itemId];
+    if (!item) return "pending";
+    if (item.complete) return "complete";
+    return item.required ? "attention" : "pending";
+  };
+
+  return {
+    0: markerFor("core"),
+    1: markerFor("highlights"),
+    2: markerFor("paymaster"),
+    3: markerFor("credit"),
+    4: markerFor("financials"),
+    5: markerFor("takeaways"),
+    6: ready ? "complete" : "pending",
+  };
 }

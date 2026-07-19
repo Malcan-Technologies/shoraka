@@ -9,6 +9,7 @@ import {
 } from "./labels";
 import {
   buildProspectusCompletionChecklist,
+  getProspectusStepMarkers,
   isProspectusDraftReadyToSubmit,
 } from "./completion";
 import type { ProspectusReviewStoredContent } from "@cashsouk/types";
@@ -112,5 +113,16 @@ describe("prospectus review completion checklist", () => {
     expect(checklist.find((i) => i.id === "paymaster")?.required).toBe(false);
     expect(checklist.find((i) => i.id === "financials")?.required).toBe(false);
     expect(isProspectusDraftReadyToSubmit(draft)).toBe(true);
+  });
+
+  it("marks empty draft steps with complete / attention / pending symbols", () => {
+    const markers = getProspectusStepMarkers(emptyDraft());
+    expect(markers[0]).toBe("complete"); // Core Terms
+    expect(markers[1]).toBe("attention"); // Investor Highlights
+    expect(markers[2]).toBe("pending"); // Issuer & Paymaster
+    expect(markers[3]).toBe("attention"); // Credit & Invoice Details
+    expect(markers[4]).toBe("pending"); // Financial Review
+    expect(markers[5]).toBe("attention"); // Investor Takeaways (required)
+    expect(markers[6]).toBe("pending"); // Preview & Approval
   });
 });

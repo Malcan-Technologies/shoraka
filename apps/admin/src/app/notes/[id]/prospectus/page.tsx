@@ -45,8 +45,12 @@ import {
   type ProspectusWorkflowStepId,
 } from "@/notes/prospectus-review/labels";
 import {
+  PROSPECTUS_STEP_MARKER_LABEL,
+  PROSPECTUS_STEP_MARKER_SYMBOL,
   buildProspectusCompletionChecklist,
+  getProspectusStepMarkers,
   isProspectusDraftReadyToSubmit,
+  type ProspectusStepMarker,
 } from "@/notes/prospectus-review/completion";
 import {
   buildCoreTermsRows,
@@ -286,6 +290,7 @@ function ProspectusReviewPageInner() {
   const actorName = formatActorDisplayName(updatedByUser);
   const checklist = buildProspectusCompletionChecklist(draft);
   const canSubmitReady = isProspectusDraftReadyToSubmit(draft);
+  const stepMarkers = getProspectusStepMarkers(draft);
   const coreRows = note ? buildCoreTermsRows(note) : [];
   const issuerRows = note ? buildIssuerProfileRows(note) : [];
   const yearRaw = readUnauditedYear(
@@ -304,6 +309,12 @@ function ProspectusReviewPageInner() {
   const previewStatusLabel =
     status === "APPROVED" ? ("Approved preview" as const) : ("Draft preview" as const);
 
+  const markerClass = (marker: ProspectusStepMarker) => {
+    if (marker === "complete") return "text-emerald-700";
+    if (marker === "attention") return "text-amber-700";
+    return "text-muted-foreground";
+  };
+
   const stepNav = (
     <nav aria-label="Prospectus review steps" className="space-y-4">
       {PROSPECTUS_STEP_GROUPS.map((group) => (
@@ -312,20 +323,29 @@ function ProspectusReviewPageInner() {
             {group.group}
           </div>
           <div className="space-y-1">
-            {group.steps.map((item) => (
-              <Button
-                key={item.id}
-                type="button"
-                variant={step === item.id ? "secondary" : "ghost"}
-                className="h-auto w-full justify-start whitespace-normal px-3 py-2 text-left text-sm"
-                aria-current={step === item.id ? "step" : undefined}
-                onClick={() => setStep(item.id)}
-              >
-                <span className="min-w-0 break-words">
-                  {item.id + 1}. {item.label}
-                </span>
-              </Button>
-            ))}
+            {group.steps.map((item) => {
+              const marker = stepMarkers[item.id];
+              const markerLabel = PROSPECTUS_STEP_MARKER_LABEL[marker];
+              return (
+                <Button
+                  key={item.id}
+                  type="button"
+                  variant={step === item.id ? "secondary" : "ghost"}
+                  className="h-auto w-full justify-start gap-2 whitespace-normal px-3 py-2 text-left text-sm"
+                  aria-current={step === item.id ? "step" : undefined}
+                  aria-label={`${item.label}, ${markerLabel}`}
+                  onClick={() => setStep(item.id)}
+                >
+                  <span
+                    className={`w-4 shrink-0 text-center font-semibold ${markerClass(marker)}`}
+                    aria-hidden="true"
+                  >
+                    {PROSPECTUS_STEP_MARKER_SYMBOL[marker]}
+                  </span>
+                  <span className="min-w-0 break-words">{item.label}</span>
+                </Button>
+              );
+            })}
           </div>
         </div>
       ))}
@@ -463,7 +483,7 @@ function ProspectusReviewPageInner() {
                     {PROSPECTUS_STEP_GROUPS.flatMap((group) =>
                       group.steps.map((item) => (
                         <SelectItem key={item.id} value={String(item.id)}>
-                          {group.group}: {item.label}
+                          {PROSPECTUS_STEP_MARKER_SYMBOL[stepMarkers[item.id]]} {item.label}
                         </SelectItem>
                       ))
                     )}
