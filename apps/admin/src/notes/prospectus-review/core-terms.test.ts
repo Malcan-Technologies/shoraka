@@ -6,6 +6,8 @@ jest.mock("@cashsouk/config", () => ({
     })}`,
 }));
 
+import fs from "node:fs";
+import path from "node:path";
 import {
   calculateCalendarDayCount,
   type NoteDetail,
@@ -162,10 +164,55 @@ describe("note & investment details coverage", () => {
     expect(byId["investment-terms"]?.find((r) => r.label === "Purpose of Financing")?.value).toBe(
       "Working capital"
     );
+    expect(byId["risk-information"]?.map((r) => r.label)).toEqual([
+      "Risk Rating",
+      "Risk Label",
+      "Risk Explanation",
+    ]);
     expect(byId["risk-information"]?.find((r) => r.label === "Risk Rating")?.value).toBe("AA");
-    expect(byId["risk-information"]?.find((r) => r.label === "Risk Label")?.value).toBe(
+  });
+
+  it("keeps Risk Rating, Label, and Explanation; omits Rating Scale Reference from admin", () => {
+    const withGrade = buildNoteInvestmentDetailSections(sampleNote({ riskRating: "BBB" }));
+    const risk = withGrade.find((s) => s.id === "risk-information")!;
+    expect(risk.title).toBe("Risk Information");
+    expect(risk.rows.map((r) => r.label)).toEqual([
+      "Risk Rating",
+      "Risk Label",
+      "Risk Explanation",
+    ]);
+    expect(risk.rows.find((r) => r.label === "Risk Rating")?.value).toBe("BBB");
+    expect(risk.rows.find((r) => r.label === "Risk Label")?.value).toBe("Data not available");
+    expect(risk.rows.find((r) => r.label === "Risk Explanation")?.value).toBe(
       "Data not available"
     );
+    expect(risk.rows.some((r) => r.label === "Rating Scale Reference")).toBe(false);
+    expect(JSON.stringify(risk.rows)).not.toMatch(/See rating scale on page 2/);
+    expect(JSON.stringify(risk.rows)).not.toMatch(
+      /Very Low Risk|Low Risk|Moderate Risk|High Risk|Very High Risk/
+    );
+
+    for (const grade of ["AAA", "AA", "A", "BBB", "BB", "B"] as const) {
+      const rows = buildNoteInvestmentDetailSections(sampleNote({ riskRating: grade })).find(
+        (s) => s.id === "risk-information"
+      )!.rows;
+      expect(rows).toEqual([
+        { label: "Risk Rating", value: grade },
+        { label: "Risk Label", value: "Data not available" },
+        { label: "Risk Explanation", value: "Data not available" },
+      ]);
+    }
+
+    const missing = buildNoteInvestmentDetailSections(sampleNote({ riskRating: null })).find(
+      (s) => s.id === "risk-information"
+    )!.rows;
+    expect(missing.find((r) => r.label === "Risk Rating")?.value).toBe("Data not available");
+    expect(missing.find((r) => r.label === "Risk Rating")?.value).not.toBe("—");
+
+    const invalid = buildNoteInvestmentDetailSections(
+      sampleNote({ riskRating: "C" as never })
+    ).find((s) => s.id === "risk-information")!.rows;
+    expect(invalid.find((r) => r.label === "Risk Rating")?.value).toBe("Data not available");
   });
 
   it("repeats the five At a Glance values and keeps issuer identity hidden", () => {
@@ -340,6 +387,55 @@ describe("Dates & Paymaster prospectus alignment", () => {
     expect(value(rows, "Nature of Paymaster")).toBe("Data not available");
     expect(value(rows, "Paymaster")).not.toBe("—");
     expect(value(rows, "Nature of Paymaster")).not.toBe("—");
+  });
+});
+
+describe("Risk Information prospectus/admin boundary", () => {
+  it("keeps See rating scale on page 2 on Page 1 prospectus only", () => {
+    const riskTypes = fs.readFileSync(
+      path.join(
+        __dirname,
+        "../../../../api/src/modules/notes/prospectus/prospectus-risk-assessment.types.ts"
+      ),
+      "utf8"
+    );
+    const pageOneHtml = fs.readFileSync(
+      path.join(
+        __dirname,
+        "../../../../api/src/modules/notes/prospectus/prospectus-page-one.html.ts"
+      ),
+      "utf8"
+    );
+    expect(riskTypes).toContain('PROSPECTUS_RATING_SCALE_REFERENCE = "See rating scale on page 2"');
+    expect(pageOneHtml).toContain("ratingScaleReference");
+
+    const adminCore = fs.readFileSync(path.join(__dirname, "core-terms.ts"), "utf8");
+    expect(adminCore).not.toContain("See rating scale on page 2");
+    expect(adminCore).not.toContain('label: "Rating Scale Reference"');
+  });
+
+  it("does not introduce grade-to-label or explanation mapping in admin", () => {
+    const adminCore = fs.readFileSync(path.join(__dirname, "core-terms.ts"), "utf8");
+    expect(adminCore).not.toMatch(/Very Low Risk|Low Risk|Moderate Risk|High Risk|Very High Risk/);
+    expect(adminCore).toContain('label: "Risk Label", value: DATA_NOT_AVAILABLE');
+    expect(adminCore).toContain('label: "Risk Explanation", value: DATA_NOT_AVAILABLE');
+  });
+
+  it("leaves Page 2 risk scale and completion rules untouched", () => {
+    const pageTwoScale = fs.readFileSync(
+      path.join(
+        __dirname,
+        "../../../../api/src/modules/notes/prospectus/prospectus-soukscore-rating-scale.ts"
+      ),
+      "utf8"
+    );
+    expect(pageTwoScale).toContain("riskLabel: PROSPECTUS_DATA_NOT_AVAILABLE");
+    expect(pageTwoScale).toContain("definition: PROSPECTUS_DATA_NOT_AVAILABLE");
+
+    const completion = fs.readFileSync(path.join(__dirname, "completion.ts"), "utf8");
+    expect(completion).not.toMatch(/Risk Label|Risk Explanation|Risk Rating|risk-information/);
+    expect(completion).toContain('id: "core"');
+    expect(completion).toContain("complete: true");
   });
 });
 

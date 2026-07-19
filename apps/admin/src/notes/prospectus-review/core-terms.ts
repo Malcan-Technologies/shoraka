@@ -4,12 +4,12 @@ import {
   calculateCalendarDayCount,
   formatInvestorReturnRatePercent,
   formatUtcCalendarDateEnMy,
+  isSoukscoreRiskRating,
   resolveNetExpectedReturnRatePercent,
   type NoteDetail,
 } from "@cashsouk/types";
 
 const DATA_NOT_AVAILABLE = "Data not available";
-const RATING_SCALE_REFERENCE = "See rating scale on page 2";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -172,10 +172,17 @@ export function buildNoteInvestmentDetailSections(
       id: "risk-information",
       title: "Risk Information",
       rows: [
-        { label: "Risk Rating", value: textOrDash(note.riskRating) },
+        {
+          label: "Risk Rating",
+          // NoteDetail.riskRating is mapped from invoice_snapshot.offer_details.risk_rating.
+          value: isSoukscoreRiskRating(note.riskRating)
+            ? note.riskRating
+            : DATA_NOT_AVAILABLE,
+        },
+        // Unresolved until product/legal approve SoukScore label copy — keep visible as DNA.
         { label: "Risk Label", value: DATA_NOT_AVAILABLE },
+        // Unresolved until product/legal approve grade explanations — keep visible as DNA.
         { label: "Risk Explanation", value: DATA_NOT_AVAILABLE },
-        { label: "Rating Scale Reference", value: RATING_SCALE_REFERENCE },
       ],
     },
     {
