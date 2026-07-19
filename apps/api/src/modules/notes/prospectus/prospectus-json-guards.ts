@@ -10,6 +10,10 @@ import type {
   ProspectusPage1HistoricalNoteSnapshot,
   ProspectusPage1IssuerTrackRecordSnapshot,
   ProspectusPage1Snapshot,
+  ProspectusPage2FinancialComparisonSnapshot,
+  ProspectusPage2FinancialRawSnapshot,
+  ProspectusPage2FinancialYearSnapshot,
+  ProspectusPage2Snapshot,
   ProspectusSnapshot,
 } from "./prospectus-snapshot.types";
 
@@ -191,6 +195,94 @@ function parseTrackRecord(
   };
 }
 
+function parseRawFinancialScalar(value: unknown): string | number | null {
+  if (value == null) return null;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  return null;
+}
+
+function parsePage2RawFinancials(value: unknown): ProspectusPage2FinancialRawSnapshot | null {
+  const raw = asJsonRecord(value);
+  if (!raw) return null;
+  return {
+    turnover: parseRawFinancialScalar(raw.turnover),
+    plnpat: parseRawFinancialScalar(raw.plnpat),
+    bsqpuc: parseRawFinancialScalar(raw.bsqpuc),
+    bscatot: parseRawFinancialScalar(raw.bscatot),
+    curlib: parseRawFinancialScalar(raw.curlib),
+  };
+}
+
+function parsePage2FinancialYear(value: unknown): ProspectusPage2FinancialYearSnapshot | null {
+  const row = asJsonRecord(value);
+  if (!row) return null;
+  const year = row.year;
+  if (typeof year !== "number" || !Number.isInteger(year) || year < 1000 || year > 9999) {
+    return null;
+  }
+  const yearLabel = nonEmptyString(row.year_label);
+  if (!yearLabel) return null;
+  const rawFinancials = parsePage2RawFinancials(row.raw_financials);
+  if (!rawFinancials) return null;
+  const fye = row.financial_year_end_label;
+  const financialYearEndLabel =
+    fye == null ? null : typeof fye === "string" ? nonEmptyString(fye) : null;
+
+  return {
+    year,
+    year_label: yearLabel,
+    financial_year_end_label: financialYearEndLabel,
+    raw_financials: rawFinancials,
+  };
+}
+
+/**
+ * Strict Page 2 financial_comparison parser.
+ * Independent of page_1 validity — malformed page_2 must not live-fallback.
+ */
+export function parseProspectusPageTwoFinancialComparison(
+  value: unknown
+): ProspectusPage2FinancialComparisonSnapshot | null {
+  const comparison = asJsonRecord(value);
+  if (!comparison) return null;
+  if (comparison.source !== "application_financial_statements") return null;
+  const calculatedAt = nonEmptyString(comparison.calculated_at);
+  if (!calculatedAt) return null;
+  if (!Array.isArray(comparison.selected_years)) return null;
+
+  const selectedYears: ProspectusPage2FinancialYearSnapshot[] = [];
+  for (const year of comparison.selected_years) {
+    const parsed = parsePage2FinancialYear(year);
+    if (!parsed) return null;
+    selectedYears.push(parsed);
+  }
+
+  return {
+    source: "application_financial_statements",
+    selected_years: selectedYears,
+    calculated_at: calculatedAt,
+  };
+}
+
+/**
+ * Strict Page 2 snapshot parser (page_2 branch only).
+ * Returns null when missing or malformed — callers must not use live Application data.
+ */
+export function parseProspectusPageTwoSnapshot(value: unknown): ProspectusPage2Snapshot | null {
+  const root = asJsonRecord(value);
+  const page2 = asJsonRecord(root?.page_2);
+  if (!page2) return null;
+  const financialComparison = parseProspectusPageTwoFinancialComparison(
+    page2.financial_comparison
+  );
+  if (!financialComparison) return null;
+  return { financial_comparison: financialComparison };
+}
+
 /**
  * Strict Page 1 snapshot parser.
  * Returns null when structure is missing or any historical row is malformed
@@ -212,10 +304,17 @@ export function parseProspectusPageOneSnapshot(value: unknown): ProspectusSnapsh
     historical.push(parsed);
   }
 
-  return {
+  const result: ProspectusSnapshot = {
     page_1: {
       issuer_track_record: track,
       historical_notes: historical,
     } satisfies ProspectusPage1Snapshot,
   };
+
+  const page2 = parseProspectusPageTwoSnapshot(value);
+  if (page2) {
+    result.page_2 = page2;
+  }
+
+  return result;
 }

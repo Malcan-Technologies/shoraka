@@ -288,8 +288,7 @@
  * - Button label static: INVEST NOW
  * - Destination: confirmed investor route /investments/{notes.id}
  * - Auth required in investor portal; URL alone does not prove investability
- * - Final visibility/disabled investability belongs to marketplace
- *   (computeMarketplaceCommitBounds / note.investable) — wired by future Page 2 mapper
+ * - Investability: Page 2 mapper uses computeMarketplaceCommitBounds(target, funded)
  * - Minimum investment: MARKETPLACE_MIN_COMMIT_MYR via formatProspectusMoneyMyr
  * - Display: Minimum investment: RM 100.00 (full money; not Canva RM 100)
  * - No attractive / short-term / Shariah-compliant investment claims
@@ -300,6 +299,57 @@
  * - Current risk warning and Product Terms/Risk Disclosure statement: Data not available
  * - Components shared across prospectus pages (Page 1 integration later)
  * - Future legal/marketing copy should be versioned static config or snapshot version
+ *
+ * =============================================================================
+ * PAGE 2 — FULL PRISMA MAPPER + PUBLICATION SNAPSHOT + HTML ASSEMBLY
+ * =============================================================================
+ *
+ * Modules: prospectus-page-two.*
+ * Preview: pnpm prospectus:page-two-preview [--note-id=<NOTE_ID>]
+ * Output: apps/api/tmp/prospectus/prospectus-page-two-preview.html
+ * Page size: A4 210mm × 297mm (same as Page 1)
+ *
+ * Prisma query boundary (PROSPECTUS_PAGE_TWO_NOTE_SELECT):
+ * - Note snapshots: issuer_snapshot, invoice_snapshot, paymaster_snapshot, prospectus_snapshot
+ * - Note fields: id, note_reference, status, published_at, source_application_id,
+ *   maturity_date, target_amount, funded_amount, listing opens_at/closes_at/status
+ * - Application.financial_statements loaded ONLY for unpublished Stage 4 preview
+ * - No CTOS; no live organization fields; no live invoice/paymaster fallbacks
+ *
+ * Publication rule (same as Page 1):
+ * status === PUBLISHED && published_at != null
+ *
+ * Page 2 snapshot shape (notes.prospectus_snapshot.page_2):
+ * {
+ *   financial_comparison: {
+ *     source: "application_financial_statements",
+ *     selected_years: [{ year, year_label, financial_year_end_label, raw_financials }],
+ *     calculated_at: ISO string
+ *   },
+ *   config_versions?: { soukscore_scale, legal_copy, marketing_copy }
+ * }
+ * raw_financials keys: turnover, plnpat, bsqpuc, bscatot, curlib (JSON-safe scalars)
+ * No formatted money/HTML/CTOS/legal/marketing claims in snapshot.
+ *
+ * Publish merge (NoteService.publish):
+ * - Build page_1 track-record snapshot as before
+ * - Build page_2 financial_comparison from Application financial_statements
+ * - Merge via wrapProspectusSnapshotWithPageTwo (preserve unknown branches; replace page_1/page_2)
+ * - Missing financials → valid empty selected_years (publication continues)
+ *
+ * Snapshot preference:
+ * - Published + valid page_2 → frozen Stage 4 only (no live Application read)
+ * - Unpublished → live Application → Stage 4A → Stage 4B
+ * - Published missing/malformed page_2 → empty Stage 4 (no live fallback; no repair)
+ *
+ * Investability: computeMarketplaceCommitBounds(target, funded).investable
+ * CTA href /investments/{note.id} only when investable; else disabled button
+ *
+ * Assembly order:
+ * header → Stage 1 → 2 → 3 → 4B financial table → 5 → 6 → 7 → CTA → footer
+ * Stage 4A is internal source model only (not a duplicate final section)
+ *
+ * Money: formatProspectusMoneyMyr only; no compact/mil/million/k; no (MYR mil.)
  *
  * Corrections still needed when those stages are implemented:
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)

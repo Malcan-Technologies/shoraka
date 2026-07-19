@@ -78,9 +78,10 @@ import {
   resolveProductNameFromWorkflow,
 } from "./mapper";
 import {
-  buildProspectusPage1TrackRecordSnapshot,
-  wrapProspectusSnapshot,
-} from "./prospectus/prospectus-track-record-query";
+  buildProspectusPage2Snapshot,
+  wrapProspectusSnapshotWithPageTwo,
+} from "./prospectus/prospectus-page-two-snapshot";
+import { buildProspectusPage1TrackRecordSnapshot } from "./prospectus/prospectus-track-record-query";
 import { NotificationService } from "../notification/service";
 import {
   notifyNoteActivated,
@@ -2426,7 +2427,21 @@ export class NoteService {
       currentNoteId: id,
       now,
     });
-    const prospectusSnapshot = wrapProspectusSnapshot(page1Snapshot);
+    const applicationForProspectus = note.source_application_id
+      ? await prisma.application.findUnique({
+          where: { id: note.source_application_id },
+          select: { financial_statements: true },
+        })
+      : null;
+    const page2Snapshot = buildProspectusPage2Snapshot({
+      financialStatements: applicationForProspectus?.financial_statements ?? null,
+      now,
+    });
+    const prospectusSnapshot = wrapProspectusSnapshotWithPageTwo(
+      page1Snapshot,
+      page2Snapshot,
+      note.prospectus_snapshot
+    );
 
     const updated = await prisma.$transaction(async (tx) => {
       const stateUpdate = await tx.note.updateMany({

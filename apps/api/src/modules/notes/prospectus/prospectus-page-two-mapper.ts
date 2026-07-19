@@ -1,0 +1,210 @@
+/**
+ * SECTION: Map Page 2 Prisma data → Stage 1–8 builders → assembled Page 2
+ * WHY: Prefer frozen Stage 4 snapshot when published; never live-fallback published
+ */
+
+import { Prisma } from "@prisma/client";
+import { computeMarketplaceCommitBounds } from "@cashsouk/types";
+import { buildProspectusCreditInsights } from "./prospectus-credit-insights";
+import { buildProspectusFinancialComparisonMetrics } from "./prospectus-financial-comparison-metrics";
+import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
+import {
+  PROSPECTUS_DATA_NOT_AVAILABLE,
+  PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
+  PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
+  type ProspectusFinancialComparisonSource,
+  type ProspectusFinancialComparisonYear,
+} from "./prospectus-financial-comparison-source.types";
+import { buildProspectusFooter } from "./prospectus-footer";
+import { buildProspectusHeader } from "./prospectus-header";
+import { buildProspectusInvestmentCta } from "./prospectus-investment-cta";
+import { buildProspectusInvoicePaymaster } from "./prospectus-invoice-paymaster";
+import { buildProspectusInvoiceWorkNarrative } from "./prospectus-invoice-work-narrative";
+import { buildProspectusIssuerProfile } from "./prospectus-issuer-profile";
+import {
+  parseInvoiceSnapshotRiskRating,
+  parseProspectusPageTwoSnapshot,
+} from "./prospectus-json-guards";
+import { isProspectusNotePublished } from "./prospectus-page-one-prisma";
+import type { ProspectusPageTwoLoadedData } from "./prospectus-page-two-prisma";
+import type {
+  ProspectusPageTwo,
+  ProspectusPageTwoFinancialMode,
+} from "./prospectus-page-two.types";
+import { buildProspectusPaymasterTrackRecord } from "./prospectus-paymaster-track-record";
+import type { ProspectusPage2FinancialComparisonSnapshot } from "./prospectus-snapshot.types";
+import { buildProspectusSoukscoreRatingScale } from "./prospectus-soukscore-rating-scale";
+
+export type ProspectusPageTwoBuilderInput = {
+  noteId: string;
+  noteReference: string;
+  isPublished: boolean;
+  financialMode: ProspectusPageTwoFinancialMode;
+  issuerSnapshot: unknown;
+  invoiceSnapshot: unknown;
+  paymasterSnapshot: unknown;
+  maturityDate: Date | null;
+  /** Live Application financials — only for unpublished preview. */
+  liveFinancialStatements: unknown | null;
+  /** Parsed frozen Stage 4 — only when published + valid. */
+  frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot | null;
+  targetAmount: number;
+  fundedAmount: number;
+};
+
+function toFiniteNumber(value: unknown): number {
+  if (value instanceof Prisma.Decimal) return value.toNumber();
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value.replace(/,/g, ""));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function emptyFinancialComparisonSource(): ProspectusFinancialComparisonSource {
+  return {
+    sectionHeading: PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
+    tableUnitLabel: PROSPECTUS_DATA_NOT_AVAILABLE,
+    years: [],
+    sourceNote: PROSPECTUS_DATA_NOT_AVAILABLE,
+    audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
+  };
+}
+
+/**
+ * Reconstruct Stage 4A view-model from frozen publication snapshot.
+ * Does not re-run live year selection.
+ */
+export function buildFinancialComparisonSourceFromFrozen(
+  frozen: ProspectusPage2FinancialComparisonSnapshot
+): ProspectusFinancialComparisonSource {
+  const years: ProspectusFinancialComparisonYear[] = frozen.selected_years.map((year) => ({
+    year: year.year,
+    yearLabel: year.year_label,
+    financialYearEndLabel: year.financial_year_end_label ?? PROSPECTUS_DATA_NOT_AVAILABLE,
+    rawFinancials: {
+      turnover: year.raw_financials.turnover,
+      plnpat: year.raw_financials.plnpat,
+      bsqpuc: year.raw_financials.bsqpuc,
+      bscatot: year.raw_financials.bscatot,
+      curlib: year.raw_financials.curlib,
+    },
+  }));
+
+  return {
+    sectionHeading: PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
+    tableUnitLabel: PROSPECTUS_DATA_NOT_AVAILABLE,
+    years,
+    sourceNote: PROSPECTUS_DATA_NOT_AVAILABLE,
+    audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
+  };
+}
+
+function resolveFinancialComparisonSource(
+  input: ProspectusPageTwoBuilderInput
+): ProspectusFinancialComparisonSource {
+  if (input.financialMode === "frozen_publication_snapshot") {
+    if (!input.frozenFinancialComparison) {
+      return emptyFinancialComparisonSource();
+    }
+    return buildFinancialComparisonSourceFromFrozen(input.frozenFinancialComparison);
+  }
+
+  if (input.financialMode === "published_unavailable") {
+    return emptyFinancialComparisonSource();
+  }
+
+  return buildProspectusFinancialComparisonSource({
+    financialStatements: input.liveFinancialStatements,
+  });
+}
+
+export function mapProspectusPageTwoDataToInput(
+  data: ProspectusPageTwoLoadedData
+): ProspectusPageTwoBuilderInput {
+  const { note } = data;
+  const isPublished = isProspectusNotePublished(note);
+  const parsedPage2 = parseProspectusPageTwoSnapshot(note.prospectus_snapshot);
+
+  let financialMode: ProspectusPageTwoFinancialMode;
+  let frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot | null = null;
+  let liveFinancialStatements: unknown | null = null;
+
+  if (isPublished) {
+    if (parsedPage2) {
+      financialMode = "frozen_publication_snapshot";
+      frozenFinancialComparison = parsedPage2.financial_comparison;
+    } else {
+      financialMode = "published_unavailable";
+    }
+  } else {
+    financialMode = "live_unpublished_preview";
+    liveFinancialStatements = data.liveFinancialStatements;
+  }
+
+  return {
+    noteId: note.id,
+    noteReference: note.note_reference,
+    isPublished,
+    financialMode,
+    issuerSnapshot: note.issuer_snapshot,
+    invoiceSnapshot: note.invoice_snapshot,
+    paymasterSnapshot: note.paymaster_snapshot,
+    maturityDate: note.maturity_date,
+    liveFinancialStatements,
+    frozenFinancialComparison,
+    targetAmount: toFiniteNumber(note.target_amount),
+    fundedAmount: toFiniteNumber(note.funded_amount),
+  };
+}
+
+export function buildProspectusPageTwo(
+  input: ProspectusPageTwoBuilderInput
+): ProspectusPageTwo {
+  const financialComparisonSource = resolveFinancialComparisonSource(input);
+  const financialComparisonMetrics = buildProspectusFinancialComparisonMetrics({
+    source: financialComparisonSource,
+  });
+
+  const { investable } = computeMarketplaceCommitBounds(
+    input.targetAmount,
+    input.fundedAmount
+  );
+
+  return {
+    header: buildProspectusHeader(),
+    issuerProfile: buildProspectusIssuerProfile({
+      issuerSnapshot: input.issuerSnapshot,
+    }),
+    invoicePaymaster: buildProspectusInvoicePaymaster({
+      invoiceSnapshot: input.invoiceSnapshot,
+      paymasterSnapshot: input.paymasterSnapshot,
+      maturityDate: input.maturityDate,
+    }),
+    paymasterTrackRecord: buildProspectusPaymasterTrackRecord(),
+    financialComparisonSource,
+    financialComparisonMetrics,
+    creditInsights: buildProspectusCreditInsights(),
+    invoiceWorkNarrative: buildProspectusInvoiceWorkNarrative(),
+    soukscoreRatingScale: buildProspectusSoukscoreRatingScale({
+      selectedRiskRating: parseInvoiceSnapshotRiskRating(input.invoiceSnapshot),
+    }),
+    investmentCta: buildProspectusInvestmentCta({
+      noteId: investable ? input.noteId : null,
+    }),
+    footer: buildProspectusFooter(),
+    meta: {
+      noteId: input.noteId,
+      noteReference: input.noteReference,
+      financialMode: input.financialMode,
+      isPublished: input.isPublished,
+    },
+  };
+}
+
+export async function mapProspectusPageTwoFromNote(
+  data: ProspectusPageTwoLoadedData
+): Promise<ProspectusPageTwo> {
+  return buildProspectusPageTwo(mapProspectusPageTwoDataToInput(data));
+}

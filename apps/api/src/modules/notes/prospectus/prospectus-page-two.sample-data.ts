@@ -1,0 +1,85 @@
+/**
+ * SECTION: Deterministic Page 2 sample assembly (no Prisma)
+ * WHY: Preview without --note-id; prove stage composition and DNA fields
+ */
+
+import { MARKETPLACE_MIN_COMMIT_MYR } from "@cashsouk/types";
+import { buildProspectusPageTwo, type ProspectusPageTwoBuilderInput } from "./prospectus-page-two-mapper";
+import type { ProspectusPageTwo } from "./prospectus-page-two.types";
+import type { ProspectusPage2FinancialComparisonSnapshot } from "./prospectus-snapshot.types";
+
+const SAMPLE_FROZEN_FINANCIALS: ProspectusPage2FinancialComparisonSnapshot = {
+  source: "application_financial_statements",
+  selected_years: [
+    {
+      year: 2022,
+      year_label: "FY2022",
+      financial_year_end_label: "31 Dec 2022",
+      raw_financials: {
+        turnover: 12000000,
+        plnpat: 900000,
+        bsqpuc: 5000000,
+        bscatot: 4000000,
+        curlib: 2000000,
+      },
+    },
+    {
+      year: 2023,
+      year_label: "FY2023",
+      financial_year_end_label: "31 Dec 2023",
+      raw_financials: {
+        turnover: 13900000,
+        plnpat: 1100000,
+        bsqpuc: 5500000,
+        bscatot: 4200000,
+        curlib: 2100000,
+      },
+    },
+    {
+      year: 2024,
+      year_label: "FY2024",
+      financial_year_end_label: "31 Dec 2024",
+      raw_financials: {
+        turnover: 15000000,
+        plnpat: 1200000,
+        bsqpuc: 6000000,
+        bscatot: 4500000,
+        curlib: 2200000,
+      },
+    },
+  ],
+  calculated_at: "2026-07-19T00:00:00.000Z",
+};
+
+export const SAMPLE_PROSPECTUS_PAGE_TWO_INPUT: ProspectusPageTwoBuilderInput = {
+  noteId: "clsamplepage2preview001",
+  noteReference: "CS-NOTE-P2-SAMPLE",
+  isPublished: true,
+  financialMode: "frozen_publication_snapshot",
+  issuerSnapshot: {
+    name: "Sample Issuer Sdn Bhd",
+    registration_number: "202001234567",
+    industry: "Construction",
+    country: "Malaysia",
+    business_description: "Civil engineering and infrastructure works.",
+  },
+  invoiceSnapshot: {
+    details: { value: 625000 },
+    offer_details: { risk_rating: "AA" },
+  },
+  paymasterSnapshot: {
+    name: "Sample Paymaster Berhad",
+    entity_type: "GOVERNMENT_LINKED",
+  },
+  maturityDate: new Date("2026-12-31T00:00:00.000Z"),
+  liveFinancialStatements: null,
+  frozenFinancialComparison: SAMPLE_FROZEN_FINANCIALS,
+  targetAmount: 500000,
+  fundedAmount: 0,
+};
+
+export const SAMPLE_PROSPECTUS_PAGE_TWO: ProspectusPageTwo = buildProspectusPageTwo(
+  SAMPLE_PROSPECTUS_PAGE_TWO_INPUT
+);
+
+export const SAMPLE_PROSPECTUS_PAGE_TWO_MIN_INVESTMENT_MYR = MARKETPLACE_MIN_COMMIT_MYR;

@@ -158,8 +158,20 @@ export async function buildProspectusPage1TrackRecordSnapshot(input: {
   };
 }
 
-export function wrapProspectusSnapshot(page1: ProspectusPage1Snapshot): ProspectusSnapshot {
-  return { page_1: page1 };
+/**
+ * Merge frozen page_1 into prospectus_snapshot.
+ * Preserves unknown branches and existing page_2 when not replaced.
+ */
+export function wrapProspectusSnapshot(
+  page1: ProspectusPage1Snapshot,
+  existingSnapshot?: unknown
+): ProspectusSnapshot {
+  const root = asRecord(existingSnapshot) ?? {};
+  const merged: Record<string, unknown> = {
+    ...root,
+    page_1: page1,
+  };
+  return merged as unknown as ProspectusSnapshot;
 }
 
 export function parseProspectusSnapshot(value: unknown): ProspectusSnapshot | null {
