@@ -31,12 +31,17 @@ function hasOption(value: string | null | undefined): boolean {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function hasHighlightCopy(value: { title?: string; description?: string; key?: string }): boolean {
+  if (value.key === "shariah") return true;
+  return hasOption(value.title) && hasOption(value.description);
+}
+
 export function buildProspectusCompletionChecklist(
   draft: ProspectusReviewStoredContent
 ): ProspectusCompletionItem[] {
-  const highlightsComplete = draft.page1.keyInvestorHighlights.every(
-    (h) => hasOption(h.optionKey) || h.isVisible === false
-  );
+  const highlightsComplete =
+    draft.page1.keyInvestorHighlights.length >= 4 &&
+    draft.page1.keyInvestorHighlights.every((h) => hasHighlightCopy(h));
 
   const track = draft.page2.paymasterTrackRecord;
   const paymasterComplete = Boolean(

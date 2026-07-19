@@ -39,48 +39,6 @@ function opt(
   return { key, label, renderedText, category, isActive: true };
 }
 
-export const PROSPECTUS_HIGHLIGHT_OPTION_CATALOGUE: Record<
-  string,
-  readonly ProspectusCatalogueOption[]
-> = {
-  paymaster: [
-    opt(
-      "placeholder_paymaster",
-      "Placeholder — Paymaster highlight",
-      "Placeholder — Paymaster highlight (not approved).",
-      "FIXED_TEMPLATE"
-    ),
-    DO_NOT_DISPLAY,
-  ],
-  issuer_fundamentals: [
-    opt(
-      "placeholder_issuer_fundamentals",
-      "Placeholder — Issuer fundamentals",
-      "Placeholder — Issuer fundamentals (not approved).",
-      "FIXED_TEMPLATE"
-    ),
-    DO_NOT_DISPLAY,
-  ],
-  return: [
-    opt(
-      "placeholder_return",
-      "Placeholder — Return highlight",
-      "Placeholder — Return highlight (not approved).",
-      "FIXED_TEMPLATE"
-    ),
-    DO_NOT_DISPLAY,
-  ],
-  shariah: [
-    opt(
-      "placeholder_shariah",
-      "Placeholder — Shariah highlight",
-      "Placeholder — Shariah highlight (not approved).",
-      "FIXED_TEMPLATE"
-    ),
-    DO_NOT_DISPLAY,
-  ],
-};
-
 export const PROSPECTUS_CREDIT_INSIGHT_OPTIONS: readonly ProspectusCatalogueOption[] = [
   opt("positive", "Positive", "Positive"),
   opt("neutral", "Neutral", "Neutral"),
@@ -180,13 +138,6 @@ export const PROSPECTUS_TAKEAWAY_OPTION_CATALOGUE: Record<
   ],
 };
 
-export const PROSPECTUS_HIGHLIGHT_KEYS = [
-  "paymaster",
-  "issuer_fundamentals",
-  "return",
-  "shariah",
-] as const;
-
 export const PROSPECTUS_INVOICE_WORK_KEYS = [
   "work_under_contract",
   "certification_acceptance",
@@ -255,7 +206,6 @@ export function findCatalogueOption(
 export function getActiveProspectusCatalogues() {
   return {
     version: PROSPECTUS_OPTION_CATALOGUE_VERSION,
-    highlights: PROSPECTUS_HIGHLIGHT_OPTION_CATALOGUE,
     creditInsights: PROSPECTUS_CREDIT_INSIGHT_OPTIONS,
     invoiceWork: PROSPECTUS_INVOICE_WORK_OPTION_CATALOGUE,
     takeaways: PROSPECTUS_TAKEAWAY_OPTION_CATALOGUE,

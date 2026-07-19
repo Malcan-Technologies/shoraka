@@ -6,13 +6,20 @@ export type ProspectusReviewStatus =
   | "APPROVED"
   | "SUPERSEDED";
 
+/** Stored officer-edited highlight copy (Shariah is fixed on write/resolve). */
+export interface ProspectusReviewHighlightSelection {
+  key: string;
+  title: string;
+  description: string;
+  /** @deprecated Legacy catalogue key — ignored for new reviews. */
+  optionKey?: string | null;
+  /** @deprecated Legacy visibility — highlights are always displayed. */
+  isVisible?: boolean;
+}
+
 export interface ProspectusReviewStoredContent {
   page1: {
-    keyInvestorHighlights: Array<{
-      key: string;
-      optionKey?: string | null;
-      isVisible: boolean;
-    }>;
+    keyInvestorHighlights: ProspectusReviewHighlightSelection[];
     /** @deprecated Legacy only — ignored; Payment Basis is a fixed prospectus value. */
     paymentBasisOptionKey?: string | null;
     /** @deprecated Legacy only — ignored; Shariah Principle is a fixed prospectus value. */
@@ -78,6 +85,11 @@ export interface ProspectusCatalogueOptionDto {
   isActive: boolean;
 }
 
+export interface ProspectusHighlightCopyDto {
+  title: string;
+  description: string;
+}
+
 export interface ProspectusReviewGetResponse {
   note: {
     id: string;
@@ -88,10 +100,16 @@ export interface ProspectusReviewGetResponse {
   review: ProspectusReviewDetail;
   catalogues: {
     version: string;
-    highlights: Record<string, ProspectusCatalogueOptionDto[]>;
     creditInsights: ProspectusCatalogueOptionDto[];
     invoiceWork: Record<string, ProspectusCatalogueOptionDto[]>;
     takeaways: Record<string, ProspectusCatalogueOptionDto[]>;
+  };
+  /** System recommendations for Key Investor Highlights (pre-fill / reference). */
+  highlightRecommendations: {
+    paymaster: ProspectusHighlightCopyDto;
+    issuer_fundamentals: ProspectusHighlightCopyDto;
+    return: ProspectusHighlightCopyDto;
+    shariah: ProspectusHighlightCopyDto;
   };
   publishBlockedReason: string | null;
   /** Temporary placeholder catalogue notice for officers. */

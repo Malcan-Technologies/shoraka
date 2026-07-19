@@ -4,7 +4,7 @@
 
 import { NoteStatus, ProspectusReviewStatus } from "@prisma/client";
 import { AppError } from "../../../lib/http/errors";
-import { emptyProspectusReviewContent } from "./prospectus-review-content";
+import { buildCompleteProspectusReviewDraft } from "./prospectus-review.demo-fixtures";
 import { ProspectusReviewService } from "./prospectus-review.service";
 
 const mockFindUnique = jest.fn();
@@ -37,33 +37,7 @@ const actor = {
 };
 
 function completeDraft() {
-  const draft = emptyProspectusReviewContent();
-  draft.page1.keyInvestorHighlights = draft.page1.keyInvestorHighlights.map((h) => ({
-    ...h,
-    optionKey: "do_not_display",
-    isVisible: false,
-  }));
-  draft.page2.creditInsights = {
-    creditScoreOptionKey: "positive",
-    paymentBehaviourOptionKey: "neutral",
-    creditUtilisationOptionKey: "do_not_display",
-    litigationCheckOptionKey: "do_not_display",
-    ccrisStatusOptionKey: "neutral",
-  };
-  draft.page2.invoiceWorkStatements = draft.page2.invoiceWorkStatements.map((s) => ({
-    ...s,
-    optionKey: "do_not_display",
-    isVisible: false,
-  }));
-  draft.page3.investorTakeaways = {
-    revenueProfitabilityOptionKey: "placeholder_positive",
-    liquidityOptionKey: "do_not_display",
-    leverageOptionKey: "placeholder_moderate",
-    debtServicingCapacityOptionKey: "placeholder_adequate",
-    workingCapitalEfficiencyOptionKey: "placeholder_typical",
-    overallFinancialProfileOptionKey: "placeholder_balanced",
-  };
-  return draft;
+  return buildCompleteProspectusReviewDraft();
 }
 
 function baseRow(overrides: Record<string, unknown> = {}) {

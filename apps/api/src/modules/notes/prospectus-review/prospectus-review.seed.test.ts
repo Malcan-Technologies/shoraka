@@ -67,8 +67,12 @@ describe("prospectus review demo seed", () => {
     const draft = buildCompleteProspectusReviewDraft();
     expect(validateApprovalContent(draft)).toEqual([]);
     expect(draft.page2.creditInsights.creditUtilisationOptionKey).toBe("do_not_display");
-    expect(draft.page1.keyInvestorHighlights.some((h) => h.optionKey === "do_not_display")).toBe(
-      true
+    expect(draft.page1.keyInvestorHighlights).toHaveLength(4);
+    expect(
+      draft.page1.keyInvestorHighlights.every((h) => h.title.trim() && h.description.trim())
+    ).toBe(true);
+    expect(draft.page1.keyInvestorHighlights.find((h) => h.key === "shariah")?.title).toContain(
+      "Shariah"
     );
   });
 

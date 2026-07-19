@@ -71,10 +71,10 @@ describe("prospectus review completion checklist", () => {
     return {
       page1: {
         keyInvestorHighlights: [
-          { key: "paymaster", optionKey: null, isVisible: true },
-          { key: "issuer_fundamentals", optionKey: null, isVisible: true },
-          { key: "return", optionKey: null, isVisible: true },
-          { key: "shariah", optionKey: null, isVisible: true },
+          { key: "paymaster", title: "", description: "" },
+          { key: "issuer_fundamentals", title: "", description: "" },
+          { key: "return", title: "", description: "" },
+          { key: "shariah", title: "", description: "" },
         ],
       },
       page2: {
@@ -94,11 +94,12 @@ describe("prospectus review completion checklist", () => {
 
   it("does not treat incomplete optional sections as submit blockers", () => {
     const draft = emptyDraft();
-    draft.page1.keyInvestorHighlights = draft.page1.keyInvestorHighlights.map((h) => ({
-      ...h,
-      optionKey: "do_not_display",
-      isVisible: false,
-    }));
+    draft.page1.keyInvestorHighlights = [
+      { key: "paymaster", title: "Paymaster title", description: "Paymaster body" },
+      { key: "issuer_fundamentals", title: "Issuer title", description: "Issuer body" },
+      { key: "return", title: "Return title", description: "Return body" },
+      { key: "shariah", title: "Shariah title", description: "Shariah body" },
+    ];
     draft.page2.creditInsights = {
       creditScoreOptionKey: "positive",
       paymentBehaviourOptionKey: "neutral",
@@ -124,14 +125,6 @@ describe("prospectus review completion checklist", () => {
     expect(checklist.find((i) => i.id === "financials")?.required).toBe(false);
     expect(checklist.find((i) => i.id === "highlights")?.complete).toBe(true);
     expect(isProspectusDraftReadyToSubmit(draft)).toBe(true);
-
-    // Payment Basis / Shariah Principle are fixed — not completion blockers.
-    draft.page1.paymentBasisOptionKey = undefined;
-    draft.page1.shariahPrincipleOptionKey = undefined;
-    expect(isProspectusDraftReadyToSubmit(draft)).toBe(true);
-    expect(buildProspectusCompletionChecklist(draft).find((i) => i.id === "highlights")?.complete).toBe(
-      true
-    );
   });
 
   it("uses Complete / Required / Optional without progression icon symbols", () => {
@@ -295,10 +288,10 @@ describe("prospectus review action visibility", () => {
     const draft: ProspectusReviewStoredContent = {
       page1: {
         keyInvestorHighlights: [
-          { key: "paymaster", optionKey: null, isVisible: true },
-          { key: "issuer_fundamentals", optionKey: null, isVisible: true },
-          { key: "return", optionKey: null, isVisible: true },
-          { key: "shariah", optionKey: null, isVisible: true },
+          { key: "paymaster", title: "", description: "" },
+          { key: "issuer_fundamentals", title: "", description: "" },
+          { key: "return", title: "", description: "" },
+          { key: "shariah", title: "", description: "" },
         ],
       },
       page2: {
@@ -315,6 +308,9 @@ describe("prospectus review action visibility", () => {
       },
     };
     expect(isProspectusDraftReadyToSubmit(draft)).toBe(false);
+    expect(buildProspectusCompletionChecklist(draft).find((i) => i.id === "highlights")?.complete).toBe(
+      false
+    );
     const actions = getProspectusActionVisibility({
       step: 6,
       status: "DRAFT",

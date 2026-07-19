@@ -434,6 +434,7 @@ export * from "./regtank-iso3166-countries";
 export * from "./notes";
 export * from "./prospectus-review";
 export * from "./prospectus-fixed-templates";
+export * from "./prospectus-highlight-recommendations";
 export * from "./investor-return-breakdown";
 export * from "./marketplace-note-dates";
 export * from "./prospectus-calendar";

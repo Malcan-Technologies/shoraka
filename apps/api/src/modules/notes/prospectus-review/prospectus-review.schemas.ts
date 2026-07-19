@@ -3,12 +3,11 @@
  */
 
 import { z } from "zod";
+import { PROSPECTUS_HIGHLIGHT_KEYS } from "@cashsouk/types";
 import { parseProspectusFinancialNumber } from "../prospectus/prospectus-financial-comparison-metrics";
 import {
   PROSPECTUS_CREDIT_INSIGHT_OPTIONS,
   PROSPECTUS_DERIVED_FINANCIAL_FIELD_KEYS,
-  PROSPECTUS_HIGHLIGHT_KEYS,
-  PROSPECTUS_HIGHLIGHT_OPTION_CATALOGUE,
   PROSPECTUS_INVOICE_WORK_KEYS,
   PROSPECTUS_INVOICE_WORK_OPTION_CATALOGUE,
   PROSPECTUS_MANUAL_FINANCIAL_FIELD_KEYS,
@@ -19,6 +18,9 @@ import {
 const nullableOptionKey = z.string().trim().min(1).nullable().optional();
 
 const numericOrString = z.union([z.number(), z.string(), z.null()]).optional();
+
+const HIGHLIGHT_TITLE_MAX = 160;
+const HIGHLIGHT_DESCRIPTION_MAX = 800;
 
 const manualYearSchema = z
   .object({
@@ -49,8 +51,11 @@ export const prospectusReviewStoredContentSchema = z
           z
             .object({
               key: z.string(),
+              title: z.string().max(HIGHLIGHT_TITLE_MAX).optional().default(""),
+              description: z.string().max(HIGHLIGHT_DESCRIPTION_MAX).optional().default(""),
+              // Legacy catalogue fields accepted for parse only.
               optionKey: nullableOptionKey,
-              isVisible: z.boolean(),
+              isVisible: z.boolean().optional(),
             })
             .strict()
         ),
@@ -145,14 +150,17 @@ export function validateDraftContent(
     if (!PROSPECTUS_HIGHLIGHT_KEYS.includes(h.key as (typeof PROSPECTUS_HIGHLIGHT_KEYS)[number])) {
       errors.push({ path: `page1.keyInvestorHighlights.${h.key}`, message: "Unknown highlight key" });
     }
-    if (h.optionKey) {
-      const opts = PROSPECTUS_HIGHLIGHT_OPTION_CATALOGUE[h.key] ?? [];
-      if (!findCatalogueOption(opts, h.optionKey)) {
-        errors.push({
-          path: `page1.keyInvestorHighlights.${h.key}.optionKey`,
-          message: "Invalid option key",
-        });
-      }
+    if (typeof h.title === "string" && h.title.length > HIGHLIGHT_TITLE_MAX) {
+      errors.push({
+        path: `page1.keyInvestorHighlights.${h.key}.title`,
+        message: `Title must be at most ${HIGHLIGHT_TITLE_MAX} characters`,
+      });
+    }
+    if (typeof h.description === "string" && h.description.length > HIGHLIGHT_DESCRIPTION_MAX) {
+      errors.push({
+        path: `page1.keyInvestorHighlights.${h.key}.description`,
+        message: `Description must be at most ${HIGHLIGHT_DESCRIPTION_MAX} characters`,
+      });
     }
   }
 
@@ -282,10 +290,28 @@ export function validateApprovalContent(
 
   for (const key of PROSPECTUS_HIGHLIGHT_KEYS) {
     const hit = content.page1.keyInvestorHighlights.find((h) => h.key === key);
-    if (!hit?.optionKey && hit?.isVisible !== false) {
+    const title = typeof hit?.title === "string" ? hit.title.trim() : "";
+    const description = typeof hit?.description === "string" ? hit.description.trim() : "";
+    // Shariah is forced to fixed copy on normalize/save; still require a row.
+    if (key === "shariah") {
+      if (!hit) {
+        errors.push({
+          path: `page1.keyInvestorHighlights.${key}`,
+          message: "Shariah highlight is required",
+        });
+      }
+      continue;
+    }
+    if (!title) {
       errors.push({
-        path: `page1.keyInvestorHighlights.${key}.optionKey`,
-        message: "Selection required (or mark not visible)",
+        path: `page1.keyInvestorHighlights.${key}.title`,
+        message: "Highlight title is required",
+      });
+    }
+    if (!description) {
+      errors.push({
+        path: `page1.keyInvestorHighlights.${key}.description`,
+        message: "Highlight description is required",
       });
     }
   }

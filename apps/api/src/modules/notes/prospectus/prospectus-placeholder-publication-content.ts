@@ -8,6 +8,7 @@
 
 import {
   PROSPECTUS_FIXED_PAYMENT_BASIS,
+  PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT,
   PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
 } from "@cashsouk/types";
 
@@ -139,33 +140,30 @@ export const PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT: ProspectusPublicationCo
   keyInvestorHighlights: [
     {
       key: "paymaster",
-      title: "Placeholder — Paymaster highlight",
+      title: "Backed by a government paymaster",
       description:
-        "Development placeholder only. Future credit-officer selection or entry.",
+        "The invoice is payable by Kementerian Kerja Raya, a government agency.",
       sourceType: "placeholder_manual",
       isVisible: true,
     },
     {
       key: "issuer_fundamentals",
-      title: "Placeholder — Issuer fundamentals",
-      description:
-        "Development placeholder only. Future suggestion from approved SoukScore mapping.",
+      title: "Issuer financial profile",
+      description: "Placeholder recommendation for an issuer with an AA risk rating.",
       sourceType: "derived_suggestion",
       isVisible: true,
     },
     {
       key: "return",
-      title: "Placeholder — Return highlight",
-      description:
-        "Development placeholder only. Future suggestion from profit rate and investment period.",
+      title: "12% p.a. over 120 days",
+      description: "This Note offers a profit rate of 12% p.a. with a tenure of 120 days.",
       sourceType: "derived_suggestion",
       isVisible: true,
     },
     {
       key: "shariah",
-      title: "Placeholder — Shariah highlight",
-      description:
-        "Development placeholder only. Future fixed approved template option.",
+      title: PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT.title,
+      description: PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT.description,
       sourceType: "fixed_template",
       isVisible: true,
     },

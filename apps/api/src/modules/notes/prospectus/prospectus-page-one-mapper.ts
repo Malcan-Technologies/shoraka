@@ -328,11 +328,15 @@ export function buildProspectusPageOne(
       key: string
     ): T => {
       const hit = byKey.get(key);
-      if (!hit || !hit.isVisible) return current;
+      // Key Investor Highlights are always displayed when publication content is present.
+      if (!hit) return current;
+      const title = hit.title?.trim() ?? "";
+      const description = hit.description?.trim() ?? "";
+      if (!title && !description) return current;
       return {
         ...current,
-        highlightTitle: hit.title,
-        highlightExplanation: hit.description,
+        highlightTitle: title || current.highlightTitle,
+        highlightExplanation: description || current.highlightExplanation,
       };
     };
     Object.assign(paymasterHighlight, applyHighlight(paymasterHighlight, "paymaster"));

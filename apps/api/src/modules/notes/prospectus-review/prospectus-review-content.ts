@@ -1,16 +1,19 @@
 /**
  * SECTION: Stored prospectus review content + conversion to builder publication content
- * WHY: Persist officer option keys separately; resolve wording from code catalogues at render
+ * WHY: Persist officer highlight copy; resolve fixed Shariah + catalogues for other steps
  */
 
 import {
   PROSPECTUS_FIXED_PAYMENT_BASIS,
+  PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT,
   PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
+  PROSPECTUS_HIGHLIGHT_KEYS,
+  type ProspectusHighlightKey,
+  type ProspectusHighlightRecommendationInput,
+  buildProspectusHighlightRecommendations,
 } from "@cashsouk/types";
 import {
   PROSPECTUS_CREDIT_INSIGHT_OPTIONS,
-  PROSPECTUS_HIGHLIGHT_KEYS,
-  PROSPECTUS_HIGHLIGHT_OPTION_CATALOGUE,
   PROSPECTUS_INVOICE_WORK_KEYS,
   PROSPECTUS_INVOICE_WORK_OPTION_CATALOGUE,
   PROSPECTUS_OPTION_CATALOGUE_VERSION,
@@ -28,8 +31,12 @@ import { PROSPECTUS_PUBLICATION_CONTENT_SOURCE } from "../prospectus/prospectus-
 
 export interface ProspectusReviewHighlightSelection {
   key: string;
+  title: string;
+  description: string;
+  /** @deprecated Legacy catalogue key — ignored. */
   optionKey?: string | null;
-  isVisible: boolean;
+  /** @deprecated Legacy visibility — always displayed. */
+  isVisible?: boolean;
 }
 
 export interface ProspectusReviewInvoiceWorkSelection {
@@ -65,7 +72,7 @@ export interface ProspectusReviewManualFinancialYear {
   assetTurnover?: string | number | null;
 }
 
-/** Persisted draft/approved JSON shape (option keys, not resolved text). */
+/** Persisted draft/approved JSON shape. */
 export interface ProspectusReviewStoredContent {
   page1: {
     keyInvestorHighlights: ProspectusReviewHighlightSelection[];
@@ -110,13 +117,57 @@ export function stripLegacyPaymentBasisShariahKeys(
   return cloned;
 }
 
-export function emptyProspectusReviewContent(): ProspectusReviewStoredContent {
+function trimCopy(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/**
+ * Ensure four highlight rows exist; fill empty title/description from recommendations;
+ * force Shariah fixed copy; drop legacy optionKey/isVisible on write normalisation.
+ */
+export function normalizeHighlightSelections(
+  content: ProspectusReviewStoredContent,
+  recommendationInput: ProspectusHighlightRecommendationInput = {}
+): ProspectusReviewStoredContent {
+  const recommendations = buildProspectusHighlightRecommendations(recommendationInput);
+  const byKey = new Map(
+    content.page1.keyInvestorHighlights.map((h) => [h.key, h] as const)
+  );
+
+  const keyInvestorHighlights = PROSPECTUS_HIGHLIGHT_KEYS.map((key) => {
+    const existing = byKey.get(key);
+    if (key === "shariah") {
+      return {
+        key,
+        title: PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT.title,
+        description: PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT.description,
+      };
+    }
+    const recommended = recommendations[key as ProspectusHighlightKey];
+    const title = trimCopy(existing?.title) || recommended.title;
+    const description = trimCopy(existing?.description) || recommended.description;
+    return { key, title, description };
+  });
+
+  return {
+    ...content,
+    page1: {
+      ...content.page1,
+      keyInvestorHighlights,
+    },
+  };
+}
+
+export function emptyProspectusReviewContent(
+  recommendationInput: ProspectusHighlightRecommendationInput = {}
+): ProspectusReviewStoredContent {
+  const recommendations = buildProspectusHighlightRecommendations(recommendationInput);
   return {
     page1: {
       keyInvestorHighlights: PROSPECTUS_HIGHLIGHT_KEYS.map((key) => ({
         key,
-        optionKey: null,
-        isVisible: true,
+        title: recommendations[key].title,
+        description: recommendations[key].description,
       })),
     },
     page2: {
@@ -145,21 +196,24 @@ function creditKeyToOption(
 
 /**
  * Resolve stored officer selections into builder publication content.
- * Payment Basis / Shariah Principle are fixed constants (legacy keys ignored).
+ * Highlights are always visible; Shariah copy is always the fixed template.
  */
 export function toProspectusPublicationContent(
   content: ProspectusReviewStoredContent
 ): ProspectusPublicationContent {
-  const highlights = content.page1.keyInvestorHighlights.map((h) => {
-    const catalogue = PROSPECTUS_HIGHLIGHT_OPTION_CATALOGUE[h.key] ?? [];
-    const option = findCatalogueOption(catalogue, h.optionKey);
-    const hidden = !h.isVisible || option?.key === "do_not_display" || !option;
+  const normalized = normalizeHighlightSelections(content);
+  const highlights = normalized.page1.keyInvestorHighlights.map((h) => {
+    const isShariah = h.key === "shariah";
     return {
       key: h.key,
-      title: option?.label ?? "",
-      description: option?.renderedText ?? "",
-      sourceType: "fixed_template" as const,
-      isVisible: !hidden && Boolean(option?.renderedText),
+      title: isShariah ? PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT.title : trimCopy(h.title),
+      description: isShariah
+        ? PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT.description
+        : trimCopy(h.description),
+      sourceType: isShariah
+        ? ("fixed_template" as const)
+        : ("placeholder_manual" as const),
+      isVisible: true,
     };
   });
 

@@ -8,6 +8,11 @@ import {
   ProspectusReviewStatus,
   type NoteProspectusReview,
 } from "@prisma/client";
+import {
+  buildProspectusHighlightRecommendations,
+  isSoukscoreRiskRating,
+  type ProspectusHighlightRecommendationInput,
+} from "@cashsouk/types";
 import { AppError } from "../../../lib/http/error-handler";
 import { prisma } from "../../../lib/prisma";
 import { buildProspectusPageOneHtml } from "../prospectus/prospectus-page-one.html";
@@ -36,6 +41,7 @@ import {
   catalogueVersion,
   cloneReviewContent,
   emptyProspectusReviewContent,
+  normalizeHighlightSelections,
   stripLegacyPaymentBasisShariahKeys,
   toProspectusPublicationContent,
   type ProspectusFrozenPublicationContent,
@@ -60,8 +66,51 @@ type ActorContext = {
 /** Notes created on/after this instant require an APPROVED prospectus review to publish. */
 export const PROSPECTUS_REVIEW_REQUIRED_FROM = new Date("2026-07-19T00:00:00.000Z");
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
 function asStoredContent(value: unknown): ProspectusReviewStoredContent {
   return value as unknown as ProspectusReviewStoredContent;
+}
+
+function recommendationInputFromNote(note: {
+  paymaster_snapshot: unknown;
+  invoice_snapshot: unknown;
+  profit_rate_percent: Prisma.Decimal | number | null;
+  maturity_date: Date | null;
+  listing: { opens_at: Date | null } | null;
+}): ProspectusHighlightRecommendationInput {
+  const invoice = asRecord(note.invoice_snapshot);
+  const offer = asRecord(invoice?.offer_details);
+  const riskRating = isSoukscoreRiskRating(offer?.risk_rating) ? offer.risk_rating : null;
+  const profit =
+    note.profit_rate_percent == null ? null : Number(note.profit_rate_percent);
+  return {
+    paymasterSnapshot: note.paymaster_snapshot,
+    riskRating,
+    profitRatePercent: Number.isFinite(profit) ? profit : null,
+    listingOpensAt: note.listing?.opens_at?.toISOString() ?? null,
+    maturityDate: note.maturity_date?.toISOString() ?? null,
+  };
+}
+
+async function loadNoteRecommendationInput(
+  noteId: string
+): Promise<ProspectusHighlightRecommendationInput> {
+  const note = await prisma.note.findUnique({
+    where: { id: noteId },
+    select: {
+      paymaster_snapshot: true,
+      invoice_snapshot: true,
+      profit_rate_percent: true,
+      maturity_date: true,
+      listing: { select: { opens_at: true } },
+    },
+  });
+  return note ? recommendationInputFromNote(note) : {};
 }
 
 function mapReview(row: NoteProspectusReview) {
@@ -152,13 +201,27 @@ export class ProspectusReviewService {
   async getOrCreateReview(noteId: string, actor: ActorContext) {
     const note = await prisma.note.findUnique({
       where: { id: noteId },
-      select: { id: true, note_reference: true, status: true, title: true },
+      select: {
+        id: true,
+        note_reference: true,
+        status: true,
+        title: true,
+        paymaster_snapshot: true,
+        invoice_snapshot: true,
+        profit_rate_percent: true,
+        maturity_date: true,
+        listing: { select: { opens_at: true } },
+      },
     });
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
 
+    const recommendationInput = recommendationInputFromNote(note);
+    const highlightRecommendations =
+      buildProspectusHighlightRecommendations(recommendationInput);
+
     let review = await prisma.noteProspectusReview.findUnique({ where: { note_id: noteId } });
     if (!review) {
-      const empty = emptyProspectusReviewContent();
+      const empty = emptyProspectusReviewContent(recommendationInput);
       review = await prisma.noteProspectusReview.create({
         data: {
           note_id: noteId,
@@ -179,7 +242,35 @@ export class ProspectusReviewService {
           asJson(mapReview(review!))
         );
       });
+    } else if (review.status !== ProspectusReviewStatus.APPROVED) {
+      // Migrate legacy optionKey drafts / fill empty titles without overwriting officer text.
+      const parsed = saveProspectusReviewDraftSchema.shape.draftContent.safeParse(
+        review.draft_content
+      );
+      if (parsed.success) {
+        const normalized = normalizeHighlightSelections(
+          parsed.data as ProspectusReviewStoredContent,
+          recommendationInput
+        );
+        const before = JSON.stringify(review.draft_content);
+        const after = JSON.stringify(normalized);
+        if (before !== after) {
+          review = await prisma.noteProspectusReview.update({
+            where: { note_id: noteId },
+            data: {
+              draft_content: normalized as unknown as Prisma.InputJsonValue,
+              option_catalogue_version: catalogueVersion(),
+            },
+          });
+        }
+      }
     }
+
+    const mapped = mapReview(review);
+    mapped.draftContent = normalizeHighlightSelections(
+      mapped.draftContent,
+      recommendationInput
+    );
 
     return {
       note: {
@@ -188,15 +279,16 @@ export class ProspectusReviewService {
         title: note.title,
         status: note.status,
       },
-      review: mapReview(review),
+      review: mapped,
       catalogues: getActiveProspectusCatalogues(),
+      highlightRecommendations,
       publishBlockedReason:
         note.status === NoteStatus.DRAFT &&
         review.status !== ProspectusReviewStatus.APPROVED
           ? "Complete Prospectus Review (submit + approve) before publishing to the marketplace"
           : null,
       catalogueNotice:
-        "Dropdown wording is temporary placeholder catalogue text pending product/legal approval.",
+        "Issuer Financial Strength recommendations use placeholder SoukScore wording pending product/legal approval.",
     };
   }
 
@@ -236,8 +328,21 @@ export class ProspectusReviewService {
       }
     }
 
+    const noteForRecs = await prisma.note.findUnique({
+      where: { id: noteId },
+      select: {
+        paymaster_snapshot: true,
+        invoice_snapshot: true,
+        profit_rate_percent: true,
+        maturity_date: true,
+        listing: { select: { opens_at: true } },
+      },
+    });
     const draftToStore = stripLegacyPaymentBasisShariahKeys(
-      input.draftContent as ProspectusReviewStoredContent
+      normalizeHighlightSelections(
+        input.draftContent as ProspectusReviewStoredContent,
+        noteForRecs ? recommendationInputFromNote(noteForRecs) : {}
+      )
     );
     const before = mapReview(current);
     const updated = await prisma.$transaction(async (tx) => {
@@ -282,10 +387,16 @@ export class ProspectusReviewService {
       return mapReview(current);
     }
 
-    const draft = asStoredContent(current.draft_content);
-    const errors = validateApprovalContent(
-      saveProspectusReviewDraftSchema.shape.draftContent.parse(draft)
+    const parsed = saveProspectusReviewDraftSchema.shape.draftContent.parse(
+      current.draft_content
     );
+    const draft = stripLegacyPaymentBasisShariahKeys(
+      normalizeHighlightSelections(
+        parsed as ProspectusReviewStoredContent,
+        await loadNoteRecommendationInput(noteId)
+      )
+    );
+    const errors = validateApprovalContent(draft);
     if (errors.length > 0) {
       throw new AppError(
         422,
@@ -301,6 +412,7 @@ export class ProspectusReviewService {
         where: { note_id: noteId },
         data: {
           status: ProspectusReviewStatus.READY_FOR_REVIEW,
+          draft_content: draft as unknown as Prisma.InputJsonValue,
           updated_by_user_id: actor.userId,
           option_catalogue_version: catalogueVersion(),
           content_version: { increment: 1 },
@@ -333,17 +445,21 @@ export class ProspectusReviewService {
       );
     }
 
-    const draft = asStoredContent(current.draft_content);
-    const errors = validateApprovalContent(
-      saveProspectusReviewDraftSchema.shape.draftContent.parse(draft)
+    const parsed = saveProspectusReviewDraftSchema.shape.draftContent.parse(
+      current.draft_content
     );
+    const approvedClone = stripLegacyPaymentBasisShariahKeys(
+      normalizeHighlightSelections(
+        parsed as ProspectusReviewStoredContent,
+        await loadNoteRecommendationInput(noteId)
+      )
+    );
+    const errors = validateApprovalContent(approvedClone);
     if (errors.length > 0) {
       throw new AppError(422, "PROSPECTUS_REVIEW_INVALID", "Approval validation failed", {
         details: errors,
       });
     }
-
-    const approvedClone = stripLegacyPaymentBasisShariahKeys(draft);
     const now = new Date();
     const before = mapReview(current);
     const updated = await prisma.$transaction(async (tx) => {

@@ -9,7 +9,12 @@ import {
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
 import { Skeleton } from "@cashsouk/ui";
-import type { ProspectusReviewStoredContent, ProspectusReviewStatus } from "@cashsouk/types";
+import {
+  PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT,
+  PROSPECTUS_HIGHLIGHT_KEYS,
+  type ProspectusReviewStoredContent,
+  type ProspectusReviewStatus,
+} from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
@@ -645,27 +651,129 @@ function ProspectusReviewPageInner() {
                     <div className="space-y-6">
                       <section>
                         <ProspectusSectionHeading title="Key Investor Highlights" />
-                        <div className="grid gap-3 md:grid-cols-2">
-                          {draft.page1.keyInvestorHighlights.map((h, idx) => (
-                            <OptionSelect
-                              key={h.key}
-                              label={HIGHLIGHT_FIELD_LABELS[h.key] ?? "Investor Highlight"}
-                              disabled={locked || !canManage}
-                              value={h.optionKey}
-                              options={catalogues.highlights[h.key] ?? []}
-                              onChange={(value) =>
-                                updateDraft((prev) => {
-                                  const next = structuredClone(prev);
-                                  next.page1.keyInvestorHighlights[idx] = {
-                                    ...next.page1.keyInvestorHighlights[idx]!,
-                                    optionKey: value,
-                                    isVisible: value !== "do_not_display",
-                                  };
-                                  return next;
-                                })
-                              }
-                            />
-                          ))}
+                        <div className="space-y-4">
+                          {PROSPECTUS_HIGHLIGHT_KEYS.map((key) => {
+                            const row =
+                              draft.page1.keyInvestorHighlights.find((h) => h.key === key) ?? {
+                                key,
+                                title: "",
+                                description: "",
+                              };
+                            const label = HIGHLIGHT_FIELD_LABELS[key] ?? "Investor Highlight";
+                            const isShariah = key === "shariah";
+                            const title = isShariah
+                              ? PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT.title
+                              : row.title;
+                            const description = isShariah
+                              ? PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT.description
+                              : row.description;
+
+                            return (
+                              <div
+                                key={key}
+                                className="space-y-3 rounded-xl border bg-muted/20 px-4 py-4"
+                              >
+                                <div className="text-[17px] font-semibold text-foreground">
+                                  {label}
+                                </div>
+                                {isShariah ? (
+                                  <div className="grid gap-3 md:grid-cols-2">
+                                    <div className="min-w-0 rounded-xl border bg-muted/30 px-4 py-3">
+                                      <div className="text-xs text-muted-foreground">
+                                        Highlight Title
+                                      </div>
+                                      <div className="mt-1 break-words text-sm font-medium text-foreground">
+                                        {title}
+                                      </div>
+                                    </div>
+                                    <div className="min-w-0 rounded-xl border bg-muted/30 px-4 py-3 md:col-span-2">
+                                      <div className="text-xs text-muted-foreground">
+                                        Highlight Description
+                                      </div>
+                                      <div className="mt-1 break-words text-sm font-medium text-foreground">
+                                        {description}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="grid gap-3">
+                                    <div className="space-y-1.5">
+                                      <Label className="text-sm" htmlFor={`highlight-title-${key}`}>
+                                        Highlight Title
+                                      </Label>
+                                      <Input
+                                        id={`highlight-title-${key}`}
+                                        disabled={locked || !canManage}
+                                        value={title}
+                                        maxLength={160}
+                                        onChange={(e) =>
+                                          updateDraft((prev) => {
+                                            const next = structuredClone(prev);
+                                            const idx = next.page1.keyInvestorHighlights.findIndex(
+                                              (h) => h.key === key
+                                            );
+                                            const updated = {
+                                              key,
+                                              title: e.target.value,
+                                              description:
+                                                idx >= 0
+                                                  ? next.page1.keyInvestorHighlights[idx]!
+                                                      .description
+                                                  : "",
+                                            };
+                                            if (idx >= 0) {
+                                              next.page1.keyInvestorHighlights[idx] = updated;
+                                            } else {
+                                              next.page1.keyInvestorHighlights.push(updated);
+                                            }
+                                            return next;
+                                          })
+                                        }
+                                      />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <Label
+                                        className="text-sm"
+                                        htmlFor={`highlight-description-${key}`}
+                                      >
+                                        Highlight Description
+                                      </Label>
+                                      <Textarea
+                                        id={`highlight-description-${key}`}
+                                        disabled={locked || !canManage}
+                                        value={description}
+                                        maxLength={800}
+                                        rows={3}
+                                        className="min-h-[5.5rem] text-[17px] leading-7"
+                                        onChange={(e) =>
+                                          updateDraft((prev) => {
+                                            const next = structuredClone(prev);
+                                            const idx = next.page1.keyInvestorHighlights.findIndex(
+                                              (h) => h.key === key
+                                            );
+                                            const updated = {
+                                              key,
+                                              title:
+                                                idx >= 0
+                                                  ? next.page1.keyInvestorHighlights[idx]!.title
+                                                  : "",
+                                              description: e.target.value,
+                                            };
+                                            if (idx >= 0) {
+                                              next.page1.keyInvestorHighlights[idx] = updated;
+                                            } else {
+                                              next.page1.keyInvestorHighlights.push(updated);
+                                            }
+                                            return next;
+                                          })
+                                        }
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </section>
                     </div>

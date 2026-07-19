@@ -261,8 +261,8 @@ async function main() {
           ...draft.page1,
           keyInvestorHighlights: draft.page1.keyInvestorHighlights.map((h) => ({
             ...h,
-            optionKey: "do_not_display",
-            isVisible: false,
+            title: h.key === "shariah" ? h.title : "MUTATED_AFTER_PUBLISH",
+            description: h.key === "shariah" ? h.description : "MUTATED_AFTER_PUBLISH",
           })),
         },
       } as object,
