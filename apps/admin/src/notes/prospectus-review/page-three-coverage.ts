@@ -5,11 +5,12 @@ import {
   calculateReturnOnEquity,
   computeTotalAssets,
   computeTotalLiabilities,
+  fyEndDateForYear,
   isSoukscoreRiskRating,
   type NoteDetail,
 } from "@cashsouk/types";
 import type { CoreTermRow } from "./core-terms";
-import { resolveCatalogueOptionLabel, type CatalogueOption } from "./core-terms";
+import type { FinancialMetricTableModel } from "./financial-metric-table";
 
 const DATA_NOT_AVAILABLE = "Data not available";
 const PAGE_THREE_TITLE = "DETAILED FINANCIAL COMPARISON";
@@ -88,13 +89,50 @@ export function selectPageThreeYears(financialStatements: unknown): string[] {
     .map(String);
 }
 
+function readFinancialYearEndIso(financialStatements: unknown): string | null {
+  const root = asRecord(financialStatements);
+  const questionnaire = asRecord(root?.questionnaire);
+  const value = questionnaire?.financial_year_end;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function formatFyeLabel(financialYearEndIso: string | null, year: string): string {
+  if (!financialYearEndIso) return DATA_NOT_AVAILABLE;
+  const end = fyEndDateForYear({ financial_year_end: financialYearEndIso }, Number(year));
+  if (!end) return DATA_NOT_AVAILABLE;
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(end);
+}
+
+function buildYearHeaders(financialStatements: unknown) {
+  const years = selectPageThreeYears(financialStatements);
+  const fyeIso = readFinancialYearEndIso(financialStatements);
+  return years.map((year) => ({
+    key: year,
+    yearLabel: `FY${year}`,
+    fyeLabel: formatFyeLabel(fyeIso, year),
+  }));
+}
+
+function readYearRaw(
+  financialStatements: unknown,
+  year: string
+): Record<string, unknown> {
+  const root = asRecord(financialStatements);
+  const unaudited = asRecord(root?.unaudited_by_year) ?? {};
+  return asRecord(unaudited[year]) ?? {};
+}
+
 export function buildPageThreeOverviewRows(financialStatements: unknown): CoreTermRow[] {
   const years = selectPageThreeYears(financialStatements);
   return [
     { label: "Page title", value: PAGE_THREE_TITLE },
     { label: "Subtitle", value: DATA_NOT_AVAILABLE },
     {
-      label: "Current selected financial years",
+      label: "Financial years included",
       value: years.length > 0 ? years.map((y) => `FY${y}`).join(" · ") : DATA_NOT_AVAILABLE,
     },
   ];
@@ -118,6 +156,7 @@ export function buildPageThreeMetadataRows(note: NoteDetail): CoreTermRow[] {
 }
 
 export type PageThreeManualYear = Record<string, string | number | null | undefined>;
+export type PageThreeManualYears = Record<string, PageThreeManualYear | undefined>;
 
 /** Final resolved Income Statement values for one year (derived + officer-entered). */
 export function buildIncomeStatementResolvedRows(
@@ -211,63 +250,70 @@ export function buildCoverageResolvedRows(
   ];
 }
 
-/** Only the ten rendered Stage 5 Trend (3-Yr) outcomes. */
-export function buildPageThreeTrendVerificationRows(): CoreTermRow[] {
-  return PAGE_THREE_RENDERED_TREND_METRICS.map((label) => ({
-    label,
-    value: DATA_NOT_AVAILABLE,
-  }));
+function pivotYearRows(
+  financialStatements: unknown,
+  manualYears: PageThreeManualYears | undefined,
+  buildRows: (
+    yearRaw: Record<string, unknown>,
+    manual: PageThreeManualYear | undefined
+  ) => CoreTermRow[],
+  withTrend = false
+): FinancialMetricTableModel {
+  const yearHeaders = buildYearHeaders(financialStatements);
+  const perYear = yearHeaders.map((header) =>
+    buildRows(readYearRaw(financialStatements, header.key), manualYears?.[header.key])
+  );
+  const metrics = perYear[0]?.map((row) => row.label) ?? [];
+
+  return {
+    yearHeaders,
+    rows: metrics.map((metric, metricIndex) => ({
+      metric,
+      values: yearHeaders.map((_, yearIndex) => {
+        const value = perYear[yearIndex]?.[metricIndex]?.value;
+        return value ?? DATA_NOT_AVAILABLE;
+      }),
+      ...(withTrend ? { trend: DATA_NOT_AVAILABLE } : {}),
+    })),
+  };
 }
 
-export function buildInvestorTakeawayVerificationRows(
-  takeaways: {
-    revenueProfitabilityOptionKey?: string | null;
-    liquidityOptionKey?: string | null;
-    leverageOptionKey?: string | null;
-    debtServicingCapacityOptionKey?: string | null;
-    workingCapitalEfficiencyOptionKey?: string | null;
-    overallFinancialProfileOptionKey?: string | null;
-  },
-  catalogues: Record<string, CatalogueOption[] | undefined>
-): CoreTermRow[] {
-  return [
-    {
-      label: "Revenue and Profitability",
-      value: resolveCatalogueOptionLabel(
-        catalogues.revenue_profitability,
-        takeaways.revenueProfitabilityOptionKey
-      ),
-    },
-    {
-      label: "Liquidity",
-      value: resolveCatalogueOptionLabel(catalogues.liquidity, takeaways.liquidityOptionKey),
-    },
-    {
-      label: "Leverage",
-      value: resolveCatalogueOptionLabel(catalogues.leverage, takeaways.leverageOptionKey),
-    },
-    {
-      label: "Debt-Servicing Capacity",
-      value: resolveCatalogueOptionLabel(
-        catalogues.debt_servicing_capacity,
-        takeaways.debtServicingCapacityOptionKey
-      ),
-    },
-    {
-      label: "Working-Capital Efficiency",
-      value: resolveCatalogueOptionLabel(
-        catalogues.working_capital_efficiency,
-        takeaways.workingCapitalEfficiencyOptionKey
-      ),
-    },
-    {
-      label: "Overall Financial Profile",
-      value: resolveCatalogueOptionLabel(
-        catalogues.overall_financial_profile,
-        takeaways.overallFinancialProfileOptionKey
-      ),
-    },
-  ];
+export function buildPageThreeIncomeStatementTable(
+  financialStatements: unknown,
+  manualYears: PageThreeManualYears | undefined
+): FinancialMetricTableModel {
+  return pivotYearRows(financialStatements, manualYears, buildIncomeStatementResolvedRows);
+}
+
+export function buildPageThreeBalanceSheetTable(
+  financialStatements: unknown,
+  manualYears: PageThreeManualYears | undefined
+): FinancialMetricTableModel {
+  return pivotYearRows(financialStatements, manualYears, buildBalanceSheetResolvedRows);
+}
+
+/** Coverage table including the ten rendered 3-Year Trend outcomes only. */
+export function buildPageThreeCoverageTable(
+  financialStatements: unknown,
+  manualYears: PageThreeManualYears | undefined
+): FinancialMetricTableModel {
+  const table = pivotYearRows(
+    financialStatements,
+    manualYears,
+    buildCoverageResolvedRows,
+    true
+  );
+  return {
+    ...table,
+    rows: table.rows.map((row) => ({
+      ...row,
+      trend: PAGE_THREE_RENDERED_TREND_METRICS.includes(
+        row.metric as (typeof PAGE_THREE_RENDERED_TREND_METRICS)[number]
+      )
+        ? DATA_NOT_AVAILABLE
+        : undefined,
+    })),
+  };
 }
 
 export function pageThreeHidesIssuerIdentity(rows: CoreTermRow[]): boolean {

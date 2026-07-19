@@ -181,20 +181,8 @@ export function buildNoteInvestmentDetailSections(
         { label: "Minimum Investment", value: minimumInvestment },
       ],
     },
-    {
-      id: "track-record-historical",
-      title: "Issuer Track Record & Historical Notes",
-      rows: [
-        {
-          label: "Issuer Track Record",
-          value: "Auto-derived on prospectus Page 1 — verify in Preview",
-        },
-        {
-          label: "Historical Notes",
-          value: "Auto-derived on prospectus Page 1 — verify in Preview",
-        },
-      ],
-    },
+    // Issuer Track Record / Historical Notes stay prospectus-preview-only until
+    // admin can load the same derived values; omit preview-only placeholder rows.
   ];
 }
 

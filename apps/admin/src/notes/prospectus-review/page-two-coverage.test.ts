@@ -8,10 +8,8 @@ jest.mock("@cashsouk/config", () => ({
 
 import type { NoteDetail } from "@cashsouk/types";
 import {
-  buildInvestmentCtaVerificationRows,
   buildInvoicePaymasterVerificationRows,
-  buildPageTwoFinancialComparisonRows,
-  buildRiskScaleVerificationRows,
+  buildPageTwoFinancialComparisonTable,
   pageTwoCoverageHidesIssuerIdentity,
   parseInvoiceSnapshotFaceValue,
 } from "./page-two-coverage";
@@ -138,28 +136,30 @@ describe("page two coverage verification", () => {
     expect(issuer.some((r) => r.value.includes("1234567-A"))).toBe(false);
   });
 
-  it("builds financial comparison metric verification without inventing DNA rows", () => {
-    const rows = buildPageTwoFinancialComparisonRows({
+  it("builds 3-Year Financial Comparison as a nine-metric table", () => {
+    const table = buildPageTwoFinancialComparisonTable({
+      questionnaire: { financial_year_end: "2024-12-31" },
       unaudited_by_year: {
         "2023": { turnover: 1000, plnpat: 100, bsqpuc: 500, bscatot: 200, curlib: 100 },
         "2024": { turnover: 2000, plnpat: 200, bsqpuc: 800, bscatot: 400, curlib: 200 },
       },
     });
-    expect(rows.find((r) => r.label === "Revenue")?.value).toContain("FY2023");
-    expect(rows.find((r) => r.label === "Revenue")?.value).toContain("FY2024");
-    expect(rows.find((r) => r.label === "Debt / Equity")?.value).toContain("Data not available");
-    expect(rows.find((r) => r.label === "Full comparison table")?.value).toMatch(/Page 2 Preview/i);
-  });
-
-  it("builds read-only risk scale and CTA verification", () => {
-    const risk = buildRiskScaleVerificationRows(sampleNote());
-    expect(risk.find((r) => r.label === "Current selected rating")?.value).toBe("AA");
-    expect(risk.find((r) => r.label === "Risk Rating Scale")?.value).toMatch(/SoukScore/i);
-
-    const cta = buildInvestmentCtaVerificationRows();
-    expect(cta.find((r) => r.label === "CTA heading")?.value).toBe("INVEST WITH CONFIDENCE");
-    expect(cta.find((r) => r.label === "CTA button")?.value).toBe("INVEST NOW");
-    expect(cta.find((r) => r.label === "CTA wording")?.value).toBe("Data not available");
-    expect(cta.find((r) => r.label === "Minimum investment")?.value).toMatch(/Minimum investment:/);
+    expect(table.yearHeaders.map((h) => h.yearLabel)).toEqual(["FY2023", "FY2024"]);
+    expect(table.rows.map((r) => r.metric)).toEqual([
+      "Revenue",
+      "Profit After Tax",
+      "Net Profit Margin",
+      "Return on Equity",
+      "Current Ratio",
+      "Debt / Equity",
+      "Interest Coverage",
+      "DSCR",
+      "Receivables Days",
+    ]);
+    expect(table.rows.find((r) => r.metric === "Revenue")?.values[0]).toContain("1,000");
+    expect(table.rows.find((r) => r.metric === "Debt / Equity")?.values.every((v) => v === "Data not available")).toBe(
+      true
+    );
+    expect(table.rows.every((r) => r.trend == null)).toBe(true);
   });
 });

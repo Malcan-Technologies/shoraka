@@ -1,12 +1,13 @@
 import { formatCurrency } from "@cashsouk/config";
 import {
-  MARKETPLACE_MIN_COMMIT_MYR,
   calculateCurrentRatio,
   calculateProfitMargin,
   calculateReturnOnEquity,
+  fyEndDateForYear,
   type NoteDetail,
 } from "@cashsouk/types";
 import type { CoreTermRow } from "./core-terms";
+import type { FinancialMetricTableModel } from "./financial-metric-table";
 
 const DATA_NOT_AVAILABLE = "Data not available";
 
@@ -67,7 +68,7 @@ function formatMultiple(value: number | null): string {
   return `${fixed}x`;
 }
 
-function selectComparisonYears(yearKeys: string[]): string[] {
+export function selectComparisonYears(yearKeys: string[]): string[] {
   const years = yearKeys
     .filter((key) => /^\d{4}$/.test(key))
     .map(Number)
@@ -76,6 +77,24 @@ function selectComparisonYears(yearKeys: string[]): string[] {
     .slice(0, 3)
     .sort((a, b) => a - b);
   return years.map(String);
+}
+
+function readFinancialYearEndIso(financialStatements: unknown): string | null {
+  const root = asRecord(financialStatements);
+  const questionnaire = asRecord(root?.questionnaire);
+  const value = questionnaire?.financial_year_end;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function formatFyeLabel(financialYearEndIso: string | null, year: string): string {
+  if (!financialYearEndIso) return DATA_NOT_AVAILABLE;
+  const end = fyEndDateForYear({ financial_year_end: financialYearEndIso }, Number(year));
+  if (!end) return DATA_NOT_AVAILABLE;
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(end);
 }
 
 function metricForYear(
@@ -124,16 +143,20 @@ function metricForYear(
   }
 }
 
-function joinYearValues(
-  years: string[],
-  byYear: Record<string, Record<string, unknown>>,
-  key: Parameters<typeof metricForYear>[0]
-): string {
-  if (years.length === 0) return DATA_NOT_AVAILABLE;
-  return years
-    .map((year) => `FY${year}: ${metricForYear(key, byYear[year] ?? {})}`)
-    .join(" · ");
-}
+const PAGE_TWO_METRICS: Array<{
+  label: string;
+  key: Parameters<typeof metricForYear>[0];
+}> = [
+  { label: "Revenue", key: "revenue" },
+  { label: "Profit After Tax", key: "profitAfterTax" },
+  { label: "Net Profit Margin", key: "netProfitMargin" },
+  { label: "Return on Equity", key: "roe" },
+  { label: "Current Ratio", key: "currentRatio" },
+  { label: "Debt / Equity", key: "netDebtEquity" },
+  { label: "Interest Coverage", key: "interestCoverage" },
+  { label: "DSCR", key: "dscr" },
+  { label: "Receivables Days", key: "receivablesDays" },
+];
 
 /** Invoice & Paymaster Information — mirrors Page 2 mapper display rules. */
 export function buildInvoicePaymasterVerificationRows(note: NoteDetail): CoreTermRow[] {
@@ -154,62 +177,51 @@ export function buildInvoicePaymasterVerificationRows(note: NoteDetail): CoreTer
 }
 
 /**
- * Compact 3-year financial comparison verification using Application unaudited years.
+ * Compact 3-year financial comparison table using Application unaudited years.
  * Same supported helpers as Page 2; unsupported rows stay Data not available.
  */
-export function buildPageTwoFinancialComparisonRows(
+export function buildPageTwoFinancialComparisonTable(
   financialStatements: unknown
-): CoreTermRow[] {
+): FinancialMetricTableModel {
   const root = asRecord(financialStatements);
   const unaudited = asRecord(root?.unaudited_by_year) ?? {};
   const years = selectComparisonYears(Object.keys(unaudited));
+  const fyeIso = readFinancialYearEndIso(financialStatements);
   const byYear: Record<string, Record<string, unknown>> = {};
   for (const year of years) {
     byYear[year] = asRecord(unaudited[year]) ?? {};
   }
 
-  return [
-    { label: "Revenue", value: joinYearValues(years, byYear, "revenue") },
-    { label: "Profit After Tax", value: joinYearValues(years, byYear, "profitAfterTax") },
-    { label: "Net Profit Margin", value: joinYearValues(years, byYear, "netProfitMargin") },
-    { label: "Return on Equity", value: joinYearValues(years, byYear, "roe") },
-    { label: "Current Ratio", value: joinYearValues(years, byYear, "currentRatio") },
-    { label: "Debt / Equity", value: joinYearValues(years, byYear, "netDebtEquity") },
-    { label: "Interest Coverage", value: joinYearValues(years, byYear, "interestCoverage") },
-    { label: "DSCR", value: joinYearValues(years, byYear, "dscr") },
-    { label: "Receivables Days", value: joinYearValues(years, byYear, "receivablesDays") },
-    {
-      label: "Full comparison table",
-      value: "Verify complete layout in Page 2 Preview",
-    },
-  ];
+  return {
+    yearHeaders: years.map((year) => ({
+      key: year,
+      yearLabel: `FY${year}`,
+      fyeLabel: formatFyeLabel(fyeIso, year),
+    })),
+    rows: PAGE_TWO_METRICS.map(({ label, key }) => ({
+      metric: label,
+      values: years.map((year) => metricForYear(key, byYear[year] ?? {})),
+    })),
+  };
 }
 
-export function buildRiskScaleVerificationRows(note: NoteDetail): CoreTermRow[] {
-  return [
-    {
-      label: "Risk Rating Scale",
-      value: "Fixed SoukScore AAA–B scale on prospectus Page 2",
-    },
-    {
-      label: "Current selected rating",
-      value: textOrDna(note.riskRating),
-    },
-    {
-      label: "Scale labels and definitions",
+/** @deprecated Prefer buildPageTwoFinancialComparisonTable for admin display. */
+export function buildPageTwoFinancialComparisonRows(
+  financialStatements: unknown
+): CoreTermRow[] {
+  const table = buildPageTwoFinancialComparisonTable(financialStatements);
+  if (table.yearHeaders.length === 0) {
+    return PAGE_TWO_METRICS.map(({ label }) => ({
+      label,
       value: DATA_NOT_AVAILABLE,
-    },
-  ];
-}
-
-export function buildInvestmentCtaVerificationRows(): CoreTermRow[] {
-  const minMoney = formatCurrency(MARKETPLACE_MIN_COMMIT_MYR);
-  return [
-    { label: "CTA heading", value: "INVEST WITH CONFIDENCE" },
-    { label: "CTA button", value: "INVEST NOW" },
-    { label: "CTA wording", value: DATA_NOT_AVAILABLE },
-    { label: "Minimum investment", value: `Minimum investment: ${minMoney}` },
-  ];
+    }));
+  }
+  return table.rows.map((row) => ({
+    label: row.metric,
+    value: table.yearHeaders
+      .map((header, index) => `${header.yearLabel}: ${row.values[index] ?? DATA_NOT_AVAILABLE}`)
+      .join(" · "),
+  }));
 }
 
 export function pageTwoCoverageHidesIssuerIdentity(rows: CoreTermRow[]): boolean {

@@ -60,26 +60,21 @@ import {
   buildIssuerProfileRows,
   buildNoteInvestmentDetailSections,
   resolveCatalogueOptionLabel,
-  readUnauditedYear,
 } from "@/notes/prospectus-review/core-terms";
 import {
-  buildInvestmentCtaVerificationRows,
   buildInvoicePaymasterVerificationRows,
-  buildPageTwoFinancialComparisonRows,
-  buildRiskScaleVerificationRows,
+  buildPageTwoFinancialComparisonTable,
 } from "@/notes/prospectus-review/page-two-coverage";
 import {
-  buildBalanceSheetResolvedRows,
-  buildCoverageResolvedRows,
-  buildIncomeStatementResolvedRows,
-  buildInvestorTakeawayVerificationRows,
+  buildPageThreeBalanceSheetTable,
+  buildPageThreeCoverageTable,
+  buildPageThreeIncomeStatementTable,
   buildPageThreeMetadataRows,
   buildPageThreeOverviewRows,
-  buildPageThreeTrendVerificationRows,
   selectPageThreeYears,
 } from "@/notes/prospectus-review/page-three-coverage";
+import { ProspectusFinancialMetricTable } from "@/notes/prospectus-review/financial-metric-table";
 import { ProspectusPreviewSheet } from "@/notes/prospectus-review/preview-sheet";
-import type { ProspectusPreviewPageKey } from "@/notes/prospectus-review/preview-page";
 import { ProspectusSectionHeading } from "@/notes/prospectus-review/section-heading";
 import { ProspectusStatusBadge } from "@/notes/prospectus-review/status-badge";
 import { getProspectusActionVisibility } from "@/notes/prospectus-review/action-visibility";
@@ -185,6 +180,14 @@ function ManualFinancialInputs(props: {
   );
 }
 
+function OfficerInputHeading({ title }: { title: string }) {
+  return (
+    <div className="mb-3 border-b border-border pb-2">
+      <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+    </div>
+  );
+}
+
 function ProspectusReviewPageInner() {
   const params = useParams<{ id: string }>();
   const noteId = params.id;
@@ -206,8 +209,6 @@ function ProspectusReviewPageInner() {
   const [draft, setDraft] = React.useState<ProspectusReviewStoredContent | null>(null);
   const [dirty, setDirty] = React.useState(false);
   const [previewOpen, setPreviewOpen] = React.useState(false);
-  const [previewPageHint, setPreviewPageHint] =
-    React.useState<ProspectusPreviewPageKey | null>(null);
   const [financialYear, setFinancialYear] = React.useState<string>("2024");
   const stepPanelRef = React.useRef<HTMLDivElement>(null);
   const preview = useProspectusReviewPreview(noteId, previewOpen);
@@ -289,18 +290,12 @@ function ProspectusReviewPageInner() {
     }
   };
 
-  const onPreview = async (preferredPage?: ProspectusPreviewPageKey) => {
+  const onPreview = async () => {
     if (dirty && canManage && !locked) {
       const saved = await onSave();
       if (!saved) return;
     }
-    setPreviewPageHint(preferredPage ?? null);
     setPreviewOpen(true);
-  };
-
-  const onPreviewOpenChange = (open: boolean) => {
-    setPreviewOpen(open);
-    if (!open) setPreviewPageHint(null);
   };
 
   const onSubmit = async () => {
@@ -380,29 +375,23 @@ function ProspectusReviewPageInner() {
     : [];
   const issuerRows = note ? buildIssuerProfileRows(note) : [];
   const invoicePaymasterRows = note ? buildInvoicePaymasterVerificationRows(note) : [];
-  const pageTwoFinancialRows = buildPageTwoFinancialComparisonRows(
-    (application as { financial_statements?: unknown } | undefined)?.financial_statements
-  );
-  const riskScaleRows = note ? buildRiskScaleVerificationRows(note) : [];
-  const investmentCtaRows = buildInvestmentCtaVerificationRows();
   const financialStatements = (
     application as { financial_statements?: unknown } | undefined
   )?.financial_statements;
+  const pageTwoFinancialTable = buildPageTwoFinancialComparisonTable(financialStatements);
   const pageThreeYears = selectPageThreeYears(financialStatements);
   const activeFinancialYears =
     pageThreeYears.length > 0 ? pageThreeYears : (["2022", "2023", "2024"] as const);
-  const yearRaw = readUnauditedYear(financialStatements, financialYear);
   const yearManual = draft.page3.manualFinancialInputs?.years?.[financialYear];
-  const incomeResolvedRows = buildIncomeStatementResolvedRows(yearRaw, yearManual);
-  const balanceResolvedRows = buildBalanceSheetResolvedRows(yearRaw, yearManual);
-  const coverageResolvedRows = buildCoverageResolvedRows(yearRaw, yearManual);
+  const manualYears = draft.page3.manualFinancialInputs?.years;
   const pageThreeOverviewRows = buildPageThreeOverviewRows(financialStatements);
   const pageThreeMetadataRows = note ? buildPageThreeMetadataRows(note) : [];
-  const trendVerificationRows = buildPageThreeTrendVerificationRows();
-  const takeawayVerificationRows = buildInvestorTakeawayVerificationRows(
-    draft.page3.investorTakeaways,
-    catalogues.takeaways
+  const incomeStatementTable = buildPageThreeIncomeStatementTable(
+    financialStatements,
+    manualYears
   );
+  const balanceSheetTable = buildPageThreeBalanceSheetTable(financialStatements, manualYears);
+  const coverageTable = buildPageThreeCoverageTable(financialStatements, manualYears);
 
   const updateManualField = (field: string, value: string) => {
     updateDraft((prev) => {
@@ -791,52 +780,7 @@ function ProspectusReviewPageInner() {
                       </section>
                       <section>
                         <ProspectusSectionHeading title="3-Year Financial Comparison" />
-                        <ReadOnlyGrid rows={pageTwoFinancialRows} />
-                        <div className="mt-3">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => void onPreview("page2")}
-                            disabled={preview.isFetching}
-                          >
-                            Preview Page 2
-                          </Button>
-                        </div>
-                      </section>
-                      <section>
-                        <ProspectusSectionHeading title="Risk Rating Scale" />
-                        {note ? (
-                          <ReadOnlyGrid rows={riskScaleRows} />
-                        ) : (
-                          <Skeleton className="h-24 w-full" />
-                        )}
-                        <div className="mt-3">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => void onPreview("page2")}
-                            disabled={preview.isFetching}
-                          >
-                            View in Page 2 Preview
-                          </Button>
-                        </div>
-                      </section>
-                      <section>
-                        <ProspectusSectionHeading title="Investment CTA" />
-                        <ReadOnlyGrid rows={investmentCtaRows} />
-                        <div className="mt-3">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => void onPreview("page2")}
-                            disabled={preview.isFetching}
-                          >
-                            View in Page 2 Preview
-                          </Button>
-                        </div>
+                        <ProspectusFinancialMetricTable table={pageTwoFinancialTable} />
                       </section>
                     </div>
                   ) : null}
@@ -908,23 +852,12 @@ function ProspectusReviewPageInner() {
                   {step === 4 ? (
                     <div className="space-y-6">
                       <section>
-                        <ProspectusSectionHeading title="Page 3 Overview" />
+                        <ProspectusSectionHeading title="Financial Summary" />
                         <ReadOnlyGrid rows={pageThreeOverviewRows} />
-                        <div className="mt-3">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => void onPreview("page3")}
-                            disabled={preview.isFetching}
-                          >
-                            Preview Page 3
-                          </Button>
-                        </div>
                       </section>
 
                       <section>
-                        <ProspectusSectionHeading title="Metadata Strip" />
+                        <ProspectusSectionHeading title="Financing & Risk Details" />
                         {note ? (
                           <ReadOnlyGrid rows={pageThreeMetadataRows} />
                         ) : (
@@ -932,149 +865,121 @@ function ProspectusReviewPageInner() {
                         )}
                       </section>
 
-                      <div className="flex flex-wrap gap-2">
-                        {activeFinancialYears.map((year) => (
-                          <Button
-                            key={year}
-                            size="sm"
-                            type="button"
-                            variant={financialYear === year ? "secondary" : "outline"}
-                            onClick={() => setFinancialYear(year)}
-                          >
-                            FY{year}
-                          </Button>
-                        ))}
-                      </div>
-
                       <section>
                         <ProspectusSectionHeading title="Income Statement" />
-                        <ReadOnlyGrid rows={incomeResolvedRows} />
-                        <p className="mb-2 mt-4 text-xs font-medium text-muted-foreground">
-                          Officer input
-                        </p>
-                        <ManualFinancialInputs
-                          fields={MANUAL_INCOME_FIELDS}
-                          disabled={locked || !canManage}
-                          values={yearManual}
-                          onChange={updateManualField}
-                        />
+                        <ProspectusFinancialMetricTable table={incomeStatementTable} />
                       </section>
 
                       <section>
                         <ProspectusSectionHeading title="Balance Sheet & Liquidity" />
-                        <ReadOnlyGrid rows={balanceResolvedRows} />
-                        <p className="mb-2 mt-4 text-xs font-medium text-muted-foreground">
-                          Officer input
-                        </p>
-                        <ManualFinancialInputs
-                          fields={MANUAL_BALANCE_FIELDS}
-                          disabled={locked || !canManage}
-                          values={yearManual}
-                          onChange={updateManualField}
-                        />
+                        <ProspectusFinancialMetricTable table={balanceSheetTable} />
                       </section>
 
                       <section>
                         <ProspectusSectionHeading title="Cash Flow, Coverage & Efficiency" />
-                        <ReadOnlyGrid rows={coverageResolvedRows} />
-                        <p className="mb-2 mt-4 text-xs font-medium text-muted-foreground">
-                          Officer input
-                        </p>
-                        <ManualFinancialInputs
-                          fields={MANUAL_COVERAGE_FIELDS}
-                          disabled={locked || !canManage}
-                          values={yearManual}
-                          onChange={updateManualField}
-                        />
+                        <ProspectusFinancialMetricTable table={coverageTable} showTrend />
                       </section>
 
                       <section>
-                        <ProspectusSectionHeading title="Trend Verification" />
-                        <ReadOnlyGrid rows={trendVerificationRows} />
-                        <div className="mt-3">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => void onPreview("page3")}
-                            disabled={preview.isFetching}
-                          >
-                            Preview Page 3
-                          </Button>
+                        <ProspectusSectionHeading title="Officer Input" />
+                        <div className="mb-4 flex flex-wrap gap-2">
+                          {activeFinancialYears.map((year) => (
+                            <Button
+                              key={year}
+                              size="sm"
+                              type="button"
+                              variant={financialYear === year ? "secondary" : "outline"}
+                              onClick={() => setFinancialYear(year)}
+                            >
+                              FY{year}
+                            </Button>
+                          ))}
+                        </div>
+                        <div className="space-y-6">
+                          <div>
+                            <OfficerInputHeading title="Income Statement" />
+                            <ManualFinancialInputs
+                              fields={MANUAL_INCOME_FIELDS}
+                              disabled={locked || !canManage}
+                              values={yearManual}
+                              onChange={updateManualField}
+                            />
+                          </div>
+                          <div>
+                            <OfficerInputHeading title="Balance Sheet & Liquidity" />
+                            <ManualFinancialInputs
+                              fields={MANUAL_BALANCE_FIELDS}
+                              disabled={locked || !canManage}
+                              values={yearManual}
+                              onChange={updateManualField}
+                            />
+                          </div>
+                          <div>
+                            <OfficerInputHeading title="Cash Flow, Coverage & Efficiency" />
+                            <ManualFinancialInputs
+                              fields={MANUAL_COVERAGE_FIELDS}
+                              disabled={locked || !canManage}
+                              values={yearManual}
+                              onChange={updateManualField}
+                            />
+                          </div>
                         </div>
                       </section>
                     </div>
                   ) : null}
 
                   {step === 5 ? (
-                    <div className="space-y-6">
-                      <section>
-                        <ProspectusSectionHeading title="Investor Takeaways" />
-                        <div className="grid gap-3 md:grid-cols-2">
-                          {(
+                    <section>
+                      <ProspectusSectionHeading title="Investor Takeaways" />
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {(
+                          [
                             [
-                              [
-                                "revenue_profitability",
-                                "revenueProfitabilityOptionKey",
-                                "Revenue and Profitability",
-                              ],
-                              ["liquidity", "liquidityOptionKey", "Liquidity"],
-                              ["leverage", "leverageOptionKey", "Leverage"],
-                              [
-                                "debt_servicing_capacity",
-                                "debtServicingCapacityOptionKey",
-                                "Debt-Servicing Capacity",
-                              ],
-                              [
-                                "working_capital_efficiency",
-                                "workingCapitalEfficiencyOptionKey",
-                                "Working-Capital Efficiency",
-                              ],
-                              [
-                                "overall_financial_profile",
-                                "overallFinancialProfileOptionKey",
-                                "Overall Financial Profile",
-                              ],
-                            ] as const
-                          ).map(([catalogueKey, field, label]) => (
-                            <OptionSelect
-                              key={field}
-                              label={label}
-                              disabled={locked || !canManage}
-                              value={draft.page3.investorTakeaways[field]}
-                              options={catalogues.takeaways[catalogueKey] ?? []}
-                              onChange={(value) =>
-                                updateDraft((prev) => ({
-                                  ...prev,
-                                  page3: {
-                                    ...prev.page3,
-                                    investorTakeaways: {
-                                      ...prev.page3.investorTakeaways,
-                                      [field]: value,
-                                    },
+                              "revenue_profitability",
+                              "revenueProfitabilityOptionKey",
+                              "Revenue and Profitability",
+                            ],
+                            ["liquidity", "liquidityOptionKey", "Liquidity"],
+                            ["leverage", "leverageOptionKey", "Leverage"],
+                            [
+                              "debt_servicing_capacity",
+                              "debtServicingCapacityOptionKey",
+                              "Debt-Servicing Capacity",
+                            ],
+                            [
+                              "working_capital_efficiency",
+                              "workingCapitalEfficiencyOptionKey",
+                              "Working-Capital Efficiency",
+                            ],
+                            [
+                              "overall_financial_profile",
+                              "overallFinancialProfileOptionKey",
+                              "Overall Financial Profile",
+                            ],
+                          ] as const
+                        ).map(([catalogueKey, field, label]) => (
+                          <OptionSelect
+                            key={field}
+                            label={label}
+                            disabled={locked || !canManage}
+                            value={draft.page3.investorTakeaways[field]}
+                            options={catalogues.takeaways[catalogueKey] ?? []}
+                            onChange={(value) =>
+                              updateDraft((prev) => ({
+                                ...prev,
+                                page3: {
+                                  ...prev.page3,
+                                  investorTakeaways: {
+                                    ...prev.page3.investorTakeaways,
+                                    [field]: value,
                                   },
-                                }))
-                              }
-                            />
-                          ))}
-                        </div>
-                      </section>
-                      <section>
-                        <ProspectusSectionHeading title="Resolved Takeaway Text" />
-                        <ReadOnlyGrid rows={takeawayVerificationRows} />
-                        <div className="mt-3">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => void onPreview("page3")}
-                            disabled={preview.isFetching}
-                          >
-                            Preview Page 3
-                          </Button>
-                        </div>
-                      </section>
-                    </div>
+                                },
+                              }))
+                            }
+                          />
+                        ))}
+                      </div>
+                    </section>
                   ) : null}
 
                   {step === 6 ? (
@@ -1132,9 +1037,8 @@ function ProspectusReviewPageInner() {
 
       <ProspectusPreviewSheet
         open={previewOpen}
-        onOpenChange={onPreviewOpenChange}
+        onOpenChange={setPreviewOpen}
         workflowStep={step}
-        preferredPage={previewPageHint}
         statusLabel={previewStatusLabel}
         isLoading={preview.isLoading}
         isFetching={preview.isFetching}

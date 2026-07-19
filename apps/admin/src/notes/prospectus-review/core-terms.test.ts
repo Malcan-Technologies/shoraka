@@ -114,8 +114,13 @@ describe("note & investment details coverage", () => {
       "Investment Terms",
       "Risk Information",
       "At a Glance",
-      "Issuer Track Record & Historical Notes",
     ]);
+  });
+
+  it("omits Track Record and Historical Notes preview-only rows", () => {
+    const sections = buildNoteInvestmentDetailSections(sampleNote());
+    const labels = sections.flatMap((s) => s.rows.map((r) => r.label)).join("\n");
+    expect(labels).not.toMatch(/Track Record|Historical Notes|verify in Preview/i);
   });
 
   it("shows Profit Rate and Expected Return as separate investment fields", () => {

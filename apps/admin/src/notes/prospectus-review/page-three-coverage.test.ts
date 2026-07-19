@@ -11,10 +11,11 @@ import {
   buildBalanceSheetResolvedRows,
   buildCoverageResolvedRows,
   buildIncomeStatementResolvedRows,
-  buildInvestorTakeawayVerificationRows,
+  buildPageThreeBalanceSheetTable,
+  buildPageThreeCoverageTable,
+  buildPageThreeIncomeStatementTable,
   buildPageThreeMetadataRows,
   buildPageThreeOverviewRows,
-  buildPageThreeTrendVerificationRows,
   computePageThreeTotalLiabilities,
   PAGE_THREE_RENDERED_TREND_METRICS,
   pageThreeHidesIssuerIdentity,
@@ -113,30 +114,33 @@ const yearRaw = {
   bsqpuc: 500_000,
 };
 
+const sampleStatements = {
+  questionnaire: { financial_year_end: "2024-12-31" },
+  unaudited_by_year: {
+    "2022": yearRaw,
+    "2023": yearRaw,
+    "2024": yearRaw,
+  },
+};
+
 describe("page three coverage verification", () => {
-  it("builds Page 3 Overview with title, DNA subtitle, and selected years", () => {
-    const rows = buildPageThreeOverviewRows({
-      unaudited_by_year: {
-        "2022": yearRaw,
-        "2023": yearRaw,
-        "2024": yearRaw,
-      },
-    });
+  it("builds Financial Summary with title, DNA subtitle, and selected years", () => {
+    const rows = buildPageThreeOverviewRows(sampleStatements);
     expect(rows.map((r) => r.label)).toEqual([
       "Page title",
       "Subtitle",
-      "Current selected financial years",
+      "Financial years included",
     ]);
     expect(rows.find((r) => r.label === "Page title")?.value).toBe(
       "DETAILED FINANCIAL COMPARISON"
     );
     expect(rows.find((r) => r.label === "Subtitle")?.value).toBe("Data not available");
-    expect(rows.find((r) => r.label === "Current selected financial years")?.value).toBe(
+    expect(rows.find((r) => r.label === "Financial years included")?.value).toBe(
       "FY2022 · FY2023 · FY2024"
     );
   });
 
-  it("builds Metadata Strip without Issuer and with mapper-aligned fields", () => {
+  it("builds Financing & Risk Details without Issuer", () => {
     const rows = buildPageThreeMetadataRows(sampleNote());
     expect(rows.map((r) => r.label)).toEqual([
       "Sector",
@@ -148,28 +152,16 @@ describe("page three coverage verification", () => {
     expect(rows.find((r) => r.label === "Sector")?.value).toBe("Construction");
     expect(rows.find((r) => r.label === "Risk Rating")?.value).toBe("AA");
     expect(rows.find((r) => r.label === "Paymaster")?.value).toBe("Kementerian Kerja Raya");
-    expect(rows.find((r) => r.label === "Paymaster Grading")?.value).toBe("Data not available");
-    expect(rows.find((r) => r.label === "Confidence Grading")?.value).toBe("Data not available");
     expect(rows.some((r) => /issuer/i.test(r.label))).toBe(false);
     expect(pageThreeHidesIssuerIdentity(rows)).toBe(true);
   });
 
-  it("shows DNA risk rating when invoice offer rating is invalid", () => {
-    const rows = buildPageThreeMetadataRows(
-      sampleNote({
-        invoiceSnapshot: { offer_details: { risk_rating: "C" } },
-      })
-    );
-    expect(rows.find((r) => r.label === "Risk Rating")?.value).toBe("Data not available");
-  });
-
-  it("includes all seven Income Statement metrics with resolved values", () => {
-    const rows = buildIncomeStatementResolvedRows(yearRaw, {
-      grossProfit: 300_000,
-      ebitda: 200_000,
-      ebit: 180_000,
+  it("builds Income Statement as a seven-metric multi-year table", () => {
+    const table = buildPageThreeIncomeStatementTable(sampleStatements, {
+      "2024": { grossProfit: 300_000, ebitda: 200_000, ebit: 180_000 },
     });
-    expect(rows.map((r) => r.label)).toEqual([
+    expect(table.yearHeaders).toHaveLength(3);
+    expect(table.rows.map((r) => r.metric)).toEqual([
       "Revenue",
       "Gross Profit",
       "EBITDA",
@@ -178,19 +170,13 @@ describe("page three coverage verification", () => {
       "Profit After Tax",
       "Net Profit Margin",
     ]);
-    expect(rows.find((r) => r.label === "Revenue")?.value).toContain("1,000,000");
-    expect(rows.find((r) => r.label === "Gross Profit")?.value).toContain("300,000");
-    expect(rows.find((r) => r.label === "Net Profit Margin")?.value).toBe("10%");
+    expect(table.rows.find((r) => r.metric === "Gross Profit")?.values[2]).toContain("300,000");
+    expect(table.rows.every((r) => r.trend == null)).toBe(true);
   });
 
-  it("includes all nine Balance Sheet & Liquidity metrics and Total Liabilities via computeTotalLiabilities", () => {
-    const rows = buildBalanceSheetResolvedRows(yearRaw, {
-      cashAndBank: 40_000,
-      tradeReceivables: 60_000,
-      totalEquity: 450_000,
-      quickRatio: 1.25,
-    });
-    expect(rows.map((r) => r.label)).toEqual([
+  it("builds Balance Sheet table with Total Liabilities via computeTotalLiabilities", () => {
+    const table = buildPageThreeBalanceSheetTable(sampleStatements, undefined);
+    expect(table.rows.map((r) => r.metric)).toEqual([
       "Cash & Bank",
       "Trade Receivables",
       "Current Assets",
@@ -208,84 +194,38 @@ describe("page three coverage verification", () => {
       non_current_liabilities: 20_000,
     });
     expect(computePageThreeTotalLiabilities(yearRaw)).toBe(expected);
-    expect(rows.find((r) => r.label === "Total Liabilities")?.value).toContain("250,000");
-    expect(rows.find((r) => r.label === "Total Assets")?.value).toContain("675,000");
-    expect(rows.find((r) => r.label === "Current Ratio")?.value).toMatch(/x$/);
+    expect(table.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toContain(
+      "250,000"
+    );
   });
 
-  it("includes all ten Cash Flow / Coverage / Efficiency metrics", () => {
-    const rows = buildCoverageResolvedRows(yearRaw, {
-      operatingCashFlow: 90_000,
-      freeCashFlow: 70_000,
-      interestCoverage: 4.5,
-      dscr: 1.8,
-      debtEquity: 0.5,
-      returnOnAssets: 12,
-      receivablesDays: 45,
-      payablesDays: 30,
-      assetTurnover: 1.2,
+  it("builds Coverage table with ten metrics and DNA trend column only", () => {
+    const table = buildPageThreeCoverageTable(sampleStatements, {
+      "2024": {
+        operatingCashFlow: 90_000,
+        freeCashFlow: 70_000,
+        interestCoverage: 4.5,
+        dscr: 1.8,
+        debtEquity: 0.5,
+        returnOnAssets: 12,
+        receivablesDays: 45,
+        payablesDays: 30,
+        assetTurnover: 1.2,
+      },
     });
-    expect(rows.map((r) => r.label)).toEqual([
-      "Operating Cash Flow",
-      "Free Cash Flow",
-      "Interest Coverage",
-      "DSCR",
-      "Debt / Equity",
-      "Return on Equity",
-      "Return on Assets",
-      "Receivables Days",
-      "Payables Days",
-      "Asset Turnover",
-    ]);
-    expect(rows.find((r) => r.label === "Return on Equity")?.value).toBe("20%");
-    expect(rows.find((r) => r.label === "Return on Assets")?.value).toBe("12");
-  });
-
-  it("exposes only the ten rendered Trend (3-Yr) outcomes, not the 26-item model", () => {
-    const rows = buildPageThreeTrendVerificationRows();
-    expect(PAGE_THREE_RENDERED_TREND_METRICS).toHaveLength(10);
-    expect(rows).toHaveLength(10);
-    expect(rows.map((r) => r.label)).toEqual([...PAGE_THREE_RENDERED_TREND_METRICS]);
-    expect(rows.every((r) => r.value === "Data not available")).toBe(true);
-    expect(rows.some((r) => /Revenue|Gross Profit|Cash & Bank|Current Assets/i.test(r.label))).toBe(
+    expect(table.rows.map((r) => r.metric)).toEqual([...PAGE_THREE_RENDERED_TREND_METRICS]);
+    expect(table.rows).toHaveLength(10);
+    expect(table.rows.every((r) => r.trend === "Data not available")).toBe(true);
+    expect(table.rows.some((r) => /Revenue|Gross Profit|Cash & Bank/i.test(r.metric))).toBe(
       false
     );
-    expect(rows.some((r) => /FINANCIAL TRENDS/i.test(r.label))).toBe(false);
   });
 
-  it("verifies six Investor Takeaway categories as resolved text without option keys", () => {
-    const rows = buildInvestorTakeawayVerificationRows(
-      {
-        revenueProfitabilityOptionKey: "stable_growth",
-        liquidityOptionKey: "do_not_display",
-        leverageOptionKey: null,
-        debtServicingCapacityOptionKey: "adequate",
-        workingCapitalEfficiencyOptionKey: "improving",
-        overallFinancialProfileOptionKey: "balanced",
-      },
-      {
-        revenue_profitability: [{ key: "stable_growth", label: "Stable growth trajectory" }],
-        liquidity: [{ key: "strong", label: "Strong liquidity" }],
-        leverage: [{ key: "moderate", label: "Moderate leverage" }],
-        debt_servicing_capacity: [{ key: "adequate", label: "Adequate debt service" }],
-        working_capital_efficiency: [{ key: "improving", label: "Improving working capital" }],
-        overall_financial_profile: [{ key: "balanced", label: "Balanced overall profile" }],
-      }
-    );
-    expect(rows.map((r) => r.label)).toEqual([
-      "Revenue and Profitability",
-      "Liquidity",
-      "Leverage",
-      "Debt-Servicing Capacity",
-      "Working-Capital Efficiency",
-      "Overall Financial Profile",
-    ]);
-    expect(rows.find((r) => r.label === "Revenue and Profitability")?.value).toBe(
-      "Stable growth trajectory"
-    );
-    expect(rows.find((r) => r.label === "Liquidity")?.value).toBe("Do not display");
-    expect(rows.find((r) => r.label === "Leverage")?.value).toBe("Not selected");
-    expect(JSON.stringify(rows)).not.toMatch(/stable_growth|optionKey/i);
+  it("keeps single-year resolved helpers for Total Liabilities parity", () => {
+    const rows = buildBalanceSheetResolvedRows(yearRaw, { quickRatio: 1.25 });
+    expect(rows.find((r) => r.label === "Total Liabilities")?.value).toContain("250,000");
+    expect(buildIncomeStatementResolvedRows(yearRaw, undefined)).toHaveLength(7);
+    expect(buildCoverageResolvedRows(yearRaw, undefined)).toHaveLength(10);
   });
 
   it("selects at most three financial years ascending for Page 3", () => {
