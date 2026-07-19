@@ -13,6 +13,13 @@
  * - Expected period return still needs a business decision
  * - Stage 4C (payment basis / shariah principle) implemented as unresolved → Data not available
  * - Stage 5A (paymaster highlight) in prospectus-paymaster-highlight.* — name/entity only; claims unresolved
+ *
+ * Stage 5A paymaster highlight — correction notes:
+ * - Paymaster name and entity type reuse Stage 2 (notes.paymaster_snapshot.*); both frozen on Note
+ * - No government-classification helper; entity_type does not prove payment quality
+ * - No paymaster-history data model; Note repayments are not paymaster track record
+ * - Highlight title/explanation unsupported; no claim without approved rules and copy
+ * - Future options (not implemented): classification mapping, paymaster-history model, admin-authored highlight, claim approval workflow, frozen highlight snapshot
  * - Stage 5B (issuer fundamentals highlight) in prospectus-issuer-fundamentals-highlight.* — live FS; claims unresolved
  * - Stage 5C (return highlight) in prospectus-return-highlight.* — gross + tenure + annual net; marketing claims unresolved
  * - Stage 5D (Shariah highlight) in prospectus-shariah-highlight.* — compliance claim unresolved; not Tawarruq-as-proof

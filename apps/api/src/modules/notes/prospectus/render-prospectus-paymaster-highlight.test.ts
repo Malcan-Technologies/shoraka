@@ -1,8 +1,11 @@
-import { SAMPLE_PROSPECTUS_DATES_PAYMASTER_INPUT } from "./prospectus-dates-paymaster.sample-data";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { buildProspectusDatesPaymaster } from "./prospectus-dates-paymaster";
 import { buildProspectusPaymasterHighlight } from "./prospectus-paymaster-highlight";
 import { SAMPLE_PROSPECTUS_PAYMASTER_HIGHLIGHT_INPUT } from "./prospectus-paymaster-highlight.sample-data";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
+  PROSPECTUS_PAYMASTER_HIGHLIGHT_AUDIT,
   PROSPECTUS_PAYMASTER_HIGHLIGHT_FIELD_SOURCES,
 } from "./prospectus-paymaster-highlight.types";
 import { buildProspectusPaymasterHighlightDocument } from "./render-prospectus-paymaster-highlight";
@@ -23,36 +26,103 @@ describe("prospectus Paymaster Investor Highlight (Page 1 DATA STAGE 5A)", () =>
     );
   });
 
-  it("reuses Stage 2 paymaster name and entity type; does not invent claims", () => {
-    const data = buildProspectusPaymasterHighlight(SAMPLE_PROSPECTUS_PAYMASTER_HIGHLIGHT_INPUT);
-    expect(data.paymasterName).toBe(SAMPLE_PROSPECTUS_DATES_PAYMASTER_INPUT.paymasterName);
-    expect(data.paymasterEntityType).toBe(
-      SAMPLE_PROSPECTUS_DATES_PAYMASTER_INPUT.paymasterEntityType
-    );
-    expect(data.governmentClassification).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(data.paymasterPaymentTrackRecord).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(data.highlightTitle).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(data.highlightExplanation).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(data.claimApprovalStatus).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(data.highlightTitle).not.toContain("strong government");
-    expect(data.highlightExplanation).not.toMatch(/track record/i);
+  it("preserves exact trimmed paymaster name", () => {
+    const data = buildProspectusPaymasterHighlight({
+      paymasterName: "  Kementerian Kerja Raya  ",
+      paymasterEntityType: "Federal Government Agency",
+    });
+    expect(data.paymasterName).toBe("Kementerian Kerja Raya");
   });
 
-  it("returns Data not available when paymaster snapshot fields are empty", () => {
+  it("returns Data not available when paymaster name is missing", () => {
     const missing = buildProspectusPaymasterHighlight({
       paymasterName: "  ",
-      paymasterEntityType: null,
+      paymasterEntityType: "Federal Government Agency",
     });
     expect(missing.paymasterName).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+  });
+
+  it("preserves exact entity type without shortening", () => {
+    const data = buildProspectusPaymasterHighlight({
+      paymasterName: "Kementerian Kerja Raya",
+      paymasterEntityType: "Federal Government Agency",
+    });
+    expect(data.paymasterEntityType).toBe("Federal Government Agency");
+    expect(data.paymasterEntityType).not.toBe("Government Agency");
+  });
+
+  it("returns Data not available when entity type is missing", () => {
+    const missing = buildProspectusPaymasterHighlight({
+      paymasterName: "Kementerian Kerja Raya",
+      paymasterEntityType: null,
+    });
     expect(missing.paymasterEntityType).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("renders plain HTML with Stage 5A lines", () => {
+  it("does not infer government classification from entity type", () => {
+    const data = buildProspectusPaymasterHighlight({
+      paymasterName: "Kementerian Kerja Raya",
+      paymasterEntityType: "Federal Government Agency",
+    });
+    expect(data.governmentClassification).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.audit.governmentClassification.inferenceAllowed).toBe(false);
+  });
+
+  it("does not invent paymaster track record from Note repayment observations", () => {
+    const data = buildProspectusPaymasterHighlight(SAMPLE_PROSPECTUS_PAYMASTER_HIGHLIGHT_INPUT);
+    expect(data.paymasterPaymentTrackRecord).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.audit.paymentTrackRecord.historicalDataAvailable).toBe(false);
+  });
+
+  it("keeps highlight title and explanation unavailable", () => {
+    const data = buildProspectusPaymasterHighlight(SAMPLE_PROSPECTUS_PAYMASTER_HIGHLIGHT_INPUT);
+    expect(data.highlightTitle).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.highlightExplanation).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.audit.highlightTitle.claimApprovalRequired).toBe(true);
+    expect(data.audit.highlightExplanation.claimApprovalRequired).toBe(true);
+  });
+
+  it("reuses Stage 2 paymaster formatting and does not add a second resolver", () => {
+    const stage2 = buildProspectusDatesPaymaster({
+      listingOpensAt: null,
+      maturityDate: null,
+      paymasterName: SAMPLE_PROSPECTUS_PAYMASTER_HIGHLIGHT_INPUT.paymasterName,
+      paymasterEntityType: SAMPLE_PROSPECTUS_PAYMASTER_HIGHLIGHT_INPUT.paymasterEntityType,
+    });
+    const stage5a = buildProspectusPaymasterHighlight(
+      SAMPLE_PROSPECTUS_PAYMASTER_HIGHLIGHT_INPUT
+    );
+    expect(stage5a.paymasterName).toBe(stage2.paymasterName);
+    expect(stage5a.paymasterEntityType).toBe(stage2.paymasterEntityType);
+    expect(stage5a.audit).toEqual(PROSPECTUS_PAYMASTER_HIGHLIGHT_AUDIT);
+
+    const moduleSource = readFileSync(
+      join(__dirname, "prospectus-paymaster-highlight.ts"),
+      "utf8"
+    );
+    expect(moduleSource).toContain("buildProspectusDatesPaymaster");
+    expect(moduleSource).not.toContain("paymaster_snapshot");
+    expect(moduleSource).not.toContain("isGovernment");
+  });
+
+  it("renders Canva-facing HTML without marketing claims or audit keys", () => {
     const html = buildProspectusPaymasterHighlightDocument();
-    expect(html).toContain("Paymaster name: Kementerian Kerja Raya (KKR)");
-    expect(html).toContain("Paymaster entity type: Federal Government Agency");
-    expect(html).toContain("Government classification: Data not available");
-    expect(html).toContain("Highlight title: Data not available");
+    expect(html).toContain("Paymaster Name: Kementerian Kerja Raya");
+    expect(html).toContain("Paymaster Entity Type: Federal Government Agency");
+    expect(html).toContain("Government Classification: Data not available");
+    expect(html).toContain("Paymaster Payment Track Record: Data not available");
+    expect(html).toContain("Highlight Title: Data not available");
+    expect(html).toContain("Highlight Explanation: Data not available");
     expect(html).not.toContain("Backed by a strong government paymaster");
+    expect(html).not.toMatch(/strong payment track record/i);
+    expect(html).not.toMatch(/reliable payer/i);
+    expect(html).not.toMatch(/government-backed/i);
+    expect(html).not.toMatch(/low-risk paymaster/i);
+    expect(html).not.toContain("claimApprovalStatus");
+    expect(html).not.toContain("sourceStatus");
+    expect(html).not.toContain("inferenceAllowed");
+    expect(html).not.toContain("historicalDataAvailable");
+    expect(html).not.toContain("isFrozen");
+    expect(html).not.toContain("Claim approval");
   });
 });

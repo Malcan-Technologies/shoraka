@@ -1,12 +1,89 @@
 /**
  * SECTION: Prospectus Page 1 — Paymaster Investor Highlight (DATA STAGE 5A)
- * WHY: First KEY INVESTOR HIGHLIGHTS item; only confirmed snapshot fields are safe
+ * WHY: Confirmed frozen name/entity only; no government/track-record/marketing claims
  */
 
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
 
 export { PROSPECTUS_DATA_NOT_AVAILABLE };
 
+/** Claims that must not be generated without approval. */
+export const PROSPECTUS_PAYMASTER_CLAIMS_REQUIRING_APPROVAL = [
+  "strong",
+  "government-backed",
+  "strong payment track record",
+  "reliable",
+  "low-risk paymaster",
+  "proven payer",
+] as const;
+
+export interface ProspectusPaymasterHighlightAudit {
+  paymasterName: {
+    source: "notes.paymaster_snapshot.name";
+    isFrozen: true;
+  };
+  paymasterEntityType: {
+    source: "notes.paymaster_snapshot.entity_type";
+    isFrozen: true;
+  };
+  governmentClassification: {
+    sourceStatus: "not_stored";
+    inferenceAllowed: false;
+    businessDecision: "pending";
+  };
+  paymentTrackRecord: {
+    sourceStatus: "not_stored";
+    inferenceAllowed: false;
+    historicalDataAvailable: false;
+  };
+  highlightTitle: {
+    sourceStatus: "not_stored";
+    claimApprovalRequired: true;
+  };
+  highlightExplanation: {
+    sourceStatus: "not_stored";
+    claimApprovalRequired: true;
+  };
+  claimApproval: {
+    status: "pending";
+    requiredClaims: typeof PROSPECTUS_PAYMASTER_CLAIMS_REQUIRING_APPROVAL;
+  };
+}
+
+export const PROSPECTUS_PAYMASTER_HIGHLIGHT_AUDIT: ProspectusPaymasterHighlightAudit = {
+  paymasterName: {
+    source: "notes.paymaster_snapshot.name",
+    isFrozen: true,
+  },
+  paymasterEntityType: {
+    source: "notes.paymaster_snapshot.entity_type",
+    isFrozen: true,
+  },
+  governmentClassification: {
+    sourceStatus: "not_stored",
+    inferenceAllowed: false,
+    businessDecision: "pending",
+  },
+  paymentTrackRecord: {
+    sourceStatus: "not_stored",
+    inferenceAllowed: false,
+    historicalDataAvailable: false,
+  },
+  highlightTitle: {
+    sourceStatus: "not_stored",
+    claimApprovalRequired: true,
+  },
+  highlightExplanation: {
+    sourceStatus: "not_stored",
+    claimApprovalRequired: true,
+  },
+  claimApproval: {
+    status: "pending",
+    requiredClaims: PROSPECTUS_PAYMASTER_CLAIMS_REQUIRING_APPROVAL,
+  },
+};
+
+/** Canva-facing highlight fields only. */
 export interface ProspectusPaymasterHighlight {
   paymasterName: string;
   paymasterEntityType: string;
@@ -14,85 +91,99 @@ export interface ProspectusPaymasterHighlight {
   paymasterPaymentTrackRecord: string;
   highlightTitle: string;
   highlightExplanation: string;
-  claimApprovalStatus: string;
+  /** Audit/debug only — omitted from Canva HTML. */
+  audit: ProspectusPaymasterHighlightAudit;
 }
 
-/** Raw inputs for preview/builder — not Prisma. */
+/**
+ * Raw inputs for preview/builder — not Prisma.
+ * Optional Note repayment observations prove track-record is still DNA.
+ */
 export interface ProspectusPaymasterHighlightInput {
   /** notes.paymaster_snapshot.name */
   paymasterName: string | null | undefined;
   /** notes.paymaster_snapshot.entity_type */
   paymasterEntityType: string | null | undefined;
+  /**
+   * Observational only — current Note repayment/status must not invent paymaster history.
+   */
+  noteRepaymentObserved?: {
+    noteStatus?: string | null;
+    repaidAt?: Date | string | null;
+    receivedPayoutAmount?: number | null;
+  };
 }
 
 export interface ProspectusPaymasterHighlightFieldSource {
   label: string;
   canonicalSource: string;
   availability: "stored" | "unresolved";
+  surface: "canva" | "audit";
   possibleAlternatives: string;
   notes: string;
 }
 
 export const PROSPECTUS_PAYMASTER_HIGHLIGHT_FIELD_SOURCES: Record<
-  keyof ProspectusPaymasterHighlight,
+  | "paymasterName"
+  | "paymasterEntityType"
+  | "governmentClassification"
+  | "paymasterPaymentTrackRecord"
+  | "highlightTitle"
+  | "highlightExplanation",
   ProspectusPaymasterHighlightFieldSource
 > = {
   paymasterName: {
-    label: "Paymaster name",
+    label: "Paymaster Name",
     canonicalSource: "notes.paymaster_snapshot.name",
     availability: "stored",
+    surface: "canva",
     possibleAlternatives: "live Contract.customer_details.name — not used",
-    notes: "Same frozen snapshot field as Stage 2. Written at note create from contract customer_details.",
+    notes: "Reuse Stage 2 buildProspectusDatesPaymaster. Frozen on Note.",
   },
   paymasterEntityType: {
-    label: "Paymaster entity type",
+    label: "Paymaster Entity Type",
     canonicalSource: "notes.paymaster_snapshot.entity_type",
     availability: "stored",
+    surface: "canva",
     possibleAlternatives: "live Contract.customer_details.entity_type — not used",
     notes:
-      "Display-ready issuer ENTITY_TYPES labels (e.g. Federal Government Agency). No formatting helper.",
+      "Reuse Stage 2. Preserve display-ready ENTITY_TYPES label exactly (no shortening).",
   },
   governmentClassification: {
-    label: "Government classification",
+    label: "Government Classification",
     canonicalSource: "none confirmed",
     availability: "unresolved",
+    surface: "canva",
     possibleAlternatives:
-      "Infer from entity_type containing \"Government\"; invent government/private/public helper — not used",
-    notes: "No existing classifier in code. Do not invent one for prospectus.",
+      "Infer from entity_type; isGovernmentEntityType helper — not used",
+    notes: "No approved government vs non-government mapping. inferenceAllowed = false.",
   },
   paymasterPaymentTrackRecord: {
-    label: "Paymaster payment track record",
+    label: "Paymaster Payment Track Record",
     canonicalSource: "none confirmed",
     availability: "unresolved",
+    surface: "canva",
     possibleAlternatives:
-      "Note repayment receipts (this note only); issuer repayment history; CTOS (issuer people) — not used",
+      "Current Note repayments; issuer history; CTOS; RegTank — not used",
     notes:
-      "No paymaster payment history %, rating, grade, or confidence model. Entity type ≠ track record.",
+      "No paymaster history model. Note repayments are Note-specific. historicalDataAvailable = false.",
   },
   highlightTitle: {
-    label: "Highlight title",
+    label: "Highlight Title",
     canonicalSource: "none confirmed",
     availability: "unresolved",
+    surface: "canva",
     possibleAlternatives:
-      "Hardcode Canva \"Backed by a strong government paymaster\"; auto-generate from entity_type — not used",
-    notes:
-      "No stored highlight. \"Strong government\" claim needs classification + approval; unsupported.",
+      "Canva \"Backed by a strong government paymaster\"; auto from entity_type — not used",
+    notes: "claimApprovalRequired = true. Do not generate marketing title.",
   },
   highlightExplanation: {
-    label: "Highlight explanation",
+    label: "Highlight Explanation",
     canonicalSource: "none confirmed",
     availability: "unresolved",
+    surface: "canva",
     possibleAlternatives:
-      "Template with name + entity_type + invented track-record sentence; admin free text — not used",
-    notes:
-      "No stored explanation helper. Do not generate \"strong payment track record\" wording.",
-  },
-  claimApprovalStatus: {
-    label: "Claim approval status",
-    canonicalSource: "none confirmed",
-    availability: "unresolved",
-    possibleAlternatives: "Admin/legal/compliance prospectus approval workflow — does not exist",
-    notes:
-      "Positive marketing claims (strong / government-backed / track record) need risk/compliance/legal or admin confirmation.",
+      "Template name + entity + track record; Canva sample — not used",
+    notes: "claimApprovalRequired = true. Do not compose explanation from confirmed fields.",
   },
 };
