@@ -2,7 +2,9 @@
 
 Immediate alignment guide for CashSouk Note prospectus Pages 1–3.
 
-Temporary placeholders live in `apps/api/src/modules/notes/prospectus/prospectus-placeholder-publication-content.ts`. They are for sample/preview only. Prisma Note mappers must not default them into production Notes.
+Officer-selected production content is stored in `note_prospectus_reviews` and frozen at publish under `notes.prospectus_snapshot.publication_content`. See [prospectus-review-workflow.md](./prospectus-review-workflow.md).
+
+Development sample placeholders remain in `apps/api/src/modules/notes/prospectus/prospectus-placeholder-publication-content.ts` for preview samples only. Prisma Note mappers must not default them into production Notes.
 
 ## AUTO-DERIVED
 

@@ -34,6 +34,7 @@ import {
   isProspectusNotePublished,
   type ProspectusPageOneNoteRecord,
 } from "./prospectus-page-one-prisma";
+import { publicationContentFromFrozenSnapshot } from "../prospectus-review/prospectus-frozen-publication";
 import type {
   ProspectusPageOne,
   ProspectusPageOneTrackRecordMode,
@@ -214,6 +215,10 @@ export async function mapProspectusPageOneDataToInput(
     },
     trackRecordMode: track.trackRecordMode,
     page1TrackRecordSnapshot: track.page1TrackRecordSnapshot,
+    /** Published Notes: frozen officer content only — never mutable draft / placeholders. */
+    publicationContent: isProspectusNotePublished(note)
+      ? publicationContentFromFrozenSnapshot(note.prospectus_snapshot)
+      : undefined,
   };
 }
 

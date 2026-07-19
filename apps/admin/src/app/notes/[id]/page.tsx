@@ -391,6 +391,26 @@ export default function NoteDetailPage() {
                 canManage={canManage}
               />
 
+              {note.status === "DRAFT" ? (
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                    <div>
+                      <CardTitle className="text-base">Prospectus Review</CardTitle>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Complete officer selections before publishing to the marketplace.
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => router.push(`/notes/${note.id}/prospectus`)}
+                    >
+                      <DocumentTextIcon className="mr-2 h-4 w-4" />
+                      Open Prospectus Review
+                    </Button>
+                  </CardHeader>
+                </Card>
+              ) : null}
+
               <div className="space-y-6">
                 <NoteTermsPanel note={note} />
                 {note.sourceInvoiceOfferSigning ? (

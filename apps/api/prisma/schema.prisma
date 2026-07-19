@@ -689,6 +689,7 @@ model Note {
   ledger_entries                  NoteLedgerEntry[]
   events                          NoteEvent[]
   admin_actions                   NoteAdminAction[]
+  prospectus_review               NoteProspectusReview?
 
   @@index([source_application_id])
   @@index([source_contract_id])
@@ -701,6 +702,29 @@ model Note {
   @@index([featured_from, featured_until])
   @@index([maturity_date])
   @@map("notes")
+}
+
+/// Pre-marketplace officer review of prospectus publication content (1:1 with Note).
+/// Never stores Application/CTOS source data or rendered HTML/PDF.
+model NoteProspectusReview {
+  id                       String                     @id @default(cuid())
+  note_id                  String                     @unique
+  status                   ProspectusReviewStatus     @default(DRAFT)
+  content_version          Int                        @default(1)
+  option_catalogue_version String
+  draft_content            Json                       @default("{}")
+  approved_content         Json?
+  created_by_user_id       String
+  updated_by_user_id       String
+  approved_by_user_id      String?
+  approved_at              DateTime?
+  created_at               DateTime                   @default(now())
+  updated_at               DateTime                   @updatedAt
+  note                     Note                       @relation(fields: [note_id], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([updated_at])
+  @@map("note_prospectus_reviews")
 }
 
 model NoteListing {
@@ -1642,6 +1666,13 @@ enum NoteStatus {
   DEFAULTED
   FAILED_FUNDING
   CANCELLED
+}
+
+enum ProspectusReviewStatus {
+  DRAFT
+  READY_FOR_REVIEW
+  APPROVED
+  SUPERSEDED
 }
 
 enum NoteListingStatus {

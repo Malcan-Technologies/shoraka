@@ -2437,11 +2437,24 @@ export class NoteService {
       financialStatements: applicationForProspectus?.financial_statements ?? null,
       now,
     });
-    const prospectusSnapshot = wrapProspectusSnapshotWithPageTwo(
+    const { prospectusReviewService, mergePublicationContentIntoSnapshot } = await import(
+      "./prospectus-review/prospectus-review.service"
+    );
+    await prospectusReviewService.assertPublishAllowed(id);
+    const frozenPublication =
+      await prospectusReviewService.buildFrozenPublicationContentForPublish(id);
+
+    let prospectusSnapshot: Record<string, unknown> = wrapProspectusSnapshotWithPageTwo(
       page1Snapshot,
       page2Snapshot,
       note.prospectus_snapshot
     );
+    if (frozenPublication) {
+      prospectusSnapshot = mergePublicationContentIntoSnapshot(
+        prospectusSnapshot,
+        frozenPublication
+      );
+    }
 
     const updated = await prisma.$transaction(async (tx) => {
       const stateUpdate = await tx.note.updateMany({

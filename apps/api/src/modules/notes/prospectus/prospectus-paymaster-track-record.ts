@@ -1,8 +1,10 @@
 /**
  * SECTION: Build Page 2 Paymaster Track Record view-model
- * WHY: Always Data not available — no approved grouping key, formulas, or issuer reuse
+ * WHY: Officer-entered prospectus-review values only — never issuer/paymaster fabricated metrics
  */
 
+import { formatProspectusMoneyMyr } from "./prospectus-main-financial-terms";
+import { parseProspectusFinancialNumber } from "./prospectus-financial-comparison-metrics";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_PAYMASTER_TRACK_RECORD_AUDIT,
@@ -10,6 +12,23 @@ import {
   type ProspectusPaymasterTrackRecord,
   type ProspectusPaymasterTrackRecordInput,
 } from "./prospectus-paymaster-track-record.types";
+
+function formatCount(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return PROSPECTUS_DATA_NOT_AVAILABLE;
+  return String(Math.trunc(value));
+}
+
+function formatPercent(value: unknown): string {
+  const n = parseProspectusFinancialNumber(value);
+  if (n == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
+  return `${n}%`;
+}
+
+function formatDays(value: unknown): string {
+  const n = parseProspectusFinancialNumber(value);
+  if (n == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
+  return `${n} days`;
+}
 
 export function buildProspectusPaymasterTrackRecord(
   input: ProspectusPaymasterTrackRecordInput = {}
@@ -34,13 +53,17 @@ export function buildProspectusPaymasterTrackRecord(
   void input.repaidAt;
   void input.matchingPaymasterNameRows;
 
+  const officer = input.officerInputs;
+  const amount = parseProspectusFinancialNumber(officer?.totalAmountPaid);
+
   return {
     sectionHeading: PROSPECTUS_PAYMASTER_TRACK_RECORD_SECTION_HEADING,
-    totalInvoicesPaid: PROSPECTUS_DATA_NOT_AVAILABLE,
-    totalAmountPaid: PROSPECTUS_DATA_NOT_AVAILABLE,
-    successfulRepaymentPercent: PROSPECTUS_DATA_NOT_AVAILABLE,
-    onTimePayment: PROSPECTUS_DATA_NOT_AVAILABLE,
-    averagePaymentPeriod: PROSPECTUS_DATA_NOT_AVAILABLE,
+    totalInvoicesPaid: formatCount(officer?.totalInvoicesPaid ?? null),
+    totalAmountPaid:
+      amount == null ? PROSPECTUS_DATA_NOT_AVAILABLE : formatProspectusMoneyMyr(amount),
+    successfulRepaymentPercent: formatPercent(officer?.successfulRepaymentPercent),
+    onTimePayment: formatPercent(officer?.onTimePaymentPercent),
+    averagePaymentPeriod: formatDays(officer?.averagePaymentPeriodDays),
     audit: PROSPECTUS_PAYMASTER_TRACK_RECORD_AUDIT,
   };
 }

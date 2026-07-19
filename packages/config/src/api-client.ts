@@ -127,6 +127,10 @@ import type {
   SettlementPreviewInput,
   UpdateNoteFeaturedInput,
   UpdateNoteDraftInput,
+  ProspectusReviewGetResponse,
+  ProspectusReviewDetail,
+  ProspectusReviewPreviewResponse,
+  SaveProspectusReviewDraftInput,
   WithdrawalInstruction,
   ShorakaWithdrawalState,
   ShorakaSubmitOrderStateResponse,
@@ -631,6 +635,45 @@ export class ApiClient {
 
   async publishAdminNote(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.post<NoteDetail>(`/v1/admin/notes/${id}/publish`, {});
+  }
+
+  async getAdminProspectusReview(
+    id: string
+  ): Promise<ApiResponse<ProspectusReviewGetResponse> | ApiError> {
+    return this.get<ProspectusReviewGetResponse>(`/v1/admin/notes/${id}/prospectus-review`);
+  }
+
+  async saveAdminProspectusReviewDraft(
+    id: string,
+    data: SaveProspectusReviewDraftInput
+  ): Promise<ApiResponse<ProspectusReviewDetail> | ApiError> {
+    return this.put<ProspectusReviewDetail>(`/v1/admin/notes/${id}/prospectus-review`, data);
+  }
+
+  async approveAdminProspectusReview(
+    id: string
+  ): Promise<ApiResponse<ProspectusReviewDetail> | ApiError> {
+    return this.post<ProspectusReviewDetail>(
+      `/v1/admin/notes/${id}/prospectus-review/approve`,
+      {}
+    );
+  }
+
+  async reopenAdminProspectusReview(
+    id: string
+  ): Promise<ApiResponse<ProspectusReviewDetail> | ApiError> {
+    return this.post<ProspectusReviewDetail>(
+      `/v1/admin/notes/${id}/prospectus-review/reopen`,
+      {}
+    );
+  }
+
+  async getAdminProspectusReviewPreview(
+    id: string
+  ): Promise<ApiResponse<ProspectusReviewPreviewResponse> | ApiError> {
+    return this.get<ProspectusReviewPreviewResponse>(
+      `/v1/admin/notes/${id}/prospectus-review/preview`
+    );
   }
 
   async unpublishAdminNote(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {

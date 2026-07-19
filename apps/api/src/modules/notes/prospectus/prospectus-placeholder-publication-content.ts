@@ -97,6 +97,14 @@ export interface ProspectusFinancialInputsPlaceholder {
  * Typed publication content shape for sample/preview and future workflow inputs.
  * Production Note mapping leaves this undefined.
  */
+export interface ProspectusPaymasterTrackRecordPublicationInputs {
+  totalInvoicesPaid?: number | null;
+  totalAmountPaid?: string | number | null;
+  successfulRepaymentPercent?: string | number | null;
+  onTimePaymentPercent?: string | number | null;
+  averagePaymentPeriodDays?: string | number | null;
+}
+
 export interface ProspectusPublicationContent {
   meta: typeof PROSPECTUS_PUBLICATION_CONTENT_SOURCE;
   keyInvestorHighlights: ProspectusKeyInvestorHighlightPlaceholder[];
@@ -106,6 +114,7 @@ export interface ProspectusPublicationContent {
     sourceType: "fixed_template";
     approvedProductionCopy: false;
   };
+  paymasterTrackRecord?: ProspectusPaymasterTrackRecordPublicationInputs;
   creditInsightSelections: Partial<
     Record<ProspectusCreditInsightFieldKey, ProspectusCreditInsightOptionKey>
   >;

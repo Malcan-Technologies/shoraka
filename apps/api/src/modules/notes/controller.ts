@@ -263,6 +263,76 @@ adminNotesRouter.patch(
   }
 );
 
+adminNotesRouter.get(
+  "/:id/prospectus-review",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { prospectusReviewService } = await import("./prospectus-review/prospectus-review.service");
+      send(res, await prospectusReviewService.getOrCreateReview(id, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.put(
+  "/:id/prospectus-review",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { prospectusReviewService } = await import("./prospectus-review/prospectus-review.service");
+      send(res, await prospectusReviewService.saveDraft(id, req.body, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/prospectus-review/approve",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { prospectusReviewService } = await import("./prospectus-review/prospectus-review.service");
+      send(res, await prospectusReviewService.approve(id, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/prospectus-review/reopen",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { prospectusReviewService } = await import("./prospectus-review/prospectus-review.service");
+      send(res, await prospectusReviewService.reopen(id, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.get(
+  "/:id/prospectus-review/preview",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { prospectusReviewService } = await import("./prospectus-review/prospectus-review.service");
+      send(res, await prospectusReviewService.preview(id, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 adminNotesRouter.patch(
   "/:id/featured",
   requirePermission("notes.manage"),

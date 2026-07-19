@@ -127,7 +127,17 @@ export interface ProspectusPaymasterTrackRecord {
  * Minimal optional context — observational only.
  * Canva-facing values must not depend on these inputs.
  */
+export interface ProspectusPaymasterTrackRecordOfficerInputs {
+  totalInvoicesPaid?: number | null;
+  totalAmountPaid?: string | number | null;
+  successfulRepaymentPercent?: string | number | null;
+  onTimePaymentPercent?: string | number | null;
+  averagePaymentPeriodDays?: string | number | null;
+}
+
 export interface ProspectusPaymasterTrackRecordInput {
+  /** Prospectus-review officer-entered values only — never issuer metrics. */
+  officerInputs?: ProspectusPaymasterTrackRecordOfficerInputs | null;
   paymasterSnapshot?: unknown;
   currentNoteId?: string | null;
   /** Observational — must not become Total Invoices Paid. */

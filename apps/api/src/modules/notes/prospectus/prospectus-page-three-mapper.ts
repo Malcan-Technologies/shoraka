@@ -3,6 +3,7 @@
  * WHY: Prefer frozen page_2 financial_comparison when published; never live-fallback
  */
 
+import { publicationContentFromFrozenSnapshot } from "../prospectus-review/prospectus-frozen-publication";
 import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
@@ -110,6 +111,9 @@ export function mapProspectusPageThreeDataToInput(
     paymasterSnapshot: note.paymaster_snapshot,
     liveFinancialStatements,
     frozenFinancialComparison,
+    publicationContent: isPublished
+      ? publicationContentFromFrozenSnapshot(note.prospectus_snapshot)
+      : undefined,
   };
 }
 

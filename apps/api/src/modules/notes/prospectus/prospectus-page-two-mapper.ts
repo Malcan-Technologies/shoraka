@@ -33,6 +33,7 @@ import type {
 import { buildProspectusPaymasterTrackRecord } from "./prospectus-paymaster-track-record";
 import type { ProspectusPage2FinancialComparisonSnapshot } from "./prospectus-snapshot.types";
 import { buildProspectusSoukscoreRatingScale } from "./prospectus-soukscore-rating-scale";
+import { publicationContentFromFrozenSnapshot } from "../prospectus-review/prospectus-frozen-publication";
 
 export type ProspectusPageTwoBuilderInput = {
   noteId: string;
@@ -163,6 +164,10 @@ export function mapProspectusPageTwoDataToInput(
     maturityDate: note.maturity_date,
     liveFinancialStatements,
     frozenFinancialComparison,
+    /** Published Notes: frozen officer content only — never mutable draft / placeholders. */
+    publicationContent: isPublished
+      ? publicationContentFromFrozenSnapshot(note.prospectus_snapshot)
+      : undefined,
     targetAmount: toFiniteNumber(note.target_amount),
     fundedAmount: toFiniteNumber(note.funded_amount),
   };
@@ -191,7 +196,9 @@ export function buildProspectusPageTwo(
       paymasterSnapshot: input.paymasterSnapshot,
       maturityDate: input.maturityDate,
     }),
-    paymasterTrackRecord: buildProspectusPaymasterTrackRecord(),
+    paymasterTrackRecord: buildProspectusPaymasterTrackRecord({
+      officerInputs: input.publicationContent?.paymasterTrackRecord ?? null,
+    }),
     financialComparisonSource,
     financialComparisonMetrics,
     creditInsights: buildProspectusCreditInsights({
