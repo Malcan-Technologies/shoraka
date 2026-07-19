@@ -265,6 +265,42 @@
  * - Page 1 audit.scaleStatus remains pending_scale_decision until approved copy exists
  * - Scale decision is not fully resolved while labels/definitions/note are DNA
  *
+ * =============================================================================
+ * PAGE 2 — STAGE 8 CTA AND SHARED HEADER / FOOTER
+ * =============================================================================
+ *
+ * Modules:
+ * - prospectus-header.* (reusable across prospectus pages)
+ * - prospectus-investment-cta.*
+ * - prospectus-footer.* (reusable across prospectus pages)
+ * Preview: pnpm prospectus:investment-cta-preview
+ * Output: apps/api/tmp/prospectus/prospectus-investment-cta-preview.html
+ *
+ * Header:
+ * - Official logo: apps/investor/public/logo.svg (packages/ui Logo → /logo.svg)
+ * - Tagline requires confirmed existing brand copy — Canva-only wording not approved
+ * - Shariah badge unresolved (Data not available)
+ * - No inference from -i product names, Tawarruq, or Shoraka
+ *
+ * CTA:
+ * - Heading static: INVEST WITH CONFIDENCE
+ * - Paragraph unresolved (Data not available)
+ * - Button label static: INVEST NOW
+ * - Destination: confirmed investor route /investments/{notes.id}
+ * - Auth required in investor portal; URL alone does not prove investability
+ * - Final visibility/disabled investability belongs to marketplace
+ *   (computeMarketplaceCommitBounds / note.investable) — wired by future Page 2 mapper
+ * - Minimum investment: MARKETPLACE_MIN_COMMIT_MYR via formatProspectusMoneyMyr
+ * - Display: Minimum investment: RM 100.00 (full money; not Canva RM 100)
+ * - No attractive / short-term / Shariah-compliant investment claims
+ *
+ * Footer:
+ * - Legal text may only reuse exact current approved production copy
+ * - Canva/legacy text is not automatically approved
+ * - Current risk warning and Product Terms/Risk Disclosure statement: Data not available
+ * - Components shared across prospectus pages (Page 1 integration later)
+ * - Future legal/marketing copy should be versioned static config or snapshot version
+ *
  * Corrections still needed when those stages are implemented:
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)
  * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*
