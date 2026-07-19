@@ -1,0 +1,48 @@
+/**
+ * SECTION: Build Page 3 Stage 1 metadata + shared financial-year pass-through
+ * WHY: Frozen snapshot strings + SoukScore validator; reuse Page 2 years only
+ */
+
+import { isSoukscoreRiskRating } from "@cashsouk/types";
+import {
+  PROSPECTUS_DATA_NOT_AVAILABLE,
+  PROSPECTUS_PAGE_THREE_METADATA_AUDIT,
+  PROSPECTUS_PAGE_THREE_PAGE_TITLE,
+  type ProspectusPageThreeMetadata,
+  type ProspectusPageThreeMetadataInput,
+} from "./prospectus-page-three-metadata.types";
+
+function displayString(value: unknown): string {
+  if (typeof value !== "string") return PROSPECTUS_DATA_NOT_AVAILABLE;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : PROSPECTUS_DATA_NOT_AVAILABLE;
+}
+
+export function buildProspectusPageThreeMetadata(
+  input: ProspectusPageThreeMetadataInput
+): ProspectusPageThreeMetadata {
+  // Observational only — prove live org / paymaster / CTOS never become Canva fields or years.
+  void input.liveOrganizationName;
+  void input.livePaymasterName;
+  void input.ctosFinancials;
+
+  const riskRating = isSoukscoreRiskRating(input.selectedRiskRating)
+    ? input.selectedRiskRating
+    : PROSPECTUS_DATA_NOT_AVAILABLE;
+
+  return {
+    pageTitle: PROSPECTUS_PAGE_THREE_PAGE_TITLE,
+    pageSubtitle: PROSPECTUS_DATA_NOT_AVAILABLE,
+    metadata: {
+      issuer: displayString(input.issuerName),
+      sector: displayString(input.issuerSector),
+      riskRating,
+      paymaster: displayString(input.paymasterName),
+      paymasterGrading: PROSPECTUS_DATA_NOT_AVAILABLE,
+      confidenceGrading: PROSPECTUS_DATA_NOT_AVAILABLE,
+    },
+    // Pass-through only — never re-select years or re-derive FYE in Page 3.
+    financialYears: input.financialSource.years,
+    audit: PROSPECTUS_PAGE_THREE_METADATA_AUDIT,
+  };
+}

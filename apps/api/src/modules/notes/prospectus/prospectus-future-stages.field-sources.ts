@@ -351,6 +351,40 @@
  *
  * Money: formatProspectusMoneyMyr only; no compact/mil/million/k; no (MYR mil.)
  *
+ * =============================================================================
+ * PAGE 3 — STAGE 1: SHARED FINANCIAL SOURCE + METADATA STRIP (implemented)
+ * =============================================================================
+ *
+ * Modules: prospectus-page-three-metadata.*
+ * Preview: pnpm prospectus:page-three-metadata-preview
+ * Output: apps/api/tmp/prospectus/prospectus-page-three-metadata-preview.html
+ *
+ * Visible fields:
+ * - Page title (static): DETAILED FINANCIAL COMPARISON
+ * - Page subtitle: Data not available (no approved production copy)
+ * - Issuer → notes.issuer_snapshot.name (frozen input; no live org fallback)
+ * - Sector → notes.issuer_snapshot.industry (frozen input; no live org fallback)
+ * - Risk Rating → notes.invoice_snapshot.offer_details.risk_rating via isSoukscoreRiskRating
+ * - Paymaster → notes.paymaster_snapshot.name (frozen input; no live customer fallback)
+ * - Paymaster Grading → Data not available (unresolved; no PM1 / SoukScore / CTOS)
+ * - Confidence Grading → Data not available (unresolved; no High / CTOS confidence)
+ *
+ * Shared financial source:
+ * - Reuses Page 2 Stage 4A ProspectusFinancialComparisonSource.years pass-through
+ * - No independent Page 3 year selection; no unaudited_by_year parse in Page 3
+ * - No CTOS fallback; no fabricated years; FYE labels come from the reused source
+ * - Later Page 3 metric stages must consume the same financialYears / rawFinancials
+ *
+ * Publication snapshot (not modified in Stage 1):
+ * - Shared freeze remains prospectus_snapshot.page_2.financial_comparison
+ * - Current raw keys: turnover, plnpat, bsqpuc, bscatot, curlib
+ * - Future confirmed extension keys: plnpbt, bsfatot, othass, bsclbank, bsslltd, bsclstd
+ * - bsclbank = Non-Current Assets (never Cash & Bank)
+ * - No separate prospectus_snapshot.page_3.financial_comparison for the same raw FS
+ *
+ * Not in Stage 1: income statement, balance sheet, coverage, trends, takeaways,
+ * full Page 3 Prisma mapper, full Page 3 HTML assembly, snapshot write path.
+ *
  * Corrections still needed when those stages are implemented:
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)
  * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*

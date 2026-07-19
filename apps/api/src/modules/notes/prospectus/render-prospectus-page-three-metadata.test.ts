@@ -1,0 +1,299 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
+import { SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE } from "./prospectus-financial-comparison-source.sample-data";
+import { buildProspectusPageThreeMetadata } from "./prospectus-page-three-metadata";
+import { SAMPLE_PROSPECTUS_PAGE_THREE_METADATA_INPUT } from "./prospectus-page-three-metadata.sample-data";
+import {
+  PROSPECTUS_DATA_NOT_AVAILABLE,
+  PROSPECTUS_PAGE_THREE_METADATA_AUDIT,
+  PROSPECTUS_PAGE_THREE_METADATA_FIELD_SOURCES,
+  PROSPECTUS_PAGE_THREE_METADATA_LABELS,
+  PROSPECTUS_PAGE_THREE_PAGE_TITLE,
+} from "./prospectus-page-three-metadata.types";
+import { buildProspectusPageThreeMetadataDocument } from "./render-prospectus-page-three-metadata";
+
+const VALID_GRADES = ["AAA", "AA", "A", "BBB", "BB", "B"] as const;
+
+function withSource(
+  overrides: Partial<typeof SAMPLE_PROSPECTUS_PAGE_THREE_METADATA_INPUT> = {}
+) {
+  return buildProspectusPageThreeMetadata({
+    ...SAMPLE_PROSPECTUS_PAGE_THREE_METADATA_INPUT,
+    ...overrides,
+    financialSource:
+      overrides.financialSource ?? SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE,
+  });
+}
+
+describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
+  it("uses static page title DETAILED FINANCIAL COMPARISON", () => {
+    const data = withSource();
+    expect(data.pageTitle).toBe("DETAILED FINANCIAL COMPARISON");
+    expect(data.pageTitle).toBe(PROSPECTUS_PAGE_THREE_PAGE_TITLE);
+  });
+
+  it("keeps page subtitle as Data not available", () => {
+    expect(withSource().pageSubtitle).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(withSource().pageSubtitle).toBe("Data not available");
+  });
+
+  it("maps issuer from frozen issuer name input", () => {
+    expect(withSource().metadata.issuer).toBe("ABC Engineering Sdn Bhd");
+  });
+
+  it("maps missing issuer to Data not available", () => {
+    expect(withSource({ issuerName: undefined }).metadata.issuer).toBe(
+      PROSPECTUS_DATA_NOT_AVAILABLE
+    );
+    expect(withSource({ issuerName: "" }).metadata.issuer).toBe(
+      PROSPECTUS_DATA_NOT_AVAILABLE
+    );
+    expect(withSource({ issuerName: "   " }).metadata.issuer).toBe(
+      PROSPECTUS_DATA_NOT_AVAILABLE
+    );
+  });
+
+  it("maps sector from frozen issuer sector input", () => {
+    expect(withSource().metadata.sector).toBe("Construction");
+  });
+
+  it("maps missing sector to Data not available", () => {
+    expect(withSource({ issuerSector: undefined }).metadata.sector).toBe(
+      PROSPECTUS_DATA_NOT_AVAILABLE
+    );
+  });
+
+  it.each(VALID_GRADES)("accepts valid risk rating %s", (grade) => {
+    expect(withSource({ selectedRiskRating: grade }).metadata.riskRating).toBe(grade);
+  });
+
+  it("rejects invalid C risk rating", () => {
+    expect(withSource({ selectedRiskRating: "C" }).metadata.riskRating).toBe(
+      PROSPECTUS_DATA_NOT_AVAILABLE
+    );
+  });
+
+  it("rejects invalid A- risk rating", () => {
+    expect(withSource({ selectedRiskRating: "A-" }).metadata.riskRating).toBe(
+      PROSPECTUS_DATA_NOT_AVAILABLE
+    );
+  });
+
+  it("maps missing risk rating to Data not available", () => {
+    expect(withSource({ selectedRiskRating: undefined }).metadata.riskRating).toBe(
+      PROSPECTUS_DATA_NOT_AVAILABLE
+    );
+  });
+
+  it("maps paymaster from frozen paymaster name input", () => {
+    expect(withSource().metadata.paymaster).toBe("Kementerian Kerja Raya");
+  });
+
+  it("maps missing paymaster to Data not available", () => {
+    expect(withSource({ paymasterName: undefined }).metadata.paymaster).toBe(
+      PROSPECTUS_DATA_NOT_AVAILABLE
+    );
+  });
+
+  it("keeps Paymaster Grading as Data not available", () => {
+    expect(withSource().metadata.paymasterGrading).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+  });
+
+  it("keeps Confidence Grading as Data not available", () => {
+    expect(withSource().metadata.confidenceGrading).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+  });
+
+  it("does not generate Canva PM1 paymaster grading", () => {
+    const data = withSource();
+    expect(data.metadata.paymasterGrading).not.toBe("PM1");
+    expect(Object.values(data.metadata)).not.toContain("PM1");
+  });
+
+  it("does not generate Canva High confidence grading", () => {
+    const data = withSource();
+    expect(data.metadata.confidenceGrading).not.toBe("High");
+    expect(Object.values(data.metadata)).not.toContain("High");
+  });
+
+  it("does not map Canva A–E grades", () => {
+    expect(PROSPECTUS_PAGE_THREE_METADATA_AUDIT.riskRating.canvaAtoEMappingAllowed).toBe(
+      false
+    );
+    for (const grade of ["C", "D", "E", "A-", "AA+"]) {
+      expect(withSource({ selectedRiskRating: grade }).metadata.riskRating).toBe(
+        PROSPECTUS_DATA_NOT_AVAILABLE
+      );
+    }
+  });
+
+  it("reuses the existing Page 2 financial source years array", () => {
+    const source = SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE;
+    const data = withSource({ financialSource: source });
+    expect(data.financialYears).toBe(source.years);
+    expect(data.audit.financialSource.reusedFrom).toBe(
+      "page_2_financial_comparison_source"
+    );
+  });
+
+  it("does not independently select years in the Page 3 module", () => {
+    const moduleSource = readFileSync(
+      join(__dirname, "prospectus-page-three-metadata.ts"),
+      "utf8"
+    );
+    expect(moduleSource).not.toMatch(/selectProspectusFinancialComparisonYears/);
+    expect(moduleSource).not.toMatch(/unaudited_by_year/);
+    expect(moduleSource).not.toMatch(/buildProspectusFinancialComparisonSource/);
+    expect(moduleSource).not.toMatch(/formatProspectusFinancialYearEndLabel/);
+    expect(dataAuditIndependentSelection()).toBe(false);
+  });
+
+  it("keeps selected years in Page 2 order", () => {
+    const source = SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE;
+    const data = withSource({ financialSource: source });
+    expect(data.financialYears.map((y) => y.year)).toEqual(
+      source.years.map((y) => y.year)
+    );
+    expect(data.financialYears.map((y) => y.year)).toEqual([2022, 2023, 2024]);
+  });
+
+  it("supports fewer than three years via the reused source", () => {
+    const source = buildProspectusFinancialComparisonSource({
+      financialStatements: {
+        questionnaire: { financial_year_end: "2027-12-31" },
+        unaudited_by_year: {
+          "2024": { turnover: 100 },
+        },
+      },
+    });
+    const data = withSource({ financialSource: source });
+    expect(data.financialYears).toHaveLength(1);
+    expect(data.financialYears[0]?.year).toBe(2024);
+    expect(data.financialYears[0]?.yearLabel).toBe("FY2024");
+  });
+
+  it("does not fabricate missing years", () => {
+    const source = buildProspectusFinancialComparisonSource({
+      financialStatements: {
+        questionnaire: { financial_year_end: "2027-12-31" },
+        unaudited_by_year: {
+          "2023": { turnover: 1 },
+          "2024": { turnover: 2 },
+        },
+      },
+    });
+    const data = withSource({ financialSource: source });
+    expect(data.financialYears.map((y) => y.year)).toEqual([2023, 2024]);
+    expect(data.financialYears.some((y) => y.year === 2022)).toBe(false);
+  });
+
+  it("does not use CTOS fallback for years or metadata", () => {
+    const source = SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE;
+    const data = withSource({
+      financialSource: source,
+      ctosFinancials: {
+        financials: [{ financial_year: 2020, turnover: 9_999_999 }],
+      },
+      liveOrganizationName: "LIVE ORG",
+      livePaymasterName: "LIVE PAYMASTER",
+    });
+    expect(data.audit.financialSource.ctosFallbackAllowed).toBe(false);
+    expect(data.financialYears.some((y) => y.year === 2020)).toBe(false);
+    expect(data.metadata.issuer).not.toBe("LIVE ORG");
+    expect(data.metadata.paymaster).not.toBe("LIVE PAYMASTER");
+  });
+
+  it("does not label or display bsclbank as Cash & Bank", () => {
+    const builder = readFileSync(
+      join(__dirname, "prospectus-page-three-metadata.ts"),
+      "utf8"
+    );
+    const htmlModule = readFileSync(
+      join(__dirname, "prospectus-page-three-metadata.html.ts"),
+      "utf8"
+    );
+    const types = readFileSync(
+      join(__dirname, "prospectus-page-three-metadata.types.ts"),
+      "utf8"
+    );
+    expect(builder).not.toMatch(/Cash\s*&\s*Bank/i);
+    expect(htmlModule).not.toMatch(/Cash\s*&\s*Bank/i);
+    expect(types).toMatch(/Non-Current Assets/);
+    const html = buildProspectusPageThreeMetadataDocument(withSource());
+    expect(html).not.toMatch(/Cash\s*&\s*Bank/i);
+  });
+
+  it("exposes exact visible metadata fields", () => {
+    const data = withSource();
+    expect(Object.keys(data.metadata).sort()).toEqual(
+      [
+        "confidenceGrading",
+        "issuer",
+        "paymaster",
+        "paymasterGrading",
+        "riskRating",
+        "sector",
+      ].sort()
+    );
+    expect(PROSPECTUS_PAGE_THREE_METADATA_LABELS).toEqual({
+      issuer: "Issuer",
+      sector: "Sector",
+      riskRating: "Risk Rating",
+      paymaster: "Paymaster",
+      paymasterGrading: "Paymaster Grading",
+      confidenceGrading: "Confidence Grading",
+    });
+  });
+
+  it("does not expose raw IDs in Canva-facing fields or HTML", () => {
+    const data = withSource({
+      issuerName: "ABC Engineering Sdn Bhd",
+    });
+    const visible = [
+      data.pageTitle,
+      data.pageSubtitle,
+      ...Object.values(data.metadata),
+      ...data.financialYears.map((y) => `${y.yearLabel} ${y.financialYearEndLabel}`),
+    ].join(" ");
+    expect(visible).not.toMatch(/note_/i);
+    expect(visible).not.toMatch(/application_/i);
+    expect(visible).not.toMatch(/\b[0-9a-f]{8}-[0-9a-f]{4}-/i);
+
+    const html = buildProspectusPageThreeMetadataDocument(data);
+    expect(html).not.toContain("notes.issuer_snapshot");
+    expect(html).not.toContain("unaudited_by_year");
+  });
+
+  it("hides audit metadata from HTML", () => {
+    const html = buildProspectusPageThreeMetadataDocument(withSource());
+    expect(html).not.toContain("page_2_financial_comparison_source");
+    expect(html).not.toContain("isSoukscoreRiskRating");
+    expect(html).not.toContain("liveFallbackAllowed");
+    expect(html).not.toContain("extensionPending");
+    expect(html).not.toContain("approvedStaticCopyAvailable");
+    expect(PROSPECTUS_PAGE_THREE_METADATA_FIELD_SOURCES.pageSubtitle.availability).toBe(
+      "unresolved"
+    );
+  });
+
+  it("preserves FYE labels from the reused Page 2 source", () => {
+    const source = SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE;
+    const data = withSource({ financialSource: source });
+    expect(data.financialYears.map((y) => y.financialYearEndLabel)).toEqual(
+      source.years.map((y) => y.financialYearEndLabel)
+    );
+  });
+
+  it("documents shared snapshot extension plan without separate Page 3 freeze", () => {
+    expect(PROSPECTUS_PAGE_THREE_METADATA_AUDIT.snapshot).toEqual({
+      sharedFinancialFreeze: "page_2.financial_comparison",
+      separatePageThreeFinancialSnapshotRecommended: false,
+      extensionPending: true,
+    });
+  });
+});
+
+function dataAuditIndependentSelection(): boolean {
+  return PROSPECTUS_PAGE_THREE_METADATA_AUDIT.financialSource
+    .independentYearSelectionAllowed;
+}

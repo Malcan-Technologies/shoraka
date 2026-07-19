@@ -54,6 +54,7 @@
     "prospectus:invoice-work-narrative-preview": "tsx scripts/generate-prospectus-invoice-work-narrative-preview.ts",
     "prospectus:soukscore-rating-scale-preview": "tsx scripts/generate-prospectus-soukscore-rating-scale-preview.ts",
     "prospectus:investment-cta-preview": "tsx scripts/generate-prospectus-investment-cta-preview.ts",
+    "prospectus:page-three-metadata-preview": "tsx scripts/generate-prospectus-page-three-metadata-preview.ts",
     "prospectus:stage1-preview": "tsx scripts/generate-prospectus-stage1-preview.ts",
     "seed-expired-offer-for-test": "tsx scripts/seed-expired-offer-for-test.ts",
     "seed-ekyc-identity": "tsx scripts/seed-ekyc-identity.ts",
