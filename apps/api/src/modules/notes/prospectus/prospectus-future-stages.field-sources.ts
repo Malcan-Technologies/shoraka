@@ -206,6 +206,38 @@
  * Legal/compliance approval required before any non-DNA implementation
  * Future approved values should freeze at publication
  *
+ * =============================================================================
+ * PAGE 2 — STAGE 6 ABOUT THE INVOICE / WORK PERFORMED (implemented as DNA-first)
+ * =============================================================================
+ *
+ * Module: prospectus-invoice-work-narrative.*
+ * Preview: pnpm prospectus:invoice-work-narrative-preview
+ * Output: apps/api/tmp/prospectus/prospectus-invoice-work-narrative-preview.html
+ *
+ * Four separate factual/legal claims — no automatic inference allowed.
+ * Contract snapshot does not prove work completion.
+ * Invoice document / status does not prove certification or paymaster acceptance.
+ * Trustee workflow / product config / maturity do not prove direct paymaster-to-trust payment.
+ * DOA upload slot or file does not prove valid execution or assignment.
+ * Application free text is not used as legal proof.
+ *
+ * All four current statements are Data not available:
+ * - Work Under Contract Statement
+ * - Certification and Acceptance Statement
+ * - Paymaster-to-Trust-Account Statement
+ * - Deed of Assignment Statement
+ *
+ * Future preferred source (not created yet):
+ * notes.prospectus_snapshot.page_2.invoice_work_narrative
+ * {
+ *   work_under_contract_statement: string | null,
+ *   certification_acceptance_statement: string | null,
+ *   paymaster_trust_account_statement: string | null,
+ *   deed_of_assignment_statement: string | null
+ * }
+ * Admin/legal-approved frozen text; publication freeze required when approved.
+ * Legal/compliance approval required before any non-DNA implementation.
+ *
  * Corrections still needed when those stages are implemented:
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)
  * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*
