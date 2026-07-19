@@ -5,6 +5,51 @@
  * Do not treat this catalog as the active Note Identity implementation.
  * Active Note Identity sources live in prospectus-note-identity.types.ts.
  *
+ * =============================================================================
+ * PAGE 1 PRISMA MAPPER + FULL ASSEMBLY (implemented)
+ * =============================================================================
+ *
+ * Query boundary (prospectus-page-one-prisma.ts):
+ * - Load Note by id with PROSPECTUS_PAGE_ONE_NOTE_SELECT only
+ * - Includes listing.opens_at / listing.closes_at and Note snapshot JSON fields
+ * - Does not load investor commitments, transactions, documents, live Product, or live Application
+ *
+ * Publication-state rule (isProspectusNotePublished):
+ * - status === PUBLISHED AND published_at != null
+ * - Same rule NoteService.publish establishes when freezing prospectus_snapshot
+ *
+ * Snapshot preference:
+ * - Stage 1 description: notes.product_snapshot.description (no live Product fallback)
+ * - Stage 4B purpose: notes.purpose_snapshot.financing_for (no live Application fallback)
+ * - Stages 7–8 when published + valid prospectus_snapshot.page_1: use frozen values only
+ * - Stages 7–8 when unpublished (no freeze yet): live preview via buildProspectusPage1TrackRecordSnapshot
+ * - Stages 7–8 when published but snapshot missing/malformed: Data not available / empty table;
+ *   do NOT live-recalculate (publication stability)
+ *
+ * Assembly order (prospectus-page-one.html.ts):
+ * 1 Note Identity → 2 Dates/Paymaster → 3 Risk → 4A Financial → 4B Timing/Purpose →
+ * 4C Payment/Shariah → 5A–5D Highlights → 6 At a Glance → 7 Track Record → 8 Historical Table
+ *
+ * Money formatting (confirmed):
+ * - Always formatProspectusMoneyMyr full platform money (e.g. RM 3,450,000.00, RM 500,000.00, RM 100.00)
+ * - Compact money (mil / million / k / K) is rejected for Page 1 — not required
+ * - Stage 7 Total Amount Funded and Stage 8 Amount (RM) use full formatting (resolved)
+ *
+ * Preview:
+ * - pnpm prospectus:page-one-preview
+ * - pnpm prospectus:page-one-preview --note-id=<NOTE_ID>
+ * - Output: apps/api/tmp/prospectus/prospectus-page-one-preview.html
+ * - Sample path (no note-id) uses prospectus-page-one.sample-data.ts
+ * - Individual Stage 1–8 preview commands remain available
+ *
+ * Page size: A4 210mm × 297mm from existing prospectus-page1.html.ts convention
+ *
+ * Still unresolved (not Page 1 money):
+ * - Expected period return formula (Stages 4A / 5C / 6)
+ * - Payment Basis / Shariah Principle stored fields (4C / 5D)
+ * - Stage 5A–5B claim titles/explanations
+ * - Page 2 rating scale alignment with SoukScore AAA–B
+ *
  * Corrections still needed when those stages are implemented:
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)
  * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*
@@ -74,7 +119,7 @@
  * - Eligible statuses: ACTIVE, REPAID, ARREARS, DEFAULTED (exclude DRAFT/PUBLISHED/FUNDING/FAILED_FUNDING/CANCELLED)
  * - Group by notes.issuer_organization_id; exclude current notes.id
  * - Total Notes Funded: count eligible notes
- * - Total Amount Funded: SUM(funded_amount); never target_amount
+ * - Total Amount Funded: SUM(funded_amount); never target_amount; display via formatProspectusMoneyMyr (full money; no compact mil/k)
  * - Successful Repayment: REPAID / (REPAID + ARREARS + DEFAULTED) × 100; ACTIVE excluded; DNA if denom 0
  * - On-time Payment Rate — Last 6 Months: shared schedule-level helper with dashboard; exclude current Note schedules
  * - Frozen at publish into notes.prospectus_snapshot.page_1.issuer_track_record
@@ -84,7 +129,7 @@
  * - Exact Canva columns: Note ID, Financing Type, Amount (RM), Tenure, Profit Rate (p.a.), Status, Repayment Date
  * - Same issuer; exclude current Note; statuses ACTIVE/REPAID/ARREARS/DEFAULTED
  * - Sort updated_at DESC; limit 4
- * - Amount = notes.funded_amount (Stage 4A money formatter)
+ * - Amount = notes.funded_amount via formatProspectusMoneyMyr (full money; no compact mil/k)
  * - Status labels: Active / Repaid / In Arrears / Defaulted (not Settled / Fully Repaid / raw enum)
  * - Repayment Date = notes.repaid_at; empty state: "No notes are available yet."
  * - Frozen at publish into notes.prospectus_snapshot.page_1.historical_notes
