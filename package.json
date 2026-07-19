@@ -14,7 +14,8 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,mdx}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,mdx}\"",
     "env:localhost": "bash ./scripts/use-dev-env.sh localhost",
-    "env:tunnel": "bash ./scripts/use-dev-env.sh tunnel"
+    "env:tunnel": "bash ./scripts/use-dev-env.sh tunnel",
+    "seed:prospectus-review": "pnpm --filter @cashsouk/api seed:prospectus-review"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",

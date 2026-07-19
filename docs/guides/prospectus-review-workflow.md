@@ -2,6 +2,8 @@
 
 Pre-marketplace admin workflow between Note draft preparation and marketplace publish.
 
+Local product-review seed and checklist: [prospectus-review-local-product-review.md](./prospectus-review-local-product-review.md).
+
 ## Position
 
 ```
