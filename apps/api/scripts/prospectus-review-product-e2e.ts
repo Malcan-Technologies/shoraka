@@ -236,7 +236,7 @@ async function main() {
   const frozen = parseFrozenPublicationContent(noteRow.prospectus_snapshot);
   assert(frozen, "publication_content freeze required");
   assert(frozen.resolvedPublicationContent, "resolvedPublicationContent required");
-  assert(frozen.content.page1.paymentBasisOptionKey, "approved keys frozen");
+  assert(frozen.resolvedPublicationContent.paymentBasisTemplate.paymentBasis, "payment basis frozen");
   const snapshotRecord = noteRow.prospectus_snapshot as Record<string, unknown>;
   assert(snapshotRecord.page_1, "page_1 branch preserved");
   assert(snapshotRecord.page_2, "page_2 branch preserved");
@@ -257,7 +257,14 @@ async function main() {
     data: {
       draft_content: {
         ...draft,
-        page1: { ...draft.page1, paymentBasisOptionKey: "do_not_display" },
+        page1: {
+          ...draft.page1,
+          keyInvestorHighlights: draft.page1.keyInvestorHighlights.map((h) => ({
+            ...h,
+            optionKey: "do_not_display",
+            isVisible: false,
+          })),
+        },
       } as object,
     },
   });

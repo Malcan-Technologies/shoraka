@@ -12,8 +12,6 @@ import {
   PROSPECTUS_INVOICE_WORK_KEYS,
   PROSPECTUS_INVOICE_WORK_OPTION_CATALOGUE,
   PROSPECTUS_MANUAL_FINANCIAL_FIELD_KEYS,
-  PROSPECTUS_PAYMENT_BASIS_OPTIONS,
-  PROSPECTUS_SHARIAH_PRINCIPLE_OPTIONS,
   PROSPECTUS_TAKEAWAY_OPTION_CATALOGUE,
   findCatalogueOption,
 } from "./prospectus-option-catalogues";
@@ -56,6 +54,7 @@ export const prospectusReviewStoredContentSchema = z
             })
             .strict()
         ),
+        // Legacy keys accepted for parse only; ignored for resolve/completion.
         paymentBasisOptionKey: nullableOptionKey,
         shariahPrincipleOptionKey: nullableOptionKey,
       })
@@ -155,22 +154,6 @@ export function validateDraftContent(
         });
       }
     }
-  }
-
-  if (
-    content.page1.paymentBasisOptionKey &&
-    !findCatalogueOption(PROSPECTUS_PAYMENT_BASIS_OPTIONS, content.page1.paymentBasisOptionKey)
-  ) {
-    errors.push({ path: "page1.paymentBasisOptionKey", message: "Invalid option key" });
-  }
-  if (
-    content.page1.shariahPrincipleOptionKey &&
-    !findCatalogueOption(
-      PROSPECTUS_SHARIAH_PRINCIPLE_OPTIONS,
-      content.page1.shariahPrincipleOptionKey
-    )
-  ) {
-    errors.push({ path: "page1.shariahPrincipleOptionKey", message: "Invalid option key" });
   }
 
   const creditPairs: Array<[string, string | null | undefined]> = [
@@ -306,13 +289,6 @@ export function validateApprovalContent(
       });
     }
   }
-  if (!content.page1.paymentBasisOptionKey) {
-    errors.push({ path: "page1.paymentBasisOptionKey", message: "Selection required" });
-  }
-  if (!content.page1.shariahPrincipleOptionKey) {
-    errors.push({ path: "page1.shariahPrincipleOptionKey", message: "Selection required" });
-  }
-
   for (const field of [
     "creditScoreOptionKey",
     "paymentBehaviourOptionKey",

@@ -147,7 +147,8 @@ export const PROSPECTUS_SHARIAH_HIGHLIGHT_FIELD_SOURCES: Record<
     availability: "unresolved",
     surface: "canva",
     possibleAlternatives: "Canva Bai' Al-Dayn Bi Al-Sila'; Tawarruq label — not used",
-    notes: "Reuse Stage 4C only. No second principle resolver. reusedFromStage4C = true.",
+    notes:
+      "Reuse Stage 4C only (fixed PROSPECTUS_FIXED_SHARIAH_PRINCIPLE unless frozen override). No second principle resolver. reusedFromStage4C = true.",
   },
   evidenceSource: {
     label: "Evidence Source",

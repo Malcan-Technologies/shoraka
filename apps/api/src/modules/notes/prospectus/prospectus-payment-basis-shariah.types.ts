@@ -45,13 +45,13 @@ export interface ProspectusPaymentBasisShariah {
 }
 
 /**
- * Optional observational inputs prove the builder still returns Data not available.
- * Never used to invent payment-basis or Shariah-principle labels.
+ * Observational inputs must not invent alternate payment/Shariah labels.
+ * Canva values come from shared fixed constants, or frozen historical template wording.
  */
 export interface ProspectusPaymentBasisShariahInput {
   /**
-   * Optional fixed-template wording (placeholder until approved production copy).
-   * Production Prisma path leaves this undefined → DNA.
+   * Optional override (historical frozen publication wording).
+   * When omitted, builder uses PROSPECTUS_FIXED_PAYMENT_BASIS / PROSPECTUS_FIXED_SHARIAH_PRINCIPLE.
    */
   paymentBasisTemplate?: {
     paymentBasis: string;
@@ -75,7 +75,7 @@ export interface ProspectusPaymentBasisShariahInput {
 export interface ProspectusPaymentBasisShariahFieldSource {
   label: string;
   canonicalSource: string;
-  availability: "unresolved";
+  availability: "fixed_template" | "unresolved";
   surface: "canva" | "audit";
   possibleAlternatives: string;
   notes: string;
@@ -87,22 +87,22 @@ export const PROSPECTUS_PAYMENT_BASIS_SHARIAH_FIELD_SOURCES: Record<
 > = {
   paymentBasis: {
     label: "Payment Basis",
-    canonicalSource: "none confirmed",
-    availability: "unresolved",
+    canonicalSource: "PROSPECTUS_FIXED_PAYMENT_BASIS (@cashsouk/types)",
+    availability: "fixed_template",
     surface: "canva",
     possibleAlternatives:
-      "Infer from note_payment_schedules; Canva \"Bullet Payment at Maturity\"; product config — not used",
+      "Infer from note_payment_schedules; product config; officer catalogue — not used",
     notes:
-      "No payment_basis field. Create path often has one maturity schedule, but shape is not an approved label. inferenceAllowed = false.",
+      "Fixed for all Notes. Historical frozen paymentBasisTemplate may override. inferenceAllowed = false.",
   },
   shariahPrinciple: {
     label: "Shariah Principle",
-    canonicalSource: "none confirmed",
-    availability: "unresolved",
+    canonicalSource: "PROSPECTUS_FIXED_SHARIAH_PRINCIPLE (@cashsouk/types)",
+    availability: "fixed_template",
     surface: "canva",
     possibleAlternatives:
-      "Canva Bai' Al-Dayn Bi Al-Sila'; Tawarruq; Murabahah; marketing \"Shariah Compliant\" — not used",
+      "Tawarruq; Murabahah; marketing \"Shariah Compliant\"; officer catalogue — not used",
     notes:
-      "No Product/Note principle field. Tawarruq is operational only (tawarruqUsedAsEvidence = false). Stage 5D reuses this DNA.",
+      "Fixed for all Notes. Stage 5D reuses this value. Historical frozen template may override. tawarruqUsedAsEvidence = false.",
   },
 };

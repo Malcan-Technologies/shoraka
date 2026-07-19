@@ -1,6 +1,8 @@
 import { formatCurrency } from "@cashsouk/config";
 import {
   MARKETPLACE_MIN_COMMIT_MYR,
+  PROSPECTUS_FIXED_PAYMENT_BASIS,
+  PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
   calculateCalendarDayCount,
   formatInvestorReturnRatePercent,
   formatUtcCalendarDateEnMy,
@@ -82,11 +84,7 @@ export function resolveCatalogueOptionLabel(
  * Does not change source formulas; Profit Rate = gross, Expected Return = net helper.
  */
 export function buildNoteInvestmentDetailSections(
-  note: NoteDetail,
-  resolved?: {
-    paymentBasisLabel?: string;
-    shariahPrincipleLabel?: string;
-  }
+  note: NoteDetail
 ): NoteInvestmentDetailSection[] {
   const purpose = asRecord(note.purposeSnapshot);
   const product = asRecord(note.productSnapshot);
@@ -167,11 +165,11 @@ export function buildNoteInvestmentDetailSections(
         },
         {
           label: "Payment Basis",
-          value: resolved?.paymentBasisLabel ?? "Not selected",
+          value: PROSPECTUS_FIXED_PAYMENT_BASIS,
         },
         {
           label: "Shariah Principle",
-          value: resolved?.shariahPrincipleLabel ?? "Not selected",
+          value: PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
         },
       ],
     },

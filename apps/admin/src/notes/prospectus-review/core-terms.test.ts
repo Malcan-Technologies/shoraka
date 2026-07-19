@@ -9,6 +9,8 @@ jest.mock("@cashsouk/config", () => ({
 import fs from "node:fs";
 import path from "node:path";
 import {
+  PROSPECTUS_FIXED_PAYMENT_BASIS,
+  PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
   calculateCalendarDayCount,
   type NoteDetail,
 } from "@cashsouk/types";
@@ -109,10 +111,7 @@ function sampleNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
 
 describe("note & investment details coverage", () => {
   it("builds the approved Page 1 section groups", () => {
-    const sections = buildNoteInvestmentDetailSections(sampleNote(), {
-      paymentBasisLabel: "Bullet at maturity",
-      shariahPrincipleLabel: "Commodity Murabahah",
-    });
+    const sections = buildNoteInvestmentDetailSections(sampleNote());
     expect(sections.map((s) => s.title)).toEqual([
       "Note Details",
       "Dates & Paymaster",
@@ -259,16 +258,34 @@ describe("note & investment details coverage", () => {
     expect(flat).not.toMatch(/Hidden Issuer|1234567-A|registration/i);
   });
 
-  it("shows resolved Payment Basis and Shariah Principle without inventing wording", () => {
+  it("shows fixed Payment Basis and Shariah Principle from shared constants", () => {
     expect(resolveCatalogueOptionLabel([{ key: "a", label: "Bullet" }], "a")).toBe("Bullet");
     expect(resolveCatalogueOptionLabel([], null)).toBe("Not selected");
-    const sections = buildNoteInvestmentDetailSections(sampleNote(), {
-      paymentBasisLabel: "Bullet at maturity",
-      shariahPrincipleLabel: "Commodity Murabahah",
-    });
-    const terms = sections.find((s) => s.id === "investment-terms")!.rows;
-    expect(terms.find((r) => r.label === "Payment Basis")?.value).toBe("Bullet at maturity");
-    expect(terms.find((r) => r.label === "Shariah Principle")?.value).toBe("Commodity Murabahah");
+    const terms = buildNoteInvestmentDetailSections(sampleNote()).find(
+      (s) => s.id === "investment-terms"
+    )!.rows;
+    expect(terms.find((r) => r.label === "Payment Basis")?.value).toBe(
+      PROSPECTUS_FIXED_PAYMENT_BASIS
+    );
+    expect(terms.find((r) => r.label === "Shariah Principle")?.value).toBe(
+      PROSPECTUS_FIXED_SHARIAH_PRINCIPLE
+    );
+    expect(terms.find((r) => r.label === "Payment Basis")?.value).toBe(
+      "Bullet Payment at Maturity"
+    );
+    expect(terms.find((r) => r.label === "Shariah Principle")?.value).toBe(
+      "Bai' Al-Dayn Bi Al-Sila'"
+    );
+    expect(terms.find((r) => r.label === "Payment Basis")?.value).not.toBe("Not selected");
+    expect(terms.find((r) => r.label === "Shariah Principle")?.value).not.toBe(
+      "Data not available"
+    );
+
+    const source = fs.readFileSync(path.join(__dirname, "core-terms.ts"), "utf8");
+    expect(source).toContain("PROSPECTUS_FIXED_PAYMENT_BASIS");
+    expect(source).toContain("PROSPECTUS_FIXED_SHARIAH_PRINCIPLE");
+    expect(source).not.toContain("paymentBasisLabel");
+    expect(source).not.toMatch(/Payment Basis[\s\S]{0,80}Not selected/);
   });
 
   it("shows Data not available for missing Purpose of Financing without Application fallback", () => {

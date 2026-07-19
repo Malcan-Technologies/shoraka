@@ -36,6 +36,7 @@ import {
   catalogueVersion,
   cloneReviewContent,
   emptyProspectusReviewContent,
+  stripLegacyPaymentBasisShariahKeys,
   toProspectusPublicationContent,
   type ProspectusFrozenPublicationContent,
   type ProspectusReviewStoredContent,
@@ -235,6 +236,9 @@ export class ProspectusReviewService {
       }
     }
 
+    const draftToStore = stripLegacyPaymentBasisShariahKeys(
+      input.draftContent as ProspectusReviewStoredContent
+    );
     const before = mapReview(current);
     const updated = await prisma.$transaction(async (tx) => {
       const row = await tx.noteProspectusReview.update({
@@ -243,7 +247,7 @@ export class ProspectusReviewService {
           updated_at: current.updated_at,
         },
         data: {
-          draft_content: input.draftContent as unknown as Prisma.InputJsonValue,
+          draft_content: draftToStore as unknown as Prisma.InputJsonValue,
           updated_by_user_id: actor.userId,
           status: ProspectusReviewStatus.DRAFT,
           content_version: { increment: 1 },
@@ -339,7 +343,7 @@ export class ProspectusReviewService {
       });
     }
 
-    const approvedClone = cloneReviewContent(draft);
+    const approvedClone = stripLegacyPaymentBasisShariahKeys(draft);
     const now = new Date();
     const before = mapReview(current);
     const updated = await prisma.$transaction(async (tx) => {

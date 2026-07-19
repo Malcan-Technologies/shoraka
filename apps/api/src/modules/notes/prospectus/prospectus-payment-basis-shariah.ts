@@ -1,13 +1,16 @@
 /**
  * SECTION: Build Payment Basis & Shariah Principle view-model
- * WHY: Always Data not available — observe schedule/Tawarruq only for audit, never infer labels
+ * WHY: Fixed prospectus template wording; schedule/Tawarruq must not invent alternate labels
  */
 
 import {
-  PROSPECTUS_DATA_NOT_AVAILABLE,
-  type ProspectusPaymentBasisShariah,
-  type ProspectusPaymentBasisShariahInput,
-  type ProspectusScheduleShapeObserved,
+  PROSPECTUS_FIXED_PAYMENT_BASIS,
+  PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
+} from "@cashsouk/types";
+import type {
+  ProspectusPaymentBasisShariah,
+  ProspectusPaymentBasisShariahInput,
+  ProspectusScheduleShapeObserved,
 } from "./prospectus-payment-basis-shariah.types";
 
 function toValidDate(value: Date | string | null | undefined): Date | null {
@@ -54,11 +57,13 @@ export function buildProspectusPaymentBasisShariah(
   void input.financingStructure;
   void input.marketingShariahCompliantLabel;
 
+  // Frozen historical publication may pass alternate wording via paymentBasisTemplate.
+  // Unpublished / new content uses the shared fixed constants.
   const template = input.paymentBasisTemplate;
 
   return {
-    paymentBasis: template?.paymentBasis ?? PROSPECTUS_DATA_NOT_AVAILABLE,
-    shariahPrinciple: template?.shariahPrinciple ?? PROSPECTUS_DATA_NOT_AVAILABLE,
+    paymentBasis: template?.paymentBasis ?? PROSPECTUS_FIXED_PAYMENT_BASIS,
+    shariahPrinciple: template?.shariahPrinciple ?? PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
     audit: {
       paymentBasis: {
         sourceStatus: "not_stored",

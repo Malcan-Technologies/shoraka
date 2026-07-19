@@ -20,8 +20,6 @@ export function buildCompleteProspectusReviewDraft(): ProspectusReviewStoredCont
     optionKey: highlightMap[h.key] ?? "do_not_display",
     isVisible: highlightMap[h.key] !== "do_not_display",
   }));
-  draft.page1.paymentBasisOptionKey = "placeholder_bullet_maturity";
-  draft.page1.shariahPrincipleOptionKey = "placeholder_tawarruq";
   draft.page2.paymasterTrackRecord = {
     totalInvoicesPaid: 48,
     totalAmountPaid: "12500000",

@@ -13,7 +13,9 @@ export interface ProspectusReviewStoredContent {
       optionKey?: string | null;
       isVisible: boolean;
     }>;
+    /** @deprecated Legacy only — ignored; Payment Basis is a fixed prospectus value. */
     paymentBasisOptionKey?: string | null;
+    /** @deprecated Legacy only — ignored; Shariah Principle is a fixed prospectus value. */
     shariahPrincipleOptionKey?: string | null;
   };
   page2: {
@@ -87,8 +89,6 @@ export interface ProspectusReviewGetResponse {
   catalogues: {
     version: string;
     highlights: Record<string, ProspectusCatalogueOptionDto[]>;
-    paymentBasis: ProspectusCatalogueOptionDto[];
-    shariahPrinciple: ProspectusCatalogueOptionDto[];
     creditInsights: ProspectusCatalogueOptionDto[];
     invoiceWork: Record<string, ProspectusCatalogueOptionDto[]>;
     takeaways: Record<string, ProspectusCatalogueOptionDto[]>;

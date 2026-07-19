@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { NoteStatus } from "@prisma/client";
-import { MARKETPLACE_MIN_COMMIT_MYR } from "@cashsouk/types";
+import {
+  MARKETPLACE_MIN_COMMIT_MYR,
+  PROSPECTUS_FIXED_PAYMENT_BASIS,
+  PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
+} from "@cashsouk/types";
 import { AppError } from "../../../lib/http/error-handler";
 import { formatProspectusMoneyMyr } from "./prospectus-main-financial-terms";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
@@ -253,7 +257,11 @@ describe("prospectus Page 1 mapper (Stages 1–6)", () => {
     expect(page.shariahHighlight.specificShariahPrinciple).toBe(
       page.paymentBasisShariah.shariahPrinciple
     );
-    expect(page.paymentBasisShariah.paymentBasis).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(page.paymentBasisShariah.paymentBasis).toBe(PROSPECTUS_FIXED_PAYMENT_BASIS);
+    expect(page.paymentBasisShariah.shariahPrinciple).toBe(PROSPECTUS_FIXED_SHARIAH_PRINCIPLE);
+    expect(page.shariahHighlight.specificShariahPrinciple).toBe(
+      PROSPECTUS_FIXED_SHARIAH_PRINCIPLE
+    );
   });
 
   it("renders DNA for old Notes missing product description and purpose", async () => {

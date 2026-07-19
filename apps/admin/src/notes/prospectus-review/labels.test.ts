@@ -76,8 +76,6 @@ describe("prospectus review completion checklist", () => {
           { key: "return", optionKey: null, isVisible: true },
           { key: "shariah", optionKey: null, isVisible: true },
         ],
-        paymentBasisOptionKey: null,
-        shariahPrincipleOptionKey: null,
       },
       page2: {
         creditInsights: {},
@@ -101,8 +99,6 @@ describe("prospectus review completion checklist", () => {
       optionKey: "do_not_display",
       isVisible: false,
     }));
-    draft.page1.paymentBasisOptionKey = "placeholder_bullet_maturity";
-    draft.page1.shariahPrincipleOptionKey = "do_not_display";
     draft.page2.creditInsights = {
       creditScoreOptionKey: "positive",
       paymentBehaviourOptionKey: "neutral",
@@ -126,7 +122,16 @@ describe("prospectus review completion checklist", () => {
     const checklist = buildProspectusCompletionChecklist(draft);
     expect(checklist.find((i) => i.id === "paymaster")?.required).toBe(false);
     expect(checklist.find((i) => i.id === "financials")?.required).toBe(false);
+    expect(checklist.find((i) => i.id === "highlights")?.complete).toBe(true);
     expect(isProspectusDraftReadyToSubmit(draft)).toBe(true);
+
+    // Payment Basis / Shariah Principle are fixed — not completion blockers.
+    draft.page1.paymentBasisOptionKey = undefined;
+    draft.page1.shariahPrincipleOptionKey = undefined;
+    expect(isProspectusDraftReadyToSubmit(draft)).toBe(true);
+    expect(buildProspectusCompletionChecklist(draft).find((i) => i.id === "highlights")?.complete).toBe(
+      true
+    );
   });
 
   it("uses Complete / Required / Optional without progression icon symbols", () => {
@@ -295,8 +300,6 @@ describe("prospectus review action visibility", () => {
           { key: "return", optionKey: null, isVisible: true },
           { key: "shariah", optionKey: null, isVisible: true },
         ],
-        paymentBasisOptionKey: null,
-        shariahPrincipleOptionKey: null,
       },
       page2: {
         creditInsights: {},

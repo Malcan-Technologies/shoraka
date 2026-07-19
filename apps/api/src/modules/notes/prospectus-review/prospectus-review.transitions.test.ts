@@ -43,8 +43,6 @@ function completeDraft() {
     optionKey: "do_not_display",
     isVisible: false,
   }));
-  draft.page1.paymentBasisOptionKey = "placeholder_bullet_maturity";
-  draft.page1.shariahPrincipleOptionKey = "do_not_display";
   draft.page2.creditInsights = {
     creditScoreOptionKey: "positive",
     paymentBehaviourOptionKey: "neutral",

@@ -59,7 +59,6 @@ import {
 import {
   buildIssuerProfileRows,
   buildNoteInvestmentDetailSections,
-  resolveCatalogueOptionLabel,
 } from "@/notes/prospectus-review/core-terms";
 import {
   buildInvoicePaymasterVerificationRows,
@@ -361,18 +360,7 @@ function ProspectusReviewPageInner() {
   const checklist = buildProspectusCompletionChecklist(draft);
   const canSubmitReady = isProspectusDraftReadyToSubmit(draft);
   const stepStatuses = getProspectusStepStatuses(draft);
-  const noteInvestmentSections = note
-    ? buildNoteInvestmentDetailSections(note, {
-        paymentBasisLabel: resolveCatalogueOptionLabel(
-          catalogues.paymentBasis,
-          draft.page1.paymentBasisOptionKey
-        ),
-        shariahPrincipleLabel: resolveCatalogueOptionLabel(
-          catalogues.shariahPrinciple,
-          draft.page1.shariahPrincipleOptionKey
-        ),
-      })
-    : [];
+  const noteInvestmentSections = note ? buildNoteInvestmentDetailSections(note) : [];
   const issuerRows = note ? buildIssuerProfileRows(note) : [];
   const invoicePaymasterRows = note ? buildInvoicePaymasterVerificationRows(note) : [];
   const financialStatements = (
@@ -678,35 +666,6 @@ function ProspectusReviewPageInner() {
                               }
                             />
                           ))}
-                        </div>
-                      </section>
-                      <section>
-                        <ProspectusSectionHeading title="Investment Structure" />
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <OptionSelect
-                            label="Payment Basis"
-                            disabled={locked || !canManage}
-                            value={draft.page1.paymentBasisOptionKey}
-                            options={catalogues.paymentBasis}
-                            onChange={(value) =>
-                              updateDraft((prev) => ({
-                                ...prev,
-                                page1: { ...prev.page1, paymentBasisOptionKey: value },
-                              }))
-                            }
-                          />
-                          <OptionSelect
-                            label="Shariah Principle"
-                            disabled={locked || !canManage}
-                            value={draft.page1.shariahPrincipleOptionKey}
-                            options={catalogues.shariahPrinciple}
-                            onChange={(value) =>
-                              updateDraft((prev) => ({
-                                ...prev,
-                                page1: { ...prev.page1, shariahPrincipleOptionKey: value },
-                              }))
-                            }
-                          />
                         </div>
                       </section>
                     </div>

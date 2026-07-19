@@ -4,14 +4,16 @@
  */
 
 import {
+  PROSPECTUS_FIXED_PAYMENT_BASIS,
+  PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
+} from "@cashsouk/types";
+import {
   PROSPECTUS_CREDIT_INSIGHT_OPTIONS,
   PROSPECTUS_HIGHLIGHT_KEYS,
   PROSPECTUS_HIGHLIGHT_OPTION_CATALOGUE,
   PROSPECTUS_INVOICE_WORK_KEYS,
   PROSPECTUS_INVOICE_WORK_OPTION_CATALOGUE,
   PROSPECTUS_OPTION_CATALOGUE_VERSION,
-  PROSPECTUS_PAYMENT_BASIS_OPTIONS,
-  PROSPECTUS_SHARIAH_PRINCIPLE_OPTIONS,
   PROSPECTUS_TAKEAWAY_KEYS,
   PROSPECTUS_TAKEAWAY_OPTION_CATALOGUE,
   findCatalogueOption,
@@ -23,7 +25,6 @@ import type {
   ProspectusPublicationContent,
 } from "../prospectus/prospectus-placeholder-publication-content";
 import { PROSPECTUS_PUBLICATION_CONTENT_SOURCE } from "../prospectus/prospectus-placeholder-publication-content";
-import { PROSPECTUS_DATA_NOT_AVAILABLE } from "../prospectus/prospectus-note-identity.types";
 
 export interface ProspectusReviewHighlightSelection {
   key: string;
@@ -68,7 +69,9 @@ export interface ProspectusReviewManualFinancialYear {
 export interface ProspectusReviewStoredContent {
   page1: {
     keyInvestorHighlights: ProspectusReviewHighlightSelection[];
+    /** @deprecated Legacy only — ignored for new resolve; Payment Basis is fixed. */
     paymentBasisOptionKey?: string | null;
+    /** @deprecated Legacy only — ignored for new resolve; Shariah Principle is fixed. */
     shariahPrincipleOptionKey?: string | null;
   };
   page2: {
@@ -97,6 +100,16 @@ export interface ProspectusReviewStoredContent {
   };
 }
 
+/** Drop legacy Payment Basis / Shariah Principle keys from new write paths. */
+export function stripLegacyPaymentBasisShariahKeys(
+  content: ProspectusReviewStoredContent
+): ProspectusReviewStoredContent {
+  const cloned = cloneReviewContent(content);
+  delete cloned.page1.paymentBasisOptionKey;
+  delete cloned.page1.shariahPrincipleOptionKey;
+  return cloned;
+}
+
 export function emptyProspectusReviewContent(): ProspectusReviewStoredContent {
   return {
     page1: {
@@ -105,8 +118,6 @@ export function emptyProspectusReviewContent(): ProspectusReviewStoredContent {
         optionKey: null,
         isVisible: true,
       })),
-      paymentBasisOptionKey: null,
-      shariahPrincipleOptionKey: null,
     },
     page2: {
       paymasterTrackRecord: {},
@@ -134,7 +145,7 @@ function creditKeyToOption(
 
 /**
  * Resolve stored officer selections into builder publication content.
- * Does not inject development placeholder defaults for missing selections.
+ * Payment Basis / Shariah Principle are fixed constants (legacy keys ignored).
  */
 export function toProspectusPublicationContent(
   content: ProspectusReviewStoredContent
@@ -151,15 +162,6 @@ export function toProspectusPublicationContent(
       isVisible: !hidden && Boolean(option?.renderedText),
     };
   });
-
-  const paymentOpt = findCatalogueOption(
-    PROSPECTUS_PAYMENT_BASIS_OPTIONS,
-    content.page1.paymentBasisOptionKey
-  );
-  const shariahOpt = findCatalogueOption(
-    PROSPECTUS_SHARIAH_PRINCIPLE_OPTIONS,
-    content.page1.shariahPrincipleOptionKey
-  );
 
   const creditInsights: Partial<
     Record<ProspectusCreditInsightFieldKey, ProspectusCreditInsightOptionKey>
@@ -222,16 +224,10 @@ export function toProspectusPublicationContent(
     },
     keyInvestorHighlights: highlights,
     paymentBasisTemplate: {
-      paymentBasis:
-        paymentOpt && paymentOpt.key !== "do_not_display" && paymentOpt.renderedText
-          ? paymentOpt.renderedText
-          : PROSPECTUS_DATA_NOT_AVAILABLE,
-      shariahPrinciple:
-        shariahOpt && shariahOpt.key !== "do_not_display" && shariahOpt.renderedText
-          ? shariahOpt.renderedText
-          : PROSPECTUS_DATA_NOT_AVAILABLE,
+      paymentBasis: PROSPECTUS_FIXED_PAYMENT_BASIS,
+      shariahPrinciple: PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
       sourceType: "fixed_template",
-      approvedProductionCopy: false,
+      approvedProductionCopy: true,
     },
     paymasterTrackRecord: content.page2.paymasterTrackRecord,
     creditInsightSelections: creditInsights,

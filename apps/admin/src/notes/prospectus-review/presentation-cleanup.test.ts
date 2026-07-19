@@ -39,6 +39,15 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).not.toContain("Historical Notes");
   });
 
+  it("removes Payment Basis and Shariah Principle dropdowns from Investor Highlights", () => {
+    expect(pageSource).not.toContain("Investment Structure");
+    expect(pageSource).not.toContain("catalogues.paymentBasis");
+    expect(pageSource).not.toContain("catalogues.shariahPrinciple");
+    expect(pageSource).not.toContain("paymentBasisOptionKey");
+    expect(pageSource).not.toContain("shariahPrincipleOptionKey");
+    expect(pageSource).toContain("Key Investor Highlights");
+  });
+
   it("renders Page 2/3 financials through the metric table component", () => {
     expect(pageSource).toContain("ProspectusFinancialMetricTable");
     expect(pageSource).toContain("buildPageTwoFinancialComparisonTable");

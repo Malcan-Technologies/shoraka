@@ -37,9 +37,6 @@ export function buildProspectusCompletionChecklist(
   const highlightsComplete = draft.page1.keyInvestorHighlights.every(
     (h) => hasOption(h.optionKey) || h.isVisible === false
   );
-  const paymentComplete =
-    hasOption(draft.page1.paymentBasisOptionKey) &&
-    hasOption(draft.page1.shariahPrincipleOptionKey);
 
   const track = draft.page2.paymasterTrackRecord;
   const paymasterComplete = Boolean(
@@ -86,7 +83,7 @@ export function buildProspectusCompletionChecklist(
     {
       id: "highlights",
       label: "Investor Highlights",
-      complete: highlightsComplete && paymentComplete,
+      complete: highlightsComplete,
       required: true,
     },
     {

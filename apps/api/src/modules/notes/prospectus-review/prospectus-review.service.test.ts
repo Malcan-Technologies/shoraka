@@ -3,8 +3,13 @@
  */
 
 import {
+  PROSPECTUS_FIXED_PAYMENT_BASIS,
+  PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
+} from "@cashsouk/types";
+import {
   cloneReviewContent,
   emptyProspectusReviewContent,
+  stripLegacyPaymentBasisShariahKeys,
   toProspectusPublicationContent,
   type ProspectusReviewStoredContent,
 } from "./prospectus-review-content";
@@ -30,8 +35,6 @@ function completeSelectableDraft(): ProspectusReviewStoredContent {
     optionKey: "do_not_display",
     isVisible: false,
   }));
-  draft.page1.paymentBasisOptionKey = "placeholder_bullet_maturity";
-  draft.page1.shariahPrincipleOptionKey = "do_not_display";
   draft.page2.paymasterTrackRecord = {
     totalInvoicesPaid: 0,
     totalAmountPaid: "0",
@@ -72,26 +75,38 @@ function completeSelectableDraft(): ProspectusReviewStoredContent {
 }
 
 describe("prospectus review content", () => {
-  it("starts with empty selections and no placeholder approvals", () => {
+  it("starts with empty selections and no Payment Basis / Shariah keys", () => {
     const empty = emptyProspectusReviewContent();
     expect(empty.page1.keyInvestorHighlights).toHaveLength(4);
-    expect(empty.page1.paymentBasisOptionKey).toBeNull();
+    expect(empty.page1.paymentBasisOptionKey).toBeUndefined();
+    expect(empty.page1.shariahPrincipleOptionKey).toBeUndefined();
     expect(empty.page2.invoiceWorkStatements).toHaveLength(4);
     expect(empty.page3.investorTakeaways.revenueProfitabilityOptionKey).toBeUndefined();
   });
 
   it("allows partial draft with valid option keys and preserves numeric zero", () => {
     const draft = emptyProspectusReviewContent();
-    draft.page1.paymentBasisOptionKey = "placeholder_bullet_maturity";
     draft.page3.manualFinancialInputs = {
       years: { "2024": { grossProfit: 0, ebitda: "1000" } },
     };
     expect(validateDraftContent(draft)).toEqual([]);
   });
 
+  it("parses legacy Payment Basis / Shariah keys without requiring or validating them", () => {
+    const draft = emptyProspectusReviewContent();
+    draft.page1.paymentBasisOptionKey = "legacy_any_key";
+    draft.page1.shariahPrincipleOptionKey = "another_legacy_key";
+    expect(validateDraftContent(draft)).toEqual([]);
+    expect(validateApprovalContent(completeSelectableDraft())).toEqual([]);
+  });
+
   it("rejects invalid option keys and derived overrides", () => {
     const draft = emptyProspectusReviewContent();
-    draft.page1.paymentBasisOptionKey = "not_a_real_option";
+    draft.page1.keyInvestorHighlights[0] = {
+      key: "paymaster",
+      optionKey: "not_a_real_option",
+      isVisible: true,
+    };
     draft.page3.manualFinancialInputs = {
       years: {
         "2024": {
@@ -104,7 +119,7 @@ describe("prospectus review content", () => {
       },
     };
     const errors = validateDraftContent(draft);
-    expect(errors.some((e) => e.path.includes("paymentBasisOptionKey"))).toBe(true);
+    expect(errors.some((e) => e.path.includes("paymaster"))).toBe(true);
     expect(errors.some((e) => e.message.includes("Derived field override"))).toBe(true);
     expect(errors.some((e) => e.path.includes("revenue"))).toBe(true);
     expect(errors.some((e) => e.path.includes("profitAfterTax"))).toBe(true);
@@ -156,27 +171,59 @@ describe("prospectus review content", () => {
     ).toBe(true);
   });
 
-  it("requires selections for approval and accepts explicit Do not display", () => {
+  it("requires highlight selections for approval and does not require Payment Basis / Shariah", () => {
     expect(validateApprovalContent(emptyProspectusReviewContent()).length).toBeGreaterThan(0);
+    const incomplete = completeSelectableDraft();
+    incomplete.page1.keyInvestorHighlights = incomplete.page1.keyInvestorHighlights.map((h) => ({
+      ...h,
+      optionKey: null,
+      isVisible: true,
+    }));
+    expect(
+      validateApprovalContent(incomplete).some((e) =>
+        e.path.includes("keyInvestorHighlights")
+      )
+    ).toBe(true);
     expect(validateApprovalContent(completeSelectableDraft())).toEqual([]);
+    expect(
+      validateApprovalContent(completeSelectableDraft()).some((e) =>
+        e.path.includes("paymentBasisOptionKey")
+      )
+    ).toBe(false);
   });
 
-  it("converts selected options into publication content without inventing defaults", () => {
+  it("resolves fixed Payment Basis and Shariah Principle for new publication content", () => {
     const draft = completeSelectableDraft();
+    draft.page1.paymentBasisOptionKey = "legacy_ignored";
+    draft.page1.shariahPrincipleOptionKey = "legacy_ignored";
     const publication = toProspectusPublicationContent(draft);
     expect(publication.keyInvestorHighlights.every((h) => !h.isVisible)).toBe(true);
-    expect(publication.paymentBasisTemplate.paymentBasis).toContain("Placeholder");
+    expect(publication.paymentBasisTemplate.paymentBasis).toBe(PROSPECTUS_FIXED_PAYMENT_BASIS);
+    expect(publication.paymentBasisTemplate.shariahPrinciple).toBe(
+      PROSPECTUS_FIXED_SHARIAH_PRINCIPLE
+    );
+    expect(publication.paymentBasisTemplate.approvedProductionCopy).toBe(true);
     expect(publication.creditInsightSelections.creditScore).toBe("positive");
     expect(publication.creditInsightSelections.creditUtilisation).toBe("do_not_display");
     expect(publication.investorTakeawaySelections.liquidity).toBe("do_not_display");
     expect(publication.prospectusFinancialInputs?.years?.["2024"]?.grossProfit).toBe(0);
   });
 
+  it("strips legacy Payment Basis / Shariah keys from new write payloads", () => {
+    const draft = completeSelectableDraft();
+    draft.page1.paymentBasisOptionKey = "legacy_key";
+    draft.page1.shariahPrincipleOptionKey = "legacy_key";
+    const stripped = stripLegacyPaymentBasisShariahKeys(draft);
+    expect(stripped.page1.paymentBasisOptionKey).toBeUndefined();
+    expect(stripped.page1.shariahPrincipleOptionKey).toBeUndefined();
+    expect(draft.page1.paymentBasisOptionKey).toBe("legacy_key");
+  });
+
   it("deep-clones review content so draft and approved do not share references", () => {
     const draft = completeSelectableDraft();
     const approved = cloneReviewContent(draft);
-    draft.page1.paymentBasisOptionKey = "changed";
-    expect(approved.page1.paymentBasisOptionKey).toBe("placeholder_bullet_maturity");
+    draft.page2.creditInsights.creditScoreOptionKey = "changed";
+    expect(approved.page2.creditInsights.creditScoreOptionKey).toBe("positive");
     expect(approved).not.toBe(draft);
   });
 });
@@ -202,12 +249,13 @@ describe("publication freeze stability", () => {
     expect(merged.publication_content).toBeDefined();
   });
 
-  it("freezes resolved wording and ignores later catalogue re-resolution", () => {
+  it("freezes resolved wording and ignores later live re-resolution", () => {
     const draft = completeSelectableDraft();
     const frozenResolved = toProspectusPublicationContent(draft);
     frozenResolved.paymentBasisTemplate = {
       ...frozenResolved.paymentBasisTemplate,
       paymentBasis: "FROZEN_WORDING_AT_PUBLISH",
+      shariahPrinciple: "FROZEN_SHARIAH_AT_PUBLISH",
     };
 
     const snapshot = {
@@ -223,17 +271,25 @@ describe("publication freeze stability", () => {
 
     const fromFrozen = publicationContentFromFrozenSnapshot(snapshot);
     expect(fromFrozen?.paymentBasisTemplate.paymentBasis).toBe("FROZEN_WORDING_AT_PUBLISH");
+    expect(fromFrozen?.paymentBasisTemplate.shariahPrinciple).toBe("FROZEN_SHARIAH_AT_PUBLISH");
 
     const live = toProspectusPublicationContent(draft);
-    expect(live.paymentBasisTemplate.paymentBasis).not.toBe("FROZEN_WORDING_AT_PUBLISH");
+    expect(live.paymentBasisTemplate.paymentBasis).toBe(PROSPECTUS_FIXED_PAYMENT_BASIS);
     expect(fromFrozen?.paymentBasisTemplate.paymentBasis).not.toBe(
       live.paymentBasisTemplate.paymentBasis
     );
   });
 
-  it("parses frozen branch with both option keys and resolved content", () => {
+  it("parses frozen branch with legacy option keys and keeps frozen resolved wording", () => {
     const draft = completeSelectableDraft();
+    draft.page1.paymentBasisOptionKey = "placeholder_bullet_maturity";
+    draft.page1.shariahPrincipleOptionKey = "placeholder_tawarruq";
     const resolved = toProspectusPublicationContent(draft);
+    resolved.paymentBasisTemplate = {
+      ...resolved.paymentBasisTemplate,
+      paymentBasis: "HISTORICAL_PLACEHOLDER_PAYMENT",
+      shariahPrinciple: "HISTORICAL_PLACEHOLDER_SHARIAH",
+    };
     const parsed = parseFrozenPublicationContent({
       publication_content: {
         version: "content.3",
@@ -245,8 +301,11 @@ describe("publication freeze stability", () => {
       },
     });
     expect(parsed?.content.page1.paymentBasisOptionKey).toBe("placeholder_bullet_maturity");
-    expect(parsed?.resolvedPublicationContent.paymentBasisTemplate.paymentBasis).toContain(
-      "Placeholder"
+    expect(parsed?.resolvedPublicationContent.paymentBasisTemplate.paymentBasis).toBe(
+      "HISTORICAL_PLACEHOLDER_PAYMENT"
+    );
+    expect(parsed?.resolvedPublicationContent.paymentBasisTemplate.shariahPrinciple).toBe(
+      "HISTORICAL_PLACEHOLDER_SHARIAH"
     );
   });
 });

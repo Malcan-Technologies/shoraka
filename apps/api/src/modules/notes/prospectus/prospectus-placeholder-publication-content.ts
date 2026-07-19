@@ -3,8 +3,13 @@
  * WHY: Preview/render full Pages 1–3 before pre-marketplace admin workflow exists
  *
  * NOT production truth. Prisma-backed Note mappers must NOT import this for defaults.
- * Replace with future officer-selected / template-approved values later.
+ * Payment Basis / Shariah Principle use shared fixed constants.
  */
+
+import {
+  PROSPECTUS_FIXED_PAYMENT_BASIS,
+  PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
+} from "@cashsouk/types";
 
 export const PROSPECTUS_PUBLICATION_CONTENT_SOURCE = {
   kind: "development_placeholder" as const,
@@ -112,7 +117,7 @@ export interface ProspectusPublicationContent {
     paymentBasis: string;
     shariahPrinciple: string;
     sourceType: "fixed_template";
-    approvedProductionCopy: false;
+    approvedProductionCopy: boolean;
   };
   paymasterTrackRecord?: ProspectusPaymasterTrackRecordPublicationInputs;
   creditInsightSelections: Partial<
@@ -166,10 +171,10 @@ export const PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT: ProspectusPublicationCo
     },
   ],
   paymentBasisTemplate: {
-    paymentBasis: "Placeholder — bullet payment at maturity (not approved copy)",
-    shariahPrinciple: "Placeholder — Tawarruq structure (not approved copy)",
+    paymentBasis: PROSPECTUS_FIXED_PAYMENT_BASIS,
+    shariahPrinciple: PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
     sourceType: "fixed_template",
-    approvedProductionCopy: false,
+    approvedProductionCopy: true,
   },
   creditInsightSelections: {
     creditScore: "positive",

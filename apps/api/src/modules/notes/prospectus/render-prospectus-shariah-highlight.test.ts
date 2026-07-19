@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { PROSPECTUS_FIXED_SHARIAH_PRINCIPLE } from "@cashsouk/types";
 import { buildProspectusPaymentBasisShariah } from "./prospectus-payment-basis-shariah";
 import { buildProspectusShariahHighlight } from "./prospectus-shariah-highlight";
 import { SAMPLE_PROSPECTUS_SHARIAH_HIGHLIGHT_INPUT } from "./prospectus-shariah-highlight.sample-data";
@@ -28,11 +29,11 @@ describe("prospectus Shariah Investor Highlight (Page 1 DATA STAGE 5D)", () => {
     expect(data.shariahCompliantStatus).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("reuses Stage 4C principle without a separate resolver", () => {
+  it("reuses Stage 4C fixed principle without a separate resolver", () => {
     const stage4c = buildProspectusPaymentBasisShariah(SAMPLE_PROSPECTUS_SHARIAH_HIGHLIGHT_INPUT);
     const data = buildProspectusShariahHighlight(SAMPLE_PROSPECTUS_SHARIAH_HIGHLIGHT_INPUT);
     expect(data.specificShariahPrinciple).toBe(stage4c.shariahPrinciple);
-    expect(data.specificShariahPrinciple).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.specificShariahPrinciple).toBe(PROSPECTUS_FIXED_SHARIAH_PRINCIPLE);
     expect(data.audit.shariahPrinciple.reusedFromStage4C).toBe(true);
 
     const moduleSource = readFileSync(
@@ -54,7 +55,7 @@ describe("prospectus Shariah Investor Highlight (Page 1 DATA STAGE 5D)", () => {
       murabahaAmount: 500_000,
     });
     expect(data.shariahCompliantStatus).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(data.specificShariahPrinciple).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.specificShariahPrinciple).toBe(PROSPECTUS_FIXED_SHARIAH_PRINCIPLE);
     expect(data.evidenceSource).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.audit.tawarruq.usedAsEvidence).toBe(false);
     expect(data.audit.tawarruq.legalInterpretationAllowed).toBe(false);
@@ -77,7 +78,7 @@ describe("prospectus Shariah Investor Highlight (Page 1 DATA STAGE 5D)", () => {
     expect(data.audit.highlight.claimApprovalRequired).toBe(true);
   });
 
-  it("records live/frozen audit metadata and hides it from Canva HTML", () => {
+  it("records live/frozen audit metadata and shows fixed principle in Canva HTML", () => {
     const data = buildProspectusShariahHighlight(SAMPLE_PROSPECTUS_SHARIAH_HIGHLIGHT_INPUT);
     expect(data.audit).toEqual(PROSPECTUS_SHARIAH_HIGHLIGHT_AUDIT);
     expect(data.audit.snapshot.isFrozen).toBe(false);
@@ -85,14 +86,13 @@ describe("prospectus Shariah Investor Highlight (Page 1 DATA STAGE 5D)", () => {
 
     const html = buildProspectusShariahHighlightDocument(data);
     expect(html).toContain("Shariah-Compliant Status: Data not available");
-    expect(html).toContain("Shariah Principle: Data not available");
+    expect(html).toContain("Shariah Principle: Bai&#39; Al-Dayn Bi Al-Sila&#39;");
+    expect(html).toContain(PROSPECTUS_FIXED_SHARIAH_PRINCIPLE.replace(/'/g, "&#39;"));
     expect(html).toContain("Evidence Source: Data not available");
     expect(html).toContain("Adviser or Approval Reference: Data not available");
     expect(html).toContain("Highlight Title: Data not available");
     expect(html).toContain("Highlight Explanation: Data not available");
     expect(html).not.toContain("Shariah-compliant investment");
-    expect(html).not.toContain("Bai' Al-Dayn Bi Al-Sila'");
-    expect(html).not.toContain("Bai");
     expect(html).not.toContain("transparent underlying transaction");
     expect(html).not.toContain("approved Shariah structure");
     expect(html).not.toContain("Tawarruq");

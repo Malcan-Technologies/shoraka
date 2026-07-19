@@ -81,26 +81,6 @@ export const PROSPECTUS_HIGHLIGHT_OPTION_CATALOGUE: Record<
   ],
 };
 
-export const PROSPECTUS_PAYMENT_BASIS_OPTIONS: readonly ProspectusCatalogueOption[] = [
-  opt(
-    "placeholder_bullet_maturity",
-    "Placeholder — bullet at maturity",
-    "Placeholder — bullet payment at maturity (not approved copy).",
-    "FIXED_TEMPLATE"
-  ),
-  DO_NOT_DISPLAY,
-];
-
-export const PROSPECTUS_SHARIAH_PRINCIPLE_OPTIONS: readonly ProspectusCatalogueOption[] = [
-  opt(
-    "placeholder_tawarruq",
-    "Placeholder — Tawarruq structure",
-    "Placeholder — Tawarruq structure (not approved copy).",
-    "FIXED_TEMPLATE"
-  ),
-  DO_NOT_DISPLAY,
-];
-
 export const PROSPECTUS_CREDIT_INSIGHT_OPTIONS: readonly ProspectusCatalogueOption[] = [
   opt("positive", "Positive", "Positive"),
   opt("neutral", "Neutral", "Neutral"),
@@ -276,8 +256,6 @@ export function getActiveProspectusCatalogues() {
   return {
     version: PROSPECTUS_OPTION_CATALOGUE_VERSION,
     highlights: PROSPECTUS_HIGHLIGHT_OPTION_CATALOGUE,
-    paymentBasis: PROSPECTUS_PAYMENT_BASIS_OPTIONS,
-    shariahPrinciple: PROSPECTUS_SHARIAH_PRINCIPLE_OPTIONS,
     creditInsights: PROSPECTUS_CREDIT_INSIGHT_OPTIONS,
     invoiceWork: PROSPECTUS_INVOICE_WORK_OPTION_CATALOGUE,
     takeaways: PROSPECTUS_TAKEAWAY_OPTION_CATALOGUE,
