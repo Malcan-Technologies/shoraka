@@ -1,46 +1,115 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { buildProspectusPaymentBasisShariah } from "./prospectus-payment-basis-shariah";
 import { buildProspectusShariahHighlight } from "./prospectus-shariah-highlight";
+import { SAMPLE_PROSPECTUS_SHARIAH_HIGHLIGHT_INPUT } from "./prospectus-shariah-highlight.sample-data";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
+  PROSPECTUS_SHARIAH_HIGHLIGHT_AUDIT,
   PROSPECTUS_SHARIAH_HIGHLIGHT_FIELD_SOURCES,
 } from "./prospectus-shariah-highlight.types";
 import { buildProspectusShariahHighlightDocument } from "./render-prospectus-shariah-highlight";
 
 describe("prospectus Shariah Investor Highlight (Page 1 DATA STAGE 5D)", () => {
-  it("documents unresolved compliance status distinct from Stage 4C principle", () => {
+  it("documents unresolved status and Stage 4C principle reuse", () => {
     expect(
       PROSPECTUS_SHARIAH_HIGHLIGHT_FIELD_SOURCES.shariahCompliantStatus.canonicalSource
     ).toBe("none confirmed");
     expect(
       PROSPECTUS_SHARIAH_HIGHLIGHT_FIELD_SOURCES.specificShariahPrinciple.canonicalSource
     ).toContain("Stage 4C");
-    expect(PROSPECTUS_SHARIAH_HIGHLIGHT_FIELD_SOURCES.evidenceSource.notes).toMatch(/Tawarruq/i);
-    expect(PROSPECTUS_SHARIAH_HIGHLIGHT_FIELD_SOURCES.frozenOnNote.availability).toBe("constant");
+    expect(PROSPECTUS_SHARIAH_HIGHLIGHT_FIELD_SOURCES.evidenceSource.notes).toMatch(
+      /usedAsEvidence = false/
+    );
   });
 
-  it("returns Data not available for claims; reuses Stage 4C principle DNA; frozen No", () => {
+  it("returns Data not available for Shariah-compliant status", () => {
     const data = buildProspectusShariahHighlight({});
-    const stage4c = buildProspectusPaymentBasisShariah({});
-
     expect(data.shariahCompliantStatus).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+  });
+
+  it("reuses Stage 4C principle without a separate resolver", () => {
+    const stage4c = buildProspectusPaymentBasisShariah(SAMPLE_PROSPECTUS_SHARIAH_HIGHLIGHT_INPUT);
+    const data = buildProspectusShariahHighlight(SAMPLE_PROSPECTUS_SHARIAH_HIGHLIGHT_INPUT);
     expect(data.specificShariahPrinciple).toBe(stage4c.shariahPrinciple);
+    expect(data.specificShariahPrinciple).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.audit.shariahPrinciple.reusedFromStage4C).toBe(true);
+
+    const moduleSource = readFileSync(
+      join(__dirname, "prospectus-shariah-highlight.ts"),
+      "utf8"
+    );
+    expect(moduleSource).toContain("buildProspectusPaymentBasisShariah");
+    expect(moduleSource).toContain("stage4c.shariahPrinciple");
+    expect(moduleSource).not.toContain("inferPrinciple");
+    expect(moduleSource).not.toContain("mapPrinciple");
+    expect(moduleSource).not.toContain("isShariahCompliant");
+  });
+
+  it("does not use Tawarruq, Shoraka, commodity, or murabaha as evidence", () => {
+    const data = buildProspectusShariahHighlight({
+      tawarruqStatus: "COMPLETED",
+      shorakaStatus: "STP_COMPLETED",
+      commodityType: "PALM_OIL",
+      murabahaAmount: 500_000,
+    });
+    expect(data.shariahCompliantStatus).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.specificShariahPrinciple).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.evidenceSource).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.audit.tawarruq.usedAsEvidence).toBe(false);
+    expect(data.audit.tawarruq.legalInterpretationAllowed).toBe(false);
+  });
+
+  it("does not use marketing Shariah Compliant wording as status", () => {
+    const data = buildProspectusShariahHighlight({
+      marketingShariahCompliantLabel: "Shariah Compliant",
+    });
+    expect(data.shariahCompliantStatus).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.shariahCompliantStatus).not.toBe("Shariah Compliant");
+  });
+
+  it("keeps adviser/approval, title, and explanation unavailable", () => {
+    const data = buildProspectusShariahHighlight(SAMPLE_PROSPECTUS_SHARIAH_HIGHLIGHT_INPUT);
     expect(data.approvalOrAdviserReference).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.highlightTitle).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.highlightExplanation).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(data.claimApprovalStatus).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(data.frozenOnNote).toBe("No");
-    expect(data.highlightTitle).not.toMatch(/Shariah-compliant investment/i);
-    expect(data.highlightExplanation).not.toMatch(/transparent underlying|Shariah principles/i);
+    expect(data.audit.adviserApproval.adviserReferenceAvailable).toBe(false);
+    expect(data.audit.highlight.claimApprovalRequired).toBe(true);
   });
 
-  it("renders plain HTML with Stage 5D lines", () => {
-    const html = buildProspectusShariahHighlightDocument();
-    expect(html).toContain("Shariah-compliant status: Data not available");
-    expect(html).toContain("Specific Shariah principle: Data not available");
-    expect(html).toContain("Frozen on Note: No");
-    expect(html).toContain("Tawarruq is not used as prospectus evidence");
-    expect(html).not.toContain("Shariah-compliant investment</");
-    expect(html).not.toContain("Structured in accordance");
+  it("records live/frozen audit metadata and hides it from Canva HTML", () => {
+    const data = buildProspectusShariahHighlight(SAMPLE_PROSPECTUS_SHARIAH_HIGHLIGHT_INPUT);
+    expect(data.audit).toEqual(PROSPECTUS_SHARIAH_HIGHLIGHT_AUDIT);
+    expect(data.audit.snapshot.isFrozen).toBe(false);
+    expect(data.audit.snapshot.snapshotDecision).toBe("pending");
+
+    const html = buildProspectusShariahHighlightDocument(data);
+    expect(html).toContain("Shariah-Compliant Status: Data not available");
+    expect(html).toContain("Shariah Principle: Data not available");
+    expect(html).toContain("Evidence Source: Data not available");
+    expect(html).toContain("Adviser or Approval Reference: Data not available");
+    expect(html).toContain("Highlight Title: Data not available");
+    expect(html).toContain("Highlight Explanation: Data not available");
+    expect(html).not.toContain("Shariah-compliant investment");
+    expect(html).not.toContain("Bai' Al-Dayn Bi Al-Sila'");
+    expect(html).not.toContain("Bai");
+    expect(html).not.toContain("transparent underlying transaction");
+    expect(html).not.toContain("approved Shariah structure");
+    expect(html).not.toContain("Tawarruq");
+    expect(html).not.toContain("Shoraka");
+    expect(html).not.toContain("commodity_type");
+    expect(html).not.toContain("murabaha_amount");
+    expect(html).not.toContain("Shariah Compliant");
+    expect(html).not.toContain("sourceStatus");
+    expect(html).not.toContain("inferenceAllowed");
+    expect(html).not.toContain("productLevelStatusAvailable");
+    expect(html).not.toContain("noteLevelStatusAvailable");
+    expect(html).not.toContain("usedAsEvidence");
+    expect(html).not.toContain("legalInterpretationAllowed");
+    expect(html).not.toContain("adviserReferenceAvailable");
+    expect(html).not.toContain("claimApprovalRequired");
+    expect(html).not.toContain("snapshotDecision");
+    expect(html).not.toContain("Frozen on Note");
+    expect(html).not.toContain("Claim approval");
   });
 });

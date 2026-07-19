@@ -40,6 +40,14 @@
  * - Stage 6 continues using Stage 4A for gross rate and unresolved period return
  * - Future decisions: gross vs net period value, % vs RM, start date, day-count, rounding, approved wording
  * - Stage 5D (Shariah highlight) in prospectus-shariah-highlight.* — compliance claim unresolved; not Tawarruq-as-proof
+ *
+ * Stage 5D Shariah highlight — correction notes:
+ * - No structured Product-level or Note-level Shariah-compliant status
+ * - No structured Shariah-principle source; Stage 5D reuses Stage 4C (Data not available)
+ * - Tawarruq/Shoraka is operational evidence only — not legal proof for prospectus wording
+ * - No adviser, committee, certificate, opinion, or approval reference stored
+ * - No approved title or explanation; landing-page marketing is not a Note-level source
+ * - Future options (not implemented): Product compliance flag, approved principle field, adviser/committee reference, approval date/certificate, frozen Note snapshot, approved highlight copy, legal/compliance sign-off
  * - Stage 6 (At a Glance) in prospectus-at-a-glance.* — composes Stage 4A + Stage 2 only
  * - Stage 7 (issuer track-record summary) in prospectus-issuer-track-record.* — identity key only; aggregates unresolved
  * - Stage 8 (historical note table) in prospectus-historical-note-table.* — row formatters; no eligibility filter

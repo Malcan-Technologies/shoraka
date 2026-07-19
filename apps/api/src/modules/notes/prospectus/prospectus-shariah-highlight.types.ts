@@ -1,101 +1,187 @@
 /**
  * SECTION: Prospectus Page 1 — Shariah Investor Highlight (DATA STAGE 5D)
- * WHY: Fourth KEY INVESTOR HIGHLIGHTS item; broader compliance claim ≠ Stage 4C principle
+ * WHY: No Note-level compliance claim; reuse Stage 4C principle DNA; Tawarruq ≠ evidence
  */
 
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
+import type { ProspectusPaymentBasisShariahInput } from "./prospectus-payment-basis-shariah.types";
 
 export { PROSPECTUS_DATA_NOT_AVAILABLE };
 
+export const PROSPECTUS_SHARIAH_CLAIMS_REQUIRING_APPROVAL = [
+  "Shariah-compliant",
+  "specific principle wording",
+  "Shariah structure wording",
+  "adviser or committee references",
+  "Tawarruq as legal evidence",
+  "transparent underlying transaction",
+  "approved structure",
+  "certification claims",
+] as const;
+
+export interface ProspectusShariahHighlightAudit {
+  shariahCompliantStatus: {
+    sourceStatus: "not_stored";
+    inferenceAllowed: false;
+    productLevelStatusAvailable: false;
+    noteLevelStatusAvailable: false;
+  };
+  shariahPrinciple: {
+    sourceStatus: "not_stored";
+    reusedFromStage4C: true;
+    inferenceAllowed: false;
+  };
+  tawarruq: {
+    operationalFlowExists: true;
+    usedAsEvidence: false;
+    legalInterpretationAllowed: false;
+  };
+  adviserApproval: {
+    adviserReferenceAvailable: false;
+    committeeApprovalAvailable: false;
+    certificateAvailable: false;
+  };
+  highlight: {
+    claimApprovalRequired: true;
+    approvedCopyAvailable: false;
+  };
+  snapshot: {
+    isFrozen: false;
+    snapshotDecision: "pending";
+  };
+  claimApproval: {
+    status: "pending";
+    requiredClaims: typeof PROSPECTUS_SHARIAH_CLAIMS_REQUIRING_APPROVAL;
+  };
+}
+
+export const PROSPECTUS_SHARIAH_HIGHLIGHT_AUDIT: ProspectusShariahHighlightAudit = {
+  shariahCompliantStatus: {
+    sourceStatus: "not_stored",
+    inferenceAllowed: false,
+    productLevelStatusAvailable: false,
+    noteLevelStatusAvailable: false,
+  },
+  shariahPrinciple: {
+    sourceStatus: "not_stored",
+    reusedFromStage4C: true,
+    inferenceAllowed: false,
+  },
+  tawarruq: {
+    operationalFlowExists: true,
+    usedAsEvidence: false,
+    legalInterpretationAllowed: false,
+  },
+  adviserApproval: {
+    adviserReferenceAvailable: false,
+    committeeApprovalAvailable: false,
+    certificateAvailable: false,
+  },
+  highlight: {
+    claimApprovalRequired: true,
+    approvedCopyAvailable: false,
+  },
+  snapshot: {
+    isFrozen: false,
+    snapshotDecision: "pending",
+  },
+  claimApproval: {
+    status: "pending",
+    requiredClaims: PROSPECTUS_SHARIAH_CLAIMS_REQUIRING_APPROVAL,
+  },
+};
+
+/** Canva-facing highlight fields only. */
 export interface ProspectusShariahHighlight {
   shariahCompliantStatus: string;
+  /** Reuses Stage 4C shariahPrinciple (kept name for Stage 4C dependent tests). */
   specificShariahPrinciple: string;
   evidenceSource: string;
   approvalOrAdviserReference: string;
   highlightTitle: string;
   highlightExplanation: string;
-  claimApprovalStatus: string;
-  frozenOnNote: string;
+  /** Audit/debug only — omitted from Canva HTML. */
+  audit: ProspectusShariahHighlightAudit;
 }
 
 /**
- * No confirmed raw inputs — builder returns unresolved / constant No for frozen.
+ * Optional observational inputs prove Tawarruq/marketing never become Canva values.
+ * Compatible with Stage 4C observational input (passed through for principle reuse).
  */
-export type ProspectusShariahHighlightInput = Record<string, never>;
+export type ProspectusShariahHighlightInput = ProspectusPaymentBasisShariahInput & {
+  /** Observational Shoraka STP status — must not become Canva-facing evidence. */
+  shorakaStatus?: string | null;
+};
 
 export interface ProspectusShariahHighlightFieldSource {
   label: string;
   canonicalSource: string;
-  availability: "unresolved" | "constant";
+  availability: "unresolved";
+  surface: "canva" | "audit";
   possibleAlternatives: string;
   notes: string;
 }
 
 export const PROSPECTUS_SHARIAH_HIGHLIGHT_FIELD_SOURCES: Record<
-  keyof ProspectusShariahHighlight,
+  | "shariahCompliantStatus"
+  | "specificShariahPrinciple"
+  | "evidenceSource"
+  | "approvalOrAdviserReference"
+  | "highlightTitle"
+  | "highlightExplanation",
   ProspectusShariahHighlightFieldSource
 > = {
   shariahCompliantStatus: {
-    label: "Shariah-compliant status",
+    label: "Shariah-Compliant Status",
     canonicalSource: "none confirmed",
     availability: "unresolved",
+    surface: "canva",
     possibleAlternatives:
-      "Landing \"Shariah Compliant\" / signup modal; POC complianceBadge; invent Product boolean — not used",
+      "Landing \"Shariah Compliant\"; Product boolean; compliance_declaration — not used",
     notes:
-      "No shariah_compliant / is_shariah field on Product, Note, Application, or snapshots. Platform marketing ≠ Note-level status.",
+      "No Product/Note structured status. Platform marketing ≠ Note prospectus status. inferenceAllowed = false.",
   },
   specificShariahPrinciple: {
-    label: "Specific Shariah principle",
-    canonicalSource: "none confirmed (same as Stage 4C)",
+    label: "Shariah Principle",
+    canonicalSource: "Stage 4C buildProspectusPaymentBasisShariah.shariahPrinciple",
     availability: "unresolved",
+    surface: "canva",
     possibleAlternatives: "Canva Bai' Al-Dayn Bi Al-Sila'; Tawarruq label — not used",
-    notes: "Unresolved in Stage 4C. Reused here as DNA; not a second principle source.",
+    notes: "Reuse Stage 4C only. No second principle resolver. reusedFromStage4C = true.",
   },
   evidenceSource: {
-    label: "Evidence source",
+    label: "Evidence Source",
     canonicalSource: "none confirmed",
     availability: "unresolved",
+    surface: "canva",
     possibleAlternatives:
-      "Shoraka Tawarruq certificate; landing marketing; issuer Shariah screening notice — not used as Note prospectus evidence",
-    notes:
-      "Tawarruq STP proves a commodity-trade operational step before disbursement, not an approved investor-facing compliance statement for the Note.",
+      "Tawarruq/Shoraka ops; commodity_type; murabaha_amount; marketing — not used",
+    notes: "Tawarruq usedAsEvidence = false. Operational flow ≠ legal prospectus evidence.",
   },
   approvalOrAdviserReference: {
-    label: "Approval or adviser reference",
+    label: "Adviser or Approval Reference",
     canonicalSource: "none confirmed",
     availability: "unresolved",
+    surface: "canva",
     possibleAlternatives:
-      "Shariah adviser name; committee approval; opinion/certificate reference — not in schema",
-    notes: "Docs mention pending Shariah advisor confirmation for some STP rules; no stored adviser/opinion fields.",
+      "Adviser name; committee approval; certificate; opinion reference — not in schema",
+    notes: "adviserReferenceAvailable / committeeApprovalAvailable / certificateAvailable = false.",
   },
   highlightTitle: {
-    label: "Highlight title",
+    label: "Highlight Title",
     canonicalSource: "none confirmed",
     availability: "unresolved",
-    possibleAlternatives: "Hardcode Canva \"Shariah-compliant investment\" — not used",
-    notes: "No stored approved Note prospectus title. Do not hardcode marketing copy.",
+    surface: "canva",
+    possibleAlternatives: "Canva \"Shariah-compliant investment\" — not used",
+    notes: "claimApprovalRequired = true. Do not hardcode marketing titles.",
   },
   highlightExplanation: {
-    label: "Highlight explanation",
+    label: "Highlight Explanation",
     canonicalSource: "none confirmed",
     availability: "unresolved",
+    surface: "canva",
     possibleAlternatives:
-      "Canva \"structured in accordance…\" / \"transparent underlying transaction\" — not used",
-    notes: "No approved Note-level explanation. Investor portal has no Shariah highlight copy.",
-  },
-  claimApprovalStatus: {
-    label: "Claim approval status",
-    canonicalSource: "none confirmed",
-    availability: "unresolved",
-    possibleAlternatives: "Legal / compliance / Shariah-adviser prospectus claim workflow — missing",
-    notes:
-      "Investor-facing Shariah-compliant claims need legal, compliance, and/or Shariah-adviser approval.",
-  },
-  frozenOnNote: {
-    label: "Frozen on Note",
-    canonicalSource: "notes product/paymaster/issuer/invoice snapshots (no Shariah fields)",
-    availability: "constant",
-    possibleAlternatives: "Freeze compliance status or principle onto Note — not implemented",
-    notes: "No Shariah status or principle is stored or frozen on the Note.",
+      "Canva Bai' / transparent underlying transaction copy — not used",
+    notes: "approvedCopyAvailable = false. Do not generate structure/adviser sentences.",
   },
 };
