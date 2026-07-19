@@ -1,4 +1,7 @@
-import { buildProspectusIssuerProfile } from "./prospectus-issuer-profile";
+import {
+  buildProspectusIssuerProfile,
+  sanitizeProspectusBusinessDescription,
+} from "./prospectus-issuer-profile";
 import { SAMPLE_PROSPECTUS_ISSUER_PROFILE_INPUT } from "./prospectus-issuer-profile.sample-data";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
@@ -14,52 +17,28 @@ describe("prospectus Page 2 About the Issuer (DATA STAGE 1)", () => {
     expect(data.sectionHeading).toBe(PROSPECTUS_ISSUER_PROFILE_SECTION_HEADING);
   });
 
-  it("maps company name from frozen issuer_snapshot.name only", () => {
-    const data = buildProspectusIssuerProfile({
-      issuerSnapshot: { name: "ABC Engineering Sdn Bhd" },
-      liveOrganizationName: "Live Org Name Must Be Ignored",
-    });
-    expect(data.companyName).toBe("ABC Engineering Sdn Bhd");
-  });
-
-  it("returns DNA for missing company name and ignores live org name", () => {
-    const data = buildProspectusIssuerProfile({
-      issuerSnapshot: {},
-      liveOrganizationName: "Live Org Name Must Be Ignored",
-    });
-    expect(data.companyName).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-  });
-
-  it("maps registration_number as stored and ignores old SSM aliases", () => {
+  it("does not expose company name or registration number fields", () => {
     const data = buildProspectusIssuerProfile({
       issuerSnapshot: {
+        name: "ABC Engineering Sdn Bhd",
         registration_number: "201401012345",
-        old_registration_number: "1101234-X",
-        ssm_number: "1101234-X",
+        industry: "Construction",
       },
-      oldRegistrationNumber: "1101234-X",
+      liveOrganizationName: "Live Org Name Must Be Ignored",
       liveRegistrationNumber: "999999999999",
-    });
-    expect(data.registrationNumber).toBe("201401012345");
-    expect(data.registrationNumber).not.toContain("(");
-    expect(data.registrationNumber).not.toContain("1101234-X");
-  });
-
-  it("returns DNA for missing registration and does not combine old SSM", () => {
-    const data = buildProspectusIssuerProfile({
-      issuerSnapshot: { ssm_number: "1101234-X" },
       oldRegistrationNumber: "1101234-X",
     });
-    expect(data.registrationNumber).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(data.registrationNumber).not.toBe("201401012345 (1101234-X)");
+    expect(data).not.toHaveProperty("companyName");
+    expect(data).not.toHaveProperty("registrationNumber");
+    expect(data.industry).toBe("Construction");
   });
 
-  it("maps industry from issuer_snapshot.industry", () => {
+  it("maps industry and optional entity type from frozen snapshot", () => {
     expect(
       buildProspectusIssuerProfile({
-        issuerSnapshot: { industry: "Construction" },
-      }).industry
-    ).toBe("Construction");
+        issuerSnapshot: { industry: "Construction", entity_type: "PRIVATE_LIMITED" },
+      }).entityType
+    ).toBe("PRIVATE_LIMITED");
 
     expect(
       buildProspectusIssuerProfile({
@@ -87,24 +66,22 @@ describe("prospectus Page 2 About the Issuer (DATA STAGE 1)", () => {
     ).toBe("Registered in Malaysia");
   });
 
-  it("returns DNA for missing country and does not hardcode Malaysia", () => {
-    const data = buildProspectusIssuerProfile({
-      issuerSnapshot: { name: "ABC Engineering Sdn Bhd" },
-    });
-    expect(data.registeredCountry).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(data.registeredCountry).not.toContain("Registered in Malaysia");
-    expect(data.registeredCountry).not.toBe("Registered in Data not available");
-  });
+  it("strips leading issuer name from business description", () => {
+    expect(
+      sanitizeProspectusBusinessDescription(
+        "ABC Engineering Sdn Bhd — Civil engineering works.",
+        "ABC Engineering Sdn Bhd"
+      )
+    ).toBe("Civil engineering works.");
 
-  it("maps frozen business_description with trim and no rewrite", () => {
-    const text =
-      "ABC Engineering Sdn Bhd is a civil and structural engineering company providing construction and maintenance services.";
     const data = buildProspectusIssuerProfile({
       issuerSnapshot: {
-        business_description: `  ${text}  `,
+        name: "ABC Engineering Sdn Bhd",
+        business_description: "ABC Engineering Sdn Bhd — Civil engineering works.",
       },
     });
-    expect(data.businessDescription).toBe(text);
+    expect(data.businessDescription).toBe("Civil engineering works.");
+    expect(data.businessDescription).not.toContain("ABC Engineering Sdn Bhd");
   });
 
   it("returns DNA for missing business description and ignores live/product fallbacks", () => {
@@ -125,69 +102,48 @@ describe("prospectus Page 2 About the Issuer (DATA STAGE 1)", () => {
         industry: "Manufacturing",
       },
     });
-    expect(data.companyName).toBe("Legacy Issuer Sdn Bhd");
     expect(data.industry).toBe("Manufacturing");
-    expect(data.registrationNumber).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.entityType).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.registeredCountry).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.businessDescription).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.companySize).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("documents canonical sources", () => {
-    expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES.companyName.canonicalSource).toBe(
-      "notes.issuer_snapshot.name"
-    );
-    expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES.registrationNumber.canonicalSource).toBe(
-      "notes.issuer_snapshot.registration_number"
-    );
+  it("documents canonical non-identifying sources", () => {
     expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES.industry.canonicalSource).toBe(
       "notes.issuer_snapshot.industry"
     );
+    expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES.entityType.canonicalSource).toBe(
+      "notes.issuer_snapshot.entity_type"
+    );
     expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES.companySize.availability).toBe("unresolved");
-    expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES.registeredCountry.canonicalSource).toBe(
-      "notes.issuer_snapshot.country"
-    );
-    expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES.businessDescription.canonicalSource).toBe(
-      "notes.issuer_snapshot.business_description"
-    );
+    expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES).not.toHaveProperty("companyName");
+    expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES).not.toHaveProperty("registrationNumber");
   });
 
-  it("HTML shows only approved fields and hides audit/extra issuer details", () => {
+  it("HTML shows non-identifying fields only", () => {
     const data = buildProspectusIssuerProfile(SAMPLE_PROSPECTUS_ISSUER_PROFILE_INPUT);
     const html = buildProspectusIssuerProfileDocument(data);
 
     expect(html).toContain("ABOUT THE ISSUER");
-    expect(html).toContain("Company Name:");
-    expect(html).toContain("Registration Number:");
     expect(html).toContain("Industry:");
+    expect(html).toContain("Entity Type:");
     expect(html).toContain("Company Size:");
     expect(html).toContain("Registered Country:");
     expect(html).toContain("Business Description:");
 
-    expect(html).toContain("ABC Engineering Sdn Bhd");
-    expect(html).toContain("201401012345");
-    expect(html).toContain("Construction");
-    expect(html).toContain("Registered in Malaysia");
-    expect(html).toContain(PROSPECTUS_DATA_NOT_AVAILABLE);
-
-    expect(html).not.toContain("org-sample-issuer");
+    expect(html).not.toContain("Company Name:");
+    expect(html).not.toContain("Registration Number:");
+    expect(html).not.toContain("201401012345");
     expect(html).not.toContain("1101234-X");
-    expect(html).not.toContain("employee");
-    expect(html).not.toContain("director");
-    expect(html).not.toContain("shareholder");
     expect(html).not.toContain("Live Org Name");
-    expect(html).not.toContain("isFrozen");
-    expect(html).not.toContain("inferenceAllowed");
-    expect(html).not.toContain("liveFallbackAllowed");
-    expect(html).not.toContain("sourceType");
-    expect(html).not.toContain("notes.issuer_snapshot");
     expect(html).not.toContain('"audit"');
   });
 
-  it("audit records freeze rules without SME inference or hardcoded country", () => {
+  it("audit records identity hidden and freeze rules", () => {
     const data = buildProspectusIssuerProfile(SAMPLE_PROSPECTUS_ISSUER_PROFILE_INPUT);
-    expect(data.audit.companyName.isFrozen).toBe(true);
-    expect(data.audit.registrationNumber.oldRegistrationNumberSupported).toBe(false);
+    expect(data.audit.identityHidden.companyNameHidden).toBe(true);
+    expect(data.audit.identityHidden.registrationNumberHidden).toBe(true);
     expect(data.audit.companySize.inferenceAllowed).toBe(false);
     expect(data.audit.registeredCountry.hardcodedCountryAllowed).toBe(false);
     expect(data.audit.businessDescription.liveFallbackAllowed).toBe(false);

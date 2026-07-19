@@ -209,6 +209,23 @@ export interface ProspectusPageThreeCoverageEfficiency {
 export interface ProspectusPageThreeCoverageEfficiencyInput {
   /** Existing Page 2 Stage 4A result — required; never re-parsed here. */
   financialSource: ProspectusFinancialComparisonSource;
+  /** Temporary builder-only fills for unsupported rows only (not ROE). */
+  prospectusFinancialInputs?: {
+    years: Record<
+      string,
+      {
+        operatingCashFlow?: number | string | null;
+        freeCashFlow?: number | string | null;
+        interestCoverage?: number | string | null;
+        dscr?: number | string | null;
+        debtEquity?: number | string | null;
+        returnOnAssets?: number | string | null;
+        receivablesDays?: number | string | null;
+        payablesDays?: number | string | null;
+        assetTurnover?: number | string | null;
+      }
+    >;
+  };
   /** Observational — must never fill years or cells. */
   ctosFinancials?: unknown;
 }

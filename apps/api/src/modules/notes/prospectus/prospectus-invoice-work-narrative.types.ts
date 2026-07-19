@@ -100,6 +100,8 @@ export interface ProspectusInvoiceWorkNarrative {
   certificationAcceptanceStatement: string;
   paymasterTrustAccountStatement: string;
   deedOfAssignmentStatement: string;
+  /** Statement keys with isVisible=false — not rendered. */
+  omittedStatements: string[];
   /** Audit/debug only — omitted from Canva HTML. */
   audit: ProspectusInvoiceWorkNarrativeAudit;
 }
@@ -110,6 +112,16 @@ export interface ProspectusInvoiceWorkNarrative {
  * Future approved frozen statements are not accepted or used yet.
  */
 export interface ProspectusInvoiceWorkNarrativeInput {
+  /**
+   * Optional typed officer/placeholder statements.
+   * Production Prisma path leaves this undefined → DNA.
+   */
+  invoiceWorkStatements?: Array<{
+    key: string;
+    text: string;
+    isVisible: boolean;
+    sourceType: "placeholder_manual";
+  }>;
   contractSnapshot?: unknown;
   invoiceSnapshot?: unknown;
   paymasterSnapshot?: unknown;

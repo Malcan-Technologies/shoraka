@@ -155,6 +155,20 @@ export interface ProspectusPageThreeIncomeStatement {
 export interface ProspectusPageThreeIncomeStatementInput {
   /** Existing Page 2 Stage 4A result — required; never re-parsed here. */
   financialSource: ProspectusFinancialComparisonSource;
+  /**
+   * Temporary builder-only manual fills for unsupported rows.
+   * Cannot override confirmed derived fields (revenue/PBT/PAT/NPM).
+   */
+  prospectusFinancialInputs?: {
+    years: Record<
+      string,
+      {
+        grossProfit?: number | string | null;
+        ebitda?: number | string | null;
+        ebit?: number | string | null;
+      }
+    >;
+  };
   /** Observational — must never fill years or cells. */
   ctosFinancials?: unknown;
 }

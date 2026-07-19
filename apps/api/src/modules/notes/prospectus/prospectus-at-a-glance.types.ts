@@ -18,8 +18,8 @@ export interface ProspectusAtAGlanceAudit {
   };
   expectedReturn: {
     reusedFromStage4A: true;
-    status: "unresolved";
-    formulaDecision: "pending";
+    status: "portal_net_annual";
+    formulaDecision: "resolveNetExpectedReturnRatePercent";
   };
   tenure: {
     reusedFromStage2: true;
@@ -41,8 +41,8 @@ export const PROSPECTUS_AT_A_GLANCE_AUDIT: ProspectusAtAGlanceAudit = {
   },
   expectedReturn: {
     reusedFromStage4A: true,
-    status: "unresolved",
-    formulaDecision: "pending",
+    status: "portal_net_annual",
+    formulaDecision: "resolveNetExpectedReturnRatePercent",
   },
   tenure: {
     reusedFromStage2: true,
@@ -70,6 +70,8 @@ export interface ProspectusAtAGlanceInput {
   targetAmount: number | null | undefined;
   /** notes.profit_rate_percent (annual gross) */
   profitRatePercent: number | null | undefined;
+  /** notes.service_fee_rate_percent — required for portal net expected return */
+  serviceFeeRatePercent?: number | null;
   /** note_listings.opens_at */
   listingOpensAt: Date | string | null | undefined;
   /** notes.maturity_date */
@@ -112,12 +114,13 @@ export const PROSPECTUS_AT_A_GLANCE_FIELD_SOURCES: Record<
   },
   expectedReturn: {
     label: "Expected Return",
-    canonicalSource: "none confirmed",
-    availability: "unresolved",
+    canonicalSource:
+      "resolveNetExpectedReturnRatePercent(profit_rate_percent, service_fee_rate_percent)",
+    availability: "calculated",
     surface: "canva",
     reusedFrom: "Stage 4A expectedReturnForInvestmentPeriod",
     notes:
-      "Singular label (not Canva \"Expected Returns\"). Value remains Data not available. formulaDecision = pending.",
+      "Portal-consistent annual net expected return (p.a.). Same helper as investor position surfaces. Not a prospectus-only period formula.",
   },
   tenure: {
     label: "Tenure",

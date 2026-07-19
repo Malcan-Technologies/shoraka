@@ -30,7 +30,7 @@ export function buildProspectusReturnHighlightHtml(data: ProspectusReturnHighlig
       Annual Gross Profit Rate: ${escapeHtml(data.annualGrossProfitRate)}<br />
       Tenure: ${escapeHtml(data.tenure)}<br />
       Annual Net Expected Return Rate (p.a.): ${escapeHtml(data.annualNetExpectedReturnRate)}<br />
-      Expected Return for Investment Period: ${escapeHtml(data.expectedReturnForInvestmentPeriod)}<br />
+      Expected Return (p.a.): ${escapeHtml(data.expectedReturnForInvestmentPeriod)}<br />
       Return Classification: ${escapeHtml(data.returnClassification)}<br />
       Tenure Classification: ${escapeHtml(data.tenureClassification)}<br />
       Highlight Title: ${escapeHtml(data.highlightTitle)}<br />

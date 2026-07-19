@@ -43,6 +43,11 @@ export type ProspectusPageThreeBuilderInput = {
   liveFinancialStatements: unknown | null;
   /** Parsed frozen page_2 Stage 4 — only when published + valid. */
   frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot | null;
+  /**
+   * Preview/development publication placeholders only.
+   * Prisma Note mapping must leave this undefined.
+   */
+  publicationContent?: import("./prospectus-placeholder-publication-content").ProspectusPublicationContent;
 };
 
 function emptyFinancialComparisonSource(): ProspectusFinancialComparisonSource {
@@ -123,10 +128,18 @@ export function buildProspectusPageThree(
     financialSource,
   });
 
-  const incomeStatement = buildProspectusPageThreeIncomeStatement({ financialSource });
-  const balanceSheet = buildProspectusPageThreeBalanceSheet({ financialSource });
+  const financialInputs = input.publicationContent?.prospectusFinancialInputs;
+  const incomeStatement = buildProspectusPageThreeIncomeStatement({
+    financialSource,
+    prospectusFinancialInputs: financialInputs,
+  });
+  const balanceSheet = buildProspectusPageThreeBalanceSheet({
+    financialSource,
+    prospectusFinancialInputs: financialInputs,
+  });
   const coverageEfficiency = buildProspectusPageThreeCoverageEfficiency({
     financialSource,
+    prospectusFinancialInputs: financialInputs,
   });
   const trends = buildProspectusPageThreeTrends({
     incomeStatement,
@@ -139,6 +152,8 @@ export function buildProspectusPageThree(
     balanceSheet,
     coverageEfficiency,
     trends,
+    investorTakeawayOptions: input.publicationContent?.investorTakeawayOptions,
+    investorTakeawaySelections: input.publicationContent?.investorTakeawaySelections,
   });
 
   return {

@@ -56,6 +56,7 @@ export function parseIssuerSnapshot(value: unknown): {
   name: string | null;
   registrationNumber: string | null;
   industry: string | null;
+  entityType: string | null;
   country: string | null;
   businessDescription: string | null;
 } {
@@ -64,6 +65,7 @@ export function parseIssuerSnapshot(value: unknown): {
     name: nonEmptyString(record?.name),
     registrationNumber: nonEmptyString(record?.registration_number),
     industry: nonEmptyString(record?.industry),
+    entityType: nonEmptyString(record?.entity_type),
     country: nonEmptyString(record?.country),
     businessDescription: nonEmptyString(record?.business_description),
   };

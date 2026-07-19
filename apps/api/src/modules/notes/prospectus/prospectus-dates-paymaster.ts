@@ -73,6 +73,21 @@ export function composeProspectusMaturityDateWithTenure(
   return `${maturityDate} (${tenure})`;
 }
 
+/**
+ * Closing Date display with listing-window duration when opens_at + closes_at exist.
+ * Duration uses stored closes_at (canonical portal source) — never invents +14 on read.
+ */
+export function composeProspectusClosingDateWithDuration(
+  closingDate: string,
+  listingWindowDays: string | null
+): string {
+  if (closingDate === PROSPECTUS_DATA_NOT_AVAILABLE) {
+    return PROSPECTUS_DATA_NOT_AVAILABLE;
+  }
+  if (!listingWindowDays) return closingDate;
+  return `${closingDate} (${listingWindowDays})`;
+}
+
 /** Paymaster line; entity type never shown without name; values not shortened. */
 export function composeProspectusPaymasterDisplay(
   paymasterName: string | null | undefined,
@@ -92,7 +107,17 @@ export function buildProspectusDatesPaymaster(
     listingOpensAt: input.listingOpensAt,
     maturityDate: input.maturityDate,
   });
-  const closingDate = formatProspectusDateUtc(input.listingClosesAt);
+  const opensAt = toValidDate(input.listingOpensAt);
+  const closesAt = toValidDate(input.listingClosesAt);
+  const closingDateOnly = formatProspectusDateUtc(closesAt);
+  let listingWindowDays: string | null = null;
+  if (opensAt && closesAt) {
+    listingWindowDays = `${calculateCalendarDayCount(opensAt, closesAt)} days`;
+  }
+  const closingDate = composeProspectusClosingDateWithDuration(
+    closingDateOnly,
+    listingWindowDays
+  );
   const paymasterName = nonEmptyString(input.paymasterName);
   const paymasterEntityType = nonEmptyString(input.paymasterEntityType);
 

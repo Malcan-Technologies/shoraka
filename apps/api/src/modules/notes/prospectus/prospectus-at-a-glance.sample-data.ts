@@ -14,6 +14,7 @@ import type {
 export const SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT: ProspectusAtAGlanceInput = {
   targetAmount: SAMPLE_PROSPECTUS_MAIN_FINANCIAL_TERMS_INPUT.targetAmount,
   profitRatePercent: SAMPLE_PROSPECTUS_MAIN_FINANCIAL_TERMS_INPUT.profitRatePercent,
+  serviceFeeRatePercent: SAMPLE_PROSPECTUS_MAIN_FINANCIAL_TERMS_INPUT.serviceFeeRatePercent,
   listingOpensAt: SAMPLE_PROSPECTUS_DATES_PAYMASTER_INPUT.listingOpensAt,
   maturityDate: SAMPLE_PROSPECTUS_DATES_PAYMASTER_INPUT.maturityDate,
 };

@@ -1,6 +1,6 @@
 /**
  * SECTION: Build Page 3 Stage 1 metadata + shared financial-year pass-through
- * WHY: Frozen snapshot strings + SoukScore validator; reuse Page 2 years only
+ * WHY: Frozen snapshot strings + SoukScore validator; issuer identity hidden
  */
 
 import { isSoukscoreRiskRating } from "@cashsouk/types";
@@ -21,7 +21,8 @@ function displayString(value: unknown): string {
 export function buildProspectusPageThreeMetadata(
   input: ProspectusPageThreeMetadataInput
 ): ProspectusPageThreeMetadata {
-  // Observational only — prove live org / paymaster / CTOS never become Canva fields or years.
+  // Observational only — prove live org / paymaster / CTOS / issuer name never become Canva fields.
+  void input.issuerName;
   void input.liveOrganizationName;
   void input.livePaymasterName;
   void input.ctosFinancials;
@@ -34,7 +35,6 @@ export function buildProspectusPageThreeMetadata(
     pageTitle: PROSPECTUS_PAGE_THREE_PAGE_TITLE,
     pageSubtitle: PROSPECTUS_DATA_NOT_AVAILABLE,
     metadata: {
-      issuer: displayString(input.issuerName),
       sector: displayString(input.issuerSector),
       riskRating,
       paymaster: displayString(input.paymasterName),

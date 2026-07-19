@@ -15,6 +15,7 @@ export function buildProspectusAtAGlance(input: ProspectusAtAGlanceInput): Prosp
   const terms = buildProspectusMainFinancialTerms({
     targetAmount: input.targetAmount,
     profitRatePercent: input.profitRatePercent,
+    serviceFeeRatePercent: input.serviceFeeRatePercent,
   });
   const timing = buildProspectusTenureAndMaturity({
     listingOpensAt: input.listingOpensAt,

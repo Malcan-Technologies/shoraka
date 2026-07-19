@@ -244,7 +244,8 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       );
       expect(missing.meta.financialMode).toBe("published_unavailable");
       expect(missing.financialSource.years).toEqual([]);
-      expect(missing.metadata.metadata.issuer).toBe("ABC Engineering Sdn Bhd");
+      expect(missing.metadata.metadata).not.toHaveProperty("issuer");
+      expect(missing.metadata.metadata.sector).toBe("Construction");
 
       const malformed = buildProspectusPageThree(
         mapProspectusPageThreeDataToInput({
@@ -340,7 +341,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       const page = SAMPLE_PROSPECTUS_PAGE_THREE;
       expect(page.metadata.pageTitle).toBe("DETAILED FINANCIAL COMPARISON");
       expect(page.metadata.pageSubtitle).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-      expect(page.metadata.metadata.issuer).toBe("ABC Engineering Sdn Bhd");
+      expect(page.metadata.metadata).not.toHaveProperty("issuer");
       expect(page.metadata.metadata.sector).toBe("Construction");
       expect(page.metadata.metadata.riskRating).toBe("AA");
       expect(page.metadata.metadata.paymaster).toBe("Kementerian Kerja Raya");
@@ -358,11 +359,9 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(invalid.metadata.metadata.riskRating).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     });
 
-    it("maps confirmed income, balance sheet, and ROE; keeps unsupported DNA", () => {
+    it("maps confirmed income, balance sheet, and ROE; sample fills unsupported gaps only", () => {
       const page = SAMPLE_PROSPECTUS_PAGE_THREE;
-      expect(row(page.incomeStatement.rows, "gross_profit")?.[0]).toBe(
-        PROSPECTUS_DATA_NOT_AVAILABLE
-      );
+      expect(row(page.incomeStatement.rows, "gross_profit")?.[0]).toBe("RM 2,100,000.00");
       expect(row(page.incomeStatement.rows, "ebitda")?.[0]).toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE
       );
@@ -380,9 +379,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
           non_current_assets: 900_000,
         })
       ).toBe(8_100_000);
-      expect(row(page.balanceSheet.rows, "cash_and_bank")?.[0]).toBe(
-        PROSPECTUS_DATA_NOT_AVAILABLE
-      );
+      expect(row(page.balanceSheet.rows, "cash_and_bank")?.[0]).toBe("RM 450,000.00");
       expect(row(page.balanceSheet.rows, "quick_ratio")?.[0]).toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE
       );
@@ -404,16 +401,36 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(row(page.incomeStatement.rows, "net_profit_margin")).toEqual(page2Npm);
     });
 
-    it("keeps all trends and takeaways as DNA", () => {
+    it("keeps trends DNA; sample preview uses typed takeaway placeholders", () => {
       const page = SAMPLE_PROSPECTUS_PAGE_THREE;
       expect(page.trends.trends).toHaveLength(26);
       expect(page.trends.trends.every((t) => t.trend === PROSPECTUS_DATA_NOT_AVAILABLE)).toBe(
         true
       );
       expect(page.investorTakeaways.items).toHaveLength(6);
+      expect(page.investorTakeaways.items[0]?.takeaway).toContain("Placeholder");
+      expect(page.investorTakeaways.omittedKeys).toContain("leverage");
+
+      const prismaPath = buildProspectusPageThree(
+        mapProspectusPageThreeDataToInput({
+          note: baseNote(),
+          liveFinancialStatements,
+        })
+      );
       expect(
-        page.investorTakeaways.items.every((i) => i.takeaway === PROSPECTUS_DATA_NOT_AVAILABLE)
+        prismaPath.investorTakeaways.items.every(
+          (i) => i.takeaway === PROSPECTUS_DATA_NOT_AVAILABLE
+        )
       ).toBe(true);
+    });
+
+    it("omits Issuer metadata and Page 3 Shariah badge from HTML", () => {
+      const html = renderProspectusPageThreeHtml(SAMPLE_PROSPECTUS_PAGE_THREE);
+      expect(html).not.toContain("Issuer:");
+      expect(html).not.toContain("ABC Engineering");
+      expect(html).not.toMatch(/Shariah/i);
+      expect(html).toContain("CashSouk");
+      expect(html).toContain("Sector: Construction");
     });
   });
 

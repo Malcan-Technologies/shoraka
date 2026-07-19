@@ -49,7 +49,6 @@ ${data.financialYears
     <h2>${escapeHtml(data.pageTitle)}</h2>
     <p>${escapeHtml(data.pageSubtitle)}</p>
     <p>
-      ${escapeHtml(labels.issuer)}: ${escapeHtml(data.metadata.issuer)}<br />
       ${escapeHtml(labels.sector)}: ${escapeHtml(data.metadata.sector)}<br />
       ${escapeHtml(labels.riskRating)}: ${escapeHtml(data.metadata.riskRating)}<br />
       ${escapeHtml(labels.paymaster)}: ${escapeHtml(data.metadata.paymaster)}<br />

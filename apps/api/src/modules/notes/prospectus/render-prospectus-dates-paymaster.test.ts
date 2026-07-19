@@ -51,7 +51,7 @@ describe("prospectus Dates and Paymaster (Page 1 DATA STAGE 2)", () => {
     const built = buildProspectusDatesPaymaster(SAMPLE_PROSPECTUS_DATES_PAYMASTER_INPUT);
     expect(built.tenure).toBe("120 days");
     expect(built.listingDate).toBe("15 May 2025");
-    expect(built.closingDate).toBe("30 May 2025");
+    expect(built.closingDate).toBe("30 May 2025 (15 days)");
     expect(built.maturityDate).toBe("12 September 2025");
     expect(built.paymasterEntityType).toBe("Federal Government Agency");
   });
@@ -61,7 +61,7 @@ describe("prospectus Dates and Paymaster (Page 1 DATA STAGE 2)", () => {
       ...SAMPLE_PROSPECTUS_DATES_PAYMASTER_INPUT,
       listingClosesAt: "2025-05-30T00:00:00.000Z",
     });
-    expect(built.closingDate).toBe("30 May 2025");
+    expect(built.closingDate).toBe("30 May 2025 (15 days)");
   });
 
   it("returns Data not available for Closing Date when closes_at is missing", () => {
@@ -79,7 +79,7 @@ describe("prospectus Dates and Paymaster (Page 1 DATA STAGE 2)", () => {
       ...SAMPLE_PROSPECTUS_DATES_PAYMASTER_INPUT,
       listingClosesAt: scheduledClosesAt,
     });
-    expect(built.closingDate).toBe("30 May 2025");
+    expect(built.closingDate).toBe("30 May 2025 (15 days)");
     expect(built.closingDate).not.toBe(formatProspectusDateUtc(earlyFundingClosedAt));
     expect(Object.keys(SAMPLE_PROSPECTUS_DATES_PAYMASTER_INPUT)).not.toContain("fundingClosedAt");
   });
@@ -87,10 +87,15 @@ describe("prospectus Dates and Paymaster (Page 1 DATA STAGE 2)", () => {
   it("keeps listing, closing, and maturity as separate source fields", () => {
     const built = buildProspectusDatesPaymaster(SAMPLE_PROSPECTUS_DATES_PAYMASTER_INPUT);
     expect(built.listingDate).toBe("15 May 2025");
-    expect(built.closingDate).toBe("30 May 2025");
+    expect(built.closingDate).toBe("30 May 2025 (15 days)");
     expect(built.maturityDate).toBe("12 September 2025");
     expect(built.listingDate).not.toBe(built.closingDate);
     expect(built.closingDate).not.toBe(built.maturityDate);
+    const html = buildProspectusDatesPaymasterDocument(built);
+    const listingIdx = html.indexOf("Listing Date:");
+    const closingIdx = html.indexOf("Closing Date:");
+    expect(listingIdx).toBeGreaterThan(-1);
+    expect(closingIdx).toBeGreaterThan(listingIdx);
   });
 
   it("composes maturity with tenure when both available", () => {

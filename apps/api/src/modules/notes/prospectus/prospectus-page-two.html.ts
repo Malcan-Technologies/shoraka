@@ -177,9 +177,8 @@ export function buildProspectusPageTwoHtml(page: ProspectusPageTwo): string {
     <section data-stage="1">
       <h2>${escapeHtml(s1.sectionHeading)}</h2>
       <p>
-        Company Name: ${escapeHtml(s1.companyName)}<br />
-        Registration Number: ${escapeHtml(s1.registrationNumber)}<br />
         Industry: ${escapeHtml(s1.industry)}<br />
+        Entity Type: ${escapeHtml(s1.entityType)}<br />
         Company Size: ${escapeHtml(s1.companySize)}<br />
         Registered Country: ${escapeHtml(s1.registeredCountry)}<br />
         Business Description: ${escapeHtml(s1.businessDescription)}
@@ -215,11 +214,31 @@ export function buildProspectusPageTwoHtml(page: ProspectusPageTwo): string {
     <section data-stage="5">
       <h2>${escapeHtml(s5.sectionHeading)}</h2>
       <p>
-        Credit Score: ${escapeHtml(s5.creditScore)}<br />
-        Payment Behaviour: ${escapeHtml(s5.paymentBehaviour)}<br />
-        Credit Utilisation: ${escapeHtml(s5.creditUtilisation)}<br />
-        Litigation Check: ${escapeHtml(s5.litigationCheck)}<br />
-        CCRIS Status: ${escapeHtml(s5.ccrisStatus)}<br />
+        ${
+          s5.omittedFields.includes("creditScore")
+            ? ""
+            : `Credit Score: ${escapeHtml(s5.creditScore)}<br />`
+        }
+        ${
+          s5.omittedFields.includes("paymentBehaviour")
+            ? ""
+            : `Payment Behaviour: ${escapeHtml(s5.paymentBehaviour)}<br />`
+        }
+        ${
+          s5.omittedFields.includes("creditUtilisation")
+            ? ""
+            : `Credit Utilisation: ${escapeHtml(s5.creditUtilisation)}<br />`
+        }
+        ${
+          s5.omittedFields.includes("litigationCheck")
+            ? ""
+            : `Litigation Check: ${escapeHtml(s5.litigationCheck)}<br />`
+        }
+        ${
+          s5.omittedFields.includes("ccrisStatus")
+            ? ""
+            : `CCRIS Status: ${escapeHtml(s5.ccrisStatus)}<br />`
+        }
         Credit Score Explanation: ${escapeHtml(s5.creditScoreExplanation)}
       </p>
     </section>
@@ -227,14 +246,32 @@ export function buildProspectusPageTwoHtml(page: ProspectusPageTwo): string {
     <section data-stage="6">
       <h2>${escapeHtml(s6.sectionHeading)}</h2>
       <p>
-        Work Under Contract Statement: ${escapeHtml(s6.workUnderContractStatement)}<br />
-        Certification and Acceptance Statement: ${escapeHtml(
+        ${
+          s6.workUnderContractStatement
+            ? `Work Under Contract Statement: ${escapeHtml(
+                s6.workUnderContractStatement
+              )}<br />`
+            : ""
+        }
+        ${
           s6.certificationAcceptanceStatement
-        )}<br />
-        Paymaster-to-Trust-Account Statement: ${escapeHtml(
+            ? `Certification and Acceptance Statement: ${escapeHtml(
+                s6.certificationAcceptanceStatement
+              )}<br />`
+            : ""
+        }
+        ${
           s6.paymasterTrustAccountStatement
-        )}<br />
-        Deed of Assignment Statement: ${escapeHtml(s6.deedOfAssignmentStatement)}
+            ? `Paymaster-to-Trust-Account Statement: ${escapeHtml(
+                s6.paymasterTrustAccountStatement
+              )}<br />`
+            : ""
+        }
+        ${
+          s6.deedOfAssignmentStatement
+            ? `Deed of Assignment Statement: ${escapeHtml(s6.deedOfAssignmentStatement)}`
+            : ""
+        }
       </p>
     </section>
 

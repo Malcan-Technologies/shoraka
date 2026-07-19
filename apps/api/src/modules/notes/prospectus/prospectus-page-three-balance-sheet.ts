@@ -12,6 +12,11 @@ import {
   formatProspectusFinancialMultiple,
   parseProspectusFinancialNumber,
 } from "./prospectus-financial-comparison-metrics";
+import {
+  formatManualMoneyOrDna,
+  formatManualRatioOrDna,
+  yearManualInputs,
+} from "./prospectus-financial-manual-inputs";
 import { formatProspectusMoneyMyr } from "./prospectus-main-financial-terms";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
@@ -58,14 +63,21 @@ function totalLiabilitiesFromRaw(raw: Record<string, unknown>): number {
 
 function valueForRow(
   key: ProspectusPageThreeBalanceSheetRowKey,
-  raw: Record<string, unknown>
+  raw: Record<string, unknown>,
+  year: number,
+  input: ProspectusPageThreeBalanceSheetInput
 ): string {
+  const manual = yearManualInputs(input.prospectusFinancialInputs?.years, year);
+
   switch (key) {
     case "cash_and_bank":
+      return formatManualMoneyOrDna(manual?.cashAndBank);
     case "trade_receivables":
+      return formatManualMoneyOrDna(manual?.tradeReceivables);
     case "total_equity":
+      return formatManualMoneyOrDna(manual?.totalEquity);
     case "quick_ratio":
-      return PROSPECTUS_DATA_NOT_AVAILABLE;
+      return formatManualRatioOrDna(manual?.quickRatio);
     case "current_assets":
       return formatProspectusMoneyMyr(fieldFromRaw(raw, "bscatot"));
     case "total_assets":
@@ -104,7 +116,9 @@ export function buildProspectusPageThreeBalanceSheet(
     rows: PROSPECTUS_PAGE_THREE_BALANCE_SHEET_ROW_KEYS.map((key) => ({
       key,
       label: PROSPECTUS_PAGE_THREE_BALANCE_SHEET_ROW_LABELS[key],
-      values: years.map((year) => valueForRow(key, year.rawFinancials)),
+      values: years.map((year) =>
+        valueForRow(key, year.rawFinancials, year.year, input)
+      ),
     })),
     audit: PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT,
   };

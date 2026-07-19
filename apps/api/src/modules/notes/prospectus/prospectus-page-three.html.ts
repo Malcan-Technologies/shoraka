@@ -26,7 +26,6 @@ function renderHeader(page: ProspectusPageThree): string {
   ${logoHtml}
   <p class="brand-name">${escapeHtml(header.brandName)}</p>
   <p>Brand Tagline: ${escapeHtml(header.tagline)}</p>
-  <p>Shariah Status Badge: ${escapeHtml(header.shariahStatusBadge)}</p>
 </header>`;
 }
 
@@ -39,13 +38,12 @@ function renderPageTitle(page: ProspectusPageThree): string {
 </section>`;
 }
 
-/** Visible Stage 2 — six-item metadata strip. */
+/** Visible Stage 2 — metadata strip (issuer identity omitted). */
 function renderMetadataStrip(page: ProspectusPageThree): string {
   const { metadata } = page;
   const labels = PROSPECTUS_PAGE_THREE_METADATA_LABELS;
   return `<section data-stage="2" data-content-stage="metadata-strip">
   <p>
-    ${escapeHtml(labels.issuer)}: ${escapeHtml(metadata.metadata.issuer)}<br />
     ${escapeHtml(labels.sector)}: ${escapeHtml(metadata.metadata.sector)}<br />
     ${escapeHtml(labels.riskRating)}: ${escapeHtml(metadata.metadata.riskRating)}<br />
     ${escapeHtml(labels.paymaster)}: ${escapeHtml(metadata.metadata.paymaster)}<br />
@@ -180,7 +178,9 @@ ${bodyRows}
 /** Visible Stage 6 — investor takeaways. Ends Page 3. */
 function renderTakeaways(page: ProspectusPageThree): string {
   const { investorTakeaways } = page;
+  const omitted = new Set(investorTakeaways.omittedKeys);
   const bodyRows = investorTakeaways.items
+    .filter((item) => !omitted.has(item.key))
     .map(
       (item) =>
         `<tr><th scope="row">${escapeHtml(item.label)}</th><td>${escapeHtml(

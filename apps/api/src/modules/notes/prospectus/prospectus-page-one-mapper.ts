@@ -70,6 +70,11 @@ export interface ProspectusPageOneBuilderInput {
   trackRecordMode: ProspectusPageOneTrackRecordMode;
   /** Frozen or live Stage 7/8 snapshot payload (null = published unavailable). */
   page1TrackRecordSnapshot: ProspectusPage1Snapshot | null;
+  /**
+   * Preview/development publication placeholders only.
+   * Prisma Note mapping must leave this undefined.
+   */
+  publicationContent?: import("./prospectus-placeholder-publication-content").ProspectusPublicationContent;
 }
 
 function unavailableTrackRecord(): ProspectusIssuerTrackRecord {
@@ -185,6 +190,7 @@ export async function mapProspectusPageOneDataToInput(
     mainFinancialTerms: {
       targetAmount,
       profitRatePercent,
+      serviceFeeRatePercent,
     },
     timingPurpose: {
       listingOpensAt,
@@ -294,15 +300,44 @@ export function buildProspectusPageOne(
   const noteIdentity = buildProspectusNoteIdentity(input.noteIdentity);
   const datesPaymaster = buildProspectusDatesPaymaster(input.datesPaymaster);
   const riskAssessment = buildProspectusRiskAssessment(input.riskAssessment);
+  const publication = input.publicationContent;
   const mainFinancialTerms = buildProspectusMainFinancialTerms(input.mainFinancialTerms);
   const timingPurpose = buildProspectusTimingPurpose(input.timingPurpose);
-  const paymentBasisShariah = buildProspectusPaymentBasisShariah(input.paymentBasisShariah);
+  const paymentBasisShariah = buildProspectusPaymentBasisShariah({
+    ...input.paymentBasisShariah,
+    paymentBasisTemplate: publication?.paymentBasisTemplate,
+  });
   const paymasterHighlight = buildProspectusPaymasterHighlight(input.paymasterHighlight);
   const issuerFundamentalsHighlight = buildProspectusIssuerFundamentalsHighlight(
     input.issuerFundamentalsHighlight
   );
   const returnHighlight = buildProspectusReturnHighlight(input.returnHighlight);
-  const shariahHighlight = buildShariahHighlightFromStage4c(paymentBasisShariah);
+  let shariahHighlight = buildShariahHighlightFromStage4c(paymentBasisShariah);
+
+  if (publication) {
+    const byKey = new Map(
+      publication.keyInvestorHighlights.map((h) => [h.key, h] as const)
+    );
+    const applyHighlight = <T extends { highlightTitle: string; highlightExplanation: string }>(
+      current: T,
+      key: string
+    ): T => {
+      const hit = byKey.get(key);
+      if (!hit || !hit.isVisible) return current;
+      return {
+        ...current,
+        highlightTitle: hit.title,
+        highlightExplanation: hit.description,
+      };
+    };
+    Object.assign(paymasterHighlight, applyHighlight(paymasterHighlight, "paymaster"));
+    Object.assign(
+      issuerFundamentalsHighlight,
+      applyHighlight(issuerFundamentalsHighlight, "issuer_fundamentals")
+    );
+    Object.assign(returnHighlight, applyHighlight(returnHighlight, "return"));
+    shariahHighlight = applyHighlight(shariahHighlight, "shariah");
+  }
   const atAGlance = buildAtAGlanceFromStages(mainFinancialTerms, datesPaymaster);
   const track = buildTrackRecordSections(
     input.trackRecordMode,

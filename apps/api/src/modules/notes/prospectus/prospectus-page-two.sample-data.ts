@@ -6,6 +6,7 @@
 import { MARKETPLACE_MIN_COMMIT_MYR } from "@cashsouk/types";
 import { buildProspectusPageTwo, type ProspectusPageTwoBuilderInput } from "./prospectus-page-two-mapper";
 import type { ProspectusPageTwo } from "./prospectus-page-two.types";
+import { PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT } from "./prospectus-placeholder-publication-content";
 import type { ProspectusPage2FinancialComparisonSnapshot } from "./prospectus-snapshot.types";
 
 const SAMPLE_FROZEN_FINANCIALS: ProspectusPage2FinancialComparisonSnapshot = {
@@ -78,8 +79,10 @@ export const SAMPLE_PROSPECTUS_PAGE_TWO_INPUT: ProspectusPageTwoBuilderInput = {
     name: "Sample Issuer Sdn Bhd",
     registration_number: "202001234567",
     industry: "Construction",
+    entity_type: "PRIVATE_LIMITED",
     country: "Malaysia",
-    business_description: "Civil engineering and infrastructure works.",
+    business_description:
+      "Sample Issuer Sdn Bhd — Civil engineering and infrastructure works.",
   },
   invoiceSnapshot: {
     details: { value: 625000 },
@@ -94,6 +97,7 @@ export const SAMPLE_PROSPECTUS_PAGE_TWO_INPUT: ProspectusPageTwoBuilderInput = {
   frozenFinancialComparison: SAMPLE_FROZEN_FINANCIALS,
   targetAmount: 500000,
   fundedAmount: 0,
+  publicationContent: PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
 };
 
 export const SAMPLE_PROSPECTUS_PAGE_TWO: ProspectusPageTwo = buildProspectusPageTwo(

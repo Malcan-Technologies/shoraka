@@ -54,9 +54,11 @@ export function buildProspectusPaymentBasisShariah(
   void input.financingStructure;
   void input.marketingShariahCompliantLabel;
 
+  const template = input.paymentBasisTemplate;
+
   return {
-    paymentBasis: PROSPECTUS_DATA_NOT_AVAILABLE,
-    shariahPrinciple: PROSPECTUS_DATA_NOT_AVAILABLE,
+    paymentBasis: template?.paymentBasis ?? PROSPECTUS_DATA_NOT_AVAILABLE,
+    shariahPrinciple: template?.shariahPrinciple ?? PROSPECTUS_DATA_NOT_AVAILABLE,
     audit: {
       paymentBasis: {
         sourceStatus: "not_stored",

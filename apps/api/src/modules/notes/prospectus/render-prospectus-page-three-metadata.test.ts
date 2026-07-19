@@ -38,20 +38,12 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
     expect(withSource().pageSubtitle).toBe("Data not available");
   });
 
-  it("maps issuer from frozen issuer name input", () => {
-    expect(withSource().metadata.issuer).toBe("ABC Engineering Sdn Bhd");
-  });
-
-  it("maps missing issuer to Data not available", () => {
-    expect(withSource({ issuerName: undefined }).metadata.issuer).toBe(
-      PROSPECTUS_DATA_NOT_AVAILABLE
+  it("hides issuer identity from metadata strip", () => {
+    expect(withSource().metadata).not.toHaveProperty("issuer");
+    expect(withSource({ issuerName: "ABC Engineering Sdn Bhd" }).metadata).not.toHaveProperty(
+      "issuer"
     );
-    expect(withSource({ issuerName: "" }).metadata.issuer).toBe(
-      PROSPECTUS_DATA_NOT_AVAILABLE
-    );
-    expect(withSource({ issuerName: "   " }).metadata.issuer).toBe(
-      PROSPECTUS_DATA_NOT_AVAILABLE
-    );
+    expect(PROSPECTUS_PAGE_THREE_METADATA_AUDIT.issuerIdentity.companyNameHidden).toBe(true);
   });
 
   it("maps sector from frozen issuer sector input", () => {
@@ -199,7 +191,8 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
     });
     expect(data.audit.financialSource.ctosFallbackAllowed).toBe(false);
     expect(data.financialYears.some((y) => y.year === 2020)).toBe(false);
-    expect(data.metadata.issuer).not.toBe("LIVE ORG");
+    expect(data.metadata).not.toHaveProperty("issuer");
+    expect(JSON.stringify(data.metadata)).not.toContain("LIVE ORG");
     expect(data.metadata.paymaster).not.toBe("LIVE PAYMASTER");
   });
 
@@ -223,12 +216,11 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
     expect(html).not.toMatch(/Cash\s*&\s*Bank/i);
   });
 
-  it("exposes exact visible metadata fields", () => {
+  it("exposes exact visible metadata fields without issuer", () => {
     const data = withSource();
     expect(Object.keys(data.metadata).sort()).toEqual(
       [
         "confidenceGrading",
-        "issuer",
         "paymaster",
         "paymasterGrading",
         "riskRating",
@@ -236,13 +228,13 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
       ].sort()
     );
     expect(PROSPECTUS_PAGE_THREE_METADATA_LABELS).toEqual({
-      issuer: "Issuer",
       sector: "Sector",
       riskRating: "Risk Rating",
       paymaster: "Paymaster",
       paymasterGrading: "Paymaster Grading",
       confidenceGrading: "Confidence Grading",
     });
+    expect(PROSPECTUS_PAGE_THREE_METADATA_LABELS).not.toHaveProperty("issuer");
   });
 
   it("does not expose raw IDs in Canva-facing fields or HTML", () => {

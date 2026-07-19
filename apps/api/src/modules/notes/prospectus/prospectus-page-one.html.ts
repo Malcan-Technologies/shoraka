@@ -153,7 +153,7 @@ export function buildProspectusPageOneHtml(page: ProspectusPageOne): string {
         Financing Amount: ${escapeHtml(s4a.financingAmount)}<br />
         Minimum Investment: ${escapeHtml(s4a.minimumInvestment)}<br />
         Profit Rate (p.a.): ${escapeHtml(s4a.profitRate)}<br />
-        Expected Return for Investment Period: ${escapeHtml(s4a.expectedReturnForInvestmentPeriod)}
+        Expected Return (p.a.): ${escapeHtml(s4a.expectedReturnForInvestmentPeriod)}
       </p>
     </section>
 
@@ -202,7 +202,7 @@ export function buildProspectusPageOneHtml(page: ProspectusPageOne): string {
         Annual Gross Profit Rate (p.a.): ${escapeHtml(s5c.annualGrossProfitRate)}<br />
         Tenure: ${escapeHtml(s5c.tenure)}<br />
         Annual Net Expected Return Rate (p.a.): ${escapeHtml(s5c.annualNetExpectedReturnRate)}<br />
-        Expected Return for Investment Period: ${escapeHtml(s5c.expectedReturnForInvestmentPeriod)}<br />
+        Expected Return (p.a.): ${escapeHtml(s5c.expectedReturnForInvestmentPeriod)}<br />
         Return Classification: ${escapeHtml(s5c.returnClassification)}<br />
         Tenure Classification: ${escapeHtml(s5c.tenureClassification)}<br />
         Highlight Title: ${escapeHtml(s5c.highlightTitle)}<br />

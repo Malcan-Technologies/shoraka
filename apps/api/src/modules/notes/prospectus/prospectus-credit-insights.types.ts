@@ -123,6 +123,14 @@ export interface ProspectusCreditInsights {
   litigationCheck: string;
   ccrisStatus: string;
   creditScoreExplanation: string;
+  /** Fields with officer selection `do_not_display` — not rendered. */
+  omittedFields: Array<
+    | "creditScore"
+    | "paymentBehaviour"
+    | "creditUtilisation"
+    | "litigationCheck"
+    | "ccrisStatus"
+  >;
   /** Audit/debug only — omitted from Canva HTML. */
   audit: ProspectusCreditInsightsAudit;
 }
@@ -132,6 +140,20 @@ export interface ProspectusCreditInsights {
  * Canva-facing values must not depend on these inputs.
  */
 export interface ProspectusCreditInsightsInput {
+  /**
+   * Optional typed officer/placeholder selections.
+   * Production Prisma path leaves this undefined → DNA.
+   */
+  creditInsightSelections?: Partial<
+    Record<
+      | "creditScore"
+      | "paymentBehaviour"
+      | "creditUtilisation"
+      | "litigationCheck"
+      | "ccrisStatus",
+      "positive" | "neutral" | "negative" | "do_not_display"
+    >
+  >;
   creditContext?: unknown;
   /** Observational CTOS/FICO-like score — must not become Credit Score. */
   ctosScore?: number | null;

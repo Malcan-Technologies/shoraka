@@ -1,6 +1,6 @@
 /**
- * SECTION: Prospectus Page 2 — About the Issuer (DATA STAGE 1)
- * WHY: Frozen issuer_snapshot only; SME unresolved; no live org/Application fallback
+ * SECTION: Prospectus Page 2 — About the Issuer (non-identifying fields only)
+ * WHY: Legal — no company name / registration / SSM on prospectus surfaces
  */
 
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
@@ -11,18 +11,19 @@ export { PROSPECTUS_DATA_NOT_AVAILABLE };
 export const PROSPECTUS_ISSUER_PROFILE_SECTION_HEADING = "ABOUT THE ISSUER";
 
 export interface ProspectusIssuerProfileAudit {
-  companyName: {
-    source: "notes.issuer_snapshot.name";
-    isFrozen: true;
-  };
-  registrationNumber: {
-    source: "notes.issuer_snapshot.registration_number";
-    isFrozen: true;
-    oldRegistrationNumberSupported: false;
+  identityHidden: {
+    companyNameHidden: true;
+    registrationNumberHidden: true;
+    oldSsmHidden: true;
   };
   industry: {
     source: "notes.issuer_snapshot.industry";
     isFrozen: true;
+  };
+  entityType: {
+    source: "notes.issuer_snapshot.entity_type";
+    isFrozen: true;
+    optional: true;
   };
   companySize: {
     status: "unresolved";
@@ -39,6 +40,7 @@ export interface ProspectusIssuerProfileAudit {
     originalSource: "applications.business_details.about_your_business.what_does_company_do";
     isFrozen: true;
     liveFallbackAllowed: false;
+    issuerNamePrefixStripped: true;
   };
   snapshot: {
     sourceType: "note_creation_snapshot";
@@ -46,18 +48,19 @@ export interface ProspectusIssuerProfileAudit {
 }
 
 export const PROSPECTUS_ISSUER_PROFILE_AUDIT: ProspectusIssuerProfileAudit = {
-  companyName: {
-    source: "notes.issuer_snapshot.name",
-    isFrozen: true,
-  },
-  registrationNumber: {
-    source: "notes.issuer_snapshot.registration_number",
-    isFrozen: true,
-    oldRegistrationNumberSupported: false,
+  identityHidden: {
+    companyNameHidden: true,
+    registrationNumberHidden: true,
+    oldSsmHidden: true,
   },
   industry: {
     source: "notes.issuer_snapshot.industry",
     isFrozen: true,
+  },
+  entityType: {
+    source: "notes.issuer_snapshot.entity_type",
+    isFrozen: true,
+    optional: true,
   },
   companySize: {
     status: "unresolved",
@@ -74,18 +77,18 @@ export const PROSPECTUS_ISSUER_PROFILE_AUDIT: ProspectusIssuerProfileAudit = {
     originalSource: "applications.business_details.about_your_business.what_does_company_do",
     isFrozen: true,
     liveFallbackAllowed: false,
+    issuerNamePrefixStripped: true,
   },
   snapshot: {
     sourceType: "note_creation_snapshot",
   },
 };
 
-/** Canva-facing fields only. */
+/** Canva-facing fields only — no issuer identifiers. */
 export interface ProspectusIssuerProfile {
   sectionHeading: string;
-  companyName: string;
-  registrationNumber: string;
   industry: string;
+  entityType: string;
   companySize: string;
   registeredCountry: string;
   businessDescription: string;
@@ -121,7 +124,7 @@ export interface ProspectusIssuerProfileInput {
 export interface ProspectusIssuerProfileFieldSource {
   label: string;
   canonicalSource: string;
-  availability: "static" | "stored" | "unresolved";
+  availability: "static" | "stored" | "unresolved" | "hidden";
   surface: "canva" | "audit";
   possibleAlternatives: string;
   notes: string;
@@ -129,9 +132,8 @@ export interface ProspectusIssuerProfileFieldSource {
 
 export const PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES: Record<
   | "sectionHeading"
-  | "companyName"
-  | "registrationNumber"
   | "industry"
+  | "entityType"
   | "companySize"
   | "registeredCountry"
   | "businessDescription",
@@ -145,22 +147,6 @@ export const PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES: Record<
     possibleAlternatives: "none",
     notes: "ABOUT THE ISSUER",
   },
-  companyName: {
-    label: "Company Name",
-    canonicalSource: "notes.issuer_snapshot.name",
-    availability: "stored",
-    surface: "canva",
-    possibleAlternatives: "live IssuerOrganization.name; CTOS company name — not used",
-    notes: "Frozen at Note create. No live fallback.",
-  },
-  registrationNumber: {
-    label: "Registration Number",
-    canonicalSource: "notes.issuer_snapshot.registration_number",
-    availability: "stored",
-    surface: "canva",
-    possibleAlternatives: "old SSM; live registration_number — not used",
-    notes: "New SSM only, displayed as stored. Old SSM unsupported.",
-  },
   industry: {
     label: "Industry",
     canonicalSource: "notes.issuer_snapshot.industry",
@@ -168,6 +154,14 @@ export const PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES: Record<
     surface: "canva",
     possibleAlternatives: "live COD industry — not used",
     notes: "Frozen at Note create. Preserve stored value.",
+  },
+  entityType: {
+    label: "Entity Type",
+    canonicalSource: "notes.issuer_snapshot.entity_type",
+    availability: "stored",
+    surface: "canva",
+    possibleAlternatives: "paymaster entity_type — not used here",
+    notes: "Optional frozen field; DNA when absent.",
   },
   companySize: {
     label: "Company Size",
@@ -193,6 +187,6 @@ export const PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES: Record<
     possibleAlternatives:
       "live what_does_company_do; product_snapshot.description; purpose — not used",
     notes:
-      "Frozen from applications.business_details.about_your_business.what_does_company_do at Note create.",
+      "Frozen description; leading issuer company name stripped when present. Name/reg never rendered.",
   },
 };

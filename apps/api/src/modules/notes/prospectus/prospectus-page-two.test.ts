@@ -326,7 +326,8 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
         })
       );
       expect(page.financialComparisonSource.years).toEqual([]);
-      expect(page.issuerProfile.companyName).toBe("Issuer Co");
+      expect(page.issuerProfile).not.toHaveProperty("companyName");
+      expect(page.issuerProfile.industry).toBe("Construction");
     });
   });
 
@@ -339,8 +340,8 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
         })
       );
 
-      expect(page.issuerProfile.companyName).toBe("Issuer Co");
-      expect(page.issuerProfile.registrationNumber).toBe("1234567890");
+      expect(page.issuerProfile).not.toHaveProperty("companyName");
+      expect(page.issuerProfile).not.toHaveProperty("registrationNumber");
       expect(page.issuerProfile.industry).toBe("Construction");
       expect(page.issuerProfile.companySize).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
       expect(page.issuerProfile.registeredCountry).toBe("Registered in Malaysia");
@@ -405,9 +406,10 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
           liveFinancialStatements: null,
         })
       );
-      expect(page.issuerProfile.companyName).toBe("Old Issuer");
-      expect(page.issuerProfile.registrationNumber).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+      expect(page.issuerProfile).not.toHaveProperty("companyName");
+      expect(page.issuerProfile).not.toHaveProperty("registrationNumber");
       expect(page.issuerProfile.companySize).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+      expect(page.issuerProfile.industry).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     });
   });
 

@@ -44,7 +44,7 @@ export function buildProspectusMainFinancialTermsHtml(
       Financing Amount: ${escapeHtml(data.financingAmount)}<br />
       Minimum Investment: ${escapeHtml(data.minimumInvestment)}<br />
       Profit Rate (p.a.): ${escapeHtml(data.profitRate)}<br />
-      Expected Return for Investment Period: ${escapeHtml(data.expectedReturnForInvestmentPeriod)}
+      Expected Return (p.a.): ${escapeHtml(data.expectedReturnForInvestmentPeriod)}
     </p>
   </section>
 </body>

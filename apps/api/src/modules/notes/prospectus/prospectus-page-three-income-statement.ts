@@ -1,6 +1,6 @@
 /**
- * SECTION: Build Page 3 Stage 2 income statement rows
- * WHY: Reuse Page 2 years + parsers/formatters; unsupported Canva rows stay DNA
+ * SECTION: Build Page 3 Stage 3 income statement rows
+ * WHY: Reuse Page 2 years + parsers/formatters; unsupported rows allow manual fill only
  */
 
 import { calculateProfitMargin } from "@cashsouk/types";
@@ -8,6 +8,10 @@ import {
   formatProspectusFinancialPercentFromRatio,
   parseProspectusFinancialNumber,
 } from "./prospectus-financial-comparison-metrics";
+import {
+  formatManualMoneyOrDna,
+  yearManualInputs,
+} from "./prospectus-financial-manual-inputs";
 import { formatProspectusMoneyMyr } from "./prospectus-main-financial-terms";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
@@ -27,15 +31,21 @@ function fieldFromRaw(raw: Record<string, unknown>, key: string): number | null 
 
 function valueForRow(
   key: ProspectusPageThreeIncomeStatementRowKey,
-  raw: Record<string, unknown>
+  raw: Record<string, unknown>,
+  year: number,
+  input: ProspectusPageThreeIncomeStatementInput
 ): string {
+  const manual = yearManualInputs(input.prospectusFinancialInputs?.years, year);
+
   switch (key) {
     case "revenue":
       return formatProspectusMoneyMyr(fieldFromRaw(raw, "turnover"));
     case "gross_profit":
+      return formatManualMoneyOrDna(manual?.grossProfit);
     case "ebitda":
+      return formatManualMoneyOrDna(manual?.ebitda);
     case "ebit":
-      return PROSPECTUS_DATA_NOT_AVAILABLE;
+      return formatManualMoneyOrDna(manual?.ebit);
     case "profit_before_tax":
       return formatProspectusMoneyMyr(fieldFromRaw(raw, "plnpbt"));
     case "profit_after_tax":
@@ -72,7 +82,7 @@ export function buildProspectusPageThreeIncomeStatement(
     rows: PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_ROW_KEYS.map((key) => ({
       key,
       label: PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_ROW_LABELS[key],
-      values: years.map((year) => valueForRow(key, year.rawFinancials)),
+      values: years.map((year) => valueForRow(key, year.rawFinancials, year.year, input)),
     })),
     audit: PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_AUDIT,
   };

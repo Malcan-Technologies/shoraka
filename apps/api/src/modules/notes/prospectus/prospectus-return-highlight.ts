@@ -45,6 +45,7 @@ export function buildProspectusReturnHighlight(
   const terms = buildProspectusMainFinancialTerms({
     targetAmount: null,
     profitRatePercent: input.profitRatePercent,
+    serviceFeeRatePercent: input.serviceFeeRatePercent,
   });
   const timing = buildProspectusTenureAndMaturity({
     listingOpensAt: input.listingOpensAt,

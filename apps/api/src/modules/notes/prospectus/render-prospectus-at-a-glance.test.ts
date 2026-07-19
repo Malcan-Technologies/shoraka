@@ -61,11 +61,12 @@ describe("prospectus At a Glance (Page 1 DATA STAGE 6)", () => {
     expect(missing.profitRate).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("keeps expected return unresolved and tenure/min from Stage 2 / Stage 4A", () => {
+  it("reuses Stage 4A portal expected return and Stage 2 tenure / min", () => {
     const glance = buildProspectusAtAGlance(SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT);
     const terms = buildProspectusMainFinancialTerms({
       targetAmount: SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT.targetAmount,
       profitRatePercent: SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT.profitRatePercent,
+      serviceFeeRatePercent: SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT.serviceFeeRatePercent,
     });
     const timing = buildProspectusTenureAndMaturity({
       listingOpensAt: SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT.listingOpensAt,
@@ -73,7 +74,7 @@ describe("prospectus At a Glance (Page 1 DATA STAGE 6)", () => {
     });
 
     expect(glance.expectedReturn).toBe(terms.expectedReturnForInvestmentPeriod);
-    expect(glance.expectedReturn).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(glance.expectedReturn).toBe("10.8%");
     expect(glance.tenure).toBe(timing.tenure);
     expect(glance.tenure).toBe("120 days");
     expect(glance.minimumInvestment).toBe(terms.minimumInvestment);
@@ -104,12 +105,14 @@ describe("prospectus At a Glance (Page 1 DATA STAGE 6)", () => {
     const data = buildProspectusAtAGlance(SAMPLE_PROSPECTUS_AT_A_GLANCE_INPUT);
     expect(data.audit).toEqual(PROSPECTUS_AT_A_GLANCE_AUDIT);
     expect(data.audit.profitRate.meaning).toBe("annual_gross_before_fees");
-    expect(data.audit.expectedReturn.formulaDecision).toBe("pending");
+    expect(data.audit.expectedReturn.formulaDecision).toBe(
+      "resolveNetExpectedReturnRatePercent"
+    );
 
     const html = buildProspectusAtAGlanceDocument(data);
     expect(html).toContain("Financing Amount: RM 500,000.00");
     expect(html).toContain("Profit Rate (p.a.): 12%");
-    expect(html).toContain("Expected Return: Data not available");
+    expect(html).toContain("Expected Return: 10.8%");
     expect(html).toContain("Tenure: 120 days");
     expect(html).toContain("Minimum Investment: RM 100.00");
     expect(html).toContain("Profit Rate (p.a.)");

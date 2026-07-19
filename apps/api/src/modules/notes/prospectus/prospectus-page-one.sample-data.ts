@@ -5,6 +5,7 @@
 
 import { buildProspectusPageOne, type ProspectusPageOneBuilderInput } from "./prospectus-page-one-mapper";
 import type { ProspectusPageOne } from "./prospectus-page-one.types";
+import { PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT } from "./prospectus-placeholder-publication-content";
 
 export const SAMPLE_PROSPECTUS_PAGE_ONE_INPUT: ProspectusPageOneBuilderInput = {
   noteId: "sample-note-page-one",
@@ -17,7 +18,7 @@ export const SAMPLE_PROSPECTUS_PAGE_ONE_INPUT: ProspectusPageOneBuilderInput = {
   },
   datesPaymaster: {
     listingOpensAt: "2025-05-15T00:00:00.000Z",
-    listingClosesAt: "2025-05-22T00:00:00.000Z",
+    listingClosesAt: "2025-05-29T00:00:00.000Z",
     maturityDate: "2025-09-12T00:00:00.000Z",
     paymasterName: "Ministry of Finance Malaysia",
     paymasterEntityType: "Federal Government Agency",
@@ -28,7 +29,9 @@ export const SAMPLE_PROSPECTUS_PAGE_ONE_INPUT: ProspectusPageOneBuilderInput = {
   mainFinancialTerms: {
     targetAmount: 500_000,
     profitRatePercent: 12,
+    serviceFeeRatePercent: 10,
   },
+  publicationContent: PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
   timingPurpose: {
     listingOpensAt: "2025-05-15T00:00:00.000Z",
     maturityDate: "2025-09-12T00:00:00.000Z",

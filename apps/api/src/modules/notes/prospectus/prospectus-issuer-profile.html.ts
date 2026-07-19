@@ -1,6 +1,6 @@
 /**
  * SECTION: Plain HTML for Page 2 About the Issuer preview
- * WHY: Unstyled Canva-facing fields only — audit/source paths excluded
+ * WHY: Non-identifying fields only — no company name / registration
  */
 
 import type { ProspectusIssuerProfile } from "./prospectus-issuer-profile.types";
@@ -27,9 +27,8 @@ export function buildProspectusIssuerProfileHtml(data: ProspectusIssuerProfile):
   <section>
     <h2>${escapeHtml(data.sectionHeading)}</h2>
     <p>
-      Company Name: ${escapeHtml(data.companyName)}<br />
-      Registration Number: ${escapeHtml(data.registrationNumber)}<br />
       Industry: ${escapeHtml(data.industry)}<br />
+      Entity Type: ${escapeHtml(data.entityType)}<br />
       Company Size: ${escapeHtml(data.companySize)}<br />
       Registered Country: ${escapeHtml(data.registeredCountry)}<br />
       Business Description: ${escapeHtml(data.businessDescription)}

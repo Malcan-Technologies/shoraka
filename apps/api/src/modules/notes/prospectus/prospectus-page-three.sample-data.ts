@@ -9,6 +9,7 @@ import {
   type ProspectusPageThreeBuilderInput,
 } from "./prospectus-page-three-mapper";
 import type { ProspectusPageThree } from "./prospectus-page-three.types";
+import { PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT } from "./prospectus-placeholder-publication-content";
 
 export const SAMPLE_PROSPECTUS_PAGE_THREE_INPUT: ProspectusPageThreeBuilderInput = {
   noteId: "clsamplepage3preview001",
@@ -52,6 +53,7 @@ export const SAMPLE_PROSPECTUS_PAGE_THREE_INPUT: ProspectusPageThreeBuilderInput
     ),
   },
   frozenFinancialComparison: null,
+  publicationContent: PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
 };
 
 export const SAMPLE_PROSPECTUS_PAGE_THREE: ProspectusPageThree = buildProspectusPageThree(

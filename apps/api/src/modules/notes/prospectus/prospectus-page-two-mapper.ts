@@ -47,6 +47,11 @@ export type ProspectusPageTwoBuilderInput = {
   liveFinancialStatements: unknown | null;
   /** Parsed frozen Stage 4 — only when published + valid. */
   frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot | null;
+  /**
+   * Preview/development publication placeholders only.
+   * Prisma Note mapping must leave this undefined.
+   */
+  publicationContent?: import("./prospectus-placeholder-publication-content").ProspectusPublicationContent;
   targetAmount: number;
   fundedAmount: number;
 };
@@ -189,8 +194,12 @@ export function buildProspectusPageTwo(
     paymasterTrackRecord: buildProspectusPaymasterTrackRecord(),
     financialComparisonSource,
     financialComparisonMetrics,
-    creditInsights: buildProspectusCreditInsights(),
-    invoiceWorkNarrative: buildProspectusInvoiceWorkNarrative(),
+    creditInsights: buildProspectusCreditInsights({
+      creditInsightSelections: input.publicationContent?.creditInsightSelections,
+    }),
+    invoiceWorkNarrative: buildProspectusInvoiceWorkNarrative({
+      invoiceWorkStatements: input.publicationContent?.invoiceWorkStatements,
+    }),
     soukscoreRatingScale: buildProspectusSoukscoreRatingScale({
       selectedRiskRating: parseInvoiceSnapshotRiskRating(input.invoiceSnapshot),
     }),

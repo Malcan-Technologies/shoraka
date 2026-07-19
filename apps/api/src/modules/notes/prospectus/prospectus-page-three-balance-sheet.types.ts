@@ -191,6 +191,18 @@ export interface ProspectusPageThreeBalanceSheet {
 export interface ProspectusPageThreeBalanceSheetInput {
   /** Existing Page 2 Stage 4A result — required; never re-parsed here. */
   financialSource: ProspectusFinancialComparisonSource;
+  /** Temporary builder-only fills for unsupported rows only. */
+  prospectusFinancialInputs?: {
+    years: Record<
+      string,
+      {
+        cashAndBank?: number | string | null;
+        tradeReceivables?: number | string | null;
+        totalEquity?: number | string | null;
+        quickRatio?: number | string | null;
+      }
+    >;
+  };
   /** Observational — must never fill years or cells. */
   ctosFinancials?: unknown;
 }

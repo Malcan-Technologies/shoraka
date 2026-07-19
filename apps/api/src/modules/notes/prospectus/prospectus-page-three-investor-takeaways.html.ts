@@ -17,7 +17,9 @@ function escapeHtml(value: string): string {
 export function buildProspectusPageThreeInvestorTakeawaysHtml(
   data: ProspectusPageThreeInvestorTakeaways
 ): string {
+  const omitted = new Set(data.omittedKeys ?? []);
   const bodyRows = data.items
+    .filter((item) => !omitted.has(item.key))
     .map(
       (item) =>
         `<tr><th scope="row">${escapeHtml(item.label)}</th><td>${escapeHtml(

@@ -6,6 +6,54 @@
  * Active Note Identity sources live in prospectus-note-identity.types.ts.
  *
  * =============================================================================
+ * BOSS-REVIEW ALIGNMENT — VALUE CATEGORIES (immediate step)
+ * =============================================================================
+ *
+ * AUTO-DERIVED (portal / frozen Note / shared calculators)
+ * - Listing Date → note_listings.opens_at
+ * - Closing Date → note_listings.closes_at (canonical; display may append duration)
+ * - Maturity Date → notes.maturity_date
+ * - Expected Return (p.a.) → resolveNetExpectedReturnRatePercent (portal net annual)
+ * - Confirmed Page 2/3 financial rows from Application freeze (no live published fallback)
+ * - SoukScore grade scale AAA | AA | A | BBB | BB | B (marketplace-consistent; Canva A- rejected)
+ *
+ * FIXED TEMPLATE (product/template; not free text)
+ * - Payment Basis / Shariah Principle — typed fixed_template placeholders until approved copy
+ * - Six Investor Takeaway category names + order (fixed)
+ * - Dropdown option catalogues versioned in code (placeholders for now)
+ *
+ * FUTURE OFFICER-SELECTED (pre-marketplace review workflow — NOT built yet)
+ * - Key Investor Highlights
+ * - Credit Insights labels
+ * - Invoice / work-performed statements
+ * - Investor Takeaway description option keys
+ * - Missing Page 3 financial values (manual fills only for unsupported rows)
+ * - Paymaster track-record metrics (no reliable source today)
+ *
+ * HIDDEN (legal privacy)
+ * - Issuer company name
+ * - SSM / registration number (and old SSM)
+ * - Page 3 Issuer metadata strip item
+ *
+ * PLACEHOLDERS
+ * - Central module: prospectus-placeholder-publication-content.ts
+ * - Sample/preview builders may pass publicationContent
+ * - Prisma Note mappers must leave publicationContent undefined (no silent production fill)
+ * - Do not overwrite Application or CTOS source records
+ * - Final approved dropdown wording pending risk/legal
+ *
+ * CTOS BOUNDARY (unchanged production mapping)
+ * - Page 3 financials remain Application-statement derived via Page 2 freeze
+ * - CTOS may exist as admin/suggestion source later; not investor display mapping now
+ * - Never overwrite CTOS or Application with prospectus-specific entries
+ *
+ * CONFLICT NOTE (meeting vs portal)
+ * - Meeting suggested Expected Return start = Closing Date
+ * - Portal net annual rate does NOT use Closing Date as profit-start
+ * - Period $ returns use activated_at → maturity on position surfaces
+ * - Prospectus follows portal net annual helper; Closing Date is date display only
+ *
+ * =============================================================================
  * PAGE 1 PRISMA MAPPER + FULL ASSEMBLY (implemented)
  * =============================================================================
  *
@@ -44,14 +92,14 @@
  *
  * Page size: A4 210mm × 297mm from existing prospectus-page1.html.ts convention
  *
- * Still unresolved (not Page 1 money):
- * - Expected period return formula (Stages 4A / 5C / 6)
- * - Payment Basis / Shariah Principle stored fields (4C / 5D)
- * - Stage 5A–5B claim titles/explanations
- * - Page 2 rating scale alignment with SoukScore AAA–B
+ * Still unresolved / deferred to pre-marketplace workflow:
+ * - Officer-selected highlight / credit / invoice / takeaway persistence
+ * - Approved Payment Basis / Shariah Principle production copy
+ * - Paymaster track-record reliable source
+ * - Final SoukScore grade-scale copy confirmation (scale itself unchanged)
  *
  * =============================================================================
- * PAGE 2 — STAGE 1 ABOUT THE ISSUER (implemented)
+ * PAGE 2 — STAGE 1 ABOUT THE ISSUER (implemented; identity hidden)
  * =============================================================================
  *
  * Module: prospectus-issuer-profile.*
@@ -59,18 +107,17 @@
  * Output: apps/api/tmp/prospectus/prospectus-issuer-profile-preview.html
  * Freeze helper: note-issuer-snapshot.ts (NoteService.createFromInvoiceSource)
  *
- * Confirmed Canva fields (frozen notes.issuer_snapshot only):
- * - Company Name → notes.issuer_snapshot.name
- * - Registration Number → notes.issuer_snapshot.registration_number
- *   (new SSM only; old SSM unsupported; no "number (old)" combine)
+ * Visible non-identifying fields (frozen notes.issuer_snapshot):
  * - Industry → notes.issuer_snapshot.industry
+ * - Entity Type → notes.issuer_snapshot.entity_type / type when available
+ * - Company Size — DNA until approved classification (inferenceAllowed = false)
  * - Registered Country → notes.issuer_snapshot.country
  *   display: "Registered in {country}"; no hardcoded Malaysia; missing → DNA
  * - Business Description → notes.issuer_snapshot.business_description
- *   original at create: applications.business_details.about_your_business.what_does_company_do
+ *   (leading issuer name stripped when present)
  *
- * Unresolved:
- * - Company Size / SME — no approved classification; inferenceAllowed = false
+ * HIDDEN (not rendered; rows removed — not "Data not available"):
+ * - Company Name / Registration Number / old SSM
  *
  * Backward compatibility: old Notes missing new snapshot keys → Data not available
  * No live IssuerOrganization / Application fallback at render.

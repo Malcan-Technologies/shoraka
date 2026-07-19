@@ -80,7 +80,7 @@ describe("prospectus Page 3 investor takeaways (DATA STAGE 6)", () => {
     expect(new Set(data.items.map((i) => i.key)).size).toBe(6);
   });
 
-  it("keeps every takeaway as Data not available with no recommendation", () => {
+  it("keeps every takeaway as Data not available without typed selections", () => {
     const data = buildProspectusPageThreeInvestorTakeaways(
       SAMPLE_PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAYS_INPUT
     );
@@ -93,6 +93,24 @@ describe("prospectus Page 3 investor takeaways (DATA STAGE 6)", () => {
       PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAYS_AUDIT.rules
         .overallInvestmentRecommendationAllowed
     ).toBe(false);
+  });
+
+  it("renders typed placeholder selections and omits do_not_display", async () => {
+    const { PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT } = await import(
+      "./prospectus-placeholder-publication-content"
+    );
+    const data = buildProspectusPageThreeInvestorTakeaways({
+      ...SAMPLE_PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAYS_INPUT,
+      investorTakeawayOptions:
+        PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT.investorTakeawayOptions,
+      investorTakeawaySelections:
+        PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT.investorTakeawaySelections,
+    });
+    expect(data.items[0]?.takeaway).toContain("Placeholder");
+    expect(data.omittedKeys).toContain("leverage");
+    const html = buildProspectusPageThreeInvestorTakeawaysDocument(data);
+    expect(html).toContain("Placeholder — revenue/profitability");
+    expect(html).not.toContain(">Leverage<");
   });
 
   it("does not generate claims from positive, negative, zero, or mixed financial cases", () => {

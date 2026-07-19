@@ -12,6 +12,7 @@ import type {
 export const SAMPLE_PROSPECTUS_MAIN_FINANCIAL_TERMS_INPUT: ProspectusMainFinancialTermsInput = {
   targetAmount: 500_000,
   profitRatePercent: 12,
+  serviceFeeRatePercent: 10,
 };
 
 export const SAMPLE_PROSPECTUS_MAIN_FINANCIAL_TERMS: ProspectusMainFinancialTerms =

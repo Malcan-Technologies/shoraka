@@ -119,6 +119,8 @@ export const PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAYS_AUDIT: ProspectusPageThree
 export interface ProspectusPageThreeInvestorTakeaways {
   sectionHeading: string;
   items: ProspectusPageThreeInvestorTakeawayItem[];
+  /** Category keys with selection `do_not_display` — not rendered. */
+  omittedKeys: string[];
   /** Audit/debug only — omitted from Canva HTML. */
   audit: ProspectusPageThreeInvestorTakeawaysAudit;
 }
@@ -133,6 +135,18 @@ export interface ProspectusPageThreeInvestorTakeawaysInput {
   balanceSheet: ProspectusPageThreeBalanceSheet;
   coverageEfficiency: ProspectusPageThreeCoverageEfficiency;
   trends: ProspectusPageThreeTrends;
+  /**
+   * Optional typed catalogue + selections (preview/future workflow).
+   * Production Prisma path leaves these undefined → DNA.
+   * Free-text takeaways are not accepted.
+   */
+  investorTakeawayOptions?: Record<
+    ProspectusPageThreeInvestorTakeawayKey,
+    Array<{ key: string; text: string | null }>
+  >;
+  investorTakeawaySelections?: Partial<
+    Record<ProspectusPageThreeInvestorTakeawayKey, string>
+  >;
   /** Observational — must never fill takeaways. */
   ctosFinancials?: unknown;
   /** Observational — must never fill takeaways. */

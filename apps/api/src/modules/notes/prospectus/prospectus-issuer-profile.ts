@@ -1,6 +1,6 @@
 /**
  * SECTION: Build Page 2 About the Issuer view-model
- * WHY: Frozen issuer_snapshot only; SME DNA; no live org/Application/product fallback
+ * WHY: Non-identifying frozen fields only; no company name / registration on prospectus
  */
 
 import { parseIssuerSnapshot } from "./prospectus-json-guards";
@@ -27,6 +27,29 @@ export function formatProspectusRegisteredCountry(
   return `Registered in ${value}`;
 }
 
+/**
+ * Strip a leading issuer company name from business description so the
+ * description cannot re-introduce a hidden identifier.
+ */
+export function sanitizeProspectusBusinessDescription(
+  description: string | null | undefined,
+  issuerName: string | null | undefined
+): string {
+  const text = nonEmptyString(description);
+  if (!text) return PROSPECTUS_DATA_NOT_AVAILABLE;
+  const name = nonEmptyString(issuerName);
+  if (!name) return text;
+  if (text.toLowerCase() === name.toLowerCase()) {
+    return PROSPECTUS_DATA_NOT_AVAILABLE;
+  }
+  const prefix = new RegExp(
+    `^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*[-–—:,]?\\s*`,
+    "i"
+  );
+  const stripped = text.replace(prefix, "").trim();
+  return stripped.length > 0 ? stripped : PROSPECTUS_DATA_NOT_AVAILABLE;
+}
+
 export function buildProspectusIssuerProfile(
   input: ProspectusIssuerProfileInput
 ): ProspectusIssuerProfile {
@@ -44,12 +67,14 @@ export function buildProspectusIssuerProfile(
 
   return {
     sectionHeading: PROSPECTUS_ISSUER_PROFILE_SECTION_HEADING,
-    companyName: snapshot.name ?? PROSPECTUS_DATA_NOT_AVAILABLE,
-    registrationNumber: snapshot.registrationNumber ?? PROSPECTUS_DATA_NOT_AVAILABLE,
     industry: snapshot.industry ?? PROSPECTUS_DATA_NOT_AVAILABLE,
+    entityType: snapshot.entityType ?? PROSPECTUS_DATA_NOT_AVAILABLE,
     companySize: PROSPECTUS_DATA_NOT_AVAILABLE,
     registeredCountry: formatProspectusRegisteredCountry(snapshot.country),
-    businessDescription: snapshot.businessDescription ?? PROSPECTUS_DATA_NOT_AVAILABLE,
+    businessDescription: sanitizeProspectusBusinessDescription(
+      snapshot.businessDescription,
+      snapshot.name
+    ),
     audit: PROSPECTUS_ISSUER_PROFILE_AUDIT,
   };
 }

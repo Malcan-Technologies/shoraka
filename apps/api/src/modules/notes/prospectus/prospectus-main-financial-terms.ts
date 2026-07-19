@@ -1,12 +1,13 @@
 /**
  * SECTION: Build Main Financial Terms view-model
- * WHY: One canonical source per confirmed field; period return stays unresolved
+ * WHY: One canonical source per confirmed field; expected return = portal net p.a. helper
  */
 
 import {
   formatInvestorReturnRatePercent,
   MARKETPLACE_MIN_COMMIT_MYR,
   NOTE_MONEY_DECIMALS,
+  resolveNetExpectedReturnRatePercent,
   roundNoteMoney,
 } from "@cashsouk/types";
 import {
@@ -63,6 +64,21 @@ export function formatProspectusProfitRatePa(
   return `${rateLabel} p.a.`;
 }
 
+/** Portal-consistent Expected Return (p.a.) — net after service fee. */
+export function formatProspectusExpectedReturnPa(
+  profitRatePercent: number | null | undefined,
+  serviceFeeRatePercent: number | null | undefined
+): string {
+  const net = resolveNetExpectedReturnRatePercent({
+    profitRatePercent,
+    serviceFeeRatePercent,
+  });
+  if (net == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
+  const rateLabel = formatInvestorReturnRatePercent(net);
+  if (rateLabel === "-") return PROSPECTUS_DATA_NOT_AVAILABLE;
+  return rateLabel;
+}
+
 export function buildProspectusMainFinancialTerms(
   input: ProspectusMainFinancialTermsInput
 ): ProspectusMainFinancialTerms {
@@ -70,7 +86,10 @@ export function buildProspectusMainFinancialTerms(
     financingAmount: formatProspectusMoneyMyr(input.targetAmount),
     minimumInvestment: formatProspectusMoneyMyr(MARKETPLACE_MIN_COMMIT_MYR),
     profitRate: formatProspectusProfitRatePercent(input.profitRatePercent),
-    expectedReturnForInvestmentPeriod: PROSPECTUS_DATA_NOT_AVAILABLE,
+    expectedReturnForInvestmentPeriod: formatProspectusExpectedReturnPa(
+      input.profitRatePercent,
+      input.serviceFeeRatePercent
+    ),
     audit: {
       expectedReturn: PROSPECTUS_EXPECTED_RETURN_AUDIT,
     },

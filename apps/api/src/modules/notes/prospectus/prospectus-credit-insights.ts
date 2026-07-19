@@ -1,6 +1,6 @@
 /**
  * SECTION: Build Page 2 Credit Insights view-model
- * WHY: Always Data not available — no approved classifiers; no system mixing
+ * WHY: Officer-selected typed options only; never infer from CTOS/SoukScore/AML/KYC
  */
 
 import {
@@ -10,6 +10,10 @@ import {
   type ProspectusCreditInsights,
   type ProspectusCreditInsightsInput,
 } from "./prospectus-credit-insights.types";
+import {
+  resolveCreditInsightLabel,
+  type ProspectusCreditInsightFieldKey,
+} from "./prospectus-placeholder-publication-content";
 
 export function buildProspectusCreditInsights(
   input: ProspectusCreditInsightsInput = {}
@@ -35,14 +39,31 @@ export function buildProspectusCreditInsights(
   void input.kycStatus;
   void input.ssmCreditworthinessSentence;
 
+  const selections = input.creditInsightSelections;
+  const omittedFields: ProspectusCreditInsightFieldKey[] = [];
+
+  const resolve = (
+    field: ProspectusCreditInsightFieldKey
+  ): string => {
+    if (selections == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
+    const key = selections[field];
+    if (key == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
+    if (key === "do_not_display") {
+      omittedFields.push(field);
+      return "";
+    }
+    return resolveCreditInsightLabel(key) ?? PROSPECTUS_DATA_NOT_AVAILABLE;
+  };
+
   return {
     sectionHeading: PROSPECTUS_CREDIT_INSIGHTS_SECTION_HEADING,
-    creditScore: PROSPECTUS_DATA_NOT_AVAILABLE,
-    paymentBehaviour: PROSPECTUS_DATA_NOT_AVAILABLE,
-    creditUtilisation: PROSPECTUS_DATA_NOT_AVAILABLE,
-    litigationCheck: PROSPECTUS_DATA_NOT_AVAILABLE,
-    ccrisStatus: PROSPECTUS_DATA_NOT_AVAILABLE,
+    creditScore: resolve("creditScore"),
+    paymentBehaviour: resolve("paymentBehaviour"),
+    creditUtilisation: resolve("creditUtilisation"),
+    litigationCheck: resolve("litigationCheck"),
+    ccrisStatus: resolve("ccrisStatus"),
     creditScoreExplanation: PROSPECTUS_DATA_NOT_AVAILABLE,
+    omittedFields,
     audit: PROSPECTUS_CREDIT_INSIGHTS_AUDIT,
   };
 }

@@ -9,6 +9,11 @@ import {
   parseProspectusFinancialNumber,
 } from "./prospectus-financial-comparison-metrics";
 import {
+  formatManualMoneyOrDna,
+  formatManualRatioOrDna,
+  yearManualInputs,
+} from "./prospectus-financial-manual-inputs";
+import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_AUDIT,
   PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_ROW_KEYS,
@@ -26,19 +31,31 @@ function fieldFromRaw(raw: Record<string, unknown>, key: string): number | null 
 
 function valueForRow(
   key: ProspectusPageThreeCoverageEfficiencyRowKey,
-  raw: Record<string, unknown>
+  raw: Record<string, unknown>,
+  year: number,
+  input: ProspectusPageThreeCoverageEfficiencyInput
 ): string {
+  const manual = yearManualInputs(input.prospectusFinancialInputs?.years, year);
+
   switch (key) {
     case "operating_cash_flow":
+      return formatManualMoneyOrDna(manual?.operatingCashFlow);
     case "free_cash_flow":
+      return formatManualMoneyOrDna(manual?.freeCashFlow);
     case "interest_coverage":
+      return formatManualRatioOrDna(manual?.interestCoverage);
     case "dscr":
+      return formatManualRatioOrDna(manual?.dscr);
     case "debt_equity":
+      return formatManualRatioOrDna(manual?.debtEquity);
     case "return_on_assets":
+      return formatManualRatioOrDna(manual?.returnOnAssets);
     case "receivables_days":
+      return formatManualRatioOrDna(manual?.receivablesDays);
     case "payables_days":
+      return formatManualRatioOrDna(manual?.payablesDays);
     case "asset_turnover":
-      return PROSPECTUS_DATA_NOT_AVAILABLE;
+      return formatManualRatioOrDna(manual?.assetTurnover);
     case "return_on_equity": {
       const plnpat = fieldFromRaw(raw, "plnpat");
       const bsqpuc = fieldFromRaw(raw, "bsqpuc");
@@ -71,7 +88,9 @@ export function buildProspectusPageThreeCoverageEfficiency(
     rows: PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_ROW_KEYS.map((key) => ({
       key,
       label: PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_ROW_LABELS[key],
-      values: years.map((year) => valueForRow(key, year.rawFinancials)),
+      values: years.map((year) =>
+        valueForRow(key, year.rawFinancials, year.year, input)
+      ),
     })),
     audit: PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_AUDIT,
   };

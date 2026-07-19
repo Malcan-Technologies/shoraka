@@ -49,6 +49,16 @@ export interface ProspectusPaymentBasisShariah {
  * Never used to invent payment-basis or Shariah-principle labels.
  */
 export interface ProspectusPaymentBasisShariahInput {
+  /**
+   * Optional fixed-template wording (placeholder until approved production copy).
+   * Production Prisma path leaves this undefined → DNA.
+   */
+  paymentBasisTemplate?: {
+    paymentBasis: string;
+    shariahPrinciple: string;
+    sourceType: "fixed_template";
+    approvedProductionCopy: boolean;
+  };
   paymentSchedules?: Array<{
     sequence?: number | null;
     dueDate?: Date | string | null;

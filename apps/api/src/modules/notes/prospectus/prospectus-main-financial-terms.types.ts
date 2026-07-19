@@ -1,27 +1,30 @@
 /**
  * SECTION: Prospectus Page 1 — Main Financial Terms (DATA STAGE 4A)
- * WHY: Confirmed money/rate sources; period return unresolved; Stage 6 reuses flat fields
+ * WHY: Confirmed money/rate sources; expected return matches investor portal net p.a. helper
  */
 
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
 
 export { PROSPECTUS_DATA_NOT_AVAILABLE };
 
-/** Internal audit for unresolved expected period return — not Canva-facing. */
+/** Internal audit for expected return — not Canva-facing. */
 export interface ProspectusExpectedReturnAudit {
-  status: "unresolved";
-  formulaDecision: "pending";
-  grossOrNetDecision: "pending";
-  dayCountDecision: "pending";
-  roundingDecision: "pending";
+  status: "resolved_portal_net_annual" | "unresolved";
+  helper: "resolveNetExpectedReturnRatePercent";
+  portalSurface: "investor_position_expected_return_pa";
+  periodFormulaUsed: false;
+  closingDateUsedAsStart: false;
+  note: string;
 }
 
 export const PROSPECTUS_EXPECTED_RETURN_AUDIT: ProspectusExpectedReturnAudit = {
-  status: "unresolved",
-  formulaDecision: "pending",
-  grossOrNetDecision: "pending",
-  dayCountDecision: "pending",
-  roundingDecision: "pending",
+  status: "resolved_portal_net_annual",
+  helper: "resolveNetExpectedReturnRatePercent",
+  portalSurface: "investor_position_expected_return_pa",
+  periodFormulaUsed: false,
+  closingDateUsedAsStart: false,
+  note:
+    "Matches packages/types resolveNetExpectedReturnRatePercent (gross × (1 − service fee)). Marketplace card shows gross; position shows net. Closing Date is not the portal profit-start (activated_at is).",
 };
 
 /**
@@ -33,6 +36,10 @@ export interface ProspectusMainFinancialTerms {
   minimumInvestment: string;
   /** Annual gross percent display (no "p.a." suffix — label carries it). */
   profitRate: string;
+  /**
+   * Portal-consistent Expected Return (p.a.) — net after service fee.
+   * Field name retained for Stage 5C / At a Glance reuse.
+   */
   expectedReturnForInvestmentPeriod: string;
   /** Audit/debug only — omitted from Canva HTML. */
   audit: {
@@ -46,12 +53,14 @@ export interface ProspectusMainFinancialTermsInput {
   targetAmount: number | null | undefined;
   /** notes.profit_rate_percent (annual gross before investor service fees) */
   profitRatePercent: number | null | undefined;
+  /** notes.service_fee_rate_percent — required for portal-net expected return */
+  serviceFeeRatePercent?: number | null | undefined;
 }
 
 export interface ProspectusMainFinancialTermsFieldSource {
   label: string;
   canonicalSource: string;
-  availability: "stored" | "constant" | "unresolved";
+  availability: "stored" | "constant" | "calculated";
   surface: "canva" | "audit";
   possibleAlternatives: string;
   notes: string;
@@ -90,13 +99,14 @@ export const PROSPECTUS_MAIN_FINANCIAL_TERMS_FIELD_SOURCES: Record<
       "Annual GROSS before investor service fees. Value uses formatInvestorReturnRatePercent (no duplicated p.a.). Not \"Profit Rate for Investors\".",
   },
   expectedReturnForInvestmentPeriod: {
-    label: "Expected Return for Investment Period",
-    canonicalSource: "none confirmed",
-    availability: "unresolved",
+    label: "Expected Return (p.a.)",
+    canonicalSource:
+      "resolveNetExpectedReturnRatePercent(profitRatePercent, serviceFeeRatePercent)",
+    availability: "calculated",
     surface: "canva",
     possibleAlternatives:
-      "gross×days/365; computeNetExpectedReturnRatePercent; Canva 3.95% — not used",
+      "marketplace gross card rate; activated_at period $ breakdown; Closing Date start — not used",
     notes:
-      "No approved formula/gross-vs-net/day-count/rounding. Tenure omitted here (Stage 2/6). audit.expectedReturn.* pending.",
+      "Same helper as investor position Expected return (p.a.). No prospectus-only formula.",
   },
 };

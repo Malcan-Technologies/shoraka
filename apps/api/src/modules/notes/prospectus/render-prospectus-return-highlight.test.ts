@@ -98,16 +98,17 @@ describe("prospectus Return Investor Highlight (Page 1 DATA STAGE 5C)", () => {
     ).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("keeps period return and classifications unavailable with Stage 4A DNA", () => {
+  it("reuses Stage 4A portal net expected return; keeps classifications DNA", () => {
     const terms = buildProspectusMainFinancialTerms({
       targetAmount: 500_000,
       profitRatePercent: 12,
+      serviceFeeRatePercent: 15,
     });
     const data = buildProspectusReturnHighlight(SAMPLE_PROSPECTUS_RETURN_HIGHLIGHT_INPUT);
     expect(data.expectedReturnForInvestmentPeriod).toBe(
       terms.expectedReturnForInvestmentPeriod
     );
-    expect(data.expectedReturnForInvestmentPeriod).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.expectedReturnForInvestmentPeriod).toBe("10.2%");
     expect(data.returnClassification).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.tenureClassification).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.highlightTitle).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
@@ -134,7 +135,7 @@ describe("prospectus Return Investor Highlight (Page 1 DATA STAGE 5C)", () => {
     expect(html).toContain("Annual Gross Profit Rate: 12%");
     expect(html).toContain("Tenure: 120 days");
     expect(html).toContain("Annual Net Expected Return Rate (p.a.): 10.2%");
-    expect(html).toContain("Expected Return for Investment Period: Data not available");
+    expect(html).toContain("Expected Return (p.a.): 10.2%");
     expect(html).toContain("Return Classification: Data not available");
     expect(html).toContain("Tenure Classification: Data not available");
     expect(html).toContain("Highlight Title: Data not available");

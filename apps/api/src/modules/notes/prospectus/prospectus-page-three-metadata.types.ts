@@ -15,7 +15,6 @@ export { PROSPECTUS_DATA_NOT_AVAILABLE };
 export const PROSPECTUS_PAGE_THREE_PAGE_TITLE = "DETAILED FINANCIAL COMPARISON";
 
 export const PROSPECTUS_PAGE_THREE_METADATA_LABELS = {
-  issuer: "Issuer",
   sector: "Sector",
   riskRating: "Risk Rating",
   paymaster: "Paymaster",
@@ -31,9 +30,10 @@ export interface ProspectusPageThreeMetadataAudit {
     status: "unresolved";
     approvedStaticCopyAvailable: false;
   };
-  issuer: {
-    source: "notes.issuer_snapshot.name";
-    liveFallbackAllowed: false;
+  issuerIdentity: {
+    status: "hidden";
+    companyNameHidden: true;
+    reason: "legal_privacy";
   };
   sector: {
     source: "notes.issuer_snapshot.industry";
@@ -76,9 +76,10 @@ export const PROSPECTUS_PAGE_THREE_METADATA_AUDIT: ProspectusPageThreeMetadataAu
     status: "unresolved",
     approvedStaticCopyAvailable: false,
   },
-  issuer: {
-    source: "notes.issuer_snapshot.name",
-    liveFallbackAllowed: false,
+  issuerIdentity: {
+    status: "hidden",
+    companyNameHidden: true,
+    reason: "legal_privacy",
   },
   sector: {
     source: "notes.issuer_snapshot.industry",
@@ -114,7 +115,6 @@ export const PROSPECTUS_PAGE_THREE_METADATA_AUDIT: ProspectusPageThreeMetadataAu
 };
 
 export interface ProspectusPageThreeMetadataStrip {
-  issuer: string;
   sector: string;
   riskRating: string;
   paymaster: string;
@@ -141,7 +141,10 @@ export interface ProspectusPageThreeMetadata {
  * Observational fields prove live/CTOS values are never used.
  */
 export interface ProspectusPageThreeMetadataInput {
-  /** Frozen notes.issuer_snapshot.name */
+  /**
+   * Observational / sanitization only — never rendered on Page 3.
+   * Legal: issuer company name is hidden.
+   */
   issuerName?: unknown;
   /** Frozen notes.issuer_snapshot.industry (Canva label: Sector) */
   issuerSector?: unknown;
@@ -171,7 +174,6 @@ export interface ProspectusPageThreeMetadataFieldSource {
 export const PROSPECTUS_PAGE_THREE_METADATA_FIELD_SOURCES: Record<
   | "pageTitle"
   | "pageSubtitle"
-  | "issuer"
   | "sector"
   | "riskRating"
   | "paymaster"
@@ -196,14 +198,6 @@ export const PROSPECTUS_PAGE_THREE_METADATA_FIELD_SOURCES: Record<
     possibleAlternatives:
       "Canva deeper-issuer-analysis subtitle — not used (no approved copy)",
     notes: "Data not available until approved production wording exists.",
-  },
-  issuer: {
-    label: "Issuer",
-    canonicalSource: "notes.issuer_snapshot.name",
-    availability: "stored",
-    surface: "canva",
-    possibleAlternatives: "live IssuerOrganization.name — not used",
-    notes: "Frozen at Note create. No live fallback.",
   },
   sector: {
     label: "Sector",

@@ -237,9 +237,7 @@ describe("prospectus Page 1 mapper (Stages 1–6)", () => {
     expect(page.mainFinancialTerms.minimumInvestment).toBe(
       formatProspectusMoneyMyr(MARKETPLACE_MIN_COMMIT_MYR)
     );
-    expect(page.mainFinancialTerms.expectedReturnForInvestmentPeriod).toBe(
-      PROSPECTUS_DATA_NOT_AVAILABLE
-    );
+    expect(page.mainFinancialTerms.expectedReturnForInvestmentPeriod).toBe("10.8%");
   });
 
   it("reuses Stage 4A/2 for At a Glance and Stage 4C for Shariah highlight", async () => {
@@ -248,7 +246,10 @@ describe("prospectus Page 1 mapper (Stages 1–6)", () => {
     expect(page.atAGlance.minimumInvestment).toBe(page.mainFinancialTerms.minimumInvestment);
     expect(page.atAGlance.profitRate).toBe(page.mainFinancialTerms.profitRate);
     expect(page.atAGlance.tenure).toBe(page.datesPaymaster.tenure);
-    expect(page.atAGlance.expectedReturn).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(page.atAGlance.expectedReturn).toBe("10.8%");
+    expect(page.atAGlance.expectedReturn).toBe(
+      page.mainFinancialTerms.expectedReturnForInvestmentPeriod
+    );
     expect(page.shariahHighlight.specificShariahPrinciple).toBe(
       page.paymentBasisShariah.shariahPrinciple
     );
