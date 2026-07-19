@@ -9,7 +9,7 @@ export const PROSPECTUS_STEP_GROUPS: Array<{
   {
     group: "Page 1",
     steps: [
-      { id: 0, label: "Core Terms" },
+      { id: 0, label: "Note & Investment Details" },
       { id: 1, label: "Investor Highlights" },
     ],
   },
@@ -34,7 +34,7 @@ export const PROSPECTUS_STEP_GROUPS: Array<{
 ];
 
 export const PROSPECTUS_STEP_TITLES: Record<ProspectusWorkflowStepId, string> = {
-  0: "Core Terms",
+  0: "Note & Investment Details",
   1: "Investor Highlights",
   2: "Issuer & Paymaster",
   3: "Credit & Invoice Details",

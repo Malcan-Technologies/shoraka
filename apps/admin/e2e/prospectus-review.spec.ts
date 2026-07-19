@@ -27,8 +27,12 @@ test.describe("Admin Prospectus Review (demo Note)", () => {
     await expect(page.locator("header").getByText("Draft", { exact: true })).toHaveCount(0);
 
     await expect(page.getByRole("button", { name: /Preview Prospectus/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Core Terms/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Note & Investment Details/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Investor Highlights/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Note Details" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Investment Terms" })).toBeVisible();
+    await expect(page.getByText("Profit Rate (p.a.)").first()).toBeVisible();
+    await expect(page.getByText("Expected Return (p.a.)").first()).toBeVisible();
 
     const stepsGrid = page.locator("[data-prospectus-steps-grid]");
     await expect(stepsGrid).toHaveClass(/items-start/);

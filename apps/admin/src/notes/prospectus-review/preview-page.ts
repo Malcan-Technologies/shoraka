@@ -7,7 +7,7 @@ export type ProspectusPreviewPageKey = "page1" | "page2" | "page3";
  * Preview & Approval (step 6) is not mapped; callers use the last viewed page.
  */
 export const PROSPECTUS_STEP_PREVIEW_PAGE = {
-  0: "page1", // Core Terms
+  0: "page1", // Note & Investment Details
   1: "page1", // Investor Highlights
   2: "page2", // Issuer & Paymaster
   3: "page2", // Credit & Invoice Details

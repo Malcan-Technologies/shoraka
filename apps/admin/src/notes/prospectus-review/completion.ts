@@ -82,7 +82,7 @@ export function buildProspectusCompletionChecklist(
   );
 
   return [
-    { id: "core", label: "Core Terms", complete: true, required: true },
+    { id: "core", label: "Note & Investment Details", complete: true, required: true },
     {
       id: "highlights",
       label: "Investor Highlights",

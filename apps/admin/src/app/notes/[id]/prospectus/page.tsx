@@ -57,8 +57,9 @@ import {
   statusForCompletionItem,
 } from "@/notes/prospectus-review/completion";
 import {
-  buildCoreTermsRows,
   buildIssuerProfileRows,
+  buildNoteInvestmentDetailSections,
+  resolveCatalogueOptionLabel,
   formatDerivedMoney,
   formatDerivedPercent,
   formatDerivedRatio,
@@ -330,7 +331,18 @@ function ProspectusReviewPageInner() {
   const checklist = buildProspectusCompletionChecklist(draft);
   const canSubmitReady = isProspectusDraftReadyToSubmit(draft);
   const stepStatuses = getProspectusStepStatuses(draft);
-  const coreRows = note ? buildCoreTermsRows(note) : [];
+  const noteInvestmentSections = note
+    ? buildNoteInvestmentDetailSections(note, {
+        paymentBasisLabel: resolveCatalogueOptionLabel(
+          catalogues.paymentBasis,
+          draft.page1.paymentBasisOptionKey
+        ),
+        shariahPrincipleLabel: resolveCatalogueOptionLabel(
+          catalogues.shariahPrinciple,
+          draft.page1.shariahPrincipleOptionKey
+        ),
+      })
+    : [];
   const issuerRows = note ? buildIssuerProfileRows(note) : [];
   const yearRaw = readUnauditedYear(
     (application as { financial_statements?: unknown } | undefined)?.financial_statements,
@@ -572,12 +584,14 @@ function ProspectusReviewPageInner() {
                 <CardContent className="space-y-6">
                   <div ref={stepPanelRef} data-prospectus-step-panel className="space-y-6">
                   {step === 0 ? (
-                    <div className="space-y-3">
-                      <p className="text-sm text-muted-foreground">
-                        These details are taken from the approved Note information.
-                      </p>
+                    <div className="space-y-6">
                       {note ? (
-                        <ReadOnlyGrid rows={coreRows} />
+                        noteInvestmentSections.map((section) => (
+                          <section key={section.id}>
+                            <ProspectusSectionHeading title={section.title} />
+                            <ReadOnlyGrid rows={section.rows} />
+                          </section>
+                        ))
                       ) : (
                         <Skeleton className="h-40 w-full" />
                       )}

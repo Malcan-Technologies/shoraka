@@ -37,7 +37,7 @@ describe("prospectus review admin labels", () => {
   });
 
   it("uses concise step titles without repeated page prefixes", () => {
-    expect(PROSPECTUS_STEP_TITLES[0]).toBe("Core Terms");
+    expect(PROSPECTUS_STEP_TITLES[0]).toBe("Note & Investment Details");
     expect(PROSPECTUS_STEP_TITLES[3]).toBe("Credit & Invoice Details");
     expect(PROSPECTUS_STEP_TITLES[6]).toBe("Preview & Approval");
     const mainLabels = PROSPECTUS_STEP_GROUPS.flatMap((g) => g.steps.map((s) => s.label));
@@ -159,7 +159,7 @@ describe("prospectus review completion checklist", () => {
 
     const checklist = buildProspectusCompletionChecklist(emptyDraft());
     expect(checklist.map((i) => i.label)).toEqual([
-      "Core Terms",
+      "Note & Investment Details",
       "Investor Highlights",
       "Issuer & Paymaster",
       "Credit & Invoice Details",

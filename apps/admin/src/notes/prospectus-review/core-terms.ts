@@ -6,6 +6,9 @@ import {
   type NoteDetail,
 } from "@cashsouk/types";
 
+const DATA_NOT_AVAILABLE = "Data not available";
+const RATING_SCALE_REFERENCE = "See rating scale on page 2";
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -15,6 +18,11 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 function textOrDash(value: unknown): string {
   if (typeof value === "string" && value.trim()) return value.trim();
   return "—";
+}
+
+function textOrDna(value: unknown): string {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  return DATA_NOT_AVAILABLE;
 }
 
 function formatDate(value: string | null | undefined): string {
@@ -38,44 +46,161 @@ function tenureDays(opensAt: string | null | undefined, maturity: string | null 
   return `${days} days`;
 }
 
+function formatRatePercent(rate: number | null | undefined): string {
+  if (rate == null || !Number.isFinite(rate)) return DATA_NOT_AVAILABLE;
+  const label = formatInvestorReturnRatePercent(rate);
+  return label === "-" ? DATA_NOT_AVAILABLE : label;
+}
+
 export type CoreTermRow = { label: string; value: string };
 
-export function buildCoreTermsRows(note: NoteDetail): CoreTermRow[] {
+export type NoteInvestmentDetailSection = {
+  id: string;
+  title: string;
+  rows: CoreTermRow[];
+};
+
+export type CatalogueOption = { key: string; label: string };
+
+/** Resolve officer-selected catalogue wording for read-only coverage. */
+export function resolveCatalogueOptionLabel(
+  options: CatalogueOption[] | undefined,
+  optionKey: string | null | undefined
+): string {
+  if (!optionKey || !optionKey.trim()) return "Not selected";
+  const found = options?.find((o) => o.key === optionKey);
+  if (found?.label?.trim()) return found.label.trim();
+  if (optionKey === "do_not_display") return "Do not display";
+  return "Not selected";
+}
+
+/**
+ * Page 1 Note & Investment Details — grouped read-only coverage for operations.
+ * Does not change source formulas; Profit Rate = gross, Expected Return = net helper.
+ */
+export function buildNoteInvestmentDetailSections(
+  note: NoteDetail,
+  resolved?: {
+    paymentBasisLabel?: string;
+    shariahPrincipleLabel?: string;
+  }
+): NoteInvestmentDetailSection[] {
   const purpose = asRecord(note.purposeSnapshot);
   const product = asRecord(note.productSnapshot);
+  const paymaster = asRecord(note.paymasterSnapshot);
+
   const financingType =
     (typeof product?.product_name === "string" && product.product_name) ||
     note.productName ||
     note.productCategory ||
     "—";
+  const productDescription =
+    typeof product?.description === "string" && product.description.trim()
+      ? product.description.trim()
+      : "—";
 
   const opensAt = note.listing?.opensAt ?? note.publishedAt ?? note.createdAt;
   const closesAt = note.listing?.closesAt ?? note.listingClosesAt;
-  const expectedReturn = resolveNetExpectedReturnRatePercent({
-    profitRatePercent: note.profitRatePercent,
-    serviceFeeRatePercent: note.serviceFeeRatePercent,
-  });
+  const tenure = tenureDays(opensAt, note.maturityDate);
+  const financingAmount = formatCurrency(note.targetAmount);
+  const minimumInvestment = formatCurrency(MARKETPLACE_MIN_COMMIT_MYR);
+  const profitRate = formatRatePercent(note.profitRatePercent);
+  const expectedReturn = formatRatePercent(
+    resolveNetExpectedReturnRatePercent({
+      profitRatePercent: note.profitRatePercent,
+      serviceFeeRatePercent: note.serviceFeeRatePercent,
+    })
+  );
+
+  const natureOfPaymaster = textOrDna(
+    paymaster?.entity_type ?? paymaster?.entityType ?? paymaster?.type
+  );
 
   return [
-    { label: "Note Reference", value: note.noteReference },
-    { label: "Financing Type", value: textOrDash(financingType) },
-    { label: "Listing Date", value: formatDate(opensAt) },
-    { label: "Closing Date", value: formatDate(closesAt) },
-    { label: "Maturity Date", value: formatDate(note.maturityDate) },
-    { label: "Paymaster", value: textOrDash(note.paymasterName) },
-    { label: "Financing Amount", value: formatCurrency(note.targetAmount) },
-    { label: "Minimum Investment", value: formatCurrency(MARKETPLACE_MIN_COMMIT_MYR) },
     {
-      label: "Expected Return",
-      value: formatInvestorReturnRatePercent(expectedReturn),
+      id: "note-details",
+      title: "Note Details",
+      rows: [
+        { label: "Note Reference", value: note.noteReference },
+        { label: "Financing Type", value: textOrDash(financingType) },
+        { label: "Product Description", value: productDescription },
+      ],
     },
-    { label: "Tenure", value: tenureDays(opensAt, note.maturityDate) },
     {
-      label: "Purpose of Financing",
-      value: textOrDash(purpose?.financing_for),
+      id: "dates-paymaster",
+      title: "Dates & Paymaster",
+      rows: [
+        { label: "Listing Date", value: formatDate(opensAt) },
+        { label: "Closing Date", value: formatDate(closesAt) },
+        { label: "Maturity Date", value: formatDate(note.maturityDate) },
+        { label: "Tenure", value: tenure },
+        { label: "Paymaster", value: textOrDash(note.paymasterName) },
+        { label: "Nature of Paymaster", value: natureOfPaymaster },
+      ],
     },
-    { label: "Risk Rating", value: textOrDash(note.riskRating) },
+    {
+      id: "investment-terms",
+      title: "Investment Terms",
+      rows: [
+        { label: "Financing Amount", value: financingAmount },
+        { label: "Minimum Investment", value: minimumInvestment },
+        { label: "Profit Rate (p.a.)", value: profitRate },
+        { label: "Expected Return (p.a.)", value: expectedReturn },
+        {
+          label: "Purpose of Financing",
+          value: textOrDash(purpose?.financing_for),
+        },
+        {
+          label: "Payment Basis",
+          value: resolved?.paymentBasisLabel ?? "Not selected",
+        },
+        {
+          label: "Shariah Principle",
+          value: resolved?.shariahPrincipleLabel ?? "Not selected",
+        },
+      ],
+    },
+    {
+      id: "risk-information",
+      title: "Risk Information",
+      rows: [
+        { label: "Risk Rating", value: textOrDash(note.riskRating) },
+        { label: "Risk Label", value: DATA_NOT_AVAILABLE },
+        { label: "Risk Explanation", value: DATA_NOT_AVAILABLE },
+        { label: "Rating Scale Reference", value: RATING_SCALE_REFERENCE },
+      ],
+    },
+    {
+      id: "at-a-glance",
+      title: "At a Glance",
+      rows: [
+        { label: "Financing Amount", value: financingAmount },
+        { label: "Profit Rate (p.a.)", value: profitRate },
+        { label: "Expected Return (p.a.)", value: expectedReturn },
+        { label: "Tenure", value: tenure },
+        { label: "Minimum Investment", value: minimumInvestment },
+      ],
+    },
+    {
+      id: "track-record-historical",
+      title: "Issuer Track Record & Historical Notes",
+      rows: [
+        {
+          label: "Issuer Track Record",
+          value: "Auto-derived on prospectus Page 1 — verify in Preview",
+        },
+        {
+          label: "Historical Notes",
+          value: "Auto-derived on prospectus Page 1 — verify in Preview",
+        },
+      ],
+    },
   ];
+}
+
+/** @deprecated Prefer buildNoteInvestmentDetailSections for grouped coverage. */
+export function buildCoreTermsRows(note: NoteDetail): CoreTermRow[] {
+  return buildNoteInvestmentDetailSections(note).flatMap((section) => section.rows);
 }
 
 export function buildIssuerProfileRows(note: NoteDetail): CoreTermRow[] {
