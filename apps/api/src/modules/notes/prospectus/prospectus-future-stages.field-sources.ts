@@ -179,6 +179,33 @@
  * Table unit label + source note remain Stage 4A DNA.
  * Publication freeze still pending Page 2 mapper.
  *
+ * =============================================================================
+ * PAGE 2 — STAGE 5 CREDIT INSIGHTS (implemented as DNA-first)
+ * =============================================================================
+ *
+ * Module: prospectus-credit-insights.*
+ * Preview: pnpm prospectus:credit-insights-preview
+ * Output: apps/api/tmp/prospectus/prospectus-credit-insights-preview.html
+ *
+ * No approved investor-facing credit classification mapping.
+ * CTOS / CCRIS raw values are not displayed.
+ * SoukScore is not reused for Credit Score.
+ * RegTank / AML / KYC are not mixed into this section.
+ *
+ * All Canva fields currently Data not available:
+ * - Credit Score
+ * - Payment Behaviour
+ * - Credit Utilisation
+ * - Litigation Check
+ * - CCRIS Status
+ * - Credit Score Explanation
+ *
+ * Rejected Canva labels: Good / Healthy / Clear / No record
+ * Rejected Canva SSM creditworthiness explanatory sentence
+ * Zero/empty legal or CCRIS records do not mean Clear / No record
+ * Legal/compliance approval required before any non-DNA implementation
+ * Future approved values should freeze at publication
+ *
  * Corrections still needed when those stages are implemented:
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)
  * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*

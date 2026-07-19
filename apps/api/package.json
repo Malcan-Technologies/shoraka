@@ -49,6 +49,7 @@
     "prospectus:paymaster-track-record-preview": "tsx scripts/generate-prospectus-paymaster-track-record-preview.ts",
     "prospectus:financial-comparison-source-preview": "tsx scripts/generate-prospectus-financial-comparison-source-preview.ts",
     "prospectus:financial-comparison-metrics-preview": "tsx scripts/generate-prospectus-financial-comparison-metrics-preview.ts",
+    "prospectus:credit-insights-preview": "tsx scripts/generate-prospectus-credit-insights-preview.ts",
     "prospectus:stage1-preview": "tsx scripts/generate-prospectus-stage1-preview.ts",
     "seed-expired-offer-for-test": "tsx scripts/seed-expired-offer-for-test.ts",
     "seed-ekyc-identity": "tsx scripts/seed-ekyc-identity.ts",
