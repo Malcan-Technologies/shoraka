@@ -208,12 +208,19 @@ function parseRawFinancialScalar(value: unknown): string | number | null {
 function parsePage2RawFinancials(value: unknown): ProspectusPage2FinancialRawSnapshot | null {
   const raw = asJsonRecord(value);
   if (!raw) return null;
+  // Extended keys may be absent on old published Notes — fill null (no live fallback).
   return {
     turnover: parseRawFinancialScalar(raw.turnover),
     plnpat: parseRawFinancialScalar(raw.plnpat),
     bsqpuc: parseRawFinancialScalar(raw.bsqpuc),
     bscatot: parseRawFinancialScalar(raw.bscatot),
     curlib: parseRawFinancialScalar(raw.curlib),
+    plnpbt: parseRawFinancialScalar(raw.plnpbt),
+    bsfatot: parseRawFinancialScalar(raw.bsfatot),
+    othass: parseRawFinancialScalar(raw.othass),
+    bsclbank: parseRawFinancialScalar(raw.bsclbank),
+    bsslltd: parseRawFinancialScalar(raw.bsslltd),
+    bsclstd: parseRawFinancialScalar(raw.bsclstd),
   };
 }
 

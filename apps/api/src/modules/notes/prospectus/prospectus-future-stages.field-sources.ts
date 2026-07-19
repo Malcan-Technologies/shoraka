@@ -328,7 +328,10 @@
  *   },
  *   config_versions?: { soukscore_scale, legal_copy, marketing_copy }
  * }
- * raw_financials keys: turnover, plnpat, bsqpuc, bscatot, curlib (JSON-safe scalars)
+ * raw_financials keys (shared Page 2 + Page 3):
+ *   turnover, plnpat, bsqpuc, bscatot, curlib,
+ *   plnpbt, bsfatot, othass, bsclbank, bsslltd, bsclstd
+ * (JSON-safe scalars; bsclbank = Non-Current Assets, never Cash & Bank)
  * No formatted money/HTML/CTOS/legal/marketing claims in snapshot.
  *
  * Publish merge (NoteService.publish):
@@ -553,7 +556,53 @@
  * - admin-authored or approved; finance + legal/compliance review;
  *   frozen at publication; no live Application fallback
  *
- * Not in Stage 6: Prisma mapper, full Page 3 HTML assembly, snapshot write path.
+ * Not in Stage 6: Prisma mapper, full Page 3 HTML assembly (see Stage 7).
+ *
+ * =============================================================================
+ * PAGE 3 — STAGE 7: PRISMA MAPPER + SHARED FREEZE + FULL ASSEMBLY (implemented)
+ * =============================================================================
+ *
+ * Modules: prospectus-page-three.*
+ * Preview: pnpm prospectus:page-three-preview [--note-id=<NOTE_ID>]
+ * Output: apps/api/tmp/prospectus/prospectus-page-three-preview.html
+ * Page size: A4 210mm × 297mm (same as Page 1/2)
+ *
+ * Prisma query boundary (PROSPECTUS_PAGE_THREE_NOTE_SELECT):
+ * - Note: id, status, published_at, source_application_id,
+ *   issuer_snapshot, invoice_snapshot, paymaster_snapshot, prospectus_snapshot
+ * - Application.financial_statements ONLY for unpublished preview
+ * - No CTOS; no live organization; no documents/investments/commitments
+ *
+ * Publication rule: status === PUBLISHED && published_at != null
+ *
+ * Shared financial freeze (no separate page_3.financial_comparison):
+ * - prospectus_snapshot.page_2.financial_comparison
+ * - Extended raw keys at publish: plnpbt, bsfatot, othass, bsclbank, bsslltd, bsclstd
+ * - Merge via existing wrapProspectusSnapshotWithPageTwo (preserves unknown branches)
+ *
+ * Snapshot preference:
+ * - Published + valid page_2 → frozen Stage 4A source (no live Application)
+ * - Unpublished → live Application → Stage 4A → Page 3 Stages 2–4
+ * - Published missing/malformed page_2 → empty years (no live fallback)
+ * - Old freeze without extended keys: PBT DNA; totals follow helper zero-default
+ *
+ * Assembly order:
+ * header → metadata → income → balance sheet → coverage → trends → takeaways → footer
+ *
+ * Formatting: formatProspectusMoneyMyr only; Page 2 percent/ratio formatters; exact DNA
+ *
+ * Overflow: dense tables may exceed 297mm in simple HTML; content is not removed —
+ * final visual layout may need continuation pages or tighter approved spacing.
+ *
+ * Business still unresolved (DNA / finance decisions):
+ * - subtitle; Paymaster/Confidence grading
+ * - Gross Profit; EBITDA; EBIT
+ * - Cash & Bank; Trade Receivables; Total Equity; Quick Ratio
+ * - OCF; FCF; Interest Coverage; DSCR; Debt/Equity; ROA
+ * - Receivables Days; Payables Days; Asset Turnover
+ * - all trends; all investor takeaways
+ * - finance policy for zero-default Total Assets/Liabilities
+ * - approved narrative snapshot workflow (page_3.investor_takeaways)
  *
  * Corrections still needed when those stages are implemented:
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)

@@ -15,7 +15,20 @@ import type {
   ProspectusSnapshot,
 } from "./prospectus-snapshot.types";
 
-const RAW_KEYS = ["turnover", "plnpat", "bsqpuc", "bscatot", "curlib"] as const;
+/** Shared freeze keys for Page 2 Stage 4B + Page 3 Stages 2–4. */
+const RAW_KEYS = [
+  "turnover",
+  "plnpat",
+  "bsqpuc",
+  "bscatot",
+  "curlib",
+  "plnpbt",
+  "bsfatot",
+  "othass",
+  "bsclbank",
+  "bsslltd",
+  "bsclstd",
+] as const;
 
 function serializeRawField(value: unknown): string | number | null {
   if (value == null) return null;
@@ -34,6 +47,12 @@ function pickRawFinancials(raw: Record<string, unknown>): ProspectusPage2Financi
     bsqpuc: serializeRawField(raw.bsqpuc),
     bscatot: serializeRawField(raw.bscatot),
     curlib: serializeRawField(raw.curlib),
+    plnpbt: serializeRawField(raw.plnpbt),
+    bsfatot: serializeRawField(raw.bsfatot),
+    othass: serializeRawField(raw.othass),
+    bsclbank: serializeRawField(raw.bsclbank),
+    bsslltd: serializeRawField(raw.bsslltd),
+    bsclstd: serializeRawField(raw.bsclstd),
   };
 }
 

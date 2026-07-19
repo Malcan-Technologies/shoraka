@@ -157,6 +157,73 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(serialized).not.toMatch(/attractive return|Shariah-compliant/i);
     });
 
+    it("extends shared freeze with Page 3 raw keys and preserves zeros", () => {
+      const page2 = buildProspectusPage2Snapshot({
+        financialStatements: {
+          questionnaire: { financial_year_end: "2024-12-31" },
+          unaudited_by_year: {
+            "2024": {
+              turnover: 15_000_000,
+              plnpat: 1_200_000,
+              bsqpuc: 6_000_000,
+              bscatot: 4_500_000,
+              curlib: 2_200_000,
+              plnpbt: 1_400_000,
+              bsfatot: 0,
+              othass: 1_200_000,
+              bsclbank: 1_000_000,
+              bsslltd: 600_000,
+              bsclstd: 300_000,
+            },
+          },
+        },
+      });
+      const raw = page2.financial_comparison.selected_years[0]?.raw_financials;
+      expect(raw).toMatchObject({
+        turnover: 15_000_000,
+        plnpat: 1_200_000,
+        bsqpuc: 6_000_000,
+        bscatot: 4_500_000,
+        curlib: 2_200_000,
+        plnpbt: 1_400_000,
+        bsfatot: 0,
+        othass: 1_200_000,
+        bsclbank: 1_000_000,
+        bsslltd: 600_000,
+        bsclstd: 300_000,
+      });
+      expect(JSON.stringify(page2)).not.toMatch(/RM /);
+      expect(JSON.stringify(page2)).not.toMatch(/Trend|Takeaway|Cash & Bank/i);
+    });
+
+    it("parses old published snapshots missing extended keys as null", () => {
+      const parsed = parseProspectusPageTwoSnapshot({
+        page_2: {
+          financial_comparison: {
+            source: "application_financial_statements",
+            calculated_at: "2026-01-01T00:00:00.000Z",
+            selected_years: [
+              {
+                year: 2024,
+                year_label: "FY2024",
+                financial_year_end_label: "31 Dec 2024",
+                raw_financials: {
+                  turnover: 100,
+                  plnpat: 10,
+                  bsqpuc: 50,
+                  bscatot: 40,
+                  curlib: 20,
+                },
+              },
+            ],
+          },
+        },
+      });
+      expect(parsed?.financial_comparison.selected_years[0]?.raw_financials.plnpbt).toBeNull();
+      expect(parsed?.financial_comparison.selected_years[0]?.raw_financials.bsfatot).toBeNull();
+      expect(parsed?.financial_comparison.selected_years[0]?.raw_financials.bsclbank).toBeNull();
+    });
+
     it("creates a valid empty Page 2 snapshot when financials are missing", () => {
       const page2 = buildProspectusPage2Snapshot({ financialStatements: null });
       expect(page2.financial_comparison.selected_years).toEqual([]);

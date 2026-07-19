@@ -32,13 +32,29 @@ export interface ProspectusPage1Snapshot {
   historical_notes: ProspectusPage1HistoricalNoteSnapshot[];
 }
 
-/** Raw Application unaudited fields needed by Stage 4B — not formatted display strings. */
+/**
+ * Shared Page 2 + Page 3 frozen Application unaudited fields — not formatted display strings.
+ * Original five keys remain; six extended keys support Page 3 PBT / total assets / total liabilities.
+ * Old published snapshots may omit extended keys (parser fills null).
+ */
 export interface ProspectusPage2FinancialRawSnapshot {
   turnover: string | number | null;
   plnpat: string | number | null;
   bsqpuc: string | number | null;
   bscatot: string | number | null;
   curlib: string | number | null;
+  /** Profit Before Tax — Page 3 income statement. */
+  plnpbt: string | number | null;
+  /** Fixed Assets — Total Assets input. */
+  bsfatot: string | number | null;
+  /** Other Assets — Total Assets input. */
+  othass: string | number | null;
+  /** Non-Current Assets — Total Assets input. Never Cash & Bank. */
+  bsclbank: string | number | null;
+  /** Long-Term Liability — Total Liabilities input. */
+  bsslltd: string | number | null;
+  /** Non-Current Liability — Total Liabilities input. */
+  bsclstd: string | number | null;
 }
 
 export interface ProspectusPage2FinancialYearSnapshot {

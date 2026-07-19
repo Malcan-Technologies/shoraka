@@ -83,12 +83,19 @@ export function buildFinancialComparisonSourceFromFrozen(
     year: year.year,
     yearLabel: year.year_label,
     financialYearEndLabel: year.financial_year_end_label ?? PROSPECTUS_DATA_NOT_AVAILABLE,
+    // Shared Page 2 + Page 3 freeze — include extended keys when present (null when absent).
     rawFinancials: {
       turnover: year.raw_financials.turnover,
       plnpat: year.raw_financials.plnpat,
       bsqpuc: year.raw_financials.bsqpuc,
       bscatot: year.raw_financials.bscatot,
       curlib: year.raw_financials.curlib,
+      plnpbt: year.raw_financials.plnpbt,
+      bsfatot: year.raw_financials.bsfatot,
+      othass: year.raw_financials.othass,
+      bsclbank: year.raw_financials.bsclbank,
+      bsslltd: year.raw_financials.bsslltd,
+      bsclstd: year.raw_financials.bsclstd,
     },
   }));
 
