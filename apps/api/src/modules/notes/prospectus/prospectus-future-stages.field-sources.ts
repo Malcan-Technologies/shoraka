@@ -484,6 +484,41 @@
  *
  * Not in Stage 4: trends, takeaways, Prisma mapper, full assembly.
  *
+ * =============================================================================
+ * PAGE 3 — STAGE 5: FINANCIAL TRENDS (implemented — structural DNA only)
+ * =============================================================================
+ *
+ * Modules: prospectus-page-three-trends.*
+ * Preview: pnpm prospectus:page-three-trends-preview
+ * Output: apps/api/tmp/prospectus/prospectus-page-three-trends-preview.html
+ *
+ * Composition:
+ * - Input = completed Stage 2 income + Stage 3 balance sheet + Stage 4 coverage results
+ * - Metric order = Stage 2 row keys → Stage 3 → Stage 4 (26 metrics; no duplicates)
+ * - Labels reused from section rows; no remapping of financial values
+ *
+ * Visible result for every metric:
+ * - Trend = Data not available
+ * - Interpretation = Data not available
+ * - Direction = null (internal only; not rendered)
+ *
+ * Rejected / not implemented:
+ * - No canonical trend helper in the platform
+ * - No approved metric-specific interpretation rules
+ * - Generic higher-is-better / latest>previous logic rejected
+ * - No arrows, directional colours, Improving/Declining/Stable labels
+ * - Formatted display strings (RM / % / x) are never reverse-parsed
+ * - No CTOS fallback; no Prisma; no independent year selection
+ *
+ * Future requirements (documented only):
+ * - Use frozen raw financial values + approved calculators
+ * - Explicit metric-specific rules with versioning
+ * - Decisions on year window, gaps, negatives, thresholds
+ * - Snapshot/publish behaviour for trends remains undecided
+ *   (candidateInterpretationClass is audit-only; approved: false)
+ *
+ * Not in Stage 5: investor takeaways, Prisma mapper, full Page 3 assembly.
+ *
  * Corrections still needed when those stages are implemented:
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for (from Application financing_for)
  * - Stage 4B (tenure / maturity / purpose) implemented in prospectus-timing-purpose.*
