@@ -23,11 +23,13 @@ import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
 import {
+  ProspectusReviewConflictError,
   useApproveProspectusReview,
   useProspectusReview,
   useProspectusReviewPreview,
   useReopenProspectusReview,
   useSaveProspectusReviewDraft,
+  useSubmitProspectusReview,
 } from "@/notes/hooks/use-prospectus-review";
 
 const STEPS = [
@@ -77,8 +79,9 @@ function ProspectusReviewPageInner() {
   const { can } = usePermissions();
   const canManage = can("notes.manage");
 
-  const { data, isLoading, error } = useProspectusReview(noteId);
+  const { data, isLoading, error, refetch } = useProspectusReview(noteId);
   const saveDraft = useSaveProspectusReviewDraft(noteId);
+  const submit = useSubmitProspectusReview(noteId);
   const approve = useApproveProspectusReview(noteId);
   const reopen = useReopenProspectusReview(noteId);
 
@@ -124,13 +127,36 @@ function ProspectusReviewPageInner() {
       setDirty(false);
       toast.success("Draft saved");
     } catch (e) {
+      if (e instanceof ProspectusReviewConflictError) {
+        toast.error("This review was updated elsewhere. Refresh and try again.");
+        void refetch();
+        setDirty(false);
+        return;
+      }
       toast.error(e instanceof Error ? e.message : "Save failed");
+    }
+  };
+
+  const onSubmit = async () => {
+    if (dirty) {
+      toast.error("Save draft before submitting for review");
+      return;
+    }
+    try {
+      await submit.mutateAsync();
+      toast.success("Submitted for review");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Submit failed");
     }
   };
 
   const onApprove = async () => {
     if (dirty) {
       toast.error("Save draft before approving");
+      return;
+    }
+    if (data?.review.status !== "READY_FOR_REVIEW") {
+      toast.error("Submit for review before approving");
       return;
     }
     try {
@@ -219,13 +245,21 @@ function ProspectusReviewPageInner() {
         </Card>
 
         <div className="min-h-0 space-y-4 overflow-y-auto">
+          {data.catalogueNotice ? (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-foreground">
+              {data.catalogueNotice}
+            </p>
+          ) : null}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <div>
                 <CardTitle className="text-base">{STEPS[step]}</CardTitle>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Last saved {new Date(data.review.updatedAt).toLocaleString()} · v
-                  {data.review.contentVersion}
+                  Last saved {new Date(data.review.updatedAt).toLocaleString()}
+                  {data.review.updatedByUserId
+                    ? ` · by ${data.review.updatedByUserId.slice(0, 8)}…`
+                    : ""}{" "}
+                  · v{data.review.contentVersion}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -239,7 +273,15 @@ function ProspectusReviewPageInner() {
                     Reopen for Editing
                   </Button>
                 ) : null}
-                {canManage && !locked && step === 6 ? (
+                {canManage && !locked && step === 6 && data.review.status === "DRAFT" ? (
+                  <Button onClick={onSubmit} disabled={submit.isPending || dirty}>
+                    Submit for Review
+                  </Button>
+                ) : null}
+                {canManage &&
+                !locked &&
+                step === 6 &&
+                data.review.status === "READY_FOR_REVIEW" ? (
                   <Button onClick={onApprove} disabled={approve.isPending || dirty}>
                     Approve
                   </Button>
@@ -422,26 +464,26 @@ function ProspectusReviewPageInner() {
                       <CardContent className="grid gap-3 md:grid-cols-3">
                         {(
                           [
-                            "grossProfit",
-                            "ebitda",
-                            "ebit",
-                            "cashAndBank",
-                            "tradeReceivables",
-                            "totalEquity",
-                            "quickRatio",
-                            "operatingCashFlow",
-                            "freeCashFlow",
-                            "interestCoverage",
-                            "dscr",
-                            "debtEquity",
-                            "returnOnAssets",
-                            "receivablesDays",
-                            "payablesDays",
-                            "assetTurnover",
+                            ["grossProfit", "Gross Profit"],
+                            ["ebitda", "EBITDA"],
+                            ["ebit", "EBIT"],
+                            ["cashAndBank", "Cash & Bank"],
+                            ["tradeReceivables", "Trade Receivables"],
+                            ["totalEquity", "Total Equity"],
+                            ["quickRatio", "Quick Ratio"],
+                            ["operatingCashFlow", "Operating Cash Flow"],
+                            ["freeCashFlow", "Free Cash Flow"],
+                            ["interestCoverage", "Interest Coverage"],
+                            ["dscr", "DSCR"],
+                            ["debtEquity", "Debt / Equity"],
+                            ["returnOnAssets", "Return on Assets"],
+                            ["receivablesDays", "Receivables Days"],
+                            ["payablesDays", "Payables Days"],
+                            ["assetTurnover", "Asset Turnover"],
                           ] as const
-                        ).map((field) => (
+                        ).map(([field, label]) => (
                           <div key={field} className="space-y-1.5">
-                            <Label>{field}</Label>
+                            <Label>{label}</Label>
                             <Input
                               disabled={locked || !canManage}
                               value={String(
@@ -511,9 +553,26 @@ function ProspectusReviewPageInner() {
               {step === 6 ? (
                 <div className="space-y-3">
                   <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
-                    Draft Prospectus — not yet approved. Preview uses the same Page 1–3 builders as
-                    publication.
+                    {preview.data?.draftMarker ??
+                      (data.review.status === "APPROVED"
+                        ? "Approved Prospectus Preview — not yet published"
+                        : "Draft Prospectus — not yet approved")}
+                    {preview.data?.previewSource
+                      ? ` (source: ${preview.data.previewSource})`
+                      : ""}
+                    . Preview uses the same Page 1–3 builders as publication.
                   </p>
+                  {data.review.status === "DRAFT" ? (
+                    <p className="text-sm text-muted-foreground">
+                      Save all selections, then Submit for Review before Approve.
+                    </p>
+                  ) : null}
+                  {data.review.status === "READY_FOR_REVIEW" ? (
+                    <p className="text-sm text-muted-foreground">
+                      Ready for review. Approve when content is complete, or save draft edits to
+                      return to Draft.
+                    </p>
+                  ) : null}
                   {data.publishBlockedReason ? (
                     <p className="text-sm text-muted-foreground">{data.publishBlockedReason}</p>
                   ) : (
@@ -522,6 +581,13 @@ function ProspectusReviewPageInner() {
                     </p>
                   )}
                   {preview.isLoading ? <Skeleton className="h-40 w-full" /> : null}
+                  {preview.error ? (
+                    <p className="text-sm text-destructive">
+                      {preview.error instanceof Error
+                        ? preview.error.message
+                        : "Preview failed to load"}
+                    </p>
+                  ) : null}
                   {preview.data ? (
                     <div className="space-y-4">
                       {(["page1", "page2", "page3"] as const).map((key) => (

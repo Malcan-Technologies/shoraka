@@ -94,6 +94,8 @@ export interface ProspectusReviewGetResponse {
     takeaways: Record<string, ProspectusCatalogueOptionDto[]>;
   };
   publishBlockedReason: string | null;
+  /** Temporary placeholder catalogue notice for officers. */
+  catalogueNotice: string;
 }
 
 export interface SaveProspectusReviewDraftInput {
@@ -103,6 +105,8 @@ export interface SaveProspectusReviewDraftInput {
 
 export interface ProspectusReviewPreviewResponse {
   status: ProspectusReviewStatus;
+  /** Which stored content the preview rendered. */
+  previewSource: "draft" | "approved";
   draftMarker: string;
   html: {
     page1: string;

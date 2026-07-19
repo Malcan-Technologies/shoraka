@@ -34,6 +34,7 @@ import {
 } from "./prospectus-frozen-publication";
 import {
   catalogueVersion,
+  cloneReviewContent,
   emptyProspectusReviewContent,
   toProspectusPublicationContent,
   type ProspectusFrozenPublicationContent,
@@ -142,7 +143,7 @@ export class ProspectusReviewService {
       throw new AppError(
         409,
         "PROSPECTUS_REVIEW_REQUIRED",
-        "Prospectus review must be approved before publishing this Note"
+        "Prospectus review must be approved before publishing. Open Prospectus Review at /notes/{id}/prospectus, submit for review, then approve."
       );
     }
   }
@@ -191,8 +192,10 @@ export class ProspectusReviewService {
       publishBlockedReason:
         note.status === NoteStatus.DRAFT &&
         review.status !== ProspectusReviewStatus.APPROVED
-          ? "Prospectus review must be approved before publish"
+          ? "Complete Prospectus Review (submit + approve) before publishing to the marketplace"
           : null,
+      catalogueNotice:
+        "Dropdown wording is temporary placeholder catalogue text pending product/legal approval.",
     };
   }
 
@@ -261,11 +264,69 @@ export class ProspectusReviewService {
     return mapReview(updated);
   }
 
+  async submitForReview(noteId: string, actor: ActorContext) {
+    const current = await prisma.noteProspectusReview.findUnique({ where: { note_id: noteId } });
+    if (!current) throw new AppError(404, "PROSPECTUS_REVIEW_NOT_FOUND", "Prospectus review not found");
+    if (current.status === ProspectusReviewStatus.APPROVED) {
+      throw new AppError(
+        409,
+        "PROSPECTUS_REVIEW_LOCKED",
+        "Approved review is locked. Reopen for editing first."
+      );
+    }
+    if (current.status === ProspectusReviewStatus.READY_FOR_REVIEW) {
+      return mapReview(current);
+    }
+
+    const draft = asStoredContent(current.draft_content);
+    const errors = validateApprovalContent(
+      saveProspectusReviewDraftSchema.shape.draftContent.parse(draft)
+    );
+    if (errors.length > 0) {
+      throw new AppError(
+        422,
+        "PROSPECTUS_REVIEW_INVALID",
+        "Cannot submit for review until required selections are complete",
+        { details: errors }
+      );
+    }
+
+    const before = mapReview(current);
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.noteProspectusReview.update({
+        where: { note_id: noteId },
+        data: {
+          status: ProspectusReviewStatus.READY_FOR_REVIEW,
+          updated_by_user_id: actor.userId,
+          option_catalogue_version: catalogueVersion(),
+          content_version: { increment: 1 },
+        },
+      });
+      await logProspectusAction(
+        tx,
+        noteId,
+        "PROSPECTUS_REVIEW_SUBMIT",
+        actor,
+        asJson(before),
+        asJson(mapReview(row))
+      );
+      return row;
+    });
+    return mapReview(updated);
+  }
+
   async approve(noteId: string, actor: ActorContext) {
     const current = await prisma.noteProspectusReview.findUnique({ where: { note_id: noteId } });
     if (!current) throw new AppError(404, "PROSPECTUS_REVIEW_NOT_FOUND", "Prospectus review not found");
     if (current.status === ProspectusReviewStatus.APPROVED) {
       throw new AppError(409, "PROSPECTUS_REVIEW_ALREADY_APPROVED", "Review is already approved");
+    }
+    if (current.status !== ProspectusReviewStatus.READY_FOR_REVIEW) {
+      throw new AppError(
+        409,
+        "PROSPECTUS_REVIEW_NOT_READY",
+        "Submit the prospectus review for review before approving"
+      );
     }
 
     const draft = asStoredContent(current.draft_content);
@@ -278,6 +339,7 @@ export class ProspectusReviewService {
       });
     }
 
+    const approvedClone = cloneReviewContent(draft);
     const now = new Date();
     const before = mapReview(current);
     const updated = await prisma.$transaction(async (tx) => {
@@ -285,7 +347,7 @@ export class ProspectusReviewService {
         where: { note_id: noteId },
         data: {
           status: ProspectusReviewStatus.APPROVED,
-          approved_content: draft as unknown as Prisma.InputJsonValue,
+          approved_content: approvedClone as unknown as Prisma.InputJsonValue,
           approved_by_user_id: actor.userId,
           approved_at: now,
           updated_by_user_id: actor.userId,
@@ -355,8 +417,18 @@ export class ProspectusReviewService {
 
   async preview(noteId: string, actor: ActorContext) {
     const payload = await this.getOrCreateReview(noteId, actor);
-    const content = payload.review.draftContent;
+    const status = payload.review.status;
+    const useApproved =
+      status === ProspectusReviewStatus.APPROVED && payload.review.approvedContent != null;
+    const content = useApproved
+      ? payload.review.approvedContent!
+      : payload.review.draftContent;
     const publication = toProspectusPublicationContent(content);
+    const sourceLabel = useApproved ? "approved" : "draft";
+    const bannerText = useApproved
+      ? "Approved Prospectus Preview — not yet published"
+      : "Draft Prospectus — not yet approved";
+    const banner = `<div data-prospectus-preview-banner="${sourceLabel}" data-preview-source="${sourceLabel}">${bannerText}</div>`;
 
     const page1Note = await loadProspectusPageOneNote(prisma, noteId);
     const page1Input = await mapProspectusPageOneDataToInput(page1Note);
@@ -373,12 +445,10 @@ export class ProspectusReviewService {
     page3Input.publicationContent = publication;
     const page3 = buildProspectusPageThree(page3Input);
 
-    const banner =
-      '<div data-prospectus-preview-banner="draft">Draft Prospectus — not yet approved</div>';
-
     return {
-      status: payload.review.status,
-      draftMarker: "Draft Prospectus — not yet approved",
+      status,
+      previewSource: sourceLabel,
+      draftMarker: bannerText,
       html: {
         page1: `${banner}${buildProspectusPageOneHtml(page1)}`,
         page2: `${banner}${buildProspectusPageTwoHtml(page2)}`,
@@ -389,7 +459,7 @@ export class ProspectusReviewService {
 
   /**
    * Build frozen publication_content branch for Note.publish atomic write.
-   * Re-validates approved content. Does not mutate Application/CTOS.
+   * Freezes both option keys and resolved wording. Does not mutate Application/CTOS.
    */
   async buildFrozenPublicationContentForPublish(
     noteId: string
@@ -410,12 +480,14 @@ export class ProspectusReviewService {
         { details: errors }
       );
     }
+    const stored = content as ProspectusReviewStoredContent;
     return {
       version: `content.${review.content_version}`,
       optionCatalogueVersion: review.option_catalogue_version,
       approvedAt: (review.approved_at ?? new Date()).toISOString(),
       approvedBy: review.approved_by_user_id ?? "",
-      content: content as ProspectusReviewStoredContent,
+      content: cloneReviewContent(stored),
+      resolvedPublicationContent: toProspectusPublicationContent(stored),
     };
   }
 }

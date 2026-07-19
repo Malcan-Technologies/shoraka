@@ -650,6 +650,15 @@ export class ApiClient {
     return this.put<ProspectusReviewDetail>(`/v1/admin/notes/${id}/prospectus-review`, data);
   }
 
+  async submitAdminProspectusReview(
+    id: string
+  ): Promise<ApiResponse<ProspectusReviewDetail> | ApiError> {
+    return this.post<ProspectusReviewDetail>(
+      `/v1/admin/notes/${id}/prospectus-review/submit`,
+      {}
+    );
+  }
+
   async approveAdminProspectusReview(
     id: string
   ): Promise<ApiResponse<ProspectusReviewDetail> | ApiError> {

@@ -3,6 +3,7 @@
  */
 
 import { z } from "zod";
+import { parseProspectusFinancialNumber } from "../prospectus/prospectus-financial-comparison-metrics";
 import {
   PROSPECTUS_CREDIT_INSIGHT_OPTIONS,
   PROSPECTUS_DERIVED_FINANCIAL_FIELD_KEYS,
@@ -44,58 +45,73 @@ const manualYearSchema = z
 
 export const prospectusReviewStoredContentSchema = z
   .object({
-    page1: z.object({
-      keyInvestorHighlights: z.array(
-        z.object({
-          key: z.string(),
-          optionKey: nullableOptionKey,
-          isVisible: z.boolean(),
-        })
-      ),
-      paymentBasisOptionKey: nullableOptionKey,
-      shariahPrincipleOptionKey: nullableOptionKey,
-    }),
-    page2: z.object({
-      paymasterTrackRecord: z
-        .object({
-          totalInvoicesPaid: z.number().finite().nullable().optional(),
-          totalAmountPaid: numericOrString,
-          successfulRepaymentPercent: numericOrString,
-          onTimePaymentPercent: numericOrString,
-          averagePaymentPeriodDays: numericOrString,
-        })
-        .strict()
-        .optional(),
-      creditInsights: z.object({
-        creditScoreOptionKey: nullableOptionKey,
-        paymentBehaviourOptionKey: nullableOptionKey,
-        creditUtilisationOptionKey: nullableOptionKey,
-        litigationCheckOptionKey: nullableOptionKey,
-        ccrisStatusOptionKey: nullableOptionKey,
-      }),
-      invoiceWorkStatements: z.array(
-        z.object({
-          key: z.string(),
-          optionKey: nullableOptionKey,
-          isVisible: z.boolean(),
-        })
-      ),
-    }),
-    page3: z.object({
-      manualFinancialInputs: z
-        .object({
-          years: z.record(z.string(), manualYearSchema),
-        })
-        .optional(),
-      investorTakeaways: z.object({
-        revenueProfitabilityOptionKey: nullableOptionKey,
-        liquidityOptionKey: nullableOptionKey,
-        leverageOptionKey: nullableOptionKey,
-        debtServicingCapacityOptionKey: nullableOptionKey,
-        workingCapitalEfficiencyOptionKey: nullableOptionKey,
-        overallFinancialProfileOptionKey: nullableOptionKey,
-      }),
-    }),
+    page1: z
+      .object({
+        keyInvestorHighlights: z.array(
+          z
+            .object({
+              key: z.string(),
+              optionKey: nullableOptionKey,
+              isVisible: z.boolean(),
+            })
+            .strict()
+        ),
+        paymentBasisOptionKey: nullableOptionKey,
+        shariahPrincipleOptionKey: nullableOptionKey,
+      })
+      .strict(),
+    page2: z
+      .object({
+        paymasterTrackRecord: z
+          .object({
+            totalInvoicesPaid: z.number().finite().nullable().optional(),
+            totalAmountPaid: numericOrString,
+            successfulRepaymentPercent: numericOrString,
+            onTimePaymentPercent: numericOrString,
+            averagePaymentPeriodDays: numericOrString,
+          })
+          .strict()
+          .optional(),
+        creditInsights: z
+          .object({
+            creditScoreOptionKey: nullableOptionKey,
+            paymentBehaviourOptionKey: nullableOptionKey,
+            creditUtilisationOptionKey: nullableOptionKey,
+            litigationCheckOptionKey: nullableOptionKey,
+            ccrisStatusOptionKey: nullableOptionKey,
+          })
+          .strict(),
+        invoiceWorkStatements: z.array(
+          z
+            .object({
+              key: z.string(),
+              optionKey: nullableOptionKey,
+              isVisible: z.boolean(),
+            })
+            .strict()
+        ),
+      })
+      .strict(),
+    page3: z
+      .object({
+        manualFinancialInputs: z
+          .object({
+            years: z.record(z.string(), manualYearSchema),
+          })
+          .strict()
+          .optional(),
+        investorTakeaways: z
+          .object({
+            revenueProfitabilityOptionKey: nullableOptionKey,
+            liquidityOptionKey: nullableOptionKey,
+            leverageOptionKey: nullableOptionKey,
+            debtServicingCapacityOptionKey: nullableOptionKey,
+            workingCapitalEfficiencyOptionKey: nullableOptionKey,
+            overallFinancialProfileOptionKey: nullableOptionKey,
+          })
+          .strict(),
+      })
+      .strict(),
   })
   .strict();
 
@@ -196,6 +212,39 @@ export function validateDraftContent(
   for (const [catalogueKey, field, key] of takeawayPairs) {
     if (key && !findCatalogueOption(PROSPECTUS_TAKEAWAY_OPTION_CATALOGUE[catalogueKey] ?? [], key)) {
       errors.push({ path: `page3.investorTakeaways.${field}`, message: "Invalid option key" });
+    }
+  }
+
+  const track = content.page2.paymasterTrackRecord;
+  if (track) {
+    if (track.totalInvoicesPaid != null && track.totalInvoicesPaid < 0) {
+      errors.push({
+        path: "page2.paymasterTrackRecord.totalInvoicesPaid",
+        message: "Must be zero or positive",
+      });
+    }
+    for (const field of [
+      "totalAmountPaid",
+      "successfulRepaymentPercent",
+      "onTimePaymentPercent",
+      "averagePaymentPeriodDays",
+    ] as const) {
+      const n = parseProspectusFinancialNumber(track[field]);
+      if (n != null && n < 0) {
+        errors.push({
+          path: `page2.paymasterTrackRecord.${field}`,
+          message: "Must be zero or positive",
+        });
+      }
+    }
+    for (const field of ["successfulRepaymentPercent", "onTimePaymentPercent"] as const) {
+      const n = parseProspectusFinancialNumber(track[field]);
+      if (n != null && n > 100) {
+        errors.push({
+          path: `page2.paymasterTrackRecord.${field}`,
+          message: "Percentage must be between 0 and 100",
+        });
+      }
     }
   }
 

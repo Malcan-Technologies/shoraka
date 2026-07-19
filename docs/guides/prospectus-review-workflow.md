@@ -7,14 +7,28 @@ Pre-marketplace admin workflow between Note draft preparation and marketplace pu
 ```
 Note prepared (DRAFT)
 → Prospectus Review Draft
-→ Officer selections
-→ Preview
-→ Prospectus Approved
+→ Officer selections + Save Draft
+→ Submit for Review (READY_FOR_REVIEW)
+→ Approve (APPROVED)
 → Note published
 → Approved content frozen on notes.prospectus_snapshot.publication_content
 ```
 
-A Note created on/after `2026-07-19T00:00:00.000Z` cannot publish without an `APPROVED` `NoteProspectusReview`. Historical Notes without a review row remain publishable.
+A Note created on/after `PROSPECTUS_REVIEW_REQUIRED_FROM` (`2026-07-19T00:00:00.000Z`) cannot publish without an `APPROVED` `NoteProspectusReview`. Historical Notes without a review row remain publishable. Opening Prospectus Review on an old Note creates a review row and opts that Note into the requirement.
+
+## Status transitions
+
+| From | To | How |
+| --- | --- | --- |
+| _(none)_ | `DRAFT` | Lazy create on GET review |
+| `DRAFT` | `DRAFT` | Save Draft |
+| `READY_FOR_REVIEW` | `DRAFT` | Save Draft (edits return to draft) |
+| `DRAFT` | `READY_FOR_REVIEW` | Submit for Review (approval-level validation) |
+| `READY_FOR_REVIEW` | `APPROVED` | Approve |
+| `APPROVED` | `DRAFT` | Reopen (unpublished Notes only) |
+| `APPROVED` | _(blocked)_ | Reopen after publish |
+
+`SUPERSEDED` is reserved for a future amendment/republication flow.
 
 ## Data categories
 
@@ -42,7 +56,7 @@ Never writes into Application financial statements, CTOS, invoice/issuer/paymast
 
 Versioned in code: `apps/api/src/modules/notes/prospectus-review/prospectus-option-catalogues.ts`.
 
-Current version uses clearly marked placeholder wording. Not legally approved production copy.
+Current version uses clearly marked placeholder wording. Not legally approved production copy. Admin UI shows a temporary-catalogue notice.
 
 Every dropdown includes `do_not_display`.
 
@@ -52,17 +66,21 @@ Every dropdown includes `do_not_display`.
 | --- | --- | --- |
 | GET | `/v1/admin/notes/:id/prospectus-review` | `notes.view` |
 | PUT | `/v1/admin/notes/:id/prospectus-review` | `notes.manage` |
+| POST | `…/submit` | `notes.manage` |
 | POST | `…/approve` | `notes.manage` |
 | POST | `…/reopen` | `notes.manage` |
 | GET | `…/preview` | `notes.view` |
 
-Draft save uses `expectedUpdatedAt` optimistic concurrency.
+Draft save uses `expectedUpdatedAt` optimistic concurrency (`409 CONFLICT` on stale save).
 
 ## Admin UI
 
 Route: `/notes/[id]/prospectus`
 
-Steps mirror prospectus pages. Preview uses the same Page 1–3 builders. Banner: “Draft Prospectus — not yet approved”.
+Steps mirror prospectus pages. Preview uses the same Page 1–3 builders.
+
+- Draft / Ready for Review: preview source = current draft
+- Approved: preview source = approved content (banner states source)
 
 ## Publication freeze
 
@@ -71,10 +89,10 @@ On publish:
 1. Require APPROVED review when the Note is in the new workflow cohort.
 2. Re-validate approved content.
 3. Freeze page_1 + page_2 as today.
-4. Also freeze `publication_content` from approved review.
+4. Freeze `publication_content` with both option keys (`content`) and resolved wording (`resolvedPublicationContent`).
 5. Preserve unknown snapshot branches.
 
-Published renderers read frozen `publication_content` only — never the mutable draft and never development placeholder defaults.
+Published renderers prefer frozen `resolvedPublicationContent` and must not re-resolve from the live catalogue when that branch exists.
 
 ## CTOS
 
@@ -82,4 +100,11 @@ Not used for investor mapping or automatic prefill in this workflow. Future sugg
 
 ## Reopen
 
-Allowed only while Note is still `DRAFT` and unpublished. Published Notes require a future amendment/republication flow (out of scope).
+Allowed only while Note is still `DRAFT` and unpublished. Prior approval metadata remains on the row for audit. Published Notes require a future amendment/republication flow (out of scope).
+
+## Permissions
+
+- `notes.view`: read review + preview
+- `notes.manage`: save, submit, approve, reopen, publish when eligible
+
+Same officer may edit and approve today (no separate approver permission). Separation of duties is a product decision.

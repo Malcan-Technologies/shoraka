@@ -27,6 +27,13 @@ export function useProspectusReview(noteId?: string) {
   });
 }
 
+export class ProspectusReviewConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ProspectusReviewConflictError";
+  }
+}
+
 export function useSaveProspectusReviewDraft(noteId: string) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
@@ -34,6 +41,27 @@ export function useSaveProspectusReviewDraft(noteId: string) {
   return useMutation({
     mutationFn: async (input: SaveProspectusReviewDraftInput) => {
       const res = await apiClient.saveAdminProspectusReviewDraft(noteId, input);
+      if (!res.success) {
+        if (res.error.code === "CONFLICT") {
+          throw new ProspectusReviewConflictError(res.error.message);
+        }
+        throw new Error(res.error.message);
+      }
+      return res.data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: prospectusReviewKey(noteId) });
+    },
+  });
+}
+
+export function useSubmitProspectusReview(noteId: string) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const res = await apiClient.submitAdminProspectusReview(noteId);
       if (!res.success) throw new Error(res.error.message);
       return res.data;
     },

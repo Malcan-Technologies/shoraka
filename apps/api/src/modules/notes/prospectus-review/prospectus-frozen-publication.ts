@@ -3,13 +3,23 @@
  */
 
 import { asJsonRecord } from "../prospectus/prospectus-json-guards";
+import type { ProspectusPublicationContent } from "../prospectus/prospectus-placeholder-publication-content";
 import {
   toProspectusPublicationContent,
   type ProspectusFrozenPublicationContent,
   type ProspectusReviewStoredContent,
 } from "./prospectus-review-content";
-import type { ProspectusPublicationContent } from "../prospectus/prospectus-placeholder-publication-content";
 import { prospectusReviewStoredContentSchema } from "./prospectus-review.schemas";
+
+function looksLikeResolvedPublication(value: unknown): value is ProspectusPublicationContent {
+  const record = asJsonRecord(value);
+  return Boolean(
+    record &&
+      Array.isArray(record.keyInvestorHighlights) &&
+      record.paymentBasisTemplate &&
+      typeof record.paymentBasisTemplate === "object"
+  );
+}
 
 export function parseFrozenPublicationContent(
   prospectusSnapshot: unknown
@@ -27,21 +37,31 @@ export function parseFrozenPublicationContent(
   ) {
     return null;
   }
+
+  const resolved = looksLikeResolvedPublication(branch.resolvedPublicationContent)
+    ? (branch.resolvedPublicationContent as ProspectusPublicationContent)
+    : toProspectusPublicationContent(contentParse.data as ProspectusReviewStoredContent);
+
   return {
     version: branch.version,
     optionCatalogueVersion: branch.optionCatalogueVersion,
     approvedAt: branch.approvedAt,
     approvedBy: branch.approvedBy,
     content: contentParse.data as ProspectusReviewStoredContent,
+    resolvedPublicationContent: resolved,
   };
 }
 
+/**
+ * Published Notes: use frozen resolved wording when present.
+ * Never re-resolve from the live catalogue if resolvedPublicationContent exists.
+ */
 export function publicationContentFromFrozenSnapshot(
   prospectusSnapshot: unknown
 ): ProspectusPublicationContent | undefined {
   const frozen = parseFrozenPublicationContent(prospectusSnapshot);
   if (!frozen) return undefined;
-  return toProspectusPublicationContent(frozen.content);
+  return frozen.resolvedPublicationContent;
 }
 
 export function mergePublicationContentIntoSnapshot(

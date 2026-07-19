@@ -292,6 +292,20 @@ adminNotesRouter.put(
 );
 
 adminNotesRouter.post(
+  "/:id/prospectus-review/submit",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { prospectusReviewService } = await import("./prospectus-review/prospectus-review.service");
+      send(res, await prospectusReviewService.submitForReview(id, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
   "/:id/prospectus-review/approve",
   requirePermission("notes.manage"),
   async (req: Request, res: Response, next: NextFunction) => {

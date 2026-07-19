@@ -252,5 +252,18 @@ export interface ProspectusFrozenPublicationContent {
   optionCatalogueVersion: string;
   approvedAt: string;
   approvedBy: string;
+  /** Officer option keys — audit / reopen seed. */
   content: ProspectusReviewStoredContent;
+  /**
+   * Immutable resolved wording + manual values at approval/publish time.
+   * Published renderers MUST prefer this over re-resolving the live catalogue.
+   */
+  resolvedPublicationContent: ProspectusPublicationContent;
+}
+
+/** Deep clone JSON-safe review content (no shared mutable references). */
+export function cloneReviewContent(
+  content: ProspectusReviewStoredContent
+): ProspectusReviewStoredContent {
+  return JSON.parse(JSON.stringify(content)) as ProspectusReviewStoredContent;
 }
