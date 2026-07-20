@@ -70,7 +70,8 @@ const ISSUER_SUB = "seed_demo_prospectus_issuer_sub";
 
 const ISSUER_NAME = "Demo Prospectus Issuer Sdn Bhd";
 const PAYMASTER_NAME = "Demo Paymaster Sdn. Bhd.";
-const PURPOSE = "Working capital financing";
+/** Used as Prospectus purpose_snapshot.financing_for and About Invoice {workDescription}. */
+const PURPOSE = "civil engineering and infrastructure works";
 const TARGET_AMOUNT = 100_000;
 const PROFIT_RATE = 10;
 const PLATFORM_FEE = 1.5;
@@ -691,10 +692,17 @@ async function upsertDraftNote(
   });
 
   // Explicit DRAFT review — not approved, no publication, no published snapshot.
-  const draft = emptyProspectusReviewContent({
-    paymasterSnapshot: { name: PAYMASTER_NAME },
-    profitRatePercent: PROFIT_RATE,
-  });
+  const draft = emptyProspectusReviewContent(
+    {
+      paymasterSnapshot: { name: PAYMASTER_NAME },
+      profitRatePercent: PROFIT_RATE,
+    },
+    {
+      paymasterSnapshot: { name: PAYMASTER_NAME },
+      purposeSnapshot: { financing_for: PURPOSE },
+      deedOfAssignment: null,
+    }
+  );
   await prisma.noteProspectusReview.upsert({
     where: { note_id: NOTE_ID },
     update: {

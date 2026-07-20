@@ -14,6 +14,7 @@ import {
   buildProspectusHighlightRecommendations,
   isSoukscoreRiskRating,
   normalizeProspectusWorkflowStatus,
+  type ProspectusAboutInvoiceRecommendationInput,
   type ProspectusHighlightRecommendationInput,
 } from "@cashsouk/types";
 import { AppError } from "../../../lib/http/error-handler";
@@ -97,6 +98,8 @@ function asStoredContent(value: unknown): ProspectusReviewStoredContent {
 function recommendationInputFromNote(note: {
   paymaster_snapshot: unknown;
   invoice_snapshot: unknown;
+  purpose_snapshot?: unknown;
+  contract_snapshot?: unknown;
   profit_rate_percent: Prisma.Decimal | number | null;
   maturity_date: Date | null;
   listing: { opens_at: Date | null } | null;
@@ -115,20 +118,41 @@ function recommendationInputFromNote(note: {
   };
 }
 
-async function loadNoteRecommendationInput(
-  noteId: string
-): Promise<ProspectusHighlightRecommendationInput> {
+function aboutInvoiceRecommendationInputFromNote(note: {
+  paymaster_snapshot: unknown;
+  invoice_snapshot: unknown;
+  purpose_snapshot?: unknown;
+  contract_snapshot?: unknown;
+}): ProspectusAboutInvoiceRecommendationInput {
+  return {
+    paymasterSnapshot: note.paymaster_snapshot,
+    invoiceSnapshot: note.invoice_snapshot,
+    purposeSnapshot: note.purpose_snapshot ?? null,
+    contractSnapshot: note.contract_snapshot ?? null,
+  };
+}
+
+async function loadNoteRecommendationBundles(noteId: string): Promise<{
+  highlights: ProspectusHighlightRecommendationInput;
+  aboutInvoice: ProspectusAboutInvoiceRecommendationInput;
+}> {
   const note = await prisma.note.findUnique({
     where: { id: noteId },
     select: {
       paymaster_snapshot: true,
       invoice_snapshot: true,
+      purpose_snapshot: true,
+      contract_snapshot: true,
       profit_rate_percent: true,
       maturity_date: true,
       listing: { select: { opens_at: true } },
     },
   });
-  return note ? recommendationInputFromNote(note) : {};
+  if (!note) return { highlights: {}, aboutInvoice: {} };
+  return {
+    highlights: recommendationInputFromNote(note),
+    aboutInvoice: aboutInvoiceRecommendationInputFromNote(note),
+  };
 }
 
 function mapReview(row: NoteProspectusReview) {
@@ -298,6 +322,8 @@ export class ProspectusReviewService {
         title: true,
         paymaster_snapshot: true,
         invoice_snapshot: true,
+        purpose_snapshot: true,
+        contract_snapshot: true,
         profit_rate_percent: true,
         maturity_date: true,
         listing: { select: { opens_at: true } },
@@ -306,12 +332,13 @@ export class ProspectusReviewService {
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
 
     const recommendationInput = recommendationInputFromNote(note);
+    const aboutInvoiceInput = aboutInvoiceRecommendationInputFromNote(note);
     const highlightRecommendations =
       buildProspectusHighlightRecommendations(recommendationInput);
 
     let review = await prisma.noteProspectusReview.findUnique({ where: { note_id: noteId } });
     if (!review) {
-      const empty = emptyProspectusReviewContent(recommendationInput);
+      const empty = emptyProspectusReviewContent(recommendationInput, aboutInvoiceInput);
       review = await prisma.noteProspectusReview.create({
         data: {
           note_id: noteId,
@@ -342,7 +369,8 @@ export class ProspectusReviewService {
       if (parsed.success) {
         const normalized = normalizeProspectusReviewSelections(
           parsed.data as ProspectusReviewStoredContent,
-          recommendationInput
+          recommendationInput,
+          aboutInvoiceInput
         );
         if (JSON.stringify(review.draft_content) !== JSON.stringify(normalized)) {
           review = await prisma.noteProspectusReview.update({
@@ -397,7 +425,8 @@ export class ProspectusReviewService {
     const mapped = mapReview(review);
     mapped.draftContent = normalizeProspectusReviewSelections(
       mapped.draftContent,
-      recommendationInput
+      recommendationInput,
+      aboutInvoiceInput
     );
 
     const page1Note = await loadProspectusPageOneNote(prisma, noteId);
@@ -511,6 +540,8 @@ export class ProspectusReviewService {
       select: {
         paymaster_snapshot: true,
         invoice_snapshot: true,
+        purpose_snapshot: true,
+        contract_snapshot: true,
         profit_rate_percent: true,
         maturity_date: true,
         listing: { select: { opens_at: true } },
@@ -519,7 +550,8 @@ export class ProspectusReviewService {
     const draftToStore = stripLegacyPaymentBasisShariahKeys(
       normalizeProspectusReviewSelections(
         input.draftContent as ProspectusReviewStoredContent,
-        noteForRecs ? recommendationInputFromNote(noteForRecs) : {}
+        noteForRecs ? recommendationInputFromNote(noteForRecs) : {},
+        noteForRecs ? aboutInvoiceRecommendationInputFromNote(noteForRecs) : {}
       )
     );
 
@@ -614,10 +646,12 @@ export class ProspectusReviewService {
     const parsed = saveProspectusReviewDraftSchema.shape.draftContent.parse(
       current.draft_content
     );
+    const recBundles = await loadNoteRecommendationBundles(noteId);
     const approvedClone = stripLegacyPaymentBasisShariahKeys(
       normalizeProspectusReviewSelections(
         parsed as ProspectusReviewStoredContent,
-        await loadNoteRecommendationInput(noteId)
+        recBundles.highlights,
+        recBundles.aboutInvoice
       )
     );
     const errors = validateApprovalContent(approvedClone);

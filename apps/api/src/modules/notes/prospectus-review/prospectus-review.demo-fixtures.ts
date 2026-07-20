@@ -4,21 +4,36 @@
  */
 
 import { PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT } from "@cashsouk/types";
-import { emptyProspectusReviewContent } from "./prospectus-review-content";
+import {
+  emptyProspectusReviewContent,
+  normalizeAboutInvoiceSelections,
+} from "./prospectus-review-content";
 import type { ProspectusReviewStoredContent } from "./prospectus-review-content";
 
 /** Complete, approval-valid draft using recommended/editable highlight copy. */
 export function buildCompleteProspectusReviewDraft(): ProspectusReviewStoredContent {
-  const draft = emptyProspectusReviewContent({
-    paymasterSnapshot: {
-      name: "Kementerian Kerja Raya",
-      entity_type: "Government Agency",
+  const paymasterSnapshot = {
+    name: "Demo Paymaster Sdn. Bhd.",
+    short_name: "Demo Paymaster",
+    entity_type: "Private Limited Company (Sdn Bhd)",
+  };
+  const purposeSnapshot = {
+    financing_for: "civil engineering and infrastructure works",
+  };
+  let draft = emptyProspectusReviewContent(
+    {
+      paymasterSnapshot,
+      riskRating: "AA",
+      profitRatePercent: 12,
+      listingOpensAt: "2025-05-15T00:00:00.000Z",
+      maturityDate: "2025-09-12T00:00:00.000Z",
     },
-    riskRating: "AA",
-    profitRatePercent: 12,
-    listingOpensAt: "2025-05-15T00:00:00.000Z",
-    maturityDate: "2025-09-12T00:00:00.000Z",
-  });
+    {
+      paymasterSnapshot,
+      purposeSnapshot,
+      deedOfAssignment: null,
+    }
+  );
   draft.page1.keyInvestorHighlights = draft.page1.keyInvestorHighlights.map((h) => {
     if (h.key === "shariah") {
       return {
@@ -35,6 +50,18 @@ export function buildCompleteProspectusReviewDraft(): ProspectusReviewStoredCont
     paymasterRating: "PM1",
     confidenceGrading: "High",
   };
+  draft = normalizeAboutInvoiceSelections(draft, {
+    paymasterSnapshot,
+    purposeSnapshot,
+    deedOfAssignment: "Yes",
+  });
+  // Mark demo statements as officer-confirmed so approval validation treats them as final.
+  draft.page2.aboutInvoice = {
+    items: (draft.page2.aboutInvoice?.items ?? []).map((item) => ({
+      ...item,
+      sourceType: "OFFICER_ENTERED" as const,
+    })),
+  };
   draft.page2.paymasterTrackRecord = {
     totalInvoicesPaid: 48,
     totalAmountPaid: "12500000",
@@ -49,16 +76,7 @@ export function buildCompleteProspectusReviewDraft(): ProspectusReviewStoredCont
     litigationCheckOptionKey: "positive",
     ccrisStatusOptionKey: "neutral",
   };
-  draft.page2.aboutInvoice = {
-    items: (draft.page2.aboutInvoice?.items ?? []).map((item) => ({
-      ...item,
-      sourceType: "OFFICER_ENTERED" as const,
-      text:
-        item.text.trim() ||
-        "Officer-confirmed invoice / work statement for Prospectus Review demo.",
-    })),
-  };
-  draft.page2.invoiceWorkStatements = draft.page2.aboutInvoice.items.map((item) => ({
+  draft.page2.invoiceWorkStatements = (draft.page2.aboutInvoice?.items ?? []).map((item) => ({
     key: item.id,
     optionKey: null,
     isVisible: true,

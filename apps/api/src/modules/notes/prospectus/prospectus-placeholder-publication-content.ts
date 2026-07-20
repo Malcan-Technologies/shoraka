@@ -217,25 +217,25 @@ export const PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT: ProspectusPublicationCo
   invoiceWorkStatements: [
     {
       key: "work_under_contract",
-      text: "Placeholder — work under contract statement (not approved).",
+      text: "The issuer has completed civil engineering and infrastructure works under a contract awarded by Demo Paymaster Sdn. Bhd.",
       isVisible: true,
       sourceType: "placeholder_manual",
     },
     {
       key: "certification_acceptance",
-      text: "Placeholder — certification and acceptance statement (not approved).",
+      text: "The invoice represents payment for works certified and accepted by Demo Paymaster.",
       isVisible: true,
       sourceType: "placeholder_manual",
     },
     {
       key: "paymaster_trust_account",
-      text: "Placeholder — paymaster-to-trust-account statement (not approved).",
+      text: "Payment will be distributed directly by the paymaster to the CashSouk trust account on the invoice due date.",
       isVisible: true,
       sourceType: "placeholder_manual",
     },
     {
       key: "deed_of_assignment",
-      text: "Placeholder — deed of assignment statement (not approved).",
+      text: "The invoice has been assigned to CashSouk as security via a Deed of Assignment (DOA).",
       isVisible: true,
       sourceType: "placeholder_manual",
     },

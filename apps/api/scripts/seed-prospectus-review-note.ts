@@ -271,7 +271,7 @@ export function buildProspectusDemoBusinessDetails(): Record<string, unknown> {
       single_customer_over_50_revenue: false,
     },
     why_raising_funds: {
-      financing_for: "Working capital to fulfil an approved receivable financing invoice.",
+      financing_for: "civil engineering and infrastructure works",
       how_funds_used: "Inventory, payroll, and delivery logistics for the financed invoice.",
       business_plan: "Maintain steady receivables turnover over the next 12 months.",
       risks_delay_repayment: "Delivery delays may shift cash collection timing.",
@@ -655,7 +655,7 @@ async function upsertDraftNote(
       name: "Account Receivable Financing",
     } as Prisma.InputJsonValue,
     purpose_snapshot: {
-      financing_for: "Working capital to fulfil an approved receivable financing invoice.",
+      financing_for: "civil engineering and infrastructure works",
     } as Prisma.InputJsonValue,
     contract_snapshot: {
       id: PROSPECTUS_DEMO_CONTRACT_ID,

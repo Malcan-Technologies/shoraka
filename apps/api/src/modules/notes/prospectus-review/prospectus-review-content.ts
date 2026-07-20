@@ -17,6 +17,7 @@ import {
   normalizeProspectusPaymasterRating,
   type ProspectusAboutInvoiceItem,
   type ProspectusAboutInvoiceItemId,
+  type ProspectusAboutInvoiceRecommendationInput,
   type ProspectusAboutInvoiceSourceType,
   type ProspectusCompanySize,
   type ProspectusConfidenceGrading,
@@ -209,24 +210,44 @@ function legacyInvoiceWorkText(key: string, optionKey: string | null | undefined
   return trimCopy(findCatalogueOption(catalogue, optionKey)?.renderedText);
 }
 
-/**
- * Ensure four About Invoice rows exist; fill empty text from suggestion templates;
- * migrate legacy catalogue optionKey rows when aboutInvoice is absent.
- */
+function aboutInvoiceRecommendationInputFromContent(
+  content: ProspectusReviewStoredContent,
+  input: ProspectusAboutInvoiceRecommendationInput = {}
+): ProspectusAboutInvoiceRecommendationInput {
+  return {
+    ...input,
+    deedOfAssignment:
+      input.deedOfAssignment !== undefined
+        ? input.deedOfAssignment
+        : content.page2.invoicePaymaster?.deedOfAssignment ?? null,
+  };
+}
+
 /** Highlights + About Invoice normalize for save / approve / GET. */
 export function normalizeProspectusReviewSelections(
   content: ProspectusReviewStoredContent,
-  recommendationInput: ProspectusHighlightRecommendationInput = {}
+  recommendationInput: ProspectusHighlightRecommendationInput = {},
+  aboutInvoiceInput: ProspectusAboutInvoiceRecommendationInput = {}
 ): ProspectusReviewStoredContent {
   return normalizeAboutInvoiceSelections(
-    normalizeHighlightSelections(content, recommendationInput)
+    normalizeHighlightSelections(content, recommendationInput),
+    aboutInvoiceInput
   );
 }
 
+/**
+ * Ensure four About Invoice rows exist.
+ * - OFFICER_ENTERED text is never overwritten.
+ * - Untouched SYSTEM_SUGGESTION rows are regenerated from Canva templates + Note tokens.
+ * - Legacy catalogue optionKey rows migrate once as OFFICER_ENTERED.
+ */
 export function normalizeAboutInvoiceSelections(
-  content: ProspectusReviewStoredContent
+  content: ProspectusReviewStoredContent,
+  aboutInvoiceInput: ProspectusAboutInvoiceRecommendationInput = {}
 ): ProspectusReviewStoredContent {
-  const suggestions = buildProspectusAboutInvoiceRecommendations();
+  const suggestions = buildProspectusAboutInvoiceRecommendations(
+    aboutInvoiceRecommendationInputFromContent(content, aboutInvoiceInput)
+  );
   const byId = new Map(
     (content.page2.aboutInvoice?.items ?? []).map((item) => [item.id, item] as const)
   );
@@ -236,23 +257,32 @@ export function normalizeAboutInvoiceSelections(
 
   const items: ProspectusAboutInvoiceItem[] = PROSPECTUS_ABOUT_INVOICE_ITEM_IDS.map((id) => {
     const existing = byId.get(id);
+    const sourceType = isAboutInvoiceSourceType(existing?.sourceType)
+      ? existing.sourceType
+      : existing
+        ? "OFFICER_ENTERED"
+        : null;
     const existingText = trimCopy(existing?.text);
-    if (existingText) {
+
+    // Ops-edited copy is frozen against regeneration.
+    if (sourceType === "OFFICER_ENTERED") {
       return {
         id,
         text: existingText,
-        sourceType: isAboutInvoiceSourceType(existing?.sourceType)
-          ? existing.sourceType
-          : "OFFICER_ENTERED",
+        sourceType: "OFFICER_ENTERED",
       };
     }
 
-    const legacy = legacyByKey.get(id);
-    const legacyText = legacyInvoiceWorkText(id, legacy?.optionKey);
-    if (legacyText) {
-      return { id, text: legacyText, sourceType: "OFFICER_ENTERED" };
+    // Legacy catalogue pick → officer-owned wording once.
+    if (!existing && !content.page2.aboutInvoice) {
+      const legacy = legacyByKey.get(id);
+      const legacyText = legacyInvoiceWorkText(id, legacy?.optionKey);
+      if (legacyText) {
+        return { id, text: legacyText, sourceType: "OFFICER_ENTERED" };
+      }
     }
 
+    // Empty or SYSTEM_SUGGESTION → refresh from current templates/tokens.
     return {
       id,
       text: suggestions[id as ProspectusAboutInvoiceItemId].text,
@@ -265,7 +295,6 @@ export function normalizeAboutInvoiceSelections(
     page2: {
       ...content.page2,
       aboutInvoice: { items },
-      // Keep a thin legacy mirror so older readers do not crash on missing array.
       invoiceWorkStatements: items.map((item) => ({
         key: item.id,
         optionKey: null,
@@ -276,10 +305,14 @@ export function normalizeAboutInvoiceSelections(
 }
 
 export function emptyProspectusReviewContent(
-  recommendationInput: ProspectusHighlightRecommendationInput = {}
+  recommendationInput: ProspectusHighlightRecommendationInput = {},
+  aboutInvoiceInput: ProspectusAboutInvoiceRecommendationInput = {}
 ): ProspectusReviewStoredContent {
   const recommendations = buildProspectusHighlightRecommendations(recommendationInput);
-  const aboutSuggestions = buildProspectusAboutInvoiceRecommendations();
+  const aboutSuggestions = buildProspectusAboutInvoiceRecommendations({
+    ...aboutInvoiceInput,
+    deedOfAssignment: aboutInvoiceInput.deedOfAssignment ?? null,
+  });
   return {
     page1: {
       keyInvestorHighlights: PROSPECTUS_HIGHLIGHT_KEYS.map((key) => ({
