@@ -114,6 +114,22 @@ export interface ProspectusReviewStoredContent {
       onTimePaymentPercent?: string | number | null;
       averagePaymentPeriodDays?: string | number | null;
     };
+    /**
+     * Officer overrides for unsupported Page 2 financial comparison metrics.
+     * Keys: calendar year ("2024") and/or financial year-end ISO ("2024-12-31").
+     * System-derived metrics (Revenue, PAT, NPM, ROE, Current Ratio) must not be overridden.
+     */
+    financialComparison?: {
+      overrides?: Record<
+        string,
+        {
+          netDebtEquity?: string | number | null;
+          interestCoverage?: string | number | null;
+          dscr?: string | number | null;
+          receivablesDays?: string | number | null;
+        }
+      >;
+    };
     creditInsights: {
       creditScoreOptionKey?: string | null;
       paymentBehaviourOptionKey?: string | null;
@@ -213,6 +229,19 @@ export interface ProspectusPaymasterTrackRecordAdminRow {
   value: string;
 }
 
+/** Read-only Page 2 3-Year Financial Comparison table for Admin (same values as Preview). */
+export interface ProspectusFinancialComparisonAdminTable {
+  yearHeaders: Array<{
+    key: string;
+    yearLabel: string;
+    fyeLabel: string;
+  }>;
+  rows: Array<{
+    metric: string;
+    values: string[];
+  }>;
+}
+
 export interface ProspectusReviewGetResponse {
   note: {
     id: string;
@@ -268,6 +297,13 @@ export interface ProspectusReviewGetResponse {
    */
   paymasterTrackRecord: {
     rows: ProspectusPaymasterTrackRecordAdminRow[];
+  };
+  /**
+   * Page 2 3-Year Financial Comparison — same Stage 4A/4B path as Preview.
+   * Unsupported metrics may include officer overrides from draft/approved content.
+   */
+  financialComparison: {
+    table: ProspectusFinancialComparisonAdminTable;
   };
   publishBlockedReason: string | null;
   /** Temporary placeholder catalogue notice for officers. */

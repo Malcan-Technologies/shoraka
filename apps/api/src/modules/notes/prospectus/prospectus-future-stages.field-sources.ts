@@ -217,16 +217,15 @@
  * - ROE → calculateReturnOnEquity(plnpat, bsqpuc) → percent from ratio
  * - Current Ratio → calculateCurrentRatio(bscatot, curlib) → "{n}x"
  *
- * Unsupported (Data not available; no approximation):
- * - Net Debt / Equity — do NOT substitute calculateGearing
- * - Interest Coverage
- * - DSCR
- * - Receivables Days
+ * Officer-configurable when unset → Data not available (no approximation):
+ * - Net Debt / Equity — page2.financialComparison.overrides; do NOT substitute calculateGearing
+ * - Interest Coverage — officer override per year
+ * - DSCR — officer override per year
+ * - Receivables Days — officer override per year
  *
- * Application source only; CTOS not used; no source mixing.
- * Full MYR cells; no compact/million conversion.
+ * Application unaudited source only; CTOS not used; no source mixing.
+ * Full MYR cells; no compact/million conversion (Canva "MYR mil." unit label remains DNA).
  * Table unit label remains Stage 4A DNA. No visible source statement/note.
- * Publication freeze still pending Page 2 mapper.
  *
  * =============================================================================
  * PAGE 2 — STAGE 5 CREDIT INSIGHTS (implemented as DNA-first)

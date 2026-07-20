@@ -1,6 +1,6 @@
 /**
  * SECTION: Build Page 2 financial comparison metrics (Stage 4B)
- * WHY: Consume Stage 4A years; reuse shared calculators; unsupported rows stay DNA
+ * WHY: Consume Stage 4A years; reuse shared calculators; officer fills for unsupported rows
  */
 
 import {
@@ -18,6 +18,7 @@ import {
   type ProspectusFinancialComparisonMetricRow,
   type ProspectusFinancialComparisonMetrics,
   type ProspectusFinancialComparisonMetricsInput,
+  type ProspectusFinancialComparisonYearOfficerOverride,
 } from "./prospectus-financial-comparison-metrics.types";
 
 /**
@@ -52,13 +53,19 @@ export function formatProspectusFinancialPercentFromRatio(
   return `${fixed}%`;
 }
 
-/** Current ratio multiple — up to 2 decimals, trim trailing zeros, lowercase x. */
+/** Current ratio / coverage multiple — up to 2 decimals, trim trailing zeros, lowercase x. */
 export function formatProspectusFinancialMultiple(
   value: number | null | undefined
 ): string {
   if (value == null || !Number.isFinite(value)) return PROSPECTUS_DATA_NOT_AVAILABLE;
   const fixed = value.toFixed(2).replace(/\.?0+$/, "");
   return `${fixed}x`;
+}
+
+function formatReceivablesDays(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return PROSPECTUS_DATA_NOT_AVAILABLE;
+  const fixed = value.toFixed(2).replace(/\.?0+$/, "");
+  return fixed;
 }
 
 function fieldFromRaw(
@@ -69,9 +76,55 @@ function fieldFromRaw(
   return parseProspectusFinancialNumber(raw[key]);
 }
 
+function resolveYearOverride(
+  year: number,
+  financialYearEndLabel: string,
+  overrides: ProspectusFinancialComparisonMetricsInput["officerOverrides"]
+): ProspectusFinancialComparisonYearOfficerOverride | null {
+  if (!overrides) return null;
+  const yearKey = String(year);
+  if (overrides[yearKey]) return overrides[yearKey] ?? null;
+  // Accept FYE ISO keys when the display label is a parseable date (e.g. 31 Dec 2024).
+  for (const [key, value] of Object.entries(overrides)) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(key) && key.startsWith(yearKey)) {
+      return value ?? null;
+    }
+  }
+  void financialYearEndLabel;
+  return null;
+}
+
+function officerMetricValue(
+  key: ProspectusFinancialComparisonMetricKey,
+  override: ProspectusFinancialComparisonYearOfficerOverride | null
+): string | null {
+  if (!override) return null;
+  switch (key) {
+    case "netDebtEquity": {
+      const n = parseProspectusFinancialNumber(override.netDebtEquity);
+      return n == null ? null : formatProspectusFinancialMultiple(n);
+    }
+    case "interestCoverage": {
+      const n = parseProspectusFinancialNumber(override.interestCoverage);
+      return n == null ? null : formatProspectusFinancialMultiple(n);
+    }
+    case "dscr": {
+      const n = parseProspectusFinancialNumber(override.dscr);
+      return n == null ? null : formatProspectusFinancialMultiple(n);
+    }
+    case "receivablesDays": {
+      const n = parseProspectusFinancialNumber(override.receivablesDays);
+      return n == null ? null : formatReceivablesDays(n);
+    }
+    default:
+      return null;
+  }
+}
+
 function metricValueForYear(
   key: ProspectusFinancialComparisonMetricKey,
-  raw: Record<string, unknown>
+  raw: Record<string, unknown>,
+  override: ProspectusFinancialComparisonYearOfficerOverride | null
 ): string {
   switch (key) {
     case "revenue": {
@@ -107,8 +160,10 @@ function metricValueForYear(
     case "netDebtEquity":
     case "interestCoverage":
     case "dscr":
-    case "receivablesDays":
-      return PROSPECTUS_DATA_NOT_AVAILABLE;
+    case "receivablesDays": {
+      const officer = officerMetricValue(key, override);
+      return officer ?? PROSPECTUS_DATA_NOT_AVAILABLE;
+    }
     default: {
       const _exhaustive: never = key;
       return _exhaustive;
@@ -126,7 +181,17 @@ export function buildProspectusFinancialComparisonMetrics(
     PROSPECTUS_FINANCIAL_COMPARISON_METRIC_KEYS.map((key) => ({
       key,
       label: PROSPECTUS_FINANCIAL_COMPARISON_METRIC_LABELS[key],
-      values: source.years.map((year) => metricValueForYear(key, year.rawFinancials)),
+      values: source.years.map((year) =>
+        metricValueForYear(
+          key,
+          year.rawFinancials,
+          resolveYearOverride(
+            year.year,
+            year.financialYearEndLabel,
+            input.officerOverrides
+          )
+        )
+      ),
     }));
 
   return {
@@ -135,5 +200,28 @@ export function buildProspectusFinancialComparisonMetrics(
     years: source.years,
     rows,
     audit: PROSPECTUS_FINANCIAL_COMPARISON_METRICS_AUDIT,
+  };
+}
+
+/**
+ * Admin Prospectus Review table — same labels/values as Page 2 Canva HTML.
+ * Maps an already-built Stage 4B view-model; does not re-derive metrics.
+ */
+export function toAdminFinancialComparisonTable(
+  metrics: ProspectusFinancialComparisonMetrics
+): {
+  yearHeaders: Array<{ key: string; yearLabel: string; fyeLabel: string }>;
+  rows: Array<{ metric: string; values: string[] }>;
+} {
+  return {
+    yearHeaders: metrics.years.map((year) => ({
+      key: String(year.year),
+      yearLabel: year.yearLabel,
+      fyeLabel: year.financialYearEndLabel,
+    })),
+    rows: metrics.rows.map((row) => ({
+      metric: row.label,
+      values: [...row.values],
+    })),
   };
 }

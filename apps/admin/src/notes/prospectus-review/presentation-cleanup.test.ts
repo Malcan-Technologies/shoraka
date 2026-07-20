@@ -72,6 +72,16 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).not.toContain("Issuer Information");
   });
 
+  it("shows 3-Year Financial Comparison from API table plus officer overrides on Page 2", () => {
+    expect(pageSource).toContain('title="3-Year Financial Comparison"');
+    expect(pageSource).toContain("financialComparison");
+    expect(pageSource).toContain("data-prospectus-financial-comparison");
+    expect(pageSource).toContain("PAGE_TWO_OFFICER_FINANCIAL_METRICS");
+    expect(pageSource).toContain("mergeOfficerOverridesIntoFinancialTable");
+    expect(pageSource).not.toContain("buildPageTwoFinancialComparisonTable");
+    expect(pageSource).not.toContain("calculateGearing");
+  });
+
   it("shows Paymaster Track Record from API rows plus officer inputs on Page 2", () => {
     expect(pageSource).toContain('title="Paymaster Track Record"');
     expect(pageSource).toContain("paymasterTrackRecord");
@@ -145,7 +155,8 @@ describe("prospectus review presentation cleanup", () => {
 
   it("renders Page 2/3 financials through the metric table component", () => {
     expect(pageSource).toContain("ProspectusFinancialMetricTable");
-    expect(pageSource).toContain("buildPageTwoFinancialComparisonTable");
+    expect(pageSource).toContain("financialComparison");
+    expect(pageSource).toContain("mergeOfficerOverridesIntoFinancialTable");
     expect(pageSource).toContain("buildPageThreeIncomeStatementTable");
     expect(pageSource).toContain("buildPageThreeBalanceSheetTable");
     expect(pageSource).toContain("buildPageThreeCoverageTable");

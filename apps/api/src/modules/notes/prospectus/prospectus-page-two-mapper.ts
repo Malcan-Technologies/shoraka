@@ -179,6 +179,7 @@ export function buildProspectusPageTwo(
   const financialComparisonSource = resolveFinancialComparisonSource(input);
   const financialComparisonMetrics = buildProspectusFinancialComparisonMetrics({
     source: financialComparisonSource,
+    officerOverrides: input.publicationContent?.financialComparison?.overrides ?? null,
   });
 
   const { investable } = computeMarketplaceCommitBounds(

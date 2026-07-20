@@ -72,20 +72,24 @@ export interface ProspectusFinancialComparisonMetricsAudit {
     isCalculated: true;
   };
   netDebtEquity: {
-    status: "unresolved";
+    status: "officer_or_dna";
     gearingSubstitutionAllowed: false;
+    officerSource: "prospectus_review.page2.financialComparison.overrides.netDebtEquity";
   };
   interestCoverage: {
-    status: "unresolved";
+    status: "officer_or_dna";
     structuredInputsAvailable: false;
+    officerSource: "prospectus_review.page2.financialComparison.overrides.interestCoverage";
   };
   dscr: {
-    status: "unresolved";
+    status: "officer_or_dna";
     structuredInputsAvailable: false;
+    officerSource: "prospectus_review.page2.financialComparison.overrides.dscr";
   };
   receivablesDays: {
-    status: "unresolved";
+    status: "officer_or_dna";
     structuredInputsAvailable: false;
+    officerSource: "prospectus_review.page2.financialComparison.overrides.receivablesDays";
   };
   source: {
     inheritedFromStage4A: true;
@@ -131,20 +135,24 @@ export const PROSPECTUS_FINANCIAL_COMPARISON_METRICS_AUDIT: ProspectusFinancialC
       isCalculated: true,
     },
     netDebtEquity: {
-      status: "unresolved",
+      status: "officer_or_dna",
       gearingSubstitutionAllowed: false,
+      officerSource: "prospectus_review.page2.financialComparison.overrides.netDebtEquity",
     },
     interestCoverage: {
-      status: "unresolved",
+      status: "officer_or_dna",
       structuredInputsAvailable: false,
+      officerSource: "prospectus_review.page2.financialComparison.overrides.interestCoverage",
     },
     dscr: {
-      status: "unresolved",
+      status: "officer_or_dna",
       structuredInputsAvailable: false,
+      officerSource: "prospectus_review.page2.financialComparison.overrides.dscr",
     },
     receivablesDays: {
-      status: "unresolved",
+      status: "officer_or_dna",
       structuredInputsAvailable: false,
+      officerSource: "prospectus_review.page2.financialComparison.overrides.receivablesDays",
     },
     source: {
       inheritedFromStage4A: true,
@@ -171,9 +179,22 @@ export interface ProspectusFinancialComparisonMetrics {
   audit: ProspectusFinancialComparisonMetricsAudit;
 }
 
-/** Preferred input: Stage 4A source model only. */
+/** Officer-entered values for unsupported Stage 4B metrics (per year). */
+export interface ProspectusFinancialComparisonYearOfficerOverride {
+  netDebtEquity?: string | number | null;
+  interestCoverage?: string | number | null;
+  dscr?: string | number | null;
+  receivablesDays?: string | number | null;
+}
+
+/** Preferred input: Stage 4A source model + optional officer overrides. */
 export interface ProspectusFinancialComparisonMetricsInput {
   source: ProspectusFinancialComparisonSource;
+  /**
+   * Officer overrides keyed by calendar year ("2024") and/or FYE ISO ("2024-12-31").
+   * Never applied to system-derived metrics.
+   */
+  officerOverrides?: Record<string, ProspectusFinancialComparisonYearOfficerOverride> | null;
   /** Observational — must never be read for metrics. */
   ctosFinancials?: unknown;
 }

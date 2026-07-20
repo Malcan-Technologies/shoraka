@@ -71,7 +71,10 @@ import {
   appendIssuerTrackRecordSection,
   buildNoteInvestmentDetailSections,
 } from "@/notes/prospectus-review/core-terms";
-import { buildPageTwoFinancialComparisonTable } from "@/notes/prospectus-review/page-two-coverage";
+import {
+  mergeOfficerOverridesIntoFinancialTable,
+  PAGE_TWO_OFFICER_FINANCIAL_METRICS,
+} from "@/notes/prospectus-review/page-two-coverage";
 import {
   buildPageThreeBalanceSheetTable,
   buildPageThreeCoverageTable,
@@ -393,7 +396,12 @@ function ProspectusReviewPageInner() {
   const financialStatements = (
     application as { financial_statements?: unknown } | undefined
   )?.financial_statements;
-  const pageTwoFinancialTable = buildPageTwoFinancialComparisonTable(financialStatements);
+  const pageTwoFinancialTable = data?.financialComparison?.table
+    ? mergeOfficerOverridesIntoFinancialTable(
+        data.financialComparison.table,
+        draft.page2.financialComparison?.overrides
+      )
+    : { yearHeaders: [], rows: [] };
   const pageThreeYears = selectPageThreeYears(financialStatements);
   const activeFinancialYears =
     pageThreeYears.length > 0 ? pageThreeYears : (["2022", "2023", "2024"] as const);
@@ -1053,9 +1061,82 @@ function ProspectusReviewPageInner() {
                           ))}
                         </div>
                       </section>
-                      <section>
+                      <section data-prospectus-financial-comparison>
                         <ProspectusSectionHeading title="3-Year Financial Comparison" />
-                        <ProspectusFinancialMetricTable table={pageTwoFinancialTable} />
+                        <p className="mb-3 text-sm text-muted-foreground">
+                          Application unaudited financials for the latest available years.
+                          Unsupported metrics may be entered below per year.
+                        </p>
+                        {data?.financialComparison?.table ? (
+                          <ProspectusFinancialMetricTable table={pageTwoFinancialTable} />
+                        ) : (
+                          <Skeleton className="h-40 w-full" />
+                        )}
+                        {pageTwoFinancialTable.yearHeaders.length > 0 ? (
+                          <div className="mt-4 space-y-4">
+                            <p className="text-sm text-muted-foreground">
+                              Officer values for Net Debt / Equity, Interest Coverage, DSCR, and
+                              Receivables Days. Not derived from CTOS or gearing.
+                            </p>
+                            {pageTwoFinancialTable.yearHeaders.map((header) => (
+                              <div key={header.key} className="space-y-2">
+                                <p className="text-sm font-medium text-foreground">
+                                  {header.yearLabel}
+                                  <span className="ml-2 text-muted-foreground">
+                                    ({header.fyeLabel})
+                                  </span>
+                                </p>
+                                <div className="grid gap-3 md:grid-cols-2">
+                                  {PAGE_TWO_OFFICER_FINANCIAL_METRICS.map((metric) => (
+                                    <div key={`${header.key}-${metric.key}`} className="space-y-1.5">
+                                      <Label className="text-sm">
+                                        {metric.label} ({metric.unit})
+                                      </Label>
+                                      <Input
+                                        className="h-11"
+                                        type="number"
+                                        disabled={locked || !canManage}
+                                        value={
+                                          draft.page2.financialComparison?.overrides?.[
+                                            header.key
+                                          ]?.[metric.key] == null
+                                            ? ""
+                                            : String(
+                                                draft.page2.financialComparison.overrides[
+                                                  header.key
+                                                ]?.[metric.key]
+                                              )
+                                        }
+                                        onChange={(e) =>
+                                          updateDraft((prev) => ({
+                                            ...prev,
+                                            page2: {
+                                              ...prev.page2,
+                                              financialComparison: {
+                                                ...prev.page2.financialComparison,
+                                                overrides: {
+                                                  ...prev.page2.financialComparison?.overrides,
+                                                  [header.key]: {
+                                                    ...prev.page2.financialComparison
+                                                      ?.overrides?.[header.key],
+                                                    [metric.key]:
+                                                      e.target.value === ""
+                                                        ? null
+                                                        : e.target.value,
+                                                  },
+                                                },
+                                              },
+                                            },
+                                          }))
+                                        }
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
                       </section>
                     </div>
                   ) : null}

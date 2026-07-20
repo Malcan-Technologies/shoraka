@@ -119,7 +119,7 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
     expect(row(metrics, "currentRatio")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("keeps unsupported metrics DNA and does not substitute gearing", () => {
+  it("keeps unsupported metrics DNA without officer overrides and does not substitute gearing", () => {
     expect(calculateGearing(2_900_000, 1_000_000, 500_000, 16_216_216)).not.toBeNull();
     expect(row(sample, "netDebtEquity")?.values).toEqual([
       PROSPECTUS_DATA_NOT_AVAILABLE,
@@ -130,6 +130,30 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
     expect(row(sample, "dscr")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(row(sample, "receivablesDays")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(sample.audit.netDebtEquity.gearingSubstitutionAllowed).toBe(false);
+  });
+
+  it("applies officer overrides for unsupported metrics per year without changing system metrics", () => {
+    const metrics = buildProspectusFinancialComparisonMetrics({
+      source: SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_METRICS_SOURCE,
+      officerOverrides: {
+        "2024": {
+          netDebtEquity: 0.45,
+          interestCoverage: 3.2,
+          dscr: 1.5,
+          receivablesDays: 42,
+        },
+        "2023-12-31": {
+          interestCoverage: 2.1,
+        },
+      },
+    });
+    expect(row(metrics, "revenue")?.values[2]).toBe("RM 18,600,000.00");
+    expect(row(metrics, "netDebtEquity")?.values[2]).toBe("0.45x");
+    expect(row(metrics, "interestCoverage")?.values[2]).toBe("3.2x");
+    expect(row(metrics, "dscr")?.values[2]).toBe("1.5x");
+    expect(row(metrics, "receivablesDays")?.values[2]).toBe("42");
+    expect(row(metrics, "interestCoverage")?.values[1]).toBe("2.1x");
+    expect(row(metrics, "netDebtEquity")?.values[1]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
   it("ignores CTOS and inherits Stage 4A unit label without a source note field", () => {

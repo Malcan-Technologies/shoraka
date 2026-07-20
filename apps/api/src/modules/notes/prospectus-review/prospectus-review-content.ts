@@ -101,6 +101,18 @@ export interface ProspectusReviewStoredContent {
       confidenceGrading?: ProspectusConfidenceGrading | null;
     };
     paymasterTrackRecord?: ProspectusReviewPaymasterTrackRecord;
+    /** Officer overrides for unsupported Page 2 financial comparison metrics. */
+    financialComparison?: {
+      overrides?: Record<
+        string,
+        {
+          netDebtEquity?: string | number | null;
+          interestCoverage?: string | number | null;
+          dscr?: string | number | null;
+          receivablesDays?: string | number | null;
+        }
+      >;
+    };
     creditInsights: {
       creditScoreOptionKey?: string | null;
       paymentBehaviourOptionKey?: string | null;
@@ -196,6 +208,7 @@ export function emptyProspectusReviewContent(
         confidenceGrading: null,
       },
       paymasterTrackRecord: {},
+      financialComparison: { overrides: {} },
       creditInsights: {},
       invoiceWorkStatements: PROSPECTUS_INVOICE_WORK_KEYS.map((key) => ({
         key,
@@ -322,6 +335,9 @@ export function toProspectusPublicationContent(
       ),
     },
     paymasterTrackRecord: content.page2.paymasterTrackRecord,
+    financialComparison: {
+      overrides: content.page2.financialComparison?.overrides ?? {},
+    },
     creditInsightSelections: creditInsights,
     invoiceWorkStatements,
     investorTakeawayOptions,

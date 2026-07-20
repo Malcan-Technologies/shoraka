@@ -158,17 +158,19 @@ describe("page two coverage verification", () => {
       "Revenue",
       "Profit After Tax",
       "Net Profit Margin",
-      "Return on Equity",
+      "ROE",
       "Current Ratio",
-      "Debt / Equity",
+      "Net Debt / Equity",
       "Interest Coverage",
       "DSCR",
       "Receivables Days",
     ]);
     expect(table.rows.find((r) => r.metric === "Revenue")?.values[0]).toContain("1,000");
-    expect(table.rows.find((r) => r.metric === "Debt / Equity")?.values.every((v) => v === "Data not available")).toBe(
-      true
-    );
+    expect(
+      table.rows
+        .find((r) => r.metric === "Net Debt / Equity")
+        ?.values.every((v) => v === "Data not available")
+    ).toBe(true);
     expect(table.rows.every((r) => r.trend == null)).toBe(true);
   });
 });

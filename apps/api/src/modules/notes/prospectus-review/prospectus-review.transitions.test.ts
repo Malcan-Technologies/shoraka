@@ -95,6 +95,10 @@ jest.mock("../prospectus/prospectus-page-two-mapper", () => ({
       onTimePayment: "94%",
       averagePaymentPeriod: "32 days",
     },
+    financialComparisonMetrics: {
+      years: [],
+      rows: [],
+    },
   })),
 }));
 jest.mock("../prospectus/prospectus-issuer-profile", () => ({
@@ -125,6 +129,16 @@ jest.mock("../prospectus/prospectus-paymaster-track-record", () => ({
     { label: "Average Payment Period", value: "32 days" },
   ]),
 }));
+jest.mock("../prospectus/prospectus-financial-comparison-metrics", () => {
+  const actual = jest.requireActual("../prospectus/prospectus-financial-comparison-metrics");
+  return {
+    ...actual,
+    toAdminFinancialComparisonTable: jest.fn(() => ({
+      yearHeaders: [],
+      rows: [],
+    })),
+  };
+});
 jest.mock("../prospectus/prospectus-page-two.html", () => ({
   buildProspectusPageTwoHtml: jest.fn(() => "<p>p2</p>"),
 }));

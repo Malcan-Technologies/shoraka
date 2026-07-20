@@ -125,6 +125,21 @@ export interface ProspectusInvoicePaymasterPublicationInputs {
   confidenceGrading?: string | null;
 }
 
+export interface ProspectusFinancialComparisonYearOverride {
+  netDebtEquity?: string | number | null;
+  interestCoverage?: string | number | null;
+  dscr?: string | number | null;
+  receivablesDays?: string | number | null;
+}
+
+export interface ProspectusFinancialComparisonPublicationInputs {
+  /**
+   * Officer overrides for unsupported metrics.
+   * Keys: calendar year ("2024") and/or FYE ISO ("2024-12-31").
+   */
+  overrides?: Record<string, ProspectusFinancialComparisonYearOverride>;
+}
+
 export interface ProspectusPublicationContent {
   meta: typeof PROSPECTUS_PUBLICATION_CONTENT_SOURCE;
   keyInvestorHighlights: ProspectusKeyInvestorHighlightPlaceholder[];
@@ -137,6 +152,7 @@ export interface ProspectusPublicationContent {
   issuerProfile?: ProspectusIssuerProfilePublicationInputs;
   invoicePaymaster?: ProspectusInvoicePaymasterPublicationInputs;
   paymasterTrackRecord?: ProspectusPaymasterTrackRecordPublicationInputs;
+  financialComparison?: ProspectusFinancialComparisonPublicationInputs;
   creditInsightSelections: Partial<
     Record<ProspectusCreditInsightFieldKey, ProspectusCreditInsightOptionKey>
   >;

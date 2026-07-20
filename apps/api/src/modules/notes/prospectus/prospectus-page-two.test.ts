@@ -438,6 +438,38 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
         expect(row?.values.every((v) => v === PROSPECTUS_DATA_NOT_AVAILABLE)).toBe(true);
       }
 
+      const withFinOverrides = buildProspectusPageTwo({
+        ...mapProspectusPageTwoDataToInput({
+          note: baseNote(),
+          liveFinancialStatements,
+        }),
+        publicationContent: {
+          ...PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
+          financialComparison: {
+            overrides: {
+              "2024": {
+                netDebtEquity: 0.5,
+                interestCoverage: 4,
+                dscr: 1.2,
+                receivablesDays: 30,
+              },
+            },
+          },
+        },
+      });
+      const nde = withFinOverrides.financialComparisonMetrics.rows.find(
+        (r) => r.key === "netDebtEquity"
+      );
+      const yearIdx = withFinOverrides.financialComparisonMetrics.years.findIndex(
+        (y) => y.year === 2024
+      );
+      expect(yearIdx).toBeGreaterThanOrEqual(0);
+      expect(nde?.values[yearIdx]).toBe("0.5x");
+      expect(
+        withFinOverrides.financialComparisonMetrics.rows.find((r) => r.key === "receivablesDays")
+          ?.values[yearIdx]
+      ).toBe("30");
+
       expect(page.creditInsights.creditScore).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
       expect(page.invoiceWorkNarrative.workUnderContractStatement).toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE

@@ -150,13 +150,63 @@ const PAGE_TWO_METRICS: Array<{
   { label: "Revenue", key: "revenue" },
   { label: "Profit After Tax", key: "profitAfterTax" },
   { label: "Net Profit Margin", key: "netProfitMargin" },
-  { label: "Return on Equity", key: "roe" },
+  { label: "ROE", key: "roe" },
   { label: "Current Ratio", key: "currentRatio" },
-  { label: "Debt / Equity", key: "netDebtEquity" },
+  { label: "Net Debt / Equity", key: "netDebtEquity" },
   { label: "Interest Coverage", key: "interestCoverage" },
   { label: "DSCR", key: "dscr" },
   { label: "Receivables Days", key: "receivablesDays" },
 ];
+
+/** Unsupported Page 2 metrics that officers may fill per displayed year. */
+export const PAGE_TWO_OFFICER_FINANCIAL_METRICS = [
+  { key: "netDebtEquity", label: "Net Debt / Equity", unit: "x" },
+  { key: "interestCoverage", label: "Interest Coverage", unit: "x" },
+  { key: "dscr", label: "DSCR", unit: "x" },
+  { key: "receivablesDays", label: "Receivables Days", unit: "days" },
+] as const;
+
+type OfficerFinancialOverrideKey = (typeof PAGE_TWO_OFFICER_FINANCIAL_METRICS)[number]["key"];
+
+/**
+ * Live Admin preview merge for officer financial overrides.
+ * Presentation only — does not invent system formulas or gearing substitution.
+ */
+export function mergeOfficerOverridesIntoFinancialTable(
+  table: FinancialMetricTableModel,
+  overrides:
+    | Record<
+        string,
+        Partial<Record<OfficerFinancialOverrideKey, string | number | null | undefined>>
+      >
+    | null
+    | undefined
+): FinancialMetricTableModel {
+  if (!overrides) return table;
+  const labelToKey = new Map<string, OfficerFinancialOverrideKey>(
+    PAGE_TWO_OFFICER_FINANCIAL_METRICS.map((m) => [m.label, m.key])
+  );
+  return {
+    ...table,
+    rows: table.rows.map((row) => {
+      const key = labelToKey.get(row.metric);
+      if (!key) return row;
+      return {
+        ...row,
+        values: table.yearHeaders.map((header, index) => {
+          const yearOverride = overrides[header.key] ?? overrides[`${header.key}-12-31`];
+          const raw = yearOverride?.[key];
+          const n = parseMoney(raw);
+          if (n == null) return row.values[index] ?? DATA_NOT_AVAILABLE;
+          if (key === "receivablesDays") {
+            return n.toFixed(2).replace(/\.?0+$/, "");
+          }
+          return formatMultiple(n);
+        }),
+      };
+    }),
+  };
+}
 
 /**
  * @deprecated Admin Invoice & Paymaster must use API `invoicePaymaster.rows`

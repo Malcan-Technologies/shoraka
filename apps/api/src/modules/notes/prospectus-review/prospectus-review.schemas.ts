@@ -99,6 +99,24 @@ export const prospectusReviewStoredContentSchema = z
           })
           .strict()
           .optional(),
+        financialComparison: z
+          .object({
+            overrides: z
+              .record(
+                z.string(),
+                z
+                  .object({
+                    netDebtEquity: numericOrString,
+                    interestCoverage: numericOrString,
+                    dscr: numericOrString,
+                    receivablesDays: numericOrString,
+                  })
+                  .strict()
+              )
+              .optional(),
+          })
+          .strict()
+          .optional(),
         creditInsights: z
           .object({
             creditScoreOptionKey: nullableOptionKey,
