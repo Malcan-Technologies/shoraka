@@ -448,6 +448,8 @@ export class ProspectusReviewService {
       },
       financialComparison: {
         table: toAdminFinancialComparisonTable(page2.financialComparisonMetrics),
+        opsWarning: page2.financialComparisonSource.opsWarning,
+        missingSsmUnauditedYears: page2.financialComparisonSource.missingSsmUnauditedYears,
       },
       publishBlockedReason: publishBlocked,
       catalogueNotice:

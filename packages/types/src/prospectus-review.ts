@@ -307,6 +307,12 @@ export interface ProspectusReviewGetResponse {
    */
   financialComparison: {
     table: ProspectusFinancialComparisonAdminTable;
+    /**
+     * Non-blocking Ops warning when an SSM-expected unaudited year has no stored data.
+     * Never blocks Prospectus approval; omitted from investor HTML.
+     */
+    opsWarning: string | null;
+    missingSsmUnauditedYears: number[];
   };
   publishBlockedReason: string | null;
   /** Temporary placeholder catalogue notice for officers. */

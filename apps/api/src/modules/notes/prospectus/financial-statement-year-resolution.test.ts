@@ -4,7 +4,9 @@
 
 import {
   buildNormalizedFinancialStatementYearSet,
+  findMissingSsmExpectedUnauditedYears,
   FINANCIAL_STATEMENT_SOURCE_FOOTER,
+  formatMissingSsmUnauditedYearsOpsWarning,
   resolveFinancialStatementSourceFooter,
   selectLatestNormalizedFinancialStatementYears,
 } from "@cashsouk/types";
@@ -80,5 +82,58 @@ describe("financial-statement-year-resolution (Admin FS + Prospectus)", () => {
     expect(resolveFinancialStatementSourceFooter([])).toBe(
       FINANCIAL_STATEMENT_SOURCE_FOOTER.neutral
     );
+  });
+
+  it("omits missing SSM-expected unaudited years and reports them for Ops", () => {
+    // SSM expects FY2025 + FY2026 (before deadline). FY2026 has no stored block.
+    const input = {
+      financialStatements: {
+        questionnaire: { financial_year_end: "2026-12-31" },
+        unaudited_by_year: {
+          "2025": { turnover: 500, plnpat: 50, pldd: "2025-12-31" },
+        },
+      },
+      ctosFinancials: [ctosRow(2023, 1), ctosRow(2024, 2)],
+      ref: new Date("2026-03-01T00:00:00.000Z"),
+    };
+
+    const available = buildNormalizedFinancialStatementYearSet(input);
+    expect(available.map((y) => y.year)).toEqual([2023, 2024, 2025]);
+    expect(available.map((y) => y.recordSource)).toEqual([
+      "ctos_audited",
+      "ctos_audited",
+      "unaudited_management",
+    ]);
+    expect(selectLatestNormalizedFinancialStatementYears(available, 3).map((y) => y.year)).toEqual(
+      [2023, 2024, 2025]
+    );
+
+    expect(findMissingSsmExpectedUnauditedYears(input)).toEqual([2026]);
+    expect(formatMissingSsmUnauditedYearsOpsWarning([2026])).toContain("FY2026");
+    expect(formatMissingSsmUnauditedYearsOpsWarning([2026])).toContain("does not block approval");
+  });
+
+  it("does not treat an empty unaudited block as actual data", () => {
+    const years = buildNormalizedFinancialStatementYearSet({
+      financialStatements: {
+        questionnaire: { financial_year_end: "2025-12-31" },
+        unaudited_by_year: {
+          "2025": { pldd: "2025-12-31" },
+        },
+      },
+      ctosFinancials: [ctosRow(2023, 1), ctosRow(2024, 2)],
+      ref: new Date("2025-03-01T00:00:00.000Z"),
+    });
+    expect(years.map((y) => y.year)).toEqual([2023, 2024]);
+    expect(
+      findMissingSsmExpectedUnauditedYears({
+        financialStatements: {
+          questionnaire: { financial_year_end: "2025-12-31" },
+          unaudited_by_year: { "2025": { pldd: "2025-12-31" } },
+        },
+        ctosFinancials: [ctosRow(2023, 1), ctosRow(2024, 2)],
+        ref: new Date("2025-03-01T00:00:00.000Z"),
+      })
+    ).toEqual([2025]);
   });
 });

@@ -39,10 +39,11 @@ export interface ProspectusFinancialComparisonSourceAudit {
     precedence: "ctos_audited_over_unaudited_same_year";
   };
   years: {
-    selectionRule: "normalized_admin_set_then_latest_three";
+    selectionRule: "normalized_admin_set_then_latest_three_with_actual_data";
     sortForSelection: "descending";
     displayOrder: "ascending";
     invalidYearKeysIgnored: true;
+    emptySsmExpectedYearsOmitted: true;
     maxYears: 3;
   };
   financialYearEnd: {
@@ -73,10 +74,11 @@ export const PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT: ProspectusFinancialCo
       precedence: "ctos_audited_over_unaudited_same_year",
     },
     years: {
-      selectionRule: "normalized_admin_set_then_latest_three",
+      selectionRule: "normalized_admin_set_then_latest_three_with_actual_data",
       sortForSelection: "descending",
       displayOrder: "ascending",
       invalidYearKeysIgnored: true,
+      emptySsmExpectedYearsOmitted: true,
       maxYears: 3,
     },
     financialYearEnd: {
@@ -103,6 +105,13 @@ export interface ProspectusFinancialComparisonSource {
   tableUnitLabel: string;
   sourceFooter: string;
   years: ProspectusFinancialComparisonYear[];
+  /**
+   * SSM-expected unaudited years with no stored actual data (and no CTOS coverage).
+   * Admin Ops only — never shown on investor HTML and never blocks approval.
+   */
+  missingSsmUnauditedYears: number[];
+  /** Non-blocking Admin warning when `missingSsmUnauditedYears` is non-empty. */
+  opsWarning: string | null;
   /** Audit/debug only — omitted from Canva HTML. */
   audit: ProspectusFinancialComparisonSourceAudit;
 }
@@ -156,7 +165,7 @@ export const PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_FIELD_SOURCES: Record<
     surface: "canva",
     possibleAlternatives: "none",
     notes:
-      "CTOS latest 3 + SSM unaudited non-overlap; CTOS precedence; latest 3; ascending display; FYE ISO override keys.",
+      "CTOS latest 3 with actual rows + SSM unaudited with stored actual data; CTOS precedence; omit empty SSM years; latest 3; ascending; FYE ISO keys. Missing SSM years → Admin ops warning only.",
   },
   sourceFooter: {
     label: "Source footer",

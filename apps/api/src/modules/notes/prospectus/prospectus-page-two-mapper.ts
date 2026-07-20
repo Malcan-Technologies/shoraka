@@ -76,6 +76,8 @@ function emptyFinancialComparisonSource(): ProspectusFinancialComparisonSource {
     tableUnitLabel: PROSPECTUS_FINANCIAL_COMPARISON_TABLE_UNIT_LABEL,
     sourceFooter: "Source: Financial Statements",
     years: [],
+    missingSsmUnauditedYears: [],
+    opsWarning: null,
     audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
   };
 }
@@ -121,6 +123,9 @@ export function buildFinancialComparisonSourceFromFrozen(
     tableUnitLabel: PROSPECTUS_FINANCIAL_COMPARISON_TABLE_UNIT_LABEL,
     sourceFooter: frozen.source_footer ?? "Source: Financial Statements",
     years,
+    // Ops warning is live-only; frozen publication HTML does not carry Admin alerts.
+    missingSsmUnauditedYears: [],
+    opsWarning: null,
     audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
   };
 }

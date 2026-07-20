@@ -73,9 +73,11 @@ describe("prospectus review presentation cleanup", () => {
   });
 
   it("shows 3-Year Financial Comparison from API table plus officer overrides on Page 2", () => {
-    expect(pageSource).toContain('title="3-Year Financial Comparison"');
+    expect(pageSource).toContain('title="3-Year Financial Comparison (MYR mil.)"');
     expect(pageSource).toContain("financialComparison");
     expect(pageSource).toContain("data-prospectus-financial-comparison");
+    expect(pageSource).toContain("financial-comparison-ops-warning");
+    expect(pageSource).toContain("opsWarning");
     expect(pageSource).toContain("PAGE_TWO_OFFICER_FINANCIAL_METRICS");
     expect(pageSource).toContain("mergeOfficerOverridesIntoFinancialTable");
     expect(pageSource).not.toContain("buildPageTwoFinancialComparisonTable");

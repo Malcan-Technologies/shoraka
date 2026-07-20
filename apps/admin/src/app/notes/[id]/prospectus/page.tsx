@@ -7,6 +7,7 @@ import {
   ArrowLeftIcon,
   ChevronRightIcon,
   DocumentTextIcon,
+  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import { Skeleton } from "@cashsouk/ui";
 import {
@@ -1065,9 +1066,27 @@ function ProspectusReviewPageInner() {
                         <ProspectusSectionHeading title="3-Year Financial Comparison (MYR mil.)" />
                         <p className="mb-3 text-sm text-muted-foreground">
                           Same year set as Admin Financial Statements (CTOS/audited + management
-                          accounts). Latest three years, oldest to newest. Optional officer metrics
-                          may be entered below per financial year-end.
+                          accounts). Latest three years with available data, oldest to newest.
+                          Optional officer metrics may be entered below per financial year-end.
                         </p>
+                        {data?.financialComparison?.opsWarning ? (
+                          <div
+                            role="status"
+                            data-testid="financial-comparison-ops-warning"
+                            className="mb-3 flex gap-2 rounded-lg border border-amber-500/40 bg-amber-50 p-3 text-sm text-foreground dark:bg-amber-950/30"
+                          >
+                            <ExclamationTriangleIcon
+                              className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
+                              aria-hidden
+                            />
+                            <div className="min-w-0 space-y-1">
+                              <p className="font-semibold">Missing expected financial year</p>
+                              <p className="text-[13px] leading-relaxed text-muted-foreground">
+                                {data.financialComparison.opsWarning}
+                              </p>
+                            </div>
+                          </div>
+                        ) : null}
                         {data?.financialComparison?.table ? (
                           <ProspectusFinancialMetricTable table={pageTwoFinancialTable} />
                         ) : (

@@ -177,10 +177,71 @@ function resolveFinancialYearEndIso(input: {
   return `${input.year}-12-31`;
 }
 
+/** True when a year block has at least one finite numeric line item (0 counts). */
+export function financialYearBlockHasActualData(raw: Record<string, unknown>): boolean {
+  for (const key of ACCOUNT_KEYS) {
+    const v = raw[key];
+    if (typeof v === "number" && Number.isFinite(v)) return true;
+    if (typeof v === "string") {
+      const trimmed = v.trim();
+      if (!trimmed) continue;
+      const n = Number(trimmed.replace(/,/g, ""));
+      if (Number.isFinite(n)) return true;
+    }
+  }
+  return false;
+}
+
 /**
- * Same available-year set as Admin Financial Statements tab columns (non-null years only):
- * 1. Latest three CTOS/audited years (oldest→newest among those three)
- * 2. Unaudited SSM filing-window years that do not overlap CTOS years
+ * SSM-expected unaudited years with no CTOS coverage and no stored unaudited block
+ * (or a stored block with no actual line items). Admin-only ops signal — never blocks approval.
+ */
+export function findMissingSsmExpectedUnauditedYears(input: {
+  financialStatements?: unknown;
+  ctosFinancials?: unknown;
+  ref?: Date;
+}): number[] {
+  const ref = input.ref ?? new Date();
+  const { questionnaire, unauditedByYear } = extractQuestionnaireAndUnaudited(
+    input.financialStatements,
+    ref
+  );
+  const ctosRows = parseCtosFinancialStatementRows(input.ctosFinancials);
+  const ctosYearsWithData = new Set<number>();
+  for (const row of ctosRows) {
+    if (row.financial_year == null || !Number.isFinite(row.financial_year)) continue;
+    if (financialYearBlockHasActualData(ctosFinancialRowToFsFields(row))) {
+      ctosYearsWithData.add(row.financial_year);
+    }
+  }
+
+  const missing: number[] = [];
+  for (const year of getAdminFinancialSummaryUserColumnYears(questionnaire, ref)) {
+    if (ctosYearsWithData.has(year)) continue;
+    const stored = unauditedByYear[String(year)];
+    if (stored && financialYearBlockHasActualData(stored)) continue;
+    missing.push(year);
+  }
+  return missing.sort((a, b) => a - b);
+}
+
+/** Non-blocking Admin warning copy for missing SSM-expected unaudited years. */
+export function formatMissingSsmUnauditedYearsOpsWarning(missingYears: number[]): string | null {
+  if (missingYears.length === 0) return null;
+  const labels = missingYears.map((y) => `FY${y}`).join(", ");
+  const yearWord = missingYears.length === 1 ? "year" : "years";
+  return (
+    `Expected unaudited financial ${yearWord} ${labels} ` +
+    `missing from the application. The Prospectus table uses the latest years with available data. ` +
+    `This does not block approval.`
+  );
+}
+
+/**
+ * Available years for Prospectus (and Admin-aligned selection):
+ * 1. Latest three CTOS/audited years that have a real financial row with actual data
+ * 2. Unaudited SSM filing-window years that do not overlap CTOS years and have a stored
+ *    block with actual data (empty SSM-expected years are omitted — never fabricated)
  *
  * Precedence: CTOS/audited wins when the same calendar FY appears in both sources.
  */
@@ -206,7 +267,9 @@ export function buildNormalizedFinancialStatementYearSet(input: {
 
   for (const year of ctosYears) {
     const row = byCtosYear.get(year);
-    const rawFinancials = row ? ctosFinancialRowToFsFields(row) : {};
+    if (!row) continue;
+    const rawFinancials = ctosFinancialRowToFsFields(row);
+    if (!financialYearBlockHasActualData(rawFinancials)) continue;
     available.push({
       year,
       financialYearEndIso: resolveFinancialYearEndIso({
@@ -223,10 +286,9 @@ export function buildNormalizedFinancialStatementYearSet(input: {
   const unauditedTabYears = getAdminFinancialSummaryUserColumnYears(questionnaire, ref);
   for (const year of unauditedTabYears) {
     if (ctosYearSet.has(year)) continue;
-    // Prospectus only includes unaudited years that have a stored block (Admin may show
-    // empty SSM columns for data entry; those empty slots are not Prospectus columns).
+    // Do not invent SSM-expected years: require a stored block with actual line items.
     const stored = unauditedByYear[String(year)];
-    if (!stored) continue;
+    if (!stored || !financialYearBlockHasActualData(stored)) continue;
     const rawFinancials = { ...stored };
     available.push({
       year,

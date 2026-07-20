@@ -5,7 +5,9 @@
 
 import {
   buildNormalizedFinancialStatementYearSet,
+  findMissingSsmExpectedUnauditedYears,
   formatFinancialYearEndDisplayLabel,
+  formatMissingSsmUnauditedYearsOpsWarning,
   resolveFinancialStatementSourceFooter,
   selectLatestNormalizedFinancialStatementYears,
 } from "@cashsouk/types";
@@ -77,11 +79,19 @@ export function buildProspectusFinancialComparisonSource(
     rawFinancials: { ...year.rawFinancials },
   }));
 
+  const missingSsmUnauditedYears = findMissingSsmExpectedUnauditedYears({
+    financialStatements: input.financialStatements,
+    ctosFinancials: input.ctosFinancials,
+    ref: input.ref,
+  });
+
   return {
     sectionHeading: PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
     tableUnitLabel: PROSPECTUS_FINANCIAL_COMPARISON_TABLE_UNIT_LABEL,
     sourceFooter: resolveFinancialStatementSourceFooter(years),
     years,
+    missingSsmUnauditedYears,
+    opsWarning: formatMissingSsmUnauditedYearsOpsWarning(missingSsmUnauditedYears),
     audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
   };
 }

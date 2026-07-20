@@ -149,6 +149,24 @@ describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => 
     expect(two.years.map((y) => y.year)).toEqual([2024, 2025]);
   });
 
+  it("skips missing SSM year, keeps latest three with data, and sets Ops warning", () => {
+    const data = buildProspectusFinancialComparisonSource({
+      financialStatements: {
+        questionnaire: { financial_year_end: "2026-12-31" },
+        unaudited_by_year: {
+          "2025": { turnover: 500, plnpat: 50, pldd: "2025-12-31" },
+        },
+      },
+      ctosFinancials: [ctosRow(2023, 1), ctosRow(2024, 2)],
+      ref: new Date("2026-03-01T00:00:00.000Z"),
+    });
+    expect(data.years.map((y) => y.year)).toEqual([2023, 2024, 2025]);
+    expect(data.years.map((y) => y.year)).not.toContain(2026);
+    expect(data.missingSsmUnauditedYears).toEqual([2026]);
+    expect(data.opsWarning).toContain("FY2026");
+    expect(data.opsWarning).toContain("does not block approval");
+  });
+
   it("formats FY labels and FYE display labels", () => {
     expect(formatProspectusFinancialYearLabel(2024)).toBe("FY2024");
     expect(formatProspectusFinancialYearEndLabel("2024-12-31")).toBe("31 Dec 2024");
