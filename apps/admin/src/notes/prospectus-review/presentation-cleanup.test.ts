@@ -72,6 +72,21 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).not.toContain("Issuer Information");
   });
 
+  it("shows Paymaster Track Record from API rows plus officer inputs on Page 2", () => {
+    expect(pageSource).toContain('title="Paymaster Track Record"');
+    expect(pageSource).toContain("paymasterTrackRecord");
+    expect(pageSource).toContain("data-prospectus-paymaster-track-record");
+    expect(pageSource).toContain(
+      "Historical payment performance for the selected Paymaster."
+    );
+    expect(pageSource).toContain("totalInvoicesPaid");
+    expect(pageSource).toContain("averagePaymentPeriodDays");
+    // Read-only preview from API; inputs remain for officer entry (not local aggregates).
+    expect(pageSource).not.toContain("computeProspectusSuccessfulRepaymentPercent");
+    expect(pageSource).not.toContain("computeOnTimePaymentRatePercent");
+    expect(pageSource).not.toContain("track-record-aggregates");
+  });
+
   it("shows Invoice & Paymaster Information from API rows plus officer selects on Page 2", () => {
     expect(pageSource).toContain('title="Invoice & Paymaster Information"');
     expect(pageSource).toContain("invoicePaymaster");

@@ -11,7 +11,7 @@ describe("prospectus publish exact copy", () => {
       html: {
         page1: "<p>1</p>",
         page2:
-          "<section data-stage=\"2\">Invoice Amount: RM 625,000.00<br />Paymaster: KKR</section>",
+          "<section data-stage=\"2\">Invoice Amount: RM 625,000.00<br />Paymaster: KKR</section><section data-stage=\"3\">Total Invoices Paid: 48<br />Successful Repayment: 98.5%</section>",
         page3: "<p>3</p>",
       },
       page_1: { marker: "a" },
@@ -33,6 +33,8 @@ describe("prospectus publish exact copy", () => {
     expect(approved.html.page1).toBe("<p>1</p>");
     expect(approved.html.page2).toContain("RM 625,000.00");
     expect(approved.html.page2).toContain("Paymaster: KKR");
+    expect(approved.html.page2).toContain("Total Invoices Paid: 48");
+    expect(approved.html.page2).toContain("Successful Repayment: 98.5%");
     expect(approved.note_identity.invoice_snapshot).toEqual({ details: { value: 625_000 } });
     expect(approved.page_1).toEqual({ marker: "a" });
     expect(JSON.stringify(published.html)).not.toEqual(JSON.stringify(approved.html));

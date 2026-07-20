@@ -88,6 +88,13 @@ jest.mock("../prospectus/prospectus-page-two-mapper", () => ({
       paymasterRating: "Data not available",
       confidenceGrading: "Data not available",
     },
+    paymasterTrackRecord: {
+      totalInvoicesPaid: "48",
+      totalAmountPaid: "RM 12,500,000.00",
+      successfulRepaymentPercent: "98.5%",
+      onTimePayment: "94%",
+      averagePaymentPeriod: "32 days",
+    },
   })),
 }));
 jest.mock("../prospectus/prospectus-issuer-profile", () => ({
@@ -107,6 +114,15 @@ jest.mock("../prospectus/prospectus-invoice-paymaster", () => ({
     { label: "Deed of Assignment (DOA)", value: "Data not available" },
     { label: "Paymaster Rating", value: "Data not available" },
     { label: "Confidence Grading", value: "Data not available" },
+  ]),
+}));
+jest.mock("../prospectus/prospectus-paymaster-track-record", () => ({
+  toAdminPaymasterTrackRecordRows: jest.fn(() => [
+    { label: "Total Invoices Paid", value: "48" },
+    { label: "Total Amount Paid", value: "RM 12,500,000.00" },
+    { label: "Successful Repayment", value: "98.5%" },
+    { label: "On-Time Payment", value: "94%" },
+    { label: "Average Payment Period", value: "32 days" },
   ]),
 }));
 jest.mock("../prospectus/prospectus-page-two.html", () => ({

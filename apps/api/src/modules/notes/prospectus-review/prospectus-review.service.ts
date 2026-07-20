@@ -22,6 +22,7 @@ import { toAdminIssuerTrackRecordRows } from "../prospectus/prospectus-issuer-tr
 import { toAdminHistoricalNoteTable } from "../prospectus/prospectus-historical-note-table";
 import { toAdminIssuerProfileRows } from "../prospectus/prospectus-issuer-profile";
 import { toAdminInvoicePaymasterRows } from "../prospectus/prospectus-invoice-paymaster";
+import { toAdminPaymasterTrackRecordRows } from "../prospectus/prospectus-paymaster-track-record";
 import { buildProspectusPageOneHtml } from "../prospectus/prospectus-page-one.html";
 import {
   buildProspectusPageOne,
@@ -440,6 +441,9 @@ export class ProspectusReviewService {
       },
       invoicePaymaster: {
         rows: toAdminInvoicePaymasterRows(page2.invoicePaymaster),
+      },
+      paymasterTrackRecord: {
+        rows: toAdminPaymasterTrackRecordRows(page2.paymasterTrackRecord),
       },
       publishBlockedReason: publishBlocked,
       catalogueNotice:

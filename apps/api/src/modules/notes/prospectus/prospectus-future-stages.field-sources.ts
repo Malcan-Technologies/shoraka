@@ -153,27 +153,23 @@
  * Snapshot rule: note_creation_snapshots for frozen facts; officer fields from publication content.
  *
  * =============================================================================
- * PAGE 2 — STAGE 3 PAYMASTER TRACK RECORD (implemented as DNA-first)
+ * PAGE 2 — STAGE 3 PAYMASTER TRACK RECORD (officer-entered; no system aggregate)
  * =============================================================================
  *
  * Module: prospectus-paymaster-track-record.*
  * Preview: pnpm prospectus:paymaster-track-record-preview
  * Output: apps/api/tmp/prospectus/prospectus-paymaster-track-record-preview.html
  *
- * No structured paymaster-history source. No approved stable grouping key.
- * Candidate keys only (not implemented): paymaster_snapshot.ssm_number, .name
- * Name grouping is not approved.
- *
- * All visible metrics currently Data not available:
+ * Canva metrics are officer-entered via page2.paymasterTrackRecord:
  * - Total Invoices Paid
- * - Total Amount Paid
- * - Successful Repayment %
- * - On-time Payment
+ * - Total Amount Paid (formatProspectusMoneyMyr; no compact mil)
+ * - Successful Repayment
+ * - On-Time Payment
  * - Average Payment Period
  *
- * Do not reuse Page 1 issuer track-record helpers (issuer_organization_id grouping).
- * Compact money rejected. Future Total Amount Paid must use formatProspectusMoneyMyr
- * (e.g. RM 150,000,000.00). Future freeze at prospectus publication once formulas approved.
+ * No structured paymaster-history source. No approved stable grouping key.
+ * Candidate keys only (not implemented): paymaster_snapshot.ssm_number, .name
+ * Name grouping is not approved. Do not reuse Page 1 issuer track-record helpers.
  *
  * =============================================================================
  * PAGE 2 — STAGE 4A 3-YEAR FINANCIAL COMPARISON SOURCE (implemented)

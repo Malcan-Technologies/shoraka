@@ -405,6 +405,33 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(page.paymasterTrackRecord.totalInvoicesPaid).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
       expect(page.paymasterTrackRecord.totalAmountPaid).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
 
+      const withOfficerTrack = buildProspectusPageTwo({
+        ...mapProspectusPageTwoDataToInput({
+          note: baseNote(),
+          liveFinancialStatements,
+        }),
+        publicationContent: {
+          ...PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
+          paymasterTrackRecord: {
+            totalInvoicesPaid: 48,
+            totalAmountPaid: "12500000",
+            successfulRepaymentPercent: 98.5,
+            onTimePaymentPercent: 94,
+            averagePaymentPeriodDays: 32,
+          },
+        },
+      });
+      expect(withOfficerTrack.paymasterTrackRecord.totalInvoicesPaid).toBe("48");
+      expect(withOfficerTrack.paymasterTrackRecord.totalAmountPaid).toBe("RM 12,500,000.00");
+      expect(withOfficerTrack.paymasterTrackRecord.successfulRepaymentPercent).toBe("98.5%");
+      expect(withOfficerTrack.paymasterTrackRecord.onTimePayment).toBe("94%");
+      expect(withOfficerTrack.paymasterTrackRecord.averagePaymentPeriod).toBe("32 days");
+      const trackHtml = renderProspectusPageTwoHtml(withOfficerTrack);
+      expect(trackHtml).toContain("Successful Repayment:");
+      expect(trackHtml).toContain("On-Time Payment:");
+      expect(trackHtml).toContain("32 days");
+
+
       const unsupported = ["netDebtEquity", "interestCoverage", "dscr", "receivablesDays"];
       for (const key of unsupported) {
         const row = page.financialComparisonMetrics.rows.find((r) => r.key === key);

@@ -207,6 +207,12 @@ export interface ProspectusInvoicePaymasterAdminRow {
   value: string;
 }
 
+/** Read-only Page 2 Paymaster Track Record row for Admin (same values as Preview). */
+export interface ProspectusPaymasterTrackRecordAdminRow {
+  label: string;
+  value: string;
+}
+
 export interface ProspectusReviewGetResponse {
   note: {
     id: string;
@@ -255,6 +261,13 @@ export interface ProspectusReviewGetResponse {
    */
   invoicePaymaster: {
     rows: ProspectusInvoicePaymasterAdminRow[];
+  };
+  /**
+   * Officer-entered Paymaster Track Record (Page 2 Stage 3) — formatted like Preview.
+   * No system paymaster-history aggregate; values from prospectus review content.
+   */
+  paymasterTrackRecord: {
+    rows: ProspectusPaymasterTrackRecordAdminRow[];
   };
   publishBlockedReason: string | null;
   /** Temporary placeholder catalogue notice for officers. */

@@ -389,6 +389,7 @@ function ProspectusReviewPageInner() {
     }
     return row;
   });
+  const paymasterTrackRows = data?.paymasterTrackRecord?.rows ?? [];
   const financialStatements = (
     application as { financial_statements?: unknown } | undefined
   )?.financial_statements;
@@ -996,9 +997,17 @@ function ProspectusReviewPageInner() {
                           </div>
                         </div>
                       </section>
-                      <section>
+                      <section data-prospectus-paymaster-track-record>
                         <ProspectusSectionHeading title="Paymaster Track Record" />
-                        <div className="grid gap-3 md:grid-cols-2">
+                        <p className="mb-3 text-sm text-muted-foreground">
+                          Historical payment performance for the selected Paymaster.
+                        </p>
+                        {paymasterTrackRows.length > 0 ? (
+                          <ReadOnlyGrid rows={paymasterTrackRows} />
+                        ) : (
+                          <Skeleton className="h-32 w-full" />
+                        )}
+                        <div className="mt-4 grid gap-3 md:grid-cols-2">
                           {(
                             [
                               ["totalInvoicesPaid", "Total Invoices Paid", ""],

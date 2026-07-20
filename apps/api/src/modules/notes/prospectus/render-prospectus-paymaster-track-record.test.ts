@@ -19,7 +19,7 @@ describe("prospectus Page 2 Paymaster Track Record (DATA STAGE 3)", () => {
     expect(data.sectionHeading).toBe(PROSPECTUS_PAYMASTER_TRACK_RECORD_SECTION_HEADING);
   });
 
-  it("returns DNA for all five metrics even when unsupported inputs are supplied", () => {
+  it("returns DNA for all five metrics when officer inputs are missing", () => {
     const data = buildProspectusPaymasterTrackRecord(
       SAMPLE_PROSPECTUS_PAYMASTER_TRACK_RECORD_INPUT
     );
@@ -34,6 +34,23 @@ describe("prospectus Page 2 Paymaster Track Record (DATA STAGE 3)", () => {
     expect(data.successfulRepaymentPercent).not.toBe("100%");
     expect(data.onTimePayment).not.toBe("94%");
     expect(data.averagePaymentPeriod).not.toMatch(/94/);
+  });
+
+  it("formats officer-entered values for Canva display", () => {
+    const data = buildProspectusPaymasterTrackRecord({
+      officerInputs: {
+        totalInvoicesPaid: 48,
+        totalAmountPaid: "12500000",
+        successfulRepaymentPercent: 98.5,
+        onTimePaymentPercent: 94,
+        averagePaymentPeriodDays: 32,
+      },
+    });
+    expect(data.totalInvoicesPaid).toBe("48");
+    expect(data.totalAmountPaid).toBe("RM 12,500,000.00");
+    expect(data.successfulRepaymentPercent).toBe("98.5%");
+    expect(data.onTimePayment).toBe("94%");
+    expect(data.averagePaymentPeriod).toBe("32 days");
   });
 
   it("ignores Note/invoice counts and amount substitutes", () => {
@@ -98,42 +115,60 @@ describe("prospectus Page 2 Paymaster Track Record (DATA STAGE 3)", () => {
     expect(data.audit.identity.groupingDecision).toBe("pending");
   });
 
-  it("documents unresolved sources and future full money formatter", () => {
+  it("documents officer-stored sources and money formatter", () => {
     expect(PROSPECTUS_PAYMASTER_TRACK_RECORD_FIELD_SOURCES.totalInvoicesPaid.availability).toBe(
-      "unresolved"
+      "stored"
     );
     expect(PROSPECTUS_PAYMASTER_TRACK_RECORD_FIELD_SOURCES.totalAmountPaid.availability).toBe(
-      "unresolved"
+      "stored"
     );
     expect(
       PROSPECTUS_PAYMASTER_TRACK_RECORD_FIELD_SOURCES.successfulRepaymentPercent.availability
-    ).toBe("unresolved");
+    ).toBe("stored");
     expect(PROSPECTUS_PAYMASTER_TRACK_RECORD_FIELD_SOURCES.onTimePayment.availability).toBe(
-      "unresolved"
+      "stored"
     );
     expect(
       PROSPECTUS_PAYMASTER_TRACK_RECORD_FIELD_SOURCES.averagePaymentPeriod.availability
-    ).toBe("unresolved");
+    ).toBe("stored");
+    expect(PROSPECTUS_PAYMASTER_TRACK_RECORD_FIELD_SOURCES.successfulRepaymentPercent.label).toBe(
+      "Successful Repayment"
+    );
+    expect(PROSPECTUS_PAYMASTER_TRACK_RECORD_FIELD_SOURCES.onTimePayment.label).toBe(
+      "On-Time Payment"
+    );
     expect(PROSPECTUS_PAYMASTER_TRACK_RECORD_FUTURE_MONEY_FORMATTER).toBe(
       "formatProspectusMoneyMyr"
     );
   });
 
   it("HTML shows exactly five metrics plus heading and hides audit/identity/claims", () => {
-    const data = buildProspectusPaymasterTrackRecord(
-      SAMPLE_PROSPECTUS_PAYMASTER_TRACK_RECORD_INPUT
-    );
+    const data = buildProspectusPaymasterTrackRecord({
+      officerInputs: {
+        totalInvoicesPaid: 48,
+        totalAmountPaid: 12_500_000,
+        successfulRepaymentPercent: 98.5,
+        onTimePaymentPercent: 94,
+        averagePaymentPeriodDays: 32,
+      },
+    });
     const html = buildProspectusPaymasterTrackRecordDocument(data);
 
     expect(html).toContain("PAYMASTER TRACK RECORD");
     expect(html).toContain("Total Invoices Paid:");
     expect(html).toContain("Total Amount Paid:");
-    expect(html).toContain("Successful Repayment %:");
-    expect(html).toContain("On-time Payment:");
+    expect(html).toContain("Successful Repayment:");
+    expect(html).toContain("On-Time Payment:");
     expect(html).toContain("Average Payment Period:");
-    expect(html).toContain(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(html).toContain("48");
+    expect(html).toContain("RM 12,500,000.00");
+    expect(html).toContain("98.5%");
+    expect(html).toContain("94%");
+    expect(html).toContain("32 days");
+    expect(html).not.toContain("Successful Repayment %:");
+    expect(html).not.toContain("On-time Payment:");
 
-    expect(html).not.toMatch(/\bmil\b|million|RM 150m|RM 150,000,000\.00/);
+    expect(html).not.toMatch(/\bmil\b|million|RM 150m/);
     expect(html).not.toContain("Excellent track record");
     expect(html).not.toContain("Strong payment history");
     expect(html).not.toContain("Reliable paymaster");
@@ -149,20 +184,19 @@ describe("prospectus Page 2 Paymaster Track Record (DATA STAGE 3)", () => {
     expect(html).not.toContain("stableGroupingKeyAvailable");
     expect(html).not.toContain("candidateKeys");
     expect(html).not.toContain("groupingDecision");
-    expect(html).not.toContain("numeratorDecision");
-    expect(html).not.toContain("denominatorDecision");
-    expect(html).not.toContain("startDateDecision");
-    expect(html).not.toContain("snapshotDecision");
     expect(html).not.toContain('"audit"');
   });
 
-  it("audit records unresolved rules without issuer reuse or compact money", () => {
+  it("audit records officer content without issuer reuse or compact money", () => {
     const data = buildProspectusPaymasterTrackRecord();
     expect(data.audit.totalAmountPaid.compactMoneyAllowed).toBe(false);
     expect(data.audit.totalAmountPaid.futureMoneyFormatter).toBe("formatProspectusMoneyMyr");
+    expect(data.audit.totalInvoicesPaid.isOfficerContent).toBe(true);
+    expect(data.audit.totalInvoicesPaid.systemAggregateAvailable).toBe(false);
     expect(data.audit.successfulRepayment.issuerMetricReused).toBe(false);
     expect(data.audit.onTimePayment.issuerSixMonthMetricReused).toBe(false);
     expect(data.audit.claims.generatedPositiveClaimAllowed).toBe(false);
-    expect(data.audit.snapshot.sourceType).toBe("unavailable_paymaster_history");
+    expect(data.audit.snapshot.sourceType).toBe("officer_publication_content");
+    expect(data.audit.snapshot.systemHistoryAvailable).toBe(false);
   });
 });

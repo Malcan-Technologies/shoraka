@@ -1,6 +1,6 @@
 /**
  * SECTION: Prospectus Page 2 — Paymaster Track Record (DATA STAGE 3)
- * WHY: DNA-first placeholder — no approved paymaster grouping key or metric formulas
+ * WHY: Officer-entered prospectus content; no system paymaster-history aggregate yet
  */
 
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
@@ -11,7 +11,7 @@ export { PROSPECTUS_DATA_NOT_AVAILABLE };
 export const PROSPECTUS_PAYMASTER_TRACK_RECORD_SECTION_HEADING = "PAYMASTER TRACK RECORD";
 
 /**
- * When Total Amount Paid is eventually supported, use formatProspectusMoneyMyr only.
+ * Total Amount Paid display uses formatProspectusMoneyMyr only.
  * Compact money (mil / million / m) is rejected.
  */
 export const PROSPECTUS_PAYMASTER_TRACK_RECORD_FUTURE_MONEY_FORMATTER =
@@ -28,36 +28,38 @@ export interface ProspectusPaymasterTrackRecordAudit {
     nameGroupingApproved: false;
   };
   totalInvoicesPaid: {
-    status: "unresolved";
-    eligibleRecordDecision: "pending";
+    source: "prospectus_review.page2.paymasterTrackRecord.totalInvoicesPaid";
+    isOfficerContent: true;
+    systemAggregateAvailable: false;
     noteCountSubstitutionAllowed: false;
   };
   totalAmountPaid: {
-    status: "unresolved";
-    amountSourceDecision: "pending";
+    source: "prospectus_review.page2.paymasterTrackRecord.totalAmountPaid";
+    isOfficerContent: true;
+    systemAggregateAvailable: false;
     compactMoneyAllowed: false;
     futureMoneyFormatter: typeof PROSPECTUS_PAYMASTER_TRACK_RECORD_FUTURE_MONEY_FORMATTER;
   };
   successfulRepayment: {
-    status: "unresolved";
-    numeratorDecision: "pending";
-    denominatorDecision: "pending";
+    source: "prospectus_review.page2.paymasterTrackRecord.successfulRepaymentPercent";
+    isOfficerContent: true;
+    systemAggregateAvailable: false;
     issuerMetricReused: false;
   };
   onTimePayment: {
-    status: "unresolved";
-    timingDefinitionDecision: "pending";
+    source: "prospectus_review.page2.paymasterTrackRecord.onTimePaymentPercent";
+    isOfficerContent: true;
+    systemAggregateAvailable: false;
     issuerSixMonthMetricReused: false;
   };
   averagePaymentPeriod: {
-    status: "unresolved";
-    startDateDecision: "pending";
-    endDateDecision: "pending";
+    source: "prospectus_review.page2.paymasterTrackRecord.averagePaymentPeriodDays";
+    isOfficerContent: true;
+    systemAggregateAvailable: false;
   };
   snapshot: {
-    sourceType: "unavailable_paymaster_history";
-    isFrozen: false;
-    snapshotDecision: "pending";
+    sourceType: "officer_publication_content";
+    systemHistoryAvailable: false;
   };
   claims: {
     generatedPositiveClaimAllowed: false;
@@ -75,36 +77,38 @@ export const PROSPECTUS_PAYMASTER_TRACK_RECORD_AUDIT: ProspectusPaymasterTrackRe
     nameGroupingApproved: false,
   },
   totalInvoicesPaid: {
-    status: "unresolved",
-    eligibleRecordDecision: "pending",
+    source: "prospectus_review.page2.paymasterTrackRecord.totalInvoicesPaid",
+    isOfficerContent: true,
+    systemAggregateAvailable: false,
     noteCountSubstitutionAllowed: false,
   },
   totalAmountPaid: {
-    status: "unresolved",
-    amountSourceDecision: "pending",
+    source: "prospectus_review.page2.paymasterTrackRecord.totalAmountPaid",
+    isOfficerContent: true,
+    systemAggregateAvailable: false,
     compactMoneyAllowed: false,
     futureMoneyFormatter: PROSPECTUS_PAYMASTER_TRACK_RECORD_FUTURE_MONEY_FORMATTER,
   },
   successfulRepayment: {
-    status: "unresolved",
-    numeratorDecision: "pending",
-    denominatorDecision: "pending",
+    source: "prospectus_review.page2.paymasterTrackRecord.successfulRepaymentPercent",
+    isOfficerContent: true,
+    systemAggregateAvailable: false,
     issuerMetricReused: false,
   },
   onTimePayment: {
-    status: "unresolved",
-    timingDefinitionDecision: "pending",
+    source: "prospectus_review.page2.paymasterTrackRecord.onTimePaymentPercent",
+    isOfficerContent: true,
+    systemAggregateAvailable: false,
     issuerSixMonthMetricReused: false,
   },
   averagePaymentPeriod: {
-    status: "unresolved",
-    startDateDecision: "pending",
-    endDateDecision: "pending",
+    source: "prospectus_review.page2.paymasterTrackRecord.averagePaymentPeriodDays",
+    isOfficerContent: true,
+    systemAggregateAvailable: false,
   },
   snapshot: {
-    sourceType: "unavailable_paymaster_history",
-    isFrozen: false,
-    snapshotDecision: "pending",
+    sourceType: "officer_publication_content",
+    systemHistoryAvailable: false,
   },
   claims: {
     generatedPositiveClaimAllowed: false,
@@ -148,12 +152,12 @@ export interface ProspectusPaymasterTrackRecordInput {
   targetAmount?: number | null;
   invoiceFaceValue?: number | null;
   paymentTotal?: number | null;
-  /** Observational issuer metric — must not become Successful Repayment %. */
+  /** Observational issuer metric — must not become Successful Repayment. */
   issuerRepaidCount?: number | null;
   issuerArrearsCount?: number | null;
   issuerDefaultedCount?: number | null;
   issuerSuccessfulRepaymentPercent?: number | null;
-  /** Observational issuer six-month rate — must not become On-time Payment. */
+  /** Observational issuer six-month rate — must not become On-Time Payment. */
   issuerOnTimePaymentPercent?: number | null;
   /** Observational dates — must not invent Average Payment Period. */
   invoiceDueDate?: Date | string | null;
@@ -167,7 +171,7 @@ export interface ProspectusPaymasterTrackRecordInput {
 export interface ProspectusPaymasterTrackRecordFieldSource {
   label: string;
   canonicalSource: string;
-  availability: "static" | "unresolved";
+  availability: "static" | "stored" | "unresolved";
   surface: "canva" | "audit";
   possibleAlternatives: string;
   notes: string;
@@ -192,45 +196,47 @@ export const PROSPECTUS_PAYMASTER_TRACK_RECORD_FIELD_SOURCES: Record<
   },
   totalInvoicesPaid: {
     label: "Total Invoices Paid",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "prospectus_review.page2.paymasterTrackRecord.totalInvoicesPaid",
+    availability: "stored",
     surface: "canva",
     possibleAlternatives: "Note count; invoice submitted/funded counts — not used",
-    notes: "Requires approved grouping key and eligible-record definition.",
+    notes: "Officer-entered. No system paymaster-history aggregate.",
   },
   totalAmountPaid: {
     label: "Total Amount Paid",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "prospectus_review.page2.paymasterTrackRecord.totalAmountPaid",
+    availability: "stored",
     surface: "canva",
     possibleAlternatives:
       "funded_amount; target_amount; invoice face; trustee receipts — not used",
     notes:
-      "Future money must use formatProspectusMoneyMyr. Compact mil/million rejected.",
+      "Officer-entered. Display via formatProspectusMoneyMyr. Compact mil/million rejected.",
   },
   successfulRepaymentPercent: {
-    label: "Successful Repayment %",
-    canonicalSource: "none",
-    availability: "unresolved",
+    label: "Successful Repayment",
+    canonicalSource:
+      "prospectus_review.page2.paymasterTrackRecord.successfulRepaymentPercent",
+    availability: "stored",
     surface: "canva",
     possibleAlternatives:
       "Page 1 issuer REPAID/(REPAID+ARREARS+DEFAULTED) — not used (issuer grouping)",
-    notes: "Issuer metric must not be reused for paymaster performance.",
+    notes: "Officer-entered percent. Issuer metric must not be reused.",
   },
   onTimePayment: {
-    label: "On-time Payment",
-    canonicalSource: "none",
-    availability: "unresolved",
+    label: "On-Time Payment",
+    canonicalSource: "prospectus_review.page2.paymasterTrackRecord.onTimePaymentPercent",
+    availability: "stored",
     surface: "canva",
     possibleAlternatives: "Page 1 issuer six-month on-time rate — not used",
-    notes: "Requires approved paymaster timing definition.",
+    notes: "Officer-entered percent. No approved system timing definition.",
   },
   averagePaymentPeriod: {
     label: "Average Payment Period",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource:
+      "prospectus_review.page2.paymasterTrackRecord.averagePaymentPeriodDays",
+    availability: "stored",
     surface: "canva",
     possibleAlternatives: "repaid_at − due/maturity date math — not used",
-    notes: "Requires approved start/end dates and eligible records.",
+    notes: "Officer-entered days. No approved system start/end formula.",
   },
 };

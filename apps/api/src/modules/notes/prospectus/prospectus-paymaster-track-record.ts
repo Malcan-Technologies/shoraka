@@ -67,3 +67,19 @@ export function buildProspectusPaymasterTrackRecord(
     audit: PROSPECTUS_PAYMASTER_TRACK_RECORD_AUDIT,
   };
 }
+
+/**
+ * Admin Prospectus Review rows — same labels/values as Page 2 Canva HTML.
+ * Does not re-derive metrics; maps an already-built Stage 3 view-model.
+ */
+export function toAdminPaymasterTrackRecordRows(
+  section: ProspectusPaymasterTrackRecord
+): Array<{ label: string; value: string }> {
+  return [
+    { label: "Total Invoices Paid", value: section.totalInvoicesPaid },
+    { label: "Total Amount Paid", value: section.totalAmountPaid },
+    { label: "Successful Repayment", value: section.successfulRepaymentPercent },
+    { label: "On-Time Payment", value: section.onTimePayment },
+    { label: "Average Payment Period", value: section.averagePaymentPeriod },
+  ];
+}

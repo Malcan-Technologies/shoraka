@@ -31,8 +31,8 @@ export function buildProspectusPaymasterTrackRecordHtml(
     <p>
       Total Invoices Paid: ${escapeHtml(data.totalInvoicesPaid)}<br />
       Total Amount Paid: ${escapeHtml(data.totalAmountPaid)}<br />
-      Successful Repayment %: ${escapeHtml(data.successfulRepaymentPercent)}<br />
-      On-time Payment: ${escapeHtml(data.onTimePayment)}<br />
+      Successful Repayment: ${escapeHtml(data.successfulRepaymentPercent)}<br />
+      On-Time Payment: ${escapeHtml(data.onTimePayment)}<br />
       Average Payment Period: ${escapeHtml(data.averagePaymentPeriod)}
     </p>
   </section>
