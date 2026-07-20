@@ -8,6 +8,8 @@ import {
   PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT,
   PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
   PROSPECTUS_HIGHLIGHT_KEYS,
+  normalizeProspectusCompanySize,
+  type ProspectusCompanySize,
   type ProspectusHighlightKey,
   type ProspectusHighlightRecommendationInput,
   buildProspectusHighlightRecommendations,
@@ -82,6 +84,10 @@ export interface ProspectusReviewStoredContent {
     shariahPrincipleOptionKey?: string | null;
   };
   page2: {
+    /** Optional officer Issuer Profile inputs (not IssuerOrganization data). */
+    issuerProfile?: {
+      companySize?: ProspectusCompanySize | null;
+    };
     paymasterTrackRecord?: ProspectusReviewPaymasterTrackRecord;
     creditInsights: {
       creditScoreOptionKey?: string | null;
@@ -171,6 +177,7 @@ export function emptyProspectusReviewContent(
       })),
     },
     page2: {
+      issuerProfile: { companySize: null },
       paymasterTrackRecord: {},
       creditInsights: {},
       invoiceWorkStatements: PROSPECTUS_INVOICE_WORK_KEYS.map((key) => ({
@@ -282,6 +289,9 @@ export function toProspectusPublicationContent(
       shariahPrinciple: PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
       sourceType: "fixed_template",
       approvedProductionCopy: true,
+    },
+    issuerProfile: {
+      companySize: normalizeProspectusCompanySize(content.page2.issuerProfile?.companySize),
     },
     paymasterTrackRecord: content.page2.paymasterTrackRecord,
     creditInsightSelections: creditInsights,

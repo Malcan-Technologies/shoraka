@@ -190,6 +190,7 @@ export function buildProspectusPageTwo(
     header: buildProspectusHeader(),
     issuerProfile: buildProspectusIssuerProfile({
       issuerSnapshot: input.issuerSnapshot,
+      officerCompanySize: input.publicationContent?.issuerProfile?.companySize,
     }),
     invoicePaymaster: buildProspectusInvoicePaymaster({
       invoiceSnapshot: input.invoiceSnapshot,

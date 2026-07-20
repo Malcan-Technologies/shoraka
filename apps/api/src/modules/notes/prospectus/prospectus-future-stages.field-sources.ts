@@ -114,7 +114,8 @@
  *
  * Visible non-identifying fields (frozen notes.issuer_snapshot):
  * - Industry | Company Size → industry from notes.issuer_snapshot.industry;
- *   company size unresolved (DNA) until approved classification (inferenceAllowed = false);
+ *   company size from officer Prospectus content page2.issuerProfile.companySize
+ *   (Micro | Small | Medium | Large; optional; never inferred from org/employees);
  *   combined as "Industry | Size", one side alone, or DNA if both missing
  * - Registered Country → notes.issuer_snapshot.country
  *   display: "Registered in {country}"; no hardcoded Malaysia; missing → DNA

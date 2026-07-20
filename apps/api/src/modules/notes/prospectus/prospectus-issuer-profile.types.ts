@@ -25,9 +25,10 @@ export interface ProspectusIssuerProfileAudit {
     isFrozen: true;
   };
   companySize: {
-    status: "unresolved";
-    structuredSourceAvailable: false;
+    source: "prospectus_review.page2.issuerProfile.companySize";
+    isOfficerContent: true;
     inferenceAllowed: false;
+    allowedValues: ["Micro", "Small", "Medium", "Large"];
   };
   industryAndCompanySize: {
     display: "combined";
@@ -63,9 +64,10 @@ export const PROSPECTUS_ISSUER_PROFILE_AUDIT: ProspectusIssuerProfileAudit = {
     isFrozen: true,
   },
   companySize: {
-    status: "unresolved",
-    structuredSourceAvailable: false,
+    source: "prospectus_review.page2.issuerProfile.companySize",
+    isOfficerContent: true,
     inferenceAllowed: false,
+    allowedValues: ["Micro", "Small", "Medium", "Large"],
   },
   industryAndCompanySize: {
     display: "combined",
@@ -110,6 +112,11 @@ export interface ProspectusIssuerProfile {
 export interface ProspectusIssuerProfileInput {
   /** notes.issuer_snapshot (JSON) */
   issuerSnapshot?: unknown;
+  /**
+   * Officer-selected Company Size from Prospectus review publication content.
+   * Only Micro | Small | Medium | Large are accepted; everything else is empty.
+   */
+  officerCompanySize?: string | null;
   /** Observational — must not become company name. */
   liveOrganizationName?: string | null;
   /** Observational — must not become registration number. */
@@ -120,7 +127,7 @@ export interface ProspectusIssuerProfileInput {
   employeeCount?: number | null;
   /** Observational — must not become company size. */
   annualRevenue?: number | null;
-  /** Observational SME label — must be ignored until classification approved. */
+  /** Observational SME label — must be ignored. */
   smeLabel?: string | null;
   /** Observational live Application description — must not replace snapshot. */
   liveWhatDoesCompanyDo?: string | null;
@@ -157,7 +164,8 @@ export const PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES: Record<
   },
   industryAndCompanySize: {
     label: PROSPECTUS_ISSUER_PROFILE_INDUSTRY_SIZE_LABEL,
-    canonicalSource: "notes.issuer_snapshot.industry + company size (unresolved)",
+    canonicalSource:
+      "notes.issuer_snapshot.industry + prospectus_review.page2.issuerProfile.companySize",
     availability: "stored",
     surface: "canva",
     possibleAlternatives: "separate Industry / Company Size rows — not used",
@@ -174,11 +182,11 @@ export const PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES: Record<
   },
   companySize: {
     label: "Company Size",
-    canonicalSource: "none",
-    availability: "unresolved",
-    surface: "audit",
-    possibleAlternatives: "SME; employees; revenue — not used",
-    notes: "No approved SME classification. inferenceAllowed = false.",
+    canonicalSource: "prospectus_review.page2.issuerProfile.companySize",
+    availability: "stored",
+    surface: "canva",
+    possibleAlternatives: "IssuerOrganization employees/revenue; large private — not used",
+    notes: "Optional officer select: Micro | Small | Medium | Large. Empty when unset.",
   },
   entityType: {
     label: "Entity Type",

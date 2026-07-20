@@ -111,6 +111,11 @@ export interface ProspectusPaymasterTrackRecordPublicationInputs {
   averagePaymentPeriodDays?: string | number | null;
 }
 
+export interface ProspectusIssuerProfilePublicationInputs {
+  /** Officer-selected Company Size — Micro | Small | Medium | Large, or null when unset. */
+  companySize?: string | null;
+}
+
 export interface ProspectusPublicationContent {
   meta: typeof PROSPECTUS_PUBLICATION_CONTENT_SOURCE;
   keyInvestorHighlights: ProspectusKeyInvestorHighlightPlaceholder[];
@@ -120,6 +125,7 @@ export interface ProspectusPublicationContent {
     sourceType: "fixed_template";
     approvedProductionCopy: boolean;
   };
+  issuerProfile?: ProspectusIssuerProfilePublicationInputs;
   paymasterTrackRecord?: ProspectusPaymasterTrackRecordPublicationInputs;
   creditInsightSelections: Partial<
     Record<ProspectusCreditInsightFieldKey, ProspectusCreditInsightOptionKey>

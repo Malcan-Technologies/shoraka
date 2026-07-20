@@ -403,9 +403,16 @@ export class ProspectusReviewService {
 
     const page2Data = await loadProspectusPageTwoData(prisma, noteId);
     const page2Input = mapProspectusPageTwoDataToInput(page2Data);
-    const page2 = buildProspectusPageTwo(page2Input);
-
     const workflow = normalizeProspectusWorkflowStatus(review.status);
+    // Use saved draft/approved officer content so Admin Issuer Profile matches Preview.
+    if (!page2Input.isPublished) {
+      const contentForProfile =
+        workflow === "APPROVED" && mapped.approvedContent != null
+          ? mapped.approvedContent
+          : mapped.draftContent;
+      page2Input.publicationContent = toProspectusPublicationContent(contentForProfile);
+    }
+    const page2 = buildProspectusPageTwo(page2Input);
     const publishBlocked =
       !isNotePublished(note) && workflow !== "APPROVED" && workflow !== "PUBLISHED"
         ? PUBLISH_BLOCKED
@@ -427,6 +434,7 @@ export class ProspectusReviewService {
       },
       historicalNotes: toAdminHistoricalNoteTable(page1.historicalNoteTable),
       issuerProfile: {
+        industry: page2.issuerProfile.industry,
         rows: toAdminIssuerProfileRows(page2.issuerProfile),
       },
       publishBlockedReason: publishBlocked,

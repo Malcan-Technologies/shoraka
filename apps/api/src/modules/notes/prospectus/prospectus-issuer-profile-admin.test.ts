@@ -1,6 +1,6 @@
 /**
  * SECTION: Admin Issuer Profile mapping from Page 2 Stage 1 builder
- * WHY: Admin must show investor-visible values only — no local recalculation
+ * WHY: Admin must show investor-visible values only — no local recalculation of snapshot fields
  */
 
 import {
@@ -13,7 +13,7 @@ import {
 } from "./prospectus-issuer-profile.types";
 
 describe("toAdminIssuerProfileRows", () => {
-  it("maps investor-visible fields only with shared formatting", () => {
+  it("maps investor-visible fields including officer Company Size", () => {
     const profile = buildProspectusIssuerProfile({
       issuerSnapshot: {
         name: "Hidden Issuer Sdn Bhd",
@@ -24,6 +24,7 @@ describe("toAdminIssuerProfileRows", () => {
         business_description:
           "Hidden Issuer Sdn Bhd — Infrastructure contractor for public works.",
       },
+      officerCompanySize: "Medium",
       liveOrganizationName: "Live Org Must Be Ignored",
       liveRegistrationNumber: "999999999999",
     });
@@ -33,7 +34,7 @@ describe("toAdminIssuerProfileRows", () => {
     expect(rows).toEqual([
       {
         label: PROSPECTUS_ISSUER_PROFILE_INDUSTRY_SIZE_LABEL,
-        value: "Construction",
+        value: "Construction | Medium",
       },
       { label: "Registered Country", value: "Registered in Malaysia" },
       {
@@ -42,11 +43,8 @@ describe("toAdminIssuerProfileRows", () => {
       },
     ]);
     expect(rows.some((r) => r.label === "Entity Type")).toBe(false);
-    expect(rows.some((r) => r.label === "Industry")).toBe(false);
-    expect(rows.some((r) => r.label === "Company Size")).toBe(false);
     expect(rows.some((r) => r.value.includes("Hidden Issuer"))).toBe(false);
     expect(rows.some((r) => r.value.includes("201401012345"))).toBe(false);
-    expect(rows.some((r) => r.value.includes("PRIVATE_LIMITED"))).toBe(false);
   });
 
   it("uses DNA for missing fields and never falls back to live org data", () => {

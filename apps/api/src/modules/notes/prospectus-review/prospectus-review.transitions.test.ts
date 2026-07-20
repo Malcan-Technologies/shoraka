@@ -82,6 +82,13 @@ jest.mock("../prospectus/prospectus-page-two-mapper", () => ({
     },
   })),
 }));
+jest.mock("../prospectus/prospectus-issuer-profile", () => ({
+  toAdminIssuerProfileRows: jest.fn(() => [
+    { label: "Industry | Company Size", value: "Construction" },
+    { label: "Registered Country", value: "Registered in Malaysia" },
+    { label: "Business Description", value: "Works" },
+  ]),
+}));
 jest.mock("../prospectus/prospectus-page-two.html", () => ({
   buildProspectusPageTwoHtml: jest.fn(() => "<p>p2</p>"),
 }));
@@ -97,9 +104,6 @@ jest.mock("../prospectus/prospectus-page-three.html", () => ({
 }));
 jest.mock("../prospectus/prospectus-issuer-track-record", () => ({
   toAdminIssuerTrackRecordRows: jest.fn(() => []),
-}));
-jest.mock("../prospectus/prospectus-issuer-profile", () => ({
-  toAdminIssuerProfileRows: jest.fn(() => []),
 }));
 
 const actor = {

@@ -66,6 +66,15 @@ export const prospectusReviewStoredContentSchema = z
       .strict(),
     page2: z
       .object({
+        issuerProfile: z
+          .object({
+            companySize: z
+              .enum(["Micro", "Small", "Medium", "Large"])
+              .nullable()
+              .optional(),
+          })
+          .strict()
+          .optional(),
         paymasterTrackRecord: z
           .object({
             totalInvoicesPaid: z.number().finite().nullable().optional(),

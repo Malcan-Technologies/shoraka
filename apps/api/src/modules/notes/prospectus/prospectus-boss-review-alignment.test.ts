@@ -91,6 +91,16 @@ describe("prospectus boss-review alignment", () => {
       expect(profile).not.toHaveProperty("entityType");
       expect(profile.industry).toBe("Construction");
       expect(profile.industryAndCompanySize).toBe("Construction");
+      expect(
+        buildProspectusIssuerProfile({
+          issuerSnapshot: {
+            name: "Secret Issuer Sdn Bhd",
+            industry: "Construction",
+            business_description: "Secret Issuer Sdn Bhd — Bridge works.",
+          },
+          officerCompanySize: "Medium",
+        }).industryAndCompanySize
+      ).toBe("Construction | Medium");
       expect(profile.businessDescription).toBe("Bridge works.");
       expect(profile.businessDescription).not.toContain("Secret Issuer");
     });

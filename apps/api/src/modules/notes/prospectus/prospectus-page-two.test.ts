@@ -27,6 +27,7 @@ import {
   PROSPECTUS_PAGE_TWO_HEIGHT_MM,
   PROSPECTUS_PAGE_TWO_WIDTH_MM,
 } from "./prospectus-page-two.types";
+import { PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT } from "./prospectus-placeholder-publication-content";
 import { renderProspectusPageTwoHtml } from "./render-prospectus-page-two";
 
 function baseNote(
@@ -348,6 +349,20 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(page.issuerProfile.industryAndCompanySize).toBe("Construction");
       expect(page.issuerProfile.registeredCountry).toBe("Registered in Malaysia");
       expect(page.issuerProfile.businessDescription).toBe("Infrastructure works");
+
+      const withOfficerSize = buildProspectusPageTwo({
+        ...mapProspectusPageTwoDataToInput({
+          note: baseNote(),
+          liveFinancialStatements,
+        }),
+        publicationContent: {
+          ...PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
+          issuerProfile: { companySize: "Medium" },
+        },
+      });
+      expect(withOfficerSize.issuerProfile.industryAndCompanySize).toBe(
+        "Construction | Medium"
+      );
 
       expect(page.invoicePaymaster.invoiceAmount).toBe(formatProspectusMoneyMyr(625_000));
       expect(page.invoicePaymaster.deedOfAssignment).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);

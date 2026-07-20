@@ -1,4 +1,8 @@
 import {
+  PROSPECTUS_COMPANY_SIZE_VALUES,
+  formatProspectusIndustryAndCompanySizeDisplay,
+} from "@cashsouk/types";
+import {
   buildProspectusIssuerProfile,
   formatProspectusIndustryAndCompanySize,
   sanitizeProspectusBusinessDescription,
@@ -27,6 +31,7 @@ describe("prospectus Page 2 About the Issuer (DATA STAGE 1)", () => {
         industry: "Construction",
         entity_type: "PRIVATE_LIMITED",
       },
+      officerCompanySize: "Medium",
       liveOrganizationName: "Live Org Name Must Be Ignored",
       liveRegistrationNumber: "999999999999",
       oldRegistrationNumber: "1101234-X",
@@ -35,15 +40,29 @@ describe("prospectus Page 2 About the Issuer (DATA STAGE 1)", () => {
     expect(data).not.toHaveProperty("registrationNumber");
     expect(data).not.toHaveProperty("entityType");
     expect(data.industry).toBe("Construction");
-    expect(data.industryAndCompanySize).toBe("Construction");
+    expect(data.industryAndCompanySize).toBe("Construction | Medium");
+  });
+
+  it("accepts all four officer Company Size values", () => {
+    for (const size of PROSPECTUS_COMPANY_SIZE_VALUES) {
+      expect(
+        buildProspectusIssuerProfile({
+          issuerSnapshot: { industry: "Construction" },
+          officerCompanySize: size,
+        }).companySize
+      ).toBe(size);
+    }
   });
 
   it("combines industry and company size with partial and empty rules", () => {
     expect(formatProspectusIndustryAndCompanySize("Construction", "SME")).toBe(
       "Construction | SME"
     );
+    expect(formatProspectusIndustryAndCompanySizeDisplay("Construction", "Medium")).toBe(
+      "Construction | Medium"
+    );
     expect(formatProspectusIndustryAndCompanySize("Construction", null)).toBe("Construction");
-    expect(formatProspectusIndustryAndCompanySize(null, "SME")).toBe("SME");
+    expect(formatProspectusIndustryAndCompanySize(null, "Medium")).toBe("Medium");
     expect(formatProspectusIndustryAndCompanySize(null, null)).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(
       formatProspectusIndustryAndCompanySize(
@@ -53,33 +72,41 @@ describe("prospectus Page 2 About the Issuer (DATA STAGE 1)", () => {
     ).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("maps industry from frozen snapshot and keeps company size unresolved", () => {
-    expect(
-      buildProspectusIssuerProfile({
-        issuerSnapshot: { industry: "Construction", entity_type: "PRIVATE_LIMITED" },
-        smeLabel: "SME",
-        employeeCount: 50,
-      }).industryAndCompanySize
-    ).toBe("Construction");
-
-    expect(
-      buildProspectusIssuerProfile({
-        issuerSnapshot: {},
-      }).industryAndCompanySize
-    ).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-  });
-
-  it("keeps company size unresolved and ignores SME inference inputs", () => {
-    const data = buildProspectusIssuerProfile({
-      issuerSnapshot: { name: "ABC Engineering Sdn Bhd", industry: "Construction" },
+  it("uses officer Company Size and ignores org/SME inference inputs", () => {
+    const withOfficer = buildProspectusIssuerProfile({
+      issuerSnapshot: { industry: "Construction" },
+      officerCompanySize: "Small",
       employeeCount: 50,
       annualRevenue: 5_000_000,
       smeLabel: "SME",
     });
+    expect(withOfficer.companySize).toBe("Small");
+    expect(withOfficer.industryAndCompanySize).toBe("Construction | Small");
+
+    const emptyOfficer = buildProspectusIssuerProfile({
+      issuerSnapshot: { industry: "Construction" },
+      officerCompanySize: null,
+      smeLabel: "SME",
+    });
+    expect(emptyOfficer.companySize).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(emptyOfficer.industryAndCompanySize).toBe("Construction");
+  });
+
+  it("shows Company Size only when industry is missing", () => {
+    const data = buildProspectusIssuerProfile({
+      issuerSnapshot: {},
+      officerCompanySize: "Large",
+    });
+    expect(data.industryAndCompanySize).toBe("Large");
+  });
+
+  it("rejects unknown officer Company Size values", () => {
+    const data = buildProspectusIssuerProfile({
+      issuerSnapshot: { industry: "Construction" },
+      officerCompanySize: "SME",
+    });
     expect(data.companySize).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(data.companySize).not.toBe("SME");
     expect(data.industryAndCompanySize).toBe("Construction");
-    expect(data.industryAndCompanySize).not.toContain("SME");
   });
 
   it("formats registered country when frozen country exists", () => {
@@ -137,7 +164,9 @@ describe("prospectus Page 2 About the Issuer (DATA STAGE 1)", () => {
     expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES.industry.canonicalSource).toBe(
       "notes.issuer_snapshot.industry"
     );
-    expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES.companySize.availability).toBe("unresolved");
+    expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES.companySize.canonicalSource).toBe(
+      "prospectus_review.page2.issuerProfile.companySize"
+    );
     expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES.entityType.availability).toBe("hidden");
     expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES.industryAndCompanySize.label).toBe(
       PROSPECTUS_ISSUER_PROFILE_INDUSTRY_SIZE_LABEL
@@ -147,12 +176,15 @@ describe("prospectus Page 2 About the Issuer (DATA STAGE 1)", () => {
   });
 
   it("HTML shows non-identifying Canva fields only", () => {
-    const data = buildProspectusIssuerProfile(SAMPLE_PROSPECTUS_ISSUER_PROFILE_INPUT);
+    const data = buildProspectusIssuerProfile({
+      ...SAMPLE_PROSPECTUS_ISSUER_PROFILE_INPUT,
+      officerCompanySize: "Medium",
+    });
     const html = buildProspectusIssuerProfileDocument(data);
 
     expect(html).toContain("ABOUT THE ISSUER");
     expect(html).toContain('class="icon icon-issuer"');
-    expect(html).toContain("Construction");
+    expect(html).toContain("Construction | Medium");
     expect(html).toContain("Registered in Malaysia");
     expect(html).toContain("civil and structural engineering company");
 
@@ -167,11 +199,12 @@ describe("prospectus Page 2 About the Issuer (DATA STAGE 1)", () => {
     expect(html).not.toContain('"audit"');
   });
 
-  it("audit records identity hidden and freeze rules", () => {
+  it("audit records identity hidden and officer Company Size source", () => {
     const data = buildProspectusIssuerProfile(SAMPLE_PROSPECTUS_ISSUER_PROFILE_INPUT);
     expect(data.audit.identityHidden.companyNameHidden).toBe(true);
     expect(data.audit.identityHidden.registrationNumberHidden).toBe(true);
     expect(data.audit.identityHidden.entityTypeHidden).toBe(true);
+    expect(data.audit.companySize.isOfficerContent).toBe(true);
     expect(data.audit.companySize.inferenceAllowed).toBe(false);
     expect(data.audit.registeredCountry.hardcodedCountryAllowed).toBe(false);
     expect(data.audit.businessDescription.liveFallbackAllowed).toBe(false);

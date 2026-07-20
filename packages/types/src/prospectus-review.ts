@@ -7,6 +7,39 @@ export type ProspectusReviewStatus =
   | "SUPERSEDED"
   | "PUBLISHED";
 
+/** Officer-selected Company Size for Page 2 Issuer Profile (optional). */
+export const PROSPECTUS_COMPANY_SIZE_VALUES = ["Micro", "Small", "Medium", "Large"] as const;
+export type ProspectusCompanySize = (typeof PROSPECTUS_COMPANY_SIZE_VALUES)[number];
+
+export function normalizeProspectusCompanySize(value: unknown): ProspectusCompanySize | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return (PROSPECTUS_COMPANY_SIZE_VALUES as readonly string[]).includes(trimmed)
+    ? (trimmed as ProspectusCompanySize)
+    : null;
+}
+
+const PROSPECTUS_DNA = "Data not available";
+
+/** Canva Industry | Company Size line — no empty separator. */
+export function formatProspectusIndustryAndCompanySizeDisplay(
+  industry: string | null | undefined,
+  companySize: string | null | undefined
+): string {
+  const industryValue =
+    typeof industry === "string" && industry.trim() && industry.trim() !== PROSPECTUS_DNA
+      ? industry.trim()
+      : null;
+  const sizeValue =
+    typeof companySize === "string" && companySize.trim() && companySize.trim() !== PROSPECTUS_DNA
+      ? companySize.trim()
+      : null;
+  if (industryValue && sizeValue) return `${industryValue} | ${sizeValue}`;
+  if (industryValue) return industryValue;
+  if (sizeValue) return sizeValue;
+  return PROSPECTUS_DNA;
+}
+
 /** Stored officer-edited highlight copy (Shariah is fixed on write/resolve). */
 export interface ProspectusReviewHighlightSelection {
   key: string;
@@ -27,6 +60,10 @@ export interface ProspectusReviewStoredContent {
     shariahPrincipleOptionKey?: string | null;
   };
   page2: {
+    /** Optional officer Issuer Profile inputs (not IssuerOrganization data). */
+    issuerProfile?: {
+      companySize?: ProspectusCompanySize | null;
+    };
     paymasterTrackRecord?: {
       totalInvoicesPaid?: number | null;
       totalAmountPaid?: string | number | null;
@@ -159,6 +196,8 @@ export interface ProspectusReviewGetResponse {
    * Same path as Prospectus Preview (notes.issuer_snapshot → builder).
    */
   issuerProfile: {
+    /** Industry component from issuer snapshot (for Admin display / local combine). */
+    industry: string;
     rows: ProspectusIssuerProfileAdminRow[];
   };
   publishBlockedReason: string | null;

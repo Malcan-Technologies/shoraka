@@ -10,8 +10,11 @@ import {
 } from "@heroicons/react/24/outline";
 import { Skeleton } from "@cashsouk/ui";
 import {
+  PROSPECTUS_COMPANY_SIZE_VALUES,
   PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT,
   PROSPECTUS_HIGHLIGHT_KEYS,
+  formatProspectusIndustryAndCompanySizeDisplay,
+  normalizeProspectusCompanySize,
   type ProspectusReviewStoredContent,
   type ProspectusReviewStatus,
 } from "@cashsouk/types";
@@ -355,7 +358,21 @@ function ProspectusReviewPageInner() {
           data?.issuerTrackRecord?.rows
         )
       : [];
-  const issuerRows = data?.issuerProfile?.rows ?? [];
+  const officerCompanySize = normalizeProspectusCompanySize(
+    draft.page2.issuerProfile?.companySize
+  );
+  const issuerRows = (() => {
+    const rows = data?.issuerProfile?.rows ?? [];
+    if (rows.length === 0) return rows;
+    const industry = data?.issuerProfile?.industry;
+    const combined = formatProspectusIndustryAndCompanySizeDisplay(
+      industry,
+      officerCompanySize
+    );
+    return rows.map((row) =>
+      row.label === "Industry | Company Size" ? { ...row, value: combined } : row
+    );
+  })();
   const invoicePaymasterRows = note ? buildInvoicePaymasterVerificationRows(note) : [];
   const financialStatements = (
     application as { financial_statements?: unknown } | undefined
@@ -800,6 +817,45 @@ function ProspectusReviewPageInner() {
                         ) : (
                           <Skeleton className="h-32 w-full" />
                         )}
+                        <div className="mt-4 max-w-md space-y-1.5">
+                          <Label htmlFor="prospectus-company-size" className="text-sm">
+                            Company Size
+                          </Label>
+                          <p className="text-sm text-muted-foreground">
+                            Select the company size to display in the investor Prospectus.
+                          </p>
+                          <Select
+                            disabled={locked || !canManage}
+                            value={officerCompanySize ?? "__none__"}
+                            onValueChange={(value) =>
+                              updateDraft((prev) => ({
+                                ...prev,
+                                page2: {
+                                  ...prev.page2,
+                                  issuerProfile: {
+                                    ...prev.page2.issuerProfile,
+                                    companySize:
+                                      value === "__none__"
+                                        ? null
+                                        : normalizeProspectusCompanySize(value),
+                                  },
+                                },
+                              }))
+                            }
+                          >
+                            <SelectTrigger id="prospectus-company-size" className="h-11">
+                              <SelectValue placeholder="Not set" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">Not set</SelectItem>
+                              {PROSPECTUS_COMPANY_SIZE_VALUES.map((size) => (
+                                <SelectItem key={size} value={size}>
+                                  {size}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </section>
                       <section>
                         <ProspectusSectionHeading title="Invoice & Paymaster Information" />
