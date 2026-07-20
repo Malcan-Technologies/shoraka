@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
+import { financialSourceFromYearBlocks } from "./prospectus-financial-comparison-test-helpers";
 import { SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE } from "./prospectus-financial-comparison-source.sample-data";
 import { buildProspectusPageThreeMetadata } from "./prospectus-page-three-metadata";
 import { SAMPLE_PROSPECTUS_PAGE_THREE_METADATA_INPUT } from "./prospectus-page-three-metadata.sample-data";
@@ -150,13 +150,8 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
   });
 
   it("supports fewer than three years via the reused source", () => {
-    const source = buildProspectusFinancialComparisonSource({
-      financialStatements: {
-        questionnaire: { financial_year_end: "2027-12-31" },
-        unaudited_by_year: {
-          "2024": { turnover: 100 },
-        },
-      },
+    const source = financialSourceFromYearBlocks({
+      "2024": { turnover: 100 },
     });
     const data = withSource({ financialSource: source });
     expect(data.financialYears).toHaveLength(1);
@@ -165,14 +160,9 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
   });
 
   it("does not fabricate missing years", () => {
-    const source = buildProspectusFinancialComparisonSource({
-      financialStatements: {
-        questionnaire: { financial_year_end: "2027-12-31" },
-        unaudited_by_year: {
-          "2023": { turnover: 1 },
-          "2024": { turnover: 2 },
-        },
-      },
+    const source = financialSourceFromYearBlocks({
+      "2023": { turnover: 1 },
+      "2024": { turnover: 2 },
     });
     const data = withSource({ financialSource: source });
     expect(data.financialYears.map((y) => y.year)).toEqual([2023, 2024]);

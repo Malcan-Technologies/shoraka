@@ -10,12 +10,15 @@ import { PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT } from "./prospectus-placeho
 import type { ProspectusPage2FinancialComparisonSnapshot } from "./prospectus-snapshot.types";
 
 const SAMPLE_FROZEN_FINANCIALS: ProspectusPage2FinancialComparisonSnapshot = {
-  source: "application_financial_statements",
+  source: "admin_financial_statements_normalized",
+  source_footer: "Source: Audited Financial Statements",
   selected_years: [
     {
       year: 2022,
       year_label: "FY2022",
       financial_year_end_label: "31 Dec 2022",
+      financial_year_end_iso: "2022-12-31",
+      record_source: "ctos_audited",
       raw_financials: {
         turnover: 12000000,
         plnpat: 900000,
@@ -34,6 +37,8 @@ const SAMPLE_FROZEN_FINANCIALS: ProspectusPage2FinancialComparisonSnapshot = {
       year: 2023,
       year_label: "FY2023",
       financial_year_end_label: "31 Dec 2023",
+      financial_year_end_iso: "2023-12-31",
+      record_source: "ctos_audited",
       raw_financials: {
         turnover: 13900000,
         plnpat: 1100000,
@@ -52,6 +57,8 @@ const SAMPLE_FROZEN_FINANCIALS: ProspectusPage2FinancialComparisonSnapshot = {
       year: 2024,
       year_label: "FY2024",
       financial_year_end_label: "31 Dec 2024",
+      financial_year_end_iso: "2024-12-31",
+      record_source: "ctos_audited",
       raw_financials: {
         turnover: 15000000,
         plnpat: 1200000,
@@ -94,6 +101,7 @@ export const SAMPLE_PROSPECTUS_PAGE_TWO_INPUT: ProspectusPageTwoBuilderInput = {
   },
   maturityDate: new Date("2026-12-31T00:00:00.000Z"),
   liveFinancialStatements: null,
+  liveCtosFinancials: null,
   frozenFinancialComparison: SAMPLE_FROZEN_FINANCIALS,
   targetAmount: 500000,
   fundedAmount: 0,

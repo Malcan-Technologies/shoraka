@@ -173,7 +173,7 @@ type OfficerFinancialOverrideKey = (typeof PAGE_TWO_OFFICER_FINANCIAL_METRICS)[n
  * Presentation only — does not invent system formulas or gearing substitution.
  */
 export function mergeOfficerOverridesIntoFinancialTable(
-  table: FinancialMetricTableModel,
+  table: FinancialMetricTableModel & { sourceFooter?: string },
   overrides:
     | Record<
         string,
@@ -181,7 +181,7 @@ export function mergeOfficerOverridesIntoFinancialTable(
       >
     | null
     | undefined
-): FinancialMetricTableModel {
+): FinancialMetricTableModel & { sourceFooter?: string } {
   if (!overrides) return table;
   const labelToKey = new Map<string, OfficerFinancialOverrideKey>(
     PAGE_TWO_OFFICER_FINANCIAL_METRICS.map((m) => [m.label, m.key])
@@ -194,12 +194,22 @@ export function mergeOfficerOverridesIntoFinancialTable(
       return {
         ...row,
         values: table.yearHeaders.map((header, index) => {
-          const yearOverride = overrides[header.key] ?? overrides[`${header.key}-12-31`];
+          // Prefer stable FYE ISO key; accept legacy calendar-year keys.
+          const yearOverride =
+            overrides[header.key] ??
+            overrides[header.key.slice(0, 4)] ??
+            overrides[`${header.key.slice(0, 4)}-12-31`];
           const raw = yearOverride?.[key];
-          const n = parseMoney(raw);
-          if (n == null) return row.values[index] ?? DATA_NOT_AVAILABLE;
+          const n =
+            typeof raw === "number" && Number.isFinite(raw)
+              ? raw
+              : typeof raw === "string" && raw.trim() !== ""
+                ? Number(raw.replace(/,/g, ""))
+                : null;
+          if (n == null || !Number.isFinite(n)) return row.values[index] ?? DATA_NOT_AVAILABLE;
           if (key === "receivablesDays") {
-            return n.toFixed(2).replace(/\.?0+$/, "");
+            if (!Number.isInteger(n)) return row.values[index] ?? DATA_NOT_AVAILABLE;
+            return String(Math.trunc(n));
           }
           return formatMultiple(n);
         }),

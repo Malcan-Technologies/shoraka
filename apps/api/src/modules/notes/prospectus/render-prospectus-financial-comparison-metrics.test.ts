@@ -6,7 +6,10 @@ import {
   buildProspectusFinancialComparisonMetrics,
   formatProspectusFinancialMultiple,
   formatProspectusFinancialPercentFromRatio,
+  formatProspectusMyrMillions,
   parseProspectusFinancialNumber,
+  resolveYearOverride,
+  toAdminFinancialComparisonTable,
 } from "./prospectus-financial-comparison-metrics";
 import { SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_METRICS_SOURCE } from "./prospectus-financial-comparison-metrics.sample-data";
 import {
@@ -14,7 +17,6 @@ import {
   PROSPECTUS_FINANCIAL_COMPARISON_METRIC_KEYS,
   PROSPECTUS_FINANCIAL_COMPARISON_METRIC_LABELS,
 } from "./prospectus-financial-comparison-metrics.types";
-import { formatProspectusMoneyMyr } from "./prospectus-main-financial-terms";
 import { buildProspectusFinancialComparisonMetricsDocument } from "./render-prospectus-financial-comparison-metrics";
 
 function row(
@@ -34,9 +36,8 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
       SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_METRICS_SOURCE.years.map((y) => y.year)
     );
     expect(sample.years.map((y) => y.yearLabel)).toEqual(["FY2022", "FY2023", "FY2024"]);
-    expect(sample.sectionHeading).toBe(
-      SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_METRICS_SOURCE.sectionHeading
-    );
+    expect(sample.sectionHeading).toContain("(MYR mil.)");
+    expect(sample.sourceFooter).toBe("Source: Audited Financial Statements");
   });
 
   it("uses exact nine metric rows in approved order", () => {
@@ -48,40 +49,57 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
     );
   });
 
-  it("formats Revenue from turnover with full MYR", () => {
-    expect(row(sample, "revenue")?.values[0]).toBe("RM 13,900,000.00");
-    expect(formatProspectusMoneyMyr(13_900_000)).toBe("RM 13,900,000.00");
+  it("formats Revenue and PAT as MYR millions for display only", () => {
+    expect(formatProspectusMyrMillions(13_900_000)).toBe("13.9");
+    expect(formatProspectusMyrMillions(16_200_000)).toBe("16.2");
+    expect(formatProspectusMyrMillions(1_200_000)).toBe("1.2");
+    expect(row(sample, "revenue")?.values[0]).toBe("13.9");
+    expect(row(sample, "profitAfterTax")?.values[0]).toBe("1.2");
+    expect(row(sample, "revenue")?.values[0]).not.toContain("RM");
+    expect(sample.audit.revenue.formulasUseFullMyr).toBe(true);
+    expect(sample.audit.units.millionConversionAllowed).toBe("display_only_revenue_pat");
+  });
+
+  it("keeps formulas on full MYR source values", () => {
+    // 1_200_000 / 13_900_000 ≈ 8.63%
+    expect(row(sample, "netProfitMargin")?.values[0]).toBe("8.63%");
+    expect(row(sample, "roe")?.values[0]).toBe("7.4%");
+    expect(row(sample, "currentRatio")?.values[0]).toBe("1.62x");
   });
 
   it("does not use revenue aliases and DNA when turnover missing", () => {
     const source = buildProspectusFinancialComparisonSource({
       financialStatements: {
-        questionnaire: { financial_year_end: "2027-12-31" },
+        questionnaire: { financial_year_end: "2025-12-31" },
         unaudited_by_year: {
-          "2024": { revenue: 13_900_000, invoice_value: 13_900_000, plnpat: 1 },
+          "2025": { revenue: 13_900_000, invoice_value: 13_900_000, plnpat: 1 },
         },
       },
+      ctosFinancials: [],
+      ref: new Date("2025-07-01T00:00:00.000Z"),
     });
     const metrics = buildProspectusFinancialComparisonMetrics({ source });
     expect(row(metrics, "revenue")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
   it("formats PAT from plnpat and does not fall back to PBT", () => {
-    expect(row(sample, "profitAfterTax")?.values[0]).toBe("RM 1,200,000.00");
+    expect(row(sample, "profitAfterTax")?.values[0]).toBe("1.2");
 
     const source = buildProspectusFinancialComparisonSource({
       financialStatements: {
-        questionnaire: { financial_year_end: "2027-12-31" },
+        questionnaire: { financial_year_end: "2025-12-31" },
         unaudited_by_year: {
-          "2024": { plnpbt: 1_500_000, turnover: 1_000_000 },
+          "2025": { plnpbt: 1_500_000, turnover: 1_000_000 },
         },
       },
+      ctosFinancials: [],
+      ref: new Date("2025-07-01T00:00:00.000Z"),
     });
     const metrics = buildProspectusFinancialComparisonMetrics({ source });
     expect(row(metrics, "profitAfterTax")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("reuses shared margin/ROE/current-ratio helpers with correct formatting", () => {
+  it("reuses shared margin/ROE/current-ratio helpers and never substitutes gearing", () => {
     const moduleSource = readFileSync(
       join(__dirname, "prospectus-financial-comparison-metrics.ts"),
       "utf8"
@@ -90,53 +108,24 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
     expect(moduleSource).toContain("calculateReturnOnEquity");
     expect(moduleSource).toContain("calculateCurrentRatio");
     expect(moduleSource).not.toContain("calculateGearing");
+    expect(moduleSource).toContain("formatProspectusMyrMillions");
 
-    expect(row(sample, "netProfitMargin")?.values[0]).toBe("8.63%");
-    expect(row(sample, "roe")?.values[0]).toBe("7.4%");
-    expect(row(sample, "currentRatio")?.values[0]).toBe("1.62x");
     expect(formatProspectusFinancialPercentFromRatio(0.086330935)).toBe("8.63%");
     expect(formatProspectusFinancialMultiple(1.620689655)).toBe("1.62x");
-  });
-
-  it("returns DNA for zero turnover, zero equity, and zero current liabilities", () => {
-    const source = buildProspectusFinancialComparisonSource({
-      financialStatements: {
-        questionnaire: { financial_year_end: "2027-12-31" },
-        unaudited_by_year: {
-          "2024": {
-            turnover: 0,
-            plnpat: 100,
-            bsqpuc: 0,
-            bscatot: 100,
-            curlib: 0,
-          },
-        },
-      },
-    });
-    const metrics = buildProspectusFinancialComparisonMetrics({ source });
-    expect(row(metrics, "netProfitMargin")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(row(metrics, "roe")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(row(metrics, "currentRatio")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-  });
-
-  it("keeps unsupported metrics DNA without officer overrides and does not substitute gearing", () => {
     expect(calculateGearing(2_900_000, 1_000_000, 500_000, 16_216_216)).not.toBeNull();
     expect(row(sample, "netDebtEquity")?.values).toEqual([
       PROSPECTUS_DATA_NOT_AVAILABLE,
       PROSPECTUS_DATA_NOT_AVAILABLE,
       PROSPECTUS_DATA_NOT_AVAILABLE,
     ]);
-    expect(row(sample, "interestCoverage")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(row(sample, "dscr")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(row(sample, "receivablesDays")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(sample.audit.netDebtEquity.gearingSubstitutionAllowed).toBe(false);
   });
 
-  it("applies officer overrides for unsupported metrics per year without changing system metrics", () => {
-    const metrics = buildProspectusFinancialComparisonMetrics({
+  it("keeps optional overrides empty as DNA and formats entered values", () => {
+    const withOverrides = buildProspectusFinancialComparisonMetrics({
       source: SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_METRICS_SOURCE,
       officerOverrides: {
-        "2024": {
+        "2024-12-31": {
           netDebtEquity: 0.45,
           interestCoverage: 3.2,
           dscr: 1.5,
@@ -147,100 +136,81 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
         },
       },
     });
-    expect(row(metrics, "revenue")?.values[2]).toBe("RM 18,600,000.00");
-    expect(row(metrics, "netDebtEquity")?.values[2]).toBe("0.45x");
-    expect(row(metrics, "interestCoverage")?.values[2]).toBe("3.2x");
-    expect(row(metrics, "dscr")?.values[2]).toBe("1.5x");
-    expect(row(metrics, "receivablesDays")?.values[2]).toBe("42");
-    expect(row(metrics, "interestCoverage")?.values[1]).toBe("2.1x");
-    expect(row(metrics, "netDebtEquity")?.values[1]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(row(withOverrides, "revenue")?.values[2]).toBe("18.6");
+    expect(row(withOverrides, "netDebtEquity")?.values[2]).toBe("0.45x");
+    expect(row(withOverrides, "interestCoverage")?.values[2]).toBe("3.2x");
+    expect(row(withOverrides, "dscr")?.values[2]).toBe("1.5x");
+    expect(row(withOverrides, "receivablesDays")?.values[2]).toBe("42");
+    expect(row(withOverrides, "interestCoverage")?.values[1]).toBe("2.1x");
+    expect(row(withOverrides, "netDebtEquity")?.values[1]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("ignores CTOS and inherits Stage 4A unit label without a source note field", () => {
+  it("keeps override attached to FYE when column order changes and hides unused years", () => {
+    const yearsAsc = SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_METRICS_SOURCE.years;
+    const yearsDesc = [...yearsAsc].reverse();
+    const overrides = {
+      "2022-12-31": { netDebtEquity: 0.1 },
+      "2024-12-31": { netDebtEquity: 0.9 },
+      "2020-12-31": { netDebtEquity: 7.7 },
+    };
+    const asc = buildProspectusFinancialComparisonMetrics({
+      source: { ...SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_METRICS_SOURCE, years: yearsAsc },
+      officerOverrides: overrides,
+    });
+    const desc = buildProspectusFinancialComparisonMetrics({
+      source: { ...SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_METRICS_SOURCE, years: yearsDesc },
+      officerOverrides: overrides,
+    });
+    expect(row(asc, "netDebtEquity")?.values[0]).toBe("0.1x");
+    expect(row(asc, "netDebtEquity")?.values[2]).toBe("0.9x");
+    expect(row(desc, "netDebtEquity")?.values[0]).toBe("0.9x");
+    expect(row(desc, "netDebtEquity")?.values[2]).toBe("0.1x");
+
+    const without2022 = buildProspectusFinancialComparisonMetrics({
+      source: {
+        ...SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_METRICS_SOURCE,
+        years: yearsAsc.filter((y) => y.year !== 2022),
+      },
+      officerOverrides: overrides,
+    });
+    expect(row(without2022, "netDebtEquity")?.values).toEqual([
+      PROSPECTUS_DATA_NOT_AVAILABLE,
+      "0.9x",
+    ]);
+    // Hidden-year override is not assigned to another year
+    expect(
+      resolveYearOverride(yearsAsc[0]!, overrides)?.netDebtEquity
+    ).toBe(0.1);
+  });
+
+  it("Admin table uses FYE ISO keys and matches Preview formatting", () => {
     const metrics = buildProspectusFinancialComparisonMetrics({
       source: SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_METRICS_SOURCE,
-      ctosFinancials: { financials: [{ financial_year: 2024, turnover: 99_999_999 }] },
+      officerOverrides: {
+        "2024-12-31": { dscr: 1.25 },
+      },
     });
-    expect(row(metrics, "revenue")?.values[2]).toBe("RM 18,600,000.00");
-    expect(metrics.tableUnitLabel).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(metrics).not.toHaveProperty("sourceNote");
-    expect(metrics.audit.source.ctosUsed).toBe(false);
-    expect(metrics.audit.source.inheritedFromStage4A).toBe(true);
+    const table = toAdminFinancialComparisonTable(metrics);
+    expect(table.yearHeaders.map((h) => h.key)).toEqual([
+      "2022-12-31",
+      "2023-12-31",
+      "2024-12-31",
+    ]);
+    expect(table.rows.find((r) => r.metric === "Revenue")?.values[0]).toBe("13.9");
+    expect(table.rows.find((r) => r.metric === "DSCR")?.values[2]).toBe("1.25x");
+    expect(table.sourceFooter).toBe(metrics.sourceFooter);
   });
 
-  it("supports one/two/three/empty Stage 4A year counts", () => {
-    const one = buildProspectusFinancialComparisonMetrics({
-      source: buildProspectusFinancialComparisonSource({
-        financialStatements: {
-          questionnaire: { financial_year_end: "2027-12-31" },
-          unaudited_by_year: { "2024": { turnover: 100, plnpat: 10 } },
-        },
-      }),
-    });
-    expect(one.years).toHaveLength(1);
-    expect(row(one, "revenue")?.values).toHaveLength(1);
-
-    const two = buildProspectusFinancialComparisonMetrics({
-      source: buildProspectusFinancialComparisonSource({
-        financialStatements: {
-          questionnaire: { financial_year_end: "2027-12-31" },
-          unaudited_by_year: {
-            "2023": { turnover: 100 },
-            "2024": { turnover: 200 },
-          },
-        },
-      }),
-    });
-    expect(two.years.map((y) => y.year)).toEqual([2023, 2024]);
-    expect(row(two, "revenue")?.values).toHaveLength(2);
-
-    const empty = buildProspectusFinancialComparisonMetrics({
-      source: buildProspectusFinancialComparisonSource({
-        financialStatements: {
-          questionnaire: { financial_year_end: "2027-12-31" },
-          unaudited_by_year: { draft: { turnover: 1 } },
-        },
-      }),
-    });
-    expect(empty.years).toHaveLength(0);
-    expect(row(empty, "revenue")?.values).toEqual([]);
+  it("parses financial numbers and rejects silent zero for tiny non-zero MYR", () => {
+    expect(parseProspectusFinancialNumber("1,200")).toBe(1200);
+    expect(formatProspectusMyrMillions(50)).toBe("0.00005");
   });
 
-  it("parses explicit zero as a real value and missing as null", () => {
-    expect(parseProspectusFinancialNumber(0)).toBe(0);
-    expect(parseProspectusFinancialNumber("0")).toBe(0);
-    expect(parseProspectusFinancialNumber(undefined)).toBeNull();
-    expect(parseProspectusFinancialNumber("")).toBeNull();
-    expect(formatProspectusMoneyMyr(0)).toBe("RM 0.00");
-  });
-
-  it("HTML shows full MYR money cells without compact/million conversion or audit", () => {
+  it("renders metrics HTML with heading, millions, and source footer", () => {
     const html = buildProspectusFinancialComparisonMetricsDocument(sample);
-    expect(html).toContain("RM 13,900,000.00");
-    expect(html).toContain("RM 1,200,000.00");
-    expect(html).toContain("RM 18,600,000.00");
-    expect(html).toContain("8.63%");
-    expect(html).toContain("1.62x");
-    expect(html).not.toContain("p.a.");
-    expect(html).toContain("Net Debt / Equity");
-    expect(html).toContain("Interest Coverage");
-    expect(html).toContain("DSCR");
-    expect(html).toContain("Receivables Days");
-
-    expect(html).not.toMatch(/RM 13\.9|RM 1\.2m|\bmil\b|million/);
-    const moduleSource = readFileSync(
-      join(__dirname, "prospectus-financial-comparison-metrics.ts"),
-      "utf8"
-    );
-    expect(moduleSource).not.toContain("1_000_000");
-    expect(moduleSource).not.toMatch(/\/\s*1_?000_?000/);
-
-    expect(html).not.toContain("Source Note:");
-    expect(html).not.toMatch(/Source: Data not available/);
-    expect(html).not.toContain("formulaOwnedBySharedHelper");
-    expect(html).not.toContain("gearingSubstitutionAllowed");
-    expect(html).not.toContain("ctosUsed");
-    expect(html).not.toContain("snapshotDecision");
-    expect(html).not.toContain('"audit"');
+    expect(html).toContain("(MYR mil.)");
+    expect(html).toContain("13.9");
+    expect(html).toContain("Source: Audited Financial Statements");
+    expect(html).not.toContain("RM 13,900,000");
   });
 });

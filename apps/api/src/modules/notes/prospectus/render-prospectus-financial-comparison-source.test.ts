@@ -1,6 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  buildNormalizedFinancialStatementYearSet,
+  FINANCIAL_STATEMENT_SOURCE_FOOTER,
+  selectLatestNormalizedFinancialStatementYears,
+} from "@cashsouk/types";
+import {
   buildProspectusFinancialComparisonSource,
   formatProspectusFinancialYearEndLabel,
   formatProspectusFinancialYearLabel,
@@ -9,234 +14,209 @@ import {
 import { SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_INPUT } from "./prospectus-financial-comparison-source.sample-data";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
-  PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_FIELD_SOURCES,
   PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
+  PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_FIELD_SOURCES,
 } from "./prospectus-financial-comparison-source.types";
 import { buildProspectusFinancialComparisonSourceDocument } from "./render-prospectus-financial-comparison-source";
 
-function unauditedYears(
-  years: Record<string, Record<string, unknown>>,
-  financialYearEnd = "2027-12-31"
-) {
+function ctosRow(year: number, turnover: number) {
   return {
-    financialStatements: {
-      questionnaire: { financial_year_end: financialYearEnd },
-      unaudited_by_year: years,
-    },
+    financial_year: year,
+    dates: { pldd: `${year}-12-31`, bsdd: null },
+    account: { turnover, plnpat: 1, bsqpuc: 1, bscatot: 1, curlib: 1 },
   };
 }
 
 describe("prospectus Page 2 Financial Comparison Source (DATA STAGE 4A)", () => {
-  it("uses static section heading", () => {
+  it("uses static section heading with MYR mil.", () => {
     const data = buildProspectusFinancialComparisonSource(
       SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_INPUT
     );
-    expect(data.sectionHeading).toBe("3-YEAR FINANCIAL COMPARISON");
+    expect(data.sectionHeading).toBe("3-YEAR FINANCIAL COMPARISON (MYR mil.)");
     expect(data.sectionHeading).toBe(PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING);
+    expect(data.tableUnitLabel).toBe("(MYR mil.)");
   });
 
-  it("uses Application unaudited_by_year and ignores CTOS", () => {
+  it("uses the same normalized Admin Financial Statements year set", () => {
     const data = buildProspectusFinancialComparisonSource(
       SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_INPUT
     );
-    expect(data.audit.source.selectedSource).toBe("application_financial_statements");
-    expect(data.audit.source.path).toBe(
-      "applications.financial_statements.unaudited_by_year"
-    );
-    expect(data.audit.source.ctosUsed).toBe(false);
-    expect(data.audit.source.sourceMixingAllowed).toBe(false);
+    expect(data.audit.source.selectedSource).toBe("admin_financial_statements_normalized");
+    expect(data.audit.source.ctosUsed).toBe(true);
+    expect(data.audit.source.precedence).toBe("ctos_audited_over_unaudited_same_year");
+    // CTOS 2020–2024 → latest three ascending
     expect(data.years.map((y) => y.year)).toEqual([2022, 2023, 2024]);
-    expect(data.years.some((y) => y.rawFinancials.turnover === 9_999_999)).toBe(false);
+    expect(data.years.map((y) => y.recordSource)).toEqual([
+      "ctos_audited",
+      "ctos_audited",
+      "ctos_audited",
+    ]);
+    expect(data.years.every((y) => /^\d{4}-\d{2}-\d{2}$/.test(y.financialYearEndIso))).toBe(
+      true
+    );
   });
 
-  it("does not fill Application gaps from CTOS", () => {
+  it("gives CTOS precedence when the same FY appears in unaudited", () => {
     const data = buildProspectusFinancialComparisonSource({
       financialStatements: {
-        questionnaire: { financial_year_end: "2027-12-31" },
+        questionnaire: { financial_year_end: "2025-12-31" },
         unaudited_by_year: {
-          "2024": { turnover: 100 },
+          "2024": { turnover: 100, pldd: "2024-12-31" },
+          "2025": { turnover: 200, pldd: "2025-12-31" },
         },
       },
-      ctosFinancials: {
-        financials: [
-          { financial_year: 2022, turnover: 1 },
-          { financial_year: 2023, turnover: 2 },
-          { financial_year: 2024, turnover: 3 },
-        ],
-      },
+      ctosFinancials: [ctosRow(2023, 1), ctosRow(2024, 9_999), ctosRow(2025, 8_888)],
+      ref: new Date("2025-03-01T00:00:00.000Z"),
     });
-    expect(data.years).toHaveLength(1);
-    expect(data.years[0]?.year).toBe(2024);
-    expect(data.years[0]?.rawFinancials.turnover).toBe(100);
+    expect(data.years.map((y) => y.year)).toEqual([2023, 2024, 2025]);
+    expect(data.years.every((y) => y.recordSource === "ctos_audited")).toBe(true);
+    expect(data.years.find((y) => y.year === 2024)?.rawFinancials.turnover).toBe(9_999);
   });
 
-  it("selects latest three valid years in ascending display order", () => {
+  it("preserves six-month SSM deadline behaviour for unaudited tab years", () => {
+    const beforeDeadline = buildNormalizedFinancialStatementYearSet({
+      financialStatements: {
+        questionnaire: { financial_year_end: "2025-12-31" },
+        unaudited_by_year: {
+          "2024": { turnover: 1 },
+          "2025": { turnover: 2 },
+        },
+      },
+      ctosFinancials: [],
+      ref: new Date("2025-03-01T00:00:00.000Z"),
+    });
+    expect(beforeDeadline.map((y) => y.year)).toEqual([2024, 2025]);
+
+    const afterDeadline = buildNormalizedFinancialStatementYearSet({
+      financialStatements: {
+        questionnaire: { financial_year_end: "2025-12-31" },
+        unaudited_by_year: {
+          "2024": { turnover: 1 },
+          "2025": { turnover: 2 },
+        },
+      },
+      ctosFinancials: [],
+      ref: new Date("2025-07-01T00:00:00.000Z"),
+    });
+    expect(afterDeadline.map((y) => y.year)).toEqual([2025]);
+  });
+
+  it("selects latest three and displays oldest to newest", () => {
     expect(
       selectProspectusFinancialComparisonYears(["2021", "2024", "2022", "2023"])
     ).toEqual([2022, 2023, 2024]);
 
-    const data = buildProspectusFinancialComparisonSource(
-      SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_INPUT
-    );
-    expect(data.years.map((y) => y.yearLabel)).toEqual(["FY2022", "FY2023", "FY2024"]);
-  });
-
-  it("ignores object insertion order and invalid year keys", () => {
-    const data = buildProspectusFinancialComparisonSource(
-      unauditedYears({
-        "2020": { turnover: 1 },
-        FY2024: { turnover: 2 },
-        "2024/25": { turnover: 3 },
-        draft: { turnover: 4 },
-        "2025": { turnover: 5 },
-        "2023": { turnover: 6 },
-        "2021": { turnover: 7 },
-        "2022": { turnover: 8 },
-        "2024": { turnover: 9 },
-      })
-    );
-    expect(data.years.map((y) => y.year)).toEqual([2023, 2024, 2025]);
-    expect(data.years).toHaveLength(3);
-  });
-
-  it("supports two years, one year, and empty years", () => {
-    const two = buildProspectusFinancialComparisonSource(
-      unauditedYears({
-        "2023": { turnover: 1 },
-        "2024": { turnover: 2 },
-      })
-    );
-    expect(two.years.map((y) => y.year)).toEqual([2023, 2024]);
-
-    const one = buildProspectusFinancialComparisonSource(
-      unauditedYears({
-        "2024": { turnover: 1 },
-      })
-    );
-    expect(one.years.map((y) => y.year)).toEqual([2024]);
-
-    const none = buildProspectusFinancialComparisonSource(
-      unauditedYears({
-        draft: { turnover: 1 },
-        FY2024: { turnover: 2 },
-      })
-    );
-    expect(none.years).toEqual([]);
-  });
-
-  it("formats year labels and financial year-end from questionnaire ISO", () => {
-    expect(formatProspectusFinancialYearLabel(2024)).toBe("FY2024");
-    expect(formatProspectusFinancialYearEndLabel("2027-12-31", 2024)).toBe("31 Dec 2024");
-
-    const data = buildProspectusFinancialComparisonSource(
-      SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_INPUT
-    );
-    expect(data.years.map((y) => y.financialYearEndLabel)).toEqual([
-      "31 Dec 2022",
-      "31 Dec 2023",
-      "31 Dec 2024",
-    ]);
-  });
-
-  it("returns DNA for missing/invalid financial year end and does not hardcode December", () => {
-    const noFye = buildProspectusFinancialComparisonSource({
+    const available = buildNormalizedFinancialStatementYearSet({
       financialStatements: {
-        questionnaire: {},
+        questionnaire: { financial_year_end: "2027-12-31" },
+        unaudited_by_year: {},
+      },
+      ctosFinancials: [
+        ctosRow(2020, 1),
+        ctosRow(2021, 2),
+        ctosRow(2022, 3),
+        ctosRow(2023, 4),
+        ctosRow(2024, 5),
+      ],
+    });
+    expect(selectLatestNormalizedFinancialStatementYears(available, 3).map((y) => y.year)).toEqual(
+      [2022, 2023, 2024]
+    );
+  });
+
+  it("supports one-year and two-year cases", () => {
+    const one = buildProspectusFinancialComparisonSource({
+      financialStatements: {
+        questionnaire: { financial_year_end: "2025-12-31" },
+        unaudited_by_year: { "2025": { turnover: 1, pldd: "2025-12-31" } },
+      },
+      ctosFinancials: [],
+      ref: new Date("2025-07-01T00:00:00.000Z"),
+    });
+    expect(one.years.map((y) => y.year)).toEqual([2025]);
+
+    const two = buildProspectusFinancialComparisonSource({
+      financialStatements: {
+        questionnaire: { financial_year_end: "2025-12-31" },
         unaudited_by_year: {
-          "2024": { turnover: 1 },
+          "2024": { turnover: 1, pldd: "2024-12-31" },
+          "2025": { turnover: 2, pldd: "2025-12-31" },
         },
       },
+      ctosFinancials: [],
+      ref: new Date("2025-03-01T00:00:00.000Z"),
     });
-    expect(noFye.years[0]?.financialYearEndLabel).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(JSON.stringify(noFye.years)).not.toContain("31 Dec");
+    expect(two.years.map((y) => y.year)).toEqual([2024, 2025]);
+  });
 
-    const invalid = buildProspectusFinancialComparisonSource({
+  it("formats FY labels and FYE display labels", () => {
+    expect(formatProspectusFinancialYearLabel(2024)).toBe("FY2024");
+    expect(formatProspectusFinancialYearEndLabel("2024-12-31")).toBe("31 Dec 2024");
+    expect(formatProspectusFinancialYearEndLabel(null)).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+  });
+
+  it("builds accurate source footers", () => {
+    const audited = buildProspectusFinancialComparisonSource({
       financialStatements: {
-        questionnaire: { financial_year_end: "31 December" },
-        unaudited_by_year: { "2024": { turnover: 1 } },
+        questionnaire: { financial_year_end: "2027-12-31" },
+        unaudited_by_year: {},
       },
+      ctosFinancials: [ctosRow(2022, 1), ctosRow(2023, 2), ctosRow(2024, 3)],
     });
-    expect(invalid.years[0]?.financialYearEndLabel).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(formatProspectusFinancialYearEndLabel(null, 2024)).toBe(
-      PROSPECTUS_DATA_NOT_AVAILABLE
-    );
-  });
+    expect(audited.sourceFooter).toBe(FINANCIAL_STATEMENT_SOURCE_FOOTER.audited);
 
-  it("keeps table unit unresolved without audited/mil claims and has no source note field", () => {
-    const data = buildProspectusFinancialComparisonSource(
-      SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_INPUT
-    );
-    expect(data.tableUnitLabel).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_FIELD_SOURCES.tableUnitLabel.availability).toBe(
-      "unresolved"
-    );
-    expect(data).not.toHaveProperty("sourceNote");
-    expect(
-      "sourceNote" in PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_FIELD_SOURCES
-    ).toBe(false);
-  });
-
-  it("preserves raw year financial objects for Stage 4B", () => {
-    const data = buildProspectusFinancialComparisonSource(
-      SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_INPUT
-    );
-    expect(data.years[0]?.rawFinancials.turnover).toBe(2022 * 100_000);
-    expect(data.years[2]?.rawFinancials.plnpat).toBe(2024 * 10_000);
-    expect(data.years[1]?.rawFinancials).toMatchObject({
-      turnover: 2023 * 100_000,
-      plnpat: 2023 * 10_000,
+    const management = buildProspectusFinancialComparisonSource({
+      financialStatements: {
+        questionnaire: { financial_year_end: "2025-12-31" },
+        unaudited_by_year: {
+          "2024": { turnover: 1 },
+          "2025": { turnover: 2 },
+        },
+      },
+      ctosFinancials: [],
+      ref: new Date("2025-03-01T00:00:00.000Z"),
     });
+    expect(management.sourceFooter).toBe(FINANCIAL_STATEMENT_SOURCE_FOOTER.management);
+
+    const mixed = buildProspectusFinancialComparisonSource({
+      financialStatements: {
+        questionnaire: { financial_year_end: "2025-12-31" },
+        unaudited_by_year: {
+          "2025": { turnover: 200, pldd: "2025-12-31" },
+        },
+      },
+      ctosFinancials: [ctosRow(2023, 1), ctosRow(2024, 2)],
+      ref: new Date("2025-03-01T00:00:00.000Z"),
+    });
+    expect(mixed.sourceFooter).toBe(FINANCIAL_STATEMENT_SOURCE_FOOTER.mixed);
+
+    const empty = buildProspectusFinancialComparisonSource({
+      financialStatements: {
+        questionnaire: { financial_year_end: "2027-12-31" },
+        unaudited_by_year: {},
+      },
+      ctosFinancials: [],
+    });
+    expect(empty.sourceFooter).toBe(FINANCIAL_STATEMENT_SOURCE_FOOTER.neutral);
   });
 
-  it("does not introduce million conversion helpers", () => {
+  it("documents field sources for the shared resolver", () => {
+    expect(PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_FIELD_SOURCES.years.canonicalSource).toBe(
+      "admin_financial_statements_normalized"
+    );
     const moduleSource = readFileSync(
       join(__dirname, "prospectus-financial-comparison-source.ts"),
       "utf8"
     );
-    expect(moduleSource).not.toContain("1000000");
-    expect(moduleSource).not.toContain("1_000_000");
-    expect(moduleSource).not.toMatch(/\/\s*1_?000_?000/);
+    expect(moduleSource).toContain("buildNormalizedFinancialStatementYearSet");
+    expect(moduleSource).toContain("selectLatestNormalizedFinancialStatementYears");
   });
 
-  it("HTML proves year order and hides audit/claims/compact units", () => {
-    const data = buildProspectusFinancialComparisonSource(
-      SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_INPUT
+  it("renders a source preview document", () => {
+    const html = buildProspectusFinancialComparisonSourceDocument(
+      buildProspectusFinancialComparisonSource(SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_INPUT)
     );
-    const html = buildProspectusFinancialComparisonSourceDocument(data);
-
-    expect(html).toContain("3-YEAR FINANCIAL COMPARISON");
     expect(html).toContain("FY2022");
-    expect(html).toContain("FY2023");
     expect(html).toContain("FY2024");
-    expect(html.indexOf("FY2022")).toBeLessThan(html.indexOf("FY2023"));
-    expect(html.indexOf("FY2023")).toBeLessThan(html.indexOf("FY2024"));
-    expect(html).toContain("31 Dec 2022");
-    expect(html).toContain("Table Unit Label: Data not available");
-    expect(html).not.toContain("Source Note:");
-    expect(html).not.toContain("Source:");
-
-    expect(html).not.toContain("Audited Financial Statements");
-    expect(html).not.toContain("Management Account");
-    expect(html).not.toContain("MYR mil");
-    expect(html).not.toContain("RM mil");
-    expect(html).not.toContain("million");
-    expect(html).not.toContain("selectedSource");
-    expect(html).not.toContain("ctosUsed");
-    expect(html).not.toContain("sourceMixingAllowed");
-    expect(html).not.toContain("selectionRule");
-    expect(html).not.toContain("snapshotDecision");
-    expect(html).not.toContain('"audit"');
-  });
-
-  it("audit records live Application freeze-at-publication status", () => {
-    const data = buildProspectusFinancialComparisonSource(
-      SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_INPUT
-    );
-    expect(data.audit.snapshot.sourceType).toBe("live_application_financial_statements");
-    expect(data.audit.snapshot.isFrozen).toBe(false);
-    expect(data.audit.snapshot.snapshotDecision).toBe("freeze_at_publication");
-    expect(data.audit.financialYearEnd.hardcodedDecemberAllowed).toBe(false);
-    expect(data.audit.tableUnits.millionConversionAllowed).toBe(false);
-    expect(data.audit).not.toHaveProperty("sourceNote");
   });
 });

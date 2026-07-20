@@ -57,20 +57,23 @@ function pickRawFinancials(raw: Record<string, unknown>): ProspectusPage2Financi
 }
 
 /**
- * Freeze Stage 4 year selection + raw canonical fields from Application financials.
+ * Freeze Stage 4 year selection + raw canonical fields from normalized financials.
  * Missing financials → valid empty selected_years (publication still succeeds).
  */
 export function buildProspectusPage2FinancialComparisonSnapshot(input: {
   financialStatements: unknown;
+  ctosFinancials?: unknown;
   now?: Date;
 }): ProspectusPage2FinancialComparisonSnapshot {
   const now = input.now ?? new Date();
   const source = buildProspectusFinancialComparisonSource({
     financialStatements: input.financialStatements,
+    ctosFinancials: input.ctosFinancials,
+    ref: now,
   });
 
   return {
-    source: "application_financial_statements",
+    source: "admin_financial_statements_normalized",
     selected_years: source.years.map((year) => ({
       year: year.year,
       year_label: year.yearLabel,
@@ -78,14 +81,18 @@ export function buildProspectusPage2FinancialComparisonSnapshot(input: {
         year.financialYearEndLabel === PROSPECTUS_DATA_NOT_AVAILABLE
           ? null
           : year.financialYearEndLabel,
+      financial_year_end_iso: year.financialYearEndIso,
+      record_source: year.recordSource,
       raw_financials: pickRawFinancials(year.rawFinancials),
     })),
+    source_footer: source.sourceFooter,
     calculated_at: now.toISOString(),
   };
 }
 
 export function buildProspectusPage2Snapshot(input: {
   financialStatements: unknown;
+  ctosFinancials?: unknown;
   now?: Date;
 }): ProspectusPage2Snapshot {
   return {

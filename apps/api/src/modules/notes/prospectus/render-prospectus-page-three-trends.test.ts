@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
+import { financialSourceFromYearBlocks } from "./prospectus-financial-comparison-test-helpers";
 import { buildProspectusPageThreeBalanceSheet } from "./prospectus-page-three-balance-sheet";
 import { PROSPECTUS_PAGE_THREE_BALANCE_SHEET_ROW_KEYS } from "./prospectus-page-three-balance-sheet.types";
 import { buildProspectusPageThreeCoverageEfficiency } from "./prospectus-page-three-coverage-efficiency";
@@ -18,11 +18,8 @@ import {
 import { buildProspectusPageThreeTrendsDocument } from "./render-prospectus-page-three-trends";
 
 function composeFromYears(years: Record<string, Record<string, unknown>>) {
-  const financialSource = buildProspectusFinancialComparisonSource({
-    financialStatements: {
-      questionnaire: { financial_year_end: "2024-12-31" },
-      unaudited_by_year: years,
-    },
+  const financialSource = financialSourceFromYearBlocks(years, {
+    financialYearEnd: "2024-12-31",
   });
   return {
     incomeStatement: buildProspectusPageThreeIncomeStatement({ financialSource }),

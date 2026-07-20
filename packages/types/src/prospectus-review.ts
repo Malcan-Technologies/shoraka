@@ -116,7 +116,8 @@ export interface ProspectusReviewStoredContent {
     };
     /**
      * Officer overrides for unsupported Page 2 financial comparison metrics.
-     * Keys: calendar year ("2024") and/or financial year-end ISO ("2024-12-31").
+     * Keys: normalized financial-year-end ISO ("2024-12-31"). Legacy calendar year
+     * keys ("2024") are accepted for backward compatibility on read.
      * System-derived metrics (Revenue, PAT, NPM, ROE, Current Ratio) must not be overridden.
      */
     financialComparison?: {
@@ -232,6 +233,7 @@ export interface ProspectusPaymasterTrackRecordAdminRow {
 /** Read-only Page 2 3-Year Financial Comparison table for Admin (same values as Preview). */
 export interface ProspectusFinancialComparisonAdminTable {
   yearHeaders: Array<{
+    /** Stable FYE ISO — officer overrides are keyed by this, not column position. */
     key: string;
     yearLabel: string;
     fyeLabel: string;
@@ -240,6 +242,7 @@ export interface ProspectusFinancialComparisonAdminTable {
     metric: string;
     values: string[];
   }>;
+  sourceFooter: string;
 }
 
 export interface ProspectusReviewGetResponse {

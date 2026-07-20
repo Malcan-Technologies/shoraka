@@ -61,12 +61,18 @@ export interface ProspectusPage2FinancialYearSnapshot {
   year: number;
   year_label: string;
   financial_year_end_label: string | null;
+  /** Stable override key — FYE ISO. Optional on old freezes. */
+  financial_year_end_iso?: string | null;
+  /** CTOS/audited vs management/unaudited. Optional on old freezes. */
+  record_source?: "ctos_audited" | "unaudited_management" | null;
   raw_financials: ProspectusPage2FinancialRawSnapshot;
 }
 
 export interface ProspectusPage2FinancialComparisonSnapshot {
-  source: "application_financial_statements";
+  source: "application_financial_statements" | "admin_financial_statements_normalized";
   selected_years: ProspectusPage2FinancialYearSnapshot[];
+  /** Narrowest accurate source footer from selected years. Optional on old freezes. */
+  source_footer?: string | null;
   calculated_at: string;
 }
 

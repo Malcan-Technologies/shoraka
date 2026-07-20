@@ -15,6 +15,7 @@ export const PROSPECTUS_PAGE_TWO_NOTE_SELECT = {
   status: true,
   published_at: true,
   source_application_id: true,
+  issuer_organization_id: true,
   maturity_date: true,
   target_amount: true,
   funded_amount: true,
@@ -39,6 +40,7 @@ export type ProspectusPageTwoNoteRecord = {
   status: NoteStatus;
   published_at: Date | null;
   source_application_id: string;
+  issuer_organization_id: string;
   maturity_date: Date | null;
   target_amount: unknown;
   funded_amount: unknown;
@@ -62,6 +64,11 @@ export type ProspectusPageTwoLoadedData = {
    * Null when published (must not be used) or when Application is missing.
    */
   liveFinancialStatements: unknown | null;
+  /**
+   * Live organization CTOS financials_json for unpublished Stage 4 preview only.
+   * Same source as Admin Financial Statements tab.
+   */
+  liveCtosFinancials: unknown | null;
 };
 
 export async function loadProspectusPageTwoNote(
@@ -81,7 +88,7 @@ export async function loadProspectusPageTwoNote(
 }
 
 /**
- * Load Note + optional live Application financials for unpublished preview.
+ * Load Note + optional live Application financials + CTOS for unpublished preview.
  * Published Notes never receive live financial statements from this loader.
  */
 export async function loadProspectusPageTwoData(
@@ -92,20 +99,31 @@ export async function loadProspectusPageTwoData(
   const published = isProspectusNotePublished(note);
 
   if (published) {
-    return { note, liveFinancialStatements: null };
+    return { note, liveFinancialStatements: null, liveCtosFinancials: null };
   }
 
   if (!note.source_application_id) {
-    return { note, liveFinancialStatements: null };
+    return { note, liveFinancialStatements: null, liveCtosFinancials: null };
   }
 
-  const application = await db.application.findUnique({
-    where: { id: note.source_application_id },
-    select: { financial_statements: true },
-  });
+  const [application, ctosReport] = await Promise.all([
+    db.application.findUnique({
+      where: { id: note.source_application_id },
+      select: { financial_statements: true },
+    }),
+    db.ctosReport.findFirst({
+      where: {
+        issuer_organization_id: note.issuer_organization_id,
+        subject_ref: null,
+      },
+      orderBy: { fetched_at: "desc" },
+      select: { financials_json: true },
+    }),
+  ]);
 
   return {
     note,
     liveFinancialStatements: application?.financial_statements ?? null,
+    liveCtosFinancials: ctosReport?.financials_json ?? null,
   };
 }

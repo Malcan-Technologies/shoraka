@@ -8,7 +8,6 @@ import {
   calculateProfitMargin,
   calculateReturnOnEquity,
 } from "@cashsouk/types";
-import { formatProspectusMoneyMyr } from "./prospectus-main-financial-terms";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_FINANCIAL_COMPARISON_METRIC_KEYS,
@@ -20,6 +19,7 @@ import {
   type ProspectusFinancialComparisonMetricsInput,
   type ProspectusFinancialComparisonYearOfficerOverride,
 } from "./prospectus-financial-comparison-metrics.types";
+import type { ProspectusFinancialComparisonYear } from "./prospectus-financial-comparison-source.types";
 
 /**
  * Parse a stored financial scalar.
@@ -38,6 +38,26 @@ export function parseProspectusFinancialNumber(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+/**
+ * Display-only MYR millions for Revenue / PAT.
+ * Full MYR remains in source and formulas; divide by 1e6 only here.
+ * Up to one decimal; trim trailing `.0`. Non-zero amounts must not collapse to `0`.
+ */
+export function formatProspectusMyrMillions(amount: number | null | undefined): string {
+  if (amount == null || !Number.isFinite(amount)) return PROSPECTUS_DATA_NOT_AVAILABLE;
+  if (amount === 0) return "0";
+
+  const millions = amount / 1_000_000;
+  const oneDp = millions.toFixed(1);
+  const trimmedOne = oneDp.replace(/\.0$/, "");
+  if (Number(trimmedOne) !== 0) return trimmedOne;
+
+  // Non-zero full MYR rounded away at 1dp — keep enough precision without toFixed rounding up.
+  const precise = millions.toFixed(10).replace(/\.?0+$/, "");
+  if (precise !== "" && Number(precise) !== 0) return precise;
+  return millions < 0 ? ">-0.000001" : "<0.000001";
 }
 
 /**
@@ -64,33 +84,32 @@ export function formatProspectusFinancialMultiple(
 
 function formatReceivablesDays(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return PROSPECTUS_DATA_NOT_AVAILABLE;
-  const fixed = value.toFixed(2).replace(/\.?0+$/, "");
-  return fixed;
+  return String(Math.trunc(value));
 }
 
-function fieldFromRaw(
-  raw: Record<string, unknown>,
-  key: string
-): number | null {
+function fieldFromRaw(raw: Record<string, unknown>, key: string): number | null {
   if (!Object.prototype.hasOwnProperty.call(raw, key)) return null;
   return parseProspectusFinancialNumber(raw[key]);
 }
 
-function resolveYearOverride(
-  year: number,
-  financialYearEndLabel: string,
+/**
+ * Resolve officer overrides by stable FYE ISO first, then legacy year keys.
+ * Never maps a hidden-year override onto a different displayed column.
+ */
+export function resolveYearOverride(
+  year: ProspectusFinancialComparisonYear,
   overrides: ProspectusFinancialComparisonMetricsInput["officerOverrides"]
 ): ProspectusFinancialComparisonYearOfficerOverride | null {
   if (!overrides) return null;
-  const yearKey = String(year);
+  const fyeKey = year.financialYearEndIso;
+  if (fyeKey && overrides[fyeKey]) return overrides[fyeKey] ?? null;
+
+  const yearKey = String(year.year);
   if (overrides[yearKey]) return overrides[yearKey] ?? null;
-  // Accept FYE ISO keys when the display label is a parseable date (e.g. 31 Dec 2024).
-  for (const [key, value] of Object.entries(overrides)) {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(key) && key.startsWith(yearKey)) {
-      return value ?? null;
-    }
-  }
-  void financialYearEndLabel;
+
+  const decemberKey = `${year.year}-12-31`;
+  if (overrides[decemberKey]) return overrides[decemberKey] ?? null;
+
   return null;
 }
 
@@ -114,7 +133,9 @@ function officerMetricValue(
     }
     case "receivablesDays": {
       const n = parseProspectusFinancialNumber(override.receivablesDays);
-      return n == null ? null : formatReceivablesDays(n);
+      if (n == null) return null;
+      if (!Number.isInteger(n)) return null;
+      return formatReceivablesDays(n);
     }
     default:
       return null;
@@ -129,11 +150,11 @@ function metricValueForYear(
   switch (key) {
     case "revenue": {
       const turnover = fieldFromRaw(raw, "turnover");
-      return formatProspectusMoneyMyr(turnover);
+      return formatProspectusMyrMillions(turnover);
     }
     case "profitAfterTax": {
       const plnpat = fieldFromRaw(raw, "plnpat");
-      return formatProspectusMoneyMyr(plnpat);
+      return formatProspectusMyrMillions(plnpat);
     }
     case "netProfitMargin": {
       const plnpat = fieldFromRaw(raw, "plnpat");
@@ -174,6 +195,7 @@ function metricValueForYear(
 export function buildProspectusFinancialComparisonMetrics(
   input: ProspectusFinancialComparisonMetricsInput
 ): ProspectusFinancialComparisonMetrics {
+  // CTOS is consumed only via Stage 4A normalized years — never re-mixed here.
   void input.ctosFinancials;
 
   const { source } = input;
@@ -182,21 +204,14 @@ export function buildProspectusFinancialComparisonMetrics(
       key,
       label: PROSPECTUS_FINANCIAL_COMPARISON_METRIC_LABELS[key],
       values: source.years.map((year) =>
-        metricValueForYear(
-          key,
-          year.rawFinancials,
-          resolveYearOverride(
-            year.year,
-            year.financialYearEndLabel,
-            input.officerOverrides
-          )
-        )
+        metricValueForYear(key, year.rawFinancials, resolveYearOverride(year, input.officerOverrides))
       ),
     }));
 
   return {
     sectionHeading: source.sectionHeading,
     tableUnitLabel: source.tableUnitLabel,
+    sourceFooter: source.sourceFooter,
     years: source.years,
     rows,
     audit: PROSPECTUS_FINANCIAL_COMPARISON_METRICS_AUDIT,
@@ -206,16 +221,18 @@ export function buildProspectusFinancialComparisonMetrics(
 /**
  * Admin Prospectus Review table — same labels/values as Page 2 Canva HTML.
  * Maps an already-built Stage 4B view-model; does not re-derive metrics.
+ * yearHeaders.key is the stable FYE ISO override key.
  */
 export function toAdminFinancialComparisonTable(
   metrics: ProspectusFinancialComparisonMetrics
 ): {
   yearHeaders: Array<{ key: string; yearLabel: string; fyeLabel: string }>;
   rows: Array<{ metric: string; values: string[] }>;
+  sourceFooter: string;
 } {
   return {
     yearHeaders: metrics.years.map((year) => ({
-      key: String(year.year),
+      key: year.financialYearEndIso,
       yearLabel: year.yearLabel,
       fyeLabel: year.financialYearEndLabel,
     })),
@@ -223,5 +240,6 @@ export function toAdminFinancialComparisonTable(
       metric: row.label,
       values: [...row.values],
     })),
+    sourceFooter: metrics.sourceFooter,
   };
 }

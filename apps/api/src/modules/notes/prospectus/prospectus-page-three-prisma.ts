@@ -14,6 +14,7 @@ export const PROSPECTUS_PAGE_THREE_NOTE_SELECT = {
   status: true,
   published_at: true,
   source_application_id: true,
+  issuer_organization_id: true,
   issuer_snapshot: true,
   invoice_snapshot: true,
   paymaster_snapshot: true,
@@ -25,6 +26,7 @@ export type ProspectusPageThreeNoteRecord = {
   status: NoteStatus;
   published_at: Date | null;
   source_application_id: string;
+  issuer_organization_id: string;
   issuer_snapshot: unknown;
   invoice_snapshot: unknown;
   paymaster_snapshot: unknown;
@@ -38,6 +40,11 @@ export type ProspectusPageThreeLoadedData = {
    * Null when published (must not be used) or when Application is missing.
    */
   liveFinancialStatements: unknown | null;
+  /**
+   * Live organization CTOS financials_json for unpublished preview only.
+   * Same source as Admin Financial Statements / Page 2 Stage 4.
+   */
+  liveCtosFinancials: unknown | null;
 };
 
 export async function loadProspectusPageThreeNote(
@@ -57,7 +64,7 @@ export async function loadProspectusPageThreeNote(
 }
 
 /**
- * Load Note + optional live Application financials for unpublished preview.
+ * Load Note + optional live Application financials + CTOS for unpublished preview.
  * Published Notes never receive live financial statements from this loader.
  */
 export async function loadProspectusPageThreeData(
@@ -68,20 +75,31 @@ export async function loadProspectusPageThreeData(
   const published = isProspectusNotePublished(note);
 
   if (published) {
-    return { note, liveFinancialStatements: null };
+    return { note, liveFinancialStatements: null, liveCtosFinancials: null };
   }
 
   if (!note.source_application_id) {
-    return { note, liveFinancialStatements: null };
+    return { note, liveFinancialStatements: null, liveCtosFinancials: null };
   }
 
-  const application = await db.application.findUnique({
-    where: { id: note.source_application_id },
-    select: { financial_statements: true },
-  });
+  const [application, ctosReport] = await Promise.all([
+    db.application.findUnique({
+      where: { id: note.source_application_id },
+      select: { financial_statements: true },
+    }),
+    db.ctosReport.findFirst({
+      where: {
+        issuer_organization_id: note.issuer_organization_id,
+        subject_ref: null,
+      },
+      orderBy: { fetched_at: "desc" },
+      select: { financials_json: true },
+    }),
+  ]);
 
   return {
     note,
     liveFinancialStatements: application?.financial_statements ?? null,
+    liveCtosFinancials: ctosReport?.financials_json ?? null,
   };
 }

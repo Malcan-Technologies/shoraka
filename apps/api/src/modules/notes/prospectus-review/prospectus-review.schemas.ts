@@ -280,6 +280,33 @@ export function validateDraftContent(
     }
   }
 
+  const financialOverrides = content.page2.financialComparison?.overrides ?? {};
+  for (const [yearKey, row] of Object.entries(financialOverrides)) {
+    for (const field of ["netDebtEquity", "interestCoverage", "dscr"] as const) {
+      const n = parseProspectusFinancialNumber(row[field]);
+      if (n != null && n < 0) {
+        errors.push({
+          path: `page2.financialComparison.overrides.${yearKey}.${field}`,
+          message: "Must be zero or positive",
+        });
+      }
+    }
+    const days = parseProspectusFinancialNumber(row.receivablesDays);
+    if (days != null) {
+      if (days < 0) {
+        errors.push({
+          path: `page2.financialComparison.overrides.${yearKey}.receivablesDays`,
+          message: "Must be zero or positive",
+        });
+      } else if (!Number.isInteger(days)) {
+        errors.push({
+          path: `page2.financialComparison.overrides.${yearKey}.receivablesDays`,
+          message: "Receivables Days must be a whole number",
+        });
+      }
+    }
+  }
+
   const years = content.page3.manualFinancialInputs?.years ?? {};
   for (const [year, row] of Object.entries(years)) {
     if (!/^\d{4}$/.test(year)) {

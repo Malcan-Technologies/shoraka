@@ -37,6 +37,7 @@ function baseNote(
     status: NoteStatus.DRAFT,
     published_at: null,
     source_application_id: "app-p3-1",
+    issuer_organization_id: "org-p3-1",
     issuer_snapshot: {
       name: "ABC Engineering Sdn Bhd",
       industry: "Construction",
@@ -53,7 +54,7 @@ function baseNote(
 }
 
 const liveFinancialStatements = {
-  questionnaire: { financial_year_end: "2024-12-31" },
+  questionnaire: { financial_year_end: "2027-12-31" },
   unaudited_by_year: {
     "2022": {
       turnover: 13_900_000,
@@ -97,6 +98,13 @@ const liveFinancialStatements = {
   },
 };
 
+
+const liveCtosFinancials = Object.entries(liveFinancialStatements.unaudited_by_year).map(([year, raw]) => ({
+  financial_year: Number(year),
+  dates: { pldd: `${year}-12-31`, bsdd: null as null },
+  account: raw as Record<string, number>,
+}));
+
 const frozenPage1 = {
   issuer_track_record: {
     total_notes_funded: 1,
@@ -120,6 +128,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
     it("freezes original and extended raw keys without formatted or narrative content", () => {
       const page2 = buildProspectusPage2Snapshot({
         financialStatements: liveFinancialStatements,
+        ctosFinancials: liveCtosFinancials,
       });
       const raw = page2.financial_comparison.selected_years[0]?.raw_financials;
       expect(PROSPECTUS_PAGE_TWO_RAW_FINANCIAL_KEYS).toEqual([
@@ -145,12 +154,14 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
 
       const serialized = JSON.stringify(page2);
       expect(serialized).not.toMatch(/RM /);
-      expect(serialized).not.toMatch(/Trend|Takeaway|CTOS/i);
+      expect(serialized).not.toMatch(/Trend|Takeaway/i);
+      expect(serialized).not.toMatch(/organization_ctos|CCRIS|RegTank/i);
     });
 
     it("merges page_2 without creating page_3 financial_comparison or dropping unknown branches", () => {
       const page2 = buildProspectusPage2Snapshot({
         financialStatements: liveFinancialStatements,
+        ctosFinancials: liveCtosFinancials,
       });
       const merged = wrapProspectusSnapshotWithPageTwo(frozenPage1, page2, {
         page_1: { old: true },
@@ -174,13 +185,14 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         status: true,
         published_at: true,
         source_application_id: true,
+        issuer_organization_id: true,
         issuer_snapshot: true,
         invoice_snapshot: true,
         paymaster_snapshot: true,
         prospectus_snapshot: true,
       });
       expect(JSON.stringify(PROSPECTUS_PAGE_THREE_NOTE_SELECT)).not.toContain("ctos");
-      expect(JSON.stringify(PROSPECTUS_PAGE_THREE_NOTE_SELECT)).not.toContain("organization");
+      expect(PROSPECTUS_PAGE_THREE_NOTE_SELECT).not.toHaveProperty("issuer_organization");
       expect(
         isProspectusNotePublished({
           status: NoteStatus.PUBLISHED,
@@ -200,6 +212,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
     it("uses frozen page_2 financials for published Notes and ignores live Application data", () => {
       const frozen = buildProspectusPage2Snapshot({
         financialStatements: liveFinancialStatements,
+        ctosFinancials: liveCtosFinancials,
       }).financial_comparison;
       const changedLive = {
         ...liveFinancialStatements,
@@ -217,6 +230,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
           },
         }),
         liveFinancialStatements: changedLive,
+          liveCtosFinancials: null,
       };
 
       const input = mapProspectusPageThreeDataToInput(data);
@@ -240,6 +254,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
             prospectus_snapshot: { page_1: frozenPage1 },
           }),
           liveFinancialStatements: liveFinancialStatements,
+          liveCtosFinancials,
         })
       );
       expect(missing.meta.financialMode).toBe("published_unavailable");
@@ -257,6 +272,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
             },
           }),
           liveFinancialStatements: liveFinancialStatements,
+          liveCtosFinancials,
         })
       );
       expect(malformed.meta.financialMode).toBe("published_unavailable");
@@ -268,6 +284,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         mapProspectusPageThreeDataToInput({
           note: baseNote(),
           liveFinancialStatements,
+          liveCtosFinancials,
         })
       );
       expect(page.meta.financialMode).toBe("live_unpublished_preview");
@@ -309,6 +326,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         invoiceSnapshot: { offer_details: { risk_rating: "A" } },
         paymasterSnapshot: { name: "Old Paymaster" },
         liveFinancialStatements: null,
+          liveCtosFinancials: null,
         frozenFinancialComparison: parsed!.financial_comparison,
       });
 
@@ -354,6 +372,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
             invoice_snapshot: { offer_details: { risk_rating: "C" } },
           }),
           liveFinancialStatements,
+          liveCtosFinancials,
         }),
       });
       expect(invalid.metadata.metadata.riskRating).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
@@ -415,6 +434,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         mapProspectusPageThreeDataToInput({
           note: baseNote(),
           liveFinancialStatements,
+          liveCtosFinancials,
         })
       );
       expect(

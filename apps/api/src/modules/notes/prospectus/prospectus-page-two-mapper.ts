@@ -12,6 +12,7 @@ import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
   PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
+  PROSPECTUS_FINANCIAL_COMPARISON_TABLE_UNIT_LABEL,
   type ProspectusFinancialComparisonSource,
   type ProspectusFinancialComparisonYear,
 } from "./prospectus-financial-comparison-source.types";
@@ -46,6 +47,8 @@ export type ProspectusPageTwoBuilderInput = {
   maturityDate: Date | null;
   /** Live Application financials — only for unpublished preview. */
   liveFinancialStatements: unknown | null;
+  /** Live organization CTOS financials_json — only for unpublished preview. */
+  liveCtosFinancials: unknown | null;
   /** Parsed frozen Stage 4 — only when published + valid. */
   frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot | null;
   /**
@@ -70,7 +73,8 @@ function toFiniteNumber(value: unknown): number {
 function emptyFinancialComparisonSource(): ProspectusFinancialComparisonSource {
   return {
     sectionHeading: PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
-    tableUnitLabel: PROSPECTUS_DATA_NOT_AVAILABLE,
+    tableUnitLabel: PROSPECTUS_FINANCIAL_COMPARISON_TABLE_UNIT_LABEL,
+    sourceFooter: "Source: Financial Statements",
     years: [],
     audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
   };
@@ -83,29 +87,39 @@ function emptyFinancialComparisonSource(): ProspectusFinancialComparisonSource {
 export function buildFinancialComparisonSourceFromFrozen(
   frozen: ProspectusPage2FinancialComparisonSnapshot
 ): ProspectusFinancialComparisonSource {
-  const years: ProspectusFinancialComparisonYear[] = frozen.selected_years.map((year) => ({
-    year: year.year,
-    yearLabel: year.year_label,
-    financialYearEndLabel: year.financial_year_end_label ?? PROSPECTUS_DATA_NOT_AVAILABLE,
-    // Shared Page 2 + Page 3 freeze — include extended keys when present (null when absent).
-    rawFinancials: {
-      turnover: year.raw_financials.turnover,
-      plnpat: year.raw_financials.plnpat,
-      bsqpuc: year.raw_financials.bsqpuc,
-      bscatot: year.raw_financials.bscatot,
-      curlib: year.raw_financials.curlib,
-      plnpbt: year.raw_financials.plnpbt,
-      bsfatot: year.raw_financials.bsfatot,
-      othass: year.raw_financials.othass,
-      bsclbank: year.raw_financials.bsclbank,
-      bsslltd: year.raw_financials.bsslltd,
-      bsclstd: year.raw_financials.bsclstd,
-    },
-  }));
+  const years: ProspectusFinancialComparisonYear[] = frozen.selected_years.map((year) => {
+    const financialYearEndIso =
+      year.financial_year_end_iso ??
+      (year.financial_year_end_label && /^\d{4}-\d{2}-\d{2}$/.test(year.financial_year_end_label)
+        ? year.financial_year_end_label
+        : `${year.year}-12-31`);
+    return {
+      year: year.year,
+      yearLabel: year.year_label,
+      financialYearEndIso,
+      financialYearEndLabel: year.financial_year_end_label ?? PROSPECTUS_DATA_NOT_AVAILABLE,
+      recordSource: year.record_source ?? "unaudited_management",
+      // Shared Page 2 + Page 3 freeze — include extended keys when present (null when absent).
+      rawFinancials: {
+        turnover: year.raw_financials.turnover,
+        plnpat: year.raw_financials.plnpat,
+        bsqpuc: year.raw_financials.bsqpuc,
+        bscatot: year.raw_financials.bscatot,
+        curlib: year.raw_financials.curlib,
+        plnpbt: year.raw_financials.plnpbt,
+        bsfatot: year.raw_financials.bsfatot,
+        othass: year.raw_financials.othass,
+        bsclbank: year.raw_financials.bsclbank,
+        bsslltd: year.raw_financials.bsslltd,
+        bsclstd: year.raw_financials.bsclstd,
+      },
+    };
+  });
 
   return {
     sectionHeading: PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
-    tableUnitLabel: PROSPECTUS_DATA_NOT_AVAILABLE,
+    tableUnitLabel: PROSPECTUS_FINANCIAL_COMPARISON_TABLE_UNIT_LABEL,
+    sourceFooter: frozen.source_footer ?? "Source: Financial Statements",
     years,
     audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
   };
@@ -127,6 +141,7 @@ function resolveFinancialComparisonSource(
 
   return buildProspectusFinancialComparisonSource({
     financialStatements: input.liveFinancialStatements,
+    ctosFinancials: input.liveCtosFinancials,
   });
 }
 
@@ -140,6 +155,7 @@ export function mapProspectusPageTwoDataToInput(
   let financialMode: ProspectusPageTwoFinancialMode;
   let frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot | null = null;
   let liveFinancialStatements: unknown | null = null;
+  let liveCtosFinancials: unknown | null = null;
 
   if (isPublished) {
     if (parsedPage2) {
@@ -151,6 +167,7 @@ export function mapProspectusPageTwoDataToInput(
   } else {
     financialMode = "live_unpublished_preview";
     liveFinancialStatements = data.liveFinancialStatements;
+    liveCtosFinancials = data.liveCtosFinancials;
   }
 
   return {
@@ -163,6 +180,7 @@ export function mapProspectusPageTwoDataToInput(
     paymasterSnapshot: note.paymaster_snapshot,
     maturityDate: note.maturity_date,
     liveFinancialStatements,
+    liveCtosFinancials,
     frozenFinancialComparison,
     /** Published Notes: frozen officer content only — never mutable draft / placeholders. */
     publicationContent: isPublished

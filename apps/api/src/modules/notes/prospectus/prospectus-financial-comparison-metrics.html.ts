@@ -60,7 +60,6 @@ export function buildProspectusFinancialComparisonMetricsHtml(
   <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
   <section>
     <h2>${escapeHtml(data.sectionHeading)}</h2>
-    <p>Table Unit Label: ${escapeHtml(data.tableUnitLabel)}</p>
     <table border="1" cellpadding="6" cellspacing="0">
       <thead>
         <tr>
@@ -72,6 +71,7 @@ export function buildProspectusFinancialComparisonMetricsHtml(
 ${bodyRows}
       </tbody>
     </table>
+    <p>${escapeHtml(data.sourceFooter)}</p>
   </section>
 </body>
 </html>`;

@@ -24,6 +24,8 @@ export type FinancialMetricTableRow = {
 export type FinancialMetricTableModel = {
   yearHeaders: FinancialYearHeader[];
   rows: FinancialMetricTableRow[];
+  /** Optional Page 2 financial comparison source footer. */
+  sourceFooter?: string;
 };
 
 type Props = {
@@ -37,7 +39,7 @@ export function ProspectusFinancialMetricTable({ table, showTrend = false }: Pro
   const colCount = 1 + table.yearHeaders.length + (showTrend ? 1 : 0);
 
   return (
-    <div className="min-w-0 max-w-full overflow-x-auto rounded-xl border">
+    <div className="min-w-0 max-w-full space-y-0 overflow-x-auto rounded-xl border">
       <Table className="min-w-[36rem]">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
@@ -93,6 +95,9 @@ export function ProspectusFinancialMetricTable({ table, showTrend = false }: Pro
           )}
         </TableBody>
       </Table>
+      {table.sourceFooter ? (
+        <p className="border-t px-4 py-2 text-sm text-muted-foreground">{table.sourceFooter}</p>
+      ) : null}
     </div>
   );
 }

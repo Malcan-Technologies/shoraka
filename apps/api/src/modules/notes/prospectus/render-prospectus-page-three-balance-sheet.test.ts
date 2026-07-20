@@ -5,11 +5,11 @@ import {
   computeTotalAssets,
   computeTotalLiabilities,
 } from "@cashsouk/types";
-import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
 import {
   buildProspectusFinancialComparisonMetrics,
   formatProspectusFinancialMultiple,
 } from "./prospectus-financial-comparison-metrics";
+import { financialSourceFromYearBlocks } from "./prospectus-financial-comparison-test-helpers";
 import { buildProspectusPageThreeBalanceSheet } from "./prospectus-page-three-balance-sheet";
 import {
   SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_INPUT,
@@ -34,12 +34,7 @@ function sourceFromYears(
   years: Record<string, Record<string, unknown>>,
   financialYearEnd = "2024-12-31"
 ) {
-  return buildProspectusFinancialComparisonSource({
-    financialStatements: {
-      questionnaire: { financial_year_end: financialYearEnd },
-      unaudited_by_year: years,
-    },
-  });
+  return financialSourceFromYearBlocks(years, { financialYearEnd });
 }
 
 describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {

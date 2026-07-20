@@ -240,11 +240,23 @@ function parsePage2FinancialYear(value: unknown): ProspectusPage2FinancialYearSn
   const fye = row.financial_year_end_label;
   const financialYearEndLabel =
     fye == null ? null : typeof fye === "string" ? nonEmptyString(fye) : null;
+  const fyeIsoRaw = row.financial_year_end_iso;
+  const financialYearEndIso =
+    typeof fyeIsoRaw === "string" && ISO_DATE_ONLY.test(fyeIsoRaw.trim())
+      ? fyeIsoRaw.trim()
+      : null;
+  const recordSourceRaw = row.record_source;
+  const recordSource =
+    recordSourceRaw === "ctos_audited" || recordSourceRaw === "unaudited_management"
+      ? recordSourceRaw
+      : null;
 
   return {
     year,
     year_label: yearLabel,
     financial_year_end_label: financialYearEndLabel,
+    financial_year_end_iso: financialYearEndIso,
+    record_source: recordSource,
     raw_financials: rawFinancials,
   };
 }
@@ -258,7 +270,12 @@ export function parseProspectusPageTwoFinancialComparison(
 ): ProspectusPage2FinancialComparisonSnapshot | null {
   const comparison = asJsonRecord(value);
   if (!comparison) return null;
-  if (comparison.source !== "application_financial_statements") return null;
+  const source =
+    comparison.source === "admin_financial_statements_normalized" ||
+    comparison.source === "application_financial_statements"
+      ? comparison.source
+      : null;
+  if (!source) return null;
   const calculatedAt = nonEmptyString(comparison.calculated_at);
   if (!calculatedAt) return null;
   if (!Array.isArray(comparison.selected_years)) return null;
@@ -270,9 +287,14 @@ export function parseProspectusPageTwoFinancialComparison(
     selectedYears.push(parsed);
   }
 
+  const footerRaw = comparison.source_footer;
+  const sourceFooter =
+    typeof footerRaw === "string" && footerRaw.trim() ? footerRaw.trim() : null;
+
   return {
-    source: "application_financial_statements",
+    source,
     selected_years: selectedYears,
+    source_footer: sourceFooter,
     calculated_at: calculatedAt,
   };
 }

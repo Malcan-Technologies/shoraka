@@ -67,6 +67,7 @@ export async function loadProspectusNoteIdentityFreeze(noteId: string): Promise<
   fingerprintSource: Record<string, unknown>;
   issuerOrganizationId: string;
   financialStatements: unknown;
+  ctosFinancials: unknown;
 }> {
   const note = await prisma.note.findUnique({
     where: { id: noteId },
@@ -95,12 +96,22 @@ export async function loadProspectusNoteIdentityFreeze(noteId: string): Promise<
     throw new Error(`Note ${noteId} not found for prospectus freeze`);
   }
 
-  const application = note.source_application_id
-    ? await prisma.application.findUnique({
-        where: { id: note.source_application_id },
-        select: { financial_statements: true },
-      })
-    : null;
+  const [application, ctosReport] = await Promise.all([
+    note.source_application_id
+      ? prisma.application.findUnique({
+          where: { id: note.source_application_id },
+          select: { financial_statements: true },
+        })
+      : Promise.resolve(null),
+    prisma.ctosReport.findFirst({
+      where: {
+        issuer_organization_id: note.issuer_organization_id,
+        subject_ref: null,
+      },
+      orderBy: { fetched_at: "desc" },
+      select: { financials_json: true },
+    }),
+  ]);
 
   const noteIdentity: Record<string, unknown> = {
     note_id: note.id,
@@ -126,6 +137,7 @@ export async function loadProspectusNoteIdentityFreeze(noteId: string): Promise<
   const fingerprintSource = {
     note_identity: noteIdentity,
     financial_statements: application?.financial_statements ?? null,
+    ctos_financials: ctosReport?.financials_json ?? null,
   };
 
   return {
@@ -133,6 +145,7 @@ export async function loadProspectusNoteIdentityFreeze(noteId: string): Promise<
     fingerprintSource,
     issuerOrganizationId: note.issuer_organization_id,
     financialStatements: application?.financial_statements ?? null,
+    ctosFinancials: ctosReport?.financials_json ?? null,
   };
 }
 
@@ -149,7 +162,7 @@ export async function buildCompleteApprovedProspectusSnapshot(input: {
   optionCatalogueVersion: string;
 }): Promise<ProspectusApprovedSnapshot> {
   const now = input.approvedAt;
-  const { noteIdentity, fingerprintSource, issuerOrganizationId, financialStatements } =
+  const { noteIdentity, fingerprintSource, issuerOrganizationId, financialStatements, ctosFinancials } =
     await loadProspectusNoteIdentityFreeze(input.noteId);
 
   const page1 = await buildProspectusPage1TrackRecordSnapshot({
@@ -159,6 +172,7 @@ export async function buildCompleteApprovedProspectusSnapshot(input: {
   });
   const page2 = buildProspectusPage2Snapshot({
     financialStatements,
+    ctosFinancials,
     now,
   });
 

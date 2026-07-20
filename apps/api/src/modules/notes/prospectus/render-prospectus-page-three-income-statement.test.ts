@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { calculateProfitMargin } from "@cashsouk/types";
-import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
 import {
   buildProspectusFinancialComparisonMetrics,
   formatProspectusFinancialPercentFromRatio,
 } from "./prospectus-financial-comparison-metrics";
+import { financialSourceFromYearBlocks } from "./prospectus-financial-comparison-test-helpers";
 import { formatProspectusMoneyMyr } from "./prospectus-main-financial-terms";
 import { buildProspectusPageThreeIncomeStatement } from "./prospectus-page-three-income-statement";
 import {
@@ -32,12 +32,7 @@ function sourceFromYears(
   years: Record<string, Record<string, unknown>>,
   financialYearEnd = "2024-12-31"
 ) {
-  return buildProspectusFinancialComparisonSource({
-    financialStatements: {
-      questionnaire: { financial_year_end: financialYearEnd },
-      unaudited_by_year: years,
-    },
-  });
+  return financialSourceFromYearBlocks(years, { financialYearEnd });
 }
 
 describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {

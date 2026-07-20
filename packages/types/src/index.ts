@@ -415,6 +415,7 @@ export * from "./financial-calculator";
 export * from "./financial-field-labels";
 export * from "./ctos-report-table-math";
 export * from "./financial-unaudited-ctos-validation";
+export * from "./financial-statement-year-resolution";
 export * from "./review-scope";
 export * from "./resubmit-path-utils";
 export * from "./resubmit-meaningful-field-path";

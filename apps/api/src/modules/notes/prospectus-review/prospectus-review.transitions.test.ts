@@ -136,6 +136,7 @@ jest.mock("../prospectus/prospectus-financial-comparison-metrics", () => {
     toAdminFinancialComparisonTable: jest.fn(() => ({
       yearHeaders: [],
       rows: [],
+      sourceFooter: "Source: Financial Statements",
     })),
   };
 });

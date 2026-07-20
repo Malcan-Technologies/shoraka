@@ -54,8 +54,8 @@ ${data.years
   <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
   <section>
     <h2>${escapeHtml(data.sectionHeading)}</h2>
-    <p>Table Unit Label: ${escapeHtml(data.tableUnitLabel)}</p>
     ${yearBlock}
+    <p>${escapeHtml(data.sourceFooter)}</p>
   </section>
 </body>
 </html>`;

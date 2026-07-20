@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { calculateReturnOnEquity } from "@cashsouk/types";
-import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
 import {
   buildProspectusFinancialComparisonMetrics,
   formatProspectusFinancialPercentFromRatio,
 } from "./prospectus-financial-comparison-metrics";
+import { financialSourceFromYearBlocks } from "./prospectus-financial-comparison-test-helpers";
 import { buildProspectusPageThreeCoverageEfficiency } from "./prospectus-page-three-coverage-efficiency";
 import {
   SAMPLE_PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_INPUT,
@@ -42,12 +42,7 @@ function sourceFromYears(
   years: Record<string, Record<string, unknown>>,
   financialYearEnd = "2024-12-31"
 ) {
-  return buildProspectusFinancialComparisonSource({
-    financialStatements: {
-      questionnaire: { financial_year_end: financialYearEnd },
-      unaudited_by_year: years,
-    },
-  });
+  return financialSourceFromYearBlocks(years, { financialYearEnd });
 }
 
 describe("prospectus Page 3 coverage/efficiency (DATA STAGE 4)", () => {

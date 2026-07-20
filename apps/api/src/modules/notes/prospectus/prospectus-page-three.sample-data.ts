@@ -31,7 +31,7 @@ export const SAMPLE_PROSPECTUS_PAGE_THREE_INPUT: ProspectusPageThreeBuilderInput
     entity_type: "GOVERNMENT",
   },
   liveFinancialStatements: {
-    questionnaire: { financial_year_end: "2024-12-31" },
+    questionnaire: { financial_year_end: "2027-12-31" },
     unaudited_by_year: Object.fromEntries(
       SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_SOURCE.years.map((year) => [
         String(year.year),
@@ -52,6 +52,25 @@ export const SAMPLE_PROSPECTUS_PAGE_THREE_INPUT: ProspectusPageThreeBuilderInput
       ])
     ),
   },
+  liveCtosFinancials: SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_SOURCE.years.map((year) => ({
+    financial_year: year.year,
+    dates: {
+      pldd: year.financialYearEndIso,
+      bsdd: null as null,
+    },
+    account: {
+      ...year.rawFinancials,
+      turnover:
+        year.year === 2022
+          ? 13_900_000
+          : year.year === 2023
+            ? 16_200_000
+            : 18_600_000,
+      plnpbt: year.year === 2022 ? 1_400_000 : year.year === 2023 ? 1_700_000 : 2_000_000,
+      plnpat: year.year === 2022 ? 1_200_000 : year.year === 2023 ? 1_500_000 : 1_800_000,
+      bsqpuc: 2_000_000,
+    },
+  })),
   frozenFinancialComparison: null,
   publicationContent: PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
 };

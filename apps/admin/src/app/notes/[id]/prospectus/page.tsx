@@ -1062,10 +1062,11 @@ function ProspectusReviewPageInner() {
                         </div>
                       </section>
                       <section data-prospectus-financial-comparison>
-                        <ProspectusSectionHeading title="3-Year Financial Comparison" />
+                        <ProspectusSectionHeading title="3-Year Financial Comparison (MYR mil.)" />
                         <p className="mb-3 text-sm text-muted-foreground">
-                          Application unaudited financials for the latest available years.
-                          Unsupported metrics may be entered below per year.
+                          Same year set as Admin Financial Statements (CTOS/audited + management
+                          accounts). Latest three years, oldest to newest. Optional officer metrics
+                          may be entered below per financial year-end.
                         </p>
                         {data?.financialComparison?.table ? (
                           <ProspectusFinancialMetricTable table={pageTwoFinancialTable} />
@@ -1075,8 +1076,9 @@ function ProspectusReviewPageInner() {
                         {pageTwoFinancialTable.yearHeaders.length > 0 ? (
                           <div className="mt-4 space-y-4">
                             <p className="text-sm text-muted-foreground">
-                              Officer values for Net Debt / Equity, Interest Coverage, DSCR, and
-                              Receivables Days. Not derived from CTOS or gearing.
+                              Optional: Net Debt / Equity, Interest Coverage, DSCR, and Receivables
+                              Days. Not derived from CTOS or gearing. Empty cells show Data not
+                              available.
                             </p>
                             {pageTwoFinancialTable.yearHeaders.map((header) => (
                               <div key={header.key} className="space-y-2">

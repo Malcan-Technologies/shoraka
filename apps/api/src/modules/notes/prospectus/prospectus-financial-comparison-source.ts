@@ -1,90 +1,86 @@
 /**
  * SECTION: Build Page 2 financial comparison source / year selection (Stage 4A)
- * WHY: Application unaudited years only; no CTOS; no metric formulas; no million conversion
+ * WHY: Align with Admin Financial Statements year set; max 3; oldest→newest
  */
 
-import { fyEndDateForYear, type FinancialStatementsQuestionnaire } from "@cashsouk/types";
-import { format } from "date-fns";
-import { parseApplicationFinancialStatements } from "./prospectus-json-guards";
+import {
+  buildNormalizedFinancialStatementYearSet,
+  formatFinancialYearEndDisplayLabel,
+  resolveFinancialStatementSourceFooter,
+  selectLatestNormalizedFinancialStatementYears,
+} from "@cashsouk/types";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_FINANCIAL_COMPARISON_MAX_YEARS,
   PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
   PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
+  PROSPECTUS_FINANCIAL_COMPARISON_TABLE_UNIT_LABEL,
   type ProspectusFinancialComparisonSource,
   type ProspectusFinancialComparisonSourceInput,
   type ProspectusFinancialComparisonYear,
 } from "./prospectus-financial-comparison-source.types";
 
-const VALID_YEAR_KEY = /^\d{4}$/;
-
-export function isProspectusFinancialYearKey(key: string): boolean {
-  if (!VALID_YEAR_KEY.test(key)) return false;
-  const year = Number(key);
-  return Number.isInteger(year) && year >= 1000 && year <= 9999;
-}
-
 export function formatProspectusFinancialYearLabel(year: number): string {
   return `FY${year}`;
 }
 
-/**
- * Latest three valid 4-digit year keys, descending selection then ascending display order.
- */
-export function selectProspectusFinancialComparisonYears(
-  yearKeys: Iterable<string>
-): number[] {
-  const valid = new Set<number>();
-  for (const key of yearKeys) {
-    if (!isProspectusFinancialYearKey(key)) continue;
-    valid.add(Number(key));
-  }
-  const descending = [...valid].sort((a, b) => b - a);
-  const latest = descending.slice(0, PROSPECTUS_FINANCIAL_COMPARISON_MAX_YEARS);
-  return latest.sort((a, b) => a - b);
-}
-
 export function formatProspectusFinancialYearEndLabel(
-  financialYearEndIso: string | null | undefined,
-  year: number
+  financialYearEndIso: string | null | undefined
 ): string {
   if (!financialYearEndIso) return PROSPECTUS_DATA_NOT_AVAILABLE;
-  const questionnaire: FinancialStatementsQuestionnaire = {
-    financial_year_end: financialYearEndIso,
-  };
-  const end = fyEndDateForYear(questionnaire, year);
-  if (!end) return PROSPECTUS_DATA_NOT_AVAILABLE;
-  return format(end, "d MMM yyyy");
+  const label = formatFinancialYearEndDisplayLabel(financialYearEndIso);
+  return label || PROSPECTUS_DATA_NOT_AVAILABLE;
+}
+
+/**
+ * @deprecated Prefer shared `selectLatestNormalizedFinancialStatementYears`.
+ * Kept for tests that assert ascending display of year numbers.
+ */
+export function selectProspectusFinancialComparisonYears(yearKeys: Iterable<string>): number[] {
+  const valid = new Set<number>();
+  for (const key of yearKeys) {
+    if (!/^\d{4}$/.test(key)) continue;
+    const year = Number(key);
+    if (Number.isInteger(year) && year >= 1000 && year <= 9999) valid.add(year);
+  }
+  const descending = [...valid].sort((a, b) => b - a);
+  return descending
+    .slice(0, PROSPECTUS_FINANCIAL_COMPARISON_MAX_YEARS)
+    .sort((a, b) => a - b);
+}
+
+export function isProspectusFinancialYearKey(key: string): boolean {
+  if (!/^\d{4}$/.test(key)) return false;
+  const year = Number(key);
+  return Number.isInteger(year) && year >= 1000 && year <= 9999;
 }
 
 export function buildProspectusFinancialComparisonSource(
   input: ProspectusFinancialComparisonSourceInput
 ): ProspectusFinancialComparisonSource {
-  // Observational CTOS must never fill Application gaps.
-  void input.ctosFinancials;
-
-  const parsed = parseApplicationFinancialStatements(input.financialStatements);
-  const selectedYears = selectProspectusFinancialComparisonYears(
-    Object.keys(parsed.unauditedByYear)
+  const available = buildNormalizedFinancialStatementYearSet({
+    financialStatements: input.financialStatements,
+    ctosFinancials: input.ctosFinancials,
+    ref: input.ref,
+  });
+  const selected = selectLatestNormalizedFinancialStatementYears(
+    available,
+    PROSPECTUS_FINANCIAL_COMPARISON_MAX_YEARS
   );
 
-  const years: ProspectusFinancialComparisonYear[] = selectedYears.map((year) => {
-    const key = String(year);
-    const raw = parsed.unauditedByYear[key] ?? {};
-    return {
-      year,
-      yearLabel: formatProspectusFinancialYearLabel(year),
-      financialYearEndLabel: formatProspectusFinancialYearEndLabel(
-        parsed.financialYearEndIso,
-        year
-      ),
-      rawFinancials: { ...raw },
-    };
-  });
+  const years: ProspectusFinancialComparisonYear[] = selected.map((year) => ({
+    year: year.year,
+    yearLabel: formatProspectusFinancialYearLabel(year.year),
+    financialYearEndIso: year.financialYearEndIso,
+    financialYearEndLabel: formatProspectusFinancialYearEndLabel(year.financialYearEndIso),
+    recordSource: year.recordSource,
+    rawFinancials: { ...year.rawFinancials },
+  }));
 
   return {
     sectionHeading: PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
-    tableUnitLabel: PROSPECTUS_DATA_NOT_AVAILABLE,
+    tableUnitLabel: PROSPECTUS_FINANCIAL_COMPARISON_TABLE_UNIT_LABEL,
+    sourceFooter: resolveFinancialStatementSourceFooter(years),
     years,
     audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
   };

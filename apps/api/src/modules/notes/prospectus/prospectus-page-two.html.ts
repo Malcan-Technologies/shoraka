@@ -47,7 +47,6 @@ function renderFinancialTable(page: ProspectusPageTwo): string {
 
   return `<section data-stage="4">
   <h2>${escapeHtml(data.sectionHeading)}</h2>
-  <p>Table Unit Label: ${escapeHtml(data.tableUnitLabel)}</p>
   <table class="fin-table" border="1" cellpadding="6" cellspacing="0">
     <thead>
       <tr>
@@ -59,6 +58,7 @@ function renderFinancialTable(page: ProspectusPageTwo): string {
 ${bodyRows}
     </tbody>
   </table>
+  <p class="fin-source">${escapeHtml(data.sourceFooter)}</p>
 </section>`;
 }
 

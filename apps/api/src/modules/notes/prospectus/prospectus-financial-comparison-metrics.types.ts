@@ -48,13 +48,15 @@ export interface ProspectusFinancialComparisonMetricRow {
 export interface ProspectusFinancialComparisonMetricsAudit {
   revenue: {
     source: "rawFinancials.turnover";
-    formatter: "formatProspectusMoneyMyr";
+    formatter: "formatProspectusMyrMillions";
     isCalculated: false;
+    formulasUseFullMyr: true;
   };
   profitAfterTax: {
     source: "rawFinancials.plnpat";
-    formatter: "formatProspectusMoneyMyr";
+    formatter: "formatProspectusMyrMillions";
     isCalculated: false;
+    formulasUseFullMyr: true;
   };
   netProfitMargin: {
     helper: "calculateProfitMargin";
@@ -93,17 +95,17 @@ export interface ProspectusFinancialComparisonMetricsAudit {
   };
   source: {
     inheritedFromStage4A: true;
-    ctosUsed: false;
-    sourceMixingAllowed: false;
+    ctosUsed: true;
+    sourceMixingAllowed: true;
   };
   units: {
     fullMyrRequired: true;
     compactMoneyAllowed: false;
-    millionConversionAllowed: false;
+    millionConversionAllowed: "display_only_revenue_pat";
   };
   snapshot: {
     isFrozen: false;
-    snapshotDecision: "freeze_at_publication";
+    snapshotDecision: "freeze_at_approval";
   };
 }
 
@@ -111,13 +113,15 @@ export const PROSPECTUS_FINANCIAL_COMPARISON_METRICS_AUDIT: ProspectusFinancialC
   {
     revenue: {
       source: "rawFinancials.turnover",
-      formatter: "formatProspectusMoneyMyr",
+      formatter: "formatProspectusMyrMillions",
       isCalculated: false,
+      formulasUseFullMyr: true,
     },
     profitAfterTax: {
       source: "rawFinancials.plnpat",
-      formatter: "formatProspectusMoneyMyr",
+      formatter: "formatProspectusMyrMillions",
       isCalculated: false,
+      formulasUseFullMyr: true,
     },
     netProfitMargin: {
       helper: "calculateProfitMargin",
@@ -156,17 +160,17 @@ export const PROSPECTUS_FINANCIAL_COMPARISON_METRICS_AUDIT: ProspectusFinancialC
     },
     source: {
       inheritedFromStage4A: true,
-      ctosUsed: false,
-      sourceMixingAllowed: false,
+      ctosUsed: true,
+      sourceMixingAllowed: true,
     },
     units: {
       fullMyrRequired: true,
       compactMoneyAllowed: false,
-      millionConversionAllowed: false,
+      millionConversionAllowed: "display_only_revenue_pat",
     },
     snapshot: {
       isFrozen: false,
-      snapshotDecision: "freeze_at_publication",
+      snapshotDecision: "freeze_at_approval",
     },
   };
 
@@ -174,6 +178,7 @@ export const PROSPECTUS_FINANCIAL_COMPARISON_METRICS_AUDIT: ProspectusFinancialC
 export interface ProspectusFinancialComparisonMetrics {
   sectionHeading: string;
   tableUnitLabel: string;
+  sourceFooter: string;
   years: ProspectusFinancialComparisonSource["years"];
   rows: ProspectusFinancialComparisonMetricRow[];
   audit: ProspectusFinancialComparisonMetricsAudit;

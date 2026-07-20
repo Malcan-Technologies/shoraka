@@ -42,6 +42,8 @@ export type ProspectusPageThreeBuilderInput = {
   paymasterSnapshot: unknown;
   /** Live Application financials — only for unpublished preview. */
   liveFinancialStatements: unknown | null;
+  /** Live organization CTOS financials_json — only for unpublished preview. */
+  liveCtosFinancials: unknown | null;
   /** Parsed frozen page_2 Stage 4 — only when published + valid. */
   frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot | null;
   /**
@@ -55,6 +57,7 @@ function emptyFinancialComparisonSource(): ProspectusFinancialComparisonSource {
   return {
     sectionHeading: PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
     tableUnitLabel: PROSPECTUS_DATA_NOT_AVAILABLE,
+    sourceFooter: "Source: Financial Statements",
     years: [],
     audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
   };
@@ -76,6 +79,7 @@ function resolveFinancialComparisonSource(
 
   return buildProspectusFinancialComparisonSource({
     financialStatements: input.liveFinancialStatements,
+    ctosFinancials: input.liveCtosFinancials,
   });
 }
 
@@ -89,6 +93,7 @@ export function mapProspectusPageThreeDataToInput(
   let financialMode: ProspectusPageThreeFinancialMode;
   let frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot | null = null;
   let liveFinancialStatements: unknown | null = null;
+  let liveCtosFinancials: unknown | null = null;
 
   if (isPublished) {
     if (parsedPage2) {
@@ -100,6 +105,7 @@ export function mapProspectusPageThreeDataToInput(
   } else {
     financialMode = "live_unpublished_preview";
     liveFinancialStatements = data.liveFinancialStatements;
+    liveCtosFinancials = data.liveCtosFinancials;
   }
 
   return {
@@ -110,6 +116,7 @@ export function mapProspectusPageThreeDataToInput(
     invoiceSnapshot: note.invoice_snapshot,
     paymasterSnapshot: note.paymaster_snapshot,
     liveFinancialStatements,
+    liveCtosFinancials,
     frozenFinancialComparison,
     publicationContent: isPublished
       ? publicationContentFromFrozenSnapshot(note.prospectus_snapshot)
