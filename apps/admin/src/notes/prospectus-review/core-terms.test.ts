@@ -198,11 +198,12 @@ describe("note & investment details coverage", () => {
     ]);
   });
 
-  it("omits Historical Notes and does not invent track-record values in core sections", () => {
+  it("does not invent Issuer Track Record or Historical Notes in local core sections", () => {
     const sections = buildNoteInvestmentDetailSections(sampleNote());
     expect(sections.map((s) => s.id)).not.toContain("issuer-track-record");
+    expect(sections.map((s) => s.id)).not.toContain("historical-notes");
     const labels = sections.flatMap((s) => s.rows.map((r) => r.label)).join("\n");
-    expect(labels).not.toMatch(/Historical Notes|verify in Preview/i);
+    expect(labels).not.toMatch(/verify in Preview/i);
     expect(labels).not.toMatch(/Total Notes Funded|Total Amount Funded/);
   });
 

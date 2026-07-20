@@ -16,6 +16,7 @@ import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_HISTORICAL_NOTE_EMPTY_STATE,
   PROSPECTUS_HISTORICAL_NOTE_ROW_LIMIT,
+  PROSPECTUS_HISTORICAL_NOTE_TABLE_HEADERS,
   type ProspectusHistoricalNoteRowInput,
   type ProspectusHistoricalNoteTable,
   type ProspectusHistoricalNoteTableRow,
@@ -141,4 +142,36 @@ export function buildProspectusHistoricalNoteTableFromSnapshot(
 ): ProspectusHistoricalNoteTable {
   const rows = (historicalNotes ?? []).map(buildProspectusHistoricalNoteTableRowFromSnapshot);
   return withTableMeta(rows, "frozen_at_publish", true);
+}
+
+/**
+ * Admin Prospectus Review table — same headers/values as Page 1 Canva HTML.
+ * Does not recalculate eligibility; maps an already-built Stage 8 view-model.
+ */
+export function toAdminHistoricalNoteTable(table: ProspectusHistoricalNoteTable): {
+  headers: string[];
+  rows: Array<{
+    noteId: string;
+    financingType: string;
+    amountRm: string;
+    tenure: string;
+    profitRate: string;
+    status: string;
+    repaymentDate: string;
+  }>;
+  emptyStateMessage: string | null;
+} {
+  return {
+    headers: [...PROSPECTUS_HISTORICAL_NOTE_TABLE_HEADERS],
+    rows: table.rows.map((row) => ({
+      noteId: row.noteId,
+      financingType: row.financingType,
+      amountRm: row.amountRm,
+      tenure: row.tenure,
+      profitRate: row.profitRate,
+      status: row.status,
+      repaymentDate: row.repaymentDate,
+    })),
+    emptyStateMessage: table.emptyStateMessage,
+  };
 }

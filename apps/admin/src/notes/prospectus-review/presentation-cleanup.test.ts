@@ -36,7 +36,6 @@ describe("prospectus review presentation cleanup", () => {
   it("removes redundant fixed-content verification sections", () => {
     expect(pageSource).not.toContain("Risk Rating Scale");
     expect(pageSource).not.toContain("Investment CTA");
-    expect(pageSource).not.toContain("Historical Notes");
   });
 
   it("shows read-only Issuer Track Record from API rows on Page 1", () => {
@@ -46,12 +45,30 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).toContain(
       "These figures are calculated automatically from the issuer"
     );
-    expect(pageSource).not.toContain("Historical Notes");
     // No editable controls for Issuer Track Record (Paymaster Track Record remains editable on step 2).
     expect(pageSource).not.toMatch(/issuerTrackRecord[\s\S]{0,200}<Input/);
     expect(pageSource).not.toMatch(/Issuer Track Record[\s\S]{0,400}<Input/);
     expect(pageSource).not.toMatch(/Issuer Track Record[\s\S]{0,400}<Textarea/);
     expect(pageSource).not.toMatch(/Issuer Track Record[\s\S]{0,400}<Select/);
+  });
+
+  it("shows read-only Historical Notes from API table on Page 1 after Issuer Track Record", () => {
+    expect(pageSource).toContain("ProspectusHistoricalNotesTable");
+    expect(pageSource).toContain("historicalNotes");
+    expect(pageSource).toContain('title="Historical Notes"');
+    expect(pageSource).toContain(
+      "Previous eligible Notes for this issuer, excluding the current Note."
+    );
+    expect(pageSource).toContain("data-prospectus-historical-notes");
+    // No editable controls for Historical Notes.
+    expect(pageSource).not.toMatch(/Historical Notes[\s\S]{0,400}<Input/);
+    expect(pageSource).not.toMatch(/Historical Notes[\s\S]{0,400}<Textarea/);
+    expect(pageSource).not.toMatch(/Historical Notes[\s\S]{0,400}<Select/);
+    // Historical Notes section is rendered after Issuer Track Record mapping.
+    const issuerIdx = pageSource.indexOf('section.id === "issuer-track-record"');
+    const historicalIdx = pageSource.indexOf("data-prospectus-historical-notes");
+    expect(issuerIdx).toBeGreaterThan(-1);
+    expect(historicalIdx).toBeGreaterThan(issuerIdx);
   });
 
   it("uses editable highlight copy instead of highlight catalogue dropdowns", () => {

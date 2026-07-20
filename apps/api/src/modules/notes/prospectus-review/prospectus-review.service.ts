@@ -19,6 +19,7 @@ import {
 import { AppError } from "../../../lib/http/error-handler";
 import { prisma } from "../../../lib/prisma";
 import { toAdminIssuerTrackRecordRows } from "../prospectus/prospectus-issuer-track-record";
+import { toAdminHistoricalNoteTable } from "../prospectus/prospectus-historical-note-table";
 import { buildProspectusPageOneHtml } from "../prospectus/prospectus-page-one.html";
 import {
   buildProspectusPageOne,
@@ -419,6 +420,7 @@ export class ProspectusReviewService {
       issuerTrackRecord: {
         rows: toAdminIssuerTrackRecordRows(page1.issuerTrackRecord),
       },
+      historicalNotes: toAdminHistoricalNoteTable(page1.historicalNoteTable),
       publishBlockedReason: publishBlocked,
       catalogueNotice:
         "Issuer Financial Strength recommendations use placeholder SoukScore wording pending product/legal approval.",

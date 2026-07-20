@@ -77,6 +77,7 @@ import {
   selectPageThreeYears,
 } from "@/notes/prospectus-review/page-three-coverage";
 import { ProspectusFinancialMetricTable } from "@/notes/prospectus-review/financial-metric-table";
+import { ProspectusHistoricalNotesTable } from "@/notes/prospectus-review/historical-notes-table";
 import { ProspectusPreviewSheet } from "@/notes/prospectus-review/preview-sheet";
 import { ProspectusSectionHeading } from "@/notes/prospectus-review/section-heading";
 import { ProspectusStatusBadge } from "@/notes/prospectus-review/status-badge";
@@ -621,18 +622,35 @@ function ProspectusReviewPageInner() {
                   {step === 0 ? (
                     <div className="space-y-6">
                       {note ? (
-                        noteInvestmentSections.map((section) => (
-                          <section key={section.id}>
-                            <ProspectusSectionHeading title={section.title} />
-                            {section.id === "issuer-track-record" ? (
-                              <p className="mb-3 text-sm text-muted-foreground">
-                                These figures are calculated automatically from the issuer&apos;s
-                                previous CashSouk Notes.
-                              </p>
-                            ) : null}
-                            <ReadOnlyGrid rows={section.rows} />
+                        <>
+                          {noteInvestmentSections.map((section) => (
+                            <section key={section.id}>
+                              <ProspectusSectionHeading title={section.title} />
+                              {section.id === "issuer-track-record" ? (
+                                <p className="mb-3 text-sm text-muted-foreground">
+                                  These figures are calculated automatically from the issuer&apos;s
+                                  previous CashSouk Notes.
+                                </p>
+                              ) : null}
+                              <ReadOnlyGrid rows={section.rows} />
+                            </section>
+                          ))}
+                          <section data-prospectus-historical-notes>
+                            <ProspectusSectionHeading title="Historical Notes" />
+                            <p className="mb-3 text-sm text-muted-foreground">
+                              Previous eligible Notes for this issuer, excluding the current Note.
+                            </p>
+                            <ProspectusHistoricalNotesTable
+                              table={
+                                data?.historicalNotes ?? {
+                                  headers: [],
+                                  rows: [],
+                                  emptyStateMessage: "No notes are available yet.",
+                                }
+                              }
+                            />
                           </section>
-                        ))
+                        </>
                       ) : (
                         <Skeleton className="h-40 w-full" />
                       )}

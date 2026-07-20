@@ -98,6 +98,23 @@ export interface ProspectusIssuerTrackRecordAdminRow {
   value: string;
 }
 
+/** Read-only Page 1 Historical Notes row for Admin (same values as Preview). */
+export interface ProspectusHistoricalNoteAdminRow {
+  noteId: string;
+  financingType: string;
+  amountRm: string;
+  tenure: string;
+  profitRate: string;
+  status: string;
+  repaymentDate: string;
+}
+
+export interface ProspectusHistoricalNotesAdminTable {
+  headers: string[];
+  rows: ProspectusHistoricalNoteAdminRow[];
+  emptyStateMessage: string | null;
+}
+
 export interface ProspectusReviewGetResponse {
   note: {
     id: string;
@@ -126,6 +143,11 @@ export interface ProspectusReviewGetResponse {
   issuerTrackRecord: {
     rows: ProspectusIssuerTrackRecordAdminRow[];
   };
+  /**
+   * System-derived Historical Notes (Page 1 Stage 8) — live for unpublished,
+   * frozen snapshot for published. Same path as Prospectus Preview.
+   */
+  historicalNotes: ProspectusHistoricalNotesAdminTable;
   publishBlockedReason: string | null;
   /** Temporary placeholder catalogue notice for officers. */
   catalogueNotice: string;
