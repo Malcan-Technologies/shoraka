@@ -3,7 +3,7 @@
  */
 
 import { z } from "zod";
-import { PROSPECTUS_HIGHLIGHT_KEYS } from "@cashsouk/types";
+import { normalizeProspectusCompanySize, PROSPECTUS_HIGHLIGHT_KEYS } from "@cashsouk/types";
 import { parseProspectusFinancialNumber } from "../prospectus/prospectus-financial-comparison-metrics";
 import {
   PROSPECTUS_CREDIT_INSIGHT_OPTIONS,
@@ -357,6 +357,13 @@ export function validateApprovalContent(
     if (!content.page3.investorTakeaways[field]) {
       errors.push({ path: `page3.investorTakeaways.${field}`, message: "Selection required" });
     }
+  }
+
+  if (!normalizeProspectusCompanySize(content.page2.issuerProfile?.companySize)) {
+    errors.push({
+      path: "page2.issuerProfile.companySize",
+      message: "Company Size is required before approving the Prospectus.",
+    });
   }
 
   return errors;

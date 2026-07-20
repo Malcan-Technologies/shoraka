@@ -3,15 +3,11 @@
  * WHY: Non-identifying frozen fields; Company Size from officer Prospectus content only
  */
 
-import {
-  formatProspectusIndustryAndCompanySizeDisplay,
-  normalizeProspectusCompanySize,
-} from "@cashsouk/types";
+import { normalizeProspectusCompanySize } from "@cashsouk/types";
 import { parseIssuerSnapshot } from "./prospectus-json-guards";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_ISSUER_PROFILE_AUDIT,
-  PROSPECTUS_ISSUER_PROFILE_INDUSTRY_SIZE_LABEL,
   PROSPECTUS_ISSUER_PROFILE_SECTION_HEADING,
   type ProspectusIssuerProfile,
   type ProspectusIssuerProfileInput,
@@ -31,10 +27,6 @@ export function formatProspectusRegisteredCountry(
   if (!value) return PROSPECTUS_DATA_NOT_AVAILABLE;
   return `Registered in ${value}`;
 }
-
-/** Re-export shared Canva combine helper for API tests. */
-export const formatProspectusIndustryAndCompanySize =
-  formatProspectusIndustryAndCompanySizeDisplay;
 
 /**
  * Strip a leading issuer company name from business description so the
@@ -84,10 +76,6 @@ export function buildProspectusIssuerProfile(
     sectionHeading: PROSPECTUS_ISSUER_PROFILE_SECTION_HEADING,
     industry,
     companySize,
-    industryAndCompanySize: formatProspectusIndustryAndCompanySizeDisplay(
-      industry,
-      companySize
-    ),
     registeredCountry: formatProspectusRegisteredCountry(snapshot.country),
     businessDescription: sanitizeProspectusBusinessDescription(
       snapshot.businessDescription,
@@ -105,10 +93,8 @@ export function toAdminIssuerProfileRows(
   profile: ProspectusIssuerProfile
 ): Array<{ label: string; value: string }> {
   return [
-    {
-      label: PROSPECTUS_ISSUER_PROFILE_INDUSTRY_SIZE_LABEL,
-      value: profile.industryAndCompanySize,
-    },
+    { label: "Industry", value: profile.industry },
+    { label: "Company Size", value: profile.companySize },
     { label: "Registered Country", value: profile.registeredCountry },
     { label: "Business Description", value: profile.businessDescription },
   ];

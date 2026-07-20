@@ -126,6 +126,20 @@ describe("prospectus review content", () => {
     expect(validateApprovalContent(completeSelectableDraft())).toEqual([]);
   });
 
+  it("requires Company Size before approval", () => {
+    const draft = completeSelectableDraft();
+    draft.page2.issuerProfile = { companySize: null };
+    expect(
+      validateApprovalContent(draft).some(
+        (e) =>
+          e.path === "page2.issuerProfile.companySize" &&
+          e.message === "Company Size is required before approving the Prospectus."
+      )
+    ).toBe(true);
+    draft.page2.issuerProfile = { companySize: "Large" };
+    expect(validateApprovalContent(draft)).toEqual([]);
+  });
+
   it("resolves always-visible highlights and fixed Payment/Shariah values", () => {
     const draft = completeSelectableDraft();
     const publication = toProspectusPublicationContent(draft);

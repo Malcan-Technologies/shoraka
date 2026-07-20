@@ -123,13 +123,15 @@ describe("page two coverage verification", () => {
   it("keeps issuer identity out of investor-visible issuer profile and invoice rows", () => {
     // Same labels/values Admin receives from API issuerProfile.rows (Page 2 Stage 1).
     const issuer = [
-      { label: "Industry | Company Size", value: "Construction" },
+      { label: "Industry", value: "Construction" },
+      { label: "Company Size", value: "Medium" },
       { label: "Registered Country", value: "Registered in Malaysia" },
       { label: "Business Description", value: "Infrastructure works" },
     ];
     const invoice = buildInvoicePaymasterVerificationRows(sampleNote());
     expect(issuer.map((r) => r.label)).toEqual([
-      "Industry | Company Size",
+      "Industry",
+      "Company Size",
       "Registered Country",
       "Business Description",
     ]);

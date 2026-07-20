@@ -64,6 +64,10 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).toContain(
       "Select the company size to display in the investor Prospectus."
     );
+    expect(pageSource).toContain("Required before Approve");
+    expect(pageSource).toContain('placeholder="Select company size"');
+    expect(pageSource).not.toContain("__none__");
+    expect(pageSource).not.toContain("Industry | Company Size");
     expect(pageSource).not.toContain("buildIssuerProfileRows");
     expect(pageSource).not.toContain("Issuer Information");
   });

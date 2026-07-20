@@ -13,7 +13,6 @@ import {
   PROSPECTUS_COMPANY_SIZE_VALUES,
   PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT,
   PROSPECTUS_HIGHLIGHT_KEYS,
-  formatProspectusIndustryAndCompanySizeDisplay,
   normalizeProspectusCompanySize,
   type ProspectusReviewStoredContent,
   type ProspectusReviewStatus,
@@ -361,18 +360,11 @@ function ProspectusReviewPageInner() {
   const officerCompanySize = normalizeProspectusCompanySize(
     draft.page2.issuerProfile?.companySize
   );
-  const issuerRows = (() => {
-    const rows = data?.issuerProfile?.rows ?? [];
-    if (rows.length === 0) return rows;
-    const industry = data?.issuerProfile?.industry;
-    const combined = formatProspectusIndustryAndCompanySizeDisplay(
-      industry,
-      officerCompanySize
-    );
-    return rows.map((row) =>
-      row.label === "Industry | Company Size" ? { ...row, value: combined } : row
-    );
-  })();
+  const issuerRows = (data?.issuerProfile?.rows ?? []).map((row) =>
+    row.label === "Company Size"
+      ? { ...row, value: officerCompanySize ?? "Data not available" }
+      : row
+  );
   const invoicePaymasterRows = note ? buildInvoicePaymasterVerificationRows(note) : [];
   const financialStatements = (
     application as { financial_statements?: unknown } | undefined
@@ -823,10 +815,11 @@ function ProspectusReviewPageInner() {
                           </Label>
                           <p className="text-sm text-muted-foreground">
                             Select the company size to display in the investor Prospectus.
+                            Required before Approve.
                           </p>
                           <Select
                             disabled={locked || !canManage}
-                            value={officerCompanySize ?? "__none__"}
+                            value={officerCompanySize ?? undefined}
                             onValueChange={(value) =>
                               updateDraft((prev) => ({
                                 ...prev,
@@ -834,20 +827,16 @@ function ProspectusReviewPageInner() {
                                   ...prev.page2,
                                   issuerProfile: {
                                     ...prev.page2.issuerProfile,
-                                    companySize:
-                                      value === "__none__"
-                                        ? null
-                                        : normalizeProspectusCompanySize(value),
+                                    companySize: normalizeProspectusCompanySize(value),
                                   },
                                 },
                               }))
                             }
                           >
                             <SelectTrigger id="prospectus-company-size" className="h-11">
-                              <SelectValue placeholder="Not set" />
+                              <SelectValue placeholder="Select company size" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="__none__">Not set</SelectItem>
                               {PROSPECTUS_COMPANY_SIZE_VALUES.map((size) => (
                                 <SelectItem key={size} value={size}>
                                   {size}

@@ -75,8 +75,7 @@ jest.mock("../prospectus/prospectus-page-two-mapper", () => ({
   buildProspectusPageTwo: jest.fn(() => ({
     issuerProfile: {
       industry: "Construction",
-      companySize: "Data not available",
-      industryAndCompanySize: "Construction",
+      companySize: "Medium",
       registeredCountry: "Registered in Malaysia",
       businessDescription: "Works",
     },
@@ -84,7 +83,8 @@ jest.mock("../prospectus/prospectus-page-two-mapper", () => ({
 }));
 jest.mock("../prospectus/prospectus-issuer-profile", () => ({
   toAdminIssuerProfileRows: jest.fn(() => [
-    { label: "Industry | Company Size", value: "Construction" },
+    { label: "Industry", value: "Construction" },
+    { label: "Company Size", value: "Medium" },
     { label: "Registered Country", value: "Registered in Malaysia" },
     { label: "Business Description", value: "Works" },
   ]),

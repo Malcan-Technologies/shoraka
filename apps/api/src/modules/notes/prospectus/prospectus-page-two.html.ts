@@ -193,9 +193,10 @@ export function buildProspectusPageTwoHtml(page: ProspectusPageTwo): string {
       <div class="issuer-profile-body">
         <span class="icon icon-issuer" aria-hidden="true"></span>
         <div class="issuer-profile-content">
-          <p>${escapeHtml(s1.industryAndCompanySize)}</p>
-          <p>${escapeHtml(s1.registeredCountry)}</p>
-          <p>${escapeHtml(s1.businessDescription)}</p>
+          <p><strong>Industry</strong><br />${escapeHtml(s1.industry)}</p>
+          <p><strong>Company Size</strong><br />${escapeHtml(s1.companySize)}</p>
+          <p><strong>Registered Country</strong><br />${escapeHtml(s1.registeredCountry)}</p>
+          <p><strong>Business Description</strong><br />${escapeHtml(s1.businessDescription)}</p>
         </div>
       </div>
     </section>

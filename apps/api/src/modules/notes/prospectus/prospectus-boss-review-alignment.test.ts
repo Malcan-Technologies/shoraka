@@ -6,7 +6,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT,
   formatInvestorReturnRatePercent,
+  recommendPaymasterHighlight,
   resolveNetExpectedReturnRatePercent,
 } from "@cashsouk/types";
 import { buildProspectusDatesPaymaster } from "./prospectus-dates-paymaster";
@@ -90,17 +92,18 @@ describe("prospectus boss-review alignment", () => {
       expect(profile).not.toHaveProperty("registrationNumber");
       expect(profile).not.toHaveProperty("entityType");
       expect(profile.industry).toBe("Construction");
-      expect(profile.industryAndCompanySize).toBe("Construction");
-      expect(
-        buildProspectusIssuerProfile({
-          issuerSnapshot: {
-            name: "Secret Issuer Sdn Bhd",
-            industry: "Construction",
-            business_description: "Secret Issuer Sdn Bhd — Bridge works.",
-          },
-          officerCompanySize: "Medium",
-        }).industryAndCompanySize
-      ).toBe("Construction | Medium");
+      expect(profile.companySize).toBe("Data not available");
+      expect(profile).not.toHaveProperty("industryAndCompanySize");
+      const withSize = buildProspectusIssuerProfile({
+        issuerSnapshot: {
+          name: "Secret Issuer Sdn Bhd",
+          industry: "Construction",
+          business_description: "Secret Issuer Sdn Bhd — Bridge works.",
+        },
+        officerCompanySize: "Medium",
+      });
+      expect(withSize.industry).toBe("Construction");
+      expect(withSize.companySize).toBe("Medium");
       expect(profile.businessDescription).toBe("Bridge works.");
       expect(profile.businessDescription).not.toContain("Secret Issuer");
     });
@@ -127,17 +130,41 @@ describe("prospectus boss-review alignment", () => {
 
   describe("preview-only placeholders", () => {
     it("preview samples render four highlights and four invoice statements", () => {
-      expect(PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT.keyInvestorHighlights).toHaveLength(
-        4
+      const highlights = PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT.keyInvestorHighlights;
+      expect(highlights).toHaveLength(4);
+      expect(highlights.map((h) => h.key)).toEqual([
+        "paymaster",
+        "issuer_fundamentals",
+        "return",
+        "shariah",
+      ]);
+
+      // Paymaster title uses the shared recommendation wording (not obsolete "Placeholder …" titles).
+      const expectedPaymaster = recommendPaymasterHighlight({
+        paymasterSnapshot: {
+          name: "Ministry of Finance Malaysia",
+          entity_type: "Federal Government Agency",
+        },
+      });
+      expect(SAMPLE_PROSPECTUS_PAGE_ONE.paymasterHighlight.highlightTitle).toBe(
+        expectedPaymaster.title
       );
-      expect(SAMPLE_PROSPECTUS_PAGE_ONE.paymasterHighlight.highlightTitle).toContain(
-        "Placeholder"
+      expect(SAMPLE_PROSPECTUS_PAGE_ONE.paymasterHighlight.highlightTitle).toBe(
+        highlights.find((h) => h.key === "paymaster")?.title
       );
+      expect(SAMPLE_PROSPECTUS_PAGE_ONE.paymasterHighlight.highlightTitle).not.toMatch(
+        /^Placeholder\b/i
+      );
+      expect(SAMPLE_PROSPECTUS_PAGE_ONE.shariahHighlight.highlightTitle).toBe(
+        PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT.title
+      );
+
       expect(
         PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT.invoiceWorkStatements.filter(
           (s) => s.isVisible
         )
       ).toHaveLength(4);
+      // Invoice/work catalogue copy remains explicit preview-only placeholder wording.
       expect(
         SAMPLE_PROSPECTUS_PAGE_TWO.invoiceWorkNarrative.workUnderContractStatement
       ).toContain("Placeholder");

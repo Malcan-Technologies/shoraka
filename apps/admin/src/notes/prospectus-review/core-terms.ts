@@ -249,10 +249,8 @@ export function buildIssuerProfileRows(note: NoteDetail): CoreTermRow[] {
       ? issuer.business_description.trim()
       : null;
   return [
-    {
-      label: "Industry | Company Size",
-      value: industry ?? "Data not available",
-    },
+    { label: "Industry", value: industry ?? "Data not available" },
+    { label: "Company Size", value: "Data not available" },
     {
       label: "Registered Country",
       value: country ? `Registered in ${country}` : "Data not available",

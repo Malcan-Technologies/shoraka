@@ -113,10 +113,9 @@
  * Freeze helper: note-issuer-snapshot.ts (NoteService.createFromInvoiceSource)
  *
  * Visible non-identifying fields (frozen notes.issuer_snapshot):
- * - Industry | Company Size → industry from notes.issuer_snapshot.industry;
- *   company size from officer Prospectus content page2.issuerProfile.companySize
- *   (Micro | Small | Medium | Large; optional; never inferred from org/employees);
- *   combined as "Industry | Size", one side alone, or DNA if both missing
+ * - Industry → notes.issuer_snapshot.industry (separate field)
+ * - Company Size → officer Prospectus content page2.issuerProfile.companySize
+ *   (Micro | Small | Medium | Large; required for Approve; never inferred)
  * - Registered Country → notes.issuer_snapshot.country
  *   display: "Registered in {country}"; no hardcoded Malaysia; missing → DNA
  * - Business Description → notes.issuer_snapshot.business_description

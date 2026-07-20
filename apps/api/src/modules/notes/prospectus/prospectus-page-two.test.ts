@@ -346,7 +346,8 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(page.issuerProfile).not.toHaveProperty("entityType");
       expect(page.issuerProfile.industry).toBe("Construction");
       expect(page.issuerProfile.companySize).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-      expect(page.issuerProfile.industryAndCompanySize).toBe("Construction");
+      expect(page.issuerProfile.industry).toBe("Construction");
+      expect(page.issuerProfile).not.toHaveProperty("industryAndCompanySize");
       expect(page.issuerProfile.registeredCountry).toBe("Registered in Malaysia");
       expect(page.issuerProfile.businessDescription).toBe("Infrastructure works");
 
@@ -360,9 +361,13 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
           issuerProfile: { companySize: "Medium" },
         },
       });
-      expect(withOfficerSize.issuerProfile.industryAndCompanySize).toBe(
-        "Construction | Medium"
-      );
+      expect(withOfficerSize.issuerProfile.industry).toBe("Construction");
+      expect(withOfficerSize.issuerProfile.companySize).toBe("Medium");
+      const pageHtml = renderProspectusPageTwoHtml(withOfficerSize);
+      expect(pageHtml).toContain("<strong>Industry</strong>");
+      expect(pageHtml).toContain("<strong>Company Size</strong>");
+      expect(pageHtml).toContain("Medium");
+      expect(pageHtml).not.toContain("Construction | Medium");
 
       expect(page.invoicePaymaster.invoiceAmount).toBe(formatProspectusMoneyMyr(625_000));
       expect(page.invoicePaymaster.deedOfAssignment).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
@@ -428,7 +433,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(page.issuerProfile).not.toHaveProperty("entityType");
       expect(page.issuerProfile.companySize).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
       expect(page.issuerProfile.industry).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-      expect(page.issuerProfile.industryAndCompanySize).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+      expect(page.issuerProfile).not.toHaveProperty("industryAndCompanySize");
     });
   });
 

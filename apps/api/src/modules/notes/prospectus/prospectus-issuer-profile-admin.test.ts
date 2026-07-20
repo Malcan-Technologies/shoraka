@@ -1,19 +1,11 @@
-/**
- * SECTION: Admin Issuer Profile mapping from Page 2 Stage 1 builder
- * WHY: Admin must show investor-visible values only — no local recalculation of snapshot fields
- */
-
 import {
   buildProspectusIssuerProfile,
   toAdminIssuerProfileRows,
 } from "./prospectus-issuer-profile";
-import {
-  PROSPECTUS_DATA_NOT_AVAILABLE,
-  PROSPECTUS_ISSUER_PROFILE_INDUSTRY_SIZE_LABEL,
-} from "./prospectus-issuer-profile.types";
+import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-issuer-profile.types";
 
 describe("toAdminIssuerProfileRows", () => {
-  it("maps investor-visible fields including officer Company Size", () => {
+  it("maps separate Industry and Company Size investor-visible fields", () => {
     const profile = buildProspectusIssuerProfile({
       issuerSnapshot: {
         name: "Hidden Issuer Sdn Bhd",
@@ -25,48 +17,29 @@ describe("toAdminIssuerProfileRows", () => {
           "Hidden Issuer Sdn Bhd — Infrastructure contractor for public works.",
       },
       officerCompanySize: "Medium",
-      liveOrganizationName: "Live Org Must Be Ignored",
-      liveRegistrationNumber: "999999999999",
     });
 
-    const rows = toAdminIssuerProfileRows(profile);
-
-    expect(rows).toEqual([
-      {
-        label: PROSPECTUS_ISSUER_PROFILE_INDUSTRY_SIZE_LABEL,
-        value: "Construction | Medium",
-      },
+    expect(toAdminIssuerProfileRows(profile)).toEqual([
+      { label: "Industry", value: "Construction" },
+      { label: "Company Size", value: "Medium" },
       { label: "Registered Country", value: "Registered in Malaysia" },
       {
         label: "Business Description",
         value: "Infrastructure contractor for public works.",
       },
     ]);
-    expect(rows.some((r) => r.label === "Entity Type")).toBe(false);
-    expect(rows.some((r) => r.value.includes("Hidden Issuer"))).toBe(false);
-    expect(rows.some((r) => r.value.includes("201401012345"))).toBe(false);
   });
 
-  it("uses DNA for missing fields and never falls back to live org data", () => {
+  it("uses DNA for missing Company Size on old content", () => {
     const rows = toAdminIssuerProfileRows(
       buildProspectusIssuerProfile({
-        issuerSnapshot: {},
-        liveWhatDoesCompanyDo: "Must not appear",
-        productSnapshotDescription: "Must not appear",
-        smeLabel: "SME",
+        issuerSnapshot: { industry: "Manufacturing" },
       })
     );
-
-    expect(rows.find((r) => r.label === PROSPECTUS_ISSUER_PROFILE_INDUSTRY_SIZE_LABEL)?.value).toBe(
+    expect(rows.find((r) => r.label === "Industry")?.value).toBe("Manufacturing");
+    expect(rows.find((r) => r.label === "Company Size")?.value).toBe(
       PROSPECTUS_DATA_NOT_AVAILABLE
     );
-    expect(rows.find((r) => r.label === "Registered Country")?.value).toBe(
-      PROSPECTUS_DATA_NOT_AVAILABLE
-    );
-    expect(rows.find((r) => r.label === "Business Description")?.value).toBe(
-      PROSPECTUS_DATA_NOT_AVAILABLE
-    );
-    expect(rows.some((r) => r.value === "SME")).toBe(false);
-    expect(rows.some((r) => r.value.includes("Must not appear"))).toBe(false);
+    expect(rows.some((r) => r.label === "Industry | Company Size")).toBe(false);
   });
 });

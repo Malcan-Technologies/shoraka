@@ -10,9 +10,6 @@ export { PROSPECTUS_DATA_NOT_AVAILABLE };
 /** Static Canva section title — not a database field. */
 export const PROSPECTUS_ISSUER_PROFILE_SECTION_HEADING = "ABOUT THE ISSUER";
 
-/** Admin / Canva combined line label. */
-export const PROSPECTUS_ISSUER_PROFILE_INDUSTRY_SIZE_LABEL = "Industry | Company Size";
-
 export interface ProspectusIssuerProfileAudit {
   identityHidden: {
     companyNameHidden: true;
@@ -27,13 +24,9 @@ export interface ProspectusIssuerProfileAudit {
   companySize: {
     source: "prospectus_review.page2.issuerProfile.companySize";
     isOfficerContent: true;
+    requiredForApproval: true;
     inferenceAllowed: false;
     allowedValues: ["Micro", "Small", "Medium", "Large"];
-  };
-  industryAndCompanySize: {
-    display: "combined";
-    separator: " | ";
-    missingBoth: typeof PROSPECTUS_DATA_NOT_AVAILABLE;
   };
   registeredCountry: {
     source: "notes.issuer_snapshot.country";
@@ -66,13 +59,9 @@ export const PROSPECTUS_ISSUER_PROFILE_AUDIT: ProspectusIssuerProfileAudit = {
   companySize: {
     source: "prospectus_review.page2.issuerProfile.companySize",
     isOfficerContent: true,
+    requiredForApproval: true,
     inferenceAllowed: false,
     allowedValues: ["Micro", "Small", "Medium", "Large"],
-  },
-  industryAndCompanySize: {
-    display: "combined",
-    separator: " | ",
-    missingBoth: PROSPECTUS_DATA_NOT_AVAILABLE,
   },
   registeredCountry: {
     source: "notes.issuer_snapshot.country",
@@ -94,9 +83,6 @@ export const PROSPECTUS_ISSUER_PROFILE_AUDIT: ProspectusIssuerProfileAudit = {
 /** Canva-facing fields only — no issuer identifiers or entity type. */
 export interface ProspectusIssuerProfile {
   sectionHeading: string;
-  /** Combined investor-visible line: Industry | Company Size (or one side / DNA). */
-  industryAndCompanySize: string;
-  /** Component values (audit / tests). Not rendered as separate labeled rows. */
   industry: string;
   companySize: string;
   registeredCountry: string;
@@ -146,7 +132,6 @@ export interface ProspectusIssuerProfileFieldSource {
 
 export const PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES: Record<
   | "sectionHeading"
-  | "industryAndCompanySize"
   | "industry"
   | "companySize"
   | "entityType"
@@ -162,23 +147,13 @@ export const PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES: Record<
     possibleAlternatives: "none",
     notes: "ABOUT THE ISSUER",
   },
-  industryAndCompanySize: {
-    label: PROSPECTUS_ISSUER_PROFILE_INDUSTRY_SIZE_LABEL,
-    canonicalSource:
-      "notes.issuer_snapshot.industry + prospectus_review.page2.issuerProfile.companySize",
-    availability: "stored",
-    surface: "canva",
-    possibleAlternatives: "separate Industry / Company Size rows — not used",
-    notes:
-      'Show "Industry | Company Size" when both exist; one side alone if the other is missing; DNA if both missing.',
-  },
   industry: {
     label: "Industry",
     canonicalSource: "notes.issuer_snapshot.industry",
     availability: "stored",
-    surface: "audit",
+    surface: "canva",
     possibleAlternatives: "live COD industry — not used",
-    notes: "Frozen at Note create. Combined into industryAndCompanySize for Canva.",
+    notes: "Frozen at Note create. Separate Canva field from Company Size.",
   },
   companySize: {
     label: "Company Size",
@@ -186,7 +161,8 @@ export const PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES: Record<
     availability: "stored",
     surface: "canva",
     possibleAlternatives: "IssuerOrganization employees/revenue; large private — not used",
-    notes: "Optional officer select: Micro | Small | Medium | Large. Empty when unset.",
+    notes:
+      "Required officer select for approval: Micro | Small | Medium | Large. DNA when unset (old snapshots).",
   },
   entityType: {
     label: "Entity Type",

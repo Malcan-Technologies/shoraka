@@ -29,9 +29,10 @@ export function buildProspectusIssuerProfileHtml(data: ProspectusIssuerProfile):
     <div class="issuer-profile-body">
       <span class="icon icon-issuer" aria-hidden="true"></span>
       <div class="issuer-profile-content">
-        <p>${escapeHtml(data.industryAndCompanySize)}</p>
-        <p>${escapeHtml(data.registeredCountry)}</p>
-        <p>${escapeHtml(data.businessDescription)}</p>
+        <p><strong>Industry</strong><br />${escapeHtml(data.industry)}</p>
+        <p><strong>Company Size</strong><br />${escapeHtml(data.companySize)}</p>
+        <p><strong>Registered Country</strong><br />${escapeHtml(data.registeredCountry)}</p>
+        <p><strong>Business Description</strong><br />${escapeHtml(data.businessDescription)}</p>
       </div>
     </div>
   </section>

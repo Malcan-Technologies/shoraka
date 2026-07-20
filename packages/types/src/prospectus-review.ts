@@ -7,7 +7,10 @@ export type ProspectusReviewStatus =
   | "SUPERSEDED"
   | "PUBLISHED";
 
-/** Officer-selected Company Size for Page 2 Issuer Profile (optional). */
+/**
+ * Officer-selected Company Size for Page 2 Issuer Profile.
+ * Required before Approve; optional while Draft.
+ */
 export const PROSPECTUS_COMPANY_SIZE_VALUES = ["Micro", "Small", "Medium", "Large"] as const;
 export type ProspectusCompanySize = (typeof PROSPECTUS_COMPANY_SIZE_VALUES)[number];
 
@@ -17,27 +20,6 @@ export function normalizeProspectusCompanySize(value: unknown): ProspectusCompan
   return (PROSPECTUS_COMPANY_SIZE_VALUES as readonly string[]).includes(trimmed)
     ? (trimmed as ProspectusCompanySize)
     : null;
-}
-
-const PROSPECTUS_DNA = "Data not available";
-
-/** Canva Industry | Company Size line — no empty separator. */
-export function formatProspectusIndustryAndCompanySizeDisplay(
-  industry: string | null | undefined,
-  companySize: string | null | undefined
-): string {
-  const industryValue =
-    typeof industry === "string" && industry.trim() && industry.trim() !== PROSPECTUS_DNA
-      ? industry.trim()
-      : null;
-  const sizeValue =
-    typeof companySize === "string" && companySize.trim() && companySize.trim() !== PROSPECTUS_DNA
-      ? companySize.trim()
-      : null;
-  if (industryValue && sizeValue) return `${industryValue} | ${sizeValue}`;
-  if (industryValue) return industryValue;
-  if (sizeValue) return sizeValue;
-  return PROSPECTUS_DNA;
 }
 
 /** Stored officer-edited highlight copy (Shariah is fixed on write/resolve). */
