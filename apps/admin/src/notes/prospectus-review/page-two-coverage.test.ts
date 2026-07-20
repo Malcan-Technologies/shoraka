@@ -13,7 +13,6 @@ import {
   pageTwoCoverageHidesIssuerIdentity,
   parseInvoiceSnapshotFaceValue,
 } from "./page-two-coverage";
-import { buildIssuerProfileRows } from "./core-terms";
 
 function sampleNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
   return {
@@ -121,8 +120,15 @@ describe("page two coverage verification", () => {
     expect(parseInvoiceSnapshotFaceValue({ invoiceAmount: 200 })).toBeNull();
   });
 
-  it("keeps issuer identity out of issuer and invoice verification rows", () => {
-    const issuer = buildIssuerProfileRows(sampleNote());
+  it("keeps issuer identity out of investor-visible issuer profile and invoice rows", () => {
+    // Same labels/values Admin receives from API issuerProfile.rows (Page 2 Stage 1).
+    const issuer = [
+      { label: "Industry", value: "Construction" },
+      { label: "Entity Type", value: "Data not available" },
+      { label: "Company Size", value: "Data not available" },
+      { label: "Registered Country", value: "Registered in Malaysia" },
+      { label: "Business Description", value: "Infrastructure works" },
+    ];
     const invoice = buildInvoicePaymasterVerificationRows(sampleNote());
     expect(issuer.map((r) => r.label)).toEqual([
       "Industry",
@@ -134,6 +140,7 @@ describe("page two coverage verification", () => {
     expect(pageTwoCoverageHidesIssuerIdentity([...issuer, ...invoice])).toBe(true);
     expect(issuer.some((r) => r.value.includes("Secret Issuer"))).toBe(false);
     expect(issuer.some((r) => r.value.includes("1234567-A"))).toBe(false);
+    expect(sampleNote().issuerName).toBe("Secret Issuer Sdn Bhd");
   });
 
   it("builds 3-Year Financial Comparison as a nine-metric table", () => {

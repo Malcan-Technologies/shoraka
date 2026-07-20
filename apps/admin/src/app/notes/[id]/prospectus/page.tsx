@@ -61,7 +61,6 @@ import {
 } from "@/notes/prospectus-review/completion";
 import {
   appendIssuerTrackRecordSection,
-  buildIssuerProfileRows,
   buildNoteInvestmentDetailSections,
 } from "@/notes/prospectus-review/core-terms";
 import {
@@ -356,7 +355,7 @@ function ProspectusReviewPageInner() {
           data?.issuerTrackRecord?.rows
         )
       : [];
-  const issuerRows = note ? buildIssuerProfileRows(note) : [];
+  const issuerRows = data?.issuerProfile?.rows ?? [];
   const invoicePaymasterRows = note ? buildInvoicePaymasterVerificationRows(note) : [];
   const financialStatements = (
     application as { financial_statements?: unknown } | undefined
@@ -791,9 +790,12 @@ function ProspectusReviewPageInner() {
 
                   {step === 2 ? (
                     <div className="space-y-6">
-                      <section>
-                        <ProspectusSectionHeading title="Issuer Information" />
-                        {note ? (
+                      <section data-prospectus-issuer-profile>
+                        <ProspectusSectionHeading title="Issuer Profile" />
+                        <p className="mb-3 text-sm text-muted-foreground">
+                          Business profile information shown in the investor Prospectus.
+                        </p>
+                        {issuerRows.length > 0 ? (
                           <ReadOnlyGrid rows={issuerRows} />
                         ) : (
                           <Skeleton className="h-32 w-full" />

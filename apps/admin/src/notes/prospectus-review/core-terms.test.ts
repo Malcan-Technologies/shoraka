@@ -198,13 +198,15 @@ describe("note & investment details coverage", () => {
     ]);
   });
 
-  it("does not invent Issuer Track Record or Historical Notes in local core sections", () => {
+  it("does not invent Issuer Track Record, Historical Notes, or Issuer Profile in local core sections", () => {
     const sections = buildNoteInvestmentDetailSections(sampleNote());
     expect(sections.map((s) => s.id)).not.toContain("issuer-track-record");
     expect(sections.map((s) => s.id)).not.toContain("historical-notes");
+    expect(sections.map((s) => s.id)).not.toContain("issuer-profile");
     const labels = sections.flatMap((s) => s.rows.map((r) => r.label)).join("\n");
     expect(labels).not.toMatch(/verify in Preview/i);
     expect(labels).not.toMatch(/Total Notes Funded|Total Amount Funded/);
+    expect(labels).not.toMatch(/^Industry$|^Entity Type$|^Company Size$/m);
   });
 
   it("shows Profit Rate and Expected Return as separate investment fields", () => {

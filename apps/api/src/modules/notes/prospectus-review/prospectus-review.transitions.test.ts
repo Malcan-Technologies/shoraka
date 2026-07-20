@@ -52,7 +52,17 @@ jest.mock("../prospectus/prospectus-page-one-mapper", () => ({
     page1TrackRecordSnapshot: null,
     publicationContent: undefined,
   })),
-  buildProspectusPageOne: jest.fn(() => ({})),
+  buildProspectusPageOne: jest.fn(() => ({
+    issuerTrackRecord: {},
+    historicalNoteTable: { rows: [], emptyStateMessage: null },
+  })),
+}));
+jest.mock("../prospectus/prospectus-historical-note-table", () => ({
+  toAdminHistoricalNoteTable: jest.fn(() => ({
+    headers: [],
+    rows: [],
+    emptyStateMessage: null,
+  })),
 }));
 jest.mock("../prospectus/prospectus-page-one.html", () => ({
   buildProspectusPageOneHtml: jest.fn(() => "<p>p1</p>"),
@@ -62,7 +72,15 @@ jest.mock("../prospectus/prospectus-page-two-prisma", () => ({
 }));
 jest.mock("../prospectus/prospectus-page-two-mapper", () => ({
   mapProspectusPageTwoDataToInput: jest.fn(() => ({})),
-  buildProspectusPageTwo: jest.fn(() => ({})),
+  buildProspectusPageTwo: jest.fn(() => ({
+    issuerProfile: {
+      industry: "Construction",
+      entityType: "Data not available",
+      companySize: "Data not available",
+      registeredCountry: "Registered in Malaysia",
+      businessDescription: "Works",
+    },
+  })),
 }));
 jest.mock("../prospectus/prospectus-page-two.html", () => ({
   buildProspectusPageTwoHtml: jest.fn(() => "<p>p2</p>"),
@@ -79,6 +97,9 @@ jest.mock("../prospectus/prospectus-page-three.html", () => ({
 }));
 jest.mock("../prospectus/prospectus-issuer-track-record", () => ({
   toAdminIssuerTrackRecordRows: jest.fn(() => []),
+}));
+jest.mock("../prospectus/prospectus-issuer-profile", () => ({
+  toAdminIssuerProfileRows: jest.fn(() => []),
 }));
 
 const actor = {

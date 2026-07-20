@@ -115,6 +115,12 @@ export interface ProspectusHistoricalNotesAdminTable {
   emptyStateMessage: string | null;
 }
 
+/** Read-only Page 2 Issuer Profile row for Admin (same values as Preview). */
+export interface ProspectusIssuerProfileAdminRow {
+  label: string;
+  value: string;
+}
+
 export interface ProspectusReviewGetResponse {
   note: {
     id: string;
@@ -148,6 +154,13 @@ export interface ProspectusReviewGetResponse {
    * frozen snapshot for published. Same path as Prospectus Preview.
    */
   historicalNotes: ProspectusHistoricalNotesAdminTable;
+  /**
+   * System-derived Issuer Profile (Page 2 Stage 1) — non-identifying fields only.
+   * Same path as Prospectus Preview (notes.issuer_snapshot → builder).
+   */
+  issuerProfile: {
+    rows: ProspectusIssuerProfileAdminRow[];
+  };
   publishBlockedReason: string | null;
   /** Temporary placeholder catalogue notice for officers. */
   catalogueNotice: string;

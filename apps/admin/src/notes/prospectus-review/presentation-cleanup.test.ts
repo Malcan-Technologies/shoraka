@@ -52,6 +52,20 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).not.toMatch(/Issuer Track Record[\s\S]{0,400}<Select/);
   });
 
+  it("shows read-only Issuer Profile from API rows on Page 2", () => {
+    expect(pageSource).toContain('title="Issuer Profile"');
+    expect(pageSource).toContain("issuerProfile");
+    expect(pageSource).toContain("data-prospectus-issuer-profile");
+    expect(pageSource).toContain(
+      "Business profile information shown in the investor Prospectus."
+    );
+    expect(pageSource).not.toContain("buildIssuerProfileRows");
+    expect(pageSource).not.toContain("Issuer Information");
+    expect(pageSource).not.toMatch(/Issuer Profile[\s\S]{0,400}<Input/);
+    expect(pageSource).not.toMatch(/Issuer Profile[\s\S]{0,400}<Textarea/);
+    expect(pageSource).not.toMatch(/Issuer Profile[\s\S]{0,400}<Select/);
+  });
+
   it("shows read-only Historical Notes from API table on Page 1 after Issuer Track Record", () => {
     expect(pageSource).toContain("ProspectusHistoricalNotesTable");
     expect(pageSource).toContain("historicalNotes");

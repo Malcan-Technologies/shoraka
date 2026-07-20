@@ -78,3 +78,19 @@ export function buildProspectusIssuerProfile(
     audit: PROSPECTUS_ISSUER_PROFILE_AUDIT,
   };
 }
+
+/**
+ * Admin Prospectus Review rows — same labels/values as Page 2 Canva HTML.
+ * Does not re-resolve issuer data; maps an already-built Stage 1 view-model.
+ */
+export function toAdminIssuerProfileRows(
+  profile: ProspectusIssuerProfile
+): Array<{ label: string; value: string }> {
+  return [
+    { label: "Industry", value: profile.industry },
+    { label: "Entity Type", value: profile.entityType },
+    { label: "Company Size", value: profile.companySize },
+    { label: "Registered Country", value: profile.registeredCountry },
+    { label: "Business Description", value: profile.businessDescription },
+  ];
+}

@@ -228,6 +228,10 @@ export function buildCoreTermsRows(note: NoteDetail): CoreTermRow[] {
   return buildNoteInvestmentDetailSections(note).flatMap((section) => section.rows);
 }
 
+/**
+ * @deprecated Admin Issuer Profile must use API `issuerProfile.rows`
+ * (same Page 2 Stage 1 builder as Preview). Kept only for legacy test helpers.
+ */
 export function buildIssuerProfileRows(note: NoteDetail): CoreTermRow[] {
   const issuer = asRecord(note.issuerSnapshot);
   return [

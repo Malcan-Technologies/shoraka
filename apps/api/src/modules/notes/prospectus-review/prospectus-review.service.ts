@@ -20,6 +20,7 @@ import { AppError } from "../../../lib/http/error-handler";
 import { prisma } from "../../../lib/prisma";
 import { toAdminIssuerTrackRecordRows } from "../prospectus/prospectus-issuer-track-record";
 import { toAdminHistoricalNoteTable } from "../prospectus/prospectus-historical-note-table";
+import { toAdminIssuerProfileRows } from "../prospectus/prospectus-issuer-profile";
 import { buildProspectusPageOneHtml } from "../prospectus/prospectus-page-one.html";
 import {
   buildProspectusPageOne,
@@ -400,6 +401,10 @@ export class ProspectusReviewService {
     const page1Input = await mapProspectusPageOneDataToInput(page1Note);
     const page1 = buildProspectusPageOne(page1Input);
 
+    const page2Data = await loadProspectusPageTwoData(prisma, noteId);
+    const page2Input = mapProspectusPageTwoDataToInput(page2Data);
+    const page2 = buildProspectusPageTwo(page2Input);
+
     const workflow = normalizeProspectusWorkflowStatus(review.status);
     const publishBlocked =
       !isNotePublished(note) && workflow !== "APPROVED" && workflow !== "PUBLISHED"
@@ -421,6 +426,9 @@ export class ProspectusReviewService {
         rows: toAdminIssuerTrackRecordRows(page1.issuerTrackRecord),
       },
       historicalNotes: toAdminHistoricalNoteTable(page1.historicalNoteTable),
+      issuerProfile: {
+        rows: toAdminIssuerProfileRows(page2.issuerProfile),
+      },
       publishBlockedReason: publishBlocked,
       catalogueNotice:
         "Issuer Financial Strength recommendations use placeholder SoukScore wording pending product/legal approval.",
