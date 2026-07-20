@@ -1206,28 +1206,49 @@ function ProspectusReviewPageInner() {
                           ))}
                         </div>
                       </section>
-                      <section>
-                        <ProspectusSectionHeading title="Invoice / Work Information" />
-                        <div className="grid gap-3 md:grid-cols-2">
-                          {draft.page2.invoiceWorkStatements.map((s, idx) => (
-                            <OptionSelect
-                              key={s.key}
-                              label={INVOICE_WORK_FIELD_LABELS[s.key] ?? "Invoice statement"}
-                              disabled={locked || !canManage}
-                              value={s.optionKey}
-                              options={catalogues.invoiceWork[s.key] ?? []}
-                              onChange={(value) =>
-                                updateDraft((prev) => {
-                                  const next = structuredClone(prev);
-                                  next.page2.invoiceWorkStatements[idx] = {
-                                    ...next.page2.invoiceWorkStatements[idx]!,
-                                    optionKey: value,
-                                    isVisible: value !== "do_not_display",
-                                  };
-                                  return next;
-                                })
-                              }
-                            />
+                      <section data-prospectus-about-invoice>
+                        <ProspectusSectionHeading title="About the Invoice / Work Performed" />
+                        <p className="mb-3 text-sm text-muted-foreground">
+                          Same pattern as Key Investor Highlights: suggested wording may be
+                          pre-filled. Confirm or edit each statement before Approve. Do not leave
+                          claims that are not true for this Note.
+                        </p>
+                        <div className="space-y-4">
+                          {(draft.page2.aboutInvoice?.items ?? []).map((item, idx) => (
+                            <div key={item.id} className="space-y-1.5">
+                              <Label className="text-sm">
+                                {INVOICE_WORK_FIELD_LABELS[item.id] ?? "Invoice statement"}
+                                {item.sourceType === "SYSTEM_SUGGESTION" ? (
+                                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                    (suggested)
+                                  </span>
+                                ) : null}
+                              </Label>
+                              <Textarea
+                                className="min-h-[5.5rem] text-[17px] leading-7"
+                                disabled={locked || !canManage}
+                                value={item.text}
+                                onChange={(e) =>
+                                  updateDraft((prev) => {
+                                    const items = [
+                                      ...(prev.page2.aboutInvoice?.items ?? []),
+                                    ];
+                                    items[idx] = {
+                                      ...items[idx]!,
+                                      text: e.target.value,
+                                      sourceType: "OFFICER_ENTERED",
+                                    };
+                                    return {
+                                      ...prev,
+                                      page2: {
+                                        ...prev.page2,
+                                        aboutInvoice: { items },
+                                      },
+                                    };
+                                  })
+                                }
+                              />
+                            </div>
                           ))}
                         </div>
                       </section>

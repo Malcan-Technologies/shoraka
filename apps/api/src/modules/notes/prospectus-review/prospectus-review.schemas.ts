@@ -8,6 +8,7 @@ import {
   normalizeProspectusConfidenceGrading,
   normalizeProspectusDeedOfAssignment,
   normalizeProspectusPaymasterRating,
+  PROSPECTUS_ABOUT_INVOICE_ITEM_IDS,
   PROSPECTUS_HIGHLIGHT_KEYS,
 } from "@cashsouk/types";
 import { parseProspectusFinancialNumber } from "../prospectus/prospectus-financial-comparison-metrics";
@@ -27,6 +28,7 @@ const numericOrString = z.union([z.number(), z.string(), z.null()]).optional();
 
 const HIGHLIGHT_TITLE_MAX = 160;
 const HIGHLIGHT_DESCRIPTION_MAX = 800;
+const ABOUT_INVOICE_TEXT_MAX = 800;
 
 const manualYearSchema = z
   .object({
@@ -126,15 +128,32 @@ export const prospectusReviewStoredContentSchema = z
             ccrisStatusOptionKey: nullableOptionKey,
           })
           .strict(),
-        invoiceWorkStatements: z.array(
-          z
-            .object({
-              key: z.string(),
-              optionKey: nullableOptionKey,
-              isVisible: z.boolean(),
-            })
-            .strict()
-        ),
+        aboutInvoice: z
+          .object({
+            items: z.array(
+              z
+                .object({
+                  id: z.string(),
+                  text: z.string(),
+                  sourceType: z.enum(["SYSTEM_SUGGESTION", "OFFICER_ENTERED"]),
+                })
+                .strict()
+            ),
+          })
+          .strict()
+          .optional(),
+        /** @deprecated Prefer aboutInvoice — accepted for legacy drafts. */
+        invoiceWorkStatements: z
+          .array(
+            z
+              .object({
+                key: z.string(),
+                optionKey: nullableOptionKey,
+                isVisible: z.boolean().optional(),
+              })
+              .strict()
+          )
+          .optional(),
       })
       .strict(),
     page3: z
@@ -218,7 +237,24 @@ export function validateDraftContent(
     }
   }
 
-  for (const s of content.page2.invoiceWorkStatements) {
+  const aboutItems = content.page2.aboutInvoice?.items ?? [];
+  for (const item of aboutItems) {
+    if (
+      !PROSPECTUS_ABOUT_INVOICE_ITEM_IDS.includes(
+        item.id as (typeof PROSPECTUS_ABOUT_INVOICE_ITEM_IDS)[number]
+      )
+    ) {
+      errors.push({ path: `page2.aboutInvoice.items.${item.id}`, message: "Unknown statement id" });
+    }
+    if (typeof item.text === "string" && item.text.length > ABOUT_INVOICE_TEXT_MAX) {
+      errors.push({
+        path: `page2.aboutInvoice.items.${item.id}.text`,
+        message: `Statement must be at most ${ABOUT_INVOICE_TEXT_MAX} characters`,
+      });
+    }
+  }
+
+  for (const s of content.page2.invoiceWorkStatements ?? []) {
     if (!PROSPECTUS_INVOICE_WORK_KEYS.includes(s.key as (typeof PROSPECTUS_INVOICE_WORK_KEYS)[number])) {
       errors.push({ path: `page2.invoiceWorkStatements.${s.key}`, message: "Unknown statement key" });
     }
@@ -395,12 +431,13 @@ export function validateApprovalContent(
     }
   }
 
-  for (const key of PROSPECTUS_INVOICE_WORK_KEYS) {
-    const hit = content.page2.invoiceWorkStatements.find((s) => s.key === key);
-    if (!hit?.optionKey && hit?.isVisible !== false) {
+  for (const id of PROSPECTUS_ABOUT_INVOICE_ITEM_IDS) {
+    const hit = content.page2.aboutInvoice?.items?.find((item) => item.id === id);
+    const text = typeof hit?.text === "string" ? hit.text.trim() : "";
+    if (!text) {
       errors.push({
-        path: `page2.invoiceWorkStatements.${key}.optionKey`,
-        message: "Selection required (or mark not visible)",
+        path: `page2.aboutInvoice.items.${id}.text`,
+        message: "Invoice / work statement is required",
       });
     }
   }

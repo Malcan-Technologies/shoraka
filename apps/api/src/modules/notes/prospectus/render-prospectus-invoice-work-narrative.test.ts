@@ -147,17 +147,15 @@ describe("prospectus Page 2 About the Invoice / Work Performed (DATA STAGE 6)", 
     expect(data.audit.claims.adminApprovedFrozenTextPreferred).toBe(true);
   });
 
-  it("HTML shows exactly approved labels and hides audit/evidence fields", () => {
+  it("HTML shows a statement list and hides audit/evidence fields", () => {
     const data = buildProspectusInvoiceWorkNarrative(
       SAMPLE_PROSPECTUS_INVOICE_WORK_NARRATIVE_INPUT
     );
     const html = buildProspectusInvoiceWorkNarrativeDocument(data);
 
     expect(html).toContain("ABOUT THE INVOICE / WORK PERFORMED");
-    expect(html).toContain("Work Under Contract Statement:");
-    expect(html).toContain("Certification and Acceptance Statement:");
-    expect(html).toContain("Paymaster-to-Trust-Account Statement:");
-    expect(html).toContain("Deed of Assignment Statement:");
+    expect(html).toContain("<ul>");
+    expect(html).toContain(`<li>${PROSPECTUS_DATA_NOT_AVAILABLE}</li>`);
 
     expect(html).not.toContain("CTR-2024-001");
     expect(html).not.toContain("INV-8891");
@@ -174,14 +172,9 @@ describe("prospectus Page 2 About the Invoice / Work Performed (DATA STAGE 6)", 
     expect(html).not.toContain("snapshotDecision");
     expect(html).not.toContain('"audit"');
 
-    expect(html).toContain(`Work Under Contract Statement: ${PROSPECTUS_DATA_NOT_AVAILABLE}`);
-    expect(html).toContain(
-      `Certification and Acceptance Statement: ${PROSPECTUS_DATA_NOT_AVAILABLE}`
+    expect(html.match(new RegExp(`<li>${PROSPECTUS_DATA_NOT_AVAILABLE}</li>`, "g"))?.length).toBe(
+      4
     );
-    expect(html).toContain(
-      `Paymaster-to-Trust-Account Statement: ${PROSPECTUS_DATA_NOT_AVAILABLE}`
-    );
-    expect(html).toContain(`Deed of Assignment Statement: ${PROSPECTUS_DATA_NOT_AVAILABLE}`);
   });
 
   it("documents unresolved field sources", () => {

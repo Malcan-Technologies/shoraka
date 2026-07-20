@@ -111,7 +111,7 @@ describe("prospectus highlight recommendations", () => {
           { key: "shariah", title: "old", description: "old" },
         ],
       },
-      page2: { creditInsights: {}, invoiceWorkStatements: [] },
+      page2: { creditInsights: {}, aboutInvoice: { items: [] } },
       page3: { investorTakeaways: {} },
     };
     const normalized = normalizeHighlightSelections(draft, {

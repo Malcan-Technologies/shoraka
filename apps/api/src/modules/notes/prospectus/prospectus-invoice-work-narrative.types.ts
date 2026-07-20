@@ -120,7 +120,7 @@ export interface ProspectusInvoiceWorkNarrativeInput {
     key: string;
     text: string;
     isVisible: boolean;
-    sourceType: "placeholder_manual";
+    sourceType: "placeholder_manual" | "derived_suggestion" | "fixed_template";
   }>;
   contractSnapshot?: unknown;
   invoiceSnapshot?: unknown;
@@ -167,38 +167,42 @@ export const PROSPECTUS_INVOICE_WORK_NARRATIVE_FIELD_SOURCES: Record<
   },
   workUnderContractStatement: {
     label: "Work Under Contract Statement",
-    canonicalSource: "none",
+    canonicalSource: "page2.aboutInvoice.items",
     availability: "unresolved",
     surface: "canva",
     possibleAlternatives:
       "contract_snapshot; Application contract text — not proof of completed work",
-    notes: "Requires completion evidence or admin-approved frozen narrative.",
+    notes:
+      "Officer-edited free text (KIH pattern). System suggestions are templates only until Ops confirms.",
   },
   certificationAcceptanceStatement: {
     label: "Certification and Acceptance Statement",
-    canonicalSource: "none",
+    canonicalSource: "page2.aboutInvoice.items",
     availability: "unresolved",
     surface: "canva",
     possibleAlternatives:
       "invoice document; invoice/Note status; paymaster snapshot — not proof of certification",
-    notes: "Requires structured certification/acceptance evidence or approved frozen text.",
+    notes:
+      "Officer-edited free text (KIH pattern). System suggestions are templates only until Ops confirms.",
   },
   paymasterTrustAccountStatement: {
     label: "Paymaster-to-Trust-Account Statement",
-    canonicalSource: "none",
+    canonicalSource: "page2.aboutInvoice.items",
     availability: "unresolved",
     surface: "canva",
     possibleAlternatives:
       "trustee workflow; maturity; product config — not a legal payment instruction",
-    notes: "Requires confirmed legal/payment instruction for this invoice.",
+    notes:
+      "Officer-edited free text (KIH pattern). System suggestions are templates only until Ops confirms.",
   },
   deedOfAssignmentStatement: {
     label: "Deed of Assignment Statement",
-    canonicalSource: "none",
+    canonicalSource: "page2.aboutInvoice.items",
     availability: "unresolved",
     surface: "canva",
     possibleAlternatives:
       "DOA upload slot/file; financing type — not proof of executed assignment",
-    notes: "Requires executed/verified DOA status or approved frozen legal text.",
+    notes:
+      "Officer-edited free text (KIH pattern). System suggestions are templates only until Ops confirms.",
   },
 };

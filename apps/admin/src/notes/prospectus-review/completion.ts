@@ -65,9 +65,10 @@ export function buildProspectusCompletionChecklist(
     hasOption(credit.litigationCheckOptionKey) &&
     hasOption(credit.ccrisStatusOptionKey);
 
-  const invoiceComplete = draft.page2.invoiceWorkStatements.every((s) =>
-    hasOption(s.optionKey)
-  );
+  const aboutItems = draft.page2.aboutInvoice?.items ?? [];
+  const invoiceComplete =
+    aboutItems.length >= 4 &&
+    aboutItems.every((item) => typeof item.text === "string" && item.text.trim().length > 0);
 
   const takeaways = draft.page3.investorTakeaways;
   const takeawaysComplete =

@@ -67,7 +67,7 @@ export interface ProspectusInvoiceWorkStatementPlaceholder {
   key: string;
   text: string;
   isVisible: boolean;
-  sourceType: "placeholder_manual";
+  sourceType: ProspectusPlaceholderSourceType;
 }
 
 export interface ProspectusInvestorTakeawayOption {

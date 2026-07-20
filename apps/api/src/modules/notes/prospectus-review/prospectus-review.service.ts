@@ -56,7 +56,7 @@ import {
   catalogueVersion,
   cloneReviewContent,
   emptyProspectusReviewContent,
-  normalizeHighlightSelections,
+  normalizeProspectusReviewSelections,
   stripLegacyPaymentBasisShariahKeys,
   toProspectusPublicationContent,
   type ProspectusFrozenPublicationContent,
@@ -340,7 +340,7 @@ export class ProspectusReviewService {
         review.draft_content
       );
       if (parsed.success) {
-        const normalized = normalizeHighlightSelections(
+        const normalized = normalizeProspectusReviewSelections(
           parsed.data as ProspectusReviewStoredContent,
           recommendationInput
         );
@@ -395,7 +395,7 @@ export class ProspectusReviewService {
     }
 
     const mapped = mapReview(review);
-    mapped.draftContent = normalizeHighlightSelections(
+    mapped.draftContent = normalizeProspectusReviewSelections(
       mapped.draftContent,
       recommendationInput
     );
@@ -517,7 +517,7 @@ export class ProspectusReviewService {
       },
     });
     const draftToStore = stripLegacyPaymentBasisShariahKeys(
-      normalizeHighlightSelections(
+      normalizeProspectusReviewSelections(
         input.draftContent as ProspectusReviewStoredContent,
         noteForRecs ? recommendationInputFromNote(noteForRecs) : {}
       )
@@ -615,7 +615,7 @@ export class ProspectusReviewService {
       current.draft_content
     );
     const approvedClone = stripLegacyPaymentBasisShariahKeys(
-      normalizeHighlightSelections(
+      normalizeProspectusReviewSelections(
         parsed as ProspectusReviewStoredContent,
         await loadNoteRecommendationInput(noteId)
       )

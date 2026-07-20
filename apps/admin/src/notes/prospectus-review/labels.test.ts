@@ -80,12 +80,14 @@ describe("prospectus review completion checklist", () => {
       },
       page2: {
         creditInsights: {},
-        invoiceWorkStatements: [
-          { key: "work_under_contract", optionKey: null, isVisible: true },
-          { key: "certification_acceptance", optionKey: null, isVisible: true },
-          { key: "paymaster_trust_account", optionKey: null, isVisible: true },
-          { key: "deed_of_assignment", optionKey: null, isVisible: true },
-        ],
+        aboutInvoice: {
+          items: [
+            { id: "work_under_contract", text: "", sourceType: "SYSTEM_SUGGESTION" },
+            { id: "certification_acceptance", text: "", sourceType: "SYSTEM_SUGGESTION" },
+            { id: "paymaster_trust_account", text: "", sourceType: "SYSTEM_SUGGESTION" },
+            { id: "deed_of_assignment", text: "", sourceType: "SYSTEM_SUGGESTION" },
+          ],
+        },
       },
       page3: {
         investorTakeaways: {},
@@ -108,10 +110,30 @@ describe("prospectus review completion checklist", () => {
       litigationCheckOptionKey: "do_not_display",
       ccrisStatusOptionKey: "neutral",
     };
-    draft.page2.invoiceWorkStatements = draft.page2.invoiceWorkStatements.map((s) => ({
-      ...s,
-      optionKey: "do_not_display",
-    }));
+    draft.page2.aboutInvoice = {
+      items: [
+        {
+          id: "work_under_contract",
+          text: "Confirmed work under contract.",
+          sourceType: "OFFICER_ENTERED",
+        },
+        {
+          id: "certification_acceptance",
+          text: "Confirmed certification and acceptance.",
+          sourceType: "OFFICER_ENTERED",
+        },
+        {
+          id: "paymaster_trust_account",
+          text: "Confirmed trust-account payment path.",
+          sourceType: "OFFICER_ENTERED",
+        },
+        {
+          id: "deed_of_assignment",
+          text: "Confirmed deed of assignment.",
+          sourceType: "OFFICER_ENTERED",
+        },
+      ],
+    };
     draft.page3.investorTakeaways = {
       revenueProfitabilityOptionKey: "placeholder_positive",
       liquidityOptionKey: "do_not_display",
@@ -273,12 +295,14 @@ describe("prospectus review action visibility", () => {
       },
       page2: {
         creditInsights: {},
-        invoiceWorkStatements: [
-          { key: "work_under_contract", optionKey: null, isVisible: true },
-          { key: "certification_acceptance", optionKey: null, isVisible: true },
-          { key: "paymaster_trust_account", optionKey: null, isVisible: true },
-          { key: "deed_of_assignment", optionKey: null, isVisible: true },
-        ],
+        aboutInvoice: {
+          items: [
+            { id: "work_under_contract", text: "", sourceType: "SYSTEM_SUGGESTION" },
+            { id: "certification_acceptance", text: "", sourceType: "SYSTEM_SUGGESTION" },
+            { id: "paymaster_trust_account", text: "", sourceType: "SYSTEM_SUGGESTION" },
+            { id: "deed_of_assignment", text: "", sourceType: "SYSTEM_SUGGESTION" },
+          ],
+        },
       },
       page3: {
         investorTakeaways: {},

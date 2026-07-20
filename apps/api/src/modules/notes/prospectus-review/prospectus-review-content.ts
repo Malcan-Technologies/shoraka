@@ -4,25 +4,29 @@
  */
 
 import {
+  PROSPECTUS_ABOUT_INVOICE_ITEM_IDS,
   PROSPECTUS_FIXED_PAYMENT_BASIS,
   PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT,
   PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
   PROSPECTUS_HIGHLIGHT_KEYS,
+  buildProspectusAboutInvoiceRecommendations,
+  buildProspectusHighlightRecommendations,
   normalizeProspectusCompanySize,
   normalizeProspectusConfidenceGrading,
   normalizeProspectusDeedOfAssignment,
   normalizeProspectusPaymasterRating,
+  type ProspectusAboutInvoiceItem,
+  type ProspectusAboutInvoiceItemId,
+  type ProspectusAboutInvoiceSourceType,
   type ProspectusCompanySize,
   type ProspectusConfidenceGrading,
   type ProspectusDeedOfAssignment,
   type ProspectusHighlightKey,
   type ProspectusHighlightRecommendationInput,
   type ProspectusPaymasterRating,
-  buildProspectusHighlightRecommendations,
 } from "@cashsouk/types";
 import {
   PROSPECTUS_CREDIT_INSIGHT_OPTIONS,
-  PROSPECTUS_INVOICE_WORK_KEYS,
   PROSPECTUS_INVOICE_WORK_OPTION_CATALOGUE,
   PROSPECTUS_OPTION_CATALOGUE_VERSION,
   PROSPECTUS_TAKEAWAY_KEYS,
@@ -47,11 +51,14 @@ export interface ProspectusReviewHighlightSelection {
   isVisible?: boolean;
 }
 
+/** @deprecated Prefer ProspectusAboutInvoiceItem / page2.aboutInvoice. */
 export interface ProspectusReviewInvoiceWorkSelection {
   key: string;
   optionKey?: string | null;
-  isVisible: boolean;
+  isVisible?: boolean;
 }
+
+export type { ProspectusAboutInvoiceItem, ProspectusAboutInvoiceSourceType };
 
 export interface ProspectusReviewPaymasterTrackRecord {
   totalInvoicesPaid?: number | null;
@@ -120,7 +127,11 @@ export interface ProspectusReviewStoredContent {
       litigationCheckOptionKey?: string | null;
       ccrisStatusOptionKey?: string | null;
     };
-    invoiceWorkStatements: ProspectusReviewInvoiceWorkSelection[];
+    aboutInvoice?: {
+      items: ProspectusAboutInvoiceItem[];
+    };
+    /** @deprecated Prefer aboutInvoice — migrated on normalize. */
+    invoiceWorkStatements?: ProspectusReviewInvoiceWorkSelection[];
   };
   page3: {
     manualFinancialInputs?: {
@@ -188,10 +199,87 @@ export function normalizeHighlightSelections(
   };
 }
 
+function isAboutInvoiceSourceType(value: unknown): value is ProspectusAboutInvoiceSourceType {
+  return value === "SYSTEM_SUGGESTION" || value === "OFFICER_ENTERED";
+}
+
+function legacyInvoiceWorkText(key: string, optionKey: string | null | undefined): string {
+  if (!optionKey || optionKey === "do_not_display") return "";
+  const catalogue = PROSPECTUS_INVOICE_WORK_OPTION_CATALOGUE[key] ?? [];
+  return trimCopy(findCatalogueOption(catalogue, optionKey)?.renderedText);
+}
+
+/**
+ * Ensure four About Invoice rows exist; fill empty text from suggestion templates;
+ * migrate legacy catalogue optionKey rows when aboutInvoice is absent.
+ */
+/** Highlights + About Invoice normalize for save / approve / GET. */
+export function normalizeProspectusReviewSelections(
+  content: ProspectusReviewStoredContent,
+  recommendationInput: ProspectusHighlightRecommendationInput = {}
+): ProspectusReviewStoredContent {
+  return normalizeAboutInvoiceSelections(
+    normalizeHighlightSelections(content, recommendationInput)
+  );
+}
+
+export function normalizeAboutInvoiceSelections(
+  content: ProspectusReviewStoredContent
+): ProspectusReviewStoredContent {
+  const suggestions = buildProspectusAboutInvoiceRecommendations();
+  const byId = new Map(
+    (content.page2.aboutInvoice?.items ?? []).map((item) => [item.id, item] as const)
+  );
+  const legacyByKey = new Map(
+    (content.page2.invoiceWorkStatements ?? []).map((row) => [row.key, row] as const)
+  );
+
+  const items: ProspectusAboutInvoiceItem[] = PROSPECTUS_ABOUT_INVOICE_ITEM_IDS.map((id) => {
+    const existing = byId.get(id);
+    const existingText = trimCopy(existing?.text);
+    if (existingText) {
+      return {
+        id,
+        text: existingText,
+        sourceType: isAboutInvoiceSourceType(existing?.sourceType)
+          ? existing.sourceType
+          : "OFFICER_ENTERED",
+      };
+    }
+
+    const legacy = legacyByKey.get(id);
+    const legacyText = legacyInvoiceWorkText(id, legacy?.optionKey);
+    if (legacyText) {
+      return { id, text: legacyText, sourceType: "OFFICER_ENTERED" };
+    }
+
+    return {
+      id,
+      text: suggestions[id as ProspectusAboutInvoiceItemId].text,
+      sourceType: "SYSTEM_SUGGESTION",
+    };
+  });
+
+  return {
+    ...content,
+    page2: {
+      ...content.page2,
+      aboutInvoice: { items },
+      // Keep a thin legacy mirror so older readers do not crash on missing array.
+      invoiceWorkStatements: items.map((item) => ({
+        key: item.id,
+        optionKey: null,
+        isVisible: true,
+      })),
+    },
+  };
+}
+
 export function emptyProspectusReviewContent(
   recommendationInput: ProspectusHighlightRecommendationInput = {}
 ): ProspectusReviewStoredContent {
   const recommendations = buildProspectusHighlightRecommendations(recommendationInput);
+  const aboutSuggestions = buildProspectusAboutInvoiceRecommendations();
   return {
     page1: {
       keyInvestorHighlights: PROSPECTUS_HIGHLIGHT_KEYS.map((key) => ({
@@ -210,8 +298,15 @@ export function emptyProspectusReviewContent(
       paymasterTrackRecord: {},
       financialComparison: { overrides: {} },
       creditInsights: {},
-      invoiceWorkStatements: PROSPECTUS_INVOICE_WORK_KEYS.map((key) => ({
-        key,
+      aboutInvoice: {
+        items: PROSPECTUS_ABOUT_INVOICE_ITEM_IDS.map((id) => ({
+          id,
+          text: aboutSuggestions[id].text,
+          sourceType: "SYSTEM_SUGGESTION" as const,
+        })),
+      },
+      invoiceWorkStatements: PROSPECTUS_ABOUT_INVOICE_ITEM_IDS.map((id) => ({
+        key: id,
         optionKey: null,
         isVisible: true,
       })),
@@ -238,7 +333,7 @@ function creditKeyToOption(
 export function toProspectusPublicationContent(
   content: ProspectusReviewStoredContent
 ): ProspectusPublicationContent {
-  const normalized = normalizeHighlightSelections(content);
+  const normalized = normalizeProspectusReviewSelections(content);
   const highlights = normalized.page1.keyInvestorHighlights.map((h) => {
     const isShariah = h.key === "shariah";
     return {
@@ -270,15 +365,16 @@ export function toProspectusPublicationContent(
     if (resolved) creditInsights[field] = resolved;
   }
 
-  const invoiceWorkStatements = content.page2.invoiceWorkStatements.map((s) => {
-    const catalogue = PROSPECTUS_INVOICE_WORK_OPTION_CATALOGUE[s.key] ?? [];
-    const option = findCatalogueOption(catalogue, s.optionKey);
-    const hidden = !s.isVisible || option?.key === "do_not_display" || !option;
+  const invoiceWorkStatements = (normalized.page2.aboutInvoice?.items ?? []).map((item) => {
+    const text = trimCopy(item.text);
     return {
-      key: s.key,
-      text: option?.renderedText ?? "",
-      isVisible: !hidden && Boolean(option?.renderedText),
-      sourceType: "placeholder_manual" as const,
+      key: item.id,
+      text,
+      isVisible: text.length > 0,
+      sourceType:
+        item.sourceType === "SYSTEM_SUGGESTION"
+          ? ("derived_suggestion" as const)
+          : ("placeholder_manual" as const),
     };
   });
 

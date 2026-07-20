@@ -49,15 +49,18 @@ export function buildCompleteProspectusReviewDraft(): ProspectusReviewStoredCont
     litigationCheckOptionKey: "positive",
     ccrisStatusOptionKey: "neutral",
   };
-  const invoiceMap: Record<string, string> = {
-    work_under_contract: "placeholder_work_under_contract",
-    certification_acceptance: "placeholder_certification_acceptance",
-    paymaster_trust_account: "placeholder_paymaster_trust_account",
-    deed_of_assignment: "placeholder_deed_of_assignment",
+  draft.page2.aboutInvoice = {
+    items: (draft.page2.aboutInvoice?.items ?? []).map((item) => ({
+      ...item,
+      sourceType: "OFFICER_ENTERED" as const,
+      text:
+        item.text.trim() ||
+        "Officer-confirmed invoice / work statement for Prospectus Review demo.",
+    })),
   };
-  draft.page2.invoiceWorkStatements = draft.page2.invoiceWorkStatements.map((s) => ({
-    ...s,
-    optionKey: invoiceMap[s.key] ?? "do_not_display",
+  draft.page2.invoiceWorkStatements = draft.page2.aboutInvoice.items.map((item) => ({
+    key: item.id,
+    optionKey: null,
     isVisible: true,
   }));
   draft.page3.manualFinancialInputs = {

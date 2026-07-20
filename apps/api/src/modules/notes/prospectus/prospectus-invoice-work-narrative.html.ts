@@ -28,12 +28,19 @@ export function buildProspectusInvoiceWorkNarrativeHtml(
   <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
   <section>
     <h2>${escapeHtml(data.sectionHeading)}</h2>
-    <p>
-      Work Under Contract Statement: ${escapeHtml(data.workUnderContractStatement)}<br />
-      Certification and Acceptance Statement: ${escapeHtml(data.certificationAcceptanceStatement)}<br />
-      Paymaster-to-Trust-Account Statement: ${escapeHtml(data.paymasterTrustAccountStatement)}<br />
-      Deed of Assignment Statement: ${escapeHtml(data.deedOfAssignmentStatement)}
-    </p>
+    <ul>
+      ${
+        [
+          data.workUnderContractStatement,
+          data.certificationAcceptanceStatement,
+          data.paymasterTrustAccountStatement,
+          data.deedOfAssignmentStatement,
+        ]
+          .filter((text) => Boolean(text && text.trim()))
+          .map((text) => `<li>${escapeHtml(text)}</li>`)
+          .join("\n      ") || `<li>${escapeHtml("Data not available")}</li>`
+      }
+    </ul>
   </section>
 </body>
 </html>`;

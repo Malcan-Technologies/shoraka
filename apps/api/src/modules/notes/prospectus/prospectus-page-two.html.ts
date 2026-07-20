@@ -261,34 +261,20 @@ export function buildProspectusPageTwoHtml(page: ProspectusPageTwo): string {
 
     <section data-stage="6">
       <h2>${escapeHtml(s6.sectionHeading)}</h2>
-      <p>
+      <ul class="about-invoice-list">
         ${
-          s6.workUnderContractStatement
-            ? `Work Under Contract Statement: ${escapeHtml(
-                s6.workUnderContractStatement
-              )}<br />`
-            : ""
+          [
+            s6.workUnderContractStatement,
+            s6.certificationAcceptanceStatement,
+            s6.paymasterTrustAccountStatement,
+            s6.deedOfAssignmentStatement,
+          ]
+            .filter((text) => Boolean(text && text.trim()))
+            .map((text) => `<li>${escapeHtml(text)}</li>`)
+            .join("\n        ") ||
+          `<li>${escapeHtml(PROSPECTUS_DATA_NOT_AVAILABLE)}</li>`
         }
-        ${
-          s6.certificationAcceptanceStatement
-            ? `Certification and Acceptance Statement: ${escapeHtml(
-                s6.certificationAcceptanceStatement
-              )}<br />`
-            : ""
-        }
-        ${
-          s6.paymasterTrustAccountStatement
-            ? `Paymaster-to-Trust-Account Statement: ${escapeHtml(
-                s6.paymasterTrustAccountStatement
-              )}<br />`
-            : ""
-        }
-        ${
-          s6.deedOfAssignmentStatement
-            ? `Deed of Assignment Statement: ${escapeHtml(s6.deedOfAssignmentStatement)}`
-            : ""
-        }
-      </p>
+      </ul>
     </section>
 
     ${renderSoukscoreScale(page)}

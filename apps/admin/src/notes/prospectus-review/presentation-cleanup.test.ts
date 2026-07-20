@@ -101,6 +101,16 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).not.toContain("track-record-aggregates");
   });
 
+  it("shows About the Invoice / Work Performed as editable statements like Highlights", () => {
+    expect(pageSource).toContain('title="About the Invoice / Work Performed"');
+    expect(pageSource).toContain("data-prospectus-about-invoice");
+    expect(pageSource).toContain("aboutInvoice");
+    expect(pageSource).toContain("OFFICER_ENTERED");
+    expect(pageSource).toContain("SYSTEM_SUGGESTION");
+    expect(pageSource).toContain("Same pattern as Key Investor Highlights");
+    expect(pageSource).not.toContain('title="Invoice / Work Information"');
+  });
+
   it("shows Invoice & Paymaster Information from API rows plus officer selects on Page 2", () => {
     expect(pageSource).toContain('title="Invoice & Paymaster Information"');
     expect(pageSource).toContain("invoicePaymaster");

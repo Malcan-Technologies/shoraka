@@ -437,6 +437,7 @@ export * from "./prospectus-review";
 export * from "./prospectus-status";
 export * from "./prospectus-fixed-templates";
 export * from "./prospectus-highlight-recommendations";
+export * from "./prospectus-about-invoice-recommendations";
 export * from "./investor-return-breakdown";
 export * from "./marketplace-note-dates";
 export * from "./prospectus-calendar";

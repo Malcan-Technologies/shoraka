@@ -138,10 +138,25 @@ export interface ProspectusReviewStoredContent {
       litigationCheckOptionKey?: string | null;
       ccrisStatusOptionKey?: string | null;
     };
-    invoiceWorkStatements: Array<{
+    /**
+     * About the Invoice / Work Performed — same Ops-edit + freeze pattern as
+     * Key Investor Highlights (free text; optional system suggestion templates).
+     */
+    aboutInvoice?: {
+      items: Array<{
+        id: string;
+        text: string;
+        sourceType: "SYSTEM_SUGGESTION" | "OFFICER_ENTERED";
+      }>;
+    };
+    /**
+     * @deprecated Prefer page2.aboutInvoice.items. Legacy catalogue optionKey rows
+     * are migrated on normalize/read.
+     */
+    invoiceWorkStatements?: Array<{
       key: string;
       optionKey?: string | null;
-      isVisible: boolean;
+      isVisible?: boolean;
     }>;
   };
   page3: {
