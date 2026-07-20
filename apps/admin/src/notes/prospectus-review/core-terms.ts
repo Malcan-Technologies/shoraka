@@ -234,17 +234,32 @@ export function buildCoreTermsRows(note: NoteDetail): CoreTermRow[] {
  */
 export function buildIssuerProfileRows(note: NoteDetail): CoreTermRow[] {
   const issuer = asRecord(note.issuerSnapshot);
+  const industry =
+    typeof issuer?.industry === "string" && issuer.industry.trim()
+      ? issuer.industry.trim()
+      : typeof note.issuerIndustry === "string" && note.issuerIndustry.trim()
+        ? note.issuerIndustry.trim()
+        : null;
+  const country =
+    typeof issuer?.country === "string" && issuer.country.trim()
+      ? issuer.country.trim()
+      : null;
+  const description =
+    typeof issuer?.business_description === "string" && issuer.business_description.trim()
+      ? issuer.business_description.trim()
+      : null;
   return [
-    { label: "Industry", value: textOrDash(issuer?.industry ?? note.issuerIndustry) },
     {
-      label: "Entity Type",
-      value: textOrDash(issuer?.entity_type ?? issuer?.type),
+      label: "Industry | Company Size",
+      value: industry ?? "Data not available",
     },
-    { label: "Company Size", value: "—" },
-    { label: "Registered Country", value: textOrDash(issuer?.country) },
+    {
+      label: "Registered Country",
+      value: country ? `Registered in ${country}` : "Data not available",
+    },
     {
       label: "Business Description",
-      value: textOrDash(issuer?.business_description),
+      value: description ?? "Data not available",
     },
   ];
 }

@@ -113,16 +113,16 @@
  * Freeze helper: note-issuer-snapshot.ts (NoteService.createFromInvoiceSource)
  *
  * Visible non-identifying fields (frozen notes.issuer_snapshot):
- * - Industry → notes.issuer_snapshot.industry
- * - Entity Type → notes.issuer_snapshot.entity_type / type when available
- * - Company Size — DNA until approved classification (inferenceAllowed = false)
+ * - Industry | Company Size → industry from notes.issuer_snapshot.industry;
+ *   company size unresolved (DNA) until approved classification (inferenceAllowed = false);
+ *   combined as "Industry | Size", one side alone, or DNA if both missing
  * - Registered Country → notes.issuer_snapshot.country
  *   display: "Registered in {country}"; no hardcoded Malaysia; missing → DNA
  * - Business Description → notes.issuer_snapshot.business_description
  *   (leading issuer name stripped when present)
  *
  * HIDDEN (not rendered; rows removed — not "Data not available"):
- * - Company Name / Registration Number / old SSM
+ * - Company Name / Registration Number / old SSM / Entity Type
  *
  * Backward compatibility: old Notes missing new snapshot keys → Data not available
  * No live IssuerOrganization / Application fallback at render.

@@ -152,21 +152,52 @@ export function buildProspectusPageTwoHtml(page: ProspectusPageTwo): string {
     .fin-table th, .fin-table td { text-align: left; vertical-align: top; }
     .soukscore-grades { margin: 0; padding-left: 18px; }
     .cta-button { display: inline-block; margin-top: 4px; }
+    .issuer-profile-body {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .issuer-profile-content { flex: 1; min-width: 0; }
+    .issuer-profile-content p { margin: 0 0 4px; }
+    .issuer-profile-content p:last-child { margin-bottom: 0; }
+    .icon {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      background: #0b3b2e;
+      margin-top: 2px;
+    }
+    .icon-issuer {
+      background: color-mix(in srgb, #0b3b2e 12%, white);
+      border: 1px solid color-mix(in srgb, #0b3b2e 35%, white);
+      position: relative;
+    }
+    .icon-issuer::after {
+      content: "";
+      position: absolute;
+      inset: 4px;
+      border-radius: 2px;
+      background: #0b3b2e;
+      opacity: 0.85;
+    }
   </style>
 </head>
 <body>
   <div class="page" data-page="prospectus-page-two">
     ${buildProspectusHeaderHtml(page.header)}
 
-    <section data-stage="1">
+    <section data-stage="1" data-issuer-profile>
       <h2>${escapeHtml(s1.sectionHeading)}</h2>
-      <p>
-        Industry: ${escapeHtml(s1.industry)}<br />
-        Entity Type: ${escapeHtml(s1.entityType)}<br />
-        Company Size: ${escapeHtml(s1.companySize)}<br />
-        Registered Country: ${escapeHtml(s1.registeredCountry)}<br />
-        Business Description: ${escapeHtml(s1.businessDescription)}
-      </p>
+      <div class="issuer-profile-body">
+        <span class="icon icon-issuer" aria-hidden="true"></span>
+        <div class="issuer-profile-content">
+          <p>${escapeHtml(s1.industryAndCompanySize)}</p>
+          <p>${escapeHtml(s1.registeredCountry)}</p>
+          <p>${escapeHtml(s1.businessDescription)}</p>
+        </div>
+      </div>
     </section>
 
     <section data-stage="2">

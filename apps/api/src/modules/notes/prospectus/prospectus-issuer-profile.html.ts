@@ -1,6 +1,6 @@
 /**
  * SECTION: Plain HTML for Page 2 About the Issuer preview
- * WHY: Non-identifying fields only — no company name / registration
+ * WHY: Non-identifying fields only — no company name / registration / entity type
  */
 
 import type { ProspectusIssuerProfile } from "./prospectus-issuer-profile.types";
@@ -24,15 +24,16 @@ export function buildProspectusIssuerProfileHtml(data: ProspectusIssuerProfile):
 <body>
   <h1>Prospectus Page 2 — DATA STAGE 1: About the Issuer</h1>
   <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
-  <section>
+  <section data-issuer-profile>
     <h2>${escapeHtml(data.sectionHeading)}</h2>
-    <p>
-      Industry: ${escapeHtml(data.industry)}<br />
-      Entity Type: ${escapeHtml(data.entityType)}<br />
-      Company Size: ${escapeHtml(data.companySize)}<br />
-      Registered Country: ${escapeHtml(data.registeredCountry)}<br />
-      Business Description: ${escapeHtml(data.businessDescription)}
-    </p>
+    <div class="issuer-profile-body">
+      <span class="icon icon-issuer" aria-hidden="true"></span>
+      <div class="issuer-profile-content">
+        <p>${escapeHtml(data.industryAndCompanySize)}</p>
+        <p>${escapeHtml(data.registeredCountry)}</p>
+        <p>${escapeHtml(data.businessDescription)}</p>
+      </div>
+    </div>
   </section>
 </body>
 </html>`;

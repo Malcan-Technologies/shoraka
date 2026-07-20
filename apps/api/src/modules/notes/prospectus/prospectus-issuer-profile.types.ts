@@ -1,6 +1,6 @@
 /**
  * SECTION: Prospectus Page 2 — About the Issuer (non-identifying fields only)
- * WHY: Legal — no company name / registration / SSM on prospectus surfaces
+ * WHY: Legal — no company name / registration / SSM / entity type on prospectus surfaces
  */
 
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
@@ -10,25 +10,29 @@ export { PROSPECTUS_DATA_NOT_AVAILABLE };
 /** Static Canva section title — not a database field. */
 export const PROSPECTUS_ISSUER_PROFILE_SECTION_HEADING = "ABOUT THE ISSUER";
 
+/** Admin / Canva combined line label. */
+export const PROSPECTUS_ISSUER_PROFILE_INDUSTRY_SIZE_LABEL = "Industry | Company Size";
+
 export interface ProspectusIssuerProfileAudit {
   identityHidden: {
     companyNameHidden: true;
     registrationNumberHidden: true;
     oldSsmHidden: true;
+    entityTypeHidden: true;
   };
   industry: {
     source: "notes.issuer_snapshot.industry";
     isFrozen: true;
   };
-  entityType: {
-    source: "notes.issuer_snapshot.entity_type";
-    isFrozen: true;
-    optional: true;
-  };
   companySize: {
     status: "unresolved";
     structuredSourceAvailable: false;
     inferenceAllowed: false;
+  };
+  industryAndCompanySize: {
+    display: "combined";
+    separator: " | ";
+    missingBoth: typeof PROSPECTUS_DATA_NOT_AVAILABLE;
   };
   registeredCountry: {
     source: "notes.issuer_snapshot.country";
@@ -52,20 +56,21 @@ export const PROSPECTUS_ISSUER_PROFILE_AUDIT: ProspectusIssuerProfileAudit = {
     companyNameHidden: true,
     registrationNumberHidden: true,
     oldSsmHidden: true,
+    entityTypeHidden: true,
   },
   industry: {
     source: "notes.issuer_snapshot.industry",
     isFrozen: true,
   },
-  entityType: {
-    source: "notes.issuer_snapshot.entity_type",
-    isFrozen: true,
-    optional: true,
-  },
   companySize: {
     status: "unresolved",
     structuredSourceAvailable: false,
     inferenceAllowed: false,
+  },
+  industryAndCompanySize: {
+    display: "combined",
+    separator: " | ",
+    missingBoth: PROSPECTUS_DATA_NOT_AVAILABLE,
   },
   registeredCountry: {
     source: "notes.issuer_snapshot.country",
@@ -84,11 +89,13 @@ export const PROSPECTUS_ISSUER_PROFILE_AUDIT: ProspectusIssuerProfileAudit = {
   },
 };
 
-/** Canva-facing fields only — no issuer identifiers. */
+/** Canva-facing fields only — no issuer identifiers or entity type. */
 export interface ProspectusIssuerProfile {
   sectionHeading: string;
+  /** Combined investor-visible line: Industry | Company Size (or one side / DNA). */
+  industryAndCompanySize: string;
+  /** Component values (audit / tests). Not rendered as separate labeled rows. */
   industry: string;
-  entityType: string;
   companySize: string;
   registeredCountry: string;
   businessDescription: string;
@@ -113,7 +120,7 @@ export interface ProspectusIssuerProfileInput {
   employeeCount?: number | null;
   /** Observational — must not become company size. */
   annualRevenue?: number | null;
-  /** Observational SME label — must be ignored. */
+  /** Observational SME label — must be ignored until classification approved. */
   smeLabel?: string | null;
   /** Observational live Application description — must not replace snapshot. */
   liveWhatDoesCompanyDo?: string | null;
@@ -132,9 +139,10 @@ export interface ProspectusIssuerProfileFieldSource {
 
 export const PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES: Record<
   | "sectionHeading"
+  | "industryAndCompanySize"
   | "industry"
-  | "entityType"
   | "companySize"
+  | "entityType"
   | "registeredCountry"
   | "businessDescription",
   ProspectusIssuerProfileFieldSource
@@ -147,29 +155,38 @@ export const PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES: Record<
     possibleAlternatives: "none",
     notes: "ABOUT THE ISSUER",
   },
+  industryAndCompanySize: {
+    label: PROSPECTUS_ISSUER_PROFILE_INDUSTRY_SIZE_LABEL,
+    canonicalSource: "notes.issuer_snapshot.industry + company size (unresolved)",
+    availability: "stored",
+    surface: "canva",
+    possibleAlternatives: "separate Industry / Company Size rows — not used",
+    notes:
+      'Show "Industry | Company Size" when both exist; one side alone if the other is missing; DNA if both missing.',
+  },
   industry: {
     label: "Industry",
     canonicalSource: "notes.issuer_snapshot.industry",
     availability: "stored",
-    surface: "canva",
+    surface: "audit",
     possibleAlternatives: "live COD industry — not used",
-    notes: "Frozen at Note create. Preserve stored value.",
-  },
-  entityType: {
-    label: "Entity Type",
-    canonicalSource: "notes.issuer_snapshot.entity_type",
-    availability: "stored",
-    surface: "canva",
-    possibleAlternatives: "paymaster entity_type — not used here",
-    notes: "Optional frozen field; DNA when absent.",
+    notes: "Frozen at Note create. Combined into industryAndCompanySize for Canva.",
   },
   companySize: {
     label: "Company Size",
     canonicalSource: "none",
     availability: "unresolved",
-    surface: "canva",
+    surface: "audit",
     possibleAlternatives: "SME; employees; revenue — not used",
     notes: "No approved SME classification. inferenceAllowed = false.",
+  },
+  entityType: {
+    label: "Entity Type",
+    canonicalSource: "notes.issuer_snapshot.entity_type",
+    availability: "hidden",
+    surface: "audit",
+    possibleAlternatives: "none",
+    notes: "Removed from Canva / Admin Issuer Profile display.",
   },
   registeredCountry: {
     label: "Registered Country",

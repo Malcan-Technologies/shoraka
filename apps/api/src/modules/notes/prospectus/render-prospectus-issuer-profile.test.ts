@@ -1,11 +1,13 @@
 import {
   buildProspectusIssuerProfile,
+  formatProspectusIndustryAndCompanySize,
   sanitizeProspectusBusinessDescription,
 } from "./prospectus-issuer-profile";
 import { SAMPLE_PROSPECTUS_ISSUER_PROFILE_INPUT } from "./prospectus-issuer-profile.sample-data";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES,
+  PROSPECTUS_ISSUER_PROFILE_INDUSTRY_SIZE_LABEL,
   PROSPECTUS_ISSUER_PROFILE_SECTION_HEADING,
 } from "./prospectus-issuer-profile.types";
 import { buildProspectusIssuerProfileDocument } from "./render-prospectus-issuer-profile";
@@ -17,12 +19,13 @@ describe("prospectus Page 2 About the Issuer (DATA STAGE 1)", () => {
     expect(data.sectionHeading).toBe(PROSPECTUS_ISSUER_PROFILE_SECTION_HEADING);
   });
 
-  it("does not expose company name or registration number fields", () => {
+  it("does not expose company name, registration number, or entity type fields", () => {
     const data = buildProspectusIssuerProfile({
       issuerSnapshot: {
         name: "ABC Engineering Sdn Bhd",
         registration_number: "201401012345",
         industry: "Construction",
+        entity_type: "PRIVATE_LIMITED",
       },
       liveOrganizationName: "Live Org Name Must Be Ignored",
       liveRegistrationNumber: "999999999999",
@@ -30,20 +33,39 @@ describe("prospectus Page 2 About the Issuer (DATA STAGE 1)", () => {
     });
     expect(data).not.toHaveProperty("companyName");
     expect(data).not.toHaveProperty("registrationNumber");
+    expect(data).not.toHaveProperty("entityType");
     expect(data.industry).toBe("Construction");
+    expect(data.industryAndCompanySize).toBe("Construction");
   });
 
-  it("maps industry and optional entity type from frozen snapshot", () => {
+  it("combines industry and company size with partial and empty rules", () => {
+    expect(formatProspectusIndustryAndCompanySize("Construction", "SME")).toBe(
+      "Construction | SME"
+    );
+    expect(formatProspectusIndustryAndCompanySize("Construction", null)).toBe("Construction");
+    expect(formatProspectusIndustryAndCompanySize(null, "SME")).toBe("SME");
+    expect(formatProspectusIndustryAndCompanySize(null, null)).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(
+      formatProspectusIndustryAndCompanySize(
+        PROSPECTUS_DATA_NOT_AVAILABLE,
+        PROSPECTUS_DATA_NOT_AVAILABLE
+      )
+    ).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+  });
+
+  it("maps industry from frozen snapshot and keeps company size unresolved", () => {
     expect(
       buildProspectusIssuerProfile({
         issuerSnapshot: { industry: "Construction", entity_type: "PRIVATE_LIMITED" },
-      }).entityType
-    ).toBe("PRIVATE_LIMITED");
+        smeLabel: "SME",
+        employeeCount: 50,
+      }).industryAndCompanySize
+    ).toBe("Construction");
 
     expect(
       buildProspectusIssuerProfile({
         issuerSnapshot: {},
-      }).industry
+      }).industryAndCompanySize
     ).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
@@ -56,6 +78,8 @@ describe("prospectus Page 2 About the Issuer (DATA STAGE 1)", () => {
     });
     expect(data.companySize).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.companySize).not.toBe("SME");
+    expect(data.industryAndCompanySize).toBe("Construction");
+    expect(data.industryAndCompanySize).not.toContain("SME");
   });
 
   it("formats registered country when frozen country exists", () => {
@@ -103,7 +127,7 @@ describe("prospectus Page 2 About the Issuer (DATA STAGE 1)", () => {
       },
     });
     expect(data.industry).toBe("Manufacturing");
-    expect(data.entityType).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.industryAndCompanySize).toBe("Manufacturing");
     expect(data.registeredCountry).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.businessDescription).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.companySize).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
@@ -113,30 +137,33 @@ describe("prospectus Page 2 About the Issuer (DATA STAGE 1)", () => {
     expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES.industry.canonicalSource).toBe(
       "notes.issuer_snapshot.industry"
     );
-    expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES.entityType.canonicalSource).toBe(
-      "notes.issuer_snapshot.entity_type"
-    );
     expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES.companySize.availability).toBe("unresolved");
+    expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES.entityType.availability).toBe("hidden");
+    expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES.industryAndCompanySize.label).toBe(
+      PROSPECTUS_ISSUER_PROFILE_INDUSTRY_SIZE_LABEL
+    );
     expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES).not.toHaveProperty("companyName");
     expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES).not.toHaveProperty("registrationNumber");
   });
 
-  it("HTML shows non-identifying fields only", () => {
+  it("HTML shows non-identifying Canva fields only", () => {
     const data = buildProspectusIssuerProfile(SAMPLE_PROSPECTUS_ISSUER_PROFILE_INPUT);
     const html = buildProspectusIssuerProfileDocument(data);
 
     expect(html).toContain("ABOUT THE ISSUER");
-    expect(html).toContain("Industry:");
-    expect(html).toContain("Entity Type:");
-    expect(html).toContain("Company Size:");
-    expect(html).toContain("Registered Country:");
-    expect(html).toContain("Business Description:");
+    expect(html).toContain('class="icon icon-issuer"');
+    expect(html).toContain("Construction");
+    expect(html).toContain("Registered in Malaysia");
+    expect(html).toContain("civil and structural engineering company");
 
+    expect(html).not.toContain("Entity Type:");
+    expect(html).not.toContain("PRIVATE_LIMITED");
     expect(html).not.toContain("Company Name:");
     expect(html).not.toContain("Registration Number:");
     expect(html).not.toContain("201401012345");
     expect(html).not.toContain("1101234-X");
     expect(html).not.toContain("Live Org Name");
+    expect(html).not.toContain("ABC Engineering Sdn Bhd");
     expect(html).not.toContain('"audit"');
   });
 
@@ -144,6 +171,7 @@ describe("prospectus Page 2 About the Issuer (DATA STAGE 1)", () => {
     const data = buildProspectusIssuerProfile(SAMPLE_PROSPECTUS_ISSUER_PROFILE_INPUT);
     expect(data.audit.identityHidden.companyNameHidden).toBe(true);
     expect(data.audit.identityHidden.registrationNumberHidden).toBe(true);
+    expect(data.audit.identityHidden.entityTypeHidden).toBe(true);
     expect(data.audit.companySize.inferenceAllowed).toBe(false);
     expect(data.audit.registeredCountry.hardcodedCountryAllowed).toBe(false);
     expect(data.audit.businessDescription.liveFallbackAllowed).toBe(false);

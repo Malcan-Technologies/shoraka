@@ -1,12 +1,13 @@
 /**
  * SECTION: Build Page 2 About the Issuer view-model
- * WHY: Non-identifying frozen fields only; no company name / registration on prospectus
+ * WHY: Non-identifying frozen fields only; no company name / registration / entity type
  */
 
 import { parseIssuerSnapshot } from "./prospectus-json-guards";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_ISSUER_PROFILE_AUDIT,
+  PROSPECTUS_ISSUER_PROFILE_INDUSTRY_SIZE_LABEL,
   PROSPECTUS_ISSUER_PROFILE_SECTION_HEADING,
   type ProspectusIssuerProfile,
   type ProspectusIssuerProfileInput,
@@ -18,6 +19,11 @@ function nonEmptyString(value: string | null | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function isPresentDisplayValue(value: string | null | undefined): value is string {
+  const text = nonEmptyString(value);
+  return text != null && text !== PROSPECTUS_DATA_NOT_AVAILABLE;
+}
+
 /** Presentation only — stores raw country in snapshot; never "Registered in Data not available". */
 export function formatProspectusRegisteredCountry(
   country: string | null | undefined
@@ -25,6 +31,22 @@ export function formatProspectusRegisteredCountry(
   const value = nonEmptyString(country);
   if (!value) return PROSPECTUS_DATA_NOT_AVAILABLE;
   return `Registered in ${value}`;
+}
+
+/**
+ * Canva line: Industry | Company Size.
+ * One side alone when the other is missing; DNA when both missing.
+ */
+export function formatProspectusIndustryAndCompanySize(
+  industry: string | null | undefined,
+  companySize: string | null | undefined
+): string {
+  const industryValue = isPresentDisplayValue(industry) ? industry.trim() : null;
+  const sizeValue = isPresentDisplayValue(companySize) ? companySize.trim() : null;
+  if (industryValue && sizeValue) return `${industryValue} | ${sizeValue}`;
+  if (industryValue) return industryValue;
+  if (sizeValue) return sizeValue;
+  return PROSPECTUS_DATA_NOT_AVAILABLE;
 }
 
 /**
@@ -64,12 +86,18 @@ export function buildProspectusIssuerProfile(
   void input.productSnapshotDescription;
 
   const snapshot = parseIssuerSnapshot(input.issuerSnapshot);
+  // Entity type may exist on snapshot but must never surface on Issuer Profile.
+  void snapshot.entityType;
+
+  const industry = snapshot.industry ?? PROSPECTUS_DATA_NOT_AVAILABLE;
+  // Current approved source: unresolved — no SME inference.
+  const companySize = PROSPECTUS_DATA_NOT_AVAILABLE;
 
   return {
     sectionHeading: PROSPECTUS_ISSUER_PROFILE_SECTION_HEADING,
-    industry: snapshot.industry ?? PROSPECTUS_DATA_NOT_AVAILABLE,
-    entityType: snapshot.entityType ?? PROSPECTUS_DATA_NOT_AVAILABLE,
-    companySize: PROSPECTUS_DATA_NOT_AVAILABLE,
+    industry,
+    companySize,
+    industryAndCompanySize: formatProspectusIndustryAndCompanySize(industry, companySize),
     registeredCountry: formatProspectusRegisteredCountry(snapshot.country),
     businessDescription: sanitizeProspectusBusinessDescription(
       snapshot.businessDescription,
@@ -87,9 +115,10 @@ export function toAdminIssuerProfileRows(
   profile: ProspectusIssuerProfile
 ): Array<{ label: string; value: string }> {
   return [
-    { label: "Industry", value: profile.industry },
-    { label: "Entity Type", value: profile.entityType },
-    { label: "Company Size", value: profile.companySize },
+    {
+      label: PROSPECTUS_ISSUER_PROFILE_INDUSTRY_SIZE_LABEL,
+      value: profile.industryAndCompanySize,
+    },
     { label: "Registered Country", value: profile.registeredCountry },
     { label: "Business Description", value: profile.businessDescription },
   ];

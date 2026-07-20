@@ -75,8 +75,8 @@ jest.mock("../prospectus/prospectus-page-two-mapper", () => ({
   buildProspectusPageTwo: jest.fn(() => ({
     issuerProfile: {
       industry: "Construction",
-      entityType: "Data not available",
       companySize: "Data not available",
+      industryAndCompanySize: "Construction",
       registeredCountry: "Registered in Malaysia",
       businessDescription: "Works",
     },

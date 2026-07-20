@@ -7,10 +7,13 @@ import {
   buildProspectusIssuerProfile,
   toAdminIssuerProfileRows,
 } from "./prospectus-issuer-profile";
-import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-issuer-profile.types";
+import {
+  PROSPECTUS_DATA_NOT_AVAILABLE,
+  PROSPECTUS_ISSUER_PROFILE_INDUSTRY_SIZE_LABEL,
+} from "./prospectus-issuer-profile.types";
 
 describe("toAdminIssuerProfileRows", () => {
-  it("maps investor-visible fields with shared formatting and DNA tokens", () => {
+  it("maps investor-visible fields only with shared formatting", () => {
     const profile = buildProspectusIssuerProfile({
       issuerSnapshot: {
         name: "Hidden Issuer Sdn Bhd",
@@ -28,36 +31,35 @@ describe("toAdminIssuerProfileRows", () => {
     const rows = toAdminIssuerProfileRows(profile);
 
     expect(rows).toEqual([
-      { label: "Industry", value: "Construction" },
-      { label: "Entity Type", value: "PRIVATE_LIMITED" },
-      { label: "Company Size", value: PROSPECTUS_DATA_NOT_AVAILABLE },
+      {
+        label: PROSPECTUS_ISSUER_PROFILE_INDUSTRY_SIZE_LABEL,
+        value: "Construction",
+      },
       { label: "Registered Country", value: "Registered in Malaysia" },
       {
         label: "Business Description",
         value: "Infrastructure contractor for public works.",
       },
     ]);
+    expect(rows.some((r) => r.label === "Entity Type")).toBe(false);
+    expect(rows.some((r) => r.label === "Industry")).toBe(false);
+    expect(rows.some((r) => r.label === "Company Size")).toBe(false);
     expect(rows.some((r) => r.value.includes("Hidden Issuer"))).toBe(false);
     expect(rows.some((r) => r.value.includes("201401012345"))).toBe(false);
-    expect(rows.some((r) => r.label.toLowerCase().includes("name"))).toBe(false);
-    expect(rows.some((r) => r.label.toLowerCase().includes("registration"))).toBe(false);
+    expect(rows.some((r) => r.value.includes("PRIVATE_LIMITED"))).toBe(false);
   });
 
-  it("uses DNA for missing optional fields and never falls back to live org data", () => {
+  it("uses DNA for missing fields and never falls back to live org data", () => {
     const rows = toAdminIssuerProfileRows(
       buildProspectusIssuerProfile({
-        issuerSnapshot: { industry: "Manufacturing" },
+        issuerSnapshot: {},
         liveWhatDoesCompanyDo: "Must not appear",
         productSnapshotDescription: "Must not appear",
         smeLabel: "SME",
       })
     );
 
-    expect(rows.find((r) => r.label === "Industry")?.value).toBe("Manufacturing");
-    expect(rows.find((r) => r.label === "Entity Type")?.value).toBe(
-      PROSPECTUS_DATA_NOT_AVAILABLE
-    );
-    expect(rows.find((r) => r.label === "Company Size")?.value).toBe(
+    expect(rows.find((r) => r.label === PROSPECTUS_ISSUER_PROFILE_INDUSTRY_SIZE_LABEL)?.value).toBe(
       PROSPECTUS_DATA_NOT_AVAILABLE
     );
     expect(rows.find((r) => r.label === "Registered Country")?.value).toBe(

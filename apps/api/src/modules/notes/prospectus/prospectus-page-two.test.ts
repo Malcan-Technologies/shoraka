@@ -342,8 +342,10 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
       expect(page.issuerProfile).not.toHaveProperty("companyName");
       expect(page.issuerProfile).not.toHaveProperty("registrationNumber");
+      expect(page.issuerProfile).not.toHaveProperty("entityType");
       expect(page.issuerProfile.industry).toBe("Construction");
       expect(page.issuerProfile.companySize).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+      expect(page.issuerProfile.industryAndCompanySize).toBe("Construction");
       expect(page.issuerProfile.registeredCountry).toBe("Registered in Malaysia");
       expect(page.issuerProfile.businessDescription).toBe("Infrastructure works");
 
@@ -408,8 +410,10 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       );
       expect(page.issuerProfile).not.toHaveProperty("companyName");
       expect(page.issuerProfile).not.toHaveProperty("registrationNumber");
+      expect(page.issuerProfile).not.toHaveProperty("entityType");
       expect(page.issuerProfile.companySize).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
       expect(page.issuerProfile.industry).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+      expect(page.issuerProfile.industryAndCompanySize).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     });
   });
 

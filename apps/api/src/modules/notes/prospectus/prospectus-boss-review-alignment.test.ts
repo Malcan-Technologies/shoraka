@@ -88,8 +88,9 @@ describe("prospectus boss-review alignment", () => {
       });
       expect(profile).not.toHaveProperty("companyName");
       expect(profile).not.toHaveProperty("registrationNumber");
+      expect(profile).not.toHaveProperty("entityType");
       expect(profile.industry).toBe("Construction");
-      expect(profile.entityType).toBe("PRIVATE_LIMITED");
+      expect(profile.industryAndCompanySize).toBe("Construction");
       expect(profile.businessDescription).toBe("Bridge works.");
       expect(profile.businessDescription).not.toContain("Secret Issuer");
     });
