@@ -223,8 +223,9 @@ export function DocumentsSection({
     );
   }
 
+  const itemIdPrefix = documentKind === "acceptance" ? "acceptance_documents:" : "supporting_documents:";
   const peerDocumentRejected = reviewItems.some(
-    (r) => r.item_type === "document" && r.status === "REJECTED"
+    (r) => r.item_type === "document" && r.status === "REJECTED" && r.item_id.startsWith(itemIdPrefix)
   );
 
   return (

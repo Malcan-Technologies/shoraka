@@ -190,19 +190,6 @@ function formatAmount(value: number | undefined): string {
   return `RM ${Number(value).toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
 }
 
-function formatDate(value: string | undefined): string {
-  if (!value) return "—";
-  try {
-    return new Date(value).toLocaleDateString("en-MY", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  } catch {
-    return value;
-  }
-}
-
 function formatPercent(value: number | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";
   return `${Number.isInteger(value) ? value : Number(value.toFixed(2))}%`;
@@ -249,7 +236,6 @@ export function buildInvoiceOfferLetterTerms(
       value: `${platformFeePct}% of the funded amount, deducted from disbursement proceeds`,
     },
     ...facilityFeeTerms,
-    { label: "This offer expires on", value: formatDate(offer.expires_at) },
   ];
 }
 
@@ -304,7 +290,6 @@ export function buildContractOfferLetterPdf(
       "Deducted from issuer disbursement progressively when invoice financing is disbursed"
     );
   }
-  termLine(doc, "This offer expires on", formatDate(offer.expires_at));
   sectionHeading(doc, "General");
   bodyParagraphs(doc);
   drawSignatureBlocks(doc, signatories, layout);

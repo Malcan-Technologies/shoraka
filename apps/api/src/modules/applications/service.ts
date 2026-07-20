@@ -21,6 +21,7 @@ import {
   Prisma,
   ApplicationStatus as DbApplicationStatus,
   ProductStatus,
+  ReviewStepStatus,
 } from "@prisma/client";
 import { requestPresignedUploadUrl, deleteDocumentFromS3 } from "./documents/service";
 import { shouldPreserveApplicationDocumentsInS3 } from "./amendment-preserve-s3";
@@ -35,14 +36,17 @@ import {
 import {
   resolveAcceptanceDocumentAllowedTypes,
   resolveAcceptanceDocumentsFromWorkflow,
+  collectAcceptanceDocumentReviewKeys,
+  workflowHasAcceptanceDocuments,
   getOfferAcceptanceFromOfferDetails,
   offerAcceptanceIsStep1Editable,
   requiredOfferAcknowledgementKeys,
+  resolveOfferAcknowledgementsFromWorkflow,
   resolveStatusAfterOfferAcceptanceSubmit,
   workflowUsesOfferAcceptanceFlow,
 } from "@cashsouk/types";
 import {
-  buildAcknowledgementRecords,
+  mergeAcknowledgementRecords,
   patchOfferAcceptance,
 } from "./offer-acceptance";
 import { buildApplicationRevisionSnapshot } from "./revision-snapshot";
@@ -408,8 +412,35 @@ export class ApplicationService {
         "Acceptance documents can be uploaded after an offer is sent"
       );
     }
-    if (application) {
-      await this.assertPostApplicationPrepUnlocked(application.id);
+    if (!application) return;
+    await this.assertPostApplicationPrepUnlocked(application.id);
+
+    const workflow = await this.getProductWorkflowForApplication(application);
+    if (!workflowUsesOfferAcceptanceFlow(workflow)) return;
+
+    const contract = (application as { contract?: { offer_details?: unknown } | null }).contract;
+    const invoices =
+      (application as { invoices?: { contract_id?: string | null; offer_details?: unknown }[] })
+        .invoices ?? [];
+    const standaloneInvoiceOffer = invoices.find(
+      (invoice) => !invoice.contract_id && invoice.offer_details
+    );
+    const offer =
+      (contract?.offer_details as Record<string, unknown> | null) ??
+      (standaloneInvoiceOffer?.offer_details as Record<string, unknown> | null) ??
+      null;
+
+    const acceptance = offer ? getOfferAcceptanceFromOfferDetails(offer) : null;
+    if (!acceptance) {
+      // Phase missing on a phased product (legacy/repair path) — allow the upload.
+      return;
+    }
+    if (!offerAcceptanceIsStep1Editable(acceptance.status)) {
+      throw new AppError(
+        403,
+        "EDIT_NOT_ALLOWED",
+        "Acceptance documents cannot be edited once the offer acceptance step has moved past issuer review."
+      );
     }
   }
 
@@ -898,6 +929,19 @@ export class ApplicationService {
         // Link the existing contract to this application
         updateData.contract = { connect: { id: structureData.existing_contract_id } };
       } else if (structureData?.structure_type === "invoice_only" || structureData?.structure_type === "new_contract") {
+        // invoice_only allows at most one invoice; block the switch instead of auto-deleting existing invoices
+        if (structureData?.structure_type === "invoice_only") {
+          const existingInvoices =
+            (application as { invoices?: { id: string }[] }).invoices ?? [];
+          if (existingInvoices.length > 1) {
+            throw new AppError(
+              400,
+              "MAX_INVOICES_REACHED",
+              "Cannot switch to invoice-only: this application already has more than one invoice. Remove the extra invoices first."
+            );
+          }
+        }
+
         // Unlink any contract if invoice-only OR new_contract is selected
         // This ensures switching from existing_contract → new_contract properly disconnects the FK
         if (application.contract_id) {
@@ -1530,6 +1574,74 @@ export class ApplicationService {
   }
 
   /**
+   * Reset acceptance-doc review items + section to PENDING on (re)submit, so a resubmitted
+   * offer acceptance cannot reuse stale admin review decisions from a prior cycle.
+   * Mirrors AdminService.resetAcceptanceReviewForNewOfferInTx.
+   */
+  private async resetAcceptanceDocumentsReviewInTx(
+    tx: Prisma.TransactionClient,
+    applicationId: string,
+    application: {
+      supporting_documents?: unknown;
+      acceptance_documents?: unknown;
+    },
+    workflow: unknown[]
+  ): Promise<void> {
+    const docKeys = collectAcceptanceDocumentReviewKeys(
+      workflow,
+      application.acceptance_documents,
+      application.supporting_documents
+    );
+    for (const itemId of docKeys) {
+      await tx.applicationReviewItem.upsert({
+        where: {
+          application_id_item_type_item_id: {
+            application_id: applicationId,
+            item_type: "document",
+            item_id: itemId,
+          },
+        },
+        create: {
+          application_id: applicationId,
+          item_type: "document",
+          item_id: itemId,
+          status: ReviewStepStatus.PENDING,
+          reviewer_user_id: null,
+          reviewed_at: null,
+        },
+        update: {
+          status: ReviewStepStatus.PENDING,
+          reviewer_user_id: null,
+          reviewed_at: null,
+        },
+      });
+    }
+    if (docKeys.length === 0 && !workflowHasAcceptanceDocuments(workflow)) {
+      return;
+    }
+    await tx.applicationReview.upsert({
+      where: {
+        application_id_section: {
+          application_id: applicationId,
+          section: "acceptance_documents",
+        },
+      },
+      create: {
+        application_id: applicationId,
+        section: "acceptance_documents",
+        status: ReviewStepStatus.PENDING,
+        reviewer_user_id: null,
+        reviewed_at: null,
+      },
+      update: {
+        status: ReviewStepStatus.PENDING,
+        reviewer_user_id: null,
+        reviewed_at: null,
+      },
+    });
+  }
+
+  /**
    * Step 1 of offer acceptance: record acknowledgements + require acceptance uploads,
    * then move to PENDING_ADMIN_REVIEW (or APPROVED_FOR_SIGNING when no acceptance docs).
    */
@@ -1574,11 +1686,9 @@ export class ApplicationService {
 
     const now = new Date().toISOString();
     const nextStatus = resolveStatusAfterOfferAcceptanceSubmit(workflow);
-    const acknowledgements = buildAcknowledgementRecords({
-      documentKeys: [...checked],
-      userId,
-      acceptedAt: now,
-    });
+    const allowedAcknowledgementKeys = resolveOfferAcknowledgementsFromWorkflow(workflow).map(
+      (doc) => doc.key
+    );
 
     await prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<
@@ -1600,10 +1710,13 @@ export class ApplicationService {
           "Offer acceptance has already been submitted or is not editable."
         );
       }
-      const expiresAt = offer.expires_at as string | null | undefined;
-      if (expiresAt && new Date(expiresAt) < new Date()) {
-        throw new AppError(400, "OFFER_EXPIRED", "This offer has expired");
-      }
+      const acknowledgements = mergeAcknowledgementRecords({
+        existing: acceptance?.acknowledgements,
+        documentKeys: [...checked],
+        allowedKeys: allowedAcknowledgementKeys,
+        userId,
+        acceptedAt: now,
+      });
       const updatedOffer = patchOfferAcceptance(offer, {
         status: nextStatus,
         acknowledgements,
@@ -1615,6 +1728,7 @@ export class ApplicationService {
         where: { id: contractId },
         data: { offer_details: updatedOffer as Prisma.InputJsonValue },
       });
+      await this.resetAcceptanceDocumentsReviewInTx(tx, applicationId, application, workflow);
     });
 
     return this.repository.findById(applicationId) as Promise<Application>;
@@ -1670,11 +1784,9 @@ export class ApplicationService {
 
     const now = new Date().toISOString();
     const nextStatus = resolveStatusAfterOfferAcceptanceSubmit(workflow);
-    const acknowledgements = buildAcknowledgementRecords({
-      documentKeys: [...checked],
-      userId,
-      acceptedAt: now,
-    });
+    const allowedAcknowledgementKeys = resolveOfferAcknowledgementsFromWorkflow(workflow).map(
+      (doc) => doc.key
+    );
 
     await prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<
@@ -1696,10 +1808,13 @@ export class ApplicationService {
           "Offer acceptance has already been submitted or is not editable."
         );
       }
-      const expiresAt = offer.expires_at as string | null | undefined;
-      if (expiresAt && new Date(expiresAt) < new Date()) {
-        throw new AppError(400, "OFFER_EXPIRED", "This offer has expired");
-      }
+      const acknowledgements = mergeAcknowledgementRecords({
+        existing: acceptance?.acknowledgements,
+        documentKeys: [...checked],
+        allowedKeys: allowedAcknowledgementKeys,
+        userId,
+        acceptedAt: now,
+      });
       const updatedOffer = patchOfferAcceptance(offer, {
         status: nextStatus,
         acknowledgements,
@@ -1711,6 +1826,7 @@ export class ApplicationService {
         where: { id: invoiceId },
         data: { offer_details: updatedOffer as Prisma.InputJsonValue },
       });
+      await this.resetAcceptanceDocumentsReviewInTx(tx, applicationId, application, workflow);
     });
 
     return this.repository.findById(applicationId) as Promise<Application>;
@@ -1767,14 +1883,6 @@ export class ApplicationService {
         throw new AppError(400, "ALREADY_RESPONDED", "This offer has already been responded to");
       }
 
-      const expiresAt = offer.expires_at as string | null | undefined;
-      if (expiresAt) {
-        const expiry = new Date(expiresAt);
-        if (expiry < new Date()) {
-          throw new AppError(400, "OFFER_EXPIRED", "This offer has expired");
-        }
-      }
-
       const now = new Date().toISOString();
       /** Issuer rejecting offer = withdraw financing request. Admin reject = REJECTED. */
       const newStatus = action === "accept" ? "APPROVED" : "WITHDRAWN";
@@ -1786,7 +1894,7 @@ export class ApplicationService {
         ? facilityFeeRatePercentRaw
         : 0;
 
-      const updatedOffer = {
+      let updatedOffer: Record<string, unknown> = {
         ...offer,
         responded_at: now,
         responded_by_user_id: userId,
@@ -1794,6 +1902,11 @@ export class ApplicationService {
           ? { rejection_reason: rejectionReason.trim() }
           : {}),
       };
+      if (getOfferAcceptanceFromOfferDetails(updatedOffer)) {
+        updatedOffer = patchOfferAcceptance(updatedOffer, {
+          status: action === "accept" ? "COMPLETED" : "DECLINED",
+        });
+      }
 
       const cd = (contract.contract_details as Record<string, unknown>) || {};
       const utilizedFacility = typeof cd.utilized_facility === "number" ? cd.utilized_facility : 0;
@@ -1816,7 +1929,7 @@ export class ApplicationService {
         where: { id: contractId },
         data: {
           status: newStatus,
-          offer_details: updatedOffer,
+          offer_details: updatedOffer as Prisma.InputJsonValue,
           contract_details: mergedDetails as Prisma.InputJsonValue,
           ...(action === "reject" && { withdraw_reason: WithdrawReason.OFFER_REJECTED }),
         },
@@ -2047,21 +2160,13 @@ export class ApplicationService {
         throw new AppError(400, "ALREADY_RESPONDED", "This offer has already been responded to");
       }
 
-      const expiresAt = offer.expires_at as string | null | undefined;
-      if (expiresAt) {
-        const expiry = new Date(expiresAt);
-        if (expiry < new Date()) {
-          throw new AppError(400, "OFFER_EXPIRED", "This offer has expired");
-        }
-      }
-
       const now = new Date().toISOString();
       /** Issuer rejecting offer = withdraw financing request. Admin reject = REJECTED. */
       const newStatus = action === "accept" ? "APPROVED" : "WITHDRAWN";
       const offeredAmount = Number(offer.offered_amount) || 0;
       const requestedAmount = Number(offer.requested_amount) || 0;
 
-      const updatedOffer = {
+      let updatedOffer: Record<string, unknown> = {
         ...offer,
         responded_at: now,
         responded_by_user_id: userId,
@@ -2069,12 +2174,17 @@ export class ApplicationService {
           ? { rejection_reason: rejectionReason.trim() }
           : {}),
       };
+      if (getOfferAcceptanceFromOfferDetails(updatedOffer)) {
+        updatedOffer = patchOfferAcceptance(updatedOffer, {
+          status: action === "accept" ? "COMPLETED" : "DECLINED",
+        });
+      }
 
       await tx.invoice.update({
         where: { id: invoiceId, application_id: applicationId },
         data: {
           status: newStatus,
-          offer_details: updatedOffer,
+          offer_details: updatedOffer as Prisma.InputJsonValue,
           ...(action === "reject" && { withdraw_reason: WithdrawReason.OFFER_REJECTED }),
         },
       });

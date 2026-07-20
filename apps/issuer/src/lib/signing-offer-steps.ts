@@ -8,6 +8,7 @@ import type { SigningOfferStep } from "@/components/signing/signing-progress-ste
 import {
   canDirectAcceptInvoice,
   getOfferAcceptanceFromOfferDetails,
+  getOfferAcceptanceStatusPresentation,
   needsSigningEnvelope,
   offerAcceptanceAllowsSigning,
   offerAcceptanceIsAwaitingAdmin,
@@ -27,6 +28,8 @@ export type SigningOfferStepId =
   | `acknowledge:${string}`
   | "documents"
   | "awaiting_review"
+  | "rejected"
+  | "declined"
   | "signers"
   | "signing"
   | "complete";
@@ -211,7 +214,28 @@ function stepShells(input: SigningOfferStepShellInput): StepShell[] {
       return shells;
     }
 
-    // Rejected / unknown — never fall through to legacy Configure signers.
+    // Terminal states get their own shell with distinct copy — never fall through to
+    // "Under review" (inaccurate once the offer is closed) or to legacy Configure signers.
+    if (input.acceptanceStatus === "REJECTED") {
+      const presentation = getOfferAcceptanceStatusPresentation("REJECTED");
+      shells.push({
+        id: "rejected",
+        label: presentation.label,
+        description: presentation.hint,
+      });
+      return shells;
+    }
+    if (input.acceptanceStatus === "DECLINED") {
+      const presentation = getOfferAcceptanceStatusPresentation("DECLINED");
+      shells.push({
+        id: "declined",
+        label: presentation.label,
+        description: presentation.hint,
+      });
+      return shells;
+    }
+
+    // Unknown status — defensive fallback, should not normally occur.
     shells.push({
       id: "awaiting_review",
       label: "Under review",
@@ -281,6 +305,17 @@ export function getCurrentSigningOfferStepId(
 ): SigningOfferStepId {
   if (input.usesAcceptanceFlow) {
     if (offerAcceptanceIsStep1Editable(input.acceptanceStatus)) {
+      // CHANGES_REQUESTED reopens on the Upload sub-step directly: acknowledgements were
+      // already recorded in a prior submission and are not re-checked here, so landing must
+      // not depend on (possibly not-yet-hydrated) checked-acknowledgement state.
+      if (input.acceptanceStatus === "CHANGES_REQUESTED") {
+        if (input.hasPostDocs) return "documents";
+        if (input.acknowledgements.length > 0) {
+          const last = input.acknowledgements[input.acknowledgements.length - 1];
+          return acknowledgementStepId(last.key);
+        }
+        return "documents";
+      }
       const incompleteAck = firstIncompleteAcknowledgementStepId(
         input.acknowledgements,
         input.checkedAcknowledgementKeys
@@ -304,7 +339,9 @@ export function getCurrentSigningOfferStepId(
       }
       return "signers";
     }
-    // Rejected / unknown — stay on awaiting shell; never legacy Configure signers.
+    if (input.acceptanceStatus === "REJECTED") return "rejected";
+    if (input.acceptanceStatus === "DECLINED") return "declined";
+    // Unknown status — defensive fallback; never legacy Configure signers.
     return "awaiting_review";
   }
 
@@ -344,7 +381,7 @@ export function getSigningOfferSteps(input: SigningOfferStepCursorInput): Signin
     if (shell.id === "complete" && input.envelopeCompleted) {
       status = "completed";
     }
-    if (shell.id === "awaiting_review") {
+    if (shell.id === "awaiting_review" || shell.id === "rejected" || shell.id === "declined") {
       status = "current";
     }
     return { ...shell, status };

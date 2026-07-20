@@ -19,6 +19,7 @@ import {
   computeSigningEnvelopeProgress,
   getOfferAcceptanceFromOfferDetails,
   getOfferAcceptanceStatusPresentation,
+  resolveOfferAcknowledgementsFromWorkflow,
   type ApplicationPersonRow,
   type SigningEnvelopeDto,
   type SigningEnvelopeStatus,
@@ -85,7 +86,7 @@ function splitEnvelopes(envelopes: SigningEnvelopeDto[]): {
 
 export interface SigningEnvelopePanelProps {
   applicationId: string;
-  /** Product.workflow JSON (retained for callers; panel is driven by envelope state). */
+  /** Product.workflow JSON — used to resolve offer acknowledgement document names. */
   workflow: unknown;
   people: ApplicationPersonRow[];
   guarantors: unknown;
@@ -94,14 +95,18 @@ export interface SigningEnvelopePanelProps {
   productVersion?: number | null;
   /** Whether the admin can manage void/reminder actions for this application's signing. */
   canManage?: boolean;
-  /** offer_details from the contract or invoice this package belongs to */
+  /** offer_details from the contract this application's offer belongs to (contract-based structures). */
   offerDetails?: unknown;
+  /** Standalone invoices (invoice_only structure) — each carries its own offer_details. */
+  invoices?: { id: string; offer_details?: unknown }[];
 }
 
 export function SigningEnvelopePanel({
   applicationId,
+  workflow,
   canManage = true,
   offerDetails,
+  invoices = [],
 }: SigningEnvelopePanelProps) {
   const { data: envelopes = [], isLoading } = useAdminSigningEnvelopes(applicationId);
   const voidMutation = useVoidSigningEnvelope(applicationId);
@@ -109,10 +114,31 @@ export function SigningEnvelopePanel({
   const [historyOpen, setHistoryOpen] = React.useState(false);
 
   const { primary, history } = React.useMemo(() => splitEnvelopes(envelopes), [envelopes]);
-  const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
+
+  /**
+   * Invoice-only applications have no contract offer — each invoice carries its own
+   * offer_details. Prefer the invoice tied to the primary envelope; otherwise fall back to
+   * the contract offer, or the first invoice offer available.
+   */
+  const acceptanceOfferDetails = React.useMemo(() => {
+    if (primary?.invoice_id) {
+      return invoices.find((inv) => inv.id === primary.invoice_id)?.offer_details ?? offerDetails ?? null;
+    }
+    if (offerDetails != null) return offerDetails;
+    return invoices.find((inv) => inv.offer_details != null)?.offer_details ?? null;
+  }, [primary, offerDetails, invoices]);
+
+  const acceptance = getOfferAcceptanceFromOfferDetails(acceptanceOfferDetails);
   const acceptancePresentation = acceptance
     ? getOfferAcceptanceStatusPresentation(acceptance.status)
     : null;
+  const acknowledgementNameByKey = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const doc of resolveOfferAcknowledgementsFromWorkflow(workflow)) {
+      map.set(doc.key, doc.name);
+    }
+    return map;
+  }, [workflow]);
   const signingBlocked =
     acceptance != null &&
     acceptance.status !== "APPROVED_FOR_SIGNING" &&
@@ -155,6 +181,23 @@ export function SigningEnvelopePanel({
               <Badge variant="secondary">{acceptancePresentation.label}</Badge>
             </div>
             <p className="text-sm text-muted-foreground">{acceptancePresentation.hint}</p>
+            {acceptance?.acknowledgements?.length ? (
+              <ul className="mt-1 space-y-1 border-t border-border/60 pt-2">
+                {acceptance.acknowledgements.map((ack) => (
+                  <li
+                    key={ack.document_key}
+                    className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                  >
+                    <span className="text-foreground">
+                      {acknowledgementNameByKey.get(ack.document_key) ?? ack.document_key}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      Acknowledged {format(new Date(ack.accepted_at), "d MMM yyyy, h:mm a")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
         ) : null}
 

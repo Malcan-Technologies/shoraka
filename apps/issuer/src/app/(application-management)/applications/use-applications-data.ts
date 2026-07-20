@@ -41,7 +41,7 @@ interface ApiContract {
   id?: string;
   status?: string;
   withdraw_reason?: string | null;
-  offer_details?: { expires_at?: string | null; offered_facility?: number } | null;
+  offer_details?: { offered_facility?: number } | null;
   contract_details?: Record<string, unknown> | null;
   customer_details?: Record<string, unknown> | null;
 }
@@ -51,7 +51,7 @@ interface ApiInvoice {
   contract_id?: string | null;
   status?: string;
   withdraw_reason?: string | null;
-  offer_details?: { expires_at?: string | null } | Record<string, unknown> | null;
+  offer_details?: Record<string, unknown> | null;
   details?: Record<string, unknown>;
   document?: Record<string, unknown> | null;
 }
@@ -317,16 +317,6 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
       ? String((api.financing_type as Record<string, unknown>).product_id ?? "") || null
       : null;
 
-  /** Offer expiry: from contract or first invoice with offer. */
-  let expiresAt: string | null | undefined;
-  const co = contract?.offer_details as { expires_at?: string | null } | undefined;
-  if (co?.expires_at) expiresAt = String(co.expires_at);
-  else {
-    const invWithOffer = invoices.find((i) => i.status === "OFFER_SENT" && i.offer_details);
-    const io = (invWithOffer?.offer_details ?? {}) as { expires_at?: string | null };
-    if (io?.expires_at) expiresAt = String(io.expires_at);
-  }
-
   const signedContractOfferLetterAvailable = isSignedOfferLetterAvailable(contractStatus);
 
   const reviewRemarks = readApplicationReviewRemarks(api);
@@ -355,7 +345,6 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     productId,
     supportingDocuments: api.supporting_documents ?? null,
     withdrawReason,
-    expiresAt,
     signedContractOfferLetterAvailable,
   };
 }

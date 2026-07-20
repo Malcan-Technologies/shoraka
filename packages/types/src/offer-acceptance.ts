@@ -18,6 +18,7 @@ export type OfferAcceptanceStatus =
   | "PENDING_ADMIN_REVIEW"
   | "CHANGES_REQUESTED"
   | "REJECTED"
+  | "DECLINED"
   | "APPROVED_FOR_SIGNING"
   | "SIGNING_IN_PROGRESS"
   | "COMPLETED";
@@ -27,6 +28,7 @@ export const OFFER_ACCEPTANCE_STATUSES: readonly OfferAcceptanceStatus[] = [
   "PENDING_ADMIN_REVIEW",
   "CHANGES_REQUESTED",
   "REJECTED",
+  "DECLINED",
   "APPROVED_FOR_SIGNING",
   "SIGNING_IN_PROGRESS",
   "COMPLETED",
@@ -204,12 +206,31 @@ export function withOfferAcceptance(
   return { ...offerDetails, offer_acceptance: acceptance };
 }
 
+/** Issuer UI: signing steps are visible after admin approval (including completed packages). */
 export function offerAcceptanceAllowsSigning(status: OfferAcceptanceStatus | null | undefined): boolean {
   return status === "APPROVED_FOR_SIGNING" || status === "SIGNING_IN_PROGRESS" || status === "COMPLETED";
 }
 
+/** Create a draft signing package only from the approved-for-signing phase. */
+export function offerAcceptanceAllowsCreateSigningPackage(
+  status: OfferAcceptanceStatus | null | undefined
+): boolean {
+  return status === "APPROVED_FOR_SIGNING";
+}
+
+/** Send (or re-send after draft) while approved or already marked signing-in-progress. */
+export function offerAcceptanceAllowsSendSigningPackage(
+  status: OfferAcceptanceStatus | null | undefined
+): boolean {
+  return status === "APPROVED_FOR_SIGNING" || status === "SIGNING_IN_PROGRESS";
+}
+
 export function offerAcceptanceIsStep1Editable(status: OfferAcceptanceStatus | null | undefined): boolean {
   return status === "PENDING_ISSUER" || status === "CHANGES_REQUESTED" || status == null;
+}
+
+export function offerAcceptanceIsTerminal(status: OfferAcceptanceStatus | null | undefined): boolean {
+  return status === "REJECTED" || status === "DECLINED" || status === "COMPLETED";
 }
 
 export function offerAcceptanceIsAwaitingAdmin(status: OfferAcceptanceStatus | null | undefined): boolean {
@@ -401,6 +422,8 @@ export function getOfferAcceptanceStatusPresentation(
       return { label: "Changes requested", hint: "Issuer must update acceptance documents and resubmit." };
     case "REJECTED":
       return { label: "Acceptance rejected", hint: "Offer was withdrawn after acceptance was rejected." };
+    case "DECLINED":
+      return { label: "Offer declined", hint: "Issuer declined this offer; acceptance and signing are closed." };
     case "APPROVED_FOR_SIGNING":
       return { label: "Approved for signing", hint: "Issuer can configure signers and send the signing package." };
     case "SIGNING_IN_PROGRESS":

@@ -3,7 +3,7 @@
 /**
  * Modal for reviewing contract or invoice offers. Issuer can download offer letter,
  * accept, or decline. CashSouk brand styling per BRANDING.md.
- * Contract end date uses contract_details.end_date; offer expiry shown in the sidebar.
+ * Contract end date uses contract_details.end_date.
  */
 
 import * as React from "react";
@@ -34,7 +34,6 @@ import { formatCurrency } from "@cashsouk/config";
 import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
-  CalendarDaysIcon,
   CheckCircleIcon,
   DocumentTextIcon,
   PencilSquareIcon,
@@ -59,7 +58,10 @@ import {
   type SigningTemplateConfig,
   type SigningTemplateRole,
   computeSigningEnvelopeProgress,
+  getOfferAcceptanceStatusPresentation,
   offerAcceptanceAllowsSigning,
+  offerAcceptanceIsTerminal,
+  type Application,
 } from "@cashsouk/types";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { Input } from "@/components/ui/input";
@@ -128,6 +130,12 @@ const DECLINE_CONTEXT_MAX = 200;
 type PostApplicationDocsState = {
   areAllFilesUploaded: boolean;
   hasPendingChanges: boolean;
+};
+
+/** GET /v1/applications/:id includes `contract` and `invoices` relations not on the base Application type. */
+type ApplicationWithOfferRelations = Application & {
+  contract?: { offer_details?: Record<string, unknown> | null } | null;
+  invoices?: Array<{ id: string; offer_details?: Record<string, unknown> | null }>;
 };
 
 function formatDateOrDash(value: string | null | undefined): string {
@@ -665,6 +673,7 @@ export function ReviewOfferModal({
     () => new Set()
   );
   const [offerLetterPreviewUrl, setOfferLetterPreviewUrl] = React.useState<string | null>(null);
+  const [templatePreviewUrls, setTemplatePreviewUrls] = React.useState<Record<string, string>>({});
   const [isSubmittingAcceptance, setIsSubmittingAcceptance] = React.useState(false);
   const invoiceContractId =
     type === "invoice" ? (invoice?.contractId ?? contractId ?? null) : null;
@@ -706,7 +715,10 @@ export function ReviewOfferModal({
   const canRemindSigners =
     activeSigningEnvelope != null &&
     (activeSigningEnvelope.status === "SENT" || activeSigningEnvelope.status === "IN_PROGRESS");
-  const { data: applicationRecord } = useApplication(useSigningStepper ? applicationId : "");
+  // Always enabled (not gated on useSigningStepper): this is the polling source of truth for
+  // acceptance phase — application/contract/invoices refresh together every 15s (see
+  // getReviewRefreshPolicy), so the modal never derives phase from a stale snapshot.
+  const { data: applicationRecord } = useApplication(applicationId);
   const { data: corporateEntities } = useCorporateEntities(
     useSigningStepper ? issuerOrganizationId : undefined
   );
@@ -732,10 +744,37 @@ export function ReviewOfferModal({
   const rejectInvoice = useRejectInvoiceOffer();
   const acceptInvoice = useAcceptInvoiceOffer();
 
+  /**
+   * Unified refresh after any action that can move `offer_acceptance.status` (Step 1 submit,
+   * envelope send, provider sync): application + contract + applications-list invalidation,
+   * awaited so the next render's phase derivation uses fresh data instead of the pre-action
+   * snapshot.
+   */
+  const invalidateOfferAcceptanceQueries = React.useCallback(async () => {
+    const tasks = [
+      queryClient.invalidateQueries({ queryKey: ["application", applicationId] }),
+      queryClient.invalidateQueries({ queryKey: ["applications"] }),
+    ];
+    if (type === "contract" && contractId) {
+      tasks.push(queryClient.invalidateQueries({ queryKey: ["contract", contractId] }));
+    }
+    await Promise.all(tasks);
+  }, [applicationId, contractId, queryClient, type]);
+
+  // Refreshed invoice from the polling application query — falls back to the (possibly stale)
+  // invoice prop only until the query resolves, so the acceptance phase never sticks on a
+  // point-in-time snapshot captured when "Review offer" was clicked.
+  const liveInvoice = React.useMemo(() => {
+    if (type !== "invoice" || !invoice?.id) return undefined;
+    const app = applicationRecord as ApplicationWithOfferRelations | null | undefined;
+    return app?.invoices?.find((inv) => inv.id === invoice.id);
+  }, [applicationRecord, invoice?.id, type]);
+
   const offerDetails =
     type === "contract"
       ? (contractRecord as { offer_details?: Record<string, unknown> } | null)?.offer_details
-      : (invoice as { offer_details?: Record<string, unknown> } | undefined)?.offer_details;
+      : (liveInvoice?.offer_details ??
+        (invoice as { offer_details?: Record<string, unknown> } | undefined)?.offer_details);
   const od = offerDetails as Record<string, unknown> | null | undefined;
   const acceptanceStatus = resolveOfferAcceptanceStatus(offerDetails);
   const recordedAcknowledgementKeys = React.useMemo(() => {
@@ -849,7 +888,7 @@ export function ReviewOfferModal({
           : "—")
       : invoice?.number ?? "Invoice financing";
 
-  /** Contract end date from contract_details.end_date; invoice uses offer expiry. */
+  /** Contract end date from contract_details.end_date. */
   const contractEndDate =
     type === "contract" && contractDetails?.end_date
       ? formatDateOrDash(String(contractDetails.end_date))
@@ -888,16 +927,8 @@ export function ReviewOfferModal({
         ? formatCurrency(Number(od.offered_amount))
         : "—";
 
-  const expiresAt = od?.expires_at
-    ? format(new Date(String(od.expires_at)), "d MMM yyyy")
-    : "—";
-  const dateLabel =
-    type === "contract"
-      ? contractEndDate
-        ? "Contract end date"
-        : "Expires"
-      : "Expires";
-  const dateValue = type === "contract" && contractEndDate ? contractEndDate : expiresAt;
+  const dateLabel = "Contract end date";
+  const dateValue = contractEndDate ?? "—";
 
   const profitRateDisplay =
     od?.offered_profit_rate_percent != null &&
@@ -1114,12 +1145,18 @@ export function ReviewOfferModal({
       envelope = sendResponse.data;
     }
 
-    await queryClient.invalidateQueries({ queryKey: ["signing-envelopes", applicationId] });
+    // Sending can move offer_acceptance.status to SIGNING_IN_PROGRESS server-side — refresh
+    // the envelope and the phase-feeding queries together.
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["signing-envelopes", applicationId] }),
+      invalidateOfferAcceptanceQueries(),
+    ]);
     toast.success("Signing emails sent to all signers");
   }, [
     apiClient,
     applicationId,
     contractId,
+    invalidateOfferAcceptanceQueries,
     invoice?.id,
     isLoadingFrozenProductWorkflow,
     queryClient,
@@ -1220,10 +1257,9 @@ export function ReviewOfferModal({
         return;
       }
       toast.success("Offer acceptance submitted");
-      await queryClient.invalidateQueries({ queryKey: ["applications"] });
-      if (type === "contract" && contractId) {
-        await queryClient.invalidateQueries({ queryKey: ["contract", contractId] });
-      }
+      // Await the unified refresh before clearing the viewed step so the next smart-land
+      // computation (D-05) reads the post-submit phase, not the pre-submit snapshot.
+      await invalidateOfferAcceptanceQueries();
       setViewedStepId(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not submit offer acceptance");
@@ -1235,11 +1271,10 @@ export function ReviewOfferModal({
     acknowledgementCheckedKeys,
     apiClient,
     applicationId,
-    contractId,
     ensurePostApplicationDocumentsSaved,
     hasPostDocs,
+    invalidateOfferAcceptanceQueries,
     invoice?.id,
-    queryClient,
     type,
   ]);
 
@@ -1573,6 +1608,42 @@ export function ReviewOfferModal({
     };
   }, [acknowledgementDocs, applicationId, apiClient, type, invoice?.id]);
 
+  // Load in-modal preview URLs for template_pdf acknowledgements via the existing generic S3
+  // presign endpoint — no new storage path or preview infrastructure.
+  React.useEffect(() => {
+    const templateDocs = acknowledgementDocs.filter(
+      (doc) => doc.content_source === "template_pdf" && doc.template?.s3_key
+    );
+    if (templateDocs.length === 0) {
+      setTemplatePreviewUrls({});
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const entries = await Promise.all(
+        templateDocs.map(async (doc) => {
+          try {
+            const response = await apiClient.getS3DownloadUrl(doc.template!.s3_key);
+            return response.success && response.data?.downloadUrl
+              ? ([doc.key, response.data.downloadUrl] as const)
+              : null;
+          } catch {
+            return null;
+          }
+        })
+      );
+      if (cancelled) return;
+      const next: Record<string, string> = {};
+      for (const entry of entries) {
+        if (entry) next[entry[0]] = entry[1];
+      }
+      setTemplatePreviewUrls(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [acknowledgementDocs, apiClient]);
+
   // D-05 smart land once workflow settles; do not re-sync when postDocsReady flips (D-07).
   React.useEffect(() => {
     if (isLoadingFrozenProductWorkflow || viewedStepId !== null) return;
@@ -1655,7 +1726,12 @@ export function ReviewOfferModal({
           setIsSyncingSigning(false);
         }
       }
-      await queryClient.invalidateQueries({ queryKey: ["signing-envelopes", applicationId] });
+      // Sync can auto-complete the envelope and flip offer_acceptance.status to COMPLETED —
+      // refresh the phase-feeding queries alongside the envelope.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["signing-envelopes", applicationId] }),
+        invalidateOfferAcceptanceQueries(),
+      ]);
     })();
   };
 
@@ -2091,6 +2167,7 @@ export function ReviewOfferModal({
                 });
               }}
               offerLetterPreviewUrl={offerLetterPreviewUrl}
+              getTemplatePreviewUrl={(d) => templatePreviewUrls[d.key]}
             />
             <Button
               className="h-11 w-full rounded-xl"
@@ -2134,6 +2211,30 @@ export function ReviewOfferModal({
             </CardContent>
           </Card>
         );
+      case "rejected":
+      case "declined": {
+        // Terminal — never the "Under review" copy or the auto-refresh reassurance (nothing
+        // further will change here).
+        const presentation = getOfferAcceptanceStatusPresentation(
+          stepId === "rejected" ? "REJECTED" : "DECLINED"
+        );
+        return (
+          <Card className="border-destructive/20 bg-destructive/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg text-destructive">
+                <XMarkIcon className="h-5 w-5" />
+                {presentation.label}
+              </CardTitle>
+              <CardDescription>{presentation.hint}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                This offer is closed. No further action is available in this dialog.
+              </p>
+            </CardContent>
+          </Card>
+        );
+      }
       case "documents":
         return (
           <Card className="border-primary/20 bg-primary/5">
@@ -2518,10 +2619,6 @@ export function ReviewOfferModal({
             <ArrowDownTrayIcon className="h-4 w-4" />
             {downloading ? "Downloading…" : "Download offer letter"}
           </Button>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <CalendarDaysIcon className="h-4 w-4 shrink-0" />
-            <span>Respond by {expiresAt}</span>
-          </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Button
               variant="outline"
@@ -2610,10 +2707,6 @@ export function ReviewOfferModal({
                         <ArrowDownTrayIcon className="h-4 w-4" />
                         {downloading ? "Downloading…" : "Download offer letter"}
                       </Button>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <CalendarDaysIcon className="h-4 w-4 shrink-0" />
-                        <span>Respond by {expiresAt}</span>
-                      </div>
                     </CardContent>
                   </Card>
                 ) : (
@@ -2636,7 +2729,10 @@ export function ReviewOfferModal({
             </div>
 
             <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t pt-4">
-              {useSigningStepper || isRejectMode ? (
+              {(useSigningStepper &&
+                displaySigningStepId !== "rejected" &&
+                displaySigningStepId !== "declined") ||
+              isRejectMode ? (
                 <Button
                   variant={isRejectMode ? "outline" : "destructive"}
                   onClick={() =>
@@ -2659,7 +2755,9 @@ export function ReviewOfferModal({
               </Button>
             </div>
 
-            {useSigningStepper && isSigningOverrideEnabled ? (
+            {useSigningStepper &&
+            isSigningOverrideEnabled &&
+            !offerAcceptanceIsTerminal(acceptanceStatus) ? (
               <Button
                 variant="outline"
                 size="sm"

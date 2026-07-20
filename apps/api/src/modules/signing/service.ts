@@ -25,7 +25,9 @@ import {
   ContractStatus,
   InvoiceStatus,
   getOfferAcceptanceFromOfferDetails,
-  offerAcceptanceAllowsSigning,
+  offerAcceptanceAllowsCreateSigningPackage,
+  offerAcceptanceAllowsSendSigningPackage,
+  collectAcceptanceDocumentReviewKeys,
   workflowUsesOfferAcceptanceFlow,
   type ExternalSigningSessionDto,
   type RecipientBinding,
@@ -435,35 +437,105 @@ export class SigningService {
     );
   }
 
-  /** When the product uses phased acceptance, envelope create/send requires admin-approved phase. */
+  /** Review-item statuses for acceptance docs, keyed by review scope key. Missing rows are "not approved". */
+  private async fetchAcceptanceReviewStatusByKey(
+    applicationId: string,
+    docKeys: string[]
+  ): Promise<Map<string, string>> {
+    if (docKeys.length === 0) return new Map();
+    const rows = await prisma.applicationReviewItem.findMany({
+      where: { application_id: applicationId, item_type: "document", item_id: { in: docKeys } },
+      select: { item_id: true, status: true },
+    });
+    return new Map(rows.map((row) => [row.item_id, row.status as string]));
+  }
+
+  /** Acceptance-document review keys that are not (yet) APPROVED; empty means fully approved (or none required). */
+  private async collectUnapprovedAcceptanceDocumentKeys(
+    application: SigningApplicationContext,
+    workflow: unknown[]
+  ): Promise<string[]> {
+    const docKeys = collectAcceptanceDocumentReviewKeys(
+      workflow,
+      application.acceptance_documents,
+      application.supporting_documents
+    );
+    if (docKeys.length === 0) return [];
+    const statusByKey = await this.fetchAcceptanceReviewStatusByKey(application.id, docKeys);
+    return docKeys.filter((key) => statusByKey.get(key) !== "APPROVED");
+  }
+
+  private async assertAcceptanceDocumentsApprovedForSigning(
+    application: SigningApplicationContext,
+    workflow: unknown[]
+  ): Promise<void> {
+    const unapproved = await this.collectUnapprovedAcceptanceDocumentKeys(application, workflow);
+    if (unapproved.length > 0) {
+      throw new AppError(
+        400,
+        "OFFER_ACCEPTANCE_DOCUMENTS_NOT_APPROVED",
+        "All acceptance documents must be approved by CashSouk before the signing package can be created or sent.",
+        { unapproved_keys: unapproved }
+      );
+    }
+  }
+
+  /**
+   * When the product uses phased acceptance, envelope create/send requires a fresh,
+   * well-formed offer_acceptance phase (no legacy allow) plus fully-approved acceptance docs.
+   * Re-reads the offer from the DB rather than trusting the in-memory application context.
+   */
   private async assertOfferAcceptanceAllowsSigning(
     application: SigningApplicationContext,
     contractId: string | null,
-    invoiceId: string | null
+    invoiceId: string | null,
+    action: "create" | "send"
   ): Promise<void> {
     const workflow = await this.getProductWorkflowForApplication(application);
     if (!workflowUsesOfferAcceptanceFlow(workflow)) return;
 
     let offerDetails: unknown = null;
     if (contractId) {
-      const contract = application.contract;
-      offerDetails = contract && contract.id === contractId ? contract.offer_details : null;
+      const contract = await prisma.contract.findUnique({
+        where: { id: contractId },
+        select: { offer_details: true },
+      });
+      offerDetails = contract?.offer_details ?? null;
     } else if (invoiceId) {
-      const invoice = application.invoices.find((item) => item.id === invoiceId);
+      const invoice = await prisma.invoice.findUnique({
+        where: { id: invoiceId },
+        select: { offer_details: true },
+      });
       offerDetails = invoice?.offer_details ?? null;
+    } else {
+      throw new AppError(400, "INVALID_STATE", "No offer target was provided for signing.");
     }
+
     const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
-    // Offers sent before offer_acceptance existed keep the legacy presence-only gate.
-    if (!acceptance) return;
-    if (!offerAcceptanceAllowsSigning(acceptance.status)) {
+    if (!acceptance) {
+      throw new AppError(
+        400,
+        "OFFER_ACCEPTANCE_MISSING",
+        "This offer has no acceptance phase recorded and cannot be signed."
+      );
+    }
+
+    const allowed =
+      action === "create"
+        ? offerAcceptanceAllowsCreateSigningPackage(acceptance.status)
+        : offerAcceptanceAllowsSendSigningPackage(acceptance.status);
+    if (!allowed) {
       throw new AppError(
         400,
         "OFFER_ACCEPTANCE_NOT_APPROVED",
         "Acceptance documents must be approved by CashSouk before the signing package can be created or sent."
       );
     }
+
+    await this.assertAcceptanceDocumentsApprovedForSigning(application, workflow);
   }
 
+  /** Only APPROVED_FOR_SIGNING may advance to SIGNING_IN_PROGRESS; any other phase is a no-op. */
   private async markOfferAcceptanceSigningInProgress(
     envelope: SigningEnvelopeWithGraph
   ): Promise<void> {
@@ -475,9 +547,7 @@ export class SigningService {
       const offer = (contract?.offer_details as Record<string, unknown> | null) ?? null;
       if (!offer) return;
       const current = getOfferAcceptanceFromOfferDetails(offer);
-      if (!current || current.status === "SIGNING_IN_PROGRESS" || current.status === "COMPLETED") {
-        return;
-      }
+      if (!current || current.status !== "APPROVED_FOR_SIGNING") return;
       await prisma.contract.update({
         where: { id: envelope.contract_id },
         data: {
@@ -496,15 +566,102 @@ export class SigningService {
       const offer = (invoice?.offer_details as Record<string, unknown> | null) ?? null;
       if (!offer) return;
       const current = getOfferAcceptanceFromOfferDetails(offer);
-      if (!current || current.status === "SIGNING_IN_PROGRESS" || current.status === "COMPLETED") {
-        return;
-      }
+      if (!current || current.status !== "APPROVED_FOR_SIGNING") return;
       await prisma.invoice.update({
         where: { id: envelope.invoice_id },
         data: {
           offer_details: patchOfferAcceptance(offer, {
             status: "SIGNING_IN_PROGRESS",
           }) as Prisma.InputJsonValue,
+        },
+      });
+    }
+  }
+
+  /**
+   * Roll offer_acceptance back from SIGNING_IN_PROGRESS after an envelope closes without
+   * completing (void / decline). Only restores APPROVED_FOR_SIGNING when acceptance docs are
+   * still fully approved; otherwise the phase is left untouched (no unsupported transition).
+   */
+  private async rollbackOfferAcceptanceAfterEnvelopeClosed(
+    envelope: Pick<SigningEnvelopeWithGraph, "application_id" | "contract_id" | "invoice_id">
+  ): Promise<void> {
+    if (!envelope.contract_id && !envelope.invoice_id) return;
+
+    let offer: Record<string, unknown> | null = null;
+    if (envelope.contract_id) {
+      const contract = await prisma.contract.findUnique({
+        where: { id: envelope.contract_id },
+        select: { offer_details: true },
+      });
+      offer = (contract?.offer_details as Record<string, unknown> | null) ?? null;
+    } else if (envelope.invoice_id) {
+      const invoice = await prisma.invoice.findUnique({
+        where: { id: envelope.invoice_id },
+        select: { offer_details: true },
+      });
+      offer = (invoice?.offer_details as Record<string, unknown> | null) ?? null;
+    }
+    if (!offer) return;
+
+    const current = getOfferAcceptanceFromOfferDetails(offer);
+    if (!current || current.status !== "SIGNING_IN_PROGRESS") return;
+
+    const application = await this.requireApplicationContext(envelope.application_id);
+    const workflow = await this.getProductWorkflowForApplication(application);
+    const unapproved = await this.collectUnapprovedAcceptanceDocumentKeys(application, workflow);
+    if (unapproved.length > 0) return;
+
+    const updatedOffer = patchOfferAcceptance(offer, {
+      status: "APPROVED_FOR_SIGNING",
+    }) as Prisma.InputJsonValue;
+    if (envelope.contract_id) {
+      await prisma.contract.update({
+        where: { id: envelope.contract_id },
+        data: { offer_details: updatedOffer },
+      });
+    } else if (envelope.invoice_id) {
+      await prisma.invoice.update({
+        where: { id: envelope.invoice_id },
+        data: { offer_details: updatedOffer },
+      });
+    }
+  }
+
+  /** Idempotently mark offer_acceptance COMPLETED once the signing envelope is COMPLETED. */
+  private async markOfferAcceptanceCompleted(
+    envelope: Pick<SigningEnvelopeWithGraph, "contract_id" | "invoice_id">
+  ): Promise<void> {
+    if (envelope.contract_id) {
+      const contract = await prisma.contract.findUnique({
+        where: { id: envelope.contract_id },
+        select: { offer_details: true },
+      });
+      const offer = (contract?.offer_details as Record<string, unknown> | null) ?? null;
+      if (!offer) return;
+      const current = getOfferAcceptanceFromOfferDetails(offer);
+      if (!current || current.status === "COMPLETED") return;
+      await prisma.contract.update({
+        where: { id: envelope.contract_id },
+        data: {
+          offer_details: patchOfferAcceptance(offer, { status: "COMPLETED" }) as Prisma.InputJsonValue,
+        },
+      });
+      return;
+    }
+    if (envelope.invoice_id) {
+      const invoice = await prisma.invoice.findUnique({
+        where: { id: envelope.invoice_id },
+        select: { offer_details: true },
+      });
+      const offer = (invoice?.offer_details as Record<string, unknown> | null) ?? null;
+      if (!offer) return;
+      const current = getOfferAcceptanceFromOfferDetails(offer);
+      if (!current || current.status === "COMPLETED") return;
+      await prisma.invoice.update({
+        where: { id: envelope.invoice_id },
+        data: {
+          offer_details: patchOfferAcceptance(offer, { status: "COMPLETED" }) as Prisma.InputJsonValue,
         },
       });
     }
@@ -573,7 +730,7 @@ export class SigningService {
       );
     }
     await this.assertPostApplicationDocumentsReady(application);
-    await this.assertOfferAcceptanceAllowsSigning(application, contractId, invoiceId);
+    await this.assertOfferAcceptanceAllowsSigning(application, contractId, invoiceId, "create");
     const workflow = await this.getProductWorkflowForApplication(application);
     const packageKind: SigningPackageOfferKind = contractId ? "contract" : "invoice";
     const template = this.readSigningTemplateFromWorkflow(workflow, packageKind);
@@ -836,7 +993,8 @@ export class SigningService {
     await this.assertOfferAcceptanceAllowsSigning(
       application,
       envelope.contract_id ?? null,
-      envelope.invoice_id ?? null
+      envelope.invoice_id ?? null,
+      "send"
     );
 
     for (const document of [...envelope.documents].sort((a, b) => a.order - b.order)) {
@@ -1416,6 +1574,8 @@ export class SigningService {
       );
       if (nextEnvelopeStatus === "COMPLETED") {
         await this.finalizeCompletedEnvelopeOffer(envelope);
+      } else if (nextEnvelopeStatus === "DECLINED") {
+        await this.rollbackOfferAcceptanceAfterEnvelopeClosed(envelope);
       }
     }
   }
@@ -1446,6 +1606,15 @@ export class SigningService {
       { envelopeId: envelope.id, skipped: result.skipped },
       "Processed offer finalization after signing envelope completion"
     );
+
+    try {
+      await this.markOfferAcceptanceCompleted(envelope);
+    } catch (error) {
+      logger.error(
+        { error, envelopeId: envelope.id },
+        "Failed to mark offer_acceptance COMPLETED after envelope finalization"
+      );
+    }
   }
 
   async voidEnvelope(id: string, reason: string | null): Promise<SigningEnvelopeDto> {
@@ -1454,6 +1623,7 @@ export class SigningService {
       throw new AppError(409, "SIGNING_ENVELOPE_NOT_VOIDABLE", "This envelope can no longer be voided.");
     }
     await this.repo.voidEnvelope(id, reason);
+    await this.rollbackOfferAcceptanceAfterEnvelopeClosed(envelope);
     return this.getEnvelope(id);
   }
 

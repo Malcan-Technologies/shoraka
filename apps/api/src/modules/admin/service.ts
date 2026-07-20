@@ -79,6 +79,7 @@ import {
   canManageDirectorShareholder,
   computeHasPendingDirectorShareholder,
   filterVisiblePeopleRows,
+  WithdrawReason,
   type SoukscoreRiskRating,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
@@ -497,6 +498,94 @@ export class AdminService {
         "Contract offer was finalized by issuer and cannot be modified"
       );
     }
+  }
+
+  /** Block offer/acceptance mutations while a draft or in-flight signing package exists. */
+  private async assertNoActiveSigningPackage(
+    applicationId: string,
+    target: { contractId?: string | null; invoiceId?: string | null },
+    actionLabel: string
+  ): Promise<void> {
+    const envelope = await prisma.signingEnvelope.findFirst({
+      where: {
+        application_id: applicationId,
+        status: { in: ["DRAFT", "SENT", "IN_PROGRESS"] },
+        ...(target.contractId ? { contract_id: target.contractId } : {}),
+        ...(target.invoiceId ? { invoice_id: target.invoiceId } : {}),
+      },
+      select: { id: true, status: true },
+    });
+    if (envelope) {
+      throw new AppError(
+        400,
+        "ACTIVE_SIGNING_PACKAGE",
+        `Void the active signing package before ${actionLabel}.`
+      );
+    }
+  }
+
+  /** Reset acceptance review items/section so a new offer version cannot reuse stale approvals. */
+  private async resetAcceptanceReviewForNewOfferInTx(
+    tx: Prisma.TransactionClient,
+    applicationId: string,
+    application: {
+      supporting_documents?: unknown;
+      acceptance_documents?: unknown;
+    },
+    workflow: unknown[]
+  ): Promise<void> {
+    const docKeys = collectAcceptanceDocumentReviewKeys(
+      workflow,
+      application.acceptance_documents,
+      application.supporting_documents
+    );
+    for (const itemId of docKeys) {
+      await tx.applicationReviewItem.upsert({
+        where: {
+          application_id_item_type_item_id: {
+            application_id: applicationId,
+            item_type: "document",
+            item_id: itemId,
+          },
+        },
+        create: {
+          application_id: applicationId,
+          item_type: "document",
+          item_id: itemId,
+          status: ReviewStepStatus.PENDING,
+          reviewer_user_id: null,
+          reviewed_at: null,
+        },
+        update: {
+          status: ReviewStepStatus.PENDING,
+          reviewer_user_id: null,
+          reviewed_at: null,
+        },
+      });
+    }
+    if (docKeys.length === 0 && !workflowHasAcceptanceDocuments(workflow)) {
+      return;
+    }
+    await tx.applicationReview.upsert({
+      where: {
+        application_id_section: {
+          application_id: applicationId,
+          section: "acceptance_documents",
+        },
+      },
+      create: {
+        application_id: applicationId,
+        section: "acceptance_documents",
+        status: ReviewStepStatus.PENDING,
+        reviewer_user_id: null,
+        reviewed_at: null,
+      },
+      update: {
+        status: ReviewStepStatus.PENDING,
+        reviewer_user_id: null,
+        reviewed_at: null,
+      },
+    });
   }
 
   private async ensureInvoiceOfferItemActionAllowed(
@@ -6260,10 +6349,11 @@ export class AdminService {
   }
 
   /**
-   * When all required acceptance-doc review items are APPROVED → APPROVED_FOR_SIGNING.
-   * When any acceptance item is AMENDMENT_REQUESTED → CHANGES_REQUESTED on active offers.
-   * When items are no longer fully approved (e.g. section/item reset to Pending) → roll
-   * APPROVED_FOR_SIGNING back to PENDING_ADMIN_REVIEW so the issuer Review CTA stays hidden.
+   * Keep offer_acceptance.status aligned with acceptance-doc review items.
+   * - Amendment → CHANGES_REQUESTED (only after Step 1 was submitted)
+   * - All approved → APPROVED_FOR_SIGNING (only from PENDING_ADMIN_REVIEW / already approved)
+   * - Never promote PENDING_ISSUER; never approve from CHANGES_REQUESTED without resubmit
+   * - Reset of approvals rolls APPROVED_FOR_SIGNING → PENDING_ADMIN_REVIEW
    */
   private async syncOfferAcceptancePhaseFromAcceptanceDocs(
     _applicationId: string,
@@ -6304,33 +6394,48 @@ export class AdminService {
       docKeys.length > 0 && docKeys.every((key) => statusByKey.get(key) === "APPROVED");
 
     const now = new Date().toISOString();
-    const nextStatus = hasAmendment
-      ? ("CHANGES_REQUESTED" as const)
-      : allApproved
-        ? ("APPROVED_FOR_SIGNING" as const)
-        : null;
 
     const resolveTargetStatus = (
       current: { status: string; submitted_at?: string | null } | null | undefined
     ): "CHANGES_REQUESTED" | "APPROVED_FOR_SIGNING" | "PENDING_ADMIN_REVIEW" | null => {
-      if (nextStatus) return nextStatus;
-      // Reset / incomplete review: unlock signing only while all docs stay approved.
+      if (!current) return null;
       if (
-        current?.status === "APPROVED_FOR_SIGNING" &&
-        docKeys.length > 0 &&
-        !allApproved &&
-        !hasAmendment
+        current.status === "PENDING_ISSUER" ||
+        current.status === "REJECTED" ||
+        current.status === "DECLINED" ||
+        current.status === "COMPLETED" ||
+        current.status === "SIGNING_IN_PROGRESS"
       ) {
-        return "PENDING_ADMIN_REVIEW";
+        return null;
       }
-      // Step 1 already submitted but phase stuck at PENDING_ISSUER while docs await review.
-      if (
-        current?.status === "PENDING_ISSUER" &&
-        current.submitted_at &&
-        docKeys.length > 0 &&
-        !allApproved &&
-        !hasAmendment
-      ) {
+      // Issuer has not submitted Step 1 yet (no submitted_at on a fresh phase).
+      if (!current.submitted_at && current.status !== "APPROVED_FOR_SIGNING") {
+        return null;
+      }
+
+      if (hasAmendment) {
+        if (
+          current.status === "PENDING_ADMIN_REVIEW" ||
+          current.status === "APPROVED_FOR_SIGNING" ||
+          current.status === "CHANGES_REQUESTED"
+        ) {
+          return "CHANGES_REQUESTED";
+        }
+        return null;
+      }
+
+      if (allApproved) {
+        // Require resubmit after changes: do not approve while still CHANGES_REQUESTED.
+        if (
+          current.status === "PENDING_ADMIN_REVIEW" ||
+          current.status === "APPROVED_FOR_SIGNING"
+        ) {
+          return "APPROVED_FOR_SIGNING";
+        }
+        return null;
+      }
+
+      if (current.status === "APPROVED_FOR_SIGNING" && docKeys.length > 0) {
         return "PENDING_ADMIN_REVIEW";
       }
       return null;
@@ -6341,14 +6446,7 @@ export class AdminService {
       const offer = (contract.offer_details as Record<string, unknown>) ?? {};
       const current = getOfferAcceptanceFromOfferDetails(offer);
       const target = resolveTargetStatus(current);
-      if (
-        current &&
-        target &&
-        current.status !== target &&
-        current.status !== "SIGNING_IN_PROGRESS" &&
-        current.status !== "COMPLETED" &&
-        current.status !== "REJECTED"
-      ) {
+      if (current && target && current.status !== target) {
         const updated = patchOfferAcceptance(offer, {
           status: target,
           reviewed_at: now,
@@ -6367,14 +6465,7 @@ export class AdminService {
       const offer = (invoice.offer_details as Record<string, unknown>) ?? {};
       const current = getOfferAcceptanceFromOfferDetails(offer);
       const target = resolveTargetStatus(current);
-      if (
-        !current ||
-        !target ||
-        current.status === target ||
-        current.status === "SIGNING_IN_PROGRESS" ||
-        current.status === "COMPLETED" ||
-        current.status === "REJECTED"
-      ) {
+      if (!current || !target || current.status === target) {
         continue;
       }
       const updated = patchOfferAcceptance(offer, {
@@ -6646,7 +6737,6 @@ export class AdminService {
     applicationId: string,
     offeredFacility: number,
     facilityFeeRatePercent: number | null,
-    expiresAt: string | null,
     reviewerUserId: string,
     logContext?: AdminLogContext
   ) {
@@ -6664,6 +6754,11 @@ export class AdminService {
     }
 
     const contractId = application.contract_id;
+    await this.assertNoActiveSigningPackage(applicationId, { contractId }, "sending a new contract offer");
+
+    const workflow = await this.loadApplicationProductWorkflow(application);
+    const stampOfferAcceptance = workflowUsesOfferAcceptanceFlow(workflow);
+
     const contractOfferMeta = await prisma.$transaction(async (tx) => {
       const lockedApplications = await tx.$queryRaw<{ status: string }[]>`
         SELECT status
@@ -6735,24 +6830,23 @@ export class AdminService {
           ? previousOffer.version
           : 0;
       const now = new Date().toISOString();
-      const offerDetails = {
+      const offerDetails: Record<string, unknown> = {
         requested_facility: requestedFacility,
         offered_facility: offeredFacility,
         facility_fee_rate_percent: facilityFeeRatePercent,
-        expires_at: expiresAt,
         sent_at: now,
         responded_at: null,
         sent_by_user_id: reviewerUserId,
         responded_by_user_id: null,
         version: previousVersion + 1,
-        offer_acceptance: { status: "PENDING_ISSUER" as const },
+        ...(stampOfferAcceptance ? { offer_acceptance: { status: "PENDING_ISSUER" as const } } : {}),
       };
 
       const updateResult = await tx.contract.updateMany({
         where: { id: contractId, updated_at: lockedContract.updated_at },
         data: {
           status: "OFFER_SENT",
-          offer_details: offerDetails,
+          offer_details: offerDetails as Prisma.InputJsonValue,
         },
       });
       if (updateResult.count !== 1) {
@@ -6761,6 +6855,10 @@ export class AdminService {
           "CONFLICT",
           "Contract was modified concurrently. Refresh and retry sending offer."
         );
+      }
+
+      if (stampOfferAcceptance) {
+        await this.resetAcceptanceReviewForNewOfferInTx(tx, applicationId, application, workflow);
       }
 
       await tx.applicationReview.upsert({
@@ -6826,7 +6924,6 @@ export class AdminService {
           : {}),
         requested_facility: contractOfferMeta.requestedFacility,
         offered_facility: offeredFacility,
-        expires_at: expiresAt,
         version: contractOfferMeta.previousVersion + 1,
       },
       ipAddress: logContext?.ipAddress ?? undefined,
@@ -6841,7 +6938,7 @@ export class AdminService {
         {
           applicationId,
           offeredFacility,
-          expiresAt,
+          expiresAt: null,
         },
         `contract-offer-sent:${contractOfferMeta.previousVersion + 1}`
       );
@@ -6862,7 +6959,6 @@ export class AdminService {
     offeredRatioPercent: number | null,
     offeredProfitRatePercent: number | null,
     platformFeeRatePercent: number | null,
-    expiresAt: string | null,
     riskRating: SoukscoreRiskRating,
     reviewerUserId: string,
     logContext?: AdminLogContext
@@ -6890,10 +6986,11 @@ export class AdminService {
       throw new AppError(400, "INVALID_STATE", "Unable to resolve invoice scope key");
     }
     await this.ensureInvoiceOfferItemActionAllowed(applicationId, scopeKey, application);
+    await this.assertNoActiveSigningPackage(applicationId, { invoiceId }, "sending a new invoice offer");
 
     const invoiceForSend = await prisma.invoice.findUnique({
       where: { id: invoiceId, application_id: applicationId },
-      select: { status: true },
+      select: { status: true, contract_id: true },
     });
     if (invoiceForSend?.status === "REJECTED") {
       throw new AppError(
@@ -6902,6 +6999,10 @@ export class AdminService {
         "Invoice was rejected; reset review to pending before sending an offer"
       );
     }
+
+    const workflow = await this.loadApplicationProductWorkflow(application);
+    const stampOfferAcceptance =
+      workflowUsesOfferAcceptanceFlow(workflow) && !invoiceForSend?.contract_id;
 
     const invoiceDetailsForMaturity = (invoice.details as Record<string, unknown> | null) ?? {};
     const productIdForMaturity = (application.financing_type as { product_id?: string } | null)?.product_id;
@@ -6928,9 +7029,15 @@ export class AdminService {
       }
 
       const lockedInvoices = await tx.$queryRaw<
-        { status: string; details: Prisma.JsonValue | null; offer_details: Prisma.JsonValue | null; updated_at: Date }[]
+        {
+          status: string;
+          details: Prisma.JsonValue | null;
+          offer_details: Prisma.JsonValue | null;
+          contract_id: string | null;
+          updated_at: Date;
+        }[]
       >`
-        SELECT status, details, offer_details, updated_at
+        SELECT status, details, offer_details, contract_id, updated_at
         FROM invoices
         WHERE id = ${invoiceId} AND application_id = ${applicationId}
         FOR UPDATE
@@ -6994,7 +7101,7 @@ export class AdminService {
           : 0;
       const now = new Date().toISOString();
       logger.info({ applicationId, invoiceId, riskRating }, "Saving invoice offer risk rating");
-      const offerDetails = {
+      const offerDetails: Record<string, unknown> = {
         requested_amount: requestedAmount,
         offered_amount: offeredAmount,
         requested_ratio_percent: requestedRatioPercent,
@@ -7002,13 +7109,12 @@ export class AdminService {
         offered_profit_rate_percent: offeredProfitRatePercent,
         platform_fee_rate_percent: platformFeeStored,
         risk_rating: riskRating,
-        expires_at: expiresAt,
         sent_at: now,
         responded_at: null,
         sent_by_user_id: reviewerUserId,
         responded_by_user_id: null,
         version: previousVersion + 1,
-        offer_acceptance: { status: "PENDING_ISSUER" as const },
+        ...(stampOfferAcceptance ? { offer_acceptance: { status: "PENDING_ISSUER" as const } } : {}),
       };
 
       const updateResult = await tx.invoice.updateMany({
@@ -7019,7 +7125,7 @@ export class AdminService {
         },
         data: {
           status: "OFFER_SENT",
-          offer_details: offerDetails,
+          offer_details: offerDetails as Prisma.InputJsonValue,
         },
       });
       if (updateResult.count !== 1) {
@@ -7028,6 +7134,10 @@ export class AdminService {
           "CONFLICT",
           "Invoice was modified concurrently. Refresh and retry sending offer."
         );
+      }
+
+      if (stampOfferAcceptance) {
+        await this.resetAcceptanceReviewForNewOfferInTx(tx, applicationId, application, workflow);
       }
 
       await tx.applicationReviewItem.upsert({
@@ -7134,7 +7244,6 @@ export class AdminService {
         offered_ratio_percent: offeredRatioPercent,
         offered_profit_rate_percent: offeredProfitRatePercent,
         platform_fee_rate_percent: invoiceOfferMeta.platformFeeStored,
-        expires_at: expiresAt,
         version: invoiceOfferMeta.previousVersion + 1,
       },
       ipAddress: logContext?.ipAddress ?? undefined,
@@ -7151,7 +7260,7 @@ export class AdminService {
           invoiceId,
           invoiceNumber: invoiceOfferMeta.invoiceNumber,
           offeredAmount,
-          expiresAt,
+          expiresAt: null,
         },
         `invoice-offer-sent:${invoiceId}:${invoiceOfferMeta.previousVersion + 1}`
       );
@@ -7442,6 +7551,14 @@ export class AdminService {
     const oldStatus = existing?.status ?? "PENDING";
     let didRetractContractOffer = false;
 
+    if (section === "contract_details" && application.contract_id) {
+      await this.assertNoActiveSigningPackage(
+        applicationId,
+        { contractId: application.contract_id },
+        "retracting a contract offer"
+      );
+    }
+
     await repository.resetSectionReviewToPending(applicationId, section);
     if (section === "contract_details" && application.contract_id) {
       const contract = await prisma.contract.findUnique({
@@ -7563,6 +7680,13 @@ export class AdminService {
     if (itemType === "invoice") {
       await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
     }
+    if (itemType === "document" && itemId.startsWith("acceptance_documents:")) {
+      await this.assertNoActiveSigningPackageForAcceptanceActions(
+        applicationId,
+        application,
+        "resetting acceptance document review"
+      );
+    }
 
     const existing = application.application_review_items?.find(
       (r: { item_type: string; item_id: string; status: string }) =>
@@ -7570,6 +7694,20 @@ export class AdminService {
     );
     const oldStatus = existing?.status ?? "PENDING";
     let didRetractInvoiceOffer = false;
+
+    if (itemType === "invoice") {
+      const invoiceId = this.resolveInvoiceIdFromScopeKey(
+        application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+        itemId
+      );
+      if (invoiceId) {
+        await this.assertNoActiveSigningPackage(
+          applicationId,
+          { invoiceId },
+          "retracting an invoice offer"
+        );
+      }
+    }
 
     await repository.resetItemReviewToPending(applicationId, itemType, itemId);
     if (itemType === "invoice") {
@@ -7727,25 +7865,25 @@ export class AdminService {
   }
 
   /**
-   * When one document is rejected: remove amendment drafts on all other document items and
-   * reset any sibling in AMENDMENT_REQUESTED to PENDING (with activity logs). Section sync is left to caller.
+   * When one document is rejected: remove amendment drafts on sibling docs in the same
+   * section only (acceptance vs supporting), and reset AMENDMENT_REQUESTED peers to PENDING.
    */
   private async clearSiblingDocumentAmendmentsAfterPeerReject(
     repository: AdminRepository,
     applicationId: string,
     application: {
       supporting_documents?: unknown;
+      acceptance_documents?: unknown;
       application_review_items?: { item_type: string; item_id: string; status: string }[];
     },
     rejectedItemId: string,
     reviewerUserId: string,
     logContext?: AdminLogContext
   ): Promise<void> {
-    const docs = application.supporting_documents;
-    if (!docs || typeof docs !== "object") {
-      return;
-    }
-    const keys = [...this.collectDocumentKeys(docs)];
+    const isAcceptance = rejectedItemId.startsWith("acceptance_documents:");
+    const keys = isAcceptance
+      ? [...this.collectAcceptanceDocumentKeys(application.acceptance_documents)]
+      : [...this.collectDocumentKeys(application.supporting_documents)];
     for (const key of keys) {
       if (key === rejectedItemId) {
         continue;
@@ -7761,9 +7899,126 @@ export class AdminService {
           key,
           reviewerUserId,
           logContext,
-          { skipSupportingDocumentsSectionSync: true }
+          { skipSupportingDocumentsSectionSync: true, skipOfferAcceptancePhaseSync: true }
         );
       }
+    }
+  }
+
+  /** Withdraw active offers and stamp phase REJECTED when an acceptance document is rejected. */
+  private async withdrawOffersForAcceptanceRejection(
+    applicationId: string,
+    application: {
+      contract_id?: string | null;
+      contract?: { id?: string; status?: string; offer_details?: unknown } | null;
+      invoices?: Array<{
+        id: string;
+        status: string;
+        contract_id?: string | null;
+        offer_details?: unknown;
+      }>;
+    },
+    reviewerUserId: string,
+    remark: string
+  ): Promise<void> {
+    const now = new Date().toISOString();
+    const contract = application.contract;
+    if (
+      application.contract_id &&
+      contract &&
+      contract.status === "OFFER_SENT" &&
+      contract.offer_details
+    ) {
+      const offer = (contract.offer_details as Record<string, unknown>) ?? {};
+      const acceptance = getOfferAcceptanceFromOfferDetails(offer);
+      let updatedOffer: Record<string, unknown> = {
+        ...offer,
+        responded_at: now,
+        responded_by_user_id: reviewerUserId,
+        rejection_reason: remark,
+      };
+      if (acceptance) {
+        updatedOffer = patchOfferAcceptance(updatedOffer, { status: "REJECTED" });
+      }
+      await prisma.contract.update({
+        where: { id: application.contract_id },
+        data: {
+          status: "WITHDRAWN",
+          offer_details: updatedOffer as Prisma.InputJsonValue,
+          withdraw_reason: WithdrawReason.OFFER_REJECTED,
+        },
+      });
+    }
+
+    for (const invoice of application.invoices ?? []) {
+      if (invoice.contract_id) continue;
+      if (invoice.status !== "OFFER_SENT" || !invoice.offer_details) continue;
+      const offer = (invoice.offer_details as Record<string, unknown>) ?? {};
+      const acceptance = getOfferAcceptanceFromOfferDetails(offer);
+      let updatedOffer: Record<string, unknown> = {
+        ...offer,
+        responded_at: now,
+        responded_by_user_id: reviewerUserId,
+        rejection_reason: remark,
+      };
+      if (acceptance) {
+        updatedOffer = patchOfferAcceptance(updatedOffer, { status: "REJECTED" });
+      }
+      await prisma.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          status: "WITHDRAWN",
+          offer_details: updatedOffer as Prisma.InputJsonValue,
+          withdraw_reason: WithdrawReason.OFFER_REJECTED,
+        },
+      });
+    }
+
+    await prisma.applicationReview.upsert({
+      where: {
+        application_id_section: {
+          application_id: applicationId,
+          section: "acceptance_documents",
+        },
+      },
+      create: {
+        application_id: applicationId,
+        section: "acceptance_documents",
+        status: ReviewStepStatus.REJECTED,
+        reviewer_user_id: reviewerUserId,
+        reviewed_at: new Date(),
+      },
+      update: {
+        status: ReviewStepStatus.REJECTED,
+        reviewer_user_id: reviewerUserId,
+        reviewed_at: new Date(),
+      },
+    });
+  }
+
+  private async assertNoActiveSigningPackageForAcceptanceActions(
+    applicationId: string,
+    application: {
+      contract_id?: string | null;
+      invoices?: Array<{ id: string; status: string; contract_id?: string | null }>;
+    },
+    actionLabel: string
+  ): Promise<void> {
+    if (application.contract_id) {
+      await this.assertNoActiveSigningPackage(
+        applicationId,
+        { contractId: application.contract_id },
+        actionLabel
+      );
+    }
+    for (const invoice of application.invoices ?? []) {
+      if (invoice.contract_id) continue;
+      if (invoice.status !== "OFFER_SENT") continue;
+      await this.assertNoActiveSigningPackage(
+        applicationId,
+        { invoiceId: invoice.id },
+        actionLabel
+      );
     }
   }
 
@@ -7969,6 +8224,13 @@ export class AdminService {
         "Invoice approvals must be finalized by issuer offer response"
       );
     }
+    if (itemId.startsWith("acceptance_documents:")) {
+      await this.assertNoActiveSigningPackageForAcceptanceActions(
+        applicationId,
+        application,
+        "approving acceptance documents"
+      );
+    }
     const existing = application.application_review_items?.find(
       (r: { item_type: string; item_id: string; status: string }) =>
         r.item_type === itemType && r.item_id === itemId
@@ -8071,6 +8333,13 @@ export class AdminService {
     if (itemType === "invoice") {
       await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
     }
+    if (itemType === "document" && itemId.startsWith("acceptance_documents:")) {
+      await this.assertNoActiveSigningPackageForAcceptanceActions(
+        applicationId,
+        application,
+        "rejecting acceptance documents"
+      );
+    }
     const existing = application.application_review_items?.find(
       (r: { item_type: string; item_id: string; status: string }) =>
         r.item_type === itemType && r.item_id === itemId
@@ -8116,6 +8385,24 @@ export class AdminService {
       );
     }
 
+    if (itemType === "document" && itemId.startsWith("acceptance_documents:")) {
+      await this.withdrawOffersForAcceptanceRejection(
+        applicationId,
+        application as {
+          contract_id?: string | null;
+          contract?: { id?: string; status?: string; offer_details?: unknown } | null;
+          invoices?: Array<{
+            id: string;
+            status: string;
+            contract_id?: string | null;
+            offer_details?: unknown;
+          }>;
+        },
+        reviewerUserId,
+        remark
+      );
+    }
+
     if (itemType === "invoice") {
       const invoiceId = this.resolveInvoiceIdFromScopeKey(
         application as { invoices?: { id: string; details?: { number?: string | number } }[] },
@@ -8142,35 +8429,7 @@ export class AdminService {
         logContext
       );
       nextApp = await repository.getApplicationById(applicationId);
-      if (itemId.startsWith("acceptance_documents:") && nextApp) {
-        await this.syncOfferAcceptancePhaseFromAcceptanceDocs(
-          applicationId,
-          nextApp as {
-            financing_type?: unknown;
-            product_version?: number | null;
-            supporting_documents?: unknown;
-            acceptance_documents?: unknown;
-            contract?: {
-              id: string;
-              status: string;
-              offer_details?: unknown;
-            } | null;
-            invoices?: Array<{
-              id: string;
-              status: string;
-              contract_id?: string | null;
-              offer_details?: unknown;
-            }>;
-            application_review_items?: Array<{
-              item_type: string;
-              item_id: string;
-              status: string;
-            }>;
-          },
-          reviewerUserId
-        );
-        nextApp = await repository.getApplicationById(applicationId);
-      }
+      // Acceptance reject withdraws offers and sets REJECTED — do not re-sync phase from docs.
     }
     if (itemType === "invoice" && nextApp) {
       await this.syncInvoiceDetailsSectionFromItems(
@@ -8206,6 +8465,13 @@ export class AdminService {
     );
     if (itemType === "invoice") {
       await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
+    }
+    if (itemType === "document" && itemId.startsWith("acceptance_documents:")) {
+      await this.assertNoActiveSigningPackageForAcceptanceActions(
+        applicationId,
+        application,
+        "requesting acceptance document changes"
+      );
     }
     const existing = application.application_review_items?.find(
       (r: { item_type: string; item_id: string; status: string }) =>

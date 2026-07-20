@@ -303,18 +303,15 @@ export function useSendContractOffer() {
       applicationId,
       offeredFacility,
       facilityFeeRatePercent,
-      expiresAt,
     }: {
       applicationId: string;
       offeredFacility: number;
       facilityFeeRatePercent?: number | null;
-      expiresAt?: string | null;
     }) => {
       const response = await apiClient.sendContractOffer(
         applicationId,
         offeredFacility,
-        facilityFeeRatePercent ?? null,
-        expiresAt
+        facilityFeeRatePercent ?? null
       );
       if (!response.success) {
         throw new Error((response as ApiError).error?.message ?? "Failed to send contract offer");
@@ -377,7 +374,6 @@ export function useSendInvoiceOffer() {
       offeredRatioPercent,
       offeredProfitRatePercent,
       platformFeeRatePercent,
-      expiresAt,
       risk_rating,
     }: {
       applicationId: string;
@@ -386,7 +382,6 @@ export function useSendInvoiceOffer() {
       offeredRatioPercent?: number | null;
       offeredProfitRatePercent?: number | null;
       platformFeeRatePercent?: number | null;
-      expiresAt?: string | null;
       risk_rating: SoukscoreRiskRating;
     }) => {
       const response = await apiClient.sendInvoiceOffer(applicationId, invoiceId, {
@@ -394,7 +389,6 @@ export function useSendInvoiceOffer() {
         offeredRatioPercent,
         offeredProfitRatePercent,
         platformFeeRatePercent,
-        expiresAt,
         risk_rating,
       });
       if (!response.success) {

@@ -1,7 +1,6 @@
 import cron from "node-cron";
 import { NotificationService } from "../../modules/notification/service";
 import { logger } from "../logger";
-import { runOfferExpiryJob } from "./offer-expiry";
 import { runCtosKybRetryJob } from "./ctos-kyb-retry";
 import { runNoteListingExpiryJob } from "./note-listing-expiry";
 import { runSigningEnvelopeExpiryJob } from "./signing-envelope-expiry";
@@ -25,28 +24,6 @@ export function initJobs() {
       logger.info('Daily notification cleanup job completed successfully');
     } catch (error) {
       logger.error({ error }, 'Failed to run daily notification cleanup job');
-    }
-  });
-
-  // Offer expiry: withdraw expired contract/invoice offers. Every hour.
-  cron.schedule("0 * * * *", async () => {
-    logger.info("Starting offer expiry job...");
-    try {
-      const result = await runOfferExpiryJob();
-      if (result.contractsWithdrawn.length > 0 || result.invoicesWithdrawn.length > 0) {
-        logger.info(
-          {
-            contractsWithdrawn: result.contractsWithdrawn.length,
-            invoicesWithdrawn: result.invoicesWithdrawn.length,
-            applicationsUpdated: result.applicationsUpdated.length,
-          },
-          "Offer expiry job completed"
-        );
-      } else {
-        logger.info("Offer expiry job completed (no expired offers found)");
-      }
-    } catch (error) {
-      logger.error({ error }, "Failed to run offer expiry job");
     }
   });
 

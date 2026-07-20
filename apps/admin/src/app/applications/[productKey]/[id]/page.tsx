@@ -50,7 +50,7 @@ import {
   isTabUnlocked,
 } from "@/components/application-review/review-registry";
 import { getEffectiveReviewTabDescriptors } from "@/lib/effective-review-tab-descriptors";
-import { format, addDays } from "date-fns";
+import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -77,7 +77,11 @@ import {
   useAuthToken,
   readInvoiceMaturityMonthsFromWorkflow,
 } from "@cashsouk/config";
-import { computeHasPendingDirectorShareholder, type ApplicationPersonRow } from "@cashsouk/types";
+import {
+  computeHasPendingDirectorShareholder,
+  getSectionForScopeKey,
+  type ApplicationPersonRow,
+} from "@cashsouk/types";
 import {
   ADMIN_DIRECTOR_SHAREHOLDER_PENDING_LABEL,
   ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT,
@@ -203,8 +207,6 @@ export default function DynamicApplicationDetailPage() {
     return { min: Math.min(min, max), max: Math.max(min, max) };
   }, [currentProduct]);
 
-  const offerExpiryDays =
-    (currentProduct as { offer_expiry_days?: number | null })?.offer_expiry_days ?? 7;
   const productDefaultFacilityFeeRatePercent =
     (currentProduct as { default_facility_fee_rate_percent?: number | null })
       ?.default_facility_fee_rate_percent ?? null;
@@ -453,7 +455,8 @@ export default function DynamicApplicationDetailPage() {
     const sectionWithAmendmentFromItems = new Set<string>();
     for (const item of reviewItems) {
       if (item.status === "AMENDMENT_REQUESTED") {
-        const section = item.item_type === "invoice" ? "invoice_details" : "supporting_documents";
+        const section =
+          item.item_type === "invoice" ? "invoice_details" : getSectionForScopeKey(item.item_id);
         sectionWithAmendmentFromItems.add(section);
       }
     }
@@ -1020,6 +1023,9 @@ export default function DynamicApplicationDetailPage() {
                     offerDetails={
                       (app.contract as { offer_details?: unknown } | null | undefined)?.offer_details
                     }
+                    invoices={
+                      (app as { invoices?: { id: string; offer_details?: unknown }[] }).invoices ?? []
+                    }
                   />
 
                   <ApplicationReviewTabs
@@ -1143,15 +1149,10 @@ export default function DynamicApplicationDetailPage() {
                             }}
                             onSendContractOffer={async ({ offeredFacility, facilityFeeRatePercent }) => {
                               try {
-                                const expiresAt = addDays(
-                                  new Date(),
-                                  offerExpiryDays
-                                ).toISOString();
                                 await sendContractOffer.mutateAsync({
                                   applicationId,
                                   offeredFacility,
                                   facilityFeeRatePercent,
-                                  expiresAt,
                                 });
                                 toast.success("Contract offer sent");
                               } catch (err) {
@@ -1171,10 +1172,6 @@ export default function DynamicApplicationDetailPage() {
                               risk_rating,
                             }) => {
                               try {
-                                const expiresAt = addDays(
-                                  new Date(),
-                                  offerExpiryDays
-                                ).toISOString();
                                 await sendInvoiceOffer.mutateAsync({
                                   applicationId,
                                   invoiceId,
@@ -1182,7 +1179,6 @@ export default function DynamicApplicationDetailPage() {
                                   offeredRatioPercent,
                                   offeredProfitRatePercent,
                                   platformFeeRatePercent,
-                                  expiresAt,
                                   risk_rating,
                                 });
                                 toast.success("Invoice offer sent");
@@ -1198,7 +1194,6 @@ export default function DynamicApplicationDetailPage() {
                             sendInvoiceOfferPending={sendInvoiceOffer.isPending}
                             invoiceRatioLimits={invoiceRatioLimits}
                             platformFeeRateCapPercent={platformFeeRateCapPercent}
-                            offerExpiryDays={offerExpiryDays}
                             productDefaultFacilityFeeRatePercent={productDefaultFacilityFeeRatePercent}
                             minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
                             onViewSignedInvoiceOffer={handleViewSignedInvoiceOffer}

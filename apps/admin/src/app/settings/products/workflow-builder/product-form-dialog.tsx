@@ -118,7 +118,6 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   const [pendingSupportingDocTemplates, setPendingSupportingDocTemplates] = useState<Record<string, File>>({});
   const [saveInProgress, setSaveInProgress] = useState(false);
   const [saveTriggered, setSaveTriggered] = useState(false);
-  const [offerExpiryDays, setOfferExpiryDays] = useState<string>("7");
   const [marketplaceListingDurationDays, setMarketplaceListingDurationDays] = useState<string>("14");
   const [serviceFeeRatePercent, setServiceFeeRatePercent] = useState<string>("15");
   const [defaultFacilityFeeRatePercent, setDefaultFacilityFeeRatePercent] = useState<string>("1");
@@ -180,7 +179,6 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       setPendingSupportingDocTemplates({});
       setSaveInProgress(false);
       setSaveTriggered(false);
-      setOfferExpiryDays("");
       setMarketplaceListingDurationDays("");
       setServiceFeeRatePercent("");
       setDefaultFacilityFeeRatePercent("");
@@ -198,8 +196,6 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       initialWorkflowRef.current = normalizeWorkflow(
         buildPayloadFromSteps(stepsToSet)
       );
-      const days = (product as { offer_expiry_days?: number | null }).offer_expiry_days;
-      setOfferExpiryDays(days != null ? String(days) : "7");
       const listingDays = (product as { marketplace_listing_duration_days?: number | null })
         .marketplace_listing_duration_days;
       setMarketplaceListingDurationDays(listingDays != null ? String(listingDays) : "14");
@@ -211,7 +207,6 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       const [firstStep, lastStep] = getRequiredFirstAndLastSteps();
       setSteps([firstStep, lastStep]);
       initialWorkflowRef.current = [];
-      setOfferExpiryDays("7");
       setMarketplaceListingDurationDays("14");
       setServiceFeeRatePercent("15");
       setDefaultFacilityFeeRatePercent("1");
@@ -456,13 +451,6 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       if (isEdit && product) {
         productId = product.id;
       } else {
-        const offerExpiryNum =
-          offerExpiryDays.trim() !== ""
-            ? (() => {
-                const n = Number(offerExpiryDays);
-                return !Number.isNaN(n) && n > 0 ? n : null;
-              })()
-            : null;
         const marketplaceListingDurationNum =
           marketplaceListingDurationDays.trim() !== ""
             ? (() => {
@@ -492,7 +480,6 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
             : 1;
         const created = await createProduct.mutateAsync({
           workflow: buildPayloadFromSteps(steps),
-          offer_expiry_days: offerExpiryNum,
           marketplace_listing_duration_days: marketplaceListingDurationNum,
           service_fee_rate_percent: serviceFeeRatePercentNum,
           default_facility_fee_rate_percent: defaultFacilityFeeRatePercentNum,
@@ -515,13 +502,6 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       if (isEdit) {
         initialWorkflowRef.current = normalizeWorkflow(payload);
       }
-      const offerExpiryNum =
-        offerExpiryDays.trim() !== ""
-          ? (() => {
-              const n = Number(offerExpiryDays);
-              return !Number.isNaN(n) && n > 0 ? n : null;
-            })()
-          : null;
       const marketplaceListingDurationNum =
         marketplaceListingDurationDays.trim() !== ""
           ? (() => {
@@ -554,7 +534,6 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
           id: product.id,
           data: {
             workflow: payload,
-            offer_expiry_days: offerExpiryNum,
             marketplace_listing_duration_days: marketplaceListingDurationNum,
             service_fee_rate_percent: serviceFeeRatePercentNum,
             default_facility_fee_rate_percent: defaultFacilityFeeRatePercentNum,
@@ -567,7 +546,6 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
           data: {
             workflow: payload,
             completeCreate: true,
-            offer_expiry_days: offerExpiryNum,
             marketplace_listing_duration_days: marketplaceListingDurationNum,
             service_fee_rate_percent: serviceFeeRatePercentNum,
             default_facility_fee_rate_percent: defaultFacilityFeeRatePercentNum,
@@ -610,16 +588,6 @@ const isEqual = workflowDeepEqual(
   normalizedCurrent,
   normalizedInitial
 );
-
-/** Offer expiry validation: when provided, must be number > 0. Blank is allowed (optional). */
-const offerExpiryError = (() => {
-  const v = offerExpiryDays.trim();
-  if (v === "") return null;
-  const num = Number(v);
-  if (Number.isNaN(num)) return "Offer expiry must be a number greater than 0";
-  if (num <= 0) return "Offer expiry must be a number greater than 0";
-  return null;
-})();
 
 /** Marketplace listing duration validation: blank allowed (optional). */
 const marketplaceListingDurationError = (() => {
@@ -664,9 +632,7 @@ const hasChanges = !isEdit
   : Boolean(pendingImageFile ?? pendingImageFileRef.current) ||
     Object.keys(pendingSupportingDocTemplates).length > 0 ||
     (product
-      ? (product as { offer_expiry_days?: number | null }).offer_expiry_days !==
-          (offerExpiryDays.trim() === "" ? null : Number(offerExpiryDays)) ||
-        (product as { marketplace_listing_duration_days?: number | null }).marketplace_listing_duration_days !==
+      ? (product as { marketplace_listing_duration_days?: number | null }).marketplace_listing_duration_days !==
           (marketplaceListingDurationDays.trim() === "" ? null : Number(marketplaceListingDurationDays)) ||
         (product as { service_fee_rate_percent?: number | null }).service_fee_rate_percent !==
           (serviceFeeRatePercent.trim() === "" ? 15 : Number(serviceFeeRatePercent)) ||
@@ -943,29 +909,13 @@ const hasChanges = !isEdit
               <div
                 className={cn(
                   "rounded-xl border bg-card p-4 shrink-0 min-w-0",
-                  offerExpiryError ||
-                    serviceFeeRatePercentError ||
+                  serviceFeeRatePercentError ||
                     defaultFacilityFeeRatePercentError
                     ? "border-amber-500/70 dark:border-amber-500/50"
                     : "border-border"
                 )}
               >
                 <div className={cn("grid min-w-0", FIELD_GAP)}>
-                  <Label htmlFor="offer-expiry-days" className="text-sm font-medium">
-                    Offer expiry (days)
-                  </Label>
-                  <Input
-                    id="offer-expiry-days"
-                    type="text"
-                    value={offerExpiryDays}
-                    onChange={(e) => setOfferExpiryDays(e.target.value)}
-                    placeholder="7"
-                    className={INPUT_CLASS}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    This defines how long an issuer has to accept the offer after it is generated.
-                  </p>
-
                   <Label htmlFor="service-fee-rate-percent" className="text-sm font-medium">
                     Service fee rate (%)
                   </Label>
@@ -1037,7 +987,6 @@ const hasChanges = !isEdit
                 {steps.length > 0 && !isSaving && !saveTriggered && (() => {
                   const requiredErrors = [
                     ...getRequiredStepErrors(steps),
-                    ...(offerExpiryError ? ["Offer settings: " + offerExpiryError] : []),
                     ...(marketplaceListingDurationError
                       ? ["Marketplace listing settings: " + marketplaceListingDurationError]
                       : []),
@@ -1096,7 +1045,6 @@ const hasChanges = !isEdit
                   isSaving ||
                   steps.length === 0 ||
                   getRequiredStepErrors(steps).length > 0 ||
-                  !!offerExpiryError ||
                   !!marketplaceListingDurationError ||
                   !!serviceFeeRatePercentError ||
                   !!defaultFacilityFeeRatePercentError ||

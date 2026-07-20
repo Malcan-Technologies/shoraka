@@ -7,7 +7,7 @@ import {
   offerAcceptanceAllowsIssuerReviewCta,
 } from "@cashsouk/types";
 
-export type OfferStatus = "Offer received" | "Offer expired" | null;
+export type OfferStatus = "Offer received" | null;
 
 export function getOfferStatus(item: {
   status?: string | null;
@@ -15,11 +15,7 @@ export function getOfferStatus(item: {
 }): OfferStatus {
   if (item.status !== "OFFER_SENT" || !item.offer_details) return null;
 
-  const expiresAt = item.offer_details.expires_at;
-  if (!expiresAt) return "Offer received";
-
-  const isExpired = new Date(expiresAt) < new Date();
-  return isExpired ? "Offer expired" : "Offer received";
+  return "Offer received";
 }
 
 /** Review Offer CTA: offer received and not waiting on admin acceptance review. */

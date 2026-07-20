@@ -718,6 +718,9 @@ export default function InvoiceDetailsStep({
   const isInvoiceOnly = application?.financing_structure?.structure_type === "invoice_only";
   const isExistingContract = application?.financing_structure?.structure_type === "existing_contract";
 
+  /** Invoice-only applications allow only one invoice; existing rows are never removed automatically. */
+  const maxInvoicesReached = isInvoiceOnly && invoices.length >= 1;
+
   let productConfig: InvoiceConfig | null = null;
   try {
     productConfig = getProductInvoiceConfig(application, productsData?.products || []);
@@ -1261,12 +1264,14 @@ export default function InvoiceDetailsStep({
                   Invoices
                 </h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Add invoices below. Rows are local until you Save and Continue.
+                  {maxInvoicesReached
+                    ? "Invoice-only applications allow only one invoice."
+                    : "Add invoices below. Rows are local until you Save and Continue."}
                 </p>
               </div>
               <Button
                 onClick={addInvoice}
-                disabled={readOnly}
+                disabled={readOnly || maxInvoicesReached}
                 className="bg-primary text-primary-foreground shrink-0"
               >
                 Add invoice

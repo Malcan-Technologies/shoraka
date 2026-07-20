@@ -226,11 +226,6 @@ function ApplicationCard({
                     >
                       Review Contract Financing Offer
                     </Button>
-                    {application.expiresAt && (
-                      <span className="text-xs text-muted-foreground">
-                        Offer valid until: {format(new Date(application.expiresAt), "d MMM yyyy")}
-                      </span>
-                    )}
                   </div>
                 )}
               </div>
@@ -576,7 +571,6 @@ export default function ApplicationsPage() {
   const [statusFilters, setStatusFilters] = React.useState<string[]>([]);
   const [financingFilter, setFinancingFilter] = React.useState("all");
   const [submittedFilter, setSubmittedFilter] = React.useState("all");
-  const [offerExpiryFilter, setOfferExpiryFilter] = React.useState("all");
   const [applicationIdsFilter, setApplicationIdsFilter] = React.useState<string[]>([]);
   const [page, setPage] = React.useState(1);
   const [perPage, setPerPage] = React.useState(4);
@@ -635,21 +629,8 @@ export default function ApplicationsPage() {
         return new Date(a.submittedAt).getTime() >= cutoffTime;
       });
     }
-    if (offerExpiryFilter !== "all") {
-      const now = new Date();
-      const days = offerExpiryFilter === "3d" ? 3 : offerExpiryFilter === "7d" ? 7 : 14;
-      const cutoff = new Date(now);
-      cutoff.setDate(now.getDate() + days);
-      const nowTime = now.getTime();
-      const cutoffTime = cutoff.getTime();
-      list = list.filter((a) => {
-        if (!a.expiresAt) return false;
-        const exp = new Date(a.expiresAt).getTime();
-        return exp > nowTime && exp <= cutoffTime;
-      });
-    }
     return list;
-  }, [applications, search, statusFilters, financingFilter, submittedFilter, offerExpiryFilter, applicationIdsFilter]);
+  }, [applications, search, statusFilters, financingFilter, submittedFilter, applicationIdsFilter]);
 
   const paginatedApplications = filteredApplications.slice(
     (page - 1) * perPage,
@@ -660,8 +641,7 @@ export default function ApplicationsPage() {
   const activeFilterCount =
     (submittedFilter !== "all" ? 1 : 0) +
     statusFilters.length +
-    (financingFilter !== "all" ? 1 : 0) +
-    (offerExpiryFilter !== "all" ? 1 : 0);
+    (financingFilter !== "all" ? 1 : 0);
   const hasFilters =
     search !== "" ||
     applicationIdsFilter.length > 0 ||
@@ -879,7 +859,7 @@ export default function ApplicationsPage() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {/* Filters: Submitted, Financing, Offer expiring. */}
+              {/* Filters: Submitted, Financing. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -888,7 +868,7 @@ export default function ApplicationsPage() {
                   >
                     <FunnelIcon className="h-4 w-4" />
                     Filters
-                    {(submittedFilter !== "all" || financingFilter !== "all" || offerExpiryFilter !== "all") && (
+                    {(submittedFilter !== "all" || financingFilter !== "all") && (
                       <Badge
                         variant="secondary"
                         className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs shadow-none bg-primary text-primary-foreground"
@@ -896,7 +876,6 @@ export default function ApplicationsPage() {
                         {[
                           submittedFilter !== "all",
                           financingFilter !== "all",
-                          offerExpiryFilter !== "all",
                         ].filter(Boolean).length}
                       </Badge>
                     )}
@@ -952,32 +931,6 @@ export default function ApplicationsPage() {
                       </DropdownMenuItem>
                     ))}
                   </div>
-                  <DropdownMenuSeparator />
-                  <div className="p-1">
-                    <DropdownMenuLabel>Offer expiring</DropdownMenuLabel>
-                    {[
-                      { value: "all", label: "All" },
-                      { value: "3d", label: "3 days" },
-                      { value: "7d", label: "7 days" },
-                      { value: "14d", label: "14 days" },
-                    ].map((opt) => (
-                      <DropdownMenuItem
-                        key={`expiry-${opt.value}`}
-                        className="pl-8 relative"
-                        onClick={() => {
-                          setOfferExpiryFilter(opt.value);
-                          setPage(1);
-                        }}
-                      >
-                        {offerExpiryFilter === opt.value && (
-                          <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                            <span className="h-2 w-2 rounded-full bg-foreground" />
-                          </span>
-                        )}
-                        {opt.label}
-                      </DropdownMenuItem>
-                    ))}
-                  </div>
                 </DropdownMenuContent>
               </DropdownMenu>
 
@@ -989,7 +942,6 @@ export default function ApplicationsPage() {
                     setStatusFilters([]);
                     setFinancingFilter("all");
                     setSubmittedFilter("all");
-                    setOfferExpiryFilter("all");
                     setApplicationIdsFilter([]);
                     if (typeof window !== "undefined") {
                       const params = new URLSearchParams(window.location.search);

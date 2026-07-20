@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { ArrowTopRightOnSquareIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
-import { format, addDays, differenceInDays, isValid, min as minDate } from "date-fns";
+import { format } from "date-fns";
 import {
   formatCurrency,
   resolveOfferedAmount,
@@ -86,8 +86,6 @@ interface InvoiceReviewListProps {
   isViewDocumentPending: boolean;
   invoiceRatioLimits: { min: number; max: number };
   platformFeeRateCapPercent?: number | null;
-  /** Product offer expiry in days. Used for estimated disbursement, period, profit and offer expiry date. */
-  offerExpiryDays?: number | null;
   /** From product workflow: minimum months from today to maturity required to enable Send Offer. */
   minMonthsReviewToMaturityForOffer?: number | null;
   isActionLocked?: boolean;
@@ -119,45 +117,6 @@ interface InvoiceDetails {
   document?: {
     file_name?: string;
     s3_key?: string;
-  };
-}
-
-function parseMaturityDate(value: string | undefined): Date | null {
-  if (!value) return null;
-  const parsed = new Date(value);
-  return isValid(parsed) ? parsed : null;
-}
-
-function computeOfferEstimates(
-  offerExpiryDays: number,
-  maturityDateStr: string | undefined,
-  offeredAmount: number
-): {
-  offerExpiryDate: Date;
-  estDisbursementDate: Date;
-  estPeriodDays: number | null;
-  estProfit: number | null;
-} {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const offerExpiryDate = addDays(today, offerExpiryDays);
-  const estDisbursementRaw = addDays(offerExpiryDate, 15);
-  const maturityDate = parseMaturityDate(maturityDateStr);
-  const estDisbursementDate =
-    maturityDate !== null ? minDate([estDisbursementRaw, maturityDate]) : estDisbursementRaw;
-  const estPeriodDays =
-    maturityDate !== null
-      ? Math.max(0, differenceInDays(maturityDate, estDisbursementDate))
-      : null;
-  const estProfit =
-    estPeriodDays !== null && estPeriodDays > 0
-      ? offeredAmount * 0.12 * (estPeriodDays / 365)
-      : null;
-  return {
-    offerExpiryDate,
-    estDisbursementDate,
-    estPeriodDays,
-    estProfit,
   };
 }
 
@@ -201,7 +160,6 @@ export function InvoiceList({
   isViewDocumentPending,
   invoiceRatioLimits,
   platformFeeRateCapPercent,
-  offerExpiryDays,
   minMonthsReviewToMaturityForOffer,
   isActionLocked,
   actionLockTooltip,
@@ -583,15 +541,6 @@ export function InvoiceList({
                                     inv.offer_details as Record<string, unknown>
                                   )
                                 : offered.platformFeeRatePercent;
-                              const expiryDays = offerExpiryDays ?? 7;
-                              const estimates =
-                                offeredAmount !== null && offeredAmount > 0 && expiryDays > 0
-                                  ? computeOfferEstimates(
-                                      expiryDays,
-                                      maturityDate,
-                                      offeredAmount
-                                    )
-                                  : null;
                               const reviewDay = new Date();
                               reviewDay.setHours(0, 0, 0, 0);
                               const maturityParsedForOffer = parseInvoiceMaturityDate(
@@ -626,36 +575,6 @@ export function InvoiceList({
                                     </p>
                                     <p className={applicationTableExpandableValueClass}>
                                       {formatDateValue(maturityDate)}
-                                    </p>
-                                  </div>
-                                  {estimates && (
-                                    <div className={invoiceExpandReadonlyFieldBlockClass}>
-                                      <p className={applicationTableExpandableLabelClass}>
-                                        Offer Expiry
-                                      </p>
-                                      <p className={applicationTableExpandableValueClass}>
-                                        {format(estimates.offerExpiryDate, "dd MMM yyyy")}
-                                      </p>
-                                    </div>
-                                  )}
-                                  <div className={invoiceExpandReadonlyFieldBlockClass}>
-                                    <p className={applicationTableExpandableLabelClass}>
-                                      Estimated Disbursement Date
-                                    </p>
-                                    <p className={applicationTableExpandableValueClass}>
-                                      {estimates
-                                        ? format(estimates.estDisbursementDate, "dd MMM yyyy")
-                                        : REVIEW_EMPTY_LABEL}
-                                    </p>
-                                  </div>
-                                  <div className={invoiceExpandReadonlyFieldBlockClass}>
-                                    <p className={applicationTableExpandableLabelClass}>
-                                      Estimated Period (Days)
-                                    </p>
-                                    <p className={applicationTableExpandableValueClass}>
-                                      {estimates != null && estimates.estPeriodDays != null
-                                        ? estimates.estPeriodDays
-                                        : REVIEW_EMPTY_LABEL}
                                     </p>
                                   </div>
                                   <div
@@ -1016,16 +935,6 @@ export function InvoiceList({
                                           Exceeds what the issuer requested. Lower the ratio or other offer terms.
                                         </p>
                                       )}
-                                  </div>
-                                  <div className={applicationTableExpandableFieldBlockClass}>
-                                    <p className={applicationTableExpandableLabelClass}>
-                                      Estimated Profit
-                                    </p>
-                                    <p className={applicationTableExpandableValueClass}>
-                                      {estimates?.estProfit != null
-                                        ? formatCurrency(estimates.estProfit)
-                                        : REVIEW_EMPTY_LABEL}
-                                    </p>
                                   </div>
                                 </div>
                                 {!isOfferSent && onSendInvoiceOffer &&

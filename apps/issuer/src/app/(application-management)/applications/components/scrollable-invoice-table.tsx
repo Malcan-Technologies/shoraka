@@ -648,12 +648,6 @@ export function ScrollableInvoiceTable({
                                 Review Offer
                               </Button>
                             ))}
-                          {showReviewOffer && inv.offer_details?.expires_at != null ? (
-                            <span className="text-xs text-muted-foreground">
-                              Offer valid until:{" "}
-                              {format(new Date(String(inv.offer_details.expires_at)), "d MMM yyyy")}
-                            </span>
-                          ) : null}
                           {showMakeAmendments && (
                             <Button
                               size="sm"

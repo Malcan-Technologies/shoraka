@@ -426,7 +426,6 @@ export const sendContractOfferSchema = z.object({
     })
     .optional()
     .nullable(),
-  expiresAt: z.string().datetime().optional().nullable(),
 });
 
 export const patchContractCustomerLargePrivateSchema = z.object({
@@ -438,7 +437,6 @@ export const sendInvoiceOfferSchema = z.object({
   offeredRatioPercent: z.coerce.number().min(0).max(100).optional().nullable(),
   offeredProfitRatePercent: z.coerce.number().min(0).max(100).optional().nullable(),
   platformFeeRatePercent: z.coerce.number().min(0).max(100).optional().nullable(),
-  expiresAt: z.string().datetime().optional().nullable(),
   risk_rating: z.enum(SOUKSCORE_RISK_RATING_GRADES),
 });
 

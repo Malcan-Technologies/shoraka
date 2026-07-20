@@ -196,13 +196,6 @@ export function generateMockApplications(count: number): NormalizedApplication[]
     const hasSubmitted = !["DRAFT", "Generic"].includes(scenario.appStatus) && scenario.type !== "Generic";
     const submittedAt = hasSubmitted ? createdDate.toISOString() : null;
 
-    let expiresAt: string | undefined;
-    if (scenario.hasExpiry) {
-      const exp = new Date(now);
-      exp.setDate(exp.getDate() + (i % 3 === 0 ? 2 : i % 3 === 1 ? 7 : 15));
-      expiresAt = exp.toISOString();
-    }
-
     const contractVal = scenario.hasContract ? 200000 + Math.floor(Math.random() * 300000) : null;
     const facilityApplied = scenario.hasContract ? Math.floor((contractVal ?? 0) * 0.9) : null;
     const hasOfferOrApproved =
@@ -248,7 +241,6 @@ export function generateMockApplications(count: number): NormalizedApplication[]
       contractStatus: scenario.contractStatus,
       issuerOrganizationId: "org-mock-1",
       withdrawReason: scenario.withdrawReason,
-      expiresAt,
       signedContractOfferLetterAvailable:
         scenario.contractStatus === "APPROVED" && !!scenario.hasContract,
     });

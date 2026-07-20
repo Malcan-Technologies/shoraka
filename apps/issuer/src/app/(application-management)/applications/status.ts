@@ -166,8 +166,6 @@ export interface NormalizedApplication {
   supportingDocuments?: unknown;
   /** Withdraw reason when status is withdrawn. From contract or invoice. */
   withdrawReason?: WithdrawReason;
-  /** Offer expiry (contract or invoice). ISO string. Used for expiry indicator and filter. */
-  expiresAt?: string | null;
   /** True when contract offer was accepted after signing envelope completion. */
   signedContractOfferLetterAvailable: boolean;
 }
