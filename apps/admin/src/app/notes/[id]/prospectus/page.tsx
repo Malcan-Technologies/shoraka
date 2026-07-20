@@ -11,9 +11,15 @@ import {
 import { Skeleton } from "@cashsouk/ui";
 import {
   PROSPECTUS_COMPANY_SIZE_VALUES,
+  PROSPECTUS_CONFIDENCE_GRADING_VALUES,
+  PROSPECTUS_DEED_OF_ASSIGNMENT_VALUES,
   PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT,
   PROSPECTUS_HIGHLIGHT_KEYS,
+  PROSPECTUS_PAYMASTER_RATING_VALUES,
   normalizeProspectusCompanySize,
+  normalizeProspectusConfidenceGrading,
+  normalizeProspectusDeedOfAssignment,
+  normalizeProspectusPaymasterRating,
   type ProspectusReviewStoredContent,
   type ProspectusReviewStatus,
 } from "@cashsouk/types";
@@ -362,7 +368,27 @@ function ProspectusReviewPageInner() {
       ? { ...row, value: officerCompanySize ?? "Data not available" }
       : row
   );
-  const invoicePaymasterRows = data?.invoicePaymaster?.rows ?? [];
+  const officerDeedOfAssignment = normalizeProspectusDeedOfAssignment(
+    draft.page2.invoicePaymaster?.deedOfAssignment
+  );
+  const officerPaymasterRating = normalizeProspectusPaymasterRating(
+    draft.page2.invoicePaymaster?.paymasterRating
+  );
+  const officerConfidenceGrading = normalizeProspectusConfidenceGrading(
+    draft.page2.invoicePaymaster?.confidenceGrading
+  );
+  const invoicePaymasterRows = (data?.invoicePaymaster?.rows ?? []).map((row) => {
+    if (row.label === "Deed of Assignment (DOA)") {
+      return { ...row, value: officerDeedOfAssignment ?? "Data not available" };
+    }
+    if (row.label === "Paymaster Rating") {
+      return { ...row, value: officerPaymasterRating ?? "Data not available" };
+    }
+    if (row.label === "Confidence Grading") {
+      return { ...row, value: officerConfidenceGrading ?? "Data not available" };
+    }
+    return row;
+  });
   const financialStatements = (
     application as { financial_statements?: unknown } | undefined
   )?.financial_statements;
@@ -853,6 +879,122 @@ function ProspectusReviewPageInner() {
                         ) : (
                           <Skeleton className="h-32 w-full" />
                         )}
+                        <div className="mt-4 grid gap-4 md:grid-cols-3">
+                          <div className="space-y-1.5">
+                            <Label htmlFor="prospectus-deed-of-assignment" className="text-sm">
+                              Deed of Assignment (DOA)
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                              Required before Approve.
+                            </p>
+                            <Select
+                              disabled={locked || !canManage}
+                              value={officerDeedOfAssignment ?? undefined}
+                              onValueChange={(value) =>
+                                updateDraft((prev) => ({
+                                  ...prev,
+                                  page2: {
+                                    ...prev.page2,
+                                    invoicePaymaster: {
+                                      ...prev.page2.invoicePaymaster,
+                                      deedOfAssignment:
+                                        normalizeProspectusDeedOfAssignment(value),
+                                    },
+                                  },
+                                }))
+                              }
+                            >
+                              <SelectTrigger
+                                id="prospectus-deed-of-assignment"
+                                className="h-11"
+                              >
+                                <SelectValue placeholder="Select DOA status" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {PROSPECTUS_DEED_OF_ASSIGNMENT_VALUES.map((value) => (
+                                  <SelectItem key={value} value={value}>
+                                    {value}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="prospectus-paymaster-rating" className="text-sm">
+                              Paymaster Rating
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                              Required before Approve.
+                            </p>
+                            <Select
+                              disabled={locked || !canManage}
+                              value={officerPaymasterRating ?? undefined}
+                              onValueChange={(value) =>
+                                updateDraft((prev) => ({
+                                  ...prev,
+                                  page2: {
+                                    ...prev.page2,
+                                    invoicePaymaster: {
+                                      ...prev.page2.invoicePaymaster,
+                                      paymasterRating:
+                                        normalizeProspectusPaymasterRating(value),
+                                    },
+                                  },
+                                }))
+                              }
+                            >
+                              <SelectTrigger id="prospectus-paymaster-rating" className="h-11">
+                                <SelectValue placeholder="Select paymaster rating" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {PROSPECTUS_PAYMASTER_RATING_VALUES.map((value) => (
+                                  <SelectItem key={value} value={value}>
+                                    {value}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="prospectus-confidence-grading" className="text-sm">
+                              Confidence Grading
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                              Required before Approve.
+                            </p>
+                            <Select
+                              disabled={locked || !canManage}
+                              value={officerConfidenceGrading ?? undefined}
+                              onValueChange={(value) =>
+                                updateDraft((prev) => ({
+                                  ...prev,
+                                  page2: {
+                                    ...prev.page2,
+                                    invoicePaymaster: {
+                                      ...prev.page2.invoicePaymaster,
+                                      confidenceGrading:
+                                        normalizeProspectusConfidenceGrading(value),
+                                    },
+                                  },
+                                }))
+                              }
+                            >
+                              <SelectTrigger
+                                id="prospectus-confidence-grading"
+                                className="h-11"
+                              >
+                                <SelectValue placeholder="Select confidence grading" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {PROSPECTUS_CONFIDENCE_GRADING_VALUES.map((value) => (
+                                  <SelectItem key={value} value={value}>
+                                    {value}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
                       </section>
                       <section>
                         <ProspectusSectionHeading title="Paymaster Track Record" />

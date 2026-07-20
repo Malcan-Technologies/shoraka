@@ -140,6 +140,29 @@ describe("prospectus review content", () => {
     expect(validateApprovalContent(draft)).toEqual([]);
   });
 
+  it("requires Invoice & Paymaster officer fields before approval", () => {
+    const draft = completeSelectableDraft();
+    draft.page2.invoicePaymaster = {
+      deedOfAssignment: null,
+      paymasterRating: null,
+      confidenceGrading: null,
+    };
+    const errors = validateApprovalContent(draft);
+    expect(
+      errors.some((e) => e.path === "page2.invoicePaymaster.deedOfAssignment")
+    ).toBe(true);
+    expect(errors.some((e) => e.path === "page2.invoicePaymaster.paymasterRating")).toBe(true);
+    expect(
+      errors.some((e) => e.path === "page2.invoicePaymaster.confidenceGrading")
+    ).toBe(true);
+    draft.page2.invoicePaymaster = {
+      deedOfAssignment: "Yes",
+      paymasterRating: "PM2",
+      confidenceGrading: "Medium",
+    };
+    expect(validateApprovalContent(draft)).toEqual([]);
+  });
+
   it("resolves always-visible highlights and fixed Payment/Shariah values", () => {
     const draft = completeSelectableDraft();
     const publication = toProspectusPublicationContent(draft);

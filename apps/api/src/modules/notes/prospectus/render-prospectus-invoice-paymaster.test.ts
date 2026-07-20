@@ -121,14 +121,23 @@ describe("prospectus Page 2 Invoice & Paymaster Information (DATA STAGE 2)", () 
     expect(data.paymasterNature).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("keeps DOA, Paymaster Rating, and Confidence Grading unresolved", () => {
+  it("keeps DOA, Paymaster Rating, and Confidence Grading as DNA without officer content", () => {
     const data = buildProspectusInvoicePaymaster(SAMPLE_PROSPECTUS_INVOICE_PAYMASTER_INPUT);
     expect(data.deedOfAssignment).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.paymasterRating).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.confidenceGrading).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(data.deedOfAssignment).not.toBe("Yes");
-    expect(data.paymasterRating).not.toBe("PM1");
-    expect(data.confidenceGrading).not.toBe("High");
+  });
+
+  it("uses officer-selected DOA, Paymaster Rating, and Confidence Grading", () => {
+    const data = buildProspectusInvoicePaymaster({
+      ...SAMPLE_PROSPECTUS_INVOICE_PAYMASTER_INPUT,
+      officerDeedOfAssignment: "Yes",
+      officerPaymasterRating: "PM2",
+      officerConfidenceGrading: "Medium",
+    });
+    expect(data.deedOfAssignment).toBe("Yes");
+    expect(data.paymasterRating).toBe("PM2");
+    expect(data.confidenceGrading).toBe("Medium");
   });
 
   it("does not infer DOA Yes from uploaded supporting documents", () => {
@@ -143,7 +152,7 @@ describe("prospectus Page 2 Invoice & Paymaster Information (DATA STAGE 2)", () 
     expect(data.deedOfAssignment).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("documents canonical sources and unresolved fields", () => {
+  it("documents canonical sources including officer Invoice & Paymaster fields", () => {
     expect(PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES.invoiceAmount.canonicalSource).toBe(
       "notes.invoice_snapshot.details.value"
     );
@@ -156,14 +165,23 @@ describe("prospectus Page 2 Invoice & Paymaster Information (DATA STAGE 2)", () 
     expect(PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES.paymasterNature.canonicalSource).toBe(
       "notes.paymaster_snapshot.entity_type"
     );
+    expect(PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES.deedOfAssignment.canonicalSource).toBe(
+      "prospectus_review.page2.invoicePaymaster.deedOfAssignment"
+    );
+    expect(PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES.paymasterRating.canonicalSource).toBe(
+      "prospectus_review.page2.invoicePaymaster.paymasterRating"
+    );
+    expect(PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES.confidenceGrading.canonicalSource).toBe(
+      "prospectus_review.page2.invoicePaymaster.confidenceGrading"
+    );
     expect(PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES.deedOfAssignment.availability).toBe(
-      "unresolved"
+      "stored"
     );
     expect(PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES.paymasterRating.availability).toBe(
-      "unresolved"
+      "stored"
     );
     expect(PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES.confidenceGrading.availability).toBe(
-      "unresolved"
+      "stored"
     );
   });
 
@@ -202,14 +220,18 @@ describe("prospectus Page 2 Invoice & Paymaster Information (DATA STAGE 2)", () 
     expect(html).not.toContain('"audit"');
   });
 
-  it("audit records freeze and unresolved rules without live fallback", () => {
+  it("audit records freeze and officer rules without live fallback", () => {
     const data = buildProspectusInvoicePaymaster(SAMPLE_PROSPECTUS_INVOICE_PAYMASTER_INPUT);
     expect(data.audit.invoiceAmount.meaning).toBe("invoice_face_value");
     expect(data.audit.invoiceAmount.isFrozen).toBe(true);
     expect(data.audit.invoiceDueDate.source).toBe("notes.maturity_date");
     expect(data.audit.paymasterNature.fullStoredValuePreserved).toBe(true);
     expect(data.audit.paymasterNature.displayMapping).toBe("none");
+    expect(data.audit.deedOfAssignment.isOfficerContent).toBe(true);
+    expect(data.audit.deedOfAssignment.requiredForApproval).toBe(true);
     expect(data.audit.deedOfAssignment.inferenceAllowed).toBe(false);
+    expect(data.audit.paymasterRating.isOfficerContent).toBe(true);
+    expect(data.audit.confidenceGrading.isOfficerContent).toBe(true);
     expect(data.audit.snapshot.liveFallbackAllowed).toBe(false);
   });
 });

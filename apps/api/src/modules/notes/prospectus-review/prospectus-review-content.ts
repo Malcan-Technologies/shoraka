@@ -9,9 +9,15 @@ import {
   PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
   PROSPECTUS_HIGHLIGHT_KEYS,
   normalizeProspectusCompanySize,
+  normalizeProspectusConfidenceGrading,
+  normalizeProspectusDeedOfAssignment,
+  normalizeProspectusPaymasterRating,
   type ProspectusCompanySize,
+  type ProspectusConfidenceGrading,
+  type ProspectusDeedOfAssignment,
   type ProspectusHighlightKey,
   type ProspectusHighlightRecommendationInput,
+  type ProspectusPaymasterRating,
   buildProspectusHighlightRecommendations,
 } from "@cashsouk/types";
 import {
@@ -87,6 +93,12 @@ export interface ProspectusReviewStoredContent {
     /** Optional officer Issuer Profile inputs (not IssuerOrganization data). */
     issuerProfile?: {
       companySize?: ProspectusCompanySize | null;
+    };
+    /** Officer-selected Invoice & Paymaster fields — required before Approve. */
+    invoicePaymaster?: {
+      deedOfAssignment?: ProspectusDeedOfAssignment | null;
+      paymasterRating?: ProspectusPaymasterRating | null;
+      confidenceGrading?: ProspectusConfidenceGrading | null;
     };
     paymasterTrackRecord?: ProspectusReviewPaymasterTrackRecord;
     creditInsights: {
@@ -178,6 +190,11 @@ export function emptyProspectusReviewContent(
     },
     page2: {
       issuerProfile: { companySize: null },
+      invoicePaymaster: {
+        deedOfAssignment: null,
+        paymasterRating: null,
+        confidenceGrading: null,
+      },
       paymasterTrackRecord: {},
       creditInsights: {},
       invoiceWorkStatements: PROSPECTUS_INVOICE_WORK_KEYS.map((key) => ({
@@ -292,6 +309,17 @@ export function toProspectusPublicationContent(
     },
     issuerProfile: {
       companySize: normalizeProspectusCompanySize(content.page2.issuerProfile?.companySize),
+    },
+    invoicePaymaster: {
+      deedOfAssignment: normalizeProspectusDeedOfAssignment(
+        content.page2.invoicePaymaster?.deedOfAssignment
+      ),
+      paymasterRating: normalizeProspectusPaymasterRating(
+        content.page2.invoicePaymaster?.paymasterRating
+      ),
+      confidenceGrading: normalizeProspectusConfidenceGrading(
+        content.page2.invoicePaymaster?.confidenceGrading
+      ),
     },
     paymasterTrackRecord: content.page2.paymasterTrackRecord,
     creditInsightSelections: creditInsights,

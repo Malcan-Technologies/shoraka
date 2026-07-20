@@ -1,8 +1,13 @@
 /**
  * SECTION: Build Page 2 Invoice & Paymaster Information view-model
- * WHY: Face value + maturity + frozen paymaster only; DOA/rating/confidence stay DNA
+ * WHY: Face value + maturity + frozen paymaster; DOA/rating/confidence are officer content
  */
 
+import {
+  normalizeProspectusConfidenceGrading,
+  normalizeProspectusDeedOfAssignment,
+  normalizeProspectusPaymasterRating,
+} from "@cashsouk/types";
 import { formatProspectusDateUtc } from "./prospectus-dates-paymaster";
 import {
   parseInvoiceSnapshotFaceValue,
@@ -37,15 +42,25 @@ export function buildProspectusInvoicePaymaster(
   const paymasterName = nonEmptyString(paymaster.name);
   const paymasterNature = nonEmptyString(paymaster.entityType);
 
+  const deedOfAssignment =
+    normalizeProspectusDeedOfAssignment(input.officerDeedOfAssignment) ??
+    PROSPECTUS_DATA_NOT_AVAILABLE;
+  const paymasterRating =
+    normalizeProspectusPaymasterRating(input.officerPaymasterRating) ??
+    PROSPECTUS_DATA_NOT_AVAILABLE;
+  const confidenceGrading =
+    normalizeProspectusConfidenceGrading(input.officerConfidenceGrading) ??
+    PROSPECTUS_DATA_NOT_AVAILABLE;
+
   return {
     sectionHeading: PROSPECTUS_INVOICE_PAYMASTER_SECTION_HEADING,
     invoiceAmount: formatProspectusMoneyMyr(faceValue),
     invoiceDueDate: formatProspectusDateUtc(input.maturityDate),
     paymasterName: paymasterName ?? PROSPECTUS_DATA_NOT_AVAILABLE,
     paymasterNature: paymasterNature ?? PROSPECTUS_DATA_NOT_AVAILABLE,
-    deedOfAssignment: PROSPECTUS_DATA_NOT_AVAILABLE,
-    paymasterRating: PROSPECTUS_DATA_NOT_AVAILABLE,
-    confidenceGrading: PROSPECTUS_DATA_NOT_AVAILABLE,
+    deedOfAssignment,
+    paymasterRating,
+    confidenceGrading,
     audit: PROSPECTUS_INVOICE_PAYMASTER_AUDIT,
   };
 }

@@ -144,12 +144,13 @@
  * - Paymaster → notes.paymaster_snapshot.name (frozen at create)
  * - Nature of Paymaster → notes.paymaster_snapshot.entity_type (full value; no "Government" shorten)
  *
- * Unresolved (Data not available; no inference):
- * - Deed of Assignment (DOA) — no structured executed status
- * - Paymaster Rating — no PM1/PM2 field
- * - Confidence Grading — no High/Medium/Low field
+ * Officer-selected (Prospectus review content; required before Approve):
+ * - Deed of Assignment (DOA) → page2.invoicePaymaster.deedOfAssignment (Yes | No)
+ * - Paymaster Rating → page2.invoicePaymaster.paymasterRating (PM1–PM4)
+ * - Confidence Grading → page2.invoicePaymaster.confidenceGrading (High | Medium | Low)
+ * Not inferred from uploads, CTOS, Contract, or Invoice.
  *
- * Snapshot rule: note_creation_snapshots only; liveFallbackAllowed = false.
+ * Snapshot rule: note_creation_snapshots for frozen facts; officer fields from publication content.
  *
  * =============================================================================
  * PAGE 2 — STAGE 3 PAYMASTER TRACK RECORD (implemented as DNA-first)

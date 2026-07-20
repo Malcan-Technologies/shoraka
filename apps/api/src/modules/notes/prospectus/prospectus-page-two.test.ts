@@ -374,9 +374,30 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(page.invoicePaymaster.paymasterRating).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
       expect(page.invoicePaymaster.confidenceGrading).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
 
-      const invoiceHtml = renderProspectusPageTwoHtml(page);
+      const withOfficerInvoice = buildProspectusPageTwo({
+        ...mapProspectusPageTwoDataToInput({
+          note: baseNote(),
+          liveFinancialStatements,
+        }),
+        publicationContent: {
+          ...PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
+          invoicePaymaster: {
+            deedOfAssignment: "Yes",
+            paymasterRating: "PM1",
+            confidenceGrading: "High",
+          },
+        },
+      });
+      expect(withOfficerInvoice.invoicePaymaster.deedOfAssignment).toBe("Yes");
+      expect(withOfficerInvoice.invoicePaymaster.paymasterRating).toBe("PM1");
+      expect(withOfficerInvoice.invoicePaymaster.confidenceGrading).toBe("High");
+
+      const invoiceHtml = renderProspectusPageTwoHtml(withOfficerInvoice);
       expect(invoiceHtml).toContain("Nature of Paymaster:");
       expect(invoiceHtml).toContain("Deed of Assignment (DOA):");
+      expect(invoiceHtml).toContain("Yes");
+      expect(invoiceHtml).toContain("PM1");
+      expect(invoiceHtml).toContain("High");
       expect(invoiceHtml).not.toMatch(/Nature:(?! of Paymaster)/);
       expect(invoiceHtml).not.toContain("financing ratio");
       expect(invoiceHtml).not.toContain("INV-");

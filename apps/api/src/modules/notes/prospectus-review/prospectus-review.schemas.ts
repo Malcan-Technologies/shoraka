@@ -3,7 +3,13 @@
  */
 
 import { z } from "zod";
-import { normalizeProspectusCompanySize, PROSPECTUS_HIGHLIGHT_KEYS } from "@cashsouk/types";
+import {
+  normalizeProspectusCompanySize,
+  normalizeProspectusConfidenceGrading,
+  normalizeProspectusDeedOfAssignment,
+  normalizeProspectusPaymasterRating,
+  PROSPECTUS_HIGHLIGHT_KEYS,
+} from "@cashsouk/types";
 import { parseProspectusFinancialNumber } from "../prospectus/prospectus-financial-comparison-metrics";
 import {
   PROSPECTUS_CREDIT_INSIGHT_OPTIONS,
@@ -72,6 +78,14 @@ export const prospectusReviewStoredContentSchema = z
               .enum(["Micro", "Small", "Medium", "Large"])
               .nullable()
               .optional(),
+          })
+          .strict()
+          .optional(),
+        invoicePaymaster: z
+          .object({
+            deedOfAssignment: z.enum(["Yes", "No"]).nullable().optional(),
+            paymasterRating: z.enum(["PM1", "PM2", "PM3", "PM4"]).nullable().optional(),
+            confidenceGrading: z.enum(["High", "Medium", "Low"]).nullable().optional(),
           })
           .strict()
           .optional(),
@@ -363,6 +377,29 @@ export function validateApprovalContent(
     errors.push({
       path: "page2.issuerProfile.companySize",
       message: "Company Size is required before approving the Prospectus.",
+    });
+  }
+
+  if (
+    !normalizeProspectusDeedOfAssignment(content.page2.invoicePaymaster?.deedOfAssignment)
+  ) {
+    errors.push({
+      path: "page2.invoicePaymaster.deedOfAssignment",
+      message: "Deed of Assignment (DOA) is required before approving the Prospectus.",
+    });
+  }
+  if (!normalizeProspectusPaymasterRating(content.page2.invoicePaymaster?.paymasterRating)) {
+    errors.push({
+      path: "page2.invoicePaymaster.paymasterRating",
+      message: "Paymaster Rating is required before approving the Prospectus.",
+    });
+  }
+  if (
+    !normalizeProspectusConfidenceGrading(content.page2.invoicePaymaster?.confidenceGrading)
+  ) {
+    errors.push({
+      path: "page2.invoicePaymaster.confidenceGrading",
+      message: "Confidence Grading is required before approving the Prospectus.",
     });
   }
 

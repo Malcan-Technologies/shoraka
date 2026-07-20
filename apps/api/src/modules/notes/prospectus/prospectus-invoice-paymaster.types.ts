@@ -1,6 +1,6 @@
 /**
  * SECTION: Prospectus Page 2 — Invoice & Paymaster Information (DATA STAGE 2)
- * WHY: Confirmed frozen face value / maturity / paymaster; DOA / rating / confidence DNA
+ * WHY: Frozen face value / maturity / paymaster; DOA / rating / confidence are officer content
  */
 
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
@@ -33,17 +33,25 @@ export interface ProspectusInvoicePaymasterAudit {
     isFrozen: true;
   };
   deedOfAssignment: {
-    status: "unresolved";
-    structuredSourceAvailable: false;
+    source: "prospectus_review.page2.invoicePaymaster.deedOfAssignment";
+    isOfficerContent: true;
+    requiredForApproval: true;
     inferenceAllowed: false;
+    allowedValues: ["Yes", "No"];
   };
   paymasterRating: {
-    status: "unresolved";
-    structuredSourceAvailable: false;
+    source: "prospectus_review.page2.invoicePaymaster.paymasterRating";
+    isOfficerContent: true;
+    requiredForApproval: true;
+    inferenceAllowed: false;
+    allowedValues: ["PM1", "PM2", "PM3", "PM4"];
   };
   confidenceGrading: {
-    status: "unresolved";
-    structuredSourceAvailable: false;
+    source: "prospectus_review.page2.invoicePaymaster.confidenceGrading";
+    isOfficerContent: true;
+    requiredForApproval: true;
+    inferenceAllowed: false;
+    allowedValues: ["High", "Medium", "Low"];
   };
   snapshot: {
     sourceType: "note_creation_snapshots";
@@ -73,17 +81,25 @@ export const PROSPECTUS_INVOICE_PAYMASTER_AUDIT: ProspectusInvoicePaymasterAudit
     isFrozen: true,
   },
   deedOfAssignment: {
-    status: "unresolved",
-    structuredSourceAvailable: false,
+    source: "prospectus_review.page2.invoicePaymaster.deedOfAssignment",
+    isOfficerContent: true,
+    requiredForApproval: true,
     inferenceAllowed: false,
+    allowedValues: ["Yes", "No"],
   },
   paymasterRating: {
-    status: "unresolved",
-    structuredSourceAvailable: false,
+    source: "prospectus_review.page2.invoicePaymaster.paymasterRating",
+    isOfficerContent: true,
+    requiredForApproval: true,
+    inferenceAllowed: false,
+    allowedValues: ["PM1", "PM2", "PM3", "PM4"],
   },
   confidenceGrading: {
-    status: "unresolved",
-    structuredSourceAvailable: false,
+    source: "prospectus_review.page2.invoicePaymaster.confidenceGrading",
+    isOfficerContent: true,
+    requiredForApproval: true,
+    inferenceAllowed: false,
+    allowedValues: ["High", "Medium", "Low"],
   },
   snapshot: {
     sourceType: "note_creation_snapshots",
@@ -124,6 +140,12 @@ export interface ProspectusInvoicePaymasterInput {
   liveInvoiceMaturityDate?: Date | string | null;
   /** Observational supporting docs / DOA upload — must not infer Yes. */
   supportingDocuments?: unknown;
+  /** Officer-selected DOA from Prospectus review publication content. */
+  officerDeedOfAssignment?: string | null;
+  /** Officer-selected Paymaster Rating from Prospectus review publication content. */
+  officerPaymasterRating?: string | null;
+  /** Officer-selected Confidence Grading from Prospectus review publication content. */
+  officerConfidenceGrading?: string | null;
 }
 
 export interface ProspectusInvoicePaymasterFieldSource {
@@ -190,27 +212,27 @@ export const PROSPECTUS_INVOICE_PAYMASTER_FIELD_SOURCES: Record<
   },
   deedOfAssignment: {
     label: "Deed of Assignment (DOA)",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "prospectus_review.page2.invoicePaymaster.deedOfAssignment",
+    availability: "stored",
     surface: "canva",
     possibleAlternatives:
       "supporting_documents upload slot; product type; trustee workflow — not used",
-    notes: "Data not available. inferenceAllowed = false.",
+    notes: "Required officer select for approval: Yes | No. DNA when unset (old snapshots).",
   },
   paymasterRating: {
     label: "Paymaster Rating",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "prospectus_review.page2.invoicePaymaster.paymasterRating",
+    availability: "stored",
     surface: "canva",
-    possibleAlternatives: "PM1; SoukScore; government rating — not used",
-    notes: "No structured paymaster rating. Data not available.",
+    possibleAlternatives: "SoukScore; CTOS; live Contract — not used",
+    notes: "Required officer select for approval: PM1 | PM2 | PM3 | PM4. DNA when unset.",
   },
   confidenceGrading: {
     label: "Confidence Grading",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "prospectus_review.page2.invoicePaymaster.confidenceGrading",
+    availability: "stored",
     surface: "canva",
-    possibleAlternatives: "High/Medium/Low — not used",
-    notes: "No structured confidence grade. Data not available.",
+    possibleAlternatives: "CTOS; live Contract — not used",
+    notes: "Required officer select for approval: High | Medium | Low. DNA when unset.",
   },
 };

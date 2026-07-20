@@ -26,6 +26,23 @@ describe("toAdminInvoicePaymasterRows", () => {
       { label: "Paymaster Rating", value: PROSPECTUS_DATA_NOT_AVAILABLE },
       { label: "Confidence Grading", value: PROSPECTUS_DATA_NOT_AVAILABLE },
     ]);
+
+    const withOfficer = buildProspectusInvoicePaymaster({
+      invoiceSnapshot: { details: { value: 625_000 } },
+      maturityDate: "2025-09-12T00:00:00.000Z",
+      paymasterSnapshot: {
+        name: "Kementerian Kerja Raya (KKR)",
+        entity_type: "Federal Government Agency",
+      },
+      officerDeedOfAssignment: "Yes",
+      officerPaymasterRating: "PM1",
+      officerConfidenceGrading: "High",
+    });
+    expect(toAdminInvoicePaymasterRows(withOfficer).slice(4)).toEqual([
+      { label: "Deed of Assignment (DOA)", value: "Yes" },
+      { label: "Paymaster Rating", value: "PM1" },
+      { label: "Confidence Grading", value: "High" },
+    ]);
   });
 
   it("keeps DNA for unresolved fields and missing snapshots", () => {

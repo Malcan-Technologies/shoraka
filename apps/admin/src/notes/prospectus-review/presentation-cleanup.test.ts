@@ -72,20 +72,24 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).not.toContain("Issuer Information");
   });
 
-  it("shows Invoice & Paymaster Information from API rows on Page 2", () => {
+  it("shows Invoice & Paymaster Information from API rows plus officer selects on Page 2", () => {
     expect(pageSource).toContain('title="Invoice & Paymaster Information"');
     expect(pageSource).toContain("invoicePaymaster");
     expect(pageSource).toContain("data-prospectus-invoice-paymaster");
     expect(pageSource).toContain(
       "Invoice and paymaster facts shown in the investor Prospectus."
     );
+    expect(pageSource).toContain("prospectus-deed-of-assignment");
+    expect(pageSource).toContain("prospectus-paymaster-rating");
+    expect(pageSource).toContain("prospectus-confidence-grading");
+    expect(pageSource).toContain("PROSPECTUS_DEED_OF_ASSIGNMENT_VALUES");
+    expect(pageSource).toContain("PROSPECTUS_PAYMASTER_RATING_VALUES");
+    expect(pageSource).toContain("PROSPECTUS_CONFIDENCE_GRADING_VALUES");
     expect(pageSource).not.toContain("buildInvoicePaymasterVerificationRows");
-    // No local frontend formula for invoice face value / financing ratio.
     expect(pageSource).not.toMatch(
       /Invoice & Paymaster Information[\s\S]{0,800}financing_ratio/
     );
     expect(pageSource).not.toMatch(/data-prospectus-invoice-paymaster[\s\S]{0,400}<Input/);
-    expect(pageSource).not.toMatch(/data-prospectus-invoice-paymaster[\s\S]{0,400}<Select/);
   });
 
   it("shows read-only Historical Notes from API table on Page 1 after Issuer Track Record", () => {

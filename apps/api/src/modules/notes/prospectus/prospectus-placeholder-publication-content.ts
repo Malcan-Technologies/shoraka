@@ -116,6 +116,15 @@ export interface ProspectusIssuerProfilePublicationInputs {
   companySize?: string | null;
 }
 
+export interface ProspectusInvoicePaymasterPublicationInputs {
+  /** Officer-selected DOA — Yes | No, or null when unset. */
+  deedOfAssignment?: string | null;
+  /** Officer-selected Paymaster Rating — PM1–PM4, or null when unset. */
+  paymasterRating?: string | null;
+  /** Officer-selected Confidence Grading — High | Medium | Low, or null when unset. */
+  confidenceGrading?: string | null;
+}
+
 export interface ProspectusPublicationContent {
   meta: typeof PROSPECTUS_PUBLICATION_CONTENT_SOURCE;
   keyInvestorHighlights: ProspectusKeyInvestorHighlightPlaceholder[];
@@ -126,6 +135,7 @@ export interface ProspectusPublicationContent {
     approvedProductionCopy: boolean;
   };
   issuerProfile?: ProspectusIssuerProfilePublicationInputs;
+  invoicePaymaster?: ProspectusInvoicePaymasterPublicationInputs;
   paymasterTrackRecord?: ProspectusPaymasterTrackRecordPublicationInputs;
   creditInsightSelections: Partial<
     Record<ProspectusCreditInsightFieldKey, ProspectusCreditInsightOptionKey>

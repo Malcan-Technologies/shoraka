@@ -30,6 +30,11 @@ export function buildCompleteProspectusReviewDraft(): ProspectusReviewStoredCont
     return h;
   });
   draft.page2.issuerProfile = { companySize: "Medium" };
+  draft.page2.invoicePaymaster = {
+    deedOfAssignment: "Yes",
+    paymasterRating: "PM1",
+    confidenceGrading: "High",
+  };
   draft.page2.paymasterTrackRecord = {
     totalInvoicesPaid: 48,
     totalAmountPaid: "12500000",
