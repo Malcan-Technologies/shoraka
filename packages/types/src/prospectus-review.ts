@@ -90,6 +90,12 @@ export interface ProspectusHighlightCopyDto {
   description: string;
 }
 
+/** Read-only Page 1 Issuer Track Record rows for Admin (same values as Preview). */
+export interface ProspectusIssuerTrackRecordAdminRow {
+  label: string;
+  value: string;
+}
+
 export interface ProspectusReviewGetResponse {
   note: {
     id: string;
@@ -110,6 +116,13 @@ export interface ProspectusReviewGetResponse {
     issuer_fundamentals: ProspectusHighlightCopyDto;
     return: ProspectusHighlightCopyDto;
     shariah: ProspectusHighlightCopyDto;
+  };
+  /**
+   * System-derived Issuer Track Record (Page 1 Stage 7) — live for unpublished,
+   * frozen snapshot for published. Same path as Prospectus Preview.
+   */
+  issuerTrackRecord: {
+    rows: ProspectusIssuerTrackRecordAdminRow[];
   };
   publishBlockedReason: string | null;
   /** Temporary placeholder catalogue notice for officers. */

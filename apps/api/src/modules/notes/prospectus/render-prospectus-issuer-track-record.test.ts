@@ -7,6 +7,7 @@ import { NoteStatus } from "@prisma/client";
 import {
   buildProspectusIssuerTrackRecordFromMetrics,
   buildProspectusIssuerTrackRecordFromSnapshot,
+  toAdminIssuerTrackRecordRows,
 } from "./prospectus-issuer-track-record";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
@@ -57,6 +58,24 @@ describe("prospectus Issuer Track-Record Summary (Page 1 DATA STAGE 7)", () => {
     expect(data.totalAmountFunded).toBe("RM 100,000.00");
     expect(data.successfulRepayment).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.onTimePaymentRate).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+  });
+
+  it("maps Admin rows from the same Stage 7 values including no-history display", () => {
+    const noHistory = buildProspectusIssuerTrackRecordFromMetrics({
+      totalNotesFunded: 0,
+      totalAmountFunded: 0,
+      successfulRepaymentPercent: null,
+      onTimePaymentRateSixMonthsPercent: null,
+    });
+    expect(toAdminIssuerTrackRecordRows(noHistory)).toEqual([
+      { label: "Total Notes Funded", value: "0" },
+      { label: "Total Amount Funded", value: "RM 0.00" },
+      { label: "Successful Repayment", value: PROSPECTUS_DATA_NOT_AVAILABLE },
+      {
+        label: PROSPECTUS_ON_TIME_PAYMENT_RATE_LABEL,
+        value: PROSPECTUS_DATA_NOT_AVAILABLE,
+      },
+    ]);
   });
 
   it("reads frozen snapshot metrics", () => {

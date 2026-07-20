@@ -201,8 +201,25 @@ export function buildNoteInvestmentDetailSections(
         { label: "Minimum Investment", value: minimumInvestment },
       ],
     },
-    // Issuer Track Record / Historical Notes stay prospectus-preview-only until
-    // admin can load the same derived values; omit preview-only placeholder rows.
+  ];
+}
+
+/**
+ * Append API-provided Issuer Track Record rows after At a Glance.
+ * Values must come from the same Page 1 Stage 7 path as Prospectus Preview.
+ */
+export function appendIssuerTrackRecordSection(
+  sections: NoteInvestmentDetailSection[],
+  rows: CoreTermRow[] | null | undefined
+): NoteInvestmentDetailSection[] {
+  if (!rows?.length) return sections;
+  return [
+    ...sections,
+    {
+      id: "issuer-track-record",
+      title: "Issuer Track Record",
+      rows,
+    },
   ];
 }
 

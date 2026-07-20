@@ -35,8 +35,22 @@ describe("prospectus review presentation cleanup", () => {
   it("removes redundant fixed-content verification sections", () => {
     expect(pageSource).not.toContain("Risk Rating Scale");
     expect(pageSource).not.toContain("Investment CTA");
-    expect(pageSource).not.toContain("Issuer Track Record");
     expect(pageSource).not.toContain("Historical Notes");
+  });
+
+  it("shows read-only Issuer Track Record from API rows on Page 1", () => {
+    expect(pageSource).toContain("appendIssuerTrackRecordSection");
+    expect(pageSource).toContain("issuerTrackRecord");
+    expect(pageSource).toContain('section.id === "issuer-track-record"');
+    expect(pageSource).toContain(
+      "These figures are calculated automatically from the issuer"
+    );
+    expect(pageSource).not.toContain("Historical Notes");
+    // No editable controls for Issuer Track Record (Paymaster Track Record remains editable on step 2).
+    expect(pageSource).not.toMatch(/issuerTrackRecord[\s\S]{0,200}<Input/);
+    expect(pageSource).not.toMatch(/Issuer Track Record[\s\S]{0,400}<Input/);
+    expect(pageSource).not.toMatch(/Issuer Track Record[\s\S]{0,400}<Textarea/);
+    expect(pageSource).not.toMatch(/Issuer Track Record[\s\S]{0,400}<Select/);
   });
 
   it("uses editable highlight copy instead of highlight catalogue dropdowns", () => {

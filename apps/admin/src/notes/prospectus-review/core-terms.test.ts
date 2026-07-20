@@ -15,6 +15,7 @@ import {
   type NoteDetail,
 } from "@cashsouk/types";
 import {
+  appendIssuerTrackRecordSection,
   buildNoteInvestmentDetailSections,
   resolveCatalogueOptionLabel,
 } from "./core-terms";
@@ -122,6 +123,63 @@ describe("note & investment details coverage", () => {
     expect(sections.map((s) => s.title)).not.toContain("Investment Terms");
   });
 
+  it("appends Issuer Track Record after At a Glance from API rows", () => {
+    const base = buildNoteInvestmentDetailSections(sampleNote());
+    const trackRows = [
+      { label: "Total Notes Funded", value: "0" },
+      { label: "Total Amount Funded", value: "RM 0.00" },
+      { label: "Successful Repayment", value: "Data not available" },
+      {
+        label: "On-time Payment Rate — Last 6 Months",
+        value: "Data not available",
+      },
+    ];
+    const sections = appendIssuerTrackRecordSection(base, trackRows);
+    expect(sections.map((s) => s.title)).toEqual([
+      "Note Details",
+      "Dates & Paymaster",
+      "Investment Summary",
+      "Risk Information",
+      "At a Glance",
+      "Issuer Track Record",
+    ]);
+    const glance = sections.find((s) => s.id === "at-a-glance");
+    expect(glance?.rows.map((r) => r.label)).toEqual([
+      "Financing Amount",
+      "Profit Rate (p.a.)",
+      "Expected Return (p.a.)",
+      "Tenure",
+      "Minimum Investment",
+    ]);
+    const track = sections.find((s) => s.id === "issuer-track-record")!;
+    expect(track.title).toBe("Issuer Track Record");
+    expect(track.rows).toEqual(trackRows);
+    expect(track.rows.map((r) => r.label)).toEqual([
+      "Total Notes Funded",
+      "Total Amount Funded",
+      "Successful Repayment",
+      "On-time Payment Rate — Last 6 Months",
+    ]);
+    expect(track.rows.find((r) => r.label === "Total Notes Funded")?.value).toBe("0");
+    expect(track.rows.find((r) => r.label === "Total Amount Funded")?.value).toBe("RM 0.00");
+    expect(track.rows.find((r) => r.label === "Successful Repayment")?.value).toBe(
+      "Data not available"
+    );
+    expect(
+      track.rows.find((r) => r.label === "On-time Payment Rate — Last 6 Months")?.value
+    ).toBe("Data not available");
+  });
+
+  it("does not append Issuer Track Record when API rows are missing", () => {
+    const base = buildNoteInvestmentDetailSections(sampleNote());
+    expect(appendIssuerTrackRecordSection(base, undefined).map((s) => s.id)).not.toContain(
+      "issuer-track-record"
+    );
+    expect(appendIssuerTrackRecordSection(base, []).map((s) => s.id)).not.toContain(
+      "issuer-track-record"
+    );
+  });
+
   it("titles the investment section Investment Summary with the approved field set", () => {
     const section = buildNoteInvestmentDetailSections(sampleNote()).find(
       (s) => s.id === "investment-terms"
@@ -140,10 +198,12 @@ describe("note & investment details coverage", () => {
     ]);
   });
 
-  it("omits Track Record and Historical Notes preview-only rows", () => {
+  it("omits Historical Notes and does not invent track-record values in core sections", () => {
     const sections = buildNoteInvestmentDetailSections(sampleNote());
+    expect(sections.map((s) => s.id)).not.toContain("issuer-track-record");
     const labels = sections.flatMap((s) => s.rows.map((r) => r.label)).join("\n");
-    expect(labels).not.toMatch(/Track Record|Historical Notes|verify in Preview/i);
+    expect(labels).not.toMatch(/Historical Notes|verify in Preview/i);
+    expect(labels).not.toMatch(/Total Notes Funded|Total Amount Funded/);
   });
 
   it("shows Profit Rate and Expected Return as separate investment fields", () => {

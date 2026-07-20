@@ -63,6 +63,7 @@ import {
   statusForCompletionItem,
 } from "@/notes/prospectus-review/completion";
 import {
+  appendIssuerTrackRecordSection,
   buildIssuerProfileRows,
   buildNoteInvestmentDetailSections,
 } from "@/notes/prospectus-review/core-terms";
@@ -366,7 +367,13 @@ function ProspectusReviewPageInner() {
   const checklist = buildProspectusCompletionChecklist(draft);
   const canSubmitReady = isProspectusDraftReadyToSubmit(draft);
   const stepStatuses = getProspectusStepStatuses(draft);
-  const noteInvestmentSections = note ? buildNoteInvestmentDetailSections(note) : [];
+  const noteInvestmentSections =
+    note != null
+      ? appendIssuerTrackRecordSection(
+          buildNoteInvestmentDetailSections(note),
+          data?.issuerTrackRecord?.rows
+        )
+      : [];
   const issuerRows = note ? buildIssuerProfileRows(note) : [];
   const invoicePaymasterRows = note ? buildInvoicePaymasterVerificationRows(note) : [];
   const financialStatements = (
@@ -638,6 +645,12 @@ function ProspectusReviewPageInner() {
                         noteInvestmentSections.map((section) => (
                           <section key={section.id}>
                             <ProspectusSectionHeading title={section.title} />
+                            {section.id === "issuer-track-record" ? (
+                              <p className="mb-3 text-sm text-muted-foreground">
+                                These figures are calculated automatically from the issuer&apos;s
+                                previous CashSouk Notes.
+                              </p>
+                            ) : null}
                             <ReadOnlyGrid rows={section.rows} />
                           </section>
                         ))

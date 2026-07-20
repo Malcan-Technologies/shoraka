@@ -89,6 +89,21 @@ export function buildProspectusIssuerTrackRecordFromSnapshot(
   });
 }
 
+/**
+ * Admin Prospectus Review rows — same labels/values as Page 1 Canva HTML.
+ * Does not recalculate metrics; maps an already-built Stage 7 view-model.
+ */
+export function toAdminIssuerTrackRecordRows(
+  track: ProspectusIssuerTrackRecord
+): Array<{ label: string; value: string }> {
+  return [
+    { label: "Total Notes Funded", value: track.totalNotesFunded },
+    { label: "Total Amount Funded", value: track.totalAmountFunded },
+    { label: "Successful Repayment", value: track.successfulRepayment },
+    { label: track.onTimePaymentRateLabel, value: track.onTimePaymentRate },
+  ];
+}
+
 /** @deprecated Prefer FromMetrics / FromSnapshot — kept for sample preview wiring. */
 export function buildProspectusIssuerTrackRecord(
   input: ProspectusIssuerTrackRecordMetricsInput = {

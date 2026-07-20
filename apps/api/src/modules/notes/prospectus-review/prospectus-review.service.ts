@@ -15,6 +15,7 @@ import {
 } from "@cashsouk/types";
 import { AppError } from "../../../lib/http/error-handler";
 import { prisma } from "../../../lib/prisma";
+import { toAdminIssuerTrackRecordRows } from "../prospectus/prospectus-issuer-track-record";
 import { buildProspectusPageOneHtml } from "../prospectus/prospectus-page-one.html";
 import {
   buildProspectusPageOne,
@@ -272,6 +273,11 @@ export class ProspectusReviewService {
       recommendationInput
     );
 
+    // Same Page 1 Stage 7 path as Prospectus Preview (live unpublished / frozen published).
+    const page1Note = await loadProspectusPageOneNote(prisma, noteId);
+    const page1Input = await mapProspectusPageOneDataToInput(page1Note);
+    const page1 = buildProspectusPageOne(page1Input);
+
     return {
       note: {
         id: note.id,
@@ -282,6 +288,9 @@ export class ProspectusReviewService {
       review: mapped,
       catalogues: getActiveProspectusCatalogues(),
       highlightRecommendations,
+      issuerTrackRecord: {
+        rows: toAdminIssuerTrackRecordRows(page1.issuerTrackRecord),
+      },
       publishBlockedReason:
         note.status === NoteStatus.DRAFT &&
         review.status !== ProspectusReviewStatus.APPROVED
