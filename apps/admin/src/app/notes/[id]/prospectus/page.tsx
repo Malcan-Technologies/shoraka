@@ -41,9 +41,7 @@ import {
   useApproveProspectusReview,
   useProspectusReview,
   useProspectusReviewPreview,
-  useReopenProspectusReview,
   useSaveProspectusReviewDraft,
-  useSubmitProspectusReview,
 } from "@/notes/hooks/use-prospectus-review";
 import {
   HIGHLIGHT_FIELD_LABELS,
@@ -59,7 +57,6 @@ import {
   PROSPECTUS_STEP_STATUS_LABEL,
   buildProspectusCompletionChecklist,
   getProspectusStepStatuses,
-  isProspectusDraftReadyToSubmit,
   statusForCompletionItem,
 } from "@/notes/prospectus-review/completion";
 import {
@@ -207,9 +204,7 @@ function ProspectusReviewPageInner() {
   const { data: updatedByUser } = useUserDetail(data?.review.updatedByUserId ?? null);
 
   const saveDraft = useSaveProspectusReviewDraft(noteId);
-  const submit = useSubmitProspectusReview(noteId);
   const approve = useApproveProspectusReview(noteId);
-  const reopen = useReopenProspectusReview(noteId);
 
   const [step, setStep] = React.useState<ProspectusWorkflowStepId>(0);
   const [draft, setDraft] = React.useState<ProspectusReviewStoredContent | null>(null);
@@ -236,8 +231,9 @@ function ProspectusReviewPageInner() {
   }, [dirty]);
 
   const status = data?.review.status as ProspectusReviewStatus | undefined;
-  const locked = status === "APPROVED";
   const notePublished = note?.status === "PUBLISHED" || note?.publishedAt != null;
+  /** Editable until Note/Prospectus is published (Approved remains editable). */
+  const locked = notePublished || status === "PUBLISHED";
 
   const updateDraft = (
     updater: (prev: ProspectusReviewStoredContent) => ProspectusReviewStoredContent
@@ -296,51 +292,37 @@ function ProspectusReviewPageInner() {
     }
   };
 
-  const onPreview = async () => {
-    if (dirty && canManage && !locked) {
+  const onSaveAndPreview = async () => {
+    if (!canManage || locked) {
+      setPreviewOpen(true);
+      return;
+    }
+    if (dirty) {
       const saved = await onSave();
       if (!saved) return;
     }
     setPreviewOpen(true);
   };
 
-  const onSubmit = async () => {
-    if (dirty) {
-      toast.error("Save draft before submitting for review");
-      return;
-    }
-    try {
-      await submit.mutateAsync();
-      toast.success("Submitted for review");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Submit failed");
-    }
-  };
-
   const onApprove = async () => {
-    if (dirty) {
-      toast.error("Save draft before approving");
+    if (
+      !window.confirm(
+        "Approve this Prospectus? It will become eligible for marketplace publication. Any edits made before publication will require approval again."
+      )
+    ) {
       return;
     }
-    if (status !== "READY_FOR_REVIEW") {
-      toast.error("Submit for review before approving");
-      return;
-    }
+    if (!draft || !data) return;
     try {
-      await approve.mutateAsync();
-      toast.success("Prospectus approved");
+      await approve.mutateAsync(
+        dirty
+          ? { draftContent: draft, expectedUpdatedAt: data.review.updatedAt }
+          : undefined
+      );
+      setDirty(false);
+      toast.success("Prospectus approved — Note is eligible for publication");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Approve failed");
-    }
-  };
-
-  const onReopen = async () => {
-    try {
-      await reopen.mutateAsync();
-      setDirty(false);
-      toast.success("Review reopened for editing");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Reopen failed");
     }
   };
 
@@ -365,7 +347,6 @@ function ProspectusReviewPageInner() {
   const catalogues = data.catalogues;
   const actorName = formatActorDisplayName(updatedByUser);
   const checklist = buildProspectusCompletionChecklist(draft);
-  const canSubmitReady = isProspectusDraftReadyToSubmit(draft);
   const stepStatuses = getProspectusStepStatuses(draft);
   const noteInvestmentSections =
     note != null
@@ -410,13 +391,16 @@ function ProspectusReviewPageInner() {
     });
   };
   const previewStatusLabel =
-    status === "APPROVED" ? ("Approved preview" as const) : ("Draft preview" as const);
+    status === "APPROVED" || status === "PUBLISHED"
+      ? ("Approved preview" as const)
+      : ("Draft preview" as const);
   const actions = getProspectusActionVisibility({
     step,
     status: status ?? "DRAFT",
     canManage,
     notePublished,
   });
+  const dirtyLabel = dirty ? "Unsaved changes" : "All changes saved";
   const StepIcon = PROSPECTUS_STEP_ICONS[step];
 
   const stepNav = (
@@ -468,6 +452,9 @@ function ProspectusReviewPageInner() {
       className="sticky bottom-0 z-10 border-t bg-background/95 px-1 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80"
     >
       <div className="flex flex-wrap items-center gap-2">
+        <span className="mr-2 text-xs text-muted-foreground" data-prospectus-dirty-state>
+          {dirtyLabel}
+        </span>
         {actions.saveDraft ? (
           <Button
             variant="outline"
@@ -477,31 +464,23 @@ function ProspectusReviewPageInner() {
             Save Draft
           </Button>
         ) : null}
-        {actions.preview ? (
+        {actions.saveAndPreview ? (
           <Button
             variant="secondary"
-            onClick={() => void onPreview()}
-            disabled={preview.isFetching}
+            onClick={() => void onSaveAndPreview()}
+            disabled={preview.isFetching || saveDraft.isPending}
           >
-            Preview Prospectus
-          </Button>
-        ) : null}
-        {actions.submitForReview ? (
-          <Button
-            onClick={() => void onSubmit()}
-            disabled={submit.isPending || dirty || !canSubmitReady}
-          >
-            Submit for Review
+            Save &amp; Preview
           </Button>
         ) : null}
         {actions.approve ? (
-          <Button onClick={() => void onApprove()} disabled={approve.isPending || dirty}>
+          <Button onClick={() => void onApprove()} disabled={approve.isPending}>
             Approve Prospectus
           </Button>
         ) : null}
-        {actions.reopen ? (
-          <Button variant="outline" onClick={() => void onReopen()} disabled={reopen.isPending}>
-            Reopen for Editing
+        {actions.viewProspectus ? (
+          <Button variant="secondary" onClick={() => setPreviewOpen(true)}>
+            View Prospectus
           </Button>
         ) : null}
         {actions.backToNote ? (
@@ -552,7 +531,7 @@ function ProspectusReviewPageInner() {
               </div>
             </div>
             <Badge variant="outline" className="shrink-0">
-              {formatProspectusReviewStatus(data.review.status)}
+              {formatProspectusReviewStatus(data.review.status, notePublished)}
             </Badge>
           </div>
 
@@ -565,7 +544,7 @@ function ProspectusReviewPageInner() {
               <div className="min-w-0">
                 <div className="text-xs text-muted-foreground">Review Status</div>
                 <div className="mt-1 text-sm font-semibold">
-                  {formatProspectusReviewStatus(data.review.status)}
+                  {formatProspectusReviewStatus(data.review.status, notePublished)}
                 </div>
               </div>
               <div className="min-w-0">
@@ -1065,7 +1044,7 @@ function ProspectusReviewPageInner() {
                   {step === 6 ? (
                     <div className="space-y-4">
                       <p className="text-sm text-muted-foreground">
-                        Review the checklist below, then open the prospectus preview before submit
+                        Review the checklist below, then Save &amp; Preview and Approve Prospectus
                         or approval.
                       </p>
                       <ul
@@ -1096,7 +1075,7 @@ function ProspectusReviewPageInner() {
                       </ul>
                       {data.publishBlockedReason ? (
                         <p className="text-sm text-muted-foreground">
-                          Publishing stays blocked until this prospectus is approved.
+                          Prospectus approval required.
                         </p>
                       ) : (
                         <p className="text-sm text-muted-foreground">

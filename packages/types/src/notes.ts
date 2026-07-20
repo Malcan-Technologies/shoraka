@@ -195,6 +195,18 @@ export interface NoteInvestorRepaymentSummary {
   receivedSettlementEvents: NoteInvestorSettlementEvent[];
 }
 
+/** Prospectus workflow summary on admin Note list/detail. */
+export type NoteProspectusSummary = {
+  /** Normalized workflow status: DRAFT | APPROVED | PUBLISHED. */
+  status: "DRAFT" | "APPROVED" | "PUBLISHED";
+  /** User-facing: Draft | Approved | Published. */
+  displayStatus: "Draft" | "Approved" | "Published";
+  contentVersion: number | null;
+  lastSavedAt: string | null;
+  approvedAt: string | null;
+  publishedAt: string | null;
+};
+
 export interface NoteListItem extends NoteMoneySummary {
   id: string;
   noteReference: string;
@@ -228,6 +240,13 @@ export interface NoteListItem extends NoteMoneySummary {
   /** Issuer portal list: residual trustee payout vs `settlementSummary` (omitted elsewhere). */
   issuerResidualPayout?: IssuerResidualPayoutListStatus;
   investorRepaymentSummary?: NoteInvestorRepaymentSummary | null;
+  /** Admin list/detail: Prospectus workflow status for badges and publish checklist. */
+  prospectus?: NoteProspectusSummary | null;
+  /**
+   * Investor investments list only: primary investment id for this Note + org
+   * (used by investment-scoped View Prospectus).
+   */
+  investorInvestmentId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -953,6 +972,8 @@ export interface UpdateNoteFeaturedInput {
 }
 
 export interface CreateNoteInvestmentInput {
+  /** Must be true — server rejects investments without Prospectus acknowledgement. */
+  prospectusAcknowledged: true;
   amount: number;
   investorOrganizationId: string;
 }

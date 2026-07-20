@@ -26,7 +26,8 @@ test.describe("Admin Prospectus Review (demo Note)", () => {
     // Global header keeps health indicator; review status stays in page content.
     await expect(page.locator("header").getByText("Draft", { exact: true })).toHaveCount(0);
 
-    await expect(page.getByRole("button", { name: /Preview Prospectus/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Save & Preview/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Approve Prospectus/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Note & Investment Details/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Investor Highlights/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Note Details" })).toBeVisible();
@@ -45,7 +46,7 @@ test.describe("Admin Prospectus Review (demo Note)", () => {
       page.getByRole("navigation", { name: /Prospectus review steps/i }).locator("[data-prospectus-step-icon]")
     ).toHaveCount(0);
 
-    await expect(page.getByText(/temporary placeholder catalogue/i)).toHaveCount(0);
+    await expect(page.getByText(/temporary placeholder catalogue/i )).toHaveCount(0);
     await expect(page.getByText(/Highlight: paymaster/i)).toHaveCount(0);
     await expect(page.getByText(/source: draft/i)).toHaveCount(0);
 
@@ -53,9 +54,10 @@ test.describe("Admin Prospectus Review (demo Note)", () => {
     await expect(page.getByText("Financing Amount")).toBeVisible();
     await expect(page.getByText("Risk Rating")).toBeVisible();
 
-    // DRAFT early steps: Save + Preview only (no Submit).
+    // DRAFT: Save + Save & Preview + Approve (no Submit / Reopen).
     await expect(page.getByRole("button", { name: /Save Draft/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Submit for Review/i })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Reopen/i })).toHaveCount(0);
 
     await page.getByRole("button", { name: /Investor Highlights/i }).click();
     await expect(page.getByText("Paymaster Highlight")).toBeVisible();
@@ -76,12 +78,11 @@ test.describe("Admin Prospectus Review (demo Note)", () => {
     await expect(stepNav.locator("[data-prospectus-status]").first()).toBeVisible();
 
     await page.getByRole("button", { name: /Preview & Approval/i }).click();
-    await expect(page.getByRole("button", { name: /Submit for Review/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Submit for Review/i })).toBeDisabled();
+    await expect(page.getByRole("button", { name: /Approve Prospectus/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Submit for Review/i })).toHaveCount(0);
 
     await page.getByRole("button", { name: /^Investor Highlights/ }).click();
     await expect(page.getByRole("heading", { name: "Key Investor Highlights" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Submit for Review/i })).toHaveCount(0);
 
     const stepBeforePreview = await page.getByRole("heading", { name: "Investor Highlights" }).count();
     expect(stepBeforePreview).toBeGreaterThan(0);
@@ -93,7 +94,7 @@ test.describe("Admin Prospectus Review (demo Note)", () => {
       }
     });
 
-    await page.getByRole("button", { name: /Preview Prospectus/i }).click();
+    await page.getByRole("button", { name: /Save & Preview/i }).click();
     await expect(page.getByRole("heading", { name: /Prospectus Preview/i })).toBeVisible();
     await expect(page.getByRole("button", { name: "Page 1" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Page 2" })).toBeVisible();

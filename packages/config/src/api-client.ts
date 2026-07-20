@@ -650,31 +650,43 @@ export class ApiClient {
     return this.put<ProspectusReviewDetail>(`/v1/admin/notes/${id}/prospectus-review`, data);
   }
 
-  async submitAdminProspectusReview(
-    id: string
-  ): Promise<ApiResponse<ProspectusReviewDetail> | ApiError> {
-    return this.post<ProspectusReviewDetail>(
-      `/v1/admin/notes/${id}/prospectus-review/submit`,
-      {}
-    );
-  }
-
   async approveAdminProspectusReview(
-    id: string
+    id: string,
+    data?: SaveProspectusReviewDraftInput
   ): Promise<ApiResponse<ProspectusReviewDetail> | ApiError> {
     return this.post<ProspectusReviewDetail>(
       `/v1/admin/notes/${id}/prospectus-review/approve`,
-      {}
+      data ?? {}
     );
   }
 
-  async reopenAdminProspectusReview(
-    id: string
-  ): Promise<ApiResponse<ProspectusReviewDetail> | ApiError> {
-    return this.post<ProspectusReviewDetail>(
-      `/v1/admin/notes/${id}/prospectus-review/reopen`,
-      {}
-    );
+  async getMarketplaceNoteProspectus(
+    noteId: string
+  ): Promise<
+    | ApiResponse<{
+        publicationId: string;
+        contentVersion: number;
+        html: { page1: string; page2: string; page3: string };
+        documentHtml: string;
+      }>
+    | ApiError
+  > {
+    return this.get(`/v1/marketplace/notes/${noteId}/prospectus`);
+  }
+
+  async getInvestorInvestmentProspectus(
+    investmentId: string
+  ): Promise<
+    | ApiResponse<{
+        noteId: string;
+        publicationId: string;
+        contentVersion: number;
+        html: { page1: string; page2: string; page3: string };
+        documentHtml: string;
+      }>
+    | ApiError
+  > {
+    return this.get(`/v1/investor/investments/${investmentId}/prospectus`);
   }
 
   async getAdminProspectusReviewPreview(

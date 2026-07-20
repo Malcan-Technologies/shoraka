@@ -47,14 +47,6 @@ async function main() {
   };
   console.log("save", saveRes.status, saveJson.data?.status);
 
-  const submitRes = await fetch(`${base}/submit`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: "{}",
-  });
-  const submitJson = (await readJson(submitRes, "SUBMIT")) as { data?: { status: string } };
-  console.log("submit", submitRes.status, submitJson.data?.status);
-
   const previewRes = await fetch(`${base}/preview`);
   const previewJson = (await readJson(previewRes, "PREVIEW")) as {
     data?: { previewSource: string; draftMarker: string; html: { page1: string; page2: string; page3: string } };
@@ -103,13 +95,14 @@ async function main() {
   };
   console.log("publish", publishRes.status, publishJson.data?.status, publishJson.error);
 
-  const reopenRes = await fetch(`${base}/reopen`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: "{}",
-  });
-  const reopenJson = (await readJson(reopenRes, "REOPEN")) as { error?: { code: string } };
-  console.log("reopen-blocked", reopenRes.status, reopenJson.error?.code);
+  const getAfter = await fetch(base);
+  const getAfterJson = (await readJson(getAfter, "GET-AFTER")) as {
+    data?: { review: { status: string } };
+  };
+  console.log("review-after-publish", getAfter.status, getAfterJson.data?.review.status);
+  if (getAfterJson.data?.review.status !== "PUBLISHED") {
+    throw new Error("Prospectus review must be PUBLISHED after Note publish");
+  }
 
   if (publishRes.status !== 200) throw new Error("Publish failed");
   console.log("\nHTTP smoke PASSED\n");

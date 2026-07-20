@@ -17,8 +17,9 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).not.toMatch(/View in Page 2 Preview/);
     expect(pageSource).not.toMatch(/View in Page 3 Preview/);
     expect(pageSource).not.toMatch(/verify in Preview/i);
-    expect(pageSource).toContain("Preview Prospectus");
-    expect(pageSource.match(/Preview Prospectus/g)?.length).toBe(1);
+    expect(pageSource).toContain("Save &amp; Preview");
+    expect(pageSource).not.toMatch(/Submit for Review/);
+    expect(pageSource).not.toMatch(/Reopen/);
   });
 
   it("uses operations-friendly section titles and drops technical names", () => {

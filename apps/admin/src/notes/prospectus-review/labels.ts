@@ -1,4 +1,7 @@
-import type { ProspectusReviewStatus } from "@cashsouk/types";
+import {
+  getProspectusDisplayStatus,
+  type ProspectusReviewStatus,
+} from "@cashsouk/types";
 
 export type ProspectusWorkflowStepId = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -43,19 +46,12 @@ export const PROSPECTUS_STEP_TITLES: Record<ProspectusWorkflowStepId, string> = 
   6: "Preview & Approval",
 };
 
-export function formatProspectusReviewStatus(status: ProspectusReviewStatus): string {
-  switch (status) {
-    case "DRAFT":
-      return "Draft";
-    case "READY_FOR_REVIEW":
-      return "Ready for Review";
-    case "APPROVED":
-      return "Approved";
-    case "SUPERSEDED":
-      return "Superseded";
-    default:
-      return status;
-  }
+/** User-facing: Draft | Approved | Published only (legacy statuses map to Draft). */
+export function formatProspectusReviewStatus(
+  status: ProspectusReviewStatus,
+  notePublished = false
+): string {
+  return getProspectusDisplayStatus({ reviewStatus: status, notePublished });
 }
 
 export const HIGHLIGHT_FIELD_LABELS: Record<string, string> = {

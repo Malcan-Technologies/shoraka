@@ -57,22 +57,7 @@ export function useSaveProspectusReviewDraft(noteId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: prospectusReviewKey(noteId) });
       void qc.invalidateQueries({ queryKey: prospectusReviewPreviewKey(noteId) });
-    },
-  });
-}
-
-export function useSubmitProspectusReview(noteId: string) {
-  const { getAccessToken } = useAuthToken();
-  const apiClient = createApiClient(API_URL, getAccessToken);
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async () => {
-      const res = await apiClient.submitAdminProspectusReview(noteId);
-      if (!res.success) throw new Error(res.error.message);
-      return res.data;
-    },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: prospectusReviewKey(noteId) });
+      void qc.invalidateQueries({ queryKey: notesKeys.detail(noteId) });
     },
   });
 }
@@ -82,30 +67,15 @@ export function useApproveProspectusReview(noteId: string) {
   const apiClient = createApiClient(API_URL, getAccessToken);
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
-      const res = await apiClient.approveAdminProspectusReview(noteId);
+    mutationFn: async (input?: SaveProspectusReviewDraftInput) => {
+      const res = await apiClient.approveAdminProspectusReview(noteId, input);
       if (!res.success) throw new Error(res.error.message);
       return res.data;
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: prospectusReviewKey(noteId) });
+      void qc.invalidateQueries({ queryKey: prospectusReviewPreviewKey(noteId) });
       void qc.invalidateQueries({ queryKey: notesKeys.detail(noteId) });
-    },
-  });
-}
-
-export function useReopenProspectusReview(noteId: string) {
-  const { getAccessToken } = useAuthToken();
-  const apiClient = createApiClient(API_URL, getAccessToken);
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async () => {
-      const res = await apiClient.reopenAdminProspectusReview(noteId);
-      if (!res.success) throw new Error(res.error.message);
-      return res.data;
-    },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: prospectusReviewKey(noteId) });
     },
   });
 }

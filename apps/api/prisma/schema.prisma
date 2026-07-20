@@ -690,6 +690,7 @@ model Note {
   events                          NoteEvent[]
   admin_actions                   NoteAdminAction[]
   prospectus_review               NoteProspectusReview?
+  prospectus_publications         NoteProspectusPublication[]
 
   @@index([source_application_id])
   @@index([source_contract_id])
@@ -707,24 +708,51 @@ model Note {
 /// Pre-marketplace officer review of prospectus publication content (1:1 with Note).
 /// Never stores Application/CTOS source data or rendered HTML/PDF.
 model NoteProspectusReview {
-  id                       String                     @id @default(cuid())
-  note_id                  String                     @unique
-  status                   ProspectusReviewStatus     @default(DRAFT)
-  content_version          Int                        @default(1)
+  id                       String                      @id @default(cuid())
+  note_id                  String                      @unique
+  status                   ProspectusReviewStatus      @default(DRAFT)
+  content_version          Int                         @default(1)
   option_catalogue_version String
-  draft_content            Json                       @default("{}")
+  draft_content            Json                        @default("{}")
   approved_content         Json?
+  /// Complete frozen prospectus built at Approve (source of publish copy).
+  approved_snapshot        Json?
+  approved_publication_id  String?                     @unique
+  render_fingerprint       String?
   created_by_user_id       String
   updated_by_user_id       String
   approved_by_user_id      String?
   approved_at              DateTime?
-  created_at               DateTime                   @default(now())
-  updated_at               DateTime                   @updatedAt
-  note                     Note                       @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  created_at               DateTime                    @default(now())
+  updated_at               DateTime                    @updatedAt
+  note                     Note                        @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  publications             NoteProspectusPublication[]
 
   @@index([status])
   @@index([updated_at])
   @@map("note_prospectus_reviews")
+}
+
+/// Immutable Prospectus freeze created at Approve; published_at set in publish transaction.
+model NoteProspectusPublication {
+  id                   String               @id @default(cuid())
+  note_id              String
+  prospectus_review_id String
+  content_version      Int
+  snapshot             Json
+  render_fingerprint   String
+  approved_by_user_id  String
+  approved_at          DateTime
+  published_at         DateTime?
+  created_at           DateTime             @default(now())
+  note                 Note                 @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  prospectus_review    NoteProspectusReview @relation(fields: [prospectus_review_id], references: [id], onDelete: Cascade)
+  investments          NoteInvestment[]
+
+  @@index([note_id])
+  @@index([prospectus_review_id])
+  @@index([published_at])
+  @@map("note_prospectus_publications")
 }
 
 model NoteListing {
@@ -749,25 +777,33 @@ model NoteListing {
 }
 
 model NoteInvestment {
-  id                       String               @id @default(cuid())
-  note_id                  String
-  investor_organization_id String
-  investor_user_id         String
-  status                   NoteInvestmentStatus @default(COMMITTED)
-  amount                   Decimal              @db.Decimal(18, 6)
-  allocation_percent       Decimal              @default(0) @db.Decimal(9, 6)
-  committed_at             DateTime             @default(now())
-  confirmed_at             DateTime?
-  released_at              DateTime?
-  metadata                 Json?
-  created_at               DateTime             @default(now())
-  updated_at               DateTime             @updatedAt
-  note                     Note                 @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  id                         String                     @id @default(cuid())
+  note_id                    String
+  investor_organization_id   String
+  investor_user_id           String
+  status                     NoteInvestmentStatus       @default(COMMITTED)
+  amount                     Decimal                    @db.Decimal(18, 6)
+  allocation_percent         Decimal                    @default(0) @db.Decimal(9, 6)
+  committed_at               DateTime                   @default(now())
+  confirmed_at               DateTime?
+  released_at                DateTime?
+  metadata                   Json?
+  /// Exact published Prospectus freeze for this investment (not version-alone).
+  prospectus_publication_id  String?
+  prospectus_content_version Int?
+  prospectus_acknowledged_at DateTime?
+  product_terms_ref          String?
+  risk_disclosure_ref        String?
+  created_at                 DateTime                   @default(now())
+  updated_at                 DateTime                   @updatedAt
+  note                       Note                       @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  prospectus_publication     NoteProspectusPublication? @relation(fields: [prospectus_publication_id], references: [id], onDelete: Restrict)
 
   @@index([note_id])
   @@index([investor_organization_id])
   @@index([investor_user_id])
   @@index([status])
+  @@index([prospectus_publication_id])
   @@map("note_investments")
 }
 
@@ -1673,6 +1709,7 @@ enum ProspectusReviewStatus {
   READY_FOR_REVIEW
   APPROVED
   SUPERSEDED
+  PUBLISHED
 }
 
 enum NoteListingStatus {
@@ -1885,6 +1922,7 @@ enum SiteDocumentType {
   TERMS_AND_CONDITIONS
   PRIVACY_POLICY
   RISK_DISCLOSURE
+  PRODUCT_TERMS
   PLATFORM_AGREEMENT
   INVESTOR_GUIDE
   ISSUER_GUIDE

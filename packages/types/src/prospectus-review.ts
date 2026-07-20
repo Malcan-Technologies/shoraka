@@ -4,7 +4,8 @@ export type ProspectusReviewStatus =
   | "DRAFT"
   | "READY_FOR_REVIEW"
   | "APPROVED"
-  | "SUPERSEDED";
+  | "SUPERSEDED"
+  | "PUBLISHED";
 
 /** Stored officer-edited highlight copy (Shariah is fixed on write/resolve). */
 export interface ProspectusReviewHighlightSelection {
@@ -69,6 +70,7 @@ export interface ProspectusReviewDetail {
   optionCatalogueVersion: string;
   draftContent: ProspectusReviewStoredContent;
   approvedContent: ProspectusReviewStoredContent | null;
+  approvedPublicationId?: string | null;
   createdByUserId: string;
   updatedByUserId: string;
   approvedByUserId: string | null;

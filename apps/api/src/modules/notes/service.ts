@@ -13,6 +13,7 @@ import {
   NoteSettlementType,
   ServiceFeeTrusteeInstructionStatus,
   NoteStatus,
+  ProspectusReviewStatus,
   InvestorBalanceTransactionSource,
   Prisma,
   UserRole,
@@ -77,11 +78,6 @@ import {
   resolveIssuerResidualPayoutListStatus,
   resolveProductNameFromWorkflow,
 } from "./mapper";
-import {
-  buildProspectusPage2Snapshot,
-  wrapProspectusSnapshotWithPageTwo,
-} from "./prospectus/prospectus-page-two-snapshot";
-import { buildProspectusPage1TrackRecordSnapshot } from "./prospectus/prospectus-track-record-query";
 import { NotificationService } from "../notification/service";
 import {
   notifyNoteActivated,
@@ -2422,39 +2418,16 @@ export class NoteService {
     }
 
     const closesAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
-    const page1Snapshot = await buildProspectusPage1TrackRecordSnapshot({
-      issuerOrganizationId: note.issuer_organization_id,
-      currentNoteId: id,
-      now,
-    });
-    const applicationForProspectus = note.source_application_id
-      ? await prisma.application.findUnique({
-          where: { id: note.source_application_id },
-          select: { financial_statements: true },
-        })
-      : null;
-    const page2Snapshot = buildProspectusPage2Snapshot({
-      financialStatements: applicationForProspectus?.financial_statements ?? null,
-      now,
-    });
-    const { prospectusReviewService, mergePublicationContentIntoSnapshot } = await import(
+    const { prospectusReviewService } = await import(
       "./prospectus-review/prospectus-review.service"
     );
-    await prospectusReviewService.assertPublishAllowed(id);
-    const frozenPublication =
-      await prospectusReviewService.buildFrozenPublicationContentForPublish(id);
-
-    let prospectusSnapshot: Record<string, unknown> = wrapProspectusSnapshotWithPageTwo(
-      page1Snapshot,
-      page2Snapshot,
-      note.prospectus_snapshot
-    );
-    if (frozenPublication) {
-      prospectusSnapshot = mergePublicationContentIntoSnapshot(
-        prospectusSnapshot,
-        frozenPublication
-      );
-    }
+    // Exact approved freeze only — no Page 1/2/3 rebuild at publish.
+    const { snapshot: approvedSnapshot, publicationId, reviewId } =
+      await prospectusReviewService.getApprovedSnapshotForPublish(id);
+    const prospectusSnapshot = structuredClone(approvedSnapshot) as unknown as Record<
+      string,
+      unknown
+    >;
 
     const updated = await prisma.$transaction(async (tx) => {
       const stateUpdate = await tx.note.updateMany({
@@ -2485,6 +2458,40 @@ export class NoteService {
           "Only draft or unpublished notes can be published"
         );
       }
+
+      const reviewUpdate = await tx.noteProspectusReview.updateMany({
+        where: {
+          id: reviewId,
+          note_id: id,
+          status: ProspectusReviewStatus.APPROVED,
+          approved_publication_id: publicationId,
+        },
+        data: { status: ProspectusReviewStatus.PUBLISHED },
+      });
+      if (reviewUpdate.count !== 1) {
+        throw new AppError(
+          409,
+          "PROSPECTUS_REVIEW_REQUIRED",
+          "Approve the Prospectus before publishing this Note."
+        );
+      }
+
+      const publicationUpdate = await tx.noteProspectusPublication.updateMany({
+        where: {
+          id: publicationId,
+          note_id: id,
+          published_at: null,
+        },
+        data: { published_at: now },
+      });
+      if (publicationUpdate.count !== 1) {
+        throw new AppError(
+          409,
+          "PROSPECTUS_REVIEW_REQUIRED",
+          "Approve the Prospectus before publishing this Note."
+        );
+      }
+
       const result = await tx.note.update({
         where: { id },
         data: {
@@ -2588,6 +2595,14 @@ export class NoteService {
       );
     }
 
+    if (input.prospectusAcknowledged !== true) {
+      throw new AppError(
+        422,
+        "PROSPECTUS_ACK_REQUIRED",
+        "Confirm that you have reviewed the Prospectus, Product Terms, and Risk Disclosure Statement."
+      );
+    }
+
     const note = await prisma.note.findUnique({
       where: { id: noteId },
       select: {
@@ -2595,12 +2610,55 @@ export class NoteService {
         funding_status: true,
         target_amount: true,
         funded_amount: true,
+        prospectus_review: {
+          select: {
+            status: true,
+            approved_publication_id: true,
+            content_version: true,
+          },
+        },
       },
     });
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
     if (note.status !== NoteStatus.PUBLISHED || note.funding_status !== NoteFundingStatus.OPEN) {
       throw new AppError(409, "NOTE_NOT_OPEN", "Note is not open for investment");
     }
+
+    const publication = await prisma.noteProspectusPublication.findFirst({
+      where: {
+        note_id: noteId,
+        published_at: { not: null },
+        id: note.prospectus_review?.approved_publication_id ?? undefined,
+      },
+      orderBy: { published_at: "desc" },
+    });
+    if (!publication) {
+      throw new AppError(
+        409,
+        "PROSPECTUS_NOT_PUBLISHED",
+        "Published Prospectus is not available for this Note."
+      );
+    }
+
+    const [productTerms, riskDisclosure] = await Promise.all([
+      prisma.siteDocument.findFirst({
+        where: { type: "PRODUCT_TERMS", is_active: true },
+        orderBy: { version: "desc" },
+        select: { id: true, version: true },
+      }),
+      prisma.siteDocument.findFirst({
+        where: { type: "RISK_DISCLOSURE", is_active: true },
+        orderBy: { version: "desc" },
+        select: { id: true, version: true },
+      }),
+    ]);
+    const productTermsRef = productTerms
+      ? `${productTerms.id}:v${productTerms.version}`
+      : "PRODUCT_TERMS:unavailable";
+    const riskDisclosureRef = riskDisclosure
+      ? `${riskDisclosure.id}:v${riskDisclosure.version}`
+      : "RISK_DISCLOSURE:unavailable";
+    const ackAt = new Date();
 
     const target = normalizeNoteCapacityAmount(toNumber(note.target_amount));
     const funded = normalizeNoteCapacityAmount(toNumber(note.funded_amount));
@@ -2678,6 +2736,11 @@ export class NoteService {
           investor_user_id: actor.userId,
           amount: investmentAmount,
           allocation_percent: money(target > 0 ? (input.amount / target) * 100 : 0),
+          prospectus_publication_id: publication.id,
+          prospectus_content_version: publication.content_version,
+          prospectus_acknowledged_at: ackAt,
+          product_terms_ref: productTermsRef,
+          risk_disclosure_ref: riskDisclosureRef,
         },
       });
       await debitInvestorBalanceForCommit(tx, {
@@ -2690,6 +2753,10 @@ export class NoteService {
       await this.logEvent(tx, noteId, "INVESTMENT_COMMITTED", actor, {
         investorOrganizationId: input.investorOrganizationId,
         amount: input.amount,
+        prospectusPublicationId: publication.id,
+        prospectusAcknowledgedAt: ackAt.toISOString(),
+        productTermsRef,
+        riskDisclosureRef,
       });
       return tx.note.findUniqueOrThrow({ where: { id: noteId }, include: noteInclude });
     });
@@ -3114,10 +3181,15 @@ export class NoteService {
       include: noteInclude,
       orderBy: { updated_at: "desc" },
     });
-    const enrichedNotes = notes.map((note) => ({
-      ...mapNoteListItem(note),
-      investorRepaymentSummary: buildInvestorRepaymentSummary(note, orgIdSet),
-    }));
+    const enrichedNotes = notes.map((note) => {
+      const primaryInvestment =
+        note.investments.find((inv) => orgIdSet.has(inv.investor_organization_id)) ?? null;
+      return {
+        ...mapNoteListItem(note),
+        investorRepaymentSummary: buildInvestorRepaymentSummary(note, orgIdSet),
+        investorInvestmentId: primaryInvestment?.id ?? null,
+      };
+    });
     return {
       notes: enrichedNotes,
       pagination: { page: 1, pageSize: notes.length || 1, totalCount: notes.length, totalPages: 1 },
@@ -5595,22 +5667,25 @@ export class NoteService {
     noteId: string,
     actionType: string,
     actor: ActorContext,
-    beforeState?: Prisma.InputJsonValue,
-    afterState?: Prisma.InputJsonValue
+    beforeState?: unknown,
+    afterState?: unknown
   ) {
     await tx.noteAdminAction.create({
       data: {
         note_id: noteId,
         action_type: actionType,
         actor_user_id: actor.userId,
-        before_state: beforeState,
-        after_state: afterState,
+        before_state: beforeState as Prisma.InputJsonValue | undefined,
+        after_state: afterState as Prisma.InputJsonValue | undefined,
         ip_address: actor.ipAddress,
         user_agent: actor.userAgent,
         correlation_id: actor.correlationId,
       },
     });
-    await this.logEvent(tx, noteId, actionType, actor, { beforeState, afterState });
+    await this.logEvent(tx, noteId, actionType, actor, {
+      beforeState,
+      afterState,
+    } as Prisma.InputJsonValue);
   }
 
   private async getLedgerAccountId(tx: Prisma.TransactionClient, code: string) {

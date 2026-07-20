@@ -1,22 +1,42 @@
 import {
+  formatProspectusListBadge,
+  getProspectusDisplayStatus,
   hasSettlementTrusteeMovementFromPoolSummary,
   isSoukscoreRiskRating,
+  normalizeProspectusWorkflowStatus,
   roundNoteMoney,
   type IssuerResidualPayoutListStatus,
+  type NoteProspectusSummary,
 } from "@cashsouk/types";
 import { NoteSettlementStatus, Prisma, WithdrawalStatus, WithdrawalType } from "@prisma/client";
 import { sortAdminNoteEvents } from "./admin-note-events-sorting";
+import { noteInclude } from "./repository";
 
 type NoteWithRelations = Prisma.NoteGetPayload<{
-  include: {
-    listing: true;
-    investments: true;
-    payment_schedules: true;
-    payments: true;
-    settlements: true;
-    events: { orderBy: { created_at: "desc" } };
-  };
+  include: typeof noteInclude;
 }>;
+
+function mapProspectusSummary(note: NoteWithRelations): NoteProspectusSummary {
+  const review = note.prospectus_review;
+  const notePublished = note.status === "PUBLISHED" || Boolean(note.published_at);
+  const displayStatus = getProspectusDisplayStatus({
+    reviewStatus: review?.status ?? "DRAFT",
+    notePublished,
+  });
+  return {
+    status: normalizeProspectusWorkflowStatus(review?.status),
+    displayStatus,
+    contentVersion: review?.content_version ?? null,
+    lastSavedAt: review?.updated_at?.toISOString() ?? null,
+    approvedAt: review?.approved_at?.toISOString() ?? null,
+    publishedAt: note.published_at?.toISOString() ?? null,
+  };
+}
+
+/** List badge label: "Prospectus Draft" | "Prospectus Approved" | "Prospectus Published". */
+export function mapProspectusListBadgeLabel(note: NoteWithRelations): string {
+  return formatProspectusListBadge(mapProspectusSummary(note).displayStatus);
+}
 
 type WithdrawalRecord =
   Prisma.WithdrawalInstructionGetPayload<Prisma.WithdrawalInstructionDefaultArgs>;
@@ -442,6 +462,7 @@ export function mapNoteListItem(note: NoteWithRelations) {
     activatedAt: iso(note.activated_at),
     publishedAt: iso(note.published_at),
     settlementSummary: resolveSettlementSummary(note),
+    prospectus: mapProspectusSummary(note),
     createdAt: note.created_at.toISOString(),
     updatedAt: note.updated_at.toISOString(),
   };

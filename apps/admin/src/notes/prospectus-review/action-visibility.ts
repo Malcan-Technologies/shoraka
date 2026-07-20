@@ -1,18 +1,19 @@
-import type { ProspectusReviewStatus } from "@cashsouk/types";
+import {
+  normalizeProspectusWorkflowStatus,
+  type ProspectusReviewStatus,
+} from "@cashsouk/types";
 import type { ProspectusWorkflowStepId } from "./labels";
 
 export type ProspectusActionVisibility = {
   saveDraft: boolean;
-  preview: boolean;
-  submitForReview: boolean;
+  saveAndPreview: boolean;
   approve: boolean;
-  reopen: boolean;
+  viewProspectus: boolean;
   backToNote: boolean;
 };
 
 /**
- * Action bar visibility by review status and current step.
- * Submit / Approve / Reopen are final-step only. Does not change API rules.
+ * Action bar visibility for Draft → Approved → Published (no submit/reopen).
  */
 export function getProspectusActionVisibility(input: {
   step: ProspectusWorkflowStepId;
@@ -20,16 +21,15 @@ export function getProspectusActionVisibility(input: {
   canManage: boolean;
   notePublished: boolean;
 }): ProspectusActionVisibility {
-  const isFinalStep = input.step === 6;
-  const locked = input.status === "APPROVED";
-  const canEdit = input.canManage && !locked;
+  const workflow = normalizeProspectusWorkflowStatus(input.status);
+  const published = input.notePublished || workflow === "PUBLISHED";
+  const canEdit = input.canManage && !published;
 
   return {
     saveDraft: canEdit,
-    preview: true,
-    submitForReview: canEdit && input.status === "DRAFT" && isFinalStep,
-    approve: canEdit && input.status === "READY_FOR_REVIEW" && isFinalStep,
-    reopen: input.canManage && locked && !input.notePublished && isFinalStep,
-    backToNote: input.status === "APPROVED",
+    saveAndPreview: canEdit,
+    approve: canEdit && (workflow === "DRAFT" || workflow === "APPROVED"),
+    viewProspectus: published,
+    backToNote: workflow === "APPROVED" || published,
   };
 }

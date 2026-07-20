@@ -298,10 +298,13 @@ interface ActionConfig {
 
 function buildActionPlan(note: NoteDetail) {
   const publishableListingStatuses = ["NOT_LISTED", "DRAFT", "UNPUBLISHED"];
-  const canPublish =
+  const prospectusApproved =
+    note.prospectus?.status === "APPROVED" || note.prospectus?.status === "PUBLISHED";
+  const baseCanPublish =
     note.status === "DRAFT" &&
     note.fundingStatus === "NOT_OPEN" &&
     publishableListingStatuses.includes(note.listingStatus);
+  const canPublish = baseCanPublish && prospectusApproved;
   const isFundingOpen = note.status === "PUBLISHED" && note.fundingStatus === "OPEN";
   const meetsMinimumFunding = note.fundingPercent + 0.005 >= note.minimumFundingPercent;
   const canUnpublish =
@@ -316,13 +319,15 @@ function buildActionPlan(note: NoteDetail) {
   const secondary: ActionConfig[] = [];
   let contextHelper: string | null = null;
 
-  if (canPublish) {
+  if (baseCanPublish && !prospectusApproved) {
+    contextHelper = "Prospectus approval required.";
+  } else if (canPublish) {
     primary = {
       key: "publish",
       label: "Publish to Marketplace",
       icon: GlobeAltIcon,
       variant: "default",
-      helper: "Confirm source data, terms, and risk disclosure before publishing.",
+      helper: "Prospectus approved. Confirm listing window and risk disclosure before publishing.",
     };
   } else if (canCloseFunding) {
     primary = {
@@ -657,6 +662,13 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
     }
   }
   const hasAvailableAction = !terminalFailure && !isComplete && (primary || secondary.length > 0);
+  const prospectusDisplay = note.prospectus?.displayStatus ?? "Draft";
+  const prospectusChecklistComplete =
+    note.prospectus?.status === "APPROVED" || note.prospectus?.status === "PUBLISHED";
+  const showPublishChecklist =
+    note.status === "DRAFT" &&
+    note.fundingStatus === "NOT_OPEN" &&
+    ["NOT_LISTED", "DRAFT", "UNPUBLISHED"].includes(note.listingStatus);
 
   return (
     <Card className={cn("rounded-2xl", hasAvailableAction && ACTION_CARD_CLASS)}>
@@ -809,6 +821,37 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
                     : `Listing closes automatically at this time or as soon as the target ${formatCurrency(note.targetAmount)} is fully funded. Closing or failing manually overrides the schedule.`}
               </div>
             </div>
+          </div>
+        ) : null}
+
+        {showPublishChecklist ? (
+          <div className="rounded-xl border bg-muted/20 p-4">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">
+              Publication checklist
+            </div>
+            <ul className="mt-2 space-y-1.5 text-sm">
+              <li className="flex items-center gap-2">
+                <CheckIcon className="h-3.5 w-3.5 text-emerald-600" />
+                Note details ready
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckIcon className="h-3.5 w-3.5 text-emerald-600" />
+                Listing window configurable at publish
+              </li>
+              <li className="flex items-center gap-2">
+                {prospectusChecklistComplete ? (
+                  <CheckIcon className="h-3.5 w-3.5 text-emerald-600" />
+                ) : (
+                  <ExclamationTriangleIcon className="h-3.5 w-3.5 text-amber-600" />
+                )}
+                {prospectusChecklistComplete
+                  ? "Prospectus approved"
+                  : "Prospectus approval required."}
+                <Badge variant="outline" className="ml-1 text-[10px] font-normal">
+                  Prospectus {prospectusDisplay}
+                </Badge>
+              </li>
+            </ul>
           </div>
         ) : null}
 

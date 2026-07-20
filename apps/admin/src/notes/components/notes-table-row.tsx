@@ -9,6 +9,7 @@ import {
 } from "@cashsouk/ui";
 import type { EligibleNoteInvoice, NoteListItem, NoteSettlementPoolSummary } from "@cashsouk/types";
 import {
+  formatProspectusListBadge,
   hasSettlementTrusteeMovementFromPoolSummary,
   isSettlementWrappingUpFromSummary,
 } from "@cashsouk/types";
@@ -154,6 +155,15 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
               className="shrink-0 border-transparent bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
             >
               Featured
+            </Badge>
+          ) : null}
+          {note.prospectus?.displayStatus ? (
+            <Badge
+              variant="outline"
+              className="shrink-0 text-[10px] font-normal"
+              title={formatProspectusListBadge(note.prospectus.displayStatus)}
+            >
+              {formatProspectusListBadge(note.prospectus.displayStatus)}
             </Badge>
           ) : null}
         </div>

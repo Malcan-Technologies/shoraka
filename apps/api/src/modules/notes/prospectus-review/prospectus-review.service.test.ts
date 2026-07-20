@@ -270,11 +270,11 @@ describe("publish rollout cutoff", () => {
   });
 });
 
-describe("READY_FOR_REVIEW workflow contract", () => {
-  it("documents submit-before-approve as the required transition", () => {
-    expect(["DRAFT", "READY_FOR_REVIEW", "APPROVED", "SUPERSEDED"]).toEqual(
-      expect.arrayContaining(["READY_FOR_REVIEW"])
-    );
+describe("simplified prospectus workflow contract", () => {
+  it("approves from Draft without a submit step", () => {
     expect(validateApprovalContent(completeSelectableDraft())).toEqual([]);
+    expect(["DRAFT", "APPROVED", "PUBLISHED"]).toEqual(
+      expect.arrayContaining(["DRAFT", "APPROVED", "PUBLISHED"])
+    );
   });
 });

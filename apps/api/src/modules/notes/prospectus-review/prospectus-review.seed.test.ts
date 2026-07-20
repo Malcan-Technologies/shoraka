@@ -76,7 +76,8 @@ describe("prospectus review demo seed", () => {
     );
   });
 
-  it("leaves SUPERSEDED unused for the normal product path", () => {
+  it("keeps legacy SUPERSEDED in the enum and writes PUBLISHED on the product path", () => {
     expect(ProspectusReviewStatus.SUPERSEDED).toBe("SUPERSEDED");
+    expect(ProspectusReviewStatus.PUBLISHED).toBe("PUBLISHED");
   });
 });

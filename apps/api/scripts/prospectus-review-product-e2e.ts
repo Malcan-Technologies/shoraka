@@ -3,7 +3,7 @@
  * Local product-review E2E for Prospectus Review (API/service layer).
  *
  * Seeds PROSPECTUS-DEMO-001, then walks:
- * Draft → Save → Submit → Preview → Approve → Publish → freeze/stability checks.
+ * Draft → Save → Preview → Approve → Publish → freeze/stability checks.
  *
  * Usage:
  *   pnpm --filter @cashsouk/api seed-prospectus-review-note
@@ -20,24 +20,6 @@ import {
 } from "../src/modules/notes/prospectus-review/prospectus-frozen-publication";
 import { prospectusReviewService } from "../src/modules/notes/prospectus-review/prospectus-review.service";
 import { noteService } from "../src/modules/notes/service";
-import { loadProspectusPageOneNote } from "../src/modules/notes/prospectus/prospectus-page-one-prisma";
-import {
-  buildProspectusPageOne,
-  mapProspectusPageOneDataToInput,
-} from "../src/modules/notes/prospectus/prospectus-page-one-mapper";
-import { buildProspectusPageOneHtml } from "../src/modules/notes/prospectus/prospectus-page-one.html";
-import { loadProspectusPageTwoData } from "../src/modules/notes/prospectus/prospectus-page-two-prisma";
-import {
-  buildProspectusPageTwo,
-  mapProspectusPageTwoDataToInput,
-} from "../src/modules/notes/prospectus/prospectus-page-two-mapper";
-import { buildProspectusPageTwoHtml } from "../src/modules/notes/prospectus/prospectus-page-two.html";
-import { loadProspectusPageThreeData } from "../src/modules/notes/prospectus/prospectus-page-three-prisma";
-import {
-  buildProspectusPageThree,
-  mapProspectusPageThreeDataToInput,
-} from "../src/modules/notes/prospectus/prospectus-page-three-mapper";
-import { buildProspectusPageThreeHtml } from "../src/modules/notes/prospectus/prospectus-page-three.html";
 import { prisma as appPrisma } from "../src/lib/prisma";
 
 const prisma = new PrismaClient();
@@ -149,29 +131,7 @@ async function main() {
   }
   assert(publishBlockedDraft, "Publish must be blocked before approval");
 
-  // Submit
-  const submitted = await prospectusReviewService.submitForReview(noteId, actor);
-  assert(submitted.status === "READY_FOR_REVIEW", "Submit → READY_FOR_REVIEW");
-  (report.steps as Record<string, unknown>).submit = {
-    status: submitted.status,
-    catalogueVersion: submitted.optionCatalogueVersion,
-  };
-
-  // Publish blocked while READY_FOR_REVIEW
-  let publishBlockedReady = false;
-  try {
-    await noteService.publish(noteId, actor);
-  } catch (error) {
-    publishBlockedReady = Boolean(
-      error &&
-        typeof error === "object" &&
-        "code" in error &&
-        (error as { code: string }).code === "PROSPECTUS_REVIEW_REQUIRED"
-    );
-  }
-  assert(publishBlockedReady, "Publish must be blocked in READY_FOR_REVIEW");
-
-  // Draft preview
+  // Draft preview (no submit step)
   const draftPreview = await prospectusReviewService.preview(noteId, actor);
   assert(draftPreview.previewSource === "draft", "Preview source must be draft before approval");
   assert(draftPreview.draftMarker.toLowerCase().includes("draft"), "Draft banner required");
@@ -287,50 +247,59 @@ async function main() {
     "Published wording must ignore later draft/application changes"
   );
 
-  // Published reopen blocked
-  let reopenBlocked = false;
-  try {
-    await prospectusReviewService.reopen(noteId, actor);
-  } catch (error) {
-    reopenBlocked = Boolean(
-      error &&
-        typeof error === "object" &&
-        "code" in error &&
-        (error as { code: string }).code === "PROSPECTUS_REVIEW_REOPEN_FORBIDDEN"
-    );
-  }
-  assert(reopenBlocked, "Reopen after publish must be blocked");
+  // Post-publish edits blocked; status is PUBLISHED
   const reviewAfter = await prisma.noteProspectusReview.findUniqueOrThrow({
     where: { note_id: noteId },
   });
-  assert(reviewAfter.status === ProspectusReviewStatus.APPROVED, "Status must stay APPROVED");
+  assert(reviewAfter.status === ProspectusReviewStatus.PUBLISHED, "Status must be PUBLISHED");
   assert(reviewAfter.status !== ProspectusReviewStatus.SUPERSEDED, "SUPERSEDED must not be set");
+  assert(reviewAfter.approved_snapshot, "approved_snapshot retained");
 
-  // Render published pages via frozen path
-  const page1Note = await loadProspectusPageOneNote(appPrisma, noteId);
-  const page1Input = await mapProspectusPageOneDataToInput(page1Note);
-  const page1 = buildProspectusPageOne(page1Input);
-  const page1Html = buildProspectusPageOneHtml(page1);
-  const page2Data = await loadProspectusPageTwoData(appPrisma, noteId);
-  const page2 = buildProspectusPageTwo(mapProspectusPageTwoDataToInput(page2Data));
-  const page2Html = buildProspectusPageTwoHtml(page2);
-  const page3Data = await loadProspectusPageThreeData(appPrisma, noteId);
-  const page3 = buildProspectusPageThree(mapProspectusPageThreeDataToInput(page3Data));
-  const page3Html = buildProspectusPageThreeHtml(page3);
+  let saveBlocked = false;
+  try {
+    await prospectusReviewService.saveDraft(
+      noteId,
+      {
+        draftContent: draft,
+        expectedUpdatedAt: reviewAfter.updated_at.toISOString(),
+      },
+      actor
+    );
+  } catch (error) {
+    saveBlocked = Boolean(
+      error &&
+        typeof error === "object" &&
+        "code" in error &&
+        typeof (error as { code: string }).code === "string"
+    );
+  }
+  assert(saveBlocked, "Save after publish must be blocked");
 
-  assert(!page1Html.includes(ISSUER_NAME_SNIPPET), "Published page1 hides issuer name");
-  assert(!page2Html.includes(ISSUER_NAME_SNIPPET), "Published page2 hides issuer name");
-  assert(!page3Html.includes(ISSUER_NAME_SNIPPET), "Published page3 hides issuer name");
+  const noteSnapshot = afterMutate.prospectus_snapshot as Record<string, unknown>;
+  const approvedSnap = reviewAfter.approved_snapshot as Record<string, unknown>;
   assert(
-    page1Html.includes("shariah-badge") ||
-      page2Html.includes("shariah-badge") ||
-      page3Html.includes("shariah-badge"),
+    JSON.stringify(noteSnapshot.html) === JSON.stringify(approvedSnap.html),
+    "Published snapshot HTML must equal approved freeze (exact copy)"
+  );
+
+  const frozenHtml = (noteSnapshot.html ?? {}) as { page1?: string; page2?: string; page3?: string };
+  assert(frozenHtml.page1, "Frozen page1 HTML required");
+  assert(frozenHtml.page2, "Frozen page2 HTML required");
+  assert(frozenHtml.page3, "Frozen page3 HTML required");
+  assert(!frozenHtml.page1.includes(ISSUER_NAME_SNIPPET), "Published page1 hides issuer name");
+  assert(!frozenHtml.page2.includes(ISSUER_NAME_SNIPPET), "Published page2 hides issuer name");
+  assert(!frozenHtml.page3.includes(ISSUER_NAME_SNIPPET), "Published page3 hides issuer name");
+  assert(
+    frozenHtml.page1.includes("shariah-badge") ||
+      frozenHtml.page2.includes("shariah-badge") ||
+      frozenHtml.page3.includes("shariah-badge"),
     "Published Shariah badge visible"
   );
 
   (report.steps as Record<string, unknown>).stability = {
     frozenWordingUnchanged: true,
-    reopenBlocked: true,
+    postPublishSaveBlocked: true,
+    publishedExactCopy: true,
     publishedRenderOk: true,
   };
 

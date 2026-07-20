@@ -29,11 +29,12 @@ import {
 import type { ProspectusReviewStoredContent } from "@cashsouk/types";
 
 describe("prospectus review admin labels", () => {
-  it("formats review statuses for operations", () => {
+  it("formats review statuses as Draft | Approved | Published only", () => {
     expect(formatProspectusReviewStatus("DRAFT")).toBe("Draft");
-    expect(formatProspectusReviewStatus("READY_FOR_REVIEW")).toBe("Ready for Review");
+    expect(formatProspectusReviewStatus("READY_FOR_REVIEW")).toBe("Draft");
+    expect(formatProspectusReviewStatus("SUPERSEDED")).toBe("Draft");
     expect(formatProspectusReviewStatus("APPROVED")).toBe("Approved");
-    expect(formatProspectusReviewStatus("SUPERSEDED")).toBe("Superseded");
+    expect(formatProspectusReviewStatus("PUBLISHED", true)).toBe("Published");
   });
 
   it("uses concise step titles without repeated page prefixes", () => {
@@ -207,8 +208,8 @@ describe("prospectus review compact status badges", () => {
 });
 
 describe("prospectus review action visibility", () => {
-  it("shows Save and Preview on DRAFT steps before final, without Submit", () => {
-    for (const step of [0, 1, 2, 3, 4, 5] as const) {
+  it("shows Save Draft, Save & Preview, and Approve for DRAFT while unpublished", () => {
+    for (const step of [0, 1, 2, 3, 4, 5, 6] as const) {
       const actions = getProspectusActionVisibility({
         step,
         status: "DRAFT",
@@ -216,63 +217,37 @@ describe("prospectus review action visibility", () => {
         notePublished: false,
       });
       expect(actions.saveDraft).toBe(true);
-      expect(actions.preview).toBe(true);
-      expect(actions.submitForReview).toBe(false);
-      expect(actions.approve).toBe(false);
+      expect(actions.saveAndPreview).toBe(true);
+      expect(actions.approve).toBe(true);
+      expect(actions.viewProspectus).toBe(false);
     }
   });
 
-  it("shows Submit only on Preview & Approval in DRAFT", () => {
+  it("maps legacy READY_FOR_REVIEW to Draft actions (editable, no submit path)", () => {
     const actions = getProspectusActionVisibility({
       step: 6,
-      status: "DRAFT",
+      status: "READY_FOR_REVIEW",
       canManage: true,
       notePublished: false,
     });
     expect(actions.saveDraft).toBe(true);
-    expect(actions.preview).toBe(true);
-    expect(actions.submitForReview).toBe(true);
-    expect(actions.approve).toBe(false);
+    expect(actions.saveAndPreview).toBe(true);
+    expect(actions.approve).toBe(true);
+    expect(actions.viewProspectus).toBe(false);
   });
 
-  it("hides Approve on READY_FOR_REVIEW until final step", () => {
-    const earlier = getProspectusActionVisibility({
-      step: 3,
-      status: "READY_FOR_REVIEW",
-      canManage: true,
-      notePublished: false,
-    });
-    expect(earlier.preview).toBe(true);
-    expect(earlier.approve).toBe(false);
-    expect(earlier.submitForReview).toBe(false);
-
-    const finalStep = getProspectusActionVisibility({
-      step: 6,
-      status: "READY_FOR_REVIEW",
-      canManage: true,
-      notePublished: false,
-    });
-    expect(finalStep.approve).toBe(true);
-    expect(finalStep.submitForReview).toBe(false);
-  });
-
-  it("keeps Reopen on final step only for approved unpublished Notes", () => {
-    const earlier = getProspectusActionVisibility({
+  it("keeps Save & Preview on APPROVED until Note is published", () => {
+    const approved = getProspectusActionVisibility({
       step: 2,
       status: "APPROVED",
       canManage: true,
       notePublished: false,
     });
-    expect(earlier.reopen).toBe(false);
-    expect(earlier.preview).toBe(true);
-
-    const finalStep = getProspectusActionVisibility({
-      step: 6,
-      status: "APPROVED",
-      canManage: true,
-      notePublished: false,
-    });
-    expect(finalStep.reopen).toBe(true);
+    expect(approved.saveDraft).toBe(true);
+    expect(approved.saveAndPreview).toBe(true);
+    expect(approved.approve).toBe(true);
+    expect(approved.backToNote).toBe(true);
+    expect(approved.viewProspectus).toBe(false);
 
     const published = getProspectusActionVisibility({
       step: 6,
@@ -280,11 +255,13 @@ describe("prospectus review action visibility", () => {
       canManage: true,
       notePublished: true,
     });
-    expect(published.reopen).toBe(false);
-    expect(published.preview).toBe(true);
+    expect(published.saveDraft).toBe(false);
+    expect(published.saveAndPreview).toBe(false);
+    expect(published.approve).toBe(false);
+    expect(published.viewProspectus).toBe(true);
   });
 
-  it("blocks submit readiness when required checklist items are incomplete", () => {
+  it("blocks approval readiness when required checklist items are incomplete", () => {
     const draft: ProspectusReviewStoredContent = {
       page1: {
         keyInvestorHighlights: [
@@ -317,6 +294,6 @@ describe("prospectus review action visibility", () => {
       canManage: true,
       notePublished: false,
     });
-    expect(actions.submitForReview).toBe(true);
+    expect(actions.approve).toBe(true);
   });
 });
