@@ -48,7 +48,7 @@ import { prisma } from "../../lib/prisma";
 import { Prisma } from "@prisma/client";
 import { OrganizationService } from "../organization/service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
-import { assertRequiredPostApplicationSupportingDocumentsPresent } from "../applications/supporting-docs-workflow";
+import { assertRequiredAcceptanceDocumentsPresent } from "../applications/supporting-docs-workflow";
 import {
   generateContractOfferLetterBuffer,
   generateGuarantorAgreementPlaceholderBuffer,
@@ -426,13 +426,12 @@ export class SigningService {
     return normalized;
   }
 
-  private async assertPostApplicationDocumentsReady(
+  private async assertAcceptanceDocumentsReady(
     application: SigningApplicationContext
   ): Promise<void> {
     const workflow = await this.getProductWorkflowForApplication(application);
-    assertRequiredPostApplicationSupportingDocumentsPresent(
+    assertRequiredAcceptanceDocumentsPresent(
       workflow,
-      application.supporting_documents,
       (application as { acceptance_documents?: unknown }).acceptance_documents
     );
   }
@@ -457,8 +456,7 @@ export class SigningService {
   ): Promise<string[]> {
     const docKeys = collectAcceptanceDocumentReviewKeys(
       workflow,
-      application.acceptance_documents,
-      application.supporting_documents
+      application.acceptance_documents
     );
     if (docKeys.length === 0) return [];
     const statusByKey = await this.fetchAcceptanceReviewStatusByKey(application.id, docKeys);
@@ -729,7 +727,7 @@ export class SigningService {
         "This offer already has an active signing package."
       );
     }
-    await this.assertPostApplicationDocumentsReady(application);
+    await this.assertAcceptanceDocumentsReady(application);
     await this.assertOfferAcceptanceAllowsSigning(application, contractId, invoiceId, "create");
     const workflow = await this.getProductWorkflowForApplication(application);
     const packageKind: SigningPackageOfferKind = contractId ? "contract" : "invoice";
@@ -1242,7 +1240,7 @@ export class SigningService {
     const envelope = await this.requireEnvelope(id);
     const application = await this.requireApplicationContext(envelope.application_id);
     await this.assertIssuerApplicationAccess(application, userId);
-    await this.assertPostApplicationDocumentsReady(application);
+    await this.assertAcceptanceDocumentsReady(application);
     return this.sendEnvelope(id);
   }
 

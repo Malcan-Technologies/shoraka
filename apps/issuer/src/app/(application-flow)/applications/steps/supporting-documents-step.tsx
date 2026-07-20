@@ -181,7 +181,6 @@ type RawWorkflowDoc = {
   template?: { s3_key?: string };
   allowed_types?: unknown;
   required?: boolean;
-  upload_timing?: unknown;
 };
 
 export type SupportingCategoryDocument = {
@@ -245,7 +244,6 @@ export function SupportingDocumentsStep({
   stepConfig,
   onDataChange,
   readOnly = false,
-  timingFilter = "pre_application",
   documentStorage = "supporting_documents",
   amendmentRemarks = [],
   flaggedItems,
@@ -256,7 +254,6 @@ export function SupportingDocumentsStep({
   stepConfig?: WorkflowSupportingStepConfig;
   onDataChange?: (data: Record<string, unknown>) => void;
   readOnly?: boolean;
-  timingFilter?: "pre_application" | "post_application";
   documentStorage?: "supporting_documents" | "acceptance_documents";
   amendmentRemarks?: AmendmentRemarkItem[];
   isAmendmentMode?: boolean;
@@ -370,28 +367,17 @@ export function SupportingDocumentsStep({
           .replace(/_/g, " ")
           .replace(/\b\w/g, (c) => c.toUpperCase()),
 
-        documents: (docs as RawWorkflowDoc[])
-          .map((doc, workflowDocumentIndex) => ({ doc, workflowDocumentIndex }))
-          .filter(({ doc }) => {
-            if (documentStorage === "acceptance_documents") return true;
-            const timing = doc?.upload_timing === "post_application" ? "post_application" : "pre_application";
-            return timing === timingFilter;
-          })
-          .map(({ doc, workflowDocumentIndex }) => ({
-            title: doc?.name ?? "—",
-            allowMultiple: doc?.allow_multiple === true,
-            template: doc?.template,
-            allowedTypes: resolveIssuerAllowedTypes(doc ?? {}),
-            required: doc?.required !== false,
-            workflowDocumentIndex,
-            legacy:
-              doc && typeof doc === "object" && (doc as { _legacy?: unknown })._legacy
-                ? ((doc as { _legacy: { categoryKey: string; documentIndex: number } })._legacy)
-                : undefined,
-          })),
+        documents: (docs as RawWorkflowDoc[]).map((doc, workflowDocumentIndex) => ({
+          title: doc?.name ?? "—",
+          allowMultiple: doc?.allow_multiple === true,
+          template: doc?.template,
+          allowedTypes: resolveIssuerAllowedTypes(doc ?? {}),
+          required: doc?.required !== false,
+          workflowDocumentIndex,
+        })),
       }))
       .filter((category) => category.documents.length > 0);
-  }, [stepConfig, timingFilter, documentStorage]);
+  }, [stepConfig]);
 
 
   const [uploadedFiles, setUploadedFiles] = React.useState<Record<string, UploadRecord[]>>({});
@@ -575,43 +561,6 @@ export function SupportingDocumentsStep({
           if (saved) pushNormalized(key, saved);
         });
       });
-
-      // Dual-read: legacy post-app files still in supporting_documents.
-      if (Object.keys(loadedFiles).length === 0 && application?.supporting_documents) {
-        let supportData: unknown = application.supporting_documents;
-        if (typeof supportData === "string") {
-          try {
-            supportData = JSON.parse(supportData) as unknown;
-          } catch {
-            supportData = null;
-          }
-        }
-        if (isRecord(supportData) && "supporting_documents" in supportData) {
-          supportData = supportData.supporting_documents;
-        }
-        if (isRecord(supportData) && Array.isArray(supportData.categories)) {
-          const supportCategories = supportData.categories as SavedSupportingCategory[];
-          categories.forEach((category, categoryIndex) => {
-            category.documents.forEach((document, documentIndex) => {
-              const legacy = (document as { legacy?: { categoryKey: string; documentIndex: number } })
-                .legacy;
-              if (!legacy) return;
-              const cat = supportCategories.find(
-                (c) =>
-                  c.name.replace(/\s+/g, "_").toLowerCase() ===
-                    legacy.categoryKey.replace(/_/g, " ").toLowerCase() ||
-                  c.name.toLowerCase().includes(legacy.categoryKey.replace(/_/g, " ").toLowerCase())
-              );
-              // Prefer category order index from synthetic single-category UI: match by workflow index across all.
-              const allDocs = supportCategories.flatMap((c) => c.documents ?? []);
-              const saved =
-                allDocs.find((d) => d.workflow_document_index === legacy.documentIndex) ??
-                (cat?.documents ?? [])[legacy.documentIndex];
-              if (saved) pushNormalized(`${categoryIndex}-${documentIndex}`, saved);
-            });
-          });
-        }
-      }
     } else {
       if (!application?.supporting_documents) {
         setUploadedFiles({});

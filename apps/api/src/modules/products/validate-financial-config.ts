@@ -10,7 +10,6 @@ import {
   ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY,
   OFFER_ACKNOWLEDGEMENTS_WORKFLOW_KEY,
   getStepKeyFromStepId,
-  migrateWorkflowAcceptanceDocuments,
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 
@@ -75,11 +74,6 @@ const DEFAULT_MAX_FINANCING_RATIO = 80;
  */
 export function applyFinancialDefaults(workflow: unknown[]): void {
   if (!Array.isArray(workflow) || workflow.length === 0) return;
-
-  const migrated = migrateWorkflowAcceptanceDocuments(
-    workflow as Array<{ id?: string; config?: unknown }>
-  );
-  workflow.splice(0, workflow.length, ...migrated);
 
   const step = workflow.find((s) => stepIdStartsWith(s, "invoice_details"));
   if (!step || typeof step !== "object") return;
@@ -178,20 +172,9 @@ function supportingDocRowHasValidAllowedTypes(row: unknown): boolean {
   return true;
 }
 
-function supportingDocRowHasValidUploadTiming(row: unknown): boolean {
-  if (!row || typeof row !== "object") return true;
-  const timing = (row as Record<string, unknown>).upload_timing;
-  // Legacy rows may still carry timing until migrate; reject unknown values only.
-  return (
-    timing === undefined ||
-    timing === "pre_application" ||
-    timing === "post_application"
-  );
-}
-
 /**
  * Each supporting-doc row may omit allowed_types (pdf at runtime) or set exactly one
- * of pdf | excel. Post-application rows are migrated to acceptance_documents on save.
+ * of pdf | excel.
  */
 export function validateSupportingDocumentsConfig(workflow: unknown[]): void {
   if (!Array.isArray(workflow) || workflow.length === 0) return;
@@ -210,13 +193,6 @@ export function validateSupportingDocumentsConfig(workflow: unknown[]): void {
             400,
             "VALIDATION_ERROR",
             `Supporting documents (${key}, row ${i + 1}): choose exactly one file type (PDF or Excel), not both.`
-          );
-        }
-        if (!supportingDocRowHasValidUploadTiming(row)) {
-          throw new AppError(
-            400,
-            "VALIDATION_ERROR",
-            `Supporting documents (${key}, row ${i + 1}): invalid upload timing.`
           );
         }
       }

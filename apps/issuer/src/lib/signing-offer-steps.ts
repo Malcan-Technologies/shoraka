@@ -112,17 +112,6 @@ export type AcknowledgementStepShellInput = {
   required?: boolean;
 };
 
-/** @deprecated Prefer resolveAcceptanceDocumentsFromWorkflow(workflow). */
-export function findSupportingDocumentsStepConfig(
-  workflow: unknown
-): { config?: Record<string, unknown> } | undefined {
-  if (!Array.isArray(workflow)) return undefined;
-  return workflow.find((step) => {
-    const id = String((step as { id?: unknown })?.id ?? "");
-    return id === "supporting_documents" || id.startsWith("supporting_documents_");
-  }) as { config?: Record<string, unknown> } | undefined;
-}
-
 /** Synthetic supporting-documents-style config for the Review Offer upload UI. */
 export function buildAcceptanceDocumentsStepConfig(
   workflow: unknown
@@ -136,14 +125,13 @@ export function buildAcceptanceDocumentsStepConfig(
         allow_multiple: row.allow_multiple,
         allowed_types: row.allowed_types,
         ...(row.template ? { template: row.template } : {}),
-        ...(row.legacy ? { _legacy: row.legacy } : {}),
       })),
     },
   };
 }
 
-/** True when frozen workflow has ≥1 acceptance document (new config or legacy post_application). */
-export function hasPostApplicationDocuments(workflow: unknown): boolean {
+/** True when frozen workflow has ≥1 acceptance document. */
+export function hasAcceptanceDocuments(workflow: unknown): boolean {
   return workflowHasAcceptanceDocuments(workflow);
 }
 

@@ -153,10 +153,6 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function workflowHasRequiredPostApplicationDocs(workflow: unknown): boolean {
-  return workflowHasRequiredAcceptanceDocuments(workflow);
-}
-
 function workflowHasSigningPackage(workflow: unknown): boolean {
   if (!Array.isArray(workflow)) return false;
   for (const step of workflow) {
@@ -1196,17 +1192,16 @@ export class NoteService {
       }
     }
 
-    if (!workflowHasRequiredPostApplicationDocs(workflow)) return;
+    if (!workflowHasRequiredAcceptanceDocuments(workflow)) return;
 
     const application = await prisma.application.findUnique({
       where: { id: note.source_application_id },
-      select: { supporting_documents: true, acceptance_documents: true },
+      select: { acceptance_documents: true },
     });
     const docKeys = new Set(
       collectAcceptanceDocumentReviewKeys(
         workflow,
-        application?.acceptance_documents,
-        application?.supporting_documents
+        application?.acceptance_documents
       )
     );
     if (docKeys.size === 0) {

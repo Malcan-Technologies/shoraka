@@ -4,7 +4,7 @@
  * To add a step: see workflow-registry.tsx (and add validation here if the step has required fields).
  */
 
-import { getStepKeyFromStepId, STEP_KEY_DISPLAY, enforceDeclarationsLastAndDropReview, parseSigningPackagesConfig, writeSigningPackagesConfig, migrateWorkflowAcceptanceDocuments, ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY } from "@cashsouk/types";
+import { getStepKeyFromStepId, STEP_KEY_DISPLAY, enforceDeclarationsLastAndDropReview, parseSigningPackagesConfig, writeSigningPackagesConfig, ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY } from "@cashsouk/types";
 import { isDeclarationHtmlEmpty } from "@cashsouk/ui/declaration-rich-text";
 import { parseMoney } from "@cashsouk/ui";
 
@@ -36,8 +36,7 @@ export function getStepId(step: Step | unknown): string {
  */
 export function buildPayloadFromSteps(steps: unknown[]): Step[] {
   const ordered = enforceDeclarationsLastAndDropReview(steps as Step[]);
-  const migrated = migrateWorkflowAcceptanceDocuments(ordered);
-  return migrated.map((s) => {
+  return ordered.map((s) => {
     const step = s as Step;
     let config = { ...(step.config ?? {}) };
     const stepKey = getStepKeyFromStepId(step.id ?? "");

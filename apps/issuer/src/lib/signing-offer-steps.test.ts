@@ -1,11 +1,10 @@
 import {
   compareSigningOfferStepOrder,
-  findSupportingDocumentsStepConfig,
   getCurrentSigningOfferStepId,
   getSigningOfferStepIndex,
   getSigningOfferSteps,
   hasCompletedContractEnvelope,
-  hasPostApplicationDocuments,
+  hasAcceptanceDocuments,
   isSigningOfferStepReachable,
   resolveReviewOfferModalMode,
 } from "./signing-offer-steps";
@@ -74,15 +73,15 @@ describe("getCurrentSigningOfferStepId", () => {
   });
 });
 
-describe("hasPostApplicationDocuments", () => {
+describe("hasAcceptanceDocuments", () => {
   it("returns false for missing or empty workflow", () => {
-    expect(hasPostApplicationDocuments(undefined)).toBe(false);
-    expect(hasPostApplicationDocuments([])).toBe(false);
+    expect(hasAcceptanceDocuments(undefined)).toBe(false);
+    expect(hasAcceptanceDocuments([])).toBe(false);
   });
 
   it("returns true for financing_type.acceptance_documents", () => {
     expect(
-      hasPostApplicationDocuments([
+      hasAcceptanceDocuments([
         {
           id: "financing_type_1",
           config: {
@@ -93,50 +92,17 @@ describe("hasPostApplicationDocuments", () => {
     ).toBe(true);
   });
 
-  it("returns true for legacy supporting_documents upload_timing post_application", () => {
+  it("returns false when acceptance_documents is absent", () => {
     expect(
-      hasPostApplicationDocuments([
+      hasAcceptanceDocuments([
         {
           id: "supporting_documents_1",
           config: {
-            financial_docs: [{ name: "Board Resolution", upload_timing: "post_application" }],
-          },
-        },
-      ])
-    ).toBe(true);
-  });
-
-  it("returns false when only pre_application rows exist and no acceptance_documents key", () => {
-    expect(
-      hasPostApplicationDocuments([
-        {
-          id: "supporting_documents_1",
-          config: {
-            financial_docs: [{ name: "Mgmt accounts", upload_timing: "pre_application" }],
+            financial_docs: [{ name: "Mgmt accounts" }],
           },
         },
       ])
     ).toBe(false);
-  });
-});
-
-describe("findSupportingDocumentsStepConfig", () => {
-  it("finds supporting_documents or supporting_documents_* step from workflow", () => {
-    expect(
-      findSupportingDocumentsStepConfig([
-        { id: "company_details", config: {} },
-        { id: "supporting_documents", config: { financial: [] } },
-      ])
-    ).toEqual({ id: "supporting_documents", config: { financial: [] } });
-
-    expect(
-      findSupportingDocumentsStepConfig([
-        { id: "supporting_documents_v2", config: { legal: [] } },
-      ])
-    ).toEqual({ id: "supporting_documents_v2", config: { legal: [] } });
-
-    expect(findSupportingDocumentsStepConfig([{ id: "other" }])).toBeUndefined();
-    expect(findSupportingDocumentsStepConfig(undefined)).toBeUndefined();
   });
 });
 
@@ -374,8 +340,8 @@ describe("acceptance flow never falls through to Configure signers", () => {
       acceptanceStatus: "REJECTED" as const,
     };
     const ids = getSigningOfferSteps(input).map((s) => s.id);
-    expect(ids).toEqual(["awaiting_review"]);
+    expect(ids).toEqual(["rejected"]);
     expect(ids).not.toContain("signers");
-    expect(getCurrentSigningOfferStepId(input)).toBe("awaiting_review");
+    expect(getCurrentSigningOfferStepId(input)).toBe("rejected");
   });
 });

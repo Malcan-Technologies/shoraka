@@ -1043,7 +1043,8 @@ export default function DynamicApplicationDetailPage() {
                         descriptor.reviewSection,
                         sectionStatusMap,
                         availableReviewSections,
-                        tabPrerequisitesFromApi
+                        tabPrerequisitesFromApi,
+                        structureType
                       );
                       const actionLocked =
                         applicationWithdrawn ||
@@ -1062,7 +1063,8 @@ export default function DynamicApplicationDetailPage() {
                                   sectionStatusMap,
                                   availableReviewSections,
                                   tabPrerequisitesFromApi,
-                                  isInvoiceOnly ? { contract_details: "Customer" } : undefined
+                                  isInvoiceOnly ? { contract_details: "Customer" } : undefined,
+                                  structureType
                                 )
                         : undefined;
                       const sectionStatus = sectionStatusMap.get(descriptor.reviewSection);

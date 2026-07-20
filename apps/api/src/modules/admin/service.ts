@@ -69,6 +69,8 @@ import {
   getSectionForScopeKey,
   parseItemScopeKey,
   REVIEW_SECTION_ORDER,
+  getReviewSectionOrder,
+  getReviewSectionPrerequisites,
   getStepKeyFromStepId,
   workflowHasAcceptanceDocuments,
   collectAcceptanceDocumentReviewKeys,
@@ -529,15 +531,13 @@ export class AdminService {
     tx: Prisma.TransactionClient,
     applicationId: string,
     application: {
-      supporting_documents?: unknown;
       acceptance_documents?: unknown;
     },
     workflow: unknown[]
   ): Promise<void> {
     const docKeys = collectAcceptanceDocumentReviewKeys(
       workflow,
-      application.acceptance_documents,
-      application.supporting_documents
+      application.acceptance_documents
     );
     for (const itemId of docKeys) {
       await tx.applicationReviewItem.upsert({
@@ -651,42 +651,17 @@ export class AdminService {
         : null;
     const productId = typeof financingType?.product_id === "string" ? financingType.product_id : null;
 
-    const prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>> = {
-      financial: [],
-      company_details: [],
-      business_details: [],
-      supporting_documents: [],
-      contract_details: ["financial", "company_details", "business_details", "supporting_documents"],
-      invoice_details: [
-        "financial",
-        "company_details",
-        "business_details",
-        "supporting_documents",
-        "contract_details",
-      ],
-    };
-
-    const applyStructureOverrides = (sections: Set<ReviewSection>) => {
-      const structure =
-        application.financing_structure && typeof application.financing_structure === "object"
-          ? (application.financing_structure as Record<string, unknown>)
-          : null;
-      if (structure?.structure_type === "invoice_only") {
-        prerequisitesBySection.invoice_details = [
-          "financial",
-          "company_details",
-          "business_details",
-          "supporting_documents",
-          "contract_details",
-        ];
-      }
-      return sections;
-    };
+    const structureType =
+      application.financing_structure && typeof application.financing_structure === "object"
+        ? ((application.financing_structure as Record<string, unknown>).structure_type as
+            | string
+            | undefined)
+        : undefined;
+    const prerequisitesBySection = getReviewSectionPrerequisites(structureType);
+    const sectionOrder = getReviewSectionOrder(structureType);
 
     if (!productId) {
-      const fallback = applyStructureOverrides(
-        new Set(REVIEW_SECTION_ORDER as readonly ReviewSection[])
-      );
+      const fallback = new Set(sectionOrder);
       return {
         requiredSections: fallback,
         visibleSections: new Set(fallback),
@@ -700,9 +675,7 @@ export class AdminService {
         ? await this.productRepository.findByBaseAndVersion(productId, application.product_version)
         : await this.productRepository.findById(productId);
     if (!product) {
-      const fallback = applyStructureOverrides(
-        new Set(REVIEW_SECTION_ORDER as readonly ReviewSection[])
-      );
+      const fallback = new Set(sectionOrder);
       return {
         requiredSections: fallback,
         visibleSections: new Set(fallback),
@@ -725,13 +698,13 @@ export class AdminService {
       requiredSections.add(stepKey as ReviewSection);
     }
 
-    const normalizedRequiredSections = applyStructureOverrides(requiredSections);
-    const visibleSections = new Set(normalizedRequiredSections);
-    if (workflowHasAcceptanceDocuments(workflow)) {
+    const visibleSections = new Set(requiredSections);
+    // Acks-only products still need the Acceptance tab (signing hub / phase UI).
+    if (workflowUsesOfferAcceptanceFlow(workflow)) {
       visibleSections.add("acceptance_documents");
     }
     return {
-      requiredSections: normalizedRequiredSections,
+      requiredSections,
       visibleSections,
       prerequisitesBySection,
     };
@@ -5513,10 +5486,17 @@ export class AdminService {
       })
     );
     const sectionPolicy = await this.getReviewSectionPolicy(application);
-    const orderedRequiredSections = REVIEW_SECTION_ORDER.filter((section) =>
+    const structureType =
+      application.financing_structure && typeof application.financing_structure === "object"
+        ? ((application.financing_structure as Record<string, unknown>).structure_type as
+            | string
+            | undefined)
+        : undefined;
+    const sectionOrder = getReviewSectionOrder(structureType);
+    const orderedRequiredSections = sectionOrder.filter((section) =>
       sectionPolicy.requiredSections.has(section)
     );
-    const orderedVisibleSections = REVIEW_SECTION_ORDER.filter((section) =>
+    const orderedVisibleSections = sectionOrder.filter((section) =>
       sectionPolicy.visibleSections.has(section)
     );
     const issuerOrgForPeople: Record<string, unknown> | null = isPlainObjectRecord(
@@ -6382,8 +6362,7 @@ export class AdminService {
 
     const docKeys = collectAcceptanceDocumentReviewKeys(
       workflow,
-      application.acceptance_documents,
-      application.supporting_documents
+      application.acceptance_documents
     );
     const documentRows =
       application.application_review_items?.filter((r) => r.item_type === "document") ?? [];

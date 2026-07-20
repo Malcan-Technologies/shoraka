@@ -433,5 +433,5 @@ export function getOfferAcceptanceStatusPresentation(
   }
 }
 
-/** Re-export key for product validation / dual-read with acceptance docs. */
+/** Re-export key for product validation with acceptance docs. */
 export { ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY };

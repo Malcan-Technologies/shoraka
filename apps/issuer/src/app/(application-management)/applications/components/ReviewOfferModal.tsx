@@ -77,7 +77,7 @@ import {
   getOfferAcknowledgements,
   getSigningOfferSteps,
   hasCompletedContractEnvelope,
-  hasPostApplicationDocuments,
+  hasAcceptanceDocuments,
   isAcknowledgementStepId,
   isSigningOfferStepReachable,
   parseAcknowledgementStepKey,
@@ -658,7 +658,7 @@ export function ReviewOfferModal({
     [frozenProductWorkflow]
   );
   const hasPostDocs = React.useMemo(
-    () => hasPostApplicationDocuments(frozenProductWorkflow?.workflow),
+    () => hasAcceptanceDocuments(frozenProductWorkflow?.workflow),
     [frozenProductWorkflow]
   );
   const acknowledgementDocs = React.useMemo(

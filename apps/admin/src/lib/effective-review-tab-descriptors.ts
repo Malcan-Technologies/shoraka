@@ -30,7 +30,9 @@ export function getEffectiveReviewTabDescriptors(
   workflow: unknown[] | null | undefined,
   app: TabDescriptorVisibilityApp | null | undefined
 ): ReviewTabDescriptor[] {
-  const tabDescriptors = getReviewTabDescriptorsFromWorkflow(workflow);
+  const structureType = (app?.financing_structure as { structure_type?: string } | null | undefined)
+    ?.structure_type;
+  const tabDescriptors = getReviewTabDescriptorsFromWorkflow(workflow, structureType);
   if (!app) {
     return tabDescriptors;
   }
@@ -43,6 +45,7 @@ export function getEffectiveReviewTabDescriptors(
 
   let descriptors: ReviewTabDescriptor[];
   if (visibleReviewSectionsFromApi) {
+    // API list order is source of truth (structure-aware from getReviewSectionOrder).
     const descriptorBySection = new Map(tabDescriptors.map((d) => [d.reviewSection, d]));
     descriptors = visibleReviewSectionsFromApi.map(
       (section) =>
@@ -59,8 +62,6 @@ export function getEffectiveReviewTabDescriptors(
     descriptors = tabDescriptors;
   }
 
-  const structureType = (app.financing_structure as { structure_type?: string } | null | undefined)
-    ?.structure_type;
   const isInvoiceOnly = structureType === "invoice_only";
   const invoiceCount = (Array.isArray(app.invoices) ? app.invoices : []).length;
   const isContractOnlyNoInvoices =

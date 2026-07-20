@@ -9,7 +9,10 @@
  * - Invoice item: scope_key = "invoice_details:<index>:<invoice_number>"
  */
 
-/** Canonical section order for grouping and display. */
+/**
+ * Canonical section order for contract / default flows.
+ * Acceptance sits before Invoice so the facility offer is closed before drawdowns.
+ */
 export const REVIEW_SECTION_ORDER = [
   "financial",
   "company_details",
@@ -21,6 +24,72 @@ export const REVIEW_SECTION_ORDER = [
 ] as const;
 
 export type ReviewSection = (typeof REVIEW_SECTION_ORDER)[number];
+
+/**
+ * Invoice-only order: Invoice before Acceptance so Send Offer → close primary offer
+ * stays left-to-right (Customer → Invoice → Acceptance).
+ */
+export const REVIEW_SECTION_ORDER_INVOICE_ONLY: readonly ReviewSection[] = [
+  "financial",
+  "company_details",
+  "business_details",
+  "supporting_documents",
+  "contract_details",
+  "invoice_details",
+  "acceptance_documents",
+];
+
+/**
+ * Admin review tab / visible_review_sections order by financing structure.
+ * Unknown / null structure types use the contract default.
+ */
+export function getReviewSectionOrder(
+  structureType?: string | null
+): readonly ReviewSection[] {
+  if (structureType === "invoice_only") {
+    return REVIEW_SECTION_ORDER_INVOICE_ONLY;
+  }
+  return REVIEW_SECTION_ORDER;
+}
+
+/** Underwriting sections that unlock Contract / Customer. */
+const UNDERWRITING_BEFORE_CONTRACT: ReviewSection[] = [
+  "financial",
+  "company_details",
+  "business_details",
+  "supporting_documents",
+];
+
+/**
+ * Prerequisites for the Acceptance tab.
+ * Contract: after Contract approved. Invoice-only: after Invoice approved (Customer still on the chain).
+ */
+export function getAcceptanceDocumentsPrerequisites(
+  structureType?: string | null
+): ReviewSection[] {
+  if (structureType === "invoice_only") {
+    return [...UNDERWRITING_BEFORE_CONTRACT, "contract_details", "invoice_details"];
+  }
+  return [...UNDERWRITING_BEFORE_CONTRACT, "contract_details"];
+}
+
+/**
+ * Default review-section prerequisites by financing structure.
+ * Server may still override; clients use this when API prereqs are absent.
+ */
+export function getReviewSectionPrerequisites(
+  structureType?: string | null
+): Partial<Record<ReviewSection, ReviewSection[]>> {
+  return {
+    financial: [],
+    company_details: [],
+    business_details: [],
+    supporting_documents: [],
+    contract_details: [...UNDERWRITING_BEFORE_CONTRACT],
+    invoice_details: [...UNDERWRITING_BEFORE_CONTRACT, "contract_details"],
+    acceptance_documents: getAcceptanceDocumentsPrerequisites(structureType),
+  };
+}
 
 /** Get the parent section for an item scope_key. */
 export function getSectionForScopeKey(scopeKey: string): ReviewSection {
@@ -92,10 +161,14 @@ export function isDocumentScopeKey(scopeKey: string): boolean {
   );
 }
 
-/** Get section sort index for ordering. */
-export function getSectionSortIndex(sectionKey: string): number {
-  const i = REVIEW_SECTION_ORDER.indexOf(sectionKey as ReviewSection);
-  return i === -1 ? REVIEW_SECTION_ORDER.length : i;
+/** Get section sort index for ordering (structure-aware when provided). */
+export function getSectionSortIndex(
+  sectionKey: string,
+  structureType?: string | null
+): number {
+  const order = getReviewSectionOrder(structureType);
+  const i = order.indexOf(sectionKey as ReviewSection);
+  return i === -1 ? order.length : i;
 }
 
 /** Title-case a slug for display (e.g. "p2p_declaration" -> "P2P Declaration"). */

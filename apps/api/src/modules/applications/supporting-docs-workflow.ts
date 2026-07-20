@@ -33,13 +33,6 @@ export function resolveAllowedTypesFromWorkflowRow(row: unknown): string[] {
   return first === "excel" ? ["excel"] : ["pdf"];
 }
 
-export function resolveUploadTimingFromWorkflowRow(row: unknown): "pre_application" | "post_application" {
-  if (!row || typeof row !== "object") return "pre_application";
-  return (row as Record<string, unknown>).upload_timing === "post_application"
-    ? "post_application"
-    : "pre_application";
-}
-
 /** Allowed upload types for the business-details guarantor agreement row (defaults to PDF). */
 export function getGuarantorAgreementAllowedTypesFromProductWorkflow(workflow: unknown): string[] {
   if (!Array.isArray(workflow)) {
@@ -77,31 +70,6 @@ export function getSupportingDocAllowedTypesFromProductWorkflow(
       throw new AppError(400, "VALIDATION_ERROR", "Invalid document slot");
     }
     return resolveAllowedTypesFromWorkflowRow(list[documentIndex]);
-  }
-  throw new AppError(400, "VALIDATION_ERROR", "Supporting documents are not configured for this product");
-}
-
-export function getSupportingDocUploadTimingFromProductWorkflow(
-  workflow: unknown,
-  categoryKey: string,
-  documentIndex: number
-): "pre_application" | "post_application" {
-  if (!Array.isArray(workflow)) {
-    throw new AppError(400, "VALIDATION_ERROR", "Invalid product workflow");
-  }
-  for (const step of workflow) {
-    const sid = (step as { id?: string })?.id ?? "";
-    if (getStepKeyFromStepId(sid) !== "supporting_documents") continue;
-    const config = (step as { config?: Record<string, unknown> }).config;
-    if (!config || typeof config !== "object") break;
-    const list = config[categoryKey];
-    if (!Array.isArray(list)) {
-      throw new AppError(400, "VALIDATION_ERROR", "Invalid document category");
-    }
-    if (!Number.isInteger(documentIndex) || documentIndex < 0 || documentIndex >= list.length) {
-      throw new AppError(400, "VALIDATION_ERROR", "Invalid document slot");
-    }
-    return resolveUploadTimingFromWorkflowRow(list[documentIndex]);
   }
   throw new AppError(400, "VALIDATION_ERROR", "Supporting documents are not configured for this product");
 }
@@ -147,13 +115,12 @@ function findApplicationSupportingDocument(appDocs: unknown, workflowDocumentInd
 }
 
 /**
- * On submit/resubmit: each required pre-application workflow row must have at least one uploaded file (s3_key).
+ * On submit/resubmit: each required supporting-document workflow row must have at least one uploaded file (s3_key).
  * Category order matches issuer: Object.entries(config), skipping enabled_categories and non-arrays.
  */
-export function assertRequiredSupportingDocumentsPresentForTiming(
+export function assertRequiredSupportingDocumentsPresent(
   workflow: unknown,
-  applicationSupportingDocuments: unknown,
-  uploadTiming: "pre_application" | "post_application"
+  applicationSupportingDocuments: unknown
 ): void {
   if (!Array.isArray(workflow) || workflow.length === 0) return;
 
@@ -179,7 +146,6 @@ export function assertRequiredSupportingDocumentsPresentForTiming(
     const appDocs = appCat?.documents;
     for (let docIndex = 0; docIndex < rows.length; docIndex++) {
       const row = rows[docIndex];
-      if (resolveUploadTimingFromWorkflowRow(row) !== uploadTiming) continue;
       const required = !row || typeof row !== "object" || (row as Record<string, unknown>).required !== false;
       if (!required) continue;
       const nameRaw =
@@ -195,30 +161,12 @@ export function assertRequiredSupportingDocumentsPresentForTiming(
   }
 }
 
-export function assertRequiredSupportingDocumentsPresent(
+/** Required acceptance docs must be present on the application acceptance_documents payload. */
+export function assertRequiredAcceptanceDocumentsPresent(
   workflow: unknown,
-  applicationSupportingDocuments: unknown
-): void {
-  assertRequiredSupportingDocumentsPresentForTiming(
-    workflow,
-    applicationSupportingDocuments,
-    "pre_application"
-  );
-}
-
-/** Required acceptance docs present (new storage and/or legacy supporting_documents slots). */
-export function assertRequiredPostApplicationSupportingDocumentsPresent(
-  workflow: unknown,
-  applicationSupportingDocuments: unknown,
   applicationAcceptanceDocuments?: unknown
 ): void {
-  if (
-    !acceptanceDocumentsReady(
-      workflow,
-      applicationAcceptanceDocuments,
-      applicationSupportingDocuments
-    )
-  ) {
+  if (!acceptanceDocumentsReady(workflow, applicationAcceptanceDocuments)) {
     throw new AppError(
       400,
       "VALIDATION_ERROR",

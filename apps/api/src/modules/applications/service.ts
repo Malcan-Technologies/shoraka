@@ -27,11 +27,10 @@ import { requestPresignedUploadUrl, deleteDocumentFromS3 } from "./documents/ser
 import { shouldPreserveApplicationDocumentsInS3 } from "./amendment-preserve-s3";
 import {
   assertRequiredSupportingDocumentsPresent,
-  assertRequiredPostApplicationSupportingDocumentsPresent,
+  assertRequiredAcceptanceDocumentsPresent,
   fileNameToSupportingDocTypeToken,
   getGuarantorAgreementAllowedTypesFromProductWorkflow,
   getSupportingDocAllowedTypesFromProductWorkflow,
-  getSupportingDocUploadTimingFromProductWorkflow,
 } from "./supporting-docs-workflow";
 import {
   resolveAcceptanceDocumentAllowedTypes,
@@ -444,12 +443,6 @@ export class ApplicationService {
     }
   }
 
-  private async verifyPostApplicationSupportingDocumentsEditable(
-    application: Application | null
-  ): Promise<void> {
-    await this.verifyAcceptanceDocumentsEditable(application);
-  }
-
   private async verifyApplicationStepEditable(
     application: Application | null,
     fieldName: string | null
@@ -461,11 +454,6 @@ export class ApplicationService {
     }
     if (fieldName === "acceptance_documents") {
       await this.verifyAcceptanceDocumentsEditable(application);
-      return;
-    }
-    // Legacy: frozen products may still save post-app slots via supporting_documents.
-    if (fieldName === "supporting_documents") {
-      await this.verifyPostApplicationSupportingDocumentsEditable(application);
       return;
     }
     throw new AppError(403, "EDIT_NOT_ALLOWED", "Application cannot be edited in its current status");
@@ -1226,16 +1214,7 @@ export class ApplicationService {
       await this.verifyAcceptanceDocumentsEditable(application);
     } else if (isSupportingDocsWorkflowUpload) {
       workflow = await this.getProductWorkflowForApplication(application);
-      const uploadTiming = getSupportingDocUploadTimingFromProductWorkflow(
-        workflow,
-        params.supportingDocCategoryKey!,
-        params.supportingDocIndex!
-      );
-      if (uploadTiming === "post_application") {
-        await this.verifyPostApplicationSupportingDocumentsEditable(application);
-      } else {
-        this.verifyApplicationEditable(application);
-      }
+      this.verifyApplicationEditable(application);
     } else if (isGuarantorAgreementUpload) {
       workflow = await this.getProductWorkflowForApplication(application);
       this.verifyApplicationEditable(application);
@@ -1582,15 +1561,13 @@ export class ApplicationService {
     tx: Prisma.TransactionClient,
     applicationId: string,
     application: {
-      supporting_documents?: unknown;
       acceptance_documents?: unknown;
     },
     workflow: unknown[]
   ): Promise<void> {
     const docKeys = collectAcceptanceDocumentReviewKeys(
       workflow,
-      application.acceptance_documents,
-      application.supporting_documents
+      application.acceptance_documents
     );
     for (const itemId of docKeys) {
       await tx.applicationReviewItem.upsert({
@@ -1678,9 +1655,8 @@ export class ApplicationService {
         );
       }
     }
-    assertRequiredPostApplicationSupportingDocumentsPresent(
+    assertRequiredAcceptanceDocumentsPresent(
       workflow,
-      application.supporting_documents,
       (application as { acceptance_documents?: unknown }).acceptance_documents
     );
 
@@ -1776,9 +1752,8 @@ export class ApplicationService {
         );
       }
     }
-    assertRequiredPostApplicationSupportingDocumentsPresent(
+    assertRequiredAcceptanceDocumentsPresent(
       workflow,
-      application.supporting_documents,
       (application as { acceptance_documents?: unknown }).acceptance_documents
     );
 

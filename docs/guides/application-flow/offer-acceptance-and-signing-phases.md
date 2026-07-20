@@ -2,7 +2,7 @@
 
 Standard post-offer flow for **contract** and **invoice-only** offers (same product signing package). Contract-linked invoices stay on direct Accept/Decline after the contract envelope completes (unchanged).
 
-Invoice-only is intended to use this same flow (later: max 1 invoice per invoice-only application). Clocks (7-day / 14-day) are deferred.
+Invoice-only applications allow **at most one invoice** (enforced on create). Clocks (7-day / 14-day) are deferred.
 
 ## Phases
 
@@ -95,9 +95,17 @@ Default pair: use **Add LO + Guarantee Acknowledgement** in product settings (`D
 
 ## Admin
 
-- Acceptance Documents tab: review uploads; actions drive `CHANGES_REQUESTED` / `APPROVED_FOR_SIGNING` / reject-withdraw.
+- Acceptance tab: review uploads; actions drive `CHANGES_REQUESTED` / `APPROVED_FOR_SIGNING` / reject-withdraw.
 - Signing package panel: show phase badge; disable create/send messaging until `APPROVED_FOR_SIGNING`.
 - Show recorded acknowledgement timestamps read-only when present.
+- Tab visibility: show Acceptance when `workflowUsesOfferAcceptanceFlow` (acknowledgements and/or acceptance documents).
+- **Structure-aware tab order** (`getReviewSectionOrder`):
+  - Contract / default: `… → Contract → Acceptance → Invoice`
+  - Invoice-only: `… → Customer → Invoice → Acceptance`
+- **Acceptance unlock prerequisites** (`getAcceptanceDocumentsPrerequisites`):
+  - Contract: underwriting + Contract approved
+  - Invoice-only: underwriting + Customer + Invoice approved
+- Acceptance stays **visible-only** (not required for final application approval). Send Offer remains on Contract / Invoice (v1).
 
 ## Gates
 
@@ -113,4 +121,5 @@ Presence-only gate for send is **replaced** by admin-approved for this flow when
 
 1. **Config + types + Step 1 UI + submit API** — `offer_acknowledgements`, `offer_acceptance` on `offer_details`, issuer Step 1, remove upload from Step 3 when acceptance phase applies.
 2. **Admin gate** — block create/send until approved; wire review outcomes to `offer_acceptance.status`; admin panel copy.
-3. **Deferred** — 7/14-day clocks; invoice-only max-1-invoice; HTML merge templates.
+3. **Admin review linearity (Slice A)** — structure-aware tab order + Acceptance prerequisites + tab visibility via `workflowUsesOfferAcceptanceFlow`.
+4. **Deferred** — 7/14-day clocks; HTML merge templates; move Signing package into Acceptance hub (Slice B); Send Offer → Acceptance (v2).
