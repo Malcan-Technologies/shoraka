@@ -40,6 +40,7 @@ import {
   NoteLifecycleCard,
   type NoteLifecycleAction,
 } from "@/notes/components/note-lifecycle-card";
+import { NoteProspectusStatusCard } from "@/notes/components/note-prospectus-status-card";
 import { NoteInvestorsPanel } from "@/notes/components/note-investors-panel";
 import { NoteStatusBadge } from "@cashsouk/ui";
 import { NoteTermsPanel } from "@/notes/components/note-terms-panel";
@@ -391,55 +392,13 @@ export default function NoteDetailPage() {
                 canManage={canManage}
               />
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                  <div>
-                    <CardTitle className="text-base">Prospectus</CardTitle>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {note.status === "PUBLISHED" || note.publishedAt
-                        ? "Published Prospectus is read-only."
-                        : note.prospectus?.status === "APPROVED"
-                          ? "Prospectus approved — Note is eligible for marketplace publication."
-                          : "Review and approve the Prospectus before publishing to the marketplace."}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      <span>
-                        Status:{" "}
-                        <span className="font-medium text-foreground">
-                          {note.prospectus?.displayStatus ?? "Draft"}
-                        </span>
-                      </span>
-                      {note.prospectus?.lastSavedAt ? (
-                        <span>
-                          Last saved:{" "}
-                          {new Date(note.prospectus.lastSavedAt).toLocaleString("en-MY")}
-                        </span>
-                      ) : null}
-                      {note.prospectus?.approvedAt ? (
-                        <span>
-                          Approved:{" "}
-                          {new Date(note.prospectus.approvedAt).toLocaleString("en-MY")}
-                        </span>
-                      ) : null}
-                      {note.prospectus?.publishedAt ? (
-                        <span>
-                          Published:{" "}
-                          {new Date(note.prospectus.publishedAt).toLocaleString("en-MY")}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    onClick={() => router.push(`/notes/${note.id}/prospectus`)}
-                  >
-                    <DocumentTextIcon className="mr-2 h-4 w-4" />
-                    {note.status === "PUBLISHED" || note.publishedAt
-                      ? "View Prospectus"
-                      : "Review Prospectus"}
-                  </Button>
-                </CardHeader>
-              </Card>
+              <NoteProspectusStatusCard
+                note={note}
+                canManage={canManage}
+                publishPending={publishNote.isPending}
+                onReviewProspectus={() => router.push(`/notes/${note.id}/prospectus`)}
+                onPublishNote={() => setPendingAction("publish")}
+              />
 
               <div className="space-y-6">
                 <NoteTermsPanel note={note} />
