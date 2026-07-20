@@ -137,7 +137,7 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
       };
     }
 
-    // Always persist dual signing_packages; migrate legacy signing_template on save.
+    // Always persist signing_packages; migrate legacy dual / signing_template on save.
     if (stepKey === FIRST_STEP_KEY) {
       config = writeSigningPackagesConfig(config, parseSigningPackagesConfig(config));
     }

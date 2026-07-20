@@ -1,6 +1,6 @@
 # Offer acceptance & signing phases
 
-Standard post-offer flow for **contract** and **invoice-only** packages. Contract-linked invoices stay on direct Accept/Decline after the contract envelope completes (unchanged).
+Standard post-offer flow for **contract** and **invoice-only** offers (same product signing package). Contract-linked invoices stay on direct Accept/Decline after the contract envelope completes (unchanged).
 
 Invoice-only is intended to use this same flow (later: max 1 invoice per invoice-only application). Clocks (7-day / 14-day) are deferred.
 

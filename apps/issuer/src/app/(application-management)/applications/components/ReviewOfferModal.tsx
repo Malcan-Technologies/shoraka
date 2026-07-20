@@ -180,7 +180,7 @@ function getApiErrorDetails(
   };
 }
 
-/** Resolve contract or invoice package from frozen workflow (dual packages or legacy). */
+/** Resolve signing package from frozen workflow (single package; dual/legacy migrate on read). */
 function readSigningTemplateForOffer(
   workflow: unknown,
   kind: SigningPackageOfferKind

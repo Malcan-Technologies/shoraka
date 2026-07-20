@@ -10,8 +10,8 @@ import { generatePresignedUploadUrl, generateProductS3Key, getFileExtension, par
 import type { ProductRepository } from "../repository";
 import { productUploadImageUrlBodySchema, productUploadTemplateUrlBodySchema } from "../schemas";
 import {
+  isSigningTemplateDocumentCategoryKey,
   parseSigningPackagesConfig,
-  parseSigningTemplateDocumentCategoryKey,
 } from "@cashsouk/types";
 
 const PRODUCT_S3_KEY_PREFIX = "products/";
@@ -38,22 +38,12 @@ function getExistingTemplateKeyFromWorkflow(
   categoryKey: string,
   templateIndex: number
 ): string | undefined {
-  const signingPackageKind = parseSigningTemplateDocumentCategoryKey(categoryKey);
-  if (signingPackageKind || categoryKey === "signing_template_document") {
+  if (isSigningTemplateDocumentCategoryKey(categoryKey)) {
     for (const step of workflow) {
       const config = getConfig(step);
-      if (signingPackageKind) {
-        const packages = parseSigningPackagesConfig(config);
-        const key = packages[signingPackageKind].documents[templateIndex]?.template?.s3_key?.trim();
-        if (key && key.startsWith(PRODUCT_S3_KEY_PREFIX)) return key;
-      } else {
-        // Legacy unnamespaced category — look at flat signing_template only
-        const signingTemplate = config.signing_template as
-          | { documents?: Array<{ template?: { s3_key?: string } }> }
-          | undefined;
-        const legacyKey = signingTemplate?.documents?.[templateIndex]?.template?.s3_key?.trim();
-        if (legacyKey && legacyKey.startsWith(PRODUCT_S3_KEY_PREFIX)) return legacyKey;
-      }
+      const template = parseSigningPackagesConfig(config);
+      const key = template.documents[templateIndex]?.template?.s3_key?.trim();
+      if (key && key.startsWith(PRODUCT_S3_KEY_PREFIX)) return key;
     }
     return undefined;
   }

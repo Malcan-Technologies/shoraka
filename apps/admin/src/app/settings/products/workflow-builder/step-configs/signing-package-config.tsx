@@ -8,7 +8,6 @@ import {
   parseSigningTemplateConfig,
   sanitizeSigningTemplateConfig,
   type SigningDocumentSource,
-  type SigningPackageOfferKind,
   type SigningPackagesConfig,
   type SigningRoleKey,
   type SigningTemplateConfig,
@@ -103,7 +102,7 @@ function rolesForDocument(template: SigningTemplateConfig, document: SigningTemp
   return template.roles.filter((role) => keySet.has(role.key));
 }
 
-/** Single package editor — documents and roles. Reused by contract and invoice sections. */
+/** Package editor — documents and roles. */
 function SigningPackageSection({
   title,
   description,
@@ -464,69 +463,35 @@ function SigningPackageSection({
   );
 }
 
-const PACKAGE_SECTIONS: Array<{
-  kind: SigningPackageOfferKind;
-  title: string;
-  description: string;
-  helperText?: string;
-}> = [
-  {
-    kind: "contract",
-    title: "Contract offer signing package",
-    description:
-      "Envelope documents and signer roles for contract offers. Issuers assign people and send signing emails when accepting a contract offer.",
-  },
-  {
-    kind: "invoice",
-    title: "Invoice offer signing package",
-    description:
-      "Envelope documents and signer roles for invoice-only invoice offers. Issuers assign people and send signing emails when accepting those offers.",
-    helperText:
-      "Not used for contract-linked invoice offers — those Accept/Decline after the contract package is completed, with no envelope.",
-  },
-];
-
 export function SigningPackageConfig({
   config,
   onChange,
 }: {
-  /** Financing-type step config (or packages object). Migrates legacy signing_template on read. */
+  /** Financing-type step config (or packages object). Migrates legacy shapes on read. */
   config: unknown;
   onChange: (packages: SigningPackagesConfig) => void;
 }) {
   const packages = React.useMemo(() => parseSigningPackagesConfig(config), [config]);
 
-  const handlePackageChange = React.useCallback(
-    (kind: SigningPackageOfferKind, next: SigningTemplateConfig) => {
-      onChange({
-        ...packages,
-        [kind]: next,
-      });
-    },
-    [onChange, packages]
-  );
-
   return (
     <div className={cn("grid", SECTION_GAP)}>
       <div className="min-w-0">
-        <h2 className="text-sm font-semibold text-foreground">Signing packages</h2>
+        <h2 className="text-sm font-semibold text-foreground">Signing package</h2>
         <p className="text-sm text-muted-foreground">
-          Configure separate envelope templates for contract offers and invoice-only invoice offers.
-          Acceptance documents (e.g. Board Resolution) are configured below — issuers upload them at
-          offer time for admin review; they are not signed here.
+          Envelope documents and signer roles for contract offers and invoice-only invoice offers.
+          Contract-linked invoices skip this package after the contract envelope completes (Accept/Decline
+          only). Acceptance documents (e.g. Board Resolution) are configured under Acknowledgements —
+          issuers upload them at offer time for admin review; they are not signed here.
         </p>
       </div>
 
-      {PACKAGE_SECTIONS.map((section) => (
-        <SigningPackageSection
-          key={section.kind}
-          title={section.title}
-          description={section.description}
-          helperText={section.helperText}
-          config={packages[section.kind]}
-          onChange={(next) => handlePackageChange(section.kind, next)}
-        />
-      ))}
+      <SigningPackageSection
+        title="Documents and signers"
+        description="Issuers assign people and send signing emails when accepting a contract offer or an invoice-only invoice offer."
+        helperText="Contract-linked invoice offers do not use this package — Accept/Decline after the contract envelope is completed."
+        config={packages}
+        onChange={onChange}
+      />
     </div>
   );
 }

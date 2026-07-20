@@ -3,8 +3,8 @@
  *
  * Two layers live here:
  *  1. Template config — product-level definition of documents and signer roles.
- *     Preferred storage: `signing_packages` (`contract` + `invoice`) under
- *     `SIGNING_PACKAGES_WORKFLOW_KEY`. Legacy flat `signing_template` migrates on read.
+ *     Preferred storage: a single `SigningTemplateConfig` under `signing_packages`.
+ *     Legacy dual `{ contract, invoice }` and flat `signing_template` migrate on read.
  *  2. Runtime DTOs (`SigningEnvelopeDto` and friends) — the per-application envelope the
  *     API returns to admin / issuer / external signer UIs. These mirror the Prisma
  *     `signing_*` models.
@@ -95,13 +95,20 @@ export function isSigningRoleKey(value: string): value is SigningRoleKey {
 export const SIGNING_TEMPLATE_WORKFLOW_KEY = "signing_template";
 
 /**
- * Preferred key for dual contract/invoice signing packages inside Product.workflow config.
- * Replaces the legacy flat `signing_template` key (migrated on read).
+ * Preferred key for the signing package inside Product.workflow config.
+ * Value is a single `SigningTemplateConfig`. Legacy dual `{ contract, invoice }`
+ * and flat `signing_template` migrate on read.
  */
 export const SIGNING_PACKAGES_WORKFLOW_KEY = "signing_packages";
 
-/** Offer kind used to pick which package from SigningPackagesConfig. */
+/**
+ * Offer kind for envelope targeting / UI mode (contract vs invoice).
+ * Not used to pick different product templates — one package applies to all envelopes.
+ */
 export type SigningPackageOfferKind = "contract" | "invoice";
+
+/** Product template upload category key for signing package documents. */
+export const SIGNING_TEMPLATE_DOCUMENT_CATEGORY_KEY = "signing_template_document";
 
 /** System template key for the placeholder guarantor agreement document. */
 export const GUARANTOR_AGREEMENT_TEMPLATE_KEY = "guarantor_agreement";
@@ -168,11 +175,12 @@ export interface SigningTemplateConfig {
   supporting_docs?: SigningTemplateSupportingDocRef[];
 }
 
-/** Dual signing packages configured on a product workflow. */
-export interface SigningPackagesConfig {
-  contract: SigningTemplateConfig;
-  invoice: SigningTemplateConfig;
-}
+/**
+ * Single signing package configured on a product workflow.
+ * Used for contract offers and invoice-only invoice offers (envelopes).
+ * Contract-linked invoices skip envelopes after the contract package completes.
+ */
+export type SigningPackagesConfig = SigningTemplateConfig;
 
 export const DEFAULT_SIGNING_TEMPLATE_CONFIG: SigningTemplateConfig = {
   enabled: false,
@@ -182,8 +190,10 @@ export const DEFAULT_SIGNING_TEMPLATE_CONFIG: SigningTemplateConfig = {
 };
 
 export const DEFAULT_SIGNING_PACKAGES_CONFIG: SigningPackagesConfig = {
-  contract: { ...DEFAULT_SIGNING_TEMPLATE_CONFIG, roles: [], documents: [], supporting_docs: [] },
-  invoice: { ...DEFAULT_SIGNING_TEMPLATE_CONFIG, roles: [], documents: [], supporting_docs: [] },
+  ...DEFAULT_SIGNING_TEMPLATE_CONFIG,
+  roles: [],
+  documents: [],
+  supporting_docs: [],
 };
 
 const DOCUMENT_SOURCES: readonly SigningDocumentSource[] = [
@@ -325,42 +335,56 @@ export function parseSigningTemplateConfig(raw: unknown): SigningTemplateConfig 
 }
 
 /**
- * Parse dual signing packages from a workflow step config object.
- * Prefers `signing_packages`; else migrates legacy `signing_template` into both children;
- * else returns empty defaults. Legacy `enabled` is ignored by callers of these helpers.
+ * Pick one template from a legacy dual `{ contract, invoice }` shape.
+ * Prefer the child with documents; if both have documents, prefer contract.
+ */
+function pickCanonicalFromDualPackages(packages: Record<string, unknown>): SigningTemplateConfig {
+  const contract = parseSigningTemplateConfig(packages.contract);
+  const invoice = parseSigningTemplateConfig(packages.invoice);
+  if (contract.documents.length > 0) return contract;
+  if (invoice.documents.length > 0) return invoice;
+  return contract;
+}
+
+/** True when `signing_packages` value is the legacy dual `{ contract, invoice }` shape. */
+function isLegacyDualSigningPackagesShape(raw: Record<string, unknown>): boolean {
+  return "contract" in raw || "invoice" in raw;
+}
+
+/**
+ * Parse the signing package from a workflow step config object.
+ * Prefers flat `signing_packages`; migrates legacy dual `{ contract, invoice }`
+ * and flat `signing_template` on read; else returns empty defaults.
+ * Legacy `enabled` is ignored by callers of these helpers.
  */
 export function parseSigningPackagesConfig(workflowStepConfig: unknown): SigningPackagesConfig {
   const config = asRecord(workflowStepConfig);
 
   if (config[SIGNING_PACKAGES_WORKFLOW_KEY] != null) {
     const packages = asRecord(config[SIGNING_PACKAGES_WORKFLOW_KEY]);
-    return {
-      contract: parseSigningTemplateConfig(packages.contract),
-      invoice: parseSigningTemplateConfig(packages.invoice),
-    };
+    if (isLegacyDualSigningPackagesShape(packages)) {
+      return pickCanonicalFromDualPackages(packages);
+    }
+    return parseSigningTemplateConfig(packages);
   }
 
   if (config[SIGNING_TEMPLATE_WORKFLOW_KEY] != null) {
-    const legacyRaw = config[SIGNING_TEMPLATE_WORKFLOW_KEY];
-    // Parse twice so contract and invoice are independent clones.
-    return {
-      contract: parseSigningTemplateConfig(legacyRaw),
-      invoice: parseSigningTemplateConfig(legacyRaw),
-    };
+    return parseSigningTemplateConfig(config[SIGNING_TEMPLATE_WORKFLOW_KEY]);
   }
 
-  return {
-    contract: parseSigningTemplateConfig(null),
-    invoice: parseSigningTemplateConfig(null),
-  };
+  return parseSigningTemplateConfig(null);
 }
 
-/** Resolve the signing package for a contract or invoice offer kind. */
+/**
+ * Resolve the signing package for an offer.
+ * One product package applies to all envelope kinds; `kind` is kept for call-site compatibility.
+ */
 export function resolveSigningTemplateForOffer(input: {
   packages: SigningPackagesConfig;
   kind: SigningPackageOfferKind;
 }): SigningTemplateConfig {
-  return input.kind === "contract" ? input.packages.contract : input.packages.invoice;
+  void input.kind;
+  return input.packages;
 }
 
 /**
@@ -392,28 +416,40 @@ export function canDirectAcceptInvoice(input: {
 }
 
 /**
- * Persist dual signing packages on a workflow step config.
- * Writes `signing_packages` only and removes legacy flat `signing_template`.
+ * Persist the signing package on a workflow step config.
+ * Writes flat `signing_packages` and removes legacy flat `signing_template`.
  */
 export function writeSigningPackagesConfig(
   workflowStepConfig: Record<string, unknown>,
   packages: SigningPackagesConfig
 ): Record<string, unknown> {
   const next = { ...workflowStepConfig };
-  next[SIGNING_PACKAGES_WORKFLOW_KEY] = {
-    contract: packages.contract,
-    invoice: packages.invoice,
-  };
+  next[SIGNING_PACKAGES_WORKFLOW_KEY] = packages;
   delete next[SIGNING_TEMPLATE_WORKFLOW_KEY];
   return next;
 }
 
-/** Product template upload category key, namespaced so contract/invoice files do not collide. */
-export function signingTemplateDocumentCategoryKey(kind: SigningPackageOfferKind): string {
-  return `signing_template_document_${kind}`;
+/** Product template upload category key for signing package documents. */
+export function signingTemplateDocumentCategoryKey(): string {
+  return SIGNING_TEMPLATE_DOCUMENT_CATEGORY_KEY;
 }
 
-/** Parse a namespaced signing template document category key back to package kind. */
+/**
+ * Whether a category key refers to a signing package document slot.
+ * Accepts the unified key and legacy `…_contract` / `…_invoice` keys.
+ */
+export function isSigningTemplateDocumentCategoryKey(categoryKey: string): boolean {
+  return (
+    categoryKey === SIGNING_TEMPLATE_DOCUMENT_CATEGORY_KEY ||
+    categoryKey === "signing_template_document_contract" ||
+    categoryKey === "signing_template_document_invoice"
+  );
+}
+
+/**
+ * @deprecated Use `isSigningTemplateDocumentCategoryKey`. Kept for frozen-product category keys.
+ * Returns a package kind for legacy namespaced keys; null for the unified key or unknowns.
+ */
 export function parseSigningTemplateDocumentCategoryKey(
   categoryKey: string
 ): SigningPackageOfferKind | null {

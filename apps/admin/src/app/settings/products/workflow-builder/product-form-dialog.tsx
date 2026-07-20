@@ -34,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../../components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
 import {
   useProduct,
   useCreateProduct,
@@ -68,8 +69,8 @@ import { OfferAcknowledgementsConfig } from "./step-configs/offer-acknowledgemen
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
+  isSigningTemplateDocumentCategoryKey,
   parseSigningPackagesConfig,
-  parseSigningTemplateDocumentCategoryKey,
   writeSigningPackagesConfig,
   type SigningPackagesConfig,
 } from "@cashsouk/types";
@@ -121,6 +122,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   const [marketplaceListingDurationDays, setMarketplaceListingDurationDays] = useState<string>("14");
   const [serviceFeeRatePercent, setServiceFeeRatePercent] = useState<string>("15");
   const [defaultFacilityFeeRatePercent, setDefaultFacilityFeeRatePercent] = useState<string>("1");
+  const [activeTab, setActiveTab] = useState("workflow");
   /** In edit mode, workflow as loaded from product (normalized). Used to disable Save when nothing changed. */
   const initialWorkflowRef = useRef<unknown[]>([]);
 
@@ -182,11 +184,13 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       setMarketplaceListingDurationDays("");
       setServiceFeeRatePercent("");
       setDefaultFacilityFeeRatePercent("");
+      setActiveTab("workflow");
       initialWorkflowRef.current = [];
       return;
     }
     setSaveInProgress(false);
     setSaveTriggered(false);
+    setActiveTab("workflow");
     if (isEdit && product) {
       const raw = product.workflow?.length
         ? enforceDeclarationsLastAndDropReview(product.workflow as { id?: string }[])
@@ -256,7 +260,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     );
   };
 
-  /** Financing-type step config — SigningPackageConfig migrates legacy signing_template on read. */
+  /** Financing-type step config — SigningPackageConfig migrates legacy dual / signing_template on read. */
   const getSigningPackagesStepConfig = useCallback((): Record<string, unknown> => {
     const firstStep = steps.find((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY);
     return (firstStep as { config?: Record<string, unknown> } | undefined)?.config ?? {};
@@ -370,14 +374,12 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         }
         continue;
       }
-      const signingPackageKind = parseSigningTemplateDocumentCategoryKey(categoryKey);
-      if (signingPackageKind) {
+      if (isSigningTemplateDocumentCategoryKey(categoryKey)) {
         const firstIdx = nextSteps.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY);
         if (firstIdx >= 0) {
           const step = nextSteps[firstIdx] as Record<string, unknown>;
           const config = { ...((step.config ?? {}) as Record<string, unknown>) };
-          const packages = parseSigningPackagesConfig(config);
-          const template = packages[signingPackageKind];
+          const template = parseSigningPackagesConfig(config);
           const documents = [...template.documents];
           const document = documents[index];
           if (document) {
@@ -385,10 +387,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
               ...document,
               template: { s3_key: s3Key, file_name: file.name, file_size: file.size },
             };
-            step.config = writeSigningPackagesConfig(config, {
-              ...packages,
-              [signingPackageKind]: { ...template, documents },
-            });
+            step.config = writeSigningPackagesConfig(config, { ...template, documents });
           }
         }
         continue;
@@ -717,17 +716,18 @@ const hasChanges = !isEdit
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className=" flex flex-col w-[calc(100vw-1rem)] sm:w-full max-w-4xl max-h-[90dvh] overflow-hidden rounded-xl border-border p-4 sm:p-6 gap-3 sm:gap-4 " >
+      <DialogContent className="flex h-[90dvh] flex-col w-[calc(100vw-1rem)] sm:w-full max-w-4xl overflow-hidden rounded-xl border-border p-4 sm:p-6 gap-3 sm:gap-4">
         <DialogHeader className="shrink-0">
           <DialogTitle className="text-base sm:text-lg">{isEdit ? "Edit product" : "Create product"}</DialogTitle>
         </DialogHeader>
 
         {isEdit && loading ? (
           <div className="flex flex-1 flex-col min-h-0 gap-3 sm:gap-4 mt-2">
+            <Skeleton className="h-10 w-full shrink-0 rounded-md" />
 
             {/* Header Row (exact spacing preserved) */}
-            <div className="grid gap-3 shrink-0 min-w-0">
-              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <div className="flex min-h-0 flex-1 flex-col gap-3 min-w-0">
+              <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <Skeleton className="h-4 w-32 mb-2" />
                   <Skeleton className="h-3 w-64" />
@@ -736,7 +736,7 @@ const hasChanges = !isEdit
               </div>
 
               {/* Exact Workflow Container */}
-              <div className="rounded-xl border border-border bg-card h-[240px] min-h-0 flex flex-col overflow-hidden sm:h-[320px] md:h-[420px]">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
                 <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-3 space-y-2 sm:p-4">
                   {[1, 2, 3].map((i) => (
                     <div
@@ -766,270 +766,319 @@ const hasChanges = !isEdit
         ) : (
           <div
             aria-disabled={isSaving}
-            className={`flex-1 min-h-0 overflow-y-auto min-w-0 ${isSaving ? "pointer-events-none opacity-70" : ""}`}
+            className={`flex flex-1 min-h-0 flex-col min-w-0 ${isSaving ? "pointer-events-none opacity-70" : ""}`}
           >
-            <div className="flex flex-col gap-3 sm:gap-4 pr-1">
-              <div className="grid gap-2 shrink-0 min-w-0">
-                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <Label className="text-sm font-medium">Workflow steps</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Drag to reorder. Expand to configure. Add steps below.
-                    </p>
+            <Tabs
+              value={activeTab}
+              onValueChange={setActiveTab}
+              className="flex flex-1 min-h-0 flex-col gap-3"
+            >
+              <TabsList className="grid h-auto w-full shrink-0 grid-cols-4 gap-1">
+                <TabsTrigger
+                  value="workflow"
+                  className="h-auto whitespace-normal px-1.5 py-2 text-center text-[11px] leading-snug sm:px-2 sm:text-sm"
+                >
+                  Workflow steps
+                </TabsTrigger>
+                <TabsTrigger
+                  value="signing"
+                  className="h-auto whitespace-normal px-1.5 py-2 text-center text-[11px] leading-snug sm:px-2 sm:text-sm"
+                >
+                  Signing packages
+                </TabsTrigger>
+                <TabsTrigger
+                  value="acknowledgements"
+                  className="h-auto whitespace-normal px-1.5 py-2 text-center text-[11px] leading-snug sm:px-2 sm:text-sm"
+                >
+                  Acknowledgements
+                </TabsTrigger>
+                <TabsTrigger
+                  value="fees"
+                  className="h-auto whitespace-normal px-1.5 py-2 text-center text-[11px] leading-snug sm:px-2 sm:text-sm"
+                >
+                  Fees & listing
+                </TabsTrigger>
+              </TabsList>
+
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <TabsContent
+                  value="workflow"
+                  className="mt-0 flex min-h-0 flex-1 flex-col focus-visible:ring-0 data-[state=inactive]:hidden"
+                >
+                  <div className="flex min-h-0 flex-1 flex-col gap-2 min-w-0">
+                    <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <Label className="text-sm font-medium">Workflow steps</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Drag to reorder. Expand to configure. Add steps below.
+                        </p>
+                      </div>
+                      {addableSteps.length > 0 && (
+                        <Select
+                          value={addStepValue}
+                          onValueChange={(id) => {
+                            const step = addableSteps.find((s) => s.id === id);
+                            if (step) handleAddStep(step);
+                          }}
+                        >
+                          <SelectTrigger className={cn("w-full sm:w-[200px] shrink-0", SELECT_TRIGGER_CLASS)}>
+                            <SelectValue placeholder="Add step" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {addableSteps.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                {s.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
+                      {steps.length === 0 ? (
+                        <div className="flex flex-1 items-center justify-center p-6 text-center">
+                          <p className="text-sm text-muted-foreground leading-6">
+                            No steps yet. Use &quot;Add step&quot; above to add steps here.
+                          </p>
+                        </div>
+                      ) : (
+                        <DndContext
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={handleDragEnd}
+                        >
+                          <SortableContext
+                            items={steps.map(getStepId)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-3 space-y-2 sm:p-4">
+                              {steps.map((step) => {
+                                const stepId = getStepId(step);
+                                const stepKey = getStepKeyFromStepId(stepId);
+                                const hasConfig = stepKey && !STEPS_WITHOUT_CONFIG.has(stepKey);
+                                return (
+                                  <div key={stepId} className="relative">
+                                    <WorkflowStepCard
+                                      step={{
+                                        id: stepId,
+                                        name:
+                                          stepKey === FIRST_STEP_KEY
+                                            ? STEP_KEY_DISPLAY.financing_type.title
+                                            : stepDisplayName(step),
+                                      }}
+                                      isExpanded={expandedStepId === stepId}
+                                      onOpenChange={
+                                        hasConfig ? (open) => setExpandedStepId(open ? stepId : null) : undefined
+                                      }
+                                      onDragHandlePointerDown={() => setExpandedStepId(null)}
+                                      isLocked={stepKey === FIRST_STEP_KEY || stepKey === LAST_STEP_KEY}
+                                      isJustAdded={stepId === justAddedStepId}
+                                      isEdited={editedStepIds.has(stepId)}
+                                      hasError={stepIdsWithErrors.has(stepId)}
+                                      onDelete={
+                                        stepKey !== FIRST_STEP_KEY && stepKey !== LAST_STEP_KEY
+                                          ? () => handleDeleteStep(stepId)
+                                          : undefined
+                                      }
+                                    >
+                                      {hasConfig && (
+                                        <StepConfigEditor
+                                          stepKey={stepKey}
+                                          config={(step as { config?: unknown }).config}
+                                          onChange={(config) => handleConfigChange(stepId, config)}
+                                          extraProps={
+                                            stepKey === FIRST_STEP_KEY
+                                              ? {
+                                                  onPendingImageChange: handlePendingImageChange,
+                                                  pendingImageFile,
+                                                }
+                                              : stepKey === SUPPORTING_DOCS_STEP_KEY ||
+                                                  stepKey === BUSINESS_DETAILS_STEP_KEY
+                                                ? {
+                                                    onPendingTemplateChange: handlePendingSupportingDocTemplate,
+                                                    ...(stepKey === BUSINESS_DETAILS_STEP_KEY
+                                                      ? {
+                                                          pendingTemplateFile:
+                                                            pendingSupportingDocTemplates[
+                                                              "guarantor_agreement_0"
+                                                            ] ?? null,
+                                                        }
+                                                      : {}),
+                                                  }
+                                                : undefined
+                                          }
+                                        />
+                                      )}
+                                    </WorkflowStepCard>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </SortableContext>
+                        </DndContext>
+                      )}
+                    </div>
                   </div>
-                  {addableSteps.length > 0 && (
-                    <Select
-                      value={addStepValue}
-                      onValueChange={(id) => {
-                        const step = addableSteps.find((s) => s.id === id);
-                        if (step) handleAddStep(step);
-                      }}
-                    >
-                      <SelectTrigger className={cn("w-full sm:w-[200px] shrink-0", SELECT_TRIGGER_CLASS)}>
-                        <SelectValue placeholder="Add step" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {addableSteps.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            {s.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-                <div className="rounded-xl border border-border bg-card h-[240px] min-h-0 flex flex-col overflow-hidden sm:h-[320px] md:h-[420px]">
-                  {steps.length === 0 ? (
-                    <div className="flex flex-1 items-center justify-center p-6 text-center">
-                      <p className="text-sm text-muted-foreground leading-6">
-                        No steps yet. Use &quot;Add step&quot; above to add steps here.
+                </TabsContent>
+
+                <TabsContent
+                  value="signing"
+                  className="mt-0 min-h-0 flex-1 overflow-y-auto pr-1 focus-visible:ring-0 data-[state=inactive]:hidden"
+                >
+                  <SigningPackageConfig
+                    config={getSigningPackagesStepConfig()}
+                    onChange={handleSigningPackagesChange}
+                  />
+                </TabsContent>
+
+                <TabsContent
+                  value="acknowledgements"
+                  className="mt-0 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 sm:space-y-4 focus-visible:ring-0 data-[state=inactive]:hidden"
+                >
+                  <OfferAcknowledgementsConfig
+                    config={getSigningPackagesStepConfig()}
+                    onChange={handleOfferAcknowledgementsConfigChange}
+                    onPendingTemplateChange={(index, file) =>
+                      handlePendingSupportingDocTemplate("offer_acknowledgements", index, file)
+                    }
+                  />
+
+                  <AcceptanceDocumentsConfig
+                    config={getSigningPackagesStepConfig()}
+                    onChange={handleAcceptanceDocumentsConfigChange}
+                    onPendingTemplateChange={(index, file) =>
+                      handlePendingSupportingDocTemplate("acceptance_documents", index, file)
+                    }
+                  />
+                </TabsContent>
+
+                <TabsContent
+                  value="fees"
+                  className="mt-0 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 sm:space-y-4 focus-visible:ring-0 data-[state=inactive]:hidden"
+                >
+                  <div
+                    className={cn(
+                      "rounded-xl border bg-card p-4 shrink-0 min-w-0",
+                      serviceFeeRatePercentError ||
+                        defaultFacilityFeeRatePercentError
+                        ? "border-amber-500/70 dark:border-amber-500/50"
+                        : "border-border"
+                    )}
+                  >
+                    <div className={cn("grid min-w-0", FIELD_GAP)}>
+                      <Label htmlFor="service-fee-rate-percent" className="text-sm font-medium">
+                        Service fee rate (%)
+                      </Label>
+                      <Input
+                        id="service-fee-rate-percent"
+                        type="text"
+                        value={serviceFeeRatePercent}
+                        onChange={(e) => setServiceFeeRatePercent(e.target.value)}
+                        placeholder="15"
+                        className={INPUT_CLASS}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Percentage of investor profit retained as service fee. Allowed range: 0% to 15%, up to 2 decimal
+                        places.
+                      </p>
+
+                      <Label
+                        htmlFor="default-facility-fee-rate-percent"
+                        className="text-sm font-medium"
+                      >
+                        Default facility fee rate (%)
+                      </Label>
+                      <Input
+                        id="default-facility-fee-rate-percent"
+                        type="text"
+                        value={defaultFacilityFeeRatePercent}
+                        onChange={(e) => setDefaultFacilityFeeRatePercent(e.target.value)}
+                        placeholder="1"
+                        className={INPUT_CLASS}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Default Facility Fee rate for new contract offers. Allowed range: 0% to 100%, up to 2 decimal
+                        places. Admin can override this value before sending the contract offer.
                       </p>
                     </div>
-                  ) : (
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={closestCenter}
-                      onDragEnd={handleDragEnd}
-                    >
-                      <SortableContext
-                        items={steps.map(getStepId)}
-                        strategy={verticalListSortingStrategy}
+                  </div>
+
+                  <div
+                    className={cn(
+                      "rounded-xl border bg-card p-4 shrink-0 min-w-0",
+                      marketplaceListingDurationError
+                        ? "border-amber-500/70 dark:border-amber-500/50"
+                        : "border-border"
+                    )}
+                  >
+                    <div className={cn("grid min-w-0", FIELD_GAP)}>
+                      <Label
+                        htmlFor="marketplace-listing-duration-days"
+                        className="text-sm font-medium"
                       >
-                        <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-3 space-y-2 sm:p-4">
-                          {steps.map((step) => {
-                            const stepId = getStepId(step);
-                            const stepKey = getStepKeyFromStepId(stepId);
-                            const hasConfig = stepKey && !STEPS_WITHOUT_CONFIG.has(stepKey);
-                            return (
-                              <div key={stepId} className="relative">
-                                <WorkflowStepCard
-                                  step={{
-                                    id: stepId,
-                                    name:
-                                      stepKey === FIRST_STEP_KEY
-                                        ? STEP_KEY_DISPLAY.financing_type.title
-                                        : stepDisplayName(step),
-                                  }}
-                                  isExpanded={expandedStepId === stepId}
-                                  onOpenChange={
-                                    hasConfig ? (open) => setExpandedStepId(open ? stepId : null) : undefined
-                                  }
-                                  onDragHandlePointerDown={() => setExpandedStepId(null)}
-                                  isLocked={stepKey === FIRST_STEP_KEY || stepKey === LAST_STEP_KEY}
-                                  isJustAdded={stepId === justAddedStepId}
-                                  isEdited={editedStepIds.has(stepId)}
-                                  hasError={stepIdsWithErrors.has(stepId)}
-                                  onDelete={
-                                    stepKey !== FIRST_STEP_KEY && stepKey !== LAST_STEP_KEY
-                                      ? () => handleDeleteStep(stepId)
-                                      : undefined
-                                  }
-                                >
-                                  {hasConfig && (
-                                    <StepConfigEditor
-                                      stepKey={stepKey}
-                                      config={(step as { config?: unknown }).config}
-                                      onChange={(config) => handleConfigChange(stepId, config)}
-                                      extraProps={
-                                        stepKey === FIRST_STEP_KEY
-                                          ? {
-                                              onPendingImageChange: handlePendingImageChange,
-                                              pendingImageFile,
-                                            }
-                                          : stepKey === SUPPORTING_DOCS_STEP_KEY ||
-                                              stepKey === BUSINESS_DETAILS_STEP_KEY
-                                            ? {
-                                                onPendingTemplateChange: handlePendingSupportingDocTemplate,
-                                                ...(stepKey === BUSINESS_DETAILS_STEP_KEY
-                                                  ? {
-                                                      pendingTemplateFile:
-                                                        pendingSupportingDocTemplates[
-                                                          "guarantor_agreement_0"
-                                                        ] ?? null,
-                                                    }
-                                                  : {}),
-                                              }
-                                            : undefined
-                                      }
-                                    />
-                                  )}
-                                </WorkflowStepCard>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </SortableContext>
-                    </DndContext>
-                  )}
-                </div>
-              </div>
-
-              <SigningPackageConfig
-                config={getSigningPackagesStepConfig()}
-                onChange={handleSigningPackagesChange}
-              />
-
-              <OfferAcknowledgementsConfig
-                config={getSigningPackagesStepConfig()}
-                onChange={handleOfferAcknowledgementsConfigChange}
-                onPendingTemplateChange={(index, file) =>
-                  handlePendingSupportingDocTemplate("offer_acknowledgements", index, file)
-                }
-              />
-
-              <AcceptanceDocumentsConfig
-                config={getSigningPackagesStepConfig()}
-                onChange={handleAcceptanceDocumentsConfigChange}
-                onPendingTemplateChange={(index, file) =>
-                  handlePendingSupportingDocTemplate("acceptance_documents", index, file)
-                }
-              />
-
-              {/* Offer settings — below workflow steps, card layout to match workflow container */}
-              <div
-                className={cn(
-                  "rounded-xl border bg-card p-4 shrink-0 min-w-0",
-                  serviceFeeRatePercentError ||
-                    defaultFacilityFeeRatePercentError
-                    ? "border-amber-500/70 dark:border-amber-500/50"
-                    : "border-border"
-                )}
-              >
-                <div className={cn("grid min-w-0", FIELD_GAP)}>
-                  <Label htmlFor="service-fee-rate-percent" className="text-sm font-medium">
-                    Service fee rate (%)
-                  </Label>
-                  <Input
-                    id="service-fee-rate-percent"
-                    type="text"
-                    value={serviceFeeRatePercent}
-                    onChange={(e) => setServiceFeeRatePercent(e.target.value)}
-                    placeholder="15"
-                    className={INPUT_CLASS}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Percentage of investor profit retained as service fee. Allowed range: 0% to 15%, up to 2 decimal
-                    places.
-                  </p>
-
-                  <Label
-                    htmlFor="default-facility-fee-rate-percent"
-                    className="text-sm font-medium"
-                  >
-                    Default facility fee rate (%)
-                  </Label>
-                  <Input
-                    id="default-facility-fee-rate-percent"
-                    type="text"
-                    value={defaultFacilityFeeRatePercent}
-                    onChange={(e) => setDefaultFacilityFeeRatePercent(e.target.value)}
-                    placeholder="1"
-                    className={INPUT_CLASS}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Default Facility Fee rate for new contract offers. Allowed range: 0% to 100%, up to 2 decimal
-                    places. Admin can override this value before sending the contract offer.
-                  </p>
-                </div>
-              </div>
-
-              {/* Marketplace listing duration settings */}
-              <div
-                className={cn(
-                  "rounded-xl border bg-card p-4 shrink-0 min-w-0",
-                  marketplaceListingDurationError
-                    ? "border-amber-500/70 dark:border-amber-500/50"
-                    : "border-border"
-                )}
-              >
-                <div className={cn("grid min-w-0", FIELD_GAP)}>
-                  <Label
-                    htmlFor="marketplace-listing-duration-days"
-                    className="text-sm font-medium"
-                  >
-                    Marketplace listing duration (days)
-                  </Label>
-                  <Input
-                    id="marketplace-listing-duration-days"
-                    type="text"
-                    value={marketplaceListingDurationDays}
-                    onChange={(e) => setMarketplaceListingDurationDays(e.target.value)}
-                    placeholder="14"
-                    className={INPUT_CLASS}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Number of days this product&apos;s notes stay open in the investor marketplace after publishing.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex-1 min-h-0 overflow-y-auto">
-                {steps.length > 0 && !isSaving && !saveTriggered && (() => {
-                  const requiredErrors = [
-                    ...getRequiredStepErrors(steps),
-                    ...(marketplaceListingDurationError
-                      ? ["Marketplace listing settings: " + marketplaceListingDurationError]
-                      : []),
-                    ...(serviceFeeRatePercentError ? ["Offer settings: " + serviceFeeRatePercentError] : []),
-                    ...(defaultFacilityFeeRatePercentError
-                      ? ["Offer settings: " + defaultFacilityFeeRatePercentError]
-                      : []),
-                  ];
-                  if (requiredErrors.length === 0) return null;
-
-                  return (
-                    <div className="rounded-lg border border-amber-500/70 bg-amber-50 px-4 py-3 dark:border-amber-500/50 dark:bg-amber-950/40">
-                      <div className="flex items-start gap-2.5">
-                        <AlertTriangle
-                          className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500"
-                          aria-hidden
-                        />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
-                            {isEdit ? "Complete the following before saving" : "Complete the following before creating"}
-                          </p>
-                          <ul className="mt-2 list-disc pl-5 space-y-0.5 text-amber-800 dark:text-amber-200">
-                            {requiredErrors.map((msg, i) => {
-                              const [label, rest] = msg.split(":");
-                              return (
-                                <li key={i} className="text-sm leading-6">
-                                  <span className="font-medium text-amber-900 dark:text-amber-100">
-                                    {label}
-                                  </span>
-                                  <span className="text-amber-800/90 dark:text-amber-200/90">
-                                    : {rest}
-                                  </span>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        </div>
-                      </div>
+                        Marketplace listing duration (days)
+                      </Label>
+                      <Input
+                        id="marketplace-listing-duration-days"
+                        type="text"
+                        value={marketplaceListingDurationDays}
+                        onChange={(e) => setMarketplaceListingDurationDays(e.target.value)}
+                        placeholder="14"
+                        className={INPUT_CLASS}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Number of days this product&apos;s notes stay open in the investor marketplace after publishing.
+                      </p>
                     </div>
-                  );
-                })()}
+                  </div>
+                </TabsContent>
               </div>
-            </div>
+            </Tabs>
+
+            {steps.length > 0 && !isSaving && !saveTriggered && (() => {
+              const requiredErrors = [
+                ...getRequiredStepErrors(steps),
+                ...(marketplaceListingDurationError
+                  ? ["Marketplace listing settings: " + marketplaceListingDurationError]
+                  : []),
+                ...(serviceFeeRatePercentError ? ["Offer settings: " + serviceFeeRatePercentError] : []),
+                ...(defaultFacilityFeeRatePercentError
+                  ? ["Offer settings: " + defaultFacilityFeeRatePercentError]
+                  : []),
+              ];
+              if (requiredErrors.length === 0) return null;
+
+              return (
+                <div className="mt-3 shrink-0 rounded-lg border border-amber-500/70 bg-amber-50 px-4 py-3 dark:border-amber-500/50 dark:bg-amber-950/40">
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle
+                      className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500"
+                      aria-hidden
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                        {isEdit ? "Complete the following before saving" : "Complete the following before creating"}
+                      </p>
+                      <ul className="mt-2 list-disc pl-5 space-y-0.5 text-amber-800 dark:text-amber-200">
+                        {requiredErrors.map((msg, i) => {
+                          const [label, rest] = msg.split(":");
+                          return (
+                            <li key={i} className="text-sm leading-6">
+                              <span className="font-medium text-amber-900 dark:text-amber-100">
+                                {label}
+                              </span>
+                              <span className="text-amber-800/90 dark:text-amber-200/90">
+                                : {rest}
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 

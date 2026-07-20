@@ -15,8 +15,8 @@ export const REVIEW_SECTION_ORDER = [
   "company_details",
   "business_details",
   "supporting_documents",
-  "acceptance_documents",
   "contract_details",
+  "acceptance_documents",
   "invoice_details",
 ] as const;
 
