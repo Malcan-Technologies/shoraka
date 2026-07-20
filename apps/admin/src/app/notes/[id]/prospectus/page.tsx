@@ -403,6 +403,12 @@ function ProspectusReviewPageInner() {
         draft.page2.financialComparison?.overrides
       )
     : { yearHeaders: [], rows: [] };
+  const financialComparisonOpsWarning = data?.financialComparison?.opsWarning
+    ? {
+        title: "Missing expected financial year",
+        description: data.financialComparison.opsWarning,
+      }
+    : null;
   const pageThreeYears = selectPageThreeYears(financialStatements);
   const activeFinancialYears =
     pageThreeYears.length > 0 ? pageThreeYears : (["2022", "2023", "2024"] as const);
@@ -1069,7 +1075,7 @@ function ProspectusReviewPageInner() {
                           accounts). Latest three years with available data, oldest to newest.
                           Optional officer metrics may be entered below per financial year-end.
                         </p>
-                        {data?.financialComparison?.opsWarning ? (
+                        {financialComparisonOpsWarning ? (
                           <div
                             role="status"
                             data-testid="financial-comparison-ops-warning"
@@ -1080,9 +1086,11 @@ function ProspectusReviewPageInner() {
                               aria-hidden
                             />
                             <div className="min-w-0 space-y-1">
-                              <p className="font-semibold">Missing expected financial year</p>
+                              <p className="font-semibold">
+                                {financialComparisonOpsWarning.title}
+                              </p>
                               <p className="text-[13px] leading-relaxed text-muted-foreground">
-                                {data.financialComparison.opsWarning}
+                                {financialComparisonOpsWarning.description}
                               </p>
                             </div>
                           </div>

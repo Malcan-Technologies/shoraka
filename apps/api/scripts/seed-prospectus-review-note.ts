@@ -26,6 +26,12 @@ import {
   ProductStatus,
   UserRole,
 } from "@prisma/client";
+import {
+  getAdminFinancialSummaryUserColumnYears,
+  getFinancialYearPeriodEndIso,
+  issuerUnauditedPlddForFyEndYear,
+  type FinancialStatementsQuestionnaire,
+} from "@cashsouk/types";
 import { generateUniqueUserId } from "../src/lib/user-id-generator";
 import { buildNoteIssuerSnapshot } from "../src/modules/notes/note-issuer-snapshot";
 import { PROSPECTUS_REVIEW_REQUIRED_FROM } from "../src/modules/notes/prospectus-review/prospectus-review.service";
@@ -38,6 +44,7 @@ export const PROSPECTUS_DEMO_APP_ID = "seed_prospectus_demo_app_001";
 export const PROSPECTUS_DEMO_INVOICE_ID = "seed_prospectus_demo_invoice_001";
 export const PROSPECTUS_DEMO_CONTRACT_ID = "seed_prospectus_demo_contract_001";
 export const PROSPECTUS_DEMO_ORG_ID = "seed_prospectus_demo_issuer_org";
+export const PROSPECTUS_DEMO_CTOS_REPORT_ID = "seed_prospectus_demo_ctos_report";
 export const PROSPECTUS_DEMO_PRODUCT_ID = "seed_prospectus_demo_product";
 export const PROSPECTUS_DEMO_OWNER_EMAIL = "seed_prospectus_demo_issuer@example.com";
 export const PROSPECTUS_DEMO_OWNER_SUB = "seed_prospectus_demo_issuer_sub";
@@ -66,66 +73,194 @@ function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-/**
- * Three-year Application financial_statements in the exact portal shape.
- * Derived fields only — unsupported metrics left for Prospectus Review manual entry.
- */
-export function buildProspectusDemoFinancialStatements(): Record<string, unknown> {
-  const yearBlocks: Record<string, Record<string, number>> = {
-    "2022": {
-      turnover: 12_000_000,
-      plnpbt: 1_100_000,
-      plnpat: 900_000,
-      bscatot: 4_000_000,
-      bsfatot: 1_500_000,
-      othass: 1_000_000,
-      curlib: 2_000_000,
-      bsslltd: 500_000,
-      bsclstd: 200_000,
-      bsclbank: 900_000,
-      bsqpuc: 5_000_000,
-      plnetdiv: 50_000,
-      plyear: 200_000,
-      pldd: 0,
-    },
-    "2023": {
-      turnover: 13_900_000,
-      plnpbt: 1_300_000,
-      plnpat: 1_100_000,
-      bscatot: 4_200_000,
-      bsfatot: 1_600_000,
-      othass: 1_100_000,
-      curlib: 2_100_000,
-      bsslltd: 550_000,
-      bsclstd: 250_000,
-      bsclbank: 950_000,
-      bsqpuc: 5_500_000,
-      plnetdiv: 60_000,
-      plyear: 220_000,
-      pldd: 0,
-    },
-    "2024": {
-      turnover: 15_000_000,
-      plnpbt: 1_400_000,
-      plnpat: 1_200_000,
-      bscatot: 4_500_000,
-      bsfatot: 1_700_000,
-      othass: 1_200_000,
-      curlib: 2_200_000,
-      bsslltd: 600_000,
-      bsclstd: 300_000,
-      bsclbank: 1_000_000,
-      bsqpuc: 6_000_000,
-      plnetdiv: 70_000,
-      plyear: 240_000,
-      pldd: 0,
-    },
-  };
+/** Deterministic YoY ladder — index 0 oldest → index 2 newest. */
+const DEMO_FINANCIAL_SERIES = [
+  {
+    turnover: 12_000_000,
+    plnpbt: 1_100_000,
+    plnpat: 900_000,
+    bscatot: 4_000_000,
+    bsfatot: 1_500_000,
+    othass: 1_000_000,
+    curlib: 2_000_000,
+    bsslltd: 500_000,
+    bsclstd: 200_000,
+    bsclbank: 900_000,
+    bsqpuc: 5_000_000,
+    plnetdiv: 50_000,
+    plyear: 200_000,
+  },
+  {
+    turnover: 13_900_000,
+    plnpbt: 1_300_000,
+    plnpat: 1_100_000,
+    bscatot: 4_200_000,
+    bsfatot: 1_600_000,
+    othass: 1_100_000,
+    curlib: 2_100_000,
+    bsslltd: 550_000,
+    bsclstd: 250_000,
+    bsclbank: 950_000,
+    bsqpuc: 5_500_000,
+    plnetdiv: 60_000,
+    plyear: 220_000,
+  },
+  {
+    turnover: 15_000_000,
+    plnpbt: 1_400_000,
+    plnpat: 1_200_000,
+    bscatot: 4_500_000,
+    bsfatot: 1_700_000,
+    othass: 1_200_000,
+    curlib: 2_200_000,
+    bsslltd: 600_000,
+    bsclstd: 300_000,
+    bsclbank: 1_000_000,
+    bsqpuc: 6_000_000,
+    plnetdiv: 70_000,
+    plyear: 240_000,
+  },
+] as const;
 
+function demoFutureFinancialYearEndIso(ref: Date): string {
+  // Same pattern as seed-application-helpers: FYE always strictly after seed-run "today".
+  const fye = new Date(ref.getTime() + 400 * 24 * 60 * 60 * 1000);
+  return isoDate(fye);
+}
+
+function demoQuestionnaire(ref: Date): FinancialStatementsQuestionnaire {
+  return { financial_year_end: demoFutureFinancialYearEndIso(ref) };
+}
+
+/** Latest three calendar years ending at the newest SSM-expected year (or FYE year). */
+function demoThreeYearSpan(ref: Date): {
+  questionnaire: FinancialStatementsQuestionnaire;
+  ssmYears: number[];
+  spanYears: number[];
+} {
+  const questionnaire = demoQuestionnaire(ref);
+  const ssmYears = getAdminFinancialSummaryUserColumnYears(questionnaire, ref);
+  const newest =
+    ssmYears.length > 0
+      ? Math.max(...ssmYears)
+      : Number(questionnaire.financial_year_end.slice(0, 4));
+  const spanYears = [newest - 2, newest - 1, newest];
+  return { questionnaire, ssmYears, spanYears };
+}
+
+function demoFinancialBlockForIndex(
+  year: number,
+  index: number,
+  questionnaire: FinancialStatementsQuestionnaire
+): Record<string, unknown> {
+  const series =
+    DEMO_FINANCIAL_SERIES[Math.min(Math.max(index, 0), DEMO_FINANCIAL_SERIES.length - 1)]!;
   return {
-    questionnaire: { financial_year_end: "2024-12-31" },
-    unaudited_by_year: yearBlocks,
+    ...series,
+    pldd: issuerUnauditedPlddForFyEndYear(year, questionnaire),
   };
+}
+
+/**
+ * Application financial_statements aligned with live SSM + Prospectus year rules.
+ * FYE is always future relative to seed-run date; unaudited keys match SSM User Input years.
+ */
+export function buildProspectusDemoFinancialStatements(
+  ref: Date = new Date()
+): Record<string, unknown> {
+  const { questionnaire, ssmYears, spanYears } = demoThreeYearSpan(ref);
+  const unaudited_by_year: Record<string, Record<string, unknown>> = {};
+  for (const year of ssmYears) {
+    const index = spanYears.indexOf(year);
+    unaudited_by_year[String(year)] = demoFinancialBlockForIndex(
+      year,
+      index >= 0 ? index : spanYears.length - 1,
+      questionnaire
+    );
+  }
+  return {
+    questionnaire,
+    unaudited_by_year,
+  };
+}
+
+/**
+ * Org CTOS financials_json for years in the three-year span that are not SSM User Input years.
+ * Gives Prospectus Page 2 three columns when combined with unaudited SSM blocks.
+ */
+export function buildProspectusDemoCtosFinancials(ref: Date = new Date()): unknown[] {
+  const { questionnaire, ssmYears, spanYears } = demoThreeYearSpan(ref);
+  const ssmSet = new Set(ssmYears);
+  return spanYears
+    .map((year, index) => {
+      if (ssmSet.has(year)) return null;
+      const block = demoFinancialBlockForIndex(year, index, questionnaire);
+      const pldd =
+        getFinancialYearPeriodEndIso(questionnaire, year) ??
+        issuerUnauditedPlddForFyEndYear(year, questionnaire);
+      return {
+        financial_year: year,
+        dates: { pldd, bsdd: null },
+        account: {
+          turnover: block.turnover,
+          plnpbt: block.plnpbt,
+          plnpat: block.plnpat,
+          bscatot: block.bscatot,
+          bsfatot: block.bsfatot,
+          othass: block.othass,
+          curlib: block.curlib,
+          bsslltd: block.bsslltd,
+          bsclstd: block.bsclstd,
+          bsclbank: block.bsclbank,
+          bsqpuc: block.bsqpuc,
+          plnetdiv: block.plnetdiv,
+          plyear: block.plyear,
+        },
+      };
+    })
+    .filter((row): row is NonNullable<typeof row> => row != null);
+}
+
+/** Idempotent org CTOS snapshot used by Prospectus demo seeds (local only). */
+export async function upsertProspectusDemoCtosReport(input: {
+  prisma: PrismaClient;
+  reportId: string;
+  issuerOrganizationId: string;
+  ref?: Date;
+}): Promise<void> {
+  const ref = input.ref ?? new Date();
+  const financials_json = buildProspectusDemoCtosFinancials(ref) as Prisma.InputJsonValue;
+  const stub = {} as Prisma.InputJsonValue;
+  await input.prisma.ctosReport.upsert({
+    where: { id: input.reportId },
+    update: {
+      issuer_organization_id: input.issuerOrganizationId,
+      investor_organization_id: null,
+      subject_ref: null,
+      fetched_at: ref,
+      financials_json,
+      summary_json: stub,
+      legal_json: stub,
+      ccris_json: stub,
+      company_json: stub,
+      raw_xml: "<demo/>",
+      report_html: null,
+    },
+    create: {
+      id: input.reportId,
+      issuer_organization_id: input.issuerOrganizationId,
+      investor_organization_id: null,
+      subject_ref: null,
+      fetched_at: ref,
+      financials_json,
+      summary_json: stub,
+      legal_json: stub,
+      ccris_json: stub,
+      company_json: stub,
+      raw_xml: "<demo/>",
+      report_html: null,
+    },
+  });
 }
 
 export function buildProspectusDemoBusinessDetails(): Record<string, unknown> {
@@ -321,6 +456,12 @@ async function ensureApplicationAndInvoice() {
   const businessDetails = buildProspectusDemoBusinessDetails();
   const financialStatements = buildProspectusDemoFinancialStatements();
   const maturity = isoDate(addDays(new Date(), 120));
+
+  await upsertProspectusDemoCtosReport({
+    prisma,
+    reportId: PROSPECTUS_DEMO_CTOS_REPORT_ID,
+    issuerOrganizationId: PROSPECTUS_DEMO_ORG_ID,
+  });
 
   await prisma.application.upsert({
     where: { id: PROSPECTUS_DEMO_APP_ID },

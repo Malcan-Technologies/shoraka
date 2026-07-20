@@ -43,6 +43,7 @@ import {
 import {
   buildProspectusDemoBusinessDetails,
   buildProspectusDemoFinancialStatements,
+  upsertProspectusDemoCtosReport,
 } from "./seed-prospectus-review-note";
 
 const prisma = new PrismaClient();
@@ -55,6 +56,7 @@ const APP_ID = "seed_demo_prospectus_app_001";
 const INVOICE_ID = "seed_demo_prospectus_invoice_001";
 const CONTRACT_ID = "seed_demo_prospectus_contract_001";
 const ISSUER_ORG_ID = "seed_demo_prospectus_issuer_org";
+const ISSUER_CTOS_REPORT_ID = "seed_demo_prospectus_ctos_report";
 const INVESTOR_ORG_ID = "seed_demo_prospectus_investor_org";
 const PRODUCT_ID = "seed_demo_prospectus_product";
 const REVIEW_ID = "seed_demo_prospectus_review_001";
@@ -322,6 +324,12 @@ async function ensureApplicationAndInvoice() {
     },
   };
   const financialStatements = buildProspectusDemoFinancialStatements();
+
+  await upsertProspectusDemoCtosReport({
+    prisma,
+    reportId: ISSUER_CTOS_REPORT_ID,
+    issuerOrganizationId: ISSUER_ORG_ID,
+  });
 
   await prisma.application.upsert({
     where: { id: APP_ID },

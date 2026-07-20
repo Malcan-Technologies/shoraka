@@ -4,14 +4,21 @@
 
 import { NoteStatus, PrismaClient, ProspectusReviewStatus } from "@prisma/client";
 import {
+  buildNormalizedFinancialStatementYearSet,
+  getAdminFinancialSummaryUserColumnYears,
+  normalizeFinancialStatementsQuestionnaire,
+  selectLatestNormalizedFinancialStatementYears,
+} from "@cashsouk/types";
+import {
   PROSPECTUS_DEMO_NOTE_ID,
   PROSPECTUS_DEMO_NOTE_REFERENCE,
+  PROSPECTUS_DEMO_ORG_ID,
+  buildProspectusDemoCtosFinancials,
   buildProspectusDemoFinancialStatements,
   seedProspectusReviewNote,
 } from "../../../../scripts/seed-prospectus-review-note";
 import { buildCompleteProspectusReviewDraft } from "./prospectus-review.demo-fixtures";
 import { PROSPECTUS_REVIEW_REQUIRED_FROM } from "./prospectus-review.service";
-import { selectProspectusFinancialComparisonYears } from "../prospectus/prospectus-financial-comparison-source";
 import { validateApprovalContent } from "./prospectus-review.schemas";
 
 const prisma = new PrismaClient();
@@ -45,22 +52,42 @@ describe("prospectus review demo seed", () => {
     const application = await prisma.application.findUniqueOrThrow({
       where: { id: note.source_application_id },
     });
-    const fs = application.financial_statements as {
-      unaudited_by_year?: Record<string, unknown>;
-    };
-    const years = selectProspectusFinancialComparisonYears(
-      Object.keys(fs.unaudited_by_year ?? {})
+    const ctos = await prisma.ctosReport.findFirst({
+      where: { issuer_organization_id: PROSPECTUS_DEMO_ORG_ID, subject_ref: null },
+      orderBy: { fetched_at: "desc" },
+      select: { financials_json: true },
+    });
+    const available = buildNormalizedFinancialStatementYearSet({
+      financialStatements: application.financial_statements,
+      ctosFinancials: ctos?.financials_json,
+    });
+    const selected = selectLatestNormalizedFinancialStatementYears(available, 3);
+    expect(selected).toHaveLength(3);
+    expect(selected.map((y) => y.year)).toEqual(
+      [...selected.map((y) => y.year)].sort((a, b) => a - b)
     );
-    expect(years).toEqual([2022, 2023, 2024]);
   });
 
-  it("seeds three-year financials with derived fields only", () => {
-    const fs = buildProspectusDemoFinancialStatements();
-    const y2024 = (fs.unaudited_by_year as Record<string, Record<string, unknown>>)["2024"];
-    expect(y2024?.turnover).toBe(15_000_000);
-    expect(y2024?.plnpat).toBe(1_200_000);
-    expect(y2024).not.toHaveProperty("grossProfit");
-    expect(y2024).not.toHaveProperty("ebitda");
+  it("seeds SSM-aligned financials with future FYE and valid pldd", () => {
+    const ref = new Date("2026-07-21T00:00:00.000Z");
+    const fs = buildProspectusDemoFinancialStatements(ref);
+    const questionnaire = normalizeFinancialStatementsQuestionnaire(fs.questionnaire, ref);
+    expect(questionnaire).not.toBeNull();
+    const ssmYears = getAdminFinancialSummaryUserColumnYears(questionnaire, ref);
+    expect(ssmYears.length).toBeGreaterThan(0);
+    const byYear = fs.unaudited_by_year as Record<string, Record<string, unknown>>;
+    expect(Object.keys(byYear).sort()).toEqual(ssmYears.map(String).sort());
+    for (const year of ssmYears) {
+      const block = byYear[String(year)];
+      expect(typeof block?.pldd).toBe("string");
+      expect(String(block?.pldd)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(block).not.toHaveProperty("grossProfit");
+      expect(block).not.toHaveProperty("ebitda");
+    }
+    const newest = byYear[String(Math.max(...ssmYears))];
+    expect(newest?.turnover).toBe(15_000_000);
+    expect(newest?.plnpat).toBe(1_200_000);
+    expect(buildProspectusDemoCtosFinancials(ref).length).toBeGreaterThan(0);
   });
 
   it("builds a complete review draft that passes approval validation", () => {

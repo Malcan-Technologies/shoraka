@@ -78,6 +78,8 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).toContain("data-prospectus-financial-comparison");
     expect(pageSource).toContain("financial-comparison-ops-warning");
     expect(pageSource).toContain("opsWarning");
+    expect(pageSource).not.toContain("TEMPORARY: local visual review only");
+    expect(pageSource).not.toContain("temporaryFinancialComparisonOpsWarning");
     expect(pageSource).toContain("PAGE_TWO_OFFICER_FINANCIAL_METRICS");
     expect(pageSource).toContain("mergeOfficerOverridesIntoFinancialTable");
     expect(pageSource).not.toContain("buildPageTwoFinancialComparisonTable");
