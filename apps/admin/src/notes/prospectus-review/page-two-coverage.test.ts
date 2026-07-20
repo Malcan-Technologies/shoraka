@@ -93,14 +93,14 @@ function sampleNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
 }
 
 describe("page two coverage verification", () => {
-  it("builds Invoice & Paymaster Information from Page 2 mapper sources", () => {
+  it("legacy helper mirrors API Invoice & Paymaster labels (Admin uses invoicePaymaster.rows)", () => {
     const rows = buildInvoicePaymasterVerificationRows(sampleNote());
     expect(rows.map((r) => r.label)).toEqual([
       "Invoice Amount",
       "Invoice Due Date",
       "Paymaster",
       "Nature of Paymaster",
-      "Deed of Assignment",
+      "Deed of Assignment (DOA)",
       "Paymaster Rating",
       "Confidence Grading",
     ]);
@@ -110,7 +110,9 @@ describe("page two coverage verification", () => {
     expect(rows.find((r) => r.label === "Nature of Paymaster")?.value).toBe(
       "Government Ministry"
     );
-    expect(rows.find((r) => r.label === "Deed of Assignment")?.value).toBe("Data not available");
+    expect(rows.find((r) => r.label === "Deed of Assignment (DOA)")?.value).toBe(
+      "Data not available"
+    );
     expect(rows.find((r) => r.label === "Paymaster Rating")?.value).toBe("Data not available");
     expect(rows.find((r) => r.label === "Confidence Grading")?.value).toBe("Data not available");
   });
@@ -121,7 +123,7 @@ describe("page two coverage verification", () => {
   });
 
   it("keeps issuer identity out of investor-visible issuer profile and invoice rows", () => {
-    // Same labels/values Admin receives from API issuerProfile.rows (Page 2 Stage 1).
+    // Same labels Admin receives from API issuerProfile.rows + invoicePaymaster.rows.
     const issuer = [
       { label: "Industry", value: "Construction" },
       { label: "Company Size", value: "Medium" },
@@ -139,6 +141,7 @@ describe("page two coverage verification", () => {
     expect(issuer.some((r) => r.value.includes("Secret Issuer"))).toBe(false);
     expect(issuer.some((r) => r.value.includes("1234567-A"))).toBe(false);
     expect(issuer.some((r) => r.label === "Entity Type")).toBe(false);
+    expect(invoice.some((r) => String(r.value).includes("Secret Issuer"))).toBe(false);
     expect(sampleNote().issuerName).toBe("Secret Issuer Sdn Bhd");
   });
 

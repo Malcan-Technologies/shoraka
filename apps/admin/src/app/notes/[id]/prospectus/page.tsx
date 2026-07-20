@@ -65,10 +65,7 @@ import {
   appendIssuerTrackRecordSection,
   buildNoteInvestmentDetailSections,
 } from "@/notes/prospectus-review/core-terms";
-import {
-  buildInvoicePaymasterVerificationRows,
-  buildPageTwoFinancialComparisonTable,
-} from "@/notes/prospectus-review/page-two-coverage";
+import { buildPageTwoFinancialComparisonTable } from "@/notes/prospectus-review/page-two-coverage";
 import {
   buildPageThreeBalanceSheetTable,
   buildPageThreeCoverageTable,
@@ -365,7 +362,7 @@ function ProspectusReviewPageInner() {
       ? { ...row, value: officerCompanySize ?? "Data not available" }
       : row
   );
-  const invoicePaymasterRows = note ? buildInvoicePaymasterVerificationRows(note) : [];
+  const invoicePaymasterRows = data?.invoicePaymaster?.rows ?? [];
   const financialStatements = (
     application as { financial_statements?: unknown } | undefined
   )?.financial_statements;
@@ -846,9 +843,12 @@ function ProspectusReviewPageInner() {
                           </Select>
                         </div>
                       </section>
-                      <section>
+                      <section data-prospectus-invoice-paymaster>
                         <ProspectusSectionHeading title="Invoice & Paymaster Information" />
-                        {note ? (
+                        <p className="mb-3 text-sm text-muted-foreground">
+                          Invoice and paymaster facts shown in the investor Prospectus.
+                        </p>
+                        {invoicePaymasterRows.length > 0 ? (
                           <ReadOnlyGrid rows={invoicePaymasterRows} />
                         ) : (
                           <Skeleton className="h-32 w-full" />

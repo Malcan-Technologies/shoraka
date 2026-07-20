@@ -72,6 +72,22 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).not.toContain("Issuer Information");
   });
 
+  it("shows Invoice & Paymaster Information from API rows on Page 2", () => {
+    expect(pageSource).toContain('title="Invoice & Paymaster Information"');
+    expect(pageSource).toContain("invoicePaymaster");
+    expect(pageSource).toContain("data-prospectus-invoice-paymaster");
+    expect(pageSource).toContain(
+      "Invoice and paymaster facts shown in the investor Prospectus."
+    );
+    expect(pageSource).not.toContain("buildInvoicePaymasterVerificationRows");
+    // No local frontend formula for invoice face value / financing ratio.
+    expect(pageSource).not.toMatch(
+      /Invoice & Paymaster Information[\s\S]{0,800}financing_ratio/
+    );
+    expect(pageSource).not.toMatch(/data-prospectus-invoice-paymaster[\s\S]{0,400}<Input/);
+    expect(pageSource).not.toMatch(/data-prospectus-invoice-paymaster[\s\S]{0,400}<Select/);
+  });
+
   it("shows read-only Historical Notes from API table on Page 1 after Issuer Track Record", () => {
     expect(pageSource).toContain("ProspectusHistoricalNotesTable");
     expect(pageSource).toContain("historicalNotes");

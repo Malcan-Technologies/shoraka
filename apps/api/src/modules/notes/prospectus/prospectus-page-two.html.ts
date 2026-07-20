@@ -207,8 +207,8 @@ export function buildProspectusPageTwoHtml(page: ProspectusPageTwo): string {
         Invoice Amount: ${escapeHtml(s2.invoiceAmount)}<br />
         Invoice Due Date: ${escapeHtml(s2.invoiceDueDate)}<br />
         Paymaster: ${escapeHtml(s2.paymasterName)}<br />
-        Nature: ${escapeHtml(s2.paymasterNature)}<br />
-        Deed of Assignment: ${escapeHtml(s2.deedOfAssignment)}<br />
+        Nature of Paymaster: ${escapeHtml(s2.paymasterNature)}<br />
+        Deed of Assignment (DOA): ${escapeHtml(s2.deedOfAssignment)}<br />
         Paymaster Rating: ${escapeHtml(s2.paymasterRating)}<br />
         Confidence Grading: ${escapeHtml(s2.confidenceGrading)}
       </p>

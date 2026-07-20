@@ -21,6 +21,7 @@ import { prisma } from "../../../lib/prisma";
 import { toAdminIssuerTrackRecordRows } from "../prospectus/prospectus-issuer-track-record";
 import { toAdminHistoricalNoteTable } from "../prospectus/prospectus-historical-note-table";
 import { toAdminIssuerProfileRows } from "../prospectus/prospectus-issuer-profile";
+import { toAdminInvoicePaymasterRows } from "../prospectus/prospectus-invoice-paymaster";
 import { buildProspectusPageOneHtml } from "../prospectus/prospectus-page-one.html";
 import {
   buildProspectusPageOne,
@@ -436,6 +437,9 @@ export class ProspectusReviewService {
       issuerProfile: {
         industry: page2.issuerProfile.industry,
         rows: toAdminIssuerProfileRows(page2.issuerProfile),
+      },
+      invoicePaymaster: {
+        rows: toAdminInvoicePaymasterRows(page2.invoicePaymaster),
       },
       publishBlockedReason: publishBlocked,
       catalogueNotice:

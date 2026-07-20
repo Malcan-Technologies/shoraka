@@ -158,7 +158,10 @@ const PAGE_TWO_METRICS: Array<{
   { label: "Receivables Days", key: "receivablesDays" },
 ];
 
-/** Invoice & Paymaster Information — mirrors Page 2 mapper display rules. */
+/**
+ * @deprecated Admin Invoice & Paymaster must use API `invoicePaymaster.rows`
+ * (same Page 2 Stage 2 builder as Preview). Kept only for legacy test helpers.
+ */
 export function buildInvoicePaymasterVerificationRows(note: NoteDetail): CoreTermRow[] {
   const paymaster = asRecord(note.paymasterSnapshot);
   const faceValue = parseInvoiceSnapshotFaceValue(note.invoiceSnapshot);
@@ -170,7 +173,7 @@ export function buildInvoicePaymasterVerificationRows(note: NoteDetail): CoreTer
       label: "Nature of Paymaster",
       value: textOrDna(paymaster?.entity_type ?? paymaster?.entityType),
     },
-    { label: "Deed of Assignment", value: DATA_NOT_AVAILABLE },
+    { label: "Deed of Assignment (DOA)", value: DATA_NOT_AVAILABLE },
     { label: "Paymaster Rating", value: DATA_NOT_AVAILABLE },
     { label: "Confidence Grading", value: DATA_NOT_AVAILABLE },
   ];

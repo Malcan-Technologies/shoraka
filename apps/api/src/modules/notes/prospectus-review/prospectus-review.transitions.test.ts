@@ -79,6 +79,15 @@ jest.mock("../prospectus/prospectus-page-two-mapper", () => ({
       registeredCountry: "Registered in Malaysia",
       businessDescription: "Works",
     },
+    invoicePaymaster: {
+      invoiceAmount: "RM 625,000.00",
+      invoiceDueDate: "31 December 2026",
+      paymasterName: "Kementerian Kerja Raya",
+      paymasterNature: "Government Ministry",
+      deedOfAssignment: "Data not available",
+      paymasterRating: "Data not available",
+      confidenceGrading: "Data not available",
+    },
   })),
 }));
 jest.mock("../prospectus/prospectus-issuer-profile", () => ({
@@ -87,6 +96,17 @@ jest.mock("../prospectus/prospectus-issuer-profile", () => ({
     { label: "Company Size", value: "Medium" },
     { label: "Registered Country", value: "Registered in Malaysia" },
     { label: "Business Description", value: "Works" },
+  ]),
+}));
+jest.mock("../prospectus/prospectus-invoice-paymaster", () => ({
+  toAdminInvoicePaymasterRows: jest.fn(() => [
+    { label: "Invoice Amount", value: "RM 625,000.00" },
+    { label: "Invoice Due Date", value: "31 December 2026" },
+    { label: "Paymaster", value: "Kementerian Kerja Raya" },
+    { label: "Nature of Paymaster", value: "Government Ministry" },
+    { label: "Deed of Assignment (DOA)", value: "Data not available" },
+    { label: "Paymaster Rating", value: "Data not available" },
+    { label: "Confidence Grading", value: "Data not available" },
   ]),
 }));
 jest.mock("../prospectus/prospectus-page-two.html", () => ({

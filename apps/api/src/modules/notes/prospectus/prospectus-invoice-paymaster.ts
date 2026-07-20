@@ -49,3 +49,21 @@ export function buildProspectusInvoicePaymaster(
     audit: PROSPECTUS_INVOICE_PAYMASTER_AUDIT,
   };
 }
+
+/**
+ * Admin Prospectus Review rows — same labels/values as Page 2 Canva HTML.
+ * Does not re-resolve invoice/paymaster data; maps an already-built Stage 2 view-model.
+ */
+export function toAdminInvoicePaymasterRows(
+  section: ProspectusInvoicePaymaster
+): Array<{ label: string; value: string }> {
+  return [
+    { label: "Invoice Amount", value: section.invoiceAmount },
+    { label: "Invoice Due Date", value: section.invoiceDueDate },
+    { label: "Paymaster", value: section.paymasterName },
+    { label: "Nature of Paymaster", value: section.paymasterNature },
+    { label: "Deed of Assignment (DOA)", value: section.deedOfAssignment },
+    { label: "Paymaster Rating", value: section.paymasterRating },
+    { label: "Confidence Grading", value: section.confidenceGrading },
+  ];
+}

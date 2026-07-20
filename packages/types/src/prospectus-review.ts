@@ -140,6 +140,12 @@ export interface ProspectusIssuerProfileAdminRow {
   value: string;
 }
 
+/** Read-only Page 2 Invoice & Paymaster row for Admin (same values as Preview). */
+export interface ProspectusInvoicePaymasterAdminRow {
+  label: string;
+  value: string;
+}
+
 export interface ProspectusReviewGetResponse {
   note: {
     id: string;
@@ -181,6 +187,13 @@ export interface ProspectusReviewGetResponse {
     /** Industry component from issuer snapshot (for Admin display / local combine). */
     industry: string;
     rows: ProspectusIssuerProfileAdminRow[];
+  };
+  /**
+   * System-derived Invoice & Paymaster Information (Page 2 Stage 2).
+   * Same path as Prospectus Preview (invoice/paymaster snapshots → builder).
+   */
+  invoicePaymaster: {
+    rows: ProspectusInvoicePaymasterAdminRow[];
   };
   publishBlockedReason: string | null;
   /** Temporary placeholder catalogue notice for officers. */

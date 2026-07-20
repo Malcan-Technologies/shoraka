@@ -374,6 +374,13 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(page.invoicePaymaster.paymasterRating).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
       expect(page.invoicePaymaster.confidenceGrading).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
 
+      const invoiceHtml = renderProspectusPageTwoHtml(page);
+      expect(invoiceHtml).toContain("Nature of Paymaster:");
+      expect(invoiceHtml).toContain("Deed of Assignment (DOA):");
+      expect(invoiceHtml).not.toMatch(/Nature:(?! of Paymaster)/);
+      expect(invoiceHtml).not.toContain("financing ratio");
+      expect(invoiceHtml).not.toContain("INV-");
+
       expect(page.paymasterTrackRecord.totalInvoicesPaid).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
       expect(page.paymasterTrackRecord.totalAmountPaid).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
 
