@@ -117,8 +117,8 @@ describe("prospectus boss-review alignment", () => {
       expect(meta.metadata).not.toHaveProperty("issuer");
       const html = renderProspectusPageThreeHtml(SAMPLE_PROSPECTUS_PAGE_THREE);
       expect(html).not.toContain("Issuer:");
-      expect(html).toContain("Shariah Status Badge:");
-      expect(html).toContain('class="shariah-badge"');
+      expect(html).toContain("Shariah Compliant");
+      expect(html).toContain("class=\"shariah\"");
       const pageThreeHtmlSource = readFileSync(
         join(__dirname, "prospectus-page-three.html.ts"),
         "utf8"
@@ -269,12 +269,12 @@ describe("prospectus boss-review alignment", () => {
       const pageTwoHtml = renderProspectusPageTwoHtml(SAMPLE_PROSPECTUS_PAGE_TWO);
       const pageThreeHtml = renderProspectusPageThreeHtml(SAMPLE_PROSPECTUS_PAGE_THREE);
       for (const html of [pageTwoHtml, pageThreeHtml]) {
-        expect(html).toContain("Shariah Status Badge:");
-        expect(html).toContain('class="shariah-badge"');
-        expect(html).toContain("Brand Tagline:");
+        expect(html).toContain("Shariah Compliant");
+        expect(html).toContain('class="shariah"');
+        expect(html).toContain("Invest in Growth. Earn with Purpose.");
         expect(html).not.toContain("source-statement");
-        expect(html).not.toContain('data-stage="footer"');
-        expect(html).not.toContain("prospectus-footer");
+        expect(html).toContain('data-stage="footer"');
+        expect(html).toContain("prospectus-footer");
       }
       expect(pageTwoHtml).not.toContain("Company Name:");
       expect(pageTwoHtml).not.toContain("Registration Number:");

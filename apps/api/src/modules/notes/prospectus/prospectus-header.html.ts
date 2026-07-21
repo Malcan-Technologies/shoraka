@@ -1,21 +1,28 @@
 /**
- * SECTION: Plain HTML fragment for shared prospectus header
- * WHY: Reusable across pages; audit/logo paths not shown as visible text
+ * SECTION: Shared prospectus header (Pages 1–3)
+ * WHY: Placeholder logo + Shariah badge matching uploaded A4 reference dimensions
  */
 
-import { escapeHtml, escapeHtmlAttribute } from "./prospectus-html";
 import type { ProspectusHeader } from "./prospectus-header.types";
 
-export function buildProspectusHeaderHtml(data: ProspectusHeader): string {
-  const logoHtml =
-    data.logo.kind === "official_asset"
-      ? `<img class="prospectus-logo" src="${escapeHtmlAttribute(data.logo.previewSrc)}" alt="${escapeHtmlAttribute(data.logo.alt)}" height="48" />`
-      : `<span class="prospectus-logo-text">${escapeHtml(data.logo.text)}</span>`;
+/** Visible presentation placeholders — not final brand assets. */
+export const PROSPECTUS_HEADER_TAGLINE_PLACEHOLDER =
+  "Invest in Growth. Earn with Purpose.";
+export const PROSPECTUS_HEADER_SHARIAH_PLACEHOLDER = "Shariah Compliant";
 
-  return `<header class="prospectus-header" data-stage="header">
-  ${logoHtml}
-  <p class="brand-name">${escapeHtml(data.brandName)}</p>
-  <p class="brand-tagline">Brand Tagline: ${escapeHtml(data.tagline)}</p>
-  <p class="shariah-badge">Shariah Status Badge: ${escapeHtml(data.shariahStatusBadge)}</p>
+/**
+ * Shared header for all investor Prospectus pages.
+ * Uses dimensional placeholders for logo and Shariah badge (no CDN / no final logo asset).
+ */
+export function buildProspectusHeaderHtml(_data: ProspectusHeader): string {
+  return `<header class="page-header" data-stage="header">
+  <div class="brand">
+    <div class="brand-mark-placeholder" aria-hidden="true">CashSouk</div>
+    <div class="brand-copy">
+      <div class="brand-name">Cash<span>Souk</span></div>
+      <div class="tagline">${PROSPECTUS_HEADER_TAGLINE_PLACEHOLDER}</div>
+    </div>
+  </div>
+  <div class="shariah"><span class="shariah-mark" aria-hidden="true">◆</span> ${PROSPECTUS_HEADER_SHARIAH_PLACEHOLDER}</div>
 </header>`;
 }

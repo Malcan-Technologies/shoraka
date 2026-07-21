@@ -452,7 +452,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(html).not.toContain("ABC Engineering");
       expect(html).not.toContain("202001234567");
       expect(html).not.toContain("SSM");
-      expect(html).toContain("Shariah Status Badge:");
+      expect(html).toContain("Shariah Compliant");
       expect(html).toContain('data-stage="header"');
       expect(html).toContain("CashSouk");
       expect(html).toContain("Sector");
@@ -462,9 +462,10 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(html).toContain("Confidence Grading");
       expect(html).toContain("High");
       expect(html).toContain("meta-strip");
-      expect(html).toContain("grid-template-columns: repeat(5, minmax(0, 1fr))");
+      expect(html).toContain("grid-template-columns:repeat(5,minmax(0,1fr))");
       expect(html).not.toContain("source-statement");
-      expect(html).not.toContain('data-stage="footer"');
+      expect(html).toContain('data-stage="footer"');
+      expect(html).toContain("prospectus-footer");
     });
 
     it("reuses Page 2 officer gradings for Page 3 metadata strip", () => {
@@ -527,13 +528,14 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       const takeawaysIdx = html.indexOf('data-content-stage="investor-takeaways"');
       expect(html.lastIndexOf("data-content-stage=")).toBe(takeawaysIdx);
       expect(html).not.toContain("source-statement");
-      expect(html).not.toContain('data-stage="footer"');
-      expect(html).not.toContain("prospectus-footer");
+      expect(html).toContain('data-stage="footer"');
+      expect(html).toContain("prospectus-footer");
       expect(html).not.toContain("Source Note:");
       expect(html).not.toMatch(/Source: Audited Financial Statements/i);
       expect(html).not.toMatch(/Source: Data not available/);
-      expect(html).not.toContain("Investment Risk Warning");
-      expect(html).not.toContain("Product Terms / Risk Disclosure Statement");
+      expect(html).toContain("Product Terms and Risk Disclosure Statement");
+      expect(html).toContain("Investments are subject to credit risk");
+      expect(html).not.toContain("Investment are subjects");
 
       expect(html).toContain('data-stage="1"');
       expect(html).toContain('data-stage="2"');

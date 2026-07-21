@@ -748,12 +748,13 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(s6).toBeGreaterThan(s5);
       expect(s7).toBeGreaterThan(s6);
       expect(cta).toBeGreaterThan(s7);
-      expect(html.indexOf('data-stage="footer"')).toBe(-1);
+      expect(html.indexOf('data-stage="footer"')).toBeGreaterThan(cta);
       expect(html).not.toContain("Source Note:");
-      expect(html).not.toContain("Investment Risk Warning");
-      expect(html).not.toContain("Product Terms / Risk Disclosure Statement");
-      expect(html).not.toContain("prospectus-footer");
-      expect(html.lastIndexOf("data-stage=")).toBe(cta);
+      expect(html).toContain("prospectus-footer");
+      expect(html).toContain("Product Terms and Risk Disclosure Statement");
+      expect(html).toContain("Investments are subject to credit risk");
+      expect(html).not.toContain("Investment are subjects");
+      expect(html.lastIndexOf('data-stage="footer"')).toBeGreaterThan(cta);
 
       expect(html).not.toContain('data-stage="4a"');
       expect(html).not.toContain("canonicalSystem");

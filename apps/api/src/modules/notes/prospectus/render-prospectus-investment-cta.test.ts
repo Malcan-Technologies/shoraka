@@ -162,25 +162,22 @@ describe("prospectus Page 2 CTA and shared header (DATA STAGE 8)", () => {
   });
 
   describe("shared HTML composition", () => {
-    it("renders reusable header → static CTA without footer or source statement", () => {
+    it("renders reusable header → static CTA without inventing investability", () => {
       const html = buildProspectusInvestmentCtaDocument({
         header: SAMPLE_PROSPECTUS_HEADER,
         cta: SAMPLE_PROSPECTUS_INVESTMENT_CTA,
       });
 
-      const headerIdx = html.indexOf('class="prospectus-header"');
+      const headerIdx = html.indexOf('class="page-header"');
       const ctaIdx = html.indexOf('class="prospectus-investment-cta"');
       expect(headerIdx).toBeGreaterThan(-1);
       expect(ctaIdx).toBeGreaterThan(headerIdx);
-      expect(html).not.toContain("prospectus-footer");
-      expect(html).not.toContain("Investment Risk Warning");
-      expect(html).not.toContain("Product Terms / Risk Disclosure Statement");
       expect(html).not.toContain("Source Note:");
       expect(html).not.toContain("Source: Data not available");
 
       expect(html).toContain("CashSouk");
-      expect(html).toContain("Brand Tagline: Data not available");
-      expect(html).toContain("Shariah Status Badge: Data not available");
+      expect(html).toContain("Invest in Growth. Earn with Purpose.");
+      expect(html).toContain("Shariah Compliant");
       expect(html).toContain("INVEST WITH CONFIDENCE");
       expect(html).toContain("INVEST NOW");
       expect(html).toContain("Minimum investment: RM 100.00");
