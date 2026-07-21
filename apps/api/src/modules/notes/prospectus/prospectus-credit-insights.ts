@@ -4,16 +4,18 @@
  */
 
 import {
+  findCreditInsightCatalogueOption,
+  normalizeLegacyCreditInsightOptionKey,
+  resolveCreditInsightRenderedText,
+  type ProspectusCreditInsightCatalogueField,
+} from "../prospectus-review/prospectus-option-catalogues";
+import {
   PROSPECTUS_CREDIT_INSIGHTS_AUDIT,
   PROSPECTUS_CREDIT_INSIGHTS_SECTION_HEADING,
   PROSPECTUS_DATA_NOT_AVAILABLE,
   type ProspectusCreditInsights,
   type ProspectusCreditInsightsInput,
 } from "./prospectus-credit-insights.types";
-import {
-  resolveCreditInsightLabel,
-  type ProspectusCreditInsightFieldKey,
-} from "./prospectus-placeholder-publication-content";
 
 export function buildProspectusCreditInsights(
   input: ProspectusCreditInsightsInput = {}
@@ -40,19 +42,20 @@ export function buildProspectusCreditInsights(
   void input.ssmCreditworthinessSentence;
 
   const selections = input.creditInsightSelections;
-  const omittedFields: ProspectusCreditInsightFieldKey[] = [];
+  const omittedFields: ProspectusCreditInsightCatalogueField[] = [];
 
-  const resolve = (
-    field: ProspectusCreditInsightFieldKey
-  ): string => {
+  const resolve = (field: ProspectusCreditInsightCatalogueField): string => {
     if (selections == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
-    const key = selections[field];
-    if (key == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
-    if (key === "do_not_display") {
+    const raw = selections[field];
+    if (raw == null || String(raw).trim() === "") return PROSPECTUS_DATA_NOT_AVAILABLE;
+    const normalized = normalizeLegacyCreditInsightOptionKey(field, raw);
+    if (normalized === "do_not_display") {
       omittedFields.push(field);
       return "";
     }
-    return resolveCreditInsightLabel(key) ?? PROSPECTUS_DATA_NOT_AVAILABLE;
+    const hit = findCreditInsightCatalogueOption(field, normalized);
+    if (!hit) return PROSPECTUS_DATA_NOT_AVAILABLE;
+    return resolveCreditInsightRenderedText(field, normalized) ?? PROSPECTUS_DATA_NOT_AVAILABLE;
   };
 
   return {
@@ -62,7 +65,6 @@ export function buildProspectusCreditInsights(
     creditUtilisation: resolve("creditUtilisation"),
     litigationCheck: resolve("litigationCheck"),
     ccrisStatus: resolve("ccrisStatus"),
-    creditScoreExplanation: PROSPECTUS_DATA_NOT_AVAILABLE,
     omittedFields,
     audit: PROSPECTUS_CREDIT_INSIGHTS_AUDIT,
   };

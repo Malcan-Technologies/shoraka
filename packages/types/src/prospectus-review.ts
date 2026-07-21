@@ -270,7 +270,7 @@ export interface ProspectusReviewGetResponse {
   review: ProspectusReviewDetail;
   catalogues: {
     version: string;
-    creditInsights: ProspectusCatalogueOptionDto[];
+    creditInsights: Record<string, ProspectusCatalogueOptionDto[]>;
     invoiceWork: Record<string, ProspectusCatalogueOptionDto[]>;
     takeaways: Record<string, ProspectusCatalogueOptionDto[]>;
   };

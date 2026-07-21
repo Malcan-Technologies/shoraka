@@ -1,6 +1,8 @@
 /**
  * SECTION: Prospectus Page 2 — Credit Insights (DATA STAGE 5)
- * WHY: DNA-first — no approved investor classifiers; do not mix credit/risk systems
+ * WHY: Officer-selected provisional labels only; never infer from CTOS/CCRIS/litigation
+ *
+ * Footer / Credit Score Explanation: not shipped — requires legal/compliance approval.
  */
 
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
@@ -10,42 +12,48 @@ export { PROSPECTUS_DATA_NOT_AVAILABLE };
 /** Static Canva section title — not a database field. */
 export const PROSPECTUS_CREDIT_INSIGHTS_SECTION_HEADING = "CREDIT INSIGHTS";
 
+/**
+ * Product note: Canva footer about SSM / predictive credit worthiness is not rendered.
+ * Footer wording requires legal/compliance approval before shipping.
+ */
+export const PROSPECTUS_CREDIT_INSIGHTS_FOOTER_REQUIRES_LEGAL_APPROVAL = true;
+
 export interface ProspectusCreditInsightsAudit {
   creditScore: {
-    status: "unresolved";
+    status: "officer_selected";
     candidateSystem: "CTOS";
     rawScoreDisplayAllowed: false;
-    classifierDecision: "pending";
+    autoSelectFromCtosAllowed: false;
     soukScoreReused: false;
   };
   paymentBehaviour: {
-    status: "unresolved";
+    status: "officer_selected";
     candidateSystems: readonly ["CTOS", "CCRIS", "repayment_history"];
-    classifierDecision: "pending";
+    autoSelectAllowed: false;
     issuerOnTimeMetricReused: false;
   };
   creditUtilisation: {
-    status: "unresolved";
+    status: "officer_selected";
     candidateSystem: "CCRIS";
-    formulaDecision: "pending";
+    autoSelectAllowed: false;
     facilityUtilisationSubstitutionAllowed: false;
   };
   litigationCheck: {
-    status: "unresolved";
+    status: "officer_selected";
     candidateSystem: "CTOS_or_legal_report";
     emptyResultMeansClear: false;
-    classifierDecision: "pending";
+    autoSelectAllowed: false;
   };
   ccrisStatus: {
-    status: "unresolved";
+    status: "officer_selected";
     candidateSystem: "CCRIS";
     rawDisclosureAllowed: false;
-    summaryDecision: "pending";
+    autoSelectAllowed: false;
   };
-  creditScoreExplanation: {
-    status: "unresolved";
-    approvedStaticCopyAvailable: false;
-    ssmStatementAllowed: false;
+  footer: {
+    rendered: false;
+    canvaSsmFooterAllowed: false;
+    requiresLegalComplianceApproval: true;
   };
   systems: {
     soukScoreMixedWithCreditInsights: false;
@@ -53,9 +61,9 @@ export interface ProspectusCreditInsightsAudit {
     amlKycMixedWithCreditInsights: false;
   };
   snapshot: {
-    sourceType: "unavailable_investor_credit_classification";
-    isFrozen: false;
-    snapshotDecision: "pending_legal_and_product_approval";
+    sourceType: "officer_selected_credit_insights";
+    isFrozen: true;
+    snapshotDecision: "freeze_officer_keys_on_approve";
   };
   claims: {
     generatedCreditworthinessClaimAllowed: false;
@@ -64,40 +72,40 @@ export interface ProspectusCreditInsightsAudit {
 
 export const PROSPECTUS_CREDIT_INSIGHTS_AUDIT: ProspectusCreditInsightsAudit = {
   creditScore: {
-    status: "unresolved",
+    status: "officer_selected",
     candidateSystem: "CTOS",
     rawScoreDisplayAllowed: false,
-    classifierDecision: "pending",
+    autoSelectFromCtosAllowed: false,
     soukScoreReused: false,
   },
   paymentBehaviour: {
-    status: "unresolved",
+    status: "officer_selected",
     candidateSystems: ["CTOS", "CCRIS", "repayment_history"],
-    classifierDecision: "pending",
+    autoSelectAllowed: false,
     issuerOnTimeMetricReused: false,
   },
   creditUtilisation: {
-    status: "unresolved",
+    status: "officer_selected",
     candidateSystem: "CCRIS",
-    formulaDecision: "pending",
+    autoSelectAllowed: false,
     facilityUtilisationSubstitutionAllowed: false,
   },
   litigationCheck: {
-    status: "unresolved",
+    status: "officer_selected",
     candidateSystem: "CTOS_or_legal_report",
     emptyResultMeansClear: false,
-    classifierDecision: "pending",
+    autoSelectAllowed: false,
   },
   ccrisStatus: {
-    status: "unresolved",
+    status: "officer_selected",
     candidateSystem: "CCRIS",
     rawDisclosureAllowed: false,
-    summaryDecision: "pending",
+    autoSelectAllowed: false,
   },
-  creditScoreExplanation: {
-    status: "unresolved",
-    approvedStaticCopyAvailable: false,
-    ssmStatementAllowed: false,
+  footer: {
+    rendered: false,
+    canvaSsmFooterAllowed: false,
+    requiresLegalComplianceApproval: true,
   },
   systems: {
     soukScoreMixedWithCreditInsights: false,
@@ -105,16 +113,16 @@ export const PROSPECTUS_CREDIT_INSIGHTS_AUDIT: ProspectusCreditInsightsAudit = {
     amlKycMixedWithCreditInsights: false,
   },
   snapshot: {
-    sourceType: "unavailable_investor_credit_classification",
-    isFrozen: false,
-    snapshotDecision: "pending_legal_and_product_approval",
+    sourceType: "officer_selected_credit_insights",
+    isFrozen: true,
+    snapshotDecision: "freeze_officer_keys_on_approve",
   },
   claims: {
     generatedCreditworthinessClaimAllowed: false,
   },
 };
 
-/** Canva-facing fields only. */
+/** Canva-facing fields only — no Credit Score Explanation, no footer. */
 export interface ProspectusCreditInsights {
   sectionHeading: string;
   creditScore: string;
@@ -122,7 +130,6 @@ export interface ProspectusCreditInsights {
   creditUtilisation: string;
   litigationCheck: string;
   ccrisStatus: string;
-  creditScoreExplanation: string;
   /** Fields with officer selection `do_not_display` — not rendered. */
   omittedFields: Array<
     | "creditScore"
@@ -141,8 +148,8 @@ export interface ProspectusCreditInsights {
  */
 export interface ProspectusCreditInsightsInput {
   /**
-   * Optional typed officer/placeholder selections.
-   * Production Prisma path leaves this undefined → DNA.
+   * Officer-selected provisional catalogue keys per row.
+   * Production Prisma path leaves this undefined → DNA for unselected Draft rows.
    */
   creditInsightSelections?: Partial<
     Record<
@@ -151,7 +158,7 @@ export interface ProspectusCreditInsightsInput {
       | "creditUtilisation"
       | "litigationCheck"
       | "ccrisStatus",
-      "positive" | "neutral" | "negative" | "do_not_display"
+      string
     >
   >;
   creditContext?: unknown;
@@ -177,14 +184,14 @@ export interface ProspectusCreditInsightsInput {
   regTankStatus?: string | null;
   amlStatus?: string | null;
   kycStatus?: string | null;
-  /** Observational Canva SSM sentence — must not become explanation. */
+  /** Observational Canva SSM sentence — must not become a footer. */
   ssmCreditworthinessSentence?: string | null;
 }
 
 export interface ProspectusCreditInsightsFieldSource {
   label: string;
   canonicalSource: string;
-  availability: "static" | "unresolved";
+  availability: "static" | "stored" | "unresolved";
   surface: "canva" | "audit";
   possibleAlternatives: string;
   notes: string;
@@ -196,8 +203,7 @@ export const PROSPECTUS_CREDIT_INSIGHTS_FIELD_SOURCES: Record<
   | "paymentBehaviour"
   | "creditUtilisation"
   | "litigationCheck"
-  | "ccrisStatus"
-  | "creditScoreExplanation",
+  | "ccrisStatus",
   ProspectusCreditInsightsFieldSource
 > = {
   sectionHeading: {
@@ -210,50 +216,42 @@ export const PROSPECTUS_CREDIT_INSIGHTS_FIELD_SOURCES: Record<
   },
   creditScore: {
     label: "Credit Score",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page2.creditInsights.creditScoreOptionKey",
+    availability: "stored",
     surface: "canva",
-    possibleAlternatives: "CTOS/FICO; SoukScore; SSM score — not used",
-    notes: "No approved investor classifier. Raw scores not displayed.",
+    possibleAlternatives: "CTOS/FICO; SoukScore — not auto-selected",
+    notes: "Officer-selected provisional catalogue. Labels require compliance confirmation.",
   },
   paymentBehaviour: {
     label: "Payment Behaviour",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page2.creditInsights.paymentBehaviourOptionKey",
+    availability: "stored",
     surface: "canva",
-    possibleAlternatives: "CTOS; CCRIS; Page 1 issuer on-time — not used",
-    notes: "No approved investor-facing classifier.",
+    possibleAlternatives: "CTOS; CCRIS; Page 1 issuer on-time — not auto-selected",
+    notes: "Officer-selected provisional catalogue.",
   },
   creditUtilisation: {
     label: "Credit Utilisation",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page2.creditInsights.creditUtilisationOptionKey",
+    availability: "stored",
     surface: "canva",
-    possibleAlternatives: "CCRIS; Note/contract facility utilisation — not used",
-    notes: "Not interchangeable with facility usage.",
+    possibleAlternatives: "CCRIS; facility utilisation — not auto-selected",
+    notes: "Officer-selected provisional catalogue.",
   },
   litigationCheck: {
     label: "Litigation Check",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page2.creditInsights.litigationCheckOptionKey",
+    availability: "stored",
     surface: "canva",
-    possibleAlternatives: "CTOS legal; empty/zero → Clear — not used",
-    notes: "Missing or zero records do not prove Clear.",
+    possibleAlternatives: "CTOS legal; empty/zero → Clear — not auto-selected",
+    notes: "Officer-selected provisional catalogue. Missing records do not prove Clear.",
   },
   ccrisStatus: {
     label: "CCRIS Status",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page2.creditInsights.ccrisStatusOptionKey",
+    availability: "stored",
     surface: "canva",
-    possibleAlternatives: "raw CCRIS counts/balances; No record from zero — not used",
-    notes: "No approved summary rule. Raw disclosure forbidden.",
-  },
-  creditScoreExplanation: {
-    label: "Credit Score Explanation",
-    canonicalSource: "none",
-    availability: "unresolved",
-    surface: "canva",
-    possibleAlternatives: "Canva SSM creditworthiness sentence — not used",
-    notes: "No approved static copy.",
+    possibleAlternatives: "raw CCRIS — not auto-selected or disclosed",
+    notes: "Officer-selected provisional catalogue.",
   },
 };

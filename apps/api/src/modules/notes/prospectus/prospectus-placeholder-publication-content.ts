@@ -24,21 +24,8 @@ export type ProspectusPlaceholderSourceType =
   | "derived_suggestion"
   | "fixed_template";
 
-export type ProspectusCreditInsightOptionKey =
-  | "positive"
-  | "neutral"
-  | "negative"
-  | "do_not_display";
-
-export const PROSPECTUS_CREDIT_INSIGHT_OPTION_CATALOGUE: ReadonlyArray<{
-  key: ProspectusCreditInsightOptionKey;
-  label: string;
-}> = [
-  { key: "positive", label: "Positive" },
-  { key: "neutral", label: "Neutral" },
-  { key: "negative", label: "Negative" },
-  { key: "do_not_display", label: "Do not display" },
-];
+/** Officer-selected provisional catalogue key (per-row catalogues). */
+export type ProspectusCreditInsightOptionKey = string;
 
 export type ProspectusCreditInsightFieldKey =
   | "creditScore"
@@ -208,11 +195,11 @@ export const PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT: ProspectusPublicationCo
     approvedProductionCopy: true,
   },
   creditInsightSelections: {
-    creditScore: "positive",
-    paymentBehaviour: "neutral",
-    creditUtilisation: "positive",
-    litigationCheck: "do_not_display",
-    ccrisStatus: "neutral",
+    creditScore: "good",
+    paymentBehaviour: "good",
+    creditUtilisation: "healthy",
+    litigationCheck: "clear",
+    ccrisStatus: "no_record",
   },
   invoiceWorkStatements: [
     {
@@ -313,13 +300,13 @@ export const PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT: ProspectusPublicationCo
   },
 };
 
+/** @deprecated Prefer resolveCreditInsightRenderedText(field, key) from option catalogues. */
 export function resolveCreditInsightLabel(
   key: ProspectusCreditInsightOptionKey | undefined
 ): string | null {
-  if (key == null) return null;
-  if (key === "do_not_display") return null;
-  const hit = PROSPECTUS_CREDIT_INSIGHT_OPTION_CATALOGUE.find((o) => o.key === key);
-  return hit?.label ?? null;
+  if (key == null || key === "do_not_display") return null;
+  // Legacy single-catalogue fallback removed — callers must resolve per field.
+  return null;
 }
 
 export function resolveInvestorTakeawayText(

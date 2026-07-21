@@ -191,7 +191,7 @@ describe("prospectus review content", () => {
     const draft = completeSelectableDraft();
     const approved = cloneReviewContent(draft);
     draft.page2.creditInsights.creditScoreOptionKey = "changed";
-    expect(approved.page2.creditInsights.creditScoreOptionKey).toBe("positive");
+    expect(approved.page2.creditInsights.creditScoreOptionKey).toBe("good");
     expect(approved).not.toBe(draft);
   });
 });

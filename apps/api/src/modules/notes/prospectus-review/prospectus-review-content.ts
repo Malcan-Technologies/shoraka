@@ -27,12 +27,14 @@ import {
   type ProspectusPaymasterRating,
 } from "@cashsouk/types";
 import {
-  PROSPECTUS_CREDIT_INSIGHT_OPTIONS,
   PROSPECTUS_INVOICE_WORK_OPTION_CATALOGUE,
   PROSPECTUS_OPTION_CATALOGUE_VERSION,
   PROSPECTUS_TAKEAWAY_KEYS,
   PROSPECTUS_TAKEAWAY_OPTION_CATALOGUE,
   findCatalogueOption,
+  findCreditInsightCatalogueOption,
+  normalizeLegacyCreditInsightOptionKey,
+  type ProspectusCreditInsightCatalogueField,
 } from "./prospectus-option-catalogues";
 import type {
   ProspectusCreditInsightFieldKey,
@@ -223,14 +225,41 @@ function aboutInvoiceRecommendationInputFromContent(
   };
 }
 
-/** Highlights + About Invoice normalize for save / approve / GET. */
+/** Map legacy Credit Insights option keys on Draft read/normalize only. */
+export function normalizeCreditInsightSelections(
+  content: ProspectusReviewStoredContent
+): ProspectusReviewStoredContent {
+  const ci = content.page2.creditInsights ?? {};
+  const map = (
+    field: ProspectusCreditInsightCatalogueField,
+    key: string | null | undefined
+  ): string | null => normalizeLegacyCreditInsightOptionKey(field, key);
+
+  return {
+    ...content,
+    page2: {
+      ...content.page2,
+      creditInsights: {
+        creditScoreOptionKey: map("creditScore", ci.creditScoreOptionKey),
+        paymentBehaviourOptionKey: map("paymentBehaviour", ci.paymentBehaviourOptionKey),
+        creditUtilisationOptionKey: map("creditUtilisation", ci.creditUtilisationOptionKey),
+        litigationCheckOptionKey: map("litigationCheck", ci.litigationCheckOptionKey),
+        ccrisStatusOptionKey: map("ccrisStatus", ci.ccrisStatusOptionKey),
+      },
+    },
+  };
+}
+
+/** Highlights + Credit Insights + About Invoice normalize for save / approve / GET. */
 export function normalizeProspectusReviewSelections(
   content: ProspectusReviewStoredContent,
   recommendationInput: ProspectusHighlightRecommendationInput = {},
   aboutInvoiceInput: ProspectusAboutInvoiceRecommendationInput = {}
 ): ProspectusReviewStoredContent {
   return normalizeAboutInvoiceSelections(
-    normalizeHighlightSelections(content, recommendationInput),
+    normalizeCreditInsightSelections(
+      normalizeHighlightSelections(content, recommendationInput)
+    ),
     aboutInvoiceInput
   );
 }
@@ -352,11 +381,12 @@ export function emptyProspectusReviewContent(
 }
 
 function creditKeyToOption(
+  field: ProspectusCreditInsightFieldKey,
   key: string | null | undefined
 ): ProspectusCreditInsightOptionKey | undefined {
   if (!key) return undefined;
-  const hit = findCatalogueOption(PROSPECTUS_CREDIT_INSIGHT_OPTIONS, key);
-  return hit ? (hit.key as ProspectusCreditInsightOptionKey) : undefined;
+  const hit = findCreditInsightCatalogueOption(field, key);
+  return hit ? hit.key : undefined;
 }
 
 /**
@@ -394,7 +424,7 @@ export function toProspectusPublicationContent(
     ["ccrisStatus", ci.ccrisStatusOptionKey],
   ];
   for (const [field, key] of creditMap) {
-    const resolved = creditKeyToOption(key);
+    const resolved = creditKeyToOption(field, key);
     if (resolved) creditInsights[field] = resolved;
   }
 

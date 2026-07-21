@@ -1174,22 +1174,34 @@ function ProspectusReviewPageInner() {
                     <div className="space-y-6">
                       <section>
                         <ProspectusSectionHeading title="Credit Insights" />
+                        <p className="mb-3 text-sm text-muted-foreground">
+                          Select the final investor-facing assessment for each item. Use Do not
+                          display when the item should be omitted from the Prospectus.
+                        </p>
                         <div className="grid gap-3 md:grid-cols-2">
                           {(
                             [
-                              ["creditScoreOptionKey", "Credit Score"],
-                              ["paymentBehaviourOptionKey", "Payment Behaviour"],
-                              ["creditUtilisationOptionKey", "Credit Utilisation"],
-                              ["litigationCheckOptionKey", "Litigation Check"],
-                              ["ccrisStatusOptionKey", "CCRIS Status"],
+                              ["creditScoreOptionKey", "creditScore", "Credit Score"],
+                              [
+                                "paymentBehaviourOptionKey",
+                                "paymentBehaviour",
+                                "Payment Behaviour",
+                              ],
+                              [
+                                "creditUtilisationOptionKey",
+                                "creditUtilisation",
+                                "Credit Utilisation",
+                              ],
+                              ["litigationCheckOptionKey", "litigationCheck", "Litigation Check"],
+                              ["ccrisStatusOptionKey", "ccrisStatus", "CCRIS Status"],
                             ] as const
-                          ).map(([field, label]) => (
+                          ).map(([field, catalogueKey, label]) => (
                             <OptionSelect
                               key={field}
                               label={label}
                               disabled={locked || !canManage}
                               value={draft.page2.creditInsights[field]}
-                              options={catalogues.creditInsights}
+                              options={catalogues.creditInsights[catalogueKey] ?? []}
                               onChange={(value) =>
                                 updateDraft((prev) => ({
                                   ...prev,

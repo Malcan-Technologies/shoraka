@@ -240,19 +240,11 @@
  * SoukScore is not reused for Credit Score.
  * RegTank / AML / KYC are not mixed into this section.
  *
- * All Canva fields currently Data not available:
- * - Credit Score
- * - Payment Behaviour
- * - Credit Utilisation
- * - Litigation Check
- * - CCRIS Status
- * - Credit Score Explanation
- *
- * Rejected Canva labels: Good / Healthy / Clear / No record
- * Rejected Canva SSM creditworthiness explanatory sentence
- * Zero/empty legal or CCRIS records do not mean Clear / No record
- * Legal/compliance approval required before any non-DNA implementation
- * Future approved values should freeze at publication
+ * Implemented as officer-selected provisional catalogues (per-row option keys).
+ * CTOS/CCRIS/litigation are not auto-selected. Labels require compliance confirmation.
+ * Credit Score Explanation removed. Canva SSM footer not shipped (legal approval required).
+ * Zero/empty legal or CCRIS records do not mean Clear / No record.
+ * Approved selections freeze on Approve / publish.
  *
  * =============================================================================
  * PAGE 2 — STAGE 6 ABOUT THE INVOICE / WORK PERFORMED (implemented as DNA-first)

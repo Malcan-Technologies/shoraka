@@ -13,13 +13,14 @@ import {
 } from "@cashsouk/types";
 import { parseProspectusFinancialNumber } from "../prospectus/prospectus-financial-comparison-metrics";
 import {
-  PROSPECTUS_CREDIT_INSIGHT_OPTIONS,
   PROSPECTUS_DERIVED_FINANCIAL_FIELD_KEYS,
   PROSPECTUS_INVOICE_WORK_KEYS,
   PROSPECTUS_INVOICE_WORK_OPTION_CATALOGUE,
   PROSPECTUS_MANUAL_FINANCIAL_FIELD_KEYS,
   PROSPECTUS_TAKEAWAY_OPTION_CATALOGUE,
+  creditInsightFieldFromStorageKey,
   findCatalogueOption,
+  findCreditInsightCatalogueOption,
 } from "./prospectus-option-catalogues";
 
 const nullableOptionKey = z.string().trim().min(1).nullable().optional();
@@ -224,7 +225,16 @@ export function validateDraftContent(
     }
   }
 
-  const creditPairs: Array<[string, string | null | undefined]> = [
+  const creditPairs: Array<
+    [
+      | "creditScoreOptionKey"
+      | "paymentBehaviourOptionKey"
+      | "creditUtilisationOptionKey"
+      | "litigationCheckOptionKey"
+      | "ccrisStatusOptionKey",
+      string | null | undefined,
+    ]
+  > = [
     ["creditScoreOptionKey", content.page2.creditInsights.creditScoreOptionKey],
     ["paymentBehaviourOptionKey", content.page2.creditInsights.paymentBehaviourOptionKey],
     ["creditUtilisationOptionKey", content.page2.creditInsights.creditUtilisationOptionKey],
@@ -232,7 +242,9 @@ export function validateDraftContent(
     ["ccrisStatusOptionKey", content.page2.creditInsights.ccrisStatusOptionKey],
   ];
   for (const [field, key] of creditPairs) {
-    if (key && !findCatalogueOption(PROSPECTUS_CREDIT_INSIGHT_OPTIONS, key)) {
+    if (!key) continue;
+    const catalogueField = creditInsightFieldFromStorageKey(field);
+    if (!findCreditInsightCatalogueOption(catalogueField, key)) {
       errors.push({ path: `page2.creditInsights.${field}`, message: "Invalid option key" });
     }
   }

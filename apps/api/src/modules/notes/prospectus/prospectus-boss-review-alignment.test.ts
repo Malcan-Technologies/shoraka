@@ -164,10 +164,10 @@ describe("prospectus boss-review alignment", () => {
           (s) => s.isVisible
         )
       ).toHaveLength(4);
-      // Invoice/work catalogue copy remains explicit preview-only placeholder wording.
+      // Preview sample uses Canva-shaped officer wording (still development placeholder content).
       expect(
         SAMPLE_PROSPECTUS_PAGE_TWO.invoiceWorkNarrative.workUnderContractStatement
-      ).toContain("Placeholder");
+      ).toContain("civil engineering and infrastructure works");
     });
 
     it("Prisma mapper sources do not import placeholder defaults", () => {
@@ -181,14 +181,27 @@ describe("prospectus boss-review alignment", () => {
       }
     });
 
-    it("Credit Insights do_not_display omits field; production stays DNA", () => {
+    it("Credit Insights placeholder selections resolve Canva labels; production stays DNA", () => {
       const preview = buildProspectusCreditInsights({
         creditInsightSelections:
           PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT.creditInsightSelections,
       });
-      expect(preview.omittedFields).toContain("litigationCheck");
-      expect(preview.litigationCheck).toBe("");
-      expect(preview.creditScore).toBe("Positive");
+      expect(preview.creditScore).toBe("Good");
+      expect(preview.creditUtilisation).toBe("Healthy");
+      expect(preview.litigationCheck).toBe("Clear");
+      expect(preview.ccrisStatus).toBe("No record");
+
+      const omitted = buildProspectusCreditInsights({
+        creditInsightSelections: {
+          creditScore: "good",
+          paymentBehaviour: "good",
+          creditUtilisation: "healthy",
+          litigationCheck: "do_not_display",
+          ccrisStatus: "no_record",
+        },
+      });
+      expect(omitted.omittedFields).toContain("litigationCheck");
+      expect(omitted.litigationCheck).toBe("");
 
       const production = buildProspectusCreditInsights({});
       expect(production.creditScore).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);

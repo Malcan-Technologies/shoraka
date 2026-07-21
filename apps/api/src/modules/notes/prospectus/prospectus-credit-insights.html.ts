@@ -1,6 +1,6 @@
 /**
  * SECTION: Plain HTML for Page 2 Credit Insights preview
- * WHY: Unstyled Canva-facing fields only — omitted fields skipped; audit excluded
+ * WHY: Unstyled Canva-facing fields only — omitted fields skipped; no footer / explanation
  */
 
 import type { ProspectusCreditInsights } from "./prospectus-credit-insights.types";
@@ -32,7 +32,11 @@ export function buildProspectusCreditInsightsHtml(data: ProspectusCreditInsights
   if (!omitted.has("ccrisStatus")) {
     lines.push(`CCRIS Status: ${escapeHtml(data.ccrisStatus)}`);
   }
-  lines.push(`Credit Score Explanation: ${escapeHtml(data.creditScoreExplanation)}`);
+
+  const body =
+    lines.length > 0
+      ? `<p>\n      ${lines.join("<br />\n      ")}\n    </p>`
+      : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -42,12 +46,10 @@ export function buildProspectusCreditInsightsHtml(data: ProspectusCreditInsights
 </head>
 <body>
   <h1>Prospectus Page 2 — DATA STAGE 5: Credit Insights</h1>
-  <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
+  <p>Unstyled Canva-facing preview. Missing Draft values must be exactly: Data not available. No footer.</p>
   <section>
     <h2>${escapeHtml(data.sectionHeading)}</h2>
-    <p>
-      ${lines.join("<br />\n      ")}
-    </p>
+    ${body}
   </section>
 </body>
 </html>`;

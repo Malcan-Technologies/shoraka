@@ -104,11 +104,11 @@ describe("prospectus review completion checklist", () => {
       { key: "shariah", title: "Shariah title", description: "Shariah body" },
     ];
     draft.page2.creditInsights = {
-      creditScoreOptionKey: "positive",
-      paymentBehaviourOptionKey: "neutral",
-      creditUtilisationOptionKey: "do_not_display",
-      litigationCheckOptionKey: "do_not_display",
-      ccrisStatusOptionKey: "neutral",
+      creditScoreOptionKey: "good",
+      paymentBehaviourOptionKey: "good",
+      creditUtilisationOptionKey: "healthy",
+      litigationCheckOptionKey: "clear",
+      ccrisStatusOptionKey: "no_record",
     };
     draft.page2.aboutInvoice = {
       items: [

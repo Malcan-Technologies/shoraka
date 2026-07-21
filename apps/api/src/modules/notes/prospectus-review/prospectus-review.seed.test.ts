@@ -93,7 +93,10 @@ describe("prospectus review demo seed", () => {
   it("builds a complete review draft that passes approval validation", () => {
     const draft = buildCompleteProspectusReviewDraft();
     expect(validateApprovalContent(draft)).toEqual([]);
-    expect(draft.page2.creditInsights.creditUtilisationOptionKey).toBe("do_not_display");
+    expect(draft.page2.creditInsights.creditScoreOptionKey).toBe("good");
+    expect(draft.page2.creditInsights.creditUtilisationOptionKey).toBe("healthy");
+    expect(draft.page2.creditInsights.litigationCheckOptionKey).toBe("clear");
+    expect(draft.page2.creditInsights.ccrisStatusOptionKey).toBe("no_record");
     expect(draft.page1.keyInvestorHighlights).toHaveLength(4);
     expect(
       draft.page1.keyInvestorHighlights.every((h) => h.title.trim() && h.description.trim())

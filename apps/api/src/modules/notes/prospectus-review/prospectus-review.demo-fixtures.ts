@@ -71,11 +71,11 @@ export function buildCompleteProspectusReviewDraft(): ProspectusReviewStoredCont
     averagePaymentPeriodDays: 32,
   };
   draft.page2.creditInsights = {
-    creditScoreOptionKey: "positive",
-    paymentBehaviourOptionKey: "neutral",
-    creditUtilisationOptionKey: "do_not_display",
-    litigationCheckOptionKey: "positive",
-    ccrisStatusOptionKey: "neutral",
+    creditScoreOptionKey: "good",
+    paymentBehaviourOptionKey: "good",
+    creditUtilisationOptionKey: "healthy",
+    litigationCheckOptionKey: "clear",
+    ccrisStatusOptionKey: "no_record",
   };
   draft.page2.invoiceWorkStatements = (draft.page2.aboutInvoice?.items ?? []).map((item) => ({
     key: item.id,
