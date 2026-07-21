@@ -1,10 +1,9 @@
 /**
- * Credit Insights catalogues, legacy Draft normalization, and approval validation.
+ * Credit Insights catalogues and approval validation.
  */
 
 import {
   emptyProspectusReviewContent,
-  normalizeCreditInsightSelections,
   toProspectusPublicationContent,
 } from "./prospectus-review-content";
 import { validateApprovalContent, validateDraftContent } from "./prospectus-review.schemas";
@@ -49,7 +48,7 @@ describe("prospectus credit insights option catalogues", () => {
     expect(errors.some((e) => e.path.includes("creditUtilisationOptionKey"))).toBe(true);
   });
 
-  it("accepts legacy positive/neutral/negative after Draft normalization mapping", () => {
+  it("rejects retired positive/neutral/negative keys with no conversion", () => {
     const draft = emptyProspectusReviewContent();
     draft.page2.creditInsights = {
       creditScoreOptionKey: "positive",
@@ -58,15 +57,12 @@ describe("prospectus credit insights option catalogues", () => {
       litigationCheckOptionKey: "positive",
       ccrisStatusOptionKey: "do_not_display",
     };
-    expect(validateDraftContent(draft)).toEqual([]);
-    const normalized = normalizeCreditInsightSelections(draft);
-    expect(normalized.page2.creditInsights).toEqual({
-      creditScoreOptionKey: "good",
-      paymentBehaviourOptionKey: "satisfactory",
-      creditUtilisationOptionKey: "high",
-      litigationCheckOptionKey: "clear",
-      ccrisStatusOptionKey: "do_not_display",
-    });
+    const errors = validateDraftContent(draft);
+    expect(errors.some((e) => e.path.includes("creditScoreOptionKey"))).toBe(true);
+    expect(errors.some((e) => e.path.includes("paymentBehaviourOptionKey"))).toBe(true);
+    expect(errors.some((e) => e.path.includes("creditUtilisationOptionKey"))).toBe(true);
+    expect(errors.some((e) => e.path.includes("litigationCheckOptionKey"))).toBe(true);
+    expect(errors.some((e) => e.path.includes("ccrisStatusOptionKey"))).toBe(false);
   });
 
   it("requires all five selections for approval; do_not_display is valid", () => {

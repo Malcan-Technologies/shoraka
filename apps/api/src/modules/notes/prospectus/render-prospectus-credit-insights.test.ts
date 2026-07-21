@@ -7,10 +7,7 @@ import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
 } from "./prospectus-credit-insights.types";
 import { buildProspectusCreditInsightsDocument } from "./render-prospectus-credit-insights";
-import {
-  PROSPECTUS_CREDIT_INSIGHT_OPTION_CATALOGUE,
-  normalizeLegacyCreditInsightOptionKey,
-} from "../prospectus-review/prospectus-option-catalogues";
+import { PROSPECTUS_CREDIT_INSIGHT_OPTION_CATALOGUE } from "../prospectus-review/prospectus-option-catalogues";
 
 const SOUKSCORES = ["AAA", "AA", "A", "BBB", "BB", "B"] as const;
 
@@ -72,16 +69,7 @@ describe("prospectus Page 2 Credit Insights (DATA STAGE 5)", () => {
     );
   });
 
-  it("maps legacy positive/neutral/negative keys without treating them as CTOS scores", () => {
-    expect(normalizeLegacyCreditInsightOptionKey("creditScore", "positive")).toBe("good");
-    expect(normalizeLegacyCreditInsightOptionKey("creditUtilisation", "neutral")).toBe("moderate");
-    expect(normalizeLegacyCreditInsightOptionKey("litigationCheck", "negative")).toBe(
-      "record_found"
-    );
-    expect(normalizeLegacyCreditInsightOptionKey("ccrisStatus", "do_not_display")).toBe(
-      "do_not_display"
-    );
-
+  it("does not accept retired positive/neutral/negative keys", () => {
     const data = buildProspectusCreditInsights({
       creditInsightSelections: {
         creditScore: "positive",
@@ -91,11 +79,11 @@ describe("prospectus Page 2 Credit Insights (DATA STAGE 5)", () => {
         ccrisStatus: "neutral",
       },
     });
-    expect(data.creditScore).toBe("Good");
-    expect(data.paymentBehaviour).toBe("Satisfactory");
-    expect(data.creditUtilisation).toBe("High");
-    expect(data.litigationCheck).toBe("Clear");
-    expect(data.ccrisStatus).toBe("Under Review");
+    expect(data.creditScore).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.paymentBehaviour).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.creditUtilisation).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.litigationCheck).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.ccrisStatus).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
   it("omits do_not_display rows and handles all five omitted safely", () => {

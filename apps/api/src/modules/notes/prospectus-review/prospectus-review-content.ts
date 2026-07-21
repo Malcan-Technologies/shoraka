@@ -33,8 +33,6 @@ import {
   PROSPECTUS_TAKEAWAY_OPTION_CATALOGUE,
   findCatalogueOption,
   findCreditInsightCatalogueOption,
-  normalizeLegacyCreditInsightOptionKey,
-  type ProspectusCreditInsightCatalogueField,
 } from "./prospectus-option-catalogues";
 import type {
   ProspectusCreditInsightFieldKey,
@@ -225,41 +223,14 @@ function aboutInvoiceRecommendationInputFromContent(
   };
 }
 
-/** Map legacy Credit Insights option keys on Draft read/normalize only. */
-export function normalizeCreditInsightSelections(
-  content: ProspectusReviewStoredContent
-): ProspectusReviewStoredContent {
-  const ci = content.page2.creditInsights ?? {};
-  const map = (
-    field: ProspectusCreditInsightCatalogueField,
-    key: string | null | undefined
-  ): string | null => normalizeLegacyCreditInsightOptionKey(field, key);
-
-  return {
-    ...content,
-    page2: {
-      ...content.page2,
-      creditInsights: {
-        creditScoreOptionKey: map("creditScore", ci.creditScoreOptionKey),
-        paymentBehaviourOptionKey: map("paymentBehaviour", ci.paymentBehaviourOptionKey),
-        creditUtilisationOptionKey: map("creditUtilisation", ci.creditUtilisationOptionKey),
-        litigationCheckOptionKey: map("litigationCheck", ci.litigationCheckOptionKey),
-        ccrisStatusOptionKey: map("ccrisStatus", ci.ccrisStatusOptionKey),
-      },
-    },
-  };
-}
-
-/** Highlights + Credit Insights + About Invoice normalize for save / approve / GET. */
+/** Highlights + About Invoice normalize for save / approve / GET. */
 export function normalizeProspectusReviewSelections(
   content: ProspectusReviewStoredContent,
   recommendationInput: ProspectusHighlightRecommendationInput = {},
   aboutInvoiceInput: ProspectusAboutInvoiceRecommendationInput = {}
 ): ProspectusReviewStoredContent {
   return normalizeAboutInvoiceSelections(
-    normalizeCreditInsightSelections(
-      normalizeHighlightSelections(content, recommendationInput)
-    ),
+    normalizeHighlightSelections(content, recommendationInput),
     aboutInvoiceInput
   );
 }

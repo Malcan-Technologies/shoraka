@@ -5,7 +5,6 @@
 
 import {
   findCreditInsightCatalogueOption,
-  normalizeLegacyCreditInsightOptionKey,
   resolveCreditInsightRenderedText,
   type ProspectusCreditInsightCatalogueField,
 } from "../prospectus-review/prospectus-option-catalogues";
@@ -48,14 +47,14 @@ export function buildProspectusCreditInsights(
     if (selections == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
     const raw = selections[field];
     if (raw == null || String(raw).trim() === "") return PROSPECTUS_DATA_NOT_AVAILABLE;
-    const normalized = normalizeLegacyCreditInsightOptionKey(field, raw);
-    if (normalized === "do_not_display") {
+    const key = String(raw).trim();
+    if (key === "do_not_display") {
       omittedFields.push(field);
       return "";
     }
-    const hit = findCreditInsightCatalogueOption(field, normalized);
+    const hit = findCreditInsightCatalogueOption(field, key);
     if (!hit) return PROSPECTUS_DATA_NOT_AVAILABLE;
-    return resolveCreditInsightRenderedText(field, normalized) ?? PROSPECTUS_DATA_NOT_AVAILABLE;
+    return resolveCreditInsightRenderedText(field, key) ?? PROSPECTUS_DATA_NOT_AVAILABLE;
   };
 
   return {

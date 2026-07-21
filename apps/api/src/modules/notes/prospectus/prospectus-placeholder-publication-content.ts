@@ -305,7 +305,6 @@ export function resolveCreditInsightLabel(
   key: ProspectusCreditInsightOptionKey | undefined
 ): string | null {
   if (key == null || key === "do_not_display") return null;
-  // Legacy single-catalogue fallback removed — callers must resolve per field.
   return null;
 }
 
