@@ -225,6 +225,9 @@ function parsePage2RawFinancials(value: unknown): ProspectusPage2FinancialRawSna
     bsclstd: parseRawFinancialScalar(raw.bsclstd),
     totass: parseRawFinancialScalar(raw.totass),
     totlib: parseRawFinancialScalar(raw.totlib),
+    profit_margin: parseRawFinancialScalar(raw.profit_margin),
+    return_on_equity: parseRawFinancialScalar(raw.return_on_equity),
+    currat: parseRawFinancialScalar(raw.currat),
   };
 }
 

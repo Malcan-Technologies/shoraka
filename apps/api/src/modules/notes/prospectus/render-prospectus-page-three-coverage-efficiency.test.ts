@@ -157,7 +157,7 @@ describe("prospectus Page 3 coverage/efficiency (DATA STAGE 4)", () => {
     expect(moduleSource).not.toMatch(/\*\s*365/);
   });
 
-  it("reuses calculateReturnOnEquity and matches Page 2", () => {
+  it("reuses resolveApplicationFinancialReturnOnEquityRatio and matches Page 2", () => {
     const source = SAMPLE_PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_SOURCE;
     const page3 = buildProspectusPageThreeCoverageEfficiency({ financialSource: source });
     const page2 = buildProspectusFinancialComparisonMetrics({ source });
@@ -176,12 +176,11 @@ describe("prospectus Page 3 coverage/efficiency (DATA STAGE 4)", () => {
     });
     expect(row(zeroPat, "return_on_equity")?.values[0]).toBe("0%");
 
+    // Application missing→0 coercion: missing PAT with equity present → 0%
     const missingPat = buildProspectusPageThreeCoverageEfficiency({
       financialSource: sourceFromYears({ "2024": { bsqpuc: 2_000_000 } }),
     });
-    expect(row(missingPat, "return_on_equity")?.values[0]).toBe(
-      PROSPECTUS_DATA_NOT_AVAILABLE
-    );
+    expect(row(missingPat, "return_on_equity")?.values[0]).toBe("0%");
 
     const missingEquity = buildProspectusPageThreeCoverageEfficiency({
       financialSource: sourceFromYears({ "2024": { plnpat: 100 } }),
@@ -210,7 +209,7 @@ describe("prospectus Page 3 coverage/efficiency (DATA STAGE 4)", () => {
       join(__dirname, "prospectus-page-three-coverage-efficiency.ts"),
       "utf8"
     );
-    expect(moduleSource).toMatch(/calculateReturnOnEquity/);
+    expect(moduleSource).toMatch(/resolveApplicationFinancialReturnOnEquityRatio/);
     expect(moduleSource).not.toMatch(/plnpat\s*\/\s*bsqpuc/);
   });
 

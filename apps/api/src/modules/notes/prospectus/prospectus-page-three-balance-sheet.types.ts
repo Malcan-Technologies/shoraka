@@ -127,7 +127,7 @@ export interface ProspectusPageThreeBalanceSheetAudit {
     requiredForApproval: true;
   };
   currentRatio: {
-    calculator: "calculateCurrentRatio";
+    calculator: "resolveApplicationFinancialCurrentRatio";
     sharedWithPageTwo: true;
     formatter: "formatProspectusFinancialMultiple";
   };
@@ -211,7 +211,7 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT: ProspectusPageThreeBalan
       requiredForApproval: true,
     },
     currentRatio: {
-      calculator: "calculateCurrentRatio",
+      calculator: "resolveApplicationFinancialCurrentRatio",
       sharedWithPageTwo: true,
       formatter: "formatProspectusFinancialMultiple",
     },
@@ -345,11 +345,12 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_FIELD_SOURCES: Record<
   },
   current_ratio: {
     label: "Current Ratio",
-    canonicalSource: "calculateCurrentRatio(bscatot, curlib)",
+    canonicalSource: "resolveApplicationFinancialCurrentRatio(currat | bscatot/curlib)",
     availability: "calculated",
     surface: "canva",
     possibleAlternatives: "Local duplicate formula — not used",
-    notes: "Same helper + multiple formatter as Page 2 Stage 4B.",
+    notes:
+      "Same Application-aligned resolver as Page 2 (CTOS flat currat preferred, else recompute).",
   },
   quick_ratio: {
     label: "Quick Ratio",

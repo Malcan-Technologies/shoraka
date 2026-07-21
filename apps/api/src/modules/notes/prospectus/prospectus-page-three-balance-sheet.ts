@@ -4,7 +4,7 @@
  */
 
 import {
-  calculateCurrentRatio,
+  resolveApplicationFinancialCurrentRatio,
   resolveApplicationFinancialTotalAssets,
   resolveApplicationFinancialTotalLiabilities,
 } from "@cashsouk/types";
@@ -93,10 +93,13 @@ function valueForRow(
     case "total_liabilities":
       return formatProspectusMyrMillions(totalLiabilitiesFromRaw(raw));
     case "current_ratio": {
-      const bscatot = fieldFromRaw(raw, "bscatot");
-      const curlib = fieldFromRaw(raw, "curlib");
-      if (bscatot == null || curlib == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
-      return formatProspectusFinancialMultiple(calculateCurrentRatio(bscatot, curlib));
+      return formatProspectusFinancialMultiple(
+        resolveApplicationFinancialCurrentRatio({
+          currat: fieldFromRaw(raw, "currat"),
+          bscatot: fieldFromRaw(raw, "bscatot"),
+          curlib: fieldFromRaw(raw, "curlib"),
+        })
+      );
     }
     default: {
       const _exhaustive: never = key;

@@ -266,6 +266,9 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
         bsclstd: 300_000,
         totass: 8_400_000,
         totlib: 3_100_000,
+        profit_margin: null,
+        return_on_equity: null,
+        currat: null,
       });
       expect(JSON.stringify(page2)).not.toMatch(/RM /);
       expect(JSON.stringify(page2)).not.toMatch(/Trend|Takeaway|Cash & Bank/i);
@@ -297,6 +300,9 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(parsed?.financial_comparison.selected_years[0]?.raw_financials.plnpbt).toBeNull();
       expect(parsed?.financial_comparison.selected_years[0]?.raw_financials.bsfatot).toBeNull();
       expect(parsed?.financial_comparison.selected_years[0]?.raw_financials.bsclbank).toBeNull();
+      expect(parsed?.financial_comparison.selected_years[0]?.raw_financials.profit_margin).toBeNull();
+      expect(parsed?.financial_comparison.selected_years[0]?.raw_financials.return_on_equity).toBeNull();
+      expect(parsed?.financial_comparison.selected_years[0]?.raw_financials.currat).toBeNull();
     });
 
     it("creates a valid empty Page 2 snapshot when financials are missing", () => {

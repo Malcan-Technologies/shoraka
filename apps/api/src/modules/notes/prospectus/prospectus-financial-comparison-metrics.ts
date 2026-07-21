@@ -4,9 +4,9 @@
  */
 
 import {
-  calculateCurrentRatio,
-  calculateProfitMargin,
-  calculateReturnOnEquity,
+  resolveApplicationFinancialCurrentRatio,
+  resolveApplicationFinancialProfitMarginRatio,
+  resolveApplicationFinancialReturnOnEquityRatio,
 } from "@cashsouk/types";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
@@ -157,26 +157,31 @@ function metricValueForYear(
       return formatProspectusMyrMillions(plnpat);
     }
     case "netProfitMargin": {
-      const plnpat = fieldFromRaw(raw, "plnpat");
-      const turnover = fieldFromRaw(raw, "turnover");
-      if (plnpat == null || turnover == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
       return formatProspectusFinancialPercentFromRatio(
-        calculateProfitMargin(plnpat, turnover)
+        resolveApplicationFinancialProfitMarginRatio({
+          profit_margin: fieldFromRaw(raw, "profit_margin"),
+          plnpat: fieldFromRaw(raw, "plnpat"),
+          turnover: fieldFromRaw(raw, "turnover"),
+        })
       );
     }
     case "roe": {
-      const plnpat = fieldFromRaw(raw, "plnpat");
-      const bsqpuc = fieldFromRaw(raw, "bsqpuc");
-      if (plnpat == null || bsqpuc == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
       return formatProspectusFinancialPercentFromRatio(
-        calculateReturnOnEquity(plnpat, bsqpuc)
+        resolveApplicationFinancialReturnOnEquityRatio({
+          return_on_equity: fieldFromRaw(raw, "return_on_equity"),
+          plnpat: fieldFromRaw(raw, "plnpat"),
+          bsqpuc: fieldFromRaw(raw, "bsqpuc"),
+        })
       );
     }
     case "currentRatio": {
-      const bscatot = fieldFromRaw(raw, "bscatot");
-      const curlib = fieldFromRaw(raw, "curlib");
-      if (bscatot == null || curlib == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
-      return formatProspectusFinancialMultiple(calculateCurrentRatio(bscatot, curlib));
+      return formatProspectusFinancialMultiple(
+        resolveApplicationFinancialCurrentRatio({
+          currat: fieldFromRaw(raw, "currat"),
+          bscatot: fieldFromRaw(raw, "bscatot"),
+          curlib: fieldFromRaw(raw, "curlib"),
+        })
+      );
     }
     case "netDebtEquity":
     case "interestCoverage":

@@ -124,6 +124,56 @@ export function computeCurrentRatio(currentAssets: number | null, currentLiabili
   return currentAssets / currentLiabilities;
 }
 
+function isFinitePresent(v: number | null | undefined): v is number {
+  return v != null && Number.isFinite(v);
+}
+
+/**
+ * Application Financial Summary profit margin as a decimal ratio (for Prospectus % formatters).
+ * Prefer CTOS flat `profit_margin` (already percent points, e.g. 12.6 → ratio 0.126).
+ * Else recompute with Application missing→0 coercion (CTOS column metrics path).
+ */
+export function resolveApplicationFinancialProfitMarginRatio(input: {
+  profit_margin: number | null;
+  plnpat: number | null;
+  turnover: number | null;
+}): number | null {
+  if (isFinitePresent(input.profit_margin)) {
+    return input.profit_margin / 100;
+  }
+  return computeProfitMargin(input.plnpat ?? 0, input.turnover ?? 0);
+}
+
+/**
+ * Application Financial Summary ROE as a decimal ratio.
+ * Prefer CTOS flat `return_on_equity` (percent points) → ratio; else recompute with missing→0.
+ */
+export function resolveApplicationFinancialReturnOnEquityRatio(input: {
+  return_on_equity: number | null;
+  plnpat: number | null;
+  bsqpuc: number | null;
+}): number | null {
+  if (isFinitePresent(input.return_on_equity)) {
+    return input.return_on_equity / 100;
+  }
+  return computeReturnOnEquity(input.plnpat ?? 0, input.bsqpuc ?? 0);
+}
+
+/**
+ * Application Financial Summary current ratio.
+ * Prefer CTOS flat `currat` when present; else recompute with missing→0.
+ */
+export function resolveApplicationFinancialCurrentRatio(input: {
+  currat: number | null;
+  bscatot: number | null;
+  curlib: number | null;
+}): number | null {
+  if (isFinitePresent(input.currat)) {
+    return input.currat;
+  }
+  return computeCurrentRatio(input.bscatot ?? 0, input.curlib ?? 0);
+}
+
 /**
  * Working capital: current assets minus current liabilities (uses zero when a side is missing).
  */

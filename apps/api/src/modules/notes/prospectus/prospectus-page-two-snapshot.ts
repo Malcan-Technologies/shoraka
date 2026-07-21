@@ -31,6 +31,9 @@ const RAW_KEYS = [
   "bsclstd",
   "totass",
   "totlib",
+  "profit_margin",
+  "return_on_equity",
+  "currat",
 ] as const;
 
 function serializeRawField(value: unknown): string | number | null {
@@ -58,6 +61,9 @@ function pickRawFinancials(raw: Record<string, unknown>): ProspectusPage2Financi
     bsclstd: serializeRawField(raw.bsclstd),
     totass: serializeRawField(raw.totass),
     totlib: serializeRawField(raw.totlib),
+    profit_margin: serializeRawField(raw.profit_margin),
+    return_on_equity: serializeRawField(raw.return_on_equity),
+    currat: serializeRawField(raw.currat),
   };
 }
 

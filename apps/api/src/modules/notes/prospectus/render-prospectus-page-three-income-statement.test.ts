@@ -246,7 +246,7 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
     expect(row(invalid, "profit_after_tax")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("reuses calculateProfitMargin and matches Page 2 for identical inputs", () => {
+  it("reuses resolveApplicationFinancialProfitMarginRatio and matches Page 2 for identical inputs", () => {
     const source = SAMPLE_PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_SOURCE;
     const page3 = buildProspectusPageThreeIncomeStatement({ financialSource: source });
     const page2 = buildProspectusFinancialComparisonMetrics({ source });
@@ -272,6 +272,12 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
       PROSPECTUS_DATA_NOT_AVAILABLE
     );
 
+    // Application coerces missing PAT → 0 when recomputing; Prospectus must match.
+    const missingPat = buildProspectusPageThreeIncomeStatement({
+      financialSource: sourceFromYears({ "2024": { turnover: 100 } }),
+    });
+    expect(row(missingPat, "net_profit_margin")?.values[0]).toBe("0%");
+
     const zeroRevenue = buildProspectusPageThreeIncomeStatement({
       financialSource: sourceFromYears({ "2024": { turnover: 0, plnpat: 10 } }),
     });
@@ -290,7 +296,7 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
       join(__dirname, "prospectus-page-three-income-statement.ts"),
       "utf8"
     );
-    expect(moduleSource).toMatch(/calculateProfitMargin/);
+    expect(moduleSource).toMatch(/resolveApplicationFinancialProfitMarginRatio/);
     expect(moduleSource).not.toMatch(/plnpat\s*\/\s*turnover/);
   });
 

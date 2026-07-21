@@ -60,6 +60,18 @@ export interface ProspectusPage2FinancialRawSnapshot {
   totass: string | number | null;
   /** Flat CTOS / reported Total Liabilities — preferred when present (Application Financial Summary). */
   totlib: string | number | null;
+  /**
+   * Flat CTOS profit margin — percent points (e.g. 12.6 = 12.6%).
+   * Preferred over recompute when present (Application Financial Summary).
+   */
+  profit_margin: string | number | null;
+  /**
+   * Flat CTOS return on equity — percent points.
+   * Preferred over recompute when present (Application Financial Summary).
+   */
+  return_on_equity: string | number | null;
+  /** Flat CTOS current ratio — plain multiple. Preferred when present. */
+  currat: string | number | null;
 }
 
 export interface ProspectusPage2FinancialYearSnapshot {

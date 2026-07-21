@@ -3,7 +3,9 @@
  * WHY: Reuse Page 2 years + MYR-millions display formatter; store full MYR
  */
 
-import { calculateProfitMargin } from "@cashsouk/types";
+import {
+  resolveApplicationFinancialProfitMarginRatio,
+} from "@cashsouk/types";
 import {
   formatProspectusFinancialPercentFromRatio,
   formatProspectusMyrMillions,
@@ -55,11 +57,12 @@ function valueForRow(
     case "profit_after_tax":
       return moneyMillionsOrDna(fieldFromRaw(raw, "plnpat"));
     case "net_profit_margin": {
-      const plnpat = fieldFromRaw(raw, "plnpat");
-      const turnover = fieldFromRaw(raw, "turnover");
-      if (plnpat == null || turnover == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
       return formatProspectusFinancialPercentFromRatio(
-        calculateProfitMargin(plnpat, turnover)
+        resolveApplicationFinancialProfitMarginRatio({
+          profit_margin: fieldFromRaw(raw, "profit_margin"),
+          plnpat: fieldFromRaw(raw, "plnpat"),
+          turnover: fieldFromRaw(raw, "turnover"),
+        })
       );
     }
     default: {

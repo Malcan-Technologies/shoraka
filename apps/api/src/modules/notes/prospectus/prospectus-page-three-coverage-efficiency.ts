@@ -3,7 +3,7 @@
  * WHY: ROE via shared helper matching Page 2; all other Canva rows stay DNA; no trends
  */
 
-import { calculateReturnOnEquity } from "@cashsouk/types";
+import { resolveApplicationFinancialReturnOnEquityRatio } from "@cashsouk/types";
 import {
   formatProspectusFinancialPercentFromRatio,
   parseProspectusFinancialNumber,
@@ -14,7 +14,6 @@ import {
   yearManualInputs,
 } from "./prospectus-financial-manual-inputs";
 import {
-  PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_AUDIT,
   PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_ROW_KEYS,
   PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_ROW_LABELS,
@@ -57,11 +56,12 @@ function valueForRow(
     case "asset_turnover":
       return formatManualRatioOrDna(manual?.assetTurnover);
     case "return_on_equity": {
-      const plnpat = fieldFromRaw(raw, "plnpat");
-      const bsqpuc = fieldFromRaw(raw, "bsqpuc");
-      if (plnpat == null || bsqpuc == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
       return formatProspectusFinancialPercentFromRatio(
-        calculateReturnOnEquity(plnpat, bsqpuc)
+        resolveApplicationFinancialReturnOnEquityRatio({
+          return_on_equity: fieldFromRaw(raw, "return_on_equity"),
+          plnpat: fieldFromRaw(raw, "plnpat"),
+          bsqpuc: fieldFromRaw(raw, "bsqpuc"),
+        })
       );
     }
     default: {

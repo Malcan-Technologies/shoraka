@@ -344,7 +344,7 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
     expect(moduleSource).not.toMatch(/curlib\s*\+\s*bsslltd/);
   });
 
-  it("reuses calculateCurrentRatio and matches Page 2", () => {
+  it("reuses resolveApplicationFinancialCurrentRatio and matches Page 2", () => {
     const source = SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_SOURCE;
     const page3 = buildProspectusPageThreeBalanceSheet({ financialSource: source });
     const page2 = buildProspectusFinancialComparisonMetrics({ source });
@@ -364,7 +364,7 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
       join(__dirname, "prospectus-page-three-balance-sheet.ts"),
       "utf8"
     );
-    expect(moduleSource).toMatch(/calculateCurrentRatio/);
+    expect(moduleSource).toMatch(/resolveApplicationFinancialCurrentRatio/);
     expect(moduleSource).not.toMatch(/bscatot\s*\/\s*curlib/);
   });
 

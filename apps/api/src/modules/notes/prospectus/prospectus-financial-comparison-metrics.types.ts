@@ -59,17 +59,17 @@ export interface ProspectusFinancialComparisonMetricsAudit {
     formulasUseFullMyr: true;
   };
   netProfitMargin: {
-    helper: "calculateProfitMargin";
+    helper: "resolveApplicationFinancialProfitMarginRatio";
     formulaOwnedBySharedHelper: true;
     isCalculated: true;
   };
   roe: {
-    helper: "calculateReturnOnEquity";
+    helper: "resolveApplicationFinancialReturnOnEquityRatio";
     formulaOwnedBySharedHelper: true;
     isCalculated: true;
   };
   currentRatio: {
-    helper: "calculateCurrentRatio";
+    helper: "resolveApplicationFinancialCurrentRatio";
     formulaOwnedBySharedHelper: true;
     isCalculated: true;
   };
@@ -124,17 +124,17 @@ export const PROSPECTUS_FINANCIAL_COMPARISON_METRICS_AUDIT: ProspectusFinancialC
       formulasUseFullMyr: true,
     },
     netProfitMargin: {
-      helper: "calculateProfitMargin",
+      helper: "resolveApplicationFinancialProfitMarginRatio",
       formulaOwnedBySharedHelper: true,
       isCalculated: true,
     },
     roe: {
-      helper: "calculateReturnOnEquity",
+      helper: "resolveApplicationFinancialReturnOnEquityRatio",
       formulaOwnedBySharedHelper: true,
       isCalculated: true,
     },
     currentRatio: {
-      helper: "calculateCurrentRatio",
+      helper: "resolveApplicationFinancialCurrentRatio",
       formulaOwnedBySharedHelper: true,
       isCalculated: true,
     },

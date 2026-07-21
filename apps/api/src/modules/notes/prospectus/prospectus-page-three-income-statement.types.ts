@@ -98,7 +98,7 @@ export interface ProspectusPageThreeIncomeStatementAudit {
     storageUnit: "full_myr";
   };
   netProfitMargin: {
-    calculator: "calculateProfitMargin";
+    calculator: "resolveApplicationFinancialProfitMarginRatio";
     sharedWithPageTwo: true;
   };
   snapshot: {
@@ -156,7 +156,7 @@ export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_AUDIT: ProspectusPageThreeIn
       storageUnit: "full_myr",
     },
     netProfitMargin: {
-      calculator: "calculateProfitMargin",
+      calculator: "resolveApplicationFinancialProfitMarginRatio",
       sharedWithPageTwo: true,
     },
     snapshot: {
@@ -274,10 +274,12 @@ export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_FIELD_SOURCES: Record<
   },
   net_profit_margin: {
     label: "Net Profit Margin",
-    canonicalSource: "calculateProfitMargin(plnpat, turnover)",
+    canonicalSource:
+      "resolveApplicationFinancialProfitMarginRatio(profit_margin | plnpat/turnover)",
     availability: "calculated",
     surface: "canva",
     possibleAlternatives: "Local duplicate formula — not used",
-    notes: "Same helper + percent formatter as Page 2 Stage 4B.",
+    notes:
+      "Same Application-aligned resolver as Page 2 (CTOS flat percent preferred, else recompute).",
   },
 };
