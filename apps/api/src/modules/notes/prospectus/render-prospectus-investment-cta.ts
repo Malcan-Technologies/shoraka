@@ -31,7 +31,7 @@ export function buildProspectusInvestmentCtaDocument(
 </head>
 <body>
   <h1>Prospectus Page 2 — DATA STAGE 8: CTA and Shared Header</h1>
-  <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
+  <p>Static CTA preview. Live invest controls remain on the investor marketplace.</p>
   ${buildProspectusHeaderHtml(header)}
   ${buildProspectusInvestmentCtaHtml(cta)}
 </body>

@@ -318,15 +318,12 @@
  * - Shariah badge unresolved (Data not available)
  * - No inference from -i product names, Tawarruq, or Shoraka
  *
- * CTA:
+ * CTA (static frozen content only):
  * - Heading static: INVEST WITH CONFIDENCE
- * - Paragraph unresolved (Data not available)
- * - Button label static: INVEST NOW
- * - Destination: confirmed investor route /investments/{notes.id}
- * - Auth required in investor portal; URL alone does not prove investability
- * - Investability: Page 2 mapper uses computeMarketplaceCommitBounds(target, funded)
  * - Minimum investment: MARKETPLACE_MIN_COMMIT_MYR via formatProspectusMoneyMyr
- * - Display: Minimum investment: RM 100.00 (full money; not Canva RM 100)
+ * - Display: Minimum investment: RM 100.00 (platform floor; not capacity-adjusted)
+ * - No paragraph DNA, INVEST NOW button, route, available amount, or acknowledgement
+ * - Live investability / invest controls remain on investor marketplace
  * - No attractive / short-term / Shariah-compliant investment claims
  *
  * No prospectus shared footer. No Investment Risk Warning / Product Terms block.
@@ -377,8 +374,7 @@
  * - Unpublished → live Application → Stage 4A → Stage 4B
  * - Published missing/malformed page_2 → empty Stage 4 (no live fallback; no repair)
  *
- * Investability: computeMarketplaceCommitBounds(target, funded).investable
- * CTA href /investments/{note.id} only when investable; else disabled button
+ * CTA: static heading + platform minimum only (no live capacity / routes)
  *
  * Assembly order:
  * header → Stage 1 → 2 → 3 → 4B financial table → 5 → 6 → 7 → CTA

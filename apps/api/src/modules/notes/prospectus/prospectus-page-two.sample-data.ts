@@ -103,8 +103,6 @@ export const SAMPLE_PROSPECTUS_PAGE_TWO_INPUT: ProspectusPageTwoBuilderInput = {
   liveFinancialStatements: null,
   liveCtosFinancials: null,
   frozenFinancialComparison: SAMPLE_FROZEN_FINANCIALS,
-  targetAmount: 500000,
-  fundedAmount: 0,
   publicationContent: PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
 };
 

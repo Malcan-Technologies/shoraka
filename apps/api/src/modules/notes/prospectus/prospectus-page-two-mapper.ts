@@ -3,8 +3,6 @@
  * WHY: Prefer frozen Stage 4 snapshot when published; never live-fallback published
  */
 
-import { Prisma } from "@prisma/client";
-import { computeMarketplaceCommitBounds } from "@cashsouk/types";
 import { buildProspectusCreditInsights } from "./prospectus-credit-insights";
 import { buildProspectusFinancialComparisonMetrics } from "./prospectus-financial-comparison-metrics";
 import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
@@ -56,19 +54,7 @@ export type ProspectusPageTwoBuilderInput = {
    * Prisma Note mapping must leave this undefined.
    */
   publicationContent?: import("./prospectus-placeholder-publication-content").ProspectusPublicationContent;
-  targetAmount: number;
-  fundedAmount: number;
 };
-
-function toFiniteNumber(value: unknown): number {
-  if (value instanceof Prisma.Decimal) return value.toNumber();
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() !== "") {
-    const parsed = Number(value.replace(/,/g, ""));
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-  return 0;
-}
 
 function emptyFinancialComparisonSource(): ProspectusFinancialComparisonSource {
   return {
@@ -191,8 +177,6 @@ export function mapProspectusPageTwoDataToInput(
     publicationContent: isPublished
       ? publicationContentFromFrozenSnapshot(note.prospectus_snapshot)
       : undefined,
-    targetAmount: toFiniteNumber(note.target_amount),
-    fundedAmount: toFiniteNumber(note.funded_amount),
   };
 }
 
@@ -204,11 +188,6 @@ export function buildProspectusPageTwo(
     source: financialComparisonSource,
     officerOverrides: input.publicationContent?.financialComparison?.overrides ?? null,
   });
-
-  const { investable } = computeMarketplaceCommitBounds(
-    input.targetAmount,
-    input.fundedAmount
-  );
 
   return {
     header: buildProspectusHeader(),
@@ -238,9 +217,7 @@ export function buildProspectusPageTwo(
     soukscoreRatingScale: buildProspectusSoukscoreRatingScale({
       selectedRiskRating: parseInvoiceSnapshotRiskRating(input.invoiceSnapshot),
     }),
-    investmentCta: buildProspectusInvestmentCta({
-      noteId: investable ? input.noteId : null,
-    }),
+    investmentCta: buildProspectusInvestmentCta(),
     meta: {
       noteId: input.noteId,
       noteReference: input.noteReference,

@@ -1,7 +1,7 @@
 /**
- * SECTION: Investor Note investment path for prospectus CTA
+ * SECTION: Investor Note investment path helper
  * WHY: Match current investor app links: /investments/{note.id}
- * WHERE USED: Page 2 Stage 8 CTA; future Page 2 mapper
+ * WHERE USED: Shared route validation utilities (not frozen Prospectus CTA HTML)
  */
 
 /** Path prefix confirmed in apps/investor note detail / marketplace links. */

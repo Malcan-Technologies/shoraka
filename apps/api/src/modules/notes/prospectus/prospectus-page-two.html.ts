@@ -3,8 +3,9 @@
  * WHY: One A4 document; Stage 1–8 Canva-facing sections; no audit/Prisma IDs/source paths
  */
 
-import { escapeHtml, escapeHtmlAttribute } from "./prospectus-html";
+import { escapeHtml } from "./prospectus-html";
 import { buildProspectusHeaderHtml } from "./prospectus-header.html";
+import { buildProspectusInvestmentCtaHtml } from "./prospectus-investment-cta.html";
 import type { ProspectusPageTwo } from "./prospectus-page-two.types";
 import {
   PROSPECTUS_PAGE_TWO_HEIGHT_MM,
@@ -68,22 +69,7 @@ function renderSoukscoreScale(page: ProspectusPageTwo): string {
 }
 
 function renderCta(page: ProspectusPageTwo): string {
-  const data = page.investmentCta;
-  const buttonHtml =
-    data.isButtonEnabled && data.buttonHref
-      ? `<a class="cta-button" href="${escapeHtmlAttribute(data.buttonHref)}">${escapeHtml(
-          data.buttonLabel
-        )}</a>`
-      : `<button type="button" class="cta-button" disabled aria-disabled="true">${escapeHtml(
-          data.buttonLabel
-        )}</button>`;
-
-  return `<section class="prospectus-investment-cta" data-stage="8-cta">
-  <h2>${escapeHtml(data.sectionHeading)}</h2>
-  <p>CTA Paragraph: ${escapeHtml(data.paragraph)}</p>
-  <p class="cta-action">${buttonHtml}</p>
-  <p>Minimum Investment Statement: ${escapeHtml(data.minimumInvestmentStatement)}</p>
-</section>`;
+  return buildProspectusInvestmentCtaHtml(page.investmentCta);
 }
 
 /**
@@ -157,7 +143,7 @@ export function buildProspectusPageTwoHtml(page: ProspectusPageTwo): string {
       background: #f3f3f3;
     }
     .soukscore-missing { margin: 6px 0 0; }
-    .cta-button { display: inline-block; margin-top: 4px; }
+    .cta-minimum { margin: 0; }
     .issuer-profile-body {
       display: flex;
       align-items: flex-start;

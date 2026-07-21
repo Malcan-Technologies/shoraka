@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { NoteStatus } from "@prisma/client";
-import { computeMarketplaceCommitBounds, MARKETPLACE_MIN_COMMIT_MYR } from "@cashsouk/types";
+import { MARKETPLACE_MIN_COMMIT_MYR } from "@cashsouk/types";
 import { AppError } from "../../../lib/http/error-handler";
 import { formatProspectusMoneyMyr } from "./prospectus-main-financial-terms";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
@@ -659,10 +659,8 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
     });
   });
 
-  describe("investability and CTA", () => {
-    it("reuses computeMarketplaceCommitBounds for enabled vs disabled CTA", () => {
-      const investable = computeMarketplaceCommitBounds(500_000, 0).investable;
-      expect(investable).toBe(true);
+  describe("static Investment CTA", () => {
+    it("keeps the same static CTA regardless of funded amount or remaining capacity", () => {
       const open = buildProspectusPageTwo(
         mapProspectusPageTwoDataToInput({
           note: baseNote({ target_amount: 500_000, funded_amount: 0 }),
@@ -670,9 +668,6 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
           liveCtosFinancials,
         })
       );
-      expect(open.investmentCta.isButtonEnabled).toBe(true);
-      expect(open.investmentCta.buttonHref).toBe("/investments/clsamplepage2note0001");
-
       const closed = buildProspectusPageTwo(
         mapProspectusPageTwoDataToInput({
           note: baseNote({ target_amount: 500_000, funded_amount: 500_000 }),
@@ -680,9 +675,25 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
           liveCtosFinancials,
         })
       );
-      expect(computeMarketplaceCommitBounds(500_000, 500_000).investable).toBe(false);
-      expect(closed.investmentCta.isButtonEnabled).toBe(false);
-      expect(closed.investmentCta.buttonHref).toBeNull();
+
+      expect(open.investmentCta).toEqual(closed.investmentCta);
+      expect(open.investmentCta.sectionHeading).toBe("INVEST WITH CONFIDENCE");
+      expect(open.investmentCta.minimumInvestmentStatement).toBe(
+        `Minimum investment: ${formatProspectusMoneyMyr(MARKETPLACE_MIN_COMMIT_MYR)}`
+      );
+      expect(open.investmentCta).not.toHaveProperty("buttonHref");
+      expect(open.investmentCta).not.toHaveProperty("isButtonEnabled");
+      expect(open.investmentCta.audit.liveInvestabilityUsed).toBe(false);
+
+      const html = renderProspectusPageTwoHtml(open);
+      const stageCta = html.slice(html.indexOf('data-stage="8-cta"'));
+      expect(stageCta).toContain("INVEST WITH CONFIDENCE");
+      expect(stageCta).toContain("Minimum investment: RM 100.00");
+      expect(stageCta).not.toContain("INVEST NOW");
+      expect(stageCta).not.toContain("CTA Paragraph");
+      expect(stageCta).not.toContain("/investments/");
+      expect(stageCta).not.toContain("<a ");
+      expect(stageCta).not.toContain("<button");
     });
   });
 
@@ -742,7 +753,10 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(html).not.toContain('href="#"');
       expect(html).not.toContain("javascript:");
       expect(html).not.toContain(`Note ID: ${page.meta.noteId}`);
-      expect(html).toContain(`href="/investments/${page.meta.noteId}"`);
+      expect(html).not.toContain(`href="/investments/${page.meta.noteId}"`);
+      expect(html).not.toContain("INVEST NOW");
+      expect(html).toContain("INVEST WITH CONFIDENCE");
+      expect(html).toContain("Minimum investment: RM 100.00");
     });
 
     it("reconstructs frozen Stage 4A without live year reselection", () => {
@@ -809,9 +823,11 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
     });
   });
 
-  it("does not hardcode minimum investment amount in the mapper", () => {
+  it("does not wire live investability or routes into the Page 2 mapper", () => {
     const source = readFileSync(join(__dirname, "prospectus-page-two-mapper.ts"), "utf8");
-    expect(source).toContain("computeMarketplaceCommitBounds");
+    expect(source).toContain("buildProspectusInvestmentCta()");
+    expect(source).not.toContain("computeMarketplaceCommitBounds");
+    expect(source).not.toContain("buildProspectusInvestorNoteInvestmentPath");
     expect(source).not.toMatch(/formatProspectusMoneyMyr\(\s*100\s*\)/);
   });
 });
