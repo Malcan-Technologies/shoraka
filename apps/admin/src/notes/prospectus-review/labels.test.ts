@@ -137,10 +137,10 @@ describe("prospectus review completion checklist", () => {
     draft.page3.investorTakeaways = {
       revenueProfitabilityOptionKey: "steady_growth",
       liquidityOptionKey: "do_not_display",
-      leverageOptionKey: "moderate",
-      debtServicingCapacityOptionKey: "adequate_stable",
+      leverageOptionKey: "conservative_improving",
+      debtServicingCapacityOptionKey: "adequate_improving",
       receivablesCollectionOptionKey: "improving",
-      overallFinancialProfileOptionKey: "satisfactory",
+      overallFinancialProfileOptionKey: "strengthening",
     };
 
     const checklist = buildProspectusCompletionChecklist(draft);

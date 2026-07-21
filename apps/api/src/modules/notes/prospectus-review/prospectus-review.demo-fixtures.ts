@@ -173,11 +173,11 @@ export function buildCompleteProspectusReviewDraft(): ProspectusReviewStoredCont
   };
   draft.page3.investorTakeaways = {
     revenueProfitabilityOptionKey: "steady_growth",
-    liquidityOptionKey: "do_not_display",
-    leverageOptionKey: "moderate",
-    debtServicingCapacityOptionKey: "adequate_stable",
+    liquidityOptionKey: "healthy_improving",
+    leverageOptionKey: "conservative_improving",
+    debtServicingCapacityOptionKey: "adequate_improving",
     receivablesCollectionOptionKey: "improving",
-    overallFinancialProfileOptionKey: "satisfactory",
+    overallFinancialProfileOptionKey: "strengthening",
   };
   return draft;
 }

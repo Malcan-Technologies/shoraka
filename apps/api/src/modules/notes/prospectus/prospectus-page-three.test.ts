@@ -428,7 +428,8 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(page.investorTakeaways.items[0]?.takeaway).toContain(
         "steady year-on-year growth"
       );
-      expect(page.investorTakeaways.omittedKeys).toContain("leverage");
+      expect(page.investorTakeaways.omittedKeys).toEqual([]);
+      expect(page.investorTakeaways.sectionHeading).toBe("4. INVESTOR TAKEAWAYS");
 
       const prismaPath = buildProspectusPageThree(
         mapProspectusPageThreeDataToInput({
@@ -559,7 +560,9 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(html).not.toContain("unaudited_by_year");
       expect(html).not.toContain("page_2_financial_comparison_source");
       expect(html).not.toMatch(/CTOS|CCRIS|RegTank|AML|KYC/);
-      expect(html).not.toMatch(/steady growth|healthy liquidity|strengthening fundamentals/i);
+      expect(html).toContain("steady year-on-year growth");
+      expect(html).toContain("strengthening fundamentals");
+      expect(html).not.toMatch(/strong investment case|recommended investment|low risk/i);
       expect(html).not.toMatch(/[↑↓▲▼]/);
       expect(html).not.toContain("calculateGearing");
       expect(html).not.toContain("Cash & Bank</th><td>RM");

@@ -248,11 +248,11 @@ export const PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT: ProspectusPublicationCo
   ) as ProspectusPublicationContent["investorTakeawayOptions"],
   investorTakeawaySelections: {
     revenue_profitability: "steady_growth",
-    liquidity: "healthy_stable",
-    leverage: "do_not_display",
-    debt_servicing_capacity: "adequate_stable",
+    liquidity: "healthy_improving",
+    leverage: "conservative_improving",
+    debt_servicing_capacity: "adequate_improving",
     receivables_collection: "improving",
-    overall_financial_profile: "satisfactory",
+    overall_financial_profile: "strengthening",
   },
   prospectusFinancialInputs: {
     years: {

@@ -49,11 +49,11 @@ const AUTO_GENERATED_PROHIBITED = [
 ];
 
 describe("prospectus Page 3 investor takeaways (DATA STAGE 6)", () => {
-  it("uses static INVESTOR TAKEAWAYS heading with exactly six ordered items", () => {
+  it("uses static 4. INVESTOR TAKEAWAYS heading with exactly six ordered items", () => {
     const data = buildProspectusPageThreeInvestorTakeaways(
       SAMPLE_PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAYS_INPUT
     );
-    expect(data.sectionHeading).toBe("INVESTOR TAKEAWAYS");
+    expect(data.sectionHeading).toBe("4. INVESTOR TAKEAWAYS");
     expect(data.sectionHeading).toBe(
       PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAYS_SECTION_HEADING
     );
@@ -91,6 +91,29 @@ describe("prospectus Page 3 investor takeaways (DATA STAGE 6)", () => {
     const { PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT } = await import(
       "./prospectus-placeholder-publication-content"
     );
+    const selections = {
+      ...PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT.investorTakeawaySelections,
+      leverage: "do_not_display",
+    };
+    const data = buildProspectusPageThreeInvestorTakeaways({
+      ...SAMPLE_PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAYS_INPUT,
+      investorTakeawayOptions:
+        PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT.investorTakeawayOptions,
+      investorTakeawaySelections: selections,
+    });
+    expect(data.items[0]?.takeaway).toContain("steady year-on-year growth");
+    expect(data.omittedKeys).toContain("leverage");
+    const html = buildProspectusPageThreeInvestorTakeawaysDocument(data);
+    expect(html).toContain("steady year-on-year growth");
+    expect(html).not.toContain(">Leverage<");
+    expect(html).not.toContain("do_not_display");
+    expect(html).not.toContain("conservative_improving");
+  });
+
+  it("renders all six demo catalogue descriptions in fixed order", async () => {
+    const { PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT } = await import(
+      "./prospectus-placeholder-publication-content"
+    );
     const data = buildProspectusPageThreeInvestorTakeaways({
       ...SAMPLE_PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAYS_INPUT,
       investorTakeawayOptions:
@@ -98,13 +121,43 @@ describe("prospectus Page 3 investor takeaways (DATA STAGE 6)", () => {
       investorTakeawaySelections:
         PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT.investorTakeawaySelections,
     });
-    expect(data.items[0]?.takeaway).toContain(
-      "steady year-on-year growth"
+    expect(data.omittedKeys).toEqual([]);
+    expect(data.items.map((i) => i.takeaway)).toEqual([
+      "Revenue and profitability have shown steady year-on-year growth.",
+      "Liquidity remains healthy, with current and quick ratios improving over time.",
+      "Leverage is conservative and trending downward, supporting a stronger balance sheet.",
+      "Debt servicing capacity appears adequate, with improving DSCR and strong interest coverage.",
+      "Receivables collection days have improved, indicating better working capital management.",
+      "Overall financial profile suggests strengthening fundamentals over the observed period.",
+    ]);
+  });
+
+  it("preserves visible category order after omitting a middle row", async () => {
+    const { PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT } = await import(
+      "./prospectus-placeholder-publication-content"
     );
-    expect(data.omittedKeys).toContain("leverage");
+    const data = buildProspectusPageThreeInvestorTakeaways({
+      ...SAMPLE_PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAYS_INPUT,
+      investorTakeawayOptions:
+        PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT.investorTakeawayOptions,
+      investorTakeawaySelections: {
+        revenue_profitability: "steady_growth",
+        liquidity: "do_not_display",
+        leverage: "conservative_improving",
+        debt_servicing_capacity: "do_not_display",
+        receivables_collection: "improving",
+        overall_financial_profile: "strengthening",
+      },
+    });
     const html = buildProspectusPageThreeInvestorTakeawaysDocument(data);
-    expect(html).toContain("steady year-on-year growth");
-    expect(html).not.toContain(">Leverage<");
+    const revenueIdx = html.indexOf("Revenue &amp; Profitability");
+    const leverageIdx = html.indexOf(">Leverage<");
+    const receivablesIdx = html.indexOf("Receivables Collection");
+    expect(revenueIdx).toBeGreaterThan(-1);
+    expect(leverageIdx).toBeGreaterThan(revenueIdx);
+    expect(receivablesIdx).toBeGreaterThan(leverageIdx);
+    expect(html).not.toContain(">Liquidity<");
+    expect(html).not.toContain("Debt Servicing Capacity");
   });
 
   it("does not generate claims from positive, negative, zero, or mixed financial cases", () => {
@@ -218,7 +271,7 @@ describe("prospectus Page 3 investor takeaways (DATA STAGE 6)", () => {
       SAMPLE_PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAYS_INPUT
     );
     const html = buildProspectusPageThreeInvestorTakeawaysDocument(data);
-    expect(html).toContain("INVESTOR TAKEAWAYS");
+    expect(html).toContain("4. INVESTOR TAKEAWAYS");
     expect(html).toContain("Data not available");
     expect(html).not.toContain("page_3.investor_takeaways");
     expect(html).not.toContain("generatedTextAllowed");

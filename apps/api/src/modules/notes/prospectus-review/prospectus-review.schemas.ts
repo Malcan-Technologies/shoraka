@@ -537,16 +537,20 @@ export function validateApprovalContent(
     }
   }
 
-  for (const field of [
-    "revenueProfitabilityOptionKey",
-    "liquidityOptionKey",
-    "leverageOptionKey",
-    "debtServicingCapacityOptionKey",
-    "receivablesCollectionOptionKey",
-    "overallFinancialProfileOptionKey",
-  ] as const) {
+  const takeawayApprovalFields = [
+    ["revenueProfitabilityOptionKey", "Revenue & Profitability"],
+    ["liquidityOptionKey", "Liquidity"],
+    ["leverageOptionKey", "Leverage"],
+    ["debtServicingCapacityOptionKey", "Debt Servicing Capacity"],
+    ["receivablesCollectionOptionKey", "Receivables Collection"],
+    ["overallFinancialProfileOptionKey", "Overall Financial Profile"],
+  ] as const;
+  for (const [field, label] of takeawayApprovalFields) {
     if (!content.page3.investorTakeaways[field]) {
-      errors.push({ path: `page3.investorTakeaways.${field}`, message: "Selection required" });
+      errors.push({
+        path: `page3.investorTakeaways.${field}`,
+        message: `${label} takeaway selection is required before approving the Prospectus.`,
+      });
     }
   }
 

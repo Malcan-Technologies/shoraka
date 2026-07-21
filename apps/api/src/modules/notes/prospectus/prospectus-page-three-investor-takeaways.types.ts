@@ -14,7 +14,7 @@ export { PROSPECTUS_DATA_NOT_AVAILABLE };
 
 /** Static Canva section title — not a database field. */
 export const PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAYS_SECTION_HEADING =
-  "INVESTOR TAKEAWAYS";
+  "4. INVESTOR TAKEAWAYS";
 
 export const PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAY_KEYS = [
   "revenue_profitability",
@@ -174,7 +174,7 @@ export const PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAYS_FIELD_SOURCES: Record<
     availability: "static",
     surface: "canva",
     possibleAlternatives: "none",
-    notes: "INVESTOR TAKEAWAYS",
+    notes: "4. INVESTOR TAKEAWAYS",
   },
   revenue_profitability: {
     label: "Revenue & Profitability",

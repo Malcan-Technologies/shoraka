@@ -208,8 +208,10 @@ describe("prospectus boss-review alignment", () => {
         ...SAMPLE_PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAYS_INPUT,
         investorTakeawayOptions:
           PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT.investorTakeawayOptions,
-        investorTakeawaySelections:
-          PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT.investorTakeawaySelections,
+        investorTakeawaySelections: {
+          ...PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT.investorTakeawaySelections,
+          leverage: "do_not_display",
+        },
       });
       expect(data.items.map((i) => i.key)).toEqual([
         ...PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAY_KEYS,
