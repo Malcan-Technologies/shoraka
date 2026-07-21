@@ -519,6 +519,25 @@ export class ApplicationService {
   }
 
   /**
+   * Authorize access to application-scoped S3 objects (uploads, signing PDFs).
+   * Admins may access any application that exists; issuers need org membership.
+   */
+  async assertCanAccessApplicationDocuments(params: {
+    applicationId: string;
+    userId: string;
+    asAdmin?: boolean;
+  }): Promise<void> {
+    if (params.asAdmin) {
+      const application = await this.repository.findById(params.applicationId);
+      if (!application) {
+        throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+      }
+      return;
+    }
+    await this.verifyApplicationAccess(params.applicationId, params.userId);
+  }
+
+  /**
    * Create a new application
    */
   async createApplication(input: CreateApplicationInput): Promise<Application> {
@@ -1810,13 +1829,58 @@ export class ApplicationService {
   /**
    * Accept or reject a contract offer. Issuer must be a member of the application's organization.
    */
+  /**
+   * Phased offer products must complete via envelope (or non-prod skipSigning bypass).
+   * Prevents silent direct accept when SigningCloud env is missing/misconfigured.
+   */
+  private async assertPhasedOfferDirectAcceptBlocked(params: {
+    application: Application;
+    action: "accept" | "reject";
+    signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
+    allowDevSigningBypass?: boolean;
+    invoiceId?: string;
+  }): Promise<void> {
+    if (params.action !== "accept") return;
+    if (params.signingCompletion) return;
+    if (params.allowDevSigningBypass) return;
+
+    const workflow = await this.getProductWorkflowForApplication(params.application);
+    if (!workflowUsesOfferAcceptanceFlow(workflow)) return;
+
+    if (params.invoiceId) {
+      const invoice = await prisma.invoice.findFirst({
+        where: { id: params.invoiceId, application_id: params.application.id },
+        select: { contract_id: true },
+      });
+      if (invoice?.contract_id) {
+        const completed = await prisma.signingEnvelope.findFirst({
+          where: { contract_id: invoice.contract_id, status: "COMPLETED" },
+          select: { id: true },
+        });
+        if (completed) return;
+        throw new AppError(
+          400,
+          "CONTRACT_SIGNING_INCOMPLETE",
+          "Finish contract signing before accepting this invoice offer."
+        );
+      }
+    }
+
+    throw new AppError(
+      400,
+      "SIGNING_NOT_CONFIGURED",
+      "This offer must be completed through the signing package. Signing is not available — contact CashSouk."
+    );
+  }
+
   async respondToContractOffer(
     applicationId: string,
     action: "accept" | "reject",
     userId: string,
     rejectionReason?: string,
-    _options?: {
+    options?: {
       signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
+      allowDevSigningBypass?: boolean;
     }
   ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
@@ -1829,6 +1893,12 @@ export class ApplicationService {
     if (!application.contract_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no contract");
     }
+    await this.assertPhasedOfferDirectAcceptBlocked({
+      application,
+      action,
+      signingCompletion: options?.signingCompletion,
+      allowDevSigningBypass: options?.allowDevSigningBypass,
+    });
     const contractId = application.contract_id;
 
     const responseMeta = await prisma.$transaction(async (tx) => {
@@ -2114,8 +2184,9 @@ export class ApplicationService {
     action: "accept" | "reject",
     userId: string,
     rejectionReason?: string,
-    _options?: {
+    options?: {
       signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
+      allowDevSigningBypass?: boolean;
     }
   ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
@@ -2130,6 +2201,13 @@ export class ApplicationService {
     if (!invoice) {
       throw new AppError(404, "NOT_FOUND", "Invoice not found in this application");
     }
+    await this.assertPhasedOfferDirectAcceptBlocked({
+      application,
+      action,
+      signingCompletion: options?.signingCompletion,
+      allowDevSigningBypass: options?.allowDevSigningBypass,
+      invoiceId,
+    });
 
     const scopeKey = await this.resolveInvoiceReviewItemKeyById(
       applicationId,

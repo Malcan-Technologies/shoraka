@@ -78,8 +78,8 @@ type SigningProgressMatrixProps = {
   /** Tighter row padding for dense admin review. */
   compact?: boolean;
   viewDocumentPending?: boolean;
-  onViewSignedDocument?: (s3Key: string) => void;
-  onDownloadSignedDocument?: (s3Key: string, fileName?: string) => void;
+  onViewSignedDocument?: (documentId: string) => void;
+  onDownloadSignedDocument?: (documentId: string, fileName?: string) => void;
 };
 
 function recipientLabel(recipient: SigningRecipientDto, showEmail: boolean): string {
@@ -88,17 +88,17 @@ function recipientLabel(recipient: SigningRecipientDto, showEmail: boolean): str
 }
 
 function SignedDocumentActions({
-  s3Key,
+  documentId,
   fileName,
   pending,
   onView,
   onDownload,
 }: {
-  s3Key: string;
+  documentId: string;
   fileName: string;
   pending?: boolean;
-  onView?: (s3Key: string) => void;
-  onDownload?: (s3Key: string, fileName?: string) => void;
+  onView?: (documentId: string) => void;
+  onDownload?: (documentId: string, fileName?: string) => void;
 }) {
   if (!onView && !onDownload) return null;
 
@@ -111,7 +111,7 @@ function SignedDocumentActions({
           size="sm"
           className={SIGNED_DOC_ACTION_BTN_CLASS}
           disabled={pending}
-          onClick={() => onView(s3Key)}
+          onClick={() => onView(documentId)}
         >
           <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 shrink-0" />
           View
@@ -124,7 +124,7 @@ function SignedDocumentActions({
           size="sm"
           className={SIGNED_DOC_ACTION_BTN_CLASS}
           disabled={pending}
-          onClick={() => onDownload(s3Key, fileName)}
+          onClick={() => onDownload(documentId, fileName)}
         >
           <ArrowDownTrayIcon className="h-3.5 w-3.5 shrink-0" />
           Download
@@ -196,11 +196,10 @@ export function SigningProgressMatrix({
                 .filter((name): name is string => Boolean(name))
             ).size < assignments.length;
 
-          const signedS3Key = document.signed_s3_key?.trim() || null;
           const signedActions =
-            signedS3Key && (onViewSignedDocument || onDownloadSignedDocument) ? (
+            document.has_signed_pdf && (onViewSignedDocument || onDownloadSignedDocument) ? (
               <SignedDocumentActions
-                s3Key={signedS3Key}
+                documentId={document.id}
                 fileName={`${document.name}.pdf`}
                 pending={viewDocumentPending}
                 onView={onViewSignedDocument}

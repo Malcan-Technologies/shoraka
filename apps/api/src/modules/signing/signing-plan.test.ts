@@ -556,8 +556,8 @@ describe("buildEnvelopePlanFromTemplate", () => {
 describe("computeSigningEnvelopeProgress", () => {
   const envelope: Pick<SigningEnvelopeDto, "documents" | "recipients" | "assignments"> = {
     documents: [
-      { id: "d1", name: "Offer", description: null, source: "GENERATED_OFFER_LETTER", order: 0, required: true, status: "PENDING", signed_s3_key: null },
-      { id: "d2", name: "Guarantee", description: null, source: "TEMPLATE", order: 1, required: true, status: "PENDING", signed_s3_key: null },
+      { id: "d1", name: "Offer", description: null, source: "GENERATED_OFFER_LETTER", order: 0, required: true, status: "PENDING", has_signed_pdf: false },
+      { id: "d2", name: "Guarantee", description: null, source: "TEMPLATE", order: 1, required: true, status: "PENDING", has_signed_pdf: false },
     ],
     recipients: [
       { id: "r1", role_key: "issuer_director", role_label: "Director", name: "Ali", email: "a@co.my", routing_order: 0, status: "SIGNED", kyc_status: "VERIFIED", completed_at: null },
@@ -642,7 +642,7 @@ describe("findUnsignedSigningAssignmentForRecipient", () => {
         order: 0,
         required: true,
         status: "PENDING",
-        signed_s3_key: null,
+        has_signed_pdf: false,
       },
     ],
     recipients: [

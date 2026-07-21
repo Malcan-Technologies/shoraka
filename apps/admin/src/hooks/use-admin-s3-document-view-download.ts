@@ -16,7 +16,6 @@ export function useAdminS3DocumentViewDownload() {
 
   const handleViewDocument = React.useCallback(
     async (s3Key: string) => {
-      console.log("Admin opening S3 document in new tab, s3Key:", s3Key);
       try {
         setViewDocumentPending(true);
         const token = await getAccessToken();
@@ -45,7 +44,6 @@ export function useAdminS3DocumentViewDownload() {
 
   const handleDownloadDocument = React.useCallback(
     async (s3Key: string, fileName?: string) => {
-      console.log("Admin downloading S3 document, s3Key:", s3Key, "fileName:", fileName);
       try {
         setViewDocumentPending(true);
         const token = await getAccessToken();

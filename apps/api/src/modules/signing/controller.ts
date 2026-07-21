@@ -2,7 +2,8 @@
  * HTTP layer for signing envelopes.
  */
 import { Request, Response, NextFunction, Router } from "express";
-import { requireAuth } from "../../lib/auth/middleware";
+import { z } from "zod";
+import { requireAuth, requirePermission } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { signingService } from "./service";
 import {
@@ -13,6 +14,15 @@ import {
   verifyExternalAccessCodeSchema,
   recipientEkycSessionSchema,
 } from "./schemas";
+
+const signedDocumentParamsSchema = z.object({
+  applicationId: z.string().cuid(),
+  documentId: z.string().cuid(),
+});
+
+const signedDocumentQuerySchema = z.object({
+  disposition: z.enum(["inline", "attachment"]).default("inline"),
+});
 
 function getUserId(req: Request): string {
   if (!req.user?.user_id) {
@@ -216,6 +226,52 @@ async function syncEnvelopeFromProvider(req: Request, res: Response, next: NextF
   }
 }
 
+async function sendSignedDocument(
+  res: Response,
+  buffer: Buffer,
+  filename: string,
+  disposition: "inline" | "attachment"
+): Promise<void> {
+  const safeFilename = filename.replace(/"/g, "");
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `${disposition}; filename="${safeFilename}"`
+  );
+  res.send(buffer);
+}
+
+async function getAdminSignedDocument(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { applicationId, documentId } = signedDocumentParamsSchema.parse(req.params);
+    const { disposition } = signedDocumentQuerySchema.parse(req.query);
+    const { buffer, filename } = await signingService.getSignedDocumentBuffer({
+      applicationId,
+      documentId,
+      asAdmin: true,
+    });
+    await sendSignedDocument(res, buffer, filename, disposition);
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function getIssuerSignedDocument(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { applicationId, documentId } = signedDocumentParamsSchema.parse(req.params);
+    const { disposition } = signedDocumentQuerySchema.parse(req.query);
+    const { buffer, filename } = await signingService.getSignedDocumentBuffer({
+      applicationId,
+      documentId,
+      userId: getUserId(req),
+      asAdmin: false,
+    });
+    await sendSignedDocument(res, buffer, filename, disposition);
+  } catch (e) {
+    next(e);
+  }
+}
+
 export function createSigningAdminRouter(): Router {
   const router = Router();
   router.post("/envelopes/:id/void", voidEnvelope);
@@ -234,6 +290,11 @@ export function createSigningAdminRouter(): Router {
       next(e);
     }
   });
+  router.get(
+    "/applications/:applicationId/documents/:documentId/signed",
+    requirePermission("applications.view"),
+    getAdminSignedDocument
+  );
   return router;
 }
 
@@ -260,6 +321,11 @@ export function createSigningRouter(): Router {
     "/envelopes/:id/recipients/:recipientId/remind",
     requireAuth,
     remindRecipientForIssuer
+  );
+  router.get(
+    "/applications/:applicationId/documents/:documentId/signed",
+    requireAuth,
+    getIssuerSignedDocument
   );
   return router;
 }

@@ -2169,6 +2169,42 @@ export class ApiClient {
     );
   }
 
+  /** Admin: fetch a signed envelope document PDF (server resolves S3 key). */
+  async getAdminSignedSigningDocumentBlob(
+    applicationId: string,
+    documentId: string,
+    disposition: "inline" | "attachment" = "inline"
+  ): Promise<Blob> {
+    const url = `${this.baseUrl}/v1/admin/signing/applications/${applicationId}/documents/${documentId}/signed?disposition=${disposition}`;
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const response = await fetch(url, { method: "GET", credentials: "include", headers });
+    if (!response.ok) {
+      const msg = await this.parseErrorResponse(response);
+      throw new Error(msg);
+    }
+    return response.blob();
+  }
+
+  /** Issuer: fetch a signed envelope document PDF (server resolves S3 key). */
+  async getIssuerSignedSigningDocumentBlob(
+    applicationId: string,
+    documentId: string,
+    disposition: "inline" | "attachment" = "inline"
+  ): Promise<Blob> {
+    const url = `${this.baseUrl}/v1/signing/applications/${applicationId}/documents/${documentId}/signed?disposition=${disposition}`;
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const response = await fetch(url, { method: "GET", credentials: "include", headers });
+    if (!response.ok) {
+      const msg = await this.parseErrorResponse(response);
+      throw new Error(msg);
+    }
+    return response.blob();
+  }
+
   /** Issuer/admin: read a single envelope. */
   async getSigningEnvelope(
     envelopeId: string

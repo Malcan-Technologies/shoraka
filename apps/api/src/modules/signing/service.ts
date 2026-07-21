@@ -72,7 +72,39 @@ import {
 import { generateSigningAccessToken } from "./token";
 
 const EXTERNAL_ACCESS_TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+/** Trust-return from SigningCloud backUrl is only valid shortly after start-signing. */
+const TRUST_RETURN_SESSION_MAX_MS = 2 * 60 * 60 * 1000;
 const CLOSED_ENVELOPE_STATUSES = ["VOIDED", "DECLINED", "EXPIRED", "COMPLETED"] as const;
+
+type RecipientSigningSessionMeta = {
+  documentId: string;
+  startedAt: string;
+};
+
+function readRecipientSigningSession(metadata: unknown): RecipientSigningSessionMeta | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const session = (metadata as Record<string, unknown>).last_signing_session;
+  if (!session || typeof session !== "object") return null;
+  const documentId = (session as Record<string, unknown>).documentId;
+  const startedAt = (session as Record<string, unknown>).startedAt;
+  if (typeof documentId !== "string" || !documentId.trim()) return null;
+  if (typeof startedAt !== "string" || !startedAt.trim()) return null;
+  return { documentId: documentId.trim(), startedAt: startedAt.trim() };
+}
+
+function mergeRecipientSigningSession(
+  metadata: unknown,
+  session: RecipientSigningSessionMeta
+): Prisma.InputJsonValue {
+  const base =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? { ...(metadata as Record<string, unknown>) }
+      : {};
+  return {
+    ...base,
+    last_signing_session: session,
+  } as Prisma.InputJsonValue;
+}
 
 function buildExternalSigningUrl(accessToken: string): string | null {
   const issuerUrl = process.env.ISSUER_URL?.trim().replace(/\/$/, "");
@@ -781,6 +813,58 @@ export class SigningService {
     return this.listEnvelopesForApplication(applicationId);
   }
 
+  /**
+   * Resolve a signed PDF for an envelope document after authz.
+   * S3 keys stay server-side — clients pass documentId only.
+   */
+  async getSignedDocumentBuffer(input: {
+    applicationId: string;
+    documentId: string;
+    /** Issuer caller — required when asAdmin is false. */
+    userId?: string;
+    asAdmin?: boolean;
+  }): Promise<{ buffer: Buffer; filename: string }> {
+    if (!input.asAdmin) {
+      if (!input.userId) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+      const application = await this.requireApplicationContext(input.applicationId);
+      await this.assertIssuerApplicationAccess(application, input.userId);
+    } else {
+      await this.requireApplicationContext(input.applicationId);
+    }
+
+    const document = await prisma.signingDocument.findUnique({
+      where: { id: input.documentId },
+      select: {
+        id: true,
+        name: true,
+        signed_s3_key: true,
+        envelope: { select: { application_id: true } },
+      },
+    });
+    if (!document || document.envelope.application_id !== input.applicationId) {
+      throw new AppError(404, "SIGNING_DOCUMENT_NOT_FOUND", "Document not found.");
+    }
+
+    const key = document.signed_s3_key?.trim();
+    if (!key) {
+      throw new AppError(404, "SIGNED_DOCUMENT_NOT_FOUND", "Signed document is not available yet.");
+    }
+    const expectedPrefix = `applications/${input.applicationId}/`;
+    if (!key.startsWith(expectedPrefix)) {
+      logger.error(
+        { applicationId: input.applicationId, documentId: input.documentId },
+        "Signed document S3 key does not match application prefix"
+      );
+      throw new AppError(404, "SIGNED_DOCUMENT_NOT_FOUND", "Signed document is not available yet.");
+    }
+
+    const buffer = await getS3ObjectBuffer(key);
+    const safeName = document.name.replace(/[^\w.\- ]+/g, "").trim() || "signed-document";
+    return { buffer, filename: `${safeName}.pdf` };
+  }
+
   private async requireExternalTokenSession(accessToken: string): Promise<{
     envelope: SigningEnvelopeWithGraph;
     recipientId: string;
@@ -1295,12 +1379,22 @@ export class SigningService {
         "SigningCloud callUrl omitted: API_PUBLIC_URL / API_URL is not set"
       );
     }
-    return this.provider.startSignerSession({
+    const session = await this.provider.startSignerSession({
       providerRef: document.provider_contract_ref,
       signerEmail: recipient.email,
       redirectUrl: input.redirectUrl ?? null,
       callbackUrl,
     });
+    await prisma.signingRecipient.update({
+      where: { id: recipient.id },
+      data: {
+        metadata: mergeRecipientSigningSession(recipient.metadata, {
+          documentId: document.id,
+          startedAt: new Date().toISOString(),
+        }),
+      },
+    });
+    return session;
   }
 
   async startRecipientSigningForExternalToken(input: {
@@ -1319,8 +1413,9 @@ export class SigningService {
 
   /**
    * Signer returned from SigningCloud via backUrl: sync from Get Document Detail, then
-   * trust the return for this recipient if Detail still shows them pending (provider lag /
-   * parse miss). Webhook remains a best-effort backup for PDF storage.
+   * optionally trust the return when this recipient recently started signing this document
+   * (provider lag / parse miss). Requires the same IC + eKYC gate as start-signing.
+   * Webhook remains a best-effort backup for PDF storage.
    */
   async confirmRecipientSignedForExternalToken(input: {
     accessToken: string;
@@ -1340,9 +1435,7 @@ export class SigningService {
     ) {
       throw new AppError(410, "SIGNING_LINK_EXPIRED", "This signing link has expired.");
     }
-    if (!recipient.access_code_verified_at) {
-      throw new AppError(403, "ACCESS_CODE_REQUIRED", "Verify your IC number before confirming signing.");
-    }
+    await this.assertRecipientCanSign(recipient);
 
     const document = resolved.envelope.documents.find((d) => d.id === input.documentId);
     if (!document) {
@@ -1367,21 +1460,42 @@ export class SigningService {
       await this.syncEnvelopeFromProvider(resolved.envelope.id);
     }
 
-    // Detail sync can miss (empty addressee, lag, field-name drift). Returning from
-    // SigningCloud after start-signing is still a strong signal for THIS recipient.
     const afterSync = await this.requireEnvelope(resolved.envelope.id);
     const syncedAssignment = afterSync.assignments.find((item) => item.id === assignment.id);
-    if (syncedAssignment && syncedAssignment.status !== "SIGNED" && syncedAssignment.status !== "DECLINED") {
-      await this.repo.markAssignmentSigned(assignment.id);
-      await this.rollupEnvelope(resolved.envelope.id);
-      logger.info(
-        {
-          envelopeId: resolved.envelope.id,
-          documentId: document.id,
-          recipientId: resolved.recipientId,
-        },
-        "Signing assignment confirmed via signer return (provider detail did not mark SIGNED)"
-      );
+    if (
+      syncedAssignment &&
+      syncedAssignment.status !== "SIGNED" &&
+      syncedAssignment.status !== "DECLINED"
+    ) {
+      const session = readRecipientSigningSession(recipient.metadata);
+      const startedAtMs = session?.startedAt ? Date.parse(session.startedAt) : NaN;
+      const sessionIsFresh =
+        session?.documentId === document.id &&
+        Number.isFinite(startedAtMs) &&
+        Date.now() - startedAtMs <= TRUST_RETURN_SESSION_MAX_MS;
+
+      if (sessionIsFresh) {
+        await this.repo.markAssignmentSigned(assignment.id);
+        await this.rollupEnvelope(resolved.envelope.id);
+        logger.info(
+          {
+            envelopeId: resolved.envelope.id,
+            documentId: document.id,
+            recipientId: resolved.recipientId,
+          },
+          "Signing assignment confirmed via signer return after recent start-signing (provider detail did not mark SIGNED)"
+        );
+      } else {
+        logger.info(
+          {
+            envelopeId: resolved.envelope.id,
+            documentId: document.id,
+            recipientId: resolved.recipientId,
+            hasSession: Boolean(session),
+          },
+          "Skipping trust-return: no recent start-signing session for this document"
+        );
+      }
     }
 
     return this.getEnvelopeForExternalToken(input.accessToken);

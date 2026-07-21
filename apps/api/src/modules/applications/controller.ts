@@ -378,7 +378,13 @@ export function createApplicationRouter(): Router {
             "Complete signing via the signing envelope before accepting this offer."
           );
         }
-        const data = await applicationService.respondToContractOffer(id, "accept", userId);
+        const data = await applicationService.respondToContractOffer(
+          id,
+          "accept",
+          userId,
+          undefined,
+          { allowDevSigningBypass: skipSigning }
+        );
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
       } catch (e) {
         next(e);
@@ -436,7 +442,14 @@ export function createApplicationRouter(): Router {
           // Invoice-only / incomplete contract signing still require the signing flow.
           await applicationService.assertInvoiceOfferAcceptAllowed(id, invoiceId, userId);
         }
-        const data = await applicationService.respondToInvoiceOffer(id, invoiceId, "accept", userId);
+        const data = await applicationService.respondToInvoiceOffer(
+          id,
+          invoiceId,
+          "accept",
+          userId,
+          undefined,
+          { allowDevSigningBypass: skipSigning }
+        );
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
       } catch (e) {
         next(e);

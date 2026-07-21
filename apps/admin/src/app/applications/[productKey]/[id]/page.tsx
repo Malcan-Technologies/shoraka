@@ -413,10 +413,11 @@ export default function DynamicApplicationDetailPage() {
   const isInvoiceOnly = structureType === "invoice_only";
 
   // Prefer frozen product_version workflow from detail; live catalog can drift after re-version.
-  const reviewProductWorkflow = React.useMemo(() => {
+  const reviewProductWorkflow = React.useMemo((): unknown[] | undefined => {
     const frozen = (app as { product_workflow?: unknown } | undefined)?.product_workflow;
     if (Array.isArray(frozen) && frozen.length > 0) return frozen;
-    return (currentProduct as { workflow?: unknown } | undefined)?.workflow;
+    const live = (currentProduct as { workflow?: unknown } | undefined)?.workflow;
+    return Array.isArray(live) ? live : undefined;
   }, [app, currentProduct]);
 
   const effectiveTabDescriptors = React.useMemo(

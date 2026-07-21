@@ -132,9 +132,9 @@ export interface SigningEnvelopePanelProps {
   structureType?: string | null;
   /** When true, render body only (no Card). Used inside AcceptanceSection. */
   embedded?: boolean;
-  viewDocumentPending?: boolean;
-  onViewDocument?: (s3Key: string) => void;
-  onDownloadDocument?: (s3Key: string, fileName?: string) => void;
+  signedDocumentPending?: boolean;
+  onViewSignedDocument?: (documentId: string) => void;
+  onDownloadSignedDocument?: (documentId: string, fileName?: string) => void;
 }
 
 export function SigningEnvelopePanel({
@@ -146,9 +146,9 @@ export function SigningEnvelopePanel({
   showOfferAcceptanceSummary = true,
   structureType,
   embedded = false,
-  viewDocumentPending = false,
-  onViewDocument,
-  onDownloadDocument,
+  signedDocumentPending = false,
+  onViewSignedDocument,
+  onDownloadSignedDocument,
 }: SigningEnvelopePanelProps) {
   const { data: envelopes = [], isLoading } = useAdminSigningEnvelopes(applicationId);
   const voidMutation = useVoidSigningEnvelope(applicationId);
@@ -275,9 +275,9 @@ export function SigningEnvelopePanel({
           voidDisabled={voidMutation.isPending}
           onVoid={() => handleVoid(primary.id)}
           onRemind={(recipientId) => handleRemind(primary.id, recipientId)}
-          viewDocumentPending={viewDocumentPending}
-          onViewDocument={onViewDocument}
-          onDownloadDocument={onDownloadDocument}
+          signedDocumentPending={signedDocumentPending}
+          onViewSignedDocument={onViewSignedDocument}
+          onDownloadSignedDocument={onDownloadSignedDocument}
         />
       ) : null}
 
@@ -305,9 +305,9 @@ export function SigningEnvelopePanel({
               <HistoryEnvelopeRow
                 key={envelope.id}
                 envelope={envelope}
-                viewDocumentPending={viewDocumentPending}
-                onViewDocument={onViewDocument}
-                onDownloadDocument={onDownloadDocument}
+                signedDocumentPending={signedDocumentPending}
+                onViewSignedDocument={onViewSignedDocument}
+                onDownloadSignedDocument={onDownloadSignedDocument}
               />
             ))}
           </CollapsibleContent>
@@ -338,9 +338,9 @@ function ActiveEnvelopeCard({
   voidDisabled,
   onVoid,
   onRemind,
-  viewDocumentPending,
-  onViewDocument,
-  onDownloadDocument,
+  signedDocumentPending,
+  onViewSignedDocument,
+  onDownloadSignedDocument,
 }: {
   envelope: SigningEnvelopeDto;
   canManage: boolean;
@@ -349,9 +349,9 @@ function ActiveEnvelopeCard({
   voidDisabled: boolean;
   onVoid: () => void;
   onRemind: (recipientId: string) => void;
-  viewDocumentPending?: boolean;
-  onViewDocument?: (s3Key: string) => void;
-  onDownloadDocument?: (s3Key: string, fileName?: string) => void;
+  signedDocumentPending?: boolean;
+  onViewSignedDocument?: (documentId: string) => void;
+  onDownloadSignedDocument?: (documentId: string, fileName?: string) => void;
 }) {
   const canVoid =
     canManage && envelope.status !== "COMPLETED" && envelope.status !== "VOIDED";
@@ -379,9 +379,9 @@ function ActiveEnvelopeCard({
         showRemindActions={canRemind}
         onRemind={onRemind}
         remindDisabled={remindDisabled}
-        viewDocumentPending={viewDocumentPending}
-        onViewSignedDocument={onViewDocument}
-        onDownloadSignedDocument={onDownloadDocument}
+        viewDocumentPending={signedDocumentPending}
+        onViewSignedDocument={onViewSignedDocument}
+        onDownloadSignedDocument={onDownloadSignedDocument}
       />
     </div>
   );
@@ -390,14 +390,14 @@ function ActiveEnvelopeCard({
 /** One-line summary for voided/expired/prior packages; expand only when needed. */
 function HistoryEnvelopeRow({
   envelope,
-  viewDocumentPending,
-  onViewDocument,
-  onDownloadDocument,
+  signedDocumentPending,
+  onViewSignedDocument,
+  onDownloadSignedDocument,
 }: {
   envelope: SigningEnvelopeDto;
-  viewDocumentPending?: boolean;
-  onViewDocument?: (s3Key: string) => void;
-  onDownloadDocument?: (s3Key: string, fileName?: string) => void;
+  signedDocumentPending?: boolean;
+  onViewSignedDocument?: (documentId: string) => void;
+  onDownloadSignedDocument?: (documentId: string, fileName?: string) => void;
 }) {
   const [open, setOpen] = React.useState(false);
   const progress = React.useMemo(() => computeSigningEnvelopeProgress(envelope), [envelope]);
@@ -430,9 +430,9 @@ function HistoryEnvelopeRow({
               envelope={envelope}
               collapseCompletedDocuments
               compact
-              viewDocumentPending={viewDocumentPending}
-              onViewSignedDocument={onViewDocument}
-              onDownloadSignedDocument={onDownloadDocument}
+              viewDocumentPending={signedDocumentPending}
+              onViewSignedDocument={onViewSignedDocument}
+              onDownloadSignedDocument={onDownloadSignedDocument}
             />
           </div>
         </CollapsibleContent>

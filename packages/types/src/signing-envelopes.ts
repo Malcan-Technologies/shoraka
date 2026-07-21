@@ -807,7 +807,8 @@ export interface SigningDocumentDto {
   order: number;
   required: boolean;
   status: SigningDocumentStatus;
-  signed_s3_key: string | null;
+  /** True when a signed PDF is stored server-side. Raw S3 keys are never exposed to clients. */
+  has_signed_pdf: boolean;
   supporting_doc_step_key?: string | null;
 }
 

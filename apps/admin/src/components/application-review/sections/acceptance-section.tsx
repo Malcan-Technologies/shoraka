@@ -27,6 +27,7 @@ import {
 import { ReviewFieldBlock } from "../review-field-block";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 import { reviewCardTitleClass } from "../review-section-styles";
+import { useAdminSignedSigningDocument } from "@/hooks/use-admin-signed-signing-document";
 import { cn } from "@/lib/utils";
 
 /** Match Signing package status badge language. */
@@ -305,6 +306,11 @@ export function AcceptanceSection({
   structureType,
 }: AcceptanceSectionProps) {
   const showSigningHub = typeof applicationId === "string" && applicationId.length > 0;
+  const {
+    signedDocumentPending,
+    handleViewSignedDocument,
+    handleDownloadSignedDocument,
+  } = useAdminSignedSigningDocument(applicationId);
 
   const acceptanceOfferDetails = React.useMemo(
     () =>
@@ -421,9 +427,9 @@ export function AcceptanceSection({
               showOfferAcceptanceSummary={false}
               structureType={structureType}
               embedded
-              viewDocumentPending={viewDocumentPending}
-              onViewDocument={onViewDocument}
-              onDownloadDocument={onDownloadDocument}
+              signedDocumentPending={signedDocumentPending}
+              onViewSignedDocument={handleViewSignedDocument}
+              onDownloadSignedDocument={handleDownloadSignedDocument}
             />
           </ReviewFieldBlock>
         ) : null}

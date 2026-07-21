@@ -37,7 +37,7 @@ function mapDocument(doc: SigningDocument): SigningDocumentDto {
     order: doc.order,
     required: doc.required,
     status: doc.status,
-    signed_s3_key: doc.signed_s3_key ?? null,
+    has_signed_pdf: Boolean(doc.signed_s3_key?.trim()),
     supporting_doc_step_key: readSupportingDocStepKey(doc.metadata),
   };
 }
