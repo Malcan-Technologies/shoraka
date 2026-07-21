@@ -5,6 +5,7 @@ import {
   PREVIEW_SHEET_CONTENT_CLASS,
   cleanProspectusPreviewHtml,
   stripPreviewBanner,
+  withAdminPreviewScrollLock,
 } from "./preview-sheet-utils";
 import {
   PROSPECTUS_STEP_PREVIEW_PAGE,
@@ -21,7 +22,8 @@ describe("prospectus preview sheet utils", () => {
     expect(PREVIEW_SHEET_BODY_CLASS).not.toContain("overflow-y-auto");
   });
 
-  it("gives vertical scrolling to the iframe and only horizontal overflow to the frame", () => {
+  it("keeps a single horizontal scroll container on the outer frame", () => {
+    expect(PREVIEW_DOCUMENT_FRAME_CLASS).toContain("w-full");
     expect(PREVIEW_DOCUMENT_FRAME_CLASS).toContain("overflow-x-auto");
     expect(PREVIEW_DOCUMENT_FRAME_CLASS).toContain("overflow-y-hidden");
     expect(PREVIEW_DOCUMENT_FRAME_CLASS).toContain("overscroll-contain");
@@ -31,6 +33,21 @@ describe("prospectus preview sheet utils", () => {
     expect(PREVIEW_IFRAME_CLASS).toContain("min-h-0");
     expect(PREVIEW_IFRAME_CLASS).toContain("min-w-[210mm]");
     expect(PREVIEW_IFRAME_CLASS).toContain("block");
+  });
+
+  it("locks iframe document horizontal overflow for Admin preview only", () => {
+    const withHead =
+      "<!DOCTYPE html><html><head><title>t</title></head><body><section class=\"page\">A4</section></body></html>";
+    const locked = withAdminPreviewScrollLock(withHead);
+    expect(locked).toContain('data-admin-preview-scroll-lock');
+    expect(locked).toContain("overflow-x:hidden!important");
+    expect(locked).toContain("</head>");
+    expect(locked.indexOf("data-admin-preview-scroll-lock")).toBeLessThan(
+      locked.indexOf("</head>")
+    );
+    expect(withAdminPreviewScrollLock("<body>x</body>")).toMatch(
+      /^<style data-admin-preview-scroll-lock>/
+    );
   });
 
   it("strips the preview banner once and keeps page HTML stable for the same payload", () => {

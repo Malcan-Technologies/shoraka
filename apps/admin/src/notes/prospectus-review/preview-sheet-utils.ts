@@ -23,6 +23,20 @@ export function cleanProspectusPreviewHtml(
   };
 }
 
+/**
+ * Admin preview iframe only: hide in-document horizontal scroll so the outer
+ * frame is the single H-scrollbar. Does not change A4 layout or print/PDF CSS.
+ * Not used for “Open in New Tab” (browser window should scroll freely).
+ */
+export function withAdminPreviewScrollLock(html: string): string {
+  const lock =
+    '<style data-admin-preview-scroll-lock>html,body{overflow-x:hidden!important}</style>';
+  if (/<\/head>/i.test(html)) {
+    return html.replace(/<\/head>/i, `${lock}</head>`);
+  }
+  return `${lock}${html}`;
+}
+
 /** Sheet shell: viewport-bound, no outer sheet scroll. */
 export const PREVIEW_SHEET_CONTENT_CLASS =
   "flex h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(56rem,96vw)]";
@@ -35,15 +49,15 @@ export const PREVIEW_SHEET_BODY_CLASS =
   "relative min-h-0 flex-1 overflow-hidden bg-muted/40 p-4 md:p-6";
 
 /**
- * Document frame: may scroll horizontally when viewport < A4 width.
- * Does not reflow the Prospectus; print/PDF use document CSS, not this frame.
+ * Only horizontal scroll container for Admin Prospectus preview.
+ * Iframe stays A4-wide (`min-w-[210mm]`); this frame scrolls when the sheet is narrower.
  */
 export const PREVIEW_DOCUMENT_FRAME_CLASS =
   "mx-auto block h-full w-full max-w-[210mm] overflow-x-auto overflow-y-hidden overscroll-contain rounded-xl border bg-transparent shadow-none";
 
 /**
- * Iframe stays at least A4-wide so the frame scrolls instead of shrinking the page.
- * Transparent so in-document preview grey (`html` background) shows around the white page.
+ * Fixed A4-wide iframe — no own horizontal scrollbar (document H overflow locked via
+ * {@link withAdminPreviewScrollLock}). Vertical scroll stays inside the iframe document.
  */
 export const PREVIEW_IFRAME_CLASS =
   "block h-full w-full min-h-0 min-w-[210mm] border-0 bg-transparent";

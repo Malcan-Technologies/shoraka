@@ -16,6 +16,7 @@ import {
   PREVIEW_SHEET_BODY_CLASS,
   PREVIEW_SHEET_CONTENT_CLASS,
   cleanProspectusPreviewHtml,
+  withAdminPreviewScrollLock,
   type ProspectusPreviewPages,
 } from "./preview-sheet-utils";
 import {
@@ -133,7 +134,7 @@ function ProspectusPreviewSheetComponent(props: ProspectusPreviewSheetProps) {
               <iframe
                 title={`Prospectus ${PAGE_LABELS[page]}`}
                 className={PREVIEW_IFRAME_CLASS}
-                srcDoc={html}
+                srcDoc={withAdminPreviewScrollLock(html)}
               />
             </div>
           ) : null}
