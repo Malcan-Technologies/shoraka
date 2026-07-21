@@ -14,11 +14,12 @@ import type { ProspectusReviewStoredContent } from "./prospectus-review-content"
 export function buildCompleteProspectusReviewDraft(): ProspectusReviewStoredContent {
   const paymasterSnapshot = {
     name: "Demo Paymaster Sdn. Bhd.",
-    short_name: "Demo Paymaster",
     entity_type: "Private Limited Company (Sdn Bhd)",
   };
-  const purposeSnapshot = {
-    financing_for: "civil engineering and infrastructure works",
+  const contractSnapshot = {
+    contract_details: {
+      description: "civil engineering and infrastructure works",
+    },
   };
   let draft = emptyProspectusReviewContent(
     {
@@ -30,7 +31,7 @@ export function buildCompleteProspectusReviewDraft(): ProspectusReviewStoredCont
     },
     {
       paymasterSnapshot,
-      purposeSnapshot,
+      contractSnapshot,
       deedOfAssignment: null,
     }
   );
@@ -52,7 +53,7 @@ export function buildCompleteProspectusReviewDraft(): ProspectusReviewStoredCont
   };
   draft = normalizeAboutInvoiceSelections(draft, {
     paymasterSnapshot,
-    purposeSnapshot,
+    contractSnapshot,
     deedOfAssignment: "Yes",
   });
   // Mark demo statements as officer-confirmed so approval validation treats them as final.

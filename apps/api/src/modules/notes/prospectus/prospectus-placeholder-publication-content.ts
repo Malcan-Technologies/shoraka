@@ -223,7 +223,7 @@ export const PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT: ProspectusPublicationCo
     },
     {
       key: "certification_acceptance",
-      text: "The invoice represents payment for works certified and accepted by Demo Paymaster.",
+      text: "The invoice represents payment for works certified and accepted by Demo Paymaster Sdn. Bhd.",
       isVisible: true,
       sourceType: "placeholder_manual",
     },

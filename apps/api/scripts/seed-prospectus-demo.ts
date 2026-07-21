@@ -70,8 +70,10 @@ const ISSUER_SUB = "seed_demo_prospectus_issuer_sub";
 
 const ISSUER_NAME = "Demo Prospectus Issuer Sdn Bhd";
 const PAYMASTER_NAME = "Demo Paymaster Sdn. Bhd.";
-/** Used as Prospectus purpose_snapshot.financing_for and About Invoice {workDescription}. */
-const PURPOSE = "civil engineering and infrastructure works";
+/** Prospectus purpose_snapshot.financing_for — not used as About Invoice work description. */
+const PURPOSE = "Working capital financing";
+/** notes.contract_snapshot.contract_details.description — About Invoice Statement 1 token. */
+const CONTRACT_WORK_DESCRIPTION = "civil engineering and infrastructure works";
 const TARGET_AMOUNT = 100_000;
 const PROFIT_RATE = 10;
 const PLATFORM_FEE = 1.5;
@@ -284,6 +286,7 @@ async function ensureIssuerAndProduct(ownerUserId: string) {
         approved_facility: 500_000,
         financing: TARGET_AMOUNT,
         value: TARGET_AMOUNT,
+        description: CONTRACT_WORK_DESCRIPTION,
       },
       customer_details: {
         name: PAYMASTER_NAME,
@@ -299,6 +302,7 @@ async function ensureIssuerAndProduct(ownerUserId: string) {
         approved_facility: 500_000,
         financing: TARGET_AMOUNT,
         value: TARGET_AMOUNT,
+        description: CONTRACT_WORK_DESCRIPTION,
       },
       customer_details: {
         name: PAYMASTER_NAME,
@@ -629,6 +633,7 @@ async function upsertDraftNote(
         approved_facility: 500_000,
         financing: TARGET_AMOUNT,
         value: TARGET_AMOUNT,
+        description: CONTRACT_WORK_DESCRIPTION,
       },
       customer_details: {
         name: PAYMASTER_NAME,
@@ -699,7 +704,9 @@ async function upsertDraftNote(
     },
     {
       paymasterSnapshot: { name: PAYMASTER_NAME },
-      purposeSnapshot: { financing_for: PURPOSE },
+      contractSnapshot: {
+        contract_details: { description: CONTRACT_WORK_DESCRIPTION },
+      },
       deedOfAssignment: null,
     }
   );

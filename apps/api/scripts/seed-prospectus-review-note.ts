@@ -420,6 +420,7 @@ async function ensureInfrastructure(ownerUserId: string) {
         facility_fee_paid_amount: 0,
         financing: FINANCING_AMOUNT,
         value: FINANCING_AMOUNT,
+        description: "civil engineering and infrastructure works",
       },
       customer_details: {
         name: "Demo Paymaster Trading Sdn Bhd",
@@ -437,6 +438,7 @@ async function ensureInfrastructure(ownerUserId: string) {
         facility_fee_paid_amount: 0,
         financing: FINANCING_AMOUNT,
         value: FINANCING_AMOUNT,
+        description: "civil engineering and infrastructure works",
       },
       customer_details: {
         name: "Demo Paymaster Trading Sdn Bhd",
@@ -664,6 +666,7 @@ async function upsertDraftNote(
         approved_facility: 2_000_000,
         financing: FINANCING_AMOUNT,
         value: FINANCING_AMOUNT,
+        description: "civil engineering and infrastructure works",
       },
       customer_details: {
         name: "Demo Paymaster Trading Sdn Bhd",

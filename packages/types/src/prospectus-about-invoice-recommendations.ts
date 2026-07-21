@@ -25,7 +25,7 @@ export const PROSPECTUS_ABOUT_INVOICE_TEMPLATES = {
   work_under_contract:
     "The issuer has completed {workDescription} under a contract awarded by {paymasterName}.",
   certification_acceptance:
-    "The invoice represents payment for works certified and accepted by {paymasterShortName}.",
+    "The invoice represents payment for works certified and accepted by {paymasterName}.",
   paymaster_trust_account:
     "Payment will be distributed directly by the paymaster to the CashSouk trust account on the invoice due date.",
   deed_of_assignment:
@@ -38,12 +38,22 @@ export const PROSPECTUS_ABOUT_INVOICE_TEMPLATES = {
  */
 export const PROSPECTUS_ABOUT_INVOICE_TRUST_ACCOUNT_REQUIRES_OPS_CONFIRMATION = true;
 
+/**
+ * Certification/acceptance sentence uses Paymaster name only.
+ * No database proof of certification or acceptance — Operations must verify.
+ */
+export const PROSPECTUS_ABOUT_INVOICE_CERTIFICATION_REQUIRES_OPS_CONFIRMATION = true;
+
+/**
+ * Work-under-contract sentence uses contract description + Paymaster name.
+ * Contract description does not prove work completion — Operations must verify.
+ */
+export const PROSPECTUS_ABOUT_INVOICE_WORK_COMPLETION_REQUIRES_OPS_CONFIRMATION = true;
+
 export type ProspectusAboutInvoiceRecommendationInput = {
   paymasterSnapshot?: unknown;
-  /** Frozen notes.purpose_snapshot — Prospectus purpose / financing_for text. */
-  purposeSnapshot?: unknown;
+  /** Frozen notes.contract_snapshot — work description from contract_details.description only. */
   contractSnapshot?: unknown;
-  invoiceSnapshot?: unknown;
   /** Officer Page 2 DOA selection — only "Yes" prefills the DOA suggestion. */
   deedOfAssignment?: string | null;
 };
@@ -59,7 +69,8 @@ function textOrEmpty(value: unknown): string {
 }
 
 /**
- * Paymaster display name from frozen notes.paymaster_snapshot.name.
+ * Paymaster display name from frozen notes.paymaster_snapshot.name only.
+ * No short-name / abbreviation derivation.
  */
 export function resolveAboutInvoicePaymasterName(paymasterSnapshot: unknown): string {
   const snap = asRecord(paymasterSnapshot);
@@ -67,43 +78,13 @@ export function resolveAboutInvoicePaymasterName(paymasterSnapshot: unknown): st
 }
 
 /**
- * Approved short Paymaster name when present on the snapshot; otherwise full name.
- * Does not invent abbreviations from parenthetical suffixes.
+ * Work description from notes.contract_snapshot.contract_details.description only.
+ * Does not read invoice description, top-level contract description, or financing purpose.
  */
-export function resolveAboutInvoicePaymasterShortName(paymasterSnapshot: unknown): string {
-  const snap = asRecord(paymasterSnapshot);
-  const short =
-    textOrEmpty(snap?.short_name) ||
-    textOrEmpty(snap?.shortName) ||
-    textOrEmpty(snap?.approved_short_name) ||
-    textOrEmpty(snap?.abbreviation);
-  if (short) return short;
-  return resolveAboutInvoicePaymasterName(paymasterSnapshot);
-}
-
-/**
- * Work description from Contract / Invoice description when present on frozen snapshots;
- * otherwise Prospectus purpose text (notes.purpose_snapshot.financing_for).
- * Never uses issuer identity, industry, financials, or AI text.
- */
-export function resolveAboutInvoiceWorkDescription(input: {
-  contractSnapshot?: unknown;
-  invoiceSnapshot?: unknown;
-  purposeSnapshot?: unknown;
-}): string {
-  const invoice = asRecord(input.invoiceSnapshot);
-  const invoiceDetails = asRecord(invoice?.details);
-  const fromInvoice = textOrEmpty(invoiceDetails?.description);
-  if (fromInvoice) return fromInvoice;
-
-  const contract = asRecord(input.contractSnapshot);
+export function resolveAboutInvoiceWorkDescription(contractSnapshot: unknown): string {
+  const contract = asRecord(contractSnapshot);
   const contractDetails = asRecord(contract?.contract_details);
-  const fromContract =
-    textOrEmpty(contractDetails?.description) || textOrEmpty(contract?.description);
-  if (fromContract) return fromContract;
-
-  const purpose = asRecord(input.purposeSnapshot);
-  return textOrEmpty(purpose?.financing_for);
+  return textOrEmpty(contractDetails?.description);
 }
 
 /**
@@ -133,12 +114,7 @@ export function buildProspectusAboutInvoiceRecommendations(
   input: ProspectusAboutInvoiceRecommendationInput = {}
 ): Record<ProspectusAboutInvoiceItemId, { text: string }> {
   const paymasterName = resolveAboutInvoicePaymasterName(input.paymasterSnapshot);
-  const paymasterShortName = resolveAboutInvoicePaymasterShortName(input.paymasterSnapshot);
-  const workDescription = resolveAboutInvoiceWorkDescription({
-    contractSnapshot: input.contractSnapshot,
-    invoiceSnapshot: input.invoiceSnapshot,
-    purposeSnapshot: input.purposeSnapshot,
-  });
+  const workDescription = resolveAboutInvoiceWorkDescription(input.contractSnapshot);
   const doaYes = input.deedOfAssignment === "Yes";
 
   const workUnderContract =
@@ -149,12 +125,11 @@ export function buildProspectusAboutInvoiceRecommendations(
         })
       : "";
 
-  const certification =
-    paymasterShortName
-      ? fillTemplate(PROSPECTUS_ABOUT_INVOICE_TEMPLATES.certification_acceptance, {
-          paymasterShortName,
-        })
-      : "";
+  const certification = paymasterName
+    ? fillTemplate(PROSPECTUS_ABOUT_INVOICE_TEMPLATES.certification_acceptance, {
+        paymasterName,
+      })
+    : "";
 
   return {
     work_under_contract: { text: workUnderContract },

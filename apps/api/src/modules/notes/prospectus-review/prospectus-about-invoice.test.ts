@@ -1,14 +1,15 @@
 /**
- * About the Invoice / Work Performed — Canva templates + Note-token suggestions.
+ * About the Invoice / Work Performed — authoritative Canva prefills.
  */
 
 import {
+  PROSPECTUS_ABOUT_INVOICE_CERTIFICATION_REQUIRES_OPS_CONFIRMATION,
   PROSPECTUS_ABOUT_INVOICE_ITEM_IDS,
   PROSPECTUS_ABOUT_INVOICE_TEMPLATES,
   PROSPECTUS_ABOUT_INVOICE_TRUST_ACCOUNT_REQUIRES_OPS_CONFIRMATION,
+  PROSPECTUS_ABOUT_INVOICE_WORK_COMPLETION_REQUIRES_OPS_CONFIRMATION,
   buildProspectusAboutInvoiceRecommendations,
   resolveAboutInvoicePaymasterName,
-  resolveAboutInvoicePaymasterShortName,
   resolveAboutInvoiceWorkDescription,
 } from "@cashsouk/types";
 import {
@@ -21,22 +22,27 @@ import { buildCompleteProspectusReviewDraft } from "./prospectus-review.demo-fix
 
 const PAYMASTER = {
   name: "Demo Paymaster Sdn. Bhd.",
-  short_name: "Demo Paymaster",
   entity_type: "Private Limited Company (Sdn Bhd)",
 };
 
-describe("prospectus about invoice (Canva templates)", () => {
-  it("uses exact Canva template wording with Paymaster and work description tokens", () => {
+const CONTRACT = {
+  contract_details: {
+    description: "bridge repair works",
+  },
+};
+
+describe("prospectus about invoice (authoritative sources)", () => {
+  it("uses contract description and full Paymaster name in Canva Statement 1 and 2", () => {
     const suggestions = buildProspectusAboutInvoiceRecommendations({
       paymasterSnapshot: PAYMASTER,
-      purposeSnapshot: { financing_for: "bridge repair works" },
+      contractSnapshot: CONTRACT,
       deedOfAssignment: "Yes",
     });
     expect(suggestions.work_under_contract.text).toBe(
       "The issuer has completed bridge repair works under a contract awarded by Demo Paymaster Sdn. Bhd."
     );
     expect(suggestions.certification_acceptance.text).toBe(
-      "The invoice represents payment for works certified and accepted by Demo Paymaster."
+      "The invoice represents payment for works certified and accepted by Demo Paymaster Sdn. Bhd."
     );
     expect(suggestions.paymaster_trust_account.text).toBe(
       PROSPECTUS_ABOUT_INVOICE_TEMPLATES.paymaster_trust_account
@@ -46,50 +52,90 @@ describe("prospectus about invoice (Canva templates)", () => {
     );
   });
 
-  it("prefers invoice/contract description over purpose for workDescription", () => {
+  it("reads work description only from contract_details.description", () => {
+    expect(resolveAboutInvoiceWorkDescription(CONTRACT)).toBe("bridge repair works");
     expect(
       resolveAboutInvoiceWorkDescription({
-        invoiceSnapshot: { details: { description: "invoice works A" } },
-        contractSnapshot: { contract_details: { description: "contract works B" } },
-        purposeSnapshot: { financing_for: "purpose works C" },
+        description: "top-level contract description ignored",
+        contract_details: { description: "authoritative scope" },
       })
-    ).toBe("invoice works A");
+    ).toBe("authoritative scope");
+  });
+
+  it("ignores invoice description, top-level contract description, and financing purpose", () => {
     expect(
       resolveAboutInvoiceWorkDescription({
-        contractSnapshot: { contract_details: { description: "contract works B" } },
-        purposeSnapshot: { financing_for: "purpose works C" },
+        description: "legacy top-level description",
+        contract_details: {},
       })
-    ).toBe("contract works B");
+    ).toBe("");
     expect(
       resolveAboutInvoiceWorkDescription({
-        purposeSnapshot: { financing_for: "purpose works C" },
+        details: { description: "invoice remarks ignored" },
+        financing_for: "Working capital financing",
+        contract_details: { description: "" },
       })
-    ).toBe("purpose works C");
-  });
+    ).toBe("");
 
-  it("uses approved short Paymaster name when present, otherwise full name", () => {
-    expect(resolveAboutInvoicePaymasterName(PAYMASTER)).toBe("Demo Paymaster Sdn. Bhd.");
-    expect(resolveAboutInvoicePaymasterShortName(PAYMASTER)).toBe("Demo Paymaster");
-    expect(
-      resolveAboutInvoicePaymasterShortName({ name: "Full Paymaster Name Only" })
-    ).toBe("Full Paymaster Name Only");
-  });
-
-  it("avoids double period when Paymaster name already ends with a period", () => {
-    const suggestions = buildProspectusAboutInvoiceRecommendations({
-      paymasterSnapshot: { name: "Acme Holdings Sdn. Bhd." },
-      purposeSnapshot: { financing_for: "maintenance works" },
-    });
-    expect(suggestions.work_under_contract.text).toBe(
-      "The issuer has completed maintenance works under a contract awarded by Acme Holdings Sdn. Bhd."
-    );
-    expect(suggestions.work_under_contract.text).not.toMatch(/\.\.$/);
-  });
-
-  it("does not hardcode Kementerian Kerja Raya or KKR and never exposes issuer identity", () => {
     const suggestions = buildProspectusAboutInvoiceRecommendations({
       paymasterSnapshot: PAYMASTER,
-      purposeSnapshot: { financing_for: "road resurfacing works" },
+      contractSnapshot: {
+        description: "legacy top-level description",
+        contract_details: {},
+      },
+      deedOfAssignment: "Yes",
+    });
+    expect(suggestions.work_under_contract.text).toBe("");
+    expect(suggestions.work_under_contract.text).not.toContain("legacy top-level");
+    expect(suggestions.work_under_contract.text).not.toContain("Working capital");
+  });
+
+  it("leaves Statement 1 empty when contract description is missing", () => {
+    const suggestions = buildProspectusAboutInvoiceRecommendations({
+      paymasterSnapshot: PAYMASTER,
+      contractSnapshot: { contract_details: { value: 100 } },
+      deedOfAssignment: "Yes",
+    });
+    expect(suggestions.work_under_contract.text).toBe("");
+    expect(suggestions.certification_acceptance.text).toContain("Demo Paymaster Sdn. Bhd.");
+  });
+
+  it("uses full Paymaster name only and ignores speculative short-name fields", () => {
+    expect(resolveAboutInvoicePaymasterName(PAYMASTER)).toBe("Demo Paymaster Sdn. Bhd.");
+    const suggestions = buildProspectusAboutInvoiceRecommendations({
+      paymasterSnapshot: {
+        name: "Full Paymaster Name Sdn. Bhd.",
+        short_name: "Short",
+        shortName: "CamelShort",
+        approved_short_name: "ApprovedShort",
+        abbreviation: "ABB",
+      },
+      contractSnapshot: CONTRACT,
+    });
+    expect(suggestions.work_under_contract.text).toContain("Full Paymaster Name Sdn. Bhd.");
+    expect(suggestions.certification_acceptance.text).toBe(
+      "The invoice represents payment for works certified and accepted by Full Paymaster Name Sdn. Bhd."
+    );
+    expect(suggestions.certification_acceptance.text).not.toContain("Short");
+    expect(suggestions.certification_acceptance.text).not.toContain("CamelShort");
+    expect(suggestions.certification_acceptance.text).not.toContain("ApprovedShort");
+    expect(suggestions.certification_acceptance.text).not.toContain("ABB");
+    expect(suggestions.certification_acceptance.text).not.toMatch(/\bFPN\b/);
+  });
+
+  it("leaves Statement 2 empty when Paymaster name is missing", () => {
+    const suggestions = buildProspectusAboutInvoiceRecommendations({
+      paymasterSnapshot: {},
+      contractSnapshot: CONTRACT,
+    });
+    expect(suggestions.work_under_contract.text).toBe("");
+    expect(suggestions.certification_acceptance.text).toBe("");
+  });
+
+  it("does not invent abbreviations or expose issuer identity / financial metrics", () => {
+    const suggestions = buildProspectusAboutInvoiceRecommendations({
+      paymasterSnapshot: PAYMASTER,
+      contractSnapshot: CONTRACT,
       deedOfAssignment: "Yes",
     });
     const joined = Object.values(suggestions)
@@ -104,22 +150,22 @@ describe("prospectus about invoice (Canva templates)", () => {
   });
 
   it("prefills DOA suggestion only when DOA selection is Yes", () => {
-    const withDoa = buildProspectusAboutInvoiceRecommendations({
-      paymasterSnapshot: PAYMASTER,
-      purposeSnapshot: { financing_for: "works" },
-      deedOfAssignment: "Yes",
-    });
-    expect(withDoa.deed_of_assignment.text).toBe(
-      PROSPECTUS_ABOUT_INVOICE_TEMPLATES.deed_of_assignment
-    );
+    expect(
+      buildProspectusAboutInvoiceRecommendations({
+        paymasterSnapshot: PAYMASTER,
+        contractSnapshot: CONTRACT,
+        deedOfAssignment: "Yes",
+      }).deed_of_assignment.text
+    ).toBe(PROSPECTUS_ABOUT_INVOICE_TEMPLATES.deed_of_assignment);
 
     for (const deedOfAssignment of [null, "No", undefined] as const) {
-      const without = buildProspectusAboutInvoiceRecommendations({
-        paymasterSnapshot: PAYMASTER,
-        purposeSnapshot: { financing_for: "works" },
-        deedOfAssignment,
-      });
-      expect(without.deed_of_assignment.text).toBe("");
+      expect(
+        buildProspectusAboutInvoiceRecommendations({
+          paymasterSnapshot: PAYMASTER,
+          contractSnapshot: CONTRACT,
+          deedOfAssignment,
+        }).deed_of_assignment.text
+      ).toBe("");
     }
   });
 
@@ -128,7 +174,7 @@ describe("prospectus about invoice (Canva templates)", () => {
       {},
       {
         paymasterSnapshot: PAYMASTER,
-        purposeSnapshot: { financing_for: "original works" },
+        contractSnapshot: { contract_details: { description: "original works" } },
         deedOfAssignment: "Yes",
       }
     );
@@ -163,7 +209,7 @@ describe("prospectus about invoice (Canva templates)", () => {
 
     const normalized = normalizeAboutInvoiceSelections(base, {
       paymasterSnapshot: PAYMASTER,
-      purposeSnapshot: { financing_for: "updated works" },
+      contractSnapshot: { contract_details: { description: "updated works" } },
       deedOfAssignment: "Yes",
     });
     const byId = new Map(normalized.page2.aboutInvoice!.items.map((i) => [i.id, i]));
@@ -174,7 +220,7 @@ describe("prospectus about invoice (Canva templates)", () => {
       sourceType: "OFFICER_ENTERED",
     });
     expect(byId.get("certification_acceptance")?.sourceType).toBe("SYSTEM_SUGGESTION");
-    expect(byId.get("certification_acceptance")?.text).toContain("Demo Paymaster");
+    expect(byId.get("certification_acceptance")?.text).toContain("Demo Paymaster Sdn. Bhd.");
     expect(byId.get("certification_acceptance")?.text).not.toBe("Old suggestion text");
   });
 
@@ -183,7 +229,7 @@ describe("prospectus about invoice (Canva templates)", () => {
       {},
       {
         paymasterSnapshot: PAYMASTER,
-        purposeSnapshot: { financing_for: "works" },
+        contractSnapshot: CONTRACT,
         deedOfAssignment: "Yes",
       }
     );
@@ -193,7 +239,7 @@ describe("prospectus about invoice (Canva templates)", () => {
     };
     const normalized = normalizeAboutInvoiceSelections(draft, {
       paymasterSnapshot: PAYMASTER,
-      purposeSnapshot: { financing_for: "works" },
+      contractSnapshot: CONTRACT,
       deedOfAssignment: "No",
     });
     expect(
@@ -205,7 +251,9 @@ describe("prospectus about invoice (Canva templates)", () => {
     });
   });
 
-  it("flags trust-account sentence as requiring Ops confirmation (no coded universal rule)", () => {
+  it("flags work, certification, and trust-account sentences for Ops confirmation", () => {
+    expect(PROSPECTUS_ABOUT_INVOICE_WORK_COMPLETION_REQUIRES_OPS_CONFIRMATION).toBe(true);
+    expect(PROSPECTUS_ABOUT_INVOICE_CERTIFICATION_REQUIRES_OPS_CONFIRMATION).toBe(true);
     expect(PROSPECTUS_ABOUT_INVOICE_TRUST_ACCOUNT_REQUIRES_OPS_CONFIRMATION).toBe(true);
   });
 
@@ -220,7 +268,8 @@ describe("prospectus about invoice (Canva templates)", () => {
       "civil engineering and infrastructure works"
     );
     expect(publication.invoiceWorkStatements[0]?.text).toContain("Demo Paymaster Sdn. Bhd.");
-    expect(publication.invoiceWorkStatements[0]?.text).not.toMatch(/Kementerian Kerja Raya/i);
+    expect(publication.invoiceWorkStatements[1]?.text).toContain("Demo Paymaster Sdn. Bhd.");
+    expect(publication.invoiceWorkStatements[0]?.text).not.toMatch(/Working capital/i);
 
     const emptyDoa = buildCompleteProspectusReviewDraft();
     emptyDoa.page2.aboutInvoice = {

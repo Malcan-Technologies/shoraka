@@ -120,14 +120,10 @@ function recommendationInputFromNote(note: {
 
 function aboutInvoiceRecommendationInputFromNote(note: {
   paymaster_snapshot: unknown;
-  invoice_snapshot: unknown;
-  purpose_snapshot?: unknown;
   contract_snapshot?: unknown;
 }): ProspectusAboutInvoiceRecommendationInput {
   return {
     paymasterSnapshot: note.paymaster_snapshot,
-    invoiceSnapshot: note.invoice_snapshot,
-    purposeSnapshot: note.purpose_snapshot ?? null,
     contractSnapshot: note.contract_snapshot ?? null,
   };
 }
