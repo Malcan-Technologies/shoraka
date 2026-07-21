@@ -260,7 +260,6 @@ export function validateOfferAcknowledgementsConfig(workflow: unknown[]): void {
       "template_pdf",
       "static_text",
     ]);
-    const templateKeys = new Set(["letter_of_offer", "guarantee_acknowledgement"]);
     for (let i = 0; i < list.length; i++) {
       const row = list[i];
       const record = row && typeof row === "object" ? (row as Record<string, unknown>) : null;
@@ -281,19 +280,12 @@ export function validateOfferAcknowledgementsConfig(workflow: unknown[]): void {
         );
       }
       if (source === "html_template") {
-        const templateKey =
-          typeof record?.template_key === "string"
-            ? record.template_key
-            : typeof record?.key === "string"
-              ? record.key
-              : "";
-        if (!templateKeys.has(templateKey)) {
-          throw new AppError(
-            400,
-            "VALIDATION_ERROR",
-            `Offer acknowledgements (row ${i + 1}): choose Letter of Offer or Guarantee Acknowledgement template.`
-          );
-        }
+        // Built-in keys still only ship engineering placeholders — block until legal templates land.
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          `Offer acknowledgements (row ${i + 1}): HTML templates are not production-ready. Use Generated offer letter (PDF), Uploaded template (PDF), or Static text.`
+        );
       }
       if (source === "static_text") {
         const text = typeof record?.static_text === "string" ? record.static_text.trim() : "";

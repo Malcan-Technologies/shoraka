@@ -79,8 +79,7 @@ export function OfferAcknowledgementsConfig({
         key: `acknowledgement_${index}`,
         name: "",
         required: true,
-        content_source: "html_template",
-        template_key: "letter_of_offer",
+        content_source: "static_text",
       },
     ];
     setItems(next);
@@ -170,9 +169,9 @@ export function OfferAcknowledgementsConfig({
       <div className="min-w-0">
         <h2 className="text-sm font-semibold text-foreground">Offer acknowledgements</h2>
         <p className="text-sm text-muted-foreground">
-          Documents the issuer must preview and tick before uploading acceptance files. Choose Letter
-          of Offer or Guarantee Acknowledgement (HTML placeholders for now), or add a custom row. One
-          checkbox per document — not signed on SigningCloud.
+          Documents the issuer must preview and tick before uploading acceptance files. Letter of
+          Offer defaults to the generated offer-letter PDF; Guarantee Acknowledgement needs admin
+          static text or an uploaded PDF. One checkbox per document — not signed on SigningCloud.
         </p>
       </div>
 
@@ -240,12 +239,14 @@ export function OfferAcknowledgementsConfig({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="html_template">HTML template (placeholder)</SelectItem>
                         <SelectItem value="generated_offer_letter">
                           Generated offer letter (PDF)
                         </SelectItem>
                         <SelectItem value="template_pdf">Uploaded template (PDF)</SelectItem>
                         <SelectItem value="static_text">Static text</SelectItem>
+                        <SelectItem value="html_template" disabled>
+                          HTML template (deferred — legal copy required)
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -289,8 +290,8 @@ export function OfferAcknowledgementsConfig({
                     </SelectContent>
                   </Select>
                   <p className="text-sm text-muted-foreground">
-                    Shows a hardcoded HTML placeholder in the issuer modal. Replace with the real
-                    templated copy later — keep the same template key.
+                    HTML merge templates are deferred until legal supplies production copy. Choose
+                    Generated offer letter, Uploaded template, or Static text instead.
                   </p>
                 </div>
               ) : null}

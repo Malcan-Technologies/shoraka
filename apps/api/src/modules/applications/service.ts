@@ -43,6 +43,7 @@ import {
   resolveOfferAcknowledgementsFromWorkflow,
   resolveStatusAfterOfferAcceptanceSubmit,
   workflowUsesOfferAcceptanceFlow,
+  buildAcknowledgedTermsSnapshot,
 } from "@cashsouk/types";
 import {
   mergeAcknowledgementRecords,
@@ -1712,9 +1713,15 @@ export class ApplicationService {
         userId,
         acceptedAt: now,
       });
+      const productVersion =
+        (application as { product_version?: number | null }).product_version ?? null;
       const updatedOffer = patchOfferAcceptance(offer, {
         status: nextStatus,
         acknowledgements,
+        acknowledged_terms: buildAcknowledgedTermsSnapshot({
+          offerDetails: offer,
+          productVersion,
+        }),
         submitted_at: now,
         reviewed_at: nextStatus === "APPROVED_FOR_SIGNING" ? now : null,
         reviewed_by_user_id: nextStatus === "APPROVED_FOR_SIGNING" ? userId : null,
@@ -1809,9 +1816,15 @@ export class ApplicationService {
         userId,
         acceptedAt: now,
       });
+      const productVersion =
+        (application as { product_version?: number | null }).product_version ?? null;
       const updatedOffer = patchOfferAcceptance(offer, {
         status: nextStatus,
         acknowledgements,
+        acknowledged_terms: buildAcknowledgedTermsSnapshot({
+          offerDetails: offer,
+          productVersion,
+        }),
         submitted_at: now,
         reviewed_at: nextStatus === "APPROVED_FOR_SIGNING" ? now : null,
         reviewed_by_user_id: nextStatus === "APPROVED_FOR_SIGNING" ? userId : null,

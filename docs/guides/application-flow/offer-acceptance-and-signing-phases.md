@@ -73,14 +73,16 @@ Workflow key: `offer_acknowledgements` (flat list on financing_type config).
 
 | Source | Meaning | Best for |
 |--------|---------|----------|
-| **`html_template`** | In-modal HTML from a built-in `template_key` (`letter_of_offer` / `guarantee_acknowledgement`). **This pass:** hardcoded placeholders in `OFFER_ACKNOWLEDGEMENT_HTML_PLACEHOLDERS`. Later: real templated HTML with merge fields. | Letter of Offer, Guarantee Acknowledgement |
-| **`generated_offer_letter`** | In-modal PDF preview of the system offer letter. | Optional alternative for LOO |
-| **`template_pdf`** | In-modal PDF preview of a product-uploaded template. | Fixed forms |
-| **`static_text`** | Admin-authored plain text. | Short boilerplate |
+| **`generated_offer_letter`** | In-modal PDF preview of the system offer letter (actual offer amounts). | **Default for Letter of Offer** |
+| **`template_pdf`** | In-modal PDF preview of a product-uploaded template. | Fixed forms / guarantee packs |
+| **`static_text`** | Admin-authored plain text (required non-empty on product save). | **Default for Guarantee Acknowledgement** until legal PDF exists |
+| **`html_template`** | Built-in `template_key` HTML. **Blocked on product save** — only engineering placeholders exist today. | Deferred until legal merge-field copy |
 
-Default pair: use **Add LO + Guarantee Acknowledgement** in product settings (`DEFAULT_OFFER_ACKNOWLEDGEMENTS`).
+Default pair: use **Add LO + Guarantee Acknowledgement** in product settings (`DEFAULT_OFFER_ACKNOWLEDGEMENTS`: LOO → `generated_offer_letter`; Guarantee → `static_text` that admin must fill or switch to `template_pdf`).
 
-**HTML-from-template with merge fields** is deferred; keep `template_key` stable when swapping placeholder bodies.
+**HTML-from-template with merge fields** is deferred; do not re-enable `html_template` until legal supplies production copy. Keep `template_key` stable when that lands.
+
+**Re-send policy:** Once `offer_acceptance` is past `PENDING_ISSUER`, or acknowledgements/`submitted_at` exist, admin cannot re-send over the same offer — retract first, then send revised terms. Step 1 submit also freezes `acknowledged_terms` (facility/amount, rates, expiry, offer/product version) under `offer_acceptance` for audit.
 
     Prefer **one stepper step per acknowledgement document** (sidebar labels use the document name), then upload.
 

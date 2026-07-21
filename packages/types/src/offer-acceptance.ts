@@ -84,23 +84,32 @@ export type OfferAcknowledgementDocument = {
   template?: { s3_key: string; file_name: string; file_size?: number };
 };
 
-/** Default pair for facility flow: Letter of Offer + Guarantee Acknowledgement. */
+/**
+ * Default pair for facility flow: Letter of Offer + Guarantee Acknowledgement.
+ * LOO binds to the system offer-letter PDF. Guarantee requires admin-supplied
+ * static text or an uploaded PDF — placeholder HTML is not production-ready.
+ */
 export const DEFAULT_OFFER_ACKNOWLEDGEMENTS: readonly OfferAcknowledgementDocument[] = [
   {
     key: "letter_of_offer",
     name: "Letter of Offer",
     required: true,
-    content_source: "html_template",
-    template_key: "letter_of_offer",
+    content_source: "generated_offer_letter",
   },
   {
     key: "guarantee_acknowledgement",
     name: "Guarantee Acknowledgement",
     required: true,
-    content_source: "html_template",
-    template_key: "guarantee_acknowledgement",
+    content_source: "static_text",
   },
 ] as const;
+
+/**
+ * Built-in HTML template keys that still only ship engineering placeholders.
+ * Product save must reject these until legal supplies production-ready templates.
+ */
+export const OFFER_ACKNOWLEDGEMENT_PLACEHOLDER_TEMPLATE_KEYS: readonly OfferAcknowledgementTemplateKey[] =
+  OFFER_ACKNOWLEDGEMENT_TEMPLATE_KEYS;
 
 export function isOfferAcknowledgementTemplateKey(
   value: unknown
@@ -134,9 +143,28 @@ export type OfferAcknowledgementRecord = {
   accepted_by_user_id: string;
 };
 
+/**
+ * Frozen commercial terms at Step 1 submit — audit/display only; not used for pricing.
+ * Shape is a union of contract + invoice fields present on the offer at acknowledgement time.
+ */
+export type OfferAcknowledgedTermsSnapshot = {
+  offer_version: number;
+  product_version: number | null;
+  expires_at: string | null;
+  offered_facility?: number;
+  facility_fee_rate_percent?: number | null;
+  offered_amount?: number;
+  offered_ratio_percent?: number | null;
+  offered_profit_rate_percent?: number | null;
+  platform_fee_rate_percent?: number | null;
+  risk_rating?: string | null;
+};
+
 export type OfferAcceptanceDetails = {
   status: OfferAcceptanceStatus;
   acknowledgements?: OfferAcknowledgementRecord[];
+  /** Set on Step 1 submit; proves which commercial numbers were acknowledged. */
+  acknowledged_terms?: OfferAcknowledgedTermsSnapshot;
   submitted_at?: string | null;
   reviewed_at?: string | null;
   reviewed_by_user_id?: string | null;
@@ -171,9 +199,11 @@ export function parseOfferAcceptanceDetails(value: unknown): OfferAcceptanceDeta
       });
     }
   }
+  const acknowledgedTerms = parseAcknowledgedTermsSnapshot(root.acknowledged_terms);
   return {
     status: root.status,
     ...(acknowledgements.length > 0 ? { acknowledgements } : {}),
+    ...(acknowledgedTerms ? { acknowledged_terms: acknowledgedTerms } : {}),
     submitted_at: typeof root.submitted_at === "string" ? root.submitted_at : root.submitted_at === null ? null : undefined,
     reviewed_at: typeof root.reviewed_at === "string" ? root.reviewed_at : root.reviewed_at === null ? null : undefined,
     reviewed_by_user_id:
@@ -183,6 +213,133 @@ export function parseOfferAcceptanceDetails(value: unknown): OfferAcceptanceDeta
           ? null
           : undefined,
   };
+}
+
+function parseOptionalFiniteNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return undefined;
+}
+
+function parseOptionalNullableNumber(value: unknown): number | null | undefined {
+  if (value === null) return null;
+  return parseOptionalFiniteNumber(value);
+}
+
+export function parseAcknowledgedTermsSnapshot(
+  value: unknown
+): OfferAcknowledgedTermsSnapshot | null {
+  const root = asRecord(value);
+  if (!root) return null;
+  const offerVersion = parseOptionalFiniteNumber(root.offer_version);
+  if (offerVersion == null) return null;
+  const productVersion =
+    root.product_version === null
+      ? null
+      : (parseOptionalFiniteNumber(root.product_version) ?? null);
+  const expiresAt =
+    typeof root.expires_at === "string"
+      ? root.expires_at
+      : root.expires_at === null
+        ? null
+        : null;
+  const snapshot: OfferAcknowledgedTermsSnapshot = {
+    offer_version: offerVersion,
+    product_version: productVersion,
+    expires_at: expiresAt,
+  };
+  const offeredFacility = parseOptionalFiniteNumber(root.offered_facility);
+  if (offeredFacility != null) snapshot.offered_facility = offeredFacility;
+  const facilityFee = parseOptionalNullableNumber(root.facility_fee_rate_percent);
+  if (facilityFee !== undefined) snapshot.facility_fee_rate_percent = facilityFee;
+  const offeredAmount = parseOptionalFiniteNumber(root.offered_amount);
+  if (offeredAmount != null) snapshot.offered_amount = offeredAmount;
+  const offeredRatio = parseOptionalNullableNumber(root.offered_ratio_percent);
+  if (offeredRatio !== undefined) snapshot.offered_ratio_percent = offeredRatio;
+  const offeredProfit = parseOptionalNullableNumber(root.offered_profit_rate_percent);
+  if (offeredProfit !== undefined) snapshot.offered_profit_rate_percent = offeredProfit;
+  const platformFee = parseOptionalNullableNumber(root.platform_fee_rate_percent);
+  if (platformFee !== undefined) snapshot.platform_fee_rate_percent = platformFee;
+  if (typeof root.risk_rating === "string") {
+    snapshot.risk_rating = root.risk_rating;
+  } else if (root.risk_rating === null) {
+    snapshot.risk_rating = null;
+  }
+  return snapshot;
+}
+
+/**
+ * Copy commercial fields from current offer_details for Step 1 audit snapshot.
+ * Display/audit only — callers must not use this to drive pricing.
+ */
+export function buildAcknowledgedTermsSnapshot(params: {
+  offerDetails: Record<string, unknown>;
+  productVersion: number | null | undefined;
+}): OfferAcknowledgedTermsSnapshot {
+  const offer = params.offerDetails;
+  const offerVersion = parseOptionalFiniteNumber(offer.version) ?? 0;
+  const expiresAt =
+    typeof offer.expires_at === "string"
+      ? offer.expires_at
+      : offer.expires_at === null
+        ? null
+        : null;
+  const snapshot: OfferAcknowledgedTermsSnapshot = {
+    offer_version: offerVersion,
+    product_version:
+      params.productVersion != null && Number.isFinite(params.productVersion)
+        ? params.productVersion
+        : null,
+    expires_at: expiresAt,
+  };
+  const offeredFacility = parseOptionalFiniteNumber(offer.offered_facility);
+  if (offeredFacility != null) snapshot.offered_facility = offeredFacility;
+  const facilityFee = parseOptionalNullableNumber(offer.facility_fee_rate_percent);
+  if (facilityFee !== undefined) snapshot.facility_fee_rate_percent = facilityFee;
+  const offeredAmount = parseOptionalFiniteNumber(offer.offered_amount);
+  if (offeredAmount != null) snapshot.offered_amount = offeredAmount;
+  const offeredRatio = parseOptionalNullableNumber(offer.offered_ratio_percent);
+  if (offeredRatio !== undefined) snapshot.offered_ratio_percent = offeredRatio;
+  const offeredProfit = parseOptionalNullableNumber(offer.offered_profit_rate_percent);
+  if (offeredProfit !== undefined) snapshot.offered_profit_rate_percent = offeredProfit;
+  const platformFee = parseOptionalNullableNumber(offer.platform_fee_rate_percent);
+  if (platformFee !== undefined) snapshot.platform_fee_rate_percent = platformFee;
+  if (typeof offer.risk_rating === "string") {
+    snapshot.risk_rating = offer.risk_rating;
+  } else if (offer.risk_rating === null) {
+    snapshot.risk_rating = null;
+  }
+  return snapshot;
+}
+
+/**
+ * True when admin must retract before sending a new offer version.
+ * Absent acceptance (legacy) or PENDING_ISSUER with no acks / submitted_at → re-send allowed.
+ */
+export function isOfferAcceptanceResendBlocked(
+  acceptance: OfferAcceptanceDetails | null | undefined
+): boolean {
+  if (!acceptance) return false;
+  if (acceptance.status !== "PENDING_ISSUER") return true;
+  if ((acceptance.acknowledgements?.length ?? 0) > 0) return true;
+  if (typeof acceptance.submitted_at === "string" && acceptance.submitted_at.length > 0) {
+    return true;
+  }
+  return false;
+}
+
+export function isOfferAcknowledgementPlaceholderTemplateKey(
+  value: unknown
+): value is OfferAcknowledgementTemplateKey {
+  return (
+    typeof value === "string" &&
+    OFFER_ACKNOWLEDGEMENT_PLACEHOLDER_TEMPLATE_KEYS.includes(
+      value as OfferAcknowledgementTemplateKey
+    )
+  );
 }
 
 /** Read offer_acceptance from a contract/invoice offer_details blob. */
@@ -278,7 +435,9 @@ function parseAcknowledgementRow(raw: unknown, index: number): OfferAcknowledgem
     typeof row.key === "string" && row.key.trim() ? row.key.trim() : slugifyKey(name, index);
   const contentSource = CONTENT_SOURCES.includes(row.content_source as OfferAcknowledgementContentSource)
     ? (row.content_source as OfferAcknowledgementContentSource)
-    : "html_template";
+    : key === "letter_of_offer"
+      ? "generated_offer_letter"
+      : "static_text";
   const template = asRecord(row.template);
   const out: OfferAcknowledgementDocument = {
     key,

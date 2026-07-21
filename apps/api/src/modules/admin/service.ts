@@ -75,6 +75,7 @@ import {
   workflowHasAcceptanceDocuments,
   collectAcceptanceDocumentReviewKeys,
   getOfferAcceptanceFromOfferDetails,
+  isOfferAcceptanceResendBlocked,
   workflowUsesOfferAcceptanceFlow,
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
@@ -500,6 +501,20 @@ export class AdminService {
         "Contract offer was finalized by issuer and cannot be modified"
       );
     }
+  }
+
+  /**
+   * Once the issuer has acknowledged terms or acceptance moved past PENDING_ISSUER,
+   * revise via retract → new offer (do not rebuild over accepted terms).
+   */
+  private assertOfferAcceptanceAllowsResend(offerDetails: unknown): void {
+    const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
+    if (!isOfferAcceptanceResendBlocked(acceptance)) return;
+    throw new AppError(
+      400,
+      "OFFER_ACCEPTANCE_IN_PROGRESS",
+      "Offer acceptance has already started. Retract this offer before sending revised terms."
+    );
   }
 
   /** Block offer/acceptance mutations while a draft or in-flight signing package exists. */
@@ -6833,6 +6848,9 @@ export class AdminService {
       }
 
       const previousOffer = (lockedContract.offer_details as Record<string, unknown> | null) ?? null;
+      if (stampOfferAcceptance) {
+        this.assertOfferAcceptanceAllowsResend(previousOffer);
+      }
       const previousVersion =
         typeof previousOffer?.version === "number" && Number.isFinite(previousOffer.version)
           ? previousOffer.version
@@ -7103,6 +7121,9 @@ export class AdminService {
       }
 
       const previousOffer = (lockedInvoice.offer_details as Record<string, unknown> | null) ?? null;
+      if (stampOfferAcceptance) {
+        this.assertOfferAcceptanceAllowsResend(previousOffer);
+      }
       const previousVersion =
         typeof previousOffer?.version === "number" && Number.isFinite(previousOffer.version)
           ? previousOffer.version
