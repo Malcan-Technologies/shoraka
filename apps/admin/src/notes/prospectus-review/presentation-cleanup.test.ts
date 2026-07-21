@@ -35,6 +35,14 @@ describe("prospectus review presentation cleanup", () => {
     );
     expect(pageSource).toContain("Enter amounts in full MYR.");
     expect(pageSource).toContain("displays them in MYR millions.");
+    expect(pageSource).toContain(
+      'title="3-Year Balance Sheet & Liquidity (MYR mil.)"'
+    );
+    expect(pageSource).toContain(
+      "Values sourced or calculated from financial statements are read-only."
+    );
+    expect(pageSource).toContain("except Quick Ratio");
+    expect(pageSource).toContain("ProspectusBalanceSheetWorkingTable");
     expect(pageSource).toContain("Officer Input");
     expect(pageSource).toContain("ProspectusIncomeStatementWorkingTable");
     expect(pageSource).toContain(

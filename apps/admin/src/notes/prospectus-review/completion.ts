@@ -37,11 +37,24 @@ function hasHighlightCopy(value: { title?: string; description?: string; key?: s
 }
 
 export type ProspectusCompletionOptions = {
-  /** Calendar years on Page 3 Income Statement — used for officer GP/EBITDA/EBIT completeness. */
+  /**
+   * Calendar years on Page 2/3 financial tables — used for Income Statement and
+   * Balance Sheet officer-field completeness.
+   */
   incomeStatementYears?: readonly string[];
 };
 
-function incomeOfficerFieldsComplete(
+const PAGE_THREE_OFFICER_FINANCIAL_FIELDS = [
+  "grossProfit",
+  "ebitda",
+  "ebit",
+  "cashAndBank",
+  "tradeReceivables",
+  "totalEquity",
+  "quickRatio",
+] as const;
+
+function pageThreeOfficerFieldsComplete(
   draft: ProspectusReviewStoredContent,
   years: readonly string[]
 ): boolean {
@@ -49,7 +62,7 @@ function incomeOfficerFieldsComplete(
   const bag = draft.page3.manualFinancialInputs?.years ?? {};
   return years.every((year) => {
     const row = bag[year] ?? {};
-    return (["grossProfit", "ebitda", "ebit"] as const).every((field) => {
+    return PAGE_THREE_OFFICER_FINANCIAL_FIELDS.every((field) => {
       const value = row[field];
       return value != null && value !== "";
     });
@@ -103,7 +116,7 @@ export function buildProspectusCompletionChecklist(
   const incomeYears = options?.incomeStatementYears ?? [];
   const financialInputComplete =
     incomeYears.length > 0
-      ? incomeOfficerFieldsComplete(draft, incomeYears)
+      ? pageThreeOfficerFieldsComplete(draft, incomeYears)
       : Object.values(draft.page3.manualFinancialInputs?.years ?? {}).some((row) =>
           Object.values(row ?? {}).some((value) => value != null && value !== "")
         );

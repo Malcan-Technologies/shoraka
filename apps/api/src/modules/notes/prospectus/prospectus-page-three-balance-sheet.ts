@@ -1,6 +1,6 @@
 /**
  * SECTION: Build Page 3 Stage 3 balance sheet and liquidity rows
- * WHY: Reuse Page 2 years; admin computeTotalAssets/Liabilities; unsupported rows DNA
+ * WHY: Reuse Page 2 years; MYR-millions display; officer fills for unsupported rows
  */
 
 import {
@@ -10,14 +10,10 @@ import {
 } from "@cashsouk/types";
 import {
   formatProspectusFinancialMultiple,
+  formatProspectusMyrMillions,
   parseProspectusFinancialNumber,
 } from "./prospectus-financial-comparison-metrics";
-import {
-  formatManualMoneyOrDna,
-  formatManualRatioOrDna,
-  yearManualInputs,
-} from "./prospectus-financial-manual-inputs";
-import { formatProspectusMoneyMyr } from "./prospectus-main-financial-terms";
+import { yearManualInputs } from "./prospectus-financial-manual-inputs";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT,
@@ -32,6 +28,13 @@ import {
 function fieldFromRaw(raw: Record<string, unknown>, key: string): number | null {
   if (!Object.prototype.hasOwnProperty.call(raw, key)) return null;
   return parseProspectusFinancialNumber(raw[key]);
+}
+
+/** Display-only: full MYR storage → shared Page 2/3 millions formatter. */
+function moneyMillionsOrDna(value: number | string | null | undefined): string {
+  const parsed = parseProspectusFinancialNumber(value);
+  if (parsed == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
+  return formatProspectusMyrMillions(parsed);
 }
 
 /**
@@ -71,21 +74,24 @@ function valueForRow(
 
   switch (key) {
     case "cash_and_bank":
-      return formatManualMoneyOrDna(manual?.cashAndBank);
+      return moneyMillionsOrDna(manual?.cashAndBank);
     case "trade_receivables":
-      return formatManualMoneyOrDna(manual?.tradeReceivables);
+      return moneyMillionsOrDna(manual?.tradeReceivables);
     case "total_equity":
-      return formatManualMoneyOrDna(manual?.totalEquity);
-    case "quick_ratio":
-      return formatManualRatioOrDna(manual?.quickRatio);
+      return moneyMillionsOrDna(manual?.totalEquity);
+    case "quick_ratio": {
+      const parsed = parseProspectusFinancialNumber(manual?.quickRatio);
+      if (parsed == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
+      return formatProspectusFinancialMultiple(parsed);
+    }
     case "current_assets":
-      return formatProspectusMoneyMyr(fieldFromRaw(raw, "bscatot"));
+      return moneyMillionsOrDna(fieldFromRaw(raw, "bscatot"));
     case "total_assets":
-      return formatProspectusMoneyMyr(totalAssetsFromRaw(raw));
+      return formatProspectusMyrMillions(totalAssetsFromRaw(raw));
     case "current_liabilities":
-      return formatProspectusMoneyMyr(fieldFromRaw(raw, "curlib"));
+      return moneyMillionsOrDna(fieldFromRaw(raw, "curlib"));
     case "total_liabilities":
-      return formatProspectusMoneyMyr(totalLiabilitiesFromRaw(raw));
+      return formatProspectusMyrMillions(totalLiabilitiesFromRaw(raw));
     case "current_ratio": {
       const bscatot = fieldFromRaw(raw, "bscatot");
       const curlib = fieldFromRaw(raw, "curlib");

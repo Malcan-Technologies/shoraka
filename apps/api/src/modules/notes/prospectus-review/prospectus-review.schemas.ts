@@ -13,6 +13,7 @@ import {
 } from "@cashsouk/types";
 import { parseProspectusFinancialNumber } from "../prospectus/prospectus-financial-comparison-metrics";
 import {
+  PROSPECTUS_BALANCE_SHEET_OFFICER_FIELD_KEYS,
   PROSPECTUS_DERIVED_FINANCIAL_FIELD_KEYS,
   PROSPECTUS_INCOME_STATEMENT_OFFICER_FIELD_KEYS,
   PROSPECTUS_INVOICE_WORK_KEYS,
@@ -399,10 +400,20 @@ export function validateDraftContent(
   return errors;
 }
 
+const BALANCE_SHEET_OFFICER_LABELS: Record<
+  (typeof PROSPECTUS_BALANCE_SHEET_OFFICER_FIELD_KEYS)[number],
+  string
+> = {
+  cashAndBank: "Cash & Bank",
+  tradeReceivables: "Trade Receivables",
+  totalEquity: "Total Equity",
+  quickRatio: "Quick Ratio",
+};
+
 export type ValidateApprovalContentOptions = {
   /**
-   * Calendar years shown on Page 3 Income Statement (same as Page 2 financial comparison).
-   * When provided, Gross Profit / EBITDA / EBIT are required for each year.
+   * Calendar years shown on Page 2/3 financial tables (same freeze for Income + Balance Sheet).
+   * When provided, Income Statement and Balance Sheet officer fields are required for each year.
    */
   incomeStatementYears?: readonly string[];
 };
@@ -512,10 +523,10 @@ export function validateApprovalContent(
     });
   }
 
-  const incomeYears = options?.incomeStatementYears ?? [];
-  if (incomeYears.length > 0) {
+  const financialYears = options?.incomeStatementYears ?? [];
+  if (financialYears.length > 0) {
     const yearsBag = content.page3.manualFinancialInputs?.years ?? {};
-    for (const year of incomeYears) {
+    for (const year of financialYears) {
       const row = yearsBag[year] as Record<string, unknown> | undefined;
       for (const field of PROSPECTUS_INCOME_STATEMENT_OFFICER_FIELD_KEYS) {
         if (!isPresentManualNumber(row?.[field])) {
@@ -524,6 +535,14 @@ export function validateApprovalContent(
           errors.push({
             path: `page3.manualFinancialInputs.years.${year}.${field}`,
             message: `${label} is required for FY${year} before approving the Prospectus.`,
+          });
+        }
+      }
+      for (const field of PROSPECTUS_BALANCE_SHEET_OFFICER_FIELD_KEYS) {
+        if (!isPresentManualNumber(row?.[field])) {
+          errors.push({
+            path: `page3.manualFinancialInputs.years.${year}.${field}`,
+            message: `${BALANCE_SHEET_OFFICER_LABELS[field]} is required for FY${year} before approving the Prospectus.`,
           });
         }
       }

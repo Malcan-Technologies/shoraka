@@ -716,11 +716,35 @@ async function upsertDraftNote(
       if (Number.isFinite(year)) allIncomeYears.add(String(year));
     }
   }
-  // Full MYR — display as MYR mil. = value / 1_000_000 (e.g. 2100000 → 2.1).
-  const incomeLadder = [
-    { grossProfit: 2_100_000, ebitda: 1_600_000, ebit: 1_450_000 },
-    { grossProfit: 2_400_000, ebitda: 1_850_000, ebit: 1_700_000 },
-    { grossProfit: 2_800_000, ebitda: 2_100_000, ebit: 1_950_000 },
+  // Money: full MYR (display MYR mil.). Quick Ratio: raw ratio (display with x).
+  const pageThreeManualLadder = [
+    {
+      grossProfit: 2_100_000,
+      ebitda: 1_600_000,
+      ebit: 1_450_000,
+      cashAndBank: 900_000,
+      tradeReceivables: 2_800_000,
+      totalEquity: 4_500_000,
+      quickRatio: 1.11,
+    },
+    {
+      grossProfit: 2_400_000,
+      ebitda: 1_850_000,
+      ebit: 1_700_000,
+      cashAndBank: 1_100_000,
+      tradeReceivables: 3_100_000,
+      totalEquity: 5_000_000,
+      quickRatio: 1.18,
+    },
+    {
+      grossProfit: 2_800_000,
+      ebitda: 2_100_000,
+      ebit: 1_950_000,
+      cashAndBank: 1_400_000,
+      tradeReceivables: 3_200_000,
+      totalEquity: 5_600_000,
+      quickRatio: 1.26,
+    },
   ] as const;
   const sortedIncomeYears = [...allIncomeYears].sort();
   draft.page3.manualFinancialInputs = {
@@ -729,7 +753,7 @@ async function upsertDraftNote(
         year,
         {
           ...(draft.page3.manualFinancialInputs?.years?.[year] ?? {}),
-          ...incomeLadder[Math.min(index, incomeLadder.length - 1)]!,
+          ...pageThreeManualLadder[Math.min(index, pageThreeManualLadder.length - 1)]!,
         },
       ])
     ),

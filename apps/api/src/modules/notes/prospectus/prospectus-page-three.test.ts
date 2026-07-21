@@ -333,9 +333,9 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(row(page.incomeStatement.rows, "profit_before_tax")?.[0]).toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE
       );
-      expect(row(page.balanceSheet.rows, "current_assets")?.[0]).toBe("RM 5,800,000.00");
+      expect(row(page.balanceSheet.rows, "current_assets")?.[0]).toBe("5.8");
       // Zero-default missing asset components → Total Assets = bscatot only (finance risk).
-      expect(row(page.balanceSheet.rows, "total_assets")?.[0]).toBe("RM 5,800,000.00");
+      expect(row(page.balanceSheet.rows, "total_assets")?.[0]).toBe("5.8");
       expect(row(page.coverageEfficiency.rows, "return_on_equity")?.[0]).toBe(
         formatProspectusFinancialPercentFromRatio(
           calculateReturnOnEquity(1_800_000, 2_400_000)
@@ -380,7 +380,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(row(page.incomeStatement.rows, "ebitda")?.[0]).toBe("1.6");
       expect(row(page.incomeStatement.rows, "ebit")?.[0]).toBe("1.4");
       expect(row(page.incomeStatement.rows, "profit_before_tax")?.[0]).toBe("1.4");
-      expect(row(page.balanceSheet.rows, "total_assets")?.[0]).toBe("RM 8,100,000.00");
+      expect(row(page.balanceSheet.rows, "total_assets")?.[0]).toBe("8.1");
       expect(
         computeTotalAssets({
           total_assets: null,
@@ -390,10 +390,8 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
           non_current_assets: 900_000,
         })
       ).toBe(8_100_000);
-      expect(row(page.balanceSheet.rows, "cash_and_bank")?.[0]).toBe("RM 450,000.00");
-      expect(row(page.balanceSheet.rows, "quick_ratio")?.[0]).toBe(
-        PROSPECTUS_DATA_NOT_AVAILABLE
-      );
+      expect(row(page.balanceSheet.rows, "cash_and_bank")?.[0]).toBe("0.9");
+      expect(row(page.balanceSheet.rows, "quick_ratio")?.[0]).toBe("1.11x");
       expect(row(page.coverageEfficiency.rows, "return_on_equity")?.[0]).toBe(
         formatProspectusFinancialPercentFromRatio(
           calculateReturnOnEquity(1_200_000, 2_000_000)
@@ -540,10 +538,12 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(html).not.toMatch(/Audited Financial Statements|Management Account/i);
 
       expect(html).toContain("3-YEAR INCOME STATEMENT SUMMARY (MYR mil.)");
+      expect(html).toContain("3-YEAR BALANCE SHEET &amp; LIQUIDITY (MYR mil.)");
       expect(html).toContain("13.9");
       expect(html).toContain("2.1");
+      expect(html).toContain("8.1");
       expect(html).not.toContain("RM 13,900,000.00");
-      expect(html).toContain("RM 8,100,000.00");
+      expect(html).not.toContain("RM 8,100,000.00");
       expect(html).not.toMatch(/RM\s*mil/i);
       expect(html).not.toContain("clsamplepage3");
       expect(html).not.toContain("unaudited_by_year");

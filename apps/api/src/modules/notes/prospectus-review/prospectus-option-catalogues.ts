@@ -254,12 +254,20 @@ export const PROSPECTUS_INCOME_STATEMENT_OFFICER_FIELD_KEYS = [
 export type ProspectusIncomeStatementOfficerFieldKey =
   (typeof PROSPECTUS_INCOME_STATEMENT_OFFICER_FIELD_KEYS)[number];
 
-export const PROSPECTUS_MANUAL_FINANCIAL_FIELD_KEYS = [
-  ...PROSPECTUS_INCOME_STATEMENT_OFFICER_FIELD_KEYS,
+/** Page 3 Balance Sheet & Liquidity officer-only fields (no Application/CTOS source). */
+export const PROSPECTUS_BALANCE_SHEET_OFFICER_FIELD_KEYS = [
   "cashAndBank",
   "tradeReceivables",
   "totalEquity",
   "quickRatio",
+] as const;
+
+export type ProspectusBalanceSheetOfficerFieldKey =
+  (typeof PROSPECTUS_BALANCE_SHEET_OFFICER_FIELD_KEYS)[number];
+
+export const PROSPECTUS_MANUAL_FINANCIAL_FIELD_KEYS = [
+  ...PROSPECTUS_INCOME_STATEMENT_OFFICER_FIELD_KEYS,
+  ...PROSPECTUS_BALANCE_SHEET_OFFICER_FIELD_KEYS,
   "operatingCashFlow",
   "freeCashFlow",
   "interestCoverage",

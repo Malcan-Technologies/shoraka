@@ -42,6 +42,12 @@ describe("prospectus publish exact copy", () => {
           "<tr><th>Gross Profit</th><td>2.1</td><td>2.4</td><td>2.8</td></tr>",
           "<tr><th>Net Profit Margin</th><td>7.5%</td><td>8.1%</td><td>8.4%</td></tr>",
           "</table></section>",
+          '<section data-content-stage="balance-sheet-liquidity">',
+          "<h2>3-YEAR BALANCE SHEET & LIQUIDITY (MYR mil.)</h2>",
+          "<table><tr><th>Cash & Bank</th><td>0.9</td><td>1.1</td><td>1.4</td></tr>",
+          "<tr><th>Total Assets</th><td>7.4</td><td>7.9</td><td>8.4</td></tr>",
+          "<tr><th>Quick Ratio</th><td>1.11x</td><td>1.18x</td><td>1.26x</td></tr>",
+          "</table></section>",
         ].join(""),
       },
       page_1: { marker: "a" },
@@ -84,10 +90,14 @@ describe("prospectus publish exact copy", () => {
     expect(approved.html.page3).toContain("Confidence Grading");
     expect(approved.html.page3).toContain("High");
     expect(approved.html.page3).toContain("3-YEAR INCOME STATEMENT SUMMARY (MYR mil.)");
+    expect(approved.html.page3).toContain("3-YEAR BALANCE SHEET & LIQUIDITY (MYR mil.)");
     expect(approved.html.page3).toContain("<td>2.1</td>");
     expect(approved.html.page3).toContain("<td>13.9</td>");
     expect(approved.html.page3).toContain("7.5%");
+    expect(approved.html.page3).toContain("<td>0.9</td>");
+    expect(approved.html.page3).toContain("1.11x");
     expect(approved.html.page3).not.toContain("RM 2,100,000");
+    expect(approved.html.page3).not.toContain("RM 8,100,000");
     expect(approved.html.page3).not.toMatch(/\bIssuer\b/);
     expect(approved.page_2.config_versions.soukscore_scale).toBe(
       "2026.07.21.soukscore-scale.v1"

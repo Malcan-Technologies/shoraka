@@ -1,6 +1,6 @@
 /**
  * SECTION: Prospectus Page 3 — Balance Sheet and Liquidity (visible Stage 4)
- * WHY: Confirmed Application FS lines + admin shared totals; unsupported Canva rows DNA
+ * WHY: Confirmed Application FS lines + officer fills; MYR mil. display
  */
 
 import type { ProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source.types";
@@ -10,7 +10,7 @@ export { PROSPECTUS_DATA_NOT_AVAILABLE };
 
 /** Static Canva section title — not a database field. */
 export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_SECTION_HEADING =
-  "BALANCE SHEET AND LIQUIDITY";
+  "3-YEAR BALANCE SHEET & LIQUIDITY (MYR mil.)";
 
 export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_ROW_KEYS = [
   "cash_and_bank",
@@ -70,21 +70,32 @@ export interface ProspectusPageThreeBalanceSheetAudit {
     ctosFallbackAllowed: false;
   };
   cashAndBank: {
-    status: "unresolved";
+    status: "officer_entered";
+    source: "page3.manualFinancialInputs.years.{year}.cashAndBank";
     bsclbankRejected: true;
+    storageUnit: "full_myr";
+    formatter: "formatProspectusMyrMillions";
+    requiredForApproval: true;
   };
   tradeReceivables: {
-    status: "unresolved";
+    status: "officer_entered";
+    source: "page3.manualFinancialInputs.years.{year}.tradeReceivables";
     rawKeyAvailable: false;
+    storageUnit: "full_myr";
+    formatter: "formatProspectusMyrMillions";
+    requiredForApproval: true;
   };
   currentAssets: {
     rawKey: "bscatot";
     status: "confirmed";
+    formatter: "formatProspectusMyrMillions";
+    storageUnit: "full_myr";
   };
   totalAssets: {
     status: "confirmed_calculation";
     inputKeys: ["bsfatot", "othass", "bscatot", "bsclbank"];
     sharedHelper: "computeTotalAssets";
+    formatter: "formatProspectusMyrMillions";
     missingComponentPolicy: ProspectusPageThreeBalanceSheetMissingComponentPolicy;
     publicationSnapshotExtensionRequired: true;
     financeProductRiskAllMissingYieldsZero: true;
@@ -92,27 +103,39 @@ export interface ProspectusPageThreeBalanceSheetAudit {
   currentLiabilities: {
     rawKey: "curlib";
     status: "confirmed";
+    formatter: "formatProspectusMyrMillions";
+    storageUnit: "full_myr";
   };
   totalLiabilities: {
     status: "confirmed_calculation";
     inputKeys: ["curlib", "bsslltd", "bsclstd"];
     sharedHelper: "computeTotalLiabilities";
+    formatter: "formatProspectusMyrMillions";
     missingComponentPolicy: ProspectusPageThreeBalanceSheetMissingComponentPolicy;
     publicationSnapshotExtensionRequired: true;
     financeProductRiskAllMissingYieldsZero: true;
   };
   totalEquity: {
-    status: "unresolved";
+    status: "officer_entered";
+    source: "page3.manualFinancialInputs.years.{year}.totalEquity";
     bsqpucIsPaidUpCapital: true;
     relabelAllowed: false;
+    storageUnit: "full_myr";
+    formatter: "formatProspectusMyrMillions";
+    requiredForApproval: true;
   };
   currentRatio: {
     calculator: "calculateCurrentRatio";
     sharedWithPageTwo: true;
+    formatter: "formatProspectusFinancialMultiple";
   };
   quickRatio: {
-    status: "unresolved";
+    status: "officer_entered";
+    source: "page3.manualFinancialInputs.years.{year}.quickRatio";
     approvedFormulaAvailable: false;
+    storageUnit: "ratio";
+    formatter: "formatProspectusFinancialMultiple";
+    requiredForApproval: true;
   };
   snapshot: {
     currentSharedBranch: "page_2.financial_comparison";
@@ -129,21 +152,32 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT: ProspectusPageThreeBalan
       ctosFallbackAllowed: false,
     },
     cashAndBank: {
-      status: "unresolved",
+      status: "officer_entered",
+      source: "page3.manualFinancialInputs.years.{year}.cashAndBank",
       bsclbankRejected: true,
+      storageUnit: "full_myr",
+      formatter: "formatProspectusMyrMillions",
+      requiredForApproval: true,
     },
     tradeReceivables: {
-      status: "unresolved",
+      status: "officer_entered",
+      source: "page3.manualFinancialInputs.years.{year}.tradeReceivables",
       rawKeyAvailable: false,
+      storageUnit: "full_myr",
+      formatter: "formatProspectusMyrMillions",
+      requiredForApproval: true,
     },
     currentAssets: {
       rawKey: "bscatot",
       status: "confirmed",
+      formatter: "formatProspectusMyrMillions",
+      storageUnit: "full_myr",
     },
     totalAssets: {
       status: "confirmed_calculation",
       inputKeys: ["bsfatot", "othass", "bscatot", "bsclbank"],
       sharedHelper: "computeTotalAssets",
+      formatter: "formatProspectusMyrMillions",
       missingComponentPolicy: "nullish_component_defaults_to_zero_in_sum",
       publicationSnapshotExtensionRequired: true,
       financeProductRiskAllMissingYieldsZero: true,
@@ -151,27 +185,39 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT: ProspectusPageThreeBalan
     currentLiabilities: {
       rawKey: "curlib",
       status: "confirmed",
+      formatter: "formatProspectusMyrMillions",
+      storageUnit: "full_myr",
     },
     totalLiabilities: {
       status: "confirmed_calculation",
       inputKeys: ["curlib", "bsslltd", "bsclstd"],
       sharedHelper: "computeTotalLiabilities",
+      formatter: "formatProspectusMyrMillions",
       missingComponentPolicy: "nullish_component_defaults_to_zero_in_sum",
       publicationSnapshotExtensionRequired: true,
       financeProductRiskAllMissingYieldsZero: true,
     },
     totalEquity: {
-      status: "unresolved",
+      status: "officer_entered",
+      source: "page3.manualFinancialInputs.years.{year}.totalEquity",
       bsqpucIsPaidUpCapital: true,
       relabelAllowed: false,
+      storageUnit: "full_myr",
+      formatter: "formatProspectusMyrMillions",
+      requiredForApproval: true,
     },
     currentRatio: {
       calculator: "calculateCurrentRatio",
       sharedWithPageTwo: true,
+      formatter: "formatProspectusFinancialMultiple",
     },
     quickRatio: {
-      status: "unresolved",
+      status: "officer_entered",
+      source: "page3.manualFinancialInputs.years.{year}.quickRatio",
       approvedFormulaAvailable: false,
+      storageUnit: "ratio",
+      formatter: "formatProspectusFinancialMultiple",
+      requiredForApproval: true,
     },
     snapshot: {
       currentSharedBranch: "page_2.financial_comparison",
@@ -191,7 +237,6 @@ export interface ProspectusPageThreeBalanceSheet {
 export interface ProspectusPageThreeBalanceSheetInput {
   /** Existing Page 2 Stage 4A result — required; never re-parsed here. */
   financialSource: ProspectusFinancialComparisonSource;
-  /** Temporary builder-only fills for unsupported rows only. */
   prospectusFinancialInputs?: {
     years: Record<
       string,
@@ -210,7 +255,7 @@ export interface ProspectusPageThreeBalanceSheetInput {
 export interface ProspectusPageThreeBalanceSheetFieldSource {
   label: string;
   canonicalSource: string;
-  availability: "static" | "stored" | "calculated" | "unresolved" | "reused";
+  availability: "static" | "stored" | "calculated" | "unresolved" | "reused" | "officer";
   surface: "canva" | "audit";
   possibleAlternatives: string;
   notes: string;
@@ -226,7 +271,7 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_FIELD_SOURCES: Record<
     availability: "static",
     surface: "canva",
     possibleAlternatives: "none",
-    notes: "BALANCE SHEET AND LIQUIDITY",
+    notes: "3-YEAR BALANCE SHEET & LIQUIDITY (MYR mil.)",
   },
   years: {
     label: "Selected financial years",
@@ -238,19 +283,19 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_FIELD_SOURCES: Record<
   },
   cash_and_bank: {
     label: "Cash & Bank",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page3.manualFinancialInputs.years.{year}.cashAndBank",
+    availability: "officer",
     surface: "canva",
     possibleAlternatives: "bsclbank — rejected (Non-Current Assets)",
-    notes: "No confirmed cash/bank Application FS key.",
+    notes: "Full MYR storage; formatProspectusMyrMillions display.",
   },
   trade_receivables: {
     label: "Trade Receivables",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page3.manualFinancialInputs.years.{year}.tradeReceivables",
+    availability: "officer",
     surface: "canva",
     possibleAlternatives: "none",
-    notes: "No confirmed receivables Application FS key.",
+    notes: "Full MYR storage; formatProspectusMyrMillions display.",
   },
   current_assets: {
     label: "Current Assets",
@@ -258,7 +303,7 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_FIELD_SOURCES: Record<
     availability: "stored",
     surface: "canva",
     possibleAlternatives: "CTOS — not used",
-    notes: "formatProspectusMoneyMyr; missing → DNA.",
+    notes: "formatProspectusMyrMillions; missing → DNA.",
   },
   total_assets: {
     label: "Total Assets",
@@ -267,7 +312,7 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_FIELD_SOURCES: Record<
     surface: "canva",
     possibleAlternatives: "Local sum; CTOS totass — not used",
     notes:
-      "Admin Application path helper. bsclbank = Non-Current Assets. Missing components → 0 in sum.",
+      "Admin Application path helper. bsclbank = Non-Current Assets. Missing components → 0 in sum. Display via formatProspectusMyrMillions.",
   },
   current_liabilities: {
     label: "Current Liabilities",
@@ -275,7 +320,7 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_FIELD_SOURCES: Record<
     availability: "stored",
     surface: "canva",
     possibleAlternatives: "CTOS — not used",
-    notes: "formatProspectusMoneyMyr; missing → DNA.",
+    notes: "formatProspectusMyrMillions; missing → DNA.",
   },
   total_liabilities: {
     label: "Total Liabilities",
@@ -283,15 +328,15 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_FIELD_SOURCES: Record<
     availability: "calculated",
     surface: "canva",
     possibleAlternatives: "Local sum; CTOS totlib — not used",
-    notes: "Admin Application path helper. Missing components → 0 in sum.",
+    notes: "Admin Application path helper. Missing components → 0 in sum. Display via formatProspectusMyrMillions.",
   },
   total_equity: {
     label: "Total Equity",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page3.manualFinancialInputs.years.{year}.totalEquity",
+    availability: "officer",
     surface: "canva",
     possibleAlternatives: "bsqpuc (Paid-Up Capital) — not relabelled",
-    notes: "Finance approval required before using paid-up capital as Total Equity.",
+    notes: "Full MYR storage; formatProspectusMyrMillions display.",
   },
   current_ratio: {
     label: "Current Ratio",
@@ -303,10 +348,10 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_FIELD_SOURCES: Record<
   },
   quick_ratio: {
     label: "Quick Ratio",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page3.manualFinancialInputs.years.{year}.quickRatio",
+    availability: "officer",
     surface: "canva",
     possibleAlternatives: "Generic (CA−inventory)/CL — not used",
-    notes: "No approved shared formula or inventory field.",
+    notes: "Ratio storage (no x); formatProspectusFinancialMultiple display.",
   },
 };

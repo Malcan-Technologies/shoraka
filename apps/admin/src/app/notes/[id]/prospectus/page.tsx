@@ -90,6 +90,7 @@ import {
 } from "@/notes/prospectus-review/page-three-coverage";
 import { ProspectusFinancialMetricTable } from "@/notes/prospectus-review/financial-metric-table";
 import { ProspectusHistoricalNotesTable } from "@/notes/prospectus-review/historical-notes-table";
+import { ProspectusBalanceSheetWorkingTable } from "@/notes/prospectus-review/balance-sheet-working-table";
 import { ProspectusIncomeStatementWorkingTable } from "@/notes/prospectus-review/income-statement-working-table";
 import { ProspectusPreviewSheet } from "@/notes/prospectus-review/preview-sheet";
 import { ProspectusSectionHeading } from "@/notes/prospectus-review/section-heading";
@@ -144,13 +145,6 @@ function ReadOnlyGrid({ rows }: { rows: Array<{ label: string; value: string }> 
     </div>
   );
 }
-
-const MANUAL_BALANCE_FIELDS: Array<[string, string, string?]> = [
-  ["cashAndBank", "Cash & Bank", "RM"],
-  ["tradeReceivables", "Trade Receivables", "RM"],
-  ["totalEquity", "Total Equity", "RM"],
-  ["quickRatio", "Quick Ratio"],
-];
 
 const MANUAL_COVERAGE_FIELDS: Array<[string, string, string?]> = [
   ["operatingCashFlow", "Operating Cash Flow", "RM"],
@@ -1374,9 +1368,19 @@ function ProspectusReviewPageInner() {
                         />
                       </section>
 
-                      <section>
-                        <ProspectusSectionHeading title="Balance Sheet & Liquidity" />
-                        <ProspectusFinancialMetricTable table={balanceSheetTable} />
+                      <section data-prospectus-balance-sheet>
+                        <ProspectusSectionHeading title="3-Year Balance Sheet & Liquidity (MYR mil.)" />
+                        <p className="mb-3 text-sm text-muted-foreground">
+                          Values sourced or calculated from financial statements are read-only. Enter
+                          the remaining values in full MYR, except Quick Ratio.
+                        </p>
+                        <ProspectusBalanceSheetWorkingTable
+                          table={balanceSheetTable}
+                          years={incomeStatementYearKeys}
+                          manualYears={manualYears ?? {}}
+                          disabled={locked || !canManage}
+                          onChange={updateManualFieldForYear}
+                        />
                       </section>
 
                       <section>
@@ -1387,8 +1391,8 @@ function ProspectusReviewPageInner() {
                       <section>
                         <ProspectusSectionHeading title="Officer Input" />
                         <p className="mb-3 text-sm text-muted-foreground">
-                          Balance Sheet and coverage fields that are not available from financial
-                          statements. Income Statement officer fields are edited in the table above.
+                          Coverage fields that are not available from financial statements. Income
+                          Statement and Balance Sheet officer fields are edited in the tables above.
                         </p>
                         <div className="mb-4 flex flex-wrap gap-2">
                           {activeFinancialYears.map((year) => (
@@ -1403,25 +1407,14 @@ function ProspectusReviewPageInner() {
                             </Button>
                           ))}
                         </div>
-                        <div className="space-y-6">
-                          <div>
-                            <OfficerInputHeading title="Balance Sheet & Liquidity" />
-                            <ManualFinancialInputs
-                              fields={MANUAL_BALANCE_FIELDS}
-                              disabled={locked || !canManage}
-                              values={yearManual}
-                              onChange={updateManualField}
-                            />
-                          </div>
-                          <div>
-                            <OfficerInputHeading title="Cash Flow, Coverage & Efficiency" />
-                            <ManualFinancialInputs
-                              fields={MANUAL_COVERAGE_FIELDS}
-                              disabled={locked || !canManage}
-                              values={yearManual}
-                              onChange={updateManualField}
-                            />
-                          </div>
+                        <div>
+                          <OfficerInputHeading title="Cash Flow, Coverage & Efficiency" />
+                          <ManualFinancialInputs
+                            fields={MANUAL_COVERAGE_FIELDS}
+                            disabled={locked || !canManage}
+                            values={yearManual}
+                            onChange={updateManualField}
+                          />
                         </div>
                       </section>
                     </div>
