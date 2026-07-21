@@ -2,15 +2,17 @@ import { SOUKSCORE_RISK_RATING_GRADES } from "@cashsouk/types";
 import { buildProspectusSoukscoreRatingScale } from "./prospectus-soukscore-rating-scale";
 import {
   SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_CANVA_INPUT,
+  SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_DEMO_INPUT,
   SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_INPUT,
   SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_INVALID_INPUT,
   SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_MISSING_INPUT,
 } from "./prospectus-soukscore-rating-scale.sample-data";
 import {
-  PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_SOUKSCORE_GRADE_ORDER,
+  PROSPECTUS_SOUKSCORE_RATING_NOT_AVAILABLE,
   PROSPECTUS_SOUKSCORE_RATING_SCALE_FIELD_SOURCES,
   PROSPECTUS_SOUKSCORE_RATING_SCALE_SECTION_HEADING,
+  PROSPECTUS_SOUKSCORE_SCALE_VERSION,
 } from "./prospectus-soukscore-rating-scale.types";
 import { buildProspectusSoukscoreRatingScaleDocument } from "./render-prospectus-soukscore-rating-scale";
 
@@ -38,6 +40,8 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     expect(data.grades).toHaveLength(6);
     expect(PROSPECTUS_SOUKSCORE_GRADE_ORDER).toBe(SOUKSCORE_RISK_RATING_GRADES);
     expect(data.audit.scale.gradeOrder).toEqual(SOUKSCORE_RISK_RATING_GRADES);
+    expect(data.scaleVersion).toBe(PROSPECTUS_SOUKSCORE_SCALE_VERSION);
+    expect(data.scaleVersion).toBe("2026.07.21.soukscore-scale.v1");
   });
 
   it.each(VALID_GRADES)("selects only valid grade %s", (grade) => {
@@ -45,7 +49,20 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     const selected = data.grades.filter((g) => g.isSelected);
     expect(selected).toHaveLength(1);
     expect(selected[0]?.grade).toBe(grade);
+    expect(data.selectedGrade).toBe(grade);
+    expect(data.missingRatingMessage).toBeNull();
     expect(data.grades.filter((g) => !g.isSelected)).toHaveLength(5);
+  });
+
+  it("highlights demo BBB grade", () => {
+    const data = buildProspectusSoukscoreRatingScale(
+      SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_DEMO_INPUT
+    );
+    expect(data.selectedGrade).toBe("BBB");
+    expect(data.grades.find((g) => g.grade === "BBB")?.isSelected).toBe(true);
+    const html = buildProspectusSoukscoreRatingScaleDocument(data);
+    expect(html).toContain('data-grade="BBB" data-selected="true"');
+    expect((html.match(/data-grade="[^"]+" data-selected="true"/g) ?? []).length).toBe(1);
   });
 
   it("selects no grade for missing or invalid values and does not default", () => {
@@ -58,28 +75,37 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
       { selectedRiskRating: "AA+" },
       { selectedRiskRating: 1 },
       { selectedRiskRating: "Low Risk" },
+      { selectedRiskRating: "90%" },
+      { selectedRiskRating: 90 },
     ]) {
       const data = buildProspectusSoukscoreRatingScale(input);
       expect(data.grades.every((g) => g.isSelected === false)).toBe(true);
-      expect(data.grades.some((g) => g.grade === "AAA" && g.isSelected)).toBe(false);
+      expect(data.selectedGrade).toBeNull();
+      expect(data.missingRatingMessage).toBe(PROSPECTUS_SOUKSCORE_RATING_NOT_AVAILABLE);
     }
     expect(
       buildProspectusSoukscoreRatingScale().audit.selection.invalidSelectionDefaultsToGrade
     ).toBe(false);
   });
 
-  it("keeps risk labels, definitions, and assessment note as DNA", () => {
+  it("omits Assessment Note, Risk Label, and Definition DNA lines", () => {
     const data = buildProspectusSoukscoreRatingScale(
       SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_INPUT
     );
-    expect(data.assessmentNote).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data).not.toHaveProperty("assessmentNote");
     for (const grade of data.grades) {
-      expect(grade.riskLabel).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-      expect(grade.definition).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+      expect(grade).not.toHaveProperty("riskLabel");
+      expect(grade).not.toHaveProperty("definition");
     }
-    expect(data.audit.labels.approvedMappingAvailable).toBe(false);
-    expect(data.audit.definitions.approvedStaticCopyAvailable).toBe(false);
-    expect(data.audit.assessmentNote.approvedStaticCopyAvailable).toBe(false);
+    expect(data.audit.display.assessmentNoteRendered).toBe(false);
+    expect(data.audit.display.riskLabelsRendered).toBe(false);
+    expect(data.audit.display.definitionsRendered).toBe(false);
+
+    const html = buildProspectusSoukscoreRatingScaleDocument(data);
+    expect(html).not.toContain("Assessment Note");
+    expect(html).not.toContain("Risk Label");
+    expect(html).not.toContain("Definition:");
+    expect(html).not.toContain("Data not available");
   });
 
   it("rejects Canva A–E scale items while keeping valid grade A", () => {
@@ -98,7 +124,7 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     expect(html).not.toContain('data-grade="E"');
   });
 
-  it("does not generate Canva labels, external definitions, or thresholds", () => {
+  it("does not generate risk wording, percentage mappings, or Credit Insights derivation", () => {
     const data = buildProspectusSoukscoreRatingScale(
       SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_INPUT
     );
@@ -107,11 +133,16 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     expect(html).not.toMatch(/Very Low Risk|Low Risk|Moderate Risk|High Risk|Very High Risk/);
     expect(html).not.toMatch(/Excellent capacity|Strong capacity|Adequate capacity/i);
     expect(html).not.toMatch(/Vulnerable|High likelihood of default/i);
-    expect(html).not.toMatch(/\d+\s*[-–]\s*\d+/);
+    expect(html).not.toMatch(/probability of default|default probability/i);
+    expect(html).not.toMatch(/90%|75%|60%/);
     expect(html).not.toMatch(/threshold|score range/i);
+    expect(html).not.toContain("Credit Insights");
+    expect(html).not.toContain("creditScore");
     expect(data.audit.scale.numericThresholdsAvailable).toBe(false);
+    expect(data.audit.scale.creditInsightsDerived).toBe(false);
     expect(data.audit.scale.externalRatingDefinitionsUsed).toBe(false);
     expect(data.audit.claims.generatedRiskClaimAllowed).toBe(false);
+    expect(data.audit.selection.prospectusEditable).toBe(false);
   });
 
   it("does not mix CTOS/CCRIS/RegTank/AML/KYC and hides audit metadata", () => {
@@ -134,18 +165,18 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     expect(html).not.toContain("canvaAtoEScaleRejected");
     expect(html).not.toContain("isSoukscoreRiskRating");
     expect(html).not.toContain("approvedMappingAvailable");
-    expect(html).not.toContain("snapshotDecision");
     expect(html).not.toContain('"audit"');
   });
 
-  it("HTML shows heading, assessment note, six grades, and structural selection only", () => {
+  it("HTML shows heading, horizontal scale, structural selection, and missing-grade message", () => {
     const data = buildProspectusSoukscoreRatingScale(
       SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_INPUT
     );
     const html = buildProspectusSoukscoreRatingScaleDocument(data);
 
     expect(html).toContain("RISK RATING SCALE");
-    expect(html).toContain(`Assessment Note: ${PROSPECTUS_DATA_NOT_AVAILABLE}`);
+    expect(html).toContain('class="soukscore-scale"');
+    expect(html).toContain(`data-soukscore-scale-version="${PROSPECTUS_SOUKSCORE_SCALE_VERSION}"`);
     expect(html).toContain('data-grade="AAA"');
     expect(html).toContain('data-grade="AA"');
     expect(html).toContain('data-grade="A"');
@@ -153,14 +184,20 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     expect(html).toContain('data-grade="BB"');
     expect(html).toContain('data-grade="B"');
     expect(html).toContain('data-grade="AA" data-selected="true"');
-    expect((html.match(/data-selected="true"/g) ?? []).length).toBe(1);
-    expect((html.match(/data-selected="false"/g) ?? []).length).toBe(5);
-    expect(html).not.toContain("Selected Grade");
-    expect(html).toContain(`Risk Label: ${PROSPECTUS_DATA_NOT_AVAILABLE}`);
-    expect(html).toContain(`Definition: ${PROSPECTUS_DATA_NOT_AVAILABLE}`);
+    expect(html).toContain('aria-current="true"');
+    expect((html.match(/data-grade="[^"]+" data-selected="true"/g) ?? []).length).toBe(1);
+    expect((html.match(/data-grade="[^"]+" data-selected="false"/g) ?? []).length).toBe(5);
+    expect(html).not.toContain(PROSPECTUS_SOUKSCORE_RATING_NOT_AVAILABLE);
+
+    const missingHtml = buildProspectusSoukscoreRatingScaleDocument(
+      buildProspectusSoukscoreRatingScale(SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_MISSING_INPUT)
+    );
+    expect(missingHtml).toContain(PROSPECTUS_SOUKSCORE_RATING_NOT_AVAILABLE);
+    expect((missingHtml.match(/Risk rating not available/g) ?? []).length).toBe(1);
+    expect((missingHtml.match(/data-grade="[^"]+" data-selected="true"/g) ?? []).length).toBe(0);
 
     expect(PROSPECTUS_SOUKSCORE_RATING_SCALE_FIELD_SOURCES.assessmentNote.availability).toBe(
-      "unresolved"
+      "omitted"
     );
     expect(PROSPECTUS_SOUKSCORE_RATING_SCALE_FIELD_SOURCES.selectedRiskRating.canonicalSource).toBe(
       "notes.invoice_snapshot.offer_details.risk_rating"

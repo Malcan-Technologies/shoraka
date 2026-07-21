@@ -33,8 +33,23 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).toContain("Officer Input");
   });
 
-  it("removes redundant fixed-content verification sections", () => {
-    expect(pageSource).not.toContain("Risk Rating Scale");
+  it("shows read-only Risk Rating Scale from frozen Note grade and omits Investment CTA editor", () => {
+    expect(pageSource).toContain("Risk Rating Scale");
+    expect(pageSource).toContain("data-prospectus-risk-rating-scale");
+    expect(pageSource).toContain(
+      "Risk rating is taken from the approved invoice offer and cannot be edited"
+    );
+    expect(pageSource).toContain("SOUKSCORE_RISK_RATING_GRADES");
+    expect(pageSource).toContain("note?.riskRating");
+    expect(pageSource).not.toMatch(
+      /data-prospectus-risk-rating-scale[\s\S]{0,800}<Select/
+    );
+    expect(pageSource).not.toMatch(
+      /data-prospectus-risk-rating-scale[\s\S]{0,800}<Input/
+    );
+    expect(pageSource).not.toMatch(
+      /data-prospectus-risk-rating-scale[\s\S]{0,800}<Textarea/
+    );
     expect(pageSource).not.toContain("Investment CTA");
   });
 

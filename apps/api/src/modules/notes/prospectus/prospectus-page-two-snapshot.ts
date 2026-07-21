@@ -7,6 +7,7 @@ import { decimalToSerializableString } from "../../issuer-dashboard/track-record
 import { asJsonRecord } from "./prospectus-json-guards";
 import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
+import { PROSPECTUS_SOUKSCORE_SCALE_VERSION } from "./prospectus-soukscore-rating-scale.types";
 import type {
   ProspectusPage1Snapshot,
   ProspectusPage2FinancialComparisonSnapshot,
@@ -98,7 +99,7 @@ export function buildProspectusPage2Snapshot(input: {
   return {
     financial_comparison: buildProspectusPage2FinancialComparisonSnapshot(input),
     config_versions: {
-      soukscore_scale: null,
+      soukscore_scale: PROSPECTUS_SOUKSCORE_SCALE_VERSION,
       legal_copy: null,
       marketing_copy: null,
     },

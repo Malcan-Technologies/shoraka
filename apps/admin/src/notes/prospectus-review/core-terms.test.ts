@@ -650,7 +650,7 @@ describe("Risk Information prospectus/admin boundary", () => {
     expect(adminCore).toContain('label: "Risk Explanation", value: DATA_NOT_AVAILABLE');
   });
 
-  it("leaves Page 2 risk scale and completion rules untouched", () => {
+  it("keeps Page 2 risk scale non-editable in Prospectus completion rules", () => {
     const pageTwoScale = fs.readFileSync(
       path.join(
         __dirname,
@@ -658,8 +658,10 @@ describe("Risk Information prospectus/admin boundary", () => {
       ),
       "utf8"
     );
-    expect(pageTwoScale).toContain("riskLabel: PROSPECTUS_DATA_NOT_AVAILABLE");
-    expect(pageTwoScale).toContain("definition: PROSPECTUS_DATA_NOT_AVAILABLE");
+    expect(pageTwoScale).not.toContain("riskLabel:");
+    expect(pageTwoScale).not.toContain("definition:");
+    expect(pageTwoScale).not.toContain("assessmentNote:");
+    expect(pageTwoScale).toContain("PROSPECTUS_SOUKSCORE_RATING_NOT_AVAILABLE");
 
     const completion = fs.readFileSync(path.join(__dirname, "completion.ts"), "utf8");
     expect(completion).not.toMatch(/Risk Label|Risk Explanation|Risk Rating|risk-information/);

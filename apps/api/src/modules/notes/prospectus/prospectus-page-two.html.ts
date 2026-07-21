@@ -11,6 +11,7 @@ import {
   PROSPECTUS_PAGE_TWO_WIDTH_MM,
 } from "./prospectus-page-two.types";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
+import { buildProspectusSoukscoreRatingScaleSectionHtml } from "./prospectus-soukscore-rating-scale.html";
 
 function renderFinancialTable(page: ProspectusPageTwo): string {
   const data = page.financialComparisonMetrics;
@@ -63,25 +64,7 @@ ${bodyRows}
 }
 
 function renderSoukscoreScale(page: ProspectusPageTwo): string {
-  const data = page.soukscoreRatingScale;
-  const gradeRows = data.grades
-    .map((item) => {
-      const selectedAttr = item.isSelected ? "true" : "false";
-      return `    <li data-grade="${escapeHtml(item.grade)}" data-selected="${selectedAttr}">
-      <span>${escapeHtml(item.grade)}</span>
-      — Risk Label: ${escapeHtml(item.riskLabel)};
-      Definition: ${escapeHtml(item.definition)}
-    </li>`;
-    })
-    .join("\n");
-
-  return `<section data-stage="7">
-  <h2>${escapeHtml(data.sectionHeading)}</h2>
-  <p>Assessment Note: ${escapeHtml(data.assessmentNote)}</p>
-  <ol class="soukscore-grades">
-${gradeRows}
-  </ol>
-</section>`;
+  return buildProspectusSoukscoreRatingScaleSectionHtml(page.soukscoreRatingScale);
 }
 
 function renderCta(page: ProspectusPageTwo): string {
@@ -150,7 +133,30 @@ export function buildProspectusPageTwoHtml(page: ProspectusPageTwo): string {
     p { margin: 0; }
     .fin-table { width: 100%; border-collapse: collapse; font-size: 10px; }
     .fin-table th, .fin-table td { text-align: left; vertical-align: top; }
-    .soukscore-grades { margin: 0; padding-left: 18px; }
+    .soukscore-scale {
+      display: flex;
+      width: 100%;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      border: 1px solid #ccc;
+    }
+    .soukscore-scale .grade-item {
+      flex: 1 1 0;
+      text-align: center;
+      padding: 8px 4px;
+      border-right: 1px solid #ccc;
+      font-weight: 400;
+    }
+    .soukscore-scale .grade-item:last-child { border-right: none; }
+    .soukscore-scale .grade-item.is-selected,
+    .soukscore-scale .grade-item[data-selected="true"] {
+      font-weight: 700;
+      outline: 2px solid #111;
+      outline-offset: -2px;
+      background: #f3f3f3;
+    }
+    .soukscore-missing { margin: 6px 0 0; }
     .cta-button { display: inline-block; margin-top: 4px; }
     .issuer-profile-body {
       display: flex;

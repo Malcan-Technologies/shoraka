@@ -211,6 +211,10 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       );
       expect(page2.financial_comparison.calculated_at).toBe("2026-07-19T12:00:00.000Z");
 
+      expect(page2.config_versions?.soukscore_scale).toBe("2026.07.21.soukscore-scale.v1");
+      expect(page2.config_versions?.legal_copy).toBeNull();
+      expect(page2.config_versions?.marketing_copy).toBeNull();
+
       const serialized = JSON.stringify(page2);
       expect(serialized).not.toMatch(/RM /);
       expect(serialized).not.toMatch(/CCRIS|RegTank/i);
@@ -341,7 +345,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
             page_2: { financial_comparison: frozen },
           },
         }),
-        liveFinancialStatements,
+        liveFinancialStatements: changedLive,
         liveCtosFinancials,
       };
 
@@ -561,9 +565,12 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       const selected = page.soukscoreRatingScale.grades.filter((g) => g.isSelected);
       expect(selected).toHaveLength(1);
       expect(selected[0]?.grade).toBe("AA");
-      expect(page.soukscoreRatingScale.grades.every((g) => g.riskLabel === PROSPECTUS_DATA_NOT_AVAILABLE)).toBe(
-        true
-      );
+      expect(page.soukscoreRatingScale.selectedGrade).toBe("AA");
+      expect(page.soukscoreRatingScale.missingRatingMessage).toBeNull();
+      expect(page.soukscoreRatingScale).not.toHaveProperty("assessmentNote");
+      expect(page.soukscoreRatingScale.grades[0]).not.toHaveProperty("riskLabel");
+      expect(page.soukscoreRatingScale.grades[0]).not.toHaveProperty("definition");
+
 
       expect(page.investmentCta.minimumInvestmentStatement).toContain(
         formatProspectusMoneyMyr(MARKETPLACE_MIN_COMMIT_MYR)
@@ -573,7 +580,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
     });
 
     it("selects no SoukScore grade for invalid ratings", () => {
-      for (const rating of ["A-", "C", "D", "E", "AA+"]) {
+      for (const rating of ["A-", "C", "D", "E", "AA+", "90%"]) {
         const page = buildProspectusPageTwo(
           mapProspectusPageTwoDataToInput({
             note: baseNote({
@@ -587,7 +594,50 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
           })
         );
         expect(page.soukscoreRatingScale.grades.every((g) => !g.isSelected)).toBe(true);
+        expect(page.soukscoreRatingScale.selectedGrade).toBeNull();
+        expect(page.soukscoreRatingScale.missingRatingMessage).toBe("Risk rating not available");
       }
+    });
+
+    it("uses frozen Note invoice_snapshot risk_rating and ignores a different live invoice value", () => {
+      const frozenNote = baseNote({
+        invoice_snapshot: {
+          details: { value: 100 },
+          offer_details: { risk_rating: "BBB" },
+        },
+      });
+      const page = buildProspectusPageTwo(
+        mapProspectusPageTwoDataToInput({
+          note: frozenNote,
+          liveFinancialStatements,
+          liveCtosFinancials,
+        })
+      );
+      expect(page.soukscoreRatingScale.selectedGrade).toBe("BBB");
+
+      const liveInvoiceWouldBe = { offer_details: { risk_rating: "AAA" } };
+      expect(liveInvoiceWouldBe.offer_details.risk_rating).toBe("AAA");
+      expect(
+        (frozenNote.invoice_snapshot as { offer_details: { risk_rating: string } }).offer_details
+          .risk_rating
+      ).toBe("BBB");
+      expect(page.soukscoreRatingScale.selectedGrade).not.toBe(
+        liveInvoiceWouldBe.offer_details.risk_rating
+      );
+
+      const html = renderProspectusPageTwoHtml(page);
+      const stage7Start = html.indexOf('data-stage="7"');
+      const stage8Start = html.indexOf('data-stage="8-cta"');
+      expect(stage7Start).toBeGreaterThan(-1);
+      expect(stage8Start).toBeGreaterThan(stage7Start);
+      const stage7 = html.slice(stage7Start, stage8Start);
+      expect(stage7).toContain('data-grade="BBB" data-selected="true"');
+      expect(stage7).not.toContain("Assessment Note");
+      expect(stage7).not.toContain("Risk Label");
+      expect(stage7).not.toContain("Definition:");
+      expect(stage7).not.toContain("creditScore");
+      expect(stage7).not.toContain("CTOS");
+      expect(page.soukscoreRatingScale.audit.scale.creditInsightsDerived).toBe(false);
     });
 
     it("keeps Company Size DNA when old issuer snapshot keys are missing", () => {

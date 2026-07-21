@@ -17,6 +17,8 @@ import {
   PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT,
   PROSPECTUS_HIGHLIGHT_KEYS,
   PROSPECTUS_PAYMASTER_RATING_VALUES,
+  SOUKSCORE_RISK_RATING_GRADES,
+  isSoukscoreRiskRating,
   normalizeProspectusCompanySize,
   normalizeProspectusConfidenceGrading,
   normalizeProspectusDeedOfAssignment,
@@ -1263,6 +1265,43 @@ function ProspectusReviewPageInner() {
                             </div>
                           ))}
                         </div>
+                      </section>
+                      <section data-prospectus-risk-rating-scale>
+                        <ProspectusSectionHeading title="Risk Rating Scale" />
+                        <p className="mb-3 text-sm text-muted-foreground">
+                          Risk rating is taken from the approved invoice offer and cannot be edited
+                          here.
+                        </p>
+                        <ol
+                          className="flex w-full list-none border border-border p-0"
+                          aria-label="Risk Rating Scale"
+                        >
+                          {SOUKSCORE_RISK_RATING_GRADES.map((grade) => {
+                            const selected = isSoukscoreRiskRating(note?.riskRating)
+                              ? note.riskRating === grade
+                              : false;
+                            return (
+                              <li
+                                key={grade}
+                                data-grade={grade}
+                                data-selected={selected ? "true" : "false"}
+                                aria-current={selected ? "true" : undefined}
+                                className={
+                                  selected
+                                    ? "flex-1 border-r border-border px-2 py-2 text-center text-[17px] font-bold leading-7 last:border-r-0 outline outline-2 outline-foreground outline-offset-[-2px] bg-muted"
+                                    : "flex-1 border-r border-border px-2 py-2 text-center text-[17px] font-normal leading-7 last:border-r-0"
+                                }
+                              >
+                                {grade}
+                              </li>
+                            );
+                          })}
+                        </ol>
+                        {!isSoukscoreRiskRating(note?.riskRating) ? (
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            Risk rating not available
+                          </p>
+                        ) : null}
                       </section>
                     </div>
                   ) : null}

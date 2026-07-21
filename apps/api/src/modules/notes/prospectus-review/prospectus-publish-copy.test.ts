@@ -4,30 +4,57 @@
 
 describe("prospectus publish exact copy", () => {
   it("deep-clones approved freeze without mutating the source", () => {
+    const approvedPage2Html = [
+      '<section data-stage="2">Invoice Amount: RM 625,000.00<br />Paymaster: KKR</section>',
+      '<section data-stage="3">Total Invoices Paid: 48<br />Successful Repayment: 98.5%</section>',
+      '<section data-stage="7" data-soukscore-scale-version="2026.07.21.soukscore-scale.v1">',
+      "<h2>RISK RATING SCALE</h2>",
+      '<ol class="soukscore-scale">',
+      '<li data-grade="AAA" data-selected="false"><span class="grade">AAA</span></li>',
+      '<li data-grade="AA" data-selected="false"><span class="grade">AA</span></li>',
+      '<li data-grade="A" data-selected="false"><span class="grade">A</span></li>',
+      '<li data-grade="BBB" data-selected="true" aria-current="true"><span class="grade">BBB</span></li>',
+      '<li data-grade="BB" data-selected="false"><span class="grade">BB</span></li>',
+      '<li data-grade="B" data-selected="false"><span class="grade">B</span></li>',
+      "</ol>",
+      "</section>",
+    ].join("");
+
     const approved = {
       publication_id: "pub-1",
       content_version: 1,
       render_fingerprint: "fp",
       html: {
         page1: "<p>1</p>",
-        page2:
-          "<section data-stage=\"2\">Invoice Amount: RM 625,000.00<br />Paymaster: KKR</section><section data-stage=\"3\">Total Invoices Paid: 48<br />Successful Repayment: 98.5%</section>",
+        page2: approvedPage2Html,
         page3: "<p>3</p>",
       },
       page_1: { marker: "a" },
-      page_2: { marker: "b" },
+      page_2: {
+        config_versions: {
+          soukscore_scale: "2026.07.21.soukscore-scale.v1",
+          legal_copy: null,
+          marketing_copy: null,
+        },
+      },
       publication_content: { version: 1 },
       note_identity: {
         note_reference: "N-1",
-        invoice_snapshot: { details: { value: 625_000 } },
+        invoice_snapshot: {
+          details: { value: 625_000 },
+          offer_details: { risk_rating: "BBB" },
+        },
         paymaster_snapshot: { name: "KKR", entity_type: "Government" },
       },
     };
 
     const published = structuredClone(approved) as typeof approved;
     published.html.page1 = "<p>mutated</p>";
-    published.html.page2 = "<section data-stage=\"2\">Invoice Amount: RM 1.00</section>";
-    published.note_identity.invoice_snapshot = { details: { value: 1 } };
+    published.html.page2 = '<section data-stage="2">Invoice Amount: RM 1.00</section>';
+    published.note_identity.invoice_snapshot = {
+      details: { value: 1 },
+      offer_details: { risk_rating: "AAA" },
+    };
     published.page_1 = { marker: "changed" };
 
     expect(approved.html.page1).toBe("<p>1</p>");
@@ -35,9 +62,19 @@ describe("prospectus publish exact copy", () => {
     expect(approved.html.page2).toContain("Paymaster: KKR");
     expect(approved.html.page2).toContain("Total Invoices Paid: 48");
     expect(approved.html.page2).toContain("Successful Repayment: 98.5%");
-    expect(approved.note_identity.invoice_snapshot).toEqual({ details: { value: 625_000 } });
+    expect(approved.html.page2).toContain('data-grade="BBB" data-selected="true"');
+    expect(approved.html.page2).toContain("RISK RATING SCALE");
+    expect(approved.page_2.config_versions.soukscore_scale).toBe(
+      "2026.07.21.soukscore-scale.v1"
+    );
+    expect(approved.note_identity.invoice_snapshot).toEqual({
+      details: { value: 625_000 },
+      offer_details: { risk_rating: "BBB" },
+    });
     expect(approved.page_1).toEqual({ marker: "a" });
     expect(JSON.stringify(published.html)).not.toEqual(JSON.stringify(approved.html));
+    expect(published.note_identity.invoice_snapshot.offer_details.risk_rating).toBe("AAA");
+    expect(approved.html.page2).toContain('data-grade="BBB" data-selected="true"');
   });
 
   it("keeps investment publication id distinct from content_version alone", () => {
