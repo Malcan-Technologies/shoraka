@@ -48,6 +48,7 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageOne).toContain("ProspectusInternalTabs");
     expect(pageOne).not.toContain("at-a-glance");
     expect(pageOne).not.toContain("Working Area");
+    expect(pageOne).not.toContain("From Invoice Offer");
     expect(pageOne).toContain("PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT");
     expect(pageOne).toContain('key === "shariah"');
     expect(pageOne).toContain("Fixed");
@@ -68,6 +69,12 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageTwo).not.toContain("data-prospectus-risk-rating-scale");
     expect(pageTwo).not.toContain("SOUKSCORE_RISK_RATING_GRADES");
     expect(pageTwo).toContain("Risk Information");
+    expect(pageTwo).toContain("Risk Grade");
+    expect(pageTwo).toContain("Risk Level");
+    expect(pageTwo).toContain("Explanation");
+    expect(pageTwo).not.toContain("Scale Version");
+    expect(pageTwo).not.toContain("soukscore-scale.v1");
+    expect(pageTwo).not.toContain("From Invoice Offer");
     expect(pageTwo).toContain("Disabled in Prospectus");
     expect(pageTwo).toContain("Invest with Confidence");
     expect(pageTwo).not.toMatch(/data-prospectus-investment-cta[\s\S]{0,400}<button/);
@@ -80,10 +87,10 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageTwo).not.toContain("PAGE_TWO_OFFICER_FINANCIAL_METRICS.map");
   });
 
-  it("Page 3 reuses Page 2 gradings and omits Trend column in working coverage table", () => {
-    expect(pageThree).toContain("From Page 2 — Issuer & Paymaster");
-    expect(pageThree).toContain("From Page 2 — Issuer Profile");
-    expect(pageThree).toContain("From Invoice Offer");
+  it("Page 3 overview and coverage hide source lines; reused cells stay read-only", () => {
+    expect(pageThree).not.toContain("From Page 2 — Issuer & Paymaster");
+    expect(pageThree).not.toContain("From Page 2 — Issuer Profile");
+    expect(pageThree).not.toContain("From Invoice Offer");
     expect(pageThree).not.toContain("From note snapshot");
     expect(pageThree).toContain("ProspectusIncomeStatementWorkingTable");
     expect(pageThree).toContain("ProspectusBalanceSheetWorkingTable");
@@ -91,7 +98,8 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageThree).toContain("Investor Takeaways");
     expect(pageThree).toContain("ProspectusInternalTabs");
     expect(pageThree).not.toContain('label === "Sector"');
-    expect(coverageTable).toContain("From Page 2 — Financial Comparison");
+    expect(coverageTable).toContain('mode: "reused"');
+    expect(coverageTable).not.toMatch(/From Page 2[\s\S]{0,40}<\/span>/);
     expect(coverageTable).not.toContain("Trend (3-Yr)");
     expect(financialComparisonTable).toContain("ProspectusSharedFinancialWorkingTable");
   });

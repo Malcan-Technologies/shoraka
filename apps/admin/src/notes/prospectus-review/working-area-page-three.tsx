@@ -24,7 +24,6 @@ import {
   ProspectusOptionSelect,
   ProspectusPageHeader,
   ProspectusReadOnlyField,
-  ProspectusReusedField,
   ProspectusSectionShell,
 } from "@/notes/prospectus-review/field-presentation";
 import { ProspectusInternalTabs } from "@/notes/prospectus-review/working-area-tabs";
@@ -64,19 +63,6 @@ export type WorkingAreaPageThreeProps = {
   activeTab?: PageThreeTabId;
   onTabChange?: (tab: PageThreeTabId) => void;
 };
-
-function overviewSource(label: string): string | undefined {
-  if (label === "Paymaster Grading" || label === "Confidence Grading") {
-    return "From Page 2 — Issuer & Paymaster";
-  }
-  if (label === "Company Size") {
-    return "From Page 2 — Issuer Profile";
-  }
-  if (label === "Risk Grade") {
-    return "From Invoice Offer";
-  }
-  return undefined;
-}
 
 export function WorkingAreaPageThree({
   draft,
@@ -141,26 +127,13 @@ export function WorkingAreaPageThree({
         <div role="tabpanel">
           <ProspectusSectionShell title="Overview" icon={InformationCircleIcon}>
             <ProspectusInfoGrid>
-              {overviewRows.map((row) => {
-                const source = overviewSource(row.label);
-                if (source) {
-                  return (
-                    <ProspectusReusedField
-                      key={row.label}
-                      label={row.label}
-                      value={row.value}
-                      source={source}
-                    />
-                  );
-                }
-                return (
-                  <ProspectusReadOnlyField
-                    key={row.label}
-                    label={row.label}
-                    value={row.value}
-                  />
-                );
-              })}
+              {overviewRows.map((row) => (
+                <ProspectusReadOnlyField
+                  key={row.label}
+                  label={row.label}
+                  value={row.value}
+                />
+              ))}
             </ProspectusInfoGrid>
           </ProspectusSectionShell>
         </div>

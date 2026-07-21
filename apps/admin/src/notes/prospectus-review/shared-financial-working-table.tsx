@@ -26,7 +26,7 @@ export type FinancialRowMode =
       cellPlaceholder?: string;
       fullPlaceholder?: string;
     }
-  | { mode: "reused"; source: string };
+  | { mode: "reused"; /** Internal only — shown as tooltip, not visible cell text. */ source?: string };
 
 type Props = {
   table: FinancialMetricTableModel;
@@ -110,11 +110,6 @@ export function ProspectusSharedFinancialWorkingTable({
                         ({unitHint(spec.kind)})
                       </span>
                     ) : null}
-                    {spec.mode === "reused" ? (
-                      <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                        ({spec.source})
-                      </span>
-                    ) : null}
                   </TableCell>
                   {headers.map((header, index) => {
                     if (spec.mode === "editable") {
@@ -157,6 +152,7 @@ export function ProspectusSharedFinancialWorkingTable({
                       <TableCell
                         key={`${row.metric}-${header.key}`}
                         className="whitespace-nowrap bg-muted/30 text-sm tabular-nums text-foreground"
+                        title={spec.mode === "reused" ? spec.source : undefined}
                       >
                         {row.values[index] ?? "Data not available"}
                       </TableCell>

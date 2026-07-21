@@ -20,7 +20,6 @@ export const PROSPECTUS_READONLY_SURFACE =
 
 const LABEL_CLASS = "text-sm font-medium text-foreground";
 const VALUE_CLASS = "mt-1 break-words text-sm font-medium leading-6 text-foreground";
-const SOURCE_CLASS = "mt-1.5 text-xs text-muted-foreground";
 const INPUT_CLASS = "h-11 text-sm";
 
 export function ProspectusReadOnlyField({
@@ -31,14 +30,17 @@ export function ProspectusReadOnlyField({
 }: {
   label: string;
   value: string;
+  /** Internal source metadata — tooltip only, never visible body text. */
   source?: string;
   className?: string;
 }) {
   return (
-    <div className={cn(PROSPECTUS_READONLY_SURFACE, "min-w-0", className)}>
+    <div
+      className={cn(PROSPECTUS_READONLY_SURFACE, "min-w-0", className)}
+      title={source}
+    >
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className={VALUE_CLASS}>{value}</div>
-      {source ? <div className={SOURCE_CLASS}>{source}</div> : null}
     </div>
   );
 }
@@ -51,8 +53,8 @@ export function ProspectusReusedField({
 }: {
   label: string;
   value: string;
-  /** Required — reused values must name the owning section. */
-  source: string;
+  /** Optional internal source — tooltip only, not visible card text. */
+  source?: string;
   className?: string;
 }) {
   return (

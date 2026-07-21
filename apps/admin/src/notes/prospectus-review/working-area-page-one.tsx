@@ -53,11 +53,9 @@ function remapRiskLabel(label: string): string {
 
 function ReadOnlyRows({
   rows,
-  source,
   remapLabel,
 }: {
   rows: CoreTermRow[];
-  source?: string;
   remapLabel?: (label: string) => string;
 }) {
   return (
@@ -67,7 +65,6 @@ function ReadOnlyRows({
           key={row.label}
           label={remapLabel ? remapLabel(row.label) : row.label}
           value={row.value}
-          source={source}
           className={
             row.label === "Risk Explanation" || row.label === "Product Description"
               ? "sm:col-span-2 lg:col-span-3"
@@ -142,11 +139,7 @@ export function WorkingAreaPageOne({
             <ReadOnlyRows rows={datesPaymaster} />
           </ProspectusSectionShell>
           <ProspectusSectionShell title="Risk Information" icon={ShieldCheckIcon}>
-            <ReadOnlyRows
-              rows={riskRows}
-              source="From Invoice Offer"
-              remapLabel={remapRiskLabel}
-            />
+            <ReadOnlyRows rows={riskRows} remapLabel={remapRiskLabel} />
           </ProspectusSectionShell>
           <ProspectusSectionShell title="Investment Terms" icon={BanknotesIcon}>
             <ReadOnlyRows rows={investmentTermRows} />

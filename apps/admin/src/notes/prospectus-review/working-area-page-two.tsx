@@ -50,8 +50,6 @@ import {
   SELECT_PLACEHOLDERS,
 } from "@/notes/prospectus-review/working-area-placeholders";
 
-const RISK_SCALE_VERSION = "2026.07.21.soukscore-scale.v1";
-
 const ISSUER_EDITABLE_LABEL = "Company Size";
 const INVOICE_EDITABLE_LABELS = new Set([
   "Deed of Assignment (DOA)",
@@ -481,14 +479,15 @@ export function WorkingAreaPageTwo({
 
       {tab === "risk" ? (
         <div className="space-y-6" role="tabpanel">
-          <ProspectusSectionShell title="Risk Rating" icon={ShieldCheckIcon}>
+          <ProspectusSectionShell title="Risk Information" icon={ShieldCheckIcon}>
             <ProspectusInfoGrid>
+              <ProspectusReadOnlyField label="Risk Grade" value={risk.grade} />
+              <ProspectusReadOnlyField label="Risk Level" value={risk.label} />
               <ProspectusReadOnlyField
-                label="Risk Grade"
-                value={risk.grade}
-                source="From Invoice Offer"
+                label="Explanation"
+                value={risk.explanation}
+                className="sm:col-span-2 lg:col-span-3"
               />
-              <ProspectusReadOnlyField label="Scale Version" value={RISK_SCALE_VERSION} />
             </ProspectusInfoGrid>
           </ProspectusSectionShell>
 
