@@ -27,6 +27,9 @@ import {
 
 function offerBadge(offerStatus: OfferStatus) {
   if (!offerStatus) return null;
+  if (offerStatus === "Offer expired") {
+    return <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Offer expired</Badge>;
+  }
   return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Offer received</Badge>;
 }
 

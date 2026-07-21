@@ -29,6 +29,7 @@ import {
   offerAcceptanceAllowsIssuerReviewCta,
 } from "@cashsouk/types";
 import { useOrganizationApplications } from "@/hooks/use-applications";
+import { getOfferStatus } from "@/lib/offer-utils";
 import { getCardStatus, APPLICATION_STATUS_PRIORITY, type NormalizedApplication, type NormalizedInvoice } from "./status";
 import { numberOrNull } from "@/lib/facility-fee-display";
 
@@ -178,7 +179,10 @@ function prepareInvoice(
   const documentS3Key = doc?.s3_key ? String(doc.s3_key) : null;
   const documentName = String(doc?.file_name ?? details.document_name ?? details.document ?? "—");
   const signedOfferLetterAvailable = isSignedOfferLetterAvailable(api.status);
-  const offerStatus = api.status === "OFFER_SENT" && api.offer_details ? "Offer received" : null;
+  const offerStatus = getOfferStatus({
+    status: api.status,
+    offer_details: api.offer_details,
+  });
   const acceptanceStatus = getOfferAcceptanceFromOfferDetails(api.offer_details)?.status ?? null;
   const canReviewOffer =
     offerStatus === "Offer received" &&
@@ -248,11 +252,24 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     }
   }
 
+  let primaryOfferAcceptanceStatus: string | null = null;
+  if (contractStatus === "OFFER_SENT") {
+    primaryOfferAcceptanceStatus =
+      getOfferAcceptanceFromOfferDetails(contract?.offer_details)?.status ?? null;
+  } else {
+    const invoiceWithOffer = invoices.find((i) => String(i.status ?? "").toUpperCase() === "OFFER_SENT");
+    if (invoiceWithOffer) {
+      primaryOfferAcceptanceStatus =
+        getOfferAcceptanceFromOfferDetails(invoiceWithOffer.offer_details)?.status ?? null;
+    }
+  }
+
   let cardStatus = getCardStatus({
     applicationStatus: api.status ?? "DRAFT",
     contractStatus,
     invoiceStatuses: invoices.map((i) => i.status ?? "DRAFT"),
     withdrawReason,
+    offerAcceptanceStatus: primaryOfferAcceptanceStatus,
   });
   // Hide Review Offer while acceptance docs await admin; show again on amendment or approval.
   if (cardStatus.showReviewOffer && contractStatus === "OFFER_SENT") {

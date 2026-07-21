@@ -1,4 +1,4 @@
-import { createApiClient, getReviewRefreshPolicy, useAuthToken } from "@cashsouk/config";
+import { createApiClient, getReviewDetailRefreshPolicy, useAuthToken } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ContractDetails, CustomerDetails } from "@cashsouk/types";
 import { toast } from "sonner";
@@ -26,7 +26,7 @@ export function useApprovedContracts(organizationId: string) {
 export function useContract(id: string) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
-  const refreshPolicy = getReviewRefreshPolicy();
+  const refreshPolicy = getReviewDetailRefreshPolicy();
 
   return useQuery({
     queryKey: ["contract", id],

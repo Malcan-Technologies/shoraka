@@ -30,15 +30,15 @@ import { reviewCardTitleClass } from "../review-section-styles";
 import { useAdminSignedSigningDocument } from "@/hooks/use-admin-signed-signing-document";
 import { cn } from "@/lib/utils";
 
-/** Match Signing package status badge language. */
+/** Match Signing package status badge language — distinct hues for admin scan. */
 const OFFER_ACCEPTANCE_STATUS_STYLES: Record<OfferAcceptanceStatus, string> = {
   PENDING_ISSUER: "bg-amber-100 text-amber-800",
-  PENDING_ADMIN_REVIEW: "bg-amber-100 text-amber-800",
+  PENDING_ADMIN_REVIEW: "bg-sky-100 text-sky-800",
   CHANGES_REQUESTED: "bg-amber-100 text-amber-800",
   REJECTED: "bg-primary/10 text-primary",
   DECLINED: "bg-muted text-muted-foreground",
   APPROVED_FOR_SIGNING: "bg-emerald-100 text-emerald-800",
-  SIGNING_IN_PROGRESS: "bg-amber-100 text-amber-800",
+  SIGNING_IN_PROGRESS: "bg-indigo-100 text-indigo-800",
   COMPLETED: "bg-emerald-100 text-emerald-800",
 };
 export type AcceptanceSectionProps = {

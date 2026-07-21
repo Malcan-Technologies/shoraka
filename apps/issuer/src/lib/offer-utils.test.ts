@@ -79,4 +79,31 @@ describe("shouldShowIssuerReviewOfferCta", () => {
     expect(getOfferStatus(item)).toBe("Offer received");
     expect(shouldShowIssuerReviewOfferCta(item)).toBe(false);
   });
+
+  it("hides CTA when offer is expired", () => {
+    const item = {
+      status: "OFFER_SENT",
+      offer_details: {
+        expires_at: "2000-01-01T00:00:00.000Z",
+        offer_acceptance: { status: "PENDING_ISSUER" },
+      },
+    };
+    expect(getOfferStatus(item)).toBe("Offer expired");
+    expect(shouldShowIssuerReviewOfferCta(item)).toBe(false);
+  });
+});
+
+describe("getOfferStatus", () => {
+  it("returns Offer received when expires_at is null", () => {
+    expect(
+      getOfferStatus({
+        status: "OFFER_SENT",
+        offer_details: { expires_at: null },
+      })
+    ).toBe("Offer received");
+  });
+
+  it("returns null when not OFFER_SENT", () => {
+    expect(getOfferStatus({ status: "APPROVED", offer_details: { expires_at: null } })).toBe(null);
+  });
 });

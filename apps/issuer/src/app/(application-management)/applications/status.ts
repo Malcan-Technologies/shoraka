@@ -116,7 +116,7 @@ export interface NormalizedInvoice {
   platformFee: string;
   profitRate: string;
   status: string;
-  offerStatus: "Offer received" | null;
+  offerStatus: "Offer received" | "Offer expired" | null;
   canReviewOffer: boolean;
   /** Raw offer details from API for modal display. */
   offer_details?: Record<string, unknown> | null;
@@ -191,6 +191,11 @@ export const STATUS: Record<
   rejected: { label: "Rejected", color: statusColorClass("rejected"), sortOrder: 1 },
   amendment_requested: { label: "Action Required", color: statusColorClass("amendment_requested"), sortOrder: 2 },
   offer_sent: { label: "Offer Received", color: statusColorClass("offer_sent"), sortOrder: 3 },
+  offer_awaiting_review: {
+    label: "Awaiting CashSouk review",
+    color: statusColorClass("offer_awaiting_review"),
+    sortOrder: 3,
+  },
   under_review: { label: "Under Review", color: statusColorClass("under_review"), sortOrder: 4 },
   submitted: { label: "Submitted", color: statusColorClass("submitted"), sortOrder: 5 },
   resubmitted: { label: "Resubmitted", color: statusColorClass("resubmitted"), sortOrder: 6 },
@@ -231,6 +236,7 @@ export const FILTER_STATUSES = [
   "under_review",
   "amendment_requested",
   "offer_sent",
+  "offer_awaiting_review",
   "accepted",
   "completed",
   "withdrawn",
@@ -280,6 +286,8 @@ export function getCardStatus(input: {
   contractStatus?: string | null;
   invoiceStatuses: string[];
   withdrawReason?: WithdrawReason;
+  /** Primary offer acceptance phase (contract or invoice-only offer). */
+  offerAcceptanceStatus?: string | null;
 }): CardStatusResult {
   const app = String(input.applicationStatus ?? "DRAFT").toUpperCase();
   const contract = input.contractStatus ? String(input.contractStatus).toUpperCase() : null;
@@ -288,6 +296,9 @@ export function getCardStatus(input: {
   const anyInvoiceOfferSent = hasOfferSent(invoiceStatuses);
   const contractAmendmentRequested = contract === "AMENDMENT_REQUESTED";
   const contractOfferSent = contract === "OFFER_SENT";
+  const acceptanceStatus = input.offerAcceptanceStatus
+    ? String(input.offerAcceptanceStatus).toUpperCase()
+    : null;
 
   /** Terminal states: always from application.status. Invoices/contract must NOT override. */
   if (app === "REJECTED") {
@@ -320,6 +331,14 @@ export function getCardStatus(input: {
 
   /** Offer Waiting: contract or any invoice has OFFER_SENT. Card-level Review Offer only for contract offers. */
   if (contractOfferSent || anyInvoiceOfferSent) {
+    if (acceptanceStatus === "PENDING_ADMIN_REVIEW") {
+      return {
+        badgeKey: "offer_awaiting_review",
+        displayLabel: "Awaiting CashSouk review",
+        showReviewOffer: false,
+        showMakeAmendments: false,
+      };
+    }
     return {
       badgeKey: "offer_sent",
       displayLabel: "Offer Received",
@@ -385,6 +404,7 @@ export function countPendingIssuerOfferReviewsAcross(
 export const APPLICATION_STATUS_PRIORITY: Record<string, number> = Object.freeze({
   amendment_requested: 1,
   offer_sent: 2,
+  offer_awaiting_review: 2,
   under_review: 3,
   submitted: 4,
   resubmitted: 5,

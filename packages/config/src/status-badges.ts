@@ -276,6 +276,10 @@ const BADGE_KEY_PRESENTATION: Record<string, StatusPresentation> = {
   amendment_requested: { ...STATUS_PRESENTATION.AMENDMENT_REQUESTED, label: "Action Required" } as StatusPresentation,
   resubmitted: { ...STATUS_PRESENTATION.RESUBMITTED, label: "Resubmitted" } as StatusPresentation,
   offer_sent: { ...STATUS_PRESENTATION.OFFER_SENT, label: "Offer Received" } as StatusPresentation,
+  offer_awaiting_review: {
+    ...STATUS_PRESENTATION.OFFER_SENT,
+    label: "Awaiting CashSouk review",
+  } as StatusPresentation,
   accepted: { ...STATUS_PRESENTATION.APPROVED, label: "Approved" } as StatusPresentation,
   approved: { ...STATUS_PRESENTATION.APPROVED, label: "Approved" } as StatusPresentation,
   completed: { ...STATUS_PRESENTATION.COMPLETED, label: "Completed" } as StatusPresentation,

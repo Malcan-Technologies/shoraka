@@ -7,7 +7,7 @@ import {
   offerAcceptanceAllowsIssuerReviewCta,
 } from "@cashsouk/types";
 
-export type OfferStatus = "Offer received" | null;
+export type OfferStatus = "Offer received" | "Offer expired" | null;
 
 export function getOfferStatus(item: {
   status?: string | null;
@@ -15,15 +15,23 @@ export function getOfferStatus(item: {
 }): OfferStatus {
   if (item.status !== "OFFER_SENT" || !item.offer_details) return null;
 
-  return "Offer received";
+  const expiresAt = item.offer_details.expires_at;
+  if (!expiresAt) return "Offer received";
+
+  const isExpired = new Date(expiresAt) < new Date();
+  return isExpired ? "Offer expired" : "Offer received";
 }
 
-/** Review Offer CTA: offer received and not waiting on admin acceptance review. */
+/** Review Offer CTA: offer received (not expired) and not waiting on admin acceptance review. */
 export function shouldShowIssuerReviewOfferCta(item: {
   status?: string | null;
   offer_details?: unknown;
 }): boolean {
-  if (getOfferStatus(item as { status?: string | null; offer_details?: { expires_at?: string | null } | null }) !== "Offer received") {
+  if (
+    getOfferStatus(
+      item as { status?: string | null; offer_details?: { expires_at?: string | null } | null }
+    ) !== "Offer received"
+  ) {
     return false;
   }
   const status = getOfferAcceptanceFromOfferDetails(item.offer_details)?.status ?? null;

@@ -5,7 +5,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { createApiClient, getLiveSigningEnvelopeRefetchInterval, useAuthToken } from "@cashsouk/config";
 import type { SigningEnvelopeDto } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -28,6 +28,8 @@ export function useAdminSigningEnvelopes(applicationId: string) {
       return response.data;
     },
     enabled: !!applicationId,
+    refetchInterval: (query) => getLiveSigningEnvelopeRefetchInterval(query.state.data),
+    refetchIntervalInBackground: false,
   });
 }
 

@@ -86,7 +86,9 @@ Default pair: use **Add LO + Guarantee Acknowledgement** in product settings (`D
 
     Prefer **one stepper step per acknowledgement document** (sidebar labels use the document name), then upload.
 
-**While `PENDING_ADMIN_REVIEW`:** modal shows waiting state (no signing). The issuer **Review Offer** CTA is hidden until admin requests changes (`CHANGES_REQUESTED`) or approves for signing (`APPROVED_FOR_SIGNING`); it stays visible for Step 1 (`PENDING_ISSUER`) and Step 3 (`APPROVED_FOR_SIGNING` / `SIGNING_IN_PROGRESS`). Resetting Acceptance review items/section from Approved rolls `offer_acceptance` back to `PENDING_ADMIN_REVIEW` (CTA hidden again). Admin Acceptance visibility and phase sync both use the application’s **frozen** `product_version` (not the live catalog row).
+**While `PENDING_ADMIN_REVIEW`:** modal shows waiting state (no signing). The issuer **Review Offer** CTA is hidden; the applications card badge switches to **Awaiting CashSouk review** (`offer_awaiting_review`). CTA returns on `CHANGES_REQUESTED` or `APPROVED_FOR_SIGNING`. Resetting Acceptance review items/section from Approved rolls `offer_acceptance` back to `PENDING_ADMIN_REVIEW` (CTA hidden again). Admin Acceptance visibility and phase sync both use the application’s **frozen** `product_version` (not the live catalog row). Admin Acceptance status badges use distinct colors for `PENDING_ADMIN_REVIEW` (sky), `CHANGES_REQUESTED` (amber), and `SIGNING_IN_PROGRESS` (indigo).
+
+**Refresh policy:** Detail views poll ~15s; application lists ~60s (focus refetch). Signing envelopes poll only while `SENT` | `IN_PROGRESS`.
 
 **While `APPROVED_FOR_SIGNING` | `SIGNING_IN_PROGRESS` (Step 3):**
 

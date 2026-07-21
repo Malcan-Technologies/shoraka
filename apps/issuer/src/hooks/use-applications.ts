@@ -1,6 +1,7 @@
 import {
   createApiClient,
-  getReviewRefreshPolicy,
+  getReviewDetailRefreshPolicy,
+  getReviewListRefreshPolicy,
   useAuthToken,
 } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -31,7 +32,7 @@ export function getApiMutationErrorCode(error: unknown): string | null {
 export function useApplication(id: string) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
-  const refreshPolicy = getReviewRefreshPolicy();
+  const refreshPolicy = getReviewDetailRefreshPolicy();
 
   return useQuery({
     queryKey: ["application", id],
@@ -336,7 +337,7 @@ export function useWithdrawContract() {
 export function useOrganizationApplications(organizationId?: string) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
-  const refreshPolicy = getReviewRefreshPolicy();
+  const refreshPolicy = getReviewListRefreshPolicy();
 
   return useQuery({
     queryKey: ["applications", organizationId],
@@ -356,7 +357,6 @@ export function useOrganizationApplications(organizationId?: string) {
 export function useIssuerOrganizationLatestFinancialStatements(organizationId?: string, enabled: boolean = true) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
-  const refreshPolicy = getReviewRefreshPolicy();
 
   type LatestOrgFinancialStatementsResponse =
     | {
@@ -380,7 +380,6 @@ export function useIssuerOrganizationLatestFinancialStatements(organizationId?: 
       return response.data;
     },
     enabled: !!organizationId && enabled,
-    ...refreshPolicy,
   });
 }
 

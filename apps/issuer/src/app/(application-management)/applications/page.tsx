@@ -154,7 +154,10 @@ function ApplicationCard({
     () => application.invoices.some((invoice) => invoice.status === "OFFER_SENT"),
     [application.invoices]
   );
-  const shouldStartExpanded = application.status === "offer_sent" || hasInvoiceOfferReceived;
+  const shouldStartExpanded =
+    application.status === "offer_sent" ||
+    application.status === "offer_awaiting_review" ||
+    hasInvoiceOfferReceived;
   const [expanded, setExpanded] = React.useState(shouldStartExpanded);
 
   React.useEffect(() => {
@@ -208,6 +211,11 @@ function ApplicationCard({
                 </Button>
               )}
               <div className="flex flex-wrap items-center gap-2 justify-end">
+              {cardStatus.badgeKey === "offer_awaiting_review" && (
+                <p className="text-sm text-muted-foreground max-w-[16rem] text-right leading-5">
+                  CashSouk is reviewing your acceptance documents.
+                </p>
+              )}
               {cardStatus.showReviewOffer &&
                 hasContract &&
                 application.contractId &&

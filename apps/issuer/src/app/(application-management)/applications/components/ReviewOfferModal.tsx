@@ -25,7 +25,7 @@ import {
   resolveIssuerOfferDeclineReason,
 } from "@/lib/issuer-offer-decline-reasons";
 import { useContract } from "@/hooks/use-contracts";
-import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
+import { createApiClient, getLiveSigningEnvelopeRefetchInterval, useAuthToken, useOrganization } from "@cashsouk/config";
 import { useAcceptInvoiceOffer, useRejectContractOffer, useRejectInvoiceOffer, useApplication } from "@/hooks/use-applications";
 import { SupportingDocumentsStep } from "@/app/(application-flow)/applications/steps/supporting-documents-step";
 import { SupportingDocumentsSkeleton } from "@/app/(application-flow)/applications/components/supporting-documents-skeleton";
@@ -688,6 +688,8 @@ export function ReviewOfferModal({
       return response.data;
     },
     enabled: Boolean(applicationId),
+    refetchInterval: (query) => getLiveSigningEnvelopeRefetchInterval(query.state.data),
+    refetchIntervalInBackground: false,
   });
   const contractEnvelopeCompleted = hasCompletedContractEnvelope(
     signingEnvelopes,
@@ -716,8 +718,8 @@ export function ReviewOfferModal({
     activeSigningEnvelope != null &&
     (activeSigningEnvelope.status === "SENT" || activeSigningEnvelope.status === "IN_PROGRESS");
   // Always enabled (not gated on useSigningStepper): this is the polling source of truth for
-  // acceptance phase — application/contract/invoices refresh together every 15s (see
-  // getReviewRefreshPolicy), so the modal never derives phase from a stale snapshot.
+  // acceptance phase — application/contract refresh on the detail policy (15s), so the modal
+  // never derives phase from a stale snapshot.
   const { data: applicationRecord } = useApplication(applicationId);
   const { data: corporateEntities } = useCorporateEntities(
     useSigningStepper ? issuerOrganizationId : undefined
