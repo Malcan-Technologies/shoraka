@@ -72,46 +72,19 @@ describe("prospectus Balance Sheet approval validation", () => {
     expect(
       validateApprovalContent(draft, {
         incomeStatementYears: ["2022", "2023", "2024"],
-        balanceSheetSystemTotals: [
-          { year: "2022", totalAssetsAvailable: true, totalLiabilitiesAvailable: true },
-          { year: "2023", totalAssetsAvailable: true, totalLiabilitiesAvailable: true },
-          { year: "2024", totalAssetsAvailable: true, totalLiabilitiesAvailable: true },
-        ],
       })
     ).toEqual([]);
   });
 
-  it("blocks approval when Total Assets or Total Liabilities is unavailable", () => {
+  it("does not block approval when Application-aligned totals are partial or zero", () => {
     const draft = buildCompleteProspectusReviewDraft();
-    const errors = validateApprovalContent(draft, {
-      incomeStatementYears: ["2022"],
-      balanceSheetSystemTotals: [
-        {
-          year: "2022",
-          totalAssetsAvailable: false,
-          totalLiabilitiesAvailable: true,
-        },
-      ],
-    });
     expect(
-      errors.some((e) => e.path === "page3.balanceSheet.years.2022.totalAssets")
-    ).toBe(true);
+      validateApprovalContent(draft, {
+        incomeStatementYears: ["2022", "2023", "2024"],
+      })
+    ).toEqual([]);
     expect(
-      errors.some((e) => e.path === "page3.balanceSheet.years.2022.totalLiabilities")
-    ).toBe(false);
-
-    const liabErrors = validateApprovalContent(draft, {
-      incomeStatementYears: ["2022"],
-      balanceSheetSystemTotals: [
-        {
-          year: "2022",
-          totalAssetsAvailable: true,
-          totalLiabilitiesAvailable: false,
-        },
-      ],
-    });
-    expect(
-      liabErrors.some((e) => e.path === "page3.balanceSheet.years.2022.totalLiabilities")
-    ).toBe(true);
+      JSON.stringify(validateApprovalContent(draft, { incomeStatementYears: ["2022"] }))
+    ).not.toMatch(/totalAssets|totalLiabilities/i);
   });
 });

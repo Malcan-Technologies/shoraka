@@ -6,7 +6,7 @@ jest.mock("@cashsouk/config", () => ({
     })}`,
 }));
 
-import { computeTotalLiabilitiesIfComplete, type NoteDetail } from "@cashsouk/types";
+import { resolveApplicationFinancialTotalLiabilities, type NoteDetail } from "@cashsouk/types";
 import {
   buildBalanceSheetResolvedRows,
   buildCoverageResolvedRows,
@@ -204,7 +204,7 @@ describe("page three coverage verification", () => {
     expect(table.rows.every((r) => r.trend == null)).toBe(true);
   });
 
-  it("builds Balance Sheet table with Total Liabilities via computeTotalLiabilitiesIfComplete", () => {
+  it("builds Balance Sheet table with Total Liabilities via Application-aligned resolver", () => {
     const table = buildPageThreeBalanceSheetTable(sampleStatements, undefined);
     expect(table.rows.map((r) => r.metric)).toEqual([
       "Cash & Bank",
@@ -217,11 +217,11 @@ describe("page three coverage verification", () => {
       "Current Ratio",
       "Quick Ratio",
     ]);
-    const expected = computeTotalLiabilitiesIfComplete({
-      total_liabilities: null,
-      current_liabilities: 150_000,
-      long_term_liabilities: 80_000,
-      non_current_liabilities: 20_000,
+    const expected = resolveApplicationFinancialTotalLiabilities({
+      totlib: null,
+      curlib: 150_000,
+      bsslltd: 80_000,
+      bsclstd: 20_000,
     });
     expect(computePageThreeTotalLiabilities(yearRaw)).toBe(expected);
     expect(table.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toContain(
@@ -229,7 +229,7 @@ describe("page three coverage verification", () => {
     );
   });
 
-  it("shows Data not available for Total Assets when a component is missing", () => {
+  it("matches Application zero-default Total Assets when a component is missing", () => {
     const incomplete = {
       questionnaire: { financial_year_end: "2024-12-31" },
       unaudited_by_year: {
@@ -237,14 +237,34 @@ describe("page three coverage verification", () => {
       },
     };
     const table = buildPageThreeBalanceSheetTable(incomplete, undefined);
-    expect(table.rows.find((r) => r.metric === "Total Assets")?.values[0]).toBe(
-      "Data not available"
+    expect(table.rows.find((r) => r.metric === "Total Assets")?.values[0]).toContain(
+      "400,000"
     );
     expect(table.rows.find((r) => r.metric === "Current Assets")?.values[0]).toContain(
       "400,000"
     );
-    expect(table.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toBe(
-      "Data not available"
+    expect(table.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toContain(
+      "150,000"
+    );
+  });
+
+  it("prefers flat totass / totlib when present like Application CTOS columns", () => {
+    const withFlat = {
+      questionnaire: { financial_year_end: "2024-12-31" },
+      unaudited_by_year: {
+        "2024": {
+          ...yearRaw,
+          totass: 999_000,
+          totlib: 111_000,
+        },
+      },
+    };
+    const table = buildPageThreeBalanceSheetTable(withFlat, undefined);
+    expect(table.rows.find((r) => r.metric === "Total Assets")?.values[0]).toContain(
+      "999,000"
+    );
+    expect(table.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toContain(
+      "111,000"
     );
   });
 

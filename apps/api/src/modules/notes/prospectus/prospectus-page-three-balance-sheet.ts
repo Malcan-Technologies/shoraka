@@ -1,12 +1,12 @@
 /**
  * SECTION: Build Page 3 Stage 3 balance sheet and liquidity rows
- * WHY: Reuse Page 2 years; MYR-millions display; complete-component totals only
+ * WHY: Reuse Page 2 years; Application-aligned totals; MYR-millions display
  */
 
 import {
   calculateCurrentRatio,
-  computeTotalAssetsIfComplete,
-  computeTotalLiabilitiesIfComplete,
+  resolveApplicationFinancialTotalAssets,
+  resolveApplicationFinancialTotalLiabilities,
 } from "@cashsouk/types";
 import {
   formatProspectusFinancialMultiple,
@@ -38,29 +38,29 @@ function moneyMillionsOrDna(value: number | string | null | undefined): string {
 }
 
 /**
- * Application FS never stores totass — same as admin financialFormToBsPl(total_assets: null).
- * All four components required; missing → null (no zero-default partial sum).
+ * Same resolution as Application Financial Summary:
+ * prefer flat totass when present; else computeTotalAssets with zero-default components.
  */
-function totalAssetsFromRaw(raw: Record<string, unknown>): number | null {
-  return computeTotalAssetsIfComplete({
-    total_assets: null,
-    fixed_assets: fieldFromRaw(raw, "bsfatot"),
-    other_assets: fieldFromRaw(raw, "othass"),
-    current_assets: fieldFromRaw(raw, "bscatot"),
-    non_current_assets: fieldFromRaw(raw, "bsclbank"),
+function totalAssetsFromRaw(raw: Record<string, unknown>): number {
+  return resolveApplicationFinancialTotalAssets({
+    totass: fieldFromRaw(raw, "totass"),
+    bsfatot: fieldFromRaw(raw, "bsfatot"),
+    othass: fieldFromRaw(raw, "othass"),
+    bscatot: fieldFromRaw(raw, "bscatot"),
+    bsclbank: fieldFromRaw(raw, "bsclbank"),
   });
 }
 
 /**
- * Application FS never stores totlib — same as admin financialFormToBsPl(total_liabilities: null).
- * All three components required; missing → null (no zero-default partial sum).
+ * Same resolution as Application Financial Summary:
+ * prefer flat totlib when present; else computeTotalLiabilities with zero-default components.
  */
-function totalLiabilitiesFromRaw(raw: Record<string, unknown>): number | null {
-  return computeTotalLiabilitiesIfComplete({
-    total_liabilities: null,
-    current_liabilities: fieldFromRaw(raw, "curlib"),
-    long_term_liabilities: fieldFromRaw(raw, "bsslltd"),
-    non_current_liabilities: fieldFromRaw(raw, "bsclstd"),
+function totalLiabilitiesFromRaw(raw: Record<string, unknown>): number {
+  return resolveApplicationFinancialTotalLiabilities({
+    totlib: fieldFromRaw(raw, "totlib"),
+    curlib: fieldFromRaw(raw, "curlib"),
+    bsslltd: fieldFromRaw(raw, "bsslltd"),
+    bsclstd: fieldFromRaw(raw, "bsclstd"),
   });
 }
 
@@ -87,11 +87,11 @@ function valueForRow(
     case "current_assets":
       return moneyMillionsOrDna(fieldFromRaw(raw, "bscatot"));
     case "total_assets":
-      return moneyMillionsOrDna(totalAssetsFromRaw(raw));
+      return formatProspectusMyrMillions(totalAssetsFromRaw(raw));
     case "current_liabilities":
       return moneyMillionsOrDna(fieldFromRaw(raw, "curlib"));
     case "total_liabilities":
-      return moneyMillionsOrDna(totalLiabilitiesFromRaw(raw));
+      return formatProspectusMyrMillions(totalLiabilitiesFromRaw(raw));
     case "current_ratio": {
       const bscatot = fieldFromRaw(raw, "bscatot");
       const curlib = fieldFromRaw(raw, "curlib");

@@ -223,6 +223,8 @@ function parsePage2RawFinancials(value: unknown): ProspectusPage2FinancialRawSna
     bsclbank: parseRawFinancialScalar(raw.bsclbank),
     bsslltd: parseRawFinancialScalar(raw.bsslltd),
     bsclstd: parseRawFinancialScalar(raw.bsclstd),
+    totass: parseRawFinancialScalar(raw.totass),
+    totlib: parseRawFinancialScalar(raw.totlib),
   };
 }
 

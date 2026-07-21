@@ -29,6 +29,8 @@ const RAW_KEYS = [
   "bsclbank",
   "bsslltd",
   "bsclstd",
+  "totass",
+  "totlib",
 ] as const;
 
 function serializeRawField(value: unknown): string | number | null {
@@ -54,6 +56,8 @@ function pickRawFinancials(raw: Record<string, unknown>): ProspectusPage2Financi
     bsclbank: serializeRawField(raw.bsclbank),
     bsslltd: serializeRawField(raw.bsslltd),
     bsclstd: serializeRawField(raw.bsclstd),
+    totass: serializeRawField(raw.totass),
+    totlib: serializeRawField(raw.totlib),
   };
 }
 

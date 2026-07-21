@@ -100,6 +100,8 @@ export function buildFinancialComparisonSourceFromFrozen(
         bsclbank: year.raw_financials.bsclbank,
         bsslltd: year.raw_financials.bsslltd,
         bsclstd: year.raw_financials.bsclstd,
+        totass: year.raw_financials.totass,
+        totlib: year.raw_financials.totlib,
       },
     };
   });

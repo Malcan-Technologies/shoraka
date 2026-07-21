@@ -244,6 +244,8 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
               bsclbank: 1_000_000,
               bsslltd: 600_000,
               bsclstd: 300_000,
+              totass: 8_400_000,
+              totlib: 3_100_000,
             },
           },
         ],
@@ -262,6 +264,8 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
         bsclbank: 1_000_000,
         bsslltd: 600_000,
         bsclstd: 300_000,
+        totass: 8_400_000,
+        totlib: 3_100_000,
       });
       expect(JSON.stringify(page2)).not.toMatch(/RM /);
       expect(JSON.stringify(page2)).not.toMatch(/Trend|Takeaway|Cash & Bank/i);

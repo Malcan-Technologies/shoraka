@@ -29,7 +29,7 @@ function isFiniteNumber(value: number | null | undefined): value is number {
 
 /**
  * Total assets: use reported total if present; otherwise sum the four asset lines.
- * Missing components default to 0 (Admin CTOS / column metrics compatibility).
+ * Missing components default to 0 (Admin CTOS / Application Financial Summary).
  */
 export function computeTotalAssets(input: TotalAssetsInput): number {
   if (isFiniteNumber(input.total_assets)) {
@@ -44,32 +44,28 @@ export function computeTotalAssets(input: TotalAssetsInput): number {
 }
 
 /**
- * Investor-facing / Prospectus Total Assets.
- * Reported total wins when present; otherwise every component must be present
- * (zero is valid). Any missing component → null (no partial sum).
+ * Application Financial Summary Total Assets resolution (shared with Prospectus).
+ * Prefer flat CTOS `totass` when present; otherwise component sum with zero-default.
  */
-export function computeTotalAssetsIfComplete(input: TotalAssetsInput): number | null {
-  if (isFiniteNumber(input.total_assets)) {
-    return input.total_assets;
-  }
-  const components = [
-    input.fixed_assets,
-    input.other_assets,
-    input.current_assets,
-    input.non_current_assets,
-  ];
-  if (!components.every(isFiniteNumber)) return null;
-  return (
-    input.fixed_assets! +
-    input.other_assets! +
-    input.current_assets! +
-    input.non_current_assets!
-  );
+export function resolveApplicationFinancialTotalAssets(input: {
+  totass: number | null;
+  bsfatot: number | null;
+  othass: number | null;
+  bscatot: number | null;
+  bsclbank: number | null;
+}): number {
+  return computeTotalAssets({
+    total_assets: input.totass,
+    fixed_assets: input.bsfatot,
+    other_assets: input.othass,
+    current_assets: input.bscatot,
+    non_current_assets: input.bsclbank,
+  });
 }
 
 /**
  * Total liabilities: use reported total if present; else sum liability lines.
- * Missing components default to 0 (Admin CTOS / column metrics compatibility).
+ * Missing components default to 0 (Admin CTOS / Application Financial Summary).
  */
 export function computeTotalLiabilities(input: TotalLiabilitiesInput): number {
   if (isFiniteNumber(input.total_liabilities)) {
@@ -83,27 +79,21 @@ export function computeTotalLiabilities(input: TotalLiabilitiesInput): number {
 }
 
 /**
- * Investor-facing / Prospectus Total Liabilities.
- * Reported total wins when present; otherwise every component must be present
- * (zero is valid). Any missing component → null (no partial sum).
+ * Application Financial Summary Total Liabilities resolution (shared with Prospectus).
+ * Prefer flat CTOS `totlib` when present; otherwise component sum with zero-default.
  */
-export function computeTotalLiabilitiesIfComplete(
-  input: TotalLiabilitiesInput
-): number | null {
-  if (isFiniteNumber(input.total_liabilities)) {
-    return input.total_liabilities;
-  }
-  const components = [
-    input.current_liabilities,
-    input.long_term_liabilities,
-    input.non_current_liabilities,
-  ];
-  if (!components.every(isFiniteNumber)) return null;
-  return (
-    input.current_liabilities! +
-    input.long_term_liabilities! +
-    input.non_current_liabilities!
-  );
+export function resolveApplicationFinancialTotalLiabilities(input: {
+  totlib: number | null;
+  curlib: number | null;
+  bsslltd: number | null;
+  bsclstd: number | null;
+}): number {
+  return computeTotalLiabilities({
+    total_liabilities: input.totlib,
+    current_liabilities: input.curlib,
+    long_term_liabilities: input.bsslltd,
+    non_current_liabilities: input.bsclstd,
+  });
 }
 
 /**

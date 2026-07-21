@@ -1,5 +1,5 @@
 import { NoteStatus } from "@prisma/client";
-import { calculateReturnOnEquity, computeTotalAssetsIfComplete } from "@cashsouk/types";
+import { calculateReturnOnEquity, resolveApplicationFinancialTotalAssets } from "@cashsouk/types";
 import {
   buildProspectusFinancialComparisonMetrics,
   formatProspectusFinancialPercentFromRatio,
@@ -147,6 +147,8 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         "bsclbank",
         "bsslltd",
         "bsclstd",
+        "totass",
+        "totlib",
       ]);
       expect(raw?.plnpbt).toBe(1_400_000);
       expect(raw?.bsfatot).toBe(1_500_000);
@@ -155,6 +157,8 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(raw?.bsslltd).toBe(500_000);
       expect(raw?.bsclstd).toBe(200_000);
       expect(raw?.turnover).toBe(13_900_000);
+      expect(raw).toHaveProperty("totass");
+      expect(raw).toHaveProperty("totlib");
 
       const serialized = JSON.stringify(page2);
       expect(serialized).not.toMatch(/RM /);
@@ -334,13 +338,9 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         PROSPECTUS_DATA_NOT_AVAILABLE
       );
       expect(row(page.balanceSheet.rows, "current_assets")?.[0]).toBe("5.8");
-      // Incomplete freeze components → Total Assets unavailable (no partial sum).
-      expect(row(page.balanceSheet.rows, "total_assets")?.[0]).toBe(
-        PROSPECTUS_DATA_NOT_AVAILABLE
-      );
-      expect(row(page.balanceSheet.rows, "total_liabilities")?.[0]).toBe(
-        PROSPECTUS_DATA_NOT_AVAILABLE
-      );
+      // Incomplete freeze components → Application zero-default Total Assets = bscatot only.
+      expect(row(page.balanceSheet.rows, "total_assets")?.[0]).toBe("5.8");
+      expect(row(page.balanceSheet.rows, "total_liabilities")?.[0]).toBe("3.4");
       expect(row(page.coverageEfficiency.rows, "return_on_equity")?.[0]).toBe(
         formatProspectusFinancialPercentFromRatio(
           calculateReturnOnEquity(1_800_000, 2_400_000)
@@ -387,12 +387,12 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(row(page.incomeStatement.rows, "profit_before_tax")?.[0]).toBe("1.4");
       expect(row(page.balanceSheet.rows, "total_assets")?.[0]).toBe("8.1");
       expect(
-        computeTotalAssetsIfComplete({
-          total_assets: null,
-          fixed_assets: 1_500_000,
-          other_assets: 1_000_000,
-          current_assets: 4_700_000,
-          non_current_assets: 900_000,
+        resolveApplicationFinancialTotalAssets({
+          totass: null,
+          bsfatot: 1_500_000,
+          othass: 1_000_000,
+          bscatot: 4_700_000,
+          bsclbank: 900_000,
         })
       ).toBe(8_100_000);
       expect(row(page.balanceSheet.rows, "cash_and_bank")?.[0]).toBe("0.9");

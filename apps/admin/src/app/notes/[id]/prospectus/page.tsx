@@ -1372,7 +1372,8 @@ function ProspectusReviewPageInner() {
                         <ProspectusSectionHeading title="3-Year Balance Sheet & Liquidity (MYR mil.)" />
                         <p className="mb-3 text-sm text-muted-foreground">
                           Values sourced or calculated from financial statements are read-only. Enter
-                          the remaining values in full MYR, except Quick Ratio.
+                          the remaining values in full MYR, except Quick Ratio. Total Assets and Total
+                          Liabilities follow the Application Financial Summary calculation.
                         </p>
                         <ProspectusBalanceSheetWorkingTable
                           table={balanceSheetTable}

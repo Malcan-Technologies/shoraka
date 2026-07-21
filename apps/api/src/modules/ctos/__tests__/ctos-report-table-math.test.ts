@@ -3,9 +3,9 @@ import {
   computeTurnoverGrowth,
   computeProfitMargin,
   computeTotalAssets,
-  computeTotalAssetsIfComplete,
   computeTotalLiabilities,
-  computeTotalLiabilitiesIfComplete,
+  resolveApplicationFinancialTotalAssets,
+  resolveApplicationFinancialTotalLiabilities,
 } from "@cashsouk/types";
 
 describe("computeTurnoverGrowth", () => {
@@ -63,7 +63,7 @@ describe("computeTotalAssets", () => {
     ).toBe(999);
   });
 
-  it("zero-defaults missing components for Admin compatibility", () => {
+  it("zero-defaults missing components for Application compatibility", () => {
     expect(
       computeTotalAssets({
         total_assets: null,
@@ -76,80 +76,80 @@ describe("computeTotalAssets", () => {
   });
 });
 
-describe("computeTotalAssetsIfComplete", () => {
-  it("sums when all components are present including legitimate zeros", () => {
+describe("resolveApplicationFinancialTotalAssets", () => {
+  it("prefers flat totass when present", () => {
     expect(
-      computeTotalAssetsIfComplete({
-        total_assets: null,
-        fixed_assets: 1_500_000,
-        other_assets: 0,
-        current_assets: 4_700_000,
-        non_current_assets: 900_000,
+      resolveApplicationFinancialTotalAssets({
+        totass: 10_000_000,
+        bsfatot: 1,
+        othass: 1,
+        bscatot: 1,
+        bsclbank: 1,
       })
-    ).toBe(7_100_000);
+    ).toBe(10_000_000);
   });
 
-  it("returns null when any component is missing", () => {
+  it("falls back to component sum with zero-default", () => {
     expect(
-      computeTotalAssetsIfComplete({
-        total_assets: null,
-        fixed_assets: 1_500_000,
-        other_assets: null,
-        current_assets: 4_700_000,
-        non_current_assets: 900_000,
+      resolveApplicationFinancialTotalAssets({
+        totass: null,
+        bsfatot: 1_500_000,
+        othass: null,
+        bscatot: 4_700_000,
+        bsclbank: null,
       })
-    ).toBeNull();
+    ).toBe(6_200_000);
   });
 
-  it("returns null when all components are missing", () => {
+  it("returns 0 when all components and flat total are missing", () => {
     expect(
-      computeTotalAssetsIfComplete({
-        total_assets: null,
-        fixed_assets: null,
-        other_assets: null,
-        current_assets: null,
-        non_current_assets: null,
+      resolveApplicationFinancialTotalAssets({
+        totass: null,
+        bsfatot: null,
+        othass: null,
+        bscatot: null,
+        bsclbank: null,
       })
-    ).toBeNull();
+    ).toBe(0);
   });
 
-  it("uses reported total when set even if components are missing", () => {
+  it("keeps legitimate zero components", () => {
     expect(
-      computeTotalAssetsIfComplete({
-        total_assets: 999,
-        fixed_assets: null,
-        other_assets: null,
-        current_assets: null,
-        non_current_assets: null,
+      resolveApplicationFinancialTotalAssets({
+        totass: null,
+        bsfatot: 1_500_000,
+        othass: 0,
+        bscatot: 4_000_000,
+        bsclbank: 900_000,
       })
-    ).toBe(999);
+    ).toBe(6_400_000);
   });
 });
 
-describe("computeTotalLiabilitiesIfComplete", () => {
-  it("sums when all components are present including legitimate zeros", () => {
+describe("resolveApplicationFinancialTotalLiabilities", () => {
+  it("prefers flat totlib when present", () => {
     expect(
-      computeTotalLiabilitiesIfComplete({
-        total_liabilities: null,
-        current_liabilities: 2_900_000,
-        long_term_liabilities: 0,
-        non_current_liabilities: 200_000,
+      resolveApplicationFinancialTotalLiabilities({
+        totlib: 9_000_000,
+        curlib: 1,
+        bsslltd: 1,
+        bsclstd: 1,
       })
-    ).toBe(3_100_000);
+    ).toBe(9_000_000);
   });
 
-  it("returns null when any component is missing", () => {
+  it("falls back to component sum with zero-default", () => {
     expect(
-      computeTotalLiabilitiesIfComplete({
-        total_liabilities: null,
-        current_liabilities: 2_900_000,
-        long_term_liabilities: null,
-        non_current_liabilities: 200_000,
+      resolveApplicationFinancialTotalLiabilities({
+        totlib: null,
+        curlib: 2_900_000,
+        bsslltd: null,
+        bsclstd: null,
       })
-    ).toBeNull();
+    ).toBe(2_900_000);
   });
 
-  it("keeps zero-default helper for Admin callers", () => {
+  it("matches computeTotalLiabilities zero-default helper", () => {
     expect(
       computeTotalLiabilities({
         total_liabilities: null,

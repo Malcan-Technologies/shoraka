@@ -41,7 +41,10 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).toContain(
       "Values sourced or calculated from financial statements are read-only."
     );
-    expect(pageSource).toContain("except Quick Ratio");
+    expect(pageSource).toContain("Total Assets and Total");
+    expect(pageSource).toContain(
+      "Liabilities follow the Application Financial Summary calculation."
+    );
     expect(pageSource).toContain("ProspectusBalanceSheetWorkingTable");
     expect(pageSource).toContain("Officer Input");
     expect(pageSource).toContain("ProspectusIncomeStatementWorkingTable");

@@ -34,7 +34,8 @@ export interface ProspectusPage1Snapshot {
 
 /**
  * Shared Page 2 + Page 3 frozen Application unaudited fields — not formatted display strings.
- * Original five keys remain; six extended keys support Page 3 PBT / total assets / total liabilities.
+ * Original five keys remain; extended keys support Page 3 PBT / totals / liabilities.
+ * Flat totass/totlib preserve Application CTOS total preference after approval freeze.
  * Old published snapshots may omit extended keys (parser fills null).
  */
 export interface ProspectusPage2FinancialRawSnapshot {
@@ -55,6 +56,10 @@ export interface ProspectusPage2FinancialRawSnapshot {
   bsslltd: string | number | null;
   /** Non-Current Liability — Total Liabilities input. */
   bsclstd: string | number | null;
+  /** Flat CTOS / reported Total Assets — preferred when present (Application Financial Summary). */
+  totass: string | number | null;
+  /** Flat CTOS / reported Total Liabilities — preferred when present (Application Financial Summary). */
+  totlib: string | number | null;
 }
 
 export interface ProspectusPage2FinancialYearSnapshot {

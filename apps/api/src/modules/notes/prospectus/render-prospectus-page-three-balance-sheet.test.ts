@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   calculateCurrentRatio,
-  computeTotalAssetsIfComplete,
-  computeTotalLiabilitiesIfComplete,
+  resolveApplicationFinancialTotalAssets,
+  resolveApplicationFinancialTotalLiabilities,
 } from "@cashsouk/types";
 import {
   buildProspectusFinancialComparisonMetrics,
@@ -208,25 +208,26 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
     expect(row(invalid, "current_assets")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("computes Total Assets via computeTotalAssetsIfComplete with confirmed keys", () => {
+  it("computes Total Assets via Application-aligned resolver", () => {
     const data = buildProspectusPageThreeBalanceSheet(
       SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_INPUT
     );
     expect(row(data, "total_assets")?.values[0]).toBe("8.1");
     expect(
-      computeTotalAssetsIfComplete({
-        total_assets: null,
-        fixed_assets: 1_500_000,
-        other_assets: 1_000_000,
-        current_assets: 4_700_000,
-        non_current_assets: 900_000,
+      resolveApplicationFinancialTotalAssets({
+        totass: null,
+        bsfatot: 1_500_000,
+        othass: 1_000_000,
+        bscatot: 4_700_000,
+        bsclbank: 900_000,
       })
     ).toBe(8_100_000);
 
     expect(PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT.totalAssets.sharedHelper).toBe(
-      "computeTotalAssetsIfComplete"
+      "resolveApplicationFinancialTotalAssets"
     );
     expect(PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT.totalAssets.inputKeys).toEqual([
+      "totass",
       "bsfatot",
       "othass",
       "bscatot",
@@ -237,17 +238,18 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
       join(__dirname, "prospectus-page-three-balance-sheet.ts"),
       "utf8"
     );
-    expect(moduleSource).toMatch(/computeTotalAssetsIfComplete/);
+    expect(moduleSource).toMatch(/resolveApplicationFinancialTotalAssets/);
+    expect(moduleSource).not.toMatch(/computeTotalAssetsIfComplete/);
     expect(moduleSource).not.toMatch(/bsfatot\s*\+\s*othass/);
   });
 
-  it("requires all Total Assets components; missing → DNA (no partial or zero fill)", () => {
+  it("matches Application zero-default and flat totass preference", () => {
     expect(
       PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT.totalAssets.missingComponentPolicy
-    ).toBe("all_components_required_else_null");
-    expect(PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT.totalAssets.requiredForApproval).toBe(
-      true
-    );
+    ).toBe("application_aligned_zero_default_with_flat_total_preference");
+    expect(
+      PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT.totalAssets.alignedWithApplicationFinancialSummary
+    ).toBe(true);
     expect(PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT.totalAssets.officerOverrideAllowed).toBe(
       false
     );
@@ -257,18 +259,13 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
         "2024": { bscatot: 4_700_000, curlib: 2_900_000 },
       }),
     });
-    expect(row(partialOldSnapshot, "total_assets")?.values[0]).toBe(
-      PROSPECTUS_DATA_NOT_AVAILABLE
-    );
+    expect(row(partialOldSnapshot, "total_assets")?.values[0]).toBe("4.7");
     expect(row(partialOldSnapshot, "current_assets")?.values[0]).toBe("4.7");
-    expect(
-      PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT.snapshot.liveFallbackForPublishedAllowed
-    ).toBe(false);
 
     const allMissing = buildProspectusPageThreeBalanceSheet({
       financialSource: sourceFromYears({ "2024": { turnover: 1 } }),
     });
-    expect(row(allMissing, "total_assets")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(row(allMissing, "total_assets")?.values[0]).toBe("0");
 
     const zeroComponents = buildProspectusPageThreeBalanceSheet({
       financialSource: sourceFromYears({
@@ -276,6 +273,19 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
       }),
     });
     expect(row(zeroComponents, "total_assets")?.values[0]).toBe("0");
+
+    const flatTotass = buildProspectusPageThreeBalanceSheet({
+      financialSource: sourceFromYears({
+        "2024": {
+          totass: 12_000_000,
+          bsfatot: 1,
+          othass: 1,
+          bscatot: 1,
+          bsclbank: 1,
+        },
+      }),
+    });
+    expect(row(flatTotass, "total_assets")?.values[0]).toBe("12");
   });
 
   it("maps Current Liabilities from curlib with MYR millions", () => {
@@ -297,17 +307,17 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
     );
   });
 
-  it("computes Total Liabilities via computeTotalLiabilitiesIfComplete", () => {
+  it("computes Total Liabilities via Application-aligned resolver", () => {
     const data = buildProspectusPageThreeBalanceSheet(
       SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_INPUT
     );
     expect(row(data, "total_liabilities")?.values[0]).toBe("3.6");
     expect(
-      computeTotalLiabilitiesIfComplete({
-        total_liabilities: null,
-        current_liabilities: 2_900_000,
-        long_term_liabilities: 500_000,
-        non_current_liabilities: 200_000,
+      resolveApplicationFinancialTotalLiabilities({
+        totlib: null,
+        curlib: 2_900_000,
+        bsslltd: 500_000,
+        bsclstd: 200_000,
       })
     ).toBe(3_600_000);
 
@@ -316,15 +326,21 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
         "2024": { curlib: 2_900_000, bscatot: 1 },
       }),
     });
-    expect(row(oldSnapshot, "total_liabilities")?.values[0]).toBe(
-      PROSPECTUS_DATA_NOT_AVAILABLE
-    );
+    expect(row(oldSnapshot, "total_liabilities")?.values[0]).toBe("2.9");
+
+    const flatTotlib = buildProspectusPageThreeBalanceSheet({
+      financialSource: sourceFromYears({
+        "2024": { totlib: 5_000_000, curlib: 1, bsslltd: 1, bsclstd: 1 },
+      }),
+    });
+    expect(row(flatTotlib, "total_liabilities")?.values[0]).toBe("5");
 
     const moduleSource = readFileSync(
       join(__dirname, "prospectus-page-three-balance-sheet.ts"),
       "utf8"
     );
-    expect(moduleSource).toMatch(/computeTotalLiabilitiesIfComplete/);
+    expect(moduleSource).toMatch(/resolveApplicationFinancialTotalLiabilities/);
+    expect(moduleSource).not.toMatch(/computeTotalLiabilitiesIfComplete/);
     expect(moduleSource).not.toMatch(/curlib\s*\+\s*bsslltd/);
   });
 
@@ -382,7 +398,7 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
     expect(html).toContain("3.6");
     expect(html).not.toContain("RM 8,100,000.00");
     expect(html).toContain("Data not available");
-    expect(html).not.toContain("computeTotalAssetsIfComplete");
+    expect(html).not.toContain("resolveApplicationFinancialTotalAssets");
     expect(html).not.toContain("bsclbank");
     expect(html).not.toContain("publicationExtensionPending");
 
@@ -391,9 +407,10 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
       "utf8"
     );
     expect(builder).toMatch(/formatProspectusMyrMillions/);
-    expect(builder).toMatch(/computeTotalAssetsIfComplete/);
+    expect(builder).toMatch(/resolveApplicationFinancialTotalAssets/);
     expect(builder).not.toMatch(/\/\s*1_?000_?000/);
     expect(builder).not.toMatch(/formatProspectusMoneyMyr/);
+    expect(builder).not.toMatch(/IfComplete/);
 
     const types = readFileSync(
       join(__dirname, "prospectus-page-three-balance-sheet.types.ts"),

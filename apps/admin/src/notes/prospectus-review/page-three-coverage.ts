@@ -3,8 +3,8 @@ import {
   calculateCurrentRatio,
   calculateProfitMargin,
   calculateReturnOnEquity,
-  computeTotalAssetsIfComplete,
-  computeTotalLiabilitiesIfComplete,
+  resolveApplicationFinancialTotalAssets,
+  resolveApplicationFinancialTotalLiabilities,
   fyEndDateForYear,
   isSoukscoreRiskRating,
   normalizeProspectusCompanySize,
@@ -224,18 +224,18 @@ export function buildBalanceSheetResolvedRows(
 ): CoreTermRow[] {
   const currentAssets = parseNumber(yearRaw.bscatot);
   const currentLiabilities = parseNumber(yearRaw.curlib);
-  const totalAssets = computeTotalAssetsIfComplete({
-    total_assets: null,
-    fixed_assets: parseNumber(yearRaw.bsfatot),
-    other_assets: parseNumber(yearRaw.othass),
-    current_assets: currentAssets,
-    non_current_assets: parseNumber(yearRaw.bsclbank),
+  const totalAssets = resolveApplicationFinancialTotalAssets({
+    totass: parseNumber(yearRaw.totass),
+    bsfatot: parseNumber(yearRaw.bsfatot),
+    othass: parseNumber(yearRaw.othass),
+    bscatot: currentAssets,
+    bsclbank: parseNumber(yearRaw.bsclbank),
   });
-  const totalLiabilities = computeTotalLiabilitiesIfComplete({
-    total_liabilities: null,
-    current_liabilities: currentLiabilities,
-    long_term_liabilities: parseNumber(yearRaw.bsslltd),
-    non_current_liabilities: parseNumber(yearRaw.bsclstd),
+  const totalLiabilities = resolveApplicationFinancialTotalLiabilities({
+    totlib: parseNumber(yearRaw.totlib),
+    curlib: currentLiabilities,
+    bsslltd: parseNumber(yearRaw.bsslltd),
+    bsclstd: parseNumber(yearRaw.bsclstd),
   });
 
   return [
@@ -356,13 +356,11 @@ export function pageThreeHidesIssuerIdentity(rows: CoreTermRow[]): boolean {
 }
 
 /** Expose Total Liabilities helper usage for tests (same inputs as Page 3 builder). */
-export function computePageThreeTotalLiabilities(
-  yearRaw: Record<string, unknown>
-): number | null {
-  return computeTotalLiabilitiesIfComplete({
-    total_liabilities: null,
-    current_liabilities: parseNumber(yearRaw.curlib),
-    long_term_liabilities: parseNumber(yearRaw.bsslltd),
-    non_current_liabilities: parseNumber(yearRaw.bsclstd),
+export function computePageThreeTotalLiabilities(yearRaw: Record<string, unknown>): number {
+  return resolveApplicationFinancialTotalLiabilities({
+    totlib: parseNumber(yearRaw.totlib),
+    curlib: parseNumber(yearRaw.curlib),
+    bsslltd: parseNumber(yearRaw.bsslltd),
+    bsclstd: parseNumber(yearRaw.bsclstd),
   });
 }

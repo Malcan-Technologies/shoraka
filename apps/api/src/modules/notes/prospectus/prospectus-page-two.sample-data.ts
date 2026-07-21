@@ -31,6 +31,8 @@ const SAMPLE_FROZEN_FINANCIALS: ProspectusPage2FinancialComparisonSnapshot = {
         bsclbank: 900000,
         bsslltd: 500000,
         bsclstd: 200000,
+        totass: null,
+        totlib: null,
       },
     },
     {
@@ -51,6 +53,8 @@ const SAMPLE_FROZEN_FINANCIALS: ProspectusPage2FinancialComparisonSnapshot = {
         bsclbank: 950000,
         bsslltd: 550000,
         bsclstd: 250000,
+        totass: null,
+        totlib: null,
       },
     },
     {
@@ -71,6 +75,8 @@ const SAMPLE_FROZEN_FINANCIALS: ProspectusPage2FinancialComparisonSnapshot = {
         bsclbank: 1000000,
         bsslltd: 600000,
         bsclstd: 300000,
+        totass: null,
+        totlib: null,
       },
     },
   ],
