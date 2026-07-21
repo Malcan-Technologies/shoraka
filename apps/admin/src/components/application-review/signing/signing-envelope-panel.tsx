@@ -132,6 +132,9 @@ export interface SigningEnvelopePanelProps {
   structureType?: string | null;
   /** When true, render body only (no Card). Used inside AcceptanceSection. */
   embedded?: boolean;
+  viewDocumentPending?: boolean;
+  onViewDocument?: (s3Key: string) => void;
+  onDownloadDocument?: (s3Key: string, fileName?: string) => void;
 }
 
 export function SigningEnvelopePanel({
@@ -143,6 +146,9 @@ export function SigningEnvelopePanel({
   showOfferAcceptanceSummary = true,
   structureType,
   embedded = false,
+  viewDocumentPending = false,
+  onViewDocument,
+  onDownloadDocument,
 }: SigningEnvelopePanelProps) {
   const { data: envelopes = [], isLoading } = useAdminSigningEnvelopes(applicationId);
   const voidMutation = useVoidSigningEnvelope(applicationId);
@@ -269,6 +275,9 @@ export function SigningEnvelopePanel({
           voidDisabled={voidMutation.isPending}
           onVoid={() => handleVoid(primary.id)}
           onRemind={(recipientId) => handleRemind(primary.id, recipientId)}
+          viewDocumentPending={viewDocumentPending}
+          onViewDocument={onViewDocument}
+          onDownloadDocument={onDownloadDocument}
         />
       ) : null}
 
@@ -293,7 +302,13 @@ export function SigningEnvelopePanel({
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-2 pt-2">
             {history.map((envelope) => (
-              <HistoryEnvelopeRow key={envelope.id} envelope={envelope} />
+              <HistoryEnvelopeRow
+                key={envelope.id}
+                envelope={envelope}
+                viewDocumentPending={viewDocumentPending}
+                onViewDocument={onViewDocument}
+                onDownloadDocument={onDownloadDocument}
+              />
             ))}
           </CollapsibleContent>
         </Collapsible>
@@ -323,6 +338,9 @@ function ActiveEnvelopeCard({
   voidDisabled,
   onVoid,
   onRemind,
+  viewDocumentPending,
+  onViewDocument,
+  onDownloadDocument,
 }: {
   envelope: SigningEnvelopeDto;
   canManage: boolean;
@@ -331,6 +349,9 @@ function ActiveEnvelopeCard({
   voidDisabled: boolean;
   onVoid: () => void;
   onRemind: (recipientId: string) => void;
+  viewDocumentPending?: boolean;
+  onViewDocument?: (s3Key: string) => void;
+  onDownloadDocument?: (s3Key: string, fileName?: string) => void;
 }) {
   const canVoid =
     canManage && envelope.status !== "COMPLETED" && envelope.status !== "VOIDED";
@@ -358,13 +379,26 @@ function ActiveEnvelopeCard({
         showRemindActions={canRemind}
         onRemind={onRemind}
         remindDisabled={remindDisabled}
+        viewDocumentPending={viewDocumentPending}
+        onViewSignedDocument={onViewDocument}
+        onDownloadSignedDocument={onDownloadDocument}
       />
     </div>
   );
 }
 
 /** One-line summary for voided/expired/prior packages; expand only when needed. */
-function HistoryEnvelopeRow({ envelope }: { envelope: SigningEnvelopeDto }) {
+function HistoryEnvelopeRow({
+  envelope,
+  viewDocumentPending,
+  onViewDocument,
+  onDownloadDocument,
+}: {
+  envelope: SigningEnvelopeDto;
+  viewDocumentPending?: boolean;
+  onViewDocument?: (s3Key: string) => void;
+  onDownloadDocument?: (s3Key: string, fileName?: string) => void;
+}) {
   const [open, setOpen] = React.useState(false);
   const progress = React.useMemo(() => computeSigningEnvelopeProgress(envelope), [envelope]);
   const when = formatEnvelopeWhen(envelope);
@@ -392,7 +426,14 @@ function HistoryEnvelopeRow({ envelope }: { envelope: SigningEnvelopeDto }) {
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="border-t border-border px-3 py-3">
-            <SigningProgressMatrix envelope={envelope} collapseCompletedDocuments compact />
+            <SigningProgressMatrix
+              envelope={envelope}
+              collapseCompletedDocuments
+              compact
+              viewDocumentPending={viewDocumentPending}
+              onViewSignedDocument={onViewDocument}
+              onDownloadSignedDocument={onDownloadDocument}
+            />
           </div>
         </CollapsibleContent>
       </div>

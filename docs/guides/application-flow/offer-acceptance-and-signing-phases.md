@@ -102,9 +102,10 @@ Default pair: use **Add LO + Guarantee Acknowledgement** in product settings (`D
 - **Structure-aware tab order** (`getReviewSectionOrder`):
   - Contract / default: `… → Contract → Acceptance → Invoice`
   - Invoice-only: `… → Customer → Invoice → Acceptance`
-- **Acceptance unlock prerequisites** (`getAcceptanceDocumentsPrerequisites`):
-  - Contract: underwriting + Contract approved
-  - Invoice-only: underwriting + Customer + Invoice approved
+- **Acceptance unlock prerequisites** (`getAcceptanceDocumentsPrerequisites` + `isPrerequisiteSectionSatisfied`):
+  - Contract: underwriting approved + Contract `OFFER_SENT` or `APPROVED` (Send Offer unlocks Acceptance; Contract cannot be manually approved)
+  - Invoice-only: underwriting + Customer approved + Invoice `OFFER_SENT` or `APPROVED`
+- On envelope / primary-offer accept: Contract (or Invoice) review → `APPROVED`; Acceptance review section → `APPROVED`. Doc-item sync does not finalize Acceptance to `APPROVED` while `offer_acceptance` is still in progress.
 - Acceptance stays **visible-only** (not required for final application approval). Send Offer remains on Contract / Invoice (v1).
 
 ## Gates
@@ -113,7 +114,7 @@ Default pair: use **Add LO + Guarantee Acknowledgement** in product settings (`D
 |--------|----------|
 | Submit Step 1 | All required acks checked + required acceptance files present |
 | Create / send envelope | `offer_acceptance.status` ∈ `APPROVED_FOR_SIGNING` \| `SIGNING_IN_PROGRESS` **and** acceptance review keys approved (same note-publish style keys) |
-| Auto-accept on envelope COMPLETED | Existing behaviour; set `offer_acceptance.status = COMPLETED` |
+| Auto-accept on envelope COMPLETED | Existing behaviour; set `offer_acceptance.status = COMPLETED`; Contract + Acceptance review sections → `APPROVED` |
 
 Presence-only gate for send is **replaced** by admin-approved for this flow when acknowledgements and/or acceptance docs are configured. If a frozen product has neither, keep legacy behaviour (direct signing stepper / accept as today).
 

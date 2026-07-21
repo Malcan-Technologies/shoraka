@@ -1,5 +1,6 @@
 /**
  * Document-grouped signing checklist with per-signer status rows.
+ * When a document has a signed PDF, optional View / Download actions sit on the header.
  */
 "use client";
 
@@ -21,6 +22,8 @@ import {
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import {
+  ArrowDownTrayIcon,
+  ArrowTopRightOnSquareIcon,
   CheckCircleIcon,
   ChevronDownIcon,
   ClockIcon,
@@ -62,6 +65,9 @@ const STATUS_META: Record<
   },
 };
 
+const SIGNED_DOC_ACTION_BTN_CLASS =
+  "inline-flex h-8 shrink-0 items-center justify-center gap-1 rounded-lg px-2 text-xs";
+
 type SigningProgressMatrixProps = {
   envelope: SigningEnvelopeDto;
   onRemind?: (recipientId: string) => void;
@@ -71,11 +77,61 @@ type SigningProgressMatrixProps = {
   collapseCompletedDocuments?: boolean;
   /** Tighter row padding for dense admin review. */
   compact?: boolean;
+  viewDocumentPending?: boolean;
+  onViewSignedDocument?: (s3Key: string) => void;
+  onDownloadSignedDocument?: (s3Key: string, fileName?: string) => void;
 };
 
 function recipientLabel(recipient: SigningRecipientDto, showEmail: boolean): string {
   if (showEmail) return recipient.email;
   return recipient.role_label || recipient.role_key;
+}
+
+function SignedDocumentActions({
+  s3Key,
+  fileName,
+  pending,
+  onView,
+  onDownload,
+}: {
+  s3Key: string;
+  fileName: string;
+  pending?: boolean;
+  onView?: (s3Key: string) => void;
+  onDownload?: (s3Key: string, fileName?: string) => void;
+}) {
+  if (!onView && !onDownload) return null;
+
+  return (
+    <div className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+      {onView ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className={SIGNED_DOC_ACTION_BTN_CLASS}
+          disabled={pending}
+          onClick={() => onView(s3Key)}
+        >
+          <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 shrink-0" />
+          View
+        </Button>
+      ) : null}
+      {onDownload ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className={SIGNED_DOC_ACTION_BTN_CLASS}
+          disabled={pending}
+          onClick={() => onDownload(s3Key, fileName)}
+        >
+          <ArrowDownTrayIcon className="h-3.5 w-3.5 shrink-0" />
+          Download
+        </Button>
+      ) : null}
+    </div>
+  );
 }
 
 export function SigningProgressMatrix({
@@ -85,6 +141,9 @@ export function SigningProgressMatrix({
   showRemindActions = false,
   collapseCompletedDocuments = false,
   compact = false,
+  viewDocumentPending = false,
+  onViewSignedDocument,
+  onDownloadSignedDocument,
 }: SigningProgressMatrixProps) {
   const progress = React.useMemo(() => computeSigningEnvelopeProgress(envelope), [envelope]);
 
@@ -136,6 +195,18 @@ export function SigningProgressMatrix({
                 .map((assignment) => recipientById.get(assignment.recipient_id)?.name)
                 .filter((name): name is string => Boolean(name))
             ).size < assignments.length;
+
+          const signedS3Key = document.signed_s3_key?.trim() || null;
+          const signedActions =
+            signedS3Key && (onViewSignedDocument || onDownloadSignedDocument) ? (
+              <SignedDocumentActions
+                s3Key={signedS3Key}
+                fileName={`${document.name}.pdf`}
+                pending={viewDocumentPending}
+                onView={onViewSignedDocument}
+                onDownload={onDownloadSignedDocument}
+              />
+            ) : null;
 
           const body =
             assignments.length === 0 ? (
@@ -223,6 +294,7 @@ export function SigningProgressMatrix({
                 signedCount={signedCount}
                 total={assignments.length}
                 headerPad={headerPad}
+                signedActions={signedActions}
               >
                 {body}
               </CompletedDocumentGroup>
@@ -236,14 +308,17 @@ export function SigningProgressMatrix({
             >
               <div
                 className={cn(
-                  "flex items-center justify-between gap-3 border-b border-border bg-muted/30",
+                  "flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/30",
                   headerPad
                 )}
               >
-                <p className="text-sm font-semibold text-foreground">{document.name}</p>
-                <span className="text-xs font-medium tabular-nums text-muted-foreground">
-                  {signedCount}/{assignments.length} signed
-                </span>
+                <p className="min-w-0 flex-1 text-sm font-semibold text-foreground">{document.name}</p>
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  {signedActions}
+                  <span className="text-xs font-medium tabular-nums text-muted-foreground">
+                    {signedCount}/{assignments.length} signed
+                  </span>
+                </div>
               </div>
               {body}
             </div>
@@ -259,12 +334,14 @@ function CompletedDocumentGroup({
   signedCount,
   total,
   headerPad,
+  signedActions,
   children,
 }: {
   name: string;
   signedCount: number;
   total: number;
   headerPad: string;
+  signedActions?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(false);
@@ -272,29 +349,34 @@ function CompletedDocumentGroup({
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <div className="overflow-hidden rounded-xl border border-border bg-background">
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className={cn(
-              "flex w-full items-center justify-between gap-3 bg-muted/20 text-left hover:bg-muted/40",
-              headerPad
-            )}
-          >
-            <div className="flex min-w-0 items-center gap-2">
-              <ChevronDownIcon
-                className={cn(
-                  "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
-                  open && "rotate-180"
-                )}
-              />
-              <p className="truncate text-sm font-semibold text-foreground">{name}</p>
-              <CheckCircleIcon className="h-4 w-4 shrink-0 text-status-success-text" />
-            </div>
-            <span className="shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
-              {signedCount}/{total} signed
-            </span>
-          </button>
-        </CollapsibleTrigger>
+        <div
+          className={cn(
+            "flex flex-wrap items-center gap-2 bg-muted/20",
+            headerPad
+          )}
+        >
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left hover:opacity-90"
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <ChevronDownIcon
+                  className={cn(
+                    "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                    open && "rotate-180"
+                  )}
+                />
+                <p className="truncate text-sm font-semibold text-foreground">{name}</p>
+                <CheckCircleIcon className="h-4 w-4 shrink-0 text-status-success-text" />
+              </div>
+              <span className="shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
+                {signedCount}/{total} signed
+              </span>
+            </button>
+          </CollapsibleTrigger>
+          {signedActions}
+        </div>
         <CollapsibleContent>
           <div className="border-t border-border">{children}</div>
         </CollapsibleContent>

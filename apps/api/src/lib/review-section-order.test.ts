@@ -3,6 +3,7 @@ import {
   getReviewSectionOrder,
   getReviewSectionPrerequisites,
   getSectionSortIndex,
+  isPrerequisiteSectionSatisfied,
   REVIEW_SECTION_ORDER,
   REVIEW_SECTION_ORDER_INVOICE_ONLY,
 } from "@cashsouk/types";
@@ -69,5 +70,40 @@ describe("getSectionSortIndex", () => {
     expect(getSectionSortIndex("invoice_details", "invoice_only")).toBeLessThan(
       getSectionSortIndex("acceptance_documents", "invoice_only")
     );
+  });
+});
+
+describe("isPrerequisiteSectionSatisfied", () => {
+  it("treats APPROVED as satisfied for any dependent", () => {
+    expect(isPrerequisiteSectionSatisfied("financial", "APPROVED", "acceptance_documents")).toBe(
+      true
+    );
+    expect(isPrerequisiteSectionSatisfied("contract_details", "APPROVED", "invoice_details")).toBe(
+      true
+    );
+  });
+
+  it("treats Contract/Invoice OFFER_SENT as satisfied only for Acceptance", () => {
+    expect(
+      isPrerequisiteSectionSatisfied("contract_details", "OFFER_SENT", "acceptance_documents")
+    ).toBe(true);
+    expect(
+      isPrerequisiteSectionSatisfied("invoice_details", "OFFER_SENT", "acceptance_documents")
+    ).toBe(true);
+    expect(isPrerequisiteSectionSatisfied("contract_details", "OFFER_SENT", "invoice_details")).toBe(
+      false
+    );
+    expect(isPrerequisiteSectionSatisfied("financial", "OFFER_SENT", "acceptance_documents")).toBe(
+      false
+    );
+  });
+
+  it("rejects PENDING and missing status", () => {
+    expect(
+      isPrerequisiteSectionSatisfied("contract_details", "PENDING", "acceptance_documents")
+    ).toBe(false);
+    expect(
+      isPrerequisiteSectionSatisfied("contract_details", undefined, "acceptance_documents")
+    ).toBe(false);
   });
 });

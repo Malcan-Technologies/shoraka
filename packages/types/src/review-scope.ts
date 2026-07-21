@@ -62,7 +62,9 @@ const UNDERWRITING_BEFORE_CONTRACT: ReviewSection[] = [
 
 /**
  * Prerequisites for the Acceptance tab.
- * Contract: after Contract approved. Invoice-only: after Invoice approved (Customer still on the chain).
+ * Contract: underwriting + Contract. Invoice-only: underwriting + Customer + Invoice.
+ * Commercial prereqs (Contract / Invoice) are satisfied by OFFER_SENT or APPROVED —
+ * see isPrerequisiteSectionSatisfied (Contract/Invoice cannot be manually approved).
  */
 export function getAcceptanceDocumentsPrerequisites(
   structureType?: string | null
@@ -71,6 +73,27 @@ export function getAcceptanceDocumentsPrerequisites(
     return [...UNDERWRITING_BEFORE_CONTRACT, "contract_details", "invoice_details"];
   }
   return [...UNDERWRITING_BEFORE_CONTRACT, "contract_details"];
+}
+
+/**
+ * Whether a prerequisite section's review status unlocks a dependent tab.
+ * Acceptance treats Contract / Invoice as satisfied once the offer is sent
+ * (manual approve is blocked; APPROVED arrives only after issuer accept / signing).
+ */
+export function isPrerequisiteSectionSatisfied(
+  prereqSection: string,
+  status: string | undefined,
+  dependentSection?: string
+): boolean {
+  if (status === "APPROVED") return true;
+  if (
+    dependentSection === "acceptance_documents" &&
+    (prereqSection === "contract_details" || prereqSection === "invoice_details") &&
+    status === "OFFER_SENT"
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /**

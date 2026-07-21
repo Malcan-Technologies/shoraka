@@ -643,6 +643,8 @@ export class AdminService {
     requiredSections: Set<ReviewSection>;
     visibleSections: Set<ReviewSection>;
     prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>>;
+    /** Frozen product.workflow for application.product_version (null when unresolved). */
+    productWorkflow: unknown[] | null;
   }> {
     const requiredSections = new Set<ReviewSection>(["financial"]);
     const financingType =
@@ -666,6 +668,7 @@ export class AdminService {
         requiredSections: fallback,
         visibleSections: new Set(fallback),
         prerequisitesBySection,
+        productWorkflow: null,
       };
     }
 
@@ -680,6 +683,7 @@ export class AdminService {
         requiredSections: fallback,
         visibleSections: new Set(fallback),
         prerequisitesBySection,
+        productWorkflow: null,
       };
     }
 
@@ -707,6 +711,7 @@ export class AdminService {
       requiredSections,
       visibleSections,
       prerequisitesBySection,
+      productWorkflow: workflow,
     };
   }
 
@@ -5535,6 +5540,8 @@ export class AdminService {
       required_review_sections: orderedRequiredSections,
       visible_review_sections: orderedVisibleSections,
       review_section_prerequisites: sectionPolicy.prerequisitesBySection,
+      // Frozen at application.product_version — Acceptance/signing UI must not use live catalog.
+      product_workflow: sectionPolicy.productWorkflow,
     };
   }
 
@@ -6220,6 +6227,8 @@ export class AdminService {
 
   /**
    * Updates acceptance_documents section row from per-document item rows (same rules as Documents).
+   * When a primary offer_acceptance ceremony is in progress, do not finalize the section to
+   * APPROVED until signing / offer accept sets offer_acceptance to COMPLETED.
    */
   private async syncAcceptanceDocumentsSectionFromItems(
     repository: AdminRepository,
@@ -6228,6 +6237,8 @@ export class AdminService {
       acceptance_documents?: unknown;
       application_reviews?: { section: string; status: string }[];
       application_review_items?: { item_type: string; item_id: string; status: string }[];
+      contract?: { offer_details?: unknown } | null;
+      invoices?: Array<{ contract_id?: string | null; offer_details?: unknown }>;
     },
     reviewerUserId: string,
     logContext?: AdminLogContext
@@ -6243,10 +6254,26 @@ export class AdminService {
 
     const documentRows =
       application.application_review_items?.filter((r) => r.item_type === "document") ?? [];
-    const target = computeSupportingDocumentsSectionStatus(
+    let target = computeSupportingDocumentsSectionStatus(
       docKeys,
       documentRows.map((r) => ({ item_id: r.item_id, status: r.status }))
     );
+
+    const primaryAcceptance =
+      getOfferAcceptanceFromOfferDetails(application.contract?.offer_details) ??
+      (application.invoices ?? [])
+        .filter((inv) => !inv.contract_id)
+        .map((inv) => getOfferAcceptanceFromOfferDetails(inv.offer_details))
+        .find((phase) => phase != null) ??
+      null;
+
+    if (
+      target === "APPROVED" &&
+      primaryAcceptance != null &&
+      primaryAcceptance.status !== "COMPLETED"
+    ) {
+      target = "PENDING";
+    }
 
     const existing = application.application_reviews?.find((r) => r.section === "acceptance_documents");
     const current = existing?.status ?? "PENDING";
@@ -6307,6 +6334,8 @@ export class AdminService {
         acceptance_documents?: unknown;
         application_reviews?: { section: string; status: string }[];
         application_review_items?: { item_type: string; item_id: string; status: string }[];
+        contract?: { offer_details?: unknown } | null;
+        invoices?: Array<{ contract_id?: string | null; offer_details?: unknown }>;
       },
       reviewerUserId,
       logContext
@@ -7453,6 +7482,8 @@ export class AdminService {
               acceptance_documents?: unknown;
               application_reviews?: { section: string; status: string }[];
               application_review_items?: { item_type: string; item_id: string; status: string }[];
+              contract?: { offer_details?: unknown } | null;
+              invoices?: Array<{ contract_id?: string | null; offer_details?: unknown }>;
             },
             reviewerUserId,
             logContext

@@ -21,10 +21,10 @@ export type TabDescriptorVisibilityApp = {
  *
  * `visible_review_sections` is computed server-side from the application's frozen
  * `product_version` (see AdminService.getReviewSectionPolicy) — it is the source of truth for
- * which tabs exist and in what order. The live product workflow (current catalog row) can drift
- * from that frozen version, so when the API list is present the tab set is built directly from
- * it rather than only used to filter the live-workflow-derived list; a section visible on the
- * frozen version but absent from the live workflow (e.g. Acceptance) still gets a tab.
+ * which tabs exist and in what order. Prefer passing the frozen `product_workflow` from
+ * application detail (not the live catalog row). When the API list is present the tab set is
+ * built from it; a section visible on the frozen version but absent from a drifted live
+ * workflow (e.g. Acceptance) still gets a tab.
  */
 export function getEffectiveReviewTabDescriptors(
   workflow: unknown[] | null | undefined,

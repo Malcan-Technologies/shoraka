@@ -1928,6 +1928,30 @@ export class ApplicationService {
         },
       });
 
+      // Primary offer ceremony complete → Acceptance section APPROVED (alongside Contract).
+      if (action === "accept" && getOfferAcceptanceFromOfferDetails(offer)) {
+        await tx.applicationReview.upsert({
+          where: {
+            application_id_section: {
+              application_id: applicationId,
+              section: "acceptance_documents",
+            },
+          },
+          create: {
+            application_id: applicationId,
+            section: "acceptance_documents",
+            status: ReviewStepStatus.APPROVED,
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
+          },
+          update: {
+            status: ReviewStepStatus.APPROVED,
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
+          },
+        });
+      }
+
       /* --- BEGIN: Recompute and persist application status after contract offer response --- */
       const updatedInvoices = await tx.invoice.findMany({
         where: { application_id: applicationId },
@@ -2249,6 +2273,30 @@ export class ApplicationService {
           },
         });
         sectionApproved = true;
+      }
+
+      // Invoice-only primary offer ceremony complete → Acceptance section APPROVED.
+      if (action === "accept" && getOfferAcceptanceFromOfferDetails(offer)) {
+        await tx.applicationReview.upsert({
+          where: {
+            application_id_section: {
+              application_id: applicationId,
+              section: "acceptance_documents",
+            },
+          },
+          create: {
+            application_id: applicationId,
+            section: "acceptance_documents",
+            status: ReviewStepStatus.APPROVED,
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
+          },
+          update: {
+            status: ReviewStepStatus.APPROVED,
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
+          },
+        });
       }
 
       /* --- BEGIN: Recompute and persist application status after invoice offer response --- */

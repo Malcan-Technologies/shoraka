@@ -412,10 +412,42 @@ export default function DynamicApplicationDetailPage() {
   const structureType = (app?.financing_structure as { structure_type?: string } | null | undefined)?.structure_type;
   const isInvoiceOnly = structureType === "invoice_only";
 
+  // Prefer frozen product_version workflow from detail; live catalog can drift after re-version.
+  const reviewProductWorkflow = React.useMemo(() => {
+    const frozen = (app as { product_workflow?: unknown } | undefined)?.product_workflow;
+    if (Array.isArray(frozen) && frozen.length > 0) return frozen;
+    return (currentProduct as { workflow?: unknown } | undefined)?.workflow;
+  }, [app, currentProduct]);
+
   const effectiveTabDescriptors = React.useMemo(
-    () => getEffectiveReviewTabDescriptors(currentProduct?.workflow, app ?? null),
-    [currentProduct?.workflow, app]
+    () => getEffectiveReviewTabDescriptors(reviewProductWorkflow, app ?? null),
+    [reviewProductWorkflow, app]
   );
+  const hasAcceptanceTab = effectiveTabDescriptors.some(
+    (descriptor) => descriptor.reviewSection === "acceptance_documents"
+  );
+
+  const defaultReviewTabId = effectiveTabDescriptors[0]?.id ?? "financial";
+  const [reviewTabValue, setReviewTabValue] = React.useState<string | null>(null);
+  const activeReviewTabId = reviewTabValue ?? defaultReviewTabId;
+
+  React.useEffect(() => {
+    if (
+      reviewTabValue != null &&
+      !effectiveTabDescriptors.some((descriptor) => descriptor.id === reviewTabValue)
+    ) {
+      setReviewTabValue(null);
+    }
+  }, [effectiveTabDescriptors, reviewTabValue]);
+
+  const goToAcceptanceTab = React.useCallback(() => {
+    const acceptanceTab = effectiveTabDescriptors.find(
+      (descriptor) => descriptor.reviewSection === "acceptance_documents"
+    );
+    if (acceptanceTab) {
+      setReviewTabValue(acceptanceTab.id);
+    }
+  }, [effectiveTabDescriptors]);
 
   const isExistingContract = React.useMemo(
     () =>
@@ -1014,7 +1046,9 @@ export default function DynamicApplicationDetailPage() {
                   <ApplicationReviewTabs
                     sections={reviewSections}
                     tabDescriptors={effectiveTabDescriptors}
-                    defaultTabId={effectiveTabDescriptors[0]?.id}
+                    defaultTabId={defaultReviewTabId}
+                    tabValue={activeReviewTabId}
+                    onTabValueChange={setReviewTabValue}
                   >
                     {effectiveTabDescriptors.map((descriptor) => {
                       const applicationWithdrawn = app?.status === "WITHDRAWN";
@@ -1057,7 +1091,7 @@ export default function DynamicApplicationDetailPage() {
                             descriptor={descriptor}
                             app={app}
                             liveApplicationId={applicationId}
-                            productWorkflow={(currentProduct as { workflow?: unknown } | undefined)?.workflow}
+                            productWorkflow={reviewProductWorkflow}
                             productVersion={
                               typeof (app as { product_version?: number }).product_version === "number"
                                 ? (app as { product_version: number }).product_version
@@ -1146,7 +1180,12 @@ export default function DynamicApplicationDetailPage() {
                                   offeredFacility,
                                   facilityFeeRatePercent,
                                 });
-                                toast.success("Contract offer sent");
+                                if (hasAcceptanceTab) {
+                                  toast.success("Contract offer sent — continue on Acceptance");
+                                  goToAcceptanceTab();
+                                } else {
+                                  toast.success("Contract offer sent");
+                                }
                               } catch (err) {
                                 toast.error(
                                   err instanceof Error
@@ -1173,7 +1212,12 @@ export default function DynamicApplicationDetailPage() {
                                   platformFeeRatePercent,
                                   risk_rating,
                                 });
-                                toast.success("Invoice offer sent");
+                                if (isInvoiceOnly && hasAcceptanceTab) {
+                                  toast.success("Invoice offer sent — continue on Acceptance");
+                                  goToAcceptanceTab();
+                                } else {
+                                  toast.success("Invoice offer sent");
+                                }
                               } catch (err) {
                                 toast.error(
                                   err instanceof Error

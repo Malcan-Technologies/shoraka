@@ -2,6 +2,7 @@ import {
   getReviewSectionOrder,
   getReviewSectionPrerequisites,
   getStepKeyFromStepId,
+  isPrerequisiteSectionSatisfied,
   REVIEW_SECTION_ORDER,
   workflowUsesOfferAcceptanceFlow,
   type ReviewSection,
@@ -137,6 +138,7 @@ function resolveTabPrerequisites(
  * Check if a tab is unlocked based on section approval status.
  * Sections not in TAB_PREREQUISITES are treated as unlocked.
  * Server-provided prerequisites (when present) take precedence.
+ * Acceptance treats Contract/Invoice OFFER_SENT as satisfying those prereqs.
  */
 export function isTabUnlocked(
   sectionId: string,
@@ -151,7 +153,9 @@ export function isTabUnlocked(
     ? prereqs.filter((prereq) => availableSections.has(prereq))
     : prereqs;
   if (!relevantPrereqs.length) return true;
-  return relevantPrereqs.every((prereq) => sectionStatusMap.get(prereq) === "APPROVED");
+  return relevantPrereqs.every((prereq) =>
+    isPrerequisiteSectionSatisfied(prereq, sectionStatusMap.get(prereq), sectionId)
+  );
 }
 
 /** Human-readable tooltip explaining why a tab is locked. */
@@ -169,8 +173,36 @@ export function getTabUnlockTooltip(
     ? prereqs.filter((prereq) => availableSections.has(prereq))
     : prereqs;
   if (!relevantPrereqs.length) return "";
-  const missing = relevantPrereqs.filter((p) => sectionStatusMap.get(p) !== "APPROVED");
+  const missing = relevantPrereqs.filter(
+    (p) => !isPrerequisiteSectionSatisfied(p, sectionStatusMap.get(p), sectionId)
+  );
   if (missing.length === 0) return "";
+
+  if (sectionId === "acceptance_documents") {
+    const commercialMissing = missing.filter(
+      (p) => p === "contract_details" || p === "invoice_details"
+    );
+    const underwritingMissing = missing.filter(
+      (p) => p !== "contract_details" && p !== "invoice_details"
+    );
+    const parts: string[] = [];
+    if (underwritingMissing.length > 0) {
+      const getLabel = (m: string) => labelOverrides?.[m] ?? REVIEW_TAB_LABELS[m] ?? m;
+      parts.push(`Approve ${underwritingMissing.map(getLabel).join(", ")} section first`);
+    }
+    if (commercialMissing.includes("invoice_details")) {
+      parts.push("Send offer from Invoice first");
+    }
+    if (commercialMissing.includes("contract_details")) {
+      // Invoice-only: contract_details is Customer (manual approve). Contract: Send Offer.
+      const isInvoiceOnly = structureType === "invoice_only";
+      parts.push(
+        isInvoiceOnly ? "Approve Customer section first" : "Send offer from Contract first"
+      );
+    }
+    return parts.join(". ");
+  }
+
   const getLabel = (m: string) => labelOverrides?.[m] ?? REVIEW_TAB_LABELS[m] ?? m;
   const labels = missing.map(getLabel).join(", ");
   return `Approve ${labels} section first`;

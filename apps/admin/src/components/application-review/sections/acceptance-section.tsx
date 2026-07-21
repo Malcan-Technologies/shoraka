@@ -1,6 +1,6 @@
 /**
  * Admin Acceptance tab: single review card — offer acceptance, acceptance documents,
- * then signing package (same shell pattern as other review tabs).
+ * then signing package (with inline signed View/Download on each document).
  */
 "use client";
 
@@ -421,6 +421,9 @@ export function AcceptanceSection({
               showOfferAcceptanceSummary={false}
               structureType={structureType}
               embedded
+              viewDocumentPending={viewDocumentPending}
+              onViewDocument={onViewDocument}
+              onDownloadDocument={onDownloadDocument}
             />
           </ReviewFieldBlock>
         ) : null}

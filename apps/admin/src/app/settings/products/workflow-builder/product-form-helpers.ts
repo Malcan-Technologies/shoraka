@@ -4,7 +4,16 @@
  * To add a step: see workflow-registry.tsx (and add validation here if the step has required fields).
  */
 
-import { getStepKeyFromStepId, STEP_KEY_DISPLAY, enforceDeclarationsLastAndDropReview, parseSigningPackagesConfig, writeSigningPackagesConfig, ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY } from "@cashsouk/types";
+import {
+  getStepKeyFromStepId,
+  STEP_KEY_DISPLAY,
+  enforceDeclarationsLastAndDropReview,
+  parseSigningPackagesConfig,
+  writeSigningPackagesConfig,
+  ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY,
+  parseOfferAcknowledgementsConfig,
+  validateSigningTemplateConfig,
+} from "@cashsouk/types";
 import { isDeclarationHtmlEmpty } from "@cashsouk/ui/declaration-rich-text";
 import { parseMoney } from "@cashsouk/ui";
 
@@ -499,6 +508,21 @@ function runStepValidation(steps: unknown[]): { errors: string[]; stepIdsWithErr
         }
         if (acceptanceBadTypes > 0) {
           errors.push(`Acceptance documents: each document allows only one file type (PDF or Excel)`);
+          stepIdsWithErrors.add(stepId);
+        }
+      }
+
+      // Offer-acceptance products (acks and/or acceptance docs) need a complete signing package.
+      // Also validate whenever any signing roles/docs are present so half-configs cannot save.
+      const signing = parseSigningPackagesConfig(config);
+      const acceptanceDocs = config[ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY];
+      const usesOfferAcceptance =
+        parseOfferAcknowledgementsConfig(config).length > 0 ||
+        (Array.isArray(acceptanceDocs) && acceptanceDocs.length > 0);
+      const hasSigningContent = signing.roles.length > 0 || signing.documents.length > 0;
+      if (usesOfferAcceptance || hasSigningContent) {
+        for (const msg of validateSigningTemplateConfig(signing)) {
+          errors.push(msg);
           stepIdsWithErrors.add(stepId);
         }
       }

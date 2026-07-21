@@ -202,6 +202,8 @@ type AdminApplicationDetail = Application &
       };
     };
     visible_review_sections?: string[];
+    /** Frozen product.workflow for application.product_version (Acceptance / signing). */
+    product_workflow?: unknown[] | null;
   };
 type AdminApplicationActionResult = Record<string, unknown>;
 type PendingAmendmentItem = {

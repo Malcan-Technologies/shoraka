@@ -177,7 +177,7 @@ export interface SectionContentProps {
   /** Stored amendment remarks for resubmit comparison (modal only). */
   resubmitAmendmentRemarks?: Array<{ scope: string; scope_key: string; remark: string }>;
   /**
-   * Frozen/live product workflow — used by Acceptance tab for acknowledgement labels
+   * Frozen product workflow (application.product_version) for Acceptance acknowledgements
    * and signing hub. Omit in resubmit comparison (docs-only).
    */
   productWorkflow?: unknown;
