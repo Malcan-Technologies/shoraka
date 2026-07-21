@@ -148,6 +148,12 @@ describe("prospectus review completion checklist", () => {
     expect(checklist.find((i) => i.id === "financials")?.required).toBe(false);
     expect(checklist.find((i) => i.id === "highlights")?.complete).toBe(true);
     expect(isProspectusDraftReadyToSubmit(draft)).toBe(true);
+
+    const withIncomeYears = buildProspectusCompletionChecklist(draft, {
+      incomeStatementYears: ["2022", "2023", "2024"],
+    });
+    expect(withIncomeYears.find((i) => i.id === "financials")?.required).toBe(true);
+    expect(withIncomeYears.find((i) => i.id === "financials")?.complete).toBe(false);
   });
 
   it("uses Complete / Required / Optional without progression icon symbols", () => {
@@ -166,6 +172,11 @@ describe("prospectus review completion checklist", () => {
     expect(statuses[4]).toBe("optional");
     expect(statuses[5]).toBe("required");
     expect(statuses[6]).toBeUndefined();
+
+    const withIncome = getProspectusStepStatuses(emptyDraft(), {
+      incomeStatementYears: ["2024"],
+    });
+    expect(withIncome[4]).toBe("required");
   });
 
   it("maps checklist rows to workflow steps for navigation", () => {

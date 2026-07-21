@@ -84,10 +84,20 @@ export function buildCompleteProspectusReviewDraft(): ProspectusReviewStoredCont
   }));
   draft.page3.manualFinancialInputs = {
     years: {
+      "2022": {
+        grossProfit: 2_100_000,
+        ebitda: 1_600_000,
+        ebit: 1_450_000,
+      },
+      "2023": {
+        grossProfit: 2_400_000,
+        ebitda: 1_850_000,
+        ebit: 1_700_000,
+      },
       "2024": {
-        grossProfit: 1_200_000,
-        ebitda: 900_000,
-        ebit: 800_000,
+        grossProfit: 2_800_000,
+        ebitda: 2_100_000,
+        ebit: 1_950_000,
       },
     },
   };

@@ -650,7 +650,15 @@ export class ProspectusReviewService {
         recBundles.aboutInvoice
       )
     );
-    const errors = validateApprovalContent(approvedClone);
+    // Resolve Page 2/3 years before approve so Income Statement officer rows are validated.
+    const publication = toProspectusPublicationContent(approvedClone);
+    const page3Data = await loadProspectusPageThreeData(prisma, noteId);
+    const page3Input = mapProspectusPageThreeDataToInput(page3Data);
+    page3Input.publicationContent = publication;
+    const page3 = buildProspectusPageThree(page3Input);
+    const errors = validateApprovalContent(approvedClone, {
+      incomeStatementYears: page3.incomeStatement.years.map((year) => String(year.year)),
+    });
     if (errors.length > 0) {
       throw new AppError(422, "PROSPECTUS_REVIEW_INVALID", "Approval validation failed", {
         details: errors,
@@ -671,7 +679,6 @@ export class ProspectusReviewService {
     });
 
     // Freeze rendered HTML at approve so publish/investor never rebuild.
-    const publication = toProspectusPublicationContent(approvedClone);
     const page1Note = await loadProspectusPageOneNote(prisma, noteId);
     const page1Input = await mapProspectusPageOneDataToInput(page1Note);
     page1Input.publicationContent = publication;
@@ -684,10 +691,6 @@ export class ProspectusReviewService {
     const page2Input = mapProspectusPageTwoDataToInput(page2Data);
     page2Input.publicationContent = publication;
     const page2 = buildProspectusPageTwo(page2Input);
-    const page3Data = await loadProspectusPageThreeData(prisma, noteId);
-    const page3Input = mapProspectusPageThreeDataToInput(page3Data);
-    page3Input.publicationContent = publication;
-    const page3 = buildProspectusPageThree(page3Input);
     approvedSnapshot = withApprovedSnapshotHtml(approvedSnapshot, {
       page1: buildProspectusPageOneHtml(page1),
       page2: buildProspectusPageTwoHtml(page2),

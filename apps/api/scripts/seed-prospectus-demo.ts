@@ -36,10 +36,8 @@ import { generateUniqueUserId } from "../src/lib/user-id-generator";
 import { ensureAdminRoleCatalog } from "../src/lib/auth/rbac";
 import { buildNoteIssuerSnapshot } from "../src/modules/notes/note-issuer-snapshot";
 import { PROSPECTUS_REVIEW_REQUIRED_FROM } from "../src/modules/notes/prospectus-review/prospectus-review.service";
-import {
-  emptyProspectusReviewContent,
-  catalogueVersion,
-} from "../src/modules/notes/prospectus-review/prospectus-review-content";
+import { catalogueVersion } from "../src/modules/notes/prospectus-review/prospectus-review-content";
+import { buildCompleteProspectusReviewDraft } from "../src/modules/notes/prospectus-review/prospectus-review.demo-fixtures";
 import {
   buildProspectusDemoBusinessDetails,
   buildProspectusDemoFinancialStatements,
@@ -696,20 +694,44 @@ async function upsertDraftNote(
     },
   });
 
-  // Explicit DRAFT review — not approved, no publication, no published snapshot.
-  const draft = emptyProspectusReviewContent(
-    {
-      paymasterSnapshot: { name: PAYMASTER_NAME },
-      profitRatePercent: PROFIT_RATE,
-    },
-    {
-      paymasterSnapshot: { name: PAYMASTER_NAME },
-      contractSnapshot: {
-        contract_details: { description: CONTRACT_WORK_DESCRIPTION },
-      },
-      deedOfAssignment: null,
+  // Explicit DRAFT review — complete officer content for local Prospectus demos.
+  const draft = buildCompleteProspectusReviewDraft();
+  const incomeYears = Object.keys(
+    (financialStatements as { unaudited_by_year?: Record<string, unknown> }).unaudited_by_year ??
+      {}
+  ).sort();
+  const ctosYears = (await prisma.ctosReport.findFirst({
+    where: { issuer_organization_id: ISSUER_ORG_ID, subject_ref: null },
+    select: { financials_json: true },
+    orderBy: { fetched_at: "desc" },
+  }))?.financials_json;
+  const allIncomeYears = new Set<string>(incomeYears);
+  if (Array.isArray(ctosYears)) {
+    for (const row of ctosYears) {
+      const year =
+        typeof row === "object" && row && "financial_year" in row
+          ? Number((row as { financial_year?: unknown }).financial_year)
+          : NaN;
+      if (Number.isFinite(year)) allIncomeYears.add(String(year));
     }
-  );
+  }
+  const incomeLadder = [
+    { grossProfit: 2_100_000, ebitda: 1_600_000, ebit: 1_450_000 },
+    { grossProfit: 2_400_000, ebitda: 1_850_000, ebit: 1_700_000 },
+    { grossProfit: 2_800_000, ebitda: 2_100_000, ebit: 1_950_000 },
+  ] as const;
+  const sortedIncomeYears = [...allIncomeYears].sort();
+  draft.page3.manualFinancialInputs = {
+    years: Object.fromEntries(
+      sortedIncomeYears.map((year, index) => [
+        year,
+        {
+          ...(draft.page3.manualFinancialInputs?.years?.[year] ?? {}),
+          ...incomeLadder[Math.min(index, incomeLadder.length - 1)]!,
+        },
+      ])
+    ),
+  };
   await prisma.noteProspectusReview.upsert({
     where: { note_id: NOTE_ID },
     update: {

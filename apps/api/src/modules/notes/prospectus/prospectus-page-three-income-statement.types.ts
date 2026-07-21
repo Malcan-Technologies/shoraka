@@ -1,6 +1,6 @@
 /**
  * SECTION: Prospectus Page 3 — 3-Year Income Statement Summary (visible Stage 3)
- * WHY: Confirmed Application FS rows only; Gross Profit/EBITDA/EBIT stay DNA
+ * WHY: Confirmed Application FS rows + officer fills for Gross Profit/EBITDA/EBIT
  */
 
 import type { ProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source.types";
@@ -63,19 +63,25 @@ export interface ProspectusPageThreeIncomeStatementAudit {
     formatter: "formatProspectusMoneyMyr";
   };
   grossProfit: {
-    status: "unresolved";
+    status: "officer_entered";
+    source: "page3.manualFinancialInputs.years.{year}.grossProfit";
     rawKeyAvailable: false;
     generatedCalculationAllowed: false;
+    requiredForApproval: true;
   };
   ebitda: {
-    status: "unresolved";
+    status: "officer_entered";
+    source: "page3.manualFinancialInputs.years.{year}.ebitda";
     rawKeyAvailable: false;
     generatedCalculationAllowed: false;
+    requiredForApproval: true;
   };
   ebit: {
-    status: "unresolved";
+    status: "officer_entered";
+    source: "page3.manualFinancialInputs.years.{year}.ebit";
     rawKeyAvailable: false;
     generatedCalculationAllowed: false;
+    requiredForApproval: true;
   };
   profitBeforeTax: {
     rawKey: "plnpbt";
@@ -110,19 +116,25 @@ export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_AUDIT: ProspectusPageThreeIn
       formatter: "formatProspectusMoneyMyr",
     },
     grossProfit: {
-      status: "unresolved",
+      status: "officer_entered",
+      source: "page3.manualFinancialInputs.years.{year}.grossProfit",
       rawKeyAvailable: false,
       generatedCalculationAllowed: false,
+      requiredForApproval: true,
     },
     ebitda: {
-      status: "unresolved",
+      status: "officer_entered",
+      source: "page3.manualFinancialInputs.years.{year}.ebitda",
       rawKeyAvailable: false,
       generatedCalculationAllowed: false,
+      requiredForApproval: true,
     },
     ebit: {
-      status: "unresolved",
+      status: "officer_entered",
+      source: "page3.manualFinancialInputs.years.{year}.ebit",
       rawKeyAvailable: false,
       generatedCalculationAllowed: false,
+      requiredForApproval: true,
     },
     profitBeforeTax: {
       rawKey: "plnpbt",
@@ -212,27 +224,27 @@ export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_FIELD_SOURCES: Record<
   },
   gross_profit: {
     label: "Gross Profit",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page3.manualFinancialInputs.years.{year}.grossProfit",
+    availability: "stored",
     surface: "canva",
-    possibleAlternatives: "Infer from revenue/PAT — not used",
-    notes: "No confirmed Application FS key.",
+    possibleAlternatives: "Application/CTOS keys — none confirmed",
+    notes: "Officer full MYR; required for approval per displayed year.",
   },
   ebitda: {
     label: "EBITDA",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page3.manualFinancialInputs.years.{year}.ebitda",
+    availability: "stored",
     surface: "canva",
-    possibleAlternatives: "Generic EBITDA identity — not used",
-    notes: "No confirmed Application FS key.",
+    possibleAlternatives: "Approved EBITDA formula — none",
+    notes: "Officer full MYR; required for approval per displayed year.",
   },
   ebit: {
     label: "EBIT",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page3.manualFinancialInputs.years.{year}.ebit",
+    availability: "stored",
     surface: "canva",
-    possibleAlternatives: "Generic EBIT identity — not used",
-    notes: "No confirmed Application FS key.",
+    possibleAlternatives: "Approved EBIT formula — none",
+    notes: "Officer full MYR; required for approval per displayed year.",
   },
   profit_before_tax: {
     label: "Profit Before Tax",

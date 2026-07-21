@@ -36,8 +36,29 @@ function hasHighlightCopy(value: { title?: string; description?: string; key?: s
   return hasOption(value.title) && hasOption(value.description);
 }
 
+export type ProspectusCompletionOptions = {
+  /** Calendar years on Page 3 Income Statement — used for officer GP/EBITDA/EBIT completeness. */
+  incomeStatementYears?: readonly string[];
+};
+
+function incomeOfficerFieldsComplete(
+  draft: ProspectusReviewStoredContent,
+  years: readonly string[]
+): boolean {
+  if (years.length === 0) return false;
+  const bag = draft.page3.manualFinancialInputs?.years ?? {};
+  return years.every((year) => {
+    const row = bag[year] ?? {};
+    return (["grossProfit", "ebitda", "ebit"] as const).every((field) => {
+      const value = row[field];
+      return value != null && value !== "";
+    });
+  });
+}
+
 export function buildProspectusCompletionChecklist(
-  draft: ProspectusReviewStoredContent
+  draft: ProspectusReviewStoredContent,
+  options?: ProspectusCompletionOptions
 ): ProspectusCompletionItem[] {
   const highlightsComplete =
     draft.page1.keyInvestorHighlights.length >= 4 &&
@@ -79,10 +100,13 @@ export function buildProspectusCompletionChecklist(
     hasOption(takeaways.workingCapitalEfficiencyOptionKey) &&
     hasOption(takeaways.overallFinancialProfileOptionKey);
 
-  const years = draft.page3.manualFinancialInputs?.years ?? {};
-  const financialInputComplete = Object.values(years).some((row) =>
-    Object.values(row ?? {}).some((value) => value != null && value !== "")
-  );
+  const incomeYears = options?.incomeStatementYears ?? [];
+  const financialInputComplete =
+    incomeYears.length > 0
+      ? incomeOfficerFieldsComplete(draft, incomeYears)
+      : Object.values(draft.page3.manualFinancialInputs?.years ?? {}).some((row) =>
+          Object.values(row ?? {}).some((value) => value != null && value !== "")
+        );
 
   return [
     { id: "core", label: "Note & Investment Details", complete: true, required: true },
@@ -108,7 +132,7 @@ export function buildProspectusCompletionChecklist(
       id: "financials",
       label: "Financial Review",
       complete: financialInputComplete,
-      required: false,
+      required: incomeYears.length > 0,
     },
     {
       id: "takeaways",
@@ -119,8 +143,11 @@ export function buildProspectusCompletionChecklist(
   ];
 }
 
-export function isProspectusDraftReadyToSubmit(draft: ProspectusReviewStoredContent): boolean {
-  return buildProspectusCompletionChecklist(draft)
+export function isProspectusDraftReadyToSubmit(
+  draft: ProspectusReviewStoredContent,
+  options?: ProspectusCompletionOptions
+): boolean {
+  return buildProspectusCompletionChecklist(draft, options)
     .filter((item) => item.required)
     .every((item) => item.complete);
 }
@@ -135,9 +162,10 @@ export function statusForCompletionItem(item: ProspectusCompletionItem): Prospec
  * Preview & Approval only shows Complete when the draft is ready.
  */
 export function getProspectusStepStatuses(
-  draft: ProspectusReviewStoredContent
+  draft: ProspectusReviewStoredContent,
+  options?: ProspectusCompletionOptions
 ): Partial<Record<ProspectusWorkflowStepId, ProspectusStepStatus>> {
-  const checklist = buildProspectusCompletionChecklist(draft);
+  const checklist = buildProspectusCompletionChecklist(draft, options);
   const byId = Object.fromEntries(checklist.map((item) => [item.id, item]));
   const ready = isProspectusDraftReadyToSubmit(draft);
 

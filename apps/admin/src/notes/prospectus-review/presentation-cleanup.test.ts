@@ -30,7 +30,13 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).toContain("Financial Summary");
     expect(pageSource).toContain("Financing & Risk Details");
     expect(pageSource).toContain("3-Year Financial Comparison");
+    expect(pageSource).toContain("3-Year Income Statement Summary");
     expect(pageSource).toContain("Officer Input");
+    expect(pageSource).toContain("ProspectusIncomeStatementWorkingTable");
+    expect(pageSource).toContain(
+      "Values sourced from financial statements are read-only. Complete only the"
+    );
+    expect(pageSource).not.toContain("MANUAL_INCOME_FIELDS");
   });
 
   it("keeps Page 3 Financing & Risk Details read-only without Issuer or duplicate grading inputs", () => {

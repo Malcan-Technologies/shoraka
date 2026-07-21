@@ -244,10 +244,18 @@ export const PROSPECTUS_TAKEAWAY_KEYS = [
   "overall_financial_profile",
 ] as const;
 
-export const PROSPECTUS_MANUAL_FINANCIAL_FIELD_KEYS = [
+/** Page 3 Income Statement officer-only money fields (no Application/CTOS source). */
+export const PROSPECTUS_INCOME_STATEMENT_OFFICER_FIELD_KEYS = [
   "grossProfit",
   "ebitda",
   "ebit",
+] as const;
+
+export type ProspectusIncomeStatementOfficerFieldKey =
+  (typeof PROSPECTUS_INCOME_STATEMENT_OFFICER_FIELD_KEYS)[number];
+
+export const PROSPECTUS_MANUAL_FINANCIAL_FIELD_KEYS = [
+  ...PROSPECTUS_INCOME_STATEMENT_OFFICER_FIELD_KEYS,
   "cashAndBank",
   "tradeReceivables",
   "totalEquity",

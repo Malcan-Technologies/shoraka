@@ -129,7 +129,7 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
     );
   });
 
-  it("keeps Gross Profit, EBITDA, and EBIT as Data not available", () => {
+  it("keeps Gross Profit, EBITDA, and EBIT as Data not available without officer inputs", () => {
     const data = buildProspectusPageThreeIncomeStatement(
       SAMPLE_PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_INPUT
     );
@@ -162,6 +162,29 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
     );
   });
 
+  it("fills Gross Profit, EBITDA, and EBIT from page3.manualFinancialInputs (full MYR)", () => {
+    const data = buildProspectusPageThreeIncomeStatement({
+      financialSource: SAMPLE_PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_SOURCE,
+      prospectusFinancialInputs: {
+        years: {
+          "2022": { grossProfit: 2_100_000, ebitda: 1_600_000, ebit: 1_450_000 },
+          "2023": { grossProfit: 2_400_000, ebitda: 1_850_000, ebit: 0 },
+          "2024": { grossProfit: -50_000, ebitda: 2_100_000, ebit: 1_950_000 },
+        },
+      },
+    });
+    expect(row(data, "gross_profit")?.values).toEqual([
+      "RM 2,100,000.00",
+      "RM 2,400,000.00",
+      "RM -50,000.00",
+    ]);
+    expect(row(data, "ebitda")?.values[0]).toBe("RM 1,600,000.00");
+    expect(row(data, "ebit")?.values[1]).toBe("RM 0.00");
+    expect(PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_AUDIT.grossProfit.status).toBe(
+      "officer_entered"
+    );
+  });
+
   it("maps PBT from plnpbt with full MYR and DNA when missing or invalid", () => {
     const data = buildProspectusPageThreeIncomeStatement(
       SAMPLE_PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_INPUT
@@ -189,7 +212,7 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
     expect(row(oldSnapshotShape, "profit_after_tax")?.values[0]).toBe("RM 10.00");
 
     const invalid = buildProspectusPageThreeIncomeStatement({
-      financialSource: sourceFromYears({ "2024": { plnpbt: "n/a" } }),
+      financialSource: sourceFromYears({ "2024": { turnover: 100, plnpbt: "n/a" } }),
     });
     expect(row(invalid, "profit_before_tax")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(
@@ -218,7 +241,7 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
     expect(row(missing, "profit_after_tax")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
 
     const invalid = buildProspectusPageThreeIncomeStatement({
-      financialSource: sourceFromYears({ "2024": { plnpat: Infinity } }),
+      financialSource: sourceFromYears({ "2024": { turnover: 100, plnpat: Infinity } }),
     });
     expect(row(invalid, "profit_after_tax")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });

@@ -385,10 +385,8 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
     it("maps confirmed income, balance sheet, and ROE; sample fills unsupported gaps only", () => {
       const page = SAMPLE_PROSPECTUS_PAGE_THREE;
       expect(row(page.incomeStatement.rows, "gross_profit")?.[0]).toBe("RM 2,100,000.00");
-      expect(row(page.incomeStatement.rows, "ebitda")?.[0]).toBe(
-        PROSPECTUS_DATA_NOT_AVAILABLE
-      );
-      expect(row(page.incomeStatement.rows, "ebit")?.[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+      expect(row(page.incomeStatement.rows, "ebitda")?.[0]).toBe("RM 1,600,000.00");
+      expect(row(page.incomeStatement.rows, "ebit")?.[0]).toBe("RM 1,450,000.00");
       expect(row(page.incomeStatement.rows, "profit_before_tax")?.[0]).toBe(
         "RM 1,400,000.00"
       );

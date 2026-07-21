@@ -14,6 +14,7 @@ import {
 import { parseProspectusFinancialNumber } from "../prospectus/prospectus-financial-comparison-metrics";
 import {
   PROSPECTUS_DERIVED_FINANCIAL_FIELD_KEYS,
+  PROSPECTUS_INCOME_STATEMENT_OFFICER_FIELD_KEYS,
   PROSPECTUS_INVOICE_WORK_KEYS,
   PROSPECTUS_INVOICE_WORK_OPTION_CATALOGUE,
   PROSPECTUS_MANUAL_FINANCIAL_FIELD_KEYS,
@@ -398,9 +399,23 @@ export function validateDraftContent(
   return errors;
 }
 
+export type ValidateApprovalContentOptions = {
+  /**
+   * Calendar years shown on Page 3 Income Statement (same as Page 2 financial comparison).
+   * When provided, Gross Profit / EBITDA / EBIT are required for each year.
+   */
+  incomeStatementYears?: readonly string[];
+};
+
+function isPresentManualNumber(value: unknown): boolean {
+  if (value == null || value === "") return false;
+  return parseProspectusFinancialNumber(value) != null;
+}
+
 /** Approval: draft rules + required officer selections present. */
 export function validateApprovalContent(
-  content: z.infer<typeof prospectusReviewStoredContentSchema>
+  content: z.infer<typeof prospectusReviewStoredContentSchema>,
+  options?: ValidateApprovalContentOptions
 ): ProspectusReviewFieldError[] {
   const errors = validateDraftContent(content);
 
@@ -495,6 +510,24 @@ export function validateApprovalContent(
       path: "page2.invoicePaymaster.confidenceGrading",
       message: "Confidence Grading is required before approving the Prospectus.",
     });
+  }
+
+  const incomeYears = options?.incomeStatementYears ?? [];
+  if (incomeYears.length > 0) {
+    const yearsBag = content.page3.manualFinancialInputs?.years ?? {};
+    for (const year of incomeYears) {
+      const row = yearsBag[year] as Record<string, unknown> | undefined;
+      for (const field of PROSPECTUS_INCOME_STATEMENT_OFFICER_FIELD_KEYS) {
+        if (!isPresentManualNumber(row?.[field])) {
+          const label =
+            field === "grossProfit" ? "Gross Profit" : field === "ebitda" ? "EBITDA" : "EBIT";
+          errors.push({
+            path: `page3.manualFinancialInputs.years.${year}.${field}`,
+            message: `${label} is required for FY${year} before approving the Prospectus.`,
+          });
+        }
+      }
+    }
   }
 
   return errors;

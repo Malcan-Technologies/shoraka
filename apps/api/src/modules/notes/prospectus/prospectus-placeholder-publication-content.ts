@@ -291,16 +291,22 @@ export const PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT: ProspectusPublicationCo
     years: {
       "2022": {
         grossProfit: 2_100_000,
+        ebitda: 1_600_000,
+        ebit: 1_450_000,
         cashAndBank: 450_000,
         totalEquity: 3_200_000,
       },
       "2023": {
         grossProfit: 2_400_000,
+        ebitda: 1_850_000,
+        ebit: 1_700_000,
         cashAndBank: 520_000,
         totalEquity: 3_500_000,
       },
       "2024": {
         grossProfit: 2_800_000,
+        ebitda: 2_100_000,
+        ebit: 1_950_000,
         cashAndBank: 610_000,
         totalEquity: 3_900_000,
       },

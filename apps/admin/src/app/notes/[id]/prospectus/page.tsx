@@ -90,6 +90,7 @@ import {
 } from "@/notes/prospectus-review/page-three-coverage";
 import { ProspectusFinancialMetricTable } from "@/notes/prospectus-review/financial-metric-table";
 import { ProspectusHistoricalNotesTable } from "@/notes/prospectus-review/historical-notes-table";
+import { ProspectusIncomeStatementWorkingTable } from "@/notes/prospectus-review/income-statement-working-table";
 import { ProspectusPreviewSheet } from "@/notes/prospectus-review/preview-sheet";
 import { ProspectusSectionHeading } from "@/notes/prospectus-review/section-heading";
 import { ProspectusStatusBadge } from "@/notes/prospectus-review/status-badge";
@@ -143,12 +144,6 @@ function ReadOnlyGrid({ rows }: { rows: Array<{ label: string; value: string }> 
     </div>
   );
 }
-
-const MANUAL_INCOME_FIELDS: Array<[string, string, string?]> = [
-  ["grossProfit", "Gross Profit", "RM"],
-  ["ebitda", "EBITDA", "RM"],
-  ["ebit", "EBIT", "RM"],
-];
 
 const MANUAL_BALANCE_FIELDS: Array<[string, string, string?]> = [
   ["cashAndBank", "Cash & Bank", "RM"],
@@ -359,8 +354,6 @@ function ProspectusReviewPageInner() {
 
   const catalogues = data.catalogues;
   const actorName = formatActorDisplayName(updatedByUser);
-  const checklist = buildProspectusCompletionChecklist(draft);
-  const stepStatuses = getProspectusStepStatuses(draft);
   const noteInvestmentSections =
     note != null
       ? appendIssuerTrackRecordSection(
@@ -416,6 +409,10 @@ function ProspectusReviewPageInner() {
   const pageThreeYears = selectPageThreeYears(financialStatements);
   const activeFinancialYears =
     pageThreeYears.length > 0 ? pageThreeYears : (["2022", "2023", "2024"] as const);
+  const incomeStatementYearKeys = activeFinancialYears.map(String);
+  const completionOptions = { incomeStatementYears: incomeStatementYearKeys };
+  const checklist = buildProspectusCompletionChecklist(draft, completionOptions);
+  const stepStatuses = getProspectusStepStatuses(draft, completionOptions);
   const yearManual = draft.page3.manualFinancialInputs?.years?.[financialYear];
   const manualYears = draft.page3.manualFinancialInputs?.years;
   const pageThreeOverviewRows = buildPageThreeOverviewRows(financialStatements);
@@ -433,12 +430,12 @@ function ProspectusReviewPageInner() {
   const balanceSheetTable = buildPageThreeBalanceSheetTable(financialStatements, manualYears);
   const coverageTable = buildPageThreeCoverageTable(financialStatements, manualYears);
 
-  const updateManualField = (field: string, value: string) => {
+  const updateManualFieldForYear = (year: string, field: string, value: string) => {
     updateDraft((prev) => {
       const years = { ...(prev.page3.manualFinancialInputs?.years ?? {}) };
-      const row = { ...(years[financialYear] ?? {}) };
+      const row = { ...(years[year] ?? {}) };
       row[field] = value === "" ? null : value;
-      years[financialYear] = row;
+      years[year] = row;
       return {
         ...prev,
         page3: {
@@ -447,6 +444,9 @@ function ProspectusReviewPageInner() {
         },
       };
     });
+  };
+  const updateManualField = (field: string, value: string) => {
+    updateManualFieldForYear(financialYear, field, value);
   };
   const previewStatusLabel =
     status === "APPROVED" || status === "PUBLISHED"
@@ -1358,9 +1358,19 @@ function ProspectusReviewPageInner() {
                         )}
                       </section>
 
-                      <section>
-                        <ProspectusSectionHeading title="Income Statement" />
-                        <ProspectusFinancialMetricTable table={incomeStatementTable} />
+                      <section data-prospectus-income-statement>
+                        <ProspectusSectionHeading title="3-Year Income Statement Summary" />
+                        <p className="mb-3 text-sm text-muted-foreground">
+                          Values sourced from financial statements are read-only. Complete only the
+                          missing Prospectus-specific fields.
+                        </p>
+                        <ProspectusIncomeStatementWorkingTable
+                          table={incomeStatementTable}
+                          years={incomeStatementYearKeys}
+                          manualYears={manualYears ?? {}}
+                          disabled={locked || !canManage}
+                          onChange={updateManualFieldForYear}
+                        />
                       </section>
 
                       <section>
@@ -1375,6 +1385,10 @@ function ProspectusReviewPageInner() {
 
                       <section>
                         <ProspectusSectionHeading title="Officer Input" />
+                        <p className="mb-3 text-sm text-muted-foreground">
+                          Balance Sheet and coverage fields that are not available from financial
+                          statements. Income Statement officer fields are edited in the table above.
+                        </p>
                         <div className="mb-4 flex flex-wrap gap-2">
                           {activeFinancialYears.map((year) => (
                             <Button
@@ -1389,15 +1403,6 @@ function ProspectusReviewPageInner() {
                           ))}
                         </div>
                         <div className="space-y-6">
-                          <div>
-                            <OfficerInputHeading title="Income Statement" />
-                            <ManualFinancialInputs
-                              fields={MANUAL_INCOME_FIELDS}
-                              disabled={locked || !canManage}
-                              values={yearManual}
-                              onChange={updateManualField}
-                            />
-                          </div>
                           <div>
                             <OfficerInputHeading title="Balance Sheet & Liquidity" />
                             <ManualFinancialInputs
