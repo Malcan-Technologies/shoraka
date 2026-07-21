@@ -2,7 +2,7 @@ import { formatCurrency } from "@cashsouk/config";
 import {
   calculateCurrentRatio,
   calculateProfitMargin,
-  calculateReturnOnEquity,
+  resolveApplicationFinancialReturnOnEquityRatio,
   resolveApplicationFinancialTotalAssets,
   resolveApplicationFinancialTotalLiabilities,
   fyEndDateForYear,
@@ -12,6 +12,7 @@ import {
 } from "@cashsouk/types";
 import type { CoreTermRow } from "./core-terms";
 import type { FinancialMetricTableModel } from "./financial-metric-table";
+import { PAGE_TWO_OFFICER_FINANCIAL_METRICS } from "./page-two-coverage";
 
 const DATA_NOT_AVAILABLE = "Data not available";
 const PAGE_THREE_TITLE = "DETAILED FINANCIAL COMPARISON";
@@ -62,10 +63,36 @@ function formatPercentFromRatio(ratio: number | null): string {
   return `${fixed}%`;
 }
 
+/** Officer ROA storage is percentage points (4.8 → 4.8%). */
+function formatPercentFromPoints(points: number | null): string {
+  if (points == null || !Number.isFinite(points)) return DATA_NOT_AVAILABLE;
+  const fixed = points.toFixed(2).replace(/\.?0+$/, "");
+  return `${fixed}%`;
+}
+
 function formatMultiple(value: number | null): string {
   if (value == null || !Number.isFinite(value)) return DATA_NOT_AVAILABLE;
   const fixed = value.toFixed(2).replace(/\.?0+$/, "");
   return `${fixed}x`;
+}
+
+/** Display-only MYR millions — matches Prospectus Canva formatters. */
+function formatMyrMillions(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return DATA_NOT_AVAILABLE;
+  if (value === 0) return "0";
+  const millions = value / 1_000_000;
+  const oneDp = millions.toFixed(1);
+  const trimmedOne = oneDp.replace(/\.0$/, "");
+  if (Number(trimmedOne) !== 0) return trimmedOne;
+  const precise = millions.toFixed(10).replace(/\.?0+$/, "");
+  if (precise !== "" && Number(precise) !== 0) return precise;
+  return millions < 0 ? ">-0.000001" : "<0.000001";
+}
+
+function formatDays(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return DATA_NOT_AVAILABLE;
+  if (Number.isInteger(value)) return String(value);
+  return value.toFixed(2).replace(/\.?0+$/, "");
 }
 
 function manualDisplay(
@@ -75,6 +102,28 @@ function manualDisplay(
   const n = parseNumber(value);
   if (n == null) return DATA_NOT_AVAILABLE;
   return kind === "money" ? formatMoney(n) : `${n}`;
+}
+
+type Page2FinancialOverrides =
+  | Record<
+      string,
+      Partial<
+        Record<(typeof PAGE_TWO_OFFICER_FINANCIAL_METRICS)[number]["key"], string | number | null>
+      >
+    >
+  | null
+  | undefined;
+
+function page2OverrideForYear(
+  overrides: Page2FinancialOverrides,
+  year: string
+): Partial<Record<(typeof PAGE_TWO_OFFICER_FINANCIAL_METRICS)[number]["key"], string | number | null>> | undefined {
+  if (!overrides) return undefined;
+  return (
+    overrides[year] ??
+    overrides[`${year}-12-31`] ??
+    Object.entries(overrides).find(([key]) => key.startsWith(`${year}-`))?.[1]
+  );
 }
 
 export function selectPageThreeYears(financialStatements: unknown): string[] {
@@ -260,27 +309,58 @@ export function buildBalanceSheetResolvedRows(
 /** Final resolved Cash Flow, Coverage & Efficiency values. */
 export function buildCoverageResolvedRows(
   yearRaw: Record<string, unknown>,
-  manual: PageThreeManualYear | undefined
+  manual: PageThreeManualYear | undefined,
+  page2Override?: Partial<
+    Record<(typeof PAGE_TWO_OFFICER_FINANCIAL_METRICS)[number]["key"], string | number | null>
+  >
 ): CoreTermRow[] {
-  const pat = parseNumber(yearRaw.plnpat);
-  const equity = parseNumber(yearRaw.bsqpuc);
+  const interestCoverage = parseNumber(page2Override?.interestCoverage);
+  const dscr = parseNumber(page2Override?.dscr);
+  const receivablesDays = parseNumber(page2Override?.receivablesDays);
   return [
-    { label: "Operating Cash Flow", value: manualDisplay(manual?.operatingCashFlow, "money") },
-    { label: "Free Cash Flow", value: manualDisplay(manual?.freeCashFlow, "money") },
-    { label: "Interest Coverage", value: manualDisplay(manual?.interestCoverage, "ratio") },
-    { label: "DSCR", value: manualDisplay(manual?.dscr, "ratio") },
-    { label: "Debt / Equity", value: manualDisplay(manual?.debtEquity, "ratio") },
+    {
+      label: "Operating Cash Flow",
+      value: formatMyrMillions(parseNumber(manual?.operatingCashFlow)),
+    },
+    {
+      label: "Free Cash Flow",
+      value: formatMyrMillions(parseNumber(manual?.freeCashFlow)),
+    },
+    { label: "Interest Coverage", value: formatMultiple(interestCoverage) },
+    { label: "DSCR", value: formatMultiple(dscr) },
+    {
+      label: "Debt / Equity",
+      value: formatMultiple(parseNumber(manual?.debtEquity)),
+    },
     {
       label: "Return on Equity",
+      value: formatPercentFromRatio(
+        resolveApplicationFinancialReturnOnEquityRatio({
+          return_on_equity: parseNumber(yearRaw.return_on_equity),
+          plnpat: parseNumber(yearRaw.plnpat),
+          bsqpuc: parseNumber(yearRaw.bsqpuc),
+        })
+      ),
+    },
+    {
+      label: "Return on Assets",
+      value: formatPercentFromPoints(parseNumber(manual?.returnOnAssets)),
+    },
+    {
+      label: "Receivables Days",
       value:
-        pat != null && equity != null
-          ? formatPercentFromRatio(calculateReturnOnEquity(pat, equity))
+        receivablesDays != null && Number.isInteger(receivablesDays)
+          ? formatDays(receivablesDays)
           : DATA_NOT_AVAILABLE,
     },
-    { label: "Return on Assets", value: manualDisplay(manual?.returnOnAssets, "ratio") },
-    { label: "Receivables Days", value: manualDisplay(manual?.receivablesDays, "ratio") },
-    { label: "Payables Days", value: manualDisplay(manual?.payablesDays, "ratio") },
-    { label: "Asset Turnover", value: manualDisplay(manual?.assetTurnover, "ratio") },
+    {
+      label: "Payables Days",
+      value: formatDays(parseNumber(manual?.payablesDays)),
+    },
+    {
+      label: "Asset Turnover",
+      value: formatMultiple(parseNumber(manual?.assetTurnover)),
+    },
   ];
 }
 
@@ -289,13 +369,14 @@ function pivotYearRows(
   manualYears: PageThreeManualYears | undefined,
   buildRows: (
     yearRaw: Record<string, unknown>,
-    manual: PageThreeManualYear | undefined
+    manual: PageThreeManualYear | undefined,
+    year: string
   ) => CoreTermRow[],
   withTrend = false
 ): FinancialMetricTableModel {
   const yearHeaders = buildYearHeaders(financialStatements);
   const perYear = yearHeaders.map((header) =>
-    buildRows(readYearRaw(financialStatements, header.key), manualYears?.[header.key])
+    buildRows(readYearRaw(financialStatements, header.key), manualYears?.[header.key], header.key)
   );
   const metrics = perYear[0]?.map((row) => row.label) ?? [];
 
@@ -316,25 +397,31 @@ export function buildPageThreeIncomeStatementTable(
   financialStatements: unknown,
   manualYears: PageThreeManualYears | undefined
 ): FinancialMetricTableModel {
-  return pivotYearRows(financialStatements, manualYears, buildIncomeStatementResolvedRows);
+  return pivotYearRows(financialStatements, manualYears, (yearRaw, manual) =>
+    buildIncomeStatementResolvedRows(yearRaw, manual)
+  );
 }
 
 export function buildPageThreeBalanceSheetTable(
   financialStatements: unknown,
   manualYears: PageThreeManualYears | undefined
 ): FinancialMetricTableModel {
-  return pivotYearRows(financialStatements, manualYears, buildBalanceSheetResolvedRows);
+  return pivotYearRows(financialStatements, manualYears, (yearRaw, manual) =>
+    buildBalanceSheetResolvedRows(yearRaw, manual)
+  );
 }
 
 /** Coverage table including the ten rendered 3-Year Trend outcomes only. */
 export function buildPageThreeCoverageTable(
   financialStatements: unknown,
-  manualYears: PageThreeManualYears | undefined
+  manualYears: PageThreeManualYears | undefined,
+  page2Overrides?: Page2FinancialOverrides
 ): FinancialMetricTableModel {
   const table = pivotYearRows(
     financialStatements,
     manualYears,
-    buildCoverageResolvedRows,
+    (yearRaw, manual, year) =>
+      buildCoverageResolvedRows(yearRaw, manual, page2OverrideForYear(page2Overrides, year)),
     true
   );
   return {

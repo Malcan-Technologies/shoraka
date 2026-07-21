@@ -716,7 +716,8 @@ async function upsertDraftNote(
       if (Number.isFinite(year)) allIncomeYears.add(String(year));
     }
   }
-  // Money: full MYR (display MYR mil.). Quick Ratio: raw ratio (display with x).
+  // Money: full MYR (display MYR mil.). Quick Ratio / multiples: raw (display with x).
+  // ROA: percentage points. Coverage IC/DSCR/Receivables come from Page 2 overrides in the complete draft.
   const pageThreeManualLadder = [
     {
       grossProfit: 2_100_000,
@@ -726,6 +727,12 @@ async function upsertDraftNote(
       tradeReceivables: 2_800_000,
       totalEquity: 4_500_000,
       quickRatio: 1.11,
+      operatingCashFlow: 1_400_000,
+      freeCashFlow: 1_100_000,
+      debtEquity: 0.24,
+      returnOnAssets: 4.8,
+      payablesDays: 48,
+      assetTurnover: 1.72,
     },
     {
       grossProfit: 2_400_000,
@@ -735,6 +742,12 @@ async function upsertDraftNote(
       tradeReceivables: 3_100_000,
       totalEquity: 5_000_000,
       quickRatio: 1.18,
+      operatingCashFlow: 1_700_000,
+      freeCashFlow: 1_300_000,
+      debtEquity: 0.2,
+      returnOnAssets: 5.3,
+      payablesDays: 46,
+      assetTurnover: 1.82,
     },
     {
       grossProfit: 2_800_000,
@@ -744,6 +757,12 @@ async function upsertDraftNote(
       tradeReceivables: 3_200_000,
       totalEquity: 5_600_000,
       quickRatio: 1.26,
+      operatingCashFlow: 2_100_000,
+      freeCashFlow: 1_600_000,
+      debtEquity: 0.16,
+      returnOnAssets: 5.8,
+      payablesDays: 44,
+      assetTurnover: 1.92,
     },
   ] as const;
   const sortedIncomeYears = [...allIncomeYears].sort();

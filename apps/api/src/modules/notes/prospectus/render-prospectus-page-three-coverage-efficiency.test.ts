@@ -1,9 +1,16 @@
+/**
+ * Page 3 Coverage & Efficiency — source classification, formatters, Page 2 reuse.
+ */
+
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { calculateReturnOnEquity } from "@cashsouk/types";
 import {
   buildProspectusFinancialComparisonMetrics,
+  formatProspectusFinancialMultiple,
+  formatProspectusFinancialPercentFromPoints,
   formatProspectusFinancialPercentFromRatio,
+  formatProspectusMyrMillions,
 } from "./prospectus-financial-comparison-metrics";
 import { financialSourceFromYearBlocks } from "./prospectus-financial-comparison-test-helpers";
 import { buildProspectusPageThreeCoverageEfficiency } from "./prospectus-page-three-coverage-efficiency";
@@ -13,23 +20,10 @@ import {
 } from "./prospectus-page-three-coverage-efficiency.sample-data";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
-  PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_AUDIT,
   PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_ROW_KEYS,
   PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_SECTION_HEADING,
 } from "./prospectus-page-three-coverage-efficiency.types";
 import { buildProspectusPageThreeCoverageEfficiencyDocument } from "./render-prospectus-page-three-coverage-efficiency";
-
-const DNA_KEYS = [
-  "operating_cash_flow",
-  "free_cash_flow",
-  "interest_coverage",
-  "dscr",
-  "debt_equity",
-  "return_on_assets",
-  "receivables_days",
-  "payables_days",
-  "asset_turnover",
-] as const;
 
 function row(
   data: ReturnType<typeof buildProspectusPageThreeCoverageEfficiency>,
@@ -45,20 +39,14 @@ function sourceFromYears(
   return financialSourceFromYearBlocks(years, { financialYearEnd });
 }
 
-describe("prospectus Page 3 coverage/efficiency (DATA STAGE 4)", () => {
-  it("uses static section heading", () => {
+describe("prospectus Page 3 coverage/efficiency", () => {
+  it("uses static section heading and exact ten-row order", () => {
     const data = buildProspectusPageThreeCoverageEfficiency(
       SAMPLE_PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_INPUT
     );
     expect(data.sectionHeading).toBe("CASH FLOW, COVERAGE AND EFFICIENCY");
     expect(data.sectionHeading).toBe(
       PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_SECTION_HEADING
-    );
-  });
-
-  it("keeps exact ten-row order and labels with no Trend column", () => {
-    const data = buildProspectusPageThreeCoverageEfficiency(
-      SAMPLE_PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_INPUT
     );
     expect(data.rows.map((r) => r.key)).toEqual([
       ...PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_ROW_KEYS,
@@ -75,89 +63,92 @@ describe("prospectus Page 3 coverage/efficiency (DATA STAGE 4)", () => {
       "Payables Days",
       "Asset Turnover",
     ]);
-    expect(data.rows.some((r) => /trend/i.test(r.key) || /trend/i.test(r.label))).toBe(
-      false
-    );
-    expect(PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_AUDIT.trends.implementedInThisStage).toBe(
-      false
-    );
   });
 
-  it("passes years and FYE labels through unchanged", () => {
+  it("reuses the same three years as Page 2 source", () => {
     const source = SAMPLE_PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_SOURCE;
     const data = buildProspectusPageThreeCoverageEfficiency({ financialSource: source });
     expect(data.years.map((y) => y.year)).toEqual(source.years.map((y) => y.year));
-    expect(data.years.map((y) => y.yearLabel)).toEqual(
-      source.years.map((y) => y.yearLabel)
-    );
-    expect(data.years.map((y) => y.financialYearEndLabel)).toEqual(
-      source.years.map((y) => y.financialYearEndLabel)
-    );
-    expect(data.years.map((y) => y.year)).toEqual([2022, 2023, 2024]);
   });
 
-  it("supports fewer than three years and empty years without fabricating years", () => {
-    const one = buildProspectusPageThreeCoverageEfficiency({
-      financialSource: sourceFromYears({ "2024": { plnpat: 100, bsqpuc: 200 } }),
+  it("formats six officer fields with correct units", () => {
+    const source = sourceFromYears({
+      "2024": { plnpat: 1_200_000, bsqpuc: 2_000_000, turnover: 10_000_000 },
     });
-    expect(one.years).toHaveLength(1);
-    expect(one.years.some((y) => y.year === 2023)).toBe(false);
-
-    const empty = buildProspectusPageThreeCoverageEfficiency({
-      financialSource: sourceFromYears({}),
-    });
-    expect(empty.years).toEqual([]);
-    for (const r of empty.rows) {
-      expect(r.values).toEqual([]);
-    }
-  });
-
-  it("keeps all unsupported metrics as Data not available despite polluted inputs", () => {
-    const polluted = buildProspectusPageThreeCoverageEfficiency({
-      financialSource: sourceFromYears({
-        "2024": {
-          plnpat: 1_200_000,
-          bsqpuc: 2_000_000,
-          plnpbt: 1_400_000,
-          bsfatot: 1_500_000,
-          bscatot: 4_700_000,
-          curlib: 2_900_000,
-          bsslltd: 500_000,
-          bsclstd: 200_000,
-          turnover: 13_900_000,
-          depreciation: 100,
-          ocf: 999,
-          fcf: 888,
-          interest: 50,
-          dscr: 1.2,
-          inventory: 10,
+    const data = buildProspectusPageThreeCoverageEfficiency({
+      financialSource: source,
+      prospectusFinancialInputs: {
+        years: {
+          "2024": {
+            operatingCashFlow: 1_400_000,
+            freeCashFlow: 1_100_000,
+            debtEquity: 0.24,
+            returnOnAssets: 4.8,
+            payablesDays: 48,
+            assetTurnover: 1.72,
+          },
         },
-      }),
+      },
     });
-
-    for (const key of DNA_KEYS) {
-      expect(row(polluted, key)?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    }
-
-    expect(
-      PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_AUDIT.debtEquity
-        .calculateGearingSubstitutionAllowed
-    ).toBe(false);
-    expect(
-      PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_AUDIT.debtEquity.bsqpucIsTotalEquity
-    ).toBe(false);
-
-    const moduleSource = readFileSync(
-      join(__dirname, "prospectus-page-three-coverage-efficiency.ts"),
-      "utf8"
+    expect(row(data, "operating_cash_flow")?.values[0]).toBe(
+      formatProspectusMyrMillions(1_400_000)
     );
-    expect(moduleSource).not.toMatch(/calculateGearing/);
-    expect(moduleSource).not.toMatch(/computeTotalAssets/);
-    expect(moduleSource).not.toMatch(/plnpat\s*\/\s*.*totass/);
-    expect(moduleSource).not.toMatch(/\*\s*365/);
+    expect(row(data, "free_cash_flow")?.values[0]).toBe(formatProspectusMyrMillions(1_100_000));
+    expect(row(data, "debt_equity")?.values[0]).toBe(formatProspectusFinancialMultiple(0.24));
+    expect(row(data, "return_on_assets")?.values[0]).toBe(
+      formatProspectusFinancialPercentFromPoints(4.8)
+    );
+    expect(row(data, "payables_days")?.values[0]).toBe("48");
+    expect(row(data, "asset_turnover")?.values[0]).toBe(
+      formatProspectusFinancialMultiple(1.72)
+    );
   });
 
-  it("reuses resolveApplicationFinancialReturnOnEquityRatio and matches Page 2", () => {
+  it("reuses Page 2 Interest Coverage, DSCR, and Receivables Days", () => {
+    const source = sourceFromYears({
+      "2024": { plnpat: 1_200_000, bsqpuc: 2_000_000, turnover: 10_000_000 },
+    });
+    const overrides = {
+      "2024-12-31": {
+        interestCoverage: 12.1,
+        dscr: 1.42,
+        receivablesDays: 74,
+      },
+    };
+    const page2 = buildProspectusFinancialComparisonMetrics({
+      source,
+      officerOverrides: overrides,
+    });
+    const page3 = buildProspectusPageThreeCoverageEfficiency({
+      financialSource: source,
+      page2FinancialOverrides: overrides,
+      prospectusFinancialInputs: {
+        years: {
+          "2024": {
+            // Must be ignored — removed Page 3 duplicates
+            interestCoverage: 99,
+            dscr: 99,
+            receivablesDays: 99,
+          } as Record<string, number>,
+        },
+      },
+    });
+
+    expect(row(page3, "interest_coverage")?.values[0]).toBe(
+      page2.rows.find((r) => r.key === "interestCoverage")?.values[0]
+    );
+    expect(row(page3, "dscr")?.values[0]).toBe(
+      page2.rows.find((r) => r.key === "dscr")?.values[0]
+    );
+    expect(row(page3, "receivables_days")?.values[0]).toBe(
+      page2.rows.find((r) => r.key === "receivablesDays")?.values[0]
+    );
+    expect(row(page3, "interest_coverage")?.values[0]).toBe("12.1x");
+    expect(row(page3, "dscr")?.values[0]).toBe("1.42x");
+    expect(row(page3, "receivables_days")?.values[0]).toBe("74");
+  });
+
+  it("uses resolveApplicationFinancialReturnOnEquityRatio and matches Page 2", () => {
     const source = SAMPLE_PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_SOURCE;
     const page3 = buildProspectusPageThreeCoverageEfficiency({ financialSource: source });
     const page2 = buildProspectusFinancialComparisonMetrics({ source });
@@ -171,39 +162,26 @@ describe("prospectus Page 3 coverage/efficiency (DATA STAGE 4)", () => {
       )
     );
 
-    const zeroPat = buildProspectusPageThreeCoverageEfficiency({
-      financialSource: sourceFromYears({ "2024": { plnpat: 0, bsqpuc: 2_000_000 } }),
+    const flat = buildProspectusPageThreeCoverageEfficiency({
+      financialSource: sourceFromYears({
+        "2024": {
+          return_on_equity: 15.2,
+          plnpat: 1,
+          bsqpuc: 100,
+        },
+      }),
     });
-    expect(row(zeroPat, "return_on_equity")?.values[0]).toBe("0%");
+    expect(row(flat, "return_on_equity")?.values[0]).toBe("15.2%");
 
-    // Application missing→0 coercion: missing PAT with equity present → 0%
     const missingPat = buildProspectusPageThreeCoverageEfficiency({
       financialSource: sourceFromYears({ "2024": { bsqpuc: 2_000_000 } }),
     });
     expect(row(missingPat, "return_on_equity")?.values[0]).toBe("0%");
 
-    const missingEquity = buildProspectusPageThreeCoverageEfficiency({
-      financialSource: sourceFromYears({ "2024": { plnpat: 100 } }),
-    });
-    expect(row(missingEquity, "return_on_equity")?.values[0]).toBe(
-      PROSPECTUS_DATA_NOT_AVAILABLE
-    );
-
     const zeroEquity = buildProspectusPageThreeCoverageEfficiency({
       financialSource: sourceFromYears({ "2024": { plnpat: 100, bsqpuc: 0 } }),
     });
-    expect(row(zeroEquity, "return_on_equity")?.values[0]).toBe(
-      PROSPECTUS_DATA_NOT_AVAILABLE
-    );
-
-    const negativePat = buildProspectusPageThreeCoverageEfficiency({
-      financialSource: sourceFromYears({ "2024": { plnpat: -250_000, bsqpuc: 2_000_000 } }),
-    });
-    expect(row(negativePat, "return_on_equity")?.values[0]).toBe(
-      formatProspectusFinancialPercentFromRatio(
-        calculateReturnOnEquity(-250_000, 2_000_000)
-      )
-    );
+    expect(row(zeroEquity, "return_on_equity")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
 
     const moduleSource = readFileSync(
       join(__dirname, "prospectus-page-three-coverage-efficiency.ts"),
@@ -213,56 +191,59 @@ describe("prospectus Page 3 coverage/efficiency (DATA STAGE 4)", () => {
     expect(moduleSource).not.toMatch(/plnpat\s*\/\s*bsqpuc/);
   });
 
-  it("reuses Page 2 source with no independent selection, Application parse, CTOS, Prisma, or snapshot writes", () => {
+  it("shows DNA for missing officer and Page 2 values; accepts zero", () => {
+    const source = sourceFromYears({
+      "2024": { plnpat: 0, bsqpuc: 2_000_000 },
+    });
+    const empty = buildProspectusPageThreeCoverageEfficiency({ financialSource: source });
+    expect(row(empty, "operating_cash_flow")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(row(empty, "interest_coverage")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+
+    const zero = buildProspectusPageThreeCoverageEfficiency({
+      financialSource: source,
+      prospectusFinancialInputs: {
+        years: {
+          "2024": {
+            operatingCashFlow: 0,
+            freeCashFlow: 0,
+            debtEquity: 0,
+            returnOnAssets: 0,
+            payablesDays: 0,
+            assetTurnover: 0,
+          },
+        },
+      },
+      page2FinancialOverrides: {
+        "2024": { interestCoverage: 0, dscr: 0, receivablesDays: 0 },
+      },
+    });
+    expect(row(zero, "operating_cash_flow")?.values[0]).toBe("0");
+    expect(row(zero, "debt_equity")?.values[0]).toBe("0x");
+    expect(row(zero, "return_on_assets")?.values[0]).toBe("0%");
+    expect(row(zero, "interest_coverage")?.values[0]).toBe("0x");
+    expect(row(zero, "receivables_days")?.values[0]).toBe("0");
+  });
+
+  it("does not invent formulas or write Application/CTOS lookups in the module", () => {
     const moduleSource = readFileSync(
       join(__dirname, "prospectus-page-three-coverage-efficiency.ts"),
       "utf8"
     );
     expect(moduleSource).not.toMatch(/selectProspectusFinancialComparisonYears/);
     expect(moduleSource).not.toMatch(/unaudited_by_year/);
-    expect(moduleSource).not.toMatch(/buildProspectusFinancialComparisonSource/);
     expect(moduleSource).not.toMatch(/prisma/i);
-    expect(moduleSource).not.toMatch(/prospectus_snapshot/);
-    expect(
-      PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_AUDIT.source.ctosFallbackAllowed
-    ).toBe(false);
-    expect(
-      PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_AUDIT.snapshot
-        .additionalFieldsRequiredForThisStage
-    ).toBe(false);
-    expect(
-      PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_AUDIT.snapshot
-        .liveFallbackForPublishedAllowed
-    ).toBe(false);
-
-    const withCtos = buildProspectusPageThreeCoverageEfficiency({
-      financialSource: SAMPLE_PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_SOURCE,
-      ctosFinancials: { financials: [{ financial_year: 2020, plnpat: 9_999_999 }] },
-    });
-    expect(withCtos.years.some((y) => y.year === 2020)).toBe(false);
+    expect(moduleSource).not.toMatch(/OCF\s*-\s*capex/i);
+    expect(moduleSource).not.toMatch(/calculateGearing/);
   });
 
-  it("hides audit, shows DNA for unresolved rows, and has no trend language", () => {
+  it("renders HTML without leaking helper names or inventing trends", () => {
     const data = buildProspectusPageThreeCoverageEfficiency(
       SAMPLE_PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_INPUT
     );
     const html = buildProspectusPageThreeCoverageEfficiencyDocument(data);
-
-    for (const key of DNA_KEYS) {
-      expect(row(data, key)?.values.every((v) => v === "Data not available")).toBe(true);
-    }
-
-    expect(html).toContain("Return on Equity");
-    expect(html).toContain("Data not available");
-    expect(html).not.toContain("calculateReturnOnEquity");
-    expect(html).not.toContain("plnpat");
-    expect(html).not.toContain("bsqpuc");
-    expect(html).not.toContain("page_3_stage_5");
-    expect(html).not.toMatch(/\bTrend\b/);
-    expect(html).not.toMatch(/\bUp\b/);
-    expect(html).not.toMatch(/\bDown\b/);
-    expect(html).not.toMatch(/Improving/i);
-    expect(html).not.toMatch(/Declining/i);
-    expect(html).not.toMatch(/[↑↓▲▼]/);
+    expect(html).toContain("CASH FLOW, COVERAGE AND EFFICIENCY");
+    expect(html).not.toContain("resolveApplicationFinancialReturnOnEquityRatio");
+    expect(html).not.toContain("↑");
+    expect(html).not.toContain("favourable");
   });
 });

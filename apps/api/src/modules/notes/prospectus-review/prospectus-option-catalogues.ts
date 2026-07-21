@@ -265,18 +265,23 @@ export const PROSPECTUS_BALANCE_SHEET_OFFICER_FIELD_KEYS = [
 export type ProspectusBalanceSheetOfficerFieldKey =
   (typeof PROSPECTUS_BALANCE_SHEET_OFFICER_FIELD_KEYS)[number];
 
+/** Page 3 Coverage officer-only fields (IC / DSCR / Receivables Days reuse Page 2). */
+export const PROSPECTUS_COVERAGE_OFFICER_FIELD_KEYS = [
+  "operatingCashFlow",
+  "freeCashFlow",
+  "debtEquity",
+  "returnOnAssets",
+  "payablesDays",
+  "assetTurnover",
+] as const;
+
+export type ProspectusCoverageOfficerFieldKey =
+  (typeof PROSPECTUS_COVERAGE_OFFICER_FIELD_KEYS)[number];
+
 export const PROSPECTUS_MANUAL_FINANCIAL_FIELD_KEYS = [
   ...PROSPECTUS_INCOME_STATEMENT_OFFICER_FIELD_KEYS,
   ...PROSPECTUS_BALANCE_SHEET_OFFICER_FIELD_KEYS,
-  "operatingCashFlow",
-  "freeCashFlow",
-  "interestCoverage",
-  "dscr",
-  "debtEquity",
-  "returnOnAssets",
-  "receivablesDays",
-  "payablesDays",
-  "assetTurnover",
+  ...PROSPECTUS_COVERAGE_OFFICER_FIELD_KEYS,
 ] as const;
 
 /** Confirmed derived fields — never accepted as officer overrides. */

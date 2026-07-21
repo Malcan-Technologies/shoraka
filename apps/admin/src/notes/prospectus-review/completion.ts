@@ -52,6 +52,12 @@ const PAGE_THREE_OFFICER_FINANCIAL_FIELDS = [
   "tradeReceivables",
   "totalEquity",
   "quickRatio",
+  "operatingCashFlow",
+  "freeCashFlow",
+  "debtEquity",
+  "returnOnAssets",
+  "payablesDays",
+  "assetTurnover",
 ] as const;
 
 function pageThreeOfficerFieldsComplete(

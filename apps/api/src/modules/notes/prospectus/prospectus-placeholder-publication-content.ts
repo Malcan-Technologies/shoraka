@@ -72,11 +72,9 @@ export interface ProspectusFinancialYearManualInputs {
   quickRatio?: number | string | null;
   operatingCashFlow?: number | string | null;
   freeCashFlow?: number | string | null;
-  interestCoverage?: number | string | null;
-  dscr?: number | string | null;
   debtEquity?: number | string | null;
+  /** Percentage points (4.8 = 4.8%). Not a decimal ratio. */
   returnOnAssets?: number | string | null;
-  receivablesDays?: number | string | null;
   payablesDays?: number | string | null;
   assetTurnover?: number | string | null;
 }

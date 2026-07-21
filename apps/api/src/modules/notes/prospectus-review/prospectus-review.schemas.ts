@@ -14,6 +14,7 @@ import {
 import { parseProspectusFinancialNumber } from "../prospectus/prospectus-financial-comparison-metrics";
 import {
   PROSPECTUS_BALANCE_SHEET_OFFICER_FIELD_KEYS,
+  PROSPECTUS_COVERAGE_OFFICER_FIELD_KEYS,
   PROSPECTUS_DERIVED_FINANCIAL_FIELD_KEYS,
   PROSPECTUS_INCOME_STATEMENT_OFFICER_FIELD_KEYS,
   PROSPECTUS_INVOICE_WORK_KEYS,
@@ -44,11 +45,8 @@ const manualYearSchema = z
     quickRatio: numericOrString,
     operatingCashFlow: numericOrString,
     freeCashFlow: numericOrString,
-    interestCoverage: numericOrString,
-    dscr: numericOrString,
     debtEquity: numericOrString,
     returnOnAssets: numericOrString,
-    receivablesDays: numericOrString,
     payablesDays: numericOrString,
     assetTurnover: numericOrString,
   })
@@ -410,10 +408,69 @@ const BALANCE_SHEET_OFFICER_LABELS: Record<
   quickRatio: "Quick Ratio",
 };
 
+const COVERAGE_OFFICER_LABELS: Record<
+  (typeof PROSPECTUS_COVERAGE_OFFICER_FIELD_KEYS)[number],
+  string
+> = {
+  operatingCashFlow: "Operating Cash Flow",
+  freeCashFlow: "Free Cash Flow",
+  debtEquity: "Debt / Equity",
+  returnOnAssets: "Return on Assets",
+  payablesDays: "Payables Days",
+  assetTurnover: "Asset Turnover",
+};
+
+/** Page 2 Financial Comparison fields reused by Page 3 Coverage — required per displayed year. */
+const PAGE_TWO_REUSED_COVERAGE_OVERRIDE_FIELDS = [
+  "interestCoverage",
+  "dscr",
+  "receivablesDays",
+] as const;
+
+const PAGE_TWO_REUSED_COVERAGE_OVERRIDE_LABELS: Record<
+  (typeof PAGE_TWO_REUSED_COVERAGE_OVERRIDE_FIELDS)[number],
+  string
+> = {
+  interestCoverage: "Interest Coverage",
+  dscr: "DSCR",
+  receivablesDays: "Receivables Days",
+};
+
+type Page2FinancialOverrideRow = {
+  netDebtEquity?: unknown;
+  interestCoverage?: unknown;
+  dscr?: unknown;
+  receivablesDays?: unknown;
+};
+
+/**
+ * Resolve Page 2 override bag for a displayed calendar year.
+ * Accepts `YYYY`, `YYYY-12-31`, or any `YYYY-*` FYE ISO key (same family as Admin / Page 3 reuse).
+ */
+export function resolvePage2FinancialOverrideForCalendarYear(
+  overrides: Record<string, Page2FinancialOverrideRow> | null | undefined,
+  calendarYear: string
+): { key: string; override: Page2FinancialOverrideRow } | null {
+  if (!overrides) return null;
+  const decemberKey = `${calendarYear}-12-31`;
+  if (Object.prototype.hasOwnProperty.call(overrides, calendarYear)) {
+    return { key: calendarYear, override: overrides[calendarYear] ?? {} };
+  }
+  if (Object.prototype.hasOwnProperty.call(overrides, decemberKey)) {
+    return { key: decemberKey, override: overrides[decemberKey] ?? {} };
+  }
+  const prefixed = Object.entries(overrides).find(([key]) =>
+    key.startsWith(`${calendarYear}-`)
+  );
+  if (prefixed) return { key: prefixed[0], override: prefixed[1] ?? {} };
+  return null;
+}
+
 export type ValidateApprovalContentOptions = {
   /**
-   * Calendar years shown on Page 2/3 financial tables (same freeze for Income + Balance Sheet).
-   * When provided, Income Statement and Balance Sheet officer fields are required for each year.
+   * Calendar years shown on Page 2/3 financial tables (same freeze).
+   * When provided, Income / Balance Sheet / Coverage officer fields are required for each year,
+   * and Page 2 Interest Coverage / DSCR / Receivables Days overrides are required for each year.
    */
   incomeStatementYears?: readonly string[];
 };
@@ -526,6 +583,7 @@ export function validateApprovalContent(
   const financialYears = options?.incomeStatementYears ?? [];
   if (financialYears.length > 0) {
     const yearsBag = content.page3.manualFinancialInputs?.years ?? {};
+    const page2Overrides = content.page2.financialComparison?.overrides ?? {};
     for (const year of financialYears) {
       const row = yearsBag[year] as Record<string, unknown> | undefined;
       for (const field of PROSPECTUS_INCOME_STATEMENT_OFFICER_FIELD_KEYS) {
@@ -543,6 +601,26 @@ export function validateApprovalContent(
           errors.push({
             path: `page3.manualFinancialInputs.years.${year}.${field}`,
             message: `${BALANCE_SHEET_OFFICER_LABELS[field]} is required for FY${year} before approving the Prospectus.`,
+          });
+        }
+      }
+      for (const field of PROSPECTUS_COVERAGE_OFFICER_FIELD_KEYS) {
+        if (!isPresentManualNumber(row?.[field])) {
+          errors.push({
+            path: `page3.manualFinancialInputs.years.${year}.${field}`,
+            message: `${COVERAGE_OFFICER_LABELS[field]} is required for FY${year} before approving the Prospectus.`,
+          });
+        }
+      }
+
+      const resolved = resolvePage2FinancialOverrideForCalendarYear(page2Overrides, year);
+      const overrideRow = resolved?.override ?? {};
+      const overridePathKey = resolved?.key ?? year;
+      for (const field of PAGE_TWO_REUSED_COVERAGE_OVERRIDE_FIELDS) {
+        if (!isPresentManualNumber(overrideRow[field])) {
+          errors.push({
+            path: `page2.financialComparison.overrides.${overridePathKey}.${field}`,
+            message: `${PAGE_TWO_REUSED_COVERAGE_OVERRIDE_LABELS[field]} is required for FY${year} before approving the Prospectus.`,
           });
         }
       }

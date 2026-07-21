@@ -82,6 +82,46 @@ export function buildCompleteProspectusReviewDraft(): ProspectusReviewStoredCont
     optionKey: null,
     isVisible: true,
   }));
+  draft.page2.financialComparison = {
+    overrides: {
+      "2022": {
+        interestCoverage: 12.1,
+        dscr: 1.42,
+        receivablesDays: 74,
+        netDebtEquity: 0.35,
+      },
+      "2023": {
+        interestCoverage: 13.3,
+        dscr: 1.55,
+        receivablesDays: 69,
+        netDebtEquity: 0.28,
+      },
+      "2024": {
+        interestCoverage: 14.6,
+        dscr: 1.68,
+        receivablesDays: 63,
+        netDebtEquity: 0.22,
+      },
+      "2022-12-31": {
+        interestCoverage: 12.1,
+        dscr: 1.42,
+        receivablesDays: 74,
+        netDebtEquity: 0.35,
+      },
+      "2023-12-31": {
+        interestCoverage: 13.3,
+        dscr: 1.55,
+        receivablesDays: 69,
+        netDebtEquity: 0.28,
+      },
+      "2024-12-31": {
+        interestCoverage: 14.6,
+        dscr: 1.68,
+        receivablesDays: 63,
+        netDebtEquity: 0.22,
+      },
+    },
+  };
   draft.page3.manualFinancialInputs = {
     years: {
       "2022": {
@@ -92,6 +132,12 @@ export function buildCompleteProspectusReviewDraft(): ProspectusReviewStoredCont
         tradeReceivables: 2_800_000,
         totalEquity: 4_500_000,
         quickRatio: 1.11,
+        operatingCashFlow: 1_400_000,
+        freeCashFlow: 1_100_000,
+        debtEquity: 0.24,
+        returnOnAssets: 4.8,
+        payablesDays: 48,
+        assetTurnover: 1.72,
       },
       "2023": {
         grossProfit: 2_400_000,
@@ -101,6 +147,12 @@ export function buildCompleteProspectusReviewDraft(): ProspectusReviewStoredCont
         tradeReceivables: 3_100_000,
         totalEquity: 5_000_000,
         quickRatio: 1.18,
+        operatingCashFlow: 1_700_000,
+        freeCashFlow: 1_300_000,
+        debtEquity: 0.2,
+        returnOnAssets: 5.3,
+        payablesDays: 46,
+        assetTurnover: 1.82,
       },
       "2024": {
         grossProfit: 2_800_000,
@@ -110,6 +162,12 @@ export function buildCompleteProspectusReviewDraft(): ProspectusReviewStoredCont
         tradeReceivables: 3_200_000,
         totalEquity: 5_600_000,
         quickRatio: 1.26,
+        operatingCashFlow: 2_100_000,
+        freeCashFlow: 1_600_000,
+        debtEquity: 0.16,
+        returnOnAssets: 5.8,
+        payablesDays: 44,
+        assetTurnover: 1.92,
       },
     },
   };

@@ -91,6 +91,7 @@ import {
 import { ProspectusFinancialMetricTable } from "@/notes/prospectus-review/financial-metric-table";
 import { ProspectusHistoricalNotesTable } from "@/notes/prospectus-review/historical-notes-table";
 import { ProspectusBalanceSheetWorkingTable } from "@/notes/prospectus-review/balance-sheet-working-table";
+import { ProspectusCoverageWorkingTable } from "@/notes/prospectus-review/coverage-working-table";
 import { ProspectusIncomeStatementWorkingTable } from "@/notes/prospectus-review/income-statement-working-table";
 import { ProspectusPreviewSheet } from "@/notes/prospectus-review/preview-sheet";
 import { ProspectusSectionHeading } from "@/notes/prospectus-review/section-heading";
@@ -146,53 +147,6 @@ function ReadOnlyGrid({ rows }: { rows: Array<{ label: string; value: string }> 
   );
 }
 
-const MANUAL_COVERAGE_FIELDS: Array<[string, string, string?]> = [
-  ["operatingCashFlow", "Operating Cash Flow", "RM"],
-  ["freeCashFlow", "Free Cash Flow", "RM"],
-  ["interestCoverage", "Interest Coverage"],
-  ["dscr", "DSCR"],
-  ["debtEquity", "Debt / Equity"],
-  ["returnOnAssets", "Return on Assets", "%"],
-  ["receivablesDays", "Receivables Days", "days"],
-  ["payablesDays", "Payables Days", "days"],
-  ["assetTurnover", "Asset Turnover"],
-];
-
-function ManualFinancialInputs(props: {
-  fields: Array<[string, string, string?]>;
-  disabled: boolean;
-  values: Record<string, string | number | null | undefined> | undefined;
-  onChange: (field: string, value: string) => void;
-}) {
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {props.fields.map(([field, label, unit]) => (
-        <div key={field} className="space-y-1.5">
-          <Label className="text-sm">
-            {label}
-            {unit ? ` (${unit})` : ""}
-          </Label>
-          <Input
-            className="h-11"
-            type="number"
-            disabled={props.disabled}
-            value={props.values?.[field] == null ? "" : String(props.values[field])}
-            onChange={(e) => props.onChange(field, e.target.value)}
-          />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function OfficerInputHeading({ title }: { title: string }) {
-  return (
-    <div className="mb-3 border-b border-border pb-2">
-      <h4 className="text-sm font-semibold text-foreground">{title}</h4>
-    </div>
-  );
-}
-
 function ProspectusReviewPageInner() {
   const params = useParams<{ id: string }>();
   const noteId = params.id;
@@ -212,7 +166,6 @@ function ProspectusReviewPageInner() {
   const [draft, setDraft] = React.useState<ProspectusReviewStoredContent | null>(null);
   const [dirty, setDirty] = React.useState(false);
   const [previewOpen, setPreviewOpen] = React.useState(false);
-  const [financialYear, setFinancialYear] = React.useState<string>("2024");
   const stepPanelRef = React.useRef<HTMLDivElement>(null);
   const preview = useProspectusReviewPreview(noteId, previewOpen);
 
@@ -407,7 +360,6 @@ function ProspectusReviewPageInner() {
   const completionOptions = { incomeStatementYears: incomeStatementYearKeys };
   const checklist = buildProspectusCompletionChecklist(draft, completionOptions);
   const stepStatuses = getProspectusStepStatuses(draft, completionOptions);
-  const yearManual = draft.page3.manualFinancialInputs?.years?.[financialYear];
   const manualYears = draft.page3.manualFinancialInputs?.years;
   const pageThreeOverviewRows = buildPageThreeOverviewRows(financialStatements);
   const pageThreeMetadataRows = note
@@ -422,7 +374,11 @@ function ProspectusReviewPageInner() {
     manualYears
   );
   const balanceSheetTable = buildPageThreeBalanceSheetTable(financialStatements, manualYears);
-  const coverageTable = buildPageThreeCoverageTable(financialStatements, manualYears);
+  const coverageTable = buildPageThreeCoverageTable(
+    financialStatements,
+    manualYears,
+    draft.page2.financialComparison?.overrides
+  );
 
   const updateManualFieldForYear = (year: string, field: string, value: string) => {
     updateDraft((prev) => {
@@ -438,9 +394,6 @@ function ProspectusReviewPageInner() {
         },
       };
     });
-  };
-  const updateManualField = (field: string, value: string) => {
-    updateManualFieldForYear(financialYear, field, value);
   };
   const previewStatusLabel =
     status === "APPROVED" || status === "PUBLISHED"
@@ -1384,39 +1337,20 @@ function ProspectusReviewPageInner() {
                         />
                       </section>
 
-                      <section>
+                      <section data-prospectus-coverage>
                         <ProspectusSectionHeading title="Cash Flow, Coverage & Efficiency" />
-                        <ProspectusFinancialMetricTable table={coverageTable} showTrend />
-                      </section>
-
-                      <section>
-                        <ProspectusSectionHeading title="Officer Input" />
                         <p className="mb-3 text-sm text-muted-foreground">
-                          Coverage fields that are not available from financial statements. Income
-                          Statement and Balance Sheet officer fields are edited in the tables above.
+                          Values already available from the Application Financial Summary or Page 2
+                          Financial Comparison are read-only. Complete only the remaining
+                          Prospectus-specific fields.
                         </p>
-                        <div className="mb-4 flex flex-wrap gap-2">
-                          {activeFinancialYears.map((year) => (
-                            <Button
-                              key={year}
-                              size="sm"
-                              type="button"
-                              variant={financialYear === year ? "secondary" : "outline"}
-                              onClick={() => setFinancialYear(year)}
-                            >
-                              FY{year}
-                            </Button>
-                          ))}
-                        </div>
-                        <div>
-                          <OfficerInputHeading title="Cash Flow, Coverage & Efficiency" />
-                          <ManualFinancialInputs
-                            fields={MANUAL_COVERAGE_FIELDS}
-                            disabled={locked || !canManage}
-                            values={yearManual}
-                            onChange={updateManualField}
-                          />
-                        </div>
+                        <ProspectusCoverageWorkingTable
+                          table={coverageTable}
+                          years={incomeStatementYearKeys}
+                          manualYears={manualYears ?? {}}
+                          disabled={locked || !canManage}
+                          onChange={updateManualFieldForYear}
+                        />
                       </section>
                     </div>
                   ) : null}

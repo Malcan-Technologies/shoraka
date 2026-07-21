@@ -146,6 +146,8 @@ export function buildProspectusPageThree(
   });
 
   const financialInputs = input.publicationContent?.prospectusFinancialInputs;
+  const page2FinancialOverrides =
+    input.publicationContent?.financialComparison?.overrides ?? null;
   const incomeStatement = buildProspectusPageThreeIncomeStatement({
     financialSource,
     prospectusFinancialInputs: financialInputs,
@@ -157,6 +159,7 @@ export function buildProspectusPageThree(
   const coverageEfficiency = buildProspectusPageThreeCoverageEfficiency({
     financialSource,
     prospectusFinancialInputs: financialInputs,
+    page2FinancialOverrides,
   });
   const trends = buildProspectusPageThreeTrends({
     incomeStatement,

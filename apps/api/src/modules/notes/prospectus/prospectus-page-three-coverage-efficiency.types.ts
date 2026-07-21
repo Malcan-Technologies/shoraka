@@ -64,61 +64,75 @@ export interface ProspectusPageThreeCoverageEfficiencyAudit {
     ctosFallbackAllowed: false;
   };
   operatingCashFlow: {
-    status: "unresolved";
-    directRawFieldAvailable: false;
-    generatedCalculationAllowed: false;
+    status: "officer_entered";
+    source: "page3.manualFinancialInputs.years.{year}.operatingCashFlow";
+    storageUnit: "full_myr";
+    formatter: "formatProspectusMyrMillions";
+    requiredForApproval: true;
   };
   freeCashFlow: {
-    status: "unresolved";
-    operatingCashFlowAvailable: false;
-    capitalExpenditureAvailable: false;
-    generatedCalculationAllowed: false;
+    status: "officer_entered";
+    source: "page3.manualFinancialInputs.years.{year}.freeCashFlow";
+    storageUnit: "full_myr";
+    formatter: "formatProspectusMyrMillions";
+    requiredForApproval: true;
   };
   interestCoverage: {
-    status: "unresolved";
-    approvedNumeratorDefinitionAvailable: false;
-    financeCostInputAvailable: false;
-    generatedCalculationAllowed: false;
+    status: "reused_from_page_2";
+    source: "page2.financialComparison.overrides.{year}.interestCoverage";
+    formatter: "formatProspectusFinancialMultiple";
+    page3ManualStorageAllowed: false;
   };
   dscr: {
-    status: "unresolved";
-    approvedDefinitionAvailable: false;
-    debtServiceInputAvailable: false;
-    generatedCalculationAllowed: false;
+    status: "reused_from_page_2";
+    source: "page2.financialComparison.overrides.{year}.dscr";
+    formatter: "formatProspectusFinancialMultiple";
+    page3ManualStorageAllowed: false;
   };
   debtEquity: {
-    status: "unresolved";
+    status: "officer_entered";
+    source: "page3.manualFinancialInputs.years.{year}.debtEquity";
     calculateGearingSubstitutionAllowed: false;
-    bsqpucIsTotalEquity: false;
-    approvedDebtDefinitionAvailable: false;
+    storageUnit: "ratio";
+    formatter: "formatProspectusFinancialMultiple";
+    requiredForApproval: true;
   };
   returnOnEquity: {
     status: "confirmed_shared_calculation";
-    calculator: "calculateReturnOnEquity";
+    calculator: "resolveApplicationFinancialReturnOnEquityRatio";
     sharedWithPageTwo: true;
   };
   returnOnAssets: {
-    status: "unresolved";
-    averageAssetsDecisionAvailable: false;
-    generatedCalculationAllowed: false;
+    status: "officer_entered";
+    source: "page3.manualFinancialInputs.years.{year}.returnOnAssets";
+    storageUnit: "percentage_points";
+    formatter: "formatProspectusFinancialPercentFromPoints";
+    requiredForApproval: true;
   };
   receivablesDays: {
-    status: "unresolved";
-    tradeReceivablesInputAvailable: false;
+    status: "reused_from_page_2";
+    source: "page2.financialComparison.overrides.{year}.receivablesDays";
+    formatter: "formatProspectusFinancialDays";
+    page3ManualStorageAllowed: false;
   };
   payablesDays: {
-    status: "unresolved";
-    tradePayablesInputAvailable: false;
-    purchaseOrCostInputAvailable: false;
+    status: "officer_entered";
+    source: "page3.manualFinancialInputs.years.{year}.payablesDays";
+    storageUnit: "days";
+    formatter: "formatProspectusFinancialDays";
+    requiredForApproval: true;
   };
   assetTurnover: {
-    status: "unresolved";
-    averageAssetsDecisionAvailable: false;
-    generatedCalculationAllowed: false;
+    status: "officer_entered";
+    source: "page3.manualFinancialInputs.years.{year}.assetTurnover";
+    storageUnit: "ratio";
+    formatter: "formatProspectusFinancialMultiple";
+    requiredForApproval: true;
   };
   trends: {
     implementedInThisStage: false;
     stage: "page_3_stage_5";
+    display: "data_not_available";
   };
   snapshot: {
     currentSharedBranch: "page_2.financial_comparison";
@@ -135,61 +149,75 @@ export const PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_AUDIT: ProspectusPageThre
       ctosFallbackAllowed: false,
     },
     operatingCashFlow: {
-      status: "unresolved",
-      directRawFieldAvailable: false,
-      generatedCalculationAllowed: false,
+      status: "officer_entered",
+      source: "page3.manualFinancialInputs.years.{year}.operatingCashFlow",
+      storageUnit: "full_myr",
+      formatter: "formatProspectusMyrMillions",
+      requiredForApproval: true,
     },
     freeCashFlow: {
-      status: "unresolved",
-      operatingCashFlowAvailable: false,
-      capitalExpenditureAvailable: false,
-      generatedCalculationAllowed: false,
+      status: "officer_entered",
+      source: "page3.manualFinancialInputs.years.{year}.freeCashFlow",
+      storageUnit: "full_myr",
+      formatter: "formatProspectusMyrMillions",
+      requiredForApproval: true,
     },
     interestCoverage: {
-      status: "unresolved",
-      approvedNumeratorDefinitionAvailable: false,
-      financeCostInputAvailable: false,
-      generatedCalculationAllowed: false,
+      status: "reused_from_page_2",
+      source: "page2.financialComparison.overrides.{year}.interestCoverage",
+      formatter: "formatProspectusFinancialMultiple",
+      page3ManualStorageAllowed: false,
     },
     dscr: {
-      status: "unresolved",
-      approvedDefinitionAvailable: false,
-      debtServiceInputAvailable: false,
-      generatedCalculationAllowed: false,
+      status: "reused_from_page_2",
+      source: "page2.financialComparison.overrides.{year}.dscr",
+      formatter: "formatProspectusFinancialMultiple",
+      page3ManualStorageAllowed: false,
     },
     debtEquity: {
-      status: "unresolved",
+      status: "officer_entered",
+      source: "page3.manualFinancialInputs.years.{year}.debtEquity",
       calculateGearingSubstitutionAllowed: false,
-      bsqpucIsTotalEquity: false,
-      approvedDebtDefinitionAvailable: false,
+      storageUnit: "ratio",
+      formatter: "formatProspectusFinancialMultiple",
+      requiredForApproval: true,
     },
     returnOnEquity: {
       status: "confirmed_shared_calculation",
-      calculator: "calculateReturnOnEquity",
+      calculator: "resolveApplicationFinancialReturnOnEquityRatio",
       sharedWithPageTwo: true,
     },
     returnOnAssets: {
-      status: "unresolved",
-      averageAssetsDecisionAvailable: false,
-      generatedCalculationAllowed: false,
+      status: "officer_entered",
+      source: "page3.manualFinancialInputs.years.{year}.returnOnAssets",
+      storageUnit: "percentage_points",
+      formatter: "formatProspectusFinancialPercentFromPoints",
+      requiredForApproval: true,
     },
     receivablesDays: {
-      status: "unresolved",
-      tradeReceivablesInputAvailable: false,
+      status: "reused_from_page_2",
+      source: "page2.financialComparison.overrides.{year}.receivablesDays",
+      formatter: "formatProspectusFinancialDays",
+      page3ManualStorageAllowed: false,
     },
     payablesDays: {
-      status: "unresolved",
-      tradePayablesInputAvailable: false,
-      purchaseOrCostInputAvailable: false,
+      status: "officer_entered",
+      source: "page3.manualFinancialInputs.years.{year}.payablesDays",
+      storageUnit: "days",
+      formatter: "formatProspectusFinancialDays",
+      requiredForApproval: true,
     },
     assetTurnover: {
-      status: "unresolved",
-      averageAssetsDecisionAvailable: false,
-      generatedCalculationAllowed: false,
+      status: "officer_entered",
+      source: "page3.manualFinancialInputs.years.{year}.assetTurnover",
+      storageUnit: "ratio",
+      formatter: "formatProspectusFinancialMultiple",
+      requiredForApproval: true,
     },
     trends: {
       implementedInThisStage: false,
       stage: "page_3_stage_5",
+      display: "data_not_available",
     },
     snapshot: {
       currentSharedBranch: "page_2.financial_comparison",
@@ -209,23 +237,31 @@ export interface ProspectusPageThreeCoverageEfficiency {
 export interface ProspectusPageThreeCoverageEfficiencyInput {
   /** Existing Page 2 Stage 4A result — required; never re-parsed here. */
   financialSource: ProspectusFinancialComparisonSource;
-  /** Temporary builder-only fills for unsupported rows only (not ROE). */
+  /** Page 3 officer fills only (not IC / DSCR / Receivables Days / ROE). */
   prospectusFinancialInputs?: {
     years: Record<
       string,
       {
         operatingCashFlow?: number | string | null;
         freeCashFlow?: number | string | null;
-        interestCoverage?: number | string | null;
-        dscr?: number | string | null;
         debtEquity?: number | string | null;
+        /** Percentage points (4.8 = 4.8%). */
         returnOnAssets?: number | string | null;
-        receivablesDays?: number | string | null;
         payablesDays?: number | string | null;
         assetTurnover?: number | string | null;
       }
     >;
   };
+  /** Page 2 Financial Comparison officer overrides — authoritative for IC / DSCR / Receivables Days. */
+  page2FinancialOverrides?: Record<
+    string,
+    {
+      interestCoverage?: number | string | null;
+      dscr?: number | string | null;
+      receivablesDays?: number | string | null;
+      netDebtEquity?: number | string | null;
+    }
+  > | null;
   /** Observational — must never fill years or cells. */
   ctosFinancials?: unknown;
 }
@@ -233,7 +269,7 @@ export interface ProspectusPageThreeCoverageEfficiencyInput {
 export interface ProspectusPageThreeCoverageEfficiencyFieldSource {
   label: string;
   canonicalSource: string;
-  availability: "static" | "stored" | "calculated" | "unresolved" | "reused";
+  availability: "static" | "stored" | "calculated" | "unresolved" | "reused" | "officer";
   surface: "canva" | "audit";
   possibleAlternatives: string;
   notes: string;
@@ -261,83 +297,83 @@ export const PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_FIELD_SOURCES: Record<
   },
   operating_cash_flow: {
     label: "Operating Cash Flow",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page3.manualFinancialInputs.years.{year}.operatingCashFlow",
+    availability: "officer",
     surface: "canva",
     possibleAlternatives: "PAT/depreciation/WC identities — not used",
-    notes: "No OCF field in Application FS 14-key shape.",
+    notes: "Full MYR storage; formatProspectusMyrMillions display.",
   },
   free_cash_flow: {
     label: "Free Cash Flow",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page3.manualFinancialInputs.years.{year}.freeCashFlow",
+    availability: "officer",
     surface: "canva",
-    possibleAlternatives: "OCF − capex; Δbsfatot — not used",
-    notes: "OCF and capital expenditure unavailable.",
+    possibleAlternatives: "OCF − capex — not used",
+    notes: "Full MYR storage; formatProspectusMyrMillions display.",
   },
   interest_coverage: {
     label: "Interest Coverage",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page2.financialComparison.overrides.{year}.interestCoverage",
+    availability: "reused",
     surface: "canva",
-    possibleAlternatives: "PBT/PAT as EBIT proxy — not used",
-    notes: "No approved shared helper or finance-cost input.",
+    possibleAlternatives: "page3.manualFinancialInputs.interestCoverage — removed",
+    notes: "Same Page 2 officer value and Nx formatter.",
   },
   dscr: {
     label: "DSCR",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page2.financialComparison.overrides.{year}.dscr",
+    availability: "reused",
     surface: "canva",
-    possibleAlternatives: "Note repayments; liabilities — not used",
-    notes: "No CashSouk DSCR definition or debt-service input.",
+    possibleAlternatives: "page3.manualFinancialInputs.dscr — removed",
+    notes: "Same Page 2 officer value and Nx formatter.",
   },
   debt_equity: {
     label: "Debt / Equity",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page3.manualFinancialInputs.years.{year}.debtEquity",
+    availability: "officer",
     surface: "canva",
-    possibleAlternatives: "calculateGearing; totlib/bsqpuc — rejected",
-    notes: "Page 2 rejected gearing substitute. bsqpuc is Paid-Up Capital.",
+    possibleAlternatives: "calculateGearing; Page 2 Net Debt / Equity — not used",
+    notes: "Raw multiple storage; formatProspectusFinancialMultiple display.",
   },
   return_on_equity: {
     label: "Return on Equity",
-    canonicalSource: "calculateReturnOnEquity(plnpat, bsqpuc)",
+    canonicalSource:
+      "resolveApplicationFinancialReturnOnEquityRatio(return_on_equity | plnpat/bsqpuc)",
     availability: "calculated",
     surface: "canva",
     possibleAlternatives: "Local duplicate formula — not used",
-    notes:
-      "Same helper + percent formatter as Page 2 Stage 4B. Denominator is paid-up capital key.",
+    notes: "Application-aligned resolver; percent-from-ratio display.",
   },
   return_on_assets: {
     label: "Return on Assets",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page3.manualFinancialInputs.years.{year}.returnOnAssets",
+    availability: "officer",
     surface: "canva",
     possibleAlternatives: "PAT / Total Assets — not approved",
-    notes: "Average vs closing assets undecided.",
+    notes: "storageUnit = percentage_points (4.8 → 4.8%).",
   },
   receivables_days: {
     label: "Receivables Days",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page2.financialComparison.overrides.{year}.receivablesDays",
+    availability: "reused",
     surface: "canva",
-    possibleAlternatives: "bscatot as receivables — not used",
-    notes: "Trade receivables field unavailable.",
+    possibleAlternatives: "page3.manualFinancialInputs.receivablesDays — removed",
+    notes: "Same Page 2 whole-number days value.",
   },
   payables_days: {
     label: "Payables Days",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page3.manualFinancialInputs.years.{year}.payablesDays",
+    availability: "officer",
     surface: "canva",
-    possibleAlternatives: "curlib as payables — not used",
-    notes: "Trade payables and purchases/COGS unavailable.",
+    possibleAlternatives: "none",
+    notes: "Numeric days storage; plain number display.",
   },
   asset_turnover: {
     label: "Asset Turnover",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page3.manualFinancialInputs.years.{year}.assetTurnover",
+    availability: "officer",
     surface: "canva",
-    possibleAlternatives: "turnover / Total Assets — not approved",
-    notes: "Average vs closing assets undecided.",
+    possibleAlternatives: "Revenue ÷ Total Assets — not approved",
+    notes: "Raw multiple storage; formatProspectusFinancialMultiple display.",
   },
 };

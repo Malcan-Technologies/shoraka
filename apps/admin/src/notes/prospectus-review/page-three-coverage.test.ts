@@ -268,25 +268,61 @@ describe("page three coverage verification", () => {
     );
   });
 
-  it("builds Coverage table with ten metrics and DNA trend column only", () => {
-    const table = buildPageThreeCoverageTable(sampleStatements, {
-      "2024": {
-        operatingCashFlow: 90_000,
-        freeCashFlow: 70_000,
-        interestCoverage: 4.5,
-        dscr: 1.8,
-        debtEquity: 0.5,
-        returnOnAssets: 12,
-        receivablesDays: 45,
-        payablesDays: 30,
-        assetTurnover: 1.2,
+  it("builds Coverage table with Page 2 reuse, officer fills, and DNA trend", () => {
+    const table = buildPageThreeCoverageTable(
+      sampleStatements,
+      {
+        "2024": {
+          operatingCashFlow: 1_400_000,
+          freeCashFlow: 1_100_000,
+          debtEquity: 0.24,
+          returnOnAssets: 4.8,
+          payablesDays: 48,
+          assetTurnover: 1.72,
+        },
       },
-    });
+      {
+        "2024": {
+          interestCoverage: 12.1,
+          dscr: 1.42,
+          receivablesDays: 74,
+        },
+      }
+    );
     expect(table.rows.map((r) => r.metric)).toEqual([...PAGE_THREE_RENDERED_TREND_METRICS]);
     expect(table.rows).toHaveLength(10);
     expect(table.rows.every((r) => r.trend === "Data not available")).toBe(true);
-    expect(table.rows.some((r) => /Revenue|Gross Profit|Cash & Bank/i.test(r.metric))).toBe(
-      false
+    const fy2024 = 2;
+    expect(table.rows.find((r) => r.metric === "Operating Cash Flow")?.values[fy2024]).toBe(
+      "1.4"
+    );
+    expect(table.rows.find((r) => r.metric === "Interest Coverage")?.values[fy2024]).toBe(
+      "12.1x"
+    );
+    expect(table.rows.find((r) => r.metric === "DSCR")?.values[fy2024]).toBe("1.42x");
+    expect(table.rows.find((r) => r.metric === "Return on Assets")?.values[fy2024]).toBe("4.8%");
+    expect(table.rows.find((r) => r.metric === "Receivables Days")?.values[fy2024]).toBe("74");
+    expect(table.rows.find((r) => r.metric === "Payables Days")?.values[fy2024]).toBe("48");
+    expect(table.rows.find((r) => r.metric === "Asset Turnover")?.values[fy2024]).toBe("1.72x");
+  });
+
+  it("ignores removed Page 3 interestCoverage / dscr / receivablesDays manuals", () => {
+    const table = buildPageThreeCoverageTable(
+      sampleStatements,
+      {
+        "2024": {
+          interestCoverage: 99,
+          dscr: 99,
+          receivablesDays: 99,
+        } as Record<string, number>,
+      },
+      undefined
+    );
+    expect(table.rows.find((r) => r.metric === "Interest Coverage")?.values[0]).toBe(
+      "Data not available"
+    );
+    expect(table.rows.find((r) => r.metric === "Receivables Days")?.values[0]).toBe(
+      "Data not available"
     );
   });
 
@@ -295,6 +331,14 @@ describe("page three coverage verification", () => {
     expect(rows.find((r) => r.label === "Total Liabilities")?.value).toContain("250,000");
     expect(buildIncomeStatementResolvedRows(yearRaw, undefined)).toHaveLength(7);
     expect(buildCoverageResolvedRows(yearRaw, undefined)).toHaveLength(10);
+  });
+
+  it("uses Application ROE resolver including CTOS flat preference", () => {
+    const rows = buildCoverageResolvedRows(
+      { ...yearRaw, return_on_equity: 15.2, plnpat: 1, bsqpuc: 100 },
+      undefined
+    );
+    expect(rows.find((r) => r.label === "Return on Equity")?.value).toBe("15.2%");
   });
 
   it("selects at most three financial years ascending for Page 3", () => {

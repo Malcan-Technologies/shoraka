@@ -73,6 +73,28 @@ export function formatProspectusFinancialPercentFromRatio(
   return `${fixed}%`;
 }
 
+/**
+ * Officer-entered percentage points (e.g. 4.8 means 4.8%).
+ * Do not pass through the ratio formatter (that would show 480%).
+ */
+export function formatProspectusFinancialPercentFromPoints(
+  points: number | null | undefined
+): string {
+  if (points == null || !Number.isFinite(points)) return PROSPECTUS_DATA_NOT_AVAILABLE;
+  const fixed = points.toFixed(2).replace(/\.?0+$/, "");
+  return `${fixed}%`;
+}
+
+/** Whole or decimal day count — no unit suffix. */
+export function formatProspectusFinancialDays(
+  value: number | null | undefined
+): string {
+  if (value == null || !Number.isFinite(value)) return PROSPECTUS_DATA_NOT_AVAILABLE;
+  if (Number.isInteger(value)) return String(value);
+  const fixed = value.toFixed(2).replace(/\.?0+$/, "");
+  return fixed;
+}
+
 /** Current ratio / coverage multiple — up to 2 decimals, trim trailing zeros, lowercase x. */
 export function formatProspectusFinancialMultiple(
   value: number | null | undefined
