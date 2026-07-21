@@ -221,17 +221,20 @@ describe("prospectus Page 1 mapper (Stages 1–6)", () => {
     expect(page.paymasterHighlight.paymasterName).toBe("KKR");
   });
 
-  it("maps valid SoukScore and DNA for invalid", async () => {
+  it("maps valid SoukScore with catalogue copy; unavailable for invalid", async () => {
     const valid = await mapProspectusPageOneFromNote(baseNote());
     expect(valid.riskAssessment.canva.riskGrade).toBe("AA");
+    expect(valid.riskAssessment.canva.riskLabel).toBe("Low Risk");
+    expect(valid.riskAssessment.canva.riskExplanation).toContain("strong financial strength");
 
     const invalid = await mapProspectusPageOneFromNote(
       baseNote({
         invoice_snapshot: { offer_details: { risk_rating: "A-" } },
       })
     );
-    expect(invalid.riskAssessment.canva.riskGrade).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(invalid.riskAssessment.canva.riskLabel).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(invalid.riskAssessment.canva.riskGrade).toBe("Risk rating not available");
+    expect(invalid.riskAssessment.canva.riskLabel).toBe("Risk rating not available");
+    expect(invalid.riskAssessment.canva.riskExplanation).toBe("Risk rating not available");
   });
 
   it("maps target amount, profit rate, and platform minimum", async () => {

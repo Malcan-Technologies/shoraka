@@ -274,15 +274,45 @@ describe("note & investment details coverage", () => {
       "Risk Explanation",
     ]);
     expect(risk.rows.find((r) => r.label === "Risk Rating")?.value).toBe("BBB");
-    expect(risk.rows.find((r) => r.label === "Risk Label")?.value).toBe("Data not available");
+    expect(risk.rows.find((r) => r.label === "Risk Label")?.value).toBe("Moderate Risk");
     expect(risk.rows.find((r) => r.label === "Risk Explanation")?.value).toBe(
-      "Data not available"
+      "The issuer demonstrates adequate financial strength but may be more sensitive to adverse business or economic conditions."
     );
     expect(risk.rows.some((r) => r.label === "Rating Scale Reference")).toBe(false);
     expect(JSON.stringify(risk.rows)).not.toMatch(/See rating scale on page 2/);
-    expect(JSON.stringify(risk.rows)).not.toMatch(
-      /Very Low Risk|Low Risk|Moderate Risk|High Risk|Very High Risk/
-    );
+
+    const expectedByGrade: Record<string, { label: string; explanation: string }> = {
+      AAA: {
+        label: "Very Low Risk",
+        explanation:
+          "The issuer demonstrates excellent financial strength and a very strong capacity to meet its financial obligations.",
+      },
+      AA: {
+        label: "Low Risk",
+        explanation:
+          "The issuer demonstrates strong financial strength and a strong capacity to meet its financial obligations.",
+      },
+      A: {
+        label: "Moderately Low Risk",
+        explanation:
+          "The issuer demonstrates good financial strength and an adequate capacity to meet its financial obligations.",
+      },
+      BBB: {
+        label: "Moderate Risk",
+        explanation:
+          "The issuer demonstrates adequate financial strength but may be more sensitive to adverse business or economic conditions.",
+      },
+      BB: {
+        label: "Elevated Risk",
+        explanation:
+          "The issuer shows some financial vulnerability and may face difficulty meeting its obligations under adverse conditions.",
+      },
+      B: {
+        label: "High Risk",
+        explanation:
+          "The issuer shows significant financial vulnerability and a higher likelihood of repayment difficulty under adverse conditions.",
+      },
+    };
 
     for (const grade of ["AAA", "AA", "A", "BBB", "BB", "B"] as const) {
       const rows = buildNoteInvestmentDetailSections(sampleNote({ riskRating: grade })).find(
@@ -290,21 +320,30 @@ describe("note & investment details coverage", () => {
       )!.rows;
       expect(rows).toEqual([
         { label: "Risk Rating", value: grade },
-        { label: "Risk Label", value: "Data not available" },
-        { label: "Risk Explanation", value: "Data not available" },
+        { label: "Risk Label", value: expectedByGrade[grade]!.label },
+        { label: "Risk Explanation", value: expectedByGrade[grade]!.explanation },
       ]);
     }
 
     const missing = buildNoteInvestmentDetailSections(sampleNote({ riskRating: null })).find(
       (s) => s.id === "risk-information"
     )!.rows;
-    expect(missing.find((r) => r.label === "Risk Rating")?.value).toBe("Data not available");
-    expect(missing.find((r) => r.label === "Risk Rating")?.value).not.toBe("—");
+    expect(missing.find((r) => r.label === "Risk Rating")?.value).toBe(
+      "Risk rating not available"
+    );
+    expect(missing.find((r) => r.label === "Risk Label")?.value).toBe(
+      "Risk rating not available"
+    );
+    expect(missing.find((r) => r.label === "Risk Explanation")?.value).toBe(
+      "Risk rating not available"
+    );
 
     const invalid = buildNoteInvestmentDetailSections(
       sampleNote({ riskRating: "C" as never })
     ).find((s) => s.id === "risk-information")!.rows;
-    expect(invalid.find((r) => r.label === "Risk Rating")?.value).toBe("Data not available");
+    expect(invalid.find((r) => r.label === "Risk Rating")?.value).toBe(
+      "Risk rating not available"
+    );
   });
 
   it("repeats the five At a Glance values and keeps issuer identity hidden", () => {
@@ -643,11 +682,11 @@ describe("Risk Information prospectus/admin boundary", () => {
     expect(adminCore).not.toContain('label: "Rating Scale Reference"');
   });
 
-  it("does not introduce grade-to-label or explanation mapping in admin", () => {
+  it("resolves grade-to-label and explanation from the shared catalogue in admin", () => {
     const adminCore = fs.readFileSync(path.join(__dirname, "core-terms.ts"), "utf8");
-    expect(adminCore).not.toMatch(/Very Low Risk|Low Risk|Moderate Risk|High Risk|Very High Risk/);
-    expect(adminCore).toContain('label: "Risk Label", value: DATA_NOT_AVAILABLE');
-    expect(adminCore).toContain('label: "Risk Explanation", value: DATA_NOT_AVAILABLE');
+    expect(adminCore).toContain("resolveSoukscoreRiskRatingPresentation");
+    expect(adminCore).not.toContain('label: "Risk Label", value: DATA_NOT_AVAILABLE');
+    expect(adminCore).not.toContain('label: "Risk Explanation", value: DATA_NOT_AVAILABLE');
   });
 
   it("keeps Page 2 risk scale non-editable in Prospectus completion rules", () => {

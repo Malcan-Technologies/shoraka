@@ -420,17 +420,19 @@ const COVERAGE_OFFICER_LABELS: Record<
   assetTurnover: "Asset Turnover",
 };
 
-/** Page 2 Financial Comparison fields reused by Page 3 Coverage — required per displayed year. */
-const PAGE_TWO_REUSED_COVERAGE_OVERRIDE_FIELDS = [
+/** Page 2 Financial Comparison officer overrides required per displayed year at Approve. */
+const PAGE_TWO_FINANCIAL_OVERRIDE_REQUIRED_FIELDS = [
+  "netDebtEquity",
   "interestCoverage",
   "dscr",
   "receivablesDays",
 ] as const;
 
-const PAGE_TWO_REUSED_COVERAGE_OVERRIDE_LABELS: Record<
-  (typeof PAGE_TWO_REUSED_COVERAGE_OVERRIDE_FIELDS)[number],
+const PAGE_TWO_FINANCIAL_OVERRIDE_REQUIRED_LABELS: Record<
+  (typeof PAGE_TWO_FINANCIAL_OVERRIDE_REQUIRED_FIELDS)[number],
   string
 > = {
+  netDebtEquity: "Net Debt / Equity",
   interestCoverage: "Interest Coverage",
   dscr: "DSCR",
   receivablesDays: "Receivables Days",
@@ -620,11 +622,11 @@ export function validateApprovalContent(
       const resolved = resolvePage2FinancialOverrideForCalendarYear(page2Overrides, year);
       const overrideRow = resolved?.override ?? {};
       const overridePathKey = resolved?.key ?? year;
-      for (const field of PAGE_TWO_REUSED_COVERAGE_OVERRIDE_FIELDS) {
+      for (const field of PAGE_TWO_FINANCIAL_OVERRIDE_REQUIRED_FIELDS) {
         if (!isPresentManualNumber(overrideRow[field])) {
           errors.push({
             path: `page2.financialComparison.overrides.${overridePathKey}.${field}`,
-            message: `${PAGE_TWO_REUSED_COVERAGE_OVERRIDE_LABELS[field]} is required for FY${year} before approving the Prospectus.`,
+            message: `${PAGE_TWO_FINANCIAL_OVERRIDE_REQUIRED_LABELS[field]} is required for FY${year} before approving the Prospectus.`,
           });
         }
       }

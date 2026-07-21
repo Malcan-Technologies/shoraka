@@ -40,13 +40,53 @@ describe("prospectus financial comparison overrides", () => {
     expect(errors.some((e) => e.path.includes("receivablesDays"))).toBe(true);
   });
 
+  it("blocks approval when Net Debt / Equity is missing for a displayed year", () => {
+    const draft = buildCompleteProspectusReviewDraft();
+    draft.page2.financialComparison = {
+      overrides: {
+        "2022": { interestCoverage: 12.1, dscr: 1.42, receivablesDays: 74 },
+        "2023": {
+          netDebtEquity: 0.28,
+          interestCoverage: 13.3,
+          dscr: 1.55,
+          receivablesDays: 69,
+        },
+        "2024": {
+          netDebtEquity: 0.22,
+          interestCoverage: 14.6,
+          dscr: 1.68,
+          receivablesDays: 63,
+        },
+      },
+    };
+    const errors = validateApprovalContent(draft, { incomeStatementYears: DISPLAYED_YEARS });
+    expect(
+      errors.some(
+        (e) =>
+          e.path === "page2.financialComparison.overrides.2022.netDebtEquity" &&
+          e.message ===
+            "Net Debt / Equity is required for FY2022 before approving the Prospectus."
+      )
+    ).toBe(true);
+  });
+
   it("blocks approval when Interest Coverage is missing for a displayed year", () => {
     const draft = buildCompleteProspectusReviewDraft();
     draft.page2.financialComparison = {
       overrides: {
-        "2022": { dscr: 1.42, receivablesDays: 74 },
-        "2023": { interestCoverage: 13.3, dscr: 1.55, receivablesDays: 69 },
-        "2024": { interestCoverage: 14.6, dscr: 1.68, receivablesDays: 63 },
+        "2022": { netDebtEquity: 0.35, dscr: 1.42, receivablesDays: 74 },
+        "2023": {
+          netDebtEquity: 0.28,
+          interestCoverage: 13.3,
+          dscr: 1.55,
+          receivablesDays: 69,
+        },
+        "2024": {
+          netDebtEquity: 0.22,
+          interestCoverage: 14.6,
+          dscr: 1.68,
+          receivablesDays: 63,
+        },
       },
     };
     const errors = validateApprovalContent(draft, { incomeStatementYears: DISPLAYED_YEARS });
@@ -64,9 +104,19 @@ describe("prospectus financial comparison overrides", () => {
     const draft = buildCompleteProspectusReviewDraft();
     draft.page2.financialComparison = {
       overrides: {
-        "2022": { interestCoverage: 12.1, receivablesDays: 74 },
-        "2023": { interestCoverage: 13.3, dscr: 1.55, receivablesDays: 69 },
-        "2024": { interestCoverage: 14.6, dscr: 1.68, receivablesDays: 63 },
+        "2022": { netDebtEquity: 0.35, interestCoverage: 12.1, receivablesDays: 74 },
+        "2023": {
+          netDebtEquity: 0.28,
+          interestCoverage: 13.3,
+          dscr: 1.55,
+          receivablesDays: 69,
+        },
+        "2024": {
+          netDebtEquity: 0.22,
+          interestCoverage: 14.6,
+          dscr: 1.68,
+          receivablesDays: 63,
+        },
       },
     };
     const errors = validateApprovalContent(draft, { incomeStatementYears: DISPLAYED_YEARS });
@@ -83,9 +133,19 @@ describe("prospectus financial comparison overrides", () => {
     const draft = buildCompleteProspectusReviewDraft();
     draft.page2.financialComparison = {
       overrides: {
-        "2022": { interestCoverage: 12.1, dscr: 1.42 },
-        "2023": { interestCoverage: 13.3, dscr: 1.55, receivablesDays: 69 },
-        "2024": { interestCoverage: 14.6, dscr: 1.68, receivablesDays: 63 },
+        "2022": { netDebtEquity: 0.35, interestCoverage: 12.1, dscr: 1.42 },
+        "2023": {
+          netDebtEquity: 0.28,
+          interestCoverage: 13.3,
+          dscr: 1.55,
+          receivablesDays: 69,
+        },
+        "2024": {
+          netDebtEquity: 0.22,
+          interestCoverage: 14.6,
+          dscr: 1.68,
+          receivablesDays: 63,
+        },
       },
     };
     const errors = validateApprovalContent(draft, { incomeStatementYears: DISPLAYED_YEARS });
@@ -98,12 +158,17 @@ describe("prospectus financial comparison overrides", () => {
     ).toBe(true);
   });
 
-  it("requires the three reused fields for every displayed year", () => {
+  it("requires Net Debt / Equity and the three Coverage-reused fields for every displayed year", () => {
     const draft = buildCompleteProspectusReviewDraft();
     draft.page2.financialComparison = { overrides: {} };
     const errors = validateApprovalContent(draft, { incomeStatementYears: DISPLAYED_YEARS });
     for (const year of DISPLAYED_YEARS) {
-      for (const field of ["interestCoverage", "dscr", "receivablesDays"] as const) {
+      for (const field of [
+        "netDebtEquity",
+        "interestCoverage",
+        "dscr",
+        "receivablesDays",
+      ] as const) {
         expect(
           errors.some((e) => e.path === `page2.financialComparison.overrides.${year}.${field}`)
         ).toBe(true);
@@ -113,17 +178,23 @@ describe("prospectus financial comparison overrides", () => {
       errors.some((e) => e.path.includes("page3.manualFinancialInputs") && e.path.includes("dscr"))
     ).toBe(false);
     expect(
+      errors.some(
+        (e) =>
+          e.path.includes("page3.manualFinancialInputs") && e.path.includes("netDebtEquity")
+      )
+    ).toBe(false);
+    expect(
       errors.some((e) => e.path.includes("page3.manualFinancialInputs.years") && e.path.includes("interestCoverage"))
     ).toBe(false);
   });
 
-  it("accepts zero Interest Coverage, DSCR, and Receivables Days", () => {
+  it("accepts zero Net Debt / Equity, Interest Coverage, DSCR, and Receivables Days", () => {
     const draft = buildCompleteProspectusReviewDraft();
     draft.page2.financialComparison = {
       overrides: {
-        "2022": { interestCoverage: 0, dscr: 0, receivablesDays: 0 },
-        "2023": { interestCoverage: 0, dscr: 0, receivablesDays: 0 },
-        "2024": { interestCoverage: 0, dscr: 0, receivablesDays: 0 },
+        "2022": { netDebtEquity: 0, interestCoverage: 0, dscr: 0, receivablesDays: 0 },
+        "2023": { netDebtEquity: 0, interestCoverage: 0, dscr: 0, receivablesDays: 0 },
+        "2024": { netDebtEquity: 0, interestCoverage: 0, dscr: 0, receivablesDays: 0 },
       },
     };
     expect(
@@ -135,9 +206,24 @@ describe("prospectus financial comparison overrides", () => {
     const draft = buildCompleteProspectusReviewDraft();
     draft.page2.financialComparison = {
       overrides: {
-        "2022-12-31": { interestCoverage: 12.1, dscr: 1.42, receivablesDays: 74 },
-        "2023-12-31": { interestCoverage: 13.3, dscr: 1.55, receivablesDays: 69 },
-        "2024-12-31": { interestCoverage: 14.6, dscr: 1.68, receivablesDays: 63 },
+        "2022-12-31": {
+          netDebtEquity: 0.35,
+          interestCoverage: 12.1,
+          dscr: 1.42,
+          receivablesDays: 74,
+        },
+        "2023-12-31": {
+          netDebtEquity: 0.28,
+          interestCoverage: 13.3,
+          dscr: 1.55,
+          receivablesDays: 69,
+        },
+        "2024-12-31": {
+          netDebtEquity: 0.22,
+          interestCoverage: 14.6,
+          dscr: 1.68,
+          receivablesDays: 63,
+        },
       },
     };
     expect(
@@ -149,6 +235,16 @@ describe("prospectus financial comparison overrides", () => {
     expect(
       validateApprovalContent(draft, { incomeStatementYears: DISPLAYED_YEARS })
     ).toEqual([]);
+  });
+
+  it("allows draft save without Net Debt / Equity when approval years are not required", () => {
+    const draft = buildCompleteProspectusReviewDraft();
+    draft.page2.financialComparison = {
+      overrides: {
+        "2022": { interestCoverage: 12.1, dscr: 1.42, receivablesDays: 74 },
+      },
+    };
+    expect(validateDraftContent(draft)).toEqual([]);
   });
 
   it("allows approval when complete Page 2 overrides are present", () => {

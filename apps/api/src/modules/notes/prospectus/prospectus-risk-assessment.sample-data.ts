@@ -1,6 +1,6 @@
 /**
  * SECTION: Sample Risk Assessment for Stage 3 preview
- * WHY: Valid SoukScore only (AA); never Canva A- / Low Risk / generated explanation
+ * WHY: Valid SoukScore AA with shared catalogue label/explanation
  */
 
 import { buildProspectusRiskAssessment } from "./prospectus-risk-assessment";

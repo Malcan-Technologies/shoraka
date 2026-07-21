@@ -6,8 +6,8 @@ import {
   calculateCalendarDayCount,
   formatInvestorReturnRatePercent,
   formatUtcCalendarDateEnMy,
-  isSoukscoreRiskRating,
   resolveNetExpectedReturnRatePercent,
+  resolveSoukscoreRiskRatingPresentation,
   type NoteDetail,
 } from "@cashsouk/types";
 
@@ -119,6 +119,8 @@ export function buildNoteInvestmentDetailSections(
     paymaster?.entity_type ?? paymaster?.entityType ?? paymaster?.type
   );
 
+  const riskPresentation = resolveSoukscoreRiskRatingPresentation(note.riskRating);
+
   return [
     {
       id: "note-details",
@@ -179,15 +181,17 @@ export function buildNoteInvestmentDetailSections(
       rows: [
         {
           label: "Risk Rating",
-          // NoteDetail.riskRating is mapped from invoice_snapshot.offer_details.risk_rating.
-          value: isSoukscoreRiskRating(note.riskRating)
-            ? note.riskRating
-            : DATA_NOT_AVAILABLE,
+          // NoteDetail.riskRating ← invoice_snapshot.offer_details.risk_rating.
+          value: riskPresentation.grade,
         },
-        // Unresolved until product/legal approve SoukScore label copy — keep visible as DNA.
-        { label: "Risk Label", value: DATA_NOT_AVAILABLE },
-        // Unresolved until product/legal approve grade explanations — keep visible as DNA.
-        { label: "Risk Explanation", value: DATA_NOT_AVAILABLE },
+        {
+          label: "Risk Label",
+          value: riskPresentation.label,
+        },
+        {
+          label: "Risk Explanation",
+          value: riskPresentation.explanation,
+        },
       ],
     },
     {

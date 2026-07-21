@@ -1,6 +1,6 @@
 /**
  * SECTION: Prospectus Page 1 — Risk Assessment (DATA STAGE 3)
- * WHY: SoukScore grade only for Canva; no A-/Low Risk/RegTank/CTOS; Page 2 scale pending
+ * WHY: SoukScore grade + shared catalogue label/explanation; Page 2 scale reference
  */
 
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
@@ -70,29 +70,30 @@ export const PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES = {
   },
   riskLabel: {
     label: "Risk label",
-    canonicalSource: "none",
-    availability: "not_stored" as const,
+    canonicalSource: "SOUKSCORE_RISK_RATING_CATALOGUE[grade].label",
+    availability: "static" as const,
     surface: "canva" as const,
     possibleAlternatives:
       "RegTank riskLevel (Low/Medium/High Risk) — different system, not used",
-    notes: "No approved SoukScore-to-label mapping. Do not derive Low Risk.",
+    notes:
+      "Resolved from grade via shared catalogue; not stored separately on Note.",
   },
   riskExplanation: {
     label: "Risk explanation",
-    canonicalSource: "none",
-    availability: "not_stored" as const,
+    canonicalSource: "SOUKSCORE_RISK_RATING_CATALOGUE[grade].explanation",
+    availability: "static" as const,
     surface: "canva" as const,
     possibleAlternatives: "NoteListing.risk_disclosure; Canva sample narrative — not used",
-    notes: "No stored Note-level explanation. Do not generate from FS/paymaster/CTOS.",
+    notes:
+      "Resolved from grade via shared catalogue; not stored separately on Note.",
   },
   ratingScaleReference: {
     label: "Rating scale reference",
     canonicalSource: "static prospectus wording",
     availability: "static" as const,
     surface: "canva" as const,
-    possibleAlternatives: "Page 2 Canva A–E scale — incompatible with SoukScore until corrected",
-    notes:
-      "Display text only. audit.scaleStatus = pending_scale_decision until Page 2 is approved.",
+    possibleAlternatives: "none",
+    notes: 'Display text only: "See rating scale on page 2".',
   },
   riskScore: {
     label: "Risk score",

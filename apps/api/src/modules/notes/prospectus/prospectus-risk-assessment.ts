@@ -1,9 +1,9 @@
 /**
  * SECTION: Build Risk Assessment view-model
- * WHY: Canva shows SoukScore grade only; label/explanation DNA; audit kept separate
+ * WHY: Canva shows SoukScore grade + catalogue label/explanation; no separate storage
  */
 
-import { isSoukscoreRiskRating } from "@cashsouk/types";
+import { resolveSoukscoreRiskRatingPresentation } from "@cashsouk/types";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_RATING_SCALE_REFERENCE,
@@ -15,26 +15,24 @@ import {
 export function buildProspectusRiskAssessment(
   input: ProspectusRiskAssessmentInput
 ): ProspectusRiskAssessment {
-  const grade = isSoukscoreRiskRating(input.soukscoreRiskRating)
-    ? input.soukscoreRiskRating
-    : null;
+  const presentation = resolveSoukscoreRiskRatingPresentation(input.soukscoreRiskRating);
 
   return {
     canva: {
-      riskGrade: grade ?? PROSPECTUS_DATA_NOT_AVAILABLE,
-      riskLabel: PROSPECTUS_DATA_NOT_AVAILABLE,
-      riskExplanation: PROSPECTUS_DATA_NOT_AVAILABLE,
+      riskGrade: presentation.grade,
+      riskLabel: presentation.label,
+      riskExplanation: presentation.explanation,
       ratingScaleReference: PROSPECTUS_RATING_SCALE_REFERENCE,
     },
     audit: {
       riskScore: PROSPECTUS_DATA_NOT_AVAILABLE,
-      riskAppliesTo: grade
+      riskAppliesTo: presentation.isAvailable
         ? "Invoice offer, frozen on Note snapshot"
         : PROSPECTUS_DATA_NOT_AVAILABLE,
-      assessmentSource: grade
+      assessmentSource: presentation.isAvailable
         ? "Admin SoukScore on invoice offer"
         : PROSPECTUS_DATA_NOT_AVAILABLE,
-      isFrozen: grade != null,
+      isFrozen: presentation.isAvailable,
       scaleStatus: PROSPECTUS_RATING_SCALE_STATUS,
     },
   };
