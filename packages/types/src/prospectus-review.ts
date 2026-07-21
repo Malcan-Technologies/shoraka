@@ -260,6 +260,42 @@ export interface ProspectusFinancialComparisonAdminTable {
   sourceFooter: string;
 }
 
+/**
+ * Single frozen financial-year record for Admin Page 2 + Page 3 working tables.
+ * Same Stage 4A year selection and raw fields used at approve/publish freeze.
+ */
+export type ProspectusFrozenFinancialSourceType = "CTOS" | "UNAUDITED";
+
+export interface ProspectusFrozenFinancialRaw {
+  turnover: number | null;
+  plnpbt: number | null;
+  plnpat: number | null;
+  bscatot: number | null;
+  curlib: number | null;
+  bsfatot: number | null;
+  othass: number | null;
+  bsclbank: number | null;
+  bsslltd: number | null;
+  bsclstd: number | null;
+  bsqpuc: number | null;
+  totass: number | null;
+  totlib: number | null;
+  profit_margin: number | null;
+  return_on_equity: number | null;
+  currat: number | null;
+}
+
+export interface ProspectusFrozenFinancialYear {
+  financialYearEndIso: string;
+  calendarYear: number;
+  /** Display year label (e.g. FY2024). */
+  label: string;
+  /** Financial year-end display (e.g. 31 Dec 2024). */
+  fyeLabel: string;
+  sourceType: ProspectusFrozenFinancialSourceType;
+  raw: ProspectusFrozenFinancialRaw;
+}
+
 export interface ProspectusReviewGetResponse {
   note: {
     id: string;
@@ -319,9 +355,12 @@ export interface ProspectusReviewGetResponse {
   /**
    * Page 2 3-Year Financial Comparison — same Stage 4A/4B path as Preview.
    * Unsupported metrics may include officer overrides from draft/approved content.
+   * `years` carries the same frozen raw records for Page 2 + Page 3 Admin tables.
    */
   financialComparison: {
     table: ProspectusFinancialComparisonAdminTable;
+    /** Same Stage 4A years + raw fields as Preview / publish freeze (oldest → newest). */
+    years: ProspectusFrozenFinancialYear[];
     /**
      * Non-blocking Ops warning when an SSM-expected unaudited year has no stored data.
      * Never blocks Prospectus approval; omitted from investor HTML.

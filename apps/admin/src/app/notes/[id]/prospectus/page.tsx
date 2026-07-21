@@ -30,7 +30,6 @@ import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useNoteDetail } from "@/notes/hooks/use-note-detail";
-import { useApplicationDetail } from "@/hooks/use-application-detail";
 import { useUserDetail } from "@/hooks/use-users";
 import {
   ProspectusReviewConflictError,
@@ -85,7 +84,6 @@ function ProspectusReviewPageInner() {
 
   const { data, isLoading, error, refetch } = useProspectusReview(noteId);
   const { data: note } = useNoteDetail(noteId);
-  const { data: application } = useApplicationDetail(note?.sourceApplicationId ?? "");
   const { data: updatedByUser } = useUserDetail(data?.review.updatedByUserId ?? null);
 
   const saveDraft = useSaveProspectusReviewDraft(noteId);
@@ -291,17 +289,16 @@ function ProspectusReviewPageInner() {
       }
     : null;
   /**
-   * Page 3 years must match frozen Page 2 financialComparison.table headers.
-   * Do not independently select years from live Application financial_statements.
+   * Page 2 + Page 3 share the same frozen Stage 4A years from the review payload.
+   * Do not load live Application financial_statements for Prospectus working tables.
    */
-  const pageTwoYearHeaders = pageTwoFinancialTable.yearHeaders;
+  const frozenFinancialYears = data?.financialComparison?.years ?? [];
   const incomeStatementYearKeys =
-    pageTwoYearHeaders.length > 0
-      ? selectYearsFromPageTwoFinancialTable(pageTwoFinancialTable)
-      : [];
-  const financialStatements = (
-    application as { financial_statements?: unknown } | undefined
-  )?.financial_statements;
+    frozenFinancialYears.length > 0
+      ? frozenFinancialYears.map((year) => String(year.calendarYear))
+      : pageTwoFinancialTable.yearHeaders.length > 0
+        ? selectYearsFromPageTwoFinancialTable(pageTwoFinancialTable)
+        : [];
   const completionOptions = { incomeStatementYears: incomeStatementYearKeys };
   const stepStatuses = getProspectusStepStatuses(draft, completionOptions);
   const manualYears = draft.page3.manualFinancialInputs?.years;
@@ -313,20 +310,17 @@ function ProspectusReviewPageInner() {
       })
     : [];
   const incomeStatementTable = buildPageThreeIncomeStatementTable(
-    financialStatements,
-    manualYears,
-    pageTwoYearHeaders.length > 0 ? pageTwoYearHeaders : undefined
+    frozenFinancialYears,
+    manualYears
   );
   const balanceSheetTable = buildPageThreeBalanceSheetTable(
-    financialStatements,
-    manualYears,
-    pageTwoYearHeaders.length > 0 ? pageTwoYearHeaders : undefined
+    frozenFinancialYears,
+    manualYears
   );
   const coverageTable = buildPageThreeCoverageTable(
-    financialStatements,
+    frozenFinancialYears,
     manualYears,
-    draft.page2.financialComparison?.overrides,
-    pageTwoYearHeaders.length > 0 ? pageTwoYearHeaders : undefined
+    draft.page2.financialComparison?.overrides
   );
 
   const updateManualFieldForYear = (year: string, field: string, value: string) => {

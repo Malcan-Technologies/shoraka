@@ -5,15 +5,15 @@ import {
   resolveApplicationFinancialReturnOnEquityRatio,
   resolveApplicationFinancialTotalAssets,
   resolveApplicationFinancialTotalLiabilities,
-  fyEndDateForYear,
   isSoukscoreRiskRating,
   normalizeProspectusCompanySize,
   type NoteDetail,
+  type ProspectusFrozenFinancialRaw,
+  type ProspectusFrozenFinancialYear,
 } from "@cashsouk/types";
 import type { CoreTermRow } from "./core-terms";
 import type { FinancialMetricTableModel } from "./financial-metric-table";
 import { PAGE_TWO_OFFICER_FINANCIAL_METRICS } from "./page-two-coverage";
-import { calendarYearFromFinancialHeaderKey } from "./financial-year-keys";
 
 export {
   calendarYearFromFinancialHeaderKey,
@@ -82,7 +82,12 @@ function formatMultiple(value: number | null): string {
   return `${fixed}x`;
 }
 
-/** Display-only MYR millions — matches Prospectus Canva formatters. */
+function formatDays(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return DATA_NOT_AVAILABLE;
+  if (Number.isInteger(value)) return String(value);
+  return value.toFixed(2).replace(/\.?0+$/, "");
+}
+
 function formatMyrMillions(value: number | null): string {
   if (value == null || !Number.isFinite(value)) return DATA_NOT_AVAILABLE;
   if (value === 0) return "0";
@@ -93,12 +98,6 @@ function formatMyrMillions(value: number | null): string {
   const precise = millions.toFixed(10).replace(/\.?0+$/, "");
   if (precise !== "" && Number(precise) !== 0) return precise;
   return millions < 0 ? ">-0.000001" : "<0.000001";
-}
-
-function formatDays(value: number | null): string {
-  if (value == null || !Number.isFinite(value)) return DATA_NOT_AVAILABLE;
-  if (Number.isInteger(value)) return String(value);
-  return value.toFixed(2).replace(/\.?0+$/, "");
 }
 
 function manualDisplay(
@@ -132,58 +131,29 @@ function page2OverrideForYear(
   );
 }
 
-export function selectPageThreeYears(financialStatements: unknown): string[] {
-  const root = asRecord(financialStatements);
-  const unaudited = asRecord(root?.unaudited_by_year) ?? {};
-  return Object.keys(unaudited)
-    .filter((key) => /^\d{4}$/.test(key))
-    .map(Number)
-    .filter((year) => Number.isInteger(year))
-    .sort((a, b) => b - a)
-    .slice(0, 3)
-    .sort((a, b) => a - b)
-    .map(String);
+/** Calendar years from frozen Stage 4A years (oldest → newest). */
+export function selectPageThreeYears(frozenYears: ProspectusFrozenFinancialYear[]): string[] {
+  return frozenYears.map((year) => String(year.calendarYear));
 }
 
-function readFinancialYearEndIso(financialStatements: unknown): string | null {
-  const root = asRecord(financialStatements);
-  const questionnaire = asRecord(root?.questionnaire);
-  const value = questionnaire?.financial_year_end;
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function formatFyeLabel(financialYearEndIso: string | null, year: string): string {
-  if (!financialYearEndIso) return DATA_NOT_AVAILABLE;
-  const end = fyEndDateForYear({ financial_year_end: financialYearEndIso }, Number(year));
-  if (!end) return DATA_NOT_AVAILABLE;
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(end);
-}
-
-function buildYearHeaders(financialStatements: unknown) {
-  const years = selectPageThreeYears(financialStatements);
-  const fyeIso = readFinancialYearEndIso(financialStatements);
-  return years.map((year) => ({
-    key: year,
-    yearLabel: `FY${year}`,
-    fyeLabel: formatFyeLabel(fyeIso, year),
+function yearHeadersFromFrozen(
+  frozenYears: ProspectusFrozenFinancialYear[]
+): FinancialMetricTableModel["yearHeaders"] {
+  return frozenYears.map((year) => ({
+    key: year.financialYearEndIso,
+    yearLabel: year.label,
+    fyeLabel: year.fyeLabel,
   }));
 }
 
-function readYearRaw(
-  financialStatements: unknown,
-  year: string
-): Record<string, unknown> {
-  const root = asRecord(financialStatements);
-  const unaudited = asRecord(root?.unaudited_by_year) ?? {};
-  return asRecord(unaudited[year]) ?? {};
+function rawAsRecord(raw: ProspectusFrozenFinancialRaw): Record<string, unknown> {
+  return { ...raw };
 }
 
-export function buildPageThreeOverviewRows(financialStatements: unknown): CoreTermRow[] {
-  const years = selectPageThreeYears(financialStatements);
+export function buildPageThreeOverviewRows(
+  frozenYears: ProspectusFrozenFinancialYear[]
+): CoreTermRow[] {
+  const years = selectPageThreeYears(frozenYears);
   return [
     { label: "Page title", value: PAGE_THREE_TITLE },
     { label: "Subtitle", value: DATA_NOT_AVAILABLE },
@@ -414,24 +384,23 @@ export function buildCoverageResolvedRows(
 }
 
 function pivotYearRows(
-  financialStatements: unknown,
+  frozenYears: ProspectusFrozenFinancialYear[],
   manualYears: PageThreeManualYears | undefined,
   buildRows: (
     yearRaw: Record<string, unknown>,
     manual: PageThreeManualYear | undefined,
     year: string
   ) => CoreTermRow[],
-  withTrend = false,
-  yearHeadersOverride?: FinancialMetricTableModel["yearHeaders"]
+  withTrend = false
 ): FinancialMetricTableModel {
-  const yearHeaders = yearHeadersOverride ?? buildYearHeaders(financialStatements);
-  const perYear = yearHeaders.map((header) => {
-    const calendarYear = calendarYearFromFinancialHeaderKey(header.key);
+  const yearHeaders = yearHeadersFromFrozen(frozenYears);
+  const perYear = frozenYears.map((year) => {
+    const calendarYear = String(year.calendarYear);
     const manual =
       manualYears?.[calendarYear] ??
-      manualYears?.[header.key] ??
+      manualYears?.[year.financialYearEndIso] ??
       undefined;
-    return buildRows(readYearRaw(financialStatements, calendarYear), manual, calendarYear);
+    return buildRows(rawAsRecord(year.raw), manual, calendarYear);
   });
   const metrics = perYear[0]?.map((row) => row.label) ?? [];
 
@@ -449,47 +418,35 @@ function pivotYearRows(
 }
 
 export function buildPageThreeIncomeStatementTable(
-  financialStatements: unknown,
-  manualYears: PageThreeManualYears | undefined,
-  yearHeadersOverride?: FinancialMetricTableModel["yearHeaders"]
+  frozenYears: ProspectusFrozenFinancialYear[],
+  manualYears: PageThreeManualYears | undefined
 ): FinancialMetricTableModel {
-  return pivotYearRows(
-    financialStatements,
-    manualYears,
-    (yearRaw, manual) => buildIncomeStatementResolvedRows(yearRaw, manual),
-    false,
-    yearHeadersOverride
+  return pivotYearRows(frozenYears, manualYears, (yearRaw, manual) =>
+    buildIncomeStatementResolvedRows(yearRaw, manual)
   );
 }
 
 export function buildPageThreeBalanceSheetTable(
-  financialStatements: unknown,
-  manualYears: PageThreeManualYears | undefined,
-  yearHeadersOverride?: FinancialMetricTableModel["yearHeaders"]
+  frozenYears: ProspectusFrozenFinancialYear[],
+  manualYears: PageThreeManualYears | undefined
 ): FinancialMetricTableModel {
-  return pivotYearRows(
-    financialStatements,
-    manualYears,
-    (yearRaw, manual) => buildBalanceSheetResolvedRows(yearRaw, manual),
-    false,
-    yearHeadersOverride
+  return pivotYearRows(frozenYears, manualYears, (yearRaw, manual) =>
+    buildBalanceSheetResolvedRows(yearRaw, manual)
   );
 }
 
 /** Coverage table including the ten rendered 3-Year Trend outcomes only. */
 export function buildPageThreeCoverageTable(
-  financialStatements: unknown,
+  frozenYears: ProspectusFrozenFinancialYear[],
   manualYears: PageThreeManualYears | undefined,
-  page2Overrides?: Page2FinancialOverrides,
-  yearHeadersOverride?: FinancialMetricTableModel["yearHeaders"]
+  page2Overrides?: Page2FinancialOverrides
 ): FinancialMetricTableModel {
   const table = pivotYearRows(
-    financialStatements,
+    frozenYears,
     manualYears,
     (yearRaw, manual, year) =>
       buildCoverageResolvedRows(yearRaw, manual, page2OverrideForYear(page2Overrides, year)),
-    true,
-    yearHeadersOverride
+    true
   );
   return {
     ...table,

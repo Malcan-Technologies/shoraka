@@ -99,6 +99,12 @@ jest.mock("../prospectus/prospectus-page-two-mapper", () => ({
       years: [],
       rows: [],
     },
+    financialComparisonSource: {
+      years: [],
+      opsWarning: null,
+      missingSsmUnauditedYears: [],
+      sourceFooter: "Source: Financial Statements",
+    },
   })),
 }));
 jest.mock("../prospectus/prospectus-issuer-profile", () => ({

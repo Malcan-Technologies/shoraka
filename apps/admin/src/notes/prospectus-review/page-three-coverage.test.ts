@@ -101,7 +101,7 @@ function sampleNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
   } as NoteDetail;
 }
 
-const yearRaw = {
+const yearRaw: import("@cashsouk/types").ProspectusFrozenFinancialRaw = {
   turnover: 1_000_000,
   plnpbt: 120_000,
   plnpat: 100_000,
@@ -113,20 +113,32 @@ const yearRaw = {
   bsslltd: 80_000,
   bsclstd: 20_000,
   bsqpuc: 500_000,
+  totass: null,
+  totlib: null,
+  profit_margin: null,
+  return_on_equity: null,
+  currat: null,
 };
 
-const sampleStatements = {
-  questionnaire: { financial_year_end: "2024-12-31" },
-  unaudited_by_year: {
-    "2022": yearRaw,
-    "2023": yearRaw,
-    "2024": yearRaw,
-  },
-};
+function frozenYear(
+  calendarYear: number,
+  raw: import("@cashsouk/types").ProspectusFrozenFinancialRaw = yearRaw
+): import("@cashsouk/types").ProspectusFrozenFinancialYear {
+  return {
+    financialYearEndIso: `${calendarYear}-12-31`,
+    calendarYear,
+    label: `FY${calendarYear}`,
+    fyeLabel: `31 Dec ${calendarYear}`,
+    sourceType: "UNAUDITED",
+    raw: { ...raw },
+  };
+}
+
+const sampleFrozenYears = [frozenYear(2022), frozenYear(2023), frozenYear(2024)];
 
 describe("page three coverage verification", () => {
   it("builds Financial Summary with title, DNA subtitle, and selected years", () => {
-    const rows = buildPageThreeOverviewRows(sampleStatements);
+    const rows = buildPageThreeOverviewRows(sampleFrozenYears);
     expect(rows.map((r) => r.label)).toEqual([
       "Page title",
       "Subtitle",
@@ -207,7 +219,7 @@ describe("page three coverage verification", () => {
   });
 
   it("builds Income Statement as a seven-metric multi-year table", () => {
-    const table = buildPageThreeIncomeStatementTable(sampleStatements, {
+    const table = buildPageThreeIncomeStatementTable(sampleFrozenYears, {
       "2024": { grossProfit: 300_000, ebitda: 200_000, ebit: 180_000 },
     });
     expect(table.yearHeaders).toHaveLength(3);
@@ -225,7 +237,7 @@ describe("page three coverage verification", () => {
   });
 
   it("builds Balance Sheet table with Total Liabilities via Application-aligned resolver", () => {
-    const table = buildPageThreeBalanceSheetTable(sampleStatements, undefined);
+    const table = buildPageThreeBalanceSheetTable(sampleFrozenYears, undefined);
     expect(table.rows.map((r) => r.metric)).toEqual([
       "Cash & Bank",
       "Trade Receivables",
@@ -243,19 +255,33 @@ describe("page three coverage verification", () => {
       bsslltd: 80_000,
       bsclstd: 20_000,
     });
-    expect(computePageThreeTotalLiabilities(yearRaw)).toBe(expected);
+    expect(computePageThreeTotalLiabilities({ ...yearRaw })).toBe(expected);
     expect(table.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toContain(
       "250,000"
     );
   });
 
   it("matches Application zero-default Total Assets when a component is missing", () => {
-    const incomplete = {
-      questionnaire: { financial_year_end: "2024-12-31" },
-      unaudited_by_year: {
-        "2024": { bscatot: 400_000, curlib: 150_000 },
-      },
-    };
+    const incomplete = [
+      frozenYear(2024, {
+        turnover: null,
+        plnpbt: null,
+        plnpat: null,
+        bscatot: 400_000,
+        bsfatot: null,
+        othass: null,
+        bsclbank: null,
+        curlib: 150_000,
+        bsslltd: null,
+        bsclstd: null,
+        bsqpuc: null,
+        totass: null,
+        totlib: null,
+        profit_margin: null,
+        return_on_equity: null,
+        currat: null,
+      }),
+    ];
     const table = buildPageThreeBalanceSheetTable(incomplete, undefined);
     expect(table.rows.find((r) => r.metric === "Total Assets")?.values[0]).toContain(
       "400,000"
@@ -269,16 +295,7 @@ describe("page three coverage verification", () => {
   });
 
   it("prefers flat totass / totlib when present like Application CTOS columns", () => {
-    const withFlat = {
-      questionnaire: { financial_year_end: "2024-12-31" },
-      unaudited_by_year: {
-        "2024": {
-          ...yearRaw,
-          totass: 999_000,
-          totlib: 111_000,
-        },
-      },
-    };
+    const withFlat = [frozenYear(2024, { ...yearRaw, totass: 999_000, totlib: 111_000 })];
     const table = buildPageThreeBalanceSheetTable(withFlat, undefined);
     expect(table.rows.find((r) => r.metric === "Total Assets")?.values[0]).toContain(
       "999,000"
@@ -290,7 +307,7 @@ describe("page three coverage verification", () => {
 
   it("builds Coverage table with Page 2 reuse, officer fills, and DNA trend", () => {
     const table = buildPageThreeCoverageTable(
-      sampleStatements,
+      sampleFrozenYears,
       {
         "2024": {
           operatingCashFlow: 1_400_000,
@@ -328,7 +345,7 @@ describe("page three coverage verification", () => {
 
   it("ignores removed Page 3 interestCoverage / dscr / receivablesDays manuals", () => {
     const table = buildPageThreeCoverageTable(
-      sampleStatements,
+      sampleFrozenYears,
       {
         "2024": {
           interestCoverage: 99,
@@ -347,10 +364,10 @@ describe("page three coverage verification", () => {
   });
 
   it("keeps single-year resolved helpers for Total Liabilities parity", () => {
-    const rows = buildBalanceSheetResolvedRows(yearRaw, { quickRatio: 1.25 });
+    const rows = buildBalanceSheetResolvedRows({ ...yearRaw }, { quickRatio: 1.25 });
     expect(rows.find((r) => r.label === "Total Liabilities")?.value).toContain("250,000");
-    expect(buildIncomeStatementResolvedRows(yearRaw, undefined)).toHaveLength(7);
-    expect(buildCoverageResolvedRows(yearRaw, undefined)).toHaveLength(10);
+    expect(buildIncomeStatementResolvedRows({ ...yearRaw }, undefined)).toHaveLength(7);
+    expect(buildCoverageResolvedRows({ ...yearRaw }, undefined)).toHaveLength(10);
   });
 
   it("uses Application ROE resolver including CTOS flat preference", () => {
@@ -361,17 +378,34 @@ describe("page three coverage verification", () => {
     expect(rows.find((r) => r.label === "Return on Equity")?.value).toBe("15.2%");
   });
 
-  it("selects at most three financial years ascending for Page 3", () => {
-    expect(
-      selectPageThreeYears({
-        unaudited_by_year: {
-          "2020": {},
-          "2021": {},
-          "2022": {},
-          "2023": {},
-          "2024": {},
-        },
-      })
-    ).toEqual(["2022", "2023", "2024"]);
+  it("uses frozen year order without independent Application selection", () => {
+    expect(selectPageThreeYears(sampleFrozenYears)).toEqual(["2022", "2023", "2024"]);
+    expect(selectPageThreeYears([frozenYear(2021), frozenYear(2023)])).toEqual([
+      "2021",
+      "2023",
+    ]);
+  });
+
+  it("keeps year columns when officer manuals are missing", () => {
+    const table = buildPageThreeIncomeStatementTable(sampleFrozenYears, {});
+    expect(table.yearHeaders).toHaveLength(3);
+    expect(table.yearHeaders.map((h) => h.key)).toEqual([
+      "2022-12-31",
+      "2023-12-31",
+      "2024-12-31",
+    ]);
+    expect(table.rows.find((r) => r.metric === "Gross Profit")?.values).toEqual([
+      "Data not available",
+      "Data not available",
+      "Data not available",
+    ]);
+  });
+
+  it("Income, Balance, and Coverage share the same frozen year headers", () => {
+    const income = buildPageThreeIncomeStatementTable(sampleFrozenYears, undefined);
+    const balance = buildPageThreeBalanceSheetTable(sampleFrozenYears, undefined);
+    const coverage = buildPageThreeCoverageTable(sampleFrozenYears, undefined);
+    expect(balance.yearHeaders).toEqual(income.yearHeaders);
+    expect(coverage.yearHeaders).toEqual(income.yearHeaders);
   });
 });

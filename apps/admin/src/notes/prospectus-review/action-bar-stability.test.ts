@@ -31,7 +31,9 @@ describe("prospectus action bar and tab status", () => {
   });
 
   it("does not re-select Page 3 years from live Application alone", () => {
+    expect(pageSource).not.toMatch(/useApplicationDetail/);
     expect(pageSource).not.toMatch(/selectPageThreeYears\(financialStatements\)/);
-    expect(pageSource).toContain("pageTwoYearHeaders");
+    expect(pageSource).toContain("frozenFinancialYears");
+    expect(pageSource).toContain("financialComparison?.years");
   });
 });

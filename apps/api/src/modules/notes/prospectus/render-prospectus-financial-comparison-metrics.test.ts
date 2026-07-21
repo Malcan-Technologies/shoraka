@@ -10,6 +10,7 @@ import {
   parseProspectusFinancialNumber,
   resolveYearOverride,
   toAdminFinancialComparisonTable,
+  toAdminFrozenFinancialYears,
 } from "./prospectus-financial-comparison-metrics";
 import { SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_METRICS_SOURCE } from "./prospectus-financial-comparison-metrics.sample-data";
 import {
@@ -199,6 +200,28 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
     expect(table.rows.find((r) => r.metric === "Revenue")?.values[0]).toBe("13.9");
     expect(table.rows.find((r) => r.metric === "DSCR")?.values[2]).toBe("1.25x");
     expect(table.sourceFooter).toBe(metrics.sourceFooter);
+  });
+
+  it("Admin frozen years expose the same Stage 4A raw records for Page 3", () => {
+    const frozen = toAdminFrozenFinancialYears(
+      SAMPLE_PROSPECTUS_FINANCIAL_COMPARISON_METRICS_SOURCE.years
+    );
+    expect(frozen.map((y) => y.calendarYear)).toEqual([2022, 2023, 2024]);
+    expect(frozen.map((y) => y.financialYearEndIso)).toEqual([
+      "2022-12-31",
+      "2023-12-31",
+      "2024-12-31",
+    ]);
+    expect(frozen.every((y) => y.sourceType === "CTOS" || y.sourceType === "UNAUDITED")).toBe(
+      true
+    );
+    expect(frozen[0]?.raw.turnover).not.toBeNull();
+    expect(frozen[0]?.raw).toMatchObject({
+      plnpat: expect.anything(),
+      plnpbt: expect.anything(),
+      bscatot: expect.anything(),
+      curlib: expect.anything(),
+    });
   });
 
   it("parses financial numbers and rejects silent zero for tiny non-zero MYR", () => {

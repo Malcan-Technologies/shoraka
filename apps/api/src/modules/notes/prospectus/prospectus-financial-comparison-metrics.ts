@@ -7,6 +7,8 @@ import {
   resolveApplicationFinancialCurrentRatio,
   resolveApplicationFinancialProfitMarginRatio,
   resolveApplicationFinancialReturnOnEquityRatio,
+  type ProspectusFrozenFinancialRaw,
+  type ProspectusFrozenFinancialYear,
 } from "@cashsouk/types";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
@@ -269,4 +271,48 @@ export function toAdminFinancialComparisonTable(
     })),
     sourceFooter: metrics.sourceFooter,
   };
+}
+
+const FROZEN_RAW_KEYS = [
+  "turnover",
+  "plnpbt",
+  "plnpat",
+  "bscatot",
+  "curlib",
+  "bsfatot",
+  "othass",
+  "bsclbank",
+  "bsslltd",
+  "bsclstd",
+  "bsqpuc",
+  "totass",
+  "totlib",
+  "profit_margin",
+  "return_on_equity",
+  "currat",
+] as const;
+
+function toFrozenRaw(raw: Record<string, unknown>): ProspectusFrozenFinancialRaw {
+  const out = {} as ProspectusFrozenFinancialRaw;
+  for (const key of FROZEN_RAW_KEYS) {
+    out[key] = fieldFromRaw(raw, key);
+  }
+  return out;
+}
+
+/**
+ * Admin working-area years — same Stage 4A records as Page 2 table / publish freeze.
+ * Oldest → newest; raw fields shared by Page 2 + Page 3 resolvers.
+ */
+export function toAdminFrozenFinancialYears(
+  years: ProspectusFinancialComparisonYear[]
+): ProspectusFrozenFinancialYear[] {
+  return years.map((year) => ({
+    financialYearEndIso: year.financialYearEndIso,
+    calendarYear: year.year,
+    label: year.yearLabel,
+    fyeLabel: year.financialYearEndLabel,
+    sourceType: year.recordSource === "ctos_audited" ? "CTOS" : "UNAUDITED",
+    raw: toFrozenRaw(year.rawFinancials),
+  }));
 }
