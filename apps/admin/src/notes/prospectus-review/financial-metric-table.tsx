@@ -68,7 +68,7 @@ export function ProspectusFinancialMetricTable({ table, showTrend = false }: Pro
           {table.rows.length === 0 ? (
             <TableRow>
               <TableCell colSpan={colCount} className="py-8 text-center text-muted-foreground">
-                Data not available
+                —
               </TableCell>
             </TableRow>
           ) : (
@@ -87,7 +87,7 @@ export function ProspectusFinancialMetricTable({ table, showTrend = false }: Pro
                 ))}
                 {showTrend ? (
                   <TableCell className="whitespace-nowrap text-sm text-foreground">
-                    {row.trend ?? "Data not available"}
+                    {row.trend ?? "—"}
                   </TableCell>
                 ) : null}
               </TableRow>

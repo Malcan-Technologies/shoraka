@@ -84,9 +84,9 @@ jest.mock("../prospectus/prospectus-page-two-mapper", () => ({
       invoiceDueDate: "31 December 2026",
       paymasterName: "Kementerian Kerja Raya",
       paymasterNature: "Government Ministry",
-      deedOfAssignment: "Data not available",
-      paymasterRating: "Data not available",
-      confidenceGrading: "Data not available",
+      deedOfAssignment: "—",
+      paymasterRating: "—",
+      confidenceGrading: "—",
     },
     paymasterTrackRecord: {
       totalInvoicesPaid: "48",
@@ -121,9 +121,9 @@ jest.mock("../prospectus/prospectus-invoice-paymaster", () => ({
     { label: "Invoice Due Date", value: "31 December 2026" },
     { label: "Paymaster", value: "Kementerian Kerja Raya" },
     { label: "Nature of Paymaster", value: "Government Ministry" },
-    { label: "Deed of Assignment (DOA)", value: "Data not available" },
-    { label: "Paymaster Rating", value: "Data not available" },
-    { label: "Confidence Grading", value: "Data not available" },
+    { label: "Deed of Assignment (DOA)", value: "—" },
+    { label: "Paymaster Rating", value: "—" },
+    { label: "Confidence Grading", value: "—" },
   ]),
 }));
 jest.mock("../prospectus/prospectus-paymaster-track-record", () => ({

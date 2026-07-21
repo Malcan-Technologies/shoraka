@@ -23,7 +23,7 @@ export function buildProspectusNoteIdentityHtml(identity: ProspectusNoteIdentity
 </head>
 <body>
   <h1>Prospectus Page 1 — DATA STAGE 1: Note Identity</h1>
-  <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
+  <p>Unstyled Canva-facing preview. Missing values must be exactly: —</p>
   <section>
     <h2>${escapeHtml(identity.investmentNoteLabel)}</h2>
     <p>

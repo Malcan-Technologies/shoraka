@@ -252,7 +252,7 @@ function ProspectusReviewPageInner() {
   );
   const issuerRows = (data?.issuerProfile?.rows ?? []).map((row) =>
     row.label === "Company Size"
-      ? { ...row, value: officerCompanySize ?? "Data not available" }
+      ? { ...row, value: officerCompanySize ?? "—" }
       : row
   );
   const officerDeedOfAssignment = normalizeProspectusDeedOfAssignment(
@@ -266,13 +266,13 @@ function ProspectusReviewPageInner() {
   );
   const invoicePaymasterRows = (data?.invoicePaymaster?.rows ?? []).map((row) => {
     if (row.label === "Deed of Assignment (DOA)") {
-      return { ...row, value: officerDeedOfAssignment ?? "Data not available" };
+      return { ...row, value: officerDeedOfAssignment ?? "—" };
     }
     if (row.label === "Paymaster Rating") {
-      return { ...row, value: officerPaymasterRating ?? "Data not available" };
+      return { ...row, value: officerPaymasterRating ?? "—" };
     }
     if (row.label === "Confidence Grading") {
-      return { ...row, value: officerConfidenceGrading ?? "Data not available" };
+      return { ...row, value: officerConfidenceGrading ?? "—" };
     }
     return row;
   });

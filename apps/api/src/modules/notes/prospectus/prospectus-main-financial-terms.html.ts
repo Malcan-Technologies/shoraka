@@ -30,7 +30,7 @@ export function buildProspectusMainFinancialTermsHtml(
 </head>
 <body>
   <h1>Prospectus Page 1 — DATA STAGE 4A: Main Financial Terms</h1>
-  <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
+  <p>Unstyled Canva-facing preview. Missing values must be exactly: —</p>
   <p>
     Canonical sources:
     ${escapeHtml(financingSrc.canonicalSource)};

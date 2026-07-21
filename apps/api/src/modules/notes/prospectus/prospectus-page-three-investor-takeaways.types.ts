@@ -43,7 +43,7 @@ export const PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAY_LABELS: Record<
 export interface ProspectusPageThreeInvestorTakeawayItem {
   key: ProspectusPageThreeInvestorTakeawayKey;
   label: string;
-  /** Catalogue investor text, empty when omitted, or Data not available when unset. */
+  /** Catalogue investor text, empty when omitted, or — when unset. */
   takeaway: string;
 }
 

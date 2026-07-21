@@ -23,7 +23,7 @@ export function buildProspectusTimingPurposeHtml(data: ProspectusTimingPurpose):
 </head>
 <body>
   <h1>Prospectus Page 1 — DATA STAGE 4B: Timing and Purpose</h1>
-  <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
+  <p>Unstyled Canva-facing preview. Missing values must be exactly: —</p>
   <section>
     <h2>Investment Summary — Timing and Purpose</h2>
     <p>

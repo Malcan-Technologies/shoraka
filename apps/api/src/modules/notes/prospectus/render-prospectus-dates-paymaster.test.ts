@@ -64,7 +64,7 @@ describe("prospectus Dates and Paymaster (Page 1 DATA STAGE 2)", () => {
     expect(built.closingDate).toBe("30 May 2025 (15 days)");
   });
 
-  it("returns Data not available for Closing Date when closes_at is missing", () => {
+  it("returns — for Closing Date when closes_at is missing", () => {
     const built = buildProspectusDatesPaymaster({
       ...SAMPLE_PROSPECTUS_DATES_PAYMASTER_INPUT,
       listingClosesAt: null,
@@ -148,7 +148,7 @@ describe("prospectus Dates and Paymaster (Page 1 DATA STAGE 2)", () => {
     expect(missingName.paymasterName).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("returns Data not available when required dates or paymaster fields are missing", () => {
+  it("returns — when required dates or paymaster fields are missing", () => {
     const missing = buildProspectusDatesPaymaster({
       listingOpensAt: null,
       listingClosesAt: null,

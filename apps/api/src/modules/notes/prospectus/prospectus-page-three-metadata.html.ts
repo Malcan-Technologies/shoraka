@@ -44,7 +44,7 @@ ${data.financialYears
 </head>
 <body>
   <h1>Prospectus Page 3 — DATA STAGE 1: Shared Source + Metadata</h1>
-  <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
+  <p>Unstyled Canva-facing preview. Missing values must be exactly: —</p>
   <section>
     <h2>${escapeHtml(data.pageTitle)}</h2>
     <p>${escapeHtml(data.pageSubtitle)}</p>

@@ -24,7 +24,7 @@ describe("prospectus Shariah Investor Highlight (Page 1 DATA STAGE 5D)", () => {
     );
   });
 
-  it("returns Data not available for Shariah-compliant status", () => {
+  it("returns — for Shariah-compliant status", () => {
     const data = buildProspectusShariahHighlight({});
     expect(data.shariahCompliantStatus).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
@@ -85,13 +85,13 @@ describe("prospectus Shariah Investor Highlight (Page 1 DATA STAGE 5D)", () => {
     expect(data.audit.snapshot.snapshotDecision).toBe("pending");
 
     const html = buildProspectusShariahHighlightDocument(data);
-    expect(html).toContain("Shariah-Compliant Status: Data not available");
+    expect(html).toContain("Shariah-Compliant Status: —");
     expect(html).toContain("Shariah Principle: Bai&#39; Al-Dayn Bi Al-Sila&#39;");
     expect(html).toContain(PROSPECTUS_FIXED_SHARIAH_PRINCIPLE.replace(/'/g, "&#39;"));
-    expect(html).toContain("Evidence Source: Data not available");
-    expect(html).toContain("Adviser or Approval Reference: Data not available");
-    expect(html).toContain("Highlight Title: Data not available");
-    expect(html).toContain("Highlight Explanation: Data not available");
+    expect(html).toContain("Evidence Source: —");
+    expect(html).toContain("Adviser or Approval Reference: —");
+    expect(html).toContain("Highlight Title: —");
+    expect(html).toContain("Highlight Explanation: —");
     expect(html).not.toContain("Shariah-compliant investment");
     expect(html).not.toContain("transparent underlying transaction");
     expect(html).not.toContain("approved Shariah structure");

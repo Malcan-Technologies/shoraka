@@ -20,7 +20,7 @@ export interface ProspectusDatesPaymaster {
   maturityDateWithTenure: string;
   paymasterName: string;
   paymasterEntityType: string;
-  /** Name (entity type) when name exists; name alone; or Data not available */
+  /** Name (entity type) when name exists; name alone; or — */
   paymasterDisplay: string;
 }
 

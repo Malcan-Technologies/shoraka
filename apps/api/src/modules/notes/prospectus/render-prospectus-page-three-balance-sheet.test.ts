@@ -397,7 +397,7 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
     expect(html).toContain("8.1");
     expect(html).toContain("3.6");
     expect(html).not.toContain("RM 8,100,000.00");
-    expect(html).toContain("Data not available");
+    expect(html).toContain("—");
     expect(html).not.toContain("resolveApplicationFinancialTotalAssets");
     expect(html).not.toContain("bsclbank");
     expect(html).not.toContain("publicationExtensionPending");

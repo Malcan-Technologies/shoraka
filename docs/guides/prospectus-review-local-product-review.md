@@ -119,4 +119,4 @@ Catalogue version `2026.07.19.placeholder.v1`. Labels say “Placeholder — …
 - Whether edit + approve need separation of duties
 - When amendment/`SUPERSEDED` flow ships
 - Whether Step 0 should show live read-only field values (vs explanatory copy)
-- Company Size remains unresolved (`Data not available`) by current portal rules
+- Company Size remains unresolved (`—`) by current portal rules

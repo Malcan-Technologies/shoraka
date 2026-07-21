@@ -61,7 +61,7 @@ export function ProspectusCoverageWorkingTable({
       getEditableValue={(yearKey, field) => manualYears[yearKey]?.[field]}
       onChange={onChange}
       disabled={disabled}
-      emptyMessage="Data not available"
+      emptyMessage="—"
     />
   );
 }

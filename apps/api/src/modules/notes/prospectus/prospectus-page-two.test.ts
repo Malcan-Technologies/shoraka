@@ -605,7 +605,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
         );
         expect(page.soukscoreRatingScale.grades.every((g) => !g.isSelected)).toBe(true);
         expect(page.soukscoreRatingScale.selectedGrade).toBeNull();
-        expect(page.soukscoreRatingScale.missingRatingMessage).toBe("Risk rating not available");
+        expect(page.soukscoreRatingScale.missingRatingMessage).toBe("—");
       }
     });
 

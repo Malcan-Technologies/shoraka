@@ -115,7 +115,7 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
     );
   });
 
-  it("maps missing or invalid revenue to Data not available", () => {
+  it("maps missing or invalid revenue to —", () => {
     const data = buildProspectusPageThreeIncomeStatement({
       financialSource: sourceFromYears({
         "2024": { turnover: "", plnpat: 1 },
@@ -128,7 +128,7 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
     );
   });
 
-  it("keeps Gross Profit, EBITDA, and EBIT as Data not available without officer inputs", () => {
+  it("keeps Gross Profit, EBITDA, and EBIT as — without officer inputs", () => {
     const data = buildProspectusPageThreeIncomeStatement(
       SAMPLE_PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_INPUT
     );
@@ -334,7 +334,7 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
     expect(html).toContain("18.6");
     expect(html).not.toContain("RM 13,900,000.00");
     expect(html).not.toContain("13,900,000");
-    expect(html).toContain("Data not available");
+    expect(html).toContain("—");
     expect(html).not.toContain("turnover");
     expect(html).not.toContain("plnpbt");
     expect(html).not.toContain("calculateProfitMargin");
@@ -342,7 +342,7 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
     expect(html).not.toContain("page_2_financial_comparison_source");
 
     for (const key of ["gross_profit", "ebitda", "ebit"] as const) {
-      expect(row(data, key)?.values.every((v) => v === "Data not available")).toBe(true);
+      expect(row(data, key)?.values.every((v) => v === "—")).toBe(true);
     }
 
     const builder = readFileSync(

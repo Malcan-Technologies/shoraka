@@ -147,7 +147,7 @@ describe("page three coverage verification", () => {
     expect(rows.find((r) => r.label === "Page title")?.value).toBe(
       "DETAILED FINANCIAL COMPARISON"
     );
-    expect(rows.find((r) => r.label === "Subtitle")?.value).toBe("Data not available");
+    expect(rows.find((r) => r.label === "Subtitle")?.value).toBe("—");
     expect(rows.find((r) => r.label === "Financial years included")?.value).toBe(
       "FY2022 · FY2023 · FY2024"
     );
@@ -208,13 +208,13 @@ describe("page three coverage verification", () => {
     ).toBe("Small");
   });
 
-  it("shows Data not available for missing Page 2 gradings", () => {
+  it("shows — for missing Page 2 gradings", () => {
     const rows = buildPageThreeMetadataRows(sampleNote());
     expect(rows.find((r) => r.label === "Paymaster Grading")?.value).toBe(
-      "Data not available"
+      "—"
     );
     expect(rows.find((r) => r.label === "Confidence Grading")?.value).toBe(
-      "Data not available"
+      "—"
     );
   });
 
@@ -328,7 +328,7 @@ describe("page three coverage verification", () => {
     );
     expect(table.rows.map((r) => r.metric)).toEqual([...PAGE_THREE_RENDERED_TREND_METRICS]);
     expect(table.rows).toHaveLength(10);
-    expect(table.rows.every((r) => r.trend === "Data not available")).toBe(true);
+    expect(table.rows.every((r) => r.trend === "—")).toBe(true);
     const fy2024 = 2;
     expect(table.rows.find((r) => r.metric === "Operating Cash Flow")?.values[fy2024]).toBe(
       "1.4"
@@ -356,10 +356,10 @@ describe("page three coverage verification", () => {
       undefined
     );
     expect(table.rows.find((r) => r.metric === "Interest Coverage")?.values[0]).toBe(
-      "Data not available"
+      "—"
     );
     expect(table.rows.find((r) => r.metric === "Receivables Days")?.values[0]).toBe(
-      "Data not available"
+      "—"
     );
   });
 
@@ -395,9 +395,9 @@ describe("page three coverage verification", () => {
       "2024-12-31",
     ]);
     expect(table.rows.find((r) => r.metric === "Gross Profit")?.values).toEqual([
-      "Data not available",
-      "Data not available",
-      "Data not available",
+      "—",
+      "—",
+      "—",
     ]);
   });
 

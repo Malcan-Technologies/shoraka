@@ -34,7 +34,7 @@ describe("prospectus Paymaster Investor Highlight (Page 1 DATA STAGE 5A)", () =>
     expect(data.paymasterName).toBe("Kementerian Kerja Raya");
   });
 
-  it("returns Data not available when paymaster name is missing", () => {
+  it("returns — when paymaster name is missing", () => {
     const missing = buildProspectusPaymasterHighlight({
       paymasterName: "  ",
       paymasterEntityType: "Federal Government Agency",
@@ -51,7 +51,7 @@ describe("prospectus Paymaster Investor Highlight (Page 1 DATA STAGE 5A)", () =>
     expect(data.paymasterEntityType).not.toBe("Government Agency");
   });
 
-  it("returns Data not available when entity type is missing", () => {
+  it("returns — when entity type is missing", () => {
     const missing = buildProspectusPaymasterHighlight({
       paymasterName: "Kementerian Kerja Raya",
       paymasterEntityType: null,
@@ -109,10 +109,10 @@ describe("prospectus Paymaster Investor Highlight (Page 1 DATA STAGE 5A)", () =>
     const html = buildProspectusPaymasterHighlightDocument();
     expect(html).toContain("Paymaster Name: Kementerian Kerja Raya");
     expect(html).toContain("Paymaster Entity Type: Federal Government Agency");
-    expect(html).toContain("Government Classification: Data not available");
-    expect(html).toContain("Paymaster Payment Track Record: Data not available");
-    expect(html).toContain("Highlight Title: Data not available");
-    expect(html).toContain("Highlight Explanation: Data not available");
+    expect(html).toContain("Government Classification: —");
+    expect(html).toContain("Paymaster Payment Track Record: —");
+    expect(html).toContain("Highlight Title: —");
+    expect(html).toContain("Highlight Explanation: —");
     expect(html).not.toContain("Backed by a strong government paymaster");
     expect(html).not.toMatch(/strong payment track record/i);
     expect(html).not.toMatch(/reliable payer/i);

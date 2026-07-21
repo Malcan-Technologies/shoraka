@@ -534,7 +534,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(html).toContain("prospectus-footer");
       expect(html).not.toContain("Source Note:");
       expect(html).not.toMatch(/Source: Audited Financial Statements/i);
-      expect(html).not.toMatch(/Source: Data not available/);
+      expect(html).not.toMatch(/Source: —/);
       expect(html).toContain("Product Terms and Risk Disclosure Statement");
       expect(html).toContain("Investments are subject to credit risk");
       expect(html).not.toContain("Investment are subjects");

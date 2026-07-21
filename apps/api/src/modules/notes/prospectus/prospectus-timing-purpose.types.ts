@@ -79,6 +79,6 @@ export const PROSPECTUS_TIMING_PURPOSE_FIELD_SOURCES: Record<
     possibleAlternatives:
       "live Application financing_for; how_funds_used; business_plan — not used at render",
     notes:
-      "Frozen at Note create from applications.business_details.why_raising_funds.financing_for. Old Notes without snapshot → Data not available.",
+      "Frozen at Note create from applications.business_details.why_raising_funds.financing_for. Old Notes without snapshot → —.",
   },
 };

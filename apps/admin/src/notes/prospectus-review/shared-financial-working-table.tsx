@@ -154,7 +154,7 @@ export function ProspectusSharedFinancialWorkingTable({
                         className="whitespace-nowrap bg-muted/30 text-sm tabular-nums text-foreground"
                         title={spec.mode === "reused" ? spec.source : undefined}
                       >
-                        {row.values[index] ?? "Data not available"}
+                        {row.values[index] ?? "—"}
                       </TableCell>
                     );
                   })}

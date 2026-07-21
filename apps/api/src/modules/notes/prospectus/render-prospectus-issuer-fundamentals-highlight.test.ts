@@ -105,10 +105,10 @@ describe("prospectus Issuer Fundamentals Highlight (Page 1 DATA STAGE 5B)", () =
     expect(data.audit.claimApproval.status).toBe("pending");
 
     const html = buildProspectusIssuerFundamentalsHighlightDocument(data);
-    expect(html).toContain("Profitability Evidence: Data not available");
-    expect(html).toContain("Leverage Evidence: Data not available");
-    expect(html).toContain("Highlight Title: Data not available");
-    expect(html).toContain("Highlight Explanation: Data not available");
+    expect(html).toContain("Profitability Evidence: —");
+    expect(html).toContain("Leverage Evidence: —");
+    expect(html).toContain("Highlight Title: —");
+    expect(html).toContain("Highlight Explanation: —");
     expect(html).not.toContain("Strong issuer fundamentals");
     expect(html).not.toContain("Healthy financial profile");
     expect(html).not.toContain("Consistent profitability");

@@ -23,7 +23,7 @@ export function buildProspectusDatesPaymasterHtml(data: ProspectusDatesPaymaster
 </head>
 <body>
   <h1>Prospectus Page 1 — DATA STAGE 2: Dates and Paymaster</h1>
-  <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
+  <p>Unstyled Canva-facing preview. Missing values must be exactly: —</p>
   <section>
     <p>
       Listing Date: ${escapeHtml(data.listingDate)}<br />

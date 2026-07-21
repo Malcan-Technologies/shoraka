@@ -226,7 +226,7 @@ export const PROSPECTUS_PAGE_THREE_METADATA_FIELD_SOURCES: Record<
     surface: "canva",
     possibleAlternatives:
       "Canva deeper-issuer-analysis subtitle — not used (no approved copy)",
-    notes: "Data not available until approved production wording exists.",
+    notes: "— until approved production wording exists.",
   },
   sector: {
     label: "Sector",

@@ -173,7 +173,7 @@ describe("prospectus Page 2 CTA and shared header (DATA STAGE 8)", () => {
       expect(headerIdx).toBeGreaterThan(-1);
       expect(ctaIdx).toBeGreaterThan(headerIdx);
       expect(html).not.toContain("Source Note:");
-      expect(html).not.toContain("Source: Data not available");
+      expect(html).not.toContain("Source: —");
 
       expect(html).toContain("CashSouk");
       expect(html).toContain("Invest in Growth. Earn with Purpose.");

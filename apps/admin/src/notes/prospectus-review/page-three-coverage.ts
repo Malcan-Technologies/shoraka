@@ -20,7 +20,7 @@ export {
   selectYearsFromPageTwoFinancialTable,
 } from "./financial-year-keys";
 
-const DATA_NOT_AVAILABLE = "Data not available";
+const DATA_NOT_AVAILABLE = "—";
 const PAGE_THREE_TITLE = "DETAILED FINANCIAL COMPARISON";
 
 /** Ten Stage 5 Trend (3-Yr) outcomes only — not the internal 26-item model. */

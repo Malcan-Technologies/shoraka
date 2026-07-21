@@ -3,7 +3,8 @@
  * WHY: Static heading; raw NOTE reference; uppercase financing type display; frozen description
  */
 
-export const PROSPECTUS_DATA_NOT_AVAILABLE = "Data not available";
+/** Display for any missing / unavailable prospectus value (Admin + investor HTML/PDF). */
+export const PROSPECTUS_DATA_NOT_AVAILABLE = "—";
 
 /** Static prospectus section title — not a database field. */
 export const PROSPECTUS_INVESTMENT_NOTE_LABEL = "INVESTMENT NOTE";
@@ -70,6 +71,6 @@ export const PROSPECTUS_NOTE_IDENTITY_FIELD_SOURCES: Record<
     possibleAlternatives:
       "live Product financing-type config.description at render time — not used",
     notes:
-      "Frozen at Note create from financing_type step config.description. Old Notes without field → Data not available.",
+      "Frozen at Note create from financing_type step config.description. Old Notes without field → —.",
   },
 };

@@ -23,7 +23,7 @@ export function buildProspectusAtAGlanceHtml(data: ProspectusAtAGlance): string 
 </head>
 <body>
   <h1>Prospectus Page 1 — DATA STAGE 6: At a Glance</h1>
-  <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
+  <p>Unstyled Canva-facing preview. Missing values must be exactly: —</p>
   <section>
     <h2>At a Glance</h2>
     <p>

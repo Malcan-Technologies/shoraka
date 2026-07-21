@@ -25,7 +25,7 @@ export function buildProspectusInvoiceWorkNarrativeHtml(
 </head>
 <body>
   <h1>Prospectus Page 2 — DATA STAGE 6: About the Invoice / Work Performed</h1>
-  <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
+  <p>Unstyled Canva-facing preview. Missing values must be exactly: —</p>
   <section>
     <h2>${escapeHtml(data.sectionHeading)}</h2>
     <ul>
@@ -38,7 +38,7 @@ export function buildProspectusInvoiceWorkNarrativeHtml(
         ]
           .filter((text) => Boolean(text && text.trim()))
           .map((text) => `<li>${escapeHtml(text)}</li>`)
-          .join("\n      ") || `<li>${escapeHtml("Data not available")}</li>`
+          .join("\n      ") || `<li>${escapeHtml("—")}</li>`
       }
     </ul>
   </section>

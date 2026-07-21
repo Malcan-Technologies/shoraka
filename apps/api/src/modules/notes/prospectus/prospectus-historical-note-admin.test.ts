@@ -86,7 +86,7 @@ describe("toAdminHistoricalNoteTable", () => {
     expect(admin.rows[0]?.financingType).toBe("Account Receivable Financing");
     expect(admin.rows[0]?.amountRm).toContain("80,000");
     expect(admin.rows[0]?.status).toBe("Repaid");
-    expect(admin.rows[0]?.repaymentDate).not.toBe("Data not available");
+    expect(admin.rows[0]?.repaymentDate).not.toBe("—");
     expect(admin.rows[0]?.amountRm).not.toContain("100,000");
   });
 });

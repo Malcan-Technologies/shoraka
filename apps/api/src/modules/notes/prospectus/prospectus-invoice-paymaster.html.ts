@@ -25,7 +25,7 @@ export function buildProspectusInvoicePaymasterHtml(
 </head>
 <body>
   <h1>Prospectus Page 2 — DATA STAGE 2: Invoice &amp; Paymaster Information</h1>
-  <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
+  <p>Unstyled Canva-facing preview. Missing values must be exactly: —</p>
   <section>
     <h2>${escapeHtml(data.sectionHeading)}</h2>
     <p>

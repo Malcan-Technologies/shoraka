@@ -46,11 +46,11 @@ describe("prospectus Page 3 trends (DATA STAGE 5)", () => {
     expect(new Set(keys).size).toBe(26);
   });
 
-  it("keeps every visible trend and interpretation as Data not available", () => {
+  it("keeps every visible trend and interpretation as —", () => {
     const data = buildProspectusPageThreeTrends(SAMPLE_PROSPECTUS_PAGE_THREE_TRENDS_INPUT);
     for (const item of data.trends) {
       expect(item.trend).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-      expect(item.trend).toBe("Data not available");
+      expect(item.trend).toBe("—");
       expect(item.interpretation).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
       expect(item.direction).toBeNull();
       expect(item.approved).toBe(false);
@@ -178,7 +178,7 @@ describe("prospectus Page 3 trends (DATA STAGE 5)", () => {
   it("hides audit and does not display raw metric keys or debug JSON in HTML", () => {
     const data = buildProspectusPageThreeTrends(SAMPLE_PROSPECTUS_PAGE_THREE_TRENDS_INPUT);
     const html = buildProspectusPageThreeTrendsDocument(data);
-    expect(html).toContain("Data not available");
+    expect(html).toContain("—");
     expect(html).toContain("Revenue");
     expect(html).toContain("Return on Equity");
     expect(html).not.toContain("higher_is_better_candidate");

@@ -71,7 +71,7 @@ export type PaymasterNatureBucket =
   | "corporate"
   | "unknown";
 
-const DNA = "Data not available";
+const DNA = "—";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)

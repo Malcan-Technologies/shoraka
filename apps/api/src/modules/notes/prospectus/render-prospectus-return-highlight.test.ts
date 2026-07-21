@@ -37,7 +37,7 @@ describe("prospectus Return Investor Highlight (Page 1 DATA STAGE 5C)", () => {
     expect(data.annualGrossProfitRate).toBe("12%");
   });
 
-  it("returns Data not available when gross rate is missing", () => {
+  it("returns — when gross rate is missing", () => {
     const data = buildProspectusReturnHighlight({
       ...SAMPLE_PROSPECTUS_RETURN_HIGHLIGHT_INPUT,
       profitRatePercent: null,
@@ -55,7 +55,7 @@ describe("prospectus Return Investor Highlight (Page 1 DATA STAGE 5C)", () => {
     expect(data.tenure).toBe("120 days");
   });
 
-  it("returns Data not available when tenure inputs are missing", () => {
+  it("returns — when tenure inputs are missing", () => {
     const data = buildProspectusReturnHighlight({
       ...SAMPLE_PROSPECTUS_RETURN_HIGHLIGHT_INPUT,
       listingOpensAt: null,
@@ -77,7 +77,7 @@ describe("prospectus Return Investor Highlight (Page 1 DATA STAGE 5C)", () => {
     expect(data.annualNetExpectedReturnRate).toBe("12%");
   });
 
-  it("returns Data not available for net rate when service fee is missing or invalid", () => {
+  it("returns — for net rate when service fee is missing or invalid", () => {
     expect(
       buildProspectusReturnHighlight({
         ...SAMPLE_PROSPECTUS_RETURN_HIGHLIGHT_INPUT,
@@ -136,10 +136,10 @@ describe("prospectus Return Investor Highlight (Page 1 DATA STAGE 5C)", () => {
     expect(html).toContain("Tenure: 120 days");
     expect(html).toContain("Annual Net Expected Return Rate (p.a.): 10.2%");
     expect(html).toContain("Expected Return (p.a.): 10.2%");
-    expect(html).toContain("Return Classification: Data not available");
-    expect(html).toContain("Tenure Classification: Data not available");
-    expect(html).toContain("Highlight Title: Data not available");
-    expect(html).toContain("Highlight Explanation: Data not available");
+    expect(html).toContain("Return Classification: —");
+    expect(html).toContain("Tenure Classification: —");
+    expect(html).toContain("Highlight Title: —");
+    expect(html).toContain("Highlight Explanation: —");
     expect(html).not.toContain("3.95%");
     expect(html).not.toContain("Attractive short-term returns");
     expect(html).not.toContain("Earn up to");

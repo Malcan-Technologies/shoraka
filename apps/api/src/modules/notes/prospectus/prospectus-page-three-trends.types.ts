@@ -85,11 +85,11 @@ export const PROSPECTUS_PAGE_THREE_TREND_CANDIDATE_INTERPRETATION_CLASS: Record<
 export interface ProspectusPageThreeTrendItem {
   metricKey: ProspectusPageThreeTrendMetricKey;
   metricLabel: string;
-  /** Always Data not available until approved rules exist. */
+  /** Always — until approved rules exist. */
   trend: string;
   /** Internal only — never rendered. */
   direction: null;
-  /** Always Data not available until approved rules exist. */
+  /** Always — until approved rules exist. */
   interpretation: string;
   /** Audit/future only — not Canva-facing meaning. */
   candidateInterpretationClass: ProspectusPageThreeCandidateInterpretationClass;

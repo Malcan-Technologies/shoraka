@@ -72,13 +72,13 @@ describe("prospectus Page 3 investor takeaways (DATA STAGE 6)", () => {
     expect(new Set(data.items.map((i) => i.key)).size).toBe(6);
   });
 
-  it("keeps every takeaway as Data not available without typed selections", () => {
+  it("keeps every takeaway as — without typed selections", () => {
     const data = buildProspectusPageThreeInvestorTakeaways(
       SAMPLE_PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAYS_INPUT
     );
     for (const item of data.items) {
       expect(item.takeaway).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-      expect(item.takeaway).toBe("Data not available");
+      expect(item.takeaway).toBe("—");
       expect(item.takeaway.trim()).not.toBe("");
     }
     expect(
@@ -272,7 +272,7 @@ describe("prospectus Page 3 investor takeaways (DATA STAGE 6)", () => {
     );
     const html = buildProspectusPageThreeInvestorTakeawaysDocument(data);
     expect(html).toContain("4. INVESTOR TAKEAWAYS");
-    expect(html).toContain("Data not available");
+    expect(html).toContain("—");
     expect(html).not.toContain("page_3.investor_takeaways");
     expect(html).not.toContain("generatedTextAllowed");
     expect(html).not.toContain("steady year-on-year growth");

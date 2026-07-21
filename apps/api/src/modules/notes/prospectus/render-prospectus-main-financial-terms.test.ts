@@ -49,7 +49,7 @@ describe("prospectus Main Financial Terms (Page 1 DATA STAGE 4A)", () => {
     expect(formatProspectusMoneyMyr(500_000)).toBe("RM 500,000.00");
   });
 
-  it("returns Data not available for missing financing amount", () => {
+  it("returns — for missing financing amount", () => {
     const missing = buildProspectusMainFinancialTerms({
       targetAmount: null,
       profitRatePercent: 12,
@@ -93,7 +93,7 @@ describe("prospectus Main Financial Terms (Page 1 DATA STAGE 4A)", () => {
     expect(formatProspectusProfitRatePercent(10.375)).toBe("10.4%");
   });
 
-  it("returns Data not available for missing or invalid profit rate", () => {
+  it("returns — for missing or invalid profit rate", () => {
     expect(
       buildProspectusMainFinancialTerms({
         targetAmount: 500_000,

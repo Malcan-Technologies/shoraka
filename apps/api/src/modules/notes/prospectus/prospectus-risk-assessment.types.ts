@@ -25,7 +25,7 @@ export interface ProspectusRiskAssessmentCanvaFacing {
 
 /** Debug/audit metadata — not rendered in Canva-facing HTML. */
 export interface ProspectusRiskAssessmentAudit {
-  /** Always Data not available — no numerical SoukScore on Note. */
+  /** Always — — no numerical SoukScore on Note. */
   riskScore: string;
   riskAppliesTo: string;
   assessmentSource: string;

@@ -23,7 +23,7 @@ export function buildProspectusShariahHighlightHtml(data: ProspectusShariahHighl
 </head>
 <body>
   <h1>Prospectus Page 1 — DATA STAGE 5D: Shariah Investor Highlight</h1>
-  <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
+  <p>Unstyled Canva-facing preview. Missing values must be exactly: —</p>
   <section>
     <h2>Key Investor Highlights — Shariah</h2>
     <p>

@@ -31,7 +31,7 @@ export function buildProspectusCreditInsightsHtml(data: ProspectusCreditInsights
 </head>
 <body>
   <h1>Prospectus Page 2 — DATA STAGE 5: Credit Insights</h1>
-  <p>Unstyled Canva-facing preview. Missing Draft values must be exactly: Data not available. No footer. All five rows are mandatory.</p>
+  <p>Unstyled Canva-facing preview. Missing Draft values must be exactly: —. No footer. All five rows are mandatory.</p>
   <section>
     <h2>${escapeHtml(data.sectionHeading)}</h2>
     <p>

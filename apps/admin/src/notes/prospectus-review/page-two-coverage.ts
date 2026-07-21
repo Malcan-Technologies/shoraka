@@ -9,7 +9,7 @@ import {
 import type { CoreTermRow } from "./core-terms";
 import type { FinancialMetricTableModel } from "./financial-metric-table";
 
-const DATA_NOT_AVAILABLE = "Data not available";
+const DATA_NOT_AVAILABLE = "—";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -241,7 +241,7 @@ export function buildInvoicePaymasterVerificationRows(note: NoteDetail): CoreTer
 
 /**
  * Compact 3-year financial comparison table using Application unaudited years.
- * Same supported helpers as Page 2; unsupported rows stay Data not available.
+ * Same supported helpers as Page 2; unsupported rows stay —.
  */
 export function buildPageTwoFinancialComparisonTable(
   financialStatements: unknown

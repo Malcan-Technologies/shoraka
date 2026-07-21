@@ -19,7 +19,7 @@ function nonEmptyString(value: string | null | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-/** Presentation only — stores raw country in snapshot; never "Registered in Data not available". */
+/** Presentation only — stores raw country in snapshot; never "Registered in —". */
 export function formatProspectusRegisteredCountry(
   country: string | null | undefined
 ): string {

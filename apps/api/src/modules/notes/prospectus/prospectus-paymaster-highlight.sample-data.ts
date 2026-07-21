@@ -1,6 +1,6 @@
 /**
  * SECTION: Sample Paymaster Highlight for Stage 5A preview
- * WHY: Real frozen name/entity; unsupported claims stay Data not available
+ * WHY: Real frozen name/entity; unsupported claims stay —
  */
 
 import { buildProspectusPaymasterHighlight } from "./prospectus-paymaster-highlight";

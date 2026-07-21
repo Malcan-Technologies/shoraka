@@ -57,7 +57,7 @@ export function buildProspectusHistoricalNoteTableHtml(
 </head>
 <body>
   <h1>Prospectus Page 1 — DATA STAGE 8: Historical Note Table</h1>
-  <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
+  <p>Unstyled Canva-facing preview. Missing values must be exactly: —</p>
   <table border="1" cellpadding="6" cellspacing="0">
     <thead>
       <tr>${header}</tr>

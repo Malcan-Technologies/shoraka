@@ -232,9 +232,9 @@ describe("prospectus Page 1 mapper (Stages 1–6)", () => {
         invoice_snapshot: { offer_details: { risk_rating: "A-" } },
       })
     );
-    expect(invalid.riskAssessment.canva.riskGrade).toBe("Risk rating not available");
-    expect(invalid.riskAssessment.canva.riskLabel).toBe("Risk rating not available");
-    expect(invalid.riskAssessment.canva.riskExplanation).toBe("Risk rating not available");
+    expect(invalid.riskAssessment.canva.riskGrade).toBe("—");
+    expect(invalid.riskAssessment.canva.riskLabel).toBe("—");
+    expect(invalid.riskAssessment.canva.riskExplanation).toBe("—");
   });
 
   it("maps target amount, profit rate, and platform minimum", async () => {

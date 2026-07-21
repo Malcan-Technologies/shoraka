@@ -55,7 +55,7 @@ describe("prospectus Risk Assessment (Page 1 DATA STAGE 3)", () => {
     expect(built.audit.scaleStatus).toBe(PROSPECTUS_RATING_SCALE_STATUS);
   });
 
-  it("shows Risk rating not available for invalid or missing grade", () => {
+  it("shows — for invalid or missing grade", () => {
     for (const bad of ["A-", null, undefined, "Low Risk", "72", "HIGH", "C"] as const) {
       const built = buildProspectusRiskAssessment({ soukscoreRiskRating: bad });
       expect(built.canva.riskGrade).toBe(SOUKSCORE_RISK_RATING_UNAVAILABLE);
@@ -84,8 +84,8 @@ describe("prospectus Risk Assessment (Page 1 DATA STAGE 3)", () => {
       "Risk explanation: The issuer demonstrates strong financial strength and a strong capacity to meet its financial obligations."
     );
     expect(html).toContain(`Rating scale reference: ${PROSPECTUS_RATING_SCALE_REFERENCE}`);
-    expect(html).not.toContain("Risk label: Data not available");
-    expect(html).not.toContain("Risk explanation: Data not available");
+    expect(html).not.toContain("Risk label: —");
+    expect(html).not.toContain("Risk explanation: —");
     expect(html).not.toContain("Risk score:");
     expect(html).not.toContain("Risk applies to:");
     expect(html).not.toContain("Assessment source:");

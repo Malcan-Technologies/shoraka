@@ -30,7 +30,7 @@ export function buildProspectusRiskAssessmentHtml(data: ProspectusRiskAssessment
 </head>
 <body>
   <h1>Prospectus Page 1 — DATA STAGE 3: Risk Assessment</h1>
-  <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
+  <p>Unstyled Canva-facing preview. Missing values must be exactly: —</p>
   <p>SoukScore grades only (AAA, AA, A, BBB, BB, B). Invalid Canva grades are rejected. Page 2 scale status: ${escapeHtml(
     PROSPECTUS_RATING_SCALE_STATUS
   )} (not shown in risk box).</p>

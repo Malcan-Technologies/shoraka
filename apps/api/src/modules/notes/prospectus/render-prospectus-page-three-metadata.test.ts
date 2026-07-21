@@ -33,9 +33,9 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
     expect(data.pageTitle).toBe(PROSPECTUS_PAGE_THREE_PAGE_TITLE);
   });
 
-  it("keeps page subtitle as Data not available", () => {
+  it("keeps page subtitle as —", () => {
     expect(withSource().pageSubtitle).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(withSource().pageSubtitle).toBe("Data not available");
+    expect(withSource().pageSubtitle).toBe("—");
   });
 
   it("hides issuer identity from metadata strip", () => {
@@ -50,7 +50,7 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
     expect(withSource().metadata.sector).toBe("Construction | Medium");
   });
 
-  it("maps missing Industry and Company Size to Data not available", () => {
+  it("maps missing Industry and Company Size to —", () => {
     expect(
       withSource({ issuerSector: undefined, officerCompanySize: undefined }).metadata
         .sector
@@ -93,7 +93,7 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
     );
   });
 
-  it("maps missing risk rating to Data not available", () => {
+  it("maps missing risk rating to —", () => {
     expect(withSource({ selectedRiskRating: undefined }).metadata.riskRating).toBe(
       PROSPECTUS_DATA_NOT_AVAILABLE
     );
@@ -103,19 +103,19 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
     expect(withSource().metadata.paymaster).toBe("Kementerian Kerja Raya");
   });
 
-  it("maps missing paymaster to Data not available", () => {
+  it("maps missing paymaster to —", () => {
     expect(withSource({ paymasterName: undefined }).metadata.paymaster).toBe(
       PROSPECTUS_DATA_NOT_AVAILABLE
     );
   });
 
-  it("maps missing Page 2 Paymaster Grading to Data not available", () => {
+  it("maps missing Page 2 Paymaster Grading to —", () => {
     expect(
       withSource({ officerPaymasterRating: undefined }).metadata.paymasterGrading
     ).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("maps missing Page 2 Confidence Grading to Data not available", () => {
+  it("maps missing Page 2 Confidence Grading to —", () => {
     expect(
       withSource({ officerConfidenceGrading: undefined }).metadata.confidenceGrading
     ).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);

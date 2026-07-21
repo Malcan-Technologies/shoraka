@@ -128,10 +128,10 @@ describe("note & investment details coverage", () => {
     const trackRows = [
       { label: "Total Notes Funded", value: "0" },
       { label: "Total Amount Funded", value: "RM 0.00" },
-      { label: "Successful Repayment", value: "Data not available" },
+      { label: "Successful Repayment", value: "—" },
       {
         label: "On-time Payment Rate — Last 6 Months",
-        value: "Data not available",
+        value: "—",
       },
     ];
     const sections = appendIssuerTrackRecordSection(base, trackRows);
@@ -163,11 +163,11 @@ describe("note & investment details coverage", () => {
     expect(track.rows.find((r) => r.label === "Total Notes Funded")?.value).toBe("0");
     expect(track.rows.find((r) => r.label === "Total Amount Funded")?.value).toBe("RM 0.00");
     expect(track.rows.find((r) => r.label === "Successful Repayment")?.value).toBe(
-      "Data not available"
+      "—"
     );
     expect(
       track.rows.find((r) => r.label === "On-time Payment Rate — Last 6 Months")?.value
-    ).toBe("Data not available");
+    ).toBe("—");
   });
 
   it("does not append Issuer Track Record when API rows are missing", () => {
@@ -329,20 +329,20 @@ describe("note & investment details coverage", () => {
       (s) => s.id === "risk-information"
     )!.rows;
     expect(missing.find((r) => r.label === "Risk Rating")?.value).toBe(
-      "Risk rating not available"
+      "—"
     );
     expect(missing.find((r) => r.label === "Risk Label")?.value).toBe(
-      "Risk rating not available"
+      "—"
     );
     expect(missing.find((r) => r.label === "Risk Explanation")?.value).toBe(
-      "Risk rating not available"
+      "—"
     );
 
     const invalid = buildNoteInvestmentDetailSections(
       sampleNote({ riskRating: "C" as never })
     ).find((s) => s.id === "risk-information")!.rows;
     expect(invalid.find((r) => r.label === "Risk Rating")?.value).toBe(
-      "Risk rating not available"
+      "—"
     );
   });
 
@@ -380,7 +380,7 @@ describe("note & investment details coverage", () => {
     );
     expect(terms.find((r) => r.label === "Payment Basis")?.value).not.toBe("Not selected");
     expect(terms.find((r) => r.label === "Shariah Principle")?.value).not.toBe(
-      "Data not available"
+      "—"
     );
 
     const source = fs.readFileSync(path.join(__dirname, "core-terms.ts"), "utf8");
@@ -390,20 +390,19 @@ describe("note & investment details coverage", () => {
     expect(source).not.toMatch(/Payment Basis[\s\S]{0,80}Not selected/);
   });
 
-  it("shows Data not available for missing Purpose of Financing without Application fallback", () => {
+  it("shows — for missing Purpose of Financing without Application fallback", () => {
     const terms = buildNoteInvestmentDetailSections(
       sampleNote({ purposeSnapshot: null })
     ).find((s) => s.id === "investment-terms")!.rows;
     expect(terms.find((r) => r.label === "Purpose of Financing")?.value).toBe(
-      "Data not available"
+      "—"
     );
-    expect(terms.find((r) => r.label === "Purpose of Financing")?.value).not.toBe("—");
 
     const blank = buildNoteInvestmentDetailSections(
       sampleNote({ purposeSnapshot: { financing_for: "   " } })
     ).find((s) => s.id === "investment-terms")!.rows;
     expect(blank.find((r) => r.label === "Purpose of Financing")?.value).toBe(
-      "Data not available"
+      "—"
     );
 
     const source = fs.readFileSync(path.join(__dirname, "core-terms.ts"), "utf8");
@@ -491,7 +490,7 @@ describe("Investment Summary Tenure and Maturity Date", () => {
     expect(source).not.toMatch(/daysLeft|investorDays|differenceInCalendarDays/);
   });
 
-  it("shows Data not available for missing Tenure and Maturity Date in Investment Summary", () => {
+  it("shows — for missing Tenure and Maturity Date in Investment Summary", () => {
     const base = sampleNote();
     const summary = sectionRows(
       sampleNote({
@@ -503,10 +502,8 @@ describe("Investment Summary Tenure and Maturity Date", () => {
       }),
       "investment-terms"
     );
-    expect(value(summary, "Tenure")).toBe("Data not available");
-    expect(value(summary, "Maturity Date")).toBe("Data not available");
-    expect(value(summary, "Tenure")).not.toBe("—");
-    expect(value(summary, "Maturity Date")).not.toBe("—");
+    expect(value(summary, "Tenure")).toBe("—");
+    expect(value(summary, "Maturity Date")).toBe("—");
   });
 });
 
@@ -539,7 +536,7 @@ describe("Dates & Paymaster prospectus alignment", () => {
         createdAt: "2025-12-01T00:00:00.000Z",
       })
     );
-    expect(value(rows, "Listing Date")).toBe("Data not available");
+    expect(value(rows, "Listing Date")).toBe("—");
     expect(value(rows, "Listing Date")).not.toContain("2026");
     expect(value(rows, "Listing Date")).not.toContain("2025");
   });
@@ -632,7 +629,7 @@ describe("Dates & Paymaster prospectus alignment", () => {
     expect(value(rows, "Tenure")).not.toBe(`${adminRoundDays} days`);
   });
 
-  it("shows Data not available for missing tenure inputs, paymaster, and nature", () => {
+  it("shows — for missing tenure inputs, paymaster, and nature", () => {
     const base = sampleNote();
     const rows = datesRows(
       sampleNote({
@@ -647,14 +644,12 @@ describe("Dates & Paymaster prospectus alignment", () => {
         paymasterSnapshot: {},
       })
     );
-    expect(value(rows, "Listing Date")).toBe("Data not available");
-    expect(value(rows, "Closing Date")).toBe("Data not available");
-    expect(value(rows, "Maturity Date")).toBe("Data not available");
-    expect(value(rows, "Tenure")).toBe("Data not available");
-    expect(value(rows, "Paymaster")).toBe("Data not available");
-    expect(value(rows, "Nature of Paymaster")).toBe("Data not available");
-    expect(value(rows, "Paymaster")).not.toBe("—");
-    expect(value(rows, "Nature of Paymaster")).not.toBe("—");
+    expect(value(rows, "Listing Date")).toBe("—");
+    expect(value(rows, "Closing Date")).toBe("—");
+    expect(value(rows, "Maturity Date")).toBe("—");
+    expect(value(rows, "Tenure")).toBe("—");
+    expect(value(rows, "Paymaster")).toBe("—");
+    expect(value(rows, "Nature of Paymaster")).toBe("—");
   });
 });
 

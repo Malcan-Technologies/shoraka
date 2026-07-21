@@ -111,10 +111,10 @@ describe("page two coverage verification", () => {
       "Government Ministry"
     );
     expect(rows.find((r) => r.label === "Deed of Assignment (DOA)")?.value).toBe(
-      "Data not available"
+      "—"
     );
-    expect(rows.find((r) => r.label === "Paymaster Rating")?.value).toBe("Data not available");
-    expect(rows.find((r) => r.label === "Confidence Grading")?.value).toBe("Data not available");
+    expect(rows.find((r) => r.label === "Paymaster Rating")?.value).toBe("—");
+    expect(rows.find((r) => r.label === "Confidence Grading")?.value).toBe("—");
   });
 
   it("parses invoice face value only from invoice_snapshot.details.value", () => {
@@ -169,7 +169,7 @@ describe("page two coverage verification", () => {
     expect(
       table.rows
         .find((r) => r.metric === "Net Debt / Equity")
-        ?.values.every((v) => v === "Data not available")
+        ?.values.every((v) => v === "—")
     ).toBe(true);
     expect(table.rows.every((r) => r.trend == null)).toBe(true);
   });

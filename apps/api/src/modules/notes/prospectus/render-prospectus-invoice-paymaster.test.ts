@@ -40,7 +40,7 @@ describe("prospectus Page 2 Invoice & Paymaster Information (DATA STAGE 2)", () 
     expect(data.invoiceAmount).not.toContain("111");
   });
 
-  it("returns Data not available for missing or invalid invoice amount", () => {
+  it("returns — for missing or invalid invoice amount", () => {
     expect(
       buildProspectusInvoicePaymaster({
         invoiceSnapshot: { details: {} },

@@ -11,7 +11,7 @@ import {
   type NoteDetail,
 } from "@cashsouk/types";
 
-const DATA_NOT_AVAILABLE = "Data not available";
+const DATA_NOT_AVAILABLE = "—";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -253,15 +253,15 @@ export function buildIssuerProfileRows(note: NoteDetail): CoreTermRow[] {
       ? issuer.business_description.trim()
       : null;
   return [
-    { label: "Industry", value: industry ?? "Data not available" },
-    { label: "Company Size", value: "Data not available" },
+    { label: "Industry", value: industry ?? "—" },
+    { label: "Company Size", value: "—" },
     {
       label: "Registered Country",
-      value: country ? `Registered in ${country}` : "Data not available",
+      value: country ? `Registered in ${country}` : "—",
     },
     {
       label: "Business Description",
-      value: description ?? "Data not available",
+      value: description ?? "—",
     },
   ];
 }

@@ -22,7 +22,7 @@ export const PROSPECTUS_SOUKSCORE_GRADE_ORDER = SOUKSCORE_RISK_RATING_GRADES;
 export const PROSPECTUS_SOUKSCORE_SCALE_VERSION = "2026.07.21.soukscore-scale.v1";
 
 /** Shown once under the scale when the frozen Note grade is missing or invalid. */
-export const PROSPECTUS_SOUKSCORE_RATING_NOT_AVAILABLE = "Risk rating not available";
+export const PROSPECTUS_SOUKSCORE_RATING_NOT_AVAILABLE = "—";
 
 export interface ProspectusSoukscoreGradeItem {
   grade: SoukscoreRiskRating;

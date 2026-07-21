@@ -16,7 +16,7 @@ export function isSoukscoreRiskRating(value: unknown): value is SoukscoreRiskRat
 }
 
 /** Shared unavailable copy when grade is missing or invalid (Prospectus + Admin). */
-export const SOUKSCORE_RISK_RATING_UNAVAILABLE = "Risk rating not available";
+export const SOUKSCORE_RISK_RATING_UNAVAILABLE = "—";
 
 export type SoukscoreRiskRatingCatalogueEntry = {
   grade: SoukscoreRiskRating;

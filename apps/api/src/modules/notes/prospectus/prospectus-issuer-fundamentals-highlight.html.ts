@@ -25,7 +25,7 @@ export function buildProspectusIssuerFundamentalsHighlightHtml(
 </head>
 <body>
   <h1>Prospectus Page 1 — DATA STAGE 5B: Issuer Fundamentals Highlight</h1>
-  <p>Unstyled Canva-facing preview. Missing values must be exactly: Data not available</p>
+  <p>Unstyled Canva-facing preview. Missing values must be exactly: —</p>
   <section>
     <h2>Key Investor Highlights — Issuer Fundamentals</h2>
     <p>

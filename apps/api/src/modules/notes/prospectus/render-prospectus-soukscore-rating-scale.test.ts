@@ -105,7 +105,7 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     expect(html).not.toContain("Assessment Note");
     expect(html).not.toContain("Risk Label");
     expect(html).not.toContain("Definition:");
-    expect(html).not.toContain("Data not available");
+    expect(html).not.toContain('class="soukscore-missing"');
   });
 
   it("rejects Canva A–E scale items while keeping valid grade A", () => {
@@ -187,13 +187,14 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     expect(html).toContain('aria-current="true"');
     expect((html.match(/data-grade="[^"]+" data-selected="true"/g) ?? []).length).toBe(1);
     expect((html.match(/data-grade="[^"]+" data-selected="false"/g) ?? []).length).toBe(5);
-    expect(html).not.toContain(PROSPECTUS_SOUKSCORE_RATING_NOT_AVAILABLE);
+    expect(html).not.toContain('class="soukscore-missing"');
 
     const missingHtml = buildProspectusSoukscoreRatingScaleDocument(
       buildProspectusSoukscoreRatingScale(SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_MISSING_INPUT)
     );
+    expect(missingHtml).toContain('class="soukscore-missing"');
     expect(missingHtml).toContain(PROSPECTUS_SOUKSCORE_RATING_NOT_AVAILABLE);
-    expect((missingHtml.match(/Risk rating not available/g) ?? []).length).toBe(1);
+    expect((missingHtml.match(/class="soukscore-missing"/g) ?? []).length).toBe(1);
     expect((missingHtml.match(/data-grade="[^"]+" data-selected="true"/g) ?? []).length).toBe(0);
 
     expect(PROSPECTUS_SOUKSCORE_RATING_SCALE_FIELD_SOURCES.assessmentNote.availability).toBe(

@@ -33,7 +33,7 @@ describe("prospectus highlight recommendations", () => {
   it("returns DNA paymaster copy when name is missing", () => {
     expect(recommendPaymasterHighlight({ paymasterSnapshot: {} })).toEqual({
       title: "Paymaster information",
-      description: "Data not available",
+      description: "—",
     });
   });
 
@@ -44,7 +44,7 @@ describe("prospectus highlight recommendations", () => {
       );
     }
     expect(recommendIssuerFinancialStrengthHighlight({ riskRating: "C" }).description).toBe(
-      "Data not available"
+      "—"
     );
   });
 
@@ -85,7 +85,7 @@ describe("prospectus highlight recommendations", () => {
     });
     expect(recommendReturnHighlight({})).toEqual({
       title: "Investment return",
-      description: "Data not available",
+      description: "—",
     });
   });
 

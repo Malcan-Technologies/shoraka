@@ -39,11 +39,11 @@ describe("prospectus SoukScore cross-page and freeze", () => {
   it("bakes resolved label and explanation into Page 1 HTML for freeze/copy publish", () => {
     const presentation = resolveSoukscoreRiskRatingPresentation("A");
     const html = buildProspectusPageOneHtml(SAMPLE_PROSPECTUS_PAGE_ONE);
-    expect(html).toContain(`Risk Rating: ${presentation.grade}`);
-    expect(html).toContain(`Risk label: ${presentation.label}`);
-    expect(html).toContain(`Risk explanation: ${presentation.explanation}`);
+    expect(html).toContain(`<div class="shield">${presentation.grade}</div>`);
+    expect(html).toContain(presentation.label);
+    expect(html).toContain(presentation.explanation);
     expect(html).toContain("See rating scale on page 2");
-    expect(html).not.toMatch(/Risk label: Data not available/);
+    expect(html).not.toContain("Data not available");
     expect(html).toContain("Moderately Low Risk");
 
     const published = structuredClone({ html: { page1: html } });

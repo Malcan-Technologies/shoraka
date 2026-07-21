@@ -76,7 +76,7 @@
  * - Stage 4B purpose: notes.purpose_snapshot.financing_for (no live Application fallback)
  * - Stages 7–8 when published + valid prospectus_snapshot.page_1: use frozen values only
  * - Stages 7–8 when unpublished (no freeze yet): live preview via buildProspectusPage1TrackRecordSnapshot
- * - Stages 7–8 when published but snapshot missing/malformed: Data not available / empty table;
+ * - Stages 7–8 when published but snapshot missing/malformed: — / empty table;
  *   do NOT live-recalculate (publication stability)
  *
  * Assembly order (prospectus-page-one.html.ts):
@@ -121,10 +121,10 @@
  * - Business Description → notes.issuer_snapshot.business_description
  *   (leading issuer name stripped when present)
  *
- * HIDDEN (not rendered; rows removed — not "Data not available"):
+ * HIDDEN (not rendered; rows removed — not "—"):
  * - Company Name / Registration Number / old SSM / Entity Type
  *
- * Backward compatibility: old Notes missing new snapshot keys → Data not available
+ * Backward compatibility: old Notes missing new snapshot keys → —
  * No live IssuerOrganization / Application fallback at render.
  *
  * =============================================================================
@@ -193,9 +193,9 @@
  * - display: d MMM yyyy (e.g. 31 Dec 2024)
  * - no hardcoded 31 December when source missing/invalid
  *
- * Table unit label: Data not available (no MYR mil. / compact conversion)
+ * Table unit label: — (no MYR mil. / compact conversion)
  * Future Stage 4B cells: full MYR via formatProspectusMoneyMyr
- * Source note: Data not available (no audited/management claim)
+ * Source note: — (no audited/management claim)
  *
  * Live Application values; freeze later at prospectus publication
  * (notes.prospectus_snapshot.page_2). Stage 4B calculates supported metrics.
@@ -217,7 +217,7 @@
  * - ROE → calculateReturnOnEquity(plnpat, bsqpuc) → percent from ratio
  * - Current Ratio → calculateCurrentRatio(bscatot, curlib) → "{n}x"
  *
- * Officer-configurable when unset → Data not available (no approximation):
+ * Officer-configurable when unset → — (no approximation):
  * - Net Debt / Equity — page2.financialComparison.overrides; do NOT substitute calculateGearing
  * - Interest Coverage — officer override per year
  * - DSCR — officer override per year
@@ -261,7 +261,7 @@
  * DOA upload slot or file does not prove valid execution or assignment.
  * Application free text is not used as legal proof.
  *
- * All four current statements are Data not available:
+ * All four current statements are —:
  * - Work Under Contract Statement
  * - Certification and Acceptance Statement
  * - Paymaster-to-Trust-Account Statement
@@ -296,7 +296,7 @@
  * CTOS / CCRIS / RegTank / AML / KYC / Credit Insights not mixed
  * Selected grade highlighted (isSelected / data-selected); horizontal scale
  * Not Prospectus-editable; Admin shows read-only frozen Note grade
- * Missing/invalid grade → scale with no selection + "Risk rating not available"
+ * Missing/invalid grade → scale with no selection + "—"
  *
  * Page 1 relationship (Page 1 not modified here):
  * - Page 1 links with "See rating scale on page 2"
@@ -315,7 +315,7 @@
  * Header:
  * - Official logo: apps/investor/public/logo.svg (packages/ui Logo → /logo.svg)
  * - Tagline requires confirmed existing brand copy — Canva-only wording not approved
- * - Shariah badge unresolved (Data not available)
+ * - Shariah badge unresolved (—)
  * - No inference from -i product names, Tawarruq, or Shoraka
  *
  * CTA (static frozen content only):
@@ -451,7 +451,7 @@
  * - Listing date must use note_listings.opens_at only
  * - Tenure must use opens_at → maturity_date only
  * - Expected period return still needs a business decision
- * - Stage 4C (payment basis / shariah principle) implemented as unresolved → Data not available
+ * - Stage 4C (payment basis / shariah principle) implemented as unresolved → —
  * - Stage 5A (paymaster highlight) in prospectus-paymaster-highlight.* — name/entity only; claims unresolved
  *
  * Stage 5A paymaster highlight — correction notes:
@@ -483,7 +483,7 @@
  *
  * Stage 5D Shariah highlight — correction notes:
  * - No structured Product-level or Note-level Shariah-compliant status
- * - No structured Shariah-principle source; Stage 5D reuses Stage 4C (Data not available)
+ * - No structured Shariah-principle source; Stage 5D reuses Stage 4C (—)
  * - Tawarruq/Shoraka is operational evidence only — not legal proof for prospectus wording
  * - No adviser, committee, certificate, opinion, or approval reference stored
  * - No approved title or explanation; landing-page marketing is not a Note-level source
@@ -542,7 +542,7 @@
  * - Financing amount = notes.target_amount
  * - Minimum investment = MARKETPLACE_MIN_COMMIT_MYR (not capacity-adjusted minCommit)
  * - Profit rate = notes.profit_rate_percent = annual GROSS before investor service fees
- * - Expected period return = unresolved (Data not available); no approved formula
+ * - Expected period return = unresolved (—); no approved formula
  * - No approved gross-versus-net, day-count, or rounding decision for period return
  * - Stage 6 At a Glance reuses buildProspectusMainFinancialTerms (same formatters)
  * - Canva sample 3.95% must not be used as production data
@@ -551,7 +551,7 @@
  * - Tenure and maturity reuse Stage 2 buildProspectusTenureAndMaturity
  * - Purpose frozen at Note create: notes.purpose_snapshot.financing_for
  * - Original source at create: applications.business_details.why_raising_funds.financing_for
- * - Render must not read live Application; old Notes without snapshot → Data not available
+ * - Render must not read live Application; old Notes without snapshot → —
  * - Related fields (how_funds_used, business_plan, etc.) are not fallbacks
  * - Closing Date (note_listings.closes_at) belongs only to Stage 2
  * - Canva "Working Capital" is sample content only — preserve free text as stored
@@ -559,7 +559,7 @@
  * Stage 4C payment basis & Shariah principle (prospectus-payment-basis-shariah.*) — correction notes:
  * - Payment Basis: no stored field; create path often has one maturity schedule; schedule shape is not an approved label; inferenceAllowed = false; future enum/config or frozen Note snapshot required
  * - Shariah Principle: no Product/Note structured field; Tawarruq is operational evidence only and must not be the investor-facing principle; legal/adviser decision required; future Product field + frozen Note snapshot + approval reference
- * - Stage 5D must reuse Stage 4C unresolved principle (Data not available) and must not invent a Shariah claim
+ * - Stage 5D must reuse Stage 4C unresolved principle (—) and must not invent a Shariah claim
  * - Canva "Bullet Payment at Maturity" and "Bai' Al-Dayn Bi Al-Sila'" are sample only — never hardcoded as production values
  */
 
@@ -685,7 +685,7 @@ export const PROSPECTUS_FUTURE_FIELD_SOURCES: Record<
     availability: "unresolved",
     existingApi: "none approved; do not use Canva 3.95% or annual net as period %",
     notes:
-      "Stage 4A: Data not available. Pending formula, gross-vs-net, day-count, rounding. Stage 6 reuses Stage 4A value.",
+      "Stage 4A: —. Pending formula, gross-vs-net, day-count, rounding. Stage 6 reuses Stage 4A value.",
   },
   tenure: {
     label: "Tenure",
@@ -714,7 +714,7 @@ export const PROSPECTUS_FUTURE_FIELD_SOURCES: Record<
     availability: "unresolved",
     existingApi: "paymentSchedules[] only (amounts/due_date; no label)",
     notes:
-      "Stage 4C: Data not available. One maturity schedule observed in create path is insufficient. No inference. Future: stored enum/config or frozen Note snapshot.",
+      "Stage 4C: —. One maturity schedule observed in create path is insufficient. No inference. Future: stored enum/config or frozen Note snapshot.",
   },
   shariahPrinciple: {
     label: "Shariah Principle",
@@ -724,6 +724,6 @@ export const PROSPECTUS_FUTURE_FIELD_SOURCES: Record<
     availability: "unresolved",
     existingApi: "none",
     notes:
-      "Stage 4C: Data not available. Tawarruq ops ≠ investor-facing principle. Stage 5D reuses DNA. Future: Product field + Note snapshot + adviser approval reference.",
+      "Stage 4C: —. Tawarruq ops ≠ investor-facing principle. Stage 5D reuses DNA. Future: Product field + Note snapshot + adviser approval reference.",
   },
 };

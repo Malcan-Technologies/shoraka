@@ -92,7 +92,7 @@ describe("prospectus boss-review alignment", () => {
       expect(profile).not.toHaveProperty("registrationNumber");
       expect(profile).not.toHaveProperty("entityType");
       expect(profile.industry).toBe("Construction");
-      expect(profile.companySize).toBe("Data not available");
+      expect(profile.companySize).toBe("—");
       expect(profile).not.toHaveProperty("industryAndCompanySize");
       const withSize = buildProspectusIssuerProfile({
         issuerSnapshot: {
