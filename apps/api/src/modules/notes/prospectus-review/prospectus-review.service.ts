@@ -742,21 +742,107 @@ export class ProspectusReviewService {
     return mapReview(updated);
   }
 
-  async preview(noteId: string, actor: ActorContext) {
-    const payload = await this.getOrCreateReview(noteId, actor);
-    const status = payload.review.status;
+  /**
+   * Read-only preview from saved review content (draft or approved).
+   * Does not create/update review rows, snapshots, or audit save events.
+   */
+  async preview(noteId: string, _actor: ActorContext) {
+    const note = await prisma.note.findUnique({
+      where: { id: noteId },
+      select: { id: true },
+    });
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+
+    const review = await prisma.noteProspectusReview.findUnique({
+      where: { note_id: noteId },
+    });
+    if (!review) {
+      throw new AppError(404, "PROSPECTUS_REVIEW_NOT_FOUND", "Prospectus review not found");
+    }
+
+    const status = mapReview(review).status;
     const useApproved =
       normalizeProspectusWorkflowStatus(status) === "APPROVED" &&
-      payload.review.approvedContent != null;
+      review.approved_content != null;
     const content = useApproved
-      ? payload.review.approvedContent!
-      : payload.review.draftContent;
-    const publication = toProspectusPublicationContent(content);
-    const sourceLabel = useApproved ? "approved" : "draft";
+      ? asStoredContent(review.approved_content)
+      : asStoredContent(review.draft_content);
+    const sourceLabel = useApproved ? ("approved" as const) : ("draft" as const);
     const bannerText = useApproved
       ? "Approved Prospectus Preview — not yet published"
       : "Draft Prospectus — not yet approved";
-    const banner = `<div data-prospectus-preview-banner="${sourceLabel}" data-preview-source="${sourceLabel}">${bannerText}</div>`;
+
+    return this.renderPreviewHtml(noteId, content, {
+      status,
+      previewSource: sourceLabel,
+      bannerText,
+    });
+  }
+
+  /**
+   * Live preview from unsaved officer form payload.
+   * Uses request draftContent for editable fields; system/note data from server only.
+   * Never writes to the database.
+   */
+  async previewUnsaved(noteId: string, rawInput: unknown, _actor: ActorContext) {
+    const note = await prisma.note.findUnique({
+      where: { id: noteId },
+      select: {
+        id: true,
+        paymaster_snapshot: true,
+        invoice_snapshot: true,
+        purpose_snapshot: true,
+        contract_snapshot: true,
+        profit_rate_percent: true,
+        maturity_date: true,
+        listing: { select: { opens_at: true } },
+      },
+    });
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+
+    const input: SaveProspectusReviewDraftInput = saveProspectusReviewDraftSchema.parse(rawInput);
+    const draftErrors = validateDraftContent(input.draftContent);
+    if (draftErrors.length > 0) {
+      throw new AppError(422, "PROSPECTUS_REVIEW_INVALID", "Draft content is invalid", {
+        details: draftErrors,
+      });
+    }
+
+    const draftToRender = stripLegacyPaymentBasisShariahKeys(
+      normalizeProspectusReviewSelections(
+        input.draftContent as ProspectusReviewStoredContent,
+        recommendationInputFromNote(note),
+        aboutInvoiceRecommendationInputFromNote(note)
+      )
+    );
+
+    const review = await prisma.noteProspectusReview.findUnique({
+      where: { note_id: noteId },
+      select: { status: true },
+    });
+    const status = normalizeProspectusWorkflowStatus(
+      review?.status ?? ProspectusReviewStatus.DRAFT
+    );
+
+    return this.renderPreviewHtml(noteId, draftToRender, {
+      status,
+      previewSource: "unsaved",
+      bannerText: "Live Preview — unsaved changes (not saved)",
+    });
+  }
+
+  /** Shared Page 1–3 HTML builders for preview and approval paths. */
+  private async renderPreviewHtml(
+    noteId: string,
+    content: ProspectusReviewStoredContent,
+    meta: {
+      status: ProspectusReviewStatus | string;
+      previewSource: "draft" | "approved" | "unsaved";
+      bannerText: string;
+    }
+  ) {
+    const publication = toProspectusPublicationContent(content);
+    const banner = `<div data-prospectus-preview-banner="${meta.previewSource}" data-preview-source="${meta.previewSource}">${meta.bannerText}</div>`;
 
     const page1Note = await loadProspectusPageOneNote(prisma, noteId);
     const page1Input = await mapProspectusPageOneDataToInput(page1Note);
@@ -774,9 +860,9 @@ export class ProspectusReviewService {
     const page3 = buildProspectusPageThree(page3Input);
 
     return {
-      status,
-      previewSource: sourceLabel,
-      draftMarker: bannerText,
+      status: meta.status,
+      previewSource: meta.previewSource,
+      draftMarker: meta.bannerText,
       html: {
         page1: `${banner}${buildProspectusPageOneHtml(page1)}`,
         page2: `${banner}${buildProspectusPageTwoHtml(page2)}`,

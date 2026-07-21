@@ -380,8 +380,8 @@ export interface SaveProspectusReviewDraftInput {
 
 export interface ProspectusReviewPreviewResponse {
   status: ProspectusReviewStatus;
-  /** Which stored content the preview rendered. */
-  previewSource: "draft" | "approved";
+  /** Which content the preview rendered. */
+  previewSource: "draft" | "approved" | "unsaved";
   draftMarker: string;
   html: {
     page1: string;

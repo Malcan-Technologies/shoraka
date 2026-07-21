@@ -81,8 +81,8 @@ export function useApproveProspectusReview(noteId: string) {
 }
 
 /**
- * Loads all three prospectus pages once per saved review version.
- * Page switches are local. Refetch only after review-key invalidation (e.g. Save Draft).
+ * Saved-review preview (GET) — used for published View Prospectus.
+ * Does not send unsaved form values.
  */
 export function useProspectusReviewPreview(noteId: string, enabled: boolean) {
   const { getAccessToken } = useAuthToken();
@@ -95,6 +95,22 @@ export function useProspectusReviewPreview(noteId: string, enabled: boolean) {
     refetchOnWindowFocus: false,
     queryFn: async () => {
       const res = await apiClient.getAdminProspectusReviewPreview(noteId);
+      if (!res.success) throw new Error(res.error.message);
+      return res.data;
+    },
+  });
+}
+
+/**
+ * Live preview from current unsaved form values (POST).
+ * Does not save, invalidate review queries, or clear dirty state.
+ */
+export function usePreviewProspectusReview(noteId: string) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  return useMutation({
+    mutationFn: async (input: SaveProspectusReviewDraftInput) => {
+      const res = await apiClient.postAdminProspectusReviewPreview(noteId, input);
       if (!res.success) throw new Error(res.error.message);
       return res.data;
     },

@@ -34,6 +34,7 @@ import { useUserDetail } from "@/hooks/use-users";
 import {
   ProspectusReviewConflictError,
   useApproveProspectusReview,
+  usePreviewProspectusReview,
   useProspectusReview,
   useProspectusReviewPreview,
   useSaveProspectusReviewDraft,
@@ -102,8 +103,17 @@ function ProspectusReviewPageInner() {
   const [draft, setDraft] = React.useState<ProspectusReviewStoredContent | null>(null);
   const [dirty, setDirty] = React.useState(false);
   const [previewOpen, setPreviewOpen] = React.useState(false);
+  const [livePreviewHtml, setLivePreviewHtml] = React.useState<{
+    page1: string;
+    page2: string;
+    page3: string;
+  } | null>(null);
   const stepPanelRef = React.useRef<HTMLDivElement>(null);
-  const preview = useProspectusReviewPreview(noteId, previewOpen);
+  const livePreview = usePreviewProspectusReview(noteId);
+  const savedPreview = useProspectusReviewPreview(
+    noteId,
+    previewOpen && livePreviewHtml == null
+  );
 
   React.useEffect(() => {
     if (data?.review.draftContent && !dirty) {
@@ -186,15 +196,19 @@ function ProspectusReviewPageInner() {
     }
   };
 
-  const onSaveAndPreview = async () => {
-    if (!canManage || locked) {
+  const onPreview = async () => {
+    if (!draft) return;
+    try {
+      const result = await livePreview.mutateAsync({ draftContent: draft });
+      setLivePreviewHtml(result.html);
       setPreviewOpen(true);
-      return;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Preview failed");
     }
-    if (dirty) {
-      const saved = await onSave();
-      if (!saved) return;
-    }
+  };
+
+  const onViewSavedProspectus = () => {
+    setLivePreviewHtml(null);
     setPreviewOpen(true);
   };
 
@@ -338,10 +352,24 @@ function ProspectusReviewPageInner() {
       };
     });
   };
-  const previewStatusLabel =
-    status === "APPROVED" || status === "PUBLISHED"
+  const usingLivePreview = livePreviewHtml != null;
+  const previewStatusLabel = usingLivePreview
+    ? ("Live preview" as const)
+    : status === "APPROVED" || status === "PUBLISHED"
       ? ("Approved preview" as const)
       : ("Draft preview" as const);
+  const previewHtml = usingLivePreview
+    ? livePreviewHtml
+    : (savedPreview.data?.html ?? null);
+  const previewLoading = usingLivePreview
+    ? livePreview.isPending && !livePreviewHtml
+    : savedPreview.isLoading;
+  const previewFetching = usingLivePreview
+    ? livePreview.isPending
+    : savedPreview.isFetching;
+  const previewError = usingLivePreview
+    ? livePreview.error
+    : savedPreview.error;
   const actions = getProspectusActionVisibility({
     step,
     status: status ?? "DRAFT",
@@ -435,13 +463,13 @@ function ProspectusReviewPageInner() {
               {saveDraft.isPending ? "Saving…" : "Save Draft"}
             </Button>
           ) : null}
-          {actions.saveAndPreview ? (
+          {actions.preview ? (
             <Button
               variant="secondary"
-              onClick={() => void onSaveAndPreview()}
-              disabled={preview.isFetching || saveDraft.isPending}
+              onClick={() => void onPreview()}
+              disabled={livePreview.isPending || saveDraft.isPending}
             >
-              {preview.isFetching || saveDraft.isPending ? "Loading…" : "Save & Preview"}
+              {livePreview.isPending ? "Loading…" : "Preview"}
             </Button>
           ) : null}
           {actions.approve ? (
@@ -466,7 +494,7 @@ function ProspectusReviewPageInner() {
             </div>
           ) : null}
           {actions.viewProspectus ? (
-            <Button variant="secondary" onClick={() => setPreviewOpen(true)}>
+            <Button variant="secondary" onClick={onViewSavedProspectus}>
               View Prospectus
             </Button>
           ) : null}
@@ -691,16 +719,16 @@ function ProspectusReviewPageInner() {
         onOpenChange={setPreviewOpen}
         workflowStep={step}
         statusLabel={previewStatusLabel}
-        isLoading={preview.isLoading}
-        isFetching={preview.isFetching}
+        isLoading={previewLoading}
+        isFetching={previewFetching}
         errorMessage={
-          preview.error instanceof Error
-            ? preview.error.message
-            : preview.error
+          previewError instanceof Error
+            ? previewError.message
+            : previewError
               ? "Preview failed"
               : null
         }
-        html={preview.data?.html ?? null}
+        html={previewHtml}
       />
     </div>
   );

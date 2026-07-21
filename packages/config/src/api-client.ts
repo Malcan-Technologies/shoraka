@@ -697,6 +697,16 @@ export class ApiClient {
     );
   }
 
+  async postAdminProspectusReviewPreview(
+    id: string,
+    data: SaveProspectusReviewDraftInput
+  ): Promise<ApiResponse<ProspectusReviewPreviewResponse> | ApiError> {
+    return this.post<ProspectusReviewPreviewResponse>(
+      `/v1/admin/notes/${id}/prospectus-review/preview`,
+      data
+    );
+  }
+
   async unpublishAdminNote(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.post<NoteDetail>(`/v1/admin/notes/${id}/unpublish`, {});
   }

@@ -25,7 +25,7 @@ test.describe("Admin Prospectus Review (demo Note)", () => {
 
     await expect(page.locator("header").getByText("Draft", { exact: true })).toHaveCount(0);
 
-    await expect(page.getByRole("button", { name: /Save & Preview/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Preview$/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Approve Prospectus/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Investment Overview/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Issuer & Credit Review/i })).toBeVisible();
@@ -88,14 +88,14 @@ test.describe("Admin Prospectus Review (demo Note)", () => {
     await page.getByRole("button", { name: /Investment Overview/i }).click();
     await expect(page.locator("[data-prospectus-working-page='1']")).toBeVisible();
 
-    const previewRequests: string[] = [];
+    const previewRequests: { method: string; url: string }[] = [];
     page.on("request", (req) => {
       if (req.url().includes("/prospectus-review/preview")) {
-        previewRequests.push(req.url());
+        previewRequests.push({ method: req.method(), url: req.url() });
       }
     });
 
-    await page.getByRole("button", { name: /Save & Preview/i }).click();
+    await page.getByRole("button", { name: /^Preview$/i }).click();
     await expect(page.getByRole("heading", { name: /Prospectus Preview/i })).toBeVisible();
     await expect(page.getByRole("button", { name: "Page 1" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Page 2" })).toBeVisible();
@@ -104,6 +104,7 @@ test.describe("Admin Prospectus Review (demo Note)", () => {
     await expect(page.locator('iframe[title="Prospectus Page 1"]')).toBeVisible();
 
     await expect.poll(() => previewRequests.length).toBe(1);
+    expect(previewRequests[0]?.method).toBe("POST");
     await page.getByRole("button", { name: "Page 2" }).click();
     await expect(page.locator('iframe[title="Prospectus Page 2"]')).toBeVisible();
     expect(previewRequests.length).toBe(1);

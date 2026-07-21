@@ -68,12 +68,12 @@ Most catalogues include `do_not_display` where omission is allowed. Credit Insig
 | --- | --- | --- |
 | GET | `/v1/admin/notes/:id/prospectus-review` | `notes.view` |
 | PUT | `/v1/admin/notes/:id/prospectus-review` | `notes.manage` |
-| POST | `…/submit` | `notes.manage` |
 | POST | `…/approve` | `notes.manage` |
-| POST | `…/reopen` | `notes.manage` |
-| GET | `…/preview` | `notes.view` |
+| GET | `…/preview` | `notes.view` (saved draft/approved content) |
+| POST | `…/preview` | `notes.manage` (live unsaved form payload; no DB write) |
 
 Draft save uses `expectedUpdatedAt` optimistic concurrency (`409 CONFLICT` on stale save).
+Live Preview (`POST …/preview`) accepts the same draft body shape, renders Page 1–3 HTML, and never updates the review.
 
 ## Admin UI
 
@@ -81,8 +81,10 @@ Route: `/notes/[id]/prospectus`
 
 Steps mirror prospectus pages. Preview uses the same Page 1–3 builders.
 
-- Draft / Ready for Review: preview source = current draft
-- Approved: preview source = approved content (banner states source)
+- **Preview**: current in-memory form values (including unsaved edits); does not save
+- **Save Draft**: persists form values
+- **Approve**: uses saved review values (optionally saves dirty draft first)
+- Published: View Prospectus uses GET preview of frozen/approved content
 
 ## Publication freeze
 

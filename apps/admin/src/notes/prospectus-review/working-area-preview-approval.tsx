@@ -181,7 +181,7 @@ export function WorkingAreaPreviewApproval({
         </ProspectusSectionShell>
       ) : (
         <p className="text-sm text-muted-foreground">
-          All required fields are complete. Save &amp; Preview, then Approve when ready.
+          All required fields are complete. Preview, then Approve when ready.
         </p>
       )}
 

@@ -328,6 +328,20 @@ adminNotesRouter.get(
   }
 );
 
+adminNotesRouter.post(
+  "/:id/prospectus-review/preview",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { prospectusReviewService } = await import("./prospectus-review/prospectus-review.service");
+      send(res, await prospectusReviewService.previewUnsaved(id, req.body, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 adminNotesRouter.patch(
   "/:id/featured",
   requirePermission("notes.manage"),

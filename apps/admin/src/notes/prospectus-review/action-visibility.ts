@@ -6,7 +6,7 @@ import type { ProspectusWorkflowStepId } from "./labels";
 
 export type ProspectusActionVisibility = {
   saveDraft: boolean;
-  saveAndPreview: boolean;
+  preview: boolean;
   approve: boolean;
   viewProspectus: boolean;
   backToNote: boolean;
@@ -27,7 +27,7 @@ export function getProspectusActionVisibility(input: {
 
   return {
     saveDraft: canEdit,
-    saveAndPreview: canEdit,
+    preview: canEdit,
     approve: canEdit && (workflow === "DRAFT" || workflow === "APPROVED"),
     viewProspectus: published,
     backToNote: workflow === "APPROVED" || published,

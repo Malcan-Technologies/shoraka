@@ -38,7 +38,7 @@ export type ProspectusPreviewSheetProps = {
   onOpenChange: (open: boolean) => void;
   /** Active workflow step — used to pick Page 1/2/3 when the sheet opens. */
   workflowStep: ProspectusWorkflowStepId;
-  statusLabel: "Draft preview" | "Approved preview";
+  statusLabel: "Draft preview" | "Approved preview" | "Live preview";
   /** True only for the initial load with no cached pages. */
   isLoading: boolean;
   /** True while refreshing; keep showing the last successful pages. */

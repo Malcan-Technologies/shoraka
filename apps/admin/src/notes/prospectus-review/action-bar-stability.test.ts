@@ -22,6 +22,18 @@ describe("prospectus action bar and tab status", () => {
     expect(pageSource).toContain("Saving…");
   });
 
+  it("Preview posts unsaved form values without Save Draft first", () => {
+    expect(pageSource).toContain("onPreview");
+    expect(pageSource).toContain("usePreviewProspectusReview");
+    expect(pageSource).toContain("Live preview");
+    expect(pageSource).toContain('"Preview"');
+    expect(pageSource).not.toContain("Save & Preview");
+    expect(pageSource).not.toContain("onSaveAndPreview");
+    expect(pageSource).toContain("livePreview.mutateAsync");
+    expect(pageSource).toContain("draftContent: draft");
+    expect(pageSource).not.toMatch(/onPreview[\s\S]{0,400}setDirty\(false\)/);
+  });
+
   it("renders Complete in green and missing in amber on tabs", () => {
     expect(tabsSource).toContain("text-emerald-700");
     expect(tabsSource).toContain("text-amber-700");

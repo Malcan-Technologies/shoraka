@@ -267,7 +267,7 @@ describe("prospectus review compact status badges", () => {
 });
 
 describe("prospectus review action visibility", () => {
-  it("shows Save Draft, Save & Preview, and Approve for DRAFT while unpublished", () => {
+  it("shows Save Draft, Preview, and Approve for DRAFT while unpublished", () => {
     for (const step of [0, 1, 2, 3] as const) {
       const actions = getProspectusActionVisibility({
         step,
@@ -276,7 +276,7 @@ describe("prospectus review action visibility", () => {
         notePublished: false,
       });
       expect(actions.saveDraft).toBe(true);
-      expect(actions.saveAndPreview).toBe(true);
+      expect(actions.preview).toBe(true);
       expect(actions.approve).toBe(true);
       expect(actions.viewProspectus).toBe(false);
     }
@@ -290,12 +290,12 @@ describe("prospectus review action visibility", () => {
       notePublished: false,
     });
     expect(actions.saveDraft).toBe(true);
-    expect(actions.saveAndPreview).toBe(true);
+    expect(actions.preview).toBe(true);
     expect(actions.approve).toBe(true);
     expect(actions.viewProspectus).toBe(false);
   });
 
-  it("keeps Save & Preview on APPROVED until Note is published", () => {
+  it("keeps Preview on APPROVED until Note is published", () => {
     const approved = getProspectusActionVisibility({
       step: 2,
       status: "APPROVED",
@@ -303,7 +303,7 @@ describe("prospectus review action visibility", () => {
       notePublished: false,
     });
     expect(approved.saveDraft).toBe(true);
-    expect(approved.saveAndPreview).toBe(true);
+    expect(approved.preview).toBe(true);
     expect(approved.approve).toBe(true);
     expect(approved.backToNote).toBe(true);
     expect(approved.viewProspectus).toBe(false);
@@ -315,7 +315,7 @@ describe("prospectus review action visibility", () => {
       notePublished: true,
     });
     expect(published.saveDraft).toBe(false);
-    expect(published.saveAndPreview).toBe(false);
+    expect(published.preview).toBe(false);
     expect(published.approve).toBe(false);
     expect(published.viewProspectus).toBe(true);
   });
