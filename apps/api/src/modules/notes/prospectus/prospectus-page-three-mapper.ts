@@ -136,6 +136,7 @@ export function buildProspectusPageThree(
   const metadata = buildProspectusPageThreeMetadata({
     issuerName: issuer.name,
     issuerSector: issuer.industry,
+    officerCompanySize: input.publicationContent?.issuerProfile?.companySize,
     selectedRiskRating: parseInvoiceSnapshotRiskRating(input.invoiceSnapshot),
     paymasterName: paymaster.name,
     officerPaymasterRating: input.publicationContent?.invoicePaymaster?.paymasterRating,

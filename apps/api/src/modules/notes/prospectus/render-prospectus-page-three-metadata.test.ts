@@ -46,14 +46,35 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
     expect(PROSPECTUS_PAGE_THREE_METADATA_AUDIT.issuerIdentity.companyNameHidden).toBe(true);
   });
 
-  it("maps sector from frozen issuer sector input", () => {
-    expect(withSource().metadata.sector).toBe("Construction");
+  it("maps Sector as Industry | Company Size from Page 2 anonymous sources", () => {
+    expect(withSource().metadata.sector).toBe("Construction | Medium");
   });
 
-  it("maps missing sector to Data not available", () => {
-    expect(withSource({ issuerSector: undefined }).metadata.sector).toBe(
-      PROSPECTUS_DATA_NOT_AVAILABLE
-    );
+  it("maps missing Industry and Company Size to Data not available", () => {
+    expect(
+      withSource({ issuerSector: undefined, officerCompanySize: undefined }).metadata
+        .sector
+    ).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+  });
+
+  it("shows Industry only when Company Size is missing", () => {
+    expect(
+      withSource({ issuerSector: "Construction", officerCompanySize: undefined }).metadata
+        .sector
+    ).toBe("Construction");
+  });
+
+  it("shows Company Size only when Industry is missing", () => {
+    expect(
+      withSource({ issuerSector: undefined, officerCompanySize: "Small" }).metadata.sector
+    ).toBe("Small");
+  });
+
+  it("rejects invalid Company Size for Sector (no SME label)", () => {
+    expect(
+      withSource({ issuerSector: "Construction", officerCompanySize: "SME" }).metadata
+        .sector
+    ).toBe("Construction");
   });
 
   it.each(VALID_GRADES)("accepts valid risk rating %s", (grade) => {
@@ -146,7 +167,7 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
     expect(html).not.toContain("SSM");
     expect(html).not.toContain("registration");
     expect(html).toContain("Sector");
-    expect(html).toContain("Construction");
+    expect(html).toContain("Construction | Medium");
     expect(html).toContain("Paymaster");
     expect(html).toContain("Kementerian Kerja Raya");
     for (const label of Object.values(PROSPECTUS_PAGE_THREE_METADATA_LABELS)) {

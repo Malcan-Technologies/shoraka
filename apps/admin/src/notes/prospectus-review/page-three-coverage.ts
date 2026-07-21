@@ -7,6 +7,7 @@ import {
   computeTotalLiabilities,
   fyEndDateForYear,
   isSoukscoreRiskRating,
+  normalizeProspectusCompanySize,
   type NoteDetail,
 } from "@cashsouk/types";
 import type { CoreTermRow } from "./core-terms";
@@ -138,9 +139,24 @@ export function buildPageThreeOverviewRows(financialStatements: unknown): CoreTe
   ];
 }
 
+/** Same Sector join rules as API `formatProspectusPageThreeSector`. */
+export function formatPageThreeSectorDisplay(
+  industry: unknown,
+  companySize: unknown
+): string {
+  const industryText =
+    typeof industry === "string" && industry.trim() ? industry.trim() : null;
+  const sizeText = normalizeProspectusCompanySize(companySize);
+  if (industryText && sizeText) return `${industryText} | ${sizeText}`;
+  if (industryText) return industryText;
+  if (sizeText) return sizeText;
+  return DATA_NOT_AVAILABLE;
+}
+
 export function buildPageThreeMetadataRows(
   note: NoteDetail,
-  officerGradings?: {
+  officerFields?: {
+    companySize?: string | null;
     paymasterRating?: string | null;
     confidenceGrading?: string | null;
   }
@@ -153,16 +169,22 @@ export function buildPageThreeMetadataRows(
     ? offerDetails.risk_rating
     : DATA_NOT_AVAILABLE;
   return [
-    { label: "Sector", value: textOrDna(issuer?.industry ?? note.issuerIndustry) },
+    {
+      label: "Sector",
+      value: formatPageThreeSectorDisplay(
+        issuer?.industry ?? note.issuerIndustry,
+        officerFields?.companySize
+      ),
+    },
     { label: "Risk Rating", value: riskRating },
     { label: "Paymaster", value: textOrDna(note.paymasterName ?? paymaster?.name) },
     {
       label: "Paymaster Grading",
-      value: textOrDna(officerGradings?.paymasterRating),
+      value: textOrDna(officerFields?.paymasterRating),
     },
     {
       label: "Confidence Grading",
-      value: textOrDna(officerGradings?.confidenceGrading),
+      value: textOrDna(officerFields?.confidenceGrading),
     },
   ];
 }

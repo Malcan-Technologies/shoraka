@@ -1,11 +1,13 @@
 /**
  * SECTION: Build Page 3 Stage 1 metadata + shared financial-year pass-through
  * WHY: Frozen snapshot strings + SoukScore validator; issuer identity omitted;
+ *      Sector = anonymous Industry | Company Size from Page 2 sources;
  *      Paymaster/Confidence gradings reused from Page 2 officer confirmations
  */
 
 import {
   isSoukscoreRiskRating,
+  normalizeProspectusCompanySize,
   normalizeProspectusConfidenceGrading,
   normalizeProspectusPaymasterRating,
 } from "@cashsouk/types";
@@ -17,10 +19,30 @@ import {
   type ProspectusPageThreeMetadataInput,
 } from "./prospectus-page-three-metadata.types";
 
-function displayString(value: unknown): string {
-  if (typeof value !== "string") return PROSPECTUS_DATA_NOT_AVAILABLE;
+function nonEmptyTrimmed(value: unknown): string | null {
+  if (typeof value !== "string") return null;
   const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : PROSPECTUS_DATA_NOT_AVAILABLE;
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function displayString(value: unknown): string {
+  return nonEmptyTrimmed(value) ?? PROSPECTUS_DATA_NOT_AVAILABLE;
+}
+
+/**
+ * Page 3 Sector — same anonymous classification as Page 2 About the Issuer:
+ * Industry (frozen snapshot) + officer Company Size, joined with ` | `.
+ */
+export function formatProspectusPageThreeSector(
+  industry: unknown,
+  companySize: unknown
+): string {
+  const industryText = nonEmptyTrimmed(industry);
+  const sizeText = normalizeProspectusCompanySize(companySize);
+  if (industryText && sizeText) return `${industryText} | ${sizeText}`;
+  if (industryText) return industryText;
+  if (sizeText) return sizeText;
+  return PROSPECTUS_DATA_NOT_AVAILABLE;
 }
 
 export function buildProspectusPageThreeMetadata(
@@ -47,7 +69,10 @@ export function buildProspectusPageThreeMetadata(
     pageTitle: PROSPECTUS_PAGE_THREE_PAGE_TITLE,
     pageSubtitle: PROSPECTUS_DATA_NOT_AVAILABLE,
     metadata: {
-      sector: displayString(input.issuerSector),
+      sector: formatProspectusPageThreeSector(
+        input.issuerSector,
+        input.officerCompanySize
+      ),
       riskRating,
       paymaster: displayString(input.paymasterName),
       paymasterGrading,

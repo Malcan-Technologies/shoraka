@@ -36,8 +36,11 @@ export interface ProspectusPageThreeMetadataAudit {
     reason: "legal_privacy";
   };
   sector: {
-    source: "notes.issuer_snapshot.industry";
+    industrySource: "notes.issuer_snapshot.industry";
+    companySizeSource: "page2.issuerProfile.companySize";
+    displayFormat: "industry_pipe_company_size";
     liveFallbackAllowed: false;
+    page3StorageAllowed: false;
   };
   riskRating: {
     source: "notes.invoice_snapshot.offer_details.risk_rating";
@@ -86,8 +89,11 @@ export const PROSPECTUS_PAGE_THREE_METADATA_AUDIT: ProspectusPageThreeMetadataAu
     reason: "legal_privacy",
   },
   sector: {
-    source: "notes.issuer_snapshot.industry",
+    industrySource: "notes.issuer_snapshot.industry",
+    companySizeSource: "page2.issuerProfile.companySize",
+    displayFormat: "industry_pipe_company_size",
     liveFallbackAllowed: false,
+    page3StorageAllowed: false,
   },
   riskRating: {
     source: "notes.invoice_snapshot.offer_details.risk_rating",
@@ -154,8 +160,13 @@ export interface ProspectusPageThreeMetadataInput {
    * Legal: issuer company name is hidden.
    */
   issuerName?: unknown;
-  /** Frozen notes.issuer_snapshot.industry (Canva label: Sector) */
+  /** Frozen notes.issuer_snapshot.industry (Sector left half) */
   issuerSector?: unknown;
+  /**
+   * Officer-confirmed Page 2 Company Size (Micro|Small|Medium|Large).
+   * Read-only reuse for Sector right half — not stored under Page 3.
+   */
+  officerCompanySize?: unknown;
   /** Frozen notes.invoice_snapshot.offer_details.risk_rating */
   selectedRiskRating?: unknown;
   /** Frozen notes.paymaster_snapshot.name */
@@ -219,12 +230,13 @@ export const PROSPECTUS_PAGE_THREE_METADATA_FIELD_SOURCES: Record<
   },
   sector: {
     label: "Sector",
-    canonicalSource: "notes.issuer_snapshot.industry",
-    availability: "stored",
+    canonicalSource:
+      "notes.issuer_snapshot.industry + page2.issuerProfile.companySize",
+    availability: "reused",
     surface: "canva",
-    possibleAlternatives: "industry + company size; live COD industry — not used",
+    possibleAlternatives: "live COD industry; SME inference; entity type — not used",
     notes:
-      "Industry only (same anonymous field as Page 2 Issuer Profile Industry). Company size is not shown on Page 3.",
+      "Anonymous Canva form `{Industry} | {Company Size}` using Page 2 Industry + officer Company Size catalogue. Partial → single side only; both missing → DNA.",
   },
   riskRating: {
     label: "Risk Rating",

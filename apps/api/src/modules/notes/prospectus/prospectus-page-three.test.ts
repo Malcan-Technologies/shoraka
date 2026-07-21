@@ -364,7 +364,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(page.metadata.pageTitle).toBe("DETAILED FINANCIAL COMPARISON");
       expect(page.metadata.pageSubtitle).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
       expect(page.metadata.metadata).not.toHaveProperty("issuer");
-      expect(page.metadata.metadata.sector).toBe("Construction");
+      expect(page.metadata.metadata.sector).toBe("Construction | Medium");
       expect(page.metadata.metadata.riskRating).toBe("AA");
       expect(page.metadata.metadata.paymaster).toBe("Kementerian Kerja Raya");
       expect(page.metadata.metadata.paymasterGrading).toBe("PM1");
@@ -459,7 +459,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(html).toContain('data-stage="header"');
       expect(html).toContain("CashSouk");
       expect(html).toContain("Sector");
-      expect(html).toContain("Construction");
+      expect(html).toContain("Construction | Medium");
       expect(html).toContain("Paymaster Grading");
       expect(html).toContain("PM1");
       expect(html).toContain("Confidence Grading");

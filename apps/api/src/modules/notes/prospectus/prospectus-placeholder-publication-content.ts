@@ -201,6 +201,9 @@ export const PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT: ProspectusPublicationCo
     litigationCheck: "clear",
     ccrisStatus: "no_record",
   },
+  issuerProfile: {
+    companySize: "Medium",
+  },
   invoicePaymaster: {
     deedOfAssignment: "Yes",
     paymasterRating: "PM1",

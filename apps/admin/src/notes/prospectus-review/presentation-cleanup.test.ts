@@ -38,6 +38,7 @@ describe("prospectus review presentation cleanup", () => {
       "Paymaster and confidence gradings are taken from the Page 2 Invoice &"
     );
     expect(pageSource).toContain("buildPageThreeMetadataRows(note,");
+    expect(pageSource).toContain("officerCompanySize");
     expect(pageSource).toContain("officerPaymasterRating");
     expect(pageSource).toContain("officerConfidenceGrading");
     expect(pageSource).not.toMatch(

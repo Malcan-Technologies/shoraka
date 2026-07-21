@@ -421,6 +421,7 @@ function ProspectusReviewPageInner() {
   const pageThreeOverviewRows = buildPageThreeOverviewRows(financialStatements);
   const pageThreeMetadataRows = note
     ? buildPageThreeMetadataRows(note, {
+        companySize: officerCompanySize,
         paymasterRating: officerPaymasterRating,
         confidenceGrading: officerConfidenceGrading,
       })

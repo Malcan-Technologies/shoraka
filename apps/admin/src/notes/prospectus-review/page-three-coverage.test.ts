@@ -142,6 +142,7 @@ describe("page three coverage verification", () => {
 
   it("builds Financing & Risk Details without Issuer", () => {
     const rows = buildPageThreeMetadataRows(sampleNote(), {
+      companySize: "Medium",
       paymasterRating: "PM2",
       confidenceGrading: "Medium",
     });
@@ -152,13 +153,27 @@ describe("page three coverage verification", () => {
       "Paymaster Grading",
       "Confidence Grading",
     ]);
-    expect(rows.find((r) => r.label === "Sector")?.value).toBe("Construction");
+    expect(rows.find((r) => r.label === "Sector")?.value).toBe("Construction | Medium");
     expect(rows.find((r) => r.label === "Risk Rating")?.value).toBe("AA");
     expect(rows.find((r) => r.label === "Paymaster")?.value).toBe("Kementerian Kerja Raya");
     expect(rows.find((r) => r.label === "Paymaster Grading")?.value).toBe("PM2");
     expect(rows.find((r) => r.label === "Confidence Grading")?.value).toBe("Medium");
     expect(rows.some((r) => /issuer/i.test(r.label))).toBe(false);
     expect(pageThreeHidesIssuerIdentity(rows)).toBe(true);
+  });
+
+  it("formats Sector with partial Industry / Company Size", () => {
+    expect(
+      buildPageThreeMetadataRows(sampleNote(), { companySize: null }).find(
+        (r) => r.label === "Sector"
+      )?.value
+    ).toBe("Construction");
+    expect(
+      buildPageThreeMetadataRows(
+        { ...sampleNote(), issuerIndustry: null, issuerSnapshot: { industry: null } },
+        { companySize: "Small" }
+      ).find((r) => r.label === "Sector")?.value
+    ).toBe("Small");
   });
 
   it("shows Data not available for missing Page 2 gradings", () => {
