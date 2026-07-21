@@ -83,7 +83,7 @@ Steps mirror prospectus pages. Preview uses the same Page 1–3 builders.
 
 - **Preview**: current in-memory form values (including unsaved edits); does not save
 - **Save Draft**: persists form values
-- **Approve**: uses saved review values (optionally saves dirty draft first)
+- **Approve**: confirms first. Clean form approves the saved draft. Dirty form shows Save & Approve, then saves, then approves that saved version (never silently).
 - Published: View Prospectus uses GET preview of frozen/approved content
 
 ## Publication freeze

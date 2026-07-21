@@ -18,6 +18,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -39,6 +49,11 @@ import {
   useProspectusReviewPreview,
   useSaveProspectusReviewDraft,
 } from "@/notes/hooks/use-prospectus-review";
+import {
+  getProspectusApproveConfirmCopy,
+  prospectusApprovePrimaryLabel,
+  type ProspectusApprovePhase,
+} from "@/notes/prospectus-review/approve-confirm";
 import {
   PROSPECTUS_STEP_GROUPS,
   PROSPECTUS_STEP_PAGE_LABEL,
@@ -108,7 +123,12 @@ function ProspectusReviewPageInner() {
     page2: string;
     page3: string;
   } | null>(null);
+  const [approveDialogOpen, setApproveDialogOpen] = React.useState(false);
+  const [approvePhase, setApprovePhase] = React.useState<ProspectusApprovePhase>("idle");
+  /** Snapshot dirty flag when the approve dialog opens so copy stays stable. */
+  const [approveDialogDirty, setApproveDialogDirty] = React.useState(false);
   const stepPanelRef = React.useRef<HTMLDivElement>(null);
+  const approveInFlightRef = React.useRef(false);
   const livePreview = usePreviewProspectusReview(noteId);
   const savedPreview = useProspectusReviewPreview(
     noteId,
@@ -212,25 +232,46 @@ function ProspectusReviewPageInner() {
     setPreviewOpen(true);
   };
 
-  const onApprove = async () => {
-    if (
-      !window.confirm(
-        "Approve this Prospectus? It will become eligible for marketplace publication. Any edits made before publication will require approval again."
-      )
-    ) {
-      return;
-    }
-    if (!draft || !data) return;
+  const openApproveDialog = () => {
+    if (!canManage || locked || approveInFlightRef.current) return;
+    setApproveDialogDirty(dirty);
+    setApproveDialogOpen(true);
+  };
+
+  const confirmApprove = async () => {
+    if (approveInFlightRef.current || !draft || !data || !canManage || locked) return;
+    approveInFlightRef.current = true;
+
     try {
-      await approve.mutateAsync(
-        dirty
-          ? { draftContent: draft, expectedUpdatedAt: data.review.updatedAt }
-          : undefined
-      );
-      setDirty(false);
+      if (approveDialogDirty) {
+        setApprovePhase("saving");
+        try {
+          await saveDraft.mutateAsync({
+            draftContent: draft,
+            expectedUpdatedAt: data.review.updatedAt,
+          });
+          setDirty(false);
+        } catch (e) {
+          if (e instanceof ProspectusReviewConflictError) {
+            toast.error("This review was updated elsewhere. Refresh and try again.");
+            void refetch();
+            return;
+          }
+          toast.error(e instanceof Error ? e.message : "Save failed");
+          return;
+        }
+      }
+
+      setApprovePhase("approving");
+      // Approve the saved review only — never pass unsaved draftContent here.
+      await approve.mutateAsync(undefined);
+      setApproveDialogOpen(false);
       toast.success("Prospectus approved — Note is eligible for publication");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Approve failed");
+    } finally {
+      setApprovePhase("idle");
+      approveInFlightRef.current = false;
     }
   };
 
@@ -432,6 +473,13 @@ function ProspectusReviewPageInner() {
     </nav>
   );
 
+  const approveBusy = approvePhase !== "idle";
+  const approveConfirmCopy = getProspectusApproveConfirmCopy(approveDialogDirty);
+  const approvePrimaryLabel = prospectusApprovePrimaryLabel(
+    approveDialogDirty,
+    approvePhase
+  );
+
   const saveStatusLabel = saveDraft.isPending
     ? "Saving…"
     : saveDraft.isError
@@ -458,7 +506,7 @@ function ProspectusReviewPageInner() {
             <Button
               variant="outline"
               onClick={() => void onSave()}
-              disabled={saveDraft.isPending || !dirty}
+              disabled={saveDraft.isPending || !dirty || approveBusy}
             >
               {saveDraft.isPending ? "Saving…" : "Save Draft"}
             </Button>
@@ -467,7 +515,7 @@ function ProspectusReviewPageInner() {
             <Button
               variant="secondary"
               onClick={() => void onPreview()}
-              disabled={livePreview.isPending || saveDraft.isPending}
+              disabled={livePreview.isPending || saveDraft.isPending || approveBusy}
             >
               {livePreview.isPending ? "Loading…" : "Preview"}
             </Button>
@@ -475,15 +523,24 @@ function ProspectusReviewPageInner() {
           {actions.approve ? (
             <div className="flex flex-wrap items-center gap-2">
               <Button
-                onClick={() => void onApprove()}
-                disabled={approve.isPending || requiredMissingCount > 0 || saveDraft.isPending}
+                onClick={openApproveDialog}
+                disabled={
+                  approveBusy ||
+                  approve.isPending ||
+                  requiredMissingCount > 0 ||
+                  saveDraft.isPending
+                }
                 title={
                   requiredMissingCount > 0
                     ? `${requiredMissingCount} required fields missing`
                     : undefined
                 }
               >
-                {approve.isPending ? "Approving…" : "Approve Prospectus"}
+                {approvePhase === "saving"
+                  ? "Saving…"
+                  : approveBusy || approve.isPending
+                    ? "Approving…"
+                    : "Approve Prospectus"}
               </Button>
               {requiredMissingCount > 0 ? (
                 <span className="text-xs text-amber-700 dark:text-amber-400">
@@ -730,6 +787,33 @@ function ProspectusReviewPageInner() {
         }
         html={previewHtml}
       />
+
+      <AlertDialog
+        open={approveDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && approveBusy) return;
+          setApproveDialogOpen(open);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{approveConfirmCopy.title}</AlertDialogTitle>
+            <AlertDialogDescription>{approveConfirmCopy.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={approveBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmApprove();
+              }}
+              disabled={approveBusy}
+            >
+              {approvePrimaryLabel}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

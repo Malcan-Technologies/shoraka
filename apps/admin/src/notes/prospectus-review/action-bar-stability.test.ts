@@ -34,6 +34,46 @@ describe("prospectus action bar and tab status", () => {
     expect(pageSource).not.toMatch(/onPreview[\s\S]{0,400}setDirty\(false\)/);
   });
 
+  it("Approve uses AlertDialog and never window.confirm", () => {
+    expect(pageSource).toContain("AlertDialog");
+    expect(pageSource).toContain("openApproveDialog");
+    expect(pageSource).toContain("confirmApprove");
+    expect(pageSource).toContain("getProspectusApproveConfirmCopy");
+    expect(pageSource).not.toContain("window.confirm");
+  });
+
+  it("dirty Save & Approve saves first then approves without draftContent", () => {
+    expect(pageSource).toContain("approveDialogDirty");
+    expect(pageSource).toContain("setApprovePhase(\"saving\")");
+    expect(pageSource).toContain("setApprovePhase(\"approving\")");
+    expect(pageSource).toContain("expectedUpdatedAt: data.review.updatedAt");
+    expect(pageSource).toContain("approve.mutateAsync(undefined)");
+    expect(pageSource).not.toMatch(
+      /approve\.mutateAsync\(\s*dirty\s*\?/
+    );
+    expect(pageSource).not.toMatch(
+      /approve\.mutateAsync\(\s*\{\s*draftContent/
+    );
+  });
+
+  it("keeps dirty on save failure during Save & Approve and uses in-flight guard", () => {
+    expect(pageSource).toContain("approveInFlightRef");
+    expect(pageSource).toContain("Save failed");
+    expect(pageSource).toContain("Approve failed");
+    // Conflict path during confirmApprove must not clear dirty.
+    expect(pageSource).toMatch(
+      /ProspectusReviewConflictError[\s\S]*?Refresh and try again[\s\S]*?void refetch\(\);[\s\S]*?return;/
+    );
+    const conflictBlock = pageSource.slice(
+      pageSource.indexOf("confirmApprove"),
+      pageSource.indexOf("if (isLoading || !data || !draft)")
+    );
+    expect(conflictBlock).toContain("ProspectusReviewConflictError");
+    expect(conflictBlock).not.toMatch(
+      /ProspectusReviewConflictError[\s\S]{0,200}setDirty\(false\)/
+    );
+  });
+
   it("renders Complete in green and missing in amber on tabs", () => {
     expect(tabsSource).toContain("text-emerald-700");
     expect(tabsSource).toContain("text-amber-700");

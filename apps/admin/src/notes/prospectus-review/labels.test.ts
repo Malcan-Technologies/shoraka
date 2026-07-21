@@ -320,6 +320,26 @@ describe("prospectus review action visibility", () => {
     expect(published.viewProspectus).toBe(true);
   });
 
+  it("hides Approve for view-only and published Prospectus", () => {
+    const viewOnly = getProspectusActionVisibility({
+      step: 0,
+      status: "DRAFT",
+      canManage: false,
+      notePublished: false,
+    });
+    expect(viewOnly.approve).toBe(false);
+    expect(viewOnly.saveDraft).toBe(false);
+    expect(viewOnly.preview).toBe(false);
+
+    const published = getProspectusActionVisibility({
+      step: 0,
+      status: "PUBLISHED",
+      canManage: true,
+      notePublished: true,
+    });
+    expect(published.approve).toBe(false);
+  });
+
   it("blocks approval readiness when required checklist items are incomplete", () => {
     const draft: ProspectusReviewStoredContent = {
       page1: {
