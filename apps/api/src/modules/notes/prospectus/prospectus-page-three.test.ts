@@ -1,5 +1,5 @@
 import { NoteStatus } from "@prisma/client";
-import { calculateReturnOnEquity, computeTotalAssets } from "@cashsouk/types";
+import { calculateReturnOnEquity, computeTotalAssetsIfComplete } from "@cashsouk/types";
 import {
   buildProspectusFinancialComparisonMetrics,
   formatProspectusFinancialPercentFromRatio,
@@ -334,8 +334,13 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         PROSPECTUS_DATA_NOT_AVAILABLE
       );
       expect(row(page.balanceSheet.rows, "current_assets")?.[0]).toBe("5.8");
-      // Zero-default missing asset components → Total Assets = bscatot only (finance risk).
-      expect(row(page.balanceSheet.rows, "total_assets")?.[0]).toBe("5.8");
+      // Incomplete freeze components → Total Assets unavailable (no partial sum).
+      expect(row(page.balanceSheet.rows, "total_assets")?.[0]).toBe(
+        PROSPECTUS_DATA_NOT_AVAILABLE
+      );
+      expect(row(page.balanceSheet.rows, "total_liabilities")?.[0]).toBe(
+        PROSPECTUS_DATA_NOT_AVAILABLE
+      );
       expect(row(page.coverageEfficiency.rows, "return_on_equity")?.[0]).toBe(
         formatProspectusFinancialPercentFromRatio(
           calculateReturnOnEquity(1_800_000, 2_400_000)
@@ -382,7 +387,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(row(page.incomeStatement.rows, "profit_before_tax")?.[0]).toBe("1.4");
       expect(row(page.balanceSheet.rows, "total_assets")?.[0]).toBe("8.1");
       expect(
-        computeTotalAssets({
+        computeTotalAssetsIfComplete({
           total_assets: null,
           fixed_assets: 1_500_000,
           other_assets: 1_000_000,

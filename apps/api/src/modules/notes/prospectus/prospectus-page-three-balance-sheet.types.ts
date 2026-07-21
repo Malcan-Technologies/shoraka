@@ -56,12 +56,11 @@ export interface ProspectusPageThreeBalanceSheetRow {
 }
 
 /**
- * Missing-component policy for Total Assets / Total Liabilities matches
- * computeTotalAssets / computeTotalLiabilities: nullish components → 0 in the sum.
- * Entirely missing inputs therefore yield 0 (finance/product risk for incomplete freezes).
+ * Missing-component policy for investor-facing Total Assets / Total Liabilities:
+ * every component required; any missing → null / DNA (no partial sum, no zero fill).
  */
 export type ProspectusPageThreeBalanceSheetMissingComponentPolicy =
-  "nullish_component_defaults_to_zero_in_sum";
+  "all_components_required_else_null";
 
 export interface ProspectusPageThreeBalanceSheetAudit {
   source: {
@@ -94,11 +93,12 @@ export interface ProspectusPageThreeBalanceSheetAudit {
   totalAssets: {
     status: "confirmed_calculation";
     inputKeys: ["bsfatot", "othass", "bscatot", "bsclbank"];
-    sharedHelper: "computeTotalAssets";
+    sharedHelper: "computeTotalAssetsIfComplete";
     formatter: "formatProspectusMyrMillions";
     missingComponentPolicy: ProspectusPageThreeBalanceSheetMissingComponentPolicy;
     publicationSnapshotExtensionRequired: true;
-    financeProductRiskAllMissingYieldsZero: true;
+    requiredForApproval: true;
+    officerOverrideAllowed: false;
   };
   currentLiabilities: {
     rawKey: "curlib";
@@ -109,11 +109,12 @@ export interface ProspectusPageThreeBalanceSheetAudit {
   totalLiabilities: {
     status: "confirmed_calculation";
     inputKeys: ["curlib", "bsslltd", "bsclstd"];
-    sharedHelper: "computeTotalLiabilities";
+    sharedHelper: "computeTotalLiabilitiesIfComplete";
     formatter: "formatProspectusMyrMillions";
     missingComponentPolicy: ProspectusPageThreeBalanceSheetMissingComponentPolicy;
     publicationSnapshotExtensionRequired: true;
-    financeProductRiskAllMissingYieldsZero: true;
+    requiredForApproval: true;
+    officerOverrideAllowed: false;
   };
   totalEquity: {
     status: "officer_entered";
@@ -176,11 +177,12 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT: ProspectusPageThreeBalan
     totalAssets: {
       status: "confirmed_calculation",
       inputKeys: ["bsfatot", "othass", "bscatot", "bsclbank"],
-      sharedHelper: "computeTotalAssets",
+      sharedHelper: "computeTotalAssetsIfComplete",
       formatter: "formatProspectusMyrMillions",
-      missingComponentPolicy: "nullish_component_defaults_to_zero_in_sum",
+      missingComponentPolicy: "all_components_required_else_null",
       publicationSnapshotExtensionRequired: true,
-      financeProductRiskAllMissingYieldsZero: true,
+      requiredForApproval: true,
+      officerOverrideAllowed: false,
     },
     currentLiabilities: {
       rawKey: "curlib",
@@ -191,11 +193,12 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT: ProspectusPageThreeBalan
     totalLiabilities: {
       status: "confirmed_calculation",
       inputKeys: ["curlib", "bsslltd", "bsclstd"],
-      sharedHelper: "computeTotalLiabilities",
+      sharedHelper: "computeTotalLiabilitiesIfComplete",
       formatter: "formatProspectusMyrMillions",
-      missingComponentPolicy: "nullish_component_defaults_to_zero_in_sum",
+      missingComponentPolicy: "all_components_required_else_null",
       publicationSnapshotExtensionRequired: true,
-      financeProductRiskAllMissingYieldsZero: true,
+      requiredForApproval: true,
+      officerOverrideAllowed: false,
     },
     totalEquity: {
       status: "officer_entered",
@@ -307,12 +310,12 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_FIELD_SOURCES: Record<
   },
   total_assets: {
     label: "Total Assets",
-    canonicalSource: "computeTotalAssets(bsfatot, othass, bscatot, bsclbank)",
+    canonicalSource: "computeTotalAssetsIfComplete(bsfatot, othass, bscatot, bsclbank)",
     availability: "calculated",
     surface: "canva",
-    possibleAlternatives: "Local sum; CTOS totass — not used",
+    possibleAlternatives: "computeTotalAssets zero-default — not used for Prospectus",
     notes:
-      "Admin Application path helper. bsclbank = Non-Current Assets. Missing components → 0 in sum. Display via formatProspectusMyrMillions.",
+      "bsclbank = Non-Current Assets. All components required; missing → DNA. Display via formatProspectusMyrMillions.",
   },
   current_liabilities: {
     label: "Current Liabilities",
@@ -324,11 +327,11 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_FIELD_SOURCES: Record<
   },
   total_liabilities: {
     label: "Total Liabilities",
-    canonicalSource: "computeTotalLiabilities(curlib, bsslltd, bsclstd)",
+    canonicalSource: "computeTotalLiabilitiesIfComplete(curlib, bsslltd, bsclstd)",
     availability: "calculated",
     surface: "canva",
-    possibleAlternatives: "Local sum; CTOS totlib — not used",
-    notes: "Admin Application path helper. Missing components → 0 in sum. Display via formatProspectusMyrMillions.",
+    possibleAlternatives: "computeTotalLiabilities zero-default — not used for Prospectus",
+    notes: "All components required; missing → DNA. Display via formatProspectusMyrMillions.",
   },
   total_equity: {
     label: "Total Equity",

@@ -410,12 +410,23 @@ const BALANCE_SHEET_OFFICER_LABELS: Record<
   quickRatio: "Quick Ratio",
 };
 
+export type ProspectusBalanceSheetSystemTotalsAvailability = {
+  year: string;
+  totalAssetsAvailable: boolean;
+  totalLiabilitiesAvailable: boolean;
+};
+
 export type ValidateApprovalContentOptions = {
   /**
    * Calendar years shown on Page 2/3 financial tables (same freeze for Income + Balance Sheet).
    * When provided, Income Statement and Balance Sheet officer fields are required for each year.
    */
   incomeStatementYears?: readonly string[];
+  /**
+   * Investor-facing Total Assets / Total Liabilities availability per displayed year.
+   * When provided, unavailable system totals block approval.
+   */
+  balanceSheetSystemTotals?: readonly ProspectusBalanceSheetSystemTotalsAvailability[];
 };
 
 function isPresentManualNumber(value: unknown): boolean {
@@ -546,6 +557,21 @@ export function validateApprovalContent(
           });
         }
       }
+    }
+  }
+
+  for (const yearTotals of options?.balanceSheetSystemTotals ?? []) {
+    if (!yearTotals.totalAssetsAvailable) {
+      errors.push({
+        path: `page3.balanceSheet.years.${yearTotals.year}.totalAssets`,
+        message: `Total Assets is unavailable for FY${yearTotals.year}. Complete financial statement components before approving the Prospectus.`,
+      });
+    }
+    if (!yearTotals.totalLiabilitiesAvailable) {
+      errors.push({
+        path: `page3.balanceSheet.years.${yearTotals.year}.totalLiabilities`,
+        message: `Total Liabilities is unavailable for FY${yearTotals.year}. Complete financial statement components before approving the Prospectus.`,
+      });
     }
   }
 

@@ -3,8 +3,8 @@ import {
   calculateCurrentRatio,
   calculateProfitMargin,
   calculateReturnOnEquity,
-  computeTotalAssets,
-  computeTotalLiabilities,
+  computeTotalAssetsIfComplete,
+  computeTotalLiabilitiesIfComplete,
   fyEndDateForYear,
   isSoukscoreRiskRating,
   normalizeProspectusCompanySize,
@@ -224,14 +224,14 @@ export function buildBalanceSheetResolvedRows(
 ): CoreTermRow[] {
   const currentAssets = parseNumber(yearRaw.bscatot);
   const currentLiabilities = parseNumber(yearRaw.curlib);
-  const totalAssets = computeTotalAssets({
+  const totalAssets = computeTotalAssetsIfComplete({
     total_assets: null,
     fixed_assets: parseNumber(yearRaw.bsfatot),
     other_assets: parseNumber(yearRaw.othass),
     current_assets: currentAssets,
     non_current_assets: parseNumber(yearRaw.bsclbank),
   });
-  const totalLiabilities = computeTotalLiabilities({
+  const totalLiabilities = computeTotalLiabilitiesIfComplete({
     total_liabilities: null,
     current_liabilities: currentLiabilities,
     long_term_liabilities: parseNumber(yearRaw.bsslltd),
@@ -356,8 +356,10 @@ export function pageThreeHidesIssuerIdentity(rows: CoreTermRow[]): boolean {
 }
 
 /** Expose Total Liabilities helper usage for tests (same inputs as Page 3 builder). */
-export function computePageThreeTotalLiabilities(yearRaw: Record<string, unknown>): number {
-  return computeTotalLiabilities({
+export function computePageThreeTotalLiabilities(
+  yearRaw: Record<string, unknown>
+): number | null {
+  return computeTotalLiabilitiesIfComplete({
     total_liabilities: null,
     current_liabilities: parseNumber(yearRaw.curlib),
     long_term_liabilities: parseNumber(yearRaw.bsslltd),

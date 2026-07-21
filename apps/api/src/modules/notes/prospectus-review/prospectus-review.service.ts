@@ -656,8 +656,21 @@ export class ProspectusReviewService {
     const page3Input = mapProspectusPageThreeDataToInput(page3Data);
     page3Input.publicationContent = publication;
     const page3 = buildProspectusPageThree(page3Input);
+    const totalAssetsRow = page3.balanceSheet.rows.find((r) => r.key === "total_assets");
+    const totalLiabilitiesRow = page3.balanceSheet.rows.find(
+      (r) => r.key === "total_liabilities"
+    );
     const errors = validateApprovalContent(approvedClone, {
       incomeStatementYears: page3.incomeStatement.years.map((year) => String(year.year)),
+      balanceSheetSystemTotals: page3.balanceSheet.years.map((year, index) => ({
+        year: String(year.year),
+        totalAssetsAvailable:
+          totalAssetsRow?.values[index] != null &&
+          totalAssetsRow.values[index] !== "Data not available",
+        totalLiabilitiesAvailable:
+          totalLiabilitiesRow?.values[index] != null &&
+          totalLiabilitiesRow.values[index] !== "Data not available",
+      })),
     });
     if (errors.length > 0) {
       throw new AppError(422, "PROSPECTUS_REVIEW_INVALID", "Approval validation failed", {

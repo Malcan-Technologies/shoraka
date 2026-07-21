@@ -1,12 +1,12 @@
 /**
  * SECTION: Build Page 3 Stage 3 balance sheet and liquidity rows
- * WHY: Reuse Page 2 years; MYR-millions display; officer fills for unsupported rows
+ * WHY: Reuse Page 2 years; MYR-millions display; complete-component totals only
  */
 
 import {
   calculateCurrentRatio,
-  computeTotalAssets,
-  computeTotalLiabilities,
+  computeTotalAssetsIfComplete,
+  computeTotalLiabilitiesIfComplete,
 } from "@cashsouk/types";
 import {
   formatProspectusFinancialMultiple,
@@ -39,10 +39,10 @@ function moneyMillionsOrDna(value: number | string | null | undefined): string {
 
 /**
  * Application FS never stores totass — same as admin financialFormToBsPl(total_assets: null).
- * Nullish components follow computeTotalAssets (?? 0).
+ * All four components required; missing → null (no zero-default partial sum).
  */
-function totalAssetsFromRaw(raw: Record<string, unknown>): number {
-  return computeTotalAssets({
+function totalAssetsFromRaw(raw: Record<string, unknown>): number | null {
+  return computeTotalAssetsIfComplete({
     total_assets: null,
     fixed_assets: fieldFromRaw(raw, "bsfatot"),
     other_assets: fieldFromRaw(raw, "othass"),
@@ -53,10 +53,10 @@ function totalAssetsFromRaw(raw: Record<string, unknown>): number {
 
 /**
  * Application FS never stores totlib — same as admin financialFormToBsPl(total_liabilities: null).
- * Nullish components follow computeTotalLiabilities (?? 0).
+ * All three components required; missing → null (no zero-default partial sum).
  */
-function totalLiabilitiesFromRaw(raw: Record<string, unknown>): number {
-  return computeTotalLiabilities({
+function totalLiabilitiesFromRaw(raw: Record<string, unknown>): number | null {
+  return computeTotalLiabilitiesIfComplete({
     total_liabilities: null,
     current_liabilities: fieldFromRaw(raw, "curlib"),
     long_term_liabilities: fieldFromRaw(raw, "bsslltd"),
@@ -87,11 +87,11 @@ function valueForRow(
     case "current_assets":
       return moneyMillionsOrDna(fieldFromRaw(raw, "bscatot"));
     case "total_assets":
-      return formatProspectusMyrMillions(totalAssetsFromRaw(raw));
+      return moneyMillionsOrDna(totalAssetsFromRaw(raw));
     case "current_liabilities":
       return moneyMillionsOrDna(fieldFromRaw(raw, "curlib"));
     case "total_liabilities":
-      return formatProspectusMyrMillions(totalLiabilitiesFromRaw(raw));
+      return moneyMillionsOrDna(totalLiabilitiesFromRaw(raw));
     case "current_ratio": {
       const bscatot = fieldFromRaw(raw, "bscatot");
       const curlib = fieldFromRaw(raw, "curlib");

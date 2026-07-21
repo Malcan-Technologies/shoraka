@@ -6,7 +6,7 @@ jest.mock("@cashsouk/config", () => ({
     })}`,
 }));
 
-import { computeTotalLiabilities, type NoteDetail } from "@cashsouk/types";
+import { computeTotalLiabilitiesIfComplete, type NoteDetail } from "@cashsouk/types";
 import {
   buildBalanceSheetResolvedRows,
   buildCoverageResolvedRows,
@@ -204,7 +204,7 @@ describe("page three coverage verification", () => {
     expect(table.rows.every((r) => r.trend == null)).toBe(true);
   });
 
-  it("builds Balance Sheet table with Total Liabilities via computeTotalLiabilities", () => {
+  it("builds Balance Sheet table with Total Liabilities via computeTotalLiabilitiesIfComplete", () => {
     const table = buildPageThreeBalanceSheetTable(sampleStatements, undefined);
     expect(table.rows.map((r) => r.metric)).toEqual([
       "Cash & Bank",
@@ -217,7 +217,7 @@ describe("page three coverage verification", () => {
       "Current Ratio",
       "Quick Ratio",
     ]);
-    const expected = computeTotalLiabilities({
+    const expected = computeTotalLiabilitiesIfComplete({
       total_liabilities: null,
       current_liabilities: 150_000,
       long_term_liabilities: 80_000,
@@ -226,6 +226,25 @@ describe("page three coverage verification", () => {
     expect(computePageThreeTotalLiabilities(yearRaw)).toBe(expected);
     expect(table.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toContain(
       "250,000"
+    );
+  });
+
+  it("shows Data not available for Total Assets when a component is missing", () => {
+    const incomplete = {
+      questionnaire: { financial_year_end: "2024-12-31" },
+      unaudited_by_year: {
+        "2024": { bscatot: 400_000, curlib: 150_000 },
+      },
+    };
+    const table = buildPageThreeBalanceSheetTable(incomplete, undefined);
+    expect(table.rows.find((r) => r.metric === "Total Assets")?.values[0]).toBe(
+      "Data not available"
+    );
+    expect(table.rows.find((r) => r.metric === "Current Assets")?.values[0]).toContain(
+      "400,000"
+    );
+    expect(table.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toBe(
+      "Data not available"
     );
   });
 

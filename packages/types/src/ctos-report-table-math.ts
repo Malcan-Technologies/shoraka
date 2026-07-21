@@ -8,17 +8,31 @@
 
 import type { FinancialStatementsInput } from "./financial-calculator";
 
-/**
- * Total assets: use reported total if present; otherwise sum the four asset lines.
- */
-export function computeTotalAssets(input: {
+export type TotalAssetsInput = {
   total_assets: number | null;
   fixed_assets: number | null;
   other_assets: number | null;
   current_assets: number | null;
   non_current_assets: number | null;
-}): number {
-  if (input.total_assets != null && Number.isFinite(input.total_assets)) {
+};
+
+export type TotalLiabilitiesInput = {
+  total_liabilities: number | null;
+  current_liabilities: number | null;
+  long_term_liabilities: number | null;
+  non_current_liabilities: number | null;
+};
+
+function isFiniteNumber(value: number | null | undefined): value is number {
+  return value != null && Number.isFinite(value);
+}
+
+/**
+ * Total assets: use reported total if present; otherwise sum the four asset lines.
+ * Missing components default to 0 (Admin CTOS / column metrics compatibility).
+ */
+export function computeTotalAssets(input: TotalAssetsInput): number {
+  if (isFiniteNumber(input.total_assets)) {
     return input.total_assets;
   }
   return (
@@ -30,21 +44,65 @@ export function computeTotalAssets(input: {
 }
 
 /**
- * Total liabilities: use reported total if present; else sum liability lines.
+ * Investor-facing / Prospectus Total Assets.
+ * Reported total wins when present; otherwise every component must be present
+ * (zero is valid). Any missing component → null (no partial sum).
  */
-export function computeTotalLiabilities(input: {
-  total_liabilities: number | null;
-  current_liabilities: number | null;
-  long_term_liabilities: number | null;
-  non_current_liabilities: number | null;
-}): number {
-  if (input.total_liabilities != null && Number.isFinite(input.total_liabilities)) {
+export function computeTotalAssetsIfComplete(input: TotalAssetsInput): number | null {
+  if (isFiniteNumber(input.total_assets)) {
+    return input.total_assets;
+  }
+  const components = [
+    input.fixed_assets,
+    input.other_assets,
+    input.current_assets,
+    input.non_current_assets,
+  ];
+  if (!components.every(isFiniteNumber)) return null;
+  return (
+    input.fixed_assets! +
+    input.other_assets! +
+    input.current_assets! +
+    input.non_current_assets!
+  );
+}
+
+/**
+ * Total liabilities: use reported total if present; else sum liability lines.
+ * Missing components default to 0 (Admin CTOS / column metrics compatibility).
+ */
+export function computeTotalLiabilities(input: TotalLiabilitiesInput): number {
+  if (isFiniteNumber(input.total_liabilities)) {
     return input.total_liabilities;
   }
   return (
     (input.current_liabilities ?? 0) +
     (input.long_term_liabilities ?? 0) +
     (input.non_current_liabilities ?? 0)
+  );
+}
+
+/**
+ * Investor-facing / Prospectus Total Liabilities.
+ * Reported total wins when present; otherwise every component must be present
+ * (zero is valid). Any missing component → null (no partial sum).
+ */
+export function computeTotalLiabilitiesIfComplete(
+  input: TotalLiabilitiesInput
+): number | null {
+  if (isFiniteNumber(input.total_liabilities)) {
+    return input.total_liabilities;
+  }
+  const components = [
+    input.current_liabilities,
+    input.long_term_liabilities,
+    input.non_current_liabilities,
+  ];
+  if (!components.every(isFiniteNumber)) return null;
+  return (
+    input.current_liabilities! +
+    input.long_term_liabilities! +
+    input.non_current_liabilities!
   );
 }
 
