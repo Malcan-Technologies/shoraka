@@ -148,7 +148,12 @@ jest.mock("../prospectus/prospectus-page-three-prisma", () => ({
 }));
 jest.mock("../prospectus/prospectus-page-three-mapper", () => ({
   mapProspectusPageThreeDataToInput: jest.fn(() => ({})),
-  buildProspectusPageThree: jest.fn(() => ({})),
+  // Approve validates Page 3 officer rows against resolved income-statement years.
+  buildProspectusPageThree: jest.fn(() => ({
+    incomeStatement: {
+      years: [{ year: 2022 }, { year: 2023 }, { year: 2024 }],
+    },
+  })),
 }));
 jest.mock("../prospectus/prospectus-page-three.html", () => ({
   buildProspectusPageThreeHtml: jest.fn(() => "<p>p3</p>"),
