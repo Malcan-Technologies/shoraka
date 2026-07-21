@@ -678,22 +678,24 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
       expect(open.investmentCta).toEqual(closed.investmentCta);
       expect(open.investmentCta.sectionHeading).toBe("INVEST WITH CONFIDENCE");
+      expect(open.investmentCta.buttonLabel).toBe("INVEST NOW");
+      expect(open.investmentCta.buttonHref).toBeNull();
       expect(open.investmentCta.minimumInvestmentStatement).toBe(
         `Minimum investment: ${formatProspectusMoneyMyr(MARKETPLACE_MIN_COMMIT_MYR)}`
       );
-      expect(open.investmentCta).not.toHaveProperty("buttonHref");
       expect(open.investmentCta).not.toHaveProperty("isButtonEnabled");
       expect(open.investmentCta.audit.liveInvestabilityUsed).toBe(false);
+      expect(open.investmentCta.audit.routeInFrozenHtmlAllowed).toBe(false);
 
       const html = renderProspectusPageTwoHtml(open);
       const stageCta = html.slice(html.indexOf('data-stage="8-cta"'));
       expect(stageCta).toContain("INVEST WITH CONFIDENCE");
+      expect(stageCta).toContain("INVEST NOW");
       expect(stageCta).toContain("Minimum investment: RM 100.00");
-      expect(stageCta).not.toContain("INVEST NOW");
+      expect(stageCta).toContain('disabled aria-disabled="true"');
       expect(stageCta).not.toContain("CTA Paragraph");
       expect(stageCta).not.toContain("/investments/");
       expect(stageCta).not.toContain("<a ");
-      expect(stageCta).not.toContain("<button");
     });
   });
 
@@ -754,9 +756,10 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(html).not.toContain("javascript:");
       expect(html).not.toContain(`Note ID: ${page.meta.noteId}`);
       expect(html).not.toContain(`href="/investments/${page.meta.noteId}"`);
-      expect(html).not.toContain("INVEST NOW");
+      expect(html).toContain("INVEST NOW");
       expect(html).toContain("INVEST WITH CONFIDENCE");
       expect(html).toContain("Minimum investment: RM 100.00");
+      expect(html).toContain('disabled aria-disabled="true"');
     });
 
     it("reconstructs frozen Stage 4A without live year reselection", () => {

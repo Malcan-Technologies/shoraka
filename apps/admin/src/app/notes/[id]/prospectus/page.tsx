@@ -11,6 +11,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { Skeleton } from "@cashsouk/ui";
 import {
+  MARKETPLACE_MIN_COMMIT_MYR,
   PROSPECTUS_COMPANY_SIZE_VALUES,
   PROSPECTUS_CONFIDENCE_GRADING_VALUES,
   PROSPECTUS_DEED_OF_ASSIGNMENT_VALUES,
@@ -26,6 +27,7 @@ import {
   type ProspectusReviewStoredContent,
   type ProspectusReviewStatus,
 } from "@cashsouk/types";
+import { formatCurrency } from "@cashsouk/config";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1302,6 +1304,30 @@ function ProspectusReviewPageInner() {
                             Risk rating not available
                           </p>
                         ) : null}
+                      </section>
+                      <section data-prospectus-investment-cta>
+                        <ProspectusSectionHeading title="Investment CTA" />
+                        <p className="mb-3 text-sm text-muted-foreground">
+                          Static Prospectus content. The Invest Now control is shown for layout
+                          review only and is not clickable here. Live investing stays on the
+                          investor marketplace.
+                        </p>
+                        <div className="space-y-3">
+                          <p className="text-[17px] font-semibold leading-7 tracking-wide">
+                            INVEST WITH CONFIDENCE
+                          </p>
+                          <button
+                            type="button"
+                            disabled
+                            aria-disabled="true"
+                            className="inline-flex cursor-default items-center border border-foreground bg-muted px-4 py-2 text-[17px] font-bold leading-7 tracking-wide text-foreground opacity-100 pointer-events-none"
+                          >
+                            INVEST NOW
+                          </button>
+                          <p className="text-[17px] leading-7 text-muted-foreground">
+                            Minimum investment: {formatCurrency(MARKETPLACE_MIN_COMMIT_MYR)}
+                          </p>
+                        </div>
                       </section>
                     </div>
                   ) : null}

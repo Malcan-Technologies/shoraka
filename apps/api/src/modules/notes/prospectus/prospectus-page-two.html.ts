@@ -143,6 +143,24 @@ export function buildProspectusPageTwoHtml(page: ProspectusPageTwo): string {
       background: #f3f3f3;
     }
     .soukscore-missing { margin: 6px 0 0; }
+    .cta-action { margin: 4px 0; }
+    .cta-button {
+      display: inline-block;
+      padding: 6px 14px;
+      border: 1px solid #111;
+      background: #f3f3f3;
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: 0.02em;
+      color: #111;
+      cursor: default;
+    }
+    .cta-button[disabled],
+    .cta-button[aria-disabled="true"] {
+      opacity: 1;
+      cursor: default;
+      pointer-events: none;
+    }
     .cta-minimum { margin: 0; }
     .issuer-profile-body {
       display: flex;

@@ -320,9 +320,11 @@
  *
  * CTA (static frozen content only):
  * - Heading static: INVEST WITH CONFIDENCE
+ * - Button label static: INVEST NOW (disabled presentation; buttonHref always null)
  * - Minimum investment: MARKETPLACE_MIN_COMMIT_MYR via formatProspectusMoneyMyr
  * - Display: Minimum investment: RM 100.00 (platform floor; not capacity-adjusted)
- * - No paragraph DNA, INVEST NOW button, route, available amount, or acknowledgement
+ * - No paragraph DNA, live route, available amount, or acknowledgement
+ * - HTML structured so a future buttonHref can become an <a> without redesign
  * - Live investability / invest controls remain on investor marketplace
  * - No attractive / short-term / Shariah-compliant investment claims
  *

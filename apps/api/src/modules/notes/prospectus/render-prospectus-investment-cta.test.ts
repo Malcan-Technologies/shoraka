@@ -8,12 +8,16 @@ import {
   PROSPECTUS_OFFICIAL_LOGO_REPO_PATH,
 } from "./prospectus-header.types";
 import { buildProspectusInvestmentCta } from "./prospectus-investment-cta";
-import { buildProspectusInvestmentCtaHtml } from "./prospectus-investment-cta.html";
+import {
+  buildProspectusInvestmentCtaButtonHtml,
+  buildProspectusInvestmentCtaHtml,
+} from "./prospectus-investment-cta.html";
 import {
   SAMPLE_PROSPECTUS_HEADER,
   SAMPLE_PROSPECTUS_INVESTMENT_CTA,
 } from "./prospectus-investment-cta.sample-data";
 import {
+  PROSPECTUS_INVESTMENT_CTA_BUTTON_LABEL,
   PROSPECTUS_INVESTMENT_CTA_FIELD_SOURCES,
   PROSPECTUS_INVESTMENT_CTA_SECTION_HEADING,
 } from "./prospectus-investment-cta.types";
@@ -61,16 +65,17 @@ describe("prospectus Page 2 CTA and shared header (DATA STAGE 8)", () => {
   });
 
   describe("CTA", () => {
-    it("renders static heading and platform minimum only", () => {
+    it("renders static heading, non-clickable button, and platform minimum", () => {
       const cta = buildProspectusInvestmentCta();
       expect(cta.sectionHeading).toBe("INVEST WITH CONFIDENCE");
       expect(cta.sectionHeading).toBe(PROSPECTUS_INVESTMENT_CTA_SECTION_HEADING);
+      expect(cta.buttonLabel).toBe("INVEST NOW");
+      expect(cta.buttonLabel).toBe(PROSPECTUS_INVESTMENT_CTA_BUTTON_LABEL);
+      expect(cta.buttonHref).toBeNull();
       expect(cta.minimumInvestmentStatement).toBe(
         `Minimum investment: ${formatProspectusMoneyMyr(MARKETPLACE_MIN_COMMIT_MYR)}`
       );
       expect(cta).not.toHaveProperty("paragraph");
-      expect(cta).not.toHaveProperty("buttonLabel");
-      expect(cta).not.toHaveProperty("buttonHref");
       expect(cta).not.toHaveProperty("isButtonEnabled");
       expect(cta.audit.staticOnly).toBe(true);
       expect(cta.audit.interactiveControlAllowed).toBe(false);
@@ -92,24 +97,41 @@ describe("prospectus Page 2 CTA and shared header (DATA STAGE 8)", () => {
       expect(html).not.toMatch(/diversify your portfolio/i);
     });
 
-    it("does not embed routes, buttons, or live capacity in frozen CTA HTML", () => {
+    it("shows INVEST NOW as a disabled presentation button without a route", () => {
       const html = buildProspectusInvestmentCtaHtml(SAMPLE_PROSPECTUS_INVESTMENT_CTA);
 
       expect(html).toContain("INVEST WITH CONFIDENCE");
+      expect(html).toContain("INVEST NOW");
       expect(html).toContain("Minimum investment: RM 100.00");
-      expect(html).not.toContain("INVEST NOW");
+      expect(html).toContain('disabled aria-disabled="true"');
+      expect(html).toContain('class="cta-button"');
       expect(html).not.toContain("CTA Paragraph");
       expect(html).not.toContain("Data not available");
       expect(html).not.toContain("<a ");
-      expect(html).not.toContain("<button");
       expect(html).not.toContain('href="');
       expect(html).not.toContain("/investments/");
       expect(html).not.toContain("available amount");
-      expect(html).not.toContain("remaining");
       expect(html).not.toContain("acknowledge");
       expect(html).not.toContain("Product Terms");
       expect(html).not.toContain("Risk Disclosure");
       expect(html).not.toContain("QR");
+    });
+
+    it("can render a future href without changing the button helper contract", () => {
+      const linked = buildProspectusInvestmentCtaButtonHtml({
+        buttonLabel: "INVEST NOW",
+        buttonHref: "/investments/futureNoteId001",
+      });
+      expect(linked).toContain('<a class="cta-button" href="/investments/futureNoteId001">');
+      expect(linked).toContain("INVEST NOW");
+      expect(linked).not.toContain("disabled");
+
+      const frozen = buildProspectusInvestmentCtaButtonHtml({
+        buttonLabel: "INVEST NOW",
+        buttonHref: null,
+      });
+      expect(frozen).toContain("disabled");
+      expect(frozen).not.toContain("<a ");
     });
 
     it("formats minimum investment from MARKETPLACE_MIN_COMMIT_MYR without hardcoding", () => {
@@ -130,10 +152,12 @@ describe("prospectus Page 2 CTA and shared header (DATA STAGE 8)", () => {
       expect(moduleSource).not.toContain("Minimum investment: RM 100.00");
       expect(moduleSource).not.toContain("buildProspectusInvestorNoteInvestmentPath");
       expect(moduleSource).not.toContain("computeMarketplaceCommitBounds");
+      expect(moduleSource).toContain("buttonHref: null");
 
       expect(
         PROSPECTUS_INVESTMENT_CTA_FIELD_SOURCES.minimumInvestmentStatement.canonicalSource
       ).toBe("MARKETPLACE_MIN_COMMIT_MYR");
+      expect(PROSPECTUS_INVESTMENT_CTA_FIELD_SOURCES.buttonHref.availability).toBe("reserved");
     });
   });
 
@@ -158,8 +182,9 @@ describe("prospectus Page 2 CTA and shared header (DATA STAGE 8)", () => {
       expect(html).toContain("Brand Tagline: Data not available");
       expect(html).toContain("Shariah Status Badge: Data not available");
       expect(html).toContain("INVEST WITH CONFIDENCE");
+      expect(html).toContain("INVEST NOW");
       expect(html).toContain("Minimum investment: RM 100.00");
-      expect(html).not.toContain("INVEST NOW");
+      expect(html).toContain('disabled aria-disabled="true"');
 
       expect(html).not.toContain("logoSource");
       expect(html).not.toContain("taglineApproved");

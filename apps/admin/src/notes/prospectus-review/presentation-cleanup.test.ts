@@ -33,7 +33,7 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).toContain("Officer Input");
   });
 
-  it("shows read-only Risk Rating Scale from frozen Note grade and omits Investment CTA editor", () => {
+  it("shows read-only Risk Rating Scale from frozen Note grade", () => {
     expect(pageSource).toContain("Risk Rating Scale");
     expect(pageSource).toContain("data-prospectus-risk-rating-scale");
     expect(pageSource).toContain(
@@ -50,7 +50,29 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).not.toMatch(
       /data-prospectus-risk-rating-scale[\s\S]{0,800}<Textarea/
     );
-    expect(pageSource).not.toContain("Investment CTA");
+  });
+
+  it("shows read-only Investment CTA with non-clickable Invest Now preview", () => {
+    expect(pageSource).toContain("Investment CTA");
+    expect(pageSource).toContain("data-prospectus-investment-cta");
+    expect(pageSource).toContain("INVEST WITH CONFIDENCE");
+    expect(pageSource).toContain("INVEST NOW");
+    expect(pageSource).toContain("MARKETPLACE_MIN_COMMIT_MYR");
+    expect(pageSource).toContain("not clickable");
+    expect(pageSource).toContain("disabled");
+    expect(pageSource).toContain('aria-disabled="true"');
+    expect(pageSource).not.toMatch(
+      /data-prospectus-investment-cta[\s\S]{0,800}<Select/
+    );
+    expect(pageSource).not.toMatch(
+      /data-prospectus-investment-cta[\s\S]{0,800}<Input/
+    );
+    expect(pageSource).not.toMatch(
+      /data-prospectus-investment-cta[\s\S]{0,800}<Textarea/
+    );
+    expect(pageSource).not.toMatch(
+      /data-prospectus-investment-cta[\s\S]{0,500}href=/
+    );
   });
 
   it("shows read-only Issuer Track Record from API rows on Page 1", () => {
