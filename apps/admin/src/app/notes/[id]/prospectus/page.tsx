@@ -62,7 +62,7 @@ import {
   buildPageThreeBalanceSheetTable,
   buildPageThreeCoverageTable,
   buildPageThreeIncomeStatementTable,
-  selectPageThreeYears,
+  selectYearsFromPageTwoFinancialTable,
 } from "@/notes/prospectus-review/page-three-coverage";
 import { ProspectusPreviewSheet } from "@/notes/prospectus-review/preview-sheet";
 import { ProspectusStatusBadge } from "@/notes/prospectus-review/status-badge";
@@ -290,13 +290,18 @@ function ProspectusReviewPageInner() {
         description: data.financialComparison.opsWarning,
       }
     : null;
+  /**
+   * Page 3 years must match frozen Page 2 financialComparison.table headers.
+   * Do not independently select years from live Application financial_statements.
+   */
+  const pageTwoYearHeaders = pageTwoFinancialTable.yearHeaders;
+  const incomeStatementYearKeys =
+    pageTwoYearHeaders.length > 0
+      ? selectYearsFromPageTwoFinancialTable(pageTwoFinancialTable)
+      : [];
   const financialStatements = (
     application as { financial_statements?: unknown } | undefined
   )?.financial_statements;
-  const pageThreeYears = selectPageThreeYears(financialStatements);
-  const activeFinancialYears =
-    pageThreeYears.length > 0 ? pageThreeYears : (["2022", "2023", "2024"] as const);
-  const incomeStatementYearKeys = activeFinancialYears.map(String);
   const completionOptions = { incomeStatementYears: incomeStatementYearKeys };
   const stepStatuses = getProspectusStepStatuses(draft, completionOptions);
   const manualYears = draft.page3.manualFinancialInputs?.years;
@@ -309,13 +314,19 @@ function ProspectusReviewPageInner() {
     : [];
   const incomeStatementTable = buildPageThreeIncomeStatementTable(
     financialStatements,
-    manualYears
+    manualYears,
+    pageTwoYearHeaders.length > 0 ? pageTwoYearHeaders : undefined
   );
-  const balanceSheetTable = buildPageThreeBalanceSheetTable(financialStatements, manualYears);
+  const balanceSheetTable = buildPageThreeBalanceSheetTable(
+    financialStatements,
+    manualYears,
+    pageTwoYearHeaders.length > 0 ? pageTwoYearHeaders : undefined
+  );
   const coverageTable = buildPageThreeCoverageTable(
     financialStatements,
     manualYears,
-    draft.page2.financialComparison?.overrides
+    draft.page2.financialComparison?.overrides,
+    pageTwoYearHeaders.length > 0 ? pageTwoYearHeaders : undefined
   );
 
   const updateManualFieldForYear = (year: string, field: string, value: string) => {
@@ -343,7 +354,6 @@ function ProspectusReviewPageInner() {
     canManage,
     notePublished,
   });
-  const dirtyLabel = dirty ? "Unsaved changes" : "All changes saved";
   const pageCompletion = formatProspectusPageCompletionLabel(
     draft,
     step,
@@ -400,23 +410,35 @@ function ProspectusReviewPageInner() {
     </nav>
   );
 
-  const actionBar =
-    step === 3 ? null : (
-      <div
-        data-prospectus-action-bar
-        className="sticky bottom-0 z-10 border-t bg-background/95 px-1 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80"
-      >
+  const saveStatusLabel = saveDraft.isPending
+    ? "Saving…"
+    : saveDraft.isError
+      ? "Save failed"
+      : dirty
+        ? "Unsaved changes"
+        : "All changes saved";
+
+  const actionBar = (
+    <div
+      data-prospectus-action-bar
+      className="sticky bottom-0 z-10 border-t bg-background/95 px-1 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span
+          className="min-w-[9rem] text-xs text-muted-foreground"
+          data-prospectus-dirty-state
+          aria-live="polite"
+        >
+          {saveStatusLabel}
+        </span>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="mr-2 text-xs text-muted-foreground" data-prospectus-dirty-state>
-            {dirtyLabel}
-          </span>
           {actions.saveDraft ? (
             <Button
               variant="outline"
               onClick={() => void onSave()}
               disabled={saveDraft.isPending || !dirty}
             >
-              Save Draft
+              {saveDraft.isPending ? "Saving…" : "Save Draft"}
             </Button>
           ) : null}
           {actions.saveAndPreview ? (
@@ -425,16 +447,29 @@ function ProspectusReviewPageInner() {
               onClick={() => void onSaveAndPreview()}
               disabled={preview.isFetching || saveDraft.isPending}
             >
-              Save &amp; Preview
+              {preview.isFetching || saveDraft.isPending ? "Loading…" : "Save & Preview"}
             </Button>
           ) : null}
           {actions.approve ? (
-            <Button
-              onClick={() => void onApprove()}
-              disabled={approve.isPending || requiredMissingCount > 0}
-            >
-              Approve Prospectus
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                onClick={() => void onApprove()}
+                disabled={approve.isPending || requiredMissingCount > 0 || saveDraft.isPending}
+                title={
+                  requiredMissingCount > 0
+                    ? `${requiredMissingCount} required fields missing`
+                    : undefined
+                }
+              >
+                {approve.isPending ? "Approving…" : "Approve Prospectus"}
+              </Button>
+              {requiredMissingCount > 0 ? (
+                <span className="text-xs text-amber-700 dark:text-amber-400">
+                  {requiredMissingCount} required field
+                  {requiredMissingCount === 1 ? "" : "s"} missing
+                </span>
+              ) : null}
+            </div>
           ) : null}
           {actions.viewProspectus ? (
             <Button variant="secondary" onClick={() => setPreviewOpen(true)}>
@@ -448,7 +483,8 @@ function ProspectusReviewPageInner() {
           ) : null}
         </div>
       </div>
-    );
+    </div>
+  );
 
   return (
     <div className="flex h-full flex-col">
@@ -569,7 +605,6 @@ function ProspectusReviewPageInner() {
                           draft={draft}
                           locked={locked}
                           canManage={canManage}
-                          dirty={dirty}
                           noteInvestmentSections={noteInvestmentSections}
                           historicalNotes={
                             data.historicalNotes ?? {
@@ -593,7 +628,6 @@ function ProspectusReviewPageInner() {
                         draft={draft}
                         locked={locked}
                         canManage={canManage}
-                        dirty={dirty}
                         catalogues={catalogues}
                         issuerProfileRows={issuerRows}
                         invoicePaymasterRows={invoicePaymasterRows}
@@ -623,7 +657,6 @@ function ProspectusReviewPageInner() {
                         catalogues={catalogues}
                         locked={locked}
                         canManage={canManage}
-                        dirty={dirty}
                         updateManualField={updateManualFieldForYear}
                         updateDraft={updateDraft}
                         completionLabel={pageCompletion}
@@ -639,14 +672,7 @@ function ProspectusReviewPageInner() {
                         completionOptions={completionOptions}
                         stepStatuses={stepStatuses}
                         onNavigate={(next, tabId) => goToStep(next, true, tabId)}
-                        onSave={() => void onSave()}
-                        onPreview={() => void onSaveAndPreview()}
-                        onApprove={() => void onApprove()}
                         actions={actions}
-                        dirty={dirty}
-                        savePending={saveDraft.isPending}
-                        previewPending={preview.isFetching || saveDraft.isPending}
-                        approvePending={approve.isPending}
                         publishBlockedReason={
                           data.publishBlockedReason
                             ? "Prospectus approval required."

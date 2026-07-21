@@ -41,7 +41,7 @@ export function ProspectusCoverageWorkingTable({
 }: Props) {
   const resolveRow = (metric: string): FinancialRowMode => {
     if (REUSED.has(metric)) {
-      return { mode: "reused", source: "From Page 2 Financial Comparison" };
+      return { mode: "reused", source: "From Page 2 — Financial Comparison" };
     }
     const officer = OFFICER[metric];
     if (!officer) return { mode: "readonly" };

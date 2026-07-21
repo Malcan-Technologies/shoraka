@@ -1,6 +1,8 @@
 /**
- * Internal tab ids for Admin Prospectus working area (not investor pages).
+ * Placeholders for Admin Prospectus editable fields only.
+ * Never store these as field values.
  */
+
 export type PageOneTabId = "overview" | "highlights" | "track";
 export type PageTwoTabId =
   | "issuer_paymaster"
@@ -16,7 +18,6 @@ export type PageThreeTabId =
 
 export type ProspectusInternalTabId = PageOneTabId | PageTwoTabId | PageThreeTabId;
 
-/** Map missing-field section labels → internal tab for navigation. */
 export function resolveInternalTabForMissingSection(
   pageStep: 0 | 1 | 2 | 3,
   section: string
@@ -42,11 +43,21 @@ export function resolveInternalTabForMissingSection(
   return null;
 }
 
+/** Compact placeholders for narrow financial table cells. */
+export const FINANCIAL_CELL_PLACEHOLDERS = {
+  money: "MYR amount",
+  ratio: "e.g. 1.42",
+  percent: "e.g. 4.8",
+  days: "e.g. 74",
+} as const;
+
+/** Accessible / full guidance (title attribute). */
 export const FINANCIAL_PLACEHOLDERS = {
   money: "Enter amount in MYR",
   ratio: "Enter ratio, e.g. 1.42",
   percent: "Enter percentage, e.g. 4.8",
-  days: "Enter number of days, e.g. 74",
+  days: "Enter days, e.g. 74",
+  multiple: "Enter multiple, e.g. 12.1",
 } as const;
 
 export const SELECT_PLACEHOLDERS = {
@@ -54,26 +65,47 @@ export const SELECT_PLACEHOLDERS = {
   deedOfAssignment: "Select Yes or No",
   paymasterRating: "Select paymaster rating",
   confidenceGrading: "Select confidence grading",
-  creditInsight: "Select credit assessment",
-  takeaway: "Select a standard takeaway",
+  creditScore: "Select credit score",
+  paymentBehaviour: "Select payment behaviour",
+  creditUtilisation: "Select credit utilisation",
+  litigationCheck: "Select litigation status",
+  ccrisStatus: "Select CCRIS status",
+  takeaway: "Select a takeaway",
 } as const;
 
 export const HIGHLIGHT_PLACEHOLDERS = {
-  title: "Enter highlight title",
-  description: "Enter highlight description",
+  paymaster: {
+    title: "Enter paymaster highlight title",
+    description: "Enter paymaster highlight description",
+  },
+  issuer_fundamentals: {
+    title: "Enter issuer fundamentals title",
+    description: "Enter issuer fundamentals description",
+  },
+  return: {
+    title: "Enter return highlight title",
+    description: "Enter return highlight description",
+  },
 } as const;
 
 export const INVOICE_STATEMENT_PLACEHOLDERS: Record<string, string> = {
-  work_under_contract: "Enter the approved description of work performed",
+  work_under_contract: "Enter the approved work-performed statement",
   certification_acceptance: "Enter the invoice certification statement",
   paymaster_trust_account: "Enter the trust-account payment statement",
-  deed_of_assignment: "Enter the deed of assignment statement",
+  deed_of_assignment: "Enter the Deed of Assignment statement",
 };
 
 export const PAYMASTER_TRACK_PLACEHOLDERS = {
-  totalInvoicesPaid: "Enter total invoices paid",
-  totalAmountPaid: "Enter total amount paid in MYR",
-  successfulRepaymentPercent: "Enter percentage, e.g. 98",
-  onTimePaymentPercent: "Enter percentage, e.g. 95",
-  averagePaymentPeriodDays: "Enter number of days, e.g. 30",
+  totalInvoicesPaid: "Enter number of invoices",
+  totalAmountPaid: "Enter total amount in MYR",
+  successfulRepaymentPercent: "Enter percentage, e.g. 100",
+  onTimePaymentPercent: "Enter percentage, e.g. 94",
+  averagePaymentPeriodDays: "Enter number of days",
+} as const;
+
+export const PAGE_TWO_FINANCIAL_PLACEHOLDERS = {
+  netDebtEquity: "Enter ratio, e.g. 0.24",
+  interestCoverage: "Enter multiple, e.g. 12.1",
+  dscr: "Enter multiple, e.g. 1.42",
+  receivablesDays: "Enter days, e.g. 74",
 } as const;

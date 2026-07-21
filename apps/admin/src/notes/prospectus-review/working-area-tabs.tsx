@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { CheckIcon } from "@heroicons/react/24/outline";
 
 export type ProspectusTabItem<T extends string> = {
   id: T;
@@ -29,12 +30,13 @@ export function ProspectusInternalTabs<T extends string>({
     >
       {tabs.map((tab) => {
         const selected = value === tab.id;
-        const status =
-          tab.optional
-            ? "Optional"
-            : tab.missingCount != null && tab.missingCount > 0
-              ? `${tab.missingCount} missing`
-              : "Complete";
+        const isMissing = !tab.optional && tab.missingCount != null && tab.missingCount > 0;
+        const isComplete = !tab.optional && !isMissing;
+        const status = tab.optional
+          ? "Optional"
+          : isMissing
+            ? `${tab.missingCount} missing`
+            : "Complete";
         return (
           <Button
             key={tab.id}
@@ -49,14 +51,15 @@ export function ProspectusInternalTabs<T extends string>({
             <span>{tab.label}</span>
             <span
               className={cn(
-                "text-xs font-normal",
+                "inline-flex items-center gap-1 text-xs font-normal",
                 tab.optional
                   ? "text-muted-foreground"
-                  : tab.missingCount != null && tab.missingCount > 0
+                  : isMissing
                     ? "text-amber-700 dark:text-amber-400"
-                    : "text-muted-foreground"
+                    : "text-emerald-700 dark:text-emerald-400"
               )}
             >
+              {isComplete ? <CheckIcon className="h-3.5 w-3.5" aria-hidden /> : null}
               {status}
             </span>
           </Button>

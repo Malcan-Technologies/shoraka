@@ -13,6 +13,12 @@ import {
 import type { CoreTermRow } from "./core-terms";
 import type { FinancialMetricTableModel } from "./financial-metric-table";
 import { PAGE_TWO_OFFICER_FINANCIAL_METRICS } from "./page-two-coverage";
+import { calendarYearFromFinancialHeaderKey } from "./financial-year-keys";
+
+export {
+  calendarYearFromFinancialHeaderKey,
+  selectYearsFromPageTwoFinancialTable,
+} from "./financial-year-keys";
 
 const DATA_NOT_AVAILABLE = "Data not available";
 const PAGE_THREE_TITLE = "DETAILED FINANCIAL COMPARISON";
@@ -415,12 +421,18 @@ function pivotYearRows(
     manual: PageThreeManualYear | undefined,
     year: string
   ) => CoreTermRow[],
-  withTrend = false
+  withTrend = false,
+  yearHeadersOverride?: FinancialMetricTableModel["yearHeaders"]
 ): FinancialMetricTableModel {
-  const yearHeaders = buildYearHeaders(financialStatements);
-  const perYear = yearHeaders.map((header) =>
-    buildRows(readYearRaw(financialStatements, header.key), manualYears?.[header.key], header.key)
-  );
+  const yearHeaders = yearHeadersOverride ?? buildYearHeaders(financialStatements);
+  const perYear = yearHeaders.map((header) => {
+    const calendarYear = calendarYearFromFinancialHeaderKey(header.key);
+    const manual =
+      manualYears?.[calendarYear] ??
+      manualYears?.[header.key] ??
+      undefined;
+    return buildRows(readYearRaw(financialStatements, calendarYear), manual, calendarYear);
+  });
   const metrics = perYear[0]?.map((row) => row.label) ?? [];
 
   return {
@@ -438,19 +450,29 @@ function pivotYearRows(
 
 export function buildPageThreeIncomeStatementTable(
   financialStatements: unknown,
-  manualYears: PageThreeManualYears | undefined
+  manualYears: PageThreeManualYears | undefined,
+  yearHeadersOverride?: FinancialMetricTableModel["yearHeaders"]
 ): FinancialMetricTableModel {
-  return pivotYearRows(financialStatements, manualYears, (yearRaw, manual) =>
-    buildIncomeStatementResolvedRows(yearRaw, manual)
+  return pivotYearRows(
+    financialStatements,
+    manualYears,
+    (yearRaw, manual) => buildIncomeStatementResolvedRows(yearRaw, manual),
+    false,
+    yearHeadersOverride
   );
 }
 
 export function buildPageThreeBalanceSheetTable(
   financialStatements: unknown,
-  manualYears: PageThreeManualYears | undefined
+  manualYears: PageThreeManualYears | undefined,
+  yearHeadersOverride?: FinancialMetricTableModel["yearHeaders"]
 ): FinancialMetricTableModel {
-  return pivotYearRows(financialStatements, manualYears, (yearRaw, manual) =>
-    buildBalanceSheetResolvedRows(yearRaw, manual)
+  return pivotYearRows(
+    financialStatements,
+    manualYears,
+    (yearRaw, manual) => buildBalanceSheetResolvedRows(yearRaw, manual),
+    false,
+    yearHeadersOverride
   );
 }
 
@@ -458,14 +480,16 @@ export function buildPageThreeBalanceSheetTable(
 export function buildPageThreeCoverageTable(
   financialStatements: unknown,
   manualYears: PageThreeManualYears | undefined,
-  page2Overrides?: Page2FinancialOverrides
+  page2Overrides?: Page2FinancialOverrides,
+  yearHeadersOverride?: FinancialMetricTableModel["yearHeaders"]
 ): FinancialMetricTableModel {
   const table = pivotYearRows(
     financialStatements,
     manualYears,
     (yearRaw, manual, year) =>
       buildCoverageResolvedRows(yearRaw, manual, page2OverrideForYear(page2Overrides, year)),
-    true
+    true,
+    yearHeadersOverride
   );
   return {
     ...table,

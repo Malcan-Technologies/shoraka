@@ -11,6 +11,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import type { ComponentType } from "react";
+import { ProspectusSectionTitle } from "@/notes/prospectus-review/section-title";
 
 /** Soft grey surface for system / reused read-only values. */
 export const PROSPECTUS_READONLY_SURFACE =
@@ -44,12 +46,13 @@ export function ProspectusReadOnlyField({
 export function ProspectusReusedField({
   label,
   value,
-  source = "From another Prospectus section",
+  source,
   className,
 }: {
   label: string;
   value: string;
-  source?: string;
+  /** Required — reused values must name the owning section. */
+  source: string;
   className?: string;
 }) {
   return (
@@ -83,42 +86,25 @@ export function ProspectusInfoGrid({
 
 export function ProspectusSectionShell({
   title,
+  icon,
   optional,
   missingCount,
   children,
 }: {
   title: string;
+  icon: ComponentType<{ className?: string }>;
   optional?: boolean;
   missingCount?: number;
   children: React.ReactNode;
 }) {
-  const statusLabel = optional
-    ? "Optional"
-    : missingCount != null && missingCount > 0
-      ? `${missingCount} required missing`
-      : missingCount === 0
-        ? "Complete"
-        : null;
-
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-2 border-b border-border pb-2">
-        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-        {statusLabel ? (
-          <span
-            className={cn(
-              "text-xs font-medium",
-              optional
-                ? "text-muted-foreground"
-                : missingCount != null && missingCount > 0
-                  ? "text-amber-700 dark:text-amber-400"
-                  : "text-muted-foreground"
-            )}
-          >
-            {statusLabel}
-          </span>
-        ) : null}
-      </div>
+      <ProspectusSectionTitle
+        title={title}
+        icon={icon}
+        optional={optional}
+        missingCount={missingCount}
+      />
       {children}
     </section>
   );
@@ -284,19 +270,16 @@ export function ProspectusOptionSelect({
 export function ProspectusPageHeader({
   title,
   completionLabel,
-  dirty,
 }: {
   title: string;
   completionLabel?: string;
-  dirty?: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-        {completionLabel ? <span>{completionLabel}</span> : null}
-        {dirty ? <span className="font-medium text-amber-700">Unsaved changes</span> : null}
-      </div>
+      {completionLabel ? (
+        <span className="text-xs text-muted-foreground">{completionLabel}</span>
+      ) : null}
     </div>
   );
 }

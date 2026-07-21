@@ -6,6 +6,10 @@ import {
   ProspectusSharedFinancialWorkingTable,
   type FinancialRowMode,
 } from "./shared-financial-working-table";
+import {
+  FINANCIAL_CELL_PLACEHOLDERS,
+  PAGE_TWO_FINANCIAL_PLACEHOLDERS,
+} from "./working-area-placeholders";
 
 const OFFICER_BY_LABEL = new Map<string, (typeof PAGE_TWO_OFFICER_FINANCIAL_METRICS)[number]>(
   PAGE_TWO_OFFICER_FINANCIAL_METRICS.map((m) => [m.label, m])
@@ -33,12 +37,25 @@ function resolveRow(metric: string): FinancialRowMode {
   const officer = OFFICER_BY_LABEL.get(metric);
   if (!officer) return { mode: "readonly" };
   const kind =
-    officer.unit === "days" ? "days" : officer.unit === "x" ? "ratio" : "ratio";
+    officer.key === "receivablesDays"
+      ? "days"
+      : officer.key === "netDebtEquity"
+        ? "ratio"
+        : "ratio";
+  const full = PAGE_TWO_FINANCIAL_PLACEHOLDERS[officer.key];
+  const cell =
+    officer.key === "receivablesDays"
+      ? FINANCIAL_CELL_PLACEHOLDERS.days
+      : officer.key === "netDebtEquity"
+        ? FINANCIAL_CELL_PLACEHOLDERS.ratio
+        : "e.g. 12.1";
   return {
     mode: "editable",
     field: officer.key,
     kind,
     yearKeyForHeader: (headerKey) => headerKey,
+    cellPlaceholder: cell,
+    fullPlaceholder: full,
   };
 }
 

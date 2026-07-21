@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import type { FinancialMetricTableModel } from "./financial-metric-table";
-import { FINANCIAL_PLACEHOLDERS } from "./working-area-placeholders";
+import { FINANCIAL_CELL_PLACEHOLDERS, FINANCIAL_PLACEHOLDERS } from "./working-area-placeholders";
 
 export type FinancialInputKind = "money" | "ratio" | "percent" | "days";
 
@@ -23,6 +23,8 @@ export type FinancialRowMode =
       kind: FinancialInputKind;
       /** Calendar year or FYE header key used for get/set. */
       yearKeyForHeader: (headerKey: string, yearLabel: string) => string;
+      cellPlaceholder?: string;
+      fullPlaceholder?: string;
     }
   | { mode: "reused"; source: string };
 
@@ -44,7 +46,11 @@ function unitHint(kind: FinancialInputKind): string {
   return "days";
 }
 
-function placeholderFor(kind: FinancialInputKind): string {
+function cellPlaceholder(kind: FinancialInputKind): string {
+  return FINANCIAL_CELL_PLACEHOLDERS[kind];
+}
+
+function fullPlaceholder(kind: FinancialInputKind): string {
   return FINANCIAL_PLACEHOLDERS[kind];
 }
 
@@ -133,8 +139,9 @@ export function ProspectusSharedFinancialWorkingTable({
                             type="number"
                             step={spec.kind === "days" ? "1" : "any"}
                             aria-label={`${row.metric} ${header.yearLabel}`}
+                            title={spec.fullPlaceholder ?? fullPlaceholder(spec.kind)}
                             disabled={disabled}
-                            placeholder={placeholderFor(spec.kind)}
+                            placeholder={spec.cellPlaceholder ?? cellPlaceholder(spec.kind)}
                             value={empty ? "" : String(raw)}
                             onChange={(e) => onChange(yearKey, spec.field, e.target.value)}
                           />

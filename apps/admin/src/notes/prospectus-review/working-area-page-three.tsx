@@ -1,6 +1,13 @@
 "use client";
 
 import * as React from "react";
+import {
+  ChartBarIcon,
+  InformationCircleIcon,
+  LightBulbIcon,
+  PresentationChartLineIcon,
+  ScaleIcon,
+} from "@heroicons/react/24/outline";
 import type { ProspectusReviewStoredContent } from "@cashsouk/types";
 import type { CoreTermRow } from "@/notes/prospectus-review/core-terms";
 import type { FinancialMetricTableModel } from "@/notes/prospectus-review/financial-metric-table";
@@ -16,6 +23,7 @@ import {
   ProspectusInfoGrid,
   ProspectusOptionSelect,
   ProspectusPageHeader,
+  ProspectusReadOnlyField,
   ProspectusReusedField,
   ProspectusSectionShell,
 } from "@/notes/prospectus-review/field-presentation";
@@ -47,7 +55,6 @@ export type WorkingAreaPageThreeProps = {
   catalogues: WorkingAreaPageThreeCatalogues;
   locked: boolean;
   canManage: boolean;
-  dirty: boolean;
   updateManualField: (year: string, field: string, value: string) => void;
   updateDraft: (
     updater: (prev: ProspectusReviewStoredContent) => ProspectusReviewStoredContent
@@ -58,20 +65,17 @@ export type WorkingAreaPageThreeProps = {
   onTabChange?: (tab: PageThreeTabId) => void;
 };
 
-function overviewSource(label: string): string {
+function overviewSource(label: string): string | undefined {
   if (label === "Paymaster Grading" || label === "Confidence Grading") {
-    return "From Page 2 Invoice & Paymaster";
+    return "From Page 2 — Issuer & Paymaster";
   }
   if (label === "Company Size") {
-    return "From Page 2 Issuer Profile";
-  }
-  if (label === "Industry") {
-    return "From issuer snapshot";
+    return "From Page 2 — Issuer Profile";
   }
   if (label === "Risk Grade") {
     return "From Invoice Offer";
   }
-  return "From note snapshot";
+  return undefined;
 }
 
 export function WorkingAreaPageThree({
@@ -85,7 +89,6 @@ export function WorkingAreaPageThree({
   catalogues,
   locked,
   canManage,
-  dirty,
   updateManualField,
   updateDraft,
   completionLabel,
@@ -111,7 +114,6 @@ export function WorkingAreaPageThree({
       <ProspectusPageHeader
         title="Page 3 — Financial Review"
         completionLabel={completionLabel}
-        dirty={dirty}
       />
 
       <ProspectusInternalTabs
@@ -137,16 +139,28 @@ export function WorkingAreaPageThree({
 
       {tab === "overview" ? (
         <div role="tabpanel">
-          <ProspectusSectionShell title="Overview">
+          <ProspectusSectionShell title="Overview" icon={InformationCircleIcon}>
             <ProspectusInfoGrid>
-              {overviewRows.map((row) => (
-                <ProspectusReusedField
-                  key={row.label}
-                  label={row.label}
-                  value={row.value}
-                  source={overviewSource(row.label)}
-                />
-              ))}
+              {overviewRows.map((row) => {
+                const source = overviewSource(row.label);
+                if (source) {
+                  return (
+                    <ProspectusReusedField
+                      key={row.label}
+                      label={row.label}
+                      value={row.value}
+                      source={source}
+                    />
+                  );
+                }
+                return (
+                  <ProspectusReadOnlyField
+                    key={row.label}
+                    label={row.label}
+                    value={row.value}
+                  />
+                );
+              })}
             </ProspectusInfoGrid>
           </ProspectusSectionShell>
         </div>
@@ -154,7 +168,7 @@ export function WorkingAreaPageThree({
 
       {tab === "income" ? (
         <div role="tabpanel" data-prospectus-income-statement>
-          <ProspectusSectionShell title="Income Statement" missingCount={incomeMissing}>
+          <ProspectusSectionShell title="Income Statement" icon={ChartBarIcon} missingCount={incomeMissing}>
             <ProspectusIncomeStatementWorkingTable
               table={incomeStatementTable}
               years={years}
@@ -168,7 +182,7 @@ export function WorkingAreaPageThree({
 
       {tab === "balance" ? (
         <div role="tabpanel" data-prospectus-balance-sheet>
-          <ProspectusSectionShell title="Balance Sheet" missingCount={balanceMissing}>
+          <ProspectusSectionShell title="Balance Sheet" icon={ScaleIcon} missingCount={balanceMissing}>
             <ProspectusBalanceSheetWorkingTable
               table={balanceSheetTable}
               years={years}
@@ -184,6 +198,7 @@ export function WorkingAreaPageThree({
         <div role="tabpanel" data-prospectus-coverage>
           <ProspectusSectionShell
             title="Coverage & Efficiency"
+            icon={PresentationChartLineIcon}
             missingCount={coverageMissing}
           >
             <ProspectusCoverageWorkingTable
@@ -201,6 +216,7 @@ export function WorkingAreaPageThree({
         <div role="tabpanel">
           <ProspectusSectionShell
             title="Investor Takeaways"
+            icon={LightBulbIcon}
             missingCount={takeawaysMissing}
           >
             <div className="space-y-4">

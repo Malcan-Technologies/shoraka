@@ -1,8 +1,12 @@
 "use client";
 
-import { ChevronRightIcon } from "@heroicons/react/24/outline";
+import {
+  ChevronRightIcon,
+  ClipboardDocumentCheckIcon,
+  ClipboardDocumentListIcon,
+  ExclamationTriangleIcon,
+} from "@heroicons/react/24/outline";
 import type { ProspectusReviewStoredContent } from "@cashsouk/types";
-import { Button } from "@/components/ui/button";
 import {
   CHECKLIST_ITEM_STEP,
   buildProspectusCompletionChecklist,
@@ -18,7 +22,10 @@ import {
   PROSPECTUS_STEP_TITLES,
   type ProspectusWorkflowStepId,
 } from "@/notes/prospectus-review/labels";
-import { ProspectusPageHeader } from "@/notes/prospectus-review/field-presentation";
+import {
+  ProspectusPageHeader,
+  ProspectusSectionShell,
+} from "@/notes/prospectus-review/field-presentation";
 import { ProspectusStatusBadge } from "@/notes/prospectus-review/status-badge";
 import { HIGHLIGHT_FIELD_LABELS, INVOICE_WORK_FIELD_LABELS } from "@/notes/prospectus-review/labels";
 
@@ -27,14 +34,7 @@ export type WorkingAreaPreviewApprovalProps = {
   completionOptions?: ProspectusCompletionOptions;
   stepStatuses: Partial<Record<ProspectusWorkflowStepId, ProspectusStepStatus>>;
   onNavigate: (step: ProspectusWorkflowStepId, tabId?: string) => void;
-  onSave: () => void;
-  onPreview: () => void;
-  onApprove: () => void;
   actions: ProspectusActionVisibility;
-  dirty: boolean;
-  savePending?: boolean;
-  previewPending?: boolean;
-  approvePending?: boolean;
   publishBlockedReason?: string | null;
 };
 
@@ -53,14 +53,6 @@ export function WorkingAreaPreviewApproval({
   completionOptions,
   stepStatuses: stepStatusesProp,
   onNavigate,
-  onSave,
-  onPreview,
-  onApprove,
-  actions,
-  dirty,
-  savePending,
-  previewPending,
-  approvePending,
   publishBlockedReason,
 }: WorkingAreaPreviewApprovalProps) {
   const checklist = buildProspectusCompletionChecklist(draft, completionOptions);
@@ -86,10 +78,9 @@ export function WorkingAreaPreviewApproval({
 
   return (
     <div className="space-y-8" data-prospectus-working-page="preview">
-      <ProspectusPageHeader title="Preview & Approval" dirty={dirty} />
+      <ProspectusPageHeader title="Preview & Approval" />
 
-      <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground">Readiness by page</h3>
+      <ProspectusSectionShell title="Readiness by page" icon={ClipboardDocumentCheckIcon}>
         <ul className="overflow-hidden rounded-xl border" aria-label="Prospectus page readiness">
           {pageSteps.map((pageStep) => {
             const status = stepStatuses[pageStep];
@@ -121,10 +112,9 @@ export function WorkingAreaPreviewApproval({
             );
           })}
         </ul>
-      </section>
+      </ProspectusSectionShell>
 
-      <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground">Completion checklist</h3>
+      <ProspectusSectionShell title="Completion checklist" icon={ClipboardDocumentListIcon}>
         <ul className="overflow-hidden rounded-xl border" aria-label="Prospectus completion checklist">
           {checklist.map((item) => {
             const rowStatus = statusForCompletionItem(item);
@@ -149,11 +139,10 @@ export function WorkingAreaPreviewApproval({
             );
           })}
         </ul>
-      </section>
+      </ProspectusSectionShell>
 
       {missing.length > 0 ? (
-        <section className="space-y-3">
-          <h3 className="text-sm font-semibold text-foreground">Missing required fields</h3>
+        <ProspectusSectionShell title="Missing required fields" icon={ExclamationTriangleIcon}>
           <ul className="space-y-4">
             {pageSteps
               .filter((page) => (missingByPage[page]?.length ?? 0) > 0)
@@ -189,7 +178,7 @@ export function WorkingAreaPreviewApproval({
                 </li>
               ))}
           </ul>
-        </section>
+        </ProspectusSectionShell>
       ) : (
         <p className="text-sm text-muted-foreground">
           All required fields are complete. Save &amp; Preview, then Approve when ready.
@@ -199,32 +188,6 @@ export function WorkingAreaPreviewApproval({
       {publishBlockedReason ? (
         <p className="text-sm text-muted-foreground">{publishBlockedReason}</p>
       ) : null}
-
-      <div
-        data-prospectus-action-bar
-        className="flex flex-wrap items-center gap-2 border-t pt-4"
-      >
-        {actions.saveDraft ? (
-          <Button variant="outline" onClick={onSave} disabled={savePending || !dirty}>
-            Save Draft
-          </Button>
-        ) : null}
-        {actions.saveAndPreview ? (
-          <Button variant="secondary" onClick={onPreview} disabled={previewPending || savePending}>
-            Save &amp; Preview
-          </Button>
-        ) : null}
-        {actions.approve ? (
-          <Button onClick={onApprove} disabled={approvePending || missing.length > 0}>
-            Approve Prospectus
-          </Button>
-        ) : null}
-        {actions.viewProspectus ? (
-          <Button variant="secondary" onClick={onPreview} disabled={previewPending}>
-            View Prospectus
-          </Button>
-        ) : null}
-      </div>
     </div>
   );
 }

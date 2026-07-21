@@ -25,7 +25,7 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).not.toMatch(/Preview Page 1/);
     expect(pageSource).not.toMatch(/View in Preview/);
     expect(pageSource).not.toMatch(/verify in Preview/i);
-    expect(pageSource).toContain("Save &amp; Preview");
+    expect(pageSource).toMatch(/Save &(?:amp;)? Preview/);
     expect(pageSource).not.toMatch(/Submit for Review/);
     expect(pageSource).not.toMatch(/Reopen/);
   });
@@ -81,16 +81,17 @@ describe("prospectus review presentation cleanup", () => {
   });
 
   it("Page 3 reuses Page 2 gradings and omits Trend column in working coverage table", () => {
-    expect(pageThree).toContain("From Page 2 Invoice & Paymaster");
-    expect(pageThree).toContain("From Page 2 Issuer Profile");
+    expect(pageThree).toContain("From Page 2 — Issuer & Paymaster");
+    expect(pageThree).toContain("From Page 2 — Issuer Profile");
     expect(pageThree).toContain("From Invoice Offer");
+    expect(pageThree).not.toContain("From note snapshot");
     expect(pageThree).toContain("ProspectusIncomeStatementWorkingTable");
     expect(pageThree).toContain("ProspectusBalanceSheetWorkingTable");
     expect(pageThree).toContain("ProspectusCoverageWorkingTable");
     expect(pageThree).toContain("Investor Takeaways");
     expect(pageThree).toContain("ProspectusInternalTabs");
     expect(pageThree).not.toContain('label === "Sector"');
-    expect(coverageTable).toContain("From Page 2 Financial Comparison");
+    expect(coverageTable).toContain("From Page 2 — Financial Comparison");
     expect(coverageTable).not.toContain("Trend (3-Yr)");
     expect(financialComparisonTable).toContain("ProspectusSharedFinancialWorkingTable");
   });
@@ -99,6 +100,7 @@ describe("prospectus review presentation cleanup", () => {
     expect(preview).toContain("buildProspectusMissingRequiredFields");
     expect(preview).toContain("Missing required fields");
     expect(preview).toContain("Readiness by page");
+    expect(preview).not.toContain("data-prospectus-action-bar");
   });
 
   it("maps workflow steps to prospectus preview pages for the four-step model", () => {

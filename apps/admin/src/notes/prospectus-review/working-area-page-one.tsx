@@ -2,6 +2,13 @@
 
 import * as React from "react";
 import {
+  BanknotesIcon,
+  ChartBarIcon,
+  DocumentTextIcon,
+  ShieldCheckIcon,
+  SparklesIcon,
+} from "@heroicons/react/24/outline";
+import {
   PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT,
   PROSPECTUS_HIGHLIGHT_KEYS,
   type ProspectusHistoricalNotesAdminTable,
@@ -27,7 +34,6 @@ export type WorkingAreaPageOneProps = {
   draft: ProspectusReviewStoredContent;
   locked: boolean;
   canManage: boolean;
-  dirty: boolean;
   noteInvestmentSections: NoteInvestmentDetailSection[];
   historicalNotes: ProspectusHistoricalNotesAdminTable;
   updateDraft: (
@@ -77,7 +83,6 @@ export function WorkingAreaPageOne({
   draft,
   locked,
   canManage,
-  dirty,
   noteInvestmentSections,
   historicalNotes,
   updateDraft,
@@ -111,7 +116,6 @@ export function WorkingAreaPageOne({
       <ProspectusPageHeader
         title="Page 1 — Investment Overview"
         completionLabel={completionLabel}
-        dirty={dirty}
       />
 
       <ProspectusInternalTabs
@@ -131,20 +135,20 @@ export function WorkingAreaPageOne({
 
       {tab === "overview" ? (
         <div className="space-y-6" role="tabpanel">
-          <ProspectusSectionShell title="Note Overview">
+          <ProspectusSectionShell title="Note Overview" icon={DocumentTextIcon}>
             <ReadOnlyRows rows={noteDetails} />
           </ProspectusSectionShell>
-          <ProspectusSectionShell title="Dates & Paymaster">
+          <ProspectusSectionShell title="Dates & Paymaster" icon={DocumentTextIcon}>
             <ReadOnlyRows rows={datesPaymaster} />
           </ProspectusSectionShell>
-          <ProspectusSectionShell title="Risk Information">
+          <ProspectusSectionShell title="Risk Information" icon={ShieldCheckIcon}>
             <ReadOnlyRows
               rows={riskRows}
-              source="Invoice Offer"
+              source="From Invoice Offer"
               remapLabel={remapRiskLabel}
             />
           </ProspectusSectionShell>
-          <ProspectusSectionShell title="Investment Terms">
+          <ProspectusSectionShell title="Investment Terms" icon={BanknotesIcon}>
             <ReadOnlyRows rows={investmentTermRows} />
           </ProspectusSectionShell>
         </div>
@@ -152,7 +156,11 @@ export function WorkingAreaPageOne({
 
       {tab === "highlights" ? (
         <div className="space-y-3" role="tabpanel">
-          <ProspectusSectionShell title="Investor Highlights" missingCount={highlightsMissing}>
+          <ProspectusSectionShell
+            title="Investor Highlights"
+            icon={SparklesIcon}
+            missingCount={highlightsMissing}
+          >
             <div className="overflow-hidden rounded-xl border divide-y">
               {PROSPECTUS_HIGHLIGHT_KEYS.map((key) => {
                 const row =
@@ -206,7 +214,12 @@ export function WorkingAreaPageOne({
                           disabled={disabled}
                           required
                           incomplete={incomplete && !title.trim()}
-                          placeholder={HIGHLIGHT_PLACEHOLDERS.title}
+                          placeholder={
+                            key in HIGHLIGHT_PLACEHOLDERS
+                              ? HIGHLIGHT_PLACEHOLDERS[key as keyof typeof HIGHLIGHT_PLACEHOLDERS]
+                                  .title
+                              : "Enter highlight title"
+                          }
                           onChange={(value) =>
                             updateDraft((prev) => {
                               const next = structuredClone(prev);
@@ -234,7 +247,12 @@ export function WorkingAreaPageOne({
                           required
                           incomplete={incomplete && !description.trim()}
                           rows={3}
-                          placeholder={HIGHLIGHT_PLACEHOLDERS.description}
+                          placeholder={
+                            key in HIGHLIGHT_PLACEHOLDERS
+                              ? HIGHLIGHT_PLACEHOLDERS[key as keyof typeof HIGHLIGHT_PLACEHOLDERS]
+                                  .description
+                              : "Enter highlight description"
+                          }
                           onChange={(value) =>
                             updateDraft((prev) => {
                               const next = structuredClone(prev);
@@ -273,11 +291,11 @@ export function WorkingAreaPageOne({
       {tab === "track" ? (
         <div className="space-y-6" role="tabpanel">
           {issuerTrackRows.length > 0 ? (
-            <ProspectusSectionShell title="Issuer Track Record">
+            <ProspectusSectionShell title="Issuer Track Record" icon={ChartBarIcon}>
               <ReadOnlyRows rows={issuerTrackRows} />
             </ProspectusSectionShell>
           ) : null}
-          <ProspectusSectionShell title="Historical Notes">
+          <ProspectusSectionShell title="Historical Notes" icon={ChartBarIcon}>
             <ProspectusHistoricalNotesTable table={historicalNotes} />
           </ProspectusSectionShell>
         </div>

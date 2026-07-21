@@ -1,7 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import {
+  BanknotesIcon,
+  BuildingOffice2Icon,
+  ChartBarIcon,
+  ClipboardDocumentCheckIcon,
+  DocumentTextIcon,
+  ExclamationTriangleIcon,
+  ShieldCheckIcon,
+  TableCellsIcon,
+} from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import {
   MARKETPLACE_MIN_COMMIT_MYR,
@@ -66,7 +75,6 @@ export type WorkingAreaPageTwoProps = {
   draft: ProspectusReviewStoredContent;
   locked: boolean;
   canManage: boolean;
-  dirty: boolean;
   catalogues: WorkingAreaPageTwoCatalogues;
   issuerProfileRows: CoreTermRow[];
   invoicePaymasterRows: CoreTermRow[];
@@ -98,7 +106,6 @@ export function WorkingAreaPageTwo({
   draft,
   locked,
   canManage,
-  dirty,
   catalogues,
   issuerProfileRows,
   invoicePaymasterRows,
@@ -165,7 +172,6 @@ export function WorkingAreaPageTwo({
       <ProspectusPageHeader
         title="Page 2 — Issuer & Credit Review"
         completionLabel={completionLabel}
-        dirty={dirty}
       />
 
       <ProspectusInternalTabs
@@ -195,7 +201,7 @@ export function WorkingAreaPageTwo({
       {tab === "issuer_paymaster" ? (
         <div className="space-y-6" role="tabpanel">
           <div data-prospectus-issuer-profile>
-            <ProspectusSectionShell title="Issuer Profile" missingCount={companySize ? 0 : 1}>
+            <ProspectusSectionShell title="Issuer Profile" icon={BuildingOffice2Icon} missingCount={companySize ? 0 : 1}>
               <ProspectusInfoGrid>
                 {filteredIssuerRows.map((row) => (
                   <ProspectusReadOnlyField key={row.label} label={row.label} value={row.value} />
@@ -231,6 +237,7 @@ export function WorkingAreaPageTwo({
           <div data-prospectus-invoice-paymaster>
             <ProspectusSectionShell
               title="Invoice & Paymaster"
+              icon={DocumentTextIcon}
               missingCount={
                 [deedOfAssignment, paymasterRating, confidenceGrading].filter(Boolean).length === 3
                   ? 0
@@ -318,7 +325,7 @@ export function WorkingAreaPageTwo({
           </div>
 
           <div data-prospectus-paymaster-track-record>
-            <ProspectusSectionShell title="Paymaster Track Record" optional>
+            <ProspectusSectionShell title="Paymaster Track Record" icon={ChartBarIcon} optional>
               <ProspectusInfoGrid columns={2}>
                 {PAYMASTER_TRACK_FIELDS.map(([key, label, unit]) => (
                   <ProspectusEditableTextField
@@ -362,6 +369,7 @@ export function WorkingAreaPageTwo({
         <div role="tabpanel" data-prospectus-financial-comparison>
           <ProspectusSectionShell
             title="3-Year Financial Comparison"
+            icon={TableCellsIcon}
             missingCount={financialMissing}
           >
             {financialComparisonOpsWarning ? (
@@ -394,7 +402,7 @@ export function WorkingAreaPageTwo({
 
       {tab === "credit_invoice" ? (
         <div className="space-y-6" role="tabpanel">
-          <ProspectusSectionShell title="Credit Insights" missingCount={creditMissing}>
+          <ProspectusSectionShell title="Credit Insights" icon={ClipboardDocumentCheckIcon} missingCount={creditMissing}>
             <ProspectusInfoGrid columns={2}>
               {(
                 [
@@ -411,7 +419,7 @@ export function WorkingAreaPageTwo({
                   required
                   disabled={disabled}
                   incomplete={!draft.page2.creditInsights[field]}
-                  placeholder={SELECT_PLACEHOLDERS.creditInsight}
+                  placeholder={SELECT_PLACEHOLDERS[catalogueKey]}
                   value={draft.page2.creditInsights[field]}
                   options={catalogues.creditInsights[catalogueKey] ?? []}
                   onChange={(value) =>
@@ -432,7 +440,7 @@ export function WorkingAreaPageTwo({
           </ProspectusSectionShell>
 
           <div data-prospectus-about-invoice>
-            <ProspectusSectionShell title="About the Invoice / Work Performed">
+            <ProspectusSectionShell title="About the Invoice / Work Performed" icon={DocumentTextIcon}>
               <div className="space-y-4">
                 {(draft.page2.aboutInvoice?.items ?? []).map((item, idx) => (
                   <ProspectusEditableTextarea
@@ -473,19 +481,19 @@ export function WorkingAreaPageTwo({
 
       {tab === "risk" ? (
         <div className="space-y-6" role="tabpanel">
-          <ProspectusSectionShell title="Risk Rating">
+          <ProspectusSectionShell title="Risk Rating" icon={ShieldCheckIcon}>
             <ProspectusInfoGrid>
               <ProspectusReadOnlyField
                 label="Risk Grade"
                 value={risk.grade}
-                source="Invoice Offer"
+                source="From Invoice Offer"
               />
               <ProspectusReadOnlyField label="Scale Version" value={RISK_SCALE_VERSION} />
             </ProspectusInfoGrid>
           </ProspectusSectionShell>
 
           <div data-prospectus-investment-cta>
-            <ProspectusSectionShell title="CTA Information">
+            <ProspectusSectionShell title="CTA Information" icon={BanknotesIcon}>
               <ProspectusInfoGrid>
                 <ProspectusReadOnlyField
                   label="CTA Heading"
