@@ -42,14 +42,12 @@ import {
 import {
   PROSPECTUS_STEP_GROUPS,
   PROSPECTUS_STEP_PAGE_LABEL,
-  PROSPECTUS_STEP_TITLES,
   formatActorDisplayName,
   formatProspectusReviewStatus,
   type ProspectusWorkflowStepId,
 } from "@/notes/prospectus-review/labels";
 import {
   PROSPECTUS_STEP_STATUS_LABEL,
-  buildProspectusCompletionChecklist,
   buildProspectusMissingRequiredFields,
   formatProspectusPageCompletionLabel,
   getProspectusStepStatuses,
@@ -60,10 +58,10 @@ import {
 } from "@/notes/prospectus-review/core-terms";
 import { mergeOfficerOverridesIntoFinancialTable } from "@/notes/prospectus-review/page-two-coverage";
 import {
+  buildPageThreeAdminOverviewRows,
   buildPageThreeBalanceSheetTable,
   buildPageThreeCoverageTable,
   buildPageThreeIncomeStatementTable,
-  buildPageThreeMetadataRows,
   selectPageThreeYears,
 } from "@/notes/prospectus-review/page-three-coverage";
 import { ProspectusPreviewSheet } from "@/notes/prospectus-review/preview-sheet";
@@ -71,8 +69,6 @@ import { ProspectusStatusBadge } from "@/notes/prospectus-review/status-badge";
 import { getProspectusActionVisibility } from "@/notes/prospectus-review/action-visibility";
 import {
   PROSPECTUS_ACTIVE_COLUMN_CLASS,
-  PROSPECTUS_STEP_ICONS,
-  PROSPECTUS_STEP_ICON_CLASS,
   PROSPECTUS_STEPS_GRID_CLASS,
 } from "@/notes/prospectus-review/step-icons";
 import { WorkingAreaPageOne } from "@/notes/prospectus-review/working-area-page-one";
@@ -96,6 +92,15 @@ function ProspectusReviewPageInner() {
   const approve = useApproveProspectusReview(noteId);
 
   const [step, setStep] = React.useState<ProspectusWorkflowStepId>(0);
+  const [pageOneTab, setPageOneTab] = React.useState<
+    import("@/notes/prospectus-review/working-area-placeholders").PageOneTabId
+  >("overview");
+  const [pageTwoTab, setPageTwoTab] = React.useState<
+    import("@/notes/prospectus-review/working-area-placeholders").PageTwoTabId
+  >("issuer_paymaster");
+  const [pageThreeTab, setPageThreeTab] = React.useState<
+    import("@/notes/prospectus-review/working-area-placeholders").PageThreeTabId
+  >("overview");
   const [draft, setDraft] = React.useState<ProspectusReviewStoredContent | null>(null);
   const [dirty, setDirty] = React.useState(false);
   const [previewOpen, setPreviewOpen] = React.useState(false);
@@ -143,13 +148,23 @@ function ProspectusReviewPageInner() {
     });
   }, []);
 
-  const goToStep = React.useCallback(
-    (next: ProspectusWorkflowStepId, focusField = false) => {
-      setStep(next);
-      if (focusField) focusStepPanel();
-    },
-    [focusStepPanel]
-  );
+  const goToStep = (
+    next: ProspectusWorkflowStepId,
+    focusField = false,
+    tabId?: string
+  ) => {
+    setStep(next);
+    if (tabId) {
+      if (next === 0) {
+        setPageOneTab(tabId as typeof pageOneTab);
+      } else if (next === 1) {
+        setPageTwoTab(tabId as typeof pageTwoTab);
+      } else if (next === 2) {
+        setPageThreeTab(tabId as typeof pageThreeTab);
+      }
+    }
+    if (focusField) focusStepPanel();
+  };
 
   const onSave = async (): Promise<boolean> => {
     if (!draft || !data) return false;
@@ -283,11 +298,10 @@ function ProspectusReviewPageInner() {
     pageThreeYears.length > 0 ? pageThreeYears : (["2022", "2023", "2024"] as const);
   const incomeStatementYearKeys = activeFinancialYears.map(String);
   const completionOptions = { incomeStatementYears: incomeStatementYearKeys };
-  const checklist = buildProspectusCompletionChecklist(draft, completionOptions);
   const stepStatuses = getProspectusStepStatuses(draft, completionOptions);
   const manualYears = draft.page3.manualFinancialInputs?.years;
   const pageThreeMetadataRows = note
-    ? buildPageThreeMetadataRows(note, {
+    ? buildPageThreeAdminOverviewRows(note, {
         companySize: officerCompanySize,
         paymasterRating: officerPaymasterRating,
         confidenceGrading: officerConfidenceGrading,
@@ -330,7 +344,6 @@ function ProspectusReviewPageInner() {
     notePublished,
   });
   const dirtyLabel = dirty ? "Unsaved changes" : "All changes saved";
-  const StepIcon = PROSPECTUS_STEP_ICONS[step];
   const pageCompletion = formatProspectusPageCompletionLabel(
     draft,
     step,
@@ -340,11 +353,6 @@ function ProspectusReviewPageInner() {
     draft,
     completionOptions
   ).length;
-  const requiredSections = checklist.filter((i) => i.required);
-  const requiredCompleteHint =
-    requiredSections.length > 0
-      ? `${requiredSections.filter((i) => i.complete).length} of ${requiredSections.length} required sections complete`
-      : undefined;
 
   const stepNav = (
     <nav aria-label="Prospectus review steps" className="space-y-4">
@@ -548,24 +556,12 @@ function ProspectusReviewPageInner() {
               </div>
 
               <Card className="rounded-2xl" data-prospectus-active-step-card>
-                <CardHeader className="pb-3">
-                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <StepIcon
-                        className={PROSPECTUS_STEP_ICON_CLASS}
-                        data-prospectus-step-icon={step}
-                        aria-hidden="true"
-                      />
-                      <CardTitle className="min-w-0 text-base font-semibold text-foreground">
-                        {PROSPECTUS_STEP_PAGE_LABEL[step]} — {PROSPECTUS_STEP_TITLES[step]}
-                      </CardTitle>
-                    </div>
-                    {requiredCompleteHint && step !== 3 ? (
-                      <span className="text-xs text-muted-foreground">{requiredCompleteHint}</span>
-                    ) : null}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-6 pt-6">
+                  <div
+                    className="sr-only"
+                    data-prospectus-step-icon={step}
+                    aria-hidden="true"
+                  />
                   <div ref={stepPanelRef} data-prospectus-step-panel className="space-y-6">
                     {step === 0 ? (
                       note ? (
@@ -584,6 +580,8 @@ function ProspectusReviewPageInner() {
                           }
                           updateDraft={updateDraft}
                           completionLabel={pageCompletion}
+                          activeTab={pageOneTab}
+                          onTabChange={setPageOneTab}
                         />
                       ) : (
                         <Skeleton className="h-40 w-full" />
@@ -607,6 +605,9 @@ function ProspectusReviewPageInner() {
                         noteRiskRating={note?.riskRating}
                         updateDraft={updateDraft}
                         completionLabel={pageCompletion}
+                        completionOptions={completionOptions}
+                        activeTab={pageTwoTab}
+                        onTabChange={setPageTwoTab}
                       />
                     ) : null}
 
@@ -626,6 +627,9 @@ function ProspectusReviewPageInner() {
                         updateManualField={updateManualFieldForYear}
                         updateDraft={updateDraft}
                         completionLabel={pageCompletion}
+                        completionOptions={completionOptions}
+                        activeTab={pageThreeTab}
+                        onTabChange={setPageThreeTab}
                       />
                     ) : null}
 
@@ -634,7 +638,7 @@ function ProspectusReviewPageInner() {
                         draft={draft}
                         completionOptions={completionOptions}
                         stepStatuses={stepStatuses}
-                        onNavigate={(next) => goToStep(next, true)}
+                        onNavigate={(next, tabId) => goToStep(next, true, tabId)}
                         onSave={() => void onSave()}
                         onPreview={() => void onSaveAndPreview()}
                         onApprove={() => void onApprove()}

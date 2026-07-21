@@ -1,29 +1,24 @@
 "use client";
 
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import type { FinancialMetricTableModel } from "./financial-metric-table";
+import {
+  ProspectusSharedFinancialWorkingTable,
+  type FinancialRowMode,
+} from "./shared-financial-working-table";
 
-const OFFICER_MONEY_METRICS = new Set(["Operating Cash Flow", "Free Cash Flow"]);
-const OFFICER_MULTIPLE_METRICS = new Set(["Debt / Equity", "Asset Turnover"]);
-const OFFICER_PERCENT_METRICS = new Set(["Return on Assets"]);
-const OFFICER_DAYS_METRICS = new Set(["Payables Days"]);
-
-const METRIC_TO_FIELD: Record<string, string> = {
-  "Operating Cash Flow": "operatingCashFlow",
-  "Free Cash Flow": "freeCashFlow",
-  "Debt / Equity": "debtEquity",
-  "Return on Assets": "returnOnAssets",
-  "Payables Days": "payablesDays",
-  "Asset Turnover": "assetTurnover",
+const OFFICER: Record<
+  string,
+  { field: string; kind: "money" | "ratio" | "percent" | "days" }
+> = {
+  "Operating Cash Flow": { field: "operatingCashFlow", kind: "money" },
+  "Free Cash Flow": { field: "freeCashFlow", kind: "money" },
+  "Debt / Equity": { field: "debtEquity", kind: "ratio" },
+  "Return on Assets": { field: "returnOnAssets", kind: "percent" },
+  "Payables Days": { field: "payablesDays", kind: "days" },
+  "Asset Turnover": { field: "assetTurnover", kind: "ratio" },
 };
+
+const REUSED = new Set(["Interest Coverage", "DSCR", "Receivables Days"]);
 
 type Props = {
   table: FinancialMetricTableModel;
@@ -34,9 +29,8 @@ type Props = {
 };
 
 /**
- * One Coverage table for all selected years.
- * Six Prospectus-only rows are editable; Page 2 reused + ROE stay read-only.
- * Trend column omitted from Admin working area (still DNA in investor HTML).
+ * Coverage table: officer cells inline; IC/DSCR/Receivables Days reused from Page 2.
+ * Trend column omitted from Admin working area.
  */
 export function ProspectusCoverageWorkingTable({
   table,
@@ -45,108 +39,29 @@ export function ProspectusCoverageWorkingTable({
   disabled,
   onChange,
 }: Props) {
+  const resolveRow = (metric: string): FinancialRowMode => {
+    if (REUSED.has(metric)) {
+      return { mode: "reused", source: "From Page 2 Financial Comparison" };
+    }
+    const officer = OFFICER[metric];
+    if (!officer) return { mode: "readonly" };
+    return {
+      mode: "editable",
+      field: officer.field,
+      kind: officer.kind,
+      yearKeyForHeader: (_headerKey, yearKey) => yearKey,
+    };
+  };
+
   return (
-    <div className="min-w-0 max-w-full space-y-0 overflow-x-auto rounded-xl border">
-      <Table className="min-w-[42rem]">
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="min-w-[10rem] whitespace-nowrap text-sm font-semibold text-foreground">
-              Financial Metric
-            </TableHead>
-            {table.yearHeaders.map((header) => (
-              <TableHead
-                key={header.key}
-                className="min-w-[8rem] whitespace-nowrap text-sm font-semibold text-foreground"
-              >
-                <div>{header.yearLabel}</div>
-                <div className="mt-0.5 text-xs font-normal text-muted-foreground">
-                  {header.fyeLabel}
-                </div>
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {table.rows.length === 0 ? (
-            <TableRow>
-              <TableCell
-                colSpan={1 + table.yearHeaders.length}
-                className="py-8 text-center text-muted-foreground"
-              >
-                Data not available
-              </TableCell>
-            </TableRow>
-          ) : (
-            table.rows.map((row) => {
-              const isMoney = OFFICER_MONEY_METRICS.has(row.metric);
-              const isMultiple = OFFICER_MULTIPLE_METRICS.has(row.metric);
-              const isPercent = OFFICER_PERCENT_METRICS.has(row.metric);
-              const isDays = OFFICER_DAYS_METRICS.has(row.metric);
-              const isOfficer = isMoney || isMultiple || isPercent || isDays;
-              const field = METRIC_TO_FIELD[row.metric];
-              return (
-                <TableRow key={row.metric}>
-                  <TableCell className="whitespace-nowrap text-sm font-medium text-foreground">
-                    {row.metric}
-                    {isOfficer ? (
-                      <span className="ml-2 text-xs font-normal text-muted-foreground">
-                        (officer)
-                      </span>
-                    ) : (
-                      <span className="ml-2 text-xs font-normal text-muted-foreground">
-                        (read-only)
-                      </span>
-                    )}
-                  </TableCell>
-                  {years.map((year, index) => {
-                    if (isOfficer && field) {
-                      const value = manualYears[year]?.[field];
-                      return (
-                        <TableCell
-                          key={`${row.metric}-${year}`}
-                          className="min-w-[8rem] whitespace-nowrap"
-                        >
-                          <div className="flex items-center gap-1">
-                            {isMoney ? (
-                              <span className="text-xs text-muted-foreground">RM</span>
-                            ) : null}
-                            {isPercent ? (
-                              <span className="text-xs text-muted-foreground">%</span>
-                            ) : null}
-                            {isMultiple ? (
-                              <span className="text-xs text-muted-foreground">x</span>
-                            ) : null}
-                            {isDays ? (
-                              <span className="text-xs text-muted-foreground">days</span>
-                            ) : null}
-                            <Input
-                              className="h-9"
-                              type="number"
-                              step="any"
-                              aria-label={`${row.metric} FY${year}`}
-                              disabled={disabled}
-                              value={value == null ? "" : String(value)}
-                              onChange={(e) => onChange(year, field, e.target.value)}
-                            />
-                          </div>
-                        </TableCell>
-                      );
-                    }
-                    return (
-                      <TableCell
-                        key={`${row.metric}-${year}`}
-                        className="whitespace-nowrap bg-muted/30 text-sm text-foreground"
-                      >
-                        {row.values[index] ?? "Data not available"}
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              );
-            })
-          )}
-        </TableBody>
-      </Table>
-    </div>
+    <ProspectusSharedFinancialWorkingTable
+      table={table}
+      years={years}
+      resolveRow={resolveRow}
+      getEditableValue={(yearKey, field) => manualYears[yearKey]?.[field]}
+      onChange={onChange}
+      disabled={disabled}
+      emptyMessage="Data not available"
+    />
   );
 }

@@ -238,6 +238,49 @@ export function buildPageThreeMetadataRows(
   ];
 }
 
+/**
+ * Admin working-area overview only — Industry and Company Size are separate fields.
+ * Investor HTML continues to use formatPageThreeSectorDisplay / buildPageThreeMetadataRows.
+ */
+export function buildPageThreeAdminOverviewRows(
+  note: NoteDetail,
+  officerFields?: {
+    companySize?: string | null;
+    paymasterRating?: string | null;
+    confidenceGrading?: string | null;
+  }
+): CoreTermRow[] {
+  const issuer = asRecord(note.issuerSnapshot);
+  const paymaster = asRecord(note.paymasterSnapshot);
+  const invoice = asRecord(note.invoiceSnapshot);
+  const offerDetails = asRecord(invoice?.offer_details);
+  const industry =
+    typeof issuer?.industry === "string" && issuer.industry.trim()
+      ? issuer.industry.trim()
+      : typeof note.issuerIndustry === "string" && note.issuerIndustry.trim()
+        ? note.issuerIndustry.trim()
+        : DATA_NOT_AVAILABLE;
+  const companySize =
+    normalizeProspectusCompanySize(officerFields?.companySize) ?? DATA_NOT_AVAILABLE;
+  const riskRating = isSoukscoreRiskRating(offerDetails?.risk_rating)
+    ? offerDetails.risk_rating
+    : DATA_NOT_AVAILABLE;
+  return [
+    { label: "Industry", value: industry },
+    { label: "Company Size", value: companySize },
+    { label: "Risk Grade", value: riskRating },
+    { label: "Paymaster", value: textOrDna(note.paymasterName ?? paymaster?.name) },
+    {
+      label: "Paymaster Grading",
+      value: textOrDna(officerFields?.paymasterRating),
+    },
+    {
+      label: "Confidence Grading",
+      value: textOrDna(officerFields?.confidenceGrading),
+    },
+  ];
+}
+
 export type PageThreeManualYear = Record<string, string | number | null | undefined>;
 export type PageThreeManualYears = Record<string, PageThreeManualYear | undefined>;
 

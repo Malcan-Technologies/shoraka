@@ -16,7 +16,10 @@ import { cn } from "@/lib/utils";
 export const PROSPECTUS_READONLY_SURFACE =
   "rounded-xl border border-border bg-muted/30 px-4 py-3";
 
-type SourceProps = { source?: string };
+const LABEL_CLASS = "text-sm font-medium text-foreground";
+const VALUE_CLASS = "mt-1 break-words text-sm font-medium leading-6 text-foreground";
+const SOURCE_CLASS = "mt-1.5 text-xs text-muted-foreground";
+const INPUT_CLASS = "h-11 text-sm";
 
 export function ProspectusReadOnlyField({
   label,
@@ -32,12 +35,8 @@ export function ProspectusReadOnlyField({
   return (
     <div className={cn(PROSPECTUS_READONLY_SURFACE, "min-w-0", className)}>
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 break-words text-[17px] font-medium leading-7 text-foreground">
-        {value}
-      </div>
-      {source ? (
-        <div className="mt-1.5 text-xs text-muted-foreground">{source}</div>
-      ) : null}
+      <div className={VALUE_CLASS}>{value}</div>
+      {source ? <div className={SOURCE_CLASS}>{source}</div> : null}
     </div>
   );
 }
@@ -84,13 +83,11 @@ export function ProspectusInfoGrid({
 
 export function ProspectusSectionShell({
   title,
-  status,
   optional,
   missingCount,
   children,
 }: {
   title: string;
-  status?: "complete" | "incomplete" | "optional";
   optional?: boolean;
   missingCount?: number;
   children: React.ReactNode;
@@ -99,11 +96,9 @@ export function ProspectusSectionShell({
     ? "Optional"
     : missingCount != null && missingCount > 0
       ? `${missingCount} required missing`
-      : status === "complete"
+      : missingCount === 0
         ? "Complete"
-        : status === "incomplete"
-          ? "Incomplete"
-          : null;
+        : null;
 
   return (
     <section className="space-y-4">
@@ -140,6 +135,7 @@ export function ProspectusEditableTextField({
   type = "text",
   suffix,
   prefix,
+  incomplete,
 }: {
   label: string;
   value: string;
@@ -151,10 +147,12 @@ export function ProspectusEditableTextField({
   type?: React.HTMLInputTypeAttribute;
   suffix?: string;
   prefix?: string;
+  incomplete?: boolean;
 }) {
+  const showIncomplete = Boolean(required && incomplete && !disabled);
   return (
     <div className="space-y-1.5">
-      <Label className="text-sm">
+      <Label className={LABEL_CLASS}>
         {label}
         {required ? <span className="text-destructive"> *</span> : null}
         {optional ? (
@@ -164,7 +162,10 @@ export function ProspectusEditableTextField({
       <div className="flex items-center gap-1.5">
         {prefix ? <span className="text-xs text-muted-foreground">{prefix}</span> : null}
         <Input
-          className="h-11"
+          className={cn(
+            INPUT_CLASS,
+            showIncomplete && "border-amber-500/70 focus-visible:ring-amber-500/40"
+          )}
           type={type}
           disabled={disabled}
           value={value}
@@ -173,6 +174,9 @@ export function ProspectusEditableTextField({
         />
         {suffix ? <span className="text-xs text-muted-foreground">{suffix}</span> : null}
       </div>
+      {showIncomplete ? (
+        <p className="text-xs text-amber-700 dark:text-amber-400">Required</p>
+      ) : null}
     </div>
   );
 }
@@ -184,6 +188,8 @@ export function ProspectusEditableTextarea({
   disabled,
   required,
   rows = 4,
+  placeholder,
+  incomplete,
 }: {
   label: string;
   value: string;
@@ -191,20 +197,30 @@ export function ProspectusEditableTextarea({
   disabled?: boolean;
   required?: boolean;
   rows?: number;
+  placeholder?: string;
+  incomplete?: boolean;
 }) {
+  const showIncomplete = Boolean(required && incomplete && !disabled);
   return (
     <div className="space-y-1.5">
-      <Label className="text-sm">
+      <Label className={LABEL_CLASS}>
         {label}
         {required ? <span className="text-destructive"> *</span> : null}
       </Label>
       <Textarea
-        className="min-h-[6rem] text-[17px] leading-7"
+        className={cn(
+          "min-h-[6rem] text-sm leading-6",
+          showIncomplete && "border-amber-500/70 focus-visible:ring-amber-500/40"
+        )}
         rows={rows}
         disabled={disabled}
         value={value}
+        placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
       />
+      {showIncomplete ? (
+        <p className="text-xs text-amber-700 dark:text-amber-400">Required</p>
+      ) : null}
     </div>
   );
 }
@@ -217,6 +233,8 @@ export function ProspectusOptionSelect({
   disabled,
   required,
   optional,
+  placeholder = "Select…",
+  incomplete,
 }: {
   label: string;
   value: string | null | undefined;
@@ -225,23 +243,28 @@ export function ProspectusOptionSelect({
   disabled?: boolean;
   required?: boolean;
   optional?: boolean;
+  placeholder?: string;
+  incomplete?: boolean;
 }) {
+  const empty = !value || !String(value).trim();
+  const showIncomplete = Boolean(required && incomplete && empty && !disabled);
   return (
     <div className="space-y-1.5">
-      <Label className="text-sm">
+      <Label className={LABEL_CLASS}>
         {label}
         {required ? <span className="text-destructive"> *</span> : null}
         {optional ? (
           <span className="ml-2 text-xs font-normal text-muted-foreground">Optional</span>
         ) : null}
       </Label>
-      <Select
-        disabled={disabled}
-        value={value ?? undefined}
-        onValueChange={onChange}
-      >
-        <SelectTrigger className="h-11">
-          <SelectValue placeholder="Select option" />
+      <Select disabled={disabled} value={value ?? undefined} onValueChange={onChange}>
+        <SelectTrigger
+          className={cn(
+            INPUT_CLASS,
+            showIncomplete && "border-amber-500/70 focus-visible:ring-amber-500/40"
+          )}
+        >
+          <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
           {options.map((o) => (
@@ -251,29 +274,25 @@ export function ProspectusOptionSelect({
           ))}
         </SelectContent>
       </Select>
+      {showIncomplete ? (
+        <p className="text-xs text-amber-700 dark:text-amber-400">Required</p>
+      ) : null}
     </div>
   );
 }
 
 export function ProspectusPageHeader({
   title,
-  subtitle,
   completionLabel,
   dirty,
 }: {
   title: string;
-  subtitle?: string;
   completionLabel?: string;
   dirty?: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-        {subtitle ? (
-          <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>
-        ) : null}
-      </div>
+      <h2 className="text-lg font-semibold text-foreground">{title}</h2>
       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
         {completionLabel ? <span>{completionLabel}</span> : null}
         {dirty ? <span className="font-medium text-amber-700">Unsaved changes</span> : null}
@@ -281,5 +300,3 @@ export function ProspectusPageHeader({
     </div>
   );
 }
-
-export type { SourceProps };

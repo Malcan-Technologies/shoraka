@@ -35,7 +35,7 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).toContain("WorkingAreaPageTwo");
     expect(pageSource).toContain("WorkingAreaPageThree");
     expect(pageSource).toContain("WorkingAreaPreviewApproval");
-    expect(pageSource).toContain("buildPageThreeMetadataRows(note,");
+    expect(pageSource).toContain("buildPageThreeAdminOverviewRows");
     expect(pageSource).toContain("mergeOfficerOverridesIntoFinancialTable");
   });
 
@@ -45,32 +45,38 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageOne).toContain("Investment Terms");
     expect(pageOne).toContain("Investor Highlights");
     expect(pageOne).toContain("Historical Notes");
+    expect(pageOne).toContain("ProspectusInternalTabs");
     expect(pageOne).not.toContain("at-a-glance");
+    expect(pageOne).not.toContain("Working Area");
     expect(pageOne).toContain("PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT");
     expect(pageOne).toContain('key === "shariah"');
+    expect(pageOne).toContain("Fixed");
   });
 
   it("Page 2 edits Company Size and paymaster fields in place", () => {
     expect(pageTwo).toContain("Issuer Profile");
     expect(pageTwo).toContain("Company Size");
-    expect(pageTwo).toContain("Invoice & Paymaster Information");
-    expect(pageTwo).toContain("Deed of Assignment (DOA)");
+    expect(pageTwo).toContain("Invoice & Paymaster");
+    expect(pageTwo).toContain("Deed of Assignment");
     expect(pageTwo).toContain("Paymaster Rating");
     expect(pageTwo).toContain("Confidence Grading");
     expect(pageTwo).toContain("Paymaster Track Record");
     expect(pageTwo).toContain("optional");
     expect(pageTwo).toContain("ProspectusFinancialComparisonWorkingTable");
     expect(pageTwo).toContain("About the Invoice / Work Performed");
+    expect(pageTwo).toContain("ProspectusInternalTabs");
     expect(pageTwo).not.toContain("data-prospectus-risk-rating-scale");
     expect(pageTwo).not.toContain("SOUKSCORE_RISK_RATING_GRADES");
-    expect(pageTwo).toContain("Risk & CTA Information");
-    expect(pageTwo).toContain("Disabled in Prospectus preview");
-    expect(pageTwo).toContain("INVEST WITH CONFIDENCE");
+    expect(pageTwo).toContain("Risk Information");
+    expect(pageTwo).toContain("Disabled in Prospectus");
+    expect(pageTwo).toContain("Invest with Confidence");
     expect(pageTwo).not.toMatch(/data-prospectus-investment-cta[\s\S]{0,400}<button/);
+    expect(pageTwo).not.toContain("Working Area");
   });
 
   it("Page 2 financial comparison edits inside the table", () => {
-    expect(financialComparisonTable).toContain("Officer rows: in-cell inputs");
+    expect(financialComparisonTable).toContain("ProspectusSharedFinancialWorkingTable");
+    expect(financialComparisonTable).toContain("one three-year table");
     expect(pageTwo).not.toContain("PAGE_TWO_OFFICER_FINANCIAL_METRICS.map");
   });
 
@@ -82,8 +88,11 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageThree).toContain("ProspectusBalanceSheetWorkingTable");
     expect(pageThree).toContain("ProspectusCoverageWorkingTable");
     expect(pageThree).toContain("Investor Takeaways");
-    expect(coverageTable).toContain("Trend column omitted");
+    expect(pageThree).toContain("ProspectusInternalTabs");
+    expect(pageThree).not.toContain('label === "Sector"');
+    expect(coverageTable).toContain("From Page 2 Financial Comparison");
     expect(coverageTable).not.toContain("Trend (3-Yr)");
+    expect(financialComparisonTable).toContain("ProspectusSharedFinancialWorkingTable");
   });
 
   it("Preview & Approval lists missing required fields", () => {

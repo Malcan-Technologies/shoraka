@@ -11,6 +11,7 @@ import {
   buildBalanceSheetResolvedRows,
   buildCoverageResolvedRows,
   buildIncomeStatementResolvedRows,
+  buildPageThreeAdminOverviewRows,
   buildPageThreeBalanceSheetTable,
   buildPageThreeCoverageTable,
   buildPageThreeIncomeStatementTable,
@@ -160,6 +161,25 @@ describe("page three coverage verification", () => {
     expect(rows.find((r) => r.label === "Confidence Grading")?.value).toBe("Medium");
     expect(rows.some((r) => /issuer/i.test(r.label))).toBe(false);
     expect(pageThreeHidesIssuerIdentity(rows)).toBe(true);
+  });
+
+  it("Admin overview shows Industry and Company Size separately", () => {
+    const rows = buildPageThreeAdminOverviewRows(sampleNote(), {
+      companySize: "Medium",
+      paymasterRating: "PM2",
+      confidenceGrading: "Medium",
+    });
+    expect(rows.map((r) => r.label)).toEqual([
+      "Industry",
+      "Company Size",
+      "Risk Grade",
+      "Paymaster",
+      "Paymaster Grading",
+      "Confidence Grading",
+    ]);
+    expect(rows.find((r) => r.label === "Industry")?.value).toBe("Construction");
+    expect(rows.find((r) => r.label === "Company Size")?.value).toBe("Medium");
+    expect(rows.some((r) => r.value.includes("|"))).toBe(false);
   });
 
   it("formats Sector with partial Industry / Company Size", () => {

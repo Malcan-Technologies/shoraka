@@ -26,7 +26,7 @@ export type WorkingAreaPreviewApprovalProps = {
   draft: ProspectusReviewStoredContent;
   completionOptions?: ProspectusCompletionOptions;
   stepStatuses: Partial<Record<ProspectusWorkflowStepId, ProspectusStepStatus>>;
-  onNavigate: (step: ProspectusWorkflowStepId) => void;
+  onNavigate: (step: ProspectusWorkflowStepId, tabId?: string) => void;
   onSave: () => void;
   onPreview: () => void;
   onApprove: () => void;
@@ -86,11 +86,7 @@ export function WorkingAreaPreviewApproval({
 
   return (
     <div className="space-y-8" data-prospectus-working-page="preview">
-      <ProspectusPageHeader
-        title="Preview & Approval"
-        subtitle="Confirm readiness before approving the Prospectus"
-        dirty={dirty}
-      />
+      <ProspectusPageHeader title="Preview & Approval" dirty={dirty} />
 
       <section className="space-y-3">
         <h3 className="text-sm font-semibold text-foreground">Readiness by page</h3>
@@ -172,7 +168,7 @@ export function WorkingAreaPreviewApproval({
                         <button
                           type="button"
                           className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-                          onClick={() => onNavigate(item.pageStep)}
+                          onClick={() => onNavigate(item.pageStep, item.tabId)}
                         >
                           <span className="min-w-0 flex-1">
                             <span className="text-muted-foreground">{item.section}</span>

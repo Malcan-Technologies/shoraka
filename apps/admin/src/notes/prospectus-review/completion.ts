@@ -237,6 +237,8 @@ export type ProspectusMissingField = {
   section: string;
   field: string;
   year?: string;
+  /** Internal working-area tab id for navigation. */
+  tabId?: string;
 };
 
 export function buildProspectusMissingRequiredFields(
@@ -252,21 +254,42 @@ export function buildProspectusMissingRequiredFields(
         pageStep: 0,
         section: "Investor Highlights",
         field: h.key,
+        tabId: "highlights",
       });
     }
   }
 
   if (!hasOption(draft.page2.issuerProfile?.companySize)) {
-    missing.push({ pageStep: 1, section: "Issuer Profile", field: "Company Size" });
+    missing.push({
+      pageStep: 1,
+      section: "Issuer Profile",
+      field: "Company Size",
+      tabId: "issuer_paymaster",
+    });
   }
   if (!hasOption(draft.page2.invoicePaymaster?.deedOfAssignment)) {
-    missing.push({ pageStep: 1, section: "Invoice & Paymaster", field: "Deed of Assignment" });
+    missing.push({
+      pageStep: 1,
+      section: "Invoice & Paymaster",
+      field: "Deed of Assignment",
+      tabId: "issuer_paymaster",
+    });
   }
   if (!hasOption(draft.page2.invoicePaymaster?.paymasterRating)) {
-    missing.push({ pageStep: 1, section: "Invoice & Paymaster", field: "Paymaster Rating" });
+    missing.push({
+      pageStep: 1,
+      section: "Invoice & Paymaster",
+      field: "Paymaster Rating",
+      tabId: "issuer_paymaster",
+    });
   }
   if (!hasOption(draft.page2.invoicePaymaster?.confidenceGrading)) {
-    missing.push({ pageStep: 1, section: "Invoice & Paymaster", field: "Confidence Grading" });
+    missing.push({
+      pageStep: 1,
+      section: "Invoice & Paymaster",
+      field: "Confidence Grading",
+      tabId: "issuer_paymaster",
+    });
   }
 
   const creditLabels: Array<[keyof typeof draft.page2.creditInsights, string]> = [
@@ -278,7 +301,12 @@ export function buildProspectusMissingRequiredFields(
   ];
   for (const [key, label] of creditLabels) {
     if (!hasOption(draft.page2.creditInsights[key])) {
-      missing.push({ pageStep: 1, section: "Credit Insights", field: label });
+      missing.push({
+        pageStep: 1,
+        section: "Credit Insights",
+        field: label,
+        tabId: "credit_invoice",
+      });
     }
   }
 
@@ -288,6 +316,7 @@ export function buildProspectusMissingRequiredFields(
         pageStep: 1,
         section: "About the Invoice",
         field: item.id,
+        tabId: "credit_invoice",
       });
     }
   }
@@ -331,6 +360,7 @@ export function buildProspectusMissingRequiredFields(
           section: "Financial Comparison",
           field: overrideLabels[field],
           year: `FY${year}`,
+          tabId: "financial",
         });
       }
     }
@@ -347,11 +377,18 @@ export function buildProspectusMissingRequiredFields(
                 field === "quickRatio"
               ? "Balance Sheet"
               : "Coverage & Efficiency";
+        const tabId =
+          section === "Income Statement"
+            ? "income"
+            : section === "Balance Sheet"
+              ? "balance"
+              : "coverage";
         missing.push({
           pageStep: 2,
           section,
           field: page3Labels[field],
           year: `FY${year}`,
+          tabId,
         });
       }
     }
@@ -367,11 +404,25 @@ export function buildProspectusMissingRequiredFields(
   ];
   for (const [key, label] of takeawayLabels) {
     if (!hasOption(draft.page3.investorTakeaways[key])) {
-      missing.push({ pageStep: 2, section: "Investor Takeaways", field: label });
+      missing.push({
+        pageStep: 2,
+        section: "Investor Takeaways",
+        field: label,
+        tabId: "takeaways",
+      });
     }
   }
 
   return missing;
+}
+
+export function countMissingForTab(
+  draft: import("@cashsouk/types").ProspectusReviewStoredContent,
+  tabId: string,
+  options?: ProspectusCompletionOptions
+): number {
+  return buildProspectusMissingRequiredFields(draft, options).filter((m) => m.tabId === tabId)
+    .length;
 }
 
 /** Count required missing + approximate total required officer fields for page headers. */

@@ -61,7 +61,7 @@ test.describe("Admin Prospectus Review (demo Note)", () => {
     await expect(page.getByRole("button", { name: /Reopen/i })).toHaveCount(0);
 
     await expect(page.getByText("Investor Highlights").first()).toBeVisible();
-    await expect(page.getByText("Paymaster Highlight")).toBeVisible();
+    await expect(page.getByText("Paymaster").first()).toBeVisible();
     await expect(page.getByText(/The available wording is still under review/i)).toHaveCount(0);
 
     const stepNav = page.getByRole("navigation", { name: /Prospectus review steps/i });

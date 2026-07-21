@@ -11,7 +11,7 @@ export const PROSPECTUS_STEP_GROUPS: Array<{
   steps: Array<{ id: ProspectusWorkflowStepId; label: string }>;
 }> = [
   {
-    group: "Working area",
+    group: "Pages",
     steps: [
       { id: 0, label: "Investment Overview" },
       { id: 1, label: "Issuer & Credit Review" },
@@ -43,11 +43,12 @@ export function formatProspectusReviewStatus(
 }
 
 export const HIGHLIGHT_FIELD_LABELS: Record<string, string> = {
-  paymaster: "Paymaster Highlight",
-  issuer_fundamentals: "Issuer Financial Strength",
-  return: "Return Highlight",
-  shariah: "Shariah Compliance Highlight",
+  paymaster: "Paymaster",
+  issuer_fundamentals: "Issuer Fundamentals",
+  return: "Short-Term Return",
+  shariah: "Shariah",
 };
+
 
 export const INVOICE_WORK_FIELD_LABELS: Record<string, string> = {
   work_under_contract: "Work Performed Under Contract",

@@ -54,8 +54,10 @@ describe("prospectus review admin labels", () => {
   });
 
   it("maps highlight and invoice work keys to business labels", () => {
-    expect(HIGHLIGHT_FIELD_LABELS.paymaster).toBe("Paymaster Highlight");
-    expect(HIGHLIGHT_FIELD_LABELS.issuer_fundamentals).toBe("Issuer Financial Strength");
+    expect(HIGHLIGHT_FIELD_LABELS.paymaster).toBe("Paymaster");
+    expect(HIGHLIGHT_FIELD_LABELS.issuer_fundamentals).toBe("Issuer Fundamentals");
+    expect(HIGHLIGHT_FIELD_LABELS.return).toBe("Short-Term Return");
+    expect(HIGHLIGHT_FIELD_LABELS.shariah).toBe("Shariah");
     expect(INVOICE_WORK_FIELD_LABELS.work_under_contract).toBe(
       "Work Performed Under Contract"
     );

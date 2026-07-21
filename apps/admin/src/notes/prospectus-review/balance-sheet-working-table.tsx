@@ -1,29 +1,16 @@
 "use client";
 
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import type { FinancialMetricTableModel } from "./financial-metric-table";
+import {
+  ProspectusSharedFinancialWorkingTable,
+  type FinancialRowMode,
+} from "./shared-financial-working-table";
 
-const OFFICER_MONEY_METRICS = new Set([
-  "Cash & Bank",
-  "Trade Receivables",
-  "Total Equity",
-]);
-
-const OFFICER_RATIO_METRICS = new Set(["Quick Ratio"]);
-
-const METRIC_TO_FIELD: Record<string, string> = {
-  "Cash & Bank": "cashAndBank",
-  "Trade Receivables": "tradeReceivables",
-  "Total Equity": "totalEquity",
-  "Quick Ratio": "quickRatio",
+const OFFICER: Record<string, { field: string; kind: "money" | "ratio" }> = {
+  "Cash & Bank": { field: "cashAndBank", kind: "money" },
+  "Trade Receivables": { field: "tradeReceivables", kind: "money" },
+  "Total Equity": { field: "totalEquity", kind: "money" },
+  "Quick Ratio": { field: "quickRatio", kind: "ratio" },
 };
 
 type Props = {
@@ -34,10 +21,6 @@ type Props = {
   onChange: (year: string, field: string, value: string) => void;
 };
 
-/**
- * One Balance Sheet & Liquidity table for all selected years.
- * System rows stay read-only; Cash & Bank / Trade Receivables / Total Equity / Quick Ratio are officer inputs.
- */
 export function ProspectusBalanceSheetWorkingTable({
   table,
   years,
@@ -45,97 +28,26 @@ export function ProspectusBalanceSheetWorkingTable({
   disabled,
   onChange,
 }: Props) {
+  const resolveRow = (metric: string): FinancialRowMode => {
+    const officer = OFFICER[metric];
+    if (!officer) return { mode: "readonly" };
+    return {
+      mode: "editable",
+      field: officer.field,
+      kind: officer.kind,
+      yearKeyForHeader: (_headerKey, yearKey) => yearKey,
+    };
+  };
+
   return (
-    <div className="min-w-0 max-w-full space-y-0 overflow-x-auto rounded-xl border">
-      <Table className="min-w-[36rem]">
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="min-w-[10rem] whitespace-nowrap text-sm font-semibold text-foreground">
-              Financial Metric
-            </TableHead>
-            {table.yearHeaders.map((header) => (
-              <TableHead
-                key={header.key}
-                className="min-w-[8rem] whitespace-nowrap text-sm font-semibold text-foreground"
-              >
-                <div>{header.yearLabel}</div>
-                <div className="mt-0.5 text-xs font-normal text-muted-foreground">
-                  {header.fyeLabel}
-                </div>
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {table.rows.length === 0 ? (
-            <TableRow>
-              <TableCell
-                colSpan={1 + table.yearHeaders.length}
-                className="py-8 text-center text-muted-foreground"
-              >
-                Data not available
-              </TableCell>
-            </TableRow>
-          ) : (
-            table.rows.map((row) => {
-              const isMoneyOfficer = OFFICER_MONEY_METRICS.has(row.metric);
-              const isRatioOfficer = OFFICER_RATIO_METRICS.has(row.metric);
-              const isOfficer = isMoneyOfficer || isRatioOfficer;
-              const field = METRIC_TO_FIELD[row.metric];
-              return (
-                <TableRow key={row.metric}>
-                  <TableCell className="whitespace-nowrap text-sm font-medium text-foreground">
-                    {row.metric}
-                    {isOfficer ? (
-                      <span className="ml-2 text-xs font-normal text-muted-foreground">
-                        (officer)
-                      </span>
-                    ) : (
-                      <span className="ml-2 text-xs font-normal text-muted-foreground">
-                        (read-only)
-                      </span>
-                    )}
-                  </TableCell>
-                  {years.map((year, index) => {
-                    if (isOfficer && field) {
-                      const value = manualYears[year]?.[field];
-                      return (
-                        <TableCell
-                          key={`${row.metric}-${year}`}
-                          className="min-w-[8rem] whitespace-nowrap"
-                        >
-                          <div className="flex items-center gap-1">
-                            {isMoneyOfficer ? (
-                              <span className="text-xs text-muted-foreground">RM</span>
-                            ) : null}
-                            <Input
-                              className="h-9"
-                              type="number"
-                              step="any"
-                              aria-label={`${row.metric} FY${year}`}
-                              disabled={disabled}
-                              value={value == null ? "" : String(value)}
-                              onChange={(e) => onChange(year, field, e.target.value)}
-                            />
-                          </div>
-                        </TableCell>
-                      );
-                    }
-                    return (
-                      <TableCell
-                        key={`${row.metric}-${year}`}
-                        className="whitespace-nowrap bg-muted/30 text-sm text-foreground"
-                      >
-                        {row.values[index] ?? "Data not available"}
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              );
-            })
-          )}
-        </TableBody>
-      </Table>
-    </div>
+    <ProspectusSharedFinancialWorkingTable
+      table={table}
+      years={years}
+      resolveRow={resolveRow}
+      getEditableValue={(yearKey, field) => manualYears[yearKey]?.[field]}
+      onChange={onChange}
+      disabled={disabled}
+      emptyMessage="Data not available"
+    />
   );
 }
