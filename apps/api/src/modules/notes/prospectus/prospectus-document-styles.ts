@@ -1,18 +1,65 @@
 /**
  * SECTION: Shared investor Prospectus document CSS
- * WHY: Match uploaded A4 reference without Google Fonts or remote assets
+ * WHY: Fixed A4 pages for screen + print; preview chrome only; no mobile reflow
  */
 
+/** Fixed A4 geometry — never shrink with viewport. */
+export const PROSPECTUS_A4_WIDTH_MM = 210;
+export const PROSPECTUS_A4_HEIGHT_MM = 297;
+
+/**
+ * Screen + print stylesheet for investor Prospectus HTML.
+ * - `.page` is always 210mm × 297mm (min and exact).
+ * - Grey canvas / shadow / outer padding are preview-only.
+ * - No max-width media queries that stack grids or reflow sections.
+ */
 export const PROSPECTUS_DOCUMENT_CSS = `
 :root{
   --red:#b10810;--bright:#dc2a22;--pink:#edd1d1;--soft:#f8eded;--line:#c9c5c5;
   --ink:#171717;--muted:#5c5c5c;--green:#22b83f;--light-green:#dcefc8;
+  --prospectus-a4-width:${PROSPECTUS_A4_WIDTH_MM}mm;
+  --prospectus-a4-height:${PROSPECTUS_A4_HEIGHT_MM}mm;
 }
 *{box-sizing:border-box}
-html{background:#ececec}
-body{margin:0;font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;color:var(--ink);font-size:10px;line-height:1.35;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.document{padding:24px 0}
-.page{width:794px;min-height:1123px;margin:0 auto 26px;background:#fff;padding:38px 28px 28px;position:relative;box-shadow:0 4px 24px #0002;display:flex;flex-direction:column}
+html{
+  background:#ececec; /* preview-only grey canvas */
+  -webkit-print-color-adjust:exact;
+  print-color-adjust:exact;
+}
+body{
+  margin:0;
+  font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  color:var(--ink);
+  font-size:10px;
+  line-height:1.35;
+  -webkit-print-color-adjust:exact;
+  print-color-adjust:exact;
+  overflow-x:auto; /* allow horizontal scroll when viewport < A4; do not reflow */
+}
+.document{
+  padding:24px 0; /* preview-only outer padding */
+  min-width:var(--prospectus-a4-width);
+}
+.page{
+  width:var(--prospectus-a4-width);
+  height:var(--prospectus-a4-height);
+  min-width:var(--prospectus-a4-width);
+  min-height:var(--prospectus-a4-height);
+  max-width:var(--prospectus-a4-width);
+  max-height:var(--prospectus-a4-height);
+  margin:0 auto 26px;
+  background:#fff; /* page surface stays white */
+  padding:38px 28px 28px;
+  position:relative;
+  box-shadow:0 4px 24px #0002; /* preview-only */
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  /* page-break / break-after are print-only — on screen they overlap stacked A4 pages in Chromium */
+}
+.page:last-child{
+  margin-bottom:0;
+}
 .page-header{height:58px;border-bottom:2px solid #bd2c2c;display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0}
 .brand{display:flex;align-items:center;gap:8px;position:relative}
 .brand-mark-placeholder{width:48px;height:42px;border:2px solid var(--red);background:var(--red);color:#fff;font-size:7px;font-weight:800;display:grid;place-items:center;text-align:center;line-height:1.1;border-radius:3px;flex:none}
@@ -60,9 +107,40 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:#df2b23;co
 .insight{background:var(--light-green);border-radius:7px;padding:9px;display:flex;align-items:center;gap:8px;margin-top:8px;font-size:8px}.insight .icon{width:30px;height:30px;background:#1dbb3d;color:#fff;border-radius:50%;padding:5px;box-sizing:border-box}
 .trend-cell.up,.up{color:#28ad46;font-size:18px;font-weight:800}.trend-cell.down,.down{color:#ce201d;font-size:18px;font-weight:800}
 .takeaways p,.takeaway-item{display:flex;gap:10px;align-items:center;font-size:8.5px;margin:0 0 12px}.takeaways .icon,.takeaway-item .icon{flex:none;width:34px;height:34px;background:#efcecf;color:#b52a30;border-radius:50%;padding:7px;box-sizing:border-box}.source{margin-left:12px}
+
+/* Print / PDF: A4 page nodes only — no preview chrome */
 @media print{
   @page{size:A4;margin:0}
-  html,body{background:#fff}.document{padding:0}
-  .page{width:210mm;height:297mm;min-height:297mm;margin:0;box-shadow:none;page-break-after:always;overflow:hidden}
+  html,body,.document{
+    background:#fff !important;
+    overflow:visible !important;
+    width:auto !important;
+    height:auto !important;
+    display:block !important;
+  }
+  .document{
+    padding:0 !important;
+    min-width:0 !important;
+  }
+  .page{
+    display:block !important;
+    width:210mm !important;
+    height:297mm !important;
+    min-width:210mm !important;
+    min-height:297mm !important;
+    max-width:210mm !important;
+    max-height:297mm !important;
+    margin:0 !important;
+    box-shadow:none !important;
+    page-break-after:always !important;
+    break-after:page !important;
+    page-break-inside:avoid;
+    break-inside:avoid;
+    overflow:hidden !important;
+  }
+  .page:last-child{
+    page-break-after:auto !important;
+    break-after:auto !important;
+  }
 }
 `.trim();

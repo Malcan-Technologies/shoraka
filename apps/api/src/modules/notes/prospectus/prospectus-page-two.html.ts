@@ -95,6 +95,8 @@ export function buildProspectusPageTwoHtml(page: ProspectusPageTwo): string {
 ${PROSPECTUS_DOCUMENT_CSS}
 .page.prospectus-page-two{
   width:${PROSPECTUS_PAGE_TWO_WIDTH_MM}mm;
+  height:${PROSPECTUS_PAGE_TWO_HEIGHT_MM}mm;
+  min-width:${PROSPECTUS_PAGE_TWO_WIDTH_MM}mm;
   min-height:${PROSPECTUS_PAGE_TWO_HEIGHT_MM}mm;
 }
   </style>

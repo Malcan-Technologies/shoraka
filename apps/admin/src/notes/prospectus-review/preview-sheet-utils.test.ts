@@ -25,8 +25,11 @@ describe("prospectus preview sheet utils", () => {
     expect(PREVIEW_DOCUMENT_FRAME_CLASS).toContain("overflow-x-auto");
     expect(PREVIEW_DOCUMENT_FRAME_CLASS).toContain("overflow-y-hidden");
     expect(PREVIEW_DOCUMENT_FRAME_CLASS).toContain("overscroll-contain");
+    expect(PREVIEW_DOCUMENT_FRAME_CLASS).toContain("max-w-[210mm]");
+    expect(PREVIEW_SHEET_BODY_CLASS).toContain("bg-muted/40");
     expect(PREVIEW_IFRAME_CLASS).toContain("h-full");
     expect(PREVIEW_IFRAME_CLASS).toContain("min-h-0");
+    expect(PREVIEW_IFRAME_CLASS).toContain("min-w-[210mm]");
     expect(PREVIEW_IFRAME_CLASS).toContain("block");
   });
 

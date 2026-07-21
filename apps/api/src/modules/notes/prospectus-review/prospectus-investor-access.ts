@@ -5,6 +5,7 @@
 import { NoteStatus } from "@prisma/client";
 import { AppError } from "../../../lib/http/error-handler";
 import { prisma } from "../../../lib/prisma";
+import { combineProspectusPagesHtml } from "../prospectus/combine-prospectus-pages-html";
 import { parseApprovedSnapshot } from "./prospectus-approved-snapshot";
 
 export type InvestorProspectusHtml = {
@@ -12,10 +13,6 @@ export type InvestorProspectusHtml = {
   contentVersion: number;
   html: { page1: string; page2: string; page3: string };
 };
-
-function combinePages(html: { page1: string; page2: string; page3: string }): string {
-  return `${html.page1}\n<hr data-prospectus-page="2" />\n${html.page2}\n<hr data-prospectus-page="3" />\n${html.page3}`;
-}
 
 /** Marketplace: published Note only — render frozen snapshot HTML. */
 export async function getMarketplacePublishedProspectus(
@@ -58,7 +55,7 @@ export async function getMarketplacePublishedProspectus(
     publicationId: publication.id,
     contentVersion: publication.content_version,
     html: snapshot.html,
-    documentHtml: combinePages(snapshot.html),
+    documentHtml: combineProspectusPagesHtml(snapshot.html),
   };
 }
 
@@ -122,6 +119,6 @@ export async function getInvestmentPublishedProspectus(
     publicationId: publication.id,
     contentVersion: publication.content_version,
     html: snapshot.html,
-    documentHtml: combinePages(snapshot.html),
+    documentHtml: combineProspectusPagesHtml(snapshot.html),
   };
 }

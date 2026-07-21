@@ -219,9 +219,10 @@ export function buildProspectusPageThreeHtml(page: ProspectusPageThree): string 
   <style>
 ${PROSPECTUS_DOCUMENT_CSS}
 .page.prospectus-page-three{
-  width: ${PROSPECTUS_PAGE_THREE_WIDTH_MM}mm;
-  min-height: ${PROSPECTUS_PAGE_THREE_HEIGHT_MM}mm;
-  height: ${PROSPECTUS_PAGE_THREE_HEIGHT_MM}mm;
+  width:${PROSPECTUS_PAGE_THREE_WIDTH_MM}mm;
+  height:${PROSPECTUS_PAGE_THREE_HEIGHT_MM}mm;
+  min-width:${PROSPECTUS_PAGE_THREE_WIDTH_MM}mm;
+  min-height:${PROSPECTUS_PAGE_THREE_HEIGHT_MM}mm;
   overflow:hidden;
 }
   </style>

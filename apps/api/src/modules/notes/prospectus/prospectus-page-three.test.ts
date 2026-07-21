@@ -505,8 +505,10 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       const html = renderProspectusPageThreeHtml(SAMPLE_PROSPECTUS_PAGE_THREE);
       expect(html).toContain('data-page="prospectus-page-three"');
       expect(html.match(/data-page="prospectus-page-three"/g)).toHaveLength(1);
-      expect(html).toContain(`width: ${PROSPECTUS_PAGE_THREE_WIDTH_MM}mm`);
-      expect(html).toContain(`height: ${PROSPECTUS_PAGE_THREE_HEIGHT_MM}mm`);
+      expect(html).toContain(`width:${PROSPECTUS_PAGE_THREE_WIDTH_MM}mm`);
+      expect(html).toContain(`height:${PROSPECTUS_PAGE_THREE_HEIGHT_MM}mm`);
+      expect(html).toContain(`min-width:${PROSPECTUS_PAGE_THREE_WIDTH_MM}mm`);
+      expect(html).toContain(`min-height:${PROSPECTUS_PAGE_THREE_HEIGHT_MM}mm`);
       expect(PROSPECTUS_PAGE_THREE_WIDTH_MM).toBe(210);
       expect(PROSPECTUS_PAGE_THREE_HEIGHT_MM).toBe(297);
 

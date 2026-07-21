@@ -38,12 +38,14 @@ export async function renderProspectusHtmlToPdfBuffer(html: string): Promise<Buf
       args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
     });
 
+    // Print HTML document `.page` nodes via Chromium PDF — not a viewport screenshot.
     page = await browser.newPage();
     await page.setContent(html, { waitUntil: "load", timeout: 120_000 });
     const pdf = await page.pdf({
       format: "A4",
       printBackground: true,
       preferCSSPageSize: true,
+      scale: 1,
       margin: { top: "0", right: "0", bottom: "0", left: "0" },
     });
     logger.debug({ pdfSizeBytes: pdf.length }, "Prospectus PDF created");

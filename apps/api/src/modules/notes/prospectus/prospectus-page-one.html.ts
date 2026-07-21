@@ -93,6 +93,8 @@ export function buildProspectusPageOneHtml(page: ProspectusPageOne): string {
 ${PROSPECTUS_DOCUMENT_CSS}
 .page.prospectus-page-one{
   width:${PROSPECTUS_PAGE_ONE_WIDTH_MM}mm;
+  height:${PROSPECTUS_PAGE_ONE_HEIGHT_MM}mm;
+  min-width:${PROSPECTUS_PAGE_ONE_WIDTH_MM}mm;
   min-height:${PROSPECTUS_PAGE_ONE_HEIGHT_MM}mm;
 }
   </style>
