@@ -419,7 +419,12 @@ function ProspectusReviewPageInner() {
   const yearManual = draft.page3.manualFinancialInputs?.years?.[financialYear];
   const manualYears = draft.page3.manualFinancialInputs?.years;
   const pageThreeOverviewRows = buildPageThreeOverviewRows(financialStatements);
-  const pageThreeMetadataRows = note ? buildPageThreeMetadataRows(note) : [];
+  const pageThreeMetadataRows = note
+    ? buildPageThreeMetadataRows(note, {
+        paymasterRating: officerPaymasterRating,
+        confidenceGrading: officerConfidenceGrading,
+      })
+    : [];
   const incomeStatementTable = buildPageThreeIncomeStatementTable(
     financialStatements,
     manualYears
@@ -1341,6 +1346,10 @@ function ProspectusReviewPageInner() {
 
                       <section>
                         <ProspectusSectionHeading title="Financing & Risk Details" />
+                        <p className="mb-3 text-sm text-muted-foreground">
+                          Paymaster and confidence gradings are taken from the Page 2 Invoice &
+                          Paymaster assessment.
+                        </p>
                         {note ? (
                           <ReadOnlyGrid rows={pageThreeMetadataRows} />
                         ) : (

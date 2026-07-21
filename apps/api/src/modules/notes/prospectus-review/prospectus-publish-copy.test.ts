@@ -27,7 +27,16 @@ describe("prospectus publish exact copy", () => {
       html: {
         page1: "<p>1</p>",
         page2: approvedPage2Html,
-        page3: "<p>3</p>",
+        page3: [
+          '<section data-content-stage="metadata-strip">',
+          '<div class="meta-strip">',
+          '<div class="meta-strip-item"><div class="meta-strip-label">Sector</div><div class="meta-strip-value">Construction</div></div>',
+          '<div class="meta-strip-item"><div class="meta-strip-label">Risk Rating</div><div class="meta-strip-value">BBB</div></div>',
+          '<div class="meta-strip-item"><div class="meta-strip-label">Paymaster</div><div class="meta-strip-value">KKR</div></div>',
+          '<div class="meta-strip-item"><div class="meta-strip-label">Paymaster Grading</div><div class="meta-strip-value">PM1</div></div>',
+          '<div class="meta-strip-item"><div class="meta-strip-label">Confidence Grading</div><div class="meta-strip-value">High</div></div>',
+          "</div></section>",
+        ].join(""),
       },
       page_1: { marker: "a" },
       page_2: {
@@ -64,6 +73,11 @@ describe("prospectus publish exact copy", () => {
     expect(approved.html.page2).toContain("Successful Repayment: 98.5%");
     expect(approved.html.page2).toContain('data-grade="BBB" data-selected="true"');
     expect(approved.html.page2).toContain("RISK RATING SCALE");
+    expect(approved.html.page3).toContain("Paymaster Grading");
+    expect(approved.html.page3).toContain("PM1");
+    expect(approved.html.page3).toContain("Confidence Grading");
+    expect(approved.html.page3).toContain("High");
+    expect(approved.html.page3).not.toMatch(/\bIssuer\b/);
     expect(approved.page_2.config_versions.soukscore_scale).toBe(
       "2026.07.21.soukscore-scale.v1"
     );
@@ -75,6 +89,7 @@ describe("prospectus publish exact copy", () => {
     expect(JSON.stringify(published.html)).not.toEqual(JSON.stringify(approved.html));
     expect(published.note_identity.invoice_snapshot.offer_details.risk_rating).toBe("AAA");
     expect(approved.html.page2).toContain('data-grade="BBB" data-selected="true"');
+    expect(approved.html.page3).toContain("PM1");
   });
 
   it("keeps investment publication id distinct from content_version alone", () => {

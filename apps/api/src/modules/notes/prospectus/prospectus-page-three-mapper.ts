@@ -138,6 +138,9 @@ export function buildProspectusPageThree(
     issuerSector: issuer.industry,
     selectedRiskRating: parseInvoiceSnapshotRiskRating(input.invoiceSnapshot),
     paymasterName: paymaster.name,
+    officerPaymasterRating: input.publicationContent?.invoicePaymaster?.paymasterRating,
+    officerConfidenceGrading:
+      input.publicationContent?.invoicePaymaster?.confidenceGrading,
     financialSource,
   });
 

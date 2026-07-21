@@ -49,11 +49,15 @@ export interface ProspectusPageThreeMetadataAudit {
     liveFallbackAllowed: false;
   };
   paymasterGrading: {
-    status: "unresolved";
+    source: "page2.invoicePaymaster.paymasterRating";
+    catalogue: "normalizeProspectusPaymasterRating";
+    page3StorageAllowed: false;
     generatedValueAllowed: false;
   };
   confidenceGrading: {
-    status: "unresolved";
+    source: "page2.invoicePaymaster.confidenceGrading";
+    catalogue: "normalizeProspectusConfidenceGrading";
+    page3StorageAllowed: false;
     generatedValueAllowed: false;
   };
   financialSource: {
@@ -95,11 +99,15 @@ export const PROSPECTUS_PAGE_THREE_METADATA_AUDIT: ProspectusPageThreeMetadataAu
     liveFallbackAllowed: false,
   },
   paymasterGrading: {
-    status: "unresolved",
+    source: "page2.invoicePaymaster.paymasterRating",
+    catalogue: "normalizeProspectusPaymasterRating",
+    page3StorageAllowed: false,
     generatedValueAllowed: false,
   },
   confidenceGrading: {
-    status: "unresolved",
+    source: "page2.invoicePaymaster.confidenceGrading",
+    catalogue: "normalizeProspectusConfidenceGrading",
+    page3StorageAllowed: false,
     generatedValueAllowed: false,
   },
   financialSource: {
@@ -152,6 +160,16 @@ export interface ProspectusPageThreeMetadataInput {
   selectedRiskRating?: unknown;
   /** Frozen notes.paymaster_snapshot.name */
   paymasterName?: unknown;
+  /**
+   * Officer-confirmed Page 2 Paymaster Rating (PM1–PM4).
+   * Read-only reuse — not stored under Page 3.
+   */
+  officerPaymasterRating?: unknown;
+  /**
+   * Officer-confirmed Page 2 Confidence Grading (High|Medium|Low).
+   * Read-only reuse — not stored under Page 3.
+   */
+  officerConfidenceGrading?: unknown;
   /** Existing Page 2 Stage 4A result — required; never re-parsed here. */
   financialSource: ProspectusFinancialComparisonSource;
   /** Observational — must never fill issuer/sector/years. */
@@ -204,8 +222,9 @@ export const PROSPECTUS_PAGE_THREE_METADATA_FIELD_SOURCES: Record<
     canonicalSource: "notes.issuer_snapshot.industry",
     availability: "stored",
     surface: "canva",
-    possibleAlternatives: "live COD industry — not used",
-    notes: "Portal label Industry; Canva label Sector. Same frozen field.",
+    possibleAlternatives: "industry + company size; live COD industry — not used",
+    notes:
+      "Industry only (same anonymous field as Page 2 Issuer Profile Industry). Company size is not shown on Page 3.",
   },
   riskRating: {
     label: "Risk Rating",
@@ -225,19 +244,19 @@ export const PROSPECTUS_PAGE_THREE_METADATA_FIELD_SOURCES: Record<
   },
   paymasterGrading: {
     label: "Paymaster Grading",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page2.invoicePaymaster.paymasterRating",
+    availability: "reused",
     surface: "canva",
-    possibleAlternatives: "PM1; SoukScore; CTOS — not used",
-    notes: "No approved platform field.",
+    possibleAlternatives: "Page 3 storage; CTOS — not used",
+    notes: "Same officer value and catalogue as Page 2 Paymaster Rating (PM1–PM4).",
   },
   confidenceGrading: {
     label: "Confidence Grading",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "page2.invoicePaymaster.confidenceGrading",
+    availability: "reused",
     surface: "canva",
-    possibleAlternatives: "High; CTOS confidence — not used",
-    notes: "No approved platform field.",
+    possibleAlternatives: "Page 3 storage; CTOS — not used",
+    notes: "Same officer value and catalogue as Page 2 Confidence Grading (High|Medium|Low).",
   },
   financialYears: {
     label: "Selected financial years",

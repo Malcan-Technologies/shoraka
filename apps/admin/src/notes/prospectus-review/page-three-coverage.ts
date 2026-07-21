@@ -138,7 +138,13 @@ export function buildPageThreeOverviewRows(financialStatements: unknown): CoreTe
   ];
 }
 
-export function buildPageThreeMetadataRows(note: NoteDetail): CoreTermRow[] {
+export function buildPageThreeMetadataRows(
+  note: NoteDetail,
+  officerGradings?: {
+    paymasterRating?: string | null;
+    confidenceGrading?: string | null;
+  }
+): CoreTermRow[] {
   const issuer = asRecord(note.issuerSnapshot);
   const paymaster = asRecord(note.paymasterSnapshot);
   const invoice = asRecord(note.invoiceSnapshot);
@@ -150,8 +156,14 @@ export function buildPageThreeMetadataRows(note: NoteDetail): CoreTermRow[] {
     { label: "Sector", value: textOrDna(issuer?.industry ?? note.issuerIndustry) },
     { label: "Risk Rating", value: riskRating },
     { label: "Paymaster", value: textOrDna(note.paymasterName ?? paymaster?.name) },
-    { label: "Paymaster Grading", value: DATA_NOT_AVAILABLE },
-    { label: "Confidence Grading", value: DATA_NOT_AVAILABLE },
+    {
+      label: "Paymaster Grading",
+      value: textOrDna(officerGradings?.paymasterRating),
+    },
+    {
+      label: "Confidence Grading",
+      value: textOrDna(officerGradings?.confidenceGrading),
+    },
   ];
 }
 

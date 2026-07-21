@@ -48,13 +48,13 @@ ${data.financialYears
   <section>
     <h2>${escapeHtml(data.pageTitle)}</h2>
     <p>${escapeHtml(data.pageSubtitle)}</p>
-    <p>
-      ${escapeHtml(labels.sector)}: ${escapeHtml(data.metadata.sector)}<br />
-      ${escapeHtml(labels.riskRating)}: ${escapeHtml(data.metadata.riskRating)}<br />
-      ${escapeHtml(labels.paymaster)}: ${escapeHtml(data.metadata.paymaster)}<br />
-      ${escapeHtml(labels.paymasterGrading)}: ${escapeHtml(data.metadata.paymasterGrading)}<br />
-      ${escapeHtml(labels.confidenceGrading)}: ${escapeHtml(data.metadata.confidenceGrading)}
-    </p>
+    <div class="meta-strip" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;">
+      <div><div>${escapeHtml(labels.sector)}</div><div>${escapeHtml(data.metadata.sector)}</div></div>
+      <div><div>${escapeHtml(labels.riskRating)}</div><div>${escapeHtml(data.metadata.riskRating)}</div></div>
+      <div><div>${escapeHtml(labels.paymaster)}</div><div>${escapeHtml(data.metadata.paymaster)}</div></div>
+      <div><div>${escapeHtml(labels.paymasterGrading)}</div><div>${escapeHtml(data.metadata.paymasterGrading)}</div></div>
+      <div><div>${escapeHtml(labels.confidenceGrading)}</div><div>${escapeHtml(data.metadata.confidenceGrading)}</div></div>
+    </div>
     <h3>Selected financial years</h3>
     ${yearBlock}
   </section>

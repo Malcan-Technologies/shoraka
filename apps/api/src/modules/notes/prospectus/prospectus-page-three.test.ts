@@ -15,7 +15,11 @@ import {
   type ProspectusPageThreeLoadedData,
   type ProspectusPageThreeNoteRecord,
 } from "./prospectus-page-three-prisma";
-import { SAMPLE_PROSPECTUS_PAGE_THREE } from "./prospectus-page-three.sample-data";
+import {
+  SAMPLE_PROSPECTUS_PAGE_THREE,
+  SAMPLE_PROSPECTUS_PAGE_THREE_INPUT,
+} from "./prospectus-page-three.sample-data";
+import { PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT } from "./prospectus-placeholder-publication-content";
 import {
   PROSPECTUS_PAGE_THREE_HEIGHT_MM,
   PROSPECTUS_PAGE_THREE_VISIBLE_CONTENT_STAGES,
@@ -363,8 +367,8 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(page.metadata.metadata.sector).toBe("Construction");
       expect(page.metadata.metadata.riskRating).toBe("AA");
       expect(page.metadata.metadata.paymaster).toBe("Kementerian Kerja Raya");
-      expect(page.metadata.metadata.paymasterGrading).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-      expect(page.metadata.metadata.confidenceGrading).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+      expect(page.metadata.metadata.paymasterGrading).toBe("PM1");
+      expect(page.metadata.metadata.confidenceGrading).toBe("High");
 
       const invalid = buildProspectusPageThree({
         ...mapProspectusPageThreeDataToInput({
@@ -446,14 +450,42 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
 
     it("omits Issuer metadata; keeps shared header Shariah badge", () => {
       const html = renderProspectusPageThreeHtml(SAMPLE_PROSPECTUS_PAGE_THREE);
+      expect(html).not.toMatch(/\bIssuer\b/);
       expect(html).not.toContain("Issuer:");
       expect(html).not.toContain("ABC Engineering");
+      expect(html).not.toContain("202001234567");
+      expect(html).not.toContain("SSM");
       expect(html).toContain("Shariah Status Badge:");
       expect(html).toContain('data-stage="header"');
       expect(html).toContain("CashSouk");
-      expect(html).toContain("Sector: Construction");
+      expect(html).toContain("Sector");
+      expect(html).toContain("Construction");
+      expect(html).toContain("Paymaster Grading");
+      expect(html).toContain("PM1");
+      expect(html).toContain("Confidence Grading");
+      expect(html).toContain("High");
+      expect(html).toContain("meta-strip");
+      expect(html).toContain("grid-template-columns: repeat(5, minmax(0, 1fr))");
       expect(html).not.toContain("source-statement");
       expect(html).not.toContain('data-stage="footer"');
+    });
+
+    it("reuses Page 2 officer gradings for Page 3 metadata strip", () => {
+      const page = buildProspectusPageThree({
+        ...SAMPLE_PROSPECTUS_PAGE_THREE_INPUT,
+        publicationContent: {
+          ...PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT,
+          invoicePaymaster: {
+            deedOfAssignment: "Yes",
+            paymasterRating: "PM4",
+            confidenceGrading: "Medium",
+          },
+        },
+      });
+      expect(page.metadata.metadata.paymasterGrading).toBe("PM4");
+      expect(page.metadata.metadata.confidenceGrading).toBe("Medium");
+      expect(page.metadata.audit.paymasterGrading.page3StorageAllowed).toBe(false);
+      expect(page.metadata.audit.confidenceGrading.page3StorageAllowed).toBe(false);
     });
   });
 

@@ -88,24 +88,70 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
     );
   });
 
-  it("keeps Paymaster Grading as Data not available", () => {
-    expect(withSource().metadata.paymasterGrading).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+  it("maps missing Page 2 Paymaster Grading to Data not available", () => {
+    expect(
+      withSource({ officerPaymasterRating: undefined }).metadata.paymasterGrading
+    ).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("keeps Confidence Grading as Data not available", () => {
-    expect(withSource().metadata.confidenceGrading).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+  it("maps missing Page 2 Confidence Grading to Data not available", () => {
+    expect(
+      withSource({ officerConfidenceGrading: undefined }).metadata.confidenceGrading
+    ).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("does not generate Canva PM1 paymaster grading", () => {
-    const data = withSource();
-    expect(data.metadata.paymasterGrading).not.toBe("PM1");
-    expect(Object.values(data.metadata)).not.toContain("PM1");
+  it("reuses Page 2 Paymaster Rating via shared catalogue (PM1–PM4)", () => {
+    expect(withSource({ officerPaymasterRating: "PM3" }).metadata.paymasterGrading).toBe(
+      "PM3"
+    );
+    expect(withSource({ officerPaymasterRating: "PM9" }).metadata.paymasterGrading).toBe(
+      PROSPECTUS_DATA_NOT_AVAILABLE
+    );
   });
 
-  it("does not generate Canva High confidence grading", () => {
-    const data = withSource();
-    expect(data.metadata.confidenceGrading).not.toBe("High");
-    expect(Object.values(data.metadata)).not.toContain("High");
+  it("reuses Page 2 Confidence Grading via shared catalogue (High|Medium|Low)", () => {
+    expect(withSource({ officerConfidenceGrading: "Low" }).metadata.confidenceGrading).toBe(
+      "Low"
+    );
+    expect(
+      withSource({ officerConfidenceGrading: "Very High" }).metadata.confidenceGrading
+    ).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+  });
+
+  it("does not invent gradings without officer Page 2 input", () => {
+    const data = withSource({
+      officerPaymasterRating: null,
+      officerConfidenceGrading: null,
+    });
+    expect(data.metadata.paymasterGrading).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.metadata.confidenceGrading).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+  });
+
+  it("omits Issuer entirely from the metadata view-model and HTML", () => {
+    const data = withSource({
+      issuerName: "ABC Engineering Sdn Bhd",
+    });
+    expect(data.metadata).not.toHaveProperty("issuer");
+    expect(Object.keys(data.metadata)).toEqual([
+      "sector",
+      "riskRating",
+      "paymaster",
+      "paymasterGrading",
+      "confidenceGrading",
+    ]);
+    const html = buildProspectusPageThreeMetadataDocument(data);
+    expect(html).not.toMatch(/\bIssuer\b/);
+    expect(html).not.toContain("ABC Engineering");
+    expect(html).not.toContain("202001234567");
+    expect(html).not.toContain("SSM");
+    expect(html).not.toContain("registration");
+    expect(html).toContain("Sector");
+    expect(html).toContain("Construction");
+    expect(html).toContain("Paymaster");
+    expect(html).toContain("Kementerian Kerja Raya");
+    for (const label of Object.values(PROSPECTUS_PAGE_THREE_METADATA_LABELS)) {
+      expect(html).toContain(label);
+    }
   });
 
   it("does not map Canva A–E grades", () => {

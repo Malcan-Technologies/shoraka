@@ -33,6 +33,24 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).toContain("Officer Input");
   });
 
+  it("keeps Page 3 Financing & Risk Details read-only without Issuer or duplicate grading inputs", () => {
+    expect(pageSource).toContain(
+      "Paymaster and confidence gradings are taken from the Page 2 Invoice &"
+    );
+    expect(pageSource).toContain("buildPageThreeMetadataRows(note,");
+    expect(pageSource).toContain("officerPaymasterRating");
+    expect(pageSource).toContain("officerConfidenceGrading");
+    expect(pageSource).not.toMatch(
+      /Financing & Risk Details[\s\S]{0,1200}<Select/
+    );
+    expect(pageSource).not.toMatch(
+      /Financing & Risk Details[\s\S]{0,1200}<Input/
+    );
+    expect(pageSource).not.toMatch(
+      /Financing & Risk Details[\s\S]{0,800}Issuer/
+    );
+  });
+
   it("shows read-only Risk Rating Scale from frozen Note grade", () => {
     expect(pageSource).toContain("Risk Rating Scale");
     expect(pageSource).toContain("data-prospectus-risk-rating-scale");

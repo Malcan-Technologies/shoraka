@@ -1,9 +1,14 @@
 /**
  * SECTION: Build Page 3 Stage 1 metadata + shared financial-year pass-through
- * WHY: Frozen snapshot strings + SoukScore validator; issuer identity hidden
+ * WHY: Frozen snapshot strings + SoukScore validator; issuer identity omitted;
+ *      Paymaster/Confidence gradings reused from Page 2 officer confirmations
  */
 
-import { isSoukscoreRiskRating } from "@cashsouk/types";
+import {
+  isSoukscoreRiskRating,
+  normalizeProspectusConfidenceGrading,
+  normalizeProspectusPaymasterRating,
+} from "@cashsouk/types";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_PAGE_THREE_METADATA_AUDIT,
@@ -31,6 +36,13 @@ export function buildProspectusPageThreeMetadata(
     ? input.selectedRiskRating
     : PROSPECTUS_DATA_NOT_AVAILABLE;
 
+  const paymasterGrading =
+    normalizeProspectusPaymasterRating(input.officerPaymasterRating) ??
+    PROSPECTUS_DATA_NOT_AVAILABLE;
+  const confidenceGrading =
+    normalizeProspectusConfidenceGrading(input.officerConfidenceGrading) ??
+    PROSPECTUS_DATA_NOT_AVAILABLE;
+
   return {
     pageTitle: PROSPECTUS_PAGE_THREE_PAGE_TITLE,
     pageSubtitle: PROSPECTUS_DATA_NOT_AVAILABLE,
@@ -38,8 +50,8 @@ export function buildProspectusPageThreeMetadata(
       sector: displayString(input.issuerSector),
       riskRating,
       paymaster: displayString(input.paymasterName),
-      paymasterGrading: PROSPECTUS_DATA_NOT_AVAILABLE,
-      confidenceGrading: PROSPECTUS_DATA_NOT_AVAILABLE,
+      paymasterGrading,
+      confidenceGrading,
     },
     // Pass-through only — never re-select years or re-derive FYE in Page 3.
     financialYears: input.financialSource.years,

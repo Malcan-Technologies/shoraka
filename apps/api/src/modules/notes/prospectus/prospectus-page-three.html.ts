@@ -23,18 +23,30 @@ function renderPageTitle(page: ProspectusPageThree): string {
 </section>`;
 }
 
-/** Visible Stage 2 — metadata strip (issuer identity omitted). */
+/** Visible Stage 2 — five-item metadata strip (issuer identity omitted entirely). */
 function renderMetadataStrip(page: ProspectusPageThree): string {
   const { metadata } = page;
   const labels = PROSPECTUS_PAGE_THREE_METADATA_LABELS;
+  const items: Array<{ label: string; value: string }> = [
+    { label: labels.sector, value: metadata.metadata.sector },
+    { label: labels.riskRating, value: metadata.metadata.riskRating },
+    { label: labels.paymaster, value: metadata.metadata.paymaster },
+    { label: labels.paymasterGrading, value: metadata.metadata.paymasterGrading },
+    { label: labels.confidenceGrading, value: metadata.metadata.confidenceGrading },
+  ];
+  const cells = items
+    .map(
+      (item) =>
+        `<div class="meta-strip-item">
+  <div class="meta-strip-label">${escapeHtml(item.label)}</div>
+  <div class="meta-strip-value">${escapeHtml(item.value)}</div>
+</div>`
+    )
+    .join("\n");
   return `<section data-stage="2" data-content-stage="metadata-strip">
-  <p>
-    ${escapeHtml(labels.sector)}: ${escapeHtml(metadata.metadata.sector)}<br />
-    ${escapeHtml(labels.riskRating)}: ${escapeHtml(metadata.metadata.riskRating)}<br />
-    ${escapeHtml(labels.paymaster)}: ${escapeHtml(metadata.metadata.paymaster)}<br />
-    ${escapeHtml(labels.paymasterGrading)}: ${escapeHtml(metadata.metadata.paymasterGrading)}<br />
-    ${escapeHtml(labels.confidenceGrading)}: ${escapeHtml(metadata.metadata.confidenceGrading)}
-  </p>
+  <div class="meta-strip">
+${cells}
+  </div>
 </section>`;
 }
 
@@ -215,6 +227,15 @@ export function buildProspectusPageThreeHtml(page: ProspectusPageThree): string 
     p { margin: 2px 0; }
     .prospectus-logo { display: block; max-height: 32px; }
     .brand-name { font-size: 14px; font-weight: 700; margin: 2px 0; }
+    .meta-strip {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 6px;
+      width: 100%;
+    }
+    .meta-strip-item { min-width: 0; }
+    .meta-strip-label { color: #555; font-size: 8px; margin-bottom: 1px; }
+    .meta-strip-value { font-weight: 650; font-size: 9.5px; word-break: break-word; }
     .fin-table { width: 100%; border-collapse: collapse; font-size: 9px; }
     .fin-table th, .fin-table td { text-align: left; vertical-align: top; }
   </style>

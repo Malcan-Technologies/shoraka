@@ -201,6 +201,11 @@ export const PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT: ProspectusPublicationCo
     litigationCheck: "clear",
     ccrisStatus: "no_record",
   },
+  invoicePaymaster: {
+    deedOfAssignment: "Yes",
+    paymasterRating: "PM1",
+    confidenceGrading: "High",
+  },
   invoiceWorkStatements: [
     {
       key: "work_under_contract",

@@ -10,6 +10,8 @@ import {
 } from "@cashsouk/types";
 import { buildProspectusInvoicePaymaster } from "../prospectus/prospectus-invoice-paymaster";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "../prospectus/prospectus-invoice-paymaster.types";
+import { buildProspectusPageThree } from "../prospectus/prospectus-page-three-mapper";
+import { SAMPLE_PROSPECTUS_PAGE_THREE_INPUT } from "../prospectus/prospectus-page-three.sample-data";
 import { hashDraftContent } from "./prospectus-approved-snapshot";
 import {
   cloneReviewContent,
@@ -151,5 +153,31 @@ describe("prospectus officer Invoice & Paymaster fields", () => {
     };
     expect(hashDraftContent(approved)).not.toBe(hashDraftContent(next));
     expect(hashDraftContent(approved)).toBe(hashDraftContent(cloneReviewContent(approved)));
+  });
+
+  it("Page 3 metadata Paymaster/Confidence gradings match Page 2 officer catalogue values", () => {
+    const draft = buildCompleteProspectusReviewDraft();
+    draft.page2.invoicePaymaster = {
+      deedOfAssignment: "Yes",
+      paymasterRating: "PM3",
+      confidenceGrading: "Low",
+    };
+    const publication = toProspectusPublicationContent(draft);
+    const page2 = buildProspectusInvoicePaymaster({
+      invoiceSnapshot: SAMPLE_PROSPECTUS_PAGE_THREE_INPUT.invoiceSnapshot,
+      maturityDate: "2025-09-12T00:00:00.000Z",
+      paymasterSnapshot: SAMPLE_PROSPECTUS_PAGE_THREE_INPUT.paymasterSnapshot,
+      officerPaymasterRating: publication.invoicePaymaster?.paymasterRating,
+      officerConfidenceGrading: publication.invoicePaymaster?.confidenceGrading,
+    });
+    const page3 = buildProspectusPageThree({
+      ...SAMPLE_PROSPECTUS_PAGE_THREE_INPUT,
+      publicationContent: publication,
+    });
+    expect(page3.metadata.metadata.paymasterGrading).toBe(page2.paymasterRating);
+    expect(page3.metadata.metadata.confidenceGrading).toBe(page2.confidenceGrading);
+    expect(page3.metadata.metadata.paymasterGrading).toBe("PM3");
+    expect(page3.metadata.metadata.confidenceGrading).toBe("Low");
+    expect(page3.metadata.metadata).not.toHaveProperty("issuer");
   });
 });

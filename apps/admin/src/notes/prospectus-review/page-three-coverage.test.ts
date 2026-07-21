@@ -141,7 +141,10 @@ describe("page three coverage verification", () => {
   });
 
   it("builds Financing & Risk Details without Issuer", () => {
-    const rows = buildPageThreeMetadataRows(sampleNote());
+    const rows = buildPageThreeMetadataRows(sampleNote(), {
+      paymasterRating: "PM2",
+      confidenceGrading: "Medium",
+    });
     expect(rows.map((r) => r.label)).toEqual([
       "Sector",
       "Risk Rating",
@@ -152,8 +155,20 @@ describe("page three coverage verification", () => {
     expect(rows.find((r) => r.label === "Sector")?.value).toBe("Construction");
     expect(rows.find((r) => r.label === "Risk Rating")?.value).toBe("AA");
     expect(rows.find((r) => r.label === "Paymaster")?.value).toBe("Kementerian Kerja Raya");
+    expect(rows.find((r) => r.label === "Paymaster Grading")?.value).toBe("PM2");
+    expect(rows.find((r) => r.label === "Confidence Grading")?.value).toBe("Medium");
     expect(rows.some((r) => /issuer/i.test(r.label))).toBe(false);
     expect(pageThreeHidesIssuerIdentity(rows)).toBe(true);
+  });
+
+  it("shows Data not available for missing Page 2 gradings", () => {
+    const rows = buildPageThreeMetadataRows(sampleNote());
+    expect(rows.find((r) => r.label === "Paymaster Grading")?.value).toBe(
+      "Data not available"
+    );
+    expect(rows.find((r) => r.label === "Confidence Grading")?.value).toBe(
+      "Data not available"
+    );
   });
 
   it("builds Income Statement as a seven-metric multi-year table", () => {
