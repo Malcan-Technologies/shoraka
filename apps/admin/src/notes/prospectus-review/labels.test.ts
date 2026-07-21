@@ -135,12 +135,12 @@ describe("prospectus review completion checklist", () => {
       ],
     };
     draft.page3.investorTakeaways = {
-      revenueProfitabilityOptionKey: "placeholder_positive",
+      revenueProfitabilityOptionKey: "steady_growth",
       liquidityOptionKey: "do_not_display",
-      leverageOptionKey: "placeholder_moderate",
-      debtServicingCapacityOptionKey: "placeholder_adequate",
-      workingCapitalEfficiencyOptionKey: "placeholder_typical",
-      overallFinancialProfileOptionKey: "placeholder_balanced",
+      leverageOptionKey: "moderate",
+      debtServicingCapacityOptionKey: "adequate_stable",
+      receivablesCollectionOptionKey: "improving",
+      overallFinancialProfileOptionKey: "satisfactory",
     };
 
     const checklist = buildProspectusCompletionChecklist(draft);

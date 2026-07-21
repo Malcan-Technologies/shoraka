@@ -168,7 +168,7 @@ export interface ProspectusReviewStoredContent {
       liquidityOptionKey?: string | null;
       leverageOptionKey?: string | null;
       debtServicingCapacityOptionKey?: string | null;
-      workingCapitalEfficiencyOptionKey?: string | null;
+      receivablesCollectionOptionKey?: string | null;
       overallFinancialProfileOptionKey?: string | null;
     };
   };

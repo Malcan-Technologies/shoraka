@@ -7,7 +7,7 @@
  */
 
 export const PROSPECTUS_OPTION_CATALOGUE_VERSION =
-  "2026.07.21.credit-insights.provisional.v1";
+  "2026.07.21.investor-takeaways.v1";
 
 export type ProspectusFieldCategory =
   | "AUTO_DERIVED"
@@ -174,55 +174,143 @@ export const PROSPECTUS_INVOICE_WORK_OPTION_CATALOGUE: Record<
   ],
 };
 
+/**
+ * Hard-coded Investor Takeaway catalogues (fixed categories; officer selects one key).
+ * Labels match investor wording so Credit Officers see the published sentence.
+ */
 export const PROSPECTUS_TAKEAWAY_OPTION_CATALOGUE: Record<
   string,
   readonly ProspectusCatalogueOption[]
 > = {
   revenue_profitability: [
     opt(
-      "placeholder_positive",
-      "Placeholder — positive",
-      "Placeholder — revenue/profitability description (not approved)."
+      "steady_growth",
+      "Revenue and profitability have shown steady year-on-year growth."
+    ),
+    opt(
+      "strong_growth",
+      "Revenue and profitability have demonstrated strong growth over the observed period."
+    ),
+    opt(
+      "stable_performance",
+      "Revenue and profitability have remained broadly stable over the observed period."
+    ),
+    opt(
+      "mixed_performance",
+      "Revenue and profitability have shown mixed performance over the observed period."
+    ),
+    opt(
+      "moderating_performance",
+      "Revenue and profitability have moderated over the observed period."
     ),
     DO_NOT_DISPLAY,
   ],
   liquidity: [
     opt(
-      "placeholder_stable",
-      "Placeholder — stable",
-      "Placeholder — liquidity description (not approved)."
+      "healthy_improving",
+      "Liquidity remains healthy, with current and quick ratios improving over time."
+    ),
+    opt(
+      "healthy_stable",
+      "Liquidity remains healthy and broadly stable over the observed period."
+    ),
+    opt(
+      "adequate",
+      "Liquidity remains adequate based on the observed financial position."
+    ),
+    opt(
+      "mixed",
+      "Liquidity indicators have shown mixed movement over the observed period."
+    ),
+    opt(
+      "under_pressure",
+      "Liquidity indicators suggest some pressure over the observed period."
     ),
     DO_NOT_DISPLAY,
   ],
   leverage: [
     opt(
-      "placeholder_moderate",
-      "Placeholder — moderate",
-      "Placeholder — leverage description (not approved)."
+      "conservative_improving",
+      "Leverage is conservative and trending downward, supporting a stronger balance sheet."
+    ),
+    opt(
+      "conservative_stable",
+      "Leverage remains conservative and broadly stable over the observed period."
+    ),
+    opt(
+      "moderate",
+      "Leverage remains at a moderate level based on the observed financial position."
+    ),
+    opt("increasing", "Leverage has increased over the observed period."),
+    opt(
+      "elevated",
+      "Leverage remains elevated based on the observed financial position."
     ),
     DO_NOT_DISPLAY,
   ],
   debt_servicing_capacity: [
     opt(
-      "placeholder_adequate",
-      "Placeholder — adequate",
-      "Placeholder — debt-servicing description (not approved)."
+      "adequate_improving",
+      "Debt servicing capacity appears adequate, with improving DSCR and strong interest coverage."
+    ),
+    opt(
+      "strong",
+      "Debt servicing capacity appears strong based on DSCR and interest coverage."
+    ),
+    opt(
+      "adequate_stable",
+      "Debt servicing capacity appears adequate and broadly stable over the observed period."
+    ),
+    opt(
+      "mixed",
+      "Debt servicing indicators have shown mixed performance over the observed period."
+    ),
+    opt(
+      "under_pressure",
+      "Debt servicing indicators suggest some pressure over the observed period."
     ),
     DO_NOT_DISPLAY,
   ],
-  working_capital_efficiency: [
+  receivables_collection: [
     opt(
-      "placeholder_typical",
-      "Placeholder — typical",
-      "Placeholder — working-capital description (not approved)."
+      "improving",
+      "Receivables collection days have improved, indicating better working capital management."
     ),
+    opt(
+      "efficient_stable",
+      "Receivables collection remains efficient and broadly stable over the observed period."
+    ),
+    opt(
+      "stable",
+      "Receivables collection days have remained broadly stable over the observed period."
+    ),
+    opt(
+      "mixed",
+      "Receivables collection days have shown mixed movement over the observed period."
+    ),
+    opt("slower", "Receivables collection has slowed over the observed period."),
     DO_NOT_DISPLAY,
   ],
   overall_financial_profile: [
     opt(
-      "placeholder_balanced",
-      "Placeholder — balanced",
-      "Placeholder — overall profile description (not approved)."
+      "strengthening",
+      "Overall financial profile suggests strengthening fundamentals over the observed period."
+    ),
+    opt(
+      "strong_stable",
+      "Overall financial profile remains strong and stable over the observed period."
+    ),
+    opt(
+      "satisfactory",
+      "Overall financial profile remains satisfactory based on the observed information."
+    ),
+    opt(
+      "mixed",
+      "Overall financial profile presents a mixed position over the observed period."
+    ),
+    opt(
+      "requires_monitoring",
+      "Overall financial profile contains areas that require continued monitoring."
     ),
     DO_NOT_DISPLAY,
   ],
@@ -240,7 +328,7 @@ export const PROSPECTUS_TAKEAWAY_KEYS = [
   "liquidity",
   "leverage",
   "debt_servicing_capacity",
-  "working_capital_efficiency",
+  "receivables_collection",
   "overall_financial_profile",
 ] as const;
 

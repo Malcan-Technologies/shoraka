@@ -116,7 +116,7 @@ export function buildProspectusCompletionChecklist(
     hasOption(takeaways.liquidityOptionKey) &&
     hasOption(takeaways.leverageOptionKey) &&
     hasOption(takeaways.debtServicingCapacityOptionKey) &&
-    hasOption(takeaways.workingCapitalEfficiencyOptionKey) &&
+    hasOption(takeaways.receivablesCollectionOptionKey) &&
     hasOption(takeaways.overallFinancialProfileOptionKey);
 
   const incomeYears = options?.incomeStatementYears ?? [];

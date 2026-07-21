@@ -21,7 +21,7 @@ export const PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAY_KEYS = [
   "liquidity",
   "leverage",
   "debt_servicing_capacity",
-  "working_capital_efficiency",
+  "receivables_collection",
   "overall_financial_profile",
 ] as const;
 
@@ -32,18 +32,18 @@ export const PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAY_LABELS: Record<
   ProspectusPageThreeInvestorTakeawayKey,
   string
 > = {
-  revenue_profitability: "Revenue and Profitability",
+  revenue_profitability: "Revenue & Profitability",
   liquidity: "Liquidity",
   leverage: "Leverage",
-  debt_servicing_capacity: "Debt-Servicing Capacity",
-  working_capital_efficiency: "Working-Capital Efficiency",
+  debt_servicing_capacity: "Debt Servicing Capacity",
+  receivables_collection: "Receivables Collection",
   overall_financial_profile: "Overall Financial Profile",
 };
 
 export interface ProspectusPageThreeInvestorTakeawayItem {
   key: ProspectusPageThreeInvestorTakeawayKey;
   label: string;
-  /** Always Data not available until approved frozen narrative exists. */
+  /** Catalogue investor text, empty when omitted, or Data not available when unset. */
   takeaway: string;
 }
 
@@ -177,51 +177,51 @@ export const PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAYS_FIELD_SOURCES: Record<
     notes: "INVESTOR TAKEAWAYS",
   },
   revenue_profitability: {
-    label: "Revenue and Profitability",
-    canonicalSource: "none",
-    availability: "unresolved",
+    label: "Revenue & Profitability",
+    canonicalSource: "officer_selected_catalogue_key",
+    availability: "static",
     surface: "canva",
-    possibleAlternatives: "Revenue/PAT/NPM movement; Canva growth copy — not used",
-    notes: "No approved frozen narrative.",
+    possibleAlternatives: "Auto-derive from Revenue/PAT/NPM — not used",
+    notes: "Officer selects a hard-coded option key; text from catalogue only.",
   },
   liquidity: {
     label: "Liquidity",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "officer_selected_catalogue_key",
+    availability: "static",
     surface: "canva",
-    possibleAlternatives: "Current Ratio thresholds; Canva healthy-liquidity copy — not used",
-    notes: "No approved frozen narrative.",
+    possibleAlternatives: "Current/Quick ratio thresholds — not used",
+    notes: "Officer selects a hard-coded option key; text from catalogue only.",
   },
   leverage: {
     label: "Leverage",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "officer_selected_catalogue_key",
+    availability: "static",
     surface: "canva",
-    possibleAlternatives: "calculateGearing; bsqpuc as equity — rejected",
-    notes: "No approved frozen narrative.",
+    possibleAlternatives: "Debt/Equity inference — not used",
+    notes: "Officer selects a hard-coded option key; text from catalogue only.",
   },
   debt_servicing_capacity: {
-    label: "Debt-Servicing Capacity",
-    canonicalSource: "none",
-    availability: "unresolved",
+    label: "Debt Servicing Capacity",
+    canonicalSource: "officer_selected_catalogue_key",
+    availability: "static",
     surface: "canva",
     possibleAlternatives: "DSCR/Interest Coverage inference — not used",
-    notes: "Coverage metrics themselves unresolved.",
+    notes: "Officer selects a hard-coded option key; text from catalogue only.",
   },
-  working_capital_efficiency: {
-    label: "Working-Capital Efficiency",
-    canonicalSource: "none",
-    availability: "unresolved",
+  receivables_collection: {
+    label: "Receivables Collection",
+    canonicalSource: "officer_selected_catalogue_key",
+    availability: "static",
     surface: "canva",
-    possibleAlternatives: "Receivables/Payables Days inference — not used",
-    notes: "Days metrics unresolved; no approved narrative.",
+    possibleAlternatives: "Receivables Days inference — not used",
+    notes: "Officer selects a hard-coded option key; text from catalogue only.",
   },
   overall_financial_profile: {
     label: "Overall Financial Profile",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "officer_selected_catalogue_key",
+    availability: "static",
     surface: "canva",
     possibleAlternatives: "Investment recommendation; risk rating as claim — not used",
-    notes: "No summary rating or recommendation allowed.",
+    notes: "Officer selects a hard-coded option key; text from catalogue only.",
   },
 };

@@ -11,6 +11,10 @@ import {
   PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT,
   PROSPECTUS_FIXED_SHARIAH_PRINCIPLE,
 } from "@cashsouk/types";
+import {
+  PROSPECTUS_TAKEAWAY_KEYS,
+  PROSPECTUS_TAKEAWAY_OPTION_CATALOGUE,
+} from "../prospectus-review/prospectus-option-catalogues";
 
 export const PROSPECTUS_PUBLICATION_CONTENT_SOURCE = {
   kind: "development_placeholder" as const,
@@ -39,7 +43,7 @@ export type ProspectusInvestorTakeawayCategoryKey =
   | "liquidity"
   | "leverage"
   | "debt_servicing_capacity"
-  | "working_capital_efficiency"
+  | "receivables_collection"
   | "overall_financial_profile";
 
 export interface ProspectusKeyInvestorHighlightPlaceholder {
@@ -233,57 +237,22 @@ export const PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT: ProspectusPublicationCo
       sourceType: "placeholder_manual",
     },
   ],
-  investorTakeawayOptions: {
-    revenue_profitability: [
-      {
-        key: "placeholder_positive",
-        text: "Placeholder — revenue/profitability description (not approved).",
-      },
-      { key: "do_not_display", text: null },
-    ],
-    liquidity: [
-      {
-        key: "placeholder_stable",
-        text: "Placeholder — liquidity description (not approved).",
-      },
-      { key: "do_not_display", text: null },
-    ],
-    leverage: [
-      {
-        key: "placeholder_moderate",
-        text: "Placeholder — leverage description (not approved).",
-      },
-      { key: "do_not_display", text: null },
-    ],
-    debt_servicing_capacity: [
-      {
-        key: "placeholder_adequate",
-        text: "Placeholder — debt-servicing description (not approved).",
-      },
-      { key: "do_not_display", text: null },
-    ],
-    working_capital_efficiency: [
-      {
-        key: "placeholder_typical",
-        text: "Placeholder — working-capital description (not approved).",
-      },
-      { key: "do_not_display", text: null },
-    ],
-    overall_financial_profile: [
-      {
-        key: "placeholder_balanced",
-        text: "Placeholder — overall profile description (not approved).",
-      },
-      { key: "do_not_display", text: null },
-    ],
-  },
+  investorTakeawayOptions: Object.fromEntries(
+    PROSPECTUS_TAKEAWAY_KEYS.map((category) => [
+      category,
+      (PROSPECTUS_TAKEAWAY_OPTION_CATALOGUE[category] ?? []).map((o) => ({
+        key: o.key,
+        text: o.renderedText,
+      })),
+    ])
+  ) as ProspectusPublicationContent["investorTakeawayOptions"],
   investorTakeawaySelections: {
-    revenue_profitability: "placeholder_positive",
-    liquidity: "placeholder_stable",
+    revenue_profitability: "steady_growth",
+    liquidity: "healthy_stable",
     leverage: "do_not_display",
-    debt_servicing_capacity: "placeholder_adequate",
-    working_capital_efficiency: "placeholder_typical",
-    overall_financial_profile: "placeholder_balanced",
+    debt_servicing_capacity: "adequate_stable",
+    receivables_collection: "improving",
+    overall_financial_profile: "satisfactory",
   },
   prospectusFinancialInputs: {
     years: {

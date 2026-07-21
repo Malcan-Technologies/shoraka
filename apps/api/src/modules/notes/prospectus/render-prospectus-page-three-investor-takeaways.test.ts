@@ -41,13 +41,8 @@ function composeFromYears(years: Record<string, Record<string, unknown>>) {
   });
 }
 
-const PROHIBITED = [
-  "steady growth",
-  "healthy liquidity",
-  "conservative leverage",
-  "adequate debt-servicing capacity",
-  "improved collections",
-  "strengthening fundamentals",
+/** Phrases that must never appear unless officer-selected from the catalogue. */
+const AUTO_GENERATED_PROHIBITED = [
   "strong investment case",
   "low risk",
   "recommended investment",
@@ -67,11 +62,11 @@ describe("prospectus Page 3 investor takeaways (DATA STAGE 6)", () => {
       ...PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAY_KEYS,
     ]);
     expect(data.items.map((i) => i.label)).toEqual([
-      "Revenue and Profitability",
+      "Revenue & Profitability",
       "Liquidity",
       "Leverage",
-      "Debt-Servicing Capacity",
-      "Working-Capital Efficiency",
+      "Debt Servicing Capacity",
+      "Receivables Collection",
       "Overall Financial Profile",
     ]);
     expect(new Set(data.items.map((i) => i.key)).size).toBe(6);
@@ -92,7 +87,7 @@ describe("prospectus Page 3 investor takeaways (DATA STAGE 6)", () => {
     ).toBe(false);
   });
 
-  it("renders typed placeholder selections and omits do_not_display", async () => {
+  it("renders officer-selected catalogue text and omits do_not_display", async () => {
     const { PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT } = await import(
       "./prospectus-placeholder-publication-content"
     );
@@ -103,10 +98,12 @@ describe("prospectus Page 3 investor takeaways (DATA STAGE 6)", () => {
       investorTakeawaySelections:
         PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT.investorTakeawaySelections,
     });
-    expect(data.items[0]?.takeaway).toContain("Placeholder");
+    expect(data.items[0]?.takeaway).toContain(
+      "steady year-on-year growth"
+    );
     expect(data.omittedKeys).toContain("leverage");
     const html = buildProspectusPageThreeInvestorTakeawaysDocument(data);
-    expect(html).toContain("Placeholder — revenue/profitability");
+    expect(html).toContain("steady year-on-year growth");
     expect(html).not.toContain(">Leverage<");
   });
 
@@ -178,7 +175,7 @@ describe("prospectus Page 3 investor takeaways (DATA STAGE 6)", () => {
     ).toBe(false);
 
     const joined = data.items.map((i) => i.takeaway).join(" ");
-    for (const phrase of PROHIBITED) {
+    for (const phrase of AUTO_GENERATED_PROHIBITED) {
       expect(joined.toLowerCase()).not.toContain(phrase.toLowerCase());
     }
   });
@@ -228,7 +225,7 @@ describe("prospectus Page 3 investor takeaways (DATA STAGE 6)", () => {
     expect(html).not.toContain("steady year-on-year growth");
     expect(html).not.toMatch(/green|red|color:/i);
     expect(html).not.toMatch(/\{[\s\S]*"takeaway"/);
-    for (const phrase of PROHIBITED) {
+    for (const phrase of AUTO_GENERATED_PROHIBITED) {
       expect(html.toLowerCase()).not.toContain(phrase.toLowerCase());
     }
   });

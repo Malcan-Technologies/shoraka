@@ -143,7 +143,7 @@ export interface ProspectusReviewStoredContent {
       liquidityOptionKey?: string | null;
       leverageOptionKey?: string | null;
       debtServicingCapacityOptionKey?: string | null;
-      workingCapitalEfficiencyOptionKey?: string | null;
+      receivablesCollectionOptionKey?: string | null;
       overallFinancialProfileOptionKey?: string | null;
     };
   };
@@ -420,7 +420,7 @@ export function toProspectusPublicationContent(
     ["liquidity", t.liquidityOptionKey],
     ["leverage", t.leverageOptionKey],
     ["debt_servicing_capacity", t.debtServicingCapacityOptionKey],
-    ["working_capital_efficiency", t.workingCapitalEfficiencyOptionKey],
+    ["receivables_collection", t.receivablesCollectionOptionKey],
     ["overall_financial_profile", t.overallFinancialProfileOptionKey],
   ];
   for (const [category, key] of takeawayMap) {

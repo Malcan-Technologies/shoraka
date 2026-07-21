@@ -418,14 +418,16 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(row(page.incomeStatement.rows, "net_profit_margin")).toEqual(page2Npm);
     });
 
-    it("keeps trends DNA; sample preview uses typed takeaway placeholders", () => {
+    it("keeps trends DNA; sample preview uses officer-selected takeaways", () => {
       const page = SAMPLE_PROSPECTUS_PAGE_THREE;
       expect(page.trends.trends).toHaveLength(26);
       expect(page.trends.trends.every((t) => t.trend === PROSPECTUS_DATA_NOT_AVAILABLE)).toBe(
         true
       );
       expect(page.investorTakeaways.items).toHaveLength(6);
-      expect(page.investorTakeaways.items[0]?.takeaway).toContain("Placeholder");
+      expect(page.investorTakeaways.items[0]?.takeaway).toContain(
+        "steady year-on-year growth"
+      );
       expect(page.investorTakeaways.omittedKeys).toContain("leverage");
 
       const prismaPath = buildProspectusPageThree(

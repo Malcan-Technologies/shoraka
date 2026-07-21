@@ -1364,19 +1364,19 @@ function ProspectusReviewPageInner() {
                             [
                               "revenue_profitability",
                               "revenueProfitabilityOptionKey",
-                              "Revenue and Profitability",
+                              "Revenue & Profitability",
                             ],
                             ["liquidity", "liquidityOptionKey", "Liquidity"],
                             ["leverage", "leverageOptionKey", "Leverage"],
                             [
                               "debt_servicing_capacity",
                               "debtServicingCapacityOptionKey",
-                              "Debt-Servicing Capacity",
+                              "Debt Servicing Capacity",
                             ],
                             [
-                              "working_capital_efficiency",
-                              "workingCapitalEfficiencyOptionKey",
-                              "Working-Capital Efficiency",
+                              "receivables_collection",
+                              "receivablesCollectionOptionKey",
+                              "Receivables Collection",
                             ],
                             [
                               "overall_financial_profile",

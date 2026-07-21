@@ -215,8 +215,8 @@ describe("prospectus boss-review alignment", () => {
         ...PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAY_KEYS,
       ]);
       expect(data.omittedKeys).toContain("leverage");
-      expect(data.items[0]?.takeaway).toContain("Placeholder");
-      expect(JSON.stringify(data)).not.toMatch(/steady growth|strong investment/i);
+      expect(data.items[0]?.takeaway).toContain("steady year-on-year growth");
+      expect(JSON.stringify(data)).not.toMatch(/strong investment/i);
     });
   });
 

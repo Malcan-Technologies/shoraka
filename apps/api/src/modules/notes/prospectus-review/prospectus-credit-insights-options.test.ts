@@ -16,7 +16,7 @@ import {
 
 describe("prospectus credit insights option catalogues", () => {
   it("exposes provisional per-row catalogues without Do not display", () => {
-    expect(PROSPECTUS_OPTION_CATALOGUE_VERSION).toContain("credit-insights.provisional");
+    expect(PROSPECTUS_OPTION_CATALOGUE_VERSION).toContain("investor-takeaways");
     const catalogues = getActiveProspectusCatalogues();
     expect(Array.isArray(catalogues.creditInsights)).toBe(false);
     expect(catalogues.creditInsights.creditScore.map((o) => o.key)).toEqual([

@@ -171,7 +171,7 @@ export const prospectusReviewStoredContentSchema = z
             liquidityOptionKey: nullableOptionKey,
             leverageOptionKey: nullableOptionKey,
             debtServicingCapacityOptionKey: nullableOptionKey,
-            workingCapitalEfficiencyOptionKey: nullableOptionKey,
+            receivablesCollectionOptionKey: nullableOptionKey,
             overallFinancialProfileOptionKey: nullableOptionKey,
           })
           .strict(),
@@ -286,7 +286,7 @@ export function validateDraftContent(
     ["liquidity", "liquidityOptionKey", content.page3.investorTakeaways.liquidityOptionKey],
     ["leverage", "leverageOptionKey", content.page3.investorTakeaways.leverageOptionKey],
     ["debt_servicing_capacity", "debtServicingCapacityOptionKey", content.page3.investorTakeaways.debtServicingCapacityOptionKey],
-    ["working_capital_efficiency", "workingCapitalEfficiencyOptionKey", content.page3.investorTakeaways.workingCapitalEfficiencyOptionKey],
+    ["receivables_collection", "receivablesCollectionOptionKey", content.page3.investorTakeaways.receivablesCollectionOptionKey],
     ["overall_financial_profile", "overallFinancialProfileOptionKey", content.page3.investorTakeaways.overallFinancialProfileOptionKey],
   ];
   for (const [catalogueKey, field, key] of takeawayPairs) {
@@ -542,7 +542,7 @@ export function validateApprovalContent(
     "liquidityOptionKey",
     "leverageOptionKey",
     "debtServicingCapacityOptionKey",
-    "workingCapitalEfficiencyOptionKey",
+    "receivablesCollectionOptionKey",
     "overallFinancialProfileOptionKey",
   ] as const) {
     if (!content.page3.investorTakeaways[field]) {
