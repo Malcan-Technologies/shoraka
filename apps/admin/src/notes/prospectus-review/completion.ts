@@ -1,4 +1,3 @@
-import type { ProspectusReviewStoredContent } from "@cashsouk/types";
 import type { ProspectusWorkflowStepId } from "./labels";
 
 export type ProspectusCompletionItem = {
@@ -8,7 +7,6 @@ export type ProspectusCompletionItem = {
   required: boolean;
 };
 
-/** Compact step/checklist status: Complete, Required, or Optional. */
 export type ProspectusStepStatus = "complete" | "required" | "optional";
 
 export const PROSPECTUS_STEP_STATUS_LABEL: Record<ProspectusStepStatus, string> = {
@@ -17,14 +15,14 @@ export const PROSPECTUS_STEP_STATUS_LABEL: Record<ProspectusStepStatus, string> 
   optional: "Optional",
 };
 
-/** Maps Final checklist rows to workflow step ids. */
+/** Checklist rows → top-level page step (0–3). */
 export const CHECKLIST_ITEM_STEP: Record<string, ProspectusWorkflowStepId> = {
   core: 0,
-  highlights: 1,
-  paymaster: 2,
-  credit: 3,
-  financials: 4,
-  takeaways: 5,
+  highlights: 0,
+  paymaster: 1,
+  credit: 1,
+  financials: 2,
+  takeaways: 2,
 };
 
 function hasOption(value: string | null | undefined): boolean {
@@ -37,10 +35,6 @@ function hasHighlightCopy(value: { title?: string; description?: string; key?: s
 }
 
 export type ProspectusCompletionOptions = {
-  /**
-   * Calendar years on Page 2/3 financial tables — used for Income Statement and
-   * Balance Sheet officer-field completeness.
-   */
   incomeStatementYears?: readonly string[];
 };
 
@@ -60,8 +54,15 @@ const PAGE_THREE_OFFICER_FINANCIAL_FIELDS = [
   "assetTurnover",
 ] as const;
 
+const PAGE_TWO_OVERRIDE_FIELDS = [
+  "netDebtEquity",
+  "interestCoverage",
+  "dscr",
+  "receivablesDays",
+] as const;
+
 function pageThreeOfficerFieldsComplete(
-  draft: ProspectusReviewStoredContent,
+  draft: import("@cashsouk/types").ProspectusReviewStoredContent,
   years: readonly string[]
 ): boolean {
   if (years.length === 0) return false;
@@ -75,8 +76,27 @@ function pageThreeOfficerFieldsComplete(
   });
 }
 
+function pageTwoOverridesComplete(
+  draft: import("@cashsouk/types").ProspectusReviewStoredContent,
+  years: readonly string[]
+): boolean {
+  if (years.length === 0) return true;
+  const overrides = draft.page2.financialComparison?.overrides ?? {};
+  return years.every((year) => {
+    const row =
+      overrides[year] ??
+      overrides[`${year}-12-31`] ??
+      Object.entries(overrides).find(([key]) => key.startsWith(`${year}-`))?.[1] ??
+      {};
+    return PAGE_TWO_OVERRIDE_FIELDS.every((field) => {
+      const value = row[field];
+      return value != null && value !== "";
+    });
+  });
+}
+
 export function buildProspectusCompletionChecklist(
-  draft: ProspectusReviewStoredContent,
+  draft: import("@cashsouk/types").ProspectusReviewStoredContent,
   options?: ProspectusCompletionOptions
 ): ProspectusCompletionItem[] {
   const highlightsComplete =
@@ -98,7 +118,7 @@ export function buildProspectusCompletionChecklist(
   );
 
   const credit = draft.page2.creditInsights;
-  const creditComplete =
+  const creditInsightsComplete =
     hasOption(credit.creditScoreOptionKey) &&
     hasOption(credit.paymentBehaviourOptionKey) &&
     hasOption(credit.creditUtilisationOptionKey) &&
@@ -109,6 +129,12 @@ export function buildProspectusCompletionChecklist(
   const invoiceComplete =
     aboutItems.length >= 4 &&
     aboutItems.every((item) => typeof item.text === "string" && item.text.trim().length > 0);
+
+  const issuerPaymasterOfficerComplete =
+    hasOption(draft.page2.issuerProfile?.companySize) &&
+    hasOption(draft.page2.invoicePaymaster?.deedOfAssignment) &&
+    hasOption(draft.page2.invoicePaymaster?.paymasterRating) &&
+    hasOption(draft.page2.invoicePaymaster?.confidenceGrading);
 
   const takeaways = draft.page3.investorTakeaways;
   const takeawaysComplete =
@@ -122,7 +148,8 @@ export function buildProspectusCompletionChecklist(
   const incomeYears = options?.incomeStatementYears ?? [];
   const financialInputComplete =
     incomeYears.length > 0
-      ? pageThreeOfficerFieldsComplete(draft, incomeYears)
+      ? pageThreeOfficerFieldsComplete(draft, incomeYears) &&
+        pageTwoOverridesComplete(draft, incomeYears)
       : Object.values(draft.page3.manualFinancialInputs?.years ?? {}).some((row) =>
           Object.values(row ?? {}).some((value) => value != null && value !== "")
         );
@@ -137,14 +164,14 @@ export function buildProspectusCompletionChecklist(
     },
     {
       id: "paymaster",
-      label: "Issuer & Paymaster",
+      label: "Paymaster Track Record",
       complete: paymasterComplete,
       required: false,
     },
     {
       id: "credit",
-      label: "Credit & Invoice Details",
-      complete: creditComplete && invoiceComplete,
+      label: "Issuer, Credit & Invoice",
+      complete: creditInsightsComplete && invoiceComplete && issuerPaymasterOfficerComplete,
       required: true,
     },
     {
@@ -163,7 +190,7 @@ export function buildProspectusCompletionChecklist(
 }
 
 export function isProspectusDraftReadyToSubmit(
-  draft: ProspectusReviewStoredContent,
+  draft: import("@cashsouk/types").ProspectusReviewStoredContent,
   options?: ProspectusCompletionOptions
 ): boolean {
   return buildProspectusCompletionChecklist(draft, options)
@@ -176,17 +203,19 @@ export function statusForCompletionItem(item: ProspectusCompletionItem): Prospec
   return item.required ? "required" : "optional";
 }
 
-/**
- * Compact status words for the step navigator.
- * Preview & Approval only shows Complete when the draft is ready.
- */
+function worstStatus(a: ProspectusStepStatus, b: ProspectusStepStatus): ProspectusStepStatus {
+  if (a === "required" || b === "required") return "required";
+  if (a === "optional" || b === "optional") return a === "complete" ? b : a;
+  return "complete";
+}
+
 export function getProspectusStepStatuses(
-  draft: ProspectusReviewStoredContent,
+  draft: import("@cashsouk/types").ProspectusReviewStoredContent,
   options?: ProspectusCompletionOptions
 ): Partial<Record<ProspectusWorkflowStepId, ProspectusStepStatus>> {
   const checklist = buildProspectusCompletionChecklist(draft, options);
   const byId = Object.fromEntries(checklist.map((item) => [item.id, item]));
-  const ready = isProspectusDraftReadyToSubmit(draft);
+  const ready = isProspectusDraftReadyToSubmit(draft, options);
 
   const statusFor = (itemId: string): ProspectusStepStatus => {
     const item = byId[itemId];
@@ -195,12 +224,191 @@ export function getProspectusStepStatuses(
   };
 
   return {
-    0: statusFor("core"),
-    1: statusFor("highlights"),
-    2: statusFor("paymaster"),
-    3: statusFor("credit"),
-    4: statusFor("financials"),
-    5: statusFor("takeaways"),
-    ...(ready ? { 6: "complete" as const } : {}),
+    0: worstStatus(statusFor("core"), statusFor("highlights")),
+    1: statusFor("credit"),
+    2: worstStatus(statusFor("financials"), statusFor("takeaways")),
+    ...(ready ? { 3: "complete" as const } : {}),
   };
 }
+
+/** Grouped missing required fields for Preview & Approval navigation. */
+export type ProspectusMissingField = {
+  pageStep: ProspectusWorkflowStepId;
+  section: string;
+  field: string;
+  year?: string;
+};
+
+export function buildProspectusMissingRequiredFields(
+  draft: import("@cashsouk/types").ProspectusReviewStoredContent,
+  options?: ProspectusCompletionOptions
+): ProspectusMissingField[] {
+  const missing: ProspectusMissingField[] = [];
+
+  for (const h of draft.page1.keyInvestorHighlights) {
+    if (h.key === "shariah") continue;
+    if (!hasOption(h.title) || !hasOption(h.description)) {
+      missing.push({
+        pageStep: 0,
+        section: "Investor Highlights",
+        field: h.key,
+      });
+    }
+  }
+
+  if (!hasOption(draft.page2.issuerProfile?.companySize)) {
+    missing.push({ pageStep: 1, section: "Issuer Profile", field: "Company Size" });
+  }
+  if (!hasOption(draft.page2.invoicePaymaster?.deedOfAssignment)) {
+    missing.push({ pageStep: 1, section: "Invoice & Paymaster", field: "Deed of Assignment" });
+  }
+  if (!hasOption(draft.page2.invoicePaymaster?.paymasterRating)) {
+    missing.push({ pageStep: 1, section: "Invoice & Paymaster", field: "Paymaster Rating" });
+  }
+  if (!hasOption(draft.page2.invoicePaymaster?.confidenceGrading)) {
+    missing.push({ pageStep: 1, section: "Invoice & Paymaster", field: "Confidence Grading" });
+  }
+
+  const creditLabels: Array<[keyof typeof draft.page2.creditInsights, string]> = [
+    ["creditScoreOptionKey", "Credit Score"],
+    ["paymentBehaviourOptionKey", "Payment Behaviour"],
+    ["creditUtilisationOptionKey", "Credit Utilisation"],
+    ["litigationCheckOptionKey", "Litigation Check"],
+    ["ccrisStatusOptionKey", "CCRIS Status"],
+  ];
+  for (const [key, label] of creditLabels) {
+    if (!hasOption(draft.page2.creditInsights[key])) {
+      missing.push({ pageStep: 1, section: "Credit Insights", field: label });
+    }
+  }
+
+  for (const item of draft.page2.aboutInvoice?.items ?? []) {
+    if (!hasOption(item.text)) {
+      missing.push({
+        pageStep: 1,
+        section: "About the Invoice",
+        field: item.id,
+      });
+    }
+  }
+
+  const years = options?.incomeStatementYears ?? [];
+  const overrides = draft.page2.financialComparison?.overrides ?? {};
+  const manuals = draft.page3.manualFinancialInputs?.years ?? {};
+  const overrideLabels: Record<(typeof PAGE_TWO_OVERRIDE_FIELDS)[number], string> = {
+    netDebtEquity: "Net Debt / Equity",
+    interestCoverage: "Interest Coverage",
+    dscr: "DSCR",
+    receivablesDays: "Receivables Days",
+  };
+  const page3Labels: Record<(typeof PAGE_THREE_OFFICER_FINANCIAL_FIELDS)[number], string> = {
+    grossProfit: "Gross Profit",
+    ebitda: "EBITDA",
+    ebit: "EBIT",
+    cashAndBank: "Cash & Bank",
+    tradeReceivables: "Trade Receivables",
+    totalEquity: "Total Equity",
+    quickRatio: "Quick Ratio",
+    operatingCashFlow: "Operating Cash Flow",
+    freeCashFlow: "Free Cash Flow",
+    debtEquity: "Debt / Equity",
+    returnOnAssets: "Return on Assets",
+    payablesDays: "Payables Days",
+    assetTurnover: "Asset Turnover",
+  };
+
+  for (const year of years) {
+    const overrideRow =
+      overrides[year] ??
+      overrides[`${year}-12-31`] ??
+      Object.entries(overrides).find(([key]) => key.startsWith(`${year}-`))?.[1] ??
+      {};
+    for (const field of PAGE_TWO_OVERRIDE_FIELDS) {
+      const value = overrideRow[field];
+      if (value == null || value === "") {
+        missing.push({
+          pageStep: 1,
+          section: "Financial Comparison",
+          field: overrideLabels[field],
+          year: `FY${year}`,
+        });
+      }
+    }
+    const manualRow = manuals[year] ?? {};
+    for (const field of PAGE_THREE_OFFICER_FINANCIAL_FIELDS) {
+      const value = manualRow[field];
+      if (value == null || value === "") {
+        const section =
+          field === "grossProfit" || field === "ebitda" || field === "ebit"
+            ? "Income Statement"
+            : field === "cashAndBank" ||
+                field === "tradeReceivables" ||
+                field === "totalEquity" ||
+                field === "quickRatio"
+              ? "Balance Sheet"
+              : "Coverage & Efficiency";
+        missing.push({
+          pageStep: 2,
+          section,
+          field: page3Labels[field],
+          year: `FY${year}`,
+        });
+      }
+    }
+  }
+
+  const takeawayLabels: Array<[keyof typeof draft.page3.investorTakeaways, string]> = [
+    ["revenueProfitabilityOptionKey", "Revenue & Profitability"],
+    ["liquidityOptionKey", "Liquidity"],
+    ["leverageOptionKey", "Leverage"],
+    ["debtServicingCapacityOptionKey", "Debt Servicing Capacity"],
+    ["receivablesCollectionOptionKey", "Receivables Collection"],
+    ["overallFinancialProfileOptionKey", "Overall Financial Profile"],
+  ];
+  for (const [key, label] of takeawayLabels) {
+    if (!hasOption(draft.page3.investorTakeaways[key])) {
+      missing.push({ pageStep: 2, section: "Investor Takeaways", field: label });
+    }
+  }
+
+  return missing;
+}
+
+/** Count required missing + approximate total required officer fields for page headers. */
+export function countProspectusRequiredFields(
+  draft: import("@cashsouk/types").ProspectusReviewStoredContent,
+  options?: ProspectusCompletionOptions
+): { missing: number; total: number; complete: number } {
+  const missingList = buildProspectusMissingRequiredFields(draft, options);
+  const years = options?.incomeStatementYears ?? [];
+  const highlightSlots = 3;
+  const page2Officer =
+    1 + // company size
+    3 + // DOA, paymaster rating, confidence
+    5 + // credit insights
+    4 + // about invoice
+    years.length * PAGE_TWO_OVERRIDE_FIELDS.length;
+  const page3Officer =
+    years.length * PAGE_THREE_OFFICER_FINANCIAL_FIELDS.length + 6; // takeaways
+  const total = highlightSlots + page2Officer + page3Officer;
+  const missing = missingList.length;
+  return {
+    missing,
+    total,
+    complete: Math.max(0, total - missing),
+  };
+}
+
+export function formatProspectusPageCompletionLabel(
+  draft: import("@cashsouk/types").ProspectusReviewStoredContent,
+  pageStep: ProspectusWorkflowStepId,
+  options?: ProspectusCompletionOptions
+): string | undefined {
+  if (pageStep === 3) return undefined;
+  const missingOnPage = buildProspectusMissingRequiredFields(draft, options).filter(
+    (item) => item.pageStep === pageStep
+  );
+  if (missingOnPage.length === 0) return "Complete";
+  return `${missingOnPage.length} required field${missingOnPage.length === 1 ? "" : "s"} missing`;
+}
+

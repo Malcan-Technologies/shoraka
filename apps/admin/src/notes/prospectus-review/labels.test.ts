@@ -11,6 +11,7 @@ import {
   CHECKLIST_ITEM_STEP,
   PROSPECTUS_STEP_STATUS_LABEL,
   buildProspectusCompletionChecklist,
+  buildProspectusMissingRequiredFields,
   getProspectusStepStatuses,
   isProspectusDraftReadyToSubmit,
   statusForCompletionItem,
@@ -37,11 +38,18 @@ describe("prospectus review admin labels", () => {
     expect(formatProspectusReviewStatus("PUBLISHED", true)).toBe("Published");
   });
 
-  it("uses concise step titles without repeated page prefixes", () => {
-    expect(PROSPECTUS_STEP_TITLES[0]).toBe("Note & Investment Details");
-    expect(PROSPECTUS_STEP_TITLES[3]).toBe("Credit & Invoice Details");
-    expect(PROSPECTUS_STEP_TITLES[6]).toBe("Preview & Approval");
+  it("uses four page-based working-area steps", () => {
+    expect(PROSPECTUS_STEP_TITLES[0]).toBe("Investment Overview");
+    expect(PROSPECTUS_STEP_TITLES[1]).toBe("Issuer & Credit Review");
+    expect(PROSPECTUS_STEP_TITLES[2]).toBe("Financial Review");
+    expect(PROSPECTUS_STEP_TITLES[3]).toBe("Preview & Approval");
     const mainLabels = PROSPECTUS_STEP_GROUPS.flatMap((g) => g.steps.map((s) => s.label));
+    expect(mainLabels).toEqual([
+      "Investment Overview",
+      "Issuer & Credit Review",
+      "Financial Review",
+      "Preview & Approval",
+    ]);
     expect(mainLabels.every((label) => !label.startsWith("Page "))).toBe(true);
   });
 
@@ -95,7 +103,7 @@ describe("prospectus review completion checklist", () => {
     };
   }
 
-  it("does not treat incomplete optional sections as submit blockers", () => {
+  function completeOfficerDraft(): ProspectusReviewStoredContent {
     const draft = emptyDraft();
     draft.page1.keyInvestorHighlights = [
       { key: "paymaster", title: "Paymaster title", description: "Paymaster body" },
@@ -103,6 +111,12 @@ describe("prospectus review completion checklist", () => {
       { key: "return", title: "Return title", description: "Return body" },
       { key: "shariah", title: "Shariah title", description: "Shariah body" },
     ];
+    draft.page2.issuerProfile = { companySize: "Medium" };
+    draft.page2.invoicePaymaster = {
+      deedOfAssignment: "Yes",
+      paymasterRating: "PM1",
+      confidenceGrading: "High",
+    };
     draft.page2.creditInsights = {
       creditScoreOptionKey: "good",
       paymentBehaviourOptionKey: "good",
@@ -142,11 +156,17 @@ describe("prospectus review completion checklist", () => {
       receivablesCollectionOptionKey: "improving",
       overallFinancialProfileOptionKey: "strengthening",
     };
+    return draft;
+  }
+
+  it("does not treat incomplete optional sections as submit blockers", () => {
+    const draft = completeOfficerDraft();
 
     const checklist = buildProspectusCompletionChecklist(draft);
     expect(checklist.find((i) => i.id === "paymaster")?.required).toBe(false);
     expect(checklist.find((i) => i.id === "financials")?.required).toBe(false);
     expect(checklist.find((i) => i.id === "highlights")?.complete).toBe(true);
+    expect(checklist.find((i) => i.id === "credit")?.complete).toBe(true);
     expect(isProspectusDraftReadyToSubmit(draft)).toBe(true);
 
     const withIncomeYears = buildProspectusCompletionChecklist(draft, {
@@ -165,36 +185,33 @@ describe("prospectus review completion checklist", () => {
     expect(Object.values(PROSPECTUS_STEP_STATUS_LABEL).join(" ")).not.toMatch(/[✓!○]/);
 
     const statuses = getProspectusStepStatuses(emptyDraft());
-    expect(statuses[0]).toBe("complete");
+    expect(statuses[0]).toBe("required");
     expect(statuses[1]).toBe("required");
-    expect(statuses[2]).toBe("optional");
-    expect(statuses[3]).toBe("required");
-    expect(statuses[4]).toBe("optional");
-    expect(statuses[5]).toBe("required");
-    expect(statuses[6]).toBeUndefined();
+    expect(statuses[2]).toBe("required");
+    expect(statuses[3]).toBeUndefined();
 
     const withIncome = getProspectusStepStatuses(emptyDraft(), {
       incomeStatementYears: ["2024"],
     });
-    expect(withIncome[4]).toBe("required");
+    expect(withIncome[2]).toBe("required");
   });
 
   it("maps checklist rows to workflow steps for navigation", () => {
     expect(CHECKLIST_ITEM_STEP).toEqual({
       core: 0,
-      highlights: 1,
-      paymaster: 2,
-      credit: 3,
-      financials: 4,
-      takeaways: 5,
+      highlights: 0,
+      paymaster: 1,
+      credit: 1,
+      financials: 2,
+      takeaways: 2,
     });
 
     const checklist = buildProspectusCompletionChecklist(emptyDraft());
     expect(checklist.map((i) => i.label)).toEqual([
       "Note & Investment Details",
       "Investor Highlights",
-      "Issuer & Paymaster",
-      "Credit & Invoice Details",
+      "Paymaster Track Record",
+      "Issuer, Credit & Invoice",
       "Financial Review",
       "Investor Takeaways",
     ]);
@@ -202,18 +219,25 @@ describe("prospectus review completion checklist", () => {
     expect(statusForCompletionItem(checklist[1]!)).toBe("required");
     expect(statusForCompletionItem(checklist[2]!)).toBe("optional");
   });
+
+  it("lists missing required fields without optional paymaster track", () => {
+    const missing = buildProspectusMissingRequiredFields(emptyDraft(), {
+      incomeStatementYears: ["2024"],
+    });
+    expect(missing.some((m) => m.section === "Paymaster Track Record")).toBe(false);
+    expect(missing.some((m) => m.field === "Company Size")).toBe(true);
+    expect(missing.some((m) => m.section === "Financial Comparison")).toBe(true);
+    expect(missing.some((m) => m.year === "FY2024")).toBe(true);
+  });
 });
 
 describe("prospectus review step title icons", () => {
   it("maps every workflow step to an Application Review style icon", () => {
     expect(PROSPECTUS_STEP_ICON_NAMES).toEqual({
       0: "DocumentTextIcon",
-      1: "StarIcon",
-      2: "BuildingOffice2Icon",
-      3: "ClipboardDocumentCheckIcon",
-      4: "BanknotesIcon",
-      5: "LightBulbIcon",
-      6: "EyeIcon",
+      1: "BuildingOffice2Icon",
+      2: "BanknotesIcon",
+      3: "EyeIcon",
     });
     expect(PROSPECTUS_STEP_ICON_CLASS).toBe("h-5 w-5 shrink-0 text-primary");
   });
@@ -242,7 +266,7 @@ describe("prospectus review compact status badges", () => {
 
 describe("prospectus review action visibility", () => {
   it("shows Save Draft, Save & Preview, and Approve for DRAFT while unpublished", () => {
-    for (const step of [0, 1, 2, 3, 4, 5, 6] as const) {
+    for (const step of [0, 1, 2, 3] as const) {
       const actions = getProspectusActionVisibility({
         step,
         status: "DRAFT",
@@ -258,7 +282,7 @@ describe("prospectus review action visibility", () => {
 
   it("maps legacy READY_FOR_REVIEW to Draft actions (editable, no submit path)", () => {
     const actions = getProspectusActionVisibility({
-      step: 6,
+      step: 3,
       status: "READY_FOR_REVIEW",
       canManage: true,
       notePublished: false,
@@ -283,7 +307,7 @@ describe("prospectus review action visibility", () => {
     expect(approved.viewProspectus).toBe(false);
 
     const published = getProspectusActionVisibility({
-      step: 6,
+      step: 3,
       status: "APPROVED",
       canManage: true,
       notePublished: true,
@@ -324,7 +348,7 @@ describe("prospectus review action visibility", () => {
       false
     );
     const actions = getProspectusActionVisibility({
-      step: 6,
+      step: 3,
       status: "DRAFT",
       canManage: true,
       notePublished: false,

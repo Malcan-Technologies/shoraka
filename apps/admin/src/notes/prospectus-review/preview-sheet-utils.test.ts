@@ -59,15 +59,13 @@ describe("prospectus preview sheet utils", () => {
   it("maps workflow steps to the matching prospectus preview page", () => {
     expect(PROSPECTUS_STEP_PREVIEW_PAGE).toEqual({
       0: "page1",
-      1: "page1",
-      2: "page2",
-      3: "page2",
-      4: "page3",
-      5: "page3",
+      1: "page2",
+      2: "page3",
     });
-    expect(resolvePreviewPageForStep(2, null)).toBe("page2");
-    expect(resolvePreviewPageForStep(4, null)).toBe("page3");
-    expect(resolvePreviewPageForStep(6, null)).toBe("page1");
-    expect(resolvePreviewPageForStep(6, "page3")).toBe("page3");
+    expect(resolvePreviewPageForStep(0, null)).toBe("page1");
+    expect(resolvePreviewPageForStep(1, null)).toBe("page2");
+    expect(resolvePreviewPageForStep(2, null)).toBe("page3");
+    expect(resolvePreviewPageForStep(3, null)).toBe("page1");
+    expect(resolvePreviewPageForStep(3, "page3")).toBe("page3");
   });
 });

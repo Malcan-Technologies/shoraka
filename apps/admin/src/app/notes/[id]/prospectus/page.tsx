@@ -3,23 +3,9 @@
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  ArrowLeftIcon,
-  ChevronRightIcon,
-  DocumentTextIcon,
-  ExclamationTriangleIcon,
-} from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import { Skeleton } from "@cashsouk/ui";
 import {
-  MARKETPLACE_MIN_COMMIT_MYR,
-  PROSPECTUS_COMPANY_SIZE_VALUES,
-  PROSPECTUS_CONFIDENCE_GRADING_VALUES,
-  PROSPECTUS_DEED_OF_ASSIGNMENT_VALUES,
-  PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT,
-  PROSPECTUS_HIGHLIGHT_KEYS,
-  PROSPECTUS_PAYMASTER_RATING_VALUES,
-  SOUKSCORE_RISK_RATING_GRADES,
-  isSoukscoreRiskRating,
   normalizeProspectusCompanySize,
   normalizeProspectusConfidenceGrading,
   normalizeProspectusDeedOfAssignment,
@@ -27,7 +13,6 @@ import {
   type ProspectusReviewStoredContent,
   type ProspectusReviewStatus,
 } from "@cashsouk/types";
-import { formatCurrency } from "@cashsouk/config";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,8 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
@@ -57,44 +40,33 @@ import {
   useSaveProspectusReviewDraft,
 } from "@/notes/hooks/use-prospectus-review";
 import {
-  HIGHLIGHT_FIELD_LABELS,
-  INVOICE_WORK_FIELD_LABELS,
   PROSPECTUS_STEP_GROUPS,
+  PROSPECTUS_STEP_PAGE_LABEL,
   PROSPECTUS_STEP_TITLES,
   formatActorDisplayName,
   formatProspectusReviewStatus,
   type ProspectusWorkflowStepId,
 } from "@/notes/prospectus-review/labels";
 import {
-  CHECKLIST_ITEM_STEP,
   PROSPECTUS_STEP_STATUS_LABEL,
   buildProspectusCompletionChecklist,
+  buildProspectusMissingRequiredFields,
+  formatProspectusPageCompletionLabel,
   getProspectusStepStatuses,
-  statusForCompletionItem,
 } from "@/notes/prospectus-review/completion";
 import {
   appendIssuerTrackRecordSection,
   buildNoteInvestmentDetailSections,
 } from "@/notes/prospectus-review/core-terms";
-import {
-  mergeOfficerOverridesIntoFinancialTable,
-  PAGE_TWO_OFFICER_FINANCIAL_METRICS,
-} from "@/notes/prospectus-review/page-two-coverage";
+import { mergeOfficerOverridesIntoFinancialTable } from "@/notes/prospectus-review/page-two-coverage";
 import {
   buildPageThreeBalanceSheetTable,
   buildPageThreeCoverageTable,
   buildPageThreeIncomeStatementTable,
   buildPageThreeMetadataRows,
-  buildPageThreeOverviewRows,
   selectPageThreeYears,
 } from "@/notes/prospectus-review/page-three-coverage";
-import { ProspectusFinancialMetricTable } from "@/notes/prospectus-review/financial-metric-table";
-import { ProspectusHistoricalNotesTable } from "@/notes/prospectus-review/historical-notes-table";
-import { ProspectusBalanceSheetWorkingTable } from "@/notes/prospectus-review/balance-sheet-working-table";
-import { ProspectusCoverageWorkingTable } from "@/notes/prospectus-review/coverage-working-table";
-import { ProspectusIncomeStatementWorkingTable } from "@/notes/prospectus-review/income-statement-working-table";
 import { ProspectusPreviewSheet } from "@/notes/prospectus-review/preview-sheet";
-import { ProspectusSectionHeading } from "@/notes/prospectus-review/section-heading";
 import { ProspectusStatusBadge } from "@/notes/prospectus-review/status-badge";
 import { getProspectusActionVisibility } from "@/notes/prospectus-review/action-visibility";
 import {
@@ -103,49 +75,10 @@ import {
   PROSPECTUS_STEP_ICON_CLASS,
   PROSPECTUS_STEPS_GRID_CLASS,
 } from "@/notes/prospectus-review/step-icons";
-
-function OptionSelect(props: {
-  label: string;
-  value: string | null | undefined;
-  options: Array<{ key: string; label: string }>;
-  disabled?: boolean;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label className="text-sm">{props.label}</Label>
-      <Select
-        disabled={props.disabled}
-        value={props.value ?? undefined}
-        onValueChange={props.onChange}
-      >
-        <SelectTrigger className="h-11">
-          <SelectValue placeholder="Select option" />
-        </SelectTrigger>
-        <SelectContent>
-          {props.options.map((o) => (
-            <SelectItem key={o.key} value={o.key}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-}
-
-function ReadOnlyGrid({ rows }: { rows: Array<{ label: string; value: string }> }) {
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {rows.map((row) => (
-        <div key={row.label} className="min-w-0 rounded-xl border bg-muted/30 px-4 py-3">
-          <div className="text-xs text-muted-foreground">{row.label}</div>
-          <div className="mt-1 break-words text-sm font-medium text-foreground">{row.value}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
+import { WorkingAreaPageOne } from "@/notes/prospectus-review/working-area-page-one";
+import { WorkingAreaPageTwo } from "@/notes/prospectus-review/working-area-page-two";
+import { WorkingAreaPageThree } from "@/notes/prospectus-review/working-area-page-three";
+import { WorkingAreaPreviewApproval } from "@/notes/prospectus-review/working-area-preview-approval";
 
 function ProspectusReviewPageInner() {
   const params = useParams<{ id: string }>();
@@ -187,7 +120,6 @@ function ProspectusReviewPageInner() {
 
   const status = data?.review.status as ProspectusReviewStatus | undefined;
   const notePublished = note?.status === "PUBLISHED" || note?.publishedAt != null;
-  /** Editable until Note/Prospectus is published (Approved remains editable). */
   const locked = notePublished || status === "PUBLISHED";
 
   const updateDraft = (
@@ -218,12 +150,6 @@ function ProspectusReviewPageInner() {
     },
     [focusStepPanel]
   );
-
-  const goToChecklistItem = (itemId: string) => {
-    const mapped = CHECKLIST_ITEM_STEP[itemId];
-    if (mapped == null) return;
-    goToStep(mapped, true);
-  };
 
   const onSave = async (): Promise<boolean> => {
     if (!draft || !data) return false;
@@ -337,10 +263,6 @@ function ProspectusReviewPageInner() {
     }
     return row;
   });
-  const paymasterTrackRows = data?.paymasterTrackRecord?.rows ?? [];
-  const financialStatements = (
-    application as { financial_statements?: unknown } | undefined
-  )?.financial_statements;
   const pageTwoFinancialTable = data?.financialComparison?.table
     ? mergeOfficerOverridesIntoFinancialTable(
         data.financialComparison.table,
@@ -353,6 +275,9 @@ function ProspectusReviewPageInner() {
         description: data.financialComparison.opsWarning,
       }
     : null;
+  const financialStatements = (
+    application as { financial_statements?: unknown } | undefined
+  )?.financial_statements;
   const pageThreeYears = selectPageThreeYears(financialStatements);
   const activeFinancialYears =
     pageThreeYears.length > 0 ? pageThreeYears : (["2022", "2023", "2024"] as const);
@@ -361,7 +286,6 @@ function ProspectusReviewPageInner() {
   const checklist = buildProspectusCompletionChecklist(draft, completionOptions);
   const stepStatuses = getProspectusStepStatuses(draft, completionOptions);
   const manualYears = draft.page3.manualFinancialInputs?.years;
-  const pageThreeOverviewRows = buildPageThreeOverviewRows(financialStatements);
   const pageThreeMetadataRows = note
     ? buildPageThreeMetadataRows(note, {
         companySize: officerCompanySize,
@@ -407,6 +331,20 @@ function ProspectusReviewPageInner() {
   });
   const dirtyLabel = dirty ? "Unsaved changes" : "All changes saved";
   const StepIcon = PROSPECTUS_STEP_ICONS[step];
+  const pageCompletion = formatProspectusPageCompletionLabel(
+    draft,
+    step,
+    completionOptions
+  );
+  const requiredMissingCount = buildProspectusMissingRequiredFields(
+    draft,
+    completionOptions
+  ).length;
+  const requiredSections = checklist.filter((i) => i.required);
+  const requiredCompleteHint =
+    requiredSections.length > 0
+      ? `${requiredSections.filter((i) => i.complete).length} of ${requiredSections.length} required sections complete`
+      : undefined;
 
   const stepNav = (
     <nav aria-label="Prospectus review steps" className="space-y-4">
@@ -429,8 +367,8 @@ function ProspectusReviewPageInner() {
                   aria-current={isCurrent ? "step" : undefined}
                   aria-label={
                     rowStatus
-                      ? `${item.label}, ${PROSPECTUS_STEP_STATUS_LABEL[rowStatus]}`
-                      : item.label
+                      ? `${PROSPECTUS_STEP_PAGE_LABEL[item.id]} ${item.label}, ${PROSPECTUS_STEP_STATUS_LABEL[rowStatus]}`
+                      : `${PROSPECTUS_STEP_PAGE_LABEL[item.id]} ${item.label}`
                   }
                   onClick={() => goToStep(item.id)}
                 >
@@ -439,6 +377,9 @@ function ProspectusReviewPageInner() {
                       isRequiredIncomplete && !isCurrent ? "font-medium text-foreground" : ""
                     }`}
                   >
+                    <span className="mr-1 text-xs text-muted-foreground">
+                      {PROSPECTUS_STEP_PAGE_LABEL[item.id]}
+                    </span>
                     {item.label}
                   </span>
                   {rowStatus ? <ProspectusStatusBadge status={rowStatus} /> : null}
@@ -451,51 +392,55 @@ function ProspectusReviewPageInner() {
     </nav>
   );
 
-  const actionBar = (
-    <div
-      data-prospectus-action-bar
-      className="sticky bottom-0 z-10 border-t bg-background/95 px-1 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80"
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="mr-2 text-xs text-muted-foreground" data-prospectus-dirty-state>
-          {dirtyLabel}
-        </span>
-        {actions.saveDraft ? (
-          <Button
-            variant="outline"
-            onClick={() => void onSave()}
-            disabled={saveDraft.isPending || !dirty}
-          >
-            Save Draft
-          </Button>
-        ) : null}
-        {actions.saveAndPreview ? (
-          <Button
-            variant="secondary"
-            onClick={() => void onSaveAndPreview()}
-            disabled={preview.isFetching || saveDraft.isPending}
-          >
-            Save &amp; Preview
-          </Button>
-        ) : null}
-        {actions.approve ? (
-          <Button onClick={() => void onApprove()} disabled={approve.isPending}>
-            Approve Prospectus
-          </Button>
-        ) : null}
-        {actions.viewProspectus ? (
-          <Button variant="secondary" onClick={() => setPreviewOpen(true)}>
-            View Prospectus
-          </Button>
-        ) : null}
-        {actions.backToNote ? (
-          <Button variant="ghost" onClick={() => router.push(`/notes/${noteId}`)}>
-            Back to Note
-          </Button>
-        ) : null}
+  const actionBar =
+    step === 3 ? null : (
+      <div
+        data-prospectus-action-bar
+        className="sticky bottom-0 z-10 border-t bg-background/95 px-1 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-2 text-xs text-muted-foreground" data-prospectus-dirty-state>
+            {dirtyLabel}
+          </span>
+          {actions.saveDraft ? (
+            <Button
+              variant="outline"
+              onClick={() => void onSave()}
+              disabled={saveDraft.isPending || !dirty}
+            >
+              Save Draft
+            </Button>
+          ) : null}
+          {actions.saveAndPreview ? (
+            <Button
+              variant="secondary"
+              onClick={() => void onSaveAndPreview()}
+              disabled={preview.isFetching || saveDraft.isPending}
+            >
+              Save &amp; Preview
+            </Button>
+          ) : null}
+          {actions.approve ? (
+            <Button
+              onClick={() => void onApprove()}
+              disabled={approve.isPending || requiredMissingCount > 0}
+            >
+              Approve Prospectus
+            </Button>
+          ) : null}
+          {actions.viewProspectus ? (
+            <Button variant="secondary" onClick={() => setPreviewOpen(true)}>
+              View Prospectus
+            </Button>
+          ) : null}
+          {actions.backToNote ? (
+            <Button variant="ghost" onClick={() => router.push(`/notes/${noteId}`)}>
+              Back to Note
+            </Button>
+          ) : null}
+        </div>
       </div>
-    </div>
-  );
+    );
 
   return (
     <div className="flex h-full flex-col">
@@ -529,9 +474,7 @@ function ProspectusReviewPageInner() {
                 <div className="text-xs uppercase tracking-wider text-muted-foreground">
                   Prospectus Review
                 </div>
-                <h2 className="truncate text-2xl font-bold">
-                  {data.note.noteReference}
-                </h2>
+                <h2 className="truncate text-2xl font-bold">{data.note.noteReference}</h2>
                 <p className="mt-1 truncate text-sm text-muted-foreground">{data.note.title}</p>
               </div>
             </div>
@@ -575,10 +518,6 @@ function ProspectusReviewPageInner() {
               <CardContent className="min-w-0">{stepNav}</CardContent>
             </Card>
 
-            {/*
-              flex + gap (not space-y): hidden mobile Select must not add top margin
-              to the active-step card on desktop (space-y still margins display:none siblings).
-            */}
             <div className={PROSPECTUS_ACTIVE_COLUMN_CLASS}>
               <div className="lg:hidden">
                 <Label className="text-sm">Step</Label>
@@ -598,7 +537,7 @@ function ProspectusReviewPageInner() {
                           : "";
                         return (
                           <SelectItem key={item.id} value={String(item.id)}>
-                            {item.label}
+                            {PROSPECTUS_STEP_PAGE_LABEL[item.id]} — {item.label}
                             {suffix}
                           </SelectItem>
                         );
@@ -610,848 +549,109 @@ function ProspectusReviewPageInner() {
 
               <Card className="rounded-2xl" data-prospectus-active-step-card>
                 <CardHeader className="pb-3">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <StepIcon
-                      className={PROSPECTUS_STEP_ICON_CLASS}
-                      data-prospectus-step-icon={step}
-                      aria-hidden="true"
-                    />
-                    <CardTitle className="min-w-0 text-base font-semibold text-foreground">
-                      {PROSPECTUS_STEP_TITLES[step]}
-                    </CardTitle>
+                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <StepIcon
+                        className={PROSPECTUS_STEP_ICON_CLASS}
+                        data-prospectus-step-icon={step}
+                        aria-hidden="true"
+                      />
+                      <CardTitle className="min-w-0 text-base font-semibold text-foreground">
+                        {PROSPECTUS_STEP_PAGE_LABEL[step]} — {PROSPECTUS_STEP_TITLES[step]}
+                      </CardTitle>
+                    </div>
+                    {requiredCompleteHint && step !== 3 ? (
+                      <span className="text-xs text-muted-foreground">{requiredCompleteHint}</span>
+                    ) : null}
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div ref={stepPanelRef} data-prospectus-step-panel className="space-y-6">
-                  {step === 0 ? (
-                    <div className="space-y-6">
-                      {note ? (
-                        <>
-                          {noteInvestmentSections.map((section) => (
-                            <section key={section.id}>
-                              <ProspectusSectionHeading title={section.title} />
-                              {section.id === "issuer-track-record" ? (
-                                <p className="mb-3 text-sm text-muted-foreground">
-                                  These figures are calculated automatically from the issuer&apos;s
-                                  previous CashSouk Notes.
-                                </p>
-                              ) : null}
-                              <ReadOnlyGrid rows={section.rows} />
-                            </section>
-                          ))}
-                          <section data-prospectus-historical-notes>
-                            <ProspectusSectionHeading title="Historical Notes" />
-                            <p className="mb-3 text-sm text-muted-foreground">
-                              Previous eligible Notes for this issuer, excluding the current Note.
-                            </p>
-                            <ProspectusHistoricalNotesTable
-                              table={
-                                data?.historicalNotes ?? {
-                                  headers: [],
-                                  rows: [],
-                                  emptyStateMessage: "No notes are available yet.",
-                                }
-                              }
-                            />
-                          </section>
-                        </>
+                    {step === 0 ? (
+                      note ? (
+                        <WorkingAreaPageOne
+                          draft={draft}
+                          locked={locked}
+                          canManage={canManage}
+                          dirty={dirty}
+                          noteInvestmentSections={noteInvestmentSections}
+                          historicalNotes={
+                            data.historicalNotes ?? {
+                              headers: [],
+                              rows: [],
+                              emptyStateMessage: "No eligible historical notes found.",
+                            }
+                          }
+                          updateDraft={updateDraft}
+                          completionLabel={pageCompletion}
+                        />
                       ) : (
                         <Skeleton className="h-40 w-full" />
-                      )}
-                    </div>
-                  ) : null}
+                      )
+                    ) : null}
 
-                  {step === 1 ? (
-                    <div className="space-y-6">
-                      <section>
-                        <ProspectusSectionHeading title="Key Investor Highlights" />
-                        <div className="space-y-4">
-                          {PROSPECTUS_HIGHLIGHT_KEYS.map((key) => {
-                            const row =
-                              draft.page1.keyInvestorHighlights.find((h) => h.key === key) ?? {
-                                key,
-                                title: "",
-                                description: "",
-                              };
-                            const label = HIGHLIGHT_FIELD_LABELS[key] ?? "Investor Highlight";
-                            const isShariah = key === "shariah";
-                            const title = isShariah
-                              ? PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT.title
-                              : row.title;
-                            const description = isShariah
-                              ? PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT.description
-                              : row.description;
+                    {step === 1 ? (
+                      <WorkingAreaPageTwo
+                        draft={draft}
+                        locked={locked}
+                        canManage={canManage}
+                        dirty={dirty}
+                        catalogues={catalogues}
+                        issuerProfileRows={issuerRows}
+                        invoicePaymasterRows={invoicePaymasterRows}
+                        financialComparisonTable={pageTwoFinancialTable}
+                        financialComparisonOverrides={
+                          draft.page2.financialComparison?.overrides
+                        }
+                        financialComparisonOpsWarning={financialComparisonOpsWarning}
+                        noteRiskRating={note?.riskRating}
+                        updateDraft={updateDraft}
+                        completionLabel={pageCompletion}
+                      />
+                    ) : null}
 
-                            return (
-                              <div
-                                key={key}
-                                className="space-y-3 rounded-xl border bg-muted/20 px-4 py-4"
-                              >
-                                <div className="text-[17px] font-semibold text-foreground">
-                                  {label}
-                                </div>
-                                {isShariah ? (
-                                  <div className="grid gap-3 md:grid-cols-2">
-                                    <div className="min-w-0 rounded-xl border bg-muted/30 px-4 py-3">
-                                      <div className="text-xs text-muted-foreground">
-                                        Highlight Title
-                                      </div>
-                                      <div className="mt-1 break-words text-sm font-medium text-foreground">
-                                        {title}
-                                      </div>
-                                    </div>
-                                    <div className="min-w-0 rounded-xl border bg-muted/30 px-4 py-3 md:col-span-2">
-                                      <div className="text-xs text-muted-foreground">
-                                        Highlight Description
-                                      </div>
-                                      <div className="mt-1 break-words text-sm font-medium text-foreground">
-                                        {description}
-                                      </div>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="grid gap-3">
-                                    <div className="space-y-1.5">
-                                      <Label className="text-sm" htmlFor={`highlight-title-${key}`}>
-                                        Highlight Title
-                                      </Label>
-                                      <Input
-                                        id={`highlight-title-${key}`}
-                                        disabled={locked || !canManage}
-                                        value={title}
-                                        maxLength={160}
-                                        onChange={(e) =>
-                                          updateDraft((prev) => {
-                                            const next = structuredClone(prev);
-                                            const idx = next.page1.keyInvestorHighlights.findIndex(
-                                              (h) => h.key === key
-                                            );
-                                            const updated = {
-                                              key,
-                                              title: e.target.value,
-                                              description:
-                                                idx >= 0
-                                                  ? next.page1.keyInvestorHighlights[idx]!
-                                                      .description
-                                                  : "",
-                                            };
-                                            if (idx >= 0) {
-                                              next.page1.keyInvestorHighlights[idx] = updated;
-                                            } else {
-                                              next.page1.keyInvestorHighlights.push(updated);
-                                            }
-                                            return next;
-                                          })
-                                        }
-                                      />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      <Label
-                                        className="text-sm"
-                                        htmlFor={`highlight-description-${key}`}
-                                      >
-                                        Highlight Description
-                                      </Label>
-                                      <Textarea
-                                        id={`highlight-description-${key}`}
-                                        disabled={locked || !canManage}
-                                        value={description}
-                                        maxLength={800}
-                                        rows={3}
-                                        className="min-h-[5.5rem] text-[17px] leading-7"
-                                        onChange={(e) =>
-                                          updateDraft((prev) => {
-                                            const next = structuredClone(prev);
-                                            const idx = next.page1.keyInvestorHighlights.findIndex(
-                                              (h) => h.key === key
-                                            );
-                                            const updated = {
-                                              key,
-                                              title:
-                                                idx >= 0
-                                                  ? next.page1.keyInvestorHighlights[idx]!.title
-                                                  : "",
-                                              description: e.target.value,
-                                            };
-                                            if (idx >= 0) {
-                                              next.page1.keyInvestorHighlights[idx] = updated;
-                                            } else {
-                                              next.page1.keyInvestorHighlights.push(updated);
-                                            }
-                                            return next;
-                                          })
-                                        }
-                                      />
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </section>
-                    </div>
-                  ) : null}
+                    {step === 2 ? (
+                      <WorkingAreaPageThree
+                        draft={draft}
+                        overviewRows={pageThreeMetadataRows}
+                        incomeStatementTable={incomeStatementTable}
+                        balanceSheetTable={balanceSheetTable}
+                        coverageTable={coverageTable}
+                        years={incomeStatementYearKeys}
+                        manualYears={manualYears}
+                        catalogues={catalogues}
+                        locked={locked}
+                        canManage={canManage}
+                        dirty={dirty}
+                        updateManualField={updateManualFieldForYear}
+                        updateDraft={updateDraft}
+                        completionLabel={pageCompletion}
+                      />
+                    ) : null}
 
-                  {step === 2 ? (
-                    <div className="space-y-6">
-                      <section data-prospectus-issuer-profile>
-                        <ProspectusSectionHeading title="Issuer Profile" />
-                        <p className="mb-3 text-sm text-muted-foreground">
-                          Business profile information shown in the investor Prospectus.
-                        </p>
-                        {issuerRows.length > 0 ? (
-                          <ReadOnlyGrid rows={issuerRows} />
-                        ) : (
-                          <Skeleton className="h-32 w-full" />
-                        )}
-                        <div className="mt-4 max-w-md space-y-1.5">
-                          <Label htmlFor="prospectus-company-size" className="text-sm">
-                            Company Size
-                          </Label>
-                          <p className="text-sm text-muted-foreground">
-                            Select the company size to display in the investor Prospectus.
-                            Required before Approve.
-                          </p>
-                          <Select
-                            disabled={locked || !canManage}
-                            value={officerCompanySize ?? undefined}
-                            onValueChange={(value) =>
-                              updateDraft((prev) => ({
-                                ...prev,
-                                page2: {
-                                  ...prev.page2,
-                                  issuerProfile: {
-                                    ...prev.page2.issuerProfile,
-                                    companySize: normalizeProspectusCompanySize(value),
-                                  },
-                                },
-                              }))
-                            }
-                          >
-                            <SelectTrigger id="prospectus-company-size" className="h-11">
-                              <SelectValue placeholder="Select company size" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {PROSPECTUS_COMPANY_SIZE_VALUES.map((size) => (
-                                <SelectItem key={size} value={size}>
-                                  {size}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </section>
-                      <section data-prospectus-invoice-paymaster>
-                        <ProspectusSectionHeading title="Invoice & Paymaster Information" />
-                        <p className="mb-3 text-sm text-muted-foreground">
-                          Invoice and paymaster facts shown in the investor Prospectus.
-                        </p>
-                        {invoicePaymasterRows.length > 0 ? (
-                          <ReadOnlyGrid rows={invoicePaymasterRows} />
-                        ) : (
-                          <Skeleton className="h-32 w-full" />
-                        )}
-                        <div className="mt-4 grid gap-4 md:grid-cols-3">
-                          <div className="space-y-1.5">
-                            <Label htmlFor="prospectus-deed-of-assignment" className="text-sm">
-                              Deed of Assignment (DOA)
-                            </Label>
-                            <p className="text-sm text-muted-foreground">
-                              Required before Approve.
-                            </p>
-                            <Select
-                              disabled={locked || !canManage}
-                              value={officerDeedOfAssignment ?? undefined}
-                              onValueChange={(value) =>
-                                updateDraft((prev) => ({
-                                  ...prev,
-                                  page2: {
-                                    ...prev.page2,
-                                    invoicePaymaster: {
-                                      ...prev.page2.invoicePaymaster,
-                                      deedOfAssignment:
-                                        normalizeProspectusDeedOfAssignment(value),
-                                    },
-                                  },
-                                }))
-                              }
-                            >
-                              <SelectTrigger
-                                id="prospectus-deed-of-assignment"
-                                className="h-11"
-                              >
-                                <SelectValue placeholder="Select DOA status" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {PROSPECTUS_DEED_OF_ASSIGNMENT_VALUES.map((value) => (
-                                  <SelectItem key={value} value={value}>
-                                    {value}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="prospectus-paymaster-rating" className="text-sm">
-                              Paymaster Rating
-                            </Label>
-                            <p className="text-sm text-muted-foreground">
-                              Required before Approve.
-                            </p>
-                            <Select
-                              disabled={locked || !canManage}
-                              value={officerPaymasterRating ?? undefined}
-                              onValueChange={(value) =>
-                                updateDraft((prev) => ({
-                                  ...prev,
-                                  page2: {
-                                    ...prev.page2,
-                                    invoicePaymaster: {
-                                      ...prev.page2.invoicePaymaster,
-                                      paymasterRating:
-                                        normalizeProspectusPaymasterRating(value),
-                                    },
-                                  },
-                                }))
-                              }
-                            >
-                              <SelectTrigger id="prospectus-paymaster-rating" className="h-11">
-                                <SelectValue placeholder="Select paymaster rating" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {PROSPECTUS_PAYMASTER_RATING_VALUES.map((value) => (
-                                  <SelectItem key={value} value={value}>
-                                    {value}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="prospectus-confidence-grading" className="text-sm">
-                              Confidence Grading
-                            </Label>
-                            <p className="text-sm text-muted-foreground">
-                              Required before Approve.
-                            </p>
-                            <Select
-                              disabled={locked || !canManage}
-                              value={officerConfidenceGrading ?? undefined}
-                              onValueChange={(value) =>
-                                updateDraft((prev) => ({
-                                  ...prev,
-                                  page2: {
-                                    ...prev.page2,
-                                    invoicePaymaster: {
-                                      ...prev.page2.invoicePaymaster,
-                                      confidenceGrading:
-                                        normalizeProspectusConfidenceGrading(value),
-                                    },
-                                  },
-                                }))
-                              }
-                            >
-                              <SelectTrigger
-                                id="prospectus-confidence-grading"
-                                className="h-11"
-                              >
-                                <SelectValue placeholder="Select confidence grading" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {PROSPECTUS_CONFIDENCE_GRADING_VALUES.map((value) => (
-                                  <SelectItem key={value} value={value}>
-                                    {value}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      </section>
-                      <section data-prospectus-paymaster-track-record>
-                        <ProspectusSectionHeading title="Paymaster Track Record" />
-                        <p className="mb-3 text-sm text-muted-foreground">
-                          Historical payment performance for the selected Paymaster.
-                        </p>
-                        {paymasterTrackRows.length > 0 ? (
-                          <ReadOnlyGrid rows={paymasterTrackRows} />
-                        ) : (
-                          <Skeleton className="h-32 w-full" />
-                        )}
-                        <div className="mt-4 grid gap-3 md:grid-cols-2">
-                          {(
-                            [
-                              ["totalInvoicesPaid", "Total Invoices Paid", ""],
-                              ["totalAmountPaid", "Total Amount Paid", "RM"],
-                              ["successfulRepaymentPercent", "Successful Repayment", "%"],
-                              ["onTimePaymentPercent", "On-Time Payment", "%"],
-                              ["averagePaymentPeriodDays", "Average Payment Period", "days"],
-                            ] as const
-                          ).map(([key, label, unit]) => (
-                            <div key={key} className="space-y-1.5">
-                              <Label className="text-sm">
-                                {label}
-                                {unit ? ` (${unit})` : ""}
-                              </Label>
-                              <Input
-                                className="h-11"
-                                type="number"
-                                disabled={locked || !canManage}
-                                value={
-                                  draft.page2.paymasterTrackRecord?.[key] == null
-                                    ? ""
-                                    : String(draft.page2.paymasterTrackRecord[key])
-                                }
-                                onChange={(e) =>
-                                  updateDraft((prev) => ({
-                                    ...prev,
-                                    page2: {
-                                      ...prev.page2,
-                                      paymasterTrackRecord: {
-                                        ...prev.page2.paymasterTrackRecord,
-                                        [key]:
-                                          e.target.value === ""
-                                            ? null
-                                            : key === "totalInvoicesPaid"
-                                              ? Number(e.target.value)
-                                              : e.target.value,
-                                      },
-                                    },
-                                  }))
-                                }
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </section>
-                      <section data-prospectus-financial-comparison>
-                        <ProspectusSectionHeading title="3-Year Financial Comparison (MYR mil.)" />
-                        <p className="mb-3 text-sm text-muted-foreground">
-                          Same year set as Admin Financial Statements (CTOS/audited + management
-                          accounts). Latest three years with available data, oldest to newest.
-                          Optional officer metrics may be entered below per financial year-end.
-                        </p>
-                        {financialComparisonOpsWarning ? (
-                          <div
-                            role="status"
-                            data-testid="financial-comparison-ops-warning"
-                            className="mb-3 flex gap-2 rounded-lg border border-amber-500/40 bg-amber-50 p-3 text-sm text-foreground dark:bg-amber-950/30"
-                          >
-                            <ExclamationTriangleIcon
-                              className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
-                              aria-hidden
-                            />
-                            <div className="min-w-0 space-y-1">
-                              <p className="font-semibold">
-                                {financialComparisonOpsWarning.title}
-                              </p>
-                              <p className="text-[13px] leading-relaxed text-muted-foreground">
-                                {financialComparisonOpsWarning.description}
-                              </p>
-                            </div>
-                          </div>
-                        ) : null}
-                        {data?.financialComparison?.table ? (
-                          <ProspectusFinancialMetricTable table={pageTwoFinancialTable} />
-                        ) : (
-                          <Skeleton className="h-40 w-full" />
-                        )}
-                        {pageTwoFinancialTable.yearHeaders.length > 0 ? (
-                          <div className="mt-4 space-y-4">
-                            <p className="text-sm text-muted-foreground">
-                              Optional: Net Debt / Equity, Interest Coverage, DSCR, and Receivables
-                              Days. Not derived from CTOS or gearing. Empty cells show Data not
-                              available.
-                            </p>
-                            {pageTwoFinancialTable.yearHeaders.map((header) => (
-                              <div key={header.key} className="space-y-2">
-                                <p className="text-sm font-medium text-foreground">
-                                  {header.yearLabel}
-                                  <span className="ml-2 text-muted-foreground">
-                                    ({header.fyeLabel})
-                                  </span>
-                                </p>
-                                <div className="grid gap-3 md:grid-cols-2">
-                                  {PAGE_TWO_OFFICER_FINANCIAL_METRICS.map((metric) => (
-                                    <div key={`${header.key}-${metric.key}`} className="space-y-1.5">
-                                      <Label className="text-sm">
-                                        {metric.label} ({metric.unit})
-                                      </Label>
-                                      <Input
-                                        className="h-11"
-                                        type="number"
-                                        disabled={locked || !canManage}
-                                        value={
-                                          draft.page2.financialComparison?.overrides?.[
-                                            header.key
-                                          ]?.[metric.key] == null
-                                            ? ""
-                                            : String(
-                                                draft.page2.financialComparison.overrides[
-                                                  header.key
-                                                ]?.[metric.key]
-                                              )
-                                        }
-                                        onChange={(e) =>
-                                          updateDraft((prev) => ({
-                                            ...prev,
-                                            page2: {
-                                              ...prev.page2,
-                                              financialComparison: {
-                                                ...prev.page2.financialComparison,
-                                                overrides: {
-                                                  ...prev.page2.financialComparison?.overrides,
-                                                  [header.key]: {
-                                                    ...prev.page2.financialComparison
-                                                      ?.overrides?.[header.key],
-                                                    [metric.key]:
-                                                      e.target.value === ""
-                                                        ? null
-                                                        : e.target.value,
-                                                  },
-                                                },
-                                              },
-                                            },
-                                          }))
-                                        }
-                                      />
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-                      </section>
-                    </div>
-                  ) : null}
-
-                  {step === 3 ? (
-                    <div className="space-y-6">
-                      <section>
-                        <ProspectusSectionHeading title="Credit Insights" />
-                        <p className="mb-3 text-sm text-muted-foreground">
-                          Select the final investor-facing assessment for each item. All five rows
-                          are required and always shown on the Prospectus.
-                        </p>
-                        <div className="grid gap-3 md:grid-cols-2">
-                          {(
-                            [
-                              ["creditScoreOptionKey", "creditScore", "Credit Score"],
-                              [
-                                "paymentBehaviourOptionKey",
-                                "paymentBehaviour",
-                                "Payment Behaviour",
-                              ],
-                              [
-                                "creditUtilisationOptionKey",
-                                "creditUtilisation",
-                                "Credit Utilisation",
-                              ],
-                              ["litigationCheckOptionKey", "litigationCheck", "Litigation Check"],
-                              ["ccrisStatusOptionKey", "ccrisStatus", "CCRIS Status"],
-                            ] as const
-                          ).map(([field, catalogueKey, label]) => (
-                            <OptionSelect
-                              key={field}
-                              label={label}
-                              disabled={locked || !canManage}
-                              value={draft.page2.creditInsights[field]}
-                              options={catalogues.creditInsights[catalogueKey] ?? []}
-                              onChange={(value) =>
-                                updateDraft((prev) => ({
-                                  ...prev,
-                                  page2: {
-                                    ...prev.page2,
-                                    creditInsights: {
-                                      ...prev.page2.creditInsights,
-                                      [field]: value,
-                                    },
-                                  },
-                                }))
-                              }
-                            />
-                          ))}
-                        </div>
-                      </section>
-                      <section data-prospectus-about-invoice>
-                        <ProspectusSectionHeading title="About the Invoice / Work Performed" />
-                        <p className="mb-3 text-sm text-muted-foreground">
-                          Same pattern as Key Investor Highlights: suggested wording may be
-                          pre-filled. Confirm or edit each statement before Approve. Do not leave
-                          claims that are not true for this Note.
-                        </p>
-                        <div className="space-y-4">
-                          {(draft.page2.aboutInvoice?.items ?? []).map((item, idx) => (
-                            <div key={item.id} className="space-y-1.5">
-                              <Label className="text-sm">
-                                {INVOICE_WORK_FIELD_LABELS[item.id] ?? "Invoice statement"}
-                                {item.sourceType === "SYSTEM_SUGGESTION" ? (
-                                  <span className="ml-2 text-xs font-normal text-muted-foreground">
-                                    (suggested)
-                                  </span>
-                                ) : null}
-                              </Label>
-                              <Textarea
-                                className="min-h-[5.5rem] text-[17px] leading-7"
-                                disabled={locked || !canManage}
-                                value={item.text}
-                                onChange={(e) =>
-                                  updateDraft((prev) => {
-                                    const items = [
-                                      ...(prev.page2.aboutInvoice?.items ?? []),
-                                    ];
-                                    items[idx] = {
-                                      ...items[idx]!,
-                                      text: e.target.value,
-                                      sourceType: "OFFICER_ENTERED",
-                                    };
-                                    return {
-                                      ...prev,
-                                      page2: {
-                                        ...prev.page2,
-                                        aboutInvoice: { items },
-                                      },
-                                    };
-                                  })
-                                }
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </section>
-                      <section data-prospectus-risk-rating-scale>
-                        <ProspectusSectionHeading title="Risk Rating Scale" />
-                        <p className="mb-3 text-sm text-muted-foreground">
-                          Risk rating is taken from the approved invoice offer and cannot be edited
-                          here.
-                        </p>
-                        <ol
-                          className="flex w-full list-none border border-border p-0"
-                          aria-label="Risk Rating Scale"
-                        >
-                          {SOUKSCORE_RISK_RATING_GRADES.map((grade) => {
-                            const selected = isSoukscoreRiskRating(note?.riskRating)
-                              ? note.riskRating === grade
-                              : false;
-                            return (
-                              <li
-                                key={grade}
-                                data-grade={grade}
-                                data-selected={selected ? "true" : "false"}
-                                aria-current={selected ? "true" : undefined}
-                                className={
-                                  selected
-                                    ? "flex-1 border-r border-border px-2 py-2 text-center text-[17px] font-bold leading-7 last:border-r-0 outline outline-2 outline-foreground outline-offset-[-2px] bg-muted"
-                                    : "flex-1 border-r border-border px-2 py-2 text-center text-[17px] font-normal leading-7 last:border-r-0"
-                                }
-                              >
-                                {grade}
-                              </li>
-                            );
-                          })}
-                        </ol>
-                        {!isSoukscoreRiskRating(note?.riskRating) ? (
-                          <p className="mt-2 text-sm text-muted-foreground">
-                            Risk rating not available
-                          </p>
-                        ) : null}
-                      </section>
-                      <section data-prospectus-investment-cta>
-                        <ProspectusSectionHeading title="Investment CTA" />
-                        <p className="mb-3 text-sm text-muted-foreground">
-                          Static Prospectus content. The Invest Now control is shown for layout
-                          review only and is not clickable here. Live investing stays on the
-                          investor marketplace.
-                        </p>
-                        <div className="space-y-3">
-                          <p className="text-[17px] font-semibold leading-7 tracking-wide">
-                            INVEST WITH CONFIDENCE
-                          </p>
-                          <button
-                            type="button"
-                            disabled
-                            aria-disabled="true"
-                            className="inline-flex cursor-default items-center border border-foreground bg-muted px-4 py-2 text-[17px] font-bold leading-7 tracking-wide text-foreground opacity-100 pointer-events-none"
-                          >
-                            INVEST NOW
-                          </button>
-                          <p className="text-[17px] leading-7 text-muted-foreground">
-                            Minimum investment: {formatCurrency(MARKETPLACE_MIN_COMMIT_MYR)}
-                          </p>
-                        </div>
-                      </section>
-                    </div>
-                  ) : null}
-
-                  {step === 4 ? (
-                    <div className="space-y-6">
-                      <section>
-                        <ProspectusSectionHeading title="Financial Summary" />
-                        <ReadOnlyGrid rows={pageThreeOverviewRows} />
-                      </section>
-
-                      <section>
-                        <ProspectusSectionHeading title="Financing & Risk Details" />
-                        <p className="mb-3 text-sm text-muted-foreground">
-                          Paymaster and confidence gradings are taken from the Page 2 Invoice &
-                          Paymaster assessment.
-                        </p>
-                        {note ? (
-                          <ReadOnlyGrid rows={pageThreeMetadataRows} />
-                        ) : (
-                          <Skeleton className="h-24 w-full" />
-                        )}
-                      </section>
-
-                      <section data-prospectus-income-statement>
-                        <ProspectusSectionHeading title="3-Year Income Statement Summary (MYR mil.)" />
-                        <p className="mb-3 text-sm text-muted-foreground">
-                          Values sourced from financial statements are read-only. Complete only the
-                          missing Prospectus-specific fields. Enter amounts in full MYR. The Prospectus
-                          displays them in MYR millions.
-                        </p>
-                        <ProspectusIncomeStatementWorkingTable
-                          table={incomeStatementTable}
-                          years={incomeStatementYearKeys}
-                          manualYears={manualYears ?? {}}
-                          disabled={locked || !canManage}
-                          onChange={updateManualFieldForYear}
-                        />
-                      </section>
-
-                      <section data-prospectus-balance-sheet>
-                        <ProspectusSectionHeading title="3-Year Balance Sheet & Liquidity (MYR mil.)" />
-                        <p className="mb-3 text-sm text-muted-foreground">
-                          Values sourced or calculated from financial statements are read-only. Enter
-                          the remaining values in full MYR, except Quick Ratio. Total Assets and Total
-                          Liabilities follow the Application Financial Summary calculation.
-                        </p>
-                        <ProspectusBalanceSheetWorkingTable
-                          table={balanceSheetTable}
-                          years={incomeStatementYearKeys}
-                          manualYears={manualYears ?? {}}
-                          disabled={locked || !canManage}
-                          onChange={updateManualFieldForYear}
-                        />
-                      </section>
-
-                      <section data-prospectus-coverage>
-                        <ProspectusSectionHeading title="Cash Flow, Coverage & Efficiency" />
-                        <p className="mb-3 text-sm text-muted-foreground">
-                          Values already available from the Application Financial Summary or Page 2
-                          Financial Comparison are read-only. Complete only the remaining
-                          Prospectus-specific fields.
-                        </p>
-                        <ProspectusCoverageWorkingTable
-                          table={coverageTable}
-                          years={incomeStatementYearKeys}
-                          manualYears={manualYears ?? {}}
-                          disabled={locked || !canManage}
-                          onChange={updateManualFieldForYear}
-                        />
-                      </section>
-                    </div>
-                  ) : null}
-
-                  {step === 5 ? (
-                    <section>
-                      <ProspectusSectionHeading title="Investor Takeaways" />
-                      <div className="grid gap-3 md:grid-cols-2">
-                        {(
-                          [
-                            [
-                              "revenue_profitability",
-                              "revenueProfitabilityOptionKey",
-                              "Revenue & Profitability",
-                            ],
-                            ["liquidity", "liquidityOptionKey", "Liquidity"],
-                            ["leverage", "leverageOptionKey", "Leverage"],
-                            [
-                              "debt_servicing_capacity",
-                              "debtServicingCapacityOptionKey",
-                              "Debt Servicing Capacity",
-                            ],
-                            [
-                              "receivables_collection",
-                              "receivablesCollectionOptionKey",
-                              "Receivables Collection",
-                            ],
-                            [
-                              "overall_financial_profile",
-                              "overallFinancialProfileOptionKey",
-                              "Overall Financial Profile",
-                            ],
-                          ] as const
-                        ).map(([catalogueKey, field, label]) => (
-                          <OptionSelect
-                            key={field}
-                            label={label}
-                            disabled={locked || !canManage}
-                            value={draft.page3.investorTakeaways[field]}
-                            options={catalogues.takeaways[catalogueKey] ?? []}
-                            onChange={(value) =>
-                              updateDraft((prev) => ({
-                                ...prev,
-                                page3: {
-                                  ...prev.page3,
-                                  investorTakeaways: {
-                                    ...prev.page3.investorTakeaways,
-                                    [field]: value,
-                                  },
-                                },
-                              }))
-                            }
-                          />
-                        ))}
-                      </div>
-                    </section>
-                  ) : null}
-
-                  {step === 6 ? (
-                    <div className="space-y-4">
-                      <p className="text-sm text-muted-foreground">
-                        Review the checklist below, then Save &amp; Preview and Approve Prospectus
-                        or approval.
-                      </p>
-                      <ul
-                        className="overflow-hidden rounded-xl border"
-                        aria-label="Prospectus completion checklist"
-                      >
-                        {checklist.map((item) => {
-                          const rowStatus = statusForCompletionItem(item);
-                          return (
-                            <li key={item.id} className="border-b last:border-b-0">
-                              <button
-                                type="button"
-                                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-                                onClick={() => goToChecklistItem(item.id)}
-                              >
-                                <span className="min-w-0 flex-1 truncate font-medium">
-                                  {item.label}
-                                </span>
-                                <ProspectusStatusBadge status={rowStatus} />
-                                <ChevronRightIcon
-                                  className="h-4 w-4 shrink-0 text-muted-foreground"
-                                  aria-hidden="true"
-                                />
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                      {data.publishBlockedReason ? (
-                        <p className="text-sm text-muted-foreground">
-                          Prospectus approval required.
-                        </p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          Approved and ready to publish from the Note detail page.
-                        </p>
-                      )}
-                    </div>
-                  ) : null}
+                    {step === 3 ? (
+                      <WorkingAreaPreviewApproval
+                        draft={draft}
+                        completionOptions={completionOptions}
+                        stepStatuses={stepStatuses}
+                        onNavigate={(next) => goToStep(next, true)}
+                        onSave={() => void onSave()}
+                        onPreview={() => void onSaveAndPreview()}
+                        onApprove={() => void onApprove()}
+                        actions={actions}
+                        dirty={dirty}
+                        savePending={saveDraft.isPending}
+                        previewPending={preview.isFetching || saveDraft.isPending}
+                        approvePending={approve.isPending}
+                        publishBlockedReason={
+                          data.publishBlockedReason
+                            ? "Prospectus approval required."
+                            : status === "APPROVED"
+                              ? "Approved and ready to publish from the Note detail page."
+                              : null
+                        }
+                      />
+                    ) : null}
                   </div>
                 </CardContent>
               </Card>
@@ -1470,7 +670,11 @@ function ProspectusReviewPageInner() {
         isLoading={preview.isLoading}
         isFetching={preview.isFetching}
         errorMessage={
-          preview.error instanceof Error ? preview.error.message : preview.error ? "Preview failed" : null
+          preview.error instanceof Error
+            ? preview.error.message
+            : preview.error
+              ? "Preview failed"
+              : null
         }
         html={preview.data?.html ?? null}
       />

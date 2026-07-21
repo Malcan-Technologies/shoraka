@@ -36,7 +36,7 @@ type Props = {
 /**
  * One Coverage table for all selected years.
  * Six Prospectus-only rows are editable; Page 2 reused + ROE stay read-only.
- * Trend (3-Yr) remains Data not available.
+ * Trend column omitted from Admin working area (still DNA in investor HTML).
  */
 export function ProspectusCoverageWorkingTable({
   table,
@@ -64,16 +64,13 @@ export function ProspectusCoverageWorkingTable({
                 </div>
               </TableHead>
             ))}
-            <TableHead className="min-w-[7rem] whitespace-nowrap text-sm font-semibold text-foreground">
-              Trend (3-Yr)
-            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {table.rows.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={2 + table.yearHeaders.length}
+                colSpan={1 + table.yearHeaders.length}
                 className="py-8 text-center text-muted-foreground"
               >
                 Data not available
@@ -144,9 +141,6 @@ export function ProspectusCoverageWorkingTable({
                       </TableCell>
                     );
                   })}
-                  <TableCell className="whitespace-nowrap bg-muted/30 text-sm text-muted-foreground">
-                    Data not available
-                  </TableCell>
                 </TableRow>
               );
             })

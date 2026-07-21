@@ -3,50 +3,38 @@ import {
   type ProspectusReviewStatus,
 } from "@cashsouk/types";
 
-export type ProspectusWorkflowStepId = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+/** Four top-level working-area pages. */
+export type ProspectusWorkflowStepId = 0 | 1 | 2 | 3;
 
 export const PROSPECTUS_STEP_GROUPS: Array<{
   group: string;
   steps: Array<{ id: ProspectusWorkflowStepId; label: string }>;
 }> = [
   {
-    group: "Page 1",
+    group: "Working area",
     steps: [
-      { id: 0, label: "Note & Investment Details" },
-      { id: 1, label: "Investor Highlights" },
+      { id: 0, label: "Investment Overview" },
+      { id: 1, label: "Issuer & Credit Review" },
+      { id: 2, label: "Financial Review" },
+      { id: 3, label: "Preview & Approval" },
     ],
-  },
-  {
-    group: "Page 2",
-    steps: [
-      { id: 2, label: "Issuer & Paymaster" },
-      { id: 3, label: "Credit & Invoice Details" },
-    ],
-  },
-  {
-    group: "Page 3",
-    steps: [
-      { id: 4, label: "Financial Review" },
-      { id: 5, label: "Investor Takeaways" },
-    ],
-  },
-  {
-    group: "Final",
-    steps: [{ id: 6, label: "Preview & Approval" }],
   },
 ];
 
 export const PROSPECTUS_STEP_TITLES: Record<ProspectusWorkflowStepId, string> = {
-  0: "Note & Investment Details",
-  1: "Investor Highlights",
-  2: "Issuer & Paymaster",
-  3: "Credit & Invoice Details",
-  4: "Financial Review",
-  5: "Investor Takeaways",
-  6: "Preview & Approval",
+  0: "Investment Overview",
+  1: "Issuer & Credit Review",
+  2: "Financial Review",
+  3: "Preview & Approval",
 };
 
-/** User-facing: Draft | Approved | Published only (legacy statuses map to Draft). */
+export const PROSPECTUS_STEP_PAGE_LABEL: Record<ProspectusWorkflowStepId, string> = {
+  0: "Page 1",
+  1: "Page 2",
+  2: "Page 3",
+  3: "Final",
+};
+
 export function formatProspectusReviewStatus(
   status: ProspectusReviewStatus,
   notePublished = false
@@ -83,7 +71,6 @@ export function formatActorDisplayName(user: {
   return "System";
 }
 
-/** True when a string looks like a raw option/field key (underscores / snake_case). */
 export function looksLikeRawKey(value: string): boolean {
   return /^[a-z0-9]+(?:_[a-z0-9]+)+$/.test(value.trim());
 }
