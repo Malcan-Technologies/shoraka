@@ -30,7 +30,11 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).toContain("Financial Summary");
     expect(pageSource).toContain("Financing & Risk Details");
     expect(pageSource).toContain("3-Year Financial Comparison");
-    expect(pageSource).toContain("3-Year Income Statement Summary");
+    expect(pageSource).toContain(
+      'title="3-Year Income Statement Summary (MYR mil.)"'
+    );
+    expect(pageSource).toContain("Enter amounts in full MYR.");
+    expect(pageSource).toContain("displays them in MYR millions.");
     expect(pageSource).toContain("Officer Input");
     expect(pageSource).toContain("ProspectusIncomeStatementWorkingTable");
     expect(pageSource).toContain(

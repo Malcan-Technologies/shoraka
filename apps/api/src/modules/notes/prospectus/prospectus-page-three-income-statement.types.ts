@@ -10,7 +10,7 @@ export { PROSPECTUS_DATA_NOT_AVAILABLE };
 
 /** Static Canva section title — not a database field. */
 export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_SECTION_HEADING =
-  "3-YEAR INCOME STATEMENT SUMMARY";
+  "3-YEAR INCOME STATEMENT SUMMARY (MYR mil.)";
 
 export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_ROW_KEYS = [
   "revenue",
@@ -60,7 +60,8 @@ export interface ProspectusPageThreeIncomeStatementAudit {
   revenue: {
     rawKey: "turnover";
     status: "confirmed";
-    formatter: "formatProspectusMoneyMyr";
+    formatter: "formatProspectusMyrMillions";
+    storageUnit: "full_myr";
   };
   grossProfit: {
     status: "officer_entered";
@@ -86,11 +87,15 @@ export interface ProspectusPageThreeIncomeStatementAudit {
   profitBeforeTax: {
     rawKey: "plnpbt";
     status: "confirmed";
+    formatter: "formatProspectusMyrMillions";
+    storageUnit: "full_myr";
     publicationSnapshotExtensionRequired: true;
   };
   profitAfterTax: {
     rawKey: "plnpat";
     status: "confirmed";
+    formatter: "formatProspectusMyrMillions";
+    storageUnit: "full_myr";
   };
   netProfitMargin: {
     calculator: "calculateProfitMargin";
@@ -113,7 +118,8 @@ export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_AUDIT: ProspectusPageThreeIn
     revenue: {
       rawKey: "turnover",
       status: "confirmed",
-      formatter: "formatProspectusMoneyMyr",
+      formatter: "formatProspectusMyrMillions",
+      storageUnit: "full_myr",
     },
     grossProfit: {
       status: "officer_entered",
@@ -139,11 +145,15 @@ export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_AUDIT: ProspectusPageThreeIn
     profitBeforeTax: {
       rawKey: "plnpbt",
       status: "confirmed",
+      formatter: "formatProspectusMyrMillions",
+      storageUnit: "full_myr",
       publicationSnapshotExtensionRequired: true,
     },
     profitAfterTax: {
       rawKey: "plnpat",
       status: "confirmed",
+      formatter: "formatProspectusMyrMillions",
+      storageUnit: "full_myr",
     },
     netProfitMargin: {
       calculator: "calculateProfitMargin",
@@ -204,7 +214,7 @@ export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_FIELD_SOURCES: Record<
     availability: "static",
     surface: "canva",
     possibleAlternatives: "none",
-    notes: "3-YEAR INCOME STATEMENT SUMMARY",
+    notes: "3-YEAR INCOME STATEMENT SUMMARY (MYR mil.)",
   },
   years: {
     label: "Selected financial years",
@@ -220,7 +230,7 @@ export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_FIELD_SOURCES: Record<
     availability: "stored",
     surface: "canva",
     possibleAlternatives: "CTOS turnover — not used",
-    notes: "formatProspectusMoneyMyr; full MYR; zero kept.",
+    notes: "Stored full MYR; displayed via formatProspectusMyrMillions (same as Page 2).",
   },
   gross_profit: {
     label: "Gross Profit",
@@ -228,7 +238,7 @@ export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_FIELD_SOURCES: Record<
     availability: "stored",
     surface: "canva",
     possibleAlternatives: "Application/CTOS keys — none confirmed",
-    notes: "Officer full MYR; required for approval per displayed year.",
+    notes: "Stored full MYR; displayed via formatProspectusMyrMillions.",
   },
   ebitda: {
     label: "EBITDA",
@@ -236,7 +246,7 @@ export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_FIELD_SOURCES: Record<
     availability: "stored",
     surface: "canva",
     possibleAlternatives: "Approved EBITDA formula — none",
-    notes: "Officer full MYR; required for approval per displayed year.",
+    notes: "Stored full MYR; displayed via formatProspectusMyrMillions.",
   },
   ebit: {
     label: "EBIT",
@@ -244,7 +254,7 @@ export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_FIELD_SOURCES: Record<
     availability: "stored",
     surface: "canva",
     possibleAlternatives: "Approved EBIT formula — none",
-    notes: "Officer full MYR; required for approval per displayed year.",
+    notes: "Stored full MYR; displayed via formatProspectusMyrMillions.",
   },
   profit_before_tax: {
     label: "Profit Before Tax",
@@ -252,8 +262,7 @@ export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_FIELD_SOURCES: Record<
     availability: "stored",
     surface: "canva",
     possibleAlternatives: "Live Application read — not used",
-    notes:
-      "Confirmed issuer/admin field. Current page_2 freeze lacks plnpbt; missing → DNA until snapshot extension.",
+    notes: "Stored full MYR; displayed via formatProspectusMyrMillions.",
   },
   profit_after_tax: {
     label: "Profit After Tax",
@@ -261,7 +270,7 @@ export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_FIELD_SOURCES: Record<
     availability: "stored",
     surface: "canva",
     possibleAlternatives: "CTOS PAT — not used",
-    notes: "Same key as Page 2 Stage 4B.",
+    notes: "Stored full MYR; displayed via formatProspectusMyrMillions.",
   },
   net_profit_margin: {
     label: "Net Profit Margin",

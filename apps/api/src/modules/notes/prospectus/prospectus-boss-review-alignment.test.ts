@@ -230,7 +230,7 @@ describe("prospectus boss-review alignment", () => {
           PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT.prospectusFinancialInputs,
       });
       const gross = income.rows.find((r) => r.key === "gross_profit");
-      expect(gross?.values[0]).toBe("RM 2,100,000.00");
+      expect(gross?.values[0]).toBe("2.1");
       const revenue = income.rows.find((r) => r.key === "revenue");
       expect(revenue?.values[0]).not.toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
       expect(JSON.stringify(source.years)).toBe(before);

@@ -1359,10 +1359,11 @@ function ProspectusReviewPageInner() {
                       </section>
 
                       <section data-prospectus-income-statement>
-                        <ProspectusSectionHeading title="3-Year Income Statement Summary" />
+                        <ProspectusSectionHeading title="3-Year Income Statement Summary (MYR mil.)" />
                         <p className="mb-3 text-sm text-muted-foreground">
                           Values sourced from financial statements are read-only. Complete only the
-                          missing Prospectus-specific fields.
+                          missing Prospectus-specific fields. Enter amounts in full MYR. The Prospectus
+                          displays them in MYR millions.
                         </p>
                         <ProspectusIncomeStatementWorkingTable
                           table={incomeStatementTable}

@@ -36,6 +36,12 @@ describe("prospectus publish exact copy", () => {
           '<div class="meta-strip-item"><div class="meta-strip-label">Paymaster Grading</div><div class="meta-strip-value">PM1</div></div>',
           '<div class="meta-strip-item"><div class="meta-strip-label">Confidence Grading</div><div class="meta-strip-value">High</div></div>',
           "</div></section>",
+          '<section data-content-stage="income-statement">',
+          "<h2>3-YEAR INCOME STATEMENT SUMMARY (MYR mil.)</h2>",
+          "<table><tr><th>Revenue</th><td>12</td><td>13.9</td><td>15</td></tr>",
+          "<tr><th>Gross Profit</th><td>2.1</td><td>2.4</td><td>2.8</td></tr>",
+          "<tr><th>Net Profit Margin</th><td>7.5%</td><td>8.1%</td><td>8.4%</td></tr>",
+          "</table></section>",
         ].join(""),
       },
       page_1: { marker: "a" },
@@ -77,6 +83,11 @@ describe("prospectus publish exact copy", () => {
     expect(approved.html.page3).toContain("PM1");
     expect(approved.html.page3).toContain("Confidence Grading");
     expect(approved.html.page3).toContain("High");
+    expect(approved.html.page3).toContain("3-YEAR INCOME STATEMENT SUMMARY (MYR mil.)");
+    expect(approved.html.page3).toContain("<td>2.1</td>");
+    expect(approved.html.page3).toContain("<td>13.9</td>");
+    expect(approved.html.page3).toContain("7.5%");
+    expect(approved.html.page3).not.toContain("RM 2,100,000");
     expect(approved.html.page3).not.toMatch(/\bIssuer\b/);
     expect(approved.page_2.config_versions.soukscore_scale).toBe(
       "2026.07.21.soukscore-scale.v1"

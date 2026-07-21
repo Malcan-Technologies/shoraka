@@ -242,10 +242,8 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(input.liveFinancialStatements).toBeNull();
 
       const page = buildProspectusPageThree(input);
-      expect(row(page.incomeStatement.rows, "revenue")?.[0]).toBe("RM 13,900,000.00");
-      expect(row(page.incomeStatement.rows, "profit_before_tax")?.[0]).toBe(
-        "RM 1,400,000.00"
-      );
+      expect(row(page.incomeStatement.rows, "revenue")?.[0]).toBe("13.9");
+      expect(row(page.incomeStatement.rows, "profit_before_tax")?.[0]).toBe("1.4");
       expect(page.financialSource.years.map((y) => y.year)).toEqual([2022, 2023, 2024]);
     });
 
@@ -293,11 +291,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       );
       expect(page.meta.financialMode).toBe("live_unpublished_preview");
       expect(page.financialSource.years.map((y) => y.year)).toEqual([2022, 2023, 2024]);
-      expect(row(page.incomeStatement.rows, "revenue")).toEqual([
-        "RM 13,900,000.00",
-        "RM 16,200,000.00",
-        "RM 18,600,000.00",
-      ]);
+      expect(row(page.incomeStatement.rows, "revenue")).toEqual(["13.9", "16.2", "18.6"]);
     });
 
     it("supports old published freeze without extended keys", () => {
@@ -334,10 +328,8 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         frozenFinancialComparison: parsed!.financial_comparison,
       });
 
-      expect(row(page.incomeStatement.rows, "revenue")?.[0]).toBe("RM 18,600,000.00");
-      expect(row(page.incomeStatement.rows, "profit_after_tax")?.[0]).toBe(
-        "RM 1,800,000.00"
-      );
+      expect(row(page.incomeStatement.rows, "revenue")?.[0]).toBe("18.6");
+      expect(row(page.incomeStatement.rows, "profit_after_tax")?.[0]).toBe("1.8");
       expect(row(page.incomeStatement.rows, "profit_before_tax")?.[0]).toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE
       );
@@ -384,12 +376,10 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
 
     it("maps confirmed income, balance sheet, and ROE; sample fills unsupported gaps only", () => {
       const page = SAMPLE_PROSPECTUS_PAGE_THREE;
-      expect(row(page.incomeStatement.rows, "gross_profit")?.[0]).toBe("RM 2,100,000.00");
-      expect(row(page.incomeStatement.rows, "ebitda")?.[0]).toBe("RM 1,600,000.00");
-      expect(row(page.incomeStatement.rows, "ebit")?.[0]).toBe("RM 1,450,000.00");
-      expect(row(page.incomeStatement.rows, "profit_before_tax")?.[0]).toBe(
-        "RM 1,400,000.00"
-      );
+      expect(row(page.incomeStatement.rows, "gross_profit")?.[0]).toBe("2.1");
+      expect(row(page.incomeStatement.rows, "ebitda")?.[0]).toBe("1.6");
+      expect(row(page.incomeStatement.rows, "ebit")?.[0]).toBe("1.4");
+      expect(row(page.incomeStatement.rows, "profit_before_tax")?.[0]).toBe("1.4");
       expect(row(page.balanceSheet.rows, "total_assets")?.[0]).toBe("RM 8,100,000.00");
       expect(
         computeTotalAssets({
@@ -549,7 +539,10 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect((html.match(/class="trend-cell"/g) ?? []).length).toBe(10);
       expect(html).not.toMatch(/Audited Financial Statements|Management Account/i);
 
-      expect(html).toContain("RM 13,900,000.00");
+      expect(html).toContain("3-YEAR INCOME STATEMENT SUMMARY (MYR mil.)");
+      expect(html).toContain("13.9");
+      expect(html).toContain("2.1");
+      expect(html).not.toContain("RM 13,900,000.00");
       expect(html).toContain("RM 8,100,000.00");
       expect(html).not.toMatch(/RM\s*mil/i);
       expect(html).not.toContain("clsamplepage3");

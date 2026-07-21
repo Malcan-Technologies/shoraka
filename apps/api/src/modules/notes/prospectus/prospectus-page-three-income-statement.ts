@@ -1,18 +1,15 @@
 /**
  * SECTION: Build Page 3 Stage 3 income statement rows
- * WHY: Reuse Page 2 years + parsers/formatters; unsupported rows allow manual fill only
+ * WHY: Reuse Page 2 years + MYR-millions display formatter; store full MYR
  */
 
 import { calculateProfitMargin } from "@cashsouk/types";
 import {
   formatProspectusFinancialPercentFromRatio,
+  formatProspectusMyrMillions,
   parseProspectusFinancialNumber,
 } from "./prospectus-financial-comparison-metrics";
-import {
-  formatManualMoneyOrDna,
-  yearManualInputs,
-} from "./prospectus-financial-manual-inputs";
-import { formatProspectusMoneyMyr } from "./prospectus-main-financial-terms";
+import { yearManualInputs } from "./prospectus-financial-manual-inputs";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_AUDIT,
@@ -29,6 +26,13 @@ function fieldFromRaw(raw: Record<string, unknown>, key: string): number | null 
   return parseProspectusFinancialNumber(raw[key]);
 }
 
+/** Display-only: full MYR storage → shared Page 2 millions formatter. */
+function moneyMillionsOrDna(value: number | string | null | undefined): string {
+  const parsed = parseProspectusFinancialNumber(value);
+  if (parsed == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
+  return formatProspectusMyrMillions(parsed);
+}
+
 function valueForRow(
   key: ProspectusPageThreeIncomeStatementRowKey,
   raw: Record<string, unknown>,
@@ -39,17 +43,17 @@ function valueForRow(
 
   switch (key) {
     case "revenue":
-      return formatProspectusMoneyMyr(fieldFromRaw(raw, "turnover"));
+      return moneyMillionsOrDna(fieldFromRaw(raw, "turnover"));
     case "gross_profit":
-      return formatManualMoneyOrDna(manual?.grossProfit);
+      return moneyMillionsOrDna(manual?.grossProfit);
     case "ebitda":
-      return formatManualMoneyOrDna(manual?.ebitda);
+      return moneyMillionsOrDna(manual?.ebitda);
     case "ebit":
-      return formatManualMoneyOrDna(manual?.ebit);
+      return moneyMillionsOrDna(manual?.ebit);
     case "profit_before_tax":
-      return formatProspectusMoneyMyr(fieldFromRaw(raw, "plnpbt"));
+      return moneyMillionsOrDna(fieldFromRaw(raw, "plnpbt"));
     case "profit_after_tax":
-      return formatProspectusMoneyMyr(fieldFromRaw(raw, "plnpat"));
+      return moneyMillionsOrDna(fieldFromRaw(raw, "plnpat"));
     case "net_profit_margin": {
       const plnpat = fieldFromRaw(raw, "plnpat");
       const turnover = fieldFromRaw(raw, "turnover");
