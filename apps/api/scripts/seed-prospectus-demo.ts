@@ -695,11 +695,12 @@ async function upsertDraftNote(
   });
 
   // Explicit DRAFT review — complete officer content for local Prospectus demos.
+  // Manual income money is stored as full MYR (same unit as Application FS / builder tests).
   const draft = buildCompleteProspectusReviewDraft();
+  const demoFs = buildProspectusDemoFinancialStatements();
   const incomeYears = Object.keys(
-    (financialStatements as { unaudited_by_year?: Record<string, unknown> }).unaudited_by_year ??
-      {}
-  ).sort();
+    (demoFs as { unaudited_by_year?: Record<string, unknown> }).unaudited_by_year ?? {}
+  );
   const ctosYears = (await prisma.ctosReport.findFirst({
     where: { issuer_organization_id: ISSUER_ORG_ID, subject_ref: null },
     select: { financials_json: true },
@@ -715,6 +716,7 @@ async function upsertDraftNote(
       if (Number.isFinite(year)) allIncomeYears.add(String(year));
     }
   }
+  // Full MYR — display as MYR mil. = value / 1_000_000 (e.g. 2100000 → 2.1).
   const incomeLadder = [
     { grossProfit: 2_100_000, ebitda: 1_600_000, ebit: 1_450_000 },
     { grossProfit: 2_400_000, ebitda: 1_850_000, ebit: 1_700_000 },
