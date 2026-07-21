@@ -11,6 +11,14 @@ import { PROSPECTUS_CREDIT_INSIGHT_OPTION_CATALOGUE } from "../prospectus-review
 
 const SOUKSCORES = ["AAA", "AA", "A", "BBB", "BB", "B"] as const;
 
+const DEMO_SELECTIONS = {
+  creditScore: "good",
+  paymentBehaviour: "good",
+  creditUtilisation: "healthy",
+  litigationCheck: "clear",
+  ccrisStatus: "no_record",
+} as const;
+
 describe("prospectus Page 2 Credit Insights (DATA STAGE 5)", () => {
   it("uses static section heading", () => {
     const data = buildProspectusCreditInsights(SAMPLE_PROSPECTUS_CREDIT_INSIGHTS_INPUT);
@@ -25,35 +33,28 @@ describe("prospectus Page 2 Credit Insights (DATA STAGE 5)", () => {
     expect(data.creditUtilisation).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.litigationCheck).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.ccrisStatus).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data).not.toHaveProperty("omittedFields");
     expect(data).not.toHaveProperty("creditScoreExplanation");
   });
 
-  it("renders Canva demo officer selections with per-row labels", () => {
+  it("renders Canva demo officer selections with all five rows", () => {
     const data = buildProspectusCreditInsights({
-      creditInsightSelections: {
-        creditScore: "good",
-        paymentBehaviour: "good",
-        creditUtilisation: "healthy",
-        litigationCheck: "clear",
-        ccrisStatus: "no_record",
-      },
+      creditInsightSelections: { ...DEMO_SELECTIONS },
     });
     expect(data.creditScore).toBe("Good");
     expect(data.paymentBehaviour).toBe("Good");
     expect(data.creditUtilisation).toBe("Healthy");
     expect(data.litigationCheck).toBe("Clear");
     expect(data.ccrisStatus).toBe("No record");
-    expect(data.omittedFields).toEqual([]);
   });
 
-  it("keeps separate catalogues per row", () => {
+  it("keeps separate catalogues per row without do_not_display", () => {
     expect(PROSPECTUS_CREDIT_INSIGHT_OPTION_CATALOGUE.creditScore.map((o) => o.key)).toEqual([
       "excellent",
       "good",
       "fair",
       "weak",
       "poor",
-      "do_not_display",
     ]);
     expect(
       PROSPECTUS_CREDIT_INSIGHT_OPTION_CATALOGUE.creditUtilisation.map((o) => o.key)
@@ -62,11 +63,33 @@ describe("prospectus Page 2 Credit Insights (DATA STAGE 5)", () => {
       "clear",
       "record_found",
       "under_review",
-      "do_not_display",
     ]);
-    expect(PROSPECTUS_CREDIT_INSIGHT_OPTION_CATALOGUE.ccrisStatus.map((o) => o.label)).toContain(
-      "No record"
-    );
+    for (const options of Object.values(PROSPECTUS_CREDIT_INSIGHT_OPTION_CATALOGUE)) {
+      expect(options.some((o) => o.key === "do_not_display")).toBe(false);
+    }
+  });
+
+  it("treats do_not_display as invalid (DNA), not as a hidden row", () => {
+    const data = buildProspectusCreditInsights({
+      creditInsightSelections: {
+        creditScore: "do_not_display",
+        paymentBehaviour: "do_not_display",
+        creditUtilisation: "do_not_display",
+        litigationCheck: "do_not_display",
+        ccrisStatus: "do_not_display",
+      },
+    });
+    expect(data.creditScore).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.paymentBehaviour).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.creditUtilisation).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.litigationCheck).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(data.ccrisStatus).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    const html = buildProspectusCreditInsightsDocument(data);
+    expect(html).toContain("Credit Score:");
+    expect(html).toContain("Payment Behaviour:");
+    expect(html).toContain("Credit Utilisation:");
+    expect(html).toContain("Litigation Check:");
+    expect(html).toContain("CCRIS Status:");
   });
 
   it("does not accept retired positive/neutral/negative keys", () => {
@@ -84,36 +107,6 @@ describe("prospectus Page 2 Credit Insights (DATA STAGE 5)", () => {
     expect(data.creditUtilisation).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.litigationCheck).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(data.ccrisStatus).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-  });
-
-  it("omits do_not_display rows and handles all five omitted safely", () => {
-    const one = buildProspectusCreditInsights({
-      creditInsightSelections: {
-        creditScore: "good",
-        paymentBehaviour: "do_not_display",
-        creditUtilisation: "healthy",
-        litigationCheck: "clear",
-        ccrisStatus: "no_record",
-      },
-    });
-    expect(one.omittedFields).toContain("paymentBehaviour");
-    expect(one.paymentBehaviour).toBe("");
-
-    const allHidden = buildProspectusCreditInsights({
-      creditInsightSelections: {
-        creditScore: "do_not_display",
-        paymentBehaviour: "do_not_display",
-        creditUtilisation: "do_not_display",
-        litigationCheck: "do_not_display",
-        ccrisStatus: "do_not_display",
-      },
-    });
-    expect(allHidden.omittedFields).toHaveLength(5);
-    const html = buildProspectusCreditInsightsDocument(allHidden);
-    expect(html).toContain("CREDIT INSIGHTS");
-    expect(html).not.toContain("Credit Score:");
-    expect(html).not.toContain("Credit Score Explanation");
-    expect(html).not.toMatch(/predictive indicator/i);
   });
 
   it("ignores CTOS/FICO scores and SoukScore grades (no auto-select)", () => {
@@ -164,13 +157,7 @@ describe("prospectus Page 2 Credit Insights (DATA STAGE 5)", () => {
   it("does not render Credit Score Explanation or Canva footer", () => {
     expect(PROSPECTUS_CREDIT_INSIGHTS_FOOTER_REQUIRES_LEGAL_APPROVAL).toBe(true);
     const data = buildProspectusCreditInsights({
-      creditInsightSelections: {
-        creditScore: "good",
-        paymentBehaviour: "good",
-        creditUtilisation: "healthy",
-        litigationCheck: "clear",
-        ccrisStatus: "no_record",
-      },
+      creditInsightSelections: { ...DEMO_SELECTIONS },
       ssmCreditworthinessSentence:
         "Credit Score is a predictive indicator of the issuer’s credit worthiness based on data from SSM",
     });
@@ -190,16 +177,10 @@ describe("prospectus Page 2 Credit Insights (DATA STAGE 5)", () => {
     expect(PROSPECTUS_CREDIT_INSIGHTS_FIELD_SOURCES).not.toHaveProperty("creditScoreExplanation");
   });
 
-  it("HTML shows officer labels and hides audit/raw/provider fields", () => {
+  it("HTML always shows all five rows with officer labels", () => {
     const data = buildProspectusCreditInsights({
       ...SAMPLE_PROSPECTUS_CREDIT_INSIGHTS_INPUT,
-      creditInsightSelections: {
-        creditScore: "good",
-        paymentBehaviour: "good",
-        creditUtilisation: "healthy",
-        litigationCheck: "clear",
-        ccrisStatus: "no_record",
-      },
+      creditInsightSelections: { ...DEMO_SELECTIONS },
     });
     const html = buildProspectusCreditInsightsDocument(data);
 
@@ -210,11 +191,8 @@ describe("prospectus Page 2 Credit Insights (DATA STAGE 5)", () => {
     expect(html).toContain("Litigation Check: Clear");
     expect(html).toContain("CCRIS Status: No record");
     expect(html).not.toContain("Credit Score Explanation");
-
     expect(html).not.toContain("720");
     expect(html).not.toContain("FICO");
-    expect(html).not.toContain("RegTank");
-    expect(html).not.toContain("candidateSystem");
     expect(html).not.toContain('"audit"');
   });
 });

@@ -229,28 +229,13 @@ export function buildProspectusPageTwoHtml(page: ProspectusPageTwo): string {
 
     <section data-stage="5">
       <h2>${escapeHtml(s5.sectionHeading)}</h2>
-      ${(() => {
-        const rows: string[] = [];
-        if (!s5.omittedFields.includes("creditScore")) {
-          rows.push(`Credit Score: ${escapeHtml(s5.creditScore)}`);
-        }
-        if (!s5.omittedFields.includes("paymentBehaviour")) {
-          rows.push(`Payment Behaviour: ${escapeHtml(s5.paymentBehaviour)}`);
-        }
-        if (!s5.omittedFields.includes("creditUtilisation")) {
-          rows.push(`Credit Utilisation: ${escapeHtml(s5.creditUtilisation)}`);
-        }
-        if (!s5.omittedFields.includes("litigationCheck")) {
-          rows.push(`Litigation Check: ${escapeHtml(s5.litigationCheck)}`);
-        }
-        if (!s5.omittedFields.includes("ccrisStatus")) {
-          rows.push(`CCRIS Status: ${escapeHtml(s5.ccrisStatus)}`);
-        }
-        // No Credit Score Explanation / Canva footer — requires legal/compliance approval.
-        return rows.length > 0
-          ? `<p>\n        ${rows.join("<br />\n        ")}\n      </p>`
-          : "";
-      })()}
+      <p>
+        Credit Score: ${escapeHtml(s5.creditScore)}<br />
+        Payment Behaviour: ${escapeHtml(s5.paymentBehaviour)}<br />
+        Credit Utilisation: ${escapeHtml(s5.creditUtilisation)}<br />
+        Litigation Check: ${escapeHtml(s5.litigationCheck)}<br />
+        CCRIS Status: ${escapeHtml(s5.ccrisStatus)}
+      </p>
     </section>
 
     <section data-stage="6">

@@ -304,7 +304,7 @@ export const PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT: ProspectusPublicationCo
 export function resolveCreditInsightLabel(
   key: ProspectusCreditInsightOptionKey | undefined
 ): string | null {
-  if (key == null || key === "do_not_display") return null;
+  void key;
   return null;
 }
 

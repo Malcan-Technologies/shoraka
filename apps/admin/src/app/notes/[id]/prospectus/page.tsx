@@ -1175,8 +1175,8 @@ function ProspectusReviewPageInner() {
                       <section>
                         <ProspectusSectionHeading title="Credit Insights" />
                         <p className="mb-3 text-sm text-muted-foreground">
-                          Select the final investor-facing assessment for each item. Use Do not
-                          display when the item should be omitted from the Prospectus.
+                          Select the final investor-facing assessment for each item. All five rows
+                          are required and always shown on the Prospectus.
                         </p>
                         <div className="grid gap-3 md:grid-cols-2">
                           {(

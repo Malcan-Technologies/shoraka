@@ -241,7 +241,7 @@
  * RegTank / AML / KYC are not mixed into this section.
  *
  * Implemented as officer-selected provisional catalogues (per-row option keys).
- * CTOS/CCRIS/litigation are not auto-selected. Labels require compliance confirmation.
+ * All five rows are mandatory (no do_not_display / hide). CTOS/CCRIS not auto-selected.
  * Credit Score Explanation removed. Canva SSM footer not shipped (legal approval required).
  * Zero/empty legal or CCRIS records do not mean Clear / No record.
  * Approved selections freeze on Approve / publish.

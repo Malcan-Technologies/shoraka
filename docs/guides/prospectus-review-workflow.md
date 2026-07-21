@@ -60,7 +60,7 @@ Versioned in code: `apps/api/src/modules/notes/prospectus-review/prospectus-opti
 
 Current version uses clearly marked placeholder wording. Not legally approved production copy. Admin UI shows a temporary-catalogue notice.
 
-Every dropdown includes `do_not_display`.
+Most catalogues include `do_not_display` where omission is allowed. Credit Insights is an exception: all five rows are mandatory assessment values (no hide option).
 
 ## API
 

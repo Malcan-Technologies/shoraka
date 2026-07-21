@@ -398,7 +398,7 @@ export function validateDraftContent(
   return errors;
 }
 
-/** Approval: draft rules + required officer selections present (or Do not display). */
+/** Approval: draft rules + required officer selections present. */
 export function validateApprovalContent(
   content: z.infer<typeof prospectusReviewStoredContentSchema>
 ): ProspectusReviewFieldError[] {

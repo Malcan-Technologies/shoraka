@@ -1,5 +1,5 @@
 /**
- * Credit Insights catalogues and approval validation.
+ * Credit Insights catalogues and approval validation — five mandatory rows.
  */
 
 import {
@@ -15,86 +15,106 @@ import {
 } from "./prospectus-option-catalogues";
 
 describe("prospectus credit insights option catalogues", () => {
-  it("exposes provisional per-row catalogues on the API catalogues payload", () => {
+  it("exposes provisional per-row catalogues without Do not display", () => {
     expect(PROSPECTUS_OPTION_CATALOGUE_VERSION).toContain("credit-insights.provisional");
     const catalogues = getActiveProspectusCatalogues();
     expect(Array.isArray(catalogues.creditInsights)).toBe(false);
-    expect(catalogues.creditInsights.creditScore.some((o) => o.key === "good")).toBe(true);
-    expect(catalogues.creditInsights.creditUtilisation.some((o) => o.key === "healthy")).toBe(
-      true
-    );
-    expect(catalogues.creditInsights.litigationCheck.some((o) => o.key === "clear")).toBe(true);
-    expect(catalogues.creditInsights.ccrisStatus.some((o) => o.key === "no_record")).toBe(true);
+    expect(catalogues.creditInsights.creditScore.map((o) => o.key)).toEqual([
+      "excellent",
+      "good",
+      "fair",
+      "weak",
+      "poor",
+    ]);
+    expect(catalogues.creditInsights.creditUtilisation.map((o) => o.key)).toEqual([
+      "low",
+      "healthy",
+      "moderate",
+      "high",
+      "very_high",
+    ]);
+    expect(catalogues.creditInsights.litigationCheck.map((o) => o.key)).toEqual([
+      "clear",
+      "record_found",
+      "under_review",
+    ]);
+    expect(catalogues.creditInsights.ccrisStatus.map((o) => o.key)).toEqual([
+      "no_record",
+      "satisfactory",
+      "attention_required",
+      "adverse_record",
+      "under_review",
+    ]);
     for (const field of Object.keys(PROSPECTUS_CREDIT_INSIGHT_OPTION_CATALOGUE)) {
       expect(
         catalogues.creditInsights[field as keyof typeof catalogues.creditInsights].some(
-          (o) => o.key === "do_not_display"
+          (o) => o.key === "do_not_display" || o.label === "Do not display"
         )
-      ).toBe(true);
+      ).toBe(false);
     }
   });
 
-  it("rejects cross-row option keys", () => {
+  it("rejects cross-row option keys and retired do_not_display", () => {
     const draft = emptyProspectusReviewContent();
     draft.page2.creditInsights = {
       creditScoreOptionKey: "healthy",
       paymentBehaviourOptionKey: "good",
       creditUtilisationOptionKey: "good",
       litigationCheckOptionKey: "clear",
-      ccrisStatusOptionKey: "no_record",
-    };
-    const errors = validateDraftContent(draft);
-    expect(errors.some((e) => e.path.includes("creditScoreOptionKey"))).toBe(true);
-    expect(errors.some((e) => e.path.includes("creditUtilisationOptionKey"))).toBe(true);
-  });
-
-  it("rejects retired positive/neutral/negative keys with no conversion", () => {
-    const draft = emptyProspectusReviewContent();
-    draft.page2.creditInsights = {
-      creditScoreOptionKey: "positive",
-      paymentBehaviourOptionKey: "neutral",
-      creditUtilisationOptionKey: "negative",
-      litigationCheckOptionKey: "positive",
       ccrisStatusOptionKey: "do_not_display",
     };
     const errors = validateDraftContent(draft);
     expect(errors.some((e) => e.path.includes("creditScoreOptionKey"))).toBe(true);
-    expect(errors.some((e) => e.path.includes("paymentBehaviourOptionKey"))).toBe(true);
     expect(errors.some((e) => e.path.includes("creditUtilisationOptionKey"))).toBe(true);
-    expect(errors.some((e) => e.path.includes("litigationCheckOptionKey"))).toBe(true);
-    expect(errors.some((e) => e.path.includes("ccrisStatusOptionKey"))).toBe(false);
+    expect(errors.some((e) => e.path.includes("ccrisStatusOptionKey"))).toBe(true);
   });
 
-  it("requires all five selections for approval; do_not_display is valid", () => {
+  it("rejects do_not_display for every Credit Insights row", () => {
+    for (const field of [
+      "creditScoreOptionKey",
+      "paymentBehaviourOptionKey",
+      "creditUtilisationOptionKey",
+      "litigationCheckOptionKey",
+      "ccrisStatusOptionKey",
+    ] as const) {
+      const draft = buildCompleteProspectusReviewDraft();
+      draft.page2.creditInsights = {
+        ...draft.page2.creditInsights,
+        [field]: "do_not_display",
+      };
+      const errors = validateDraftContent(draft);
+      expect(errors.some((e) => e.path.includes(field))).toBe(true);
+    }
+  });
+
+  it("requires all five real selections for approval", () => {
     const missing = emptyProspectusReviewContent();
     expect(
       validateApprovalContent(missing).some((e) => e.path.includes("creditInsights"))
     ).toBe(true);
 
+    const oneMissing = buildCompleteProspectusReviewDraft();
+    oneMissing.page2.creditInsights.litigationCheckOptionKey = null;
+    expect(
+      validateApprovalContent(oneMissing).some((e) =>
+        e.path.includes("litigationCheckOptionKey")
+      )
+    ).toBe(true);
+
     const complete = buildCompleteProspectusReviewDraft();
     expect(validateApprovalContent(complete)).toEqual([]);
 
-    const allHidden = buildCompleteProspectusReviewDraft();
-    allHidden.page2.creditInsights = {
-      creditScoreOptionKey: "do_not_display",
-      paymentBehaviourOptionKey: "do_not_display",
-      creditUtilisationOptionKey: "do_not_display",
-      litigationCheckOptionKey: "do_not_display",
-      ccrisStatusOptionKey: "do_not_display",
-    };
-    expect(validateApprovalContent(allHidden)).toEqual([]);
-
-    const publication = toProspectusPublicationContent(allHidden);
+    const publication = toProspectusPublicationContent(complete);
     expect(publication.creditInsightSelections).toEqual({
-      creditScore: "do_not_display",
-      paymentBehaviour: "do_not_display",
-      creditUtilisation: "do_not_display",
-      litigationCheck: "do_not_display",
-      ccrisStatus: "do_not_display",
+      creditScore: "good",
+      paymentBehaviour: "good",
+      creditUtilisation: "healthy",
+      litigationCheck: "clear",
+      ccrisStatus: "no_record",
     });
   });
 
-  it("keeps storage OptionKey field names on demo draft", () => {
+  it("keeps demo storage OptionKey field names and Canva demo values", () => {
     const draft = buildCompleteProspectusReviewDraft();
     expect(draft.page2.creditInsights).toEqual({
       creditScoreOptionKey: "good",

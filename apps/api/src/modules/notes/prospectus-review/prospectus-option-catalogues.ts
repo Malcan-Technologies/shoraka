@@ -54,6 +54,7 @@ export type ProspectusCreditInsightCatalogueField =
 
 /**
  * Provisional per-row Credit Insights catalogues.
+ * All five rows are mandatory — no hide/omit option.
  * Wording requires business/compliance confirmation before treating as final legal copy.
  */
 export const PROSPECTUS_CREDIT_INSIGHT_OPTION_CATALOGUE: Record<
@@ -66,7 +67,6 @@ export const PROSPECTUS_CREDIT_INSIGHT_OPTION_CATALOGUE: Record<
     opt("fair", "Fair"),
     opt("weak", "Weak"),
     opt("poor", "Poor"),
-    DO_NOT_DISPLAY,
   ],
   paymentBehaviour: [
     opt("excellent", "Excellent"),
@@ -74,7 +74,6 @@ export const PROSPECTUS_CREDIT_INSIGHT_OPTION_CATALOGUE: Record<
     opt("satisfactory", "Satisfactory"),
     opt("weak", "Weak"),
     opt("poor", "Poor"),
-    DO_NOT_DISPLAY,
   ],
   creditUtilisation: [
     opt("low", "Low"),
@@ -82,13 +81,11 @@ export const PROSPECTUS_CREDIT_INSIGHT_OPTION_CATALOGUE: Record<
     opt("moderate", "Moderate"),
     opt("high", "High"),
     opt("very_high", "Very High"),
-    DO_NOT_DISPLAY,
   ],
   litigationCheck: [
     opt("clear", "Clear"),
     opt("record_found", "Record Found"),
     opt("under_review", "Under Review"),
-    DO_NOT_DISPLAY,
   ],
   ccrisStatus: [
     opt("no_record", "No record"),
@@ -96,7 +93,6 @@ export const PROSPECTUS_CREDIT_INSIGHT_OPTION_CATALOGUE: Record<
     opt("attention_required", "Attention Required"),
     opt("adverse_record", "Adverse Record"),
     opt("under_review", "Under Review"),
-    DO_NOT_DISPLAY,
   ],
 };
 
@@ -131,14 +127,13 @@ export function findCreditInsightCatalogueOption(
   return findCatalogueOption(PROSPECTUS_CREDIT_INSIGHT_OPTION_CATALOGUE[field], trimmed);
 }
 
-/** Investor-facing label for a selected key; null for do_not_display / unknown. */
+/** Investor-facing label for a selected key; null when unknown/invalid. */
 export function resolveCreditInsightRenderedText(
   field: ProspectusCreditInsightCatalogueField,
   key: string | null | undefined
 ): string | null {
   const hit = findCreditInsightCatalogueOption(field, key);
-  if (!hit || hit.key === "do_not_display") return null;
-  return hit.renderedText;
+  return hit?.renderedText ?? null;
 }
 
 export const PROSPECTUS_INVOICE_WORK_OPTION_CATALOGUE: Record<

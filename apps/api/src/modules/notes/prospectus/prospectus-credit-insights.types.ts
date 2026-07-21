@@ -122,7 +122,7 @@ export const PROSPECTUS_CREDIT_INSIGHTS_AUDIT: ProspectusCreditInsightsAudit = {
   },
 };
 
-/** Canva-facing fields only — no Credit Score Explanation, no footer. */
+/** Canva-facing fields only — five mandatory rows; no Credit Score Explanation, no footer. */
 export interface ProspectusCreditInsights {
   sectionHeading: string;
   creditScore: string;
@@ -130,14 +130,6 @@ export interface ProspectusCreditInsights {
   creditUtilisation: string;
   litigationCheck: string;
   ccrisStatus: string;
-  /** Fields with officer selection `do_not_display` — not rendered. */
-  omittedFields: Array<
-    | "creditScore"
-    | "paymentBehaviour"
-    | "creditUtilisation"
-    | "litigationCheck"
-    | "ccrisStatus"
-  >;
   /** Audit/debug only — omitted from Canva HTML. */
   audit: ProspectusCreditInsightsAudit;
 }

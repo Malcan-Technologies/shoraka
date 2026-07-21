@@ -1,6 +1,7 @@
 /**
  * SECTION: Build Page 2 Credit Insights view-model
  * WHY: Officer-selected typed options only; never infer from CTOS/SoukScore/AML/KYC
+ * All five rows are always investor-facing when selected; missing Draft → DNA.
  */
 
 import {
@@ -41,17 +42,12 @@ export function buildProspectusCreditInsights(
   void input.ssmCreditworthinessSentence;
 
   const selections = input.creditInsightSelections;
-  const omittedFields: ProspectusCreditInsightCatalogueField[] = [];
 
   const resolve = (field: ProspectusCreditInsightCatalogueField): string => {
     if (selections == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
     const raw = selections[field];
     if (raw == null || String(raw).trim() === "") return PROSPECTUS_DATA_NOT_AVAILABLE;
     const key = String(raw).trim();
-    if (key === "do_not_display") {
-      omittedFields.push(field);
-      return "";
-    }
     const hit = findCreditInsightCatalogueOption(field, key);
     if (!hit) return PROSPECTUS_DATA_NOT_AVAILABLE;
     return resolveCreditInsightRenderedText(field, key) ?? PROSPECTUS_DATA_NOT_AVAILABLE;
@@ -64,7 +60,6 @@ export function buildProspectusCreditInsights(
     creditUtilisation: resolve("creditUtilisation"),
     litigationCheck: resolve("litigationCheck"),
     ccrisStatus: resolve("ccrisStatus"),
-    omittedFields,
     audit: PROSPECTUS_CREDIT_INSIGHTS_AUDIT,
   };
 }

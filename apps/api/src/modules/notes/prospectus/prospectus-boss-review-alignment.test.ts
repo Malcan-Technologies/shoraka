@@ -190,18 +190,7 @@ describe("prospectus boss-review alignment", () => {
       expect(preview.creditUtilisation).toBe("Healthy");
       expect(preview.litigationCheck).toBe("Clear");
       expect(preview.ccrisStatus).toBe("No record");
-
-      const omitted = buildProspectusCreditInsights({
-        creditInsightSelections: {
-          creditScore: "good",
-          paymentBehaviour: "good",
-          creditUtilisation: "healthy",
-          litigationCheck: "do_not_display",
-          ccrisStatus: "no_record",
-        },
-      });
-      expect(omitted.omittedFields).toContain("litigationCheck");
-      expect(omitted.litigationCheck).toBe("");
+      expect(preview).not.toHaveProperty("omittedFields");
 
       const production = buildProspectusCreditInsights({});
       expect(production.creditScore).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);

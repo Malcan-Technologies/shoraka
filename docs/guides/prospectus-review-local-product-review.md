@@ -74,7 +74,7 @@ Publish is blocked until review is `APPROVED`.
 1. Seed Note (`pnpm seed:prospectus-review`).
 2. Sign in to admin; open Note detail → **Open Prospectus Review**.
 3. Confirm 7 steps, temporary catalogue notice, empty selections (not pre-approved).
-4. Fill Page 1–3 dropdowns + paymaster track record + manual financials (use placeholder options; include at least one **Do not display**).
+4. Fill Page 1–3 dropdowns + paymaster track record + manual financials (use placeholder options; Credit Insights requires five real assessment values).
 5. **Save Draft** → reload → values persist; status stays `DRAFT`.
 6. Open two tabs → save A → stale save B → conflict + refresh prompt.
 7. **Submit for Review** → status `READY_FOR_REVIEW`; publish from Note detail still blocked.
