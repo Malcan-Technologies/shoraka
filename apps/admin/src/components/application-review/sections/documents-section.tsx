@@ -134,6 +134,12 @@ export interface DocumentsSectionProps {
    * Live review list intentionally does not show workflow requirement badges.
    */
   supportingDocumentsStepConfig?: Record<string, unknown> | null;
+  /**
+   * When true, render list/comments only (no Card). Used inside AcceptanceSection’s single card.
+   */
+  embedded?: boolean;
+  /** When embedded, hide the inner Download all control (parent card owns it). */
+  hideDownloadAll?: boolean;
 }
 
 export function DocumentsSection({
@@ -159,6 +165,8 @@ export function DocumentsSection({
   sectionComparison,
   hideSectionComments = false,
   supportingDocumentsStepConfig = null,
+  embedded = false,
+  hideDownloadAll = false,
 }: DocumentsSectionProps) {
   const downloadableFiles = React.useMemo(() => {
     if (documentKind === "acceptance") {
@@ -228,6 +236,62 @@ export function DocumentsSection({
     (r) => r.item_type === "document" && r.status === "REJECTED" && r.item_id.startsWith(itemIdPrefix)
   );
 
+  const documentsBody = (
+    <>
+      {supportingDocuments && typeof supportingDocuments === "object" ? (
+        <DocumentList
+          documents={supportingDocuments}
+          documentKind={documentKind}
+          reviewItems={reviewItems}
+          isReviewable={!!isReviewable}
+          onViewDocument={onViewDocument}
+          onDownloadDocument={onDownloadDocument}
+          onApproveItem={onApproveItem}
+          onRejectItem={onRejectItem}
+          onRequestAmendmentItem={onRequestAmendmentItem}
+          onResetItemToPending={onResetItemToPending}
+          isItemActionPending={approvePending}
+          isViewDocumentPending={viewDocumentPending}
+          isActionLocked={isActionLocked}
+          actionLockTooltip={actionLockTooltip}
+          lockItemPrimaryReviewActions={peerDocumentRejected}
+        />
+      ) : (
+        <p className={reviewEmptyStateClass}>
+          {documentKind === "acceptance"
+            ? "No acceptance documents uploaded yet."
+            : "No supporting documents submitted."}
+        </p>
+      )}
+      {!hideSectionComments ? (
+        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      ) : null}
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="space-y-4">
+        {!hideDownloadAll ? (
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-1.5 rounded-lg px-3"
+              onClick={() => onDownloadAllDocuments(downloadableFiles)}
+              disabled={isDownloadAllPending || downloadableFiles.length === 0}
+            >
+              <ArrowDownTrayIcon className="h-4 w-4" />
+              {isDownloadAllPending ? "Preparing ZIP..." : "Download all"}
+            </Button>
+          </div>
+        ) : null}
+        {documentsBody}
+      </div>
+    );
+  }
+
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
@@ -249,36 +313,7 @@ export function DocumentsSection({
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-10">
-        {supportingDocuments && typeof supportingDocuments === "object" ? (
-          <DocumentList
-            documents={supportingDocuments}
-            documentKind={documentKind}
-            reviewItems={reviewItems}
-            isReviewable={!!isReviewable}
-            onViewDocument={onViewDocument}
-            onDownloadDocument={onDownloadDocument}
-            onApproveItem={onApproveItem}
-            onRejectItem={onRejectItem}
-            onRequestAmendmentItem={onRequestAmendmentItem}
-            onResetItemToPending={onResetItemToPending}
-            isItemActionPending={approvePending}
-            isViewDocumentPending={viewDocumentPending}
-            isActionLocked={isActionLocked}
-            actionLockTooltip={actionLockTooltip}
-            lockItemPrimaryReviewActions={peerDocumentRejected}
-          />
-        ) : (
-          <p className={reviewEmptyStateClass}>
-            {documentKind === "acceptance"
-              ? "No acceptance documents uploaded yet."
-              : "No supporting documents submitted."}
-          </p>
-        )}
-        {!hideSectionComments ? (
-          <SectionComments comments={comments} onSubmitComment={onAddComment} />
-        ) : null}
-      </CardContent>
+      <CardContent className="space-y-10">{documentsBody}</CardContent>
     </Card>
   );
 }

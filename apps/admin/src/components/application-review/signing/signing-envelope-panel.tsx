@@ -2,6 +2,9 @@
  * Admin signing envelope panel for the application review screen. Shows the active
  * package in full detail, collapses prior packages into history, and uses inline
  * Remind actions on the progress matrix (no separate Nudge footer).
+ *
+ * When embedded in the Acceptance tab, set `showOfferAcceptanceSummary={false}` —
+ * phase status + acknowledgements live in AcceptanceSection above this panel.
  */
 "use client";
 
@@ -84,6 +87,27 @@ function splitEnvelopes(envelopes: SigningEnvelopeDto[]): {
   return { primary: sorted[0] ?? null, history: sorted.slice(1) };
 }
 
+/**
+ * Resolve offer_details used for offer_acceptance phase UI.
+ * Prefer the invoice tied to the primary envelope when present.
+ */
+export function resolveAcceptanceOfferDetails(args: {
+  primaryEnvelopeInvoiceId?: string | null;
+  offerDetails?: unknown;
+  invoices?: { id: string; offer_details?: unknown }[];
+}): unknown {
+  const { primaryEnvelopeInvoiceId, offerDetails, invoices = [] } = args;
+  if (primaryEnvelopeInvoiceId) {
+    return (
+      invoices.find((inv) => inv.id === primaryEnvelopeInvoiceId)?.offer_details ??
+      offerDetails ??
+      null
+    );
+  }
+  if (offerDetails != null) return offerDetails;
+  return invoices.find((inv) => inv.offer_details != null)?.offer_details ?? null;
+}
+
 export interface SigningEnvelopePanelProps {
   applicationId: string;
   /** Product.workflow JSON — used to resolve offer acknowledgement document names. */
@@ -99,6 +123,15 @@ export interface SigningEnvelopePanelProps {
   offerDetails?: unknown;
   /** Standalone invoices (invoice_only structure) — each carries its own offer_details. */
   invoices?: { id: string; offer_details?: unknown }[];
+  /**
+   * When false, hide the offer-acceptance status/acknowledgements block
+   * (Acceptance tab renders that above this panel).
+   */
+  showOfferAcceptanceSummary?: boolean;
+  /** Used for empty-state copy when no offer has been sent yet. */
+  structureType?: string | null;
+  /** When true, render body only (no Card). Used inside AcceptanceSection. */
+  embedded?: boolean;
 }
 
 export function SigningEnvelopePanel({
@@ -107,6 +140,9 @@ export function SigningEnvelopePanel({
   canManage = true,
   offerDetails,
   invoices = [],
+  showOfferAcceptanceSummary = true,
+  structureType,
+  embedded = false,
 }: SigningEnvelopePanelProps) {
   const { data: envelopes = [], isLoading } = useAdminSigningEnvelopes(applicationId);
   const voidMutation = useVoidSigningEnvelope(applicationId);
@@ -115,18 +151,15 @@ export function SigningEnvelopePanel({
 
   const { primary, history } = React.useMemo(() => splitEnvelopes(envelopes), [envelopes]);
 
-  /**
-   * Invoice-only applications have no contract offer — each invoice carries its own
-   * offer_details. Prefer the invoice tied to the primary envelope; otherwise fall back to
-   * the contract offer, or the first invoice offer available.
-   */
-  const acceptanceOfferDetails = React.useMemo(() => {
-    if (primary?.invoice_id) {
-      return invoices.find((inv) => inv.id === primary.invoice_id)?.offer_details ?? offerDetails ?? null;
-    }
-    if (offerDetails != null) return offerDetails;
-    return invoices.find((inv) => inv.offer_details != null)?.offer_details ?? null;
-  }, [primary, offerDetails, invoices]);
+  const acceptanceOfferDetails = React.useMemo(
+    () =>
+      resolveAcceptanceOfferDetails({
+        primaryEnvelopeInvoiceId: primary?.invoice_id,
+        offerDetails,
+        invoices,
+      }),
+    [primary, offerDetails, invoices]
+  );
 
   const acceptance = getOfferAcceptanceFromOfferDetails(acceptanceOfferDetails);
   const acceptancePresentation = acceptance
@@ -144,6 +177,11 @@ export function SigningEnvelopePanel({
     acceptance.status !== "APPROVED_FOR_SIGNING" &&
     acceptance.status !== "SIGNING_IN_PROGRESS" &&
     acceptance.status !== "COMPLETED";
+
+  const isInvoiceOnly = structureType === "invoice_only";
+  const noOfferYetHint = isInvoiceOnly
+    ? "Send an offer from Invoice to start acceptance."
+    : "Send an offer from Contract to start acceptance.";
 
   const handleVoid = async (envelopeId: string) => {
     try {
@@ -168,88 +206,111 @@ export function SigningEnvelopePanel({
     primary != null &&
     (primary.status === "SENT" || primary.status === "IN_PROGRESS");
 
+  const emptySigningMessage = (() => {
+    if (acceptance == null) {
+      return showOfferAcceptanceSummary
+        ? noOfferYetHint
+        : "No signing package yet. It appears after the issuer starts signing.";
+    }
+    if (signingBlocked) {
+      return "Signing package is locked until acceptance documents are approved.";
+    }
+    if (acceptance.status === "COMPLETED") {
+      return "No signing package on file for this offer.";
+    }
+    return "No signing package yet. The issuer creates and sends this package from their offer flow.";
+  })();
+
+  const body = (
+    <div className="space-y-4">
+      {showOfferAcceptanceSummary && acceptancePresentation ? (
+        <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-foreground">Offer acceptance</span>
+            <Badge variant="secondary">{acceptancePresentation.label}</Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">{acceptancePresentation.hint}</p>
+          {acceptance?.acknowledgements?.length ? (
+            <ul className="mt-1 space-y-1 border-t border-border/60 pt-2">
+              {acceptance.acknowledgements.map((ack) => (
+                <li
+                  key={ack.document_key}
+                  className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                >
+                  <span className="text-foreground">
+                    {acknowledgementNameByKey.get(ack.document_key) ?? ack.document_key}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    Acknowledged {format(new Date(ack.accepted_at), "d MMM yyyy, h:mm a")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+
+      {showOfferAcceptanceSummary && !acceptancePresentation ? (
+        <p className="text-sm text-muted-foreground">{noOfferYetHint}</p>
+      ) : null}
+
+      {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+
+      {!isLoading && envelopes.length === 0 && (
+        <p className="text-sm text-muted-foreground">{emptySigningMessage}</p>
+      )}
+
+      {primary ? (
+        <ActiveEnvelopeCard
+          envelope={primary}
+          canManage={canManage}
+          canRemind={canRemindPrimary}
+          remindDisabled={remindMutation.isPending}
+          voidDisabled={voidMutation.isPending}
+          onVoid={() => handleVoid(primary.id)}
+          onRemind={(recipientId) => handleRemind(primary.id, recipientId)}
+        />
+      ) : null}
+
+      {history.length > 0 ? (
+        <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                "flex h-10 w-full items-center justify-between gap-2 rounded-xl border border-border bg-background px-3 text-sm font-medium text-foreground",
+                "hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              )}
+            >
+              <span>Package history ({history.length})</span>
+              <ChevronDownIcon
+                className={cn(
+                  "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                  historyOpen && "rotate-180"
+                )}
+              />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-2 pt-2">
+            {history.map((envelope) => (
+              <HistoryEnvelopeRow key={envelope.id} envelope={envelope} />
+            ))}
+          </CollapsibleContent>
+        </Collapsible>
+      ) : null}
+    </div>
+  );
+
+  if (embedded) {
+    return body;
+  }
+
   return (
-    <Card>
+    <Card className="rounded-2xl">
       <CardHeader>
         <CardTitle className="text-lg">Signing package</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {acceptancePresentation ? (
-          <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium text-foreground">Offer acceptance</span>
-              <Badge variant="secondary">{acceptancePresentation.label}</Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">{acceptancePresentation.hint}</p>
-            {acceptance?.acknowledgements?.length ? (
-              <ul className="mt-1 space-y-1 border-t border-border/60 pt-2">
-                {acceptance.acknowledgements.map((ack) => (
-                  <li
-                    key={ack.document_key}
-                    className="flex flex-wrap items-center justify-between gap-2 text-sm"
-                  >
-                    <span className="text-foreground">
-                      {acknowledgementNameByKey.get(ack.document_key) ?? ack.document_key}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      Acknowledged {format(new Date(ack.accepted_at), "d MMM yyyy, h:mm a")}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        ) : null}
-
-        {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
-
-        {!isLoading && envelopes.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            {signingBlocked
-              ? "Signing package is locked until acceptance documents are approved."
-              : "No signing package yet. The issuer creates and sends this package from their offer flow."}
-          </p>
-        )}
-
-        {primary ? (
-          <ActiveEnvelopeCard
-            envelope={primary}
-            canManage={canManage}
-            canRemind={canRemindPrimary}
-            remindDisabled={remindMutation.isPending}
-            voidDisabled={voidMutation.isPending}
-            onVoid={() => handleVoid(primary.id)}
-            onRemind={(recipientId) => handleRemind(primary.id, recipientId)}
-          />
-        ) : null}
-
-        {history.length > 0 ? (
-          <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
-            <CollapsibleTrigger asChild>
-              <button
-                type="button"
-                className={cn(
-                  "flex h-10 w-full items-center justify-between gap-2 rounded-xl border border-border bg-background px-3 text-sm font-medium text-foreground",
-                  "hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                )}
-              >
-                <span>Package history ({history.length})</span>
-                <ChevronDownIcon
-                  className={cn(
-                    "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
-                    historyOpen && "rotate-180"
-                  )}
-                />
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-2 pt-2">
-              {history.map((envelope) => (
-                <HistoryEnvelopeRow key={envelope.id} envelope={envelope} />
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
-        ) : null}
-      </CardContent>
+      <CardContent>{body}</CardContent>
     </Card>
   );
 }

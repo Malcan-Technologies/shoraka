@@ -15,6 +15,7 @@ import {
 import { FinancialSection } from "./sections/financial-section";
 import { BusinessSection } from "./sections/business-section";
 import { DocumentsSection } from "./sections/documents-section";
+import { AcceptanceSection } from "./sections/acceptance-section";
 import { CompanySection } from "./sections/company-section";
 import { ContractSection } from "./sections/contract-section";
 import { CustomerSection } from "./sections/customer-section";
@@ -60,8 +61,10 @@ export type ReviewApplicationView = {
   financial_statements?: unknown;
   review_and_submit?: unknown;
   contract?: {
+    id?: string;
     contract_details?: unknown;
     customer_details?: unknown;
+    offer_details?: unknown;
     status?: string;
     invoices?: { id: string; application_id: string; details?: unknown; status?: string; offer_details?: unknown }[];
   } | null;
@@ -173,6 +176,14 @@ export interface SectionContentProps {
   supportingDocumentsStepConfig?: Record<string, unknown> | null;
   /** Stored amendment remarks for resubmit comparison (modal only). */
   resubmitAmendmentRemarks?: Array<{ scope: string; scope_key: string; remark: string }>;
+  /**
+   * Frozen/live product workflow — used by Acceptance tab for acknowledgement labels
+   * and signing hub. Omit in resubmit comparison (docs-only).
+   */
+  productWorkflow?: unknown;
+  /** When false, Acceptance signing actions (void/remind) are disabled. */
+  canManageSigning?: boolean;
+  productVersion?: number | null;
 }
 
 /** Renders section content by descriptor. Single place to map descriptor → component. */
@@ -217,6 +228,9 @@ export function SectionContent({
   hideSectionComments = false,
   supportingDocumentsStepConfig = null,
   resubmitAmendmentRemarks,
+  productWorkflow,
+  canManageSigning = true,
+  productVersion = null,
 }: SectionContentProps) {
   const reviewItems =
     (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
@@ -367,12 +381,12 @@ export function SectionContent({
           }
         />
       );
-    case "acceptance_documents":
+    case "acceptance_documents": {
+      const structureType = (app.financing_structure as { structure_type?: string } | null | undefined)
+        ?.structure_type;
       return (
-        <DocumentsSection
+        <AcceptanceSection
           supportingDocuments={app.acceptance_documents}
-          title="Acceptance"
-          documentKind="acceptance"
           reviewItems={reviewItems}
           isReviewable={isReviewable}
           approvePending={approveItemPending}
@@ -386,12 +400,25 @@ export function SectionContent({
           onApproveItem={(id) => onApproveItem(id, "document")}
           onRejectItem={(id) => onRejectItem(id, "document")}
           onRequestAmendmentItem={(id) => onRequestAmendmentItem(id, "document")}
-          onResetItemToPending={onResetItemToPending ? (id) => onResetItemToPending(id, "document") : undefined}
+          onResetItemToPending={
+            onResetItemToPending ? (id) => onResetItemToPending(id, "document") : undefined
+          }
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
-          hideSectionComments={hideSectionComments}
+          hideSectionComments={hideSectionComments || !!sectionComparison}
+          applicationId={sectionComparison ? undefined : liveApplicationId}
+          workflow={productWorkflow}
+          people={app.people ?? []}
+          guarantors={app.application_guarantors}
+          contractId={app.contract?.id ?? null}
+          productVersion={productVersion}
+          canManageSigning={canManageSigning}
+          contractOfferDetails={app.contract?.offer_details}
+          invoices={app.invoices ?? []}
+          structureType={structureType}
         />
       );
+    }
     case "contract_details": {
       const structureType = (app.financing_structure as { structure_type?: string } | null | undefined)?.structure_type;
       const isInvoiceOnly = structureType === "invoice_only";

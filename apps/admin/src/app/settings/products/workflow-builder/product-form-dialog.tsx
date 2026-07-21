@@ -497,10 +497,9 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       await uploadTemplatesAndMerge(productId, nextSteps, onS3KeyUploaded);
 
       const payload = buildPayloadFromSteps(nextSteps);
+      // Keep merged S3 keys in UI so a failed persist still looks dirty and can retry.
+      // Do not advance initialWorkflowRef until the API update succeeds.
       setSteps(payload);
-      if (isEdit) {
-        initialWorkflowRef.current = normalizeWorkflow(payload);
-      }
       const marketplaceListingDurationNum =
         marketplaceListingDurationDays.trim() !== ""
           ? (() => {
@@ -538,6 +537,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
             default_facility_fee_rate_percent: defaultFacilityFeeRatePercentNum,
           },
         });
+        initialWorkflowRef.current = normalizeWorkflow(payload);
         toast.success("Product updated");
       } else {
         await updateProduct.mutateAsync({

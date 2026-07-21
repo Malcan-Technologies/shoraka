@@ -88,7 +88,6 @@ import {
 } from "@/lib/admin-director-shareholder-review-message";
 import { ApplicationStatusBadge } from "@/components/application-review";
 import { isSignedOfferLetterAvailable } from "@/components/application-review/offer-signing-availability";
-import { SigningEnvelopePanel } from "@/components/application-review/signing/signing-envelope-panel";
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
 import type { AdminPermission } from "@cashsouk/types";
@@ -1012,22 +1011,6 @@ export default function DynamicApplicationDetailPage() {
                     </CardContent>
                   </Card>
 
-                  <SigningEnvelopePanel
-                    applicationId={applicationId}
-                    workflow={(currentProduct as { workflow?: unknown } | undefined)?.workflow}
-                    people={(app as { people?: import("@cashsouk/types").ApplicationPersonRow[] }).people ?? []}
-                    guarantors={(app as { application_guarantors?: unknown }).application_guarantors}
-                    contractId={(app.contract as { id?: string } | null | undefined)?.id ?? null}
-                    productVersion={typeof app.product_version === "number" ? app.product_version : null}
-                    canManage={canAppManage}
-                    offerDetails={
-                      (app.contract as { offer_details?: unknown } | null | undefined)?.offer_details
-                    }
-                    invoices={
-                      (app as { invoices?: { id: string; offer_details?: unknown }[] }).invoices ?? []
-                    }
-                  />
-
                   <ApplicationReviewTabs
                     sections={reviewSections}
                     tabDescriptors={effectiveTabDescriptors}
@@ -1074,6 +1057,13 @@ export default function DynamicApplicationDetailPage() {
                             descriptor={descriptor}
                             app={app}
                             liveApplicationId={applicationId}
+                            productWorkflow={(currentProduct as { workflow?: unknown } | undefined)?.workflow}
+                            productVersion={
+                              typeof (app as { product_version?: number }).product_version === "number"
+                                ? (app as { product_version: number }).product_version
+                                : null
+                            }
+                            canManageSigning={canAppManage}
                             isReviewable={isReviewable}
                             approveSectionPending={approveSection.isPending}
                             approveItemPending={approveItem.isPending}

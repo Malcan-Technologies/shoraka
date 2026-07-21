@@ -95,9 +95,9 @@ Default pair: use **Add LO + Guarantee Acknowledgement** in product settings (`D
 
 ## Admin
 
-- Acceptance tab: review uploads; actions drive `CHANGES_REQUESTED` / `APPROVED_FOR_SIGNING` / reject-withdraw.
-- Signing package panel: show phase badge; disable create/send messaging until `APPROVED_FOR_SIGNING`.
-- Show recorded acknowledgement timestamps read-only when present.
+- Acceptance tab is the **primary-offer hub**: offer-acceptance status + acknowledgements, acceptance document review, then signing package (remind/void/history).
+- Actions on acceptance docs drive `CHANGES_REQUESTED` / `APPROVED_FOR_SIGNING` / reject-withdraw.
+- Signing package create/send messaging stays issuer-side; admin panel disables until `APPROVED_FOR_SIGNING`.
 - Tab visibility: show Acceptance when `workflowUsesOfferAcceptanceFlow` (acknowledgements and/or acceptance documents).
 - **Structure-aware tab order** (`getReviewSectionOrder`):
   - Contract / default: `… → Contract → Acceptance → Invoice`
@@ -122,4 +122,5 @@ Presence-only gate for send is **replaced** by admin-approved for this flow when
 1. **Config + types + Step 1 UI + submit API** — `offer_acknowledgements`, `offer_acceptance` on `offer_details`, issuer Step 1, remove upload from Step 3 when acceptance phase applies.
 2. **Admin gate** — block create/send until approved; wire review outcomes to `offer_acceptance.status`; admin panel copy.
 3. **Admin review linearity (Slice A)** — structure-aware tab order + Acceptance prerequisites + tab visibility via `workflowUsesOfferAcceptanceFlow`.
-4. **Deferred** — 7/14-day clocks; HTML merge templates; move Signing package into Acceptance hub (Slice B); Send Offer → Acceptance (v2).
+4. **Acceptance hub (Slice B)** — move Signing package + offer-acceptance summary into the Acceptance tab (status → docs → signing).
+5. **Deferred** — 7/14-day clocks; HTML merge templates; signed-download hub + post-send tab handoff (Slice C); Send Offer → Acceptance (v2).
