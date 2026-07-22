@@ -33,6 +33,7 @@ import { renderProspectusPageThreeHtml } from "./render-prospectus-page-three";
 import { renderProspectusPageTwoHtml } from "./render-prospectus-page-two";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
 import { buildProspectusDatesPaymasterDocument } from "./render-prospectus-dates-paymaster";
+import { buildProspectusPageOneHtml } from "./prospectus-page-one.html";
 
 describe("prospectus boss-review alignment", () => {
   describe("Page 1 dates and expected return", () => {
@@ -48,6 +49,18 @@ describe("prospectus boss-review alignment", () => {
       expect(maturityIdx).toBeGreaterThan(closingIdx);
       expect(paymasterIdx).toBeGreaterThan(maturityIdx);
       expect(data.closingDate).toMatch(/\(\d+ days\)$/);
+    });
+
+    it("includes Closing Date in assembled Page 1 hero HTML in the same order", () => {
+      const html = buildProspectusPageOneHtml(SAMPLE_PROSPECTUS_PAGE_ONE);
+      const listingIdx = html.indexOf("<b>Listing Date</b>");
+      const closingIdx = html.indexOf("<b>Closing Date</b>");
+      const maturityIdx = html.indexOf("<b>Maturity Date</b>");
+      const paymasterIdx = html.indexOf("<b>Paymaster</b>");
+      expect(closingIdx).toBeGreaterThan(listingIdx);
+      expect(maturityIdx).toBeGreaterThan(closingIdx);
+      expect(paymasterIdx).toBeGreaterThan(maturityIdx);
+      expect(html).toContain(SAMPLE_PROSPECTUS_PAGE_ONE.datesPaymaster.closingDate);
     });
 
     it("matches investor portal net expected return helper with no local formula", () => {

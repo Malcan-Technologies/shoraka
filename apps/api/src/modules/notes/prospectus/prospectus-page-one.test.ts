@@ -22,7 +22,7 @@ import {
   PROSPECTUS_PAGE_ONE_NOTE_SELECT,
   type ProspectusPageOneNoteRecord,
 } from "./prospectus-page-one-prisma";
-import { SAMPLE_PROSPECTUS_PAGE_ONE } from "./prospectus-page-one.sample-data";
+import { SAMPLE_PROSPECTUS_PAGE_ONE, SAMPLE_PROSPECTUS_PAGE_ONE_INPUT } from "./prospectus-page-one.sample-data";
 import {
   PROSPECTUS_PAGE_ONE_HEIGHT_MM,
   PROSPECTUS_PAGE_ONE_WIDTH_MM,
@@ -542,6 +542,50 @@ describe("prospectus Page 1 assembly and HTML", () => {
     expect(html).toContain("Product Terms and Risk Disclosure Statement");
     expect(html).toContain("Investments are subject to credit risk");
     expect(html).not.toContain("Investment are subjects");
+  });
+
+  it("renders Closing Date in the Page 1 hero after Listing Date and before Maturity Date", () => {
+    const html = renderProspectusPageOneHtml(SAMPLE_PROSPECTUS_PAGE_ONE);
+    const listingIdx = html.indexOf("<b>Listing Date</b>");
+    const closingIdx = html.indexOf("<b>Closing Date</b>");
+    const maturityIdx = html.indexOf("<b>Maturity Date</b>");
+    const paymasterIdx = html.indexOf("<b>Paymaster</b>");
+    expect(listingIdx).toBeGreaterThan(-1);
+    expect(closingIdx).toBeGreaterThan(listingIdx);
+    expect(maturityIdx).toBeGreaterThan(closingIdx);
+    expect(paymasterIdx).toBeGreaterThan(maturityIdx);
+
+    expect(html).toContain("<b>Closing Date</b><span>29 May 2025 (14 days)</span>");
+    expect(html).toContain("<b>Listing Date</b><span>15 May 2025</span>");
+    expect(html).not.toContain("Data not available");
+    expect(html).not.toContain(">N/A<");
+  });
+
+  it("renders — for missing Closing Date in the Page 1 hero", () => {
+    const page = buildProspectusPageOne({
+      ...SAMPLE_PROSPECTUS_PAGE_ONE_INPUT,
+      datesPaymaster: {
+        ...SAMPLE_PROSPECTUS_PAGE_ONE_INPUT.datesPaymaster,
+        listingClosesAt: null,
+      },
+    });
+    expect(page.datesPaymaster.closingDate).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    const html = renderProspectusPageOneHtml(page);
+    expect(html).toMatch(/<b>Closing Date<\/b><span>—<\/span>/);
+    expect(html).not.toContain("Data not available");
+  });
+
+  it("uses server listingClosesAt for Closing Date (not a client-overridable field)", () => {
+    const page = buildProspectusPageOne({
+      ...SAMPLE_PROSPECTUS_PAGE_ONE_INPUT,
+      datesPaymaster: {
+        ...SAMPLE_PROSPECTUS_PAGE_ONE_INPUT.datesPaymaster,
+        listingClosesAt: "2025-06-01T00:00:00.000Z",
+      },
+    });
+    expect(page.datesPaymaster.closingDate).toContain("1 June 2025");
+    const html = renderProspectusPageOneHtml(page);
+    expect(html).toContain("1 June 2025");
   });
 
   it("omits audit metadata, Prisma IDs, source paths, and debug JSON", () => {

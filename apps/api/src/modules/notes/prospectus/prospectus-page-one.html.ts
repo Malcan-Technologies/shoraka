@@ -115,6 +115,9 @@ ${PROSPECTUS_DOCUMENT_CSS}
         <div class="meta-row">${prospectusIcon.calendarDays("icon")}<div><b>Listing Date</b><span>${escapeHtml(
           s2.listingDate
         )}</span></div></div>
+        <div class="meta-row">${prospectusIcon.calendarClock("icon")}<div><b>Closing Date</b><span>${escapeHtml(
+          s2.closingDate
+        )}</span></div></div>
         <div class="meta-row">${prospectusIcon.calendarClock("icon")}<div><b>Maturity Date</b><span>${escapeHtml(
           s2.maturityDateWithTenure
         )}</span></div></div>

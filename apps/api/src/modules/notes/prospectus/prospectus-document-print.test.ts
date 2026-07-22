@@ -84,5 +84,7 @@ describe("combineProspectusPagesHtml", () => {
     expect(combined).toContain('data-page="prospectus-page-three"');
     expect(combined).not.toContain("<hr");
     expect(combined).toContain(PROSPECTUS_DOCUMENT_CSS.slice(0, 40));
+    expect(combined).toContain("<b>Closing Date</b>");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(".key-dates .meta-row{margin-bottom:12px}");
   });
 });
