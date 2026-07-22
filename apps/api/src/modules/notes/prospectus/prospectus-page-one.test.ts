@@ -257,6 +257,12 @@ describe("prospectus Page 1 mapper (Stages 1–6)", () => {
     expect(page.atAGlance.expectedReturn).toBe(
       page.mainFinancialTerms.expectedReturnForInvestmentPeriod
     );
+    const html = renderProspectusPageOneHtml(page);
+    expect(html).toContain("<dt>Expected Return (p.a.)</dt>");
+    expect(html).toContain("<small>Expected Return (p.a.)</small>");
+    expect(html).not.toContain("Expected Return for investment period");
+    expect(html).not.toContain("Expected Returns");
+    expect(html).not.toContain("Expected Return per annum");
     expect(page.shariahHighlight.specificShariahPrinciple).toBe(
       page.paymentBasisShariah.shariahPrinciple
     );

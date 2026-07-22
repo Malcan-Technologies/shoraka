@@ -141,7 +141,7 @@ ${PROSPECTUS_DOCUMENT_CSS}
           ${summaryRow("Financing Amount", s4a.financingAmount, "4a")}
           ${summaryRow("Minimum Investment", s4a.minimumInvestment)}
           ${summaryRow("Profit rate (p.a.)", s4a.profitRate)}
-          ${summaryRow("Expected Return for investment period", s4a.expectedReturnForInvestmentPeriod)}
+          ${summaryRow("Expected Return (p.a.)", s4a.expectedReturnForInvestmentPeriod)}
           ${summaryRow("Tenure", s4b.tenure, "4b")}
           ${summaryRow("Maturity Date", s4b.maturityDate)}
           ${summaryRow("Purpose of Financing", s4b.purposeOfFinancing)}
@@ -167,7 +167,7 @@ ${PROSPECTUS_DOCUMENT_CSS}
         <div class="stat">${prospectusIcon.chart("icon")}<small>Profit Rate for Investors</small><b>${escapeHtml(
           s6.profitRate
         )}</b></div>
-        <div class="stat">${prospectusIcon.handCoins("icon")}<small>Expected Returns</small><b>${escapeHtml(
+        <div class="stat">${prospectusIcon.handCoins("icon")}<small>Expected Return (p.a.)</small><b>${escapeHtml(
           s6.expectedReturn
         )}</b></div>
         <div class="stat">${prospectusIcon.calendarClock("icon")}<small>Tenure</small><b>${escapeHtml(

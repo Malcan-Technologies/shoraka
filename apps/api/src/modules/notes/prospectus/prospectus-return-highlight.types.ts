@@ -190,13 +190,14 @@ export const PROSPECTUS_RETURN_HIGHLIGHT_FIELD_SOURCES: Record<
       "Annual net after fee on profit. Requires finite gross + fee. Zero fee → net equals gross. Missing fee → DNA (do not silently treat as 0).",
   },
   expectedReturnForInvestmentPeriod: {
-    label: "Expected Return for Investment Period",
-    canonicalSource: "none confirmed (Stage 4A unresolved)",
-    availability: "unresolved",
+    label: "Expected Return (p.a.)",
+    canonicalSource:
+      "resolveNetExpectedReturnRatePercent(profit_rate_percent, service_fee_rate_percent)",
+    availability: "calculated",
     surface: "canva",
     possibleAlternatives: "gross×days/365; settlement RM; Canva 3.95% — not used",
     notes:
-      "Unresolved. Prospectus tenure ≠ settlement activated_at accrual. Reuse Stage 4A DNA value.",
+      "Same annualised portal net rate as Stage 4A / Admin. Property name is legacy; display label is Expected Return (p.a.).",
   },
   returnClassification: {
     label: "Return Classification",

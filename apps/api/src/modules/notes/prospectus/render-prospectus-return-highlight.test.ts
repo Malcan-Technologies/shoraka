@@ -21,7 +21,10 @@ describe("prospectus Return Investor Highlight (Page 1 DATA STAGE 5C)", () => {
     );
     expect(
       PROSPECTUS_RETURN_HIGHLIGHT_FIELD_SOURCES.expectedReturnForInvestmentPeriod.availability
-    ).toBe("unresolved");
+    ).toBe("calculated");
+    expect(
+      PROSPECTUS_RETURN_HIGHLIGHT_FIELD_SOURCES.expectedReturnForInvestmentPeriod.label
+    ).toBe("Expected Return (p.a.)");
     expect(PROSPECTUS_RETURN_HIGHLIGHT_FIELD_SOURCES.returnClassification.availability).toBe(
       "unresolved"
     );

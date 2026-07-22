@@ -19,7 +19,9 @@ import { buildProspectusAtAGlanceDocument } from "./render-prospectus-at-a-glanc
 describe("prospectus At a Glance (Page 1 DATA STAGE 6)", () => {
   it("documents Stage 4A/Stage 2 reuse and corrected labels", () => {
     expect(PROSPECTUS_AT_A_GLANCE_FIELD_SOURCES.profitRate.label).toBe("Profit Rate (p.a.)");
-    expect(PROSPECTUS_AT_A_GLANCE_FIELD_SOURCES.expectedReturn.label).toBe("Expected Return");
+    expect(PROSPECTUS_AT_A_GLANCE_FIELD_SOURCES.expectedReturn.label).toBe(
+      "Expected Return (p.a.)"
+    );
     expect(PROSPECTUS_AT_A_GLANCE_FIELD_SOURCES.financingAmount.reusedFrom).toContain("Stage 4A");
     expect(PROSPECTUS_AT_A_GLANCE_FIELD_SOURCES.tenure.reusedFrom).toContain("Stage 2");
     expect(PROSPECTUS_AT_A_GLANCE_FIELD_SOURCES.profitRate.notes).toMatch(/Investors/i);
@@ -112,14 +114,15 @@ describe("prospectus At a Glance (Page 1 DATA STAGE 6)", () => {
     const html = buildProspectusAtAGlanceDocument(data);
     expect(html).toContain("Financing Amount: RM 500,000.00");
     expect(html).toContain("Profit Rate (p.a.): 12%");
-    expect(html).toContain("Expected Return: 10.8%");
+    expect(html).toContain("Expected Return (p.a.): 10.8%");
     expect(html).toContain("Tenure: 120 days");
     expect(html).toContain("Minimum Investment: RM 100.00");
     expect(html).toContain("Profit Rate (p.a.)");
-    expect(html).toContain("Expected Return");
+    expect(html).toContain("Expected Return (p.a.)");
     expect(html).not.toContain("Profit Rate for Investors");
     expect(html).not.toContain("Profit Rate (p.a.): 12% p.a.");
     expect(html).not.toContain("Expected Returns");
+    expect(html).not.toContain("for investment period");
     expect(html).not.toContain("3.95%");
     expect(html).not.toContain("reusedFromStage4A");
     expect(html).not.toContain("annual_gross_before_fees");

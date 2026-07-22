@@ -29,7 +29,7 @@ export function buildProspectusAtAGlanceHtml(data: ProspectusAtAGlance): string 
     <p>
       Financing Amount: ${escapeHtml(data.financingAmount)}<br />
       Profit Rate (p.a.): ${escapeHtml(data.profitRate)}<br />
-      Expected Return: ${escapeHtml(data.expectedReturn)}<br />
+      Expected Return (p.a.): ${escapeHtml(data.expectedReturn)}<br />
       Tenure: ${escapeHtml(data.tenure)}<br />
       Minimum Investment: ${escapeHtml(data.minimumInvestment)}
     </p>

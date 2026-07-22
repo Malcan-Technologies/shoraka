@@ -678,14 +678,14 @@ export const PROSPECTUS_FUTURE_FIELD_SOURCES: Record<
     notes: "Stage 4A annual GROSS before investor service fees. Not net / period return.",
   },
   expectedReturnPeriod: {
-    label: "Expected Return for Investment Period",
+    label: "Expected Return (p.a.)",
     model: "n/a",
-    path: "no period-% field",
+    path: "resolveNetExpectedReturnRatePercent(profit_rate_percent, service_fee_rate_percent)",
     origin: "calculated",
-    availability: "unresolved",
-    existingApi: "none approved; do not use Canva 3.95% or annual net as period %",
+    availability: "calculated",
+    existingApi: "investor position expectedReturnRatePercent (net annual)",
     notes:
-      "Stage 4A: —. Pending formula, gross-vs-net, day-count, rounding. Stage 6 reuses Stage 4A value.",
+      "Stage 4A/6/Admin: annualised portal net rate. Display label Expected Return (p.a.). Not investment-period return %.",
   },
   tenure: {
     label: "Tenure",

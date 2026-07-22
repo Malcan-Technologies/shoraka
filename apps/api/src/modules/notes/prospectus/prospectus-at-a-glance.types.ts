@@ -113,14 +113,14 @@ export const PROSPECTUS_AT_A_GLANCE_FIELD_SOURCES: Record<
       "Annual GROSS before service fees. Canva \"Profit Rate for Investors\" rejected as misleading. labelDecision = corrected_from_canva. Value is percent only (no second \"p.a.\").",
   },
   expectedReturn: {
-    label: "Expected Return",
+    label: "Expected Return (p.a.)",
     canonicalSource:
       "resolveNetExpectedReturnRatePercent(profit_rate_percent, service_fee_rate_percent)",
     availability: "calculated",
     surface: "canva",
     reusedFrom: "Stage 4A expectedReturnForInvestmentPeriod",
     notes:
-      "Portal-consistent annual net expected return (p.a.). Same helper as investor position surfaces. Not a prospectus-only period formula.",
+      "Portal-consistent annual net expected return (p.a.). Same helper as investor position surfaces. Not a prospectus-only period formula. Display label matches Admin and Investment Summary.",
   },
   tenure: {
     label: "Tenure",
