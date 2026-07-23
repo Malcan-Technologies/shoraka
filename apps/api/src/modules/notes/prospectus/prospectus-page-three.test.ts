@@ -466,7 +466,8 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(html).toContain("meta-strip");
       expect(html).toContain("grid-template-columns:repeat(5,minmax(0,1fr))");
       expect(html).not.toContain("source-statement");
-      expect(html).toContain('class="source"');
+      expect(html).toContain("page-footer-group");
+      expect(html).toContain("financial-source");
       expect(html).toContain("Source:");
       expect(html).toContain('data-stage="footer"');
       expect(html).toContain("prospectus-footer");
@@ -535,7 +536,8 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       const takeawaysIdx = html.indexOf('data-content-stage="investor-takeaways"');
       expect(html.lastIndexOf("data-content-stage=")).toBe(takeawaysIdx);
       expect(html).not.toContain("source-statement");
-      expect(html).toContain('class="source"');
+      expect(html).toContain("page-footer-group");
+      expect(html).toContain("financial-source");
       expect(html).toContain("Source:");
       expect(html).toContain('data-stage="footer"');
       expect(html).toContain("prospectus-footer");

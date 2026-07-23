@@ -35,6 +35,10 @@ import {
   getProspectusOfficialLogoDataUri,
 } from "./prospectus-header-logo";
 import {
+  PROSPECTUS_FOOTER_DISCLAIMER_LINE1,
+  PROSPECTUS_FOOTER_DISCLAIMER_LINE2,
+} from "./prospectus-footer.html";
+import {
   PROSPECTUS_DETAILED_FINANCIAL_SUBTITLE,
   PROSPECTUS_HEADER_TAGLINE,
 } from "./prospectus-static-copy";
@@ -281,6 +285,45 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
       combined.match(/data-page="prospectus-page-(one|two|three)"/g)?.length
     ).toBe(3);
     expect(combined).not.toContain("page-bottom");
+  });
+
+  it("Pages 1–3 use shared bottom-aligned footer group with unchanged disclaimer", () => {
+    const h1 = buildProspectusPageOneHtml(SAMPLE_PROSPECTUS_PAGE_ONE);
+    const h2 = buildProspectusPageTwoHtml(SAMPLE_PROSPECTUS_PAGE_TWO);
+    const h3 = buildProspectusPageThreeHtml(SAMPLE_PROSPECTUS_PAGE_THREE);
+
+    for (const html of [h1, h2, h3]) {
+      const body = html.slice(html.indexOf("<body>"));
+      expect(body).toContain('class="page-footer-group"');
+      expect((body.match(/class="page-footer-group"/g) ?? []).length).toBe(1);
+      expect((body.match(/class="prospectus-footer"/g) ?? []).length).toBe(1);
+      expect(body).toContain(PROSPECTUS_FOOTER_DISCLAIMER_LINE1);
+      expect(body).toContain(PROSPECTUS_FOOTER_DISCLAIMER_LINE2);
+      expect(body.indexOf("page-footer-group")).toBeGreaterThan(
+        body.indexOf('data-stage="header"')
+      );
+    }
+
+    const p3Body = h3.slice(h3.indexOf("<body>"));
+    const group = p3Body.slice(
+      p3Body.indexOf('class="page-footer-group"'),
+      p3Body.indexOf("</div>", p3Body.indexOf('class="page-footer-group"')) + 6
+    );
+    expect(group).toContain("financial-source");
+    expect(group.indexOf("financial-source")).toBeLessThan(
+      group.indexOf("prospectus-footer")
+    );
+    expect(group).toMatch(/Source:/);
+
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(
+      ".page-footer-group{margin-top:auto;flex-shrink:0}"
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(
+      ".page-footer-group .prospectus-footer{margin-top:0"
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).not.toContain(
+      ".prospectus-page-three>.prospectus-footer{margin-top:8px"
+    );
   });
 
   it("Page 2 top issuer/invoice block is not a card and shows all seven invoice rows", () => {
