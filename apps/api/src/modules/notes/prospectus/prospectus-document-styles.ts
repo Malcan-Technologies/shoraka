@@ -9,9 +9,10 @@ export const PROSPECTUS_A4_HEIGHT_MM = 297;
 
 /**
  * Shared outer page canvas padding for Pages 1–3 (top / horizontal / bottom).
+ * Top is tighter so space can sit below the red header divider instead.
  * Do not override per-page unless a temporary fit emergency is approved.
  */
-export const PROSPECTUS_PAGE_PADDING_TOP_PX = 38;
+export const PROSPECTUS_PAGE_PADDING_TOP_PX = 28;
 export const PROSPECTUS_PAGE_PADDING_X_PX = 28;
 export const PROSPECTUS_PAGE_PADDING_BOTTOM_PX = 28;
 export const PROSPECTUS_PAGE_PADDING_CSS = `${PROSPECTUS_PAGE_PADDING_TOP_PX}px ${PROSPECTUS_PAGE_PADDING_X_PX}px ${PROSPECTUS_PAGE_PADDING_BOTTOM_PX}px`;
@@ -29,8 +30,13 @@ export const PROSPECTUS_LOGO_HEIGHT_PX = PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX;
 /** @deprecated Prefer PROSPECTUS_LOGO_DISPLAY_WIDTH_PX */
 export const PROSPECTUS_LOGO_MAX_WIDTH_PX = PROSPECTUS_LOGO_DISPLAY_WIDTH_PX;
 
-/** Shared header sizing — identical on Pages 1–3. */
-export const PROSPECTUS_HEADER_HEIGHT_PX = 64;
+/**
+ * Shared header sizing — identical on Pages 1–3.
+ * Header row hugs the logo (52px) with minimal unused band above/below.
+ */
+export const PROSPECTUS_HEADER_HEIGHT_PX = 56;
+/** Gap between red header divider and first page content (shared Pages 1–3). */
+export const PROSPECTUS_HEADER_CONTENT_GAP_PX = 10;
 export const PROSPECTUS_TAGLINE_FONT_SIZE_PX = 8.5;
 export const PROSPECTUS_BRAND_GAP_PX = 12;
 
@@ -84,6 +90,7 @@ export const PROSPECTUS_DOCUMENT_CSS = `
   --prospectus-page-padding-bottom:${PROSPECTUS_PAGE_PADDING_BOTTOM_PX}px;
   --prospectus-page-padding:var(--prospectus-page-padding-top) var(--prospectus-page-padding-x) var(--prospectus-page-padding-bottom);
   --prospectus-header-height:${PROSPECTUS_HEADER_HEIGHT_PX}px;
+  --prospectus-header-content-gap:${PROSPECTUS_HEADER_CONTENT_GAP_PX}px;
   --prospectus-logo-width:${PROSPECTUS_LOGO_DISPLAY_WIDTH_PX}px;
   --prospectus-logo-height:${PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX}px;
   --prospectus-tagline-font-size:${PROSPECTUS_TAGLINE_FONT_SIZE_PX}px;
@@ -145,7 +152,7 @@ body{
 .page:last-child{
   margin-bottom:0;
 }
-.page-header{height:var(--prospectus-header-height);border-bottom:2px solid var(--prospectus-header-divider);display:flex;justify-content:space-between;align-items:center;margin-bottom:0;flex:none}
+.page-header{height:var(--prospectus-header-height);border-bottom:2px solid var(--prospectus-header-divider);display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--prospectus-header-content-gap);flex:none}
 .brand{display:flex;align-items:center;gap:var(--prospectus-brand-gap);position:relative;min-width:0}
 .brand-logo{width:var(--prospectus-logo-width);height:var(--prospectus-logo-height);object-fit:contain;object-position:left center;flex:none;display:block}
 .brand-mark-placeholder{width:48px;height:var(--prospectus-logo-height);border:2px solid var(--red);background:var(--red);border-radius:3px;flex:none}
@@ -243,8 +250,7 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
 .work-list p{display:flex;align-items:flex-start;gap:10px;font-size:9px;margin-bottom:9px}.work-list .icon{flex:none;width:var(--prospectus-icon-work);height:var(--prospectus-icon-work);padding:4px;box-sizing:border-box}
 .risk-cta{display:grid;grid-template-columns:2fr 1fr;gap:9px;margin-top:var(--space-3);align-items:stretch}.risk-cta>.card,.risk-cta>.cta{padding:10px;min-height:100%}
 
-/* Page 2 only — recover A4 height from the top issuer/invoice block (logo/header size unchanged) */
-.prospectus-page-two .page-header{margin-bottom:0}
+/* Page 2 only — recover A4 height from the top issuer/invoice block (logo size unchanged) */
 .prospectus-page-two .page-two-issuer-grid>section{padding:6px 12px 4px}
 .prospectus-page-two .page-two-issuer-grid>section h2{margin-bottom:6px}
 .prospectus-page-two .issuer-profile{margin:6px 0;gap:12px}

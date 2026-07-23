@@ -16,6 +16,7 @@ import { SAMPLE_PROSPECTUS_PAGE_TWO } from "./prospectus-page-two.sample-data";
 import { buildProspectusPageTwoHtml } from "./prospectus-page-two.html";
 import {
   PROSPECTUS_DOCUMENT_CSS,
+  PROSPECTUS_HEADER_CONTENT_GAP_PX,
   PROSPECTUS_HEADER_HEIGHT_PX,
   PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX,
   PROSPECTUS_LOGO_DISPLAY_WIDTH_PX,
@@ -165,13 +166,26 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
   });
 
   it("uses shared header/logo/title/colour/icon tokens with no per-page shrink overrides", () => {
-    expect(PROSPECTUS_HEADER_HEIGHT_PX).toBe(64);
+    expect(PROSPECTUS_HEADER_HEIGHT_PX).toBe(56);
+    expect(PROSPECTUS_HEADER_CONTENT_GAP_PX).toBe(10);
     expect(PROSPECTUS_LOGO_DISPLAY_WIDTH_PX).toBe(270);
     expect(PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX).toBe(52);
     expect(PROSPECTUS_LOGO_HEIGHT_PX).toBe(52);
     expect(PROSPECTUS_TAGLINE_FONT_SIZE_PX).toBe(8.5);
     expect(PROSPECTUS_SECTION_TITLE_FONT_SIZE_PX).toBe(12);
     expect(PROSPECTUS_PAGE_TITLE_FONT_SIZE_PX).toBe(22);
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(
+      "--prospectus-header-content-gap:10px"
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(
+      "margin-bottom:var(--prospectus-header-content-gap)"
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).not.toMatch(
+      /\.prospectus-page-(one|two|three)[^{]*\{[^}]*\.page-header\{[^}]*margin-bottom:\s*0/
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).not.toContain(
+      ".prospectus-page-two .page-header{margin-bottom:0}"
+    );
     expect(PROSPECTUS_DOCUMENT_CSS).toContain(
       "width:var(--prospectus-logo-width)"
     );
@@ -238,8 +252,8 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
   });
 
   it("Pages 1–3 use the same shared outer page padding token", () => {
-    expect(PROSPECTUS_PAGE_PADDING_CSS).toBe("38px 28px 28px");
-    expect(PROSPECTUS_PAGE_PADDING_TOP_PX).toBe(38);
+    expect(PROSPECTUS_PAGE_PADDING_CSS).toBe("28px 28px 28px");
+    expect(PROSPECTUS_PAGE_PADDING_TOP_PX).toBe(28);
     expect(PROSPECTUS_PAGE_PADDING_X_PX).toBe(28);
     expect(PROSPECTUS_PAGE_PADDING_BOTTOM_PX).toBe(28);
     expect(PROSPECTUS_DOCUMENT_CSS).toContain(
