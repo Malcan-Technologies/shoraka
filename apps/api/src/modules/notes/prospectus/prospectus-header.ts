@@ -11,6 +11,7 @@ import {
   type ProspectusHeader,
   type ProspectusHeaderInput,
 } from "./prospectus-header.types";
+import { PROSPECTUS_HEADER_TAGLINE } from "./prospectus-static-copy";
 
 export function buildProspectusHeader(input: ProspectusHeaderInput = {}): ProspectusHeader {
   void input.productNameEndingInI;
@@ -25,13 +26,13 @@ export function buildProspectusHeader(input: ProspectusHeaderInput = {}): Prospe
       previewSrc: PROSPECTUS_OFFICIAL_LOGO_PREVIEW_RELATIVE_SRC,
       repoPath: PROSPECTUS_OFFICIAL_LOGO_REPO_PATH,
     },
-    tagline: PROSPECTUS_DATA_NOT_AVAILABLE,
+    tagline: PROSPECTUS_HEADER_TAGLINE,
     shariahStatusBadge: PROSPECTUS_DATA_NOT_AVAILABLE,
     audit: {
       brand: {
         logoSource: PROSPECTUS_OFFICIAL_LOGO_REPO_PATH,
-        taglineSource: "unavailable",
-        taglineApproved: false,
+        taglineSource: "repository_static_copy",
+        taglineApproved: true,
       },
       shariahBadge: {
         status: "unresolved",

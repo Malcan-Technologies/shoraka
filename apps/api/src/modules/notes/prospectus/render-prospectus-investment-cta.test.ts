@@ -43,13 +43,13 @@ describe("prospectus Page 2 CTA and shared header (DATA STAGE 8)", () => {
       expect(readFileSync(absoluteLogo, "utf8")).toContain("<svg");
     });
 
-    it("keeps tagline DNA when only legacy/Canva tagline exists", () => {
+    it("uses shared static tagline (legacy Canva input is ignored)", () => {
       const header = buildProspectusHeader({
-        legacyCanvaTagline: "Invest in Growth. Earn with Purpose.",
+        legacyCanvaTagline: "Some other legacy tagline",
       });
-      expect(header.tagline).toBe(HEADER_DNA);
-      expect(header.audit.brand.taglineSource).toBe("unavailable");
-      expect(header.audit.brand.taglineApproved).toBe(false);
+      expect(header.tagline).toBe("Invest in Growth. Earn with Purpose.");
+      expect(header.audit.brand.taglineSource).toBe("repository_static_copy");
+      expect(header.audit.brand.taglineApproved).toBe(true);
     });
 
     it("keeps Shariah badge DNA and ignores -i / Tawarruq / Shoraka", () => {

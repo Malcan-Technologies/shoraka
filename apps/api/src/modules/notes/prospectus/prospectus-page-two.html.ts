@@ -10,6 +10,7 @@ import { escapeHtml } from "./prospectus-html";
 import { prospectusIcon } from "./prospectus-icons";
 import { buildProspectusInvestmentCtaHtml } from "./prospectus-investment-cta.html";
 import { PROSPECTUS_CREDIT_INSIGHTS_DESCRIPTION } from "./prospectus-credit-insights.types";
+import { formatProspectusIndustryAndCompanySize } from "./prospectus-industry-company-size";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
 import type { ProspectusPageTwo } from "./prospectus-page-two.types";
 import {
@@ -70,16 +71,6 @@ ${bodyRows}
 </div>`;
 }
 
-function formatIssuerIndustrySizeLine(industry: string, companySize: string): string {
-  const missingIndustry =
-    !industry.trim() || industry === PROSPECTUS_DATA_NOT_AVAILABLE;
-  const missingSize =
-    !companySize.trim() || companySize === PROSPECTUS_DATA_NOT_AVAILABLE;
-  if (missingIndustry && missingSize) return PROSPECTUS_DATA_NOT_AVAILABLE;
-  return `${missingIndustry ? PROSPECTUS_DATA_NOT_AVAILABLE : industry} | ${
-    missingSize ? PROSPECTUS_DATA_NOT_AVAILABLE : companySize
-  }`;
-}
 
 function ratingRow(label: string, value: string): string {
   const goodClass = /good/i.test(value) ? ' class="good"' : "";
@@ -134,7 +125,7 @@ ${PROSPECTUS_DOCUMENT_CSS}
           <div class="round-icon">${prospectusIcon.building("icon")}</div>
           <div>
             <b class="issuer-meta-line">${escapeHtml(
-              formatIssuerIndustrySizeLine(s1.industry, s1.companySize)
+              formatProspectusIndustryAndCompanySize(s1.industry, s1.companySize)
             )}</b>
             <span>${escapeHtml(s1.registeredCountry)}</span>
           </div>

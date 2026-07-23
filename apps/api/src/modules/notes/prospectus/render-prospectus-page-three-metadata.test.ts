@@ -33,9 +33,11 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
     expect(data.pageTitle).toBe(PROSPECTUS_PAGE_THREE_PAGE_TITLE);
   });
 
-  it("keeps page subtitle as —", () => {
-    expect(withSource().pageSubtitle).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-    expect(withSource().pageSubtitle).toBe("—");
+  it("uses approved static Page 3 subtitle", () => {
+    expect(withSource().pageSubtitle).toBe(
+      "Additional financial view for investors seeking deeper issuer analysis"
+    );
+    expect(withSource().pageSubtitle).not.toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
   it("hides issuer identity from metadata strip", () => {
@@ -57,24 +59,24 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
     ).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("shows Industry only when Company Size is missing", () => {
+  it("shows Industry | — when Company Size is missing", () => {
     expect(
       withSource({ issuerSector: "Construction", officerCompanySize: undefined }).metadata
         .sector
-    ).toBe("Construction");
+    ).toBe("Construction | —");
   });
 
-  it("shows Company Size only when Industry is missing", () => {
+  it("shows — | Size when Industry is missing", () => {
     expect(
       withSource({ issuerSector: undefined, officerCompanySize: "Small" }).metadata.sector
-    ).toBe("Small");
+    ).toBe("— | Small");
   });
 
   it("rejects invalid Company Size for Sector (no SME label)", () => {
     expect(
       withSource({ issuerSector: "Construction", officerCompanySize: "SME" }).metadata
         .sector
-    ).toBe("Construction");
+    ).toBe("Construction | —");
   });
 
   it.each(VALID_GRADES)("accepts valid risk rating %s", (grade) => {
@@ -321,7 +323,7 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
     expect(html).not.toContain("extensionPending");
     expect(html).not.toContain("approvedStaticCopyAvailable");
     expect(PROSPECTUS_PAGE_THREE_METADATA_FIELD_SOURCES.pageSubtitle.availability).toBe(
-      "unresolved"
+      "static"
     );
   });
 

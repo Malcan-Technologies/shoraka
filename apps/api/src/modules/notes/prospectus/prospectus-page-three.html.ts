@@ -16,6 +16,7 @@ import {
   PROSPECTUS_PAGE_THREE_HEIGHT_MM,
   PROSPECTUS_PAGE_THREE_WIDTH_MM,
 } from "./prospectus-page-three.types";
+import type { ProspectusPageThreeTrendItem } from "./prospectus-page-three-trends.types";
 
 function yearHeaderCells(
   years: Array<{ yearLabel: string; financialYearEndLabel: string }>
@@ -57,15 +58,25 @@ function metricBodyRows(
     .join("\n");
 }
 
-function trendClass(trend: string): string {
-  const t = trend.trim().toLowerCase();
-  if (t.includes("↑") || t.includes("improv") || t.includes("up") || t === "increasing") {
-    return "up";
+type ApprovedTrendDirection = {
+  approved: boolean;
+  direction: "up" | "down" | "neutral" | null;
+};
+
+/**
+ * Trend cell: arrows only when an approved direction exists.
+ * Today builders set approved:false and direction:null — always —.
+ * Do not invent year-over-year formulas here.
+ */
+function renderTrendCell(item: ProspectusPageThreeTrendItem | undefined): string {
+  const trend = item as ApprovedTrendDirection | undefined;
+  if (trend?.approved === true && trend.direction === "up") {
+    return `<td class="trend-cell up">↑</td>`;
   }
-  if (t.includes("↓") || t.includes("wors") || t.includes("down") || t === "decreasing") {
-    return "down";
+  if (trend?.approved === true && trend.direction === "down") {
+    return `<td class="trend-cell down">↓</td>`;
   }
-  return "";
+  return `<td class="trend-cell">${escapeHtml(PROSPECTUS_DATA_NOT_AVAILABLE)}</td>`;
 }
 
 function takeawayIcon(key: string): string {
@@ -87,34 +98,58 @@ function takeawayIcon(key: string): string {
   }
 }
 
+function metaIcon(labelKey: keyof typeof PROSPECTUS_PAGE_THREE_METADATA_LABELS): string {
+  switch (labelKey) {
+    case "sector":
+      return prospectusIcon.building("icon");
+    case "riskRating":
+      return prospectusIcon.shieldCheck("icon");
+    case "paymaster":
+      return prospectusIcon.landmark("icon");
+    case "paymasterGrading":
+      return prospectusIcon.clipboardCheck("icon");
+    case "confidenceGrading":
+      return prospectusIcon.badgeCheck("icon");
+    default:
+      return prospectusIcon.calendarDays("icon");
+  }
+}
+
 function renderPageTitle(page: ProspectusPageThree): string {
   const { metadata } = page;
-  const subtitle = metadata.pageSubtitle.trim();
-  const subtitleHtml =
-    subtitle.length === 0
-      ? ""
-      : `<p>${escapeHtml(subtitle)}</p>`;
   return `<div class="page-title" data-stage="1" data-content-stage="page-title">
   <h1>${escapeHtml(metadata.pageTitle)}</h1>
-  ${subtitleHtml}
+  <p data-page-subtitle="true">${escapeHtml(metadata.pageSubtitle)}</p>
 </div>`;
 }
 
 function renderMetadataStrip(page: ProspectusPageThree): string {
   const { metadata } = page;
   const labels = PROSPECTUS_PAGE_THREE_METADATA_LABELS;
-  const items: Array<{ label: string; value: string }> = [
-    { label: labels.sector, value: metadata.metadata.sector },
-    { label: labels.riskRating, value: metadata.metadata.riskRating },
-    { label: labels.paymaster, value: metadata.metadata.paymaster },
-    { label: labels.paymasterGrading, value: metadata.metadata.paymasterGrading },
-    { label: labels.confidenceGrading, value: metadata.metadata.confidenceGrading },
+  const items: Array<{
+    key: keyof typeof PROSPECTUS_PAGE_THREE_METADATA_LABELS;
+    label: string;
+    value: string;
+  }> = [
+    { key: "sector", label: labels.sector, value: metadata.metadata.sector },
+    { key: "riskRating", label: labels.riskRating, value: metadata.metadata.riskRating },
+    { key: "paymaster", label: labels.paymaster, value: metadata.metadata.paymaster },
+    {
+      key: "paymasterGrading",
+      label: labels.paymasterGrading,
+      value: metadata.metadata.paymasterGrading,
+    },
+    {
+      key: "confidenceGrading",
+      label: labels.confidenceGrading,
+      value: metadata.metadata.confidenceGrading,
+    },
   ];
   const cells = items
     .map(
       (item) =>
-        `<div class="meta-strip-item">
-  ${prospectusIcon.calendarDays("icon")}
+        `<div class="meta-strip-item" data-meta-key="${item.key}">
+  ${metaIcon(item.key)}
   <span>
     <span class="meta-strip-label">${escapeHtml(item.label)}</span>
     <span class="meta-strip-value">${escapeHtml(item.value)}</span>
@@ -156,7 +191,7 @@ ${metricBodyRows(balanceSheet.years, balanceSheet.rows)}
 function renderCoverage(page: ProspectusPageThree): string {
   const coverage = page.coverageEfficiency;
   const trendByKey = new Map(
-    page.trends.trends.map((item) => [item.metricKey, item.trend] as const)
+    page.trends.trends.map((item) => [item.metricKey, item] as const)
   );
 
   const yearHeaders = yearHeaderCells(coverage.years);
@@ -164,13 +199,12 @@ function renderCoverage(page: ProspectusPageThree): string {
     coverage.years.length === 0
       ? coverage.rows
           .map((row) => {
-            const trend =
-              trendByKey.get(row.key as ProspectusPageThreeCoverageEfficiencyRowKey) ??
-              PROSPECTUS_DATA_NOT_AVAILABLE;
-            const cls = trendClass(trend);
+            const trendItem = trendByKey.get(
+              row.key as ProspectusPageThreeCoverageEfficiencyRowKey
+            );
             return `<tr><td>${escapeHtml(row.label)}</td><td>${escapeHtml(
               PROSPECTUS_DATA_NOT_AVAILABLE
-            )}</td><td class="trend-cell${cls ? ` ${cls}` : ""}">${escapeHtml(trend)}</td></tr>`;
+            )}</td>${renderTrendCell(trendItem)}</tr>`;
           })
           .join("\n")
       : coverage.rows
@@ -178,13 +212,12 @@ function renderCoverage(page: ProspectusPageThree): string {
             const cells = row.values
               .map((value) => `<td>${escapeHtml(value)}</td>`)
               .join("");
-            const trend =
-              trendByKey.get(row.key as ProspectusPageThreeCoverageEfficiencyRowKey) ??
-              PROSPECTUS_DATA_NOT_AVAILABLE;
-            const cls = trendClass(trend);
-            return `<tr><td>${escapeHtml(row.label)}</td>${cells}<td class="trend-cell${
-              cls ? ` ${cls}` : ""
-            }">${escapeHtml(trend)}</td></tr>`;
+            const trendItem = trendByKey.get(
+              row.key as ProspectusPageThreeCoverageEfficiencyRowKey
+            );
+            return `<tr><td>${escapeHtml(row.label)}</td>${cells}${renderTrendCell(
+              trendItem
+            )}</tr>`;
           })
           .join("\n");
 
@@ -224,7 +257,9 @@ function renderTakeaways(page: ProspectusPageThree): string {
         )
         .map(
           (item) =>
-            `<p class="takeaway-item">${takeawayIcon(item.key)}<span><b>${escapeHtml(
+            `<p class="takeaway-item" data-takeaway-key="${escapeHtml(
+              item.key
+            )}">${takeawayIcon(item.key)}<span><b>${escapeHtml(
               item.label
             )}</b> ${escapeHtml(item.takeaway)}</span></p>`
         )
@@ -261,19 +296,13 @@ ${PROSPECTUS_DOCUMENT_CSS}
     ${renderPageTitle(page)}
     ${renderMetadataStrip(page)}
     <div class="comparison-grid">
-      <div class="comparison-row comparison-row-top">
-        ${renderIncome(page)}
-        ${renderBalance(page)}
-      </div>
-      <div class="comparison-row comparison-row-bottom">
-        ${renderCoverage(page)}
-        ${renderTakeaways(page)}
-      </div>
+      ${renderIncome(page)}
+      ${renderBalance(page)}
+      ${renderCoverage(page)}
+      ${renderTakeaways(page)}
     </div>
-    <div class="page-bottom">
-      <em class="source">${escapeHtml(page.financialSource.sourceFooter)}</em>
-      ${buildProspectusFooterHtml()}
-    </div>
+    <em class="source">${escapeHtml(page.financialSource.sourceFooter)}</em>
+    ${buildProspectusFooterHtml()}
   </section>
   </main>
 </body>

@@ -269,7 +269,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(missing.meta.financialMode).toBe("published_unavailable");
       expect(missing.financialSource.years).toEqual([]);
       expect(missing.metadata.metadata).not.toHaveProperty("issuer");
-      expect(missing.metadata.metadata.sector).toBe("Construction");
+      expect(missing.metadata.metadata.sector).toBe("Construction | —");
 
       const malformed = buildProspectusPageThree(
         mapProspectusPageThreeDataToInput({
@@ -362,7 +362,9 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
     it("maps metadata from frozen Note snapshots", () => {
       const page = SAMPLE_PROSPECTUS_PAGE_THREE;
       expect(page.metadata.pageTitle).toBe("DETAILED FINANCIAL COMPARISON");
-      expect(page.metadata.pageSubtitle).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+      expect(page.metadata.pageSubtitle).toBe(
+        "Additional financial view for investors seeking deeper issuer analysis"
+      );
       expect(page.metadata.metadata).not.toHaveProperty("issuer");
       expect(page.metadata.metadata.sector).toBe("Construction | Medium");
       expect(page.metadata.metadata.riskRating).toBe("AA");
@@ -553,12 +555,23 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(html).toContain('data-stage="6"');
 
       expect(html).toContain("DETAILED FINANCIAL COMPARISON");
+      expect(html).toContain(
+        "Additional financial view for investors seeking deeper issuer analysis"
+      );
+      expect(html).toContain('data-page-subtitle="true"');
       expect(html).toContain("Trend (3-Yr)");
       expect(html).not.toContain("FINANCIAL TRENDS");
       expect((html.match(/class="trend-cell"/g) ?? []).length).toBe(10);
-      expect(html).toContain("comparison-row-top");
-      expect(html).toContain("comparison-row-bottom");
+      expect(html).toContain("comparison-grid");
+      expect(html).not.toContain("comparison-row-top");
+      expect(html).not.toContain("comparison-row-bottom");
+      expect(html).not.toContain("page-bottom");
       expect(html).toContain("coverage-table");
+      expect(html).toContain('data-meta-key="sector"');
+      expect(html).toContain('data-meta-key="riskRating"');
+      expect(html).toContain('data-meta-key="paymaster"');
+      expect(html).toContain('data-meta-key="paymasterGrading"');
+      expect(html).toContain('data-meta-key="confidenceGrading"');
 
       expect(html).toContain("3-YEAR INCOME STATEMENT SUMMARY (MYR mil.)");
       expect(html).toContain("3-YEAR BALANCE SHEET &amp; LIQUIDITY (MYR mil.)");

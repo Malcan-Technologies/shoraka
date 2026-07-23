@@ -3,7 +3,7 @@
  * WHY: Non-identifying fields only — no company name / registration / entity type
  */
 
-import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
+import { formatProspectusIndustryAndCompanySize } from "./prospectus-industry-company-size";
 import type { ProspectusIssuerProfile } from "./prospectus-issuer-profile.types";
 
 function escapeHtml(value: string): string {
@@ -13,17 +13,6 @@ function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function formatIssuerIndustrySizeLine(industry: string, companySize: string): string {
-  const missingIndustry =
-    !industry.trim() || industry === PROSPECTUS_DATA_NOT_AVAILABLE;
-  const missingSize =
-    !companySize.trim() || companySize === PROSPECTUS_DATA_NOT_AVAILABLE;
-  if (missingIndustry && missingSize) return PROSPECTUS_DATA_NOT_AVAILABLE;
-  return `${missingIndustry ? PROSPECTUS_DATA_NOT_AVAILABLE : industry} | ${
-    missingSize ? PROSPECTUS_DATA_NOT_AVAILABLE : companySize
-  }`;
 }
 
 export function buildProspectusIssuerProfileHtml(data: ProspectusIssuerProfile): string {
@@ -42,7 +31,7 @@ export function buildProspectusIssuerProfileHtml(data: ProspectusIssuerProfile):
       <span class="icon icon-issuer" aria-hidden="true"></span>
       <div class="issuer-profile-content">
         <p class="issuer-meta-line">${escapeHtml(
-          formatIssuerIndustrySizeLine(data.industry, data.companySize)
+          formatProspectusIndustryAndCompanySize(data.industry, data.companySize)
         )}</p>
         <p>${escapeHtml(data.registeredCountry)}</p>
         <p>${escapeHtml(data.businessDescription)}</p>

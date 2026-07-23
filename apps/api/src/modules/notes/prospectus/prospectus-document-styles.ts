@@ -62,10 +62,11 @@ body{
 }
 .page-header{height:58px;border-bottom:2px solid #bd2c2c;display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0}
 .brand{display:flex;align-items:center;gap:8px;position:relative}
+.brand-logo{width:48px;height:42px;object-fit:contain;flex:none;display:block}
 .brand-mark-placeholder{width:48px;height:42px;border:2px solid var(--red);background:var(--red);color:#fff;font-size:7px;font-weight:800;display:grid;place-items:center;text-align:center;line-height:1.1;border-radius:3px;flex:none}
 .brand-copy{display:flex;flex-direction:column;justify-content:center}
-.brand-name{font-size:28px;letter-spacing:-1.5px;font-weight:700;line-height:30px}.brand-name span{font-weight:400}
-.tagline{font-size:7px;margin-top:2px;color:var(--muted)}
+.brand-name{font-size:36px;letter-spacing:-1.5px;font-weight:700;line-height:34px}.brand-name span{font-weight:400}
+.tagline{font-size:8px;margin-top:1px;color:var(--muted)}
 .shariah{border:1.5px solid var(--red);border-radius:7px;padding:7px 11px;font-size:8px;display:flex;align-items:center;gap:6px;white-space:nowrap}.shariah-mark{font-size:14px;color:var(--red);line-height:1}
 h1,h2,p{margin-top:0}h2{font-size:12px;text-transform:uppercase;color:#a51d21;margin-bottom:10px}
 .hero-grid{display:grid;grid-template-columns:1.35fr 1fr .82fr;border-bottom:1px solid var(--line);min-height:210px}
@@ -157,50 +158,16 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:#df2b23;co
 .identity-strip,.meta-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:18px}.identity-strip>div,.meta-strip-item{display:flex;gap:9px;padding:12px 9px;border-right:1px solid #c8c4c4;align-items:flex-start}.identity-strip>div:last-child,.meta-strip-item:last-child{border-right:0}.identity-strip .icon,.meta-strip-item .icon{width:32px;height:32px;padding:7px;background:#efcecf;border-radius:50%;color:#b0292f;flex:none;box-sizing:border-box}.meta-strip-label,.identity-strip small{font-weight:800;font-size:7px;display:block}.meta-strip-value,.identity-strip b{font-size:8px;margin-top:5px;display:block}
 .comparison-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.report-box{padding:9px}.report-box h2{font-size:11px}.report-box table{font-size:7.5px}.report-box th{font-size:7px}.report-box td{height:24px}
 .insight{background:var(--light-green);border-radius:7px;padding:9px;display:flex;align-items:center;gap:8px;margin-top:8px;font-size:8px}.insight .icon{width:30px;height:30px;background:#1dbb3d;color:#fff;border-radius:50%;padding:5px;box-sizing:border-box}
-.trend-cell.up,.up{color:#28ad46;font-size:18px;font-weight:800}.trend-cell.down,.down{color:#ce201d;font-size:18px;font-weight:800}
+.trend-cell{text-align:center;vertical-align:middle}
+.trend-cell.up,.up{color:#28ad46;font-size:28px;font-weight:800;line-height:15px}.trend-cell.down,.down{color:#ce201d;font-size:28px;font-weight:800;line-height:15px}
 .takeaways p,.takeaway-item{display:flex;gap:10px;align-items:center;font-size:8.5px;margin:0 0 12px}.takeaways .icon,.takeaway-item .icon{flex:none;width:34px;height:34px;background:#efcecf;color:#b52a30;border-radius:50%;padding:7px;box-sizing:border-box}.source{margin-left:12px}
 
-/* Page 3 only — same design, tighter fit for one A4 page (does not affect Pages 1–2) */
-.prospectus-page-three .page-title{padding:12px 0 8px}
-.prospectus-page-three .page-title h1{margin-bottom:4px}
-.prospectus-page-three .page-title p{font-size:8px}
-.prospectus-page-three .meta-strip{margin-bottom:10px}
-.prospectus-page-three .meta-strip-item{padding:8px 6px;gap:6px}
-.prospectus-page-three .meta-strip-item .icon{width:26px;height:26px;padding:5px}
-.prospectus-page-three .meta-strip-label{font-size:7.5px}
-.prospectus-page-three .meta-strip-value{font-size:9px;margin-top:3px;line-height:1.25}
-.prospectus-page-three .comparison-grid{
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-  flex:1 1 auto;
-  min-height:0;
-}
-.prospectus-page-three .comparison-row{display:grid;gap:8px;min-height:0;align-items:stretch}
-.prospectus-page-three .comparison-row-top{grid-template-columns:minmax(0,0.98fr) minmax(0,1.02fr)}
-.prospectus-page-three .comparison-row-bottom{grid-template-columns:minmax(0,1.12fr) minmax(0,0.88fr)}
-.prospectus-page-three .report-box{padding:7px 9px;display:flex;flex-direction:column;min-height:0}
-.prospectus-page-three .report-box h2{font-size:10px;margin-bottom:6px}
-.prospectus-page-three .report-box table{font-size:8px;table-layout:fixed}
-.prospectus-page-three .report-box th{font-size:8px;padding:4px 4px;line-height:1.15;vertical-align:bottom}
-.prospectus-page-three .report-box td{height:auto;padding:3px 4px;line-height:1.15;white-space:nowrap}
-.prospectus-page-three .report-box td:first-child,
-.prospectus-page-three .report-box th:first-child{white-space:normal;overflow-wrap:anywhere;hyphens:auto}
-.prospectus-page-three .report-box th .fy-end{font-size:6.5px;margin-top:1px;color:#fff;opacity:.92}
-.prospectus-page-three .coverage-table th:first-child,
-.prospectus-page-three .coverage-table td:first-child{width:29%}
-.prospectus-page-three .coverage-table th:not(:first-child):not(:last-child),
-.prospectus-page-three .coverage-table td:not(:first-child):not(:last-child){width:18%}
-.prospectus-page-three .coverage-table th:last-child,
-.prospectus-page-three .coverage-table td:last-child{width:15%}
-.prospectus-page-three .trend-cell.up,.prospectus-page-three .trend-cell.down{font-size:14px}
-.prospectus-page-three .takeaways .takeaway-item{gap:8px;font-size:9px;margin:0 0 7px;align-items:flex-start}
-.prospectus-page-three .takeaways .takeaway-item:last-child{margin-bottom:0}
-.prospectus-page-three .takeaways .icon{width:28px;height:28px;padding:5px}
-.prospectus-page-three .takeaways-empty{display:flex;align-items:center;justify-content:center;flex:1;min-height:48px;margin:0;font-size:14px;color:var(--muted)}
-.prospectus-page-three .page-bottom{margin-top:auto;padding-top:8px}
-.prospectus-page-three .page-bottom .source{margin:0 0 6px;font-size:7.5px}
-.prospectus-page-three .page-bottom .prospectus-footer{margin-top:0;padding-top:0;font-size:7px}
+/* Page 3 — reference-aligned sizing (no aggressive compress / no spacer auto-margin) */
+.prospectus-page-three .report-box th .fy-end{color:#fff;opacity:.92;font-size:7px}
+.prospectus-page-three .takeaways{display:flex;flex-direction:column;min-height:100%}
+.prospectus-page-three .takeaways-empty{display:flex;align-items:center;justify-content:center;flex:1;min-height:220px;margin:0;font-size:14px;color:var(--muted)}
+.prospectus-page-three>.source{margin:10px 0 0 12px}
+.prospectus-page-three>.prospectus-footer{margin-top:8px;padding-top:8px}
 
 /* Print / PDF: A4 page nodes only — no preview chrome */
 @media print{

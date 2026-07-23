@@ -592,7 +592,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(page.investmentCta.minimumInvestmentStatement).toContain(
         formatProspectusMoneyMyr(MARKETPLACE_MIN_COMMIT_MYR)
       );
-      expect(page.header.tagline).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+      expect(page.header.tagline).toBe("Invest in Growth. Earn with Purpose.");
       expect(page).not.toHaveProperty("footer");
     });
 

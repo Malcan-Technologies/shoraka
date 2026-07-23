@@ -7,10 +7,10 @@
 
 import {
   isSoukscoreRiskRating,
-  normalizeProspectusCompanySize,
   normalizeProspectusConfidenceGrading,
   normalizeProspectusPaymasterRating,
 } from "@cashsouk/types";
+import { formatProspectusIndustryAndCompanySize } from "./prospectus-industry-company-size";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_PAGE_THREE_METADATA_AUDIT,
@@ -18,6 +18,7 @@ import {
   type ProspectusPageThreeMetadata,
   type ProspectusPageThreeMetadataInput,
 } from "./prospectus-page-three-metadata.types";
+import { PROSPECTUS_DETAILED_FINANCIAL_SUBTITLE } from "./prospectus-static-copy";
 
 function nonEmptyTrimmed(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -29,20 +30,12 @@ function displayString(value: unknown): string {
   return nonEmptyTrimmed(value) ?? PROSPECTUS_DATA_NOT_AVAILABLE;
 }
 
-/**
- * Page 3 Sector — same anonymous classification as Page 2 About the Issuer:
- * Industry (frozen snapshot) + officer Company Size, joined with ` | `.
- */
+/** @deprecated Prefer formatProspectusIndustryAndCompanySize — kept for existing imports. */
 export function formatProspectusPageThreeSector(
   industry: unknown,
   companySize: unknown
 ): string {
-  const industryText = nonEmptyTrimmed(industry);
-  const sizeText = normalizeProspectusCompanySize(companySize);
-  if (industryText && sizeText) return `${industryText} | ${sizeText}`;
-  if (industryText) return industryText;
-  if (sizeText) return sizeText;
-  return PROSPECTUS_DATA_NOT_AVAILABLE;
+  return formatProspectusIndustryAndCompanySize(industry, companySize);
 }
 
 export function buildProspectusPageThreeMetadata(
@@ -67,9 +60,9 @@ export function buildProspectusPageThreeMetadata(
 
   return {
     pageTitle: PROSPECTUS_PAGE_THREE_PAGE_TITLE,
-    pageSubtitle: PROSPECTUS_DATA_NOT_AVAILABLE,
+    pageSubtitle: PROSPECTUS_DETAILED_FINANCIAL_SUBTITLE,
     metadata: {
-      sector: formatProspectusPageThreeSector(
+      sector: formatProspectusIndustryAndCompanySize(
         input.issuerSector,
         input.officerCompanySize
       ),

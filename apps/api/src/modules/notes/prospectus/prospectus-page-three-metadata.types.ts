@@ -27,8 +27,8 @@ export interface ProspectusPageThreeMetadataAudit {
     sourceType: "static_template";
   };
   subtitle: {
-    status: "unresolved";
-    approvedStaticCopyAvailable: false;
+    status: "static_template";
+    approvedStaticCopyAvailable: true;
   };
   issuerIdentity: {
     status: "hidden";
@@ -80,8 +80,8 @@ export const PROSPECTUS_PAGE_THREE_METADATA_AUDIT: ProspectusPageThreeMetadataAu
     sourceType: "static_template",
   },
   subtitle: {
-    status: "unresolved",
-    approvedStaticCopyAvailable: false,
+    status: "static_template",
+    approvedStaticCopyAvailable: true,
   },
   issuerIdentity: {
     status: "hidden",
@@ -221,12 +221,11 @@ export const PROSPECTUS_PAGE_THREE_METADATA_FIELD_SOURCES: Record<
   },
   pageSubtitle: {
     label: "Page subtitle",
-    canonicalSource: "none",
-    availability: "unresolved",
+    canonicalSource: "prospectus-static-copy.PROSPECTUS_DETAILED_FINANCIAL_SUBTITLE",
+    availability: "static",
     surface: "canva",
-    possibleAlternatives:
-      "Canva deeper-issuer-analysis subtitle — not used (no approved copy)",
-    notes: "— until approved production wording exists.",
+    possibleAlternatives: "none",
+    notes: "Additional financial view for investors seeking deeper issuer analysis",
   },
   sector: {
     label: "Sector",
