@@ -17,8 +17,10 @@ import { buildProspectusPageTwoHtml } from "./prospectus-page-two.html";
 import {
   PROSPECTUS_DOCUMENT_CSS,
   PROSPECTUS_HEADER_HEIGHT_PX,
+  PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX,
+  PROSPECTUS_LOGO_DISPLAY_WIDTH_PX,
   PROSPECTUS_LOGO_HEIGHT_PX,
-  PROSPECTUS_LOGO_MAX_WIDTH_PX,
+  PROSPECTUS_LOGO_SVG_VIEWBOX,
   PROSPECTUS_PAGE_PADDING_BOTTOM_PX,
   PROSPECTUS_PAGE_PADDING_CSS,
   PROSPECTUS_PAGE_PADDING_TOP_PX,
@@ -27,6 +29,10 @@ import {
   PROSPECTUS_SECTION_TITLE_FONT_SIZE_PX,
   PROSPECTUS_TAGLINE_FONT_SIZE_PX,
 } from "./prospectus-document-styles";
+import {
+  cropProspectusLogoSvg,
+  getProspectusOfficialLogoDataUri,
+} from "./prospectus-header-logo";
 import {
   PROSPECTUS_DETAILED_FINANCIAL_SUBTITLE,
   PROSPECTUS_HEADER_TAGLINE,
@@ -133,28 +139,56 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
       expect(html).toContain('data-stage="header"');
       expect(html).toContain("page-header");
       expect(html).toContain(PROSPECTUS_HEADER_TAGLINE);
+      expect((html.match(new RegExp(PROSPECTUS_HEADER_TAGLINE, "g")) ?? []).length).toBe(1);
       expect(html).toContain('class="brand-logo"');
+      expect(html).toContain(`width="${PROSPECTUS_LOGO_DISPLAY_WIDTH_PX}"`);
+      expect(html).toContain(`height="${PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX}"`);
       expect(html).toContain(`height="${PROSPECTUS_LOGO_HEIGHT_PX}"`);
       expect(html).not.toContain('class="brand-name"');
+      expect(html).not.toContain("Cash<span>Souk</span>");
     }
   });
 
-  it("uses shared header/logo/title tokens with no per-page shrink overrides", () => {
-    expect(PROSPECTUS_HEADER_HEIGHT_PX).toBe(66);
-    expect(PROSPECTUS_LOGO_HEIGHT_PX).toBe(56);
-    expect(PROSPECTUS_LOGO_MAX_WIDTH_PX).toBe(210);
+  it("crops logo SVG viewBox so CSS size maps to visible artwork", () => {
+    expect(PROSPECTUS_LOGO_SVG_VIEWBOX).toBe("40 145 1340 255");
+    const cropped = cropProspectusLogoSvg(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 540" width="1920" height="720"></svg>'
+    );
+    expect(cropped).toContain(`viewBox="${PROSPECTUS_LOGO_SVG_VIEWBOX}"`);
+    expect(cropped).not.toMatch(/\s(width|height)="/);
+    const dataUri = getProspectusOfficialLogoDataUri();
+    expect(dataUri).toMatch(/^data:image\/svg\+xml;base64,/);
+    const decoded = Buffer.from(dataUri!.slice("data:image/svg+xml;base64,".length), "base64").toString(
+      "utf8"
+    );
+    expect(decoded).toContain(`viewBox="${PROSPECTUS_LOGO_SVG_VIEWBOX}"`);
+  });
+
+  it("uses shared header/logo/title/colour/icon tokens with no per-page shrink overrides", () => {
+    expect(PROSPECTUS_HEADER_HEIGHT_PX).toBe(64);
+    expect(PROSPECTUS_LOGO_DISPLAY_WIDTH_PX).toBe(270);
+    expect(PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX).toBe(52);
+    expect(PROSPECTUS_LOGO_HEIGHT_PX).toBe(52);
     expect(PROSPECTUS_TAGLINE_FONT_SIZE_PX).toBe(8.5);
     expect(PROSPECTUS_SECTION_TITLE_FONT_SIZE_PX).toBe(12);
     expect(PROSPECTUS_PAGE_TITLE_FONT_SIZE_PX).toBe(22);
     expect(PROSPECTUS_DOCUMENT_CSS).toContain(
+      "width:var(--prospectus-logo-width)"
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(
       "height:var(--prospectus-logo-height)"
     );
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("--prospectus-burgundy:");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("--prospectus-table-red:");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("--prospectus-icon-bg:");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("--prospectus-icon-field:");
     expect(PROSPECTUS_DOCUMENT_CSS).toContain(
       "font-size:var(--prospectus-section-title-font-size)"
     );
     expect(PROSPECTUS_DOCUMENT_CSS).toContain(
       "font-size:var(--prospectus-page-title-font-size)"
     );
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("color:var(--prospectus-burgundy)");
     // Page 2 must not shrink shared section titles or header logo
     expect(PROSPECTUS_DOCUMENT_CSS).not.toMatch(
       /\.prospectus-page-two[^{]*\{[^}]*\.cta h2[^}]*font-size/
@@ -164,6 +198,42 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
     );
     expect(PROSPECTUS_DOCUMENT_CSS).not.toMatch(
       /\.prospectus-page-(one|two|three)[^{]*\{[^}]*--prospectus-logo-height/
+    );
+  });
+
+  it("Page 1–2 compound stacks use connected-card variants without mid-seam radius", () => {
+    const h1 = buildProspectusPageOneHtml(SAMPLE_PROSPECTUS_PAGE_ONE);
+    expect(h1).toContain("connected-card-top");
+    expect(h1).toContain("connected-card-middle");
+    expect(h1).toContain("connected-card-bottom");
+    expect(h1).not.toContain("class=\"lower\"");
+
+    const h2 = buildProspectusPageTwoHtml(SAMPLE_PROSPECTUS_PAGE_TWO);
+    expect(h2).toContain(
+      "page-two-financial-card connected-card-top"
+    );
+    expect(h2).toContain(
+      "page-two-insights-card connected-card-bottom"
+    );
+    expect(h2).not.toContain("class=\"lower\"");
+
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(".connected-card-top{");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(".connected-card-middle{");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(".connected-card-bottom{");
+    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
+      /\.connected-card-top\{[^}]*border-radius:var\(--prospectus-radius-card\) var\(--prospectus-radius-card\) 0 0/
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
+      /\.connected-card-middle\{[^}]*border-radius:0/
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
+      /\.connected-card-bottom\{[^}]*border-radius:0 0 var\(--prospectus-radius-card\) var\(--prospectus-radius-card\)/
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
+      /\.connected-card-top\{[^}]*border-bottom:0/
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
+      /\.connected-card-middle\{[^}]*border-bottom:0/
     );
   });
 

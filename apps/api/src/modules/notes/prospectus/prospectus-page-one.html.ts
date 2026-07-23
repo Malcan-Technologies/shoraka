@@ -134,7 +134,7 @@ ${PROSPECTUS_DOCUMENT_CSS}
       </div>
     </div>
 
-    <section class="card split-card">
+    <section class="card split-card connected-card-top">
       <div>
         <h2>Investment Summary</h2>
         <dl class="summary-list">
@@ -158,7 +158,7 @@ ${PROSPECTUS_DOCUMENT_CSS}
       </div>
     </section>
 
-    <section class="strip" data-stage="6">
+    <section class="strip connected-card-middle" data-stage="6">
       <h2>At a Glance</h2>
       <div class="stats five">
         <div class="stat">${prospectusIcon.badgeDollar("icon")}<small>Financing Amount</small><b>${escapeHtml(
@@ -179,7 +179,7 @@ ${PROSPECTUS_DOCUMENT_CSS}
       </div>
     </section>
 
-    <section class="track">
+    <section class="track connected-card-bottom">
       <div data-stage="7">
         <h2>${escapeHtml(s7.sectionHeading)}</h2>
         <div class="stats four">

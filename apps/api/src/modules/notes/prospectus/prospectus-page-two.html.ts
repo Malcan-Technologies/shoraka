@@ -146,7 +146,7 @@ ${PROSPECTUS_DOCUMENT_CSS}
       </section>
     </div>
 
-    <section class="card financial-card page-two-financial-card">
+    <section class="card financial-card page-two-financial-card connected-card-top">
       <div class="paymaster-record" data-stage="3">
         <h2>${escapeHtml(s3.sectionHeading)}</h2>
         <dl class="summary-list compact">
@@ -160,7 +160,7 @@ ${PROSPECTUS_DOCUMENT_CSS}
       ${renderFinancialTable(page)}
     </section>
 
-    <section class="card split-card lower page-two-insights-card">
+    <section class="card split-card page-two-insights-card connected-card-bottom">
       <div data-stage="5">
         <h2>${escapeHtml(s5.sectionHeading)}</h2>
         <div class="ratings">
