@@ -1,9 +1,9 @@
 /**
- * SECTION: Plain HTML for Page 2 SoukScore Risk Rating Scale
- * WHY: Full AAA–B scale with catalogue label + explanation; selected grade highlighted
+ * SECTION: Plain HTML for Page 2 Cashsouk Risk Rating Scale
+ * WHY: Full A–F scale with catalogue label + description + colour; selected grade highlighted
  */
 
-import { escapeHtml } from "./prospectus-html";
+import { escapeHtml, escapeHtmlAttribute } from "./prospectus-html";
 import { PROSPECTUS_RISK_SCALE_NOTE } from "./prospectus-static-copy";
 import type { ProspectusSoukscoreRatingScale } from "./prospectus-soukscore-rating-scale.types";
 
@@ -19,7 +19,9 @@ export function buildProspectusSoukscoreRatingScaleSectionHtml(
       return `    <li class="grade-item${selectedClass}" data-grade="${escapeHtml(
         item.grade
       )}" data-selected="${selectedAttr}"${ariaCurrent}>
-      <span class="grade">${escapeHtml(item.grade)}</span>
+      <span class="grade" style="background:${escapeHtmlAttribute(
+        item.color
+      )};color:${escapeHtmlAttribute(item.textColor)}">${escapeHtml(item.grade)}</span>
       <strong class="grade-label">${escapeHtml(item.label)}</strong>
       <span class="grade-desc">${escapeHtml(item.explanation)}</span>
     </li>`;

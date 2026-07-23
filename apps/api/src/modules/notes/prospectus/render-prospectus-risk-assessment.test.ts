@@ -1,4 +1,5 @@
 import {
+  CASHSCOUK_RISK_RATING_CATALOGUE,
   SOUKSCORE_RISK_RATING_CATALOGUE,
   SOUKSCORE_RISK_RATING_GRADES,
   SOUKSCORE_RISK_RATING_UNAVAILABLE,
@@ -15,20 +16,20 @@ import {
 import { buildProspectusRiskAssessmentDocument } from "./render-prospectus-risk-assessment";
 
 describe("prospectus Risk Assessment (Page 1 DATA STAGE 3)", () => {
-  it("documents SoukScore snapshot source and catalogue-backed label/explanation", () => {
+  it("documents Cashsouk snapshot source and catalogue-backed label/description", () => {
     expect(PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES.riskGrade.canonicalSource).toBe(
       "notes.invoice_snapshot.offer_details.risk_rating"
     );
     expect(PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES.riskGrade.surface).toBe("canva");
     expect(PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES.riskLabel.availability).toBe("static");
     expect(PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES.riskLabel.canonicalSource).toContain(
-      "SOUKSCORE_RISK_RATING_CATALOGUE"
+      "CASHSCOUK_RISK_RATING_CATALOGUE"
     );
     expect(PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES.riskScore.surface).toBe("audit");
-    expect(SOUKSCORE_RISK_RATING_GRADES).toEqual(["AAA", "AA", "A", "BBB", "BB", "B"]);
+    expect(SOUKSCORE_RISK_RATING_GRADES).toEqual(["A", "B", "C", "D", "E", "F"]);
   });
 
-  it("maps every SoukScore grade to the shared catalogue label and explanation", () => {
+  it("maps every Cashsouk grade to the shared catalogue label, description and colour", () => {
     for (const grade of SOUKSCORE_RISK_RATING_GRADES) {
       const entry = SOUKSCORE_RISK_RATING_CATALOGUE[grade];
       const built = buildProspectusRiskAssessment({ soukscoreRiskRating: grade });
@@ -36,6 +37,7 @@ describe("prospectus Risk Assessment (Page 1 DATA STAGE 3)", () => {
       expect(built.canva.riskGrade).toBe(grade);
       expect(built.canva.riskLabel).toBe(entry.label);
       expect(built.canva.riskExplanation).toBe(entry.explanation);
+      expect(built.canva.riskGradeColor).toBe(CASHSCOUK_RISK_RATING_CATALOGUE[grade].color);
       expect(resolved.label).toBe(entry.label);
       expect(resolved.explanation).toBe(entry.explanation);
       expect(built.canva.riskLabel).not.toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
@@ -43,20 +45,21 @@ describe("prospectus Risk Assessment (Page 1 DATA STAGE 3)", () => {
     }
   });
 
-  it("accepts valid SoukScore grade AA with Low Risk catalogue copy", () => {
-    const built = buildProspectusRiskAssessment({ soukscoreRiskRating: "AA" });
-    expect(built.canva.riskGrade).toBe("AA");
-    expect(built.canva.riskLabel).toBe("Low Risk");
+  it("accepts valid Cashsouk grade B with Moderate-Low Risk catalogue copy", () => {
+    const built = buildProspectusRiskAssessment({ soukscoreRiskRating: "B" });
+    expect(built.canva.riskGrade).toBe("B");
+    expect(built.canva.riskLabel).toBe("Moderate-Low Risk");
     expect(built.canva.riskExplanation).toBe(
-      "The issuer demonstrates strong financial strength and a strong capacity to meet its financial obligations."
+      CASHSCOUK_RISK_RATING_CATALOGUE.B.description
     );
+    expect(built.canva.riskGradeColor).toBe("#79CF54");
     expect(built.canva.ratingScaleReference).toBe(PROSPECTUS_RATING_SCALE_REFERENCE);
     expect(built.audit.isFrozen).toBe(true);
     expect(built.audit.scaleStatus).toBe(PROSPECTUS_RATING_SCALE_STATUS);
   });
 
   it("shows — for invalid or missing grade", () => {
-    for (const bad of ["A-", null, undefined, "Low Risk", "72", "HIGH", "C"] as const) {
+    for (const bad of ["A-", null, undefined, "Low Risk", "72", "HIGH", "AAA"] as const) {
       const built = buildProspectusRiskAssessment({ soukscoreRiskRating: bad });
       expect(built.canva.riskGrade).toBe(SOUKSCORE_RISK_RATING_UNAVAILABLE);
       expect(built.canva.riskLabel).toBe(SOUKSCORE_RISK_RATING_UNAVAILABLE);
@@ -66,7 +69,7 @@ describe("prospectus Risk Assessment (Page 1 DATA STAGE 3)", () => {
   });
 
   it("does not invent label or explanation from financial or RegTank wording when grade is invalid", () => {
-    const built = buildProspectusRiskAssessment({ soukscoreRiskRating: "A-" });
+    const built = buildProspectusRiskAssessment({ soukscoreRiskRating: "AAA" });
     expect(built.canva.riskLabel).toBe(SOUKSCORE_RISK_RATING_UNAVAILABLE);
     expect(built.canva.riskExplanation).not.toMatch(/government|paymaster|financial profile/i);
   });
@@ -75,13 +78,13 @@ describe("prospectus Risk Assessment (Page 1 DATA STAGE 3)", () => {
     const built = buildProspectusRiskAssessment(SAMPLE_PROSPECTUS_RISK_ASSESSMENT_INPUT);
     expect(built.audit.riskScore).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(built.audit.riskAppliesTo).toContain("Invoice offer");
-    expect(built.audit.assessmentSource).toContain("Admin SoukScore");
+    expect(built.audit.assessmentSource).toContain("Cashsouk Risk Rating");
 
     const html = buildProspectusRiskAssessmentDocument(built);
-    expect(html).toContain("Risk Rating: AA");
-    expect(html).toContain("Risk label: Low Risk");
+    expect(html).toContain("Risk Rating: B");
+    expect(html).toContain("Risk label: Moderate-Low Risk");
     expect(html).toContain(
-      "Risk explanation: The issuer demonstrates strong financial strength and a strong capacity to meet its financial obligations."
+      `Risk explanation: ${CASHSCOUK_RISK_RATING_CATALOGUE.B.description}`
     );
     expect(html).toContain(`Rating scale reference: ${PROSPECTUS_RATING_SCALE_REFERENCE}`);
     expect(html).not.toContain("Risk label: —");

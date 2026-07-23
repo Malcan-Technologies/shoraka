@@ -59,7 +59,7 @@ function baseNote(
       description: "Frozen product description",
     },
     invoice_snapshot: {
-      offer_details: { risk_rating: "AA" },
+      offer_details: { risk_rating: "B" },
     },
     paymaster_snapshot: {
       name: "KKR",
@@ -221,15 +221,18 @@ describe("prospectus Page 1 mapper (Stages 1–6)", () => {
     expect(page.paymasterHighlight.paymasterName).toBe("KKR");
   });
 
-  it("maps valid SoukScore with catalogue copy; unavailable for invalid", async () => {
+  it("maps valid Cashsouk grade with catalogue copy; unavailable for invalid", async () => {
     const valid = await mapProspectusPageOneFromNote(baseNote());
-    expect(valid.riskAssessment.canva.riskGrade).toBe("AA");
-    expect(valid.riskAssessment.canva.riskLabel).toBe("Low Risk");
-    expect(valid.riskAssessment.canva.riskExplanation).toContain("strong financial strength");
+    expect(valid.riskAssessment.canva.riskGrade).toBe("B");
+    expect(valid.riskAssessment.canva.riskLabel).toBe("Moderate-Low Risk");
+    expect(valid.riskAssessment.canva.riskExplanation).toContain(
+      "generally favourable risk characteristics"
+    );
+    expect(valid.riskAssessment.canva.riskGradeColor).toBe("#79CF54");
 
     const invalid = await mapProspectusPageOneFromNote(
       baseNote({
-        invoice_snapshot: { offer_details: { risk_rating: "A-" } },
+        invoice_snapshot: { offer_details: { risk_rating: "AAA" } },
       })
     );
     expect(invalid.riskAssessment.canva.riskGrade).toBe("—");

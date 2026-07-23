@@ -243,7 +243,7 @@ export const PROSPECTUS_PAGE_THREE_METADATA_FIELD_SOURCES: Record<
     availability: "stored",
     surface: "canva",
     possibleAlternatives: "Canva A–E; CTOS — not used",
-    notes: "Validated by isSoukscoreRiskRating (AAA–B). Invalid → DNA.",
+    notes: "Validated by isCashsoukRiskGrade (A–F). Invalid → DNA.",
   },
   paymaster: {
     label: "Paymaster",

@@ -1,7 +1,6 @@
-import { SOUKSCORE_RISK_RATING_GRADES } from "@cashsouk/types";
+import { CASHSCOUK_RISK_RATING_CATALOGUE, SOUKSCORE_RISK_RATING_GRADES } from "@cashsouk/types";
 import { buildProspectusSoukscoreRatingScale } from "./prospectus-soukscore-rating-scale";
 import {
-  SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_CANVA_INPUT,
   SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_DEMO_INPUT,
   SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_INPUT,
   SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_INVALID_INPUT,
@@ -17,32 +16,25 @@ import {
 import { PROSPECTUS_RISK_SCALE_NOTE } from "./prospectus-static-copy";
 import { buildProspectusSoukscoreRatingScaleDocument } from "./render-prospectus-soukscore-rating-scale";
 
-const VALID_GRADES = ["AAA", "AA", "A", "BBB", "BB", "B"] as const;
+const VALID_GRADES = ["A", "B", "C", "D", "E", "F"] as const;
 
-describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
+describe("prospectus Page 2 Cashsouk Risk Rating Scale (DATA STAGE 7)", () => {
   it("uses static section heading", () => {
     const data = buildProspectusSoukscoreRatingScale(
       SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_INPUT
     );
-    expect(data.sectionHeading).toBe("RISK RATING SCALE");
+    expect(data.sectionHeading).toBe("CASHSCOUK RISK RATING");
     expect(data.sectionHeading).toBe(PROSPECTUS_SOUKSCORE_RATING_SCALE_SECTION_HEADING);
   });
 
   it("uses exact shared canonical grade order with six grades", () => {
     const data = buildProspectusSoukscoreRatingScale();
-    expect(data.grades.map((g) => g.grade)).toEqual([
-      "AAA",
-      "AA",
-      "A",
-      "BBB",
-      "BB",
-      "B",
-    ]);
+    expect(data.grades.map((g) => g.grade)).toEqual(["A", "B", "C", "D", "E", "F"]);
     expect(data.grades).toHaveLength(6);
     expect(PROSPECTUS_SOUKSCORE_GRADE_ORDER).toBe(SOUKSCORE_RISK_RATING_GRADES);
     expect(data.audit.scale.gradeOrder).toEqual(SOUKSCORE_RISK_RATING_GRADES);
     expect(data.scaleVersion).toBe(PROSPECTUS_SOUKSCORE_SCALE_VERSION);
-    expect(data.scaleVersion).toBe("2026.07.21.soukscore-scale.v1");
+    expect(data.scaleVersion).toBe("2026.07.23.cashsouk-risk-scale.v1");
   });
 
   it.each(VALID_GRADES)("selects only valid grade %s", (grade) => {
@@ -55,14 +47,14 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     expect(data.grades.filter((g) => !g.isSelected)).toHaveLength(5);
   });
 
-  it("highlights demo BBB grade", () => {
+  it("highlights demo C grade", () => {
     const data = buildProspectusSoukscoreRatingScale(
       SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_DEMO_INPUT
     );
-    expect(data.selectedGrade).toBe("BBB");
-    expect(data.grades.find((g) => g.grade === "BBB")?.isSelected).toBe(true);
+    expect(data.selectedGrade).toBe("C");
+    expect(data.grades.find((g) => g.grade === "C")?.isSelected).toBe(true);
     const html = buildProspectusSoukscoreRatingScaleDocument(data);
-    expect(html).toContain('data-grade="BBB" data-selected="true"');
+    expect(html).toContain('data-grade="C" data-selected="true"');
     expect((html.match(/data-grade="[^"]+" data-selected="true"/g) ?? []).length).toBe(1);
   });
 
@@ -70,9 +62,7 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     for (const input of [
       SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_MISSING_INPUT,
       SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_INVALID_INPUT,
-      SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_CANVA_INPUT,
-      { selectedRiskRating: "D" },
-      { selectedRiskRating: "E" },
+      { selectedRiskRating: "AAA" },
       { selectedRiskRating: "AA+" },
       { selectedRiskRating: 1 },
       { selectedRiskRating: "Low Risk" },
@@ -89,7 +79,7 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     ).toBe(false);
   });
 
-  it("renders full-scale catalogue labels, explanations, and static risk-scale note", () => {
+  it("renders full-scale catalogue labels, colours, and static disclosure once", () => {
     const data = buildProspectusSoukscoreRatingScale(
       SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_INPUT
     );
@@ -97,6 +87,7 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     for (const grade of data.grades) {
       expect(grade.label.length).toBeGreaterThan(0);
       expect(grade.explanation.length).toBeGreaterThan(0);
+      expect(grade.color).toBe(CASHSCOUK_RISK_RATING_CATALOGUE[grade.grade].color);
     }
     expect(data.audit.display.assessmentNoteRendered).toBe(false);
     expect(data.audit.display.riskLabelsRendered).toBe(true);
@@ -105,7 +96,11 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     const html = buildProspectusSoukscoreRatingScaleDocument(data);
     expect(html).toContain('class="grade-label"');
     expect(html).toContain('class="grade-desc"');
-    expect(html).toContain("Moderately Low Risk");
+    expect(html).toContain("Lower Risk");
+    expect(html).toContain("Moderate-Low Risk");
+    expect(html).toContain("Not Eligible");
+    expect(html).toContain("#1EB93F");
+    expect(html).toContain("#B10810");
     expect(html).not.toContain("Assessment Note");
     expect(html).not.toContain("Definition:");
     expect(html).not.toContain('class="soukscore-missing"');
@@ -116,20 +111,16 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     expect(noteIdx).toBeGreaterThan(lastGradeIdx);
   });
 
-  it("rejects Canva A–E scale items while keeping valid grade A", () => {
-    const data = buildProspectusSoukscoreRatingScale({ selectedRiskRating: "A" });
+  it("keeps the full A–F scale including selected-grade highlight without replacing colour", () => {
+    const data = buildProspectusSoukscoreRatingScale({ selectedRiskRating: "C" });
     const grades = data.grades.map((g) => g.grade);
-    expect(grades).toContain("A");
-    expect(grades).not.toContain("C");
-    expect(grades).not.toContain("D");
-    expect(grades).not.toContain("E");
-    expect(data.audit.scale.canvaAtoEScaleRejected).toBe(true);
+    expect(grades).toEqual(["A", "B", "C", "D", "E", "F"]);
+    expect(data.audit.scale.canvaAtoEScaleRejected).toBe(false);
 
     const html = buildProspectusSoukscoreRatingScaleDocument(data);
-    expect(html).toContain('data-grade="A"');
-    expect(html).not.toContain('data-grade="C"');
-    expect(html).not.toContain('data-grade="D"');
-    expect(html).not.toContain('data-grade="E"');
+    expect(html).toContain('data-grade="C" data-selected="true"');
+    expect(html).toContain(`background:${CASHSCOUK_RISK_RATING_CATALOGUE.C.color}`);
+    expect(html).toContain("is-selected");
   });
 
   it("uses catalogue wording only — no PD %, thresholds, or Credit Insights derivation", () => {
@@ -138,11 +129,9 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     );
     const html = buildProspectusSoukscoreRatingScaleDocument(data);
 
-    expect(html).toContain("Very Low Risk");
-    expect(html).toContain("Moderately Low Risk");
-    expect(html).toContain("Elevated Risk");
-    expect(html).not.toMatch(/probability of default|default probability/i);
-    expect(html).not.toMatch(/90%|75%|60%/);
+    expect(html).toContain("Lower Risk");
+    expect(html).toContain("Higher Risk");
+    expect(html).not.toMatch(/≥85|75–84|8\.00%/);
     expect(html).not.toMatch(/threshold|score range/i);
     expect(html).not.toContain("Credit Insights");
     expect(html).not.toContain("creditScore");
@@ -182,20 +171,19 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     );
     const html = buildProspectusSoukscoreRatingScaleDocument(data);
 
-    expect(html).toContain("RISK RATING SCALE");
+    expect(html).toContain("CASHSCOUK RISK RATING");
     expect(html).toContain('class="soukscore-scale"');
     expect(html).toContain(`data-soukscore-scale-version="${PROSPECTUS_SOUKSCORE_SCALE_VERSION}"`);
-    expect(html).toContain('data-grade="AAA"');
-    expect(html).toContain('data-grade="AA"');
-    expect(html).toContain('data-grade="A"');
-    expect(html).toContain('data-grade="BBB"');
-    expect(html).toContain('data-grade="BB"');
-    expect(html).toContain('data-grade="B"');
-    expect(html).toContain('data-grade="AA" data-selected="true"');
+    for (const grade of VALID_GRADES) {
+      expect(html).toContain(`data-grade="${grade}"`);
+    }
+    expect(html).toContain('data-grade="B" data-selected="true"');
     expect(html).toContain('aria-current="true"');
     expect((html.match(/data-grade="[^"]+" data-selected="true"/g) ?? []).length).toBe(1);
     expect((html.match(/data-grade="[^"]+" data-selected="false"/g) ?? []).length).toBe(5);
     expect(html).not.toContain('class="soukscore-missing"');
+    expect(html).not.toContain('data-grade="AAA"');
+    expect(html).not.toContain('data-grade="BBB"');
 
     const missingHtml = buildProspectusSoukscoreRatingScaleDocument(
       buildProspectusSoukscoreRatingScale(SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_MISSING_INPUT)

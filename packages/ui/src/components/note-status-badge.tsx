@@ -288,16 +288,16 @@ export function NoteStatusBadge({
 
 function soukscoreRiskRatingClass(riskRating: string | null | undefined): string {
   const grade = riskRating?.trim().toUpperCase();
-  if (grade === "AAA" || grade === "AA") {
+  if (grade === "A" || grade === "B") {
     return NOTE_STATUS_BADGE_TONE_CLASS.success;
   }
-  if (grade === "A" || grade === "BBB") {
+  if (grade === "C") {
     return NOTE_STATUS_BADGE_TONE_CLASS.info;
   }
-  if (grade === "BB") {
+  if (grade === "D") {
     return NOTE_STATUS_BADGE_TONE_CLASS.warning;
   }
-  if (grade === "B") {
+  if (grade === "E" || grade === "F") {
     return NOTE_STATUS_BADGE_TONE_CLASS.destructive;
   }
   return NOTE_STATUS_BADGE_TONE_CLASS.neutral;

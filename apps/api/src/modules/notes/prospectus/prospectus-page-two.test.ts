@@ -56,7 +56,7 @@ function baseNote(
     },
     invoice_snapshot: {
       details: { value: 625_000 },
-      offer_details: { risk_rating: "AA" },
+      offer_details: { risk_rating: "B" },
     },
     paymaster_snapshot: {
       name: "Paymaster Co",
@@ -215,7 +215,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       );
       expect(page2.financial_comparison.calculated_at).toBe("2026-07-19T12:00:00.000Z");
 
-      expect(page2.config_versions?.soukscore_scale).toBe("2026.07.21.soukscore-scale.v1");
+      expect(page2.config_versions?.soukscore_scale).toBe("2026.07.23.cashsouk-risk-scale.v1");
       expect(page2.config_versions?.legal_copy).toBeNull();
       expect(page2.config_versions?.marketing_copy).toBeNull();
 
@@ -581,8 +581,8 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
       const selected = page.soukscoreRatingScale.grades.filter((g) => g.isSelected);
       expect(selected).toHaveLength(1);
-      expect(selected[0]?.grade).toBe("AA");
-      expect(page.soukscoreRatingScale.selectedGrade).toBe("AA");
+      expect(selected[0]?.grade).toBe("B");
+      expect(page.soukscoreRatingScale.selectedGrade).toBe("B");
       expect(page.soukscoreRatingScale.missingRatingMessage).toBeNull();
       expect(page.soukscoreRatingScale).not.toHaveProperty("assessmentNote");
       expect(page.soukscoreRatingScale.grades[0]).not.toHaveProperty("riskLabel");
@@ -597,7 +597,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
     });
 
     it("selects no SoukScore grade for invalid ratings", () => {
-      for (const rating of ["A-", "C", "D", "E", "AA+", "90%"]) {
+      for (const rating of ["A-", "AAA", "AA", "BBB", "AA+", "90%"]) {
         const page = buildProspectusPageTwo(
           mapProspectusPageTwoDataToInput({
             note: baseNote({
@@ -620,7 +620,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       const frozenNote = baseNote({
         invoice_snapshot: {
           details: { value: 100 },
-          offer_details: { risk_rating: "BBB" },
+          offer_details: { risk_rating: "C" },
         },
       });
       const page = buildProspectusPageTwo(
@@ -630,14 +630,14 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
           liveCtosFinancials,
         })
       );
-      expect(page.soukscoreRatingScale.selectedGrade).toBe("BBB");
+      expect(page.soukscoreRatingScale.selectedGrade).toBe("C");
 
-      const liveInvoiceWouldBe = { offer_details: { risk_rating: "AAA" } };
-      expect(liveInvoiceWouldBe.offer_details.risk_rating).toBe("AAA");
+      const liveInvoiceWouldBe = { offer_details: { risk_rating: "A" } };
+      expect(liveInvoiceWouldBe.offer_details.risk_rating).toBe("A");
       expect(
         (frozenNote.invoice_snapshot as { offer_details: { risk_rating: string } }).offer_details
           .risk_rating
-      ).toBe("BBB");
+      ).toBe("C");
       expect(page.soukscoreRatingScale.selectedGrade).not.toBe(
         liveInvoiceWouldBe.offer_details.risk_rating
       );
@@ -648,7 +648,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(stage7Start).toBeGreaterThan(-1);
       expect(stage8Start).toBeGreaterThan(stage7Start);
       const stage7 = html.slice(stage7Start, stage8Start);
-      expect(stage7).toContain('data-grade="BBB" data-selected="true"');
+      expect(stage7).toContain('data-grade="C" data-selected="true"');
       expect(stage7).not.toContain("Assessment Note");
       expect(stage7).not.toContain("Risk Label");
       expect(stage7).not.toContain("Definition:");
@@ -795,7 +795,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(noteIdx).toBeGreaterThan(scaleIdx);
       expect(html).toContain("page-two-financial-card");
       expect(html).toContain("page-two-insights-card");
-      for (const grade of ["AAA", "AA", "A", "BBB", "BB", "B"]) {
+      for (const grade of ["A", "B", "C", "D", "E", "F"]) {
         expect(html).toContain(`data-grade="${grade}"`);
       }
     });

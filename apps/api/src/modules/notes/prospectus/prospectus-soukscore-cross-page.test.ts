@@ -17,9 +17,9 @@ import { buildProspectusSoukscoreRatingScale } from "./prospectus-soukscore-rati
 describe("prospectus SoukScore cross-page and freeze", () => {
   it("uses the same grade on Page 1 card, Page 2 scale, and Page 3 metadata", () => {
     const grade = parseInvoiceSnapshotRiskRating({
-      offer_details: { risk_rating: "BBB" },
+      offer_details: { risk_rating: "C" },
     });
-    expect(grade).toBe("BBB");
+    expect(grade).toBe("C");
 
     const page1 = buildProspectusRiskAssessment({ soukscoreRiskRating: grade });
     const page2 = buildProspectusSoukscoreRatingScale({ selectedRiskRating: grade });
@@ -28,26 +28,33 @@ describe("prospectus SoukScore cross-page and freeze", () => {
       selectedRiskRating: grade,
     });
 
-    expect(page1.canva.riskGrade).toBe("BBB");
-    expect(page2.selectedGrade).toBe("BBB");
-    expect(page2.grades.find((g) => g.grade === "BBB")?.isSelected).toBe(true);
-    expect(page3.metadata.riskRating).toBe("BBB");
-    expect(page1.canva.riskLabel).toBe(SOUKSCORE_RISK_RATING_CATALOGUE.BBB.label);
-    expect(page1.canva.riskExplanation).toBe(SOUKSCORE_RISK_RATING_CATALOGUE.BBB.explanation);
+    expect(page1.canva.riskGrade).toBe("C");
+    expect(page2.selectedGrade).toBe("C");
+    expect(page2.grades.find((g) => g.grade === "C")?.isSelected).toBe(true);
+    expect(page3.metadata.riskRating).toBe("C");
+    expect(page1.canva.riskLabel).toBe(SOUKSCORE_RISK_RATING_CATALOGUE.C.label);
+    expect(page1.canva.riskExplanation).toBe(SOUKSCORE_RISK_RATING_CATALOGUE.C.explanation);
   });
 
-  it("bakes resolved label and explanation into Page 1 HTML for freeze/copy publish", () => {
+  it("bakes resolved label, explanation and colour into Page 1 HTML for freeze/copy publish", () => {
     const presentation = resolveSoukscoreRiskRatingPresentation("A");
     const html = buildProspectusPageOneHtml(SAMPLE_PROSPECTUS_PAGE_ONE);
-    expect(html).toContain(`<div class="shield">${presentation.grade}</div>`);
+    expect(html).toContain(`data-grade="${presentation.grade}"`);
+    expect(html).toContain(`background:${presentation.color}`);
+    expect(html).toContain(`>${presentation.grade}</div>`);
     expect(html).toContain(presentation.label);
     expect(html).toContain(presentation.explanation);
     expect(html).toContain("See rating scale on page 2");
     expect(html).not.toContain("Data not available");
-    expect(html).toContain("Moderately Low Risk");
+    expect(html).toContain("Lower Risk");
+    expect(html).not.toContain('data-grade="AAA"');
+    expect(html).not.toContain('data-grade="BBB"');
+    expect(html).not.toContain("Very Low Risk");
+    expect(html).not.toContain("Moderately Low Risk");
 
     const published = structuredClone({ html: { page1: html } });
     published.html.page1 = "<p>mutated</p>";
     expect(html).toContain(presentation.explanation);
   });
 });
+

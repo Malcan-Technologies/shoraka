@@ -6,9 +6,12 @@
 /** Shared header tagline (reference / brand). */
 export const PROSPECTUS_HEADER_TAGLINE = "Invest in Growth. Earn with Purpose.";
 
-/** Supporting note under Page 2 Risk Rating Scale (AAA–B). */
+/**
+ * Disclosure under Page 2 Cashsouk Risk Rating scale.
+ * Source: Grade and Pricing Matrix → Important Disclosure Statement.
+ */
 export const PROSPECTUS_RISK_SCALE_NOTE =
-  "Risk rating is assessed by CashSouk based on financial, industry and payment risk factors.";
+  "The Cashsouk Risk represents a relative risk classification based on information available at the time of listing. It is not a guarantee of repayment, does not represent a probability of default, and should not be relied upon as the sole basis for an investment decision.";
 
 /** Body copy inside Page 2 Invest With Confidence CTA, above the button. */
 export const PROSPECTUS_INVEST_CTA_DESCRIPTION =

@@ -20,6 +20,7 @@ import {
   PROSPECTUS_PAYMASTER_RATING_VALUES,
   SOUKSCORE_RISK_RATING_CATALOGUE,
   SOUKSCORE_RISK_RATING_GRADES,
+  getReadableTextColor,
   normalizeProspectusCompanySize,
   normalizeProspectusConfidenceGrading,
   normalizeProspectusDeedOfAssignment,
@@ -482,18 +483,18 @@ export function WorkingAreaPageTwo({
 
       {tab === "risk" ? (
         <div className="space-y-6" role="tabpanel">
-          <ProspectusSectionShell title="Risk Information" icon={ShieldCheckIcon}>
+          <ProspectusSectionShell title="Cashsouk Risk Rating" icon={ShieldCheckIcon}>
             <div className="space-y-3" data-prospectus-risk-rating-scale>
               <p className="text-sm text-muted-foreground">
-                Full SoukScore scale. Selected Note grade is highlighted.
+                Full A–F Cashsouk scale. Selected Note grade is highlighted.
               </p>
               <div className="overflow-x-auto rounded-xl border">
-                <table className="w-full min-w-[40rem] text-left text-sm">
+                <table className="w-full min-w-[48rem] text-left text-sm">
                   <thead>
                     <tr className="border-b bg-muted/40">
                       <th className="px-3 py-2 font-semibold">Grade</th>
                       <th className="px-3 py-2 font-semibold">Risk Level</th>
-                      <th className="px-3 py-2 font-semibold">Explanation</th>
+                      <th className="px-3 py-2 font-semibold">Description</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -505,13 +506,22 @@ export function WorkingAreaPageTwo({
                           key={grade}
                           className={cn(
                             "border-b last:border-0",
-                            selected && "bg-primary/5"
+                            selected && "bg-muted/30 ring-2 ring-inset ring-foreground"
                           )}
                           data-selected={selected ? "true" : "false"}
                           aria-current={selected ? "true" : undefined}
                         >
                           <td className="px-3 py-2 font-semibold tabular-nums">
-                            {entry.grade}
+                            <span
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-xs font-extrabold"
+                              style={{
+                                backgroundColor: entry.color,
+                                color: getReadableTextColor(entry.color),
+                              }}
+                              data-grade-color={entry.color}
+                            >
+                              {entry.grade}
+                            </span>
                             {selected ? (
                               <span className="ml-2 text-xs font-normal text-muted-foreground">
                                 Selected
@@ -520,7 +530,7 @@ export function WorkingAreaPageTwo({
                           </td>
                           <td className="px-3 py-2">{entry.label}</td>
                           <td className="px-3 py-2 text-muted-foreground">
-                            {entry.explanation}
+                            {entry.description}
                           </td>
                         </tr>
                       );

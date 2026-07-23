@@ -37,7 +37,7 @@ function sampleNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     issuerOrganizationId: "org-1",
     issuerName: "Secret Issuer Sdn Bhd",
     paymasterName: "Kementerian Kerja Raya",
-    riskRating: "AA",
+    riskRating: "B",
     status: "DRAFT",
     listingStatus: "UNPUBLISHED",
     fundingStatus: "NOT_OPEN",
@@ -81,7 +81,7 @@ function sampleNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     },
     contractSnapshot: null,
     invoiceSnapshot: {
-      offer_details: { risk_rating: "AA" },
+      offer_details: { risk_rating: "B" },
     },
     serviceFeeCustomerScope: null,
     gracePeriodDays: 0,
@@ -167,7 +167,7 @@ describe("page three coverage verification", () => {
       "Confidence Grading",
     ]);
     expect(rows.find((r) => r.label === "Sector")?.value).toBe("Construction | Medium");
-    expect(rows.find((r) => r.label === "Risk Rating")?.value).toBe("AA");
+    expect(rows.find((r) => r.label === "Risk Rating")?.value).toBe("B");
     expect(rows.find((r) => r.label === "Paymaster")?.value).toBe("Kementerian Kerja Raya");
     expect(rows.find((r) => r.label === "Paymaster Grading")?.value).toBe("PM2");
     expect(rows.find((r) => r.label === "Confidence Grading")?.value).toBe("Medium");

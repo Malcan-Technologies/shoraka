@@ -15,7 +15,7 @@ Development sample placeholders remain in `apps/api/src/modules/notes/prospectus
 | Maturity Date | `notes.maturity_date` |
 | Expected Return (p.a.) | `@cashsouk/types` `resolveNetExpectedReturnRatePercent` |
 | Confirmed financial rows | Application statements via Page 2 freeze |
-| SoukScore | Marketplace scale `AAA`–`B` |
+| Cashsouk Risk Rating | Marketplace scale `A`–`F` (presentation catalogue; no scores/weights) |
 
 ## FIXED TEMPLATE
 

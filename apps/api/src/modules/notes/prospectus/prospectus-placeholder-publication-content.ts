@@ -170,7 +170,7 @@ export const PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT: ProspectusPublicationCo
     {
       key: "issuer_fundamentals",
       title: "Issuer financial profile",
-      description: "Placeholder recommendation for an issuer with an AA risk rating.",
+      description: "Placeholder recommendation for an issuer with a B risk rating.",
       sourceType: "derived_suggestion",
       isVisible: true,
     },

@@ -59,7 +59,7 @@ const FINANCING_AMOUNT = 850_000;
 const PROFIT_RATE = 9.5;
 const PLATFORM_FEE = 1.5;
 const SERVICE_FEE = 15;
-const RISK_RATING = "BBB";
+const RISK_RATING = "C";
 
 function money(value: number): Prisma.Decimal {
   return new Prisma.Decimal(value.toFixed(6));

@@ -21,7 +21,9 @@ export function buildProspectusRiskAssessment(
     canva: {
       riskGrade: presentation.grade,
       riskLabel: presentation.label,
-      riskExplanation: presentation.explanation,
+      riskExplanation: presentation.description,
+      riskGradeColor: presentation.color,
+      riskGradeTextColor: presentation.textColor,
       ratingScaleReference: PROSPECTUS_RATING_SCALE_REFERENCE,
     },
     audit: {
@@ -30,7 +32,7 @@ export function buildProspectusRiskAssessment(
         ? "Invoice offer, frozen on Note snapshot"
         : PROSPECTUS_DATA_NOT_AVAILABLE,
       assessmentSource: presentation.isAvailable
-        ? "Admin SoukScore on invoice offer"
+        ? "Admin Cashsouk Risk Rating on invoice offer"
         : PROSPECTUS_DATA_NOT_AVAILABLE,
       isFrozen: presentation.isAvailable,
       scaleStatus: PROSPECTUS_RATING_SCALE_STATUS,

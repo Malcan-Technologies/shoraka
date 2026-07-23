@@ -7,11 +7,11 @@ import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types"
 
 export { PROSPECTUS_DATA_NOT_AVAILABLE };
 
-/** Static template link — Page 2 scale not yet approved for SoukScore AAA–B. */
+/** Static template link to Page 2 Cashsouk Risk Rating scale. */
 export const PROSPECTUS_RATING_SCALE_REFERENCE = "See rating scale on page 2";
 
-/** Internal marker: do not ship as final until Page 2 uses an approved scale. */
-export const PROSPECTUS_RATING_SCALE_STATUS = "pending_scale_decision" as const;
+/** Internal marker: A–F catalogue is the approved Cashsouk scale. */
+export const PROSPECTUS_RATING_SCALE_STATUS = "cashsouk_a_to_f" as const;
 
 export type ProspectusRatingScaleStatus = typeof PROSPECTUS_RATING_SCALE_STATUS;
 
@@ -20,6 +20,8 @@ export interface ProspectusRiskAssessmentCanvaFacing {
   riskGrade: string;
   riskLabel: string;
   riskExplanation: string;
+  riskGradeColor: string;
+  riskGradeTextColor: string;
   ratingScaleReference: string;
 }
 
@@ -43,7 +45,7 @@ export interface ProspectusRiskAssessment {
 export interface ProspectusRiskAssessmentInput {
   /**
    * notes.invoice_snapshot.offer_details.risk_rating
-   * Allowed: AAA | AA | A | BBB | BB | B (isSoukscoreRiskRating)
+   * Allowed: A | B | C | D | E | F (isCashsoukRiskGrade)
    */
   soukscoreRiskRating: string | null | undefined;
 }
@@ -66,11 +68,11 @@ export const PROSPECTUS_RISK_ASSESSMENT_FIELD_SOURCES = {
     possibleAlternatives:
       "live invoices.offer_details.risk_rating; Canva A– / A–E — not used",
     notes:
-      "SoukScore: AAA, AA, A, BBB, BB, B via isSoukscoreRiskRating. NoteListItem.riskRating.",
+      "Cashsouk grades A–F via isCashsoukRiskGrade. NoteListItem.riskRating.",
   },
   riskLabel: {
     label: "Risk label",
-    canonicalSource: "SOUKSCORE_RISK_RATING_CATALOGUE[grade].label",
+    canonicalSource: "CASHSCOUK_RISK_RATING_CATALOGUE[grade].label",
     availability: "static" as const,
     surface: "canva" as const,
     possibleAlternatives:

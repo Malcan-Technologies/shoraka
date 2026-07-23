@@ -160,7 +160,7 @@ function buildInvoiceOfferDetails(args: {
     offered_amount: offeredAmount,
     offered_profit_rate_percent: offeredProfitRatePercent,
     platform_fee_rate_percent: platformFeeRatePercent,
-    risk_rating: "BBB",
+    risk_rating: "C",
   } satisfies Record<string, unknown>;
 }
 

@@ -13,7 +13,7 @@ import {
 } from "./prospectus-page-three-metadata.types";
 import { buildProspectusPageThreeMetadataDocument } from "./render-prospectus-page-three-metadata";
 
-const VALID_GRADES = ["AAA", "AA", "A", "BBB", "BB", "B"] as const;
+const VALID_GRADES = ["A", "B", "C", "D", "E", "F"] as const;
 
 function withSource(
   overrides: Partial<typeof SAMPLE_PROSPECTUS_PAGE_THREE_METADATA_INPUT> = {}

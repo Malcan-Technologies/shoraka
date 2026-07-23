@@ -253,11 +253,11 @@ describe("prospectus boss-review alignment", () => {
   });
 
   describe("SoukScore scale", () => {
-    it("keeps marketplace AAA–B grades on Page 2 sample", () => {
+    it("keeps marketplace A–F grades on Page 2 sample", () => {
       const grades = SAMPLE_PROSPECTUS_PAGE_TWO.soukscoreRatingScale.grades.map(
         (g) => g.grade
       );
-      expect(grades).toEqual(["AAA", "AA", "A", "BBB", "BB", "B"]);
+      expect(grades).toEqual(["A", "B", "C", "D", "E", "F"]);
       expect(grades).not.toContain("A-");
     });
   });

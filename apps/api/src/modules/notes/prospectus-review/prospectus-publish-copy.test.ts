@@ -74,7 +74,7 @@ describe("prospectus publish exact copy", () => {
     published.html.page2 = '<section data-stage="2">Invoice Amount: RM 1.00</section>';
     published.note_identity.invoice_snapshot = {
       details: { value: 1 },
-      offer_details: { risk_rating: "AAA" },
+      offer_details: { risk_rating: "A" },
     };
     published.page_1 = { marker: "changed" };
 
@@ -108,7 +108,7 @@ describe("prospectus publish exact copy", () => {
     });
     expect(approved.page_1).toEqual({ marker: "a" });
     expect(JSON.stringify(published.html)).not.toEqual(JSON.stringify(approved.html));
-    expect(published.note_identity.invoice_snapshot.offer_details.risk_rating).toBe("AAA");
+    expect(published.note_identity.invoice_snapshot.offer_details.risk_rating).toBe("A");
     expect(approved.html.page2).toContain('data-grade="BBB" data-selected="true"');
     expect(approved.html.page3).toContain("PM1");
   });

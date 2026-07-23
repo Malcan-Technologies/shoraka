@@ -34,7 +34,7 @@ function sampleNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     issuerOrganizationId: "org-1",
     issuerName: "Hidden Issuer Sdn Bhd",
     paymasterName: "Kementerian Kerja Raya",
-    riskRating: "AA",
+    riskRating: "B",
     status: "DRAFT",
     listingStatus: "UNPUBLISHED",
     fundingStatus: "NOT_OPEN",
@@ -265,11 +265,11 @@ describe("note & investment details coverage", () => {
       "Risk Label",
       "Risk Explanation",
     ]);
-    expect(byId["risk-information"]?.find((r) => r.label === "Risk Rating")?.value).toBe("AA");
+    expect(byId["risk-information"]?.find((r) => r.label === "Risk Rating")?.value).toBe("B");
   });
 
   it("keeps Risk Rating, Label, and Explanation; omits Rating Scale Reference from admin", () => {
-    const withGrade = buildNoteInvestmentDetailSections(sampleNote({ riskRating: "BBB" }));
+    const withGrade = buildNoteInvestmentDetailSections(sampleNote({ riskRating: "C" }));
     const risk = withGrade.find((s) => s.id === "risk-information")!;
     expect(risk.title).toBe("Risk Information");
     expect(risk.rows.map((r) => r.label)).toEqual([
@@ -277,48 +277,48 @@ describe("note & investment details coverage", () => {
       "Risk Label",
       "Risk Explanation",
     ]);
-    expect(risk.rows.find((r) => r.label === "Risk Rating")?.value).toBe("BBB");
+    expect(risk.rows.find((r) => r.label === "Risk Rating")?.value).toBe("C");
     expect(risk.rows.find((r) => r.label === "Risk Label")?.value).toBe("Moderate Risk");
     expect(risk.rows.find((r) => r.label === "Risk Explanation")?.value).toBe(
-      "The issuer demonstrates adequate financial strength but may be more sensitive to adverse business or economic conditions."
+      "The note reflects typical SME and transaction-level risks. Certain risk factors such as shorter operating history, moderate leverage, or first-time commercial relationships may be present. Suitable for investors comfortable with standard SME credit exposure."
     );
     expect(risk.rows.some((r) => r.label === "Rating Scale Reference")).toBe(false);
     expect(JSON.stringify(risk.rows)).not.toMatch(/See rating scale on page 2/);
 
     const expectedByGrade: Record<string, { label: string; explanation: string }> = {
-      AAA: {
-        label: "Very Low Risk",
-        explanation:
-          "The issuer demonstrates excellent financial strength and a very strong capacity to meet its financial obligations.",
-      },
-      AA: {
-        label: "Low Risk",
-        explanation:
-          "The issuer demonstrates strong financial strength and a strong capacity to meet its financial obligations.",
-      },
       A: {
-        label: "Moderately Low Risk",
+        label: "Lower Risk",
         explanation:
-          "The issuer demonstrates good financial strength and an adequate capacity to meet its financial obligations.",
-      },
-      BBB: {
-        label: "Moderate Risk",
-        explanation:
-          "The issuer demonstrates adequate financial strength but may be more sensitive to adverse business or economic conditions.",
-      },
-      BB: {
-        label: "Elevated Risk",
-        explanation:
-          "The issuer shows some financial vulnerability and may face difficulty meeting its obligations under adverse conditions.",
+          "The note demonstrates strong paymaster quality, sound transaction structure, stable issuer profile, and minimal adverse indicators. While not risk-free, it reflects relatively lower expected credit and operational risk compared to other notes on the platform.",
       },
       B: {
+        label: "Moderate-Low Risk",
+        explanation:
+          "The note presents generally favourable risk characteristics with minor sensitivities. Some moderate risk factors may be present, but overall structural and credit indicators remain sound.",
+      },
+      C: {
+        label: "Moderate Risk",
+        explanation:
+          "The note reflects typical SME and transaction-level risks. Certain risk factors such as shorter operating history, moderate leverage, or first-time commercial relationships may be present. Suitable for investors comfortable with standard SME credit exposure.",
+      },
+      D: {
+        label: "Higher Risk",
+        explanation:
+          "The note contains elevated risk characteristics, such as higher leverage, limited payment history, structural limitations, or weaker financial indicators. Investors should expect greater variability in payment timing and outcomes.",
+      },
+      E: {
         label: "High Risk",
         explanation:
-          "The issuer shows significant financial vulnerability and a higher likelihood of repayment difficulty under adverse conditions.",
+          "The note demonstrates multiple risk sensitivities, including financial, structural, or behavioural concerns. Suitable only for investors with higher risk tolerance and understanding of potential delay or recovery scenarios.",
+      },
+      F: {
+        label: "Not Eligible",
+        explanation:
+          "The note does not meet the Platform’s minimum listing standards due to legal, structural, integrity, or material credit concerns. It will not be made available for investment.",
       },
     };
 
-    for (const grade of ["AAA", "AA", "A", "BBB", "BB", "B"] as const) {
+    for (const grade of ["A", "B", "C", "D", "E", "F"] as const) {
       const rows = buildNoteInvestmentDetailSections(sampleNote({ riskRating: grade })).find(
         (s) => s.id === "risk-information"
       )!.rows;
@@ -343,7 +343,7 @@ describe("note & investment details coverage", () => {
     );
 
     const invalid = buildNoteInvestmentDetailSections(
-      sampleNote({ riskRating: "C" as never })
+      sampleNote({ riskRating: "AAA" as never })
     ).find((s) => s.id === "risk-information")!.rows;
     expect(invalid.find((r) => r.label === "Risk Rating")?.value).toBe(
       "—"

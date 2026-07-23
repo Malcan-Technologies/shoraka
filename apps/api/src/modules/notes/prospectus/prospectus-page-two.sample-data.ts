@@ -108,7 +108,7 @@ export const SAMPLE_PROSPECTUS_PAGE_TWO_INPUT: ProspectusPageTwoBuilderInput = {
   },
   invoiceSnapshot: {
     details: { value: 625000 },
-    offer_details: { risk_rating: "AA" },
+    offer_details: { risk_rating: "B" },
   },
   paymasterSnapshot: {
     name: "Sample Paymaster Berhad",

@@ -38,12 +38,12 @@ describe("prospectus highlight recommendations", () => {
   });
 
   it("maps every SoukScore grade to a placeholder issuer recommendation", () => {
-    for (const grade of ["AAA", "AA", "A", "BBB", "BB", "B"] as const) {
+    for (const grade of ["A", "B", "C", "D", "E", "F"] as const) {
       expect(recommendIssuerFinancialStrengthHighlight({ riskRating: grade })).toEqual(
         ISSUER_FINANCIAL_STRENGTH_RECOMMENDATIONS[grade]
       );
     }
-    expect(recommendIssuerFinancialStrengthHighlight({ riskRating: "C" }).description).toBe(
+    expect(recommendIssuerFinancialStrengthHighlight({ riskRating: "AAA" }).description).toBe(
       "—"
     );
   });

@@ -39,7 +39,7 @@ describe("prospectus review content", () => {
   it("starts with recommended highlight copy and no Payment Basis / Shariah keys", () => {
     const empty = emptyProspectusReviewContent({
       paymasterSnapshot: { name: "KKR", entity_type: "Government Agency" },
-      riskRating: "AA",
+      riskRating: "B",
       profitRatePercent: 12,
       listingOpensAt: "2025-05-15T00:00:00.000Z",
       maturityDate: "2025-09-12T00:00:00.000Z",
@@ -82,7 +82,7 @@ describe("prospectus review content", () => {
     expect(validateDraftContent(legacy)).toEqual([]);
     const normalized = normalizeHighlightSelections(legacy, {
       paymasterSnapshot: { name: "Acme", entity_type: "Private Company" },
-      riskRating: "BBB",
+      riskRating: "C",
       profitRatePercent: 10,
       listingOpensAt: "2025-01-01T00:00:00.000Z",
       maturityDate: "2025-04-01T00:00:00.000Z",

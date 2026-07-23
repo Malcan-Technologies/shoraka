@@ -1,6 +1,6 @@
 /**
- * SECTION: Prospectus Page 2 — SoukScore Risk Rating Scale (DATA STAGE 7)
- * WHY: Fixed AAA–B scale from frozen Note grade; no Canva A–E, %, or invented labels
+ * SECTION: Prospectus Page 2 — Cashsouk Risk Rating Scale (DATA STAGE 7)
+ * WHY: Fixed A–F catalogue from Grade and Pricing Matrix; no scores/weights/pricing
  */
 
 import type { SoukscoreRiskRating } from "@cashsouk/types";
@@ -10,26 +10,30 @@ export { SOUKSCORE_RISK_RATING_GRADES };
 export type { SoukscoreRiskRating };
 
 /** Static Canva section title — not a database field. */
-export const PROSPECTUS_SOUKSCORE_RATING_SCALE_SECTION_HEADING = "RISK RATING SCALE";
+export const PROSPECTUS_SOUKSCORE_RATING_SCALE_SECTION_HEADING = "CASHSCOUK RISK RATING";
 
 /** Canonical grade order — reuse shared constant; do not invent a second order. */
 export const PROSPECTUS_SOUKSCORE_GRADE_ORDER = SOUKSCORE_RISK_RATING_GRADES;
 
 /**
- * Stable code version for the fixed AAA–B scale structure.
+ * Stable code version for the fixed A–F scale structure.
  * Stored on page_2.config_versions.soukscore_scale at Approve.
  */
-export const PROSPECTUS_SOUKSCORE_SCALE_VERSION = "2026.07.21.soukscore-scale.v1";
+export const PROSPECTUS_SOUKSCORE_SCALE_VERSION = "2026.07.23.cashsouk-risk-scale.v1";
 
 /** Shown once under the scale when the frozen Note grade is missing or invalid. */
 export const PROSPECTUS_SOUKSCORE_RATING_NOT_AVAILABLE = "—";
 
 export interface ProspectusSoukscoreGradeItem {
   grade: SoukscoreRiskRating;
-  /** Catalogue risk level label (e.g. Moderately Low Risk). */
+  /** Catalogue risk level label (e.g. Lower Risk). */
   label: string;
-  /** Catalogue short explanation for this grade. */
+  /** Catalogue description for this grade. */
   explanation: string;
+  /** Catalogue CSS hex colour for the grade badge. */
+  color: string;
+  /** Readable foreground for the grade badge. */
+  textColor: string;
   isSelected: boolean;
 }
 
@@ -38,7 +42,7 @@ export interface ProspectusSoukscoreRatingScaleAudit {
     canonicalSystem: "soukscore";
     gradeOrder: readonly SoukscoreRiskRating[];
     scaleVersion: typeof PROSPECTUS_SOUKSCORE_SCALE_VERSION;
-    canvaAtoEScaleRejected: true;
+    canvaAtoEScaleRejected: false;
     numericThresholdsAvailable: false;
     creditInsightsDerived: false;
     externalRatingDefinitionsUsed: false;
@@ -76,7 +80,7 @@ export const PROSPECTUS_SOUKSCORE_RATING_SCALE_AUDIT: ProspectusSoukscoreRatingS
     canonicalSystem: "soukscore",
     gradeOrder: PROSPECTUS_SOUKSCORE_GRADE_ORDER,
     scaleVersion: PROSPECTUS_SOUKSCORE_SCALE_VERSION,
-    canvaAtoEScaleRejected: true,
+    canvaAtoEScaleRejected: false,
     numericThresholdsAvailable: false,
     creditInsightsDerived: false,
     externalRatingDefinitionsUsed: false,
@@ -149,7 +153,7 @@ export const PROSPECTUS_SOUKSCORE_RATING_SCALE_FIELD_SOURCES: Record<
     availability: "static",
     surface: "canva",
     possibleAlternatives: "none",
-    notes: "RISK RATING SCALE",
+    notes: "CASHSCOUK RISK RATING",
   },
   grades: {
     label: "SoukScore grade cells",
@@ -158,7 +162,7 @@ export const PROSPECTUS_SOUKSCORE_RATING_SCALE_FIELD_SOURCES: Record<
     surface: "canva",
     possibleAlternatives: "Canva A–E — rejected; no A–E mapping",
     notes:
-      "Order AAA, AA, A, BBB, BB, B. Full scale shows grade + catalogue label + explanation; selected grade highlighted.",
+      "Order A–F. Full scale shows grade + catalogue label + description + colour; selected grade highlighted.",
   },
   riskLabel: {
     label: "Risk Label",

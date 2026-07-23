@@ -76,7 +76,7 @@ const TARGET_AMOUNT = 100_000;
 const PROFIT_RATE = 10;
 const PLATFORM_FEE = 1.5;
 const SERVICE_FEE = 15;
-const RISK_RATING = "BBB";
+const RISK_RATING = "C";
 
 const SITE_DOC_PRODUCT = "seed_demo_prospectus_product_terms";
 const SITE_DOC_RISK = "seed_demo_prospectus_risk_disclosure";

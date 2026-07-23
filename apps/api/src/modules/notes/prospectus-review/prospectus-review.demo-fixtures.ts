@@ -24,7 +24,7 @@ export function buildCompleteProspectusReviewDraft(): ProspectusReviewStoredCont
   let draft = emptyProspectusReviewContent(
     {
       paymasterSnapshot,
-      riskRating: "AA",
+      riskRating: "B",
       profitRatePercent: 12,
       listingOpensAt: "2025-05-15T00:00:00.000Z",
       maturityDate: "2025-09-12T00:00:00.000Z",

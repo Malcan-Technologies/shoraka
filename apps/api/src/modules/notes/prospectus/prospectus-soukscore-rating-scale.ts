@@ -1,9 +1,10 @@
 /**
- * SECTION: Build Page 2 SoukScore Risk Rating Scale view-model
- * WHY: AAA–B structural scale from frozen Note grade; no invented labels/definitions
+ * SECTION: Build Page 2 Cashsouk Risk Rating Scale view-model
+ * WHY: A–F catalogue from Grade and Pricing Matrix; colours from shared reference
  */
 
 import {
+  getReadableTextColor,
   isSoukscoreRiskRating,
   SOUKSCORE_RISK_RATING_CATALOGUE,
 } from "@cashsouk/types";
@@ -32,6 +33,8 @@ export function buildProspectusSoukscoreRatingScale(
         grade,
         label: entry.label,
         explanation: entry.explanation,
+        color: entry.color,
+        textColor: getReadableTextColor(entry.color),
         isSelected: selected != null && grade === selected,
       };
     }),

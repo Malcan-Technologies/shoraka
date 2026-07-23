@@ -9,7 +9,7 @@ import {
 import { buildProspectusCreditInsightsDocument } from "./render-prospectus-credit-insights";
 import { PROSPECTUS_CREDIT_INSIGHT_OPTION_CATALOGUE } from "../prospectus-review/prospectus-option-catalogues";
 
-const SOUKSCORES = ["AAA", "AA", "A", "BBB", "BB", "B"] as const;
+const SOUKSCORES = ["A", "B", "C", "D", "E", "F"] as const;
 
 const DEMO_SELECTIONS = {
   creditScore: "good",

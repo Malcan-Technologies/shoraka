@@ -34,34 +34,34 @@ export const PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT: ProspectusHighlightCopy = {
   description: PROSPECTUS_FIXED_SHARIAH_HIGHLIGHT_DESCRIPTION,
 };
 
-/** Placeholder SoukScore → Issuer Financial Strength recommendations (not approved claims). */
+/** Placeholder Cashsouk grade → Issuer Financial Strength recommendations (not approved claims). */
 export const ISSUER_FINANCIAL_STRENGTH_RECOMMENDATIONS: Record<
   SoukscoreRiskRating,
   ProspectusHighlightCopy
 > = {
-  AAA: {
-    title: "Issuer financial profile",
-    description: "Placeholder recommendation for an issuer with a AAA risk rating.",
-  },
-  AA: {
-    title: "Issuer financial profile",
-    description: "Placeholder recommendation for an issuer with an AA risk rating.",
-  },
   A: {
     title: "Issuer financial profile",
     description: "Placeholder recommendation for an issuer with an A risk rating.",
   },
-  BBB: {
-    title: "Issuer financial profile",
-    description: "Placeholder recommendation for an issuer with a BBB risk rating.",
-  },
-  BB: {
-    title: "Issuer financial profile",
-    description: "Placeholder recommendation for an issuer with a BB risk rating.",
-  },
   B: {
     title: "Issuer financial profile",
     description: "Placeholder recommendation for an issuer with a B risk rating.",
+  },
+  C: {
+    title: "Issuer financial profile",
+    description: "Placeholder recommendation for an issuer with a C risk rating.",
+  },
+  D: {
+    title: "Issuer financial profile",
+    description: "Placeholder recommendation for an issuer with a D risk rating.",
+  },
+  E: {
+    title: "Issuer financial profile",
+    description: "Placeholder recommendation for an issuer with an E risk rating.",
+  },
+  F: {
+    title: "Issuer financial profile",
+    description: "Placeholder recommendation for an issuer with an F risk rating.",
   },
 };
 

@@ -47,7 +47,7 @@ function baseNote(
       industry: "Construction",
     },
     invoice_snapshot: {
-      offer_details: { risk_rating: "AA" },
+      offer_details: { risk_rating: "B" },
     },
     paymaster_snapshot: {
       name: "Kementerian Kerja Raya",
@@ -367,7 +367,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       );
       expect(page.metadata.metadata).not.toHaveProperty("issuer");
       expect(page.metadata.metadata.sector).toBe("Construction | Medium");
-      expect(page.metadata.metadata.riskRating).toBe("AA");
+      expect(page.metadata.metadata.riskRating).toBe("B");
       expect(page.metadata.metadata.paymaster).toBe("Kementerian Kerja Raya");
       expect(page.metadata.metadata.paymasterGrading).toBe("PM1");
       expect(page.metadata.metadata.confidenceGrading).toBe("High");
@@ -375,7 +375,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       const invalid = buildProspectusPageThree({
         ...mapProspectusPageThreeDataToInput({
           note: baseNote({
-            invoice_snapshot: { offer_details: { risk_rating: "C" } },
+            invoice_snapshot: { offer_details: { risk_rating: "AAA" } },
           }),
           liveFinancialStatements,
           liveCtosFinancials,
