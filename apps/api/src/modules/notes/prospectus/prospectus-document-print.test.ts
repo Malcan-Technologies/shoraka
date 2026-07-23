@@ -42,6 +42,22 @@ describe("prospectus document A4 and print CSS", () => {
     expect(PROSPECTUS_DOCUMENT_CSS).toMatch(/box-shadow:0 4px 24px/);
   });
 
+  it("lets Page 2 financial card grow to the taller column instead of clipping the table", () => {
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(".page-two-financial-card{");
+    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
+      /\.page-two-financial-card\{[^}]*overflow:visible/
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
+      /\.page-two-financial-card\{[^}]*flex-shrink:0/
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
+      /\.page-two-financial-card\{[^}]*align-items:stretch/
+    );
+    const page2 = buildProspectusPageTwoHtml(SAMPLE_PROSPECTUS_PAGE_TWO);
+    expect(page2).toContain("page-two-financial-card");
+    expect(page2).toContain("Receivables Days");
+  });
+
   it("print CSS removes preview chrome and keeps A4 with print backgrounds", () => {
     expect(PROSPECTUS_DOCUMENT_CSS).toContain("print-color-adjust:exact");
     expect(PROSPECTUS_DOCUMENT_CSS).toContain("-webkit-print-color-adjust:exact");
@@ -78,10 +94,11 @@ describe("combineProspectusPagesHtml", () => {
   it("builds one document with exactly three A4 .page nodes", () => {
     const combined = combineProspectusPagesHtml({ page1, page2, page3 });
     expect(combined.match(/<!DOCTYPE html>/g)?.length).toBe(1);
-    expect(combined.match(/<section\b[^>]*\bclass="[^"]*\bpage\b/g)?.length).toBe(3);
+    expect(combined.match(/data-page="prospectus-page-(one|two|three)"/g)?.length).toBe(3);
     expect(combined).toContain('data-page="prospectus-page-one"');
     expect(combined).toContain('data-page="prospectus-page-two"');
     expect(combined).toContain('data-page="prospectus-page-three"');
+    expect(combined).toContain("page-two-financial-card");
     expect(combined).not.toContain("<hr");
     expect(combined).toContain(PROSPECTUS_DOCUMENT_CSS.slice(0, 40));
     expect(combined).toContain("<b>Closing Date</b>");

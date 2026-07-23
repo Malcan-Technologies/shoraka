@@ -94,6 +94,16 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:#df2b23;co
 .issuer-profile{display:flex;gap:18px;align-items:center;margin:20px 0}.round-icon{width:76px;height:76px;border-radius:50%;background:#efcecf;display:grid;place-items:center;color:#ae262c}.round-icon .icon{width:44px;height:44px}.issuer-profile span,.issuer-profile b{display:block;margin-bottom:8px}.issuer-grid p{font-size:9px;margin:0}
 .invoice-info dl{margin:0}.invoice-info dl div{display:flex;justify-content:space-between;align-items:center;margin-bottom:13px}.invoice-info dt{display:flex;align-items:center;gap:10px;font-weight:700}.invoice-info dt .icon,.work-list .icon{width:30px;height:30px;padding:6px;background:#efcecf;border-radius:50%;color:#b22a30;box-sizing:border-box}.invoice-info dd{margin:0;text-align:right}
 .financial-card{display:grid;grid-template-columns:.34fr .66fr}.financial-card>div{padding:12px}.financial-card>div+div{border-left:1px solid var(--line)}.summary-list.compact dt{padding-left:0}.summary-list.compact dt:before{display:none}.plain th{background:#f2f0f0;color:#111}.plain td,.plain th{text-align:center}.plain td:first-child,.plain th:first-child{text-align:left}
+/* Page 2 Paymaster + Financial Comparison: grow to tallest column.
+   Root cause: .page is flex column + .card{overflow:hidden} lets the card flex-shrink
+   below the taller financial table, clipping Receivables Days. */
+.page-two-financial-card{
+  height:auto;
+  min-height:0;
+  overflow:visible;
+  align-items:stretch;
+  flex-shrink:0;
+}
 .lower{margin-top:0;border-top:0;border-radius:0 0 8px 8px}.ratings div{display:grid;grid-template-columns:1fr 110px;gap:8px;align-items:center;margin:5px 0;position:relative}.ratings div:before{content:"";width:17px;height:17px;background:#e3bfc0;border-radius:3px;position:absolute;left:0}.ratings span{font-weight:700;padding-left:22px}.ratings b{background:#d8d8d8;text-align:center;padding:5px;border-radius:4px;font-weight:500}.ratings .good{color:#21a43b}
 .work-list p{display:flex;align-items:flex-start;gap:10px;font-size:9px;margin-bottom:9px}.work-list .icon{flex:none;width:25px;height:25px;padding:4px;box-sizing:border-box}
 .risk-cta{display:grid;grid-template-columns:2fr 1fr;gap:9px;margin-top:8px}.risk-cta>.card{padding:10px}

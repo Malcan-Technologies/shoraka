@@ -154,7 +154,7 @@ ${PROSPECTUS_DOCUMENT_CSS}
       </section>
     </div>
 
-    <section class="card financial-card">
+    <section class="card financial-card page-two-financial-card">
       <div class="paymaster-record" data-stage="3">
         <h2>${escapeHtml(s3.sectionHeading)}</h2>
         <dl class="summary-list compact">
