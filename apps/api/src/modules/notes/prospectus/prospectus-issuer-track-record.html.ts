@@ -3,7 +3,12 @@
  * WHY: Heading + four metrics; audit/filters/dashboard metadata excluded
  */
 
-import type { ProspectusIssuerTrackRecord } from "./prospectus-issuer-track-record.types";
+import {
+  PROSPECTUS_SUCCESSFUL_REPAYMENT_LABEL,
+  PROSPECTUS_TOTAL_AMOUNT_FUNDED_LABEL,
+  PROSPECTUS_TOTAL_NOTES_FUNDED_LABEL,
+  type ProspectusIssuerTrackRecord,
+} from "./prospectus-issuer-track-record.types";
 
 function escapeHtml(value: string): string {
   return value
@@ -29,9 +34,9 @@ export function buildProspectusIssuerTrackRecordHtml(
   <section>
     <h2>${escapeHtml(data.sectionHeading)}</h2>
     <p>
-      Total Notes Funded: ${escapeHtml(data.totalNotesFunded)}<br />
-      Total Amount Funded: ${escapeHtml(data.totalAmountFunded)}<br />
-      Successful Repayment: ${escapeHtml(data.successfulRepayment)}<br />
+      ${escapeHtml(PROSPECTUS_TOTAL_NOTES_FUNDED_LABEL)}: ${escapeHtml(data.totalNotesFunded)}<br />
+      ${escapeHtml(PROSPECTUS_TOTAL_AMOUNT_FUNDED_LABEL)}: ${escapeHtml(data.totalAmountFunded)}<br />
+      ${escapeHtml(PROSPECTUS_SUCCESSFUL_REPAYMENT_LABEL)}: ${escapeHtml(data.successfulRepayment)}<br />
       ${escapeHtml(data.onTimePaymentRateLabel)}: ${escapeHtml(data.onTimePaymentRate)}
     </p>
   </section>

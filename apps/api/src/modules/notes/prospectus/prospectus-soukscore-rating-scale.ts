@@ -3,7 +3,10 @@
  * WHY: AAA–B structural scale from frozen Note grade; no invented labels/definitions
  */
 
-import { isSoukscoreRiskRating } from "@cashsouk/types";
+import {
+  isSoukscoreRiskRating,
+  SOUKSCORE_RISK_RATING_CATALOGUE,
+} from "@cashsouk/types";
 import {
   PROSPECTUS_SOUKSCORE_GRADE_ORDER,
   PROSPECTUS_SOUKSCORE_RATING_NOT_AVAILABLE,
@@ -23,10 +26,15 @@ export function buildProspectusSoukscoreRatingScale(
 
   return {
     sectionHeading: PROSPECTUS_SOUKSCORE_RATING_SCALE_SECTION_HEADING,
-    grades: PROSPECTUS_SOUKSCORE_GRADE_ORDER.map((grade) => ({
-      grade,
-      isSelected: selected != null && grade === selected,
-    })),
+    grades: PROSPECTUS_SOUKSCORE_GRADE_ORDER.map((grade) => {
+      const entry = SOUKSCORE_RISK_RATING_CATALOGUE[grade];
+      return {
+        grade,
+        label: entry.label,
+        explanation: entry.explanation,
+        isSelected: selected != null && grade === selected,
+      };
+    }),
     selectedGrade: selected,
     missingRatingMessage:
       selected == null ? PROSPECTUS_SOUKSCORE_RATING_NOT_AVAILABLE : null,

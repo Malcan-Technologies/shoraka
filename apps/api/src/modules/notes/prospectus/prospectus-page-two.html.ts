@@ -22,7 +22,16 @@ function renderFinancialTable(page: ProspectusPageTwo): string {
   const yearHeaders =
     data.years.length === 0
       ? `<th>${escapeHtml(PROSPECTUS_DATA_NOT_AVAILABLE)}</th>`
-      : data.years.map((year) => `<th>${escapeHtml(year.yearLabel)}</th>`).join("");
+      : data.years
+          .map(
+            (year) =>
+              `<th><span class="fy-label">${escapeHtml(
+                year.yearLabel
+              )}</span><span class="fy-end">${escapeHtml(
+                year.financialYearEndLabel
+              )}</span></th>`
+          )
+          .join("");
 
   const bodyRows =
     data.years.length === 0
@@ -48,7 +57,7 @@ function renderFinancialTable(page: ProspectusPageTwo): string {
   <div class="table-wrap"><table class="plain">
     <thead>
       <tr>
-        <th>Financial Metrics</th>
+        <th>Financial Metric</th>
         ${yearHeaders}
       </tr>
     </thead>
@@ -58,6 +67,17 @@ ${bodyRows}
   </table></div>
   <em class="fin-source">${escapeHtml(data.sourceFooter)}</em>
 </div>`;
+}
+
+function formatIssuerIndustrySizeLine(industry: string, companySize: string): string {
+  const missingIndustry =
+    !industry.trim() || industry === PROSPECTUS_DATA_NOT_AVAILABLE;
+  const missingSize =
+    !companySize.trim() || companySize === PROSPECTUS_DATA_NOT_AVAILABLE;
+  if (missingIndustry && missingSize) return PROSPECTUS_DATA_NOT_AVAILABLE;
+  return `${missingIndustry ? PROSPECTUS_DATA_NOT_AVAILABLE : industry} | ${
+    missingSize ? PROSPECTUS_DATA_NOT_AVAILABLE : companySize
+  }`;
 }
 
 function ratingRow(label: string, value: string): string {
@@ -112,10 +132,9 @@ ${PROSPECTUS_DOCUMENT_CSS}
         <div class="issuer-profile">
           <div class="round-icon">${prospectusIcon.building("icon")}</div>
           <div>
-            <b><strong>Industry</strong></b>
-            <span>${escapeHtml(s1.industry)}</span>
-            <b><strong>Company Size</strong></b>
-            <span>${escapeHtml(s1.companySize)}</span>
+            <b class="issuer-meta-line">${escapeHtml(
+              formatIssuerIndustrySizeLine(s1.industry, s1.companySize)
+            )}</b>
             <span>${escapeHtml(s1.registeredCountry)}</span>
           </div>
         </div>
@@ -127,8 +146,8 @@ ${PROSPECTUS_DOCUMENT_CSS}
           <div><dt>${prospectusIcon.badgeDollar("icon")}Invoice Amount</dt><dd>${escapeHtml(s2.invoiceAmount)}</dd></div>
           <div><dt>${prospectusIcon.calendarDays("icon")}Invoice Due Date</dt><dd>${escapeHtml(s2.invoiceDueDate)}</dd></div>
           <div><dt>${prospectusIcon.badgeCheck("icon")}Paymaster</dt><dd>${escapeHtml(s2.paymasterName)}</dd></div>
-          <div><dt>${prospectusIcon.landmark("icon")}Nature of Paymaster:</dt><dd>${escapeHtml(s2.paymasterNature)}</dd></div>
-          <div><dt>${prospectusIcon.fileCheck("icon")}Deed of Assignment (DOA):</dt><dd>${escapeHtml(s2.deedOfAssignment)}</dd></div>
+          <div><dt>${prospectusIcon.landmark("icon")}Nature of Paymaster</dt><dd>${escapeHtml(s2.paymasterNature)}</dd></div>
+          <div><dt>${prospectusIcon.fileCheck("icon")}Deed of Assignment (DOA)</dt><dd>${escapeHtml(s2.deedOfAssignment)}</dd></div>
           <div><dt>${prospectusIcon.clipboardCheck("icon")}Paymaster Rating</dt><dd>${escapeHtml(s2.paymasterRating)}</dd></div>
           <div><dt>${prospectusIcon.clipboardCheck("icon")}Confidence Grading</dt><dd>${escapeHtml(s2.confidenceGrading)}</dd></div>
         </dl>
@@ -141,8 +160,8 @@ ${PROSPECTUS_DOCUMENT_CSS}
         <dl class="summary-list compact">
           <div><dt>Total Invoices Paid</dt><dd>${escapeHtml(s3.totalInvoicesPaid)}</dd></div>
           <div><dt>Total Amount Paid</dt><dd>${escapeHtml(s3.totalAmountPaid)}</dd></div>
-          <div><dt>Successful Repayment:</dt><dd>${escapeHtml(s3.successfulRepaymentPercent)}</dd></div>
-          <div><dt>On-Time Payment:</dt><dd>${escapeHtml(s3.onTimePayment)}</dd></div>
+          <div><dt>Successful Repayment</dt><dd>${escapeHtml(s3.successfulRepaymentPercent)}</dd></div>
+          <div><dt>On-Time Payment</dt><dd>${escapeHtml(s3.onTimePayment)}</dd></div>
           <div><dt>Average Payment Period</dt><dd>${escapeHtml(s3.averagePaymentPeriod)}</dd></div>
         </dl>
       </div>

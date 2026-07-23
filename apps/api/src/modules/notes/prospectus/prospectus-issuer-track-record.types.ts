@@ -15,6 +15,12 @@ export const PROSPECTUS_ISSUER_TRACK_RECORD_IDENTITY_SOURCE =
 
 export const PROSPECTUS_ISSUER_TRACK_RECORD_CURRENT_NOTE_EXCLUSION_KEY = "notes.id";
 
+/** All-time funded-history metrics (eligible notes; current note excluded). */
+export const PROSPECTUS_TOTAL_NOTES_FUNDED_LABEL = "Total Notes Funded — All Time";
+export const PROSPECTUS_TOTAL_AMOUNT_FUNDED_LABEL = "Total Amount Funded — All Time";
+export const PROSPECTUS_SUCCESSFUL_REPAYMENT_LABEL = "Successful Repayment — All Time";
+
+/** Schedule-level on-time rate for the last 6 months only. */
 export const PROSPECTUS_ON_TIME_PAYMENT_RATE_LABEL =
   "On-time Payment Rate — Last 6 Months";
 

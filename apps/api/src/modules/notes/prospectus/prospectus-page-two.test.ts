@@ -458,10 +458,10 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(withOfficerSize.issuerProfile.industry).toBe("Construction");
       expect(withOfficerSize.issuerProfile.companySize).toBe("Medium");
       const pageHtml = renderProspectusPageTwoHtml(withOfficerSize);
-      expect(pageHtml).toContain("<strong>Industry</strong>");
-      expect(pageHtml).toContain("<strong>Company Size</strong>");
-      expect(pageHtml).toContain("Medium");
-      expect(pageHtml).not.toContain("Construction | Medium");
+      expect(pageHtml).toContain('class="issuer-meta-line"');
+      expect(pageHtml).toContain("Construction | Medium");
+      expect(pageHtml).not.toContain("<strong>Industry</strong>");
+      expect(pageHtml).not.toContain("<strong>Company Size</strong>");
 
       expect(page.invoicePaymaster.invoiceAmount).toBe(formatProspectusMoneyMyr(625_000));
       expect(page.invoicePaymaster.deedOfAssignment).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
@@ -488,12 +488,13 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(withOfficerInvoice.invoicePaymaster.confidenceGrading).toBe("High");
 
       const invoiceHtml = renderProspectusPageTwoHtml(withOfficerInvoice);
-      expect(invoiceHtml).toContain("Nature of Paymaster:");
-      expect(invoiceHtml).toContain("Deed of Assignment (DOA):");
+      expect(invoiceHtml).toContain("Nature of Paymaster");
+      expect(invoiceHtml).toContain("Deed of Assignment (DOA)");
+      expect(invoiceHtml).not.toContain("Nature of Paymaster:");
+      expect(invoiceHtml).not.toContain("Deed of Assignment (DOA):");
       expect(invoiceHtml).toContain("Yes");
       expect(invoiceHtml).toContain("PM1");
       expect(invoiceHtml).toContain("High");
-      expect(invoiceHtml).not.toMatch(/Nature:(?! of Paymaster)/);
       expect(invoiceHtml).not.toContain("financing ratio");
       expect(invoiceHtml).not.toContain("INV-");
 
@@ -523,8 +524,10 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(withOfficerTrack.paymasterTrackRecord.onTimePayment).toBe("94%");
       expect(withOfficerTrack.paymasterTrackRecord.averagePaymentPeriod).toBe("32 days");
       const trackHtml = renderProspectusPageTwoHtml(withOfficerTrack);
-      expect(trackHtml).toContain("Successful Repayment:");
-      expect(trackHtml).toContain("On-Time Payment:");
+      expect(trackHtml).toContain("Successful Repayment");
+      expect(trackHtml).toContain("On-Time Payment");
+      expect(trackHtml).not.toContain("Successful Repayment:");
+      expect(trackHtml).not.toContain("On-Time Payment:");
       expect(trackHtml).toContain("32 days");
 
 

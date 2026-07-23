@@ -25,7 +25,8 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageSource).not.toMatch(/Preview Page 1/);
     expect(pageSource).not.toMatch(/View in Preview/);
     expect(pageSource).not.toMatch(/verify in Preview/i);
-    expect(pageSource).toMatch(/Save &(?:amp;)? Preview/);
+    expect(pageSource).toContain('"Preview"');
+    expect(pageSource).not.toMatch(/Save &(?:amp;)? Preview/);
     expect(pageSource).not.toMatch(/Submit for Review/);
     expect(pageSource).not.toMatch(/Reopen/);
   });
@@ -66,10 +67,10 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageTwo).toContain("ProspectusFinancialComparisonWorkingTable");
     expect(pageTwo).toContain("About the Invoice / Work Performed");
     expect(pageTwo).toContain("ProspectusInternalTabs");
-    expect(pageTwo).not.toContain("data-prospectus-risk-rating-scale");
-    expect(pageTwo).not.toContain("SOUKSCORE_RISK_RATING_GRADES");
+    expect(pageTwo).toContain("data-prospectus-risk-rating-scale");
+    expect(pageTwo).toContain("SOUKSCORE_RISK_RATING_GRADES");
+    expect(pageTwo).toContain("SOUKSCORE_RISK_RATING_CATALOGUE");
     expect(pageTwo).toContain("Risk Information");
-    expect(pageTwo).toContain("Risk Grade");
     expect(pageTwo).toContain("Risk Level");
     expect(pageTwo).toContain("Explanation");
     expect(pageTwo).not.toContain("Scale Version");

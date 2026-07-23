@@ -432,9 +432,9 @@ const PAGE_TWO_FINANCIAL_OVERRIDE_REQUIRED_LABELS: Record<
   (typeof PAGE_TWO_FINANCIAL_OVERRIDE_REQUIRED_FIELDS)[number],
   string
 > = {
-  netDebtEquity: "Net Debt / Equity",
-  interestCoverage: "Interest Coverage",
-  dscr: "DSCR",
+  netDebtEquity: "Net Debt / Equity (x)",
+  interestCoverage: "Interest Coverage (x)",
+  dscr: "DSCR (x)",
   receivablesDays: "Receivables Days",
 };
 

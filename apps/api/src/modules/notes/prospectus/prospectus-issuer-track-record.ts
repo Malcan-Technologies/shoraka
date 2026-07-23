@@ -11,6 +11,9 @@ import {
   PROSPECTUS_ISSUER_TRACK_RECORD_IDENTITY_SOURCE,
   PROSPECTUS_ISSUER_TRACK_RECORD_SECTION_HEADING,
   PROSPECTUS_ON_TIME_PAYMENT_RATE_LABEL,
+  PROSPECTUS_SUCCESSFUL_REPAYMENT_LABEL,
+  PROSPECTUS_TOTAL_AMOUNT_FUNDED_LABEL,
+  PROSPECTUS_TOTAL_NOTES_FUNDED_LABEL,
   type ProspectusIssuerTrackRecord,
   type ProspectusIssuerTrackRecordMetricsInput,
 } from "./prospectus-issuer-track-record.types";
@@ -97,9 +100,9 @@ export function toAdminIssuerTrackRecordRows(
   track: ProspectusIssuerTrackRecord
 ): Array<{ label: string; value: string }> {
   return [
-    { label: "Total Notes Funded", value: track.totalNotesFunded },
-    { label: "Total Amount Funded", value: track.totalAmountFunded },
-    { label: "Successful Repayment", value: track.successfulRepayment },
+    { label: PROSPECTUS_TOTAL_NOTES_FUNDED_LABEL, value: track.totalNotesFunded },
+    { label: PROSPECTUS_TOTAL_AMOUNT_FUNDED_LABEL, value: track.totalAmountFunded },
+    { label: PROSPECTUS_SUCCESSFUL_REPAYMENT_LABEL, value: track.successfulRepayment },
     { label: track.onTimePaymentRateLabel, value: track.onTimePaymentRate },
   ];
 }

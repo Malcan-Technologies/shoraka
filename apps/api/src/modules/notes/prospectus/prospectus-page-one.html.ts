@@ -183,13 +183,13 @@ ${PROSPECTUS_DOCUMENT_CSS}
       <div data-stage="7">
         <h2>${escapeHtml(s7.sectionHeading)}</h2>
         <div class="stats four">
-          <div class="stat">${prospectusIcon.notebook("icon")}<small>Total Notes Funded</small><b>${escapeHtml(
+          <div class="stat">${prospectusIcon.notebook("icon")}<small>Total Notes Funded — All Time</small><b>${escapeHtml(
             s7.totalNotesFunded
           )}</b></div>
-          <div class="stat">${prospectusIcon.badgeDollar("icon")}<small>Total Amount Funded</small><b>${escapeHtml(
+          <div class="stat">${prospectusIcon.badgeDollar("icon")}<small>Total Amount Funded — All Time</small><b>${escapeHtml(
             s7.totalAmountFunded
           )}</b></div>
-          <div class="stat">${prospectusIcon.badgeCheck("icon")}<small>Successful Repayment</small><b>${escapeHtml(
+          <div class="stat">${prospectusIcon.badgeCheck("icon")}<small>Successful Repayment — All Time</small><b>${escapeHtml(
             s7.successfulRepayment
           )}</b></div>
           <div class="stat">${prospectusIcon.clock("icon")}<small>${escapeHtml(

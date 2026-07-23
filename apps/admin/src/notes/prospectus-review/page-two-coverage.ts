@@ -148,21 +148,21 @@ const PAGE_TWO_METRICS: Array<{
   key: Parameters<typeof metricForYear>[0];
 }> = [
   { label: "Revenue", key: "revenue" },
-  { label: "Profit After Tax", key: "profitAfterTax" },
-  { label: "Net Profit Margin", key: "netProfitMargin" },
-  { label: "ROE", key: "roe" },
-  { label: "Current Ratio", key: "currentRatio" },
-  { label: "Net Debt / Equity", key: "netDebtEquity" },
-  { label: "Interest Coverage", key: "interestCoverage" },
-  { label: "DSCR", key: "dscr" },
+  { label: "Profit After Tax (RM mil.)", key: "profitAfterTax" },
+  { label: "Net Profit Margin (%)", key: "netProfitMargin" },
+  { label: "ROE (%)", key: "roe" },
+  { label: "Current Ratio (x)", key: "currentRatio" },
+  { label: "Net Debt / Equity (x)", key: "netDebtEquity" },
+  { label: "Interest Coverage (x)", key: "interestCoverage" },
+  { label: "DSCR (x)", key: "dscr" },
   { label: "Receivables Days", key: "receivablesDays" },
 ];
 
 /** Unsupported Page 2 metrics that officers may fill per displayed year. */
 export const PAGE_TWO_OFFICER_FINANCIAL_METRICS = [
-  { key: "netDebtEquity", label: "Net Debt / Equity", unit: "x" },
-  { key: "interestCoverage", label: "Interest Coverage", unit: "x" },
-  { key: "dscr", label: "DSCR", unit: "x" },
+  { key: "netDebtEquity", label: "Net Debt / Equity (x)", unit: "x" },
+  { key: "interestCoverage", label: "Interest Coverage (x)", unit: "x" },
+  { key: "dscr", label: "DSCR (x)", unit: "x" },
   { key: "receivablesDays", label: "Receivables Days", unit: "days" },
 ] as const;
 

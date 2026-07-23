@@ -143,7 +143,7 @@ describe("prospectus Page 2 About the Issuer (DATA STAGE 1)", () => {
     expect(PROSPECTUS_ISSUER_PROFILE_FIELD_SOURCES).not.toHaveProperty("registrationNumber");
   });
 
-  it("HTML shows separate Industry and Company Size fields", () => {
+  it("HTML shows compact Industry | Company Size line", () => {
     const data = buildProspectusIssuerProfile({
       ...SAMPLE_PROSPECTUS_ISSUER_PROFILE_INPUT,
       officerCompanySize: "Medium",
@@ -151,11 +151,10 @@ describe("prospectus Page 2 About the Issuer (DATA STAGE 1)", () => {
     const html = buildProspectusIssuerProfileDocument(data);
 
     expect(html).toContain("ABOUT THE ISSUER");
-    expect(html).toContain("<strong>Industry</strong>");
-    expect(html).toContain("<strong>Company Size</strong>");
-    expect(html).toContain("Construction");
-    expect(html).toContain("Medium");
-    expect(html).not.toContain("Construction | Medium");
+    expect(html).toContain('class="issuer-meta-line"');
+    expect(html).toContain("Construction | Medium");
+    expect(html).not.toContain("<strong>Industry</strong>");
+    expect(html).not.toContain("<strong>Company Size</strong>");
     expect(html).toContain("Registered in Malaysia");
     expect(html).toContain("civil and structural engineering company");
 

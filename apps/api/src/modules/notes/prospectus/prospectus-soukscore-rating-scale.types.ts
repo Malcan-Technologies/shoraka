@@ -26,6 +26,10 @@ export const PROSPECTUS_SOUKSCORE_RATING_NOT_AVAILABLE = "—";
 
 export interface ProspectusSoukscoreGradeItem {
   grade: SoukscoreRiskRating;
+  /** Catalogue risk level label (e.g. Moderately Low Risk). */
+  label: string;
+  /** Catalogue short explanation for this grade. */
+  explanation: string;
   isSelected: boolean;
 }
 
@@ -47,8 +51,8 @@ export interface ProspectusSoukscoreRatingScaleAudit {
   };
   display: {
     assessmentNoteRendered: false;
-    riskLabelsRendered: false;
-    definitionsRendered: false;
+    riskLabelsRendered: true;
+    definitionsRendered: true;
     generatedLabelsAllowed: false;
   };
   systems: {
@@ -85,8 +89,8 @@ export const PROSPECTUS_SOUKSCORE_RATING_SCALE_AUDIT: ProspectusSoukscoreRatingS
   },
   display: {
     assessmentNoteRendered: false,
-    riskLabelsRendered: false,
-    definitionsRendered: false,
+    riskLabelsRendered: true,
+    definitionsRendered: true,
     generatedLabelsAllowed: false,
   },
   systems: {
@@ -153,8 +157,26 @@ export const PROSPECTUS_SOUKSCORE_RATING_SCALE_FIELD_SOURCES: Record<
     availability: "static",
     surface: "canva",
     possibleAlternatives: "Canva A–E — rejected; no A–E mapping",
-    notes: "Order AAA, AA, A, BBB, BB, B. Horizontal scale; no per-grade labels.",
+    notes:
+      "Order AAA, AA, A, BBB, BB, B. Full scale shows grade + catalogue label + explanation; selected grade highlighted.",
   },
+  riskLabel: {
+    label: "Risk Label",
+    canonicalSource: "SOUKSCORE_RISK_RATING_CATALOGUE.label",
+    availability: "static",
+    surface: "canva",
+    possibleAlternatives: "none",
+    notes: "Per-grade catalogue label rendered on the full scale.",
+  },
+  definition: {
+    label: "Definition",
+    canonicalSource: "SOUKSCORE_RISK_RATING_CATALOGUE.explanation",
+    availability: "static",
+    surface: "canva",
+    possibleAlternatives: "none",
+    notes: "Per-grade catalogue explanation rendered on the full scale.",
+  },
+
   selectedRiskRating: {
     label: "Selected grade highlight",
     canonicalSource: "notes.invoice_snapshot.offer_details.risk_rating",
@@ -169,22 +191,6 @@ export const PROSPECTUS_SOUKSCORE_RATING_SCALE_FIELD_SOURCES: Record<
     availability: "omitted",
     surface: "audit",
     possibleAlternatives: "Canva CashSouk assessment sentence — not used",
-    notes: "Removed from investor HTML; no DNA placeholder.",
-  },
-  riskLabel: {
-    label: "Risk Label",
-    canonicalSource: "none",
-    availability: "omitted",
-    surface: "audit",
-    possibleAlternatives: "none — no approved mapping",
-    notes: "Removed from investor HTML; no DNA placeholder.",
-  },
-  definition: {
-    label: "Definition",
-    canonicalSource: "none",
-    availability: "omitted",
-    surface: "audit",
-    possibleAlternatives: "none — no approved mapping",
     notes: "Removed from investor HTML; no DNA placeholder.",
   },
 };

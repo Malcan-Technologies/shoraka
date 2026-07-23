@@ -325,9 +325,9 @@ export function buildProspectusMissingRequiredFields(
   const overrides = draft.page2.financialComparison?.overrides ?? {};
   const manuals = draft.page3.manualFinancialInputs?.years ?? {};
   const overrideLabels: Record<(typeof PAGE_TWO_OVERRIDE_FIELDS)[number], string> = {
-    netDebtEquity: "Net Debt / Equity",
-    interestCoverage: "Interest Coverage",
-    dscr: "DSCR",
+    netDebtEquity: "Net Debt / Equity (x)",
+    interestCoverage: "Interest Coverage (x)",
+    dscr: "DSCR (x)",
     receivablesDays: "Receivables Days",
   };
   const page3Labels: Record<(typeof PAGE_THREE_OFFICER_FINANCIAL_FIELDS)[number], string> = {

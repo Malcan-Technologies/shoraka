@@ -14,6 +14,7 @@ import {
   type ProspectusHistoricalNotesAdminTable,
   type ProspectusReviewStoredContent,
 } from "@cashsouk/types";
+import { cn } from "@/lib/utils";
 import { HIGHLIGHT_FIELD_LABELS } from "@/notes/prospectus-review/labels";
 import type { CoreTermRow, NoteInvestmentDetailSection } from "@/notes/prospectus-review/core-terms";
 import { ProspectusHistoricalNotesTable } from "@/notes/prospectus-review/historical-notes-table";
@@ -179,12 +180,7 @@ export function WorkingAreaPageOne({
                     className="grid gap-4 px-4 py-4 lg:grid-cols-[10rem_1fr_1.4fr_5rem]"
                     data-highlight-key={key}
                   >
-                    <div className="space-y-1">
-                      <div className="text-sm font-semibold text-foreground">{label}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {isShariah ? "Fixed" : "Required"}
-                      </div>
-                    </div>
+                    <div className="text-sm font-semibold text-foreground">{label}</div>
                     {isShariah ? (
                       <>
                         <ProspectusReadOnlyField label="Title" value={title} />
@@ -205,8 +201,6 @@ export function WorkingAreaPageOne({
                           label="Title"
                           value={title}
                           disabled={disabled}
-                          required
-                          incomplete={incomplete && !title.trim()}
                           placeholder={
                             key in HIGHLIGHT_PLACEHOLDERS
                               ? HIGHLIGHT_PLACEHOLDERS[key as keyof typeof HIGHLIGHT_PLACEHOLDERS]
@@ -237,8 +231,6 @@ export function WorkingAreaPageOne({
                           label="Description"
                           value={description}
                           disabled={disabled}
-                          required
-                          incomplete={incomplete && !description.trim()}
                           rows={3}
                           placeholder={
                             key in HIGHLIGHT_PLACEHOLDERS
@@ -267,7 +259,14 @@ export function WorkingAreaPageOne({
                           }
                         />
                         <div className="flex items-start">
-                          <span className="rounded-md border px-2 py-1 text-xs text-muted-foreground">
+                          <span
+                            className={cn(
+                              "rounded-md border px-2 py-1 text-xs",
+                              incomplete
+                                ? "border-amber-500/70 text-amber-700 dark:text-amber-400"
+                                : "text-muted-foreground"
+                            )}
+                          >
                             Required
                           </span>
                         </div>

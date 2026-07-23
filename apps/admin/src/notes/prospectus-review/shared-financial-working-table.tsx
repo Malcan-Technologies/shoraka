@@ -39,13 +39,6 @@ type Props = {
   emptyMessage?: string;
 };
 
-function unitHint(kind: FinancialInputKind): string {
-  if (kind === "money") return "MYR";
-  if (kind === "ratio") return "x";
-  if (kind === "percent") return "%";
-  return "days";
-}
-
 function cellPlaceholder(kind: FinancialInputKind): string {
   return FINANCIAL_CELL_PLACEHOLDERS[kind];
 }
@@ -105,11 +98,6 @@ export function ProspectusSharedFinancialWorkingTable({
                 <TableRow key={row.metric}>
                   <TableCell className="sticky left-0 z-10 whitespace-nowrap bg-background text-sm font-medium text-foreground">
                     {row.metric}
-                    {spec.mode === "editable" ? (
-                      <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                        ({unitHint(spec.kind)})
-                      </span>
-                    ) : null}
                   </TableCell>
                   {headers.map((header, index) => {
                     if (spec.mode === "editable") {
@@ -164,9 +152,6 @@ export function ProspectusSharedFinancialWorkingTable({
           )}
         </TableBody>
       </Table>
-      {table.sourceFooter ? (
-        <p className="border-t px-3 py-2 text-xs text-muted-foreground">{table.sourceFooter}</p>
-      ) : null}
     </div>
   );
 }

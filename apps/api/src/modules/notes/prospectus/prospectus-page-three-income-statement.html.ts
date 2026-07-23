@@ -24,7 +24,9 @@ export function buildProspectusPageThreeIncomeStatementHtml(
       : data.years
           .map(
             (year) =>
-              `<th>${escapeHtml(year.yearLabel)}<br /><span>${escapeHtml(
+              `<th><span class="fy-label">${escapeHtml(
+                year.yearLabel
+              )}</span><span class="fy-end">${escapeHtml(
                 year.financialYearEndLabel
               )}</span></th>`
           )

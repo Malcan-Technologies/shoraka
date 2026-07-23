@@ -1,6 +1,6 @@
 /**
  * SECTION: Plain HTML for Page 2 SoukScore Risk Rating Scale
- * WHY: Horizontal AAA–B scale; selected grade only; no DNA labels/notes
+ * WHY: Full AAA–B scale with catalogue label + explanation; selected grade highlighted
  */
 
 import { escapeHtml } from "./prospectus-html";
@@ -19,6 +19,8 @@ export function buildProspectusSoukscoreRatingScaleSectionHtml(
         item.grade
       )}" data-selected="${selectedAttr}"${ariaCurrent}>
       <span class="grade">${escapeHtml(item.grade)}</span>
+      <strong class="grade-label">${escapeHtml(item.label)}</strong>
+      <span class="grade-desc">${escapeHtml(item.explanation)}</span>
     </li>`;
     })
     .join("\n");
@@ -75,6 +77,25 @@ export function buildProspectusSoukscoreRatingScaleHtml(
       font-weight: 400;
     }
     .soukscore-scale .grade-item:last-child { border-right: none; }
+    .soukscore-scale .grade {
+      display: inline-block;
+      min-width: 28px;
+      padding: 4px 6px;
+      margin-bottom: 4px;
+      font-weight: 800;
+      background: #f3f3f3;
+    }
+    .soukscore-scale .grade-label {
+      display: block;
+      font-size: 9px;
+      margin-bottom: 4px;
+    }
+    .soukscore-scale .grade-desc {
+      display: block;
+      font-size: 8px;
+      line-height: 1.3;
+      color: #444;
+    }
     .soukscore-scale .grade-item.is-selected,
     .soukscore-scale .grade-item[data-selected="true"] {
       font-weight: 700;
@@ -87,7 +108,7 @@ export function buildProspectusSoukscoreRatingScaleHtml(
 </head>
 <body>
   <h1>Prospectus Page 2 — DATA STAGE 7: SoukScore Risk Rating Scale</h1>
-  <p>Horizontal SoukScore scale. Selected grade from frozen Note invoice snapshot only.</p>
+  <p>Full SoukScore scale with catalogue labels. Selected grade from frozen Note invoice snapshot.</p>
   ${buildProspectusSoukscoreRatingScaleSectionHtml(data)}
 </body>
 </html>`;

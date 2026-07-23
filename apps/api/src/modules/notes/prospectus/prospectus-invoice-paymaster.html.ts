@@ -32,8 +32,8 @@ export function buildProspectusInvoicePaymasterHtml(
       Invoice Amount: ${escapeHtml(data.invoiceAmount)}<br />
       Invoice Due Date: ${escapeHtml(data.invoiceDueDate)}<br />
       Paymaster: ${escapeHtml(data.paymasterName)}<br />
-      Nature of Paymaster: ${escapeHtml(data.paymasterNature)}<br />
-      Deed of Assignment (DOA): ${escapeHtml(data.deedOfAssignment)}<br />
+      Nature of Paymaster<br />${escapeHtml(data.paymasterNature)}<br />
+      Deed of Assignment (DOA)<br />${escapeHtml(data.deedOfAssignment)}<br />
       Paymaster Rating: ${escapeHtml(data.paymasterRating)}<br />
       Confidence Grading: ${escapeHtml(data.confidenceGrading)}
     </p>

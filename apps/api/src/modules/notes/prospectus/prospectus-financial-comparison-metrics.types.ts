@@ -28,13 +28,13 @@ export const PROSPECTUS_FINANCIAL_COMPARISON_METRIC_LABELS: Record<
   string
 > = {
   revenue: "Revenue",
-  profitAfterTax: "Profit After Tax",
-  netProfitMargin: "Net Profit Margin",
-  roe: "ROE",
-  currentRatio: "Current Ratio",
-  netDebtEquity: "Net Debt / Equity",
-  interestCoverage: "Interest Coverage",
-  dscr: "DSCR",
+  profitAfterTax: "Profit After Tax (RM mil.)",
+  netProfitMargin: "Net Profit Margin (%)",
+  roe: "ROE (%)",
+  currentRatio: "Current Ratio (x)",
+  netDebtEquity: "Net Debt / Equity (x)",
+  interestCoverage: "Interest Coverage (x)",
+  dscr: "DSCR (x)",
   receivablesDays: "Receivables Days",
 };
 

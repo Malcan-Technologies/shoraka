@@ -126,9 +126,9 @@ describe("note & investment details coverage", () => {
   it("appends Issuer Track Record after At a Glance from API rows", () => {
     const base = buildNoteInvestmentDetailSections(sampleNote());
     const trackRows = [
-      { label: "Total Notes Funded", value: "0" },
-      { label: "Total Amount Funded", value: "RM 0.00" },
-      { label: "Successful Repayment", value: "—" },
+      { label: "Total Notes Funded — All Time", value: "0" },
+      { label: "Total Amount Funded — All Time", value: "RM 0.00" },
+      { label: "Successful Repayment — All Time", value: "—" },
       {
         label: "On-time Payment Rate — Last 6 Months",
         value: "—",
@@ -155,14 +155,18 @@ describe("note & investment details coverage", () => {
     expect(track.title).toBe("Issuer Track Record");
     expect(track.rows).toEqual(trackRows);
     expect(track.rows.map((r) => r.label)).toEqual([
-      "Total Notes Funded",
-      "Total Amount Funded",
-      "Successful Repayment",
+      "Total Notes Funded — All Time",
+      "Total Amount Funded — All Time",
+      "Successful Repayment — All Time",
       "On-time Payment Rate — Last 6 Months",
     ]);
-    expect(track.rows.find((r) => r.label === "Total Notes Funded")?.value).toBe("0");
-    expect(track.rows.find((r) => r.label === "Total Amount Funded")?.value).toBe("RM 0.00");
-    expect(track.rows.find((r) => r.label === "Successful Repayment")?.value).toBe(
+    expect(track.rows.find((r) => r.label === "Total Notes Funded — All Time")?.value).toBe(
+      "0"
+    );
+    expect(
+      track.rows.find((r) => r.label === "Total Amount Funded — All Time")?.value
+    ).toBe("RM 0.00");
+    expect(track.rows.find((r) => r.label === "Successful Repayment — All Time")?.value).toBe(
       "—"
     );
     expect(

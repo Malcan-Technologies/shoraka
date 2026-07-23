@@ -156,19 +156,19 @@ describe("page two coverage verification", () => {
     expect(table.yearHeaders.map((h) => h.yearLabel)).toEqual(["FY2023", "FY2024"]);
     expect(table.rows.map((r) => r.metric)).toEqual([
       "Revenue",
-      "Profit After Tax",
-      "Net Profit Margin",
-      "ROE",
-      "Current Ratio",
-      "Net Debt / Equity",
-      "Interest Coverage",
-      "DSCR",
+      "Profit After Tax (RM mil.)",
+      "Net Profit Margin (%)",
+      "ROE (%)",
+      "Current Ratio (x)",
+      "Net Debt / Equity (x)",
+      "Interest Coverage (x)",
+      "DSCR (x)",
       "Receivables Days",
     ]);
     expect(table.rows.find((r) => r.metric === "Revenue")?.values[0]).toContain("1,000");
     expect(
       table.rows
-        .find((r) => r.metric === "Net Debt / Equity")
+        .find((r) => r.metric === "Net Debt / Equity (x)")
         ?.values.every((v) => v === "—")
     ).toBe(true);
     expect(table.rows.every((r) => r.trend == null)).toBe(true);

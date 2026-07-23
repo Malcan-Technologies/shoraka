@@ -65,7 +65,7 @@ describe("prospectus financial comparison overrides", () => {
         (e) =>
           e.path === "page2.financialComparison.overrides.2022.netDebtEquity" &&
           e.message ===
-            "Net Debt / Equity is required for FY2022 before approving the Prospectus."
+            "Net Debt / Equity (x) is required for FY2022 before approving the Prospectus."
       )
     ).toBe(true);
   });

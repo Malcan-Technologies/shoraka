@@ -88,22 +88,24 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     ).toBe(false);
   });
 
-  it("omits Assessment Note, Risk Label, and Definition DNA lines", () => {
+  it("renders full-scale catalogue labels and explanations without Assessment Note DNA", () => {
     const data = buildProspectusSoukscoreRatingScale(
       SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_INPUT
     );
     expect(data).not.toHaveProperty("assessmentNote");
     for (const grade of data.grades) {
-      expect(grade).not.toHaveProperty("riskLabel");
-      expect(grade).not.toHaveProperty("definition");
+      expect(grade.label.length).toBeGreaterThan(0);
+      expect(grade.explanation.length).toBeGreaterThan(0);
     }
     expect(data.audit.display.assessmentNoteRendered).toBe(false);
-    expect(data.audit.display.riskLabelsRendered).toBe(false);
-    expect(data.audit.display.definitionsRendered).toBe(false);
+    expect(data.audit.display.riskLabelsRendered).toBe(true);
+    expect(data.audit.display.definitionsRendered).toBe(true);
 
     const html = buildProspectusSoukscoreRatingScaleDocument(data);
+    expect(html).toContain('class="grade-label"');
+    expect(html).toContain('class="grade-desc"');
+    expect(html).toContain("Moderately Low Risk");
     expect(html).not.toContain("Assessment Note");
-    expect(html).not.toContain("Risk Label");
     expect(html).not.toContain("Definition:");
     expect(html).not.toContain('class="soukscore-missing"');
   });
@@ -124,15 +126,15 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     expect(html).not.toContain('data-grade="E"');
   });
 
-  it("does not generate risk wording, percentage mappings, or Credit Insights derivation", () => {
+  it("uses catalogue wording only — no PD %, thresholds, or Credit Insights derivation", () => {
     const data = buildProspectusSoukscoreRatingScale(
       SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_INPUT
     );
     const html = buildProspectusSoukscoreRatingScaleDocument(data);
 
-    expect(html).not.toMatch(/Very Low Risk|Low Risk|Moderate Risk|High Risk|Very High Risk/);
-    expect(html).not.toMatch(/Excellent capacity|Strong capacity|Adequate capacity/i);
-    expect(html).not.toMatch(/Vulnerable|High likelihood of default/i);
+    expect(html).toContain("Very Low Risk");
+    expect(html).toContain("Moderately Low Risk");
+    expect(html).toContain("Elevated Risk");
     expect(html).not.toMatch(/probability of default|default probability/i);
     expect(html).not.toMatch(/90%|75%|60%/);
     expect(html).not.toMatch(/threshold|score range/i);

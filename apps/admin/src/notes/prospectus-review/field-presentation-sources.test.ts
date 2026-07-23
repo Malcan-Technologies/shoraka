@@ -27,15 +27,14 @@ describe("prospectus field presentation — hidden sources", () => {
     expect(sharedTable).toContain('title={spec.mode === "reused" ? spec.source : undefined}');
   });
 
-  it("hides Scale Version from Page 2 Risk Information while keeping grade/level/explanation", () => {
+  it("shows full SoukScore scale on Page 2 Risk Information without Scale Version", () => {
     expect(pageTwo).not.toContain("Scale Version");
     expect(pageTwo).not.toContain("soukscore-scale.v1");
-    expect(pageTwo).toContain('label="Risk Grade"');
-    expect(pageTwo).toContain('label="Risk Level"');
-    expect(pageTwo).toContain('label="Explanation"');
-    expect(pageTwo).toContain("risk.grade");
-    expect(pageTwo).toContain("risk.label");
-    expect(pageTwo).toContain("risk.explanation");
+    expect(pageTwo).toContain("data-prospectus-risk-rating-scale");
+    expect(pageTwo).toContain("SOUKSCORE_RISK_RATING_GRADES");
+    expect(pageTwo).toContain("SOUKSCORE_RISK_RATING_CATALOGUE");
+    expect(pageTwo).toContain("Risk Level");
+    expect(pageTwo).toContain("Explanation");
   });
 
   it("keeps Page 3 admin overview as separate Industry and Company Size fields", () => {

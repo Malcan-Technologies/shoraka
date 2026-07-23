@@ -18,6 +18,8 @@ import {
   PROSPECTUS_CONFIDENCE_GRADING_VALUES,
   PROSPECTUS_DEED_OF_ASSIGNMENT_VALUES,
   PROSPECTUS_PAYMASTER_RATING_VALUES,
+  SOUKSCORE_RISK_RATING_CATALOGUE,
+  SOUKSCORE_RISK_RATING_GRADES,
   normalizeProspectusCompanySize,
   normalizeProspectusConfidenceGrading,
   normalizeProspectusDeedOfAssignment,
@@ -25,6 +27,7 @@ import {
   resolveSoukscoreRiskRatingPresentation,
   type ProspectusReviewStoredContent,
 } from "@cashsouk/types";
+import { cn } from "@/lib/utils";
 import { INVOICE_WORK_FIELD_LABELS } from "@/notes/prospectus-review/labels";
 import type { CoreTermRow } from "@/notes/prospectus-review/core-terms";
 import type { FinancialMetricTableModel } from "@/notes/prospectus-review/financial-metric-table";
@@ -480,15 +483,57 @@ export function WorkingAreaPageTwo({
       {tab === "risk" ? (
         <div className="space-y-6" role="tabpanel">
           <ProspectusSectionShell title="Risk Information" icon={ShieldCheckIcon}>
-            <ProspectusInfoGrid>
-              <ProspectusReadOnlyField label="Risk Grade" value={risk.grade} />
-              <ProspectusReadOnlyField label="Risk Level" value={risk.label} />
-              <ProspectusReadOnlyField
-                label="Explanation"
-                value={risk.explanation}
-                className="sm:col-span-2 lg:col-span-3"
-              />
-            </ProspectusInfoGrid>
+            <div className="space-y-3" data-prospectus-risk-rating-scale>
+              <p className="text-sm text-muted-foreground">
+                Full SoukScore scale. Selected Note grade is highlighted.
+              </p>
+              <div className="overflow-x-auto rounded-xl border">
+                <table className="w-full min-w-[40rem] text-left text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/40">
+                      <th className="px-3 py-2 font-semibold">Grade</th>
+                      <th className="px-3 py-2 font-semibold">Risk Level</th>
+                      <th className="px-3 py-2 font-semibold">Explanation</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {SOUKSCORE_RISK_RATING_GRADES.map((grade) => {
+                      const entry = SOUKSCORE_RISK_RATING_CATALOGUE[grade];
+                      const selected = risk.isAvailable && risk.grade === grade;
+                      return (
+                        <tr
+                          key={grade}
+                          className={cn(
+                            "border-b last:border-0",
+                            selected && "bg-primary/5"
+                          )}
+                          data-selected={selected ? "true" : "false"}
+                          aria-current={selected ? "true" : undefined}
+                        >
+                          <td className="px-3 py-2 font-semibold tabular-nums">
+                            {entry.grade}
+                            {selected ? (
+                              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                Selected
+                              </span>
+                            ) : null}
+                          </td>
+                          <td className="px-3 py-2">{entry.label}</td>
+                          <td className="px-3 py-2 text-muted-foreground">
+                            {entry.explanation}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {!risk.isAvailable ? (
+                <p className="text-sm text-muted-foreground">
+                  No valid Note risk grade selected (—).
+                </p>
+              ) : null}
+            </div>
           </ProspectusSectionShell>
 
           <div data-prospectus-investment-cta>

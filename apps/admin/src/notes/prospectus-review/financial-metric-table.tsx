@@ -95,9 +95,6 @@ export function ProspectusFinancialMetricTable({ table, showTrend = false }: Pro
           )}
         </TableBody>
       </Table>
-      {table.sourceFooter ? (
-        <p className="border-t px-4 py-2 text-sm text-muted-foreground">{table.sourceFooter}</p>
-      ) : null}
     </div>
   );
 }

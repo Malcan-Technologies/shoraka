@@ -198,7 +198,7 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
       "2024-12-31",
     ]);
     expect(table.rows.find((r) => r.metric === "Revenue")?.values[0]).toBe("13.9");
-    expect(table.rows.find((r) => r.metric === "DSCR")?.values[2]).toBe("1.25x");
+    expect(table.rows.find((r) => r.metric === "DSCR (x)")?.values[2]).toBe("1.25x");
     expect(table.sourceFooter).toBe(metrics.sourceFooter);
   });
 

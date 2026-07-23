@@ -23,7 +23,16 @@ function yearHeaderCells(
   if (years.length === 0) {
     return `<th>${escapeHtml(PROSPECTUS_DATA_NOT_AVAILABLE)}</th>`;
   }
-  return years.map((year) => `<th>${escapeHtml(year.yearLabel)}</th>`).join("");
+  return years
+    .map(
+      (year) =>
+        `<th><span class="fy-label">${escapeHtml(
+          year.yearLabel
+        )}</span><span class="fy-end">${escapeHtml(
+          year.financialYearEndLabel
+        )}</span></th>`
+    )
+    .join("");
 }
 
 function metricBodyRows(

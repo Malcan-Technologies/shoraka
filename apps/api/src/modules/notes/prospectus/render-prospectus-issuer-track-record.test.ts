@@ -68,9 +68,9 @@ describe("prospectus Issuer Track-Record Summary (Page 1 DATA STAGE 7)", () => {
       onTimePaymentRateSixMonthsPercent: null,
     });
     expect(toAdminIssuerTrackRecordRows(noHistory)).toEqual([
-      { label: "Total Notes Funded", value: "0" },
-      { label: "Total Amount Funded", value: "RM 0.00" },
-      { label: "Successful Repayment", value: PROSPECTUS_DATA_NOT_AVAILABLE },
+      { label: "Total Notes Funded — All Time", value: "0" },
+      { label: "Total Amount Funded — All Time", value: "RM 0.00" },
+      { label: "Successful Repayment — All Time", value: PROSPECTUS_DATA_NOT_AVAILABLE },
       {
         label: PROSPECTUS_ON_TIME_PAYMENT_RATE_LABEL,
         value: PROSPECTUS_DATA_NOT_AVAILABLE,
@@ -103,9 +103,9 @@ describe("prospectus Issuer Track-Record Summary (Page 1 DATA STAGE 7)", () => {
       })
     );
     expect(html).toContain("ISSUER&#39;S TRACK RECORD ON CASH SOUK");
-    expect(html).toContain("Total Notes Funded: 3");
-    expect(html).toContain("Total Amount Funded: RM 1,150,000.00");
-    expect(html).toContain("Successful Repayment: 50%");
+    expect(html).toContain("Total Notes Funded — All Time: 3");
+    expect(html).toContain("Total Amount Funded — All Time: RM 1,150,000.00");
+    expect(html).toContain("Successful Repayment — All Time: 50%");
     expect(html).toContain("On-time Payment Rate — Last 6 Months: 100%");
     expect(html).not.toContain("successRatePercent");
     expect(html).not.toContain("groupingKey");
