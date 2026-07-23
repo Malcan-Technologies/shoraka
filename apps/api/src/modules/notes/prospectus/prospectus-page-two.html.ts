@@ -134,14 +134,14 @@ ${PROSPECTUS_DOCUMENT_CSS}
       </section>
       <section class="invoice-info" data-stage="2">
         <h2>${escapeHtml(s2.sectionHeading)}</h2>
-        <dl>
-          <div><dt>${prospectusIcon.badgeDollar("icon")}Invoice Amount</dt><dd>${escapeHtml(s2.invoiceAmount)}</dd></div>
-          <div><dt>${prospectusIcon.calendarDays("icon")}Invoice Due Date</dt><dd>${escapeHtml(s2.invoiceDueDate)}</dd></div>
-          <div><dt>${prospectusIcon.badgeCheck("icon")}Paymaster</dt><dd>${escapeHtml(s2.paymasterName)}</dd></div>
-          <div><dt>${prospectusIcon.landmark("icon")}Nature of Paymaster</dt><dd>${escapeHtml(s2.paymasterNature)}</dd></div>
-          <div><dt>${prospectusIcon.fileCheck("icon")}Deed of Assignment (DOA)</dt><dd>${escapeHtml(s2.deedOfAssignment)}</dd></div>
-          <div><dt>${prospectusIcon.clipboardCheck("icon")}Paymaster Rating</dt><dd>${escapeHtml(s2.paymasterRating)}</dd></div>
-          <div><dt>${prospectusIcon.clipboardCheck("icon")}Confidence Grading</dt><dd>${escapeHtml(s2.confidenceGrading)}</dd></div>
+        <dl class="page-two-invoice-list">
+          <div class="page-two-invoice-row"><dt>${prospectusIcon.badgeDollar("icon page-two-invoice-icon")}Invoice Amount</dt><dd>${escapeHtml(s2.invoiceAmount)}</dd></div>
+          <div class="page-two-invoice-row"><dt>${prospectusIcon.calendarDays("icon page-two-invoice-icon")}Invoice Due Date</dt><dd>${escapeHtml(s2.invoiceDueDate)}</dd></div>
+          <div class="page-two-invoice-row"><dt>${prospectusIcon.badgeCheck("icon page-two-invoice-icon")}Paymaster</dt><dd>${escapeHtml(s2.paymasterName)}</dd></div>
+          <div class="page-two-invoice-row"><dt>${prospectusIcon.landmark("icon page-two-invoice-icon")}Nature of Paymaster</dt><dd>${escapeHtml(s2.paymasterNature)}</dd></div>
+          <div class="page-two-invoice-row"><dt>${prospectusIcon.fileCheck("icon page-two-invoice-icon")}Deed of Assignment (DOA)</dt><dd>${escapeHtml(s2.deedOfAssignment)}</dd></div>
+          <div class="page-two-invoice-row"><dt>${prospectusIcon.clipboardCheck("icon page-two-invoice-icon")}Paymaster Rating</dt><dd>${escapeHtml(s2.paymasterRating)}</dd></div>
+          <div class="page-two-invoice-row"><dt>${prospectusIcon.clipboardCheck("icon page-two-invoice-icon")}Confidence Grading</dt><dd>${escapeHtml(s2.confidenceGrading)}</dd></div>
         </dl>
       </section>
     </div>

@@ -207,11 +207,17 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
   height:auto;
   min-height:0;
   overflow:visible;
-  align-items:stretch;
+  align-items:start;
   flex-shrink:0;
+  margin-bottom:8px; /* gap before financial compound card */
 }
-.issuer-profile{display:flex;gap:18px;align-items:center;margin:20px 0}.round-icon{width:76px;height:76px;border-radius:50%;background:var(--prospectus-icon-bg);display:grid;place-items:center;color:var(--prospectus-icon-stroke)}.round-icon .icon{width:44px;height:44px}.issuer-profile span,.issuer-profile b{display:block;margin-bottom:8px}.issuer-grid p{font-size:9px;margin:0}
+.issuer-profile{display:flex;gap:18px;align-items:center;margin:20px 0}.round-icon{width:76px;height:76px;border-radius:50%;background:var(--prospectus-icon-bg);display:grid;place-items:center;color:var(--prospectus-icon-stroke)}.round-icon .icon{width:44px;height:44px}.issuer-profile span,.issuer-profile b{display:block;margin-bottom:8px}.issuer-grid p{font-size:9px;margin:0;line-height:1.35}
 .invoice-info dl{margin:0}.invoice-info dl div{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:13px}.invoice-info dt{display:flex;align-items:center;gap:10px;font-weight:700;min-width:0}.invoice-info dt .icon,.work-list .icon{width:var(--prospectus-icon-field);height:var(--prospectus-icon-field);padding:6px;background:var(--prospectus-icon-bg);border-radius:50%;color:var(--prospectus-icon-stroke);box-sizing:border-box;flex:none}.invoice-info dd{margin:0;text-align:right;max-width:52%;line-height:1.25;overflow-wrap:anywhere;word-break:break-word}
+.page-two-invoice-list{display:flex;flex-direction:column;row-gap:5px;margin:0}
+.page-two-invoice-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;min-height:0;margin:0;padding-block:1px}
+.page-two-invoice-row dt{display:flex;align-items:center;gap:8px;font-weight:700;min-width:0}
+.page-two-invoice-row dd{margin:0;text-align:right;max-width:52%;line-height:1.25;overflow-wrap:anywhere;word-break:break-word}
+.page-two-invoice-icon{width:26px;height:26px;padding:4px;background:var(--prospectus-icon-bg);border-radius:50%;color:var(--prospectus-icon-stroke);box-sizing:border-box;flex:none}
 .financial-card{display:grid;grid-template-columns:.34fr .66fr}.financial-card>div{padding:12px}.financial-card>div+div{border-left:1px solid var(--line)}.summary-list.compact dt{padding-left:0}.summary-list.compact dt:before{display:none}.plain th{background:var(--prospectus-table-plain-bg);color:#111}.plain td,.plain th{text-align:center}.plain td:first-child,.plain th:first-child{text-align:left}
 /* Page 2 Paymaster + Financial Comparison: grow to tallest column.
    Root cause: .page is flex column + .card{overflow:hidden} lets the card flex-shrink
@@ -237,16 +243,27 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
 .work-list p{display:flex;align-items:flex-start;gap:10px;font-size:9px;margin-bottom:9px}.work-list .icon{flex:none;width:var(--prospectus-icon-work);height:var(--prospectus-icon-work);padding:4px;box-sizing:border-box}
 .risk-cta{display:grid;grid-template-columns:2fr 1fr;gap:9px;margin-top:var(--space-3);align-items:stretch}.risk-cta>.card,.risk-cta>.cta{padding:10px;min-height:100%}
 
-/* Page 2 only — minor internal fit tweaks (never shrink shared titles / outer padding / header) */
-.prospectus-page-two .issuer-profile{margin:16px 0}
-.prospectus-page-two .invoice-info h2{margin-bottom:8px}
-.prospectus-page-two .invoice-info dl div{margin-bottom:8px;gap:10px}
-.prospectus-page-two .invoice-info dt .icon{width:28px;height:28px;padding:5px}
+/* Page 2 only — recover A4 height from the top issuer/invoice block (logo/header size unchanged) */
+.prospectus-page-two .page-header{margin-bottom:0}
+.prospectus-page-two .page-two-issuer-grid>section{padding:6px 12px 4px}
+.prospectus-page-two .page-two-issuer-grid>section h2{margin-bottom:6px}
+.prospectus-page-two .issuer-profile{margin:6px 0;gap:12px}
+.prospectus-page-two .issuer-profile span,.prospectus-page-two .issuer-profile b{margin-bottom:3px}
+.prospectus-page-two .issuer-meta-line{margin-bottom:3px}
+.prospectus-page-two .round-icon{width:58px;height:58px}
+.prospectus-page-two .round-icon .icon{width:32px;height:32px}
+.prospectus-page-two .issuer-grid p{line-height:1.3}
+.prospectus-page-two .invoice-info h2{margin-bottom:6px}
+.prospectus-page-two .page-two-invoice-list .page-two-invoice-row,
+.prospectus-page-two .invoice-info .page-two-invoice-row{margin-bottom:0}
+.prospectus-page-two .page-two-invoice-row .icon,
+.prospectus-page-two .page-two-invoice-icon{width:26px;height:26px;padding:4px}
 .prospectus-page-two .ratings div{margin:4px 0}
 .prospectus-page-two .work-list p{margin-bottom:7px}
 .prospectus-page-two .risk-cta{margin-top:7px}
 .prospectus-page-two .invest-confidence-description{margin:0 0 7px;line-height:1.3}
 .prospectus-page-two .soukscore-scale .grade-item{padding:5px 3px}
+.prospectus-page-two .prospectus-footer{padding-top:8px;flex-shrink:0}
 .soukscore-scale,.risk-scale{display:grid;grid-template-columns:repeat(6,1fr);list-style:none;margin:0;padding:0;align-items:start}
 .soukscore-scale .grade-item,.risk-scale>div{padding:6px 4px;border-right:1px solid #c9c5c5;text-align:center}.soukscore-scale .grade-item:last-child,.risk-scale>div:last-child{border:0}
 .soukscore-scale .grade,.grade{width:33px;height:33px;color:#fff;border-radius:6px;display:grid;place-items:center;font-size:12px;margin:0 auto 4px;background:#79cf54;font-weight:800}

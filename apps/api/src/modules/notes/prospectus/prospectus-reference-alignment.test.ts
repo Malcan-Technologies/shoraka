@@ -315,6 +315,23 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
     expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
       /\.page-two-issuer-grid\{[^}]*flex-shrink:0/
     );
+    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
+      /\.page-two-issuer-grid\{[^}]*align-items:start/
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).not.toMatch(
+      /\.page-two-issuer-grid\{[^}]*min-height:\s*[1-9]/
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).not.toMatch(
+      /\.page-two-issuer-grid\{[^}]*height:\s*[1-9]/
+    );
+    expect(body).toContain("page-two-invoice-list");
+    expect((body.match(/page-two-invoice-row/g) ?? []).length).toBe(7);
+    expect(body).toContain("prospectus-footer");
+    expect(body.indexOf("prospectus-footer")).toBeGreaterThan(financialOpen);
+    // Content flow must not clip via overflow:hidden on the top wrapper
+    expect(PROSPECTUS_DOCUMENT_CSS).not.toMatch(
+      /\.page-two-issuer-grid\{[^}]*overflow:hidden/
+    );
   });
 });
 
