@@ -4,7 +4,7 @@
  */
 
 import { PROSPECTUS_DOCUMENT_CSS } from "./prospectus-document-styles";
-import { buildProspectusFooterGroupHtml } from "./prospectus-footer.html";
+import { buildProspectusFooterHtml } from "./prospectus-footer.html";
 import { buildProspectusHeaderHtml } from "./prospectus-header.html";
 import { escapeHtml } from "./prospectus-html";
 import { prospectusIcon } from "./prospectus-icons";
@@ -301,9 +301,10 @@ ${PROSPECTUS_DOCUMENT_CSS}
       ${renderCoverage(page)}
       ${renderTakeaways(page)}
     </div>
-    ${buildProspectusFooterGroupHtml({
-      sourceLine: page.financialSource.sourceFooter,
-    })}
+    <em class="source financial-source">${escapeHtml(
+      page.financialSource.sourceFooter
+    )}</em>
+    ${buildProspectusFooterHtml()}
   </section>
   </main>
 </body>

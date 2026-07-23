@@ -207,12 +207,10 @@ h2{
 .track{border:var(--prospectus-border-width) solid var(--prospectus-border);padding:15px}.track .stats{margin-bottom:10px}
 table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--prospectus-table-red);color:#fff;padding:7px 5px;font-weight:600}td{border:1px solid #e1dddd;padding:5px;text-align:center}td:first-child,th:first-child{text-align:left}
 .table-wrap{overflow-x:auto}.track em,.financial-card em,.card em,.source{display:block;font-size:7px;margin-top:8px;font-style:italic}
-/* Shared A4 bottom footer — group takes margin-top:auto so source+disclaimer sit at page bottom */
-.page-footer-group{margin-top:auto;flex-shrink:0}
-.page-footer-group .source,.page-footer-group .financial-source{display:block;margin:0 0 0 12px;font-size:7px;font-style:italic}
+/* Shared disclaimer footer — pinned to A4 bottom; content source lines stay with their sections */
 .prospectus-footer,footer.prospectus-footer{margin-top:auto;display:flex;align-items:center;gap:8px;padding-top:14px;font-size:7px;color:var(--muted);flex-shrink:0}
-.page-footer-group .prospectus-footer{margin-top:0;padding-top:8px}
 .prospectus-footer .icon{color:#b3131b;width:24px;height:24px;flex:none}
+.financial-source{display:block;margin-top:var(--space-3);margin-left:12px;font-size:7px;font-style:italic}
 /* Page 2 top: plain two columns + vertical divider only (not a card) */
 .issuer-grid{display:grid;grid-template-columns:.9fr 1.1fr;margin-bottom:var(--space-3)}.issuer-grid>section{padding:20px 14px}.issuer-grid>section+section{border-left:1px solid var(--line)}
 .page-two-issuer-grid{
@@ -307,11 +305,12 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
 .trend-cell.up,.up{color:#28ad46;font-size:28px;font-weight:800;line-height:15px}.trend-cell.down,.down{color:#ce201d;font-size:28px;font-weight:800;line-height:15px}
 .takeaways p,.takeaway-item{display:flex;gap:10px;align-items:center;font-size:8.5px;margin:0 0 12px}.takeaways .icon,.takeaway-item .icon{flex:none;width:var(--prospectus-icon-takeaway);height:var(--prospectus-icon-takeaway);background:var(--prospectus-icon-bg);color:var(--prospectus-icon-stroke);border-radius:50%;padding:7px;box-sizing:border-box}.source{margin-left:12px}
 
-/* Page 3 — reference-aligned sizing (footer group handles bottom alignment) */
+/* Page 3 — source stays with content; disclaimer alone uses margin-top:auto */
 .prospectus-page-three .report-box th .fy-end{color:#fff;opacity:.92;font-size:7px}
 .prospectus-page-three .takeaways{display:flex;flex-direction:column;min-height:100%}
 .prospectus-page-three .takeaways-empty{display:flex;align-items:center;justify-content:center;flex:1;min-height:220px;margin:0;font-size:14px;color:var(--muted)}
 .prospectus-page-three .comparison-grid{flex-shrink:0}
+.prospectus-page-three>.financial-source{flex-shrink:0}
 
 /* Print / PDF: A4 page nodes only — no preview chrome */
 @media print{

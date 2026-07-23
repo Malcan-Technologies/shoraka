@@ -4,7 +4,7 @@
  */
 
 import { PROSPECTUS_DOCUMENT_CSS } from "./prospectus-document-styles";
-import { buildProspectusFooterGroupHtml } from "./prospectus-footer.html";
+import { buildProspectusFooterHtml } from "./prospectus-footer.html";
 import { buildProspectusHeaderHtml } from "./prospectus-header.html";
 import { buildProspectusHeader } from "./prospectus-header";
 import { escapeHtml } from "./prospectus-html";
@@ -203,7 +203,7 @@ ${PROSPECTUS_DOCUMENT_CSS}
       </div>
     </section>
 
-    ${buildProspectusFooterGroupHtml()}
+    ${buildProspectusFooterHtml()}
   </section>
   </main>
 </body>

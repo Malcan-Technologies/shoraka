@@ -3,7 +3,6 @@
  * WHY: Match reference layout; use corrected approved disclaimer wording
  */
 
-import { escapeHtml } from "./prospectus-html";
 import { prospectusIcon } from "./prospectus-icons";
 
 /** Line 1 — corrected spelling vs static reference. */
@@ -14,25 +13,10 @@ export const PROSPECTUS_FOOTER_DISCLAIMER_LINE1 =
 export const PROSPECTUS_FOOTER_DISCLAIMER_LINE2 =
   "Investors are advised to read and understand the Product Terms and Risk Disclosure Statement before investing.";
 
+/** Shared disclaimer footer — pinned to A4 bottom via CSS margin-top:auto. */
 export function buildProspectusFooterHtml(): string {
   return `<footer class="prospectus-footer" data-stage="footer">
   ${prospectusIcon.shieldCheck("icon")}
   <span>${PROSPECTUS_FOOTER_DISCLAIMER_LINE1}<br />${PROSPECTUS_FOOTER_DISCLAIMER_LINE2}</span>
 </footer>`;
-}
-
-/**
- * Bottom-aligned footer shell for A4 flex pages.
- * Optional source line stays immediately above the disclaimer.
- */
-export function buildProspectusFooterGroupHtml(options?: {
-  sourceLine?: string | null;
-}): string {
-  const source =
-    options?.sourceLine && options.sourceLine.trim().length > 0
-      ? `<em class="source financial-source">${escapeHtml(
-          options.sourceLine.trim()
-        )}</em>`
-      : "";
-  return `<div class="page-footer-group">${source}${buildProspectusFooterHtml()}</div>`;
 }
