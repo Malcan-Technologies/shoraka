@@ -2,6 +2,7 @@ export type ProspectusPreviewPages = {
   page1: string;
   page2: string;
   page3: string;
+  allPages: string;
 };
 
 export function stripPreviewBanner(html: string): string {
@@ -20,6 +21,7 @@ export function cleanProspectusPreviewHtml(
     page1: stripPreviewBanner(html.page1),
     page2: stripPreviewBanner(html.page2),
     page3: stripPreviewBanner(html.page3),
+    allPages: stripPreviewBanner(html.allPages),
   };
 }
 
@@ -27,6 +29,7 @@ export function cleanProspectusPreviewHtml(
  * Admin preview iframe only: hide in-document horizontal scroll so the outer
  * frame is the single H-scrollbar. Does not change A4 layout or print/PDF CSS.
  * Not used for “Open in New Tab” (browser window should scroll freely).
+ * Vertical scrolling stays inside the iframe document (one page or All Pages).
  */
 export function withAdminPreviewScrollLock(html: string): string {
   const lock =
@@ -51,6 +54,7 @@ export const PREVIEW_SHEET_BODY_CLASS =
 /**
  * Only horizontal scroll container for Admin Prospectus preview.
  * Iframe stays A4-wide (`min-w-[210mm]`); this frame scrolls when the sheet is narrower.
+ * Vertical scroll remains inside the iframe (single page or stacked All Pages).
  */
 export const PREVIEW_DOCUMENT_FRAME_CLASS =
   "mx-auto block h-full w-full max-w-[210mm] overflow-x-auto overflow-y-hidden overscroll-contain rounded-xl border bg-transparent shadow-none";

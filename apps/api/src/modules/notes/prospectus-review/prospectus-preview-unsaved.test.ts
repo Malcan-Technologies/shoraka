@@ -15,9 +15,18 @@ const mockAdminActionCreate = jest.fn();
 const mockNoteEventCreate = jest.fn();
 const mockPublicationCreate = jest.fn();
 
-const mockBuildPageOneHtml = jest.fn((page: { _echo?: string }) => `<p>p1:${page._echo ?? ""}</p>`);
-const mockBuildPageTwoHtml = jest.fn(() => "<p>p2</p>");
-const mockBuildPageThreeHtml = jest.fn(() => "<p>p3:—</p>");
+const mockBuildPageOneHtml = jest.fn(
+  (page: { _echo?: string }) =>
+    `<html><body><section class="page prospectus-page-one" data-page="prospectus-page-one"><p>p1:${page._echo ?? ""}</p></section></body></html>`
+);
+const mockBuildPageTwoHtml = jest.fn(
+  () =>
+    `<html><body><section class="page prospectus-page-two" data-page="prospectus-page-two"><p>p2</p></section></body></html>`
+);
+const mockBuildPageThreeHtml = jest.fn(
+  () =>
+    `<html><body><section class="page prospectus-page-three" data-page="prospectus-page-three"><p>p3:—</p></section></body></html>`
+);
 const mockBuildPageOne = jest.fn(
   (input: {
     publicationContent?: { keyInvestorHighlights?: Array<{ title?: string; key?: string }> };
@@ -163,6 +172,20 @@ describe("prospectus live preview (unsaved)", () => {
 
     expect(result.previewSource).toBe("unsaved");
     expect(result.html.page1).toContain("UNSAVED_LIVE_TITLE_XYZ");
+    expect(result.html.allPages).toContain("UNSAVED_LIVE_TITLE_XYZ");
+    expect(result.html.allPages).toContain('data-page="prospectus-page-one"');
+    expect(result.html.allPages).toContain('data-page="prospectus-page-two"');
+    expect(result.html.allPages).toContain('data-page="prospectus-page-three"');
+    expect(
+      result.html.allPages.indexOf('data-page="prospectus-page-one"')
+    ).toBeLessThan(result.html.allPages.indexOf('data-page="prospectus-page-two"'));
+    expect(
+      result.html.allPages.indexOf('data-page="prospectus-page-two"')
+    ).toBeLessThan(result.html.allPages.indexOf('data-page="prospectus-page-three"'));
+    expect(
+      (result.html.allPages.match(/data-page="prospectus-page-(one|two|three)"/g) ?? [])
+        .length
+    ).toBe(3);
     expect(result.draftMarker.toLowerCase()).toContain("unsaved");
   });
 

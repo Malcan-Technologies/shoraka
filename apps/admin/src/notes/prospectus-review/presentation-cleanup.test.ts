@@ -122,6 +122,7 @@ describe("prospectus review presentation cleanup", () => {
     expect(resolvePreviewPageForStep(1, null)).toBe("page2");
     expect(resolvePreviewPageForStep(2, null)).toBe("page3");
     expect(resolvePreviewPageForStep(3, "page2")).toBe("page2");
+    expect(resolvePreviewPageForStep(3, "allPages")).toBe("allPages");
     expect(resolvePreviewPageForStep(3, null)).toBe("page1");
   });
 });

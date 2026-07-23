@@ -97,16 +97,32 @@ test.describe("Admin Prospectus Review (demo Note)", () => {
 
     await page.getByRole("button", { name: /^Preview$/i }).click();
     await expect(page.getByRole("heading", { name: /Prospectus Preview/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Page 1" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Page 2" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Page 3" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Page 1" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Page 2" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Page 3" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "All Pages" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Page 1" })).toHaveAttribute(
+      "data-state",
+      "active"
+    );
+    await expect(page.getByRole("button", { name: "Previous Page" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Next Page" })).toHaveCount(0);
     await expect(page.getByText(/source: draft/i)).toHaveCount(0);
-    await expect(page.locator('iframe[title="Prospectus Page 1"]')).toBeVisible();
+    await expect(
+      page.locator('iframe[title="Prospectus Page 1 Preview"]')
+    ).toBeVisible();
 
     await expect.poll(() => previewRequests.length).toBe(1);
     expect(previewRequests[0]?.method).toBe("POST");
-    await page.getByRole("button", { name: "Page 2" }).click();
-    await expect(page.locator('iframe[title="Prospectus Page 2"]')).toBeVisible();
+    await page.getByRole("tab", { name: "Page 2" }).click();
+    await expect(
+      page.locator('iframe[title="Prospectus Page 2 Preview"]')
+    ).toBeVisible();
+    expect(previewRequests.length).toBe(1);
+    await page.getByRole("tab", { name: "All Pages" }).click();
+    await expect(
+      page.locator('iframe[title="Prospectus All Pages Preview"]')
+    ).toBeVisible();
     expect(previewRequests.length).toBe(1);
 
     await page.keyboard.press("Escape");

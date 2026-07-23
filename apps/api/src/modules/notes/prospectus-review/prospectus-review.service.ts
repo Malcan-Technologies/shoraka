@@ -25,6 +25,7 @@ import { toAdminIssuerProfileRows } from "../prospectus/prospectus-issuer-profil
 import { toAdminInvoicePaymasterRows } from "../prospectus/prospectus-invoice-paymaster";
 import { toAdminPaymasterTrackRecordRows } from "../prospectus/prospectus-paymaster-track-record";
 import { toAdminFinancialComparisonTable, toAdminFrozenFinancialYears } from "../prospectus/prospectus-financial-comparison-metrics";
+import { combineProspectusPagesHtml } from "../prospectus/combine-prospectus-pages-html";
 import { buildProspectusPageOneHtml } from "../prospectus/prospectus-page-one.html";
 import {
   buildProspectusPageOne,
@@ -859,14 +860,23 @@ export class ProspectusReviewService {
     page3Input.publicationContent = publication;
     const page3 = buildProspectusPageThree(page3Input);
 
+    const page1Html = buildProspectusPageOneHtml(page1);
+    const page2Html = buildProspectusPageTwoHtml(page2);
+    const page3Html = buildProspectusPageThreeHtml(page3);
+
     return {
       status: meta.status,
       previewSource: meta.previewSource,
       draftMarker: meta.bannerText,
       html: {
-        page1: `${banner}${buildProspectusPageOneHtml(page1)}`,
-        page2: `${banner}${buildProspectusPageTwoHtml(page2)}`,
-        page3: `${banner}${buildProspectusPageThreeHtml(page3)}`,
+        page1: `${banner}${page1Html}`,
+        page2: `${banner}${page2Html}`,
+        page3: `${banner}${page3Html}`,
+        allPages: combineProspectusPagesHtml({
+          page1: page1Html,
+          page2: page2Html,
+          page3: page3Html,
+        }),
       },
     };
   }

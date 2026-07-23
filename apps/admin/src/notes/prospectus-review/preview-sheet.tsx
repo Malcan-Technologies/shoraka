@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Skeleton } from "@cashsouk/ui";
+import { Skeleton, Tabs, TabsList, TabsTrigger } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -20,18 +20,14 @@ import {
   type ProspectusPreviewPages,
 } from "./preview-sheet-utils";
 import {
+  PROSPECTUS_PREVIEW_TAB_LABELS,
+  PROSPECTUS_PREVIEW_TABS,
+  prospectusPreviewIframeTitle,
+  resolveOpenInNewTabHtml,
   resolvePreviewPageForStep,
-  type ProspectusPreviewPageKey,
+  type ProspectusPreviewTab,
 } from "./preview-page";
 import type { ProspectusWorkflowStepId } from "./labels";
-
-const PAGE_LABELS: Record<ProspectusPreviewPageKey, string> = {
-  page1: "Page 1",
-  page2: "Page 2",
-  page3: "Page 3",
-};
-
-const PAGE_KEYS: ProspectusPreviewPageKey[] = ["page1", "page2", "page3"];
 
 export type ProspectusPreviewSheetProps = {
   open: boolean;
@@ -48,26 +44,25 @@ export type ProspectusPreviewSheetProps = {
 };
 
 function ProspectusPreviewSheetComponent(props: ProspectusPreviewSheetProps) {
-  const [page, setPage] = React.useState<ProspectusPreviewPageKey>("page1");
-  const lastViewedPageRef = React.useRef<ProspectusPreviewPageKey | null>(null);
-  const pageIndex = PAGE_KEYS.indexOf(page);
+  const [tab, setTab] = React.useState<ProspectusPreviewTab>("page1");
+  const lastViewedTabRef = React.useRef<ProspectusPreviewTab | null>(null);
 
   React.useEffect(() => {
     if (!props.open) return;
-    setPage(resolvePreviewPageForStep(props.workflowStep, lastViewedPageRef.current));
+    setTab(resolvePreviewPageForStep(props.workflowStep, lastViewedTabRef.current));
   }, [props.open, props.workflowStep]);
 
   React.useEffect(() => {
     if (!props.open) return;
-    lastViewedPageRef.current = page;
-  }, [page, props.open]);
+    lastViewedTabRef.current = tab;
+  }, [tab, props.open]);
 
   const cleanedHtml = React.useMemo(
     () => cleanProspectusPreviewHtml(props.html),
     [props.html]
   );
 
-  const html = cleanedHtml?.[page] ?? "";
+  const html = cleanedHtml ? resolveOpenInNewTabHtml(cleanedHtml, tab) : "";
   const showInitialLoading = props.isLoading && !cleanedHtml;
   const showRefreshHint = Boolean(props.isFetching && cleanedHtml);
 
@@ -88,33 +83,23 @@ function ProspectusPreviewSheetComponent(props: ProspectusPreviewSheetProps) {
             <SheetDescription>{props.statusLabel}</SheetDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {PAGE_KEYS.map((key) => (
-              <Button
-                key={key}
-                size="sm"
-                variant={page === key ? "secondary" : "outline"}
-                onClick={() => setPage(key)}
-              >
-                {PAGE_LABELS[key]}
-              </Button>
-            ))}
+            <Tabs
+              value={tab}
+              onValueChange={(value) => setTab(value as ProspectusPreviewTab)}
+            >
+              <TabsList className="flex h-auto w-auto flex-wrap justify-start gap-1 bg-transparent p-0">
+                {PROSPECTUS_PREVIEW_TABS.map((key) => (
+                  <TabsTrigger
+                    key={key}
+                    value={key}
+                    className="h-8 rounded-md border border-input bg-background px-3 text-xs font-medium shadow-sm data-[state=active]:border-transparent data-[state=active]:bg-secondary data-[state=active]:text-secondary-foreground data-[state=active]:shadow-none"
+                  >
+                    {PROSPECTUS_PREVIEW_TAB_LABELS[key]}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={pageIndex <= 0}
-                onClick={() => setPage(PAGE_KEYS[pageIndex - 1]!)}
-              >
-                Previous Page
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={pageIndex >= PAGE_KEYS.length - 1}
-                onClick={() => setPage(PAGE_KEYS[pageIndex + 1]!)}
-              >
-                Next Page
-              </Button>
               <Button size="sm" variant="outline" disabled={!html} onClick={openInNewTab}>
                 Open in New Tab
               </Button>
@@ -132,7 +117,7 @@ function ProspectusPreviewSheetComponent(props: ProspectusPreviewSheetProps) {
           {html ? (
             <div className={PREVIEW_DOCUMENT_FRAME_CLASS}>
               <iframe
-                title={`Prospectus ${PAGE_LABELS[page]}`}
+                title={prospectusPreviewIframeTitle(tab)}
                 className={PREVIEW_IFRAME_CLASS}
                 srcDoc={withAdminPreviewScrollLock(html)}
               />

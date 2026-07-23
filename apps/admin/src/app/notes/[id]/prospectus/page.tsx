@@ -49,6 +49,7 @@ import {
   useProspectusReviewPreview,
   useSaveProspectusReviewDraft,
 } from "@/notes/hooks/use-prospectus-review";
+import type { ProspectusPreviewPages } from "@/notes/prospectus-review/preview-sheet-utils";
 import {
   getProspectusApproveConfirmCopy,
   prospectusApprovePrimaryLabel,
@@ -118,11 +119,8 @@ function ProspectusReviewPageInner() {
   const [draft, setDraft] = React.useState<ProspectusReviewStoredContent | null>(null);
   const [dirty, setDirty] = React.useState(false);
   const [previewOpen, setPreviewOpen] = React.useState(false);
-  const [livePreviewHtml, setLivePreviewHtml] = React.useState<{
-    page1: string;
-    page2: string;
-    page3: string;
-  } | null>(null);
+  const [livePreviewHtml, setLivePreviewHtml] =
+    React.useState<ProspectusPreviewPages | null>(null);
   const [approveDialogOpen, setApproveDialogOpen] = React.useState(false);
   const [approvePhase, setApprovePhase] = React.useState<ProspectusApprovePhase>("idle");
   /** Snapshot dirty flag when the approve dialog opens so copy stays stable. */
