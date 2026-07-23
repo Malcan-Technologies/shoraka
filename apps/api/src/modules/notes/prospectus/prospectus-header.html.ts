@@ -1,6 +1,6 @@
 /**
  * SECTION: Shared prospectus header (Pages 1–3)
- * WHY: Official logo when available; shared tagline; dimensional Shariah placeholder
+ * WHY: Official logo + tagline to the right; dimensional Shariah placeholder
  */
 
 import { buildProspectusBrandMarkHtml } from "./prospectus-header-logo";
@@ -17,6 +17,8 @@ export const PROSPECTUS_HEADER_TAGLINE_PLACEHOLDER = PROSPECTUS_HEADER_TAGLINE;
 
 /**
  * Shared header for all investor Prospectus pages.
+ * Left: logo + tagline (inline). Right: Shariah badge.
+ * No duplicate text brand name beside the logo asset.
  */
 export function buildProspectusHeaderHtml(data: ProspectusHeader): string {
   const tagline =
@@ -27,10 +29,7 @@ export function buildProspectusHeaderHtml(data: ProspectusHeader): string {
   return `<header class="page-header" data-stage="header">
   <div class="brand">
     ${buildProspectusBrandMarkHtml()}
-    <div class="brand-copy">
-      <div class="brand-name">Cash<span>Souk</span></div>
-      <div class="tagline">${escapeHtml(tagline)}</div>
-    </div>
+    <div class="tagline">${escapeHtml(tagline)}</div>
   </div>
   <div class="shariah"><span class="shariah-mark" aria-hidden="true">◆</span> ${PROSPECTUS_HEADER_SHARIAH_PLACEHOLDER}</div>
 </header>`;

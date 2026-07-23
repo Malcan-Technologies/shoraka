@@ -15,6 +15,13 @@ import { buildProspectusPageThreeHtml } from "./prospectus-page-three.html";
 import { SAMPLE_PROSPECTUS_PAGE_TWO } from "./prospectus-page-two.sample-data";
 import { buildProspectusPageTwoHtml } from "./prospectus-page-two.html";
 import {
+  PROSPECTUS_DOCUMENT_CSS,
+  PROSPECTUS_PAGE_PADDING_BOTTOM_PX,
+  PROSPECTUS_PAGE_PADDING_CSS,
+  PROSPECTUS_PAGE_PADDING_TOP_PX,
+  PROSPECTUS_PAGE_PADDING_X_PX,
+} from "./prospectus-document-styles";
+import {
   PROSPECTUS_DETAILED_FINANCIAL_SUBTITLE,
   PROSPECTUS_HEADER_TAGLINE,
 } from "./prospectus-static-copy";
@@ -105,6 +112,11 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
     expect(html).toContain('class="brand-logo"');
     expect(html).toContain(PROSPECTUS_HEADER_TAGLINE);
     expect(html).toContain("data:image/svg+xml;base64,");
+    expect(html).not.toContain('class="brand-name"');
+    expect(html).not.toContain("Cash<span>Souk</span>");
+    expect(html).toMatch(
+      /class="brand-logo"[\s\S]*?class="tagline"/
+    );
   });
 
   it("Pages 1–3 share the same header markup pattern", () => {
@@ -116,6 +128,27 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
       expect(html).toContain("page-header");
       expect(html).toContain(PROSPECTUS_HEADER_TAGLINE);
       expect(html).toContain('class="brand-logo"');
+      expect(html).not.toContain('class="brand-name"');
+    }
+  });
+
+  it("Pages 1–3 use the same shared outer page padding token", () => {
+    expect(PROSPECTUS_PAGE_PADDING_CSS).toBe("38px 28px 28px");
+    expect(PROSPECTUS_PAGE_PADDING_TOP_PX).toBe(38);
+    expect(PROSPECTUS_PAGE_PADDING_X_PX).toBe(28);
+    expect(PROSPECTUS_PAGE_PADDING_BOTTOM_PX).toBe(28);
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(
+      "padding:var(--prospectus-page-padding)"
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).not.toMatch(
+      /\.prospectus-page-(one|two|three)\s*\{[^}]*padding:/
+    );
+    const h1 = buildProspectusPageOneHtml(SAMPLE_PROSPECTUS_PAGE_ONE);
+    const h2 = buildProspectusPageTwoHtml(SAMPLE_PROSPECTUS_PAGE_TWO);
+    const h3 = buildProspectusPageThreeHtml(SAMPLE_PROSPECTUS_PAGE_THREE);
+    for (const html of [h1, h2, h3]) {
+      expect(html).toContain("padding:var(--prospectus-page-padding)");
+      expect(html).not.toMatch(/\.prospectus-page-two\{padding:/);
     }
   });
 

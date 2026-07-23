@@ -37,7 +37,7 @@ export function getProspectusOfficialLogoDataUri(): string | null {
 export function buildProspectusBrandMarkHtml(): string {
   const dataUri = getProspectusOfficialLogoDataUri();
   if (dataUri) {
-    return `<img class="brand-logo" src="${dataUri}" alt="${PROSPECTUS_BRAND_NAME}" width="48" height="42" />`;
+    return `<img class="brand-logo" src="${dataUri}" alt="${PROSPECTUS_BRAND_NAME}" height="46" />`;
   }
-  return `<div class="brand-mark-placeholder" aria-hidden="true">${PROSPECTUS_BRAND_NAME}</div>`;
+  return `<div class="brand-mark-placeholder" aria-hidden="true"></div>`;
 }

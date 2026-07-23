@@ -8,6 +8,15 @@ export const PROSPECTUS_A4_WIDTH_MM = 210;
 export const PROSPECTUS_A4_HEIGHT_MM = 297;
 
 /**
+ * Shared outer page canvas padding for Pages 1–3 (top / horizontal / bottom).
+ * Do not override per-page unless a temporary fit emergency is approved.
+ */
+export const PROSPECTUS_PAGE_PADDING_TOP_PX = 38;
+export const PROSPECTUS_PAGE_PADDING_X_PX = 28;
+export const PROSPECTUS_PAGE_PADDING_BOTTOM_PX = 28;
+export const PROSPECTUS_PAGE_PADDING_CSS = `${PROSPECTUS_PAGE_PADDING_TOP_PX}px ${PROSPECTUS_PAGE_PADDING_X_PX}px ${PROSPECTUS_PAGE_PADDING_BOTTOM_PX}px`;
+
+/**
  * Screen + print stylesheet for investor Prospectus HTML.
  * - `.page` is always 210mm × 297mm (min and exact).
  * - Grey canvas / shadow / outer padding are preview-only.
@@ -19,6 +28,10 @@ export const PROSPECTUS_DOCUMENT_CSS = `
   --ink:#171717;--muted:#5c5c5c;--green:#22b83f;--light-green:#dcefc8;
   --prospectus-a4-width:${PROSPECTUS_A4_WIDTH_MM}mm;
   --prospectus-a4-height:${PROSPECTUS_A4_HEIGHT_MM}mm;
+  --prospectus-page-padding-top:${PROSPECTUS_PAGE_PADDING_TOP_PX}px;
+  --prospectus-page-padding-x:${PROSPECTUS_PAGE_PADDING_X_PX}px;
+  --prospectus-page-padding-bottom:${PROSPECTUS_PAGE_PADDING_BOTTOM_PX}px;
+  --prospectus-page-padding:var(--prospectus-page-padding-top) var(--prospectus-page-padding-x) var(--prospectus-page-padding-bottom);
 }
 *{box-sizing:border-box}
 html{
@@ -49,7 +62,7 @@ body{
   max-height:var(--prospectus-a4-height);
   margin:0 auto 26px;
   background:#fff; /* page surface stays white */
-  padding:38px 28px 28px;
+  padding:var(--prospectus-page-padding); /* shared Pages 1–3 canvas padding */
   position:relative;
   box-shadow:0 4px 24px #0002; /* preview-only */
   display:flex;
@@ -60,13 +73,11 @@ body{
 .page:last-child{
   margin-bottom:0;
 }
-.page-header{height:58px;border-bottom:2px solid #bd2c2c;display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0}
-.brand{display:flex;align-items:center;gap:8px;position:relative}
-.brand-logo{width:48px;height:42px;object-fit:contain;flex:none;display:block}
-.brand-mark-placeholder{width:48px;height:42px;border:2px solid var(--red);background:var(--red);color:#fff;font-size:7px;font-weight:800;display:grid;place-items:center;text-align:center;line-height:1.1;border-radius:3px;flex:none}
-.brand-copy{display:flex;flex-direction:column;justify-content:center}
-.brand-name{font-size:36px;letter-spacing:-1.5px;font-weight:700;line-height:34px}.brand-name span{font-weight:400}
-.tagline{font-size:8px;margin-top:1px;color:var(--muted)}
+.page-header{height:58px;border-bottom:2px solid #bd2c2c;display:flex;justify-content:space-between;align-items:center;margin-bottom:0}
+.brand{display:flex;align-items:center;gap:12px;position:relative;min-width:0}
+.brand-logo{height:46px;width:auto;max-width:170px;object-fit:contain;object-position:left center;flex:none;display:block}
+.brand-mark-placeholder{width:46px;height:46px;border:2px solid var(--red);background:var(--red);border-radius:3px;flex:none}
+.tagline{font-size:8px;margin:0;color:var(--muted);line-height:1.3;white-space:nowrap}
 .shariah{border:1.5px solid var(--red);border-radius:7px;padding:7px 11px;font-size:8px;display:flex;align-items:center;gap:6px;white-space:nowrap}.shariah-mark{font-size:14px;color:var(--red);line-height:1}
 h1,h2,p{margin-top:0}h2{font-size:12px;text-transform:uppercase;color:#a51d21;margin-bottom:10px}
 .hero-grid{display:grid;grid-template-columns:1.35fr 1fr .82fr;border-bottom:1px solid var(--line);min-height:210px}
@@ -119,8 +130,7 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:#df2b23;co
 .work-list p{display:flex;align-items:flex-start;gap:10px;font-size:9px;margin-bottom:9px}.work-list .icon{flex:none;width:25px;height:25px;padding:4px;box-sizing:border-box}
 .risk-cta{display:grid;grid-template-columns:2fr 1fr;gap:9px;margin-top:8px}.risk-cta>.card{padding:10px}
 
-/* Page 2 only — reclaim vertical space so Credit Insights + description fit on A4 */
-.prospectus-page-two{padding:32px 26px 22px}
+/* Page 2 only — internal section tightening (outer .page padding stays shared) */
 .prospectus-page-two .issuer-grid>section{padding:14px 12px}
 .prospectus-page-two .issuer-profile{margin:12px 0}
 .prospectus-page-two .invoice-info dl div{margin-bottom:9px}
