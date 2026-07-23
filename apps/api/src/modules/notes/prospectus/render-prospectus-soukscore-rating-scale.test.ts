@@ -14,6 +14,7 @@ import {
   PROSPECTUS_SOUKSCORE_RATING_SCALE_SECTION_HEADING,
   PROSPECTUS_SOUKSCORE_SCALE_VERSION,
 } from "./prospectus-soukscore-rating-scale.types";
+import { PROSPECTUS_RISK_SCALE_NOTE } from "./prospectus-static-copy";
 import { buildProspectusSoukscoreRatingScaleDocument } from "./render-prospectus-soukscore-rating-scale";
 
 const VALID_GRADES = ["AAA", "AA", "A", "BBB", "BB", "B"] as const;
@@ -88,7 +89,7 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     ).toBe(false);
   });
 
-  it("renders full-scale catalogue labels and explanations without Assessment Note DNA", () => {
+  it("renders full-scale catalogue labels, explanations, and static risk-scale note", () => {
     const data = buildProspectusSoukscoreRatingScale(
       SAMPLE_PROSPECTUS_SOUKSCORE_RATING_SCALE_INPUT
     );
@@ -108,6 +109,11 @@ describe("prospectus Page 2 SoukScore Risk Rating Scale (DATA STAGE 7)", () => {
     expect(html).not.toContain("Assessment Note");
     expect(html).not.toContain("Definition:");
     expect(html).not.toContain('class="soukscore-missing"');
+    expect(html.match(/class="risk-scale-note"/g)?.length).toBe(1);
+    expect(html).toContain(PROSPECTUS_RISK_SCALE_NOTE);
+    const lastGradeIdx = html.lastIndexOf('data-grade="');
+    const noteIdx = html.indexOf('class="risk-scale-note"');
+    expect(noteIdx).toBeGreaterThan(lastGradeIdx);
   });
 
   it("rejects Canva A–E scale items while keeping valid grade A", () => {

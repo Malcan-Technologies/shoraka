@@ -11,6 +11,7 @@ import {
 } from "../prospectus-review/prospectus-option-catalogues";
 import {
   PROSPECTUS_CREDIT_INSIGHTS_AUDIT,
+  PROSPECTUS_CREDIT_INSIGHTS_DESCRIPTION,
   PROSPECTUS_CREDIT_INSIGHTS_SECTION_HEADING,
   PROSPECTUS_DATA_NOT_AVAILABLE,
   type ProspectusCreditInsights,
@@ -60,6 +61,7 @@ export function buildProspectusCreditInsights(
     creditUtilisation: resolve("creditUtilisation"),
     litigationCheck: resolve("litigationCheck"),
     ccrisStatus: resolve("ccrisStatus"),
+    description: PROSPECTUS_CREDIT_INSIGHTS_DESCRIPTION,
     audit: PROSPECTUS_CREDIT_INSIGHTS_AUDIT,
   };
 }

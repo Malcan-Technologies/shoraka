@@ -42,20 +42,25 @@ describe("prospectus document A4 and print CSS", () => {
     expect(PROSPECTUS_DOCUMENT_CSS).toMatch(/box-shadow:0 4px 24px/);
   });
 
-  it("lets Page 2 financial card grow to the taller column instead of clipping the table", () => {
+  it("lets Page 2 financial and insights cards grow instead of clipping content", () => {
     expect(PROSPECTUS_DOCUMENT_CSS).toContain(".page-two-financial-card{");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(".page-two-insights-card{");
     expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
       /\.page-two-financial-card\{[^}]*overflow:visible/
     );
     expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
-      /\.page-two-financial-card\{[^}]*flex-shrink:0/
-    );
-    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
-      /\.page-two-financial-card\{[^}]*align-items:stretch/
+      /\.page-two-insights-card\{[^}]*flex-shrink:0/
     );
     const page2 = buildProspectusPageTwoHtml(SAMPLE_PROSPECTUS_PAGE_TWO);
     expect(page2).toContain("page-two-financial-card");
+    expect(page2).toContain("page-two-insights-card");
     expect(page2).toContain("Receivables Days");
+    expect(page2).toContain("credit-insights-note");
+    expect(page2).toContain("predictive indicator");
+    expect(page2).toContain("risk-scale-note");
+    expect(page2).toContain("invest-confidence-description");
+    expect(page2.match(/class="risk-scale-note"/g)?.length).toBe(1);
+    expect(page2.match(/class="invest-confidence-description"/g)?.length).toBe(1);
   });
 
   it("print CSS removes preview chrome and keeps A4 with print backgrounds", () => {

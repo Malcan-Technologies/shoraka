@@ -1,9 +1,10 @@
 /**
  * SECTION: Plain HTML for Page 2 Credit Insights preview
- * WHY: Unstyled Canva-facing fields only — all five rows always rendered; no footer
+ * WHY: Unstyled Canva-facing fields — five rows + static supporting description
  */
 
 import type { ProspectusCreditInsights } from "./prospectus-credit-insights.types";
+import { PROSPECTUS_CREDIT_INSIGHTS_DESCRIPTION } from "./prospectus-credit-insights.types";
 
 function escapeHtml(value: string): string {
   return value
@@ -22,6 +23,7 @@ export function buildProspectusCreditInsightsHtml(data: ProspectusCreditInsights
     `Litigation Check: ${escapeHtml(data.litigationCheck)}`,
     `CCRIS Status: ${escapeHtml(data.ccrisStatus)}`,
   ];
+  const description = escapeHtml(data.description || PROSPECTUS_CREDIT_INSIGHTS_DESCRIPTION);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -31,12 +33,13 @@ export function buildProspectusCreditInsightsHtml(data: ProspectusCreditInsights
 </head>
 <body>
   <h1>Prospectus Page 2 — DATA STAGE 5: Credit Insights</h1>
-  <p>Unstyled Canva-facing preview. Missing Draft values must be exactly: —. No footer. All five rows are mandatory.</p>
+  <p>Unstyled Canva-facing preview. Missing Draft values must be exactly: —. All five rows are mandatory.</p>
   <section>
     <h2>${escapeHtml(data.sectionHeading)}</h2>
     <p>
       ${lines.join("<br />\n      ")}
     </p>
+    <em class="credit-insights-note">${description}</em>
   </section>
 </body>
 </html>`;

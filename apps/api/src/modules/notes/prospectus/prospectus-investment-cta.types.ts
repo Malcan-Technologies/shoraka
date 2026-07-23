@@ -3,8 +3,12 @@
  * WHY: Static frozen wording + non-clickable button; live invest stays on marketplace
  */
 
+import { PROSPECTUS_INVEST_CTA_DESCRIPTION } from "./prospectus-static-copy";
+
 export const PROSPECTUS_INVESTMENT_CTA_SECTION_HEADING = "INVEST WITH CONFIDENCE";
 export const PROSPECTUS_INVESTMENT_CTA_BUTTON_LABEL = "INVEST NOW";
+/** Re-export shared static CTA description — do not duplicate the sentence elsewhere. */
+export { PROSPECTUS_INVEST_CTA_DESCRIPTION as PROSPECTUS_INVESTMENT_CTA_DESCRIPTION };
 
 /** Closest current prospectus wording pattern: "Minimum investment: {money}". */
 export const PROSPECTUS_MINIMUM_INVESTMENT_STATEMENT_PREFIX = "Minimum investment:";
@@ -21,9 +25,9 @@ export interface ProspectusInvestmentCtaAudit {
     capacityAdjustedMinimumUsed: false;
   };
   claims: {
-    attractiveReturnAllowed: false;
-    shortTermClaimAllowed: false;
-    shariahCompliantInvestmentClaimAllowed: false;
+    /** Static Canva description only — not a generated claim engine. */
+    staticCanvaDescriptionAllowed: true;
+    generatedMarketingClaimAllowed: false;
   };
 }
 
@@ -38,9 +42,8 @@ export const PROSPECTUS_INVESTMENT_CTA_AUDIT: ProspectusInvestmentCtaAudit = {
     capacityAdjustedMinimumUsed: false,
   },
   claims: {
-    attractiveReturnAllowed: false,
-    shortTermClaimAllowed: false,
-    shariahCompliantInvestmentClaimAllowed: false,
+    staticCanvaDescriptionAllowed: true,
+    generatedMarketingClaimAllowed: false,
   },
 };
 
@@ -51,6 +54,8 @@ export const PROSPECTUS_INVESTMENT_CTA_AUDIT: ProspectusInvestmentCtaAudit = {
  */
 export interface ProspectusInvestmentCta {
   sectionHeading: string;
+  /** Static Canva body copy above the button. */
+  description: string;
   buttonLabel: string;
   /** When null, HTML renders a disabled presentation control (no navigation). */
   buttonHref: string | null;
@@ -68,7 +73,11 @@ export interface ProspectusInvestmentCtaFieldSource {
 }
 
 export const PROSPECTUS_INVESTMENT_CTA_FIELD_SOURCES: Record<
-  "sectionHeading" | "buttonLabel" | "buttonHref" | "minimumInvestmentStatement",
+  | "sectionHeading"
+  | "description"
+  | "buttonLabel"
+  | "buttonHref"
+  | "minimumInvestmentStatement",
   ProspectusInvestmentCtaFieldSource
 > = {
   sectionHeading: {
@@ -77,6 +86,13 @@ export const PROSPECTUS_INVESTMENT_CTA_FIELD_SOURCES: Record<
     availability: "static",
     surface: "canva",
     notes: "INVEST WITH CONFIDENCE — heading only; not a claim generator",
+  },
+  description: {
+    label: "CTA description",
+    canonicalSource: "static",
+    availability: "static",
+    surface: "canva",
+    notes: PROSPECTUS_INVEST_CTA_DESCRIPTION,
   },
   buttonLabel: {
     label: "CTA Button Label",

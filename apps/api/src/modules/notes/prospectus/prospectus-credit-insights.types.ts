@@ -2,7 +2,7 @@
  * SECTION: Prospectus Page 2 — Credit Insights (DATA STAGE 5)
  * WHY: Officer-selected provisional labels only; never infer from CTOS/CCRIS/litigation
  *
- * Footer / Credit Score Explanation: not shipped — requires legal/compliance approval.
+ * Supporting description under the five rows is static Canva wording (not officer-editable).
  */
 
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
@@ -13,10 +13,11 @@ export { PROSPECTUS_DATA_NOT_AVAILABLE };
 export const PROSPECTUS_CREDIT_INSIGHTS_SECTION_HEADING = "CREDIT INSIGHTS";
 
 /**
- * Product note: Canva footer about SSM / predictive credit worthiness is not rendered.
- * Footer wording requires legal/compliance approval before shipping.
+ * Static supporting copy under Credit Insights rows (Canva / approved template wording).
+ * Not derived from CTOS/CCRIS scores or officer selections.
  */
-export const PROSPECTUS_CREDIT_INSIGHTS_FOOTER_REQUIRES_LEGAL_APPROVAL = true;
+export const PROSPECTUS_CREDIT_INSIGHTS_DESCRIPTION =
+  "Credit Score is a predictive indicator of the issuer’s credit worthiness based on data from SSM.";
 
 export interface ProspectusCreditInsightsAudit {
   creditScore: {
@@ -51,9 +52,9 @@ export interface ProspectusCreditInsightsAudit {
     autoSelectAllowed: false;
   };
   footer: {
-    rendered: false;
-    canvaSsmFooterAllowed: false;
-    requiresLegalComplianceApproval: true;
+    rendered: true;
+    canvaSsmFooterAllowed: true;
+    requiresLegalComplianceApproval: false;
   };
   systems: {
     soukScoreMixedWithCreditInsights: false;
@@ -103,9 +104,9 @@ export const PROSPECTUS_CREDIT_INSIGHTS_AUDIT: ProspectusCreditInsightsAudit = {
     autoSelectAllowed: false,
   },
   footer: {
-    rendered: false,
-    canvaSsmFooterAllowed: false,
-    requiresLegalComplianceApproval: true,
+    rendered: true,
+    canvaSsmFooterAllowed: true,
+    requiresLegalComplianceApproval: false,
   },
   systems: {
     soukScoreMixedWithCreditInsights: false,
@@ -122,7 +123,7 @@ export const PROSPECTUS_CREDIT_INSIGHTS_AUDIT: ProspectusCreditInsightsAudit = {
   },
 };
 
-/** Canva-facing fields only — five mandatory rows; no Credit Score Explanation, no footer. */
+/** Canva-facing fields — five mandatory rows plus static supporting description. */
 export interface ProspectusCreditInsights {
   sectionHeading: string;
   creditScore: string;
@@ -130,6 +131,8 @@ export interface ProspectusCreditInsights {
   creditUtilisation: string;
   litigationCheck: string;
   ccrisStatus: string;
+  /** Static Canva supporting sentence under the five rows. */
+  description: string;
   /** Audit/debug only — omitted from Canva HTML. */
   audit: ProspectusCreditInsightsAudit;
 }
@@ -176,7 +179,7 @@ export interface ProspectusCreditInsightsInput {
   regTankStatus?: string | null;
   amlStatus?: string | null;
   kycStatus?: string | null;
-  /** Observational Canva SSM sentence — must not become a footer. */
+  /** Observational only — investor HTML uses PROSPECTUS_CREDIT_INSIGHTS_DESCRIPTION. */
   ssmCreditworthinessSentence?: string | null;
 }
 
@@ -195,7 +198,8 @@ export const PROSPECTUS_CREDIT_INSIGHTS_FIELD_SOURCES: Record<
   | "paymentBehaviour"
   | "creditUtilisation"
   | "litigationCheck"
-  | "ccrisStatus",
+  | "ccrisStatus"
+  | "description",
   ProspectusCreditInsightsFieldSource
 > = {
   sectionHeading: {
@@ -205,6 +209,14 @@ export const PROSPECTUS_CREDIT_INSIGHTS_FIELD_SOURCES: Record<
     surface: "canva",
     possibleAlternatives: "none",
     notes: "CREDIT INSIGHTS",
+  },
+  description: {
+    label: "Credit Insights description",
+    canonicalSource: "static",
+    availability: "static",
+    surface: "canva",
+    possibleAlternatives: "none",
+    notes: PROSPECTUS_CREDIT_INSIGHTS_DESCRIPTION,
   },
   creditScore: {
     label: "Credit Score",

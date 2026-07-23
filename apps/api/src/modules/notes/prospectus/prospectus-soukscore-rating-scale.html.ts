@@ -4,6 +4,7 @@
  */
 
 import { escapeHtml } from "./prospectus-html";
+import { PROSPECTUS_RISK_SCALE_NOTE } from "./prospectus-static-copy";
 import type { ProspectusSoukscoreRatingScale } from "./prospectus-soukscore-rating-scale.types";
 
 /** Shared section markup used by stage preview and full Page 2 assembly. */
@@ -36,7 +37,8 @@ export function buildProspectusSoukscoreRatingScaleSectionHtml(
   <h2>${escapeHtml(data.sectionHeading)}</h2>
   <ol class="soukscore-scale" aria-label="${escapeHtml(data.sectionHeading)}">
 ${gradeCells}
-  </ol>${missing}
+  </ol>
+  <p class="risk-scale-note">${escapeHtml(PROSPECTUS_RISK_SCALE_NOTE)}</p>${missing}
 </section>`;
 }
 

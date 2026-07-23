@@ -1,8 +1,8 @@
 import { buildProspectusCreditInsights } from "./prospectus-credit-insights";
 import { SAMPLE_PROSPECTUS_CREDIT_INSIGHTS_INPUT } from "./prospectus-credit-insights.sample-data";
 import {
+  PROSPECTUS_CREDIT_INSIGHTS_DESCRIPTION,
   PROSPECTUS_CREDIT_INSIGHTS_FIELD_SOURCES,
-  PROSPECTUS_CREDIT_INSIGHTS_FOOTER_REQUIRES_LEGAL_APPROVAL,
   PROSPECTUS_CREDIT_INSIGHTS_SECTION_HEADING,
   PROSPECTUS_DATA_NOT_AVAILABLE,
 } from "./prospectus-credit-insights.types";
@@ -154,18 +154,18 @@ describe("prospectus Page 2 Credit Insights (DATA STAGE 5)", () => {
     expect(data.audit.litigationCheck.emptyResultMeansClear).toBe(false);
   });
 
-  it("does not render Credit Score Explanation or Canva footer", () => {
-    expect(PROSPECTUS_CREDIT_INSIGHTS_FOOTER_REQUIRES_LEGAL_APPROVAL).toBe(true);
+  it("renders static Credit Insights description (not officer/CTOS input)", () => {
     const data = buildProspectusCreditInsights({
       creditInsightSelections: { ...DEMO_SELECTIONS },
-      ssmCreditworthinessSentence:
-        "Credit Score is a predictive indicator of the issuer’s credit worthiness based on data from SSM",
+      ssmCreditworthinessSentence: "ignored alternate sentence",
     });
     const html = buildProspectusCreditInsightsDocument(data);
+    expect(data.description).toBe(PROSPECTUS_CREDIT_INSIGHTS_DESCRIPTION);
+    expect(html).toContain(PROSPECTUS_CREDIT_INSIGHTS_DESCRIPTION);
+    expect(html).toContain('class="credit-insights-note"');
     expect(html).not.toContain("Credit Score Explanation");
-    expect(html).not.toMatch(/predictive indicator/i);
-    expect(html).not.toMatch(/credit worthiness based on data from SSM/i);
-    expect(data.audit.footer.rendered).toBe(false);
+    expect(html).not.toContain("ignored alternate sentence");
+    expect(data.audit.footer.rendered).toBe(true);
   });
 
   it("documents officer-selected field sources without CTOS auto-selection", () => {
@@ -174,6 +174,7 @@ describe("prospectus Page 2 Credit Insights (DATA STAGE 5)", () => {
     expect(PROSPECTUS_CREDIT_INSIGHTS_FIELD_SOURCES.creditUtilisation.availability).toBe("stored");
     expect(PROSPECTUS_CREDIT_INSIGHTS_FIELD_SOURCES.litigationCheck.availability).toBe("stored");
     expect(PROSPECTUS_CREDIT_INSIGHTS_FIELD_SOURCES.ccrisStatus.availability).toBe("stored");
+    expect(PROSPECTUS_CREDIT_INSIGHTS_FIELD_SOURCES.description.availability).toBe("static");
     expect(PROSPECTUS_CREDIT_INSIGHTS_FIELD_SOURCES).not.toHaveProperty("creditScoreExplanation");
   });
 

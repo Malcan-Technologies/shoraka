@@ -18,6 +18,7 @@ import {
 } from "./prospectus-investment-cta.sample-data";
 import {
   PROSPECTUS_INVESTMENT_CTA_BUTTON_LABEL,
+  PROSPECTUS_INVESTMENT_CTA_DESCRIPTION,
   PROSPECTUS_INVESTMENT_CTA_FIELD_SOURCES,
   PROSPECTUS_INVESTMENT_CTA_SECTION_HEADING,
 } from "./prospectus-investment-cta.types";
@@ -83,24 +84,30 @@ describe("prospectus Page 2 CTA and shared header (DATA STAGE 8)", () => {
       expect(cta.audit.routeInFrozenHtmlAllowed).toBe(false);
     });
 
-    it("does not generate attractive, short-term, or Shariah-compliant investment claims", () => {
+    it("renders static Canva CTA description once before the button", () => {
       const cta = buildProspectusInvestmentCta();
-      expect(cta.audit.claims.attractiveReturnAllowed).toBe(false);
-      expect(cta.audit.claims.shortTermClaimAllowed).toBe(false);
-      expect(cta.audit.claims.shariahCompliantInvestmentClaimAllowed).toBe(false);
+      expect(cta.audit.claims.staticCanvaDescriptionAllowed).toBe(true);
+      expect(cta.audit.claims.generatedMarketingClaimAllowed).toBe(false);
+      expect(cta.description).toBe(PROSPECTUS_INVESTMENT_CTA_DESCRIPTION);
 
-      const html = buildProspectusInvestmentCtaDocument({ cta });
-      expect(html).not.toMatch(/attractive return/i);
-      expect(html).not.toMatch(/short-term/i);
-      expect(html).not.toMatch(/Shariah-compliant investment/i);
+      const html = buildProspectusInvestmentCtaHtml(cta);
+      expect(html.match(/diversify your portfolio/gi)?.length).toBe(1);
+      expect(html).toContain(PROSPECTUS_INVESTMENT_CTA_DESCRIPTION);
+      expect(html).toContain('class="invest-confidence-description"');
+      const descIdx = html.indexOf('class="invest-confidence-description"');
+      const buttonIdx = html.indexOf("INVEST NOW");
+      const minIdx = html.indexOf("Minimum investment:");
+      expect(descIdx).toBeGreaterThan(-1);
+      expect(buttonIdx).toBeGreaterThan(descIdx);
+      expect(minIdx).toBeGreaterThan(buttonIdx);
       expect(html).not.toMatch(/guaranteed return/i);
-      expect(html).not.toMatch(/diversify your portfolio/i);
     });
 
     it("shows INVEST NOW as a disabled presentation button without a route", () => {
       const html = buildProspectusInvestmentCtaHtml(SAMPLE_PROSPECTUS_INVESTMENT_CTA);
 
       expect(html).toContain("INVEST WITH CONFIDENCE");
+      expect(html).toContain(PROSPECTUS_INVESTMENT_CTA_DESCRIPTION);
       expect(html).toContain("INVEST NOW");
       expect(html).toContain("Minimum investment: RM 100.00");
       expect(html).toContain('disabled aria-disabled="true"');

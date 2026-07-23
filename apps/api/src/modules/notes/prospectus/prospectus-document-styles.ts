@@ -104,9 +104,41 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:#df2b23;co
   align-items:stretch;
   flex-shrink:0;
 }
+/* Page 2 Credit Insights + Work Performed: same flex-shrink clip as financial card */
+.page-two-insights-card{
+  height:auto;
+  min-height:0;
+  overflow:visible;
+  align-items:stretch;
+  flex-shrink:0;
+}
+.page-two-risk-cta{flex-shrink:0}
+.credit-insights-note{display:block;font-size:7px;margin-top:8px;font-style:italic;line-height:1.3;color:var(--muted)}
 .lower{margin-top:0;border-top:0;border-radius:0 0 8px 8px}.ratings div{display:grid;grid-template-columns:1fr 110px;gap:8px;align-items:center;margin:5px 0;position:relative}.ratings div:before{content:"";width:17px;height:17px;background:#e3bfc0;border-radius:3px;position:absolute;left:0}.ratings span{font-weight:700;padding-left:22px}.ratings b{background:#d8d8d8;text-align:center;padding:5px;border-radius:4px;font-weight:500}.ratings .good{color:#21a43b}
 .work-list p{display:flex;align-items:flex-start;gap:10px;font-size:9px;margin-bottom:9px}.work-list .icon{flex:none;width:25px;height:25px;padding:4px;box-sizing:border-box}
 .risk-cta{display:grid;grid-template-columns:2fr 1fr;gap:9px;margin-top:8px}.risk-cta>.card{padding:10px}
+
+/* Page 2 only — reclaim vertical space so Credit Insights + description fit on A4 */
+.prospectus-page-two{padding:32px 26px 22px}
+.prospectus-page-two .issuer-grid>section{padding:14px 12px}
+.prospectus-page-two .issuer-profile{margin:12px 0}
+.prospectus-page-two .invoice-info dl div{margin-bottom:9px}
+.prospectus-page-two .financial-card>div{padding:10px}
+.prospectus-page-two .split-card>div{padding:11px}
+.prospectus-page-two .ratings div{margin:3px 0}
+.prospectus-page-two .work-list p{margin-bottom:6px;font-size:8.5px}
+.prospectus-page-two .risk-cta{margin-top:6px}
+.prospectus-page-two .risk-cta>.card{padding:8px}
+.prospectus-page-two .cta{padding:8px 9px}
+.prospectus-page-two .cta h2{margin-bottom:6px;font-size:11px}
+.prospectus-page-two .invest-confidence-description{margin:0 0 6px;font-size:8.5px;line-height:1.25}
+.prospectus-page-two .cta-button{padding:7px;font-size:10px}
+.prospectus-page-two .cta-minimum{margin-top:5px;font-size:7.5px}
+.prospectus-page-two .risk-scale-note{margin-top:4px;font-size:7px}
+.prospectus-page-two .soukscore-scale .grade-item{padding:4px 3px}
+.prospectus-page-two .soukscore-scale .grade{width:30px;height:30px;font-size:11px;margin-bottom:3px}
+.prospectus-page-two .soukscore-scale .grade-desc{line-height:1.2}
+.prospectus-page-two .prospectus-footer{padding-top:8px}
 .soukscore-scale,.risk-scale{display:grid;grid-template-columns:repeat(6,1fr);list-style:none;margin:0;padding:0;align-items:start}
 .soukscore-scale .grade-item,.risk-scale>div{padding:6px 4px;border-right:1px solid #c9c5c5;text-align:center}.soukscore-scale .grade-item:last-child,.risk-scale>div:last-child{border:0}
 .soukscore-scale .grade,.grade{width:33px;height:33px;color:#fff;border-radius:6px;display:grid;place-items:center;font-size:12px;margin:0 auto 4px;background:#79cf54;font-weight:800}
@@ -119,6 +151,8 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:#df2b23;co
 .plain th .fy-label,.report-box th .fy-label{display:block;font-weight:700}
 .plain th .fy-end,.report-box th .fy-end{display:block;font-size:7px;font-weight:400;margin-top:2px;color:#666}
 .cta{border:1px solid #c5bebe;border-radius:7px;background:#f7eaea;padding:11px}.cta p{font-size:9px}.cta-button{display:block;width:100%;border:0;border-radius:5px;background:#a60000;color:#fff;text-transform:uppercase;font-weight:800;padding:8px;font-size:11px;text-align:center;text-decoration:none}.cta-button[disabled],.cta-button[aria-disabled="true"]{opacity:.85;cursor:default;pointer-events:none}.cta-minimum{text-align:center;display:block;margin-top:7px;font-size:8px}
+.risk-scale-note{margin:6px 0 0;font-size:7.5px;line-height:1.25;font-style:italic;color:var(--muted)}
+.invest-confidence-description{margin:0 0 8px;font-size:9px;line-height:1.3}
 .page-title{padding:20px 0 14px}.page-title h1,.page-title h2{text-transform:uppercase;color:#a8181d;font-size:22px;margin-bottom:8px}.page-title p{font-size:9px;margin:0}
 .identity-strip,.meta-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:18px}.identity-strip>div,.meta-strip-item{display:flex;gap:9px;padding:12px 9px;border-right:1px solid #c8c4c4;align-items:flex-start}.identity-strip>div:last-child,.meta-strip-item:last-child{border-right:0}.identity-strip .icon,.meta-strip-item .icon{width:32px;height:32px;padding:7px;background:#efcecf;border-radius:50%;color:#b0292f;flex:none;box-sizing:border-box}.meta-strip-label,.identity-strip small{font-weight:800;font-size:7px;display:block}.meta-strip-value,.identity-strip b{font-size:8px;margin-top:5px;display:block}
 .comparison-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.report-box{padding:9px}.report-box h2{font-size:11px}.report-box table{font-size:7.5px}.report-box th{font-size:7px}.report-box td{height:24px}

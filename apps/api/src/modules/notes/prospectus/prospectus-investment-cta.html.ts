@@ -24,6 +24,7 @@ export function buildProspectusInvestmentCtaButtonHtml(
 export function buildProspectusInvestmentCtaHtml(data: ProspectusInvestmentCta): string {
   return `<section class="prospectus-investment-cta" data-stage="8-cta">
   <h2>${escapeHtml(data.sectionHeading)}</h2>
+  <p class="invest-confidence-description">${escapeHtml(data.description)}</p>
   ${buildProspectusInvestmentCtaButtonHtml(data)}
   <small class="cta-minimum">${escapeHtml(data.minimumInvestmentStatement)}</small>
 </section>`;

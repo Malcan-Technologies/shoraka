@@ -9,6 +9,7 @@ import { buildProspectusHeaderHtml } from "./prospectus-header.html";
 import { escapeHtml } from "./prospectus-html";
 import { prospectusIcon } from "./prospectus-icons";
 import { buildProspectusInvestmentCtaHtml } from "./prospectus-investment-cta.html";
+import { PROSPECTUS_CREDIT_INSIGHTS_DESCRIPTION } from "./prospectus-credit-insights.types";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
 import type { ProspectusPageTwo } from "./prospectus-page-two.types";
 import {
@@ -168,7 +169,7 @@ ${PROSPECTUS_DOCUMENT_CSS}
       ${renderFinancialTable(page)}
     </section>
 
-    <section class="card split-card lower">
+    <section class="card split-card lower page-two-insights-card">
       <div data-stage="5">
         <h2>${escapeHtml(s5.sectionHeading)}</h2>
         <div class="ratings">
@@ -178,6 +179,9 @@ ${PROSPECTUS_DOCUMENT_CSS}
           ${ratingRow("Litigation Check", s5.litigationCheck)}
           ${ratingRow("CCRIS Status", s5.ccrisStatus)}
         </div>
+        <em class="credit-insights-note">${escapeHtml(
+          s5.description || PROSPECTUS_CREDIT_INSIGHTS_DESCRIPTION
+        )}</em>
       </div>
       <div class="work-list" data-stage="6">
         <h2>${escapeHtml(s6.sectionHeading)}</h2>
@@ -185,7 +189,7 @@ ${PROSPECTUS_DOCUMENT_CSS}
       </div>
     </section>
 
-    <div class="risk-cta" id="risk-scale">
+    <div class="risk-cta page-two-risk-cta" id="risk-scale">
       <section class="card">
         ${buildProspectusSoukscoreRatingScaleSectionHtml(page.soukscoreRatingScale)}
       </section>

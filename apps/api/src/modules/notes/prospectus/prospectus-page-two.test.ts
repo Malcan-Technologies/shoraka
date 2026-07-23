@@ -28,6 +28,10 @@ import {
   PROSPECTUS_PAGE_TWO_WIDTH_MM,
 } from "./prospectus-page-two.types";
 import { PROSPECTUS_PLACEHOLDER_PUBLICATION_CONTENT } from "./prospectus-placeholder-publication-content";
+import {
+  PROSPECTUS_INVEST_CTA_DESCRIPTION,
+  PROSPECTUS_RISK_SCALE_NOTE,
+} from "./prospectus-static-copy";
 import { renderProspectusPageTwoHtml } from "./render-prospectus-page-two";
 
 function baseNote(
@@ -703,12 +707,19 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       const html = renderProspectusPageTwoHtml(open);
       const stageCta = html.slice(html.indexOf('data-stage="8-cta"'));
       expect(stageCta).toContain("INVEST WITH CONFIDENCE");
+      expect(stageCta).toContain(PROSPECTUS_INVEST_CTA_DESCRIPTION);
       expect(stageCta).toContain("INVEST NOW");
       expect(stageCta).toContain("Minimum investment: RM 100.00");
       expect(stageCta).toContain('disabled aria-disabled="true"');
       expect(stageCta).not.toContain("CTA Paragraph");
       expect(stageCta).not.toContain("/investments/");
       expect(stageCta).not.toContain("<a ");
+      const descIdx = stageCta.indexOf(PROSPECTUS_INVEST_CTA_DESCRIPTION);
+      const buttonIdx = stageCta.indexOf("INVEST NOW");
+      const minIdx = stageCta.indexOf("Minimum investment:");
+      expect(descIdx).toBeGreaterThan(-1);
+      expect(buttonIdx).toBeGreaterThan(descIdx);
+      expect(minIdx).toBeGreaterThan(buttonIdx);
     });
   });
 
@@ -765,15 +776,28 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(html).not.toContain("applications.financial_statements");
       expect(html).not.toContain('"audit"');
       expect(html).not.toContain("CTOS");
-      expect(html).not.toContain("attractive return");
       expect(html).not.toContain('href="#"');
       expect(html).not.toContain("javascript:");
       expect(html).not.toContain(`Note ID: ${page.meta.noteId}`);
       expect(html).not.toContain(`href="/investments/${page.meta.noteId}"`);
       expect(html).toContain("INVEST NOW");
       expect(html).toContain("INVEST WITH CONFIDENCE");
+      expect(html).toContain(PROSPECTUS_INVEST_CTA_DESCRIPTION);
       expect(html).toContain("Minimum investment: RM 100.00");
       expect(html).toContain('disabled aria-disabled="true"');
+      expect(html.match(/class="risk-scale-note"/g)?.length).toBe(1);
+      expect(html.match(/class="invest-confidence-description"/g)?.length).toBe(1);
+      expect(html).toContain(PROSPECTUS_RISK_SCALE_NOTE);
+      const scaleIdx = html.indexOf('data-stage="7"');
+      const noteIdx = html.indexOf('class="risk-scale-note"');
+      const gradeBIdx = html.indexOf('data-grade="B"');
+      expect(noteIdx).toBeGreaterThan(gradeBIdx);
+      expect(noteIdx).toBeGreaterThan(scaleIdx);
+      expect(html).toContain("page-two-financial-card");
+      expect(html).toContain("page-two-insights-card");
+      for (const grade of ["AAA", "AA", "A", "BBB", "BB", "B"]) {
+        expect(html).toContain(`data-grade="${grade}"`);
+      }
     });
 
     it("reconstructs frozen Stage 4A without live year reselection", () => {
