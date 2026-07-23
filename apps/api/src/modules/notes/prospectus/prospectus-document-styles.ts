@@ -16,6 +16,23 @@ export const PROSPECTUS_PAGE_PADDING_X_PX = 28;
 export const PROSPECTUS_PAGE_PADDING_BOTTOM_PX = 28;
 export const PROSPECTUS_PAGE_PADDING_CSS = `${PROSPECTUS_PAGE_PADDING_TOP_PX}px ${PROSPECTUS_PAGE_PADDING_X_PX}px ${PROSPECTUS_PAGE_PADDING_BOTTOM_PX}px`;
 
+/** Shared header / logo sizing — identical on Pages 1–3. */
+export const PROSPECTUS_HEADER_HEIGHT_PX = 66;
+export const PROSPECTUS_LOGO_HEIGHT_PX = 56;
+export const PROSPECTUS_LOGO_MAX_WIDTH_PX = 210;
+export const PROSPECTUS_TAGLINE_FONT_SIZE_PX = 8.5;
+export const PROSPECTUS_BRAND_GAP_PX = 14;
+
+/** Shared section heading (card/section h2) — identical scale on Pages 1–3. */
+export const PROSPECTUS_SECTION_TITLE_FONT_SIZE_PX = 12;
+export const PROSPECTUS_SECTION_TITLE_MARGIN_BOTTOM_PX = 10;
+
+/** Shared Page 3 page-title block (and any future page-level titles). */
+export const PROSPECTUS_PAGE_TITLE_FONT_SIZE_PX = 22;
+export const PROSPECTUS_PAGE_TITLE_PADDING_CSS = "20px 0 14px";
+export const PROSPECTUS_PAGE_TITLE_MARGIN_BOTTOM_PX = 8;
+export const PROSPECTUS_PAGE_SUBTITLE_FONT_SIZE_PX = 9;
+
 /**
  * Screen + print stylesheet for investor Prospectus HTML.
  * - `.page` is always 210mm × 297mm (min and exact).
@@ -32,6 +49,17 @@ export const PROSPECTUS_DOCUMENT_CSS = `
   --prospectus-page-padding-x:${PROSPECTUS_PAGE_PADDING_X_PX}px;
   --prospectus-page-padding-bottom:${PROSPECTUS_PAGE_PADDING_BOTTOM_PX}px;
   --prospectus-page-padding:var(--prospectus-page-padding-top) var(--prospectus-page-padding-x) var(--prospectus-page-padding-bottom);
+  --prospectus-header-height:${PROSPECTUS_HEADER_HEIGHT_PX}px;
+  --prospectus-logo-height:${PROSPECTUS_LOGO_HEIGHT_PX}px;
+  --prospectus-logo-max-width:${PROSPECTUS_LOGO_MAX_WIDTH_PX}px;
+  --prospectus-tagline-font-size:${PROSPECTUS_TAGLINE_FONT_SIZE_PX}px;
+  --prospectus-brand-gap:${PROSPECTUS_BRAND_GAP_PX}px;
+  --prospectus-section-title-font-size:${PROSPECTUS_SECTION_TITLE_FONT_SIZE_PX}px;
+  --prospectus-section-title-margin-bottom:${PROSPECTUS_SECTION_TITLE_MARGIN_BOTTOM_PX}px;
+  --prospectus-page-title-font-size:${PROSPECTUS_PAGE_TITLE_FONT_SIZE_PX}px;
+  --prospectus-page-title-padding:${PROSPECTUS_PAGE_TITLE_PADDING_CSS};
+  --prospectus-page-title-margin-bottom:${PROSPECTUS_PAGE_TITLE_MARGIN_BOTTOM_PX}px;
+  --prospectus-page-subtitle-font-size:${PROSPECTUS_PAGE_SUBTITLE_FONT_SIZE_PX}px;
 }
 *{box-sizing:border-box}
 html{
@@ -73,16 +101,26 @@ body{
 .page:last-child{
   margin-bottom:0;
 }
-.page-header{height:58px;border-bottom:2px solid #bd2c2c;display:flex;justify-content:space-between;align-items:center;margin-bottom:0}
-.brand{display:flex;align-items:center;gap:12px;position:relative;min-width:0}
-.brand-logo{height:46px;width:auto;max-width:170px;object-fit:contain;object-position:left center;flex:none;display:block}
-.brand-mark-placeholder{width:46px;height:46px;border:2px solid var(--red);background:var(--red);border-radius:3px;flex:none}
-.tagline{font-size:8px;margin:0;color:var(--muted);line-height:1.3;white-space:nowrap}
-.shariah{border:1.5px solid var(--red);border-radius:7px;padding:7px 11px;font-size:8px;display:flex;align-items:center;gap:6px;white-space:nowrap}.shariah-mark{font-size:14px;color:var(--red);line-height:1}
-h1,h2,p{margin-top:0}h2{font-size:12px;text-transform:uppercase;color:#a51d21;margin-bottom:10px}
+.page-header{height:var(--prospectus-header-height);border-bottom:2px solid #bd2c2c;display:flex;justify-content:space-between;align-items:center;margin-bottom:0;flex:none}
+.brand{display:flex;align-items:center;gap:var(--prospectus-brand-gap);position:relative;min-width:0}
+.brand-logo{height:var(--prospectus-logo-height);width:auto;max-width:var(--prospectus-logo-max-width);object-fit:contain;object-position:left center;flex:none;display:block}
+.brand-mark-placeholder{width:var(--prospectus-logo-height);height:var(--prospectus-logo-height);border:2px solid var(--red);background:var(--red);border-radius:3px;flex:none}
+.tagline{font-size:var(--prospectus-tagline-font-size);margin:0;color:var(--muted);line-height:1.3;white-space:nowrap}
+.shariah{border:1.5px solid var(--red);border-radius:7px;padding:7px 11px;font-size:8px;display:flex;align-items:center;gap:6px;white-space:nowrap;flex:none}.shariah-mark{font-size:14px;color:var(--red);line-height:1}
+h1,h2,p{margin-top:0}
+/* Shared section titles (Pages 1–3) — do not shrink per page */
+h2{
+  font-size:var(--prospectus-section-title-font-size);
+  font-weight:700;
+  line-height:1.25;
+  letter-spacing:0;
+  text-transform:uppercase;
+  color:#a51d21;
+  margin-bottom:var(--prospectus-section-title-margin-bottom);
+}
 .hero-grid{display:grid;grid-template-columns:1.35fr 1fr .82fr;border-bottom:1px solid var(--line);min-height:210px}
 .hero-grid>div{padding:18px 14px}.hero-grid>div+div{border-left:1px solid var(--line)}
-.eyebrow{text-transform:uppercase;font-weight:800;color:#a51d21;font-size:12px;margin-bottom:6px}
+.eyebrow{text-transform:uppercase;font-weight:800;color:#a51d21;font-size:var(--prospectus-section-title-font-size);line-height:1.25;margin-bottom:6px}
 .hero-copy h1{font-size:32px;letter-spacing:-1.2px;margin:0 0 4px}.product-pill{display:inline-block;background:#e7bbbb;color:#a32424;font-weight:800;text-transform:uppercase;border-radius:4px;padding:6px 8px;margin-bottom:14px}
 .hero-copy p{font-size:11px;max-width:280px;margin:0}
 .meta-row{display:flex;gap:12px;margin-bottom:18px;align-items:flex-start}.meta-row .icon{width:22px;height:22px;color:#bf2a30;flex:none}.meta-row b,.meta-row span{display:block}.meta-row b{font-size:10px}.meta-row span{font-size:9px;margin-top:2px}
@@ -130,26 +168,14 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:#df2b23;co
 .work-list p{display:flex;align-items:flex-start;gap:10px;font-size:9px;margin-bottom:9px}.work-list .icon{flex:none;width:25px;height:25px;padding:4px;box-sizing:border-box}
 .risk-cta{display:grid;grid-template-columns:2fr 1fr;gap:9px;margin-top:8px}.risk-cta>.card{padding:10px}
 
-/* Page 2 only — internal section tightening (outer .page padding stays shared) */
-.prospectus-page-two .issuer-grid>section{padding:14px 12px}
-.prospectus-page-two .issuer-profile{margin:12px 0}
-.prospectus-page-two .invoice-info dl div{margin-bottom:9px}
-.prospectus-page-two .financial-card>div{padding:10px}
-.prospectus-page-two .split-card>div{padding:11px}
-.prospectus-page-two .ratings div{margin:3px 0}
-.prospectus-page-two .work-list p{margin-bottom:6px;font-size:8.5px}
-.prospectus-page-two .risk-cta{margin-top:6px}
-.prospectus-page-two .risk-cta>.card{padding:8px}
-.prospectus-page-two .cta{padding:8px 9px}
-.prospectus-page-two .cta h2{margin-bottom:6px;font-size:11px}
-.prospectus-page-two .invest-confidence-description{margin:0 0 6px;font-size:8.5px;line-height:1.25}
-.prospectus-page-two .cta-button{padding:7px;font-size:10px}
-.prospectus-page-two .cta-minimum{margin-top:5px;font-size:7.5px}
-.prospectus-page-two .risk-scale-note{margin-top:4px;font-size:7px}
-.prospectus-page-two .soukscore-scale .grade-item{padding:4px 3px}
-.prospectus-page-two .soukscore-scale .grade{width:30px;height:30px;font-size:11px;margin-bottom:3px}
-.prospectus-page-two .soukscore-scale .grade-desc{line-height:1.2}
-.prospectus-page-two .prospectus-footer{padding-top:8px}
+/* Page 2 only — minor internal fit tweaks (never shrink shared titles / outer padding / header) */
+.prospectus-page-two .issuer-profile{margin:16px 0}
+.prospectus-page-two .invoice-info dl div{margin-bottom:11px}
+.prospectus-page-two .ratings div{margin:4px 0}
+.prospectus-page-two .work-list p{margin-bottom:7px}
+.prospectus-page-two .risk-cta{margin-top:7px}
+.prospectus-page-two .invest-confidence-description{margin:0 0 7px;line-height:1.3}
+.prospectus-page-two .soukscore-scale .grade-item{padding:5px 3px}
 .soukscore-scale,.risk-scale{display:grid;grid-template-columns:repeat(6,1fr);list-style:none;margin:0;padding:0;align-items:start}
 .soukscore-scale .grade-item,.risk-scale>div{padding:6px 4px;border-right:1px solid #c9c5c5;text-align:center}.soukscore-scale .grade-item:last-child,.risk-scale>div:last-child{border:0}
 .soukscore-scale .grade,.grade{width:33px;height:33px;color:#fff;border-radius:6px;display:grid;place-items:center;font-size:12px;margin:0 auto 4px;background:#79cf54;font-weight:800}
@@ -164,7 +190,18 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:#df2b23;co
 .cta{border:1px solid #c5bebe;border-radius:7px;background:#f7eaea;padding:11px}.cta p{font-size:9px}.cta-button{display:block;width:100%;border:0;border-radius:5px;background:#a60000;color:#fff;text-transform:uppercase;font-weight:800;padding:8px;font-size:11px;text-align:center;text-decoration:none}.cta-button[disabled],.cta-button[aria-disabled="true"]{opacity:.85;cursor:default;pointer-events:none}.cta-minimum{text-align:center;display:block;margin-top:7px;font-size:8px}
 .risk-scale-note{margin:6px 0 0;font-size:7.5px;line-height:1.25;font-style:italic;color:var(--muted)}
 .invest-confidence-description{margin:0 0 8px;font-size:9px;line-height:1.3}
-.page-title{padding:20px 0 14px}.page-title h1,.page-title h2{text-transform:uppercase;color:#a8181d;font-size:22px;margin-bottom:8px}.page-title p{font-size:9px;margin:0}
+/* Shared page-level title block (Page 3 today; same tokens if reused elsewhere) */
+.page-title{padding:var(--prospectus-page-title-padding)}
+.page-title h1,.page-title h2{
+  text-transform:uppercase;
+  color:#a8181d;
+  font-size:var(--prospectus-page-title-font-size);
+  font-weight:700;
+  line-height:1.2;
+  letter-spacing:0;
+  margin:0 0 var(--prospectus-page-title-margin-bottom);
+}
+.page-title p{font-size:var(--prospectus-page-subtitle-font-size);margin:0;line-height:1.35;color:var(--ink)}
 .identity-strip,.meta-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:18px}.identity-strip>div,.meta-strip-item{display:flex;gap:9px;padding:12px 9px;border-right:1px solid #c8c4c4;align-items:flex-start}.identity-strip>div:last-child,.meta-strip-item:last-child{border-right:0}.identity-strip .icon,.meta-strip-item .icon{width:32px;height:32px;padding:7px;background:#efcecf;border-radius:50%;color:#b0292f;flex:none;box-sizing:border-box}.meta-strip-label,.identity-strip small{font-weight:800;font-size:7px;display:block}.meta-strip-value,.identity-strip b{font-size:8px;margin-top:5px;display:block}
 .comparison-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.report-box{padding:9px}.report-box h2{font-size:11px}.report-box table{font-size:7.5px}.report-box th{font-size:7px}.report-box td{height:24px}
 .insight{background:var(--light-green);border-radius:7px;padding:9px;display:flex;align-items:center;gap:8px;margin-top:8px;font-size:8px}.insight .icon{width:30px;height:30px;background:#1dbb3d;color:#fff;border-radius:50%;padding:5px;box-sizing:border-box}

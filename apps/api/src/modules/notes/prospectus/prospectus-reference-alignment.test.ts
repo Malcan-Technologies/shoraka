@@ -16,10 +16,16 @@ import { SAMPLE_PROSPECTUS_PAGE_TWO } from "./prospectus-page-two.sample-data";
 import { buildProspectusPageTwoHtml } from "./prospectus-page-two.html";
 import {
   PROSPECTUS_DOCUMENT_CSS,
+  PROSPECTUS_HEADER_HEIGHT_PX,
+  PROSPECTUS_LOGO_HEIGHT_PX,
+  PROSPECTUS_LOGO_MAX_WIDTH_PX,
   PROSPECTUS_PAGE_PADDING_BOTTOM_PX,
   PROSPECTUS_PAGE_PADDING_CSS,
   PROSPECTUS_PAGE_PADDING_TOP_PX,
   PROSPECTUS_PAGE_PADDING_X_PX,
+  PROSPECTUS_PAGE_TITLE_FONT_SIZE_PX,
+  PROSPECTUS_SECTION_TITLE_FONT_SIZE_PX,
+  PROSPECTUS_TAGLINE_FONT_SIZE_PX,
 } from "./prospectus-document-styles";
 import {
   PROSPECTUS_DETAILED_FINANCIAL_SUBTITLE,
@@ -128,8 +134,37 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
       expect(html).toContain("page-header");
       expect(html).toContain(PROSPECTUS_HEADER_TAGLINE);
       expect(html).toContain('class="brand-logo"');
+      expect(html).toContain(`height="${PROSPECTUS_LOGO_HEIGHT_PX}"`);
       expect(html).not.toContain('class="brand-name"');
     }
+  });
+
+  it("uses shared header/logo/title tokens with no per-page shrink overrides", () => {
+    expect(PROSPECTUS_HEADER_HEIGHT_PX).toBe(66);
+    expect(PROSPECTUS_LOGO_HEIGHT_PX).toBe(56);
+    expect(PROSPECTUS_LOGO_MAX_WIDTH_PX).toBe(210);
+    expect(PROSPECTUS_TAGLINE_FONT_SIZE_PX).toBe(8.5);
+    expect(PROSPECTUS_SECTION_TITLE_FONT_SIZE_PX).toBe(12);
+    expect(PROSPECTUS_PAGE_TITLE_FONT_SIZE_PX).toBe(22);
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(
+      "height:var(--prospectus-logo-height)"
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(
+      "font-size:var(--prospectus-section-title-font-size)"
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(
+      "font-size:var(--prospectus-page-title-font-size)"
+    );
+    // Page 2 must not shrink shared section titles or header logo
+    expect(PROSPECTUS_DOCUMENT_CSS).not.toMatch(
+      /\.prospectus-page-two[^{]*\{[^}]*\.cta h2[^}]*font-size/
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).not.toMatch(
+      /\.prospectus-page-two[^{]*h2\{[^}]*font-size:\s*11px/
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).not.toMatch(
+      /\.prospectus-page-(one|two|three)[^{]*\{[^}]*--prospectus-logo-height/
+    );
   });
 
   it("Pages 1–3 use the same shared outer page padding token", () => {

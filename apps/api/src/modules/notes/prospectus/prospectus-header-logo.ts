@@ -5,6 +5,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { PROSPECTUS_LOGO_HEIGHT_PX } from "./prospectus-document-styles";
 import { PROSPECTUS_BRAND_NAME } from "./prospectus-header.types";
 
 let cachedDataUri: string | null | undefined;
@@ -37,7 +38,7 @@ export function getProspectusOfficialLogoDataUri(): string | null {
 export function buildProspectusBrandMarkHtml(): string {
   const dataUri = getProspectusOfficialLogoDataUri();
   if (dataUri) {
-    return `<img class="brand-logo" src="${dataUri}" alt="${PROSPECTUS_BRAND_NAME}" height="46" />`;
+    return `<img class="brand-logo" src="${dataUri}" alt="${PROSPECTUS_BRAND_NAME}" height="${PROSPECTUS_LOGO_HEIGHT_PX}" />`;
   }
   return `<div class="brand-mark-placeholder" aria-hidden="true"></div>`;
 }
