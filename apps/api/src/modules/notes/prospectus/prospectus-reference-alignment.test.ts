@@ -268,5 +268,53 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
     ).toBe(3);
     expect(combined).not.toContain("page-bottom");
   });
+
+  it("Page 2 top issuer/invoice block is not a card and shows all seven invoice rows", () => {
+    const html = buildProspectusPageTwoHtml(SAMPLE_PROSPECTUS_PAGE_TWO);
+    const bodyStart = html.indexOf("<body>");
+    expect(bodyStart).toBeGreaterThan(-1);
+    const body = html.slice(bodyStart);
+
+    const issuerOpen = body.indexOf('class="issuer-grid page-two-issuer-grid"');
+    expect(issuerOpen).toBeGreaterThan(-1);
+    const financialOpen = body.indexOf(
+      'class="card financial-card page-two-financial-card connected-card-top"'
+    );
+    expect(financialOpen).toBeGreaterThan(issuerOpen);
+
+    const topBlock = body.slice(issuerOpen, financialOpen);
+    expect(topBlock).not.toMatch(/\bcard\b/);
+    expect(topBlock).not.toContain("connected-card");
+    expect(topBlock).toContain("Paymaster Rating");
+    expect(topBlock).toContain("Confidence Grading");
+    expect(topBlock).toContain("Invoice Amount");
+    expect(topBlock).toContain("Invoice Due Date");
+    expect(topBlock).toContain("Paymaster");
+    expect(topBlock).toContain("Nature of Paymaster");
+    expect(topBlock).toContain("Deed of Assignment (DOA)");
+
+    // Outer top wrapper: no enclosing card border/radius; keep vertical divider only
+    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
+      /\.issuer-grid\{[^}]*grid-template-columns:\.9fr 1\.1fr/
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).not.toMatch(
+      /\.issuer-grid\{[^}]*border:/
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).not.toMatch(
+      /\.issuer-grid\{[^}]*border-radius:/
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).not.toMatch(
+      /\.issuer-grid\{[^}]*overflow:hidden/
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(
+      ".issuer-grid>section+section{border-left:1px solid var(--line)}"
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
+      /\.page-two-issuer-grid\{[^}]*overflow:visible/
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(
+      /\.page-two-issuer-grid\{[^}]*flex-shrink:0/
+    );
+  });
 });
 

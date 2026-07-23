@@ -118,7 +118,7 @@ ${PROSPECTUS_DOCUMENT_CSS}
   <section class="page prospectus-page-two" data-page="prospectus-page-two">
     ${buildProspectusHeaderHtml(page.header)}
 
-    <div class="issuer-grid">
+    <div class="issuer-grid page-two-issuer-grid">
       <section data-stage="1" data-issuer-profile>
         <h2>${escapeHtml(s1.sectionHeading)}</h2>
         <div class="issuer-profile">

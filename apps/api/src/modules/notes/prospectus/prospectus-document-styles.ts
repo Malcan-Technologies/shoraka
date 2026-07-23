@@ -201,9 +201,17 @@ h2{
 table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--prospectus-table-red);color:#fff;padding:7px 5px;font-weight:600}td{border:1px solid #e1dddd;padding:5px;text-align:center}td:first-child,th:first-child{text-align:left}
 .table-wrap{overflow-x:auto}.track em,.financial-card em,.card em,.source{display:block;font-size:7px;margin-top:8px;font-style:italic}
 .prospectus-footer,footer.prospectus-footer{margin-top:auto;display:flex;align-items:center;gap:8px;padding-top:14px;font-size:7px;color:var(--muted)}.prospectus-footer .icon{color:#b3131b;width:24px;height:24px;flex:none}
-.issuer-grid{display:grid;grid-template-columns:.9fr 1.1fr;border:var(--prospectus-border-width) solid var(--prospectus-border);border-radius:var(--prospectus-radius-card);overflow:hidden;margin-bottom:var(--space-3)}.issuer-grid>section{padding:20px 14px}.issuer-grid>section+section{border-left:1px solid var(--line)}
+/* Page 2 top: plain two columns + vertical divider only (not a card) */
+.issuer-grid{display:grid;grid-template-columns:.9fr 1.1fr;margin-bottom:var(--space-3)}.issuer-grid>section{padding:20px 14px}.issuer-grid>section+section{border-left:1px solid var(--line)}
+.page-two-issuer-grid{
+  height:auto;
+  min-height:0;
+  overflow:visible;
+  align-items:stretch;
+  flex-shrink:0;
+}
 .issuer-profile{display:flex;gap:18px;align-items:center;margin:20px 0}.round-icon{width:76px;height:76px;border-radius:50%;background:var(--prospectus-icon-bg);display:grid;place-items:center;color:var(--prospectus-icon-stroke)}.round-icon .icon{width:44px;height:44px}.issuer-profile span,.issuer-profile b{display:block;margin-bottom:8px}.issuer-grid p{font-size:9px;margin:0}
-.invoice-info dl{margin:0}.invoice-info dl div{display:flex;justify-content:space-between;align-items:center;margin-bottom:13px}.invoice-info dt{display:flex;align-items:center;gap:10px;font-weight:700}.invoice-info dt .icon,.work-list .icon{width:var(--prospectus-icon-field);height:var(--prospectus-icon-field);padding:6px;background:var(--prospectus-icon-bg);border-radius:50%;color:var(--prospectus-icon-stroke);box-sizing:border-box}.invoice-info dd{margin:0;text-align:right}
+.invoice-info dl{margin:0}.invoice-info dl div{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:13px}.invoice-info dt{display:flex;align-items:center;gap:10px;font-weight:700;min-width:0}.invoice-info dt .icon,.work-list .icon{width:var(--prospectus-icon-field);height:var(--prospectus-icon-field);padding:6px;background:var(--prospectus-icon-bg);border-radius:50%;color:var(--prospectus-icon-stroke);box-sizing:border-box;flex:none}.invoice-info dd{margin:0;text-align:right;max-width:52%;line-height:1.25;overflow-wrap:anywhere;word-break:break-word}
 .financial-card{display:grid;grid-template-columns:.34fr .66fr}.financial-card>div{padding:12px}.financial-card>div+div{border-left:1px solid var(--line)}.summary-list.compact dt{padding-left:0}.summary-list.compact dt:before{display:none}.plain th{background:var(--prospectus-table-plain-bg);color:#111}.plain td,.plain th{text-align:center}.plain td:first-child,.plain th:first-child{text-align:left}
 /* Page 2 Paymaster + Financial Comparison: grow to tallest column.
    Root cause: .page is flex column + .card{overflow:hidden} lets the card flex-shrink
@@ -231,7 +239,9 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
 
 /* Page 2 only — minor internal fit tweaks (never shrink shared titles / outer padding / header) */
 .prospectus-page-two .issuer-profile{margin:16px 0}
-.prospectus-page-two .invoice-info dl div{margin-bottom:11px}
+.prospectus-page-two .invoice-info h2{margin-bottom:8px}
+.prospectus-page-two .invoice-info dl div{margin-bottom:8px;gap:10px}
+.prospectus-page-two .invoice-info dt .icon{width:28px;height:28px;padding:5px}
 .prospectus-page-two .ratings div{margin:4px 0}
 .prospectus-page-two .work-list p{margin-bottom:7px}
 .prospectus-page-two .risk-cta{margin-top:7px}
