@@ -1,24 +1,14 @@
-/**
- * SECTION: Shared investor Prospectus document CSS
- * WHY: Fixed A4 pages for screen + print; preview chrome only; no mobile reflow
- */
-
-/** Fixed A4 geometry — never shrink with viewport. */
-export const PROSPECTUS_A4_WIDTH_MM = 210;
-export const PROSPECTUS_A4_HEIGHT_MM = 297;
-
-/**
- * Screen + print stylesheet for investor Prospectus HTML.
- * - `.page` is always 210mm × 297mm (min and exact).
- * - Grey canvas / shadow / outer padding are preview-only.
- * - No max-width media queries that stack grids or reflow sections.
- */
-export const PROSPECTUS_DOCUMENT_CSS = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Prospectus Page 3 — Detailed Financial Comparison</title>
+  <style>
 :root{
   --red:#b10810;--bright:#dc2a22;--pink:#edd1d1;--soft:#f8eded;--line:#c9c5c5;
   --ink:#171717;--muted:#5c5c5c;--green:#22b83f;--light-green:#dcefc8;
-  --prospectus-a4-width:${PROSPECTUS_A4_WIDTH_MM}mm;
-  --prospectus-a4-height:${PROSPECTUS_A4_HEIGHT_MM}mm;
+  --prospectus-a4-width:210mm;
+  --prospectus-a4-height:297mm;
 }
 *{box-sizing:border-box}
 html{
@@ -193,4 +183,148 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:#df2b23;co
     break-after:auto !important;
   }
 }
-`.trim();
+.page.prospectus-page-three{
+  width:210mm;
+  height:297mm;
+  min-width:210mm;
+  min-height:297mm;
+  overflow:hidden;
+}
+  </style>
+</head>
+<body>
+  <main class="document">
+  <section class="page prospectus-page-three" data-page="prospectus-page-three">
+    <header class="page-header" data-stage="header">
+  <div class="brand">
+    <div class="brand-mark-placeholder" aria-hidden="true">CashSouk</div>
+    <div class="brand-copy">
+      <div class="brand-name">Cash<span>Souk</span></div>
+      <div class="tagline">Invest in Growth. Earn with Purpose.</div>
+    </div>
+  </div>
+  <div class="shariah"><span class="shariah-mark" aria-hidden="true">◆</span> Shariah Compliant</div>
+</header>
+    <div class="page-title" data-stage="1" data-content-stage="page-title">
+  <h1>DETAILED FINANCIAL COMPARISON</h1>
+  <p>—</p>
+</div>
+    <section class="identity-strip card meta-strip" data-stage="2" data-content-stage="metadata-strip">
+<div class="meta-strip-item">
+  <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+  <span>
+    <span class="meta-strip-label">Sector</span>
+    <span class="meta-strip-value">Construction | Medium</span>
+  </span>
+</div>
+<div class="meta-strip-item">
+  <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+  <span>
+    <span class="meta-strip-label">Risk Rating</span>
+    <span class="meta-strip-value">AA</span>
+  </span>
+</div>
+<div class="meta-strip-item">
+  <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+  <span>
+    <span class="meta-strip-label">Paymaster</span>
+    <span class="meta-strip-value">Kementerian Kerja Raya</span>
+  </span>
+</div>
+<div class="meta-strip-item">
+  <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+  <span>
+    <span class="meta-strip-label">Paymaster Grading</span>
+    <span class="meta-strip-value">PM1</span>
+  </span>
+</div>
+<div class="meta-strip-item">
+  <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+  <span>
+    <span class="meta-strip-label">Confidence Grading</span>
+    <span class="meta-strip-value">High</span>
+  </span>
+</div>
+</section>
+    <div class="comparison-grid">
+      <div class="comparison-row comparison-row-top">
+        <section class="card report-box" data-stage="3" data-content-stage="income-statement">
+  <h2>3-YEAR INCOME STATEMENT SUMMARY (MYR mil.)</h2>
+  <table>
+    <thead><tr><th>Financial Metrics</th><th><span class="fy-label">FY2022</span><span class="fy-end">31 Dec 2022</span></th><th><span class="fy-label">FY2023</span><span class="fy-end">31 Dec 2023</span></th><th><span class="fy-label">FY2024</span><span class="fy-end">31 Dec 2024</span></th></tr></thead>
+    <tbody>
+<tr><td>Revenue</td><td>13.9</td><td>16.2</td><td>18.6</td></tr>
+<tr><td>Gross Profit</td><td>2.1</td><td>2.4</td><td>2.8</td></tr>
+<tr><td>EBITDA</td><td>1.6</td><td>1.9</td><td>2.1</td></tr>
+<tr><td>EBIT</td><td>1.4</td><td>1.7</td><td>1.9</td></tr>
+<tr><td>Profit Before Tax</td><td>1.4</td><td>1.7</td><td>2</td></tr>
+<tr><td>Profit After Tax</td><td>1.2</td><td>1.5</td><td>1.8</td></tr>
+<tr><td>Net Profit Margin</td><td>8.63%</td><td>9.26%</td><td>9.68%</td></tr>
+    </tbody>
+  </table>
+</section>
+        <section class="card report-box" data-stage="4" data-content-stage="balance-sheet-liquidity">
+  <h2>3-YEAR BALANCE SHEET &amp; LIQUIDITY (MYR mil.)</h2>
+  <table>
+    <thead><tr><th>Financial Metrics</th><th><span class="fy-label">FY2022</span><span class="fy-end">31 Dec 2022</span></th><th><span class="fy-label">FY2023</span><span class="fy-end">31 Dec 2023</span></th><th><span class="fy-label">FY2024</span><span class="fy-end">31 Dec 2024</span></th></tr></thead>
+    <tbody>
+<tr><td>Cash &amp; Bank</td><td>0.9</td><td>1.1</td><td>1.4</td></tr>
+<tr><td>Trade Receivables</td><td>2.8</td><td>3.1</td><td>3.2</td></tr>
+<tr><td>Current Assets</td><td>4.7</td><td>5.2</td><td>5.8</td></tr>
+<tr><td>Total Assets</td><td>8.1</td><td>8.8</td><td>9.7</td></tr>
+<tr><td>Current Liabilities</td><td>2.9</td><td>3.1</td><td>3.4</td></tr>
+<tr><td>Total Liabilities</td><td>3.6</td><td>3.9</td><td>4.3</td></tr>
+<tr><td>Total Equity</td><td>4.5</td><td>5</td><td>5.6</td></tr>
+<tr><td>Current Ratio</td><td>1.62x</td><td>1.68x</td><td>1.71x</td></tr>
+<tr><td>Quick Ratio</td><td>1.11x</td><td>1.18x</td><td>1.26x</td></tr>
+    </tbody>
+  </table>
+</section>
+      </div>
+      <div class="comparison-row comparison-row-bottom">
+        <section class="card report-box" data-stage="5" data-content-stage="coverage-efficiency">
+  <h2>CASH FLOW, COVERAGE AND EFFICIENCY</h2>
+  <table class="coverage-table">
+    <thead>
+      <tr>
+        <th>Financial Metrics</th>
+        <th><span class="fy-label">FY2022</span><span class="fy-end">31 Dec 2022</span></th><th><span class="fy-label">FY2023</span><span class="fy-end">31 Dec 2023</span></th><th><span class="fy-label">FY2024</span><span class="fy-end">31 Dec 2024</span></th>
+        <th>Trend (3-Yr)</th>
+      </tr>
+    </thead>
+    <tbody>
+<tr><td>Operating Cash Flow</td><td>—</td><td>—</td><td>—</td><td class="trend-cell">—</td></tr>
+<tr><td>Free Cash Flow</td><td>—</td><td>—</td><td>—</td><td class="trend-cell">—</td></tr>
+<tr><td>Interest Coverage</td><td>—</td><td>—</td><td>—</td><td class="trend-cell">—</td></tr>
+<tr><td>DSCR</td><td>—</td><td>—</td><td>—</td><td class="trend-cell">—</td></tr>
+<tr><td>Debt / Equity</td><td>—</td><td>—</td><td>—</td><td class="trend-cell">—</td></tr>
+<tr><td>Return on Equity</td><td>60%</td><td>75%</td><td>90%</td><td class="trend-cell">—</td></tr>
+<tr><td>Return on Assets</td><td>—</td><td>—</td><td>—</td><td class="trend-cell">—</td></tr>
+<tr><td>Receivables Days</td><td>—</td><td>—</td><td>—</td><td class="trend-cell">—</td></tr>
+<tr><td>Payables Days</td><td>—</td><td>—</td><td>—</td><td class="trend-cell">—</td></tr>
+<tr><td>Asset Turnover</td><td>—</td><td>—</td><td>—</td><td class="trend-cell">—</td></tr>
+    </tbody>
+  </table>
+</section>
+        <section class="card report-box takeaways" data-stage="6" data-content-stage="investor-takeaways">
+  <h2>4. INVESTOR TAKEAWAYS</h2>
+  <p class="takeaway-item"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg><span><b>Revenue &amp; Profitability</b> Revenue and profitability have shown steady year-on-year growth.</span></p>
+<p class="takeaway-item"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 16.3c2.2 0 4-1.8 4-4.1C11 9 7 4 7 4S3 9 3 12.2c0 2.3 1.8 4.1 4 4.1z"/><path d="M12.8 15.1c1.7 0 3-1.4 3-3.1C15.8 9.7 12.8 6 12.8 6s-3 3.7-3 6c0 1.7 1.3 3.1 3 3.1z"/></svg><span><b>Liquidity</b> Liquidity remains healthy, with current and quick ratios improving over time.</span></p>
+<p class="takeaway-item"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3z"/><path d="m9 12 2 2 4-4"/></svg><span><b>Leverage</b> Leverage is conservative and trending downward, supporting a stronger balance sheet.</span></p>
+<p class="takeaway-item"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg><span><b>Debt Servicing Capacity</b> Debt servicing capacity appears adequate, with improving DSCR and strong interest coverage.</span></p>
+<p class="takeaway-item"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span><b>Receivables Collection</b> Receivables collection days have improved, indicating better working capital management.</span></p>
+<p class="takeaway-item"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg><span><b>Overall Financial Profile</b> Overall financial profile suggests strengthening fundamentals over the observed period.</span></p>
+</section>
+      </div>
+    </div>
+    <div class="page-bottom">
+      <em class="source">Source: Audited Financial Statements</em>
+      <footer class="prospectus-footer" data-stage="footer">
+  <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3z"/><path d="m9 12 2 2 4-4"/></svg>
+  <span>Investments are subject to credit risk, default risk, and other risks.<br />Investors are advised to read and understand the Product Terms and Risk Disclosure Statement before investing.</span>
+</footer>
+    </div>
+  </section>
+  </main>
+</body>
+</html>

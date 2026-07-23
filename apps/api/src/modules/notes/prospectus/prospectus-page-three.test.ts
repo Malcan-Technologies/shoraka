@@ -464,8 +464,11 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(html).toContain("meta-strip");
       expect(html).toContain("grid-template-columns:repeat(5,minmax(0,1fr))");
       expect(html).not.toContain("source-statement");
+      expect(html).toContain('class="source"');
+      expect(html).toContain("Source:");
       expect(html).toContain('data-stage="footer"');
       expect(html).toContain("prospectus-footer");
+      expect(html).not.toContain("Data not available");
     });
 
     it("reuses Page 2 officer gradings for Page 3 metadata strip", () => {
@@ -530,14 +533,17 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       const takeawaysIdx = html.indexOf('data-content-stage="investor-takeaways"');
       expect(html.lastIndexOf("data-content-stage=")).toBe(takeawaysIdx);
       expect(html).not.toContain("source-statement");
+      expect(html).toContain('class="source"');
+      expect(html).toContain("Source:");
       expect(html).toContain('data-stage="footer"');
       expect(html).toContain("prospectus-footer");
       expect(html).not.toContain("Source Note:");
-      expect(html).not.toMatch(/Source: Audited Financial Statements/i);
-      expect(html).not.toMatch(/Source: —/);
       expect(html).toContain("Product Terms and Risk Disclosure Statement");
       expect(html).toContain("Investments are subject to credit risk");
       expect(html).not.toContain("Investment are subjects");
+      expect(html).not.toContain("Data not available");
+      expect(html).not.toContain(">N/A<");
+      expect(html).not.toContain("Unavailable");
 
       expect(html).toContain('data-stage="1"');
       expect(html).toContain('data-stage="2"');
@@ -550,7 +556,9 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(html).toContain("Trend (3-Yr)");
       expect(html).not.toContain("FINANCIAL TRENDS");
       expect((html.match(/class="trend-cell"/g) ?? []).length).toBe(10);
-      expect(html).not.toMatch(/Audited Financial Statements|Management Account/i);
+      expect(html).toContain("comparison-row-top");
+      expect(html).toContain("comparison-row-bottom");
+      expect(html).toContain("coverage-table");
 
       expect(html).toContain("3-YEAR INCOME STATEMENT SUMMARY (MYR mil.)");
       expect(html).toContain("3-YEAR BALANCE SHEET &amp; LIQUIDITY (MYR mil.)");

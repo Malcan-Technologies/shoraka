@@ -89,9 +89,14 @@ function takeawayIcon(key: string): string {
 
 function renderPageTitle(page: ProspectusPageThree): string {
   const { metadata } = page;
+  const subtitle = metadata.pageSubtitle.trim();
+  const subtitleHtml =
+    subtitle.length === 0
+      ? ""
+      : `<p>${escapeHtml(subtitle)}</p>`;
   return `<div class="page-title" data-stage="1" data-content-stage="page-title">
   <h1>${escapeHtml(metadata.pageTitle)}</h1>
-  <p>${escapeHtml(metadata.pageSubtitle)}</p>
+  ${subtitleHtml}
 </div>`;
 }
 
@@ -185,7 +190,7 @@ function renderCoverage(page: ProspectusPageThree): string {
 
   return `<section class="card report-box" data-stage="5" data-content-stage="coverage-efficiency">
   <h2>${escapeHtml(coverage.sectionHeading)}</h2>
-  <table>
+  <table class="coverage-table">
     <thead>
       <tr>
         <th>Financial Metrics</th>
@@ -203,19 +208,32 @@ ${bodyRows}
 function renderTakeaways(page: ProspectusPageThree): string {
   const { investorTakeaways } = page;
   const omitted = new Set(investorTakeaways.omittedKeys);
-  const items = investorTakeaways.items
-    .filter((item) => !omitted.has(item.key))
-    .map(
-      (item) =>
-        `<p class="takeaway-item">${takeawayIcon(item.key)}<span><b>${escapeHtml(
-          item.label
-        )}</b> ${escapeHtml(item.takeaway)}</span></p>`
-    )
-    .join("\n");
+  const visible = investorTakeaways.items.filter((item) => !omitted.has(item.key));
+  const hasContent = visible.some(
+    (item) =>
+      item.takeaway.trim().length > 0 &&
+      item.takeaway !== PROSPECTUS_DATA_NOT_AVAILABLE
+  );
+
+  const body = hasContent
+    ? visible
+        .filter(
+          (item) =>
+            item.takeaway.trim().length > 0 &&
+            item.takeaway !== PROSPECTUS_DATA_NOT_AVAILABLE
+        )
+        .map(
+          (item) =>
+            `<p class="takeaway-item">${takeawayIcon(item.key)}<span><b>${escapeHtml(
+              item.label
+            )}</b> ${escapeHtml(item.takeaway)}</span></p>`
+        )
+        .join("\n")
+    : `<p class="takeaways-empty">${escapeHtml(PROSPECTUS_DATA_NOT_AVAILABLE)}</p>`;
 
   return `<section class="card report-box takeaways" data-stage="6" data-content-stage="investor-takeaways">
   <h2>${escapeHtml(investorTakeaways.sectionHeading)}</h2>
-  ${items}
+  ${body}
 </section>`;
 }
 
@@ -243,12 +261,19 @@ ${PROSPECTUS_DOCUMENT_CSS}
     ${renderPageTitle(page)}
     ${renderMetadataStrip(page)}
     <div class="comparison-grid">
-      ${renderIncome(page)}
-      ${renderBalance(page)}
-      ${renderCoverage(page)}
-      ${renderTakeaways(page)}
+      <div class="comparison-row comparison-row-top">
+        ${renderIncome(page)}
+        ${renderBalance(page)}
+      </div>
+      <div class="comparison-row comparison-row-bottom">
+        ${renderCoverage(page)}
+        ${renderTakeaways(page)}
+      </div>
     </div>
-    ${buildProspectusFooterHtml()}
+    <div class="page-bottom">
+      <em class="source">${escapeHtml(page.financialSource.sourceFooter)}</em>
+      ${buildProspectusFooterHtml()}
+    </div>
   </section>
   </main>
 </body>

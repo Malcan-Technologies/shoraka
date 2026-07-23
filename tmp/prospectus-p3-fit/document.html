@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Prospectus</title>
+  <style>
+:root{
+  --red:#b10810;--bright:#dc2a22;--pink:#edd1d1;--soft:#f8eded;--line:#c9c5c5;
+  --ink:#171717;--muted:#5c5c5c;--green:#22b83f;--light-green:#dcefc8;
+  --prospectus-a4-width:210mm;
+  --prospectus-a4-height:297mm;
+}
+*{box-sizing:border-box}
+html{
+  background:#ececec; /* preview-only grey canvas */
+  -webkit-print-color-adjust:exact;
+  print-color-adjust:exact;
+}
+body{
+  margin:0;
+  font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  color:var(--ink);
+  font-size:10px;
+  line-height:1.35;
+  -webkit-print-color-adjust:exact;
+  print-color-adjust:exact;
+  overflow-x:auto; /* allow horizontal scroll when viewport < A4; do not reflow */
+}
+.document{
+  padding:24px 0; /* preview-only outer padding */
+  min-width:var(--prospectus-a4-width);
+}
+.page{
+  width:var(--prospectus-a4-width);
+  height:var(--prospectus-a4-height);
+  min-width:var(--prospectus-a4-width);
+  min-height:var(--prospectus-a4-height);
+  max-width:var(--prospectus-a4-width);
+  max-height:var(--prospectus-a4-height);
+  margin:0 auto 26px;
+  background:#fff; /* page surface stays white */
+  padding:38px 28px 28px;
+  position:relative;
+  box-shadow:0 4px 24px #0002; /* preview-only */
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  /* page-break / break-after are print-only — on screen they overlap stacked A4 pages in Chromium */
+}
+.page:last-child{
+  margin-bottom:0;
+}
+.page-header{height:58px;border-bottom:2px solid #bd2c2c;display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0}
+.brand{display:flex;align-items:center;gap:8px;position:relative}
+.brand-mark-placeholder{width:48px;height:42px;border:2px solid var(--red);background:var(--red);color:#fff;font-size:7px;font-weight:800;display:grid;place-items:center;text-align:center;line-height:1.1;border-radius:3px;flex:none}
+.brand-copy{display:flex;flex-direction:column;justify-content:center}
+.brand-name{font-size:28px;letter-spacing:-1.5px;font-weight:700;line-height:30px}.brand-name span{font-weight:400}
+.tagline{font-size:7px;margin-top:2px;color:var(--muted)}
+.shariah{border:1.5px solid var(--red);border-radius:7px;padding:7px 11px;font-size:8px;display:flex;align-items:center;gap:6px;white-space:nowrap}.shariah-mark{font-size:14px;color:var(--red);line-height:1}
+h1,h2,p{margin-top:0}h2{font-size:12px;text-transform:uppercase;color:#a51d21;margin-bottom:10px}
+.hero-grid{display:grid;grid-template-columns:1.35fr 1fr .82fr;border-bottom:1px solid var(--line);min-height:210px}
+.hero-grid>div{padding:18px 14px}.hero-grid>div+div{border-left:1px solid var(--line)}
+.eyebrow{text-transform:uppercase;font-weight:800;color:#a51d21;font-size:12px;margin-bottom:6px}
+.hero-copy h1{font-size:32px;letter-spacing:-1.2px;margin:0 0 4px}.product-pill{display:inline-block;background:#e7bbbb;color:#a32424;font-weight:800;text-transform:uppercase;border-radius:4px;padding:6px 8px;margin-bottom:14px}
+.hero-copy p{font-size:11px;max-width:280px;margin:0}
+.meta-row{display:flex;gap:12px;margin-bottom:18px;align-items:flex-start}.meta-row .icon{width:22px;height:22px;color:#bf2a30;flex:none}.meta-row b,.meta-row span{display:block}.meta-row b{font-size:10px}.meta-row span{font-size:9px;margin-top:2px}
+/* Four timeline rows in the middle hero column — slightly tighter than generic meta-row */
+.key-dates .meta-row{margin-bottom:12px}.key-dates .meta-row:last-child{margin-bottom:0}
+.risk-panel{text-align:left}.risk-panel>b{font-size:10px}.shield{width:67px;height:73px;background:var(--green);color:white;font-size:22px;font-weight:800;display:grid;place-items:center;margin:8px auto 2px;clip-path:polygon(50% 0,92% 18%,84% 72%,50% 100%,16% 72%,8% 18%)}
+.risk-panel strong{display:block;text-align:center;font-size:12px}.risk-panel p{font-size:9px;margin:10px 0}.risk-panel .scale-link{font-size:8px;font-weight:800;color:#a51d21;text-decoration:none}
+.card{border:1px solid #bdb9b9;border-radius:8px;overflow:hidden}
+.split-card{display:grid;grid-template-columns:1fr 1.05fr;margin-top:8px}.split-card>div{padding:15px}.split-card>div+div{border-left:1px solid var(--line)}
+.summary-list{margin:0}.summary-list div{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #d4d1d1;padding:5px 0}.summary-list div:last-child{border-bottom:0}
+.summary-list dt{font-weight:700;padding-left:28px;position:relative}.summary-list dt:before{content:"";width:18px;height:18px;background:#e3bfc0;border-radius:3px;position:absolute;left:0;top:-2px}.summary-list dd{margin:0;text-align:right}
+.tick-item{display:flex;gap:11px;margin-bottom:13px}.tick-item>span{width:19px;height:19px;border-radius:50%;background:#20be3f;color:#fff;font-size:15px;font-weight:800;display:grid;place-items:center;flex:none}.tick-item p{font-size:9px;margin:0}.tick-item b{display:block;font-size:10px;margin-bottom:3px}
+.strip{border:1px solid #c2bebe;border-top:0;padding:15px 15px 10px}.strip h2,.track h2{margin-bottom:10px}
+.stats{display:grid;gap:8px}.stats.five{grid-template-columns:repeat(5,1fr)}.stats.four{grid-template-columns:repeat(4,1fr)}
+.stat{display:grid;grid-template-columns:34px 1fr;grid-template-rows:auto auto;column-gap:7px;align-items:center}.stat .icon{grid-row:1/3;background:#efcecf;color:#b62c33;border-radius:50%;padding:7px;width:34px;height:34px;box-sizing:border-box}.stat small{font-size:7px}.stat b{font-size:11px}
+.track{border:1px solid #c2bebe;border-top:0;border-radius:0 0 8px 8px;padding:15px}.track .stats{margin-bottom:10px}
+table{width:100%;border-collapse:collapse;font-size:8px}th{background:#df2b23;color:#fff;padding:7px 5px;font-weight:600}td{border:1px solid #e1dddd;padding:5px;text-align:center}td:first-child,th:first-child{text-align:left}
+.table-wrap{overflow-x:auto}.track em,.financial-card em,.card em,.source{display:block;font-size:7px;margin-top:8px;font-style:italic}
+.prospectus-footer,footer.prospectus-footer{margin-top:auto;display:flex;align-items:center;gap:8px;padding-top:14px;font-size:7px;color:var(--muted)}.prospectus-footer .icon{color:#b3131b;width:24px;height:24px;flex:none}
+.issuer-grid{display:grid;grid-template-columns:.9fr 1.1fr}.issuer-grid>section{padding:20px 14px}.issuer-grid>section+section{border-left:1px solid var(--line)}
+.issuer-profile{display:flex;gap:18px;align-items:center;margin:20px 0}.round-icon{width:76px;height:76px;border-radius:50%;background:#efcecf;display:grid;place-items:center;color:#ae262c}.round-icon .icon{width:44px;height:44px}.issuer-profile span,.issuer-profile b{display:block;margin-bottom:8px}.issuer-grid p{font-size:9px;margin:0}
+.invoice-info dl{margin:0}.invoice-info dl div{display:flex;justify-content:space-between;align-items:center;margin-bottom:13px}.invoice-info dt{display:flex;align-items:center;gap:10px;font-weight:700}.invoice-info dt .icon,.work-list .icon{width:30px;height:30px;padding:6px;background:#efcecf;border-radius:50%;color:#b22a30;box-sizing:border-box}.invoice-info dd{margin:0;text-align:right}
+.financial-card{display:grid;grid-template-columns:.34fr .66fr}.financial-card>div{padding:12px}.financial-card>div+div{border-left:1px solid var(--line)}.summary-list.compact dt{padding-left:0}.summary-list.compact dt:before{display:none}.plain th{background:#f2f0f0;color:#111}.plain td,.plain th{text-align:center}.plain td:first-child,.plain th:first-child{text-align:left}
+.lower{margin-top:0;border-top:0;border-radius:0 0 8px 8px}.ratings div{display:grid;grid-template-columns:1fr 110px;gap:8px;align-items:center;margin:5px 0;position:relative}.ratings div:before{content:"";width:17px;height:17px;background:#e3bfc0;border-radius:3px;position:absolute;left:0}.ratings span{font-weight:700;padding-left:22px}.ratings b{background:#d8d8d8;text-align:center;padding:5px;border-radius:4px;font-weight:500}.ratings .good{color:#21a43b}
+.work-list p{display:flex;align-items:flex-start;gap:10px;font-size:9px;margin-bottom:9px}.work-list .icon{flex:none;width:25px;height:25px;padding:4px;box-sizing:border-box}
+.risk-cta{display:grid;grid-template-columns:2fr 1fr;gap:9px;margin-top:8px}.risk-cta>.card{padding:10px}
+.soukscore-scale,.risk-scale{display:grid;grid-template-columns:repeat(6,1fr);list-style:none;margin:0;padding:0;align-items:start}
+.soukscore-scale .grade-item,.risk-scale>div{padding:6px 4px;border-right:1px solid #c9c5c5;text-align:center}.soukscore-scale .grade-item:last-child,.risk-scale>div:last-child{border:0}
+.soukscore-scale .grade,.grade{width:33px;height:33px;color:#fff;border-radius:6px;display:grid;place-items:center;font-size:12px;margin:0 auto 4px;background:#79cf54;font-weight:800}
+.soukscore-scale .grade-label{display:block;font-size:7px;font-weight:700;line-height:1.25;margin:0 0 3px}
+.soukscore-scale .grade-desc{display:block;font-size:6px;line-height:1.3;color:#555;font-weight:400}
+.soukscore-scale .grade-item.is-selected,.soukscore-scale .grade-item[data-selected="true"]{background:#f7f7f7}
+.soukscore-scale .grade-item.is-selected .grade,.soukscore-scale .grade-item[data-selected="true"] .grade{outline:2px solid #111;outline-offset:2px}
+.soukscore-missing{margin:8px 0 0;font-size:8px}
+.issuer-profile .issuer-meta-line{font-size:10px;font-weight:700;margin-bottom:6px}
+.plain th .fy-label,.report-box th .fy-label{display:block;font-weight:700}
+.plain th .fy-end,.report-box th .fy-end{display:block;font-size:7px;font-weight:400;margin-top:2px;color:#666}
+.cta{border:1px solid #c5bebe;border-radius:7px;background:#f7eaea;padding:11px}.cta p{font-size:9px}.cta-button{display:block;width:100%;border:0;border-radius:5px;background:#a60000;color:#fff;text-transform:uppercase;font-weight:800;padding:8px;font-size:11px;text-align:center;text-decoration:none}.cta-button[disabled],.cta-button[aria-disabled="true"]{opacity:.85;cursor:default;pointer-events:none}.cta-minimum{text-align:center;display:block;margin-top:7px;font-size:8px}
+.page-title{padding:20px 0 14px}.page-title h1,.page-title h2{text-transform:uppercase;color:#a8181d;font-size:22px;margin-bottom:8px}.page-title p{font-size:9px;margin:0}
+.identity-strip,.meta-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:18px}.identity-strip>div,.meta-strip-item{display:flex;gap:9px;padding:12px 9px;border-right:1px solid #c8c4c4;align-items:flex-start}.identity-strip>div:last-child,.meta-strip-item:last-child{border-right:0}.identity-strip .icon,.meta-strip-item .icon{width:32px;height:32px;padding:7px;background:#efcecf;border-radius:50%;color:#b0292f;flex:none;box-sizing:border-box}.meta-strip-label,.identity-strip small{font-weight:800;font-size:7px;display:block}.meta-strip-value,.identity-strip b{font-size:8px;margin-top:5px;display:block}
+.comparison-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.report-box{padding:9px}.report-box h2{font-size:11px}.report-box table{font-size:7.5px}.report-box th{font-size:7px}.report-box td{height:24px}
+.insight{background:var(--light-green);border-radius:7px;padding:9px;display:flex;align-items:center;gap:8px;margin-top:8px;font-size:8px}.insight .icon{width:30px;height:30px;background:#1dbb3d;color:#fff;border-radius:50%;padding:5px;box-sizing:border-box}
+.trend-cell.up,.up{color:#28ad46;font-size:18px;font-weight:800}.trend-cell.down,.down{color:#ce201d;font-size:18px;font-weight:800}
+.takeaways p,.takeaway-item{display:flex;gap:10px;align-items:center;font-size:8.5px;margin:0 0 12px}.takeaways .icon,.takeaway-item .icon{flex:none;width:34px;height:34px;background:#efcecf;color:#b52a30;border-radius:50%;padding:7px;box-sizing:border-box}.source{margin-left:12px}
+
+/* Page 3 only — same design, tighter fit for one A4 page (does not affect Pages 1–2) */
+.prospectus-page-three .page-title{padding:12px 0 8px}
+.prospectus-page-three .page-title h1{margin-bottom:4px}
+.prospectus-page-three .page-title p{font-size:8px}
+.prospectus-page-three .meta-strip{margin-bottom:10px}
+.prospectus-page-three .meta-strip-item{padding:8px 6px;gap:6px}
+.prospectus-page-three .meta-strip-item .icon{width:26px;height:26px;padding:5px}
+.prospectus-page-three .meta-strip-label{font-size:7.5px}
+.prospectus-page-three .meta-strip-value{font-size:9px;margin-top:3px;line-height:1.25}
+.prospectus-page-three .comparison-grid{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  flex:1 1 auto;
+  min-height:0;
+}
+.prospectus-page-three .comparison-row{display:grid;gap:8px;min-height:0;align-items:stretch}
+.prospectus-page-three .comparison-row-top{grid-template-columns:minmax(0,0.98fr) minmax(0,1.02fr)}
+.prospectus-page-three .comparison-row-bottom{grid-template-columns:minmax(0,1.12fr) minmax(0,0.88fr)}
+.prospectus-page-three .report-box{padding:7px 9px;display:flex;flex-direction:column;min-height:0}
+.prospectus-page-three .report-box h2{font-size:10px;margin-bottom:6px}
+.prospectus-page-three .report-box table{font-size:8px;table-layout:fixed}
+.prospectus-page-three .report-box th{font-size:8px;padding:4px 4px;line-height:1.15;vertical-align:bottom}
+.prospectus-page-three .report-box td{height:auto;padding:3px 4px;line-height:1.15;white-space:nowrap}
+.prospectus-page-three .report-box td:first-child,
+.prospectus-page-three .report-box th:first-child{white-space:normal;overflow-wrap:anywhere;hyphens:auto}
+.prospectus-page-three .report-box th .fy-end{font-size:6.5px;margin-top:1px;color:#fff;opacity:.92}
+.prospectus-page-three .coverage-table th:first-child,
+.prospectus-page-three .coverage-table td:first-child{width:29%}
+.prospectus-page-three .coverage-table th:not(:first-child):not(:last-child),
+.prospectus-page-three .coverage-table td:not(:first-child):not(:last-child){width:18%}
+.prospectus-page-three .coverage-table th:last-child,
+.prospectus-page-three .coverage-table td:last-child{width:15%}
+.prospectus-page-three .trend-cell.up,.prospectus-page-three .trend-cell.down{font-size:14px}
+.prospectus-page-three .takeaways .takeaway-item{gap:8px;font-size:9px;margin:0 0 7px;align-items:flex-start}
+.prospectus-page-three .takeaways .takeaway-item:last-child{margin-bottom:0}
+.prospectus-page-three .takeaways .icon{width:28px;height:28px;padding:5px}
+.prospectus-page-three .takeaways-empty{display:flex;align-items:center;justify-content:center;flex:1;min-height:48px;margin:0;font-size:14px;color:var(--muted)}
+.prospectus-page-three .page-bottom{margin-top:auto;padding-top:8px}
+.prospectus-page-three .page-bottom .source{margin:0 0 6px;font-size:7.5px}
+.prospectus-page-three .page-bottom .prospectus-footer{margin-top:0;padding-top:0;font-size:7px}
+
+/* Print / PDF: A4 page nodes only — no preview chrome */
+@media print{
+  @page{size:A4;margin:0}
+  html,body,.document{
+    background:#fff !important;
+    overflow:visible !important;
+    width:auto !important;
+    height:auto !important;
+    display:block !important;
+  }
+  .document{
+    padding:0 !important;
+    min-width:0 !important;
+  }
+  .page{
+    display:block !important;
+    width:210mm !important;
+    height:297mm !important;
+    min-width:210mm !important;
+    min-height:297mm !important;
+    max-width:210mm !important;
+    max-height:297mm !important;
+    margin:0 !important;
+    box-shadow:none !important;
+    page-break-after:always !important;
+    break-after:page !important;
+    page-break-inside:avoid;
+    break-inside:avoid;
+    overflow:hidden !important;
+  }
+  .page:last-child{
+    page-break-after:auto !important;
+    break-after:auto !important;
+  }
+}
+  </style>
+</head>
+<body>
+  <main class="document">
+<section class="page prospectus-page-one" data-page="prospectus-page-one">
+    <header class="page-header" data-stage="header">
+  <div class="brand">
+    <div class="brand-mark-placeholder" aria-hidden="true">CashSouk</div>
+    <div class="brand-copy">
+      <div class="brand-name">Cash<span>Souk</span></div>
+      <div class="tagline">Invest in Growth. Earn with Purpose.</div>
+    </div>
+  </div>
+  <div class="shariah"><span class="shariah-mark" aria-hidden="true">◆</span> Shariah Compliant</div>
+</header>
+
+    <div class="hero-grid">
+      <div class="hero-copy" data-stage="1">
+        <div class="eyebrow">INVESTMENT NOTE</div>
+        <h1>NOTE-20250515-SAMPLE001</h1>
+        <div class="product-pill">ACCOUNTS RECEIVABLE FINANCING-I</div>
+        <p>Short-term financing against approved receivables under the CashSouk marketplace.</p>
+      </div>
+      <div class="key-dates" data-stage="2">
+        <div class="meta-row"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><div><b>Listing Date</b><span>15 May 2025</span></div></div>
+        <div class="meta-row"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4M8 2v4M3 10h5"/><circle cx="18" cy="18" r="4"/><path d="M18 16.5V18l1 1"/></svg><div><b>Closing Date</b><span>29 May 2025 (14 days)</span></div></div>
+        <div class="meta-row"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4M8 2v4M3 10h5"/><circle cx="18" cy="18" r="4"/><path d="M18 16.5V18l1 1"/></svg><div><b>Maturity Date</b><span>12 September 2025 (120 days)</span></div></div>
+        <div class="meta-row"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M10 21V9M14 21V9M6 21V9M18 21V9M12 3l9 6H3z"/></svg><div><b>Paymaster</b><span>Ministry of Finance Malaysia (Federal Government Agency)</span></div></div>
+      </div>
+      <div class="risk-panel" data-stage="3">
+        <b>Risk Rating</b>
+        <div class="shield">A</div>
+        <strong>Moderately Low Risk</strong>
+        <p>The issuer demonstrates good financial strength and an adequate capacity to meet its financial obligations.</p>
+        <a class="scale-link" href="#risk-scale">See rating scale on page 2</a>
+      </div>
+    </div>
+
+    <section class="card split-card">
+      <div>
+        <h2>Investment Summary</h2>
+        <dl class="summary-list">
+          <div data-stage="4a"><dt>Financing Amount</dt><dd>RM 500,000.00</dd></div>
+          <div><dt>Minimum Investment</dt><dd>RM 100.00</dd></div>
+          <div><dt>Profit rate (p.a.)</dt><dd>12%</dd></div>
+          <div><dt>Expected Return (p.a.)</dt><dd>10.8%</dd></div>
+          <div data-stage="4b"><dt>Tenure</dt><dd>120 days</dd></div>
+          <div><dt>Maturity Date</dt><dd>12 September 2025</dd></div>
+          <div><dt>Purpose of Financing</dt><dd>Working capital for approved receivables</dd></div>
+          <div data-stage="4c"><dt>Payment Basis</dt><dd>Bullet Payment at Maturity</dd></div>
+          <div><dt>Shariah Principle</dt><dd>Bai&#39; Al-Dayn Bi Al-Sila&#39;</dd></div>
+        </dl>
+      </div>
+      <div class="highlights">
+        <h2>Key Investor Highlights</h2>
+        <div class="tick-item" data-stage="5a"><span>✓</span><p><b>Backed by a government paymaster</b>The invoice is payable by Kementerian Kerja Raya, a government agency.</p></div>
+        <div class="tick-item" data-stage="5b"><span>✓</span><p><b>Issuer financial profile</b>Placeholder recommendation for an issuer with an AA risk rating.</p></div>
+        <div class="tick-item" data-stage="5c"><span>✓</span><p><b>Attractive short-term returns</b>Earn up to 12.0% p.a. for a short investment period of 120 days.</p></div>
+        <div class="tick-item" data-stage="5d"><span>✓</span><p><b>Shariah-compliant investment</b>Structured under Bai&#39; Al-Dayn Bi Al-Sila&#39;.</p></div>
+      </div>
+    </section>
+
+    <section class="strip" data-stage="6">
+      <h2>At a Glance</h2>
+      <div class="stats five">
+        <div class="stat"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="M12 7v10M15 10h-4.5a1.5 1.5 0 0 0 0 3h3a1.5 1.5 0 0 1 0 3H9"/></svg><small>Financing Amount</small><b>RM 500,000.00</b></div>
+        <div class="stat"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg><small>Profit Rate for Investors</small><b>12%</b></div>
+        <div class="stat"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17"/><path d="m7 21 1.6-1.4c.3-.4.8-.6 1.2-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.75-2.91l-4.2 3.9"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="7" r="2"/></svg><small>Expected Return (p.a.)</small><b>10.8%</b></div>
+        <div class="stat"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4M8 2v4M3 10h5"/><circle cx="18" cy="18" r="4"/><path d="M18 16.5V18l1 1"/></svg><small>Tenure</small><b>120 days</b></div>
+        <div class="stat"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17"/><path d="m7 21 1.6-1.4c.3-.4.8-.6 1.2-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.75-2.91l-4.2 3.9"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="7" r="2"/></svg><small>Minimum Investment</small><b>RM 100.00</b></div>
+      </div>
+    </section>
+
+    <section class="track">
+      <div data-stage="7">
+        <h2>ISSUER&#39;S TRACK RECORD ON CASH SOUK</h2>
+        <div class="stats four">
+          <div class="stat"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 6h4M2 10h4M2 14h4M2 18h4"/><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M16 2v20"/></svg><small>Total Notes Funded — All Time</small><b>3</b></div>
+          <div class="stat"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="M12 7v10M15 10h-4.5a1.5 1.5 0 0 0 0 3h3a1.5 1.5 0 0 1 0 3H9"/></svg><small>Total Amount Funded — All Time</small><b>RM 3,450,000.00</b></div>
+          <div class="stat"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg><small>Successful Repayment — All Time</small><b>100%</b></div>
+          <div class="stat"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><small>On-time Payment Rate — Last 6 Months</small><b>95%</b></div>
+        </div>
+      </div>
+      <div data-stage="8">
+        <div class="table-wrap"><table>
+  <thead><tr><th>Note ID</th><th>Financing Type</th><th>Amount (RM)</th><th>Tenure</th><th>Profit Rate (p.a.)</th><th>Status</th><th>Repayment Date</th></tr></thead>
+  <tbody>
+<tr>
+  <td>NOTE-20240110-AAAA1111</td>
+  <td>Accounts Receivable Financing-i</td>
+  <td>RM 500,000.00</td>
+  <td>120 days</td>
+  <td>12%</td>
+  <td>Repaid</td>
+  <td>9 May 2025</td>
+</tr>
+<tr>
+  <td>NOTE-20250301-BBBB2222</td>
+  <td>Accounts Receivable Financing-i</td>
+  <td>RM 3,450,000.00</td>
+  <td>120 days</td>
+  <td>11%</td>
+  <td>Active</td>
+  <td>—</td>
+</tr>
+  </tbody>
+</table></div>
+        <em>Past performance is not indicative of future performance.</em>
+      </div>
+    </section>
+
+    <footer class="prospectus-footer" data-stage="footer">
+  <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3z"/><path d="m9 12 2 2 4-4"/></svg>
+  <span>Investments are subject to credit risk, default risk, and other risks.<br />Investors are advised to read and understand the Product Terms and Risk Disclosure Statement before investing.</span>
+</footer>
+  </section>
+<section class="page prospectus-page-two" data-page="prospectus-page-two">
+    <header class="page-header" data-stage="header">
+  <div class="brand">
+    <div class="brand-mark-placeholder" aria-hidden="true">CashSouk</div>
+    <div class="brand-copy">
+      <div class="brand-name">Cash<span>Souk</span></div>
+      <div class="tagline">Invest in Growth. Earn with Purpose.</div>
+    </div>
+  </div>
+  <div class="shariah"><span class="shariah-mark" aria-hidden="true">◆</span> Shariah Compliant</div>
+</header>
+
+    <div class="issuer-grid">
+      <section data-stage="1" data-issuer-profile>
+        <h2>ABOUT THE ISSUER</h2>
+        <div class="issuer-profile">
+          <div class="round-icon"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18"/><path d="M6 12h12M6 16h12M10 6h.01M14 6h.01M10 10h.01M14 10h.01"/></svg></div>
+          <div>
+            <b class="issuer-meta-line">Construction | Medium</b>
+            <span>Registered in Malaysia</span>
+          </div>
+        </div>
+        <p>Civil engineering and infrastructure works.</p>
+      </section>
+      <section class="invoice-info" data-stage="2">
+        <h2>INVOICE &amp; PAYMASTER INFORMATION</h2>
+        <dl>
+          <div><dt><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="M12 7v10M15 10h-4.5a1.5 1.5 0 0 0 0 3h3a1.5 1.5 0 0 1 0 3H9"/></svg>Invoice Amount</dt><dd>RM 625,000.00</dd></div>
+          <div><dt><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Invoice Due Date</dt><dd>31 December 2026</dd></div>
+          <div><dt><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>Paymaster</dt><dd>Sample Paymaster Berhad</dd></div>
+          <div><dt><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M10 21V9M14 21V9M6 21V9M18 21V9M12 3l9 6H3z"/></svg>Nature of Paymaster</dt><dd>GOVERNMENT_LINKED</dd></div>
+          <div><dt><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></svg>Deed of Assignment (DOA)</dt><dd>Yes</dd></div>
+          <div><dt><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>Paymaster Rating</dt><dd>PM1</dd></div>
+          <div><dt><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>Confidence Grading</dt><dd>High</dd></div>
+        </dl>
+      </section>
+    </div>
+
+    <section class="card financial-card">
+      <div class="paymaster-record" data-stage="3">
+        <h2>PAYMASTER TRACK RECORD</h2>
+        <dl class="summary-list compact">
+          <div><dt>Total Invoices Paid</dt><dd>—</dd></div>
+          <div><dt>Total Amount Paid</dt><dd>—</dd></div>
+          <div><dt>Successful Repayment</dt><dd>—</dd></div>
+          <div><dt>On-Time Payment</dt><dd>—</dd></div>
+          <div><dt>Average Payment Period</dt><dd>—</dd></div>
+        </dl>
+      </div>
+      <div data-stage="4">
+  <h2>3-YEAR FINANCIAL COMPARISON (MYR mil.)</h2>
+  <div class="table-wrap"><table class="plain">
+    <thead>
+      <tr>
+        <th>Financial Metric</th>
+        <th><span class="fy-label">FY2022</span><span class="fy-end">31 Dec 2022</span></th><th><span class="fy-label">FY2023</span><span class="fy-end">31 Dec 2023</span></th><th><span class="fy-label">FY2024</span><span class="fy-end">31 Dec 2024</span></th>
+      </tr>
+    </thead>
+    <tbody>
+<tr><td>Revenue</td><td>12</td><td>13.9</td><td>15</td></tr>
+<tr><td>Profit After Tax (RM mil.)</td><td>0.9</td><td>1.1</td><td>1.2</td></tr>
+<tr><td>Net Profit Margin (%)</td><td>7.5%</td><td>7.91%</td><td>8%</td></tr>
+<tr><td>ROE (%)</td><td>18%</td><td>20%</td><td>20%</td></tr>
+<tr><td>Current Ratio (x)</td><td>2x</td><td>2x</td><td>2.05x</td></tr>
+<tr><td>Net Debt / Equity (x)</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Interest Coverage (x)</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>DSCR (x)</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Receivables Days</td><td>—</td><td>—</td><td>—</td></tr>
+    </tbody>
+  </table></div>
+  <em class="fin-source">Source: Audited Financial Statements</em>
+</div>
+    </section>
+
+    <section class="card split-card lower">
+      <div data-stage="5">
+        <h2>CREDIT INSIGHTS</h2>
+        <div class="ratings">
+          <div><span>Credit Score</span><b class="good">Good</b></div>
+          <div><span>Payment Behaviour</span><b class="good">Good</b></div>
+          <div><span>Credit Utilisation</span><b>Healthy</b></div>
+          <div><span>Litigation Check</span><b>Clear</b></div>
+          <div><span>CCRIS Status</span><b>No record</b></div>
+        </div>
+      </div>
+      <div class="work-list" data-stage="6">
+        <h2>ABOUT THE INVOICE / WORK PERFORMED</h2>
+        <p><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>The issuer has completed civil engineering and infrastructure works under a contract awarded by Demo Paymaster Sdn. Bhd.</p>
+<p><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></svg>The invoice represents payment for works certified and accepted by Demo Paymaster Sdn. Bhd.</p>
+<p><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>Payment will be distributed directly by the paymaster to the CashSouk trust account on the invoice due date.</p>
+<p><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></svg>The invoice has been assigned to CashSouk as security via a Deed of Assignment (DOA).</p>
+      </div>
+    </section>
+
+    <div class="risk-cta" id="risk-scale">
+      <section class="card">
+        <section data-stage="7" data-soukscore-scale-version="2026.07.21.soukscore-scale.v1">
+  <h2>RISK RATING SCALE</h2>
+  <ol class="soukscore-scale" aria-label="RISK RATING SCALE">
+    <li class="grade-item" data-grade="AAA" data-selected="false">
+      <span class="grade">AAA</span>
+      <strong class="grade-label">Very Low Risk</strong>
+      <span class="grade-desc">The issuer demonstrates excellent financial strength and a very strong capacity to meet its financial obligations.</span>
+    </li>
+    <li class="grade-item is-selected" data-grade="AA" data-selected="true" aria-current="true">
+      <span class="grade">AA</span>
+      <strong class="grade-label">Low Risk</strong>
+      <span class="grade-desc">The issuer demonstrates strong financial strength and a strong capacity to meet its financial obligations.</span>
+    </li>
+    <li class="grade-item" data-grade="A" data-selected="false">
+      <span class="grade">A</span>
+      <strong class="grade-label">Moderately Low Risk</strong>
+      <span class="grade-desc">The issuer demonstrates good financial strength and an adequate capacity to meet its financial obligations.</span>
+    </li>
+    <li class="grade-item" data-grade="BBB" data-selected="false">
+      <span class="grade">BBB</span>
+      <strong class="grade-label">Moderate Risk</strong>
+      <span class="grade-desc">The issuer demonstrates adequate financial strength but may be more sensitive to adverse business or economic conditions.</span>
+    </li>
+    <li class="grade-item" data-grade="BB" data-selected="false">
+      <span class="grade">BB</span>
+      <strong class="grade-label">Elevated Risk</strong>
+      <span class="grade-desc">The issuer shows some financial vulnerability and may face difficulty meeting its obligations under adverse conditions.</span>
+    </li>
+    <li class="grade-item" data-grade="B" data-selected="false">
+      <span class="grade">B</span>
+      <strong class="grade-label">High Risk</strong>
+      <span class="grade-desc">The issuer shows significant financial vulnerability and a higher likelihood of repayment difficulty under adverse conditions.</span>
+    </li>
+  </ol>
+</section>
+      </section>
+      <aside class="cta">
+        <section class="prospectus-investment-cta" data-stage="8-cta">
+  <h2>INVEST WITH CONFIDENCE</h2>
+  <button type="button" class="cta-button" disabled aria-disabled="true">INVEST NOW</button>
+  <small class="cta-minimum">Minimum investment: RM 100.00</small>
+</section>
+      </aside>
+    </div>
+
+    <footer class="prospectus-footer" data-stage="footer">
+  <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3z"/><path d="m9 12 2 2 4-4"/></svg>
+  <span>Investments are subject to credit risk, default risk, and other risks.<br />Investors are advised to read and understand the Product Terms and Risk Disclosure Statement before investing.</span>
+</footer>
+  </section>
+<section class="page prospectus-page-three" data-page="prospectus-page-three">
+    <header class="page-header" data-stage="header">
+  <div class="brand">
+    <div class="brand-mark-placeholder" aria-hidden="true">CashSouk</div>
+    <div class="brand-copy">
+      <div class="brand-name">Cash<span>Souk</span></div>
+      <div class="tagline">Invest in Growth. Earn with Purpose.</div>
+    </div>
+  </div>
+  <div class="shariah"><span class="shariah-mark" aria-hidden="true">◆</span> Shariah Compliant</div>
+</header>
+    <div class="page-title" data-stage="1" data-content-stage="page-title">
+  <h1>DETAILED FINANCIAL COMPARISON</h1>
+  <p>—</p>
+</div>
+    <section class="identity-strip card meta-strip" data-stage="2" data-content-stage="metadata-strip">
+<div class="meta-strip-item">
+  <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+  <span>
+    <span class="meta-strip-label">Sector</span>
+    <span class="meta-strip-value">Construction | Medium</span>
+  </span>
+</div>
+<div class="meta-strip-item">
+  <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+  <span>
+    <span class="meta-strip-label">Risk Rating</span>
+    <span class="meta-strip-value">AA</span>
+  </span>
+</div>
+<div class="meta-strip-item">
+  <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+  <span>
+    <span class="meta-strip-label">Paymaster</span>
+    <span class="meta-strip-value">Kementerian Kerja Raya</span>
+  </span>
+</div>
+<div class="meta-strip-item">
+  <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+  <span>
+    <span class="meta-strip-label">Paymaster Grading</span>
+    <span class="meta-strip-value">PM1</span>
+  </span>
+</div>
+<div class="meta-strip-item">
+  <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+  <span>
+    <span class="meta-strip-label">Confidence Grading</span>
+    <span class="meta-strip-value">High</span>
+  </span>
+</div>
+</section>
+    <div class="comparison-grid">
+      <div class="comparison-row comparison-row-top">
+        <section class="card report-box" data-stage="3" data-content-stage="income-statement">
+  <h2>3-YEAR INCOME STATEMENT SUMMARY (MYR mil.)</h2>
+  <table>
+    <thead><tr><th>Financial Metrics</th><th><span class="fy-label">FY2022</span><span class="fy-end">31 Dec 2022</span></th><th><span class="fy-label">FY2023</span><span class="fy-end">31 Dec 2023</span></th><th><span class="fy-label">FY2024</span><span class="fy-end">31 Dec 2024</span></th></tr></thead>
+    <tbody>
+<tr><td>Revenue</td><td>13.9</td><td>16.2</td><td>18.6</td></tr>
+<tr><td>Gross Profit</td><td>2.1</td><td>2.4</td><td>2.8</td></tr>
+<tr><td>EBITDA</td><td>1.6</td><td>1.9</td><td>2.1</td></tr>
+<tr><td>EBIT</td><td>1.4</td><td>1.7</td><td>1.9</td></tr>
+<tr><td>Profit Before Tax</td><td>1.4</td><td>1.7</td><td>2</td></tr>
+<tr><td>Profit After Tax</td><td>1.2</td><td>1.5</td><td>1.8</td></tr>
+<tr><td>Net Profit Margin</td><td>8.63%</td><td>9.26%</td><td>9.68%</td></tr>
+    </tbody>
+  </table>
+</section>
+        <section class="card report-box" data-stage="4" data-content-stage="balance-sheet-liquidity">
+  <h2>3-YEAR BALANCE SHEET &amp; LIQUIDITY (MYR mil.)</h2>
+  <table>
+    <thead><tr><th>Financial Metrics</th><th><span class="fy-label">FY2022</span><span class="fy-end">31 Dec 2022</span></th><th><span class="fy-label">FY2023</span><span class="fy-end">31 Dec 2023</span></th><th><span class="fy-label">FY2024</span><span class="fy-end">31 Dec 2024</span></th></tr></thead>
+    <tbody>
+<tr><td>Cash &amp; Bank</td><td>0.9</td><td>1.1</td><td>1.4</td></tr>
+<tr><td>Trade Receivables</td><td>2.8</td><td>3.1</td><td>3.2</td></tr>
+<tr><td>Current Assets</td><td>4.7</td><td>5.2</td><td>5.8</td></tr>
+<tr><td>Total Assets</td><td>8.1</td><td>8.8</td><td>9.7</td></tr>
+<tr><td>Current Liabilities</td><td>2.9</td><td>3.1</td><td>3.4</td></tr>
+<tr><td>Total Liabilities</td><td>3.6</td><td>3.9</td><td>4.3</td></tr>
+<tr><td>Total Equity</td><td>4.5</td><td>5</td><td>5.6</td></tr>
+<tr><td>Current Ratio</td><td>1.62x</td><td>1.68x</td><td>1.71x</td></tr>
+<tr><td>Quick Ratio</td><td>1.11x</td><td>1.18x</td><td>1.26x</td></tr>
+    </tbody>
+  </table>
+</section>
+      </div>
+      <div class="comparison-row comparison-row-bottom">
+        <section class="card report-box" data-stage="5" data-content-stage="coverage-efficiency">
+  <h2>CASH FLOW, COVERAGE AND EFFICIENCY</h2>
+  <table class="coverage-table">
+    <thead>
+      <tr>
+        <th>Financial Metrics</th>
+        <th><span class="fy-label">FY2022</span><span class="fy-end">31 Dec 2022</span></th><th><span class="fy-label">FY2023</span><span class="fy-end">31 Dec 2023</span></th><th><span class="fy-label">FY2024</span><span class="fy-end">31 Dec 2024</span></th>
+        <th>Trend (3-Yr)</th>
+      </tr>
+    </thead>
+    <tbody>
+<tr><td>Operating Cash Flow</td><td>—</td><td>—</td><td>—</td><td class="trend-cell">—</td></tr>
+<tr><td>Free Cash Flow</td><td>—</td><td>—</td><td>—</td><td class="trend-cell">—</td></tr>
+<tr><td>Interest Coverage</td><td>—</td><td>—</td><td>—</td><td class="trend-cell">—</td></tr>
+<tr><td>DSCR</td><td>—</td><td>—</td><td>—</td><td class="trend-cell">—</td></tr>
+<tr><td>Debt / Equity</td><td>—</td><td>—</td><td>—</td><td class="trend-cell">—</td></tr>
+<tr><td>Return on Equity</td><td>60%</td><td>75%</td><td>90%</td><td class="trend-cell">—</td></tr>
+<tr><td>Return on Assets</td><td>—</td><td>—</td><td>—</td><td class="trend-cell">—</td></tr>
+<tr><td>Receivables Days</td><td>—</td><td>—</td><td>—</td><td class="trend-cell">—</td></tr>
+<tr><td>Payables Days</td><td>—</td><td>—</td><td>—</td><td class="trend-cell">—</td></tr>
+<tr><td>Asset Turnover</td><td>—</td><td>—</td><td>—</td><td class="trend-cell">—</td></tr>
+    </tbody>
+  </table>
+</section>
+        <section class="card report-box takeaways" data-stage="6" data-content-stage="investor-takeaways">
+  <h2>4. INVESTOR TAKEAWAYS</h2>
+  <p class="takeaway-item"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg><span><b>Revenue &amp; Profitability</b> Revenue and profitability have shown steady year-on-year growth.</span></p>
+<p class="takeaway-item"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 16.3c2.2 0 4-1.8 4-4.1C11 9 7 4 7 4S3 9 3 12.2c0 2.3 1.8 4.1 4 4.1z"/><path d="M12.8 15.1c1.7 0 3-1.4 3-3.1C15.8 9.7 12.8 6 12.8 6s-3 3.7-3 6c0 1.7 1.3 3.1 3 3.1z"/></svg><span><b>Liquidity</b> Liquidity remains healthy, with current and quick ratios improving over time.</span></p>
+<p class="takeaway-item"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3z"/><path d="m9 12 2 2 4-4"/></svg><span><b>Leverage</b> Leverage is conservative and trending downward, supporting a stronger balance sheet.</span></p>
+<p class="takeaway-item"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg><span><b>Debt Servicing Capacity</b> Debt servicing capacity appears adequate, with improving DSCR and strong interest coverage.</span></p>
+<p class="takeaway-item"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span><b>Receivables Collection</b> Receivables collection days have improved, indicating better working capital management.</span></p>
+<p class="takeaway-item"><svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg><span><b>Overall Financial Profile</b> Overall financial profile suggests strengthening fundamentals over the observed period.</span></p>
+</section>
+      </div>
+    </div>
+    <div class="page-bottom">
+      <em class="source">Source: Audited Financial Statements</em>
+      <footer class="prospectus-footer" data-stage="footer">
+  <svg class="icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V5l8-3 8 3z"/><path d="m9 12 2 2 4-4"/></svg>
+  <span>Investments are subject to credit risk, default risk, and other risks.<br />Investors are advised to read and understand the Product Terms and Risk Disclosure Statement before investing.</span>
+</footer>
+    </div>
+  </section>
+  </main>
+</body>
+</html>
