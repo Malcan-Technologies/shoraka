@@ -1,0 +1,200 @@
+/**
+ * SECTION: Map Page 3 Prisma data → Stages 1–6 → assembled Page 3
+ * WHY: Prefer frozen page_2 financial_comparison when published; never live-fallback
+ */
+
+import { publicationContentFromFrozenSnapshot } from "../prospectus-review/prospectus-frozen-publication";
+import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
+import {
+  PROSPECTUS_DATA_NOT_AVAILABLE,
+  PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
+  PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
+  type ProspectusFinancialComparisonSource,
+} from "./prospectus-financial-comparison-source.types";
+import { buildProspectusHeader } from "./prospectus-header";
+import {
+  parseInvoiceSnapshotRiskRating,
+  parseIssuerSnapshot,
+  parsePaymasterSnapshot,
+  parseProspectusPageTwoSnapshot,
+} from "./prospectus-json-guards";
+import { buildProspectusPageThreeBalanceSheet } from "./prospectus-page-three-balance-sheet";
+import { buildProspectusPageThreeCoverageEfficiency } from "./prospectus-page-three-coverage-efficiency";
+import { buildProspectusPageThreeIncomeStatement } from "./prospectus-page-three-income-statement";
+import { buildProspectusPageThreeInvestorTakeaways } from "./prospectus-page-three-investor-takeaways";
+import { buildProspectusPageThreeMetadata } from "./prospectus-page-three-metadata";
+import { buildProspectusPageThreeTrends } from "./prospectus-page-three-trends";
+import type { ProspectusPageThreeLoadedData } from "./prospectus-page-three-prisma";
+import { isProspectusNotePublished } from "./prospectus-page-three-prisma";
+import type {
+  ProspectusPageThree,
+  ProspectusPageThreeFinancialMode,
+} from "./prospectus-page-three.types";
+import { buildFinancialComparisonSourceFromFrozen } from "./prospectus-page-two-mapper";
+import type { ProspectusPage2FinancialComparisonSnapshot } from "./prospectus-snapshot.types";
+
+export type ProspectusPageThreeBuilderInput = {
+  noteId: string;
+  isPublished: boolean;
+  financialMode: ProspectusPageThreeFinancialMode;
+  issuerSnapshot: unknown;
+  invoiceSnapshot: unknown;
+  paymasterSnapshot: unknown;
+  /** Live Application financials — only for unpublished preview. */
+  liveFinancialStatements: unknown | null;
+  /** Live organization CTOS financials_json — only for unpublished preview. */
+  liveCtosFinancials: unknown | null;
+  /** Parsed frozen page_2 Stage 4 — only when published + valid. */
+  frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot | null;
+  /**
+   * Preview/development publication placeholders only.
+   * Prisma Note mapping must leave this undefined.
+   */
+  publicationContent?: import("./prospectus-placeholder-publication-content").ProspectusPublicationContent;
+};
+
+function emptyFinancialComparisonSource(): ProspectusFinancialComparisonSource {
+  return {
+    sectionHeading: PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
+    tableUnitLabel: PROSPECTUS_DATA_NOT_AVAILABLE,
+    sourceFooter: "Source: Financial Statements",
+    years: [],
+    missingSsmUnauditedYears: [],
+    opsWarning: null,
+    audit: PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
+  };
+}
+
+function resolveFinancialComparisonSource(
+  input: ProspectusPageThreeBuilderInput
+): ProspectusFinancialComparisonSource {
+  if (input.financialMode === "frozen_publication_snapshot") {
+    if (!input.frozenFinancialComparison) {
+      return emptyFinancialComparisonSource();
+    }
+    return buildFinancialComparisonSourceFromFrozen(input.frozenFinancialComparison);
+  }
+
+  if (input.financialMode === "published_unavailable") {
+    return emptyFinancialComparisonSource();
+  }
+
+  return buildProspectusFinancialComparisonSource({
+    financialStatements: input.liveFinancialStatements,
+    ctosFinancials: input.liveCtosFinancials,
+  });
+}
+
+export function mapProspectusPageThreeDataToInput(
+  data: ProspectusPageThreeLoadedData
+): ProspectusPageThreeBuilderInput {
+  const { note } = data;
+  const isPublished = isProspectusNotePublished(note);
+  const parsedPage2 = parseProspectusPageTwoSnapshot(note.prospectus_snapshot);
+
+  let financialMode: ProspectusPageThreeFinancialMode;
+  let frozenFinancialComparison: ProspectusPage2FinancialComparisonSnapshot | null = null;
+  let liveFinancialStatements: unknown | null = null;
+  let liveCtosFinancials: unknown | null = null;
+
+  if (isPublished) {
+    if (parsedPage2) {
+      financialMode = "frozen_publication_snapshot";
+      frozenFinancialComparison = parsedPage2.financial_comparison;
+    } else {
+      financialMode = "published_unavailable";
+    }
+  } else {
+    financialMode = "live_unpublished_preview";
+    liveFinancialStatements = data.liveFinancialStatements;
+    liveCtosFinancials = data.liveCtosFinancials;
+  }
+
+  return {
+    noteId: note.id,
+    isPublished,
+    financialMode,
+    issuerSnapshot: note.issuer_snapshot,
+    invoiceSnapshot: note.invoice_snapshot,
+    paymasterSnapshot: note.paymaster_snapshot,
+    liveFinancialStatements,
+    liveCtosFinancials,
+    frozenFinancialComparison,
+    publicationContent: isPublished
+      ? publicationContentFromFrozenSnapshot(note.prospectus_snapshot)
+      : undefined,
+  };
+}
+
+export function buildProspectusPageThree(
+  input: ProspectusPageThreeBuilderInput
+): ProspectusPageThree {
+  const financialSource = resolveFinancialComparisonSource(input);
+  const issuer = parseIssuerSnapshot(input.issuerSnapshot);
+  const paymaster = parsePaymasterSnapshot(input.paymasterSnapshot);
+
+  const metadata = buildProspectusPageThreeMetadata({
+    issuerName: issuer.name,
+    issuerSector: issuer.industry,
+    officerCompanySize: input.publicationContent?.issuerProfile?.companySize,
+    selectedRiskRating: parseInvoiceSnapshotRiskRating(input.invoiceSnapshot),
+    paymasterName: paymaster.name,
+    officerPaymasterRating: input.publicationContent?.invoicePaymaster?.paymasterRating,
+    officerConfidenceGrading:
+      input.publicationContent?.invoicePaymaster?.confidenceGrading,
+    financialSource,
+  });
+
+  const financialInputs = input.publicationContent?.prospectusFinancialInputs;
+  const page2FinancialOverrides =
+    input.publicationContent?.financialComparison?.overrides ?? null;
+  const incomeStatement = buildProspectusPageThreeIncomeStatement({
+    financialSource,
+    prospectusFinancialInputs: financialInputs,
+  });
+  const balanceSheet = buildProspectusPageThreeBalanceSheet({
+    financialSource,
+    prospectusFinancialInputs: financialInputs,
+  });
+  const coverageEfficiency = buildProspectusPageThreeCoverageEfficiency({
+    financialSource,
+    prospectusFinancialInputs: financialInputs,
+    page2FinancialOverrides,
+  });
+  const trends = buildProspectusPageThreeTrends({
+    incomeStatement,
+    balanceSheet,
+    coverageEfficiency,
+  });
+  const investorTakeaways = buildProspectusPageThreeInvestorTakeaways({
+    metadata,
+    incomeStatement,
+    balanceSheet,
+    coverageEfficiency,
+    trends,
+    investorTakeawayOptions: input.publicationContent?.investorTakeawayOptions,
+    investorTakeawaySelections: input.publicationContent?.investorTakeawaySelections,
+  });
+
+  return {
+    header: buildProspectusHeader(),
+    metadata,
+    financialSource,
+    incomeStatement,
+    balanceSheet,
+    coverageEfficiency,
+    trends,
+    investorTakeaways,
+    meta: {
+      noteId: input.noteId,
+      financialMode: input.financialMode,
+      isPublished: input.isPublished,
+    },
+  };
+}
+
+export async function mapProspectusPageThreeFromNote(
+  data: ProspectusPageThreeLoadedData
+): Promise<ProspectusPageThree> {
+  return buildProspectusPageThree(mapProspectusPageThreeDataToInput(data));
+}

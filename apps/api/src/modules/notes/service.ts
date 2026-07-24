@@ -13,6 +13,7 @@ import {
   NoteSettlementType,
   ServiceFeeTrusteeInstructionStatus,
   NoteStatus,
+  ProspectusReviewStatus,
   InvestorBalanceTransactionSource,
   Prisma,
   UserRole,
@@ -90,6 +91,10 @@ import {
   notifyNoteSettlementPosted,
   resolveNoteNotificationTitle,
 } from "../notification/note-lifecycle-notifications";
+import {
+  buildNoteIssuerSnapshot,
+  resolveIssuerIndustryFromCorporateData,
+} from "./note-issuer-snapshot";
 import { noteInclude, noteRepository } from "./repository";
 import {
   buildSettlementAllocations,
@@ -155,9 +160,9 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function resolveProductCategoryFromWorkflow(
+function findFinancingTypeWorkflowStep(
   workflow: Prisma.JsonValue | null | undefined
-): string | null {
+): Record<string, unknown> | null {
   if (!Array.isArray(workflow)) return null;
   const financingTypeStep = workflow.find((step) => {
     if (!step || typeof step !== "object" || Array.isArray(step)) return false;
@@ -172,19 +177,43 @@ function resolveProductCategoryFromWorkflow(
   ) {
     return null;
   }
-  const financingConfig = asRecord((financingTypeStep as Record<string, unknown>).config);
+  return financingTypeStep as Record<string, unknown>;
+}
+
+function resolveProductCategoryFromWorkflow(
+  workflow: Prisma.JsonValue | null | undefined
+): string | null {
+  const financingTypeStep = findFinancingTypeWorkflowStep(workflow);
+  if (!financingTypeStep) return null;
+  const financingConfig = asRecord(financingTypeStep.config);
   const category = financingConfig?.category;
   if (typeof category === "string" && category.trim().length > 0) return category.trim();
   return null;
 }
 
-function resolveIssuerIndustryFromCorporateData(
-  data: Prisma.JsonValue | null | undefined
+/** Financing-type step config.description — frozen into product_snapshot.description. */
+function resolveProductDescriptionFromWorkflow(
+  workflow: Prisma.JsonValue | null | undefined
 ): string | null {
-  const corporateData = asRecord(data);
-  const basicInfo = asRecord(corporateData?.basicInfo);
-  const industry = basicInfo?.industry;
-  if (typeof industry === "string" && industry.trim().length > 0) return industry.trim();
+  const financingTypeStep = findFinancingTypeWorkflowStep(workflow);
+  if (!financingTypeStep) return null;
+  const financingConfig = asRecord(financingTypeStep.config);
+  const description = financingConfig?.description;
+  if (typeof description === "string" && description.trim().length > 0) {
+    return description.trim();
+  }
+  return null;
+}
+
+function resolvePurposeOfFinancingFromBusinessDetails(
+  businessDetails: Prisma.JsonValue | null | undefined
+): string | null {
+  const details = asRecord(businessDetails);
+  const whyRaising = asRecord(details?.why_raising_funds);
+  const financingFor = whyRaising?.financing_for;
+  if (typeof financingFor === "string" && financingFor.trim().length > 0) {
+    return financingFor.trim();
+  }
   return null;
 }
 
@@ -2002,10 +2031,13 @@ export class NoteService {
       issuer_organization_id: string;
       contract_id: string | null;
       financing_type: Prisma.JsonValue | null;
+      business_details: Prisma.JsonValue | null;
       issuer_organization: {
         id: string;
         name: string | null;
         type: string;
+        registration_number?: string | null;
+        country?: string | null;
         corporate_onboarding_data: Prisma.JsonValue | null;
       };
     };
@@ -2054,9 +2086,14 @@ export class NoteService {
       financingType.product_name.trim().length > 0
         ? financingType.product_name.trim()
         : null);
-    const issuerIndustry = resolveIssuerIndustryFromCorporateData(
-      application.issuer_organization.corporate_onboarding_data
+    const productDescription = resolveProductDescriptionFromWorkflow(product?.workflow);
+    const purposeOfFinancing = resolvePurposeOfFinancingFromBusinessDetails(
+      application.business_details
     );
+    const issuerSnapshot = buildNoteIssuerSnapshot({
+      organization: application.issuer_organization,
+      businessDetails: application.business_details,
+    });
     const invoiceFaceValue = resolveRequestedInvoiceAmount(invoiceDetails);
     const targetAmount =
       resolveOfferedAmount(invoiceOffer) ||
@@ -2087,19 +2124,18 @@ export class NoteService {
               params.title ??
               `Note for invoice ${invoiceNumber} - ${application.issuer_organization.name ?? application.issuer_organization.id}`,
             note_reference: reference,
-            issuer_snapshot: {
-              id: application.issuer_organization.id,
-              name: application.issuer_organization.name,
-              type: application.issuer_organization.type,
-              industry: issuerIndustry,
-            },
+            issuer_snapshot: { ...issuerSnapshot },
             paymaster_snapshot: json(sourceContract?.customer_details),
             product_snapshot: json({
               ...(financingType ?? {}),
               product_id: productId,
               category: productCategory,
               ...(productDisplayName ? { product_name: productDisplayName } : {}),
+              ...(productDescription ? { description: productDescription } : {}),
             }),
+            purpose_snapshot: purposeOfFinancing
+              ? json({ financing_for: purposeOfFinancing })
+              : undefined,
             contract_snapshot: json(
               sourceContract
                 ? {
@@ -2382,6 +2418,17 @@ export class NoteService {
     }
 
     const closesAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    const { prospectusReviewService } = await import(
+      "./prospectus-review/prospectus-review.service"
+    );
+    // Exact approved freeze only — no Page 1/2/3 rebuild at publish.
+    const { snapshot: approvedSnapshot, publicationId, reviewId } =
+      await prospectusReviewService.getApprovedSnapshotForPublish(id);
+    const prospectusSnapshot = structuredClone(approvedSnapshot) as unknown as Record<
+      string,
+      unknown
+    >;
+
     const updated = await prisma.$transaction(async (tx) => {
       const stateUpdate = await tx.note.updateMany({
         where: {
@@ -2401,6 +2448,7 @@ export class NoteService {
           listing_status: NoteListingStatus.PUBLISHED,
           funding_status: NoteFundingStatus.OPEN,
           published_at: now,
+          prospectus_snapshot: prospectusSnapshot as unknown as Prisma.InputJsonValue,
         },
       });
       if (stateUpdate.count !== 1) {
@@ -2410,6 +2458,40 @@ export class NoteService {
           "Only draft or unpublished notes can be published"
         );
       }
+
+      const reviewUpdate = await tx.noteProspectusReview.updateMany({
+        where: {
+          id: reviewId,
+          note_id: id,
+          status: ProspectusReviewStatus.APPROVED,
+          approved_publication_id: publicationId,
+        },
+        data: { status: ProspectusReviewStatus.PUBLISHED },
+      });
+      if (reviewUpdate.count !== 1) {
+        throw new AppError(
+          409,
+          "PROSPECTUS_REVIEW_REQUIRED",
+          "Approve the Prospectus before publishing this Note."
+        );
+      }
+
+      const publicationUpdate = await tx.noteProspectusPublication.updateMany({
+        where: {
+          id: publicationId,
+          note_id: id,
+          published_at: null,
+        },
+        data: { published_at: now },
+      });
+      if (publicationUpdate.count !== 1) {
+        throw new AppError(
+          409,
+          "PROSPECTUS_REVIEW_REQUIRED",
+          "Approve the Prospectus before publishing this Note."
+        );
+      }
+
       const result = await tx.note.update({
         where: { id },
         data: {
@@ -2513,6 +2595,14 @@ export class NoteService {
       );
     }
 
+    if (input.prospectusAcknowledged !== true) {
+      throw new AppError(
+        422,
+        "PROSPECTUS_ACK_REQUIRED",
+        "Confirm that you have reviewed the Prospectus, Product Terms, and Risk Disclosure Statement."
+      );
+    }
+
     const note = await prisma.note.findUnique({
       where: { id: noteId },
       select: {
@@ -2520,12 +2610,55 @@ export class NoteService {
         funding_status: true,
         target_amount: true,
         funded_amount: true,
+        prospectus_review: {
+          select: {
+            status: true,
+            approved_publication_id: true,
+            content_version: true,
+          },
+        },
       },
     });
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
     if (note.status !== NoteStatus.PUBLISHED || note.funding_status !== NoteFundingStatus.OPEN) {
       throw new AppError(409, "NOTE_NOT_OPEN", "Note is not open for investment");
     }
+
+    const publication = await prisma.noteProspectusPublication.findFirst({
+      where: {
+        note_id: noteId,
+        published_at: { not: null },
+        id: note.prospectus_review?.approved_publication_id ?? undefined,
+      },
+      orderBy: { published_at: "desc" },
+    });
+    if (!publication) {
+      throw new AppError(
+        409,
+        "PROSPECTUS_NOT_PUBLISHED",
+        "Published Prospectus is not available for this Note."
+      );
+    }
+
+    const [productTerms, riskDisclosure] = await Promise.all([
+      prisma.siteDocument.findFirst({
+        where: { type: "PRODUCT_TERMS", is_active: true },
+        orderBy: { version: "desc" },
+        select: { id: true, version: true },
+      }),
+      prisma.siteDocument.findFirst({
+        where: { type: "RISK_DISCLOSURE", is_active: true },
+        orderBy: { version: "desc" },
+        select: { id: true, version: true },
+      }),
+    ]);
+    const productTermsRef = productTerms
+      ? `${productTerms.id}:v${productTerms.version}`
+      : "PRODUCT_TERMS:unavailable";
+    const riskDisclosureRef = riskDisclosure
+      ? `${riskDisclosure.id}:v${riskDisclosure.version}`
+      : "RISK_DISCLOSURE:unavailable";
+    const ackAt = new Date();
 
     const target = normalizeNoteCapacityAmount(toNumber(note.target_amount));
     const funded = normalizeNoteCapacityAmount(toNumber(note.funded_amount));
@@ -2603,6 +2736,11 @@ export class NoteService {
           investor_user_id: actor.userId,
           amount: investmentAmount,
           allocation_percent: money(target > 0 ? (input.amount / target) * 100 : 0),
+          prospectus_publication_id: publication.id,
+          prospectus_content_version: publication.content_version,
+          prospectus_acknowledged_at: ackAt,
+          product_terms_ref: productTermsRef,
+          risk_disclosure_ref: riskDisclosureRef,
         },
       });
       await debitInvestorBalanceForCommit(tx, {
@@ -2615,6 +2753,10 @@ export class NoteService {
       await this.logEvent(tx, noteId, "INVESTMENT_COMMITTED", actor, {
         investorOrganizationId: input.investorOrganizationId,
         amount: input.amount,
+        prospectusPublicationId: publication.id,
+        prospectusAcknowledgedAt: ackAt.toISOString(),
+        productTermsRef,
+        riskDisclosureRef,
       });
       return tx.note.findUniqueOrThrow({ where: { id: noteId }, include: noteInclude });
     });
@@ -3039,10 +3181,15 @@ export class NoteService {
       include: noteInclude,
       orderBy: { updated_at: "desc" },
     });
-    const enrichedNotes = notes.map((note) => ({
-      ...mapNoteListItem(note),
-      investorRepaymentSummary: buildInvestorRepaymentSummary(note, orgIdSet),
-    }));
+    const enrichedNotes = notes.map((note) => {
+      const primaryInvestment =
+        note.investments.find((inv) => orgIdSet.has(inv.investor_organization_id)) ?? null;
+      return {
+        ...mapNoteListItem(note),
+        investorRepaymentSummary: buildInvestorRepaymentSummary(note, orgIdSet),
+        investorInvestmentId: primaryInvestment?.id ?? null,
+      };
+    });
     return {
       notes: enrichedNotes,
       pagination: { page: 1, pageSize: notes.length || 1, totalCount: notes.length, totalPages: 1 },
@@ -5520,22 +5667,25 @@ export class NoteService {
     noteId: string,
     actionType: string,
     actor: ActorContext,
-    beforeState?: Prisma.InputJsonValue,
-    afterState?: Prisma.InputJsonValue
+    beforeState?: unknown,
+    afterState?: unknown
   ) {
     await tx.noteAdminAction.create({
       data: {
         note_id: noteId,
         action_type: actionType,
         actor_user_id: actor.userId,
-        before_state: beforeState,
-        after_state: afterState,
+        before_state: beforeState as Prisma.InputJsonValue | undefined,
+        after_state: afterState as Prisma.InputJsonValue | undefined,
         ip_address: actor.ipAddress,
         user_agent: actor.userAgent,
         correlation_id: actor.correlationId,
       },
     });
-    await this.logEvent(tx, noteId, actionType, actor, { beforeState, afterState });
+    await this.logEvent(tx, noteId, actionType, actor, {
+      beforeState,
+      afterState,
+    } as Prisma.InputJsonValue);
   }
 
   private async getLedgerAccountId(tx: Prisma.TransactionClient, code: string) {

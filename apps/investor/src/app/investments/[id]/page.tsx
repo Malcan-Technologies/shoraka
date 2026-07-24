@@ -19,7 +19,10 @@ import {
   useInvestorBalanceActivity,
   useInvestorInvestments,
   useMarketplaceNote,
+  useOpenInvestmentProspectus,
+  useOpenMarketplaceProspectus,
 } from "@/investments/hooks/use-marketplace-notes";
+import { toast } from "sonner";
 
 function formatEnumLabel(value: string) {
   return value
@@ -140,6 +143,8 @@ export default function InvestmentDetailPage() {
   const { activeOrganization } = useOrganization();
   const orgId = activeOrganization?.id;
   const investmentsQuery = useInvestorInvestments(orgId);
+  const openInvestmentProspectus = useOpenInvestmentProspectus();
+  const openMarketplaceProspectus = useOpenMarketplaceProspectus();
 
   const investedNote = React.useMemo(
     () => investmentsQuery.data?.notes.find((entry) => entry.id === noteId) ?? null,
@@ -225,6 +230,24 @@ export default function InvestmentDetailPage() {
                   : "Back to marketplace"}
             </Link>
           </Button>
+          {note ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 rounded-lg text-xs"
+              onClick={() => {
+                const investmentId = investedNote?.investorInvestmentId;
+                const open = investmentId
+                  ? () => openInvestmentProspectus(investmentId)
+                  : () => openMarketplaceProspectus(note.id);
+                void open().catch((err) =>
+                  toast.error(err instanceof Error ? err.message : "Prospectus unavailable")
+                );
+              }}
+            >
+              View Prospectus
+            </Button>
+          ) : null}
         </div>
 
         {positionLoading ? (

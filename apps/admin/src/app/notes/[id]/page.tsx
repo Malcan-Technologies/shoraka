@@ -40,6 +40,7 @@ import {
   NoteLifecycleCard,
   type NoteLifecycleAction,
 } from "@/notes/components/note-lifecycle-card";
+import { NoteProspectusStatusCard } from "@/notes/components/note-prospectus-status-card";
 import { NoteInvestorsPanel } from "@/notes/components/note-investors-panel";
 import { NoteStatusBadge } from "@cashsouk/ui";
 import { NoteTermsPanel } from "@/notes/components/note-terms-panel";
@@ -389,6 +390,14 @@ export default function NoteDetailPage() {
                 pending={lifecyclePending}
                 onRequestAction={(action) => setPendingAction(action)}
                 canManage={canManage}
+              />
+
+              <NoteProspectusStatusCard
+                note={note}
+                canManage={canManage}
+                publishPending={publishNote.isPending}
+                onReviewProspectus={() => router.push(`/notes/${note.id}/prospectus`)}
+                onPublishNote={() => setPendingAction("publish")}
               />
 
               <div className="space-y-6">

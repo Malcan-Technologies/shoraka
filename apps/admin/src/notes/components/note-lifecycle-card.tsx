@@ -298,10 +298,13 @@ interface ActionConfig {
 
 function buildActionPlan(note: NoteDetail) {
   const publishableListingStatuses = ["NOT_LISTED", "DRAFT", "UNPUBLISHED"];
-  const canPublish =
+  const prospectusApproved =
+    note.prospectus?.status === "APPROVED" || note.prospectus?.status === "PUBLISHED";
+  const baseCanPublish =
     note.status === "DRAFT" &&
     note.fundingStatus === "NOT_OPEN" &&
     publishableListingStatuses.includes(note.listingStatus);
+  const canPublish = baseCanPublish && prospectusApproved;
   const isFundingOpen = note.status === "PUBLISHED" && note.fundingStatus === "OPEN";
   const meetsMinimumFunding = note.fundingPercent + 0.005 >= note.minimumFundingPercent;
   const canUnpublish =
@@ -316,13 +319,14 @@ function buildActionPlan(note: NoteDetail) {
   const secondary: ActionConfig[] = [];
   let contextHelper: string | null = null;
 
+  // Draft prospectus: next action lives on NoteProspectusStatusCard (not here).
   if (canPublish) {
     primary = {
       key: "publish",
       label: "Publish to Marketplace",
       icon: GlobeAltIcon,
       variant: "default",
-      helper: "Confirm source data, terms, and risk disclosure before publishing.",
+      helper: "Prospectus approved. Publish when you are ready to list this Note.",
     };
   } else if (canCloseFunding) {
     primary = {

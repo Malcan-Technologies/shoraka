@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDownTrayIcon, BuildingOffice2Icon, DocumentTextIcon, EllipsisVerticalIcon } from "@heroicons/react/24/outline";
+import { BuildingOffice2Icon, DocumentTextIcon, EllipsisVerticalIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { formatInvestorReturnRatePercent, formatNoteReferenceDisplay } from "@cashsouk/types";
 import { SoukscoreRiskRatingBadge } from "@cashsouk/ui";
@@ -35,13 +35,14 @@ export type MarketplaceNote = {
 type NoteCardProps = {
   note: MarketplaceNote;
   onInvest: (note: MarketplaceNote) => void;
+  onViewProspectus?: (note: MarketplaceNote) => void;
 };
 
 function textOrDash(value?: string | null) {
   return value && value.trim().length > 0 ? value : "-";
 }
 
-export function NoteCard({ note, onInvest }: NoteCardProps) {
+export function NoteCard({ note, onInvest, onViewProspectus }: NoteCardProps) {
   const progressDenominator = note.goalAmount > 0 ? note.goalAmount : 0;
   const fundingProgress =
     progressDenominator > 0
@@ -149,9 +150,10 @@ export function NoteCard({ note, onInvest }: NoteCardProps) {
             <Button
               variant="ghost"
               className="h-7 w-full gap-1 text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+              onClick={() => onViewProspectus?.(note)}
             >
-              <ArrowDownTrayIcon className="h-3.5 w-3.5" />
-              Download info sheet
+              <DocumentTextIcon className="h-3.5 w-3.5" />
+              View Prospectus
             </Button>
           </div>
         </div>

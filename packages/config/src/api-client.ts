@@ -127,6 +127,10 @@ import type {
   SettlementPreviewInput,
   UpdateNoteFeaturedInput,
   UpdateNoteDraftInput,
+  ProspectusReviewGetResponse,
+  ProspectusReviewDetail,
+  ProspectusReviewPreviewResponse,
+  SaveProspectusReviewDraftInput,
   WithdrawalInstruction,
   ShorakaWithdrawalState,
   ShorakaSubmitOrderStateResponse,
@@ -631,6 +635,76 @@ export class ApiClient {
 
   async publishAdminNote(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.post<NoteDetail>(`/v1/admin/notes/${id}/publish`, {});
+  }
+
+  async getAdminProspectusReview(
+    id: string
+  ): Promise<ApiResponse<ProspectusReviewGetResponse> | ApiError> {
+    return this.get<ProspectusReviewGetResponse>(`/v1/admin/notes/${id}/prospectus-review`);
+  }
+
+  async saveAdminProspectusReviewDraft(
+    id: string,
+    data: SaveProspectusReviewDraftInput
+  ): Promise<ApiResponse<ProspectusReviewDetail> | ApiError> {
+    return this.put<ProspectusReviewDetail>(`/v1/admin/notes/${id}/prospectus-review`, data);
+  }
+
+  async approveAdminProspectusReview(
+    id: string,
+    data?: SaveProspectusReviewDraftInput
+  ): Promise<ApiResponse<ProspectusReviewDetail> | ApiError> {
+    return this.post<ProspectusReviewDetail>(
+      `/v1/admin/notes/${id}/prospectus-review/approve`,
+      data ?? {}
+    );
+  }
+
+  async getMarketplaceNoteProspectus(
+    noteId: string
+  ): Promise<
+    | ApiResponse<{
+        publicationId: string;
+        contentVersion: number;
+        html: { page1: string; page2: string; page3: string };
+        documentHtml: string;
+      }>
+    | ApiError
+  > {
+    return this.get(`/v1/marketplace/notes/${noteId}/prospectus`);
+  }
+
+  async getInvestorInvestmentProspectus(
+    investmentId: string
+  ): Promise<
+    | ApiResponse<{
+        noteId: string;
+        publicationId: string;
+        contentVersion: number;
+        html: { page1: string; page2: string; page3: string };
+        documentHtml: string;
+      }>
+    | ApiError
+  > {
+    return this.get(`/v1/investor/investments/${investmentId}/prospectus`);
+  }
+
+  async getAdminProspectusReviewPreview(
+    id: string
+  ): Promise<ApiResponse<ProspectusReviewPreviewResponse> | ApiError> {
+    return this.get<ProspectusReviewPreviewResponse>(
+      `/v1/admin/notes/${id}/prospectus-review/preview`
+    );
+  }
+
+  async postAdminProspectusReviewPreview(
+    id: string,
+    data: SaveProspectusReviewDraftInput
+  ): Promise<ApiResponse<ProspectusReviewPreviewResponse> | ApiError> {
+    return this.post<ProspectusReviewPreviewResponse>(
+      `/v1/admin/notes/${id}/prospectus-review/preview`,
+      data
+    );
   }
 
   async unpublishAdminNote(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {

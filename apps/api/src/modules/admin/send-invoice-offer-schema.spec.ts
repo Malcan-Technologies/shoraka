@@ -18,11 +18,11 @@ describe("sendInvoiceOfferSchema", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("passes with risk_rating AAA", () => {
-    const parsed = sendInvoiceOfferSchema.safeParse({ ...base, risk_rating: "AAA" });
+  it("passes with risk_rating A", () => {
+    const parsed = sendInvoiceOfferSchema.safeParse({ ...base, risk_rating: "A" });
     expect(parsed.success).toBe(true);
     if (parsed.success) {
-      expect(parsed.data.risk_rating).toBe("AAA");
+      expect(parsed.data.risk_rating).toBe("A");
     }
   });
 
@@ -37,7 +37,7 @@ describe("sendInvoiceOfferSchema", () => {
   it("allows platformFeeRatePercent above the default cap for service-level validation", () => {
     const parsed = sendInvoiceOfferSchema.safeParse({
       ...base,
-      risk_rating: "AAA",
+      risk_rating: "A",
       platformFeeRatePercent: 3.01,
     });
     expect(parsed.success).toBe(true);
@@ -46,7 +46,7 @@ describe("sendInvoiceOfferSchema", () => {
   it("passes with platformFeeRatePercent at cap", () => {
     const parsed = sendInvoiceOfferSchema.safeParse({
       ...base,
-      risk_rating: "AAA",
+      risk_rating: "A",
       platformFeeRatePercent: 3,
     });
     expect(parsed.success).toBe(true);

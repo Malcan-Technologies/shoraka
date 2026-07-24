@@ -3,6 +3,12 @@ import {
   computeTurnoverGrowth,
   computeProfitMargin,
   computeTotalAssets,
+  computeTotalLiabilities,
+  resolveApplicationFinancialCurrentRatio,
+  resolveApplicationFinancialProfitMarginRatio,
+  resolveApplicationFinancialReturnOnEquityRatio,
+  resolveApplicationFinancialTotalAssets,
+  resolveApplicationFinancialTotalLiabilities,
 } from "@cashsouk/types";
 
 describe("computeTurnoverGrowth", () => {
@@ -59,11 +65,195 @@ describe("computeTotalAssets", () => {
       })
     ).toBe(999);
   });
+
+  it("zero-defaults missing components for Application compatibility", () => {
+    expect(
+      computeTotalAssets({
+        total_assets: null,
+        fixed_assets: null,
+        other_assets: null,
+        current_assets: 100,
+        non_current_assets: null,
+      })
+    ).toBe(100);
+  });
+});
+
+describe("resolveApplicationFinancialTotalAssets", () => {
+  it("prefers flat totass when present", () => {
+    expect(
+      resolveApplicationFinancialTotalAssets({
+        totass: 10_000_000,
+        bsfatot: 1,
+        othass: 1,
+        bscatot: 1,
+        bsclbank: 1,
+      })
+    ).toBe(10_000_000);
+  });
+
+  it("falls back to component sum with zero-default", () => {
+    expect(
+      resolveApplicationFinancialTotalAssets({
+        totass: null,
+        bsfatot: 1_500_000,
+        othass: null,
+        bscatot: 4_700_000,
+        bsclbank: null,
+      })
+    ).toBe(6_200_000);
+  });
+
+  it("returns 0 when all components and flat total are missing", () => {
+    expect(
+      resolveApplicationFinancialTotalAssets({
+        totass: null,
+        bsfatot: null,
+        othass: null,
+        bscatot: null,
+        bsclbank: null,
+      })
+    ).toBe(0);
+  });
+
+  it("keeps legitimate zero components", () => {
+    expect(
+      resolveApplicationFinancialTotalAssets({
+        totass: null,
+        bsfatot: 1_500_000,
+        othass: 0,
+        bscatot: 4_000_000,
+        bsclbank: 900_000,
+      })
+    ).toBe(6_400_000);
+  });
+});
+
+describe("resolveApplicationFinancialTotalLiabilities", () => {
+  it("prefers flat totlib when present", () => {
+    expect(
+      resolveApplicationFinancialTotalLiabilities({
+        totlib: 9_000_000,
+        curlib: 1,
+        bsslltd: 1,
+        bsclstd: 1,
+      })
+    ).toBe(9_000_000);
+  });
+
+  it("falls back to component sum with zero-default", () => {
+    expect(
+      resolveApplicationFinancialTotalLiabilities({
+        totlib: null,
+        curlib: 2_900_000,
+        bsslltd: null,
+        bsclstd: null,
+      })
+    ).toBe(2_900_000);
+  });
+
+  it("matches computeTotalLiabilities zero-default helper", () => {
+    expect(
+      computeTotalLiabilities({
+        total_liabilities: null,
+        current_liabilities: 2_900_000,
+        long_term_liabilities: null,
+        non_current_liabilities: null,
+      })
+    ).toBe(2_900_000);
+  });
 });
 
 describe("computeNetWorth", () => {
   it("is total assets minus total liabilities", () => {
     expect(computeNetWorth(100, 40)).toBe(60);
     expect(computeNetWorth(100, 100)).toBe(0);
+  });
+});
+
+describe("resolveApplicationFinancialProfitMarginRatio", () => {
+  it("prefers CTOS flat percent points and converts to ratio", () => {
+    expect(
+      resolveApplicationFinancialProfitMarginRatio({
+        profit_margin: 12.6,
+        plnpat: 1,
+        turnover: 100,
+      })
+    ).toBeCloseTo(0.126);
+  });
+
+  it("recomputes with missing→0 when flat absent", () => {
+    expect(
+      resolveApplicationFinancialProfitMarginRatio({
+        profit_margin: null,
+        plnpat: null,
+        turnover: 200,
+      })
+    ).toBe(0);
+    expect(
+      resolveApplicationFinancialProfitMarginRatio({
+        profit_margin: null,
+        plnpat: 50,
+        turnover: 0,
+      })
+    ).toBeNull();
+  });
+});
+
+describe("resolveApplicationFinancialReturnOnEquityRatio", () => {
+  it("prefers CTOS flat percent points and converts to ratio", () => {
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: 8.5,
+        plnpat: 1,
+        bsqpuc: 100,
+      })
+    ).toBeCloseTo(0.085);
+  });
+
+  it("recomputes with missing→0 when flat absent", () => {
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: null,
+        bsqpuc: 2_000_000,
+      })
+    ).toBe(0);
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 100,
+        bsqpuc: 0,
+      })
+    ).toBeNull();
+  });
+});
+
+describe("resolveApplicationFinancialCurrentRatio", () => {
+  it("prefers CTOS flat currat when present", () => {
+    expect(
+      resolveApplicationFinancialCurrentRatio({
+        currat: 1.32,
+        bscatot: 1,
+        curlib: 1,
+      })
+    ).toBe(1.32);
+  });
+
+  it("recomputes with missing→0 when flat absent", () => {
+    expect(
+      resolveApplicationFinancialCurrentRatio({
+        currat: null,
+        bscatot: 200,
+        curlib: 100,
+      })
+    ).toBe(2);
+    expect(
+      resolveApplicationFinancialCurrentRatio({
+        currat: null,
+        bscatot: 100,
+        curlib: 0,
+      })
+    ).toBeNull();
   });
 });
