@@ -22,6 +22,7 @@ const STATUS_OPTIONS = [
   { value: "CONTRACT_ACCEPTED", label: "Contract Accepted" },
   { value: "INVOICE_PENDING", label: "Invoice Pending" },
   { value: "INVOICES_SENT", label: "Invoices Sent" },
+  { value: "OFFER_EXPIRED", label: "Offer Expired" },
   { value: "AMENDMENT_REQUESTED", label: "Amendment Requested" },
   { value: "RESUBMITTED", label: "Resubmitted" },
   { value: "APPROVED", label: "Approved" },

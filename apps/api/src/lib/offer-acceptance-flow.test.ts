@@ -147,7 +147,10 @@ describe("buildAcknowledgedTermsSnapshot", () => {
           version: 2,
           offered_facility: 500000,
           facility_fee_rate_percent: 1.5,
-          expires_at: "2026-08-01T00:00:00.000Z",
+          offer_acceptance: {
+            status: "PENDING_ISSUER",
+            acceptance_expires_at: "2026-08-01T00:00:00.000Z",
+          },
         },
         productVersion: 3,
       })

@@ -41,7 +41,6 @@ describe("ProductRepository.create PRODUCT_CREATED logging", () => {
         workflow: data.workflow,
         category_display_order: data.category_display_order,
         product_display_order: data.product_display_order,
-        offer_expiry_days: data.offer_expiry_days ?? null,
         status: "ACTIVE",
         base_id: null,
         created_at,
@@ -66,7 +65,7 @@ describe("ProductRepository.create PRODUCT_CREATED logging", () => {
     ];
 
     await repo.create(
-      { workflow, offer_expiry_days: 14 },
+      { workflow },
       {
         userId: "admin_user_1",
         ipAddress: "203.0.113.10",
@@ -86,7 +85,6 @@ describe("ProductRepository.create PRODUCT_CREATED logging", () => {
     expect(meta.workflow).toEqual(workflow);
     expect(meta.category_display_order).toBe(2); // global max (1) + 1 due to MIN(null) fallback
     expect(meta.product_display_order).toBe(6); // (max 5) + 1
-    expect(meta.offer_expiry_days).toBe(14);
     expect(meta.version).toBe(1);
     expect(meta.base_id).toBe("prod_new_1");
     expect(meta.status).toBe("ACTIVE");

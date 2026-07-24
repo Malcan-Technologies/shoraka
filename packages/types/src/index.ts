@@ -176,6 +176,7 @@ export enum ApplicationStatus {
   CONTRACT_ACCEPTED = "CONTRACT_ACCEPTED",
   INVOICE_PENDING = "INVOICE_PENDING",
   INVOICES_SENT = "INVOICES_SENT",
+  OFFER_EXPIRED = "OFFER_EXPIRED",
   AMENDMENT_REQUESTED = "AMENDMENT_REQUESTED",
   RESUBMITTED = "RESUBMITTED",
   APPROVED = "APPROVED",
@@ -187,14 +188,11 @@ export enum ApplicationStatus {
 
 export enum WithdrawReason {
   USER_CANCELLED = "USER_CANCELLED",
-  OFFER_EXPIRED = "OFFER_EXPIRED",
   OFFER_REJECTED = "OFFER_REJECTED",
 }
 
 export function formatWithdrawLabel(reason?: WithdrawReason): string {
   switch (reason) {
-    case WithdrawReason.OFFER_EXPIRED:
-      return "Withdrawn (Offer expired)";
     case WithdrawReason.USER_CANCELLED:
       return "Withdrawn (User cancelled)";
     case WithdrawReason.OFFER_REJECTED:
@@ -207,6 +205,7 @@ export function formatWithdrawLabel(reason?: WithdrawReason): string {
 export type ReviewStepStatus =
   | "PENDING"
   | "OFFER_SENT"
+  | "OFFER_EXPIRED"
   | "APPROVED"
   | "REJECTED"
   | "AMENDMENT_REQUESTED"
@@ -275,7 +274,6 @@ export interface Product {
   version: number;
   status?: string;
   workflow: JsonValue[];
-  offer_expiry_days?: number | null;
   marketplace_listing_duration_days?: number | null;
   service_fee_rate_percent?: number | null;
   default_facility_fee_rate_percent?: number | null;
@@ -297,6 +295,7 @@ export enum ContractStatus {
   DRAFT = "DRAFT",
   SUBMITTED = "SUBMITTED",
   OFFER_SENT = "OFFER_SENT",
+  OFFER_EXPIRED = "OFFER_EXPIRED",
   APPROVED = "APPROVED",
   REJECTED = "REJECTED",
   AMENDMENT_REQUESTED = "AMENDMENT_REQUESTED",
@@ -307,6 +306,7 @@ export enum InvoiceStatus {
   DRAFT = "DRAFT",
   SUBMITTED = "SUBMITTED",
   OFFER_SENT = "OFFER_SENT",
+  OFFER_EXPIRED = "OFFER_EXPIRED",
   APPROVED = "APPROVED",
   REJECTED = "REJECTED",
   AMENDMENT_REQUESTED = "AMENDMENT_REQUESTED",
@@ -362,7 +362,6 @@ export interface Contract {
 export interface ContractOfferDetails {
   requested_facility: number;
   offered_facility: number;
-  expires_at: string | null;
   sent_at: string | null;
   responded_at: string | null;
   sent_by_user_id: string | null;
@@ -406,7 +405,6 @@ export interface InvoiceOfferDetails {
   platform_fee_rate_percent?: number | null;
   /** Manual SoukScore placeholder (v1: A | B | C). Present on offers sent after this feature. */
   risk_rating?: import("./invoice-offer-risk-rating").SoukscoreRiskRating | null;
-  expires_at: string | null;
   sent_at: string | null;
   responded_at: string | null;
   sent_by_user_id: string | null;
@@ -416,6 +414,7 @@ export interface InvoiceOfferDetails {
   offer_acceptance?: import("./offer-acceptance").OfferAcceptanceDetails;
 }
 
+export * from "./deadline-config";
 export * from "./invoice-offer-risk-rating";
 export * from "./activity-config";
 export * from "./admin";
@@ -446,6 +445,7 @@ export * from "./marketplace-note-dates";
 export * from "./signing-envelopes";
 export * from "./acceptance-documents";
 export * from "./offer-acceptance";
+export * from "./offer-phase-deadline-display";
 export * from "./guarantors";
 export * from "./company-name-normalization";
 export * from "./gateway-payments";

@@ -12,6 +12,7 @@ import { Progress } from "@cashsouk/ui";
 import {
   getOfferAcceptanceFromOfferDetails,
   getOfferAcceptanceStatusPresentation,
+  getOfferPhaseDeadlineDisplay,
   resolveOfferAcknowledgementsFromWorkflow,
   type ApplicationPersonRow,
   type OfferAcceptanceStatus,
@@ -188,6 +189,7 @@ function OfferAcceptanceBlock({
   const totalCount = rows.length;
   const percent =
     totalCount > 0 ? Math.round((acknowledgedCount / totalCount) * 100) : 0;
+  const deadlineDisplay = getOfferPhaseDeadlineDisplay(offerDetails);
 
   return (
     <div className="space-y-4 rounded-lg border border-border p-4">
@@ -200,6 +202,22 @@ function OfferAcceptanceBlock({
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">{presentation.hint}</p>
+          {deadlineDisplay &&
+          (acceptance.status === "PENDING_ISSUER" ||
+            acceptance.status === "CHANGES_REQUESTED") ? (
+            <p
+              className={cn(
+                "text-sm",
+                deadlineDisplay.urgency === "past"
+                  ? "font-medium text-destructive"
+                  : deadlineDisplay.urgency === "soon"
+                    ? "font-medium text-amber-800"
+                    : "text-muted-foreground"
+              )}
+            >
+              {deadlineDisplay.summary}
+            </p>
+          ) : null}
 
           {totalCount > 0 ? (
             <>

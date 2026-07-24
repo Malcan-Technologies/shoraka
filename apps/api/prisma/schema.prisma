@@ -1524,7 +1524,6 @@ model Product {
   workflow                          Json
   category_display_order            Int?
   product_display_order             Int?
-  offer_expiry_days                 Int?
   marketplace_listing_duration_days Int?
   // Default investor-side service fee rate (percent of investor profit) for notes under this product.
   service_fee_rate_percent          Decimal  @default(15) @db.Decimal(5, 2)
@@ -1692,6 +1691,7 @@ enum ReviewSection {
 enum ReviewStepStatus {
   PENDING
   OFFER_SENT
+  OFFER_EXPIRED
   APPROVED
   REJECTED
   AMENDMENT_REQUESTED
@@ -1938,6 +1938,7 @@ enum ApplicationStatus {
   CONTRACT_ACCEPTED
   INVOICE_PENDING
   INVOICES_SENT
+  OFFER_EXPIRED
   AMENDMENT_REQUESTED
   RESUBMITTED
   APPROVED
@@ -1951,6 +1952,7 @@ enum ContractStatus {
   DRAFT
   SUBMITTED
   OFFER_SENT
+  OFFER_EXPIRED
   APPROVED
   REJECTED
   AMENDMENT_REQUESTED
@@ -1961,6 +1963,7 @@ enum InvoiceStatus {
   DRAFT
   SUBMITTED
   OFFER_SENT
+  OFFER_EXPIRED
   APPROVED
   REJECTED
   AMENDMENT_REQUESTED
@@ -1969,7 +1972,6 @@ enum InvoiceStatus {
 
 enum WithdrawReason {
   USER_CANCELLED
-  OFFER_EXPIRED
   OFFER_REJECTED
 }
 

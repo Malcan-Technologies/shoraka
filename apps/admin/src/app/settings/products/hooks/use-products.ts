@@ -75,7 +75,6 @@ export function useCreateProduct() {
   return useMutation({
     mutationFn: async (data: {
       workflow: unknown[];
-      offer_expiry_days?: number | null;
       marketplace_listing_duration_days?: number | null;
       service_fee_rate_percent?: number | null;
       default_facility_fee_rate_percent?: number | null;
@@ -103,7 +102,6 @@ export function useUpdateProduct() {
       data: {
         workflow?: unknown[];
         completeCreate?: boolean;
-        offer_expiry_days?: number | null;
         marketplace_listing_duration_days?: number | null;
         service_fee_rate_percent?: number | null;
         default_facility_fee_rate_percent?: number | null;

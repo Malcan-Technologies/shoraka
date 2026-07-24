@@ -2172,7 +2172,7 @@ router.get(
  *         name: status
  *         schema:
  *           type: string
- *           enum: [DRAFT, SUBMITTED, OFFER_SENT, APPROVED, REJECTED, AMENDMENT_REQUESTED]
+ *           enum: [DRAFT, SUBMITTED, OFFER_SENT, OFFER_EXPIRED, APPROVED, REJECTED, AMENDMENT_REQUESTED, WITHDRAWN]
  *       - in: query
  *         name: statuses
  *         schema:
@@ -3087,6 +3087,31 @@ router.post(
 );
 
 router.post(
+  "/applications/:id/offers/contracts/extend-signing-deadline",
+  requirePermission("applications.contract.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = req.params;
+      const logCtx = extractRequestMetadata(req);
+      const result = await adminService.extendContractSigningDeadline(id, req.user.user_id, {
+        ipAddress: logCtx.ipAddress,
+        userAgent: logCtx.userAgent,
+        deviceInfo: logCtx.deviceInfo,
+      });
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
   "/applications/:id/offers/invoices/:invoiceId/send",
   requirePermission("applications.invoice.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
@@ -3105,6 +3130,36 @@ router.post(
         validated.risk_rating,
         req.user.user_id,
         { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/offers/invoices/:invoiceId/extend-signing-deadline",
+  requirePermission("applications.invoice.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id, invoiceId } = req.params;
+      const logCtx = extractRequestMetadata(req);
+      const result = await adminService.extendInvoiceSigningDeadline(
+        id,
+        invoiceId,
+        req.user.user_id,
+        {
+          ipAddress: logCtx.ipAddress,
+          userAgent: logCtx.userAgent,
+          deviceInfo: logCtx.deviceInfo,
+        }
       );
 
       res.json({

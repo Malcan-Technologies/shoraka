@@ -327,6 +327,39 @@ export function useSendContractOffer() {
   });
 }
 
+export function useExtendContractSigningDeadline() {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async ({ applicationId }: { applicationId: string }) => {
+      const response = await apiClient.extendContractSigningDeadline(applicationId);
+      if (!response.success) {
+        throw new Error(
+          (response as ApiError).error?.message ?? "Failed to extend signing deadline"
+        );
+      }
+      return response.data;
+    },
+    onSuccess: async (_, variables) => {
+      invalidateAdminApplicationNavQueries(queryClient);
+      invalidateAdminApplicationDetailQueries(queryClient, variables.applicationId, {
+        includeActionCount: true,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: applicationLogsKeys.list(variables.applicationId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: signingKeys.byApplication(variables.applicationId),
+      });
+      await queryClient.refetchQueries({
+        queryKey: applicationsKeys.detail(variables.applicationId),
+      });
+    },
+  });
+}
+
 export function usePatchContractCustomerLargePrivate() {
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
@@ -390,6 +423,45 @@ export function useSendInvoiceOffer() {
       });
       if (!response.success) {
         throw new Error((response as ApiError).error?.message ?? "Failed to send invoice offer");
+      }
+      return response.data;
+    },
+    onSuccess: async (_, variables) => {
+      invalidateAdminApplicationNavQueries(queryClient);
+      invalidateAdminApplicationDetailQueries(queryClient, variables.applicationId, {
+        includeActionCount: true,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: applicationLogsKeys.list(variables.applicationId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: signingKeys.byApplication(variables.applicationId),
+      });
+      await queryClient.refetchQueries({
+        queryKey: applicationsKeys.detail(variables.applicationId),
+      });
+    },
+  });
+}
+
+export function useExtendInvoiceSigningDeadline() {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async ({
+      applicationId,
+      invoiceId,
+    }: {
+      applicationId: string;
+      invoiceId: string;
+    }) => {
+      const response = await apiClient.extendInvoiceSigningDeadline(applicationId, invoiceId);
+      if (!response.success) {
+        throw new Error(
+          (response as ApiError).error?.message ?? "Failed to extend signing deadline"
+        );
       }
       return response.data;
     },

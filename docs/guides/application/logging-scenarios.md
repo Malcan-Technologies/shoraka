@@ -63,12 +63,16 @@ SYSTEM (Cron / automatic)
 
   Action                        Event Type              Where it shows
   ----------------------------- ----------------------- ------------------
-  Offer expired (cron job)      OFFER_EXPIRED           Activity timeline
+  Acceptance/signing clock expired (hourly job)
+                                CONTRACT_OFFER_EXPIRED /
+                                INVOICE_OFFER_EXPIRED    Activity timeline
+                                offer_expired            Issuer notification
+
+Expiry is durable (not terminal WITHDRAWN): entity → OFFER_EXPIRED, offer_details
+kept; admin Send Offer overwrites terms and returns to OFFER_SENT.
   Last offer accepted          APPLICATION_COMPLETED    Activity timeline
 
-When contract offer expires: CONTRACT_WITHDRAWN
-When invoice offer expires:  INVOICE_WITHDRAWN
-When all withdrawn by cron:  APPLICATION_WITHDRAWN
+See docs/guides/acceptance-signing-expiry-job.md.
 
 ================================================================================
 EVENT TYPE ENUM (ApplicationLogEventType)

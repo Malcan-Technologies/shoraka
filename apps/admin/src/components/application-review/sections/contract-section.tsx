@@ -26,6 +26,10 @@ import { cn } from "@/lib/utils";
 import { usePatchContractCustomerLargePrivate } from "@/hooks/use-application-review-actions";
 import { format } from "date-fns";
 import { formatCurrency, resolveRequestedFacility, resolveOfferedFacility } from "@cashsouk/config";
+import {
+  getOfferPhaseDeadlineDisplay,
+  previewAcceptanceDeadlineFromWorkflow,
+} from "@cashsouk/types";
 import { ReviewSectionCard } from "../review-section-card";
 import { ReviewFieldBlock } from "../review-field-block";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
@@ -80,6 +84,8 @@ export interface ContractSectionProps {
    * Used only as a prefill when `offer_details.facility_fee_rate_percent` is missing.
    */
   productDefaultFacilityFeeRatePercent?: number | null;
+  /** Frozen product workflow — used for Send Offer acceptance-deadline preview. */
+  productWorkflow?: unknown;
   isSendOfferPending?: boolean;
   onViewDocument?: (s3Key: string) => void;
   onDownloadDocument?: (s3Key: string, fileName?: string) => void;
@@ -123,6 +129,7 @@ export function ContractSection({
   onRequestAmendment,
   onSendOffer,
   productDefaultFacilityFeeRatePercent,
+  productWorkflow,
   isSendOfferPending,
   onViewDocument,
   onDownloadDocument,
@@ -184,12 +191,15 @@ export function ContractSection({
     }
     return null;
   })();
+  const phaseDeadlineDisplay =
+    contractRowStatus === "OFFER_SENT" || contractRowStatus === "OFFER_EXPIRED"
+      ? getOfferPhaseDeadlineDisplay(offerDetails)
+      : null;
   const isContractOfferSendLocked =
     contractRowStatus === "OFFER_SENT" ||
     contractRowStatus === "WITHDRAWN" ||
     contractRowStatus === "APPROVED" ||
-    contractRowStatus === "REJECTED" ||
-    offerSentAtRaw != null;
+    contractRowStatus === "REJECTED";
   const seedOfferedInput = persistedOffered > 0 ? formatMoney(persistedOffered) : "";
   const [offeredFacilityInput, setOfferedFacilityInput] = React.useState<string>(seedOfferedInput);
   const seedFacilityFeeRatePercent =
@@ -202,6 +212,7 @@ export function ContractSection({
     seedFacilityFeeInput
   );
   const [contractOfferConfirmOpen, setContractOfferConfirmOpen] = React.useState(false);
+  const acceptanceDeadlinePreview = previewAcceptanceDeadlineFromWorkflow(productWorkflow);
 
   React.useEffect(() => {
     setOfferedFacilityInput(persistedOffered > 0 ? formatMoney(persistedOffered) : "");
@@ -542,6 +553,20 @@ export function ContractSection({
                   {offerTimelineLine ? (
                     <p className="text-xs text-muted-foreground tabular-nums">{offerTimelineLine}</p>
                   ) : null}
+                  {phaseDeadlineDisplay ? (
+                    <p
+                      className={cn(
+                        "text-xs tabular-nums",
+                        phaseDeadlineDisplay.urgency === "past"
+                          ? "font-medium text-destructive"
+                          : phaseDeadlineDisplay.urgency === "soon"
+                            ? "font-medium text-amber-800"
+                            : "text-muted-foreground"
+                      )}
+                    >
+                      {phaseDeadlineDisplay.summary}
+                    </p>
+                  ) : null}
                   {offeredFacilityNotPositive && (
                     <p className="text-sm text-destructive">
                       Offered facility must be greater than 0.
@@ -807,6 +832,12 @@ export function ContractSection({
               <span className="text-muted-foreground">Offered facility</span>
               <span className="font-medium tabular-nums">{formatCurrency(offeredFacility)}</span>
             </div>
+            {acceptanceDeadlinePreview ? (
+              <div className="flex justify-between gap-4">
+                <span className="text-muted-foreground">Acceptance deadline</span>
+                <span className="text-right font-medium">{acceptanceDeadlinePreview.summary}</span>
+              </div>
+            ) : null}
             {offeredExceedsContractValue && (
               <p className="mt-2 text-sm text-destructive">
                 Offered facility cannot exceed contract value.

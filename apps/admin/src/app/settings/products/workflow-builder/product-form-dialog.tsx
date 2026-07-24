@@ -72,7 +72,6 @@ import {
   isSigningTemplateDocumentCategoryKey,
   parseSigningPackagesConfig,
   writeSigningPackagesConfig,
-  type SigningPackagesConfig,
 } from "@cashsouk/types";
 
 export interface ProductFormDialogProps {
@@ -266,16 +265,11 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     return (firstStep as { config?: Record<string, unknown> } | undefined)?.config ?? {};
   }, [steps]);
 
-  const handleSigningPackagesChange = useCallback((packages: SigningPackagesConfig) => {
+  const handleSigningPackagesChange = useCallback((nextConfig: Record<string, unknown>) => {
     setSteps((prev) =>
       prev.map((s) => {
         if (getStepKeyFromStepId(getStepId(s)) !== FIRST_STEP_KEY) return s;
-        const step = s as Record<string, unknown>;
-        const config = writeSigningPackagesConfig(
-          { ...((step.config as Record<string, unknown> | undefined) ?? {}) },
-          packages
-        );
-        return { ...step, config };
+        return { ...(s as Record<string, unknown>), config: nextConfig };
       })
     );
   }, []);

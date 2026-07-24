@@ -462,6 +462,7 @@ export function SectionContent({
           contractStatus={app.contract?.status}
           customerDetails={app.contract?.customer_details}
           productDefaultFacilityFeeRatePercent={productDefaultFacilityFeeRatePercent}
+          productWorkflow={productWorkflow}
           section={section}
           isReviewable={isReviewable}
           approvePending={approveSectionPending}
@@ -563,6 +564,7 @@ export function SectionContent({
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
           minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
+          productWorkflow={productWorkflow}
           onViewSignedInvoiceOffer={onViewSignedInvoiceOffer}
           sectionComparison={
             sectionComparison

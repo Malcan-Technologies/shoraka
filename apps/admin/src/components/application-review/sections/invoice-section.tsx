@@ -42,6 +42,8 @@ export interface InvoiceSectionProps {
   invoiceRatioLimits?: { min: number; max: number };
   platformFeeRateCapPercent?: number | null;
   minMonthsReviewToMaturityForOffer?: number | null;
+  /** Frozen product workflow — Send Offer acceptance-deadline preview. */
+  productWorkflow?: unknown;
   onApproveItem: (itemId: string) => Promise<void>;
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
@@ -122,6 +124,7 @@ export function InvoiceSection({
   invoiceRatioLimits,
   platformFeeRateCapPercent,
   minMonthsReviewToMaturityForOffer,
+  productWorkflow,
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
@@ -242,6 +245,7 @@ export function InvoiceSection({
           invoiceRatioLimits={invoiceRatioLimits ?? { min: 60, max: 80 }}
           platformFeeRateCapPercent={platformFeeRateCapPercent}
           minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
+          productWorkflow={productWorkflow}
           isActionLocked={isActionLocked}
           actionLockTooltip={actionLockTooltip}
           onApproveItem={onApproveItem}

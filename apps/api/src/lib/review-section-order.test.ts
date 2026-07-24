@@ -98,6 +98,15 @@ describe("isPrerequisiteSectionSatisfied", () => {
     );
   });
 
+  it("treats Contract/Invoice OFFER_EXPIRED as satisfied for Acceptance", () => {
+    expect(
+      isPrerequisiteSectionSatisfied("contract_details", "OFFER_EXPIRED", "acceptance_documents")
+    ).toBe(true);
+    expect(
+      isPrerequisiteSectionSatisfied("invoice_details", "OFFER_EXPIRED", "acceptance_documents")
+    ).toBe(true);
+  });
+
   it("rejects PENDING and missing status", () => {
     expect(
       isPrerequisiteSectionSatisfied("contract_details", "PENDING", "acceptance_documents")

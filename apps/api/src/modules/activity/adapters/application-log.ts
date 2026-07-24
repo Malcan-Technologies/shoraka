@@ -474,6 +474,14 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         title: "Contract Offer Retracted",
         description: "The contract offer was withdrawn before it was accepted.",
       },
+      [ApplicationLogEventType.CONTRACT_OFFER_EXPIRED]: {
+        title: "Contract Offer Expired",
+        description: "The contract offer expired. A new offer can be sent from the Contract tab.",
+      },
+      [ApplicationLogEventType.CONTRACT_SIGNING_DEADLINE_EXTENDED]: {
+        title: "Signing Deadline Extended",
+        description: "CashSouk extended the signing deadline so you can complete the signing package.",
+      },
       [ApplicationLogEventType.CONTRACT_WITHDRAWN]: {
         title: "Contract Withdrawn",
         description: "The contract linked to this application was withdrawn.",
@@ -494,13 +502,17 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         title: "Invoice Offer Retracted",
         description: "The invoice offer was withdrawn before it was accepted.",
       },
+      [ApplicationLogEventType.INVOICE_OFFER_EXPIRED]: {
+        title: "Invoice Offer Expired",
+        description: "The invoice offer expired. A new offer can be sent from the Invoice tab.",
+      },
+      [ApplicationLogEventType.INVOICE_SIGNING_DEADLINE_EXTENDED]: {
+        title: "Signing Deadline Extended",
+        description: "CashSouk extended the signing deadline so you can complete the signing package.",
+      },
       [ApplicationLogEventType.INVOICE_WITHDRAWN]: {
         title: "Invoice Withdrawn",
         description: "An invoice linked to this application was withdrawn.",
-      },
-      [ApplicationLogEventType.OFFER_EXPIRED]: {
-        title: "Offer Expired",
-        description: "An outstanding offer expired before it was accepted.",
       },
       [ApplicationLogEventType.AMENDMENTS_SUBMITTED]: {
         title: "Changes Requested",
@@ -529,13 +541,16 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED,
       ApplicationLogEventType.CONTRACT_OFFER_REJECTED,
       ApplicationLogEventType.CONTRACT_OFFER_RETRACTED,
+      ApplicationLogEventType.CONTRACT_OFFER_EXPIRED,
+      ApplicationLogEventType.CONTRACT_SIGNING_DEADLINE_EXTENDED,
       ApplicationLogEventType.CONTRACT_WITHDRAWN,
       ApplicationLogEventType.INVOICE_OFFER_SENT,
       ApplicationLogEventType.INVOICE_OFFER_ACCEPTED,
       ApplicationLogEventType.INVOICE_OFFER_REJECTED,
       ApplicationLogEventType.INVOICE_OFFER_RETRACTED,
+      ApplicationLogEventType.INVOICE_OFFER_EXPIRED,
+      ApplicationLogEventType.INVOICE_SIGNING_DEADLINE_EXTENDED,
       ApplicationLogEventType.INVOICE_WITHDRAWN,
-      ApplicationLogEventType.OFFER_EXPIRED,
       ApplicationLogEventType.AMENDMENTS_SUBMITTED,
     ];
   }

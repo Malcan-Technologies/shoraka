@@ -17,6 +17,7 @@ const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Draft" },
   { value: "SUBMITTED", label: "Submitted" },
   { value: "OFFER_SENT", label: "Offer Sent" },
+  { value: "OFFER_EXPIRED", label: "Offer Expired" },
   { value: "AMENDMENT_REQUESTED", label: "Amendment Requested" },
   { value: "APPROVED", label: "Approved" },
   { value: "REJECTED", label: "Rejected" },

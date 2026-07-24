@@ -56,14 +56,6 @@ export const getProductsListQuerySchema = z.object({
 
 export type GetProductsListQuery = z.infer<typeof getProductsListQuerySchema>;
 
-/** When offer_expiry_days is provided, must be integer > 0. */
-const offerExpiryDaysSchema = z
-  .number()
-  .int("Offer expiry must be an integer")
-  .refine((v) => v > 0, { message: "Offer expiry must be greater than 0" })
-  .optional()
-  .nullable();
-
 /** Marketplace listing duration at product level. */
 const marketplaceListingDurationDaysSchema = z
   .number()
@@ -95,7 +87,6 @@ export const createProductBodySchema = z.object({
         return false;
       }
     }, { message: "workflow[0].config.category is required and must be a non-empty string" }),
-  offer_expiry_days: offerExpiryDaysSchema,
   marketplace_listing_duration_days: marketplaceListingDurationDaysSchema,
   service_fee_rate_percent: z
     .number()
@@ -130,7 +121,6 @@ export const updateProductBodySchema = z.object({
       }
     }, { message: "workflow[0].config.category is required and must be a non-empty string" }),
   completeCreate: z.boolean().optional(),
-  offer_expiry_days: offerExpiryDaysSchema,
   marketplace_listing_duration_days: marketplaceListingDurationDaysSchema,
   service_fee_rate_percent: z
     .number()

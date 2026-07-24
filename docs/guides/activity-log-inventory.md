@@ -109,9 +109,8 @@ Visible application events match the investor portal:
 - `APPLICATION_REJECTED` -> `Application Rejected`
 - `APPLICATION_WITHDRAWN` -> `Application Closed`
 - `APPLICATION_COMPLETED` -> `Application Completed`
-- contract offer milestones
-- invoice offer milestones
-- `OFFER_EXPIRED`
+- contract offer milestones (including `CONTRACT_OFFER_EXPIRED`)
+- invoice offer milestones (including `INVOICE_OFFER_EXPIRED`)
 
 ### Note
 

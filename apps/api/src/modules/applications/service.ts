@@ -49,6 +49,11 @@ import {
   mergeAcknowledgementRecords,
   patchOfferAcceptance,
 } from "./offer-acceptance";
+import {
+  assertAcceptanceDeadlineOpen,
+  assertSigningDeadlineOpen,
+  signingDeadlinePatchOnApprove,
+} from "../../lib/phase-deadlines";
 import { buildApplicationRevisionSnapshot } from "./revision-snapshot";
 import {
   upsertLatestOrganizationFinancialStatementsFromApplication,
@@ -374,15 +379,21 @@ export class ApplicationService {
     if (
       status === ApplicationStatus.CONTRACT_SENT ||
       status === ApplicationStatus.INVOICES_SENT ||
+      status === ApplicationStatus.OFFER_EXPIRED ||
       status === ApplicationStatus.CONTRACT_ACCEPTED ||
       status === ApplicationStatus.APPROVED
     ) {
       return true;
     }
     const contract = (application as { contract?: { status?: string } | null }).contract;
-    if (contract?.status === ContractStatus.OFFER_SENT) return true;
+    if (contract?.status === ContractStatus.OFFER_SENT || contract?.status === ContractStatus.OFFER_EXPIRED) {
+      return true;
+    }
     const invoices = (application as { invoices?: Array<{ status?: string }> }).invoices ?? [];
-    return invoices.some((invoice) => invoice.status === InvoiceStatus.OFFER_SENT);
+    return invoices.some(
+      (invoice) =>
+        invoice.status === InvoiceStatus.OFFER_SENT || invoice.status === InvoiceStatus.OFFER_EXPIRED
+    );
   }
 
   private async assertPostApplicationPrepUnlocked(applicationId: string): Promise<void> {
@@ -1706,6 +1717,7 @@ export class ApplicationService {
           "Offer acceptance has already been submitted or is not editable."
         );
       }
+      assertAcceptanceDeadlineOpen(acceptance);
       const acknowledgements = mergeAcknowledgementRecords({
         existing: acceptance?.acknowledgements,
         documentKeys: [...checked],
@@ -1725,6 +1737,9 @@ export class ApplicationService {
         submitted_at: now,
         reviewed_at: nextStatus === "APPROVED_FOR_SIGNING" ? now : null,
         reviewed_by_user_id: nextStatus === "APPROVED_FOR_SIGNING" ? userId : null,
+        ...(nextStatus === "APPROVED_FOR_SIGNING"
+          ? signingDeadlinePatchOnApprove(workflow, now, acceptance)
+          : {}),
       });
       await tx.contract.update({
         where: { id: contractId },
@@ -1809,6 +1824,7 @@ export class ApplicationService {
           "Offer acceptance has already been submitted or is not editable."
         );
       }
+      assertAcceptanceDeadlineOpen(acceptance);
       const acknowledgements = mergeAcknowledgementRecords({
         existing: acceptance?.acknowledgements,
         documentKeys: [...checked],
@@ -1828,6 +1844,9 @@ export class ApplicationService {
         submitted_at: now,
         reviewed_at: nextStatus === "APPROVED_FOR_SIGNING" ? now : null,
         reviewed_by_user_id: nextStatus === "APPROVED_FOR_SIGNING" ? userId : null,
+        ...(nextStatus === "APPROVED_FOR_SIGNING"
+          ? signingDeadlinePatchOnApprove(workflow, now, acceptance)
+          : {}),
       });
       await tx.invoice.update({
         where: { id: invoiceId },
@@ -1936,6 +1955,9 @@ export class ApplicationService {
       if (!offer || typeof offer !== "object") {
         throw new AppError(400, "INVALID_STATE", "Contract has no offer details");
       }
+
+      assertAcceptanceDeadlineOpen(getOfferAcceptanceFromOfferDetails(offer));
+      assertSigningDeadlineOpen(getOfferAcceptanceFromOfferDetails(offer));
 
       if (offer.responded_at != null && offer.responded_at !== "") {
         throw new AppError(400, "ALREADY_RESPONDED", "This offer has already been responded to");
@@ -2246,6 +2268,9 @@ export class ApplicationService {
         throw new AppError(400, "INVALID_STATE", "Invoice has no offer details");
       }
 
+      assertAcceptanceDeadlineOpen(getOfferAcceptanceFromOfferDetails(offer));
+      assertSigningDeadlineOpen(getOfferAcceptanceFromOfferDetails(offer));
+
       if (offer.responded_at != null && offer.responded_at !== "") {
         throw new AppError(400, "ALREADY_RESPONDED", "This offer has already been responded to");
       }
@@ -2521,7 +2546,7 @@ export class ApplicationService {
     if (!contract) {
       throw new AppError(404, "NOT_FOUND", "Contract not found");
     }
-    const allowedStatuses = ["OFFER_SENT", "APPROVED", "REJECTED"] as const;
+    const allowedStatuses = ["OFFER_SENT", "OFFER_EXPIRED", "APPROVED", "REJECTED"] as const;
     if (!allowedStatuses.includes(contract.status as (typeof allowedStatuses)[number])) {
       throw new AppError(400, "INVALID_STATE", "No contract offer to download");
     }
@@ -2531,11 +2556,12 @@ export class ApplicationService {
       throw new AppError(400, "INVALID_STATE", "Contract has no offer details");
     }
 
+    const acceptanceExpiresAt = getOfferAcceptanceFromOfferDetails(offer)?.acceptance_expires_at;
     const offerDetails: ContractOfferDetails = {
       requested_facility: Number(offer.requested_facility) || undefined,
       offered_facility: Number(offer.offered_facility) || undefined,
       facility_fee_rate_percent: Number(offer.facility_fee_rate_percent) || undefined,
-      expires_at: typeof offer.expires_at === "string" ? offer.expires_at : undefined,
+      expires_at: typeof acceptanceExpiresAt === "string" ? acceptanceExpiresAt : undefined,
     };
 
     const stream = generateContractOfferLetterStream(application.contract_id, offerDetails);
@@ -2571,7 +2597,7 @@ export class ApplicationService {
     if (!dbInvoice) {
       throw new AppError(404, "NOT_FOUND", "Invoice not found");
     }
-    const allowedStatuses = ["OFFER_SENT", "APPROVED", "REJECTED"] as const;
+    const allowedStatuses = ["OFFER_SENT", "OFFER_EXPIRED", "APPROVED", "REJECTED"] as const;
     if (!allowedStatuses.includes(dbInvoice.status as (typeof allowedStatuses)[number])) {
       throw new AppError(400, "INVALID_STATE", "No invoice offer to download");
     }
@@ -2599,6 +2625,7 @@ export class ApplicationService {
       }
     }
 
+    const acceptanceExpiresAt = getOfferAcceptanceFromOfferDetails(offer)?.acceptance_expires_at;
     const offerDetails: InvoiceOfferDetails = {
       requested_amount: Number(offer.requested_amount) || undefined,
       offered_amount: Number(offer.offered_amount) || undefined,
@@ -2607,7 +2634,7 @@ export class ApplicationService {
       platform_fee_rate_percent: resolveOfferedPlatformFeeRatePercent(offer),
       facility_fee_rate_percent: facilityFeeRatePercent,
       facility_fee_cap_amount: facilityFeeCapAmount,
-      expires_at: typeof offer.expires_at === "string" ? offer.expires_at : undefined,
+      expires_at: typeof acceptanceExpiresAt === "string" ? acceptanceExpiresAt : undefined,
     };
 
     const stream = generateInvoiceOfferLetterStream(invoiceId, offerDetails);

@@ -138,7 +138,7 @@ function resolveTabPrerequisites(
  * Check if a tab is unlocked based on section approval status.
  * Sections not in TAB_PREREQUISITES are treated as unlocked.
  * Server-provided prerequisites (when present) take precedence.
- * Acceptance treats Contract/Invoice OFFER_SENT as satisfying those prereqs.
+ * Acceptance treats Contract/Invoice OFFER_SENT / OFFER_EXPIRED as satisfying those prereqs.
  */
 export function isTabUnlocked(
   sectionId: string,

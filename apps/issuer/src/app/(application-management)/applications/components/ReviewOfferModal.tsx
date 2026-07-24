@@ -35,7 +35,9 @@ import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
   CheckCircleIcon,
+  ClockIcon,
   DocumentTextIcon,
+  ExclamationTriangleIcon,
   PencilSquareIcon,
   UserGroupIcon,
   XMarkIcon,
@@ -63,6 +65,9 @@ import {
   offerAcceptanceIsTerminal,
   type Application,
 } from "@cashsouk/types";
+import {
+  getOfferPhaseDeadlineDisplay,
+} from "@/lib/offer-utils";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { Input } from "@/components/ui/input";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
@@ -91,6 +96,7 @@ import {
   areRequiredAcknowledgementsChecked,
 } from "./OfferAcknowledgementStep";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import {
   Card,
@@ -779,6 +785,22 @@ export function ReviewOfferModal({
         (invoice as { offer_details?: Record<string, unknown> } | undefined)?.offer_details);
   const od = offerDetails as Record<string, unknown> | null | undefined;
   const acceptanceStatus = resolveOfferAcceptanceStatus(offerDetails);
+  const phaseDeadline = React.useMemo(
+    () => getOfferPhaseDeadlineDisplay(offerDetails),
+    [offerDetails]
+  );
+  const phaseDeadlineRowLabel = phaseDeadline?.label ?? "Accept by";
+  const entityOfferStatus =
+    type === "contract"
+      ? String((contractRecord as { status?: string } | null)?.status ?? "").toUpperCase()
+      : String(
+          (liveInvoice as { status?: string } | undefined)?.status ??
+            (invoice as { status?: string } | undefined)?.status ??
+            ""
+        ).toUpperCase();
+  /** Past clock or durable OFFER_EXPIRED — read-only until admin resends. */
+  const isPhaseDeadlinePast =
+    phaseDeadline?.isPast === true || entityOfferStatus === "OFFER_EXPIRED";
   const recordedAcknowledgementKeys = React.useMemo(() => {
     const acceptance = offerDetails?.offer_acceptance as
       | { acknowledgements?: Array<{ document_key?: string }> }
@@ -1066,6 +1088,10 @@ export function ReviewOfferModal({
   const resolvedDeclineReason = resolveIssuerOfferDeclineReason(selectedDeclineReason, rejectionReason);
 
   const handleReject = async () => {
+    if (isPhaseDeadlinePast) {
+      toast.error("This offer has expired.");
+      return;
+    }
     if (!resolvedDeclineReason) return;
     if (type === "contract") {
       try {
@@ -1229,6 +1255,10 @@ export function ReviewOfferModal({
   ]);
 
   const submitOfferAcceptance = React.useCallback(async () => {
+    if (isPhaseDeadlinePast) {
+      toast.error("This offer has expired.");
+      return;
+    }
     if (!acknowledgementsReady) {
       toast.error("Accept all required acknowledgements before submitting.");
       return;
@@ -1277,8 +1307,16 @@ export function ReviewOfferModal({
     hasPostDocs,
     invalidateOfferAcceptanceQueries,
     invoice?.id,
+    isPhaseDeadlinePast,
     type,
   ]);
+
+  React.useEffect(() => {
+    if (isPhaseDeadlinePast) {
+      setIsRejectMode(false);
+      setSignerConfirmOpen(false);
+    }
+  }, [isPhaseDeadlinePast]);
 
   const needsSigningConfirm = useSigningStepper;
 
@@ -1324,6 +1362,10 @@ export function ReviewOfferModal({
   );
 
   const prepareAccept = async (): Promise<boolean> => {
+    if (isPhaseDeadlinePast) {
+      toast.error("This offer has expired.");
+      return false;
+    }
     const invoiceId = invoice?.id;
 
     if (type === "invoice" && !invoiceId) {
@@ -1363,6 +1405,10 @@ export function ReviewOfferModal({
   };
 
   const executeAccept = async () => {
+    if (isPhaseDeadlinePast) {
+      toast.error("This offer has expired.");
+      return;
+    }
     setAcceptSigningLoading(true);
     try {
       await sendSigningPackage();
@@ -1377,6 +1423,10 @@ export function ReviewOfferModal({
   };
 
   const handleAccept = async () => {
+    if (isPhaseDeadlinePast) {
+      toast.error("This offer has expired.");
+      return;
+    }
     const ready = await prepareAccept();
     if (!ready) return;
 
@@ -1394,6 +1444,10 @@ export function ReviewOfferModal({
   };
 
   const handleResendReminders = async () => {
+    if (isPhaseDeadlinePast) {
+      toast.error("This offer has expired.");
+      return;
+    }
     if (!activeSigningEnvelope || !canRemindSigners) return;
     const unsigned = activeSigningEnvelope.recipients.filter((r) => r.status !== "SIGNED");
     if (unsigned.length === 0) {
@@ -1428,6 +1482,10 @@ export function ReviewOfferModal({
   };
 
   const handleRemindRecipient = async (recipientId: string) => {
+    if (isPhaseDeadlinePast) {
+      toast.error("This offer has expired.");
+      return;
+    }
     if (!activeSigningEnvelope || !canRemindSigners) return;
     setRemindLoading(true);
     try {
@@ -1451,6 +1509,10 @@ export function ReviewOfferModal({
   };
 
   const handleAcceptOverride = async () => {
+    if (isPhaseDeadlinePast) {
+      toast.error("This offer has expired.");
+      return;
+    }
     setAcceptOverrideLoading(true);
     try {
       if (type === "contract") {
@@ -1783,6 +1845,34 @@ export function ReviewOfferModal({
             {maximumFacilityFeeNumber != null ? formatCurrency(maximumFacilityFeeNumber) : "—"}
           </dd>
         </div>
+        {phaseDeadline ? (
+          <div className="space-y-1">
+            <dt className="text-muted-foreground">{phaseDeadlineRowLabel}</dt>
+            <dd
+              className={cn(
+                "font-medium tabular-nums",
+                phaseDeadline.urgency === "past" && "text-destructive",
+                phaseDeadline.urgency === "soon" && "text-status-action-text"
+              )}
+            >
+              {phaseDeadline.absolute}
+              {phaseDeadline.relative ? (
+                <span
+                  className={cn(
+                    "mt-0.5 block text-xs font-normal",
+                    phaseDeadline.urgency === "past"
+                      ? "text-destructive"
+                      : phaseDeadline.urgency === "soon"
+                        ? "text-status-action-text"
+                        : "text-muted-foreground"
+                  )}
+                >
+                  {phaseDeadline.relative}
+                </span>
+              ) : null}
+            </dd>
+          </div>
+        ) : null}
       </dl>
     ) : (
       <dl className="space-y-3 text-sm">
@@ -1831,6 +1921,34 @@ export function ReviewOfferModal({
             {expectedFacilityFeeNumber != null ? formatCurrency(expectedFacilityFeeNumber) : "—"}
           </dd>
         </div>
+        {phaseDeadline ? (
+          <div className="space-y-1">
+            <dt className="text-muted-foreground">{phaseDeadlineRowLabel}</dt>
+            <dd
+              className={cn(
+                "font-medium tabular-nums",
+                phaseDeadline.urgency === "past" && "text-destructive",
+                phaseDeadline.urgency === "soon" && "text-status-action-text"
+              )}
+            >
+              {phaseDeadline.absolute}
+              {phaseDeadline.relative ? (
+                <span
+                  className={cn(
+                    "mt-0.5 block text-xs font-normal",
+                    phaseDeadline.urgency === "past"
+                      ? "text-destructive"
+                      : phaseDeadline.urgency === "soon"
+                        ? "text-status-action-text"
+                        : "text-muted-foreground"
+                  )}
+                >
+                  {phaseDeadline.relative}
+                </span>
+              ) : null}
+            </dd>
+          </div>
+        ) : null}
       </dl>
     );
 
@@ -2664,6 +2782,28 @@ export function ReviewOfferModal({
           </DialogDescription>
         </DialogHeader>
 
+        {phaseDeadline?.urgency === "soon" || phaseDeadline?.urgency === "past" ? (
+          <Alert
+            variant={phaseDeadline.urgency === "past" ? "destructive" : "default"}
+            className={cn(
+              "mt-4 flex items-start gap-3",
+              phaseDeadline.urgency === "soon" &&
+                "border-status-action-text/30 bg-status-action-bg text-status-action-text"
+            )}
+          >
+            {phaseDeadline.urgency === "past" ? (
+              <ExclamationTriangleIcon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
+            ) : (
+              <ClockIcon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
+            )}
+            <AlertDescription className="min-w-0">
+              {phaseDeadline.urgency === "past"
+                ? `Expired ${phaseDeadline.absolute}. Accepting is no longer available. If CashSouk sends a new offer, it will appear on your applications.`
+                : `${phaseDeadlineRowLabel} ${phaseDeadline.absolute} — ${phaseDeadline.relative}. Act soon to avoid this offer lapsing.`}
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
         {isLoading ? (
           <p className="py-8 text-sm text-muted-foreground">Loading offer...</p>
         ) : (
@@ -2724,17 +2864,39 @@ export function ReviewOfferModal({
               </div>
 
               <div className="min-w-0">
-                {useSigningStepper
-                  ? renderSigningStepContent(displaySigningStepId)
-                  : renderAcceptDeclineContent()}
+                {isPhaseDeadlinePast ? (
+                  <Card className="border-destructive/20 bg-destructive/5">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2 text-lg text-destructive">
+                        <ExclamationTriangleIcon className="h-5 w-5" />
+                        Offer Expired
+                      </CardTitle>
+                      <CardDescription>
+                        Expired {phaseDeadline?.absolute}. You can still download the offer letter from
+                        the details panel.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground">
+                        No further action is available in this dialog. Close it and check your
+                        applications — a new offer will appear here if CashSouk resends one.
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : useSigningStepper ? (
+                  renderSigningStepContent(displaySigningStepId)
+                ) : (
+                  renderAcceptDeclineContent()
+                )}
               </div>
             </div>
 
             <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t pt-4">
-              {(useSigningStepper &&
+              {!isPhaseDeadlinePast &&
+              ((useSigningStepper &&
                 displaySigningStepId !== "rejected" &&
                 displaySigningStepId !== "declined") ||
-              isRejectMode ? (
+                isRejectMode) ? (
                 <Button
                   variant={isRejectMode ? "outline" : "destructive"}
                   onClick={() =>
@@ -2757,7 +2919,8 @@ export function ReviewOfferModal({
               </Button>
             </div>
 
-            {useSigningStepper &&
+            {!isPhaseDeadlinePast &&
+            useSigningStepper &&
             isSigningOverrideEnabled &&
             !offerAcceptanceIsTerminal(acceptanceStatus) ? (
               <Button

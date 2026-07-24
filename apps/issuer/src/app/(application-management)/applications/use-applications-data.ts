@@ -29,7 +29,7 @@ import {
   offerAcceptanceAllowsIssuerReviewCta,
 } from "@cashsouk/types";
 import { useOrganizationApplications } from "@/hooks/use-applications";
-import { getOfferStatus } from "@/lib/offer-utils";
+import { getOfferStatus, getOfferPhaseDeadlineDisplay } from "@/lib/offer-utils";
 import { getCardStatus, APPLICATION_STATUS_PRIORITY, type NormalizedApplication, type NormalizedInvoice } from "./status";
 import { numberOrNull } from "@/lib/facility-fee-display";
 
@@ -87,11 +87,7 @@ function isSignedOfferLetterAvailable(status: string | null | undefined): boolea
 }
 
 function parseInvoiceWithdrawReason(raw: string | null | undefined): WithdrawReason | undefined {
-  if (
-    raw === WithdrawReason.USER_CANCELLED ||
-    raw === WithdrawReason.OFFER_EXPIRED ||
-    raw === WithdrawReason.OFFER_REJECTED
-  ) {
+  if (raw === WithdrawReason.USER_CANCELLED || raw === WithdrawReason.OFFER_REJECTED) {
     return raw;
   }
   return undefined;
@@ -236,7 +232,6 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
   const contractWithdraw = (contract as ApiContract)?.withdraw_reason;
   if (
     contractWithdraw === WithdrawReason.USER_CANCELLED ||
-    contractWithdraw === WithdrawReason.OFFER_EXPIRED ||
     contractWithdraw === WithdrawReason.OFFER_REJECTED
   ) {
     withdrawReason = contractWithdraw as WithdrawReason;
@@ -245,7 +240,6 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     const invReason = (withdrawnInv as ApiInvoice)?.withdraw_reason;
     if (
       invReason === WithdrawReason.USER_CANCELLED ||
-      invReason === WithdrawReason.OFFER_EXPIRED ||
       invReason === WithdrawReason.OFFER_REJECTED
     ) {
       withdrawReason = invReason as WithdrawReason;
@@ -253,11 +247,14 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
   }
 
   let primaryOfferAcceptanceStatus: string | null = null;
-  if (contractStatus === "OFFER_SENT") {
+  if (contractStatus === "OFFER_SENT" || contractStatus === "OFFER_EXPIRED") {
     primaryOfferAcceptanceStatus =
       getOfferAcceptanceFromOfferDetails(contract?.offer_details)?.status ?? null;
   } else {
-    const invoiceWithOffer = invoices.find((i) => String(i.status ?? "").toUpperCase() === "OFFER_SENT");
+    const invoiceWithOffer = invoices.find((i) => {
+      const s = String(i.status ?? "").toUpperCase();
+      return s === "OFFER_SENT" || s === "OFFER_EXPIRED";
+    });
     if (invoiceWithOffer) {
       primaryOfferAcceptanceStatus =
         getOfferAcceptanceFromOfferDetails(invoiceWithOffer.offer_details)?.status ?? null;
@@ -338,6 +335,38 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
 
   const reviewRemarks = readApplicationReviewRemarks(api);
 
+  let offerPhaseDeadline = null as ReturnType<typeof getOfferPhaseDeadlineDisplay>;
+  if (contractStatus === "OFFER_SENT" || contractStatus === "OFFER_EXPIRED") {
+    offerPhaseDeadline = getOfferPhaseDeadlineDisplay(contract?.offer_details);
+  } else {
+    const invoiceWithOffer = invoices.find((i) => {
+      const s = String(i.status ?? "").toUpperCase();
+      return s === "OFFER_SENT" || s === "OFFER_EXPIRED";
+    });
+    if (invoiceWithOffer) {
+      offerPhaseDeadline = getOfferPhaseDeadlineDisplay(invoiceWithOffer.offer_details);
+    }
+  }
+
+  // Past deadline while still OFFER_SENT, or durable OFFER_EXPIRED — same Offer Expired UX.
+  if (offerPhaseDeadline?.isPast || contractStatus === "OFFER_EXPIRED") {
+    cardStatus = {
+      badgeKey: "offer_expired",
+      displayLabel: "Offer Expired",
+      showReviewOffer: false,
+      showMakeAmendments: false,
+    };
+  } else if (
+    invoices.some((i) => String(i.status ?? "").toUpperCase() === "OFFER_EXPIRED")
+  ) {
+    cardStatus = {
+      badgeKey: "offer_expired",
+      displayLabel: "Offer Expired",
+      showReviewOffer: false,
+      showMakeAmendments: false,
+    };
+  }
+
   return {
     id: api.id,
     type,
@@ -363,6 +392,8 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     supportingDocuments: api.supporting_documents ?? null,
     withdrawReason,
     signedContractOfferLetterAvailable,
+    offerPhaseDeadline,
+    offerAcceptanceStatus: primaryOfferAcceptanceStatus,
   };
 }
 

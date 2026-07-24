@@ -89,7 +89,7 @@ export function isPrerequisiteSectionSatisfied(
   if (
     dependentSection === "acceptance_documents" &&
     (prereqSection === "contract_details" || prereqSection === "invoice_details") &&
-    status === "OFFER_SENT"
+    (status === "OFFER_SENT" || status === "OFFER_EXPIRED")
   ) {
     return true;
   }

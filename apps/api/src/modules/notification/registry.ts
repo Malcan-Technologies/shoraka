@@ -125,12 +125,15 @@ export interface NotificationPayloads {
     applicationId: string;
     offerType: 'contract' | 'invoice';
     invoiceNumber?: string | null;
+    clock?: 'acceptance' | 'signing';
   };
   [NotificationTypeIds.OFFER_EXPIRY_REMINDER_24H]: {
     applicationId: string;
     offerType: 'contract' | 'invoice';
     invoiceNumber?: string | null;
     expiresAt: string;
+    clock?: 'acceptance' | 'signing';
+    daysBeforeExpiry?: number;
   };
   [NotificationTypeIds.APPLICATION_RESUBMITTED_CONFIRMATION]: {
     applicationId: string;
@@ -329,8 +332,18 @@ export const NOTIFICATION_TEMPLATES: {
   },
   [NotificationTypeIds.OFFER_EXPIRY_REMINDER_24H]: {
     title: 'Offer Expiring Soon',
-    message: (data) =>
-      `${data.offerType === 'contract' ? 'Contract' : 'Invoice'} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ''} expires within 24 hours at ${formatDateDDMMYYYY(data.expiresAt)}.`,
+    message: (data) => {
+      const daysBefore = data.daysBeforeExpiry;
+      const windowLabel =
+        typeof daysBefore === 'number' && Number.isFinite(daysBefore)
+          ? daysBefore <= 0
+            ? 'today'
+            : daysBefore === 1
+              ? 'in 1 day'
+              : `in ${daysBefore} days`
+          : 'soon';
+      return `${data.offerType === 'contract' ? 'Contract' : 'Invoice'} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ''} expires ${windowLabel} on ${formatDateDDMMYYYY(data.expiresAt)}.`;
+    },
     linkPath: () => `/applications`,
     portal: 'issuer',
   },

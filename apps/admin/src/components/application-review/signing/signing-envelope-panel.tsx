@@ -5,6 +5,7 @@
  *
  * When embedded in the Acceptance tab, set `showOfferAcceptanceSummary={false}` —
  * phase status + acknowledgements live in AcceptanceSection above this panel.
+ * Signing-clock deadline (Complete signing by / Expired) renders here.
  */
 "use client";
 
@@ -22,20 +23,38 @@ import {
   computeSigningEnvelopeProgress,
   getOfferAcceptanceFromOfferDetails,
   getOfferAcceptanceStatusPresentation,
+  getOfferPhaseDeadlineDisplay,
   resolveOfferAcknowledgementsFromWorkflow,
+  resolveSigningDeadlineFromWorkflow,
+  DEFAULT_SIGNING_DEADLINE,
+  addDaysIso,
   type ApplicationPersonRow,
   type SigningEnvelopeDto,
   type SigningEnvelopeStatus,
 } from "@cashsouk/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import {
+  useExtendContractSigningDeadline,
+  useExtendInvoiceSigningDeadline,
+} from "@/hooks/use-application-review-actions";
 
 const STATUS_STYLES: Record<SigningEnvelopeStatus, string> = {
   DRAFT: "bg-muted text-muted-foreground",
@@ -153,7 +172,10 @@ export function SigningEnvelopePanel({
   const { data: envelopes = [], isLoading } = useAdminSigningEnvelopes(applicationId);
   const voidMutation = useVoidSigningEnvelope(applicationId);
   const remindMutation = useRemindSigningRecipient(applicationId);
+  const extendContractMutation = useExtendContractSigningDeadline();
+  const extendInvoiceMutation = useExtendInvoiceSigningDeadline();
   const [historyOpen, setHistoryOpen] = React.useState(false);
+  const [extendConfirmOpen, setExtendConfirmOpen] = React.useState(false);
 
   const { primary, history } = React.useMemo(() => splitEnvelopes(envelopes), [envelopes]);
 
@@ -189,6 +211,24 @@ export function SigningEnvelopePanel({
     ? "Send an offer from Invoice to start acceptance."
     : "Send an offer from Contract to start acceptance.";
 
+  const invoiceIdForExtend = React.useMemo(() => {
+    if (!isInvoiceOnly) return null;
+    if (primary?.invoice_id) return primary.invoice_id;
+    const withOffer = invoices.find((inv) => inv.offer_details != null);
+    return withOffer?.id ?? null;
+  }, [isInvoiceOnly, primary?.invoice_id, invoices]);
+
+  const extendPending = extendContractMutation.isPending || extendInvoiceMutation.isPending;
+
+  const signingExtendPreview = React.useMemo(() => {
+    const deadline = resolveSigningDeadlineFromWorkflow(workflow) ?? DEFAULT_SIGNING_DEADLINE;
+    const completeByIso = addDaysIso(new Date().toISOString(), deadline.days);
+    return {
+      days: deadline.days,
+      absolute: format(new Date(completeByIso), "dd MMM yyyy, h:mm a"),
+    };
+  }, [workflow, extendConfirmOpen]);
+
   const handleVoid = async (envelopeId: string) => {
     try {
       await voidMutation.mutateAsync({ envelopeId });
@@ -204,6 +244,27 @@ export function SigningEnvelopePanel({
       toast.success("Reminder sent");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to remind");
+    }
+  };
+
+  const handleExtendSigningDeadline = async () => {
+    try {
+      if (isInvoiceOnly) {
+        if (!invoiceIdForExtend) {
+          toast.error("No invoice offer found to extend");
+          return;
+        }
+        await extendInvoiceMutation.mutateAsync({
+          applicationId,
+          invoiceId: invoiceIdForExtend,
+        });
+      } else {
+        await extendContractMutation.mutateAsync({ applicationId });
+      }
+      toast.success("Signing deadline extended");
+      setExtendConfirmOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to extend signing deadline");
     }
   };
 
@@ -227,8 +288,45 @@ export function SigningEnvelopePanel({
     return "No signing package yet. The issuer creates and sends this package from their offer flow.";
   })();
 
+  const signingDeadlineDisplay =
+    acceptance?.status === "APPROVED_FOR_SIGNING" ||
+    acceptance?.status === "SIGNING_IN_PROGRESS"
+      ? getOfferPhaseDeadlineDisplay(acceptanceOfferDetails)
+      : null;
+
+  const showExtendSigningCta =
+    canManage && signingDeadlineDisplay?.urgency === "past";
+
   const body = (
     <div className="space-y-4">
+      {signingDeadlineDisplay ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p
+            className={cn(
+              "text-sm",
+              signingDeadlineDisplay.urgency === "past"
+                ? "font-medium text-destructive"
+                : signingDeadlineDisplay.urgency === "soon"
+                  ? "font-medium text-amber-800"
+                  : "text-muted-foreground"
+            )}
+          >
+            {signingDeadlineDisplay.summary}
+          </p>
+          {showExtendSigningCta ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="rounded-lg"
+              onClick={() => setExtendConfirmOpen(true)}
+              disabled={extendPending}
+            >
+              Extend signing deadline
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       {showOfferAcceptanceSummary && acceptancePresentation ? (
         <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -313,6 +411,32 @@ export function SigningEnvelopePanel({
           </CollapsibleContent>
         </Collapsible>
       ) : null}
+
+      <AlertDialog open={extendConfirmOpen} onOpenChange={setExtendConfirmOpen}>
+        <AlertDialogContent className="rounded-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Extend signing deadline?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Gives the issuer a new signing window of {signingExtendPreview.days}{" "}
+              {signingExtendPreview.days === 1 ? "day" : "days"} from now (Complete signing by{" "}
+              {signingExtendPreview.absolute}). Acceptance documents and offer terms stay as they
+              are.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={extendPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={extendPending}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleExtendSigningDeadline();
+              }}
+            >
+              {extendPending ? "Extending…" : "Extend deadline"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 

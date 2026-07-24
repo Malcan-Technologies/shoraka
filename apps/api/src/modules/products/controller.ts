@@ -50,7 +50,6 @@ router.get("/", requirePermission("products.view"), async (req: Request, res: Re
             workflow: p.workflow as unknown[],
             category_display_order: (p as any).category_display_order ?? null,
             product_display_order: (p as any).product_display_order ?? null,
-            offer_expiry_days: (p as any).offer_expiry_days ?? null,
             marketplace_listing_duration_days: (p as any).marketplace_listing_duration_days ?? null,
             service_fee_rate_percent: (p as any).service_fee_rate_percent != null
               ? (p as any).service_fee_rate_percent.toNumber()
@@ -91,7 +90,6 @@ router.post("/", requirePermission("products.manage"), async (req: Request, res:
     applyFinancialDefaults(validated.workflow);
     validateFinancialConfig({
       workflow: validated.workflow,
-      offer_expiry_days: validated.offer_expiry_days,
     });
     const userId = req.user?.user_id ?? null;
     const ip = getClientIp(req) ?? null;
@@ -99,7 +97,6 @@ router.post("/", requirePermission("products.manage"), async (req: Request, res:
     const product = await productRepository.create(
       {
         workflow: validated.workflow,
-        offer_expiry_days: validated.offer_expiry_days ?? undefined,
         marketplace_listing_duration_days:
           validated.marketplace_listing_duration_days ?? undefined,
         service_fee_rate_percent: validated.service_fee_rate_percent ?? undefined,
@@ -113,7 +110,6 @@ router.post("/", requirePermission("products.manage"), async (req: Request, res:
         id: product.id,
         version: product.version,
         workflow: product.workflow as unknown[],
-        offer_expiry_days: (product as { offer_expiry_days?: number | null }).offer_expiry_days ?? null,
             marketplace_listing_duration_days:
               (product as { marketplace_listing_duration_days?: number | null })
                 .marketplace_listing_duration_days ?? null,
@@ -154,7 +150,6 @@ router.get("/:id", requirePermission("products.view"), async (req: Request, res:
           id: product.id,
           version: product.version,
           workflow: product.workflow as unknown[],
-          offer_expiry_days: (product as { offer_expiry_days?: number | null }).offer_expiry_days ?? null,
             marketplace_listing_duration_days:
               (product as { marketplace_listing_duration_days?: number | null })
                 .marketplace_listing_duration_days ?? null,
@@ -192,7 +187,6 @@ router.patch("/:id", requirePermission("products.manage"), async (req: Request, 
     if (validated.workflow) applyFinancialDefaults(validated.workflow);
     validateFinancialConfig({
       workflow: workflowToUse,
-      offer_expiry_days: validated.offer_expiry_days,
     });
     const oldWorkflow = (current.workflow as unknown[]) ?? [];
     const keysToDelete =
@@ -208,7 +202,6 @@ router.patch("/:id", requirePermission("products.manage"), async (req: Request, 
       {
         workflow: validated.workflow,
         completeCreate: validated.completeCreate,
-        offer_expiry_days: validated.offer_expiry_days,
         marketplace_listing_duration_days: validated.marketplace_listing_duration_days,
         service_fee_rate_percent: validated.service_fee_rate_percent ?? undefined,
         default_facility_fee_rate_percent: validated.default_facility_fee_rate_percent ?? undefined,
@@ -230,7 +223,6 @@ router.patch("/:id", requirePermission("products.manage"), async (req: Request, 
         id: product.id,
         version: product.version,
         workflow: product.workflow as unknown[],
-        offer_expiry_days: (product as { offer_expiry_days?: number | null }).offer_expiry_days ?? null,
         marketplace_listing_duration_days:
           (product as { marketplace_listing_duration_days?: number | null })
             .marketplace_listing_duration_days ?? null,

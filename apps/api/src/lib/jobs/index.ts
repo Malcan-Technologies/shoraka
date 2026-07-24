@@ -4,6 +4,7 @@ import { logger } from "../logger";
 import { runCtosKybRetryJob } from "./ctos-kyb-retry";
 import { runNoteListingExpiryJob } from "./note-listing-expiry";
 import { runSigningEnvelopeExpiryJob } from "./signing-envelope-expiry";
+import { runAcceptanceSigningExpiryJob } from "./acceptance-signing-expiry";
 import { runGatewayStuckOrderPollerJob } from "./gateway-stuck-order-poller";
 import { runGatewaySettlementReconJob } from "./gateway-settlement-recon";
 import { JOB_LOCK_KEYS, withAdvisoryLock } from "./with-advisory-lock";
@@ -75,6 +76,32 @@ export function initJobs() {
         }
       } catch (error) {
         logger.error({ error }, "Failed to run signing envelope expiry job");
+      }
+    });
+  });
+
+  // Acceptance + signing phase deadlines: reminders and durable OFFER_EXPIRED.
+  cron.schedule("0 * * * *", async () => {
+    await withAdvisoryLock(JOB_LOCK_KEYS.ACCEPTANCE_SIGNING_EXPIRY, async () => {
+      logger.info("Starting acceptance/signing expiry job...");
+      try {
+        const result = await runAcceptanceSigningExpiryJob();
+        if (
+          result.remindersSent > 0 ||
+          result.contractsExpired.length > 0 ||
+          result.invoicesExpired.length > 0
+        ) {
+          logger.info(
+            {
+              remindersSent: result.remindersSent,
+              contractsExpired: result.contractsExpired.length,
+              invoicesExpired: result.invoicesExpired.length,
+            },
+            "Acceptance/signing expiry job completed"
+          );
+        }
+      } catch (error) {
+        logger.error({ error }, "Failed to run acceptance/signing expiry job");
       }
     });
   });

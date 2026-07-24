@@ -183,8 +183,8 @@ export default function StatusExamplesPage() {
 
         <Section title="WITHDRAWN — admin vs issuer (by withdraw_reason)">
           <p className="text-sm text-muted-foreground mb-3">
-            Same DB status; admin keeps long labels. Issuer shows Declined for OFFER_REJECTED, Withdrawn for
-            USER_CANCELLED, Offer Expired for OFFER_EXPIRED.
+            Same DB status; admin keeps long labels. Issuer shows Declined for OFFER_REJECTED and
+            Withdrawn for USER_CANCELLED. Offer expiry uses entity status OFFER_EXPIRED, not withdrawal.
           </p>
           <div className="space-y-4">
             <div>

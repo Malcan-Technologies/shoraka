@@ -2,7 +2,33 @@
 
 Standard post-offer flow for **contract** and **invoice-only** offers (same product signing package). Contract-linked invoices stay on direct Accept/Decline after the contract envelope completes (unchanged).
 
-Invoice-only applications allow **at most one invoice** (enforced on create). Clocks (7-day / 14-day) are deferred.
+Invoice-only applications allow **at most one invoice** (enforced on create).
+
+## Phase clocks
+
+Configurable on the financing-type step (product builder):
+
+| Clock | Config key | UI tab | Starts when | Default |
+|-------|------------|--------|-------------|---------|
+| **Acceptance** | `acceptance_deadline` | Acknowledgements | Admin Send Offer; **restamped** on admin `CHANGES_REQUESTED` | 7 days |
+| **Signing** | `signing_deadline` | Signing packages | Admin BR approve → `APPROVED_FOR_SIGNING` | 14 days |
+
+Each deadline has `days` plus optional `reminders: [{ days_before_expiry }]`. Runtime stamps:
+
+- `offer_acceptance.acceptance_expires_at` on Send Offer
+- Acceptance clock is **active** only for `PENDING_ISSUER` and `CHANGES_REQUESTED` — it **pauses** during `PENDING_ADMIN_REVIEW` (issuer already submitted; CashSouk is reviewing)
+- On admin amendment → `CHANGES_REQUESTED`: restamp `acceptance_expires_at` (fresh product window) and clear prior `acceptance:*` reminder keys
+- `offer_acceptance.signing_expires_at` when entering `APPROVED_FOR_SIGNING`
+- Envelope `expires_at` aligned to `signing_expires_at` on package create
+- After signing clock passes: admin can **Extend signing deadline** on Acceptance → Signing package (restamps `signing_expires_at`, clears `signing:*` reminders, restores `OFFER_SENT` if durable-expired). Full **Send Offer** on Contract/Invoice remains the commercial reset path.
+
+**Expiry** (exact-time API gates + hourly job):
+
+- While still `OFFER_SENT` and the **active** clock is past, mutations return `400 OFFER_EXPIRED` and issuer UI shows **Offer Expired** (read-only).
+- The hourly job then sets contract/invoice → **`OFFER_EXPIRED`**, keeps full `offer_details`, review → `OFFER_EXPIRED`, application → **`OFFER_EXPIRED`**. Admin can **Send Offer** directly from that status (overwrites terms + new acceptance clock → entity `OFFER_SENT`, application `CONTRACT_SENT` / `INVOICES_SENT`).
+- Not terminal `WITHDRAWN`. Reminders and expiry notify via `offer_expiry_reminder_24h` / `offer_expired`. Timeline: `CONTRACT_OFFER_EXPIRED` / `INVOICE_OFFER_EXPIRED`.
+
+Manual test: `pnpm seed-expired-acceptance-deadline-for-test` then `pnpm run-acceptance-signing-expiry`.
 
 ## Phases
 
@@ -16,7 +42,7 @@ Envelope create/send is blocked until acceptance docs are **admin-approved**.
 
 ## Status (Option A)
 
-Contract/invoice stay `OFFER_SENT` until the envelope completes (→ `APPROVED`) or the offer is declined/withdrawn. Phase lives on `offer_details.offer_acceptance`:
+Contract/invoice stay `OFFER_SENT` until the envelope completes (→ `APPROVED`), the offer is declined/withdrawn, or the phase clock expires (→ `OFFER_EXPIRED`). Phase lives on `offer_details.offer_acceptance`:
 
 ```ts
 type OfferAcceptanceStatus =
@@ -38,14 +64,17 @@ type OfferAcceptanceDetails = {
   submitted_at?: string | null;
   reviewed_at?: string | null;
   reviewed_by_user_id?: string | null;
+  acceptance_expires_at?: string | null;
+  signing_expires_at?: string | null;
+  deadline_reminders_sent?: Record<string, string>;
 };
 ```
 
-Defaults when admin sends offer: `offer_acceptance.status = "PENDING_ISSUER"`.
+Defaults when admin sends offer: `offer_acceptance.status = "PENDING_ISSUER"` and `acceptance_expires_at` from product `acceptance_deadline`.
 
 ### Reject / changes (locked)
 
-- **Request changes** — existing acceptance-doc amendment path; set `CHANGES_REQUESTED`; issuer reopens Step 1 on the upload sub-step (acknowledgements stay recorded unless product forces re-ack).
+- **Request changes** — existing acceptance-doc amendment path; set `CHANGES_REQUESTED`; restamp `acceptance_expires_at` (fresh product acceptance window); issuer reopens Step 1 on the upload sub-step (acknowledgements stay recorded unless product forces re-ack).
 - **Reject (admin)** — withdraw offer (`WITHDRAWN` + `OFFER_REJECTED`); set `offer_acceptance.status = "REJECTED"`. No silent “try again” without a new offer.
 - **Decline (issuer)** — existing reject offer path; phase ends.
 
@@ -86,7 +115,7 @@ Default pair: use **Add LO + Guarantee Acknowledgement** in product settings (`D
 
     Prefer **one stepper step per acknowledgement document** (sidebar labels use the document name), then upload.
 
-**While `PENDING_ADMIN_REVIEW`:** modal shows waiting state (no signing). The issuer **Review Offer** CTA is hidden; the applications card badge switches to **Awaiting CashSouk review** (`offer_awaiting_review`). CTA returns on `CHANGES_REQUESTED` or `APPROVED_FOR_SIGNING`. Resetting Acceptance review items/section from Approved rolls `offer_acceptance` back to `PENDING_ADMIN_REVIEW` (CTA hidden again). Admin Acceptance visibility and phase sync both use the application’s **frozen** `product_version` (not the live catalog row). Admin Acceptance status badges use distinct colors for `PENDING_ADMIN_REVIEW` (sky), `CHANGES_REQUESTED` (amber), and `SIGNING_IN_PROGRESS` (indigo).
+**While `PENDING_ADMIN_REVIEW`:** modal shows waiting state (no signing). The issuer **Review Offer** CTA is hidden; the applications card badge uses **Under Review**. Acceptance clock is paused (no “Accept by” on the card). CTA returns on `CHANGES_REQUESTED` or `APPROVED_FOR_SIGNING`. Resetting Acceptance review items/section from Approved rolls `offer_acceptance` back to `PENDING_ADMIN_REVIEW` (CTA hidden again). Admin Acceptance visibility and phase sync both use the application’s **frozen** `product_version` (not the live catalog row). Admin Acceptance status badges use distinct colors for `PENDING_ADMIN_REVIEW` (sky), `CHANGES_REQUESTED` (amber), and `SIGNING_IN_PROGRESS` (indigo).
 
 **Refresh policy:** Detail views poll ~15s; application lists ~60s (focus refetch). Signing envelopes poll only while `SENT` | `IN_PROGRESS`.
 
@@ -133,4 +162,4 @@ Presence-only gate for send is **replaced** by admin-approved for this flow when
 3. **Done — Admin review linearity (Slice A)** — structure-aware tab order + Acceptance prerequisites + tab visibility via `workflowUsesOfferAcceptanceFlow`.
 4. **Done — Acceptance hub (Slice B)** — Signing package + offer-acceptance summary in the Acceptance tab (status → docs → signing); no page-level signing panel.
 5. **Done — Signed downloads + post-send handoff (Slice C)** — inline View/Download on Signing package document rows when `signed_s3_key` is set; after Send Offer (Contract / invoice-only), toast + focus Acceptance.
-6. **Deferred** — 7/14-day clocks; HTML merge templates; Send Offer → Acceptance (v2).
+6. **Done — Phase clocks** — Acceptance + signing deadlines (product config, stamps, API gates, hourly job with reminders, durable `OFFER_EXPIRED` + resend). Still deferred: HTML merge templates; Send Offer → Acceptance (v2).

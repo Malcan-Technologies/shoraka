@@ -220,6 +220,7 @@ const API_STATUS_TO_BADGE_KEY: Record<string, string> = {
   AMENDMENT_REQUESTED: "amendment_requested",
   RESUBMITTED: "resubmitted",
   OFFER_SENT: "offer_sent",
+  OFFER_EXPIRED: "offer_expired",
   APPROVED: "approved",
   COMPLETED: "completed",
   WITHDRAWN: "withdrawn",
@@ -231,7 +232,7 @@ export { API_STATUS_TO_BADGE_KEY };
 
 /**
  * Maps API invoice/application status + withdraw reason to issuer card/table badge key.
- * WITHDRAWN + OFFER_REJECTED → declined; WITHDRAWN + OFFER_EXPIRED → offer_expired; else API map.
+ * WITHDRAWN + OFFER_REJECTED → declined; OFFER_EXPIRED → offer_expired; else API map.
  */
 export function resolveIssuerInvoiceStatusBadgeKey(
   status: string | undefined,
@@ -241,7 +242,7 @@ export function resolveIssuerInvoiceStatusBadgeKey(
   if (upper === "WITHDRAWN" && withdrawReason === WithdrawReason.OFFER_REJECTED) {
     return "declined";
   }
-  if (upper === "WITHDRAWN" && withdrawReason === WithdrawReason.OFFER_EXPIRED) {
+  if (upper === "OFFER_EXPIRED") {
     return "offer_expired";
   }
   return API_STATUS_TO_BADGE_KEY[upper] ?? (status?.toLowerCase() ?? "draft");
@@ -258,6 +259,7 @@ export const STATUS_EXAMPLE_KEYS = [
   "INVOICE_PENDING",
   "INVOICES_SENT",
   "OFFER_SENT",
+  "OFFER_EXPIRED",
   "AMENDMENT_REQUESTED",
   "RESUBMITTED",
   "APPROVED",
@@ -276,10 +278,6 @@ const BADGE_KEY_PRESENTATION: Record<string, StatusPresentation> = {
   amendment_requested: { ...STATUS_PRESENTATION.AMENDMENT_REQUESTED, label: "Action Required" } as StatusPresentation,
   resubmitted: { ...STATUS_PRESENTATION.RESUBMITTED, label: "Resubmitted" } as StatusPresentation,
   offer_sent: { ...STATUS_PRESENTATION.OFFER_SENT, label: "Offer Received" } as StatusPresentation,
-  offer_awaiting_review: {
-    ...STATUS_PRESENTATION.OFFER_SENT,
-    label: "Awaiting CashSouk review",
-  } as StatusPresentation,
   accepted: { ...STATUS_PRESENTATION.APPROVED, label: "Approved" } as StatusPresentation,
   approved: { ...STATUS_PRESENTATION.APPROVED, label: "Approved" } as StatusPresentation,
   completed: { ...STATUS_PRESENTATION.COMPLETED, label: "Completed" } as StatusPresentation,
@@ -304,11 +302,6 @@ export function getStatusPresentationByBadgeKey(
   if (issuer && withdrawReason === WithdrawReason.OFFER_REJECTED) {
     const pres = BADGE_KEY_PRESENTATION.declined;
     return { color: pres.badgeClass, label: "Declined" };
-  }
-
-  if (issuer && withdrawReason === WithdrawReason.OFFER_EXPIRED) {
-    const pres = BADGE_KEY_PRESENTATION.offer_expired;
-    return { color: pres.badgeClass, label: pres.label ?? "Offer Expired" };
   }
 
   if (key === "declined") {
@@ -351,9 +344,6 @@ export function getStatusPresentation(
   if (upper === "WITHDRAWN" && issuer) {
     if (withdrawReason === WithdrawReason.OFFER_REJECTED) {
       return { ...STATUS_PRESENTATION.DECLINED, label: "Declined" } as StatusPresentation;
-    }
-    if (withdrawReason === WithdrawReason.OFFER_EXPIRED) {
-      return { ...STATUS_PRESENTATION.OFFER_EXPIRED, label: "Offer Expired" } as StatusPresentation;
     }
     return { ...STATUS_PRESENTATION.WITHDRAWN, label: "Withdrawn" } as StatusPresentation;
   }

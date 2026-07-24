@@ -82,6 +82,7 @@ type ActivityMetadata = {
   offered_ratio_percent?: number | null;
   offered_profit_rate_percent?: number | null;
   expires_at?: string | null;
+  acceptance_expires_at?: string | null;
   rejection_reason?: string;
   resubmit_changes?: ResubmitChangesMetadata;
 };
@@ -184,8 +185,12 @@ function getEventIcon(eventType: string): React.ReactElement {
     case "APPLICATION_WITHDRAWN":
     case "INVOICE_WITHDRAWN":
       return <XCircleIcon className="h-3.5 w-3.5 text-muted-foreground" />;
-    case "OFFER_EXPIRED":
+    case "CONTRACT_OFFER_EXPIRED":
+    case "INVOICE_OFFER_EXPIRED":
       return <ClockIcon className="h-3.5 w-3.5 text-amber-600" />;
+    case "CONTRACT_SIGNING_DEADLINE_EXTENDED":
+    case "INVOICE_SIGNING_DEADLINE_EXTENDED":
+      return <ClockIcon className="h-3.5 w-3.5 text-emerald-600" />;
     default:
       return <ClockIcon className="h-3.5 w-3.5 text-muted-foreground" />;
   }
@@ -221,13 +226,16 @@ function getEventLabel(
     CONTRACT_OFFER_ACCEPTED: "Contract Offer Accepted",
     CONTRACT_OFFER_REJECTED: "Contract Offer Withdrawn",
     CONTRACT_OFFER_RETRACTED: "Contract Offer Retracted",
+    CONTRACT_OFFER_EXPIRED: "Contract Offer Expired",
+    CONTRACT_SIGNING_DEADLINE_EXTENDED: "Signing Deadline Extended",
     CONTRACT_WITHDRAWN: "Contract Offer Withdrawn",
     INVOICE_OFFER_SENT: "Invoice Offer Sent",
     INVOICE_OFFER_ACCEPTED: "Invoice Offer Accepted",
     INVOICE_OFFER_REJECTED: "Invoice Offer Rejected",
     INVOICE_OFFER_RETRACTED: "Invoice Offer Retracted",
+    INVOICE_OFFER_EXPIRED: "Invoice Offer Expired",
+    INVOICE_SIGNING_DEADLINE_EXTENDED: "Signing Deadline Extended",
     INVOICE_WITHDRAWN: "Invoice Withdrawn",
-    OFFER_EXPIRED: "Offer Expired",
     AMENDMENTS_SUBMITTED: "Amendment Request Sent",
   };
   if (eventType === "INVOICE_OFFER_SENT") {
@@ -253,6 +261,12 @@ function getEventLabel(
     return invoiceNumber != null && invoiceNumber !== ""
       ? `Invoice ${invoiceNumber} Withdrawn`
       : "Invoice Withdrawn";
+  }
+  if (eventType === "INVOICE_OFFER_EXPIRED") {
+    const invoiceNumber = metadata?.invoice_number;
+    return invoiceNumber != null && invoiceNumber !== ""
+      ? `Invoice ${invoiceNumber} Offer Expired`
+      : "Invoice Offer Expired";
   }
   if (baseLabels[eventType]) return baseLabels[eventType];
 
@@ -303,8 +317,12 @@ function getEventDotColor(eventType: string): string {
     case "INVOICE_OFFER_RETRACTED":
     case "CONTRACT_WITHDRAWN":
       return "bg-muted-foreground";
-    case "OFFER_EXPIRED":
+    case "CONTRACT_OFFER_EXPIRED":
+    case "INVOICE_OFFER_EXPIRED":
       return "bg-amber-500";
+    case "CONTRACT_SIGNING_DEADLINE_EXTENDED":
+    case "INVOICE_SIGNING_DEADLINE_EXTENDED":
+      return "bg-emerald-500";
     case "CONTRACT_OFFER_SENT":
     case "INVOICE_OFFER_SENT":
     case "CONTRACT_OFFER_ACCEPTED":
@@ -603,6 +621,15 @@ export function AdminActivityTimeline({
                                         <dd className="tabular-nums">{formatCurrency(metadata.requested_facility)}</dd>
                                       </>
                                     )}
+                                    {typeof metadata.acceptance_expires_at === "string" &&
+                                      metadata.acceptance_expires_at && (
+                                      <>
+                                        <dt className="text-muted-foreground">Accept by</dt>
+                                        <dd className="tabular-nums">
+                                          {format(new Date(metadata.acceptance_expires_at), "dd MMM yyyy, h:mm a")}
+                                        </dd>
+                                      </>
+                                    )}
                                   </dl>
                                 )}
                                 {eventType === "INVOICE_OFFER_SENT" && (
@@ -623,6 +650,15 @@ export function AdminActivityTimeline({
                                       <>
                                         <dt className="text-muted-foreground">Profit rate</dt>
                                         <dd className="tabular-nums">{Number(metadata.offered_profit_rate_percent)}%</dd>
+                                      </>
+                                    )}
+                                    {typeof metadata.acceptance_expires_at === "string" &&
+                                      metadata.acceptance_expires_at && (
+                                      <>
+                                        <dt className="text-muted-foreground">Accept by</dt>
+                                        <dd className="tabular-nums">
+                                          {format(new Date(metadata.acceptance_expires_at), "dd MMM yyyy, h:mm a")}
+                                        </dd>
                                       </>
                                     )}
                                   </dl>

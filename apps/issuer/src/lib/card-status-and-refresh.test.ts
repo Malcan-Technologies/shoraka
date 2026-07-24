@@ -12,15 +12,15 @@ import {
 } from "../../../../packages/config/src/review-refresh-policy";
 
 describe("getCardStatus offer awaiting review", () => {
-  it("shows Awaiting CashSouk review when acceptance is PENDING_ADMIN_REVIEW", () => {
+  it("shows Under Review when acceptance is PENDING_ADMIN_REVIEW", () => {
     const result = getCardStatus({
       applicationStatus: "CONTRACT_SENT",
       contractStatus: "OFFER_SENT",
       invoiceStatuses: [],
       offerAcceptanceStatus: "PENDING_ADMIN_REVIEW",
     });
-    expect(result.badgeKey).toBe("offer_awaiting_review");
-    expect(result.displayLabel).toBe("Awaiting CashSouk review");
+    expect(result.badgeKey).toBe("under_review");
+    expect(result.displayLabel).toBe("Under Review");
     expect(result.showReviewOffer).toBe(false);
   });
 

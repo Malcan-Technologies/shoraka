@@ -255,6 +255,7 @@ export default function DynamicApplicationDetailPage() {
     "INVOICES_SENT",
     "RESUBMITTED",
     "AMENDMENT_REQUESTED",
+    "OFFER_EXPIRED",
   ];
   const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
   const isFinalApplicationForAmlGate = ["APPROVED", "FUNDED", "COMPLETED"].includes(

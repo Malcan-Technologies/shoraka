@@ -8,7 +8,7 @@ Single source of truth for facility values across contract_details, offer_detail
 |----------|--------|---------|
 | `contract_details` | `financing`, `value`, `facility_applied`, `contract_value` | Issuer’s requested facility (various UI field names) |
 | `contract_details` | `approved_facility`, `utilized_facility`, `available_facility` | Capacity after offer is accepted |
-| `offer_details` | `requested_facility`, `offered_facility`, `expires_at`, `sent_at`, `responded_at` | Offer lifecycle |
+| `offer_details` | `requested_facility`, `offered_facility`, `sent_at`, `responded_at`, `offer_acceptance` | Offer lifecycle |
 
 ## Flow
 

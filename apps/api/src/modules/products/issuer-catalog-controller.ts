@@ -19,7 +19,6 @@ function toIssuerCatalogProduct(p: {
   updated_at: Date;
   category_display_order?: number | null;
   product_display_order?: number | null;
-  offer_expiry_days?: number | null;
   marketplace_listing_duration_days?: number | null;
 }) {
   return {
@@ -28,7 +27,6 @@ function toIssuerCatalogProduct(p: {
     workflow: p.workflow as unknown[],
     category_display_order: p.category_display_order ?? null,
     product_display_order: p.product_display_order ?? null,
-    offer_expiry_days: p.offer_expiry_days ?? null,
     marketplace_listing_duration_days: p.marketplace_listing_duration_days ?? null,
     created_at: p.created_at.toISOString(),
     updated_at: p.updated_at.toISOString(),
@@ -66,7 +64,6 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
               .category_display_order,
             product_display_order: (p as { product_display_order?: number | null })
               .product_display_order,
-            offer_expiry_days: (p as { offer_expiry_days?: number | null }).offer_expiry_days,
             marketplace_listing_duration_days: (
               p as { marketplace_listing_duration_days?: number | null }
             ).marketplace_listing_duration_days,
@@ -151,7 +148,6 @@ router.get(
             .category_display_order,
           product_display_order: (product as { product_display_order?: number | null })
             .product_display_order,
-          offer_expiry_days: (product as { offer_expiry_days?: number | null }).offer_expiry_days,
           marketplace_listing_duration_days: (
             product as { marketplace_listing_duration_days?: number | null }
           ).marketplace_listing_duration_days,

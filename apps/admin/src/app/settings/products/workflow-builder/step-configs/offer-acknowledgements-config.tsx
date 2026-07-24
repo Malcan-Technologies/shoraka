@@ -17,14 +17,19 @@ import {
 import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 import {
   DEFAULT_OFFER_ACKNOWLEDGEMENTS,
+  DEFAULT_ACCEPTANCE_DEADLINE,
   OFFER_ACKNOWLEDGEMENTS_WORKFLOW_KEY,
   parseOfferAcknowledgementsConfig,
+  parseAcceptanceDeadlineConfig,
   writeOfferAcknowledgementsConfig,
+  writeAcceptanceDeadlineConfig,
   type OfferAcknowledgementContentSource,
   type OfferAcknowledgementDocument,
   type OfferAcknowledgementTemplateKey,
+  type PhaseDeadlineConfig,
 } from "@cashsouk/types";
 import { validateOptionalWorkflowDocumentTemplateFile } from "./workflow-document-row-editor";
+import { PhaseDeadlineConfigEditor } from "./phase-deadline-config-editor";
 
 function slugifyKey(name: string, index: number): string {
   const base = name
@@ -48,18 +53,32 @@ export function OfferAcknowledgementsConfig({
   const [items, setItems] = React.useState<OfferAcknowledgementDocument[]>(() =>
     parseOfferAcknowledgementsConfig(config)
   );
+  const [deadline, setDeadline] = React.useState<PhaseDeadlineConfig>(
+    () => parseAcceptanceDeadlineConfig(config) ?? DEFAULT_ACCEPTANCE_DEADLINE
+  );
   const [pendingFiles, setPendingFiles] = React.useState<Record<number, File>>({});
 
   React.useEffect(() => {
     setItems(parseOfferAcknowledgementsConfig(config));
+    setDeadline(parseAcceptanceDeadlineConfig(config) ?? DEFAULT_ACCEPTANCE_DEADLINE);
   }, [config]);
 
   const persist = React.useCallback(
-    (nextItems: OfferAcknowledgementDocument[]) => {
-      onChange(writeOfferAcknowledgementsConfig(base, nextItems));
+    (nextItems: OfferAcknowledgementDocument[], nextDeadline: PhaseDeadlineConfig = deadline) => {
+      onChange(
+        writeAcceptanceDeadlineConfig(
+          writeOfferAcknowledgementsConfig(base, nextItems),
+          nextDeadline
+        )
+      );
     },
-    [base, onChange]
+    [base, onChange, deadline]
   );
+
+  const persistDeadline = (nextDeadline: PhaseDeadlineConfig) => {
+    setDeadline(nextDeadline);
+    persist(items, nextDeadline);
+  };
 
   const addDoc = (preset?: "letter_of_offer" | "guarantee_acknowledgement") => {
     if (preset) {
@@ -174,6 +193,13 @@ export function OfferAcknowledgementsConfig({
           static text or an uploaded PDF. One checkbox per document — not signed on SigningCloud.
         </p>
       </div>
+
+      <PhaseDeadlineConfigEditor
+        title="Acceptance deadline"
+        description="Clock starts when admin sends the offer. Issuer must accept and upload acceptance documents before it lapses."
+        value={deadline}
+        onChange={persistDeadline}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <Select

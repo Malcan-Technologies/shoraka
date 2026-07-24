@@ -61,23 +61,15 @@ Application-level status stays `UNDER_REVIEW` while offers are pending; offer st
 
 ### Deriving offer status for UI
 
-```ts
-function getOfferStatus(item: {
-  status?: string;
-  offer_details?: { expires_at?: string | null };
-}): "Offer received" | "Offer expired" | null {
-  if (item.status !== "OFFER_SENT" || !item.offer_details) return null;
+Uses the active phase deadline on `offer_acceptance` (`acceptance_expires_at` while in Step 1/admin review; `signing_expires_at` while approved for signing / signing in progress). See `apps/issuer/src/lib/offer-utils.ts`.
 
-  const expiresAt = item.offer_details.expires_at;
-  if (!expiresAt) return "Offer received";
+- **"Offer received"** — Show offer badge, enable "Review offer" / Accept–Reject when the active clock has not passed.
+- **"Offer expired"** — Same label for past-deadline soft window (`OFFER_SENT` + clock past) and durable entity status `OFFER_EXPIRED`:
+  - Card badge **Offer Expired**, Review CTA hidden, short note that a resent offer may appear
+  - Full offer details remain available (download / read-only modal)
+  - If the Review modal is already open, it becomes read-only (Close + download only; no accept/decline/continue)
 
-  const isExpired = new Date(expiresAt) < new Date();
-  return isExpired ? "Offer expired" : "Offer received";
-}
-```
-
-- **"Offer received"** — Show offer badge, enable "Review offer" / Accept–Reject.
-- **"Offer expired"** — Show badge, disable actions.
+Past deadline API actions return `400 OFFER_EXPIRED`. After the hourly job, entity status is `OFFER_EXPIRED` until admin Send Offer.
 - **null** — No offer (retracted, not sent, or already responded).
 
 ## Offer Details Shape
@@ -85,14 +77,16 @@ function getOfferStatus(item: {
 **ContractOfferDetails** (from `packages/types`):
 
 - `requested_facility`, `offered_facility` (numbers)
-- `expires_at`, `sent_at`, `responded_at`, `responded_by_user_id`, `version`
+- `sent_at`, `responded_at`, `responded_by_user_id`, `version`
+- `offer_acceptance` (when phased flow applies) including `acceptance_expires_at` / `signing_expires_at`
 
 **InvoiceOfferDetails**:
 
 - `requested_amount`, `offered_amount`
 - `requested_ratio_percent`, `offered_ratio_percent`, `offered_profit_rate_percent`
 - `platform_fee_rate_percent` (optional; percent of funded amount at disbursement, capped 0–3; included on invoice offer letter PDFs)
-- `expires_at`, `sent_at`, `responded_at`, `responded_by_user_id`, `version`
+- `sent_at`, `responded_at`, `responded_by_user_id`, `version`
+- `offer_acceptance` (when phased flow applies) including `acceptance_expires_at` / `signing_expires_at`
 
 ## External signing (all signers)
 
@@ -156,7 +150,7 @@ Non-production `{ skipSigning: true }` bypass applies the same as contract.
 
 - `400 INVALID_STATE` — No pending offer, no contract/invoice, or no `offer_details`.
 - `400 ALREADY_RESPONDED` — Already accepted or rejected.
-- `400 OFFER_EXPIRED` — `expires_at` has passed.
+- `400 OFFER_EXPIRED` — active phase deadline (`acceptance_expires_at` or `signing_expires_at`) has passed.
 - `400 USE_SIGNING_FLOW` — SigningCloud configured; accept via envelope completion (or contract-linked direct accept when eligible).
 - `400 CONTRACT_SIGNING_INCOMPLETE` — Contract-linked invoice accept before contract envelope `COMPLETED`.
 - `403 FORBIDDEN` — User not in issuer org.

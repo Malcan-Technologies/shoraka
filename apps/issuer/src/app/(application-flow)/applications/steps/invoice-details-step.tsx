@@ -1050,9 +1050,7 @@ export default function InvoiceDetailsStep({
           const d = it.details;
           const wr = it.withdraw_reason;
           const withdraw_reason =
-            wr === WithdrawReason.USER_CANCELLED ||
-            wr === WithdrawReason.OFFER_EXPIRED ||
-            wr === WithdrawReason.OFFER_REJECTED
+            wr === WithdrawReason.USER_CANCELLED || wr === WithdrawReason.OFFER_REJECTED
               ? wr
               : undefined;
           return {

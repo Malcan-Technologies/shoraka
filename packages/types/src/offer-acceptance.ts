@@ -10,8 +10,24 @@ import {
   resolveAcceptanceDocumentsFromWorkflow,
   workflowHasAcceptanceDocuments,
 } from "./acceptance-documents";
+import {
+  ACCEPTANCE_DEADLINE_WORKFLOW_KEY,
+  DEFAULT_ACCEPTANCE_DEADLINE,
+  DEFAULT_SIGNING_DEADLINE,
+  parsePhaseDeadlineConfig,
+  serializePhaseDeadlineConfig,
+  SIGNING_DEADLINE_WORKFLOW_KEY,
+  type PhaseDeadlineConfig,
+} from "./deadline-config";
 
 export const OFFER_ACKNOWLEDGEMENTS_WORKFLOW_KEY = "offer_acknowledgements";
+export {
+  ACCEPTANCE_DEADLINE_WORKFLOW_KEY,
+  SIGNING_DEADLINE_WORKFLOW_KEY,
+  DEFAULT_ACCEPTANCE_DEADLINE,
+  DEFAULT_SIGNING_DEADLINE,
+};
+export type { PhaseDeadlineConfig };
 
 export type OfferAcceptanceStatus =
   | "PENDING_ISSUER"
@@ -150,6 +166,7 @@ export type OfferAcknowledgementRecord = {
 export type OfferAcknowledgedTermsSnapshot = {
   offer_version: number;
   product_version: number | null;
+  /** Acceptance clock deadline frozen at Step 1 (from offer_acceptance.acceptance_expires_at). */
   expires_at: string | null;
   offered_facility?: number;
   facility_fee_rate_percent?: number | null;
@@ -168,6 +185,12 @@ export type OfferAcceptanceDetails = {
   submitted_at?: string | null;
   reviewed_at?: string | null;
   reviewed_by_user_id?: string | null;
+  /** Stamp on Send Offer from product acceptance_deadline.days. */
+  acceptance_expires_at?: string | null;
+  /** Stamp when entering APPROVED_FOR_SIGNING from product signing_deadline.days. */
+  signing_expires_at?: string | null;
+  /** Idempotency map: e.g. "acceptance:1" → ISO sent_at. */
+  deadline_reminders_sent?: Record<string, string>;
 };
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -200,6 +223,14 @@ export function parseOfferAcceptanceDetails(value: unknown): OfferAcceptanceDeta
     }
   }
   const acknowledgedTerms = parseAcknowledgedTermsSnapshot(root.acknowledged_terms);
+  const remindersSent = asRecord(root.deadline_reminders_sent);
+  const deadlineRemindersSent: Record<string, string> | undefined = remindersSent
+    ? Object.fromEntries(
+        Object.entries(remindersSent).filter(
+          (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].length > 0
+        )
+      )
+    : undefined;
   return {
     status: root.status,
     ...(acknowledgements.length > 0 ? { acknowledgements } : {}),
@@ -212,6 +243,21 @@ export function parseOfferAcceptanceDetails(value: unknown): OfferAcceptanceDeta
         : root.reviewed_by_user_id === null
           ? null
           : undefined,
+    acceptance_expires_at:
+      typeof root.acceptance_expires_at === "string"
+        ? root.acceptance_expires_at
+        : root.acceptance_expires_at === null
+          ? null
+          : undefined,
+    signing_expires_at:
+      typeof root.signing_expires_at === "string"
+        ? root.signing_expires_at
+        : root.signing_expires_at === null
+          ? null
+          : undefined,
+    ...(deadlineRemindersSent && Object.keys(deadlineRemindersSent).length > 0
+      ? { deadline_reminders_sent: deadlineRemindersSent }
+      : {}),
   };
 }
 
@@ -281,12 +327,11 @@ export function buildAcknowledgedTermsSnapshot(params: {
 }): OfferAcknowledgedTermsSnapshot {
   const offer = params.offerDetails;
   const offerVersion = parseOptionalFiniteNumber(offer.version) ?? 0;
+  const acceptance = parseOfferAcceptanceDetails(offer.offer_acceptance);
   const expiresAt =
-    typeof offer.expires_at === "string"
-      ? offer.expires_at
-      : offer.expires_at === null
-        ? null
-        : null;
+    typeof acceptance?.acceptance_expires_at === "string"
+      ? acceptance.acceptance_expires_at
+      : null;
   const snapshot: OfferAcknowledgedTermsSnapshot = {
     offer_version: offerVersion,
     product_version:
@@ -351,8 +396,15 @@ export function getOfferAcceptanceFromOfferDetails(
   return parseOfferAcceptanceDetails(root.offer_acceptance);
 }
 
-export function createInitialOfferAcceptanceDetails(): OfferAcceptanceDetails {
-  return { status: "PENDING_ISSUER" };
+export function createInitialOfferAcceptanceDetails(
+  overrides?: Partial<Pick<OfferAcceptanceDetails, "acceptance_expires_at">>
+): OfferAcceptanceDetails {
+  return {
+    status: "PENDING_ISSUER",
+    ...(overrides?.acceptance_expires_at != null
+      ? { acceptance_expires_at: overrides.acceptance_expires_at }
+      : {}),
+  };
 }
 
 /** Merge offer_acceptance into an offer_details object (shallow). */
@@ -524,6 +576,64 @@ export function writeOfferAcknowledgementsConfig(
         : {}),
     })),
   };
+}
+
+export function parseAcceptanceDeadlineConfig(financingConfig: unknown): PhaseDeadlineConfig | null {
+  const config = asRecord(financingConfig) ?? {};
+  return parsePhaseDeadlineConfig(config[ACCEPTANCE_DEADLINE_WORKFLOW_KEY]);
+}
+
+export function writeAcceptanceDeadlineConfig(
+  financingConfig: Record<string, unknown>,
+  deadline: PhaseDeadlineConfig
+): Record<string, unknown> {
+  return {
+    ...financingConfig,
+    [ACCEPTANCE_DEADLINE_WORKFLOW_KEY]: serializePhaseDeadlineConfig(deadline),
+  };
+}
+
+export function parseSigningDeadlineConfig(financingConfig: unknown): PhaseDeadlineConfig | null {
+  const config = asRecord(financingConfig) ?? {};
+  return parsePhaseDeadlineConfig(config[SIGNING_DEADLINE_WORKFLOW_KEY]);
+}
+
+export function writeSigningDeadlineConfig(
+  financingConfig: Record<string, unknown>,
+  deadline: PhaseDeadlineConfig
+): Record<string, unknown> {
+  return {
+    ...financingConfig,
+    [SIGNING_DEADLINE_WORKFLOW_KEY]: serializePhaseDeadlineConfig(deadline),
+  };
+}
+
+export function resolveAcceptanceDeadlineFromWorkflow(workflow: unknown): PhaseDeadlineConfig | null {
+  return parseAcceptanceDeadlineConfig(findFinancingTypeConfig(workflow));
+}
+
+export function resolveSigningDeadlineFromWorkflow(workflow: unknown): PhaseDeadlineConfig | null {
+  return parseSigningDeadlineConfig(findFinancingTypeConfig(workflow));
+}
+
+/** Active deadline for issuer display / soft expiry while OFFER_SENT. */
+export function resolveActiveOfferDeadlineIso(
+  acceptance: OfferAcceptanceDetails | null | undefined
+): string | null {
+  if (!acceptance) return null;
+  if (
+    acceptance.status === "APPROVED_FOR_SIGNING" ||
+    acceptance.status === "SIGNING_IN_PROGRESS"
+  ) {
+    return typeof acceptance.signing_expires_at === "string" ? acceptance.signing_expires_at : null;
+  }
+  // Acceptance clock pauses while CashSouk reviews (PENDING_ADMIN_REVIEW).
+  if (acceptance.status === "PENDING_ISSUER" || acceptance.status === "CHANGES_REQUESTED") {
+    return typeof acceptance.acceptance_expires_at === "string"
+      ? acceptance.acceptance_expires_at
+      : null;
+  }
+  return null;
 }
 
 export function resolveOfferAcknowledgementsFromWorkflow(

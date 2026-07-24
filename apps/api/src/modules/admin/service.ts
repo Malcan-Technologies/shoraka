@@ -112,6 +112,13 @@ import { assertMaturityForSendInvoiceOffer } from "../products/validate-financia
 import { extractSubmittedAtFromWebhookPayloads } from "./extract-submitted-at";
 import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
 import { patchOfferAcceptance } from "../applications/offer-acceptance";
+import {
+  acceptanceDeadlinePatchOnChangesRequested,
+  buildOfferAcceptanceOnSend,
+  signingDeadlinePatchOnApprove,
+  signingDeadlinePatchOnExtend,
+  SIGNING_ACTIVE,
+} from "../../lib/phase-deadlines";
 
 const APPLICATION_ACTION_REQUIRED_STATUSES = [
   ApplicationStatus.SUBMITTED,
@@ -5864,6 +5871,7 @@ export class AdminService {
     ApplicationStatus.CONTRACT_ACCEPTED,
     ApplicationStatus.INVOICE_PENDING,
     ApplicationStatus.INVOICES_SENT,
+    ApplicationStatus.OFFER_EXPIRED,
     ApplicationStatus.RESUBMITTED,
     ApplicationStatus.AMENDMENT_REQUESTED,
   ];
@@ -5920,7 +5928,7 @@ export class AdminService {
   private allInvoicesOfferableOrResolved(invoiceStatuses: string[]): boolean {
     if (invoiceStatuses.length === 0) return false;
     return invoiceStatuses.every((status) =>
-      ["OFFER_SENT", "APPROVED", "WITHDRAWN", "REJECTED"].includes(status)
+      ["OFFER_SENT", "OFFER_EXPIRED", "APPROVED", "WITHDRAWN", "REJECTED"].includes(status)
     );
   }
 
@@ -5968,10 +5976,21 @@ export class AdminService {
     } = input;
 
     if (contractId && !isInvoiceOnly) {
-      if (contractStatus === "OFFER_SENT") return ApplicationStatus.CONTRACT_SENT;
+      if (contractStatus === "OFFER_EXPIRED") {
+        return ApplicationStatus.OFFER_EXPIRED;
+      }
+      if (contractStatus === "OFFER_SENT") {
+        return ApplicationStatus.CONTRACT_SENT;
+      }
       if (contractStatus === "APPROVED") {
         if (invoiceStatuses.length === 0) return ApplicationStatus.COMPLETED;
         if (this.allInvoicesOfferableOrResolved(invoiceStatuses)) {
+          if (
+            invoiceStatuses.some((status) => status === "OFFER_EXPIRED") &&
+            !invoiceStatuses.some((status) => status === "OFFER_SENT")
+          ) {
+            return ApplicationStatus.OFFER_EXPIRED;
+          }
           return ApplicationStatus.INVOICES_SENT;
         }
         if (!isInvoiceTabUnlocked) return ApplicationStatus.CONTRACT_ACCEPTED;
@@ -5982,6 +6001,12 @@ export class AdminService {
     }
 
     if (this.allInvoicesOfferableOrResolved(invoiceStatuses)) {
+      if (
+        invoiceStatuses.some((status) => status === "OFFER_EXPIRED") &&
+        !invoiceStatuses.some((status) => status === "OFFER_SENT")
+      ) {
+        return ApplicationStatus.OFFER_EXPIRED;
+      }
       return ApplicationStatus.INVOICES_SENT;
     }
     if (!isInvoiceTabUnlocked) return ApplicationStatus.UNDER_REVIEW;
@@ -6374,7 +6399,7 @@ export class AdminService {
 
   /**
    * Keep offer_acceptance.status aligned with acceptance-doc review items.
-   * - Amendment → CHANGES_REQUESTED (only after Step 1 was submitted)
+   * - Amendment → CHANGES_REQUESTED (only after Step 1 was submitted); restamps acceptance clock
    * - All approved → APPROVED_FOR_SIGNING (only from PENDING_ADMIN_REVIEW / already approved)
    * - Never promote PENDING_ISSUER; never approve from CHANGES_REQUESTED without resubmit
    * - Reset of approvals rolls APPROVED_FOR_SIGNING → PENDING_ADMIN_REVIEW
@@ -6474,6 +6499,12 @@ export class AdminService {
           status: target,
           reviewed_at: now,
           reviewed_by_user_id: reviewerUserId,
+          ...(target === "APPROVED_FOR_SIGNING"
+            ? signingDeadlinePatchOnApprove(workflow, now, current)
+            : {}),
+          ...(target === "CHANGES_REQUESTED"
+            ? acceptanceDeadlinePatchOnChangesRequested(workflow, now, current)
+            : {}),
         });
         await prisma.contract.update({
           where: { id: contract.id },
@@ -6495,6 +6526,12 @@ export class AdminService {
         status: target,
         reviewed_at: now,
         reviewed_by_user_id: reviewerUserId,
+        ...(target === "APPROVED_FOR_SIGNING"
+          ? signingDeadlinePatchOnApprove(workflow, now, current)
+          : {}),
+        ...(target === "CHANGES_REQUESTED"
+          ? acceptanceDeadlinePatchOnChangesRequested(workflow, now, current)
+          : {}),
       });
       await prisma.invoice.update({
         where: { id: invoice.id },
@@ -6718,7 +6755,7 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Contract not found");
     }
 
-    const nonEditableStatuses = ["OFFER_SENT", "APPROVED", "REJECTED", "WITHDRAWN"] as const;
+    const nonEditableStatuses = ["OFFER_SENT", "OFFER_EXPIRED", "APPROVED", "REJECTED", "WITHDRAWN"] as const;
     if (nonEditableStatuses.includes(contract.status as (typeof nonEditableStatuses)[number])) {
       throw new AppError(
         400,
@@ -6848,7 +6885,7 @@ export class AdminService {
       }
 
       const previousOffer = (lockedContract.offer_details as Record<string, unknown> | null) ?? null;
-      if (stampOfferAcceptance) {
+      if (stampOfferAcceptance && lockedContract.status !== "OFFER_EXPIRED") {
         this.assertOfferAcceptanceAllowsResend(previousOffer);
       }
       const previousVersion =
@@ -6865,7 +6902,9 @@ export class AdminService {
         sent_by_user_id: reviewerUserId,
         responded_by_user_id: null,
         version: previousVersion + 1,
-        ...(stampOfferAcceptance ? { offer_acceptance: { status: "PENDING_ISSUER" as const } } : {}),
+        ...(stampOfferAcceptance
+          ? { offer_acceptance: buildOfferAcceptanceOnSend(workflow, now) }
+          : {}),
       };
 
       const updateResult = await tx.contract.updateMany({
@@ -6924,9 +6963,14 @@ export class AdminService {
         data: { status: ApplicationStatus.CONTRACT_SENT },
       });
 
+      const acceptanceExpiresAt = stampOfferAcceptance
+        ? (getOfferAcceptanceFromOfferDetails(offerDetails)?.acceptance_expires_at ?? null)
+        : null;
+
       return {
         requestedFacility,
         previousVersion,
+        acceptanceExpiresAt,
       };
     });
 
@@ -6951,6 +6995,9 @@ export class AdminService {
         requested_facility: contractOfferMeta.requestedFacility,
         offered_facility: offeredFacility,
         version: contractOfferMeta.previousVersion + 1,
+        ...(contractOfferMeta.acceptanceExpiresAt
+          ? { acceptance_expires_at: contractOfferMeta.acceptanceExpiresAt }
+          : {}),
       },
       ipAddress: logContext?.ipAddress ?? undefined,
       userAgent: logContext?.userAgent ?? undefined,
@@ -6964,7 +7011,7 @@ export class AdminService {
         {
           applicationId,
           offeredFacility,
-          expiresAt: null,
+          expiresAt: contractOfferMeta.acceptanceExpiresAt,
         },
         `contract-offer-sent:${contractOfferMeta.previousVersion + 1}`
       );
@@ -6974,6 +7021,133 @@ export class AdminService {
         "Failed to send contract offer notification to issuer"
       );
     }
+
+    return repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * Restamp signing_expires_at after the signing clock passed (soft or durable OFFER_EXPIRED).
+   * Keeps acceptance docs / commercial terms; restores OFFER_SENT when durable-expired.
+   */
+  async extendContractSigningDeadline(
+    applicationId: string,
+    reviewerUserId: string,
+    logContext?: AdminLogContext
+  ) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    this.ensureContractOfferActionAllowed(application);
+
+    if (!application.contract_id) {
+      throw new AppError(400, "INVALID_STATE", "Application has no contract to extend");
+    }
+
+    const contractId = application.contract_id;
+    const workflow = await this.loadApplicationProductWorkflow(application);
+    if (!workflowUsesOfferAcceptanceFlow(workflow)) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "This product does not use the offer-acceptance signing flow"
+      );
+    }
+
+    const now = new Date();
+    const nowIso = now.toISOString();
+    let signingExpiresAt: string | null = null;
+
+    await prisma.$transaction(async (tx) => {
+      const locked = await tx.contract.findUnique({
+        where: { id: contractId },
+        select: { id: true, status: true, offer_details: true },
+      });
+      if (!locked) {
+        throw new AppError(404, "NOT_FOUND", "Contract not found");
+      }
+      if (locked.status !== "OFFER_SENT" && locked.status !== "OFFER_EXPIRED") {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          `Cannot extend signing deadline when contract status is ${locked.status}`
+        );
+      }
+
+      const offer = (locked.offer_details as Record<string, unknown> | null) ?? {};
+      const current = getOfferAcceptanceFromOfferDetails(offer);
+      if (!current || !SIGNING_ACTIVE.has(current.status)) {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "Signing deadline can only be extended after acceptance is approved for signing"
+        );
+      }
+      const expiresAt = current.signing_expires_at;
+      if (typeof expiresAt !== "string" || !expiresAt || new Date(expiresAt) >= now) {
+        throw new AppError(400, "INVALID_STATE", "Signing deadline has not expired yet");
+      }
+
+      const deadlinePatch = signingDeadlinePatchOnExtend(workflow, nowIso, current);
+      signingExpiresAt =
+        typeof deadlinePatch.signing_expires_at === "string"
+          ? deadlinePatch.signing_expires_at
+          : null;
+
+      const nextStatus =
+        current.status === "SIGNING_IN_PROGRESS" ? "APPROVED_FOR_SIGNING" : current.status;
+      const updated = patchOfferAcceptance(offer, {
+        status: nextStatus,
+        ...deadlinePatch,
+      });
+
+      await tx.contract.update({
+        where: { id: contractId },
+        data: {
+          status: "OFFER_SENT",
+          offer_details: updated as Prisma.InputJsonValue,
+        },
+      });
+
+      if (locked.status === "OFFER_EXPIRED") {
+        await tx.applicationReview.upsert({
+          where: {
+            application_id_section: {
+              application_id: applicationId,
+              section: "contract_details",
+            },
+          },
+          create: {
+            application_id: applicationId,
+            section: "contract_details",
+            status: ReviewStepStatus.OFFER_SENT,
+            reviewer_user_id: reviewerUserId,
+            reviewed_at: new Date(),
+          },
+          update: {
+            status: ReviewStepStatus.OFFER_SENT,
+            reviewer_user_id: reviewerUserId,
+            reviewed_at: new Date(),
+          },
+        });
+        await tx.application.update({
+          where: { id: applicationId },
+          data: { status: ApplicationStatus.CONTRACT_SENT },
+        });
+      }
+    });
+
+    await logApplicationActivity({
+      userId: reviewerUserId,
+      applicationId,
+      entityId: contractId,
+      portal: ActivityPortal.ADMIN,
+      eventType: "CONTRACT_SIGNING_DEADLINE_EXTENDED",
+      metadata: {
+        contract_id: contractId,
+        signing_expires_at: signingExpiresAt,
+      },
+      ipAddress: logContext?.ipAddress ?? undefined,
+      userAgent: logContext?.userAgent ?? undefined,
+      deviceInfo: logContext?.deviceInfo ?? undefined,
+    });
 
     return repository.getApplicationById(applicationId);
   }
@@ -7121,7 +7295,7 @@ export class AdminService {
       }
 
       const previousOffer = (lockedInvoice.offer_details as Record<string, unknown> | null) ?? null;
-      if (stampOfferAcceptance) {
+      if (stampOfferAcceptance && lockedInvoice.status !== "OFFER_EXPIRED") {
         this.assertOfferAcceptanceAllowsResend(previousOffer);
       }
       const previousVersion =
@@ -7143,7 +7317,9 @@ export class AdminService {
         sent_by_user_id: reviewerUserId,
         responded_by_user_id: null,
         version: previousVersion + 1,
-        ...(stampOfferAcceptance ? { offer_acceptance: { status: "PENDING_ISSUER" as const } } : {}),
+        ...(stampOfferAcceptance
+          ? { offer_acceptance: buildOfferAcceptanceOnSend(workflow, now) }
+          : {}),
       };
 
       const updateResult = await tx.invoice.updateMany({
@@ -7251,11 +7427,15 @@ export class AdminService {
         details.number != null && details.number !== ""
           ? String(details.number).trim()
           : null;
+      const acceptanceExpiresAt = stampOfferAcceptance
+        ? (getOfferAcceptanceFromOfferDetails(offerDetails)?.acceptance_expires_at ?? null)
+        : null;
       return {
         invoiceNumber,
         requestedAmount,
         previousVersion,
         platformFeeStored,
+        acceptanceExpiresAt,
       };
     });
 
@@ -7274,6 +7454,9 @@ export class AdminService {
         offered_profit_rate_percent: offeredProfitRatePercent,
         platform_fee_rate_percent: invoiceOfferMeta.platformFeeStored,
         version: invoiceOfferMeta.previousVersion + 1,
+        ...(invoiceOfferMeta.acceptanceExpiresAt
+          ? { acceptance_expires_at: invoiceOfferMeta.acceptanceExpiresAt }
+          : {}),
       },
       ipAddress: logContext?.ipAddress ?? undefined,
       userAgent: logContext?.userAgent ?? undefined,
@@ -7289,7 +7472,7 @@ export class AdminService {
           invoiceId,
           invoiceNumber: invoiceOfferMeta.invoiceNumber,
           offeredAmount,
-          expiresAt: null,
+          expiresAt: invoiceOfferMeta.acceptanceExpiresAt,
         },
         `invoice-offer-sent:${invoiceId}:${invoiceOfferMeta.previousVersion + 1}`
       );
@@ -7312,6 +7495,132 @@ export class AdminService {
       nextApp = await repository.getApplicationById(applicationId);
     }
     return nextApp ?? repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * Restamp signing_expires_at for an invoice-only offer after the signing clock passed.
+   */
+  async extendInvoiceSigningDeadline(
+    applicationId: string,
+    invoiceId: string,
+    reviewerUserId: string,
+    logContext?: AdminLogContext
+  ) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+
+    const invoiceExists = (application.invoices ?? []).some((inv) => inv.id === invoiceId);
+    if (!invoiceExists) {
+      throw new AppError(404, "NOT_FOUND", "Invoice not found on this application");
+    }
+
+    const workflow = await this.loadApplicationProductWorkflow(application);
+    if (!workflowUsesOfferAcceptanceFlow(workflow)) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "This product does not use the offer-acceptance signing flow"
+      );
+    }
+
+    const now = new Date();
+    const nowIso = now.toISOString();
+    let signingExpiresAt: string | null = null;
+    const scopeKey = this.resolveInvoiceScopeKeyById(application, invoiceId);
+
+    await prisma.$transaction(async (tx) => {
+      const locked = await tx.invoice.findUnique({
+        where: { id: invoiceId },
+        select: { id: true, status: true, offer_details: true, contract_id: true },
+      });
+      if (!locked) {
+        throw new AppError(404, "NOT_FOUND", "Invoice not found");
+      }
+      if (locked.contract_id) {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "Contract-linked invoices do not use the acceptance signing deadline flow"
+        );
+      }
+      if (locked.status !== "OFFER_SENT" && locked.status !== "OFFER_EXPIRED") {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          `Cannot extend signing deadline when invoice status is ${locked.status}`
+        );
+      }
+
+      const offer = (locked.offer_details as Record<string, unknown> | null) ?? {};
+      const current = getOfferAcceptanceFromOfferDetails(offer);
+      if (!current || !SIGNING_ACTIVE.has(current.status)) {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "Signing deadline can only be extended after acceptance is approved for signing"
+        );
+      }
+      const expiresAt = current.signing_expires_at;
+      if (typeof expiresAt !== "string" || !expiresAt || new Date(expiresAt) >= now) {
+        throw new AppError(400, "INVALID_STATE", "Signing deadline has not expired yet");
+      }
+
+      const deadlinePatch = signingDeadlinePatchOnExtend(workflow, nowIso, current);
+      signingExpiresAt =
+        typeof deadlinePatch.signing_expires_at === "string"
+          ? deadlinePatch.signing_expires_at
+          : null;
+
+      const nextStatus =
+        current.status === "SIGNING_IN_PROGRESS" ? "APPROVED_FOR_SIGNING" : current.status;
+      const updated = patchOfferAcceptance(offer, {
+        status: nextStatus,
+        ...deadlinePatch,
+      });
+
+      await tx.invoice.update({
+        where: { id: invoiceId },
+        data: {
+          status: "OFFER_SENT",
+          offer_details: updated as Prisma.InputJsonValue,
+        },
+      });
+
+      if (locked.status === "OFFER_EXPIRED") {
+        await tx.applicationReviewItem.updateMany({
+          where: {
+            application_id: applicationId,
+            item_type: "invoice",
+            OR: [{ item_id: invoiceId }, ...(scopeKey ? [{ item_id: scopeKey }] : [])],
+          },
+          data: {
+            status: ReviewStepStatus.OFFER_SENT,
+            reviewer_user_id: reviewerUserId,
+            reviewed_at: new Date(),
+          },
+        });
+        await tx.application.update({
+          where: { id: applicationId },
+          data: { status: ApplicationStatus.INVOICES_SENT },
+        });
+      }
+    });
+
+    await logApplicationActivity({
+      userId: reviewerUserId,
+      applicationId,
+      entityId: invoiceId,
+      portal: ActivityPortal.ADMIN,
+      eventType: "INVOICE_SIGNING_DEADLINE_EXTENDED",
+      metadata: {
+        invoice_id: invoiceId,
+        signing_expires_at: signingExpiresAt,
+      },
+      ipAddress: logContext?.ipAddress ?? undefined,
+      userAgent: logContext?.userAgent ?? undefined,
+      deviceInfo: logContext?.deviceInfo ?? undefined,
+    });
+
+    return repository.getApplicationById(applicationId);
   }
 
   /**

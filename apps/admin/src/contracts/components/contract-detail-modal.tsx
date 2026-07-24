@@ -539,7 +539,28 @@ export function ContractDetailView({ contractId }: ContractDetailViewProps) {
                         <div className="grid gap-6 lg:grid-cols-2">
                           <div>
                             <DetailRow label="Sent At" value={formatValue("sent_at", data.offerDetails?.sent_at)} />
-                            <DetailRow label="Expires At" value={formatValue("expires_at", data.offerDetails?.expires_at)} />
+                            <DetailRow
+                              label="Accept by"
+                              value={(() => {
+                                const acceptance = data.offerDetails?.offer_acceptance as
+                                  | { acceptance_expires_at?: string | null }
+                                  | undefined;
+                                return acceptance?.acceptance_expires_at
+                                  ? formatValue("acceptance_expires_at", acceptance.acceptance_expires_at)
+                                  : REVIEW_EMPTY_LABEL;
+                              })()}
+                            />
+                            <DetailRow
+                              label="Complete signing by"
+                              value={(() => {
+                                const acceptance = data.offerDetails?.offer_acceptance as
+                                  | { signing_expires_at?: string | null }
+                                  | undefined;
+                                return acceptance?.signing_expires_at
+                                  ? formatValue("signing_expires_at", acceptance.signing_expires_at)
+                                  : REVIEW_EMPTY_LABEL;
+                              })()}
+                            />
                             <DetailRow
                               label="Responded At"
                               value={
@@ -565,6 +586,7 @@ export function ContractDetailView({ contractId }: ContractDetailViewProps) {
                             "version",
                             "sent_at",
                             "expires_at",
+                            "offer_acceptance",
                             "responded_at",
                             "requested_facility",
                             "offered_facility",

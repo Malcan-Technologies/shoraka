@@ -12,10 +12,13 @@ import {
   parseInvoiceMaturityDate,
 } from "@cashsouk/config";
 import {
+  getOfferPhaseDeadlineDisplay,
   isSoukscoreRiskRating,
+  previewAcceptanceDeadlineFromWorkflow,
   SOUKSCORE_RISK_RATING_GRADES,
   type SoukscoreRiskRating,
 } from "@cashsouk/types";
+import { cn } from "@/lib/utils";
 import { ItemActionDropdown } from "@/components/application-review/item-action-dropdown";
 import { ReviewStepStatusBadge } from "@/components/application-review/review-step-status-badge";
 import { REVIEW_EMPTY_LABEL } from "@/components/application-review/review-section-styles";
@@ -88,6 +91,8 @@ interface InvoiceReviewListProps {
   platformFeeRateCapPercent?: number | null;
   /** From product workflow: minimum months from today to maturity required to enable Send Offer. */
   minMonthsReviewToMaturityForOffer?: number | null;
+  /** Frozen product workflow — Send Offer acceptance-deadline preview. */
+  productWorkflow?: unknown;
   isActionLocked?: boolean;
   actionLockTooltip?: string;
   onApproveItem: (itemId: string) => Promise<void>;
@@ -161,6 +166,7 @@ export function InvoiceList({
   invoiceRatioLimits,
   platformFeeRateCapPercent,
   minMonthsReviewToMaturityForOffer,
+  productWorkflow,
   isActionLocked,
   actionLockTooltip,
   onApproveItem,
@@ -173,6 +179,7 @@ export function InvoiceList({
   onViewSignedInvoiceOffer,
 }: InvoiceReviewListProps) {
   const [expandedById, setExpandedById] = React.useState<Record<string, boolean>>({});
+  const acceptanceDeadlinePreview = previewAcceptanceDeadlineFromWorkflow(productWorkflow);
   const platformFeeCap = React.useMemo(() => {
     const cap = platformFeeRateCapPercent ?? 3;
     return Number.isFinite(cap) && cap >= 0 ? Math.round(cap * 100) / 100 : 3;
@@ -515,17 +522,22 @@ export function InvoiceList({
                         <div className={applicationTableExpandableGridClass}>
                             {(() => {
                               const isOfferSent = status === "OFFER_SENT";
+                              const hasOfferSnapshot =
+                                status === "OFFER_SENT" || status === "OFFER_EXPIRED";
+                              const phaseDeadlineDisplay = hasOfferSnapshot
+                                ? getOfferPhaseDeadlineDisplay(inv.offer_details)
+                                : null;
                               const offerDetails = inv.offer_details as
                                 | { offered_amount?: number; offered_ratio_percent?: number; offered_profit_rate_percent?: number }
                                 | null
                                 | undefined;
                               const offered = getOffered(inv.id, financingRatio);
-                              const offeredAmount = isOfferSent
+                              const offeredAmount = hasOfferSnapshot
                                 ? resolveOfferedAmount(offerDetails) || null
                                 : invoiceValue !== null
                                   ? (invoiceValue * offered.ratio) / 100
                                   : null;
-                              const offeredRatio = isOfferSent
+                              const offeredRatio = hasOfferSnapshot
                                 ? (typeof offerDetails?.offered_ratio_percent === "number" &&
                                   Number.isFinite(offerDetails.offered_ratio_percent)
                                     ? offerDetails.offered_ratio_percent
@@ -533,10 +545,10 @@ export function InvoiceList({
                                       ? Math.round((offeredAmount / invoiceValue) * 100)
                                       : offered.ratio)
                                 : offered.ratio;
-                              const offeredProfitRate = isOfferSent
+                              const offeredProfitRate = hasOfferSnapshot
                                 ? resolveOfferedProfitRate(offerDetails) ?? offered.profitRate
                                 : offered.profitRate;
-                              const offeredPlatformFeePercent = isOfferSent
+                              const offeredPlatformFeePercent = hasOfferSnapshot
                                 ? resolveOfferedPlatformFeeRatePercent(
                                     inv.offer_details as Record<string, unknown>
                                   )
@@ -1030,6 +1042,20 @@ export function InvoiceList({
                                       {isSendInvoiceOfferPending ? "Sending..." : "Send Offer"}
                                     </Button>
                                   ))}
+                                {phaseDeadlineDisplay ? (
+                                  <p
+                                    className={cn(
+                                      "mt-3 text-xs tabular-nums",
+                                      phaseDeadlineDisplay.urgency === "past"
+                                        ? "font-medium text-destructive"
+                                        : phaseDeadlineDisplay.urgency === "soon"
+                                          ? "font-medium text-amber-800"
+                                          : "text-muted-foreground"
+                                    )}
+                                  >
+                                    {phaseDeadlineDisplay.summary}
+                                  </p>
+                                ) : null}
                                 {isOfferSent && onResetItemToPending && (
                                   <Button
                                     type="button"
@@ -1116,6 +1142,16 @@ export function InvoiceList({
                     {invoiceOfferConfirm.risk_rating}
                   </span>
                 </div>
+                {acceptanceDeadlinePreview ? (
+                  <div className="flex justify-between items-baseline gap-4">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Acceptance deadline
+                    </span>
+                    <span className="text-right text-[15px] font-medium">
+                      {acceptanceDeadlinePreview.summary}
+                    </span>
+                  </div>
+                ) : null}
               </div>
               <DialogFooter className="gap-2 sm:gap-0">
                 <Button

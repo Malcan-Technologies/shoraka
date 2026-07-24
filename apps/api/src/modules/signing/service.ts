@@ -38,6 +38,7 @@ import {
   type SigningTemplateConfig,
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
+import { assertSigningDeadlineOpen } from "../../lib/phase-deadlines";
 import { logger } from "../../lib/logger";
 import { sendEmail } from "../../lib/email/ses-client";
 import { getS3ObjectBuffer, putS3ObjectBuffer } from "../../lib/s3/client";
@@ -562,6 +563,8 @@ export class SigningService {
       );
     }
 
+    assertSigningDeadlineOpen(acceptance);
+
     await this.assertAcceptanceDocumentsApprovedForSigning(application, workflow);
   }
 
@@ -774,6 +777,26 @@ export class SigningService {
       application.supporting_documents,
       template
     );
+    const offerDetails = contractId
+      ? (
+          await prisma.contract.findUnique({
+            where: { id: contractId },
+            select: { offer_details: true },
+          })
+        )?.offer_details
+      : invoiceId
+        ? (
+            await prisma.invoice.findUnique({
+              where: { id: invoiceId },
+              select: { offer_details: true },
+            })
+          )?.offer_details
+        : null;
+    const signingExpiresAt =
+      getOfferAcceptanceFromOfferDetails(offerDetails)?.signing_expires_at ?? null;
+    const resolvedExpiresAt =
+      input.expiresAt ??
+      (typeof signingExpiresAt === "string" ? new Date(signingExpiresAt) : null);
     return this.createDraftEnvelope({
       applicationId: input.applicationId,
       title: input.title?.trim() || "Signing package",
@@ -783,7 +806,7 @@ export class SigningService {
       templateConfig: template,
       bindings,
       createdByUserId: input.userId,
-      expiresAt: input.expiresAt ?? null,
+      expiresAt: resolvedExpiresAt,
       issuerUploadS3Keys,
     });
   }

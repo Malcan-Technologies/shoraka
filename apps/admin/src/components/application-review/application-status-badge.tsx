@@ -32,6 +32,7 @@ const STATUS_CONFIG: Record<string, {
   INVOICE_PENDING: { icon: DocumentTextIcon },
   INVOICES_SENT: { icon: PaperAirplaneIcon },
   OFFER_SENT: { icon: PaperAirplaneIcon },
+  OFFER_EXPIRED: { icon: ClockIcon },
   AMENDMENT_REQUESTED: { icon: ExclamationTriangleIcon },
   RESUBMITTED: { icon: ArrowPathIcon },
   APPROVED: { icon: CheckCircleIcon },

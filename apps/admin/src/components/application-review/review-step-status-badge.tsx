@@ -27,6 +27,7 @@ const STATUS_CONFIG: Record<
   AMENDMENT_REQUESTED: { Icon: ExclamationTriangleIcon },
   PENDING: { Icon: ClockIcon },
   OFFER_SENT: { Icon: PaperAirplaneIcon },
+  OFFER_EXPIRED: { Icon: ClockIcon },
   WITHDRAWN: { Icon: ArchiveBoxIcon },
 };
 

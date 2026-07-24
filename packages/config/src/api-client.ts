@@ -1217,6 +1217,15 @@ export class ApiClient {
     );
   }
 
+  async extendContractSigningDeadline(
+    applicationId: string
+  ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
+    return this.post<AdminApplicationActionResult>(
+      `/v1/admin/applications/${applicationId}/offers/contracts/extend-signing-deadline`,
+      {}
+    );
+  }
+
   async patchContractCustomerLargePrivate(
     applicationId: string,
     body: { is_large_private_company: boolean }
@@ -1247,6 +1256,16 @@ export class ApiClient {
         platformFeeRatePercent: payload.platformFeeRatePercent ?? null,
         risk_rating: payload.risk_rating,
       }
+    );
+  }
+
+  async extendInvoiceSigningDeadline(
+    applicationId: string,
+    invoiceId: string
+  ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
+    return this.post<AdminApplicationActionResult>(
+      `/v1/admin/applications/${applicationId}/offers/invoices/${invoiceId}/extend-signing-deadline`,
+      {}
     );
   }
 
@@ -1987,7 +2006,6 @@ export class ApiClient {
 
   async createProduct(data: {
     workflow: unknown[];
-    offer_expiry_days?: number | null;
     marketplace_listing_duration_days?: number | null;
     service_fee_rate_percent?: number | null;
     default_facility_fee_rate_percent?: number | null;
@@ -2000,7 +2018,6 @@ export class ApiClient {
     data: {
       workflow?: unknown[];
       completeCreate?: boolean;
-      offer_expiry_days?: number | null;
       marketplace_listing_duration_days?: number | null;
       service_fee_rate_percent?: number | null;
       default_facility_fee_rate_percent?: number | null;

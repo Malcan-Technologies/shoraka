@@ -12,7 +12,7 @@ Centralized status badge config for application, product, and admin pages. Singl
 | **submitted** | Waiting for admin | Submitted, Resubmitted | #EFF6FF | #2563EB |
 | **in-progress** | Admin processing | Under Review, Contract Pending/Sent, Invoice Pending/Sent | #EEF2FF | #4F46E5 |
 | **success** | Done | Approved, Completed, Offer Sent, Contract Accepted | #ECFDF2 | #15803D |
-| **rejected** | Negative outcome | Rejected, Withdrawn | #FEF2F2 | #DC2626 |
+| **rejected** | Negative outcome | Rejected, Withdrawn, Offer Expired | #FEF2F2 | #DC2626 |
 | **neutral** | Inactive | Pending, Archived | #F1F5F9 | #64748B |
 
 Classes: `bg-status-{group}-bg text-status-{group}-text`. Add `packages/config/src` to Tailwind content.
@@ -29,6 +29,7 @@ Classes: `bg-status-{group}-bg text-status-{group}-text`. Add `packages/config/s
 | CONTRACT_ACCEPTED | Contract Accepted |
 | INVOICE_PENDING | Invoice Pending |
 | INVOICES_SENT | Invoices Sent |
+| OFFER_EXPIRED | Offer Expired |
 | OFFER_SENT | Offer Sent |
 | AMENDMENT_REQUESTED | Amendment Requested |
 | RESUBMITTED | Resubmitted |

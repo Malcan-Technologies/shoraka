@@ -31,6 +31,11 @@ APPLICATION STATUS
     Admin sent contract offer. Issuer must accept or reject.
     Issuer: yes (shows as Offer Received). Admin: yes.
 
+  OFFER_EXPIRED
+    Contract or invoice offer deadline passed and the expiry job ran.
+    Issuer: yes (shows as Offer Expired). Admin: yes (filterable).
+    Admin can Send Offer again → CONTRACT_SENT / INVOICES_SENT.
+
   CONTRACT_ACCEPTED
     Issuer accepted contract. Admin still needs to send invoice offers.
     Issuer: yes (shows as Under Review). Admin: yes.
@@ -143,6 +148,7 @@ WHAT THE USER SEES (STATUS ALIAS)
   CONTRACT_ACCEPTED            Contract Accepted
   INVOICE_PENDING              Invoice Pending
   INVOICES_SENT                Invoices Sent
+  OFFER_EXPIRED                Offer Expired
 
 ================================================================================
 ADMIN STAGE STATUS — WHEN AND LOGIC
@@ -164,6 +170,13 @@ ADMIN STAGE STATUS — WHEN AND LOGIC
            Application status -> CONTRACT_SENT.
     Set by: sendContractOffer (admin service).
     Default filter: no (not in admin application queue by default).
+
+  OFFER_EXPIRED
+    When: Acceptance or signing deadline passed; expiry job ran.
+    Logic: Contract/invoice status -> OFFER_EXPIRED (offer_details kept).
+           Application status -> OFFER_EXPIRED.
+    Set by: acceptance-signing-expiry job.
+    Default filter: no (available in status filter as Offer Expired).
 
   CONTRACT_ACCEPTED
     When: Issuer accepted contract. Admin still needs to send invoice offers.
@@ -210,8 +223,10 @@ WITHDRAW REASONS
   USER_CANCELLED
     You clicked cancel.
 
-  OFFER_EXPIRED
-    The offer ran out of time.
+  OFFER_REJECTED
+    Issuer or admin declined the offer.
+
+Offer clock expiry uses entity status OFFER_EXPIRED (not a withdraw reason).
 
 ================================================================================
 END

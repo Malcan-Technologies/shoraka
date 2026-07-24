@@ -168,6 +168,10 @@ export interface NormalizedApplication {
   withdrawReason?: WithdrawReason;
   /** True when contract offer was accepted after signing envelope completion. */
   signedContractOfferLetterAvailable: boolean;
+  /** Active accept/signing deadline for the primary OFFER_SENT offer, if stamped. */
+  offerPhaseDeadline?: import("@/lib/offer-utils").OfferPhaseDeadlineDisplay | null;
+  /** Primary offer acceptance phase (contract or invoice-only offer), when present. */
+  offerAcceptanceStatus?: string | null;
 }
 
 /* =============================================================================
@@ -191,11 +195,6 @@ export const STATUS: Record<
   rejected: { label: "Rejected", color: statusColorClass("rejected"), sortOrder: 1 },
   amendment_requested: { label: "Action Required", color: statusColorClass("amendment_requested"), sortOrder: 2 },
   offer_sent: { label: "Offer Received", color: statusColorClass("offer_sent"), sortOrder: 3 },
-  offer_awaiting_review: {
-    label: "Awaiting CashSouk review",
-    color: statusColorClass("offer_awaiting_review"),
-    sortOrder: 3,
-  },
   under_review: { label: "Under Review", color: statusColorClass("under_review"), sortOrder: 4 },
   submitted: { label: "Submitted", color: statusColorClass("submitted"), sortOrder: 5 },
   resubmitted: { label: "Resubmitted", color: statusColorClass("resubmitted"), sortOrder: 6 },
@@ -236,7 +235,6 @@ export const FILTER_STATUSES = [
   "under_review",
   "amendment_requested",
   "offer_sent",
-  "offer_awaiting_review",
   "accepted",
   "completed",
   "withdrawn",
@@ -273,6 +271,10 @@ function hasAmendmentRequested(invoiceStatuses: string[]): boolean {
 
 function hasOfferSent(invoiceStatuses: string[]): boolean {
   return invoiceStatuses.some((s) => String(s ?? "").toUpperCase() === "OFFER_SENT");
+}
+
+function hasOfferExpired(invoiceStatuses: string[]): boolean {
+  return invoiceStatuses.some((s) => String(s ?? "").toUpperCase() === "OFFER_EXPIRED");
 }
 
 /* =============================================================================
@@ -312,10 +314,15 @@ export function getCardStatus(input: {
     if (wr === WithdrawReason.OFFER_REJECTED) {
       return { badgeKey: "declined", displayLabel: "Declined", showReviewOffer: false, showMakeAmendments: false };
     }
-    if (wr === WithdrawReason.OFFER_EXPIRED) {
-      return { badgeKey: "offer_expired", displayLabel: "Offer Expired", showReviewOffer: false, showMakeAmendments: false };
-    }
     return { badgeKey: "withdrawn", displayLabel: "Withdrawn", showReviewOffer: false, showMakeAmendments: false };
+  }
+  if (app === "OFFER_EXPIRED") {
+    return {
+      badgeKey: "offer_expired",
+      displayLabel: "Offer Expired",
+      showReviewOffer: false,
+      showMakeAmendments: false,
+    };
   }
   if (app === "ARCHIVED") {
     return { badgeKey: "archived", displayLabel: "Archived", showReviewOffer: false, showMakeAmendments: false };
@@ -329,12 +336,23 @@ export function getCardStatus(input: {
     return { badgeKey: "amendment_requested", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: false };
   }
 
+  /** Durable offer expiry (entity status) — same presentation as past-deadline soft window. */
+  if (contract === "OFFER_EXPIRED" || hasOfferExpired(invoiceStatuses)) {
+    return {
+      badgeKey: "offer_expired",
+      displayLabel: "Offer Expired",
+      showReviewOffer: false,
+      showMakeAmendments: false,
+    };
+  }
+
   /** Offer Waiting: contract or any invoice has OFFER_SENT. Card-level Review Offer only for contract offers. */
   if (contractOfferSent || anyInvoiceOfferSent) {
+    // Acceptance docs submitted — reuse Under Review (not a separate badge). CTA stays hidden.
     if (acceptanceStatus === "PENDING_ADMIN_REVIEW") {
       return {
-        badgeKey: "offer_awaiting_review",
-        displayLabel: "Awaiting CashSouk review",
+        badgeKey: "under_review",
+        displayLabel: "Under Review",
         showReviewOffer: false,
         showMakeAmendments: false,
       };
@@ -404,7 +422,6 @@ export function countPendingIssuerOfferReviewsAcross(
 export const APPLICATION_STATUS_PRIORITY: Record<string, number> = Object.freeze({
   amendment_requested: 1,
   offer_sent: 2,
-  offer_awaiting_review: 2,
   under_review: 3,
   submitted: 4,
   resubmitted: 5,

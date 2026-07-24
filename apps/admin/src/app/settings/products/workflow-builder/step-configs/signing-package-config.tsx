@@ -4,9 +4,14 @@ import * as React from "react";
 import {
   SIGNING_ROLE_REGISTRY,
   createDefaultRoleFromRegistry,
+  DEFAULT_SIGNING_DEADLINE,
+  parseSigningDeadlineConfig,
   parseSigningPackagesConfig,
   parseSigningTemplateConfig,
   sanitizeSigningTemplateConfig,
+  writeSigningDeadlineConfig,
+  writeSigningPackagesConfig,
+  type PhaseDeadlineConfig,
   type SigningDocumentSource,
   type SigningPackagesConfig,
   type SigningRoleKey,
@@ -27,6 +32,7 @@ import {
 } from "../../../../../components/ui/select";
 import { INPUT_CLASS, SELECT_TRIGGER_CLASS, SECTION_GAP } from "../product-form-input-styles";
 import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { PhaseDeadlineConfigEditor } from "./phase-deadline-config-editor";
 
 const SYSTEM_SIGNING_TEMPLATES = [
   {
@@ -469,9 +475,30 @@ export function SigningPackageConfig({
 }: {
   /** Financing-type step config (or packages object). Migrates legacy shapes on read. */
   config: unknown;
-  onChange: (packages: SigningPackagesConfig) => void;
+  onChange: (nextFinancingConfig: Record<string, unknown>) => void;
 }) {
+  const base = React.useMemo(() => (config as Record<string, unknown>) ?? {}, [config]);
   const packages = React.useMemo(() => parseSigningPackagesConfig(config), [config]);
+  const [deadline, setDeadline] = React.useState<PhaseDeadlineConfig>(
+    () => parseSigningDeadlineConfig(config) ?? DEFAULT_SIGNING_DEADLINE
+  );
+
+  React.useEffect(() => {
+    setDeadline(parseSigningDeadlineConfig(config) ?? DEFAULT_SIGNING_DEADLINE);
+  }, [config]);
+
+  const persistPackages = (nextPackages: SigningPackagesConfig) => {
+    onChange(
+      writeSigningDeadlineConfig(writeSigningPackagesConfig(base, nextPackages), deadline)
+    );
+  };
+
+  const persistDeadline = (nextDeadline: PhaseDeadlineConfig) => {
+    setDeadline(nextDeadline);
+    onChange(
+      writeSigningDeadlineConfig(writeSigningPackagesConfig(base, packages), nextDeadline)
+    );
+  };
 
   return (
     <div className={cn("grid", SECTION_GAP)}>
@@ -485,12 +512,19 @@ export function SigningPackageConfig({
         </p>
       </div>
 
+      <PhaseDeadlineConfigEditor
+        title="Signing deadline"
+        description="Clock starts when admin approves acceptance documents (approved for signing). Issuer must complete the execution pack before it lapses."
+        value={deadline}
+        onChange={persistDeadline}
+      />
+
       <SigningPackageSection
         title="Documents and signers"
         description="Issuers assign people and send signing emails when accepting a contract offer or an invoice-only invoice offer."
         helperText="Contract-linked invoice offers do not use this package — Accept/Decline after the contract envelope is completed."
         config={packages}
-        onChange={onChange}
+        onChange={persistPackages}
       />
     </div>
   );

@@ -154,9 +154,11 @@ function ApplicationCard({
     () => application.invoices.some((invoice) => invoice.status === "OFFER_SENT"),
     [application.invoices]
   );
+  const isAwaitingAcceptanceReview =
+    String(application.offerAcceptanceStatus ?? "").toUpperCase() === "PENDING_ADMIN_REVIEW";
   const shouldStartExpanded =
     application.status === "offer_sent" ||
-    application.status === "offer_awaiting_review" ||
+    isAwaitingAcceptanceReview ||
     hasInvoiceOfferReceived;
   const [expanded, setExpanded] = React.useState(shouldStartExpanded);
 
@@ -211,17 +213,26 @@ function ApplicationCard({
                 </Button>
               )}
               <div className="flex flex-wrap items-center gap-2 justify-end">
-              {cardStatus.badgeKey === "offer_awaiting_review" && (
-                <p className="text-sm text-muted-foreground max-w-[16rem] text-right leading-5">
-                  CashSouk is reviewing your acceptance documents.
-                </p>
-              )}
+              {cardStatus.badgeKey === "offer_expired" ? (
+                <div className="flex flex-col items-end gap-1 max-w-[16rem] text-right">
+                  {application.offerPhaseDeadline ? (
+                    <p className="text-sm text-destructive leading-5">
+                      {application.offerPhaseDeadline.summary}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-destructive leading-5">Offer Expired</p>
+                  )}
+                  <p className="text-xs text-muted-foreground leading-4">
+                    If a new offer is sent, it will appear here.
+                  </p>
+                </div>
+              ) : null}
               {cardStatus.showReviewOffer &&
                 hasContract &&
                 application.contractId &&
                 application.contractStatus === "OFFER_SENT" &&
                 onReviewContractOffer && (
-                  <div className="flex flex-col items-center gap-1">
+                  <div className="flex flex-col items-end gap-1">
                     <Button
                       type="button"
                       size="sm"
@@ -234,6 +245,11 @@ function ApplicationCard({
                     >
                       Review Contract Financing Offer
                     </Button>
+                    {application.offerPhaseDeadline ? (
+                      <p className="text-xs leading-4 text-right max-w-[14rem] text-muted-foreground">
+                        {application.offerPhaseDeadline.summary}
+                      </p>
+                    ) : null}
                   </div>
                 )}
               </div>

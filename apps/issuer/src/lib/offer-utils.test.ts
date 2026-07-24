@@ -1,5 +1,10 @@
 import { offerAcceptanceAllowsIssuerReviewCta } from "@cashsouk/types";
-import { getOfferStatus, shouldShowIssuerReviewOfferCta } from "./offer-utils";
+import {
+  getOfferPhaseDeadlineDisplay,
+  getOfferStatus,
+  getPhaseDeadlineUrgency,
+  shouldShowIssuerReviewOfferCta,
+} from "./offer-utils";
 
 describe("offerAcceptanceAllowsIssuerReviewCta", () => {
   it("allows legacy offers with no status", () => {
@@ -30,7 +35,7 @@ describe("shouldShowIssuerReviewOfferCta", () => {
     expect(
       shouldShowIssuerReviewOfferCta({
         status: "OFFER_SENT",
-        offer_details: { expires_at: "2099-01-01T00:00:00.000Z" },
+        offer_details: {},
       })
     ).toBe(true);
   });
@@ -40,8 +45,10 @@ describe("shouldShowIssuerReviewOfferCta", () => {
       shouldShowIssuerReviewOfferCta({
         status: "OFFER_SENT",
         offer_details: {
-          expires_at: "2099-01-01T00:00:00.000Z",
-          offer_acceptance: { status: "PENDING_ADMIN_REVIEW" },
+          offer_acceptance: {
+            status: "PENDING_ADMIN_REVIEW",
+            acceptance_expires_at: "2099-01-01T00:00:00.000Z",
+          },
         },
       })
     ).toBe(false);
@@ -52,8 +59,10 @@ describe("shouldShowIssuerReviewOfferCta", () => {
       shouldShowIssuerReviewOfferCta({
         status: "OFFER_SENT",
         offer_details: {
-          expires_at: "2099-01-01T00:00:00.000Z",
-          offer_acceptance: { status: "PENDING_ISSUER" },
+          offer_acceptance: {
+            status: "PENDING_ISSUER",
+            acceptance_expires_at: "2099-01-01T00:00:00.000Z",
+          },
         },
       })
     ).toBe(true);
@@ -61,8 +70,10 @@ describe("shouldShowIssuerReviewOfferCta", () => {
       shouldShowIssuerReviewOfferCta({
         status: "OFFER_SENT",
         offer_details: {
-          expires_at: "2099-01-01T00:00:00.000Z",
-          offer_acceptance: { status: "APPROVED_FOR_SIGNING" },
+          offer_acceptance: {
+            status: "APPROVED_FOR_SIGNING",
+            signing_expires_at: "2099-01-01T00:00:00.000Z",
+          },
         },
       })
     ).toBe(true);
@@ -72,20 +83,24 @@ describe("shouldShowIssuerReviewOfferCta", () => {
     const item = {
       status: "OFFER_SENT",
       offer_details: {
-        expires_at: "2099-01-01T00:00:00.000Z",
-        offer_acceptance: { status: "PENDING_ADMIN_REVIEW" },
+        offer_acceptance: {
+          status: "PENDING_ADMIN_REVIEW",
+          acceptance_expires_at: "2099-01-01T00:00:00.000Z",
+        },
       },
     };
     expect(getOfferStatus(item)).toBe("Offer received");
     expect(shouldShowIssuerReviewOfferCta(item)).toBe(false);
   });
 
-  it("hides CTA when offer is expired", () => {
+  it("hides CTA when acceptance deadline has passed", () => {
     const item = {
       status: "OFFER_SENT",
       offer_details: {
-        expires_at: "2000-01-01T00:00:00.000Z",
-        offer_acceptance: { status: "PENDING_ISSUER" },
+        offer_acceptance: {
+          status: "PENDING_ISSUER",
+          acceptance_expires_at: "2000-01-01T00:00:00.000Z",
+        },
       },
     };
     expect(getOfferStatus(item)).toBe("Offer expired");
@@ -94,16 +109,103 @@ describe("shouldShowIssuerReviewOfferCta", () => {
 });
 
 describe("getOfferStatus", () => {
-  it("returns Offer received when expires_at is null", () => {
+  it("returns Offer received when no deadline is stamped", () => {
     expect(
       getOfferStatus({
         status: "OFFER_SENT",
-        offer_details: { expires_at: null },
+        offer_details: { offer_acceptance: { status: "PENDING_ISSUER" } },
       })
     ).toBe("Offer received");
   });
 
-  it("returns null when not OFFER_SENT", () => {
-    expect(getOfferStatus({ status: "APPROVED", offer_details: { expires_at: null } })).toBe(null);
+  it("returns null when not OFFER_SENT or OFFER_EXPIRED", () => {
+    expect(getOfferStatus({ status: "APPROVED", offer_details: {} })).toBe(null);
+  });
+
+  it("returns Offer expired for durable OFFER_EXPIRED status", () => {
+    expect(
+      getOfferStatus({
+        status: "OFFER_EXPIRED",
+        offer_details: {
+          offer_acceptance: {
+            status: "PENDING_ISSUER",
+            acceptance_expires_at: "2000-01-01T00:00:00.000Z",
+          },
+        },
+      })
+    ).toBe("Offer expired");
+    expect(
+      shouldShowIssuerReviewOfferCta({
+        status: "OFFER_EXPIRED",
+        offer_details: {
+          offer_acceptance: {
+            status: "PENDING_ISSUER",
+            acceptance_expires_at: "2000-01-01T00:00:00.000Z",
+          },
+        },
+      })
+    ).toBe(false);
+  });
+});
+
+describe("getPhaseDeadlineUrgency", () => {
+  const now = new Date("2026-07-22T06:00:00.000Z");
+
+  it("is none when more than 2 days remain", () => {
+    expect(getPhaseDeadlineUrgency("2026-07-29T06:00:00.000Z", now)).toBe("none");
+  });
+
+  it("is soon when within 2 days", () => {
+    expect(getPhaseDeadlineUrgency("2026-07-24T06:00:00.000Z", now)).toBe("soon");
+    expect(getPhaseDeadlineUrgency("2026-07-23T06:00:00.000Z", now)).toBe("soon");
+  });
+
+  it("is past when the deadline has passed", () => {
+    expect(getPhaseDeadlineUrgency("2026-07-21T06:00:00.000Z", now)).toBe("past");
+  });
+});
+
+describe("getOfferPhaseDeadlineDisplay", () => {
+  const now = new Date("2026-07-22T06:00:00.000Z");
+
+  it("includes time in live summary with Accept by label", () => {
+    const display = getOfferPhaseDeadlineDisplay(
+      {
+        offer_acceptance: {
+          status: "PENDING_ISSUER",
+          acceptance_expires_at: "2026-07-23T14:00:00.000Z",
+        },
+      },
+      now
+    );
+    expect(display?.label).toBe("Accept by");
+    expect(display?.urgency).toBe("soon");
+    expect(display?.summary).toMatch(/^Accept by .+, .+ · .+ left$/);
+    expect(display?.summary).toContain(display!.absolute);
+  });
+
+  it("uses Expired label and datetime-only summary when past", () => {
+    const display = getOfferPhaseDeadlineDisplay(
+      {
+        offer_acceptance: {
+          status: "PENDING_ISSUER",
+          acceptance_expires_at: "2026-07-21T06:36:00.000Z",
+        },
+      },
+      now
+    );
+    expect(display?.label).toBe("Expired");
+    expect(display?.urgency).toBe("past");
+    expect(display?.summary).toBe(`Expired ${display!.absolute}`);
+    expect(display?.summary).not.toContain("Accept by");
+    expect(display?.summary).not.toContain("·");
+  });
+
+  it("returns null when no deadline is stamped", () => {
+    expect(
+      getOfferPhaseDeadlineDisplay({
+        offer_acceptance: { status: "PENDING_ISSUER" },
+      })
+    ).toBe(null);
   });
 });
