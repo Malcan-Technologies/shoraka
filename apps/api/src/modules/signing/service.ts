@@ -57,6 +57,8 @@ import {
   type OfferLetterSignatory,
 } from "../applications/offer-letter-pdf";
 import { applicationService } from "../applications/service";
+import { logApplicationActivity } from "../applications/logs/service";
+import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
 import {
   signingRepository,
   type SigningApplicationContext,
@@ -568,6 +570,35 @@ export class SigningService {
     await this.assertAcceptanceDocumentsApprovedForSigning(application, workflow);
   }
 
+  private async logSigningPackageActivity(params: {
+    userId: string;
+    applicationId: string;
+    eventType: ApplicationLogEventType;
+    envelope: {
+      id: string;
+      contract_id?: string | null;
+      invoice_id?: string | null;
+      title?: string | null;
+    };
+    portal?: ActivityPortal;
+    extraMetadata?: Record<string, unknown>;
+  }): Promise<void> {
+    await logApplicationActivity({
+      userId: params.userId,
+      applicationId: params.applicationId,
+      entityId: params.envelope.id,
+      portal: params.portal ?? ActivityPortal.ISSUER,
+      eventType: params.eventType,
+      metadata: {
+        envelope_id: params.envelope.id,
+        ...(params.envelope.contract_id ? { contract_id: params.envelope.contract_id } : {}),
+        ...(params.envelope.invoice_id ? { invoice_id: params.envelope.invoice_id } : {}),
+        ...(params.envelope.title?.trim() ? { envelope_title: params.envelope.title.trim() } : {}),
+        ...params.extraMetadata,
+      },
+    });
+  }
+
   /** Only APPROVED_FOR_SIGNING may advance to SIGNING_IN_PROGRESS; any other phase is a no-op. */
   private async markOfferAcceptanceSigningInProgress(
     envelope: SigningEnvelopeWithGraph
@@ -808,6 +839,14 @@ export class SigningService {
       createdByUserId: input.userId,
       expiresAt: resolvedExpiresAt,
       issuerUploadS3Keys,
+    }).then(async (envelope) => {
+      await this.logSigningPackageActivity({
+        userId: input.userId,
+        applicationId: input.applicationId,
+        eventType: ApplicationLogEventType.SIGNING_PACKAGE_CREATED,
+        envelope,
+      });
+      return envelope;
     });
   }
 
@@ -1185,6 +1224,14 @@ export class SigningService {
 
     await this.repo.markEnvelopeSent(id);
     await this.markOfferAcceptanceSigningInProgress(envelope);
+    if (envelope.created_by_user_id) {
+      await this.logSigningPackageActivity({
+        userId: envelope.created_by_user_id,
+        applicationId: envelope.application_id,
+        eventType: ApplicationLogEventType.SIGNING_PACKAGE_SENT,
+        envelope,
+      });
+    }
     return this.getEnvelope(id);
   }
 
@@ -1708,8 +1755,25 @@ export class SigningService {
         nextEnvelopeStatus === "COMPLETED"
       );
       if (nextEnvelopeStatus === "COMPLETED") {
+        if (envelope.created_by_user_id) {
+          await this.logSigningPackageActivity({
+            userId: envelope.created_by_user_id,
+            applicationId: envelope.application_id,
+            eventType: ApplicationLogEventType.SIGNING_PACKAGE_COMPLETED,
+            envelope,
+          });
+        }
         await this.finalizeCompletedEnvelopeOffer(envelope);
       } else if (nextEnvelopeStatus === "DECLINED") {
+        if (envelope.created_by_user_id) {
+          await this.logSigningPackageActivity({
+            userId: envelope.created_by_user_id,
+            applicationId: envelope.application_id,
+            eventType: ApplicationLogEventType.SIGNING_PACKAGE_VOIDED,
+            envelope,
+            extraMetadata: { void_reason: "declined" },
+          });
+        }
         await this.rollbackOfferAcceptanceAfterEnvelopeClosed(envelope);
       }
     }
@@ -1752,13 +1816,28 @@ export class SigningService {
     }
   }
 
-  async voidEnvelope(id: string, reason: string | null): Promise<SigningEnvelopeDto> {
+  async voidEnvelope(
+    id: string,
+    reason: string | null,
+    options?: { userId?: string; portal?: ActivityPortal }
+  ): Promise<SigningEnvelopeDto> {
     const envelope = await this.requireEnvelope(id);
     if (envelope.status === "COMPLETED" || envelope.status === "VOIDED") {
       throw new AppError(409, "SIGNING_ENVELOPE_NOT_VOIDABLE", "This envelope can no longer be voided.");
     }
     await this.repo.voidEnvelope(id, reason);
     await this.rollbackOfferAcceptanceAfterEnvelopeClosed(envelope);
+    const actorUserId = options?.userId ?? envelope.created_by_user_id;
+    if (actorUserId) {
+      await this.logSigningPackageActivity({
+        userId: actorUserId,
+        applicationId: envelope.application_id,
+        eventType: ApplicationLogEventType.SIGNING_PACKAGE_VOIDED,
+        envelope,
+        portal: options?.portal ?? ActivityPortal.ADMIN,
+        extraMetadata: reason?.trim() ? { void_reason: reason.trim() } : undefined,
+      });
+    }
     return this.getEnvelope(id);
   }
 

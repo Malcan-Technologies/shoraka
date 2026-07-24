@@ -68,7 +68,7 @@ import {
 } from "./amendments/service";
 import { prisma } from "../../lib/prisma";
 import { logApplicationActivity } from "./logs/service";
-import { ActivityPortal } from "./logs/types";
+import { ActivityPortal, ApplicationLogEventType } from "./logs/types";
 import { assertApplicationProcessingFeePaid } from "../payment/processing-fee-service";
 import {
   generateContractOfferLetterStream,
@@ -1748,6 +1748,57 @@ export class ApplicationService {
       await this.resetAcceptanceDocumentsReviewInTx(tx, applicationId, application, workflow);
     });
 
+    const contractNumber = (
+      application as {
+        contract?: { contract_details?: { number?: string | number } | null } | null;
+      }
+    ).contract?.contract_details?.number;
+    const offerRecord =
+      (
+        application as {
+          contract?: { offer_details?: Record<string, unknown> | null } | null;
+        }
+      ).contract?.offer_details ?? null;
+
+    await logApplicationActivity({
+      userId,
+      applicationId,
+      entityId: contractId,
+      portal: ActivityPortal.ISSUER,
+      eventType: ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_SUBMITTED,
+      metadata: {
+        contract_id: contractId,
+        ...(contractNumber != null && String(contractNumber).trim() !== ""
+          ? { contract_number: String(contractNumber).trim() }
+          : {}),
+        offer_acceptance_status: nextStatus,
+        submitted_at: now,
+        ...(offerRecord?.offered_facility != null
+          ? { offered_facility: Number(offerRecord.offered_facility) || 0 }
+          : {}),
+        ...(offerRecord?.requested_facility != null
+          ? { requested_facility: Number(offerRecord.requested_facility) || 0 }
+          : {}),
+      },
+    });
+
+    if (nextStatus === "APPROVED_FOR_SIGNING") {
+      await logApplicationActivity({
+        userId,
+        applicationId,
+        entityId: contractId,
+        portal: ActivityPortal.ISSUER,
+        eventType: ApplicationLogEventType.CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING,
+        metadata: {
+          contract_id: contractId,
+          ...(contractNumber != null && String(contractNumber).trim() !== ""
+            ? { contract_number: String(contractNumber).trim() }
+            : {}),
+          auto_approved: true,
+        },
+      });
+    }
+
     return this.repository.findById(applicationId) as Promise<Application>;
   }
 
@@ -1855,12 +1906,53 @@ export class ApplicationService {
       await this.resetAcceptanceDocumentsReviewInTx(tx, applicationId, application, workflow);
     });
 
+    const invWithDetails = (
+      application as { invoices?: { id: string; details?: { number?: string | number }; offer_details?: Record<string, unknown> | null }[] }
+    ).invoices?.find((item) => item.id === invoiceId);
+    const invoiceNumber =
+      invWithDetails?.details?.number != null && String(invWithDetails.details.number).trim() !== ""
+        ? String(invWithDetails.details.number).trim()
+        : undefined;
+    const offerRecord = invWithDetails?.offer_details ?? null;
+
+    await logApplicationActivity({
+      userId,
+      applicationId,
+      entityId: invoiceId,
+      portal: ActivityPortal.ISSUER,
+      eventType: ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_SUBMITTED,
+      metadata: {
+        invoice_id: invoiceId,
+        ...(invoiceNumber ? { invoice_number: invoiceNumber } : {}),
+        offer_acceptance_status: nextStatus,
+        submitted_at: now,
+        ...(offerRecord?.offered_amount != null
+          ? { offered_amount: Number(offerRecord.offered_amount) || 0 }
+          : {}),
+        ...(offerRecord?.requested_amount != null
+          ? { requested_amount: Number(offerRecord.requested_amount) || 0 }
+          : {}),
+      },
+    });
+
+    if (nextStatus === "APPROVED_FOR_SIGNING") {
+      await logApplicationActivity({
+        userId,
+        applicationId,
+        entityId: invoiceId,
+        portal: ActivityPortal.ISSUER,
+        eventType: ApplicationLogEventType.INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING,
+        metadata: {
+          invoice_id: invoiceId,
+          ...(invoiceNumber ? { invoice_number: invoiceNumber } : {}),
+          auto_approved: true,
+        },
+      });
+    }
+
     return this.repository.findById(applicationId) as Promise<Application>;
   }
 
-  /**
-   * Accept or reject a contract offer. Issuer must be a member of the application's organization.
-   */
   /**
    * Phased offer products must complete via envelope (or non-prod skipSigning bypass).
    * Prevents silent direct accept when SigningCloud env is missing/misconfigured.

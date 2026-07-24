@@ -103,7 +103,7 @@ import { resolveCorporatePersonMergeKey } from "../regtank/helpers/corporate-per
 import { buildAdminPeopleList, buildDirectorShareholderPeopleList } from "./build-people-list";
 import { notifyIssuerDirectorShareholderActionRequired } from "../notification/director-shareholder-notifications";
 import { logApplicationActivity } from "../applications/logs/service";
-import { ActivityPortal } from "../applications/logs/types";
+import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
 
 export interface AdminLogContext {
   ipAddress?: string | null;
@@ -7015,7 +7015,7 @@ export class AdminService {
    * - Reset of approvals rolls APPROVED_FOR_SIGNING → PENDING_ADMIN_REVIEW
    */
   private async syncOfferAcceptancePhaseFromAcceptanceDocs(
-    _applicationId: string,
+    applicationId: string,
     application: {
       financing_type?: unknown;
       product_version?: number | null;
@@ -7120,6 +7120,16 @@ export class AdminService {
           where: { id: contract.id },
           data: { offer_details: updated as Prisma.InputJsonValue },
         });
+        if (target === "APPROVED_FOR_SIGNING") {
+          await logApplicationActivity({
+            userId: reviewerUserId,
+            applicationId,
+            entityId: contract.id,
+            portal: ActivityPortal.ADMIN,
+            eventType: ApplicationLogEventType.CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING,
+            metadata: { contract_id: contract.id },
+          });
+        }
       }
     }
 
@@ -7147,6 +7157,16 @@ export class AdminService {
         where: { id: invoice.id },
         data: { offer_details: updated as Prisma.InputJsonValue },
       });
+      if (target === "APPROVED_FOR_SIGNING") {
+        await logApplicationActivity({
+          userId: reviewerUserId,
+          applicationId,
+          entityId: invoice.id,
+          portal: ActivityPortal.ADMIN,
+          eventType: ApplicationLogEventType.INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING,
+          metadata: { invoice_id: invoice.id },
+        });
+      }
     }
   }
 

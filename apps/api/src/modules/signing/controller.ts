@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireAuth, requirePermission } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { signingService } from "./service";
+import { ActivityPortal } from "../applications/logs/types";
 import {
   createIssuerEnvelopeSchema,
   voidEnvelopeSchema,
@@ -68,7 +69,13 @@ async function sendEnvelope(req: Request, res: Response, next: NextFunction) {
 async function voidEnvelope(req: Request, res: Response, next: NextFunction) {
   try {
     const { reason } = voidEnvelopeSchema.parse(req.body ?? {});
-    ok(res, await signingService.voidEnvelope(req.params.id, reason ?? null));
+    ok(
+      res,
+      await signingService.voidEnvelope(req.params.id, reason ?? null, {
+        userId: getUserId(req),
+        portal: ActivityPortal.ADMIN,
+      })
+    );
   } catch (e) {
     next(e);
   }

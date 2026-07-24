@@ -44,6 +44,46 @@ describe("ApplicationLogAdapter", () => {
     });
   });
 
+  it("builds presentation for offer acceptance and signing package events", () => {
+    expect(adapter.buildPresentation("CONTRACT_OFFER_ACCEPTANCE_SUBMITTED")).toEqual({
+      title: "Contract Acceptance Submitted",
+      description: "You submitted offer acceptance documents for CashSouk review.",
+    });
+    expect(adapter.buildPresentation("SIGNING_PACKAGE_SENT")).toEqual({
+      title: "Signing Package Sent",
+      description: "The signing package was sent to all required signers.",
+    });
+    expect(adapter.buildPresentation("SIGNING_PACKAGE_COMPLETED")).toEqual({
+      title: "Signing Package Completed",
+      description: "All required signers completed the signing package.",
+    });
+    expect(adapter.buildPresentation("CONTRACT_OFFER_ACCEPTED")).toEqual({
+      title: "Contract Offer Signed",
+      description: "All signers completed the contract offer signing package.",
+    });
+  });
+
+  it("includes curated issuer-facing offer acceptance and signing events", () => {
+    const eventTypes = adapter.getEventTypes();
+    expect(eventTypes).toEqual(
+      expect.arrayContaining([
+        "CONTRACT_OFFER_ACCEPTANCE_SUBMITTED",
+        "INVOICE_OFFER_ACCEPTANCE_SUBMITTED",
+        "SIGNING_PACKAGE_SENT",
+        "CONTRACT_OFFER_ACCEPTED",
+        "INVOICE_OFFER_ACCEPTED",
+      ])
+    );
+    expect(eventTypes).not.toEqual(
+      expect.arrayContaining([
+        "CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING",
+        "SIGNING_PACKAGE_CREATED",
+        "SIGNING_PACKAGE_COMPLETED",
+        "SIGNING_PACKAGE_VOIDED",
+      ])
+    );
+  });
+
   it("transforms record to unified activity", () => {
     const now = new Date();
     const record: any = {
